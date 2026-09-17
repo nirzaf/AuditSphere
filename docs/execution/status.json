@@ -1,0 +1,62 @@
+{
+  "schemaVersion": "1",
+  "specificationVersion": "5.0",
+  "specificationSha256": null,
+  "repository": "C:/Users/DELL/repos/AuditSphere",
+  "baseCommit": null,
+  "sdk": {
+    "version": "10.0.300",
+    "efCore": "10.0.12",
+    "efTool": "10.0.12",
+    "npgsqlEf": "10.0.0",
+    "postgres": "18.6 user-local port 5433 (spec-required major; 16.8 cluster retained stopped at .pgsql16 for rollback)"
+  },
+  "active": {
+    "packageId": "A01/ND-01 toolchain + AT-07 validation slice",
+    "issueNumber": null,
+    "branch": null,
+    "pullRequestNumber": null,
+    "headCommit": null,
+    "implementationStatus": "FOUNDATION_RUNNABLE_PLUS_AT07_SLICE",
+    "acceptanceStatus": "PARTIAL_NT01_NT09_NT10_AT07_SLICE_SIMULATION_ONLY"
+  },
+  "testEvidence": [
+    {
+      "command": "dotnet build AuditSphereOps.slnx",
+      "result": "Build succeeded, 0 warnings, 0 errors"
+    },
+    {
+      "command": "dotnet test AuditSphereOps.slnx",
+      "result": "Passed 6/6 on .NET 10 (5 arithmetic + 1 PostgreSQL integration test)"
+    },
+    {
+      "command": "dotnet ef migrations add TrialBalanceValidation; dotnet ef database update",
+      "result": "Applied 20260917073959_InitialCreate and 20260917075145_TrialBalanceValidation; 42 public tables in auditsphere"
+    },
+    {
+      "command": "scripts/db/status.ps1",
+      "result": "server_version 18.6 on 127.0.0.1:5433; both migrations reported on auditsphere"
+    },
+    {
+      "command": "rollback-protected psql probe (constraint_probe18.sql)",
+      "result": "Unbalanced dataset with validation_status='Accepted' rejected by ck_tb_validation_status; balanced insert accepted; zero residue after rollback"
+    }
+  ],
+  "reviewEvidence": [],
+  "blockers": [
+    {
+      "classification": "external-tenant",
+      "gate": "Live Entra OIDC / selected SharePoint grants / Purview records profile / signing method",
+      "missing": "tenant IDs, app registrations, grants, records profile, methodology/template approvals",
+      "ownerAction": "M365 admin + professional owners supply non-production tenant evidence before any live-capability claim"
+    },
+    {
+      "classification": "implementation-gap",
+      "gate": "Schema integrity and release controls (spec §§27, 42)",
+      "missing": "foreign keys, row immutability after validation, import handoff, release gates, durable external operations",
+      "ownerAction": "Implement under the next issue with PostgreSQL-backed tests"
+    }
+  ],
+  "nextPermittedAction": "Commit baseline; then schema-integrity slice (composite scope FKs, row immutability) with PostgreSQL-backed tests",
+  "lastVerifiedAt": "2026-09-17T08:35:12Z"
+}

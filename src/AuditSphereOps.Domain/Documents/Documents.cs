@@ -1,0 +1,32 @@
+// Documents: references, snapshots, version-bound approvals (§§11, 27.2, 42.5).
+namespace AuditSphereOps.Domain.Documents;
+
+public sealed class DocumentReference
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public Guid EngagementId { get; set; }
+  public string Provider { get; set; } = "SharePoint";
+  public string DriveId { get; set; } = string.Empty;
+  public string ItemId { get; set; } = string.Empty;
+  public string Path { get; set; } = string.Empty;
+  public string Purpose { get; set; } = string.Empty; // Workpaper|Evidence|Report|Package
+  public DateTimeOffset CreatedAt { get; set; }
+}
+
+public sealed class DocumentSnapshot
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public Guid EngagementId { get; set; }
+  public Guid DocumentReferenceId { get; set; }
+  public string DriveId { get; set; } = string.Empty;
+  public string ItemId { get; set; } = string.Empty;
+  public string VersionId { get; set; } = string.Empty;
+  public string Sha256Hex { get; set; } = string.Empty;
+  public long ByteCount { get; set; }
+  public string CapturedBy { get; set; } = string.Empty;
+  public DateTimeOffset CapturedAt { get; set; }
+}

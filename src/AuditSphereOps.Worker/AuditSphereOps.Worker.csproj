@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+
+  <PropertyGroup>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>dotnet-AuditSphereOps.Worker-746eca98-ad78-4bf7-a99e-2745d0e5f3fa</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AuditSphereOps.Domain\AuditSphereOps.Domain.csproj" />
+    <ProjectReference Include="..\AuditSphereOps.Application\AuditSphereOps.Application.csproj" />
+    <ProjectReference Include="..\AuditSphereOps.Infrastructure\AuditSphereOps.Infrastructure.csproj" />
+  </ItemGroup>
+</Project>

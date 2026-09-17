@@ -1,0 +1,31 @@
+## Obj/bin (build output, never commit)
+[Bb]in/
+[Oo]bj/
+
+## NuGet / .NET
+*.nupkg
+*.snupkg
+.nuget/
+packages/
+
+## EF / DB local
+*.mdf
+*.ldf
+*.sqlite
+*.db
+
+## OS / IDE
+.DS_Store
+Thumbs.db
+.vs/
+.idea/
+*.user
+*.suo
+
+## Secrets / local env (never commit values)
+appsettings.*.json
+!appsettings.json
+!appsettings.Development.json
+*.pfx
+*.key
+.env

@@ -1,0 +1,8 @@
+<Solution>
+  <Project Path="src/AuditSphereOps.Domain/AuditSphereOps.Domain.csproj" />
+  <Project Path="src/AuditSphereOps.Application/AuditSphereOps.Application.csproj" />
+  <Project Path="src/AuditSphereOps.Infrastructure/AuditSphereOps.Infrastructure.csproj" />
+  <Project Path="src/AuditSphereOps.Web/AuditSphereOps.Web.csproj" />
+  <Project Path="src/AuditSphereOps.Worker/AuditSphereOps.Worker.csproj" />
+  <Project Path="tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj" />
+</Solution>
