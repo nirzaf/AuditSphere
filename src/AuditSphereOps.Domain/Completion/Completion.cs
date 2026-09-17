@@ -36,9 +36,71 @@ public sealed class DurableOperation
   public string PayloadJson { get; set; } = "{}";
   public string IdempotencyKey { get; set; } = string.Empty;
   public string RequestDigest { get; set; } = string.Empty;
-  public string Status { get; set; } = "Queued"; // Queued|Leased|Succeeded|Failed|Quarantined
-  public int Attempt { get; set; }
+  public OperationState Status { get; set; } = OperationState.PENDING;
+  public long AttemptToken { get; set; }
+  public int AttemptCount { get; set; }
+  public int SchemaVersion { get; set; } = 1;
+  public string ExecutionGroup { get; set; } = "general";
+  public OperationMode ExecutionMode { get; set; } = OperationMode.LOCAL;
+  public OperationAuthority AuthorityMode { get; set; } = OperationAuthority.LOCAL_VALIDATION;
+  public Guid TargetId { get; set; }
+  public long ExpectedRevision { get; set; }
+  public Guid CorrelationId { get; set; }
+  public Guid? OriginatorId { get; set; }
+  public byte[] RequestBytes { get; set; } = [];
+  public DateTimeOffset NextAttemptAt { get; set; }
   public DateTimeOffset? LeaseExpiresAt { get; set; }
   public string? LeaseOwner { get; set; }
+  public long ClaimedEpoch { get; set; }
+  public bool IsReconciliation { get; set; }
+  public string? ResultIdentity { get; set; }
+  public string? ResultDigest { get; set; }
+  public string? ErrorCode { get; set; }
+  public DateTimeOffset? CompletedAt { get; set; }
   public DateTimeOffset CreatedAt { get; set; }
+}
+
+public enum OperationState
+{
+  PENDING, CLAIMED, REMOTE_STARTED, VERIFYING, COMPLETED, RETRY_WAIT,
+  AUTHORIZATION_BLOCKED, PROVIDER_BLOCKED, RESULT_UNCERTAIN, DEAD_LETTER,
+  CANCEL_REQUESTED, CANCELLED_WITH_DISPOSITION
+}
+
+public enum OperationMode { LOCAL, SIMULATED, LIVE }
+public enum OperationAuthority { LOCAL_VALIDATION, SIMULATION }
+
+public sealed class OperationAttempt
+{
+  public Guid Id { get; set; }
+  public Guid OperationId { get; set; }
+  public long Token { get; set; }
+  public string Owner { get; set; } = string.Empty;
+  public bool Reconciliation { get; set; }
+  public DateTimeOffset ClaimedAt { get; set; }
+}
+
+// Append-only stage evidence is distinct from the mutable operation projection.
+public sealed class OperationEvent
+{
+  public Guid Id { get; set; }
+  public Guid OperationId { get; set; }
+  public long Token { get; set; }
+  public string Kind { get; set; } = string.Empty;
+  public string Executor { get; set; } = string.Empty;
+  public DateTimeOffset OccurredAt { get; set; }
+}
+
+public sealed class FirmSafetyState
+{
+  public Guid Id { get; set; }
+  public string OperatingMode { get; set; } = "LOCAL_ONLY";
+  public long DeploymentEpoch { get; set; } = 1;
+}
+
+public sealed class ClientSafetyState
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public long InputGeneration { get; set; } = 1;
 }

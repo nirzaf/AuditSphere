@@ -14,7 +14,8 @@ namespace AuditSphereOps.Infrastructure.Persistence;
 
 // DbContext: one owner, snake_case, composite (firm,client,engagement) FK discipline (§§27, 42).
 // Money decimal(19,6); IDs uuid v7-compatible; immutable TB rows have no update path.
-public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> options) : DbContext(options)
+public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> options) : DbContext(options),
+  AuditSphereOps.Application.Operations.IAuditSphereDbContext
 {
   public DbSet<AppUser> Users => Set<AppUser>();
   public DbSet<RoleGrant> RoleGrants => Set<RoleGrant>();
@@ -56,6 +57,10 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
   public DbSet<Release> Releases => Set<Release>();
   public DbSet<Archive> Archives => Set<Archive>();
   public DbSet<DurableOperation> DurableOperations => Set<DurableOperation>();
+  public DbSet<OperationAttempt> OperationAttempts => Set<OperationAttempt>();
+  public DbSet<OperationEvent> OperationEvents => Set<OperationEvent>();
+  public DbSet<FirmSafetyState> FirmSafetyStates => Set<FirmSafetyState>();
+  public DbSet<ClientSafetyState> ClientSafetyStates => Set<ClientSafetyState>();
   public DbSet<RecordState> RecordStates => Set<RecordState>();
 
   protected override void OnModelCreating(ModelBuilder b)
@@ -70,6 +75,45 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     ConfigureMoney(b);
     ConfigurePractice(b);
     ConfigureAccounting(b);
+    ConfigureOperations(b);
+  }
+
+  private static void ConfigureOperations(ModelBuilder b)
+  {
+    var op = b.Entity<DurableOperation>();
+    op.Property(x => x.Status).HasConversion<string>();
+    op.Property(x => x.ExecutionMode).HasConversion<string>();
+    op.Property(x => x.AuthorityMode).HasConversion<string>();
+    op.Property(x => x.IdempotencyKey).HasMaxLength(200);
+    op.Property(x => x.RequestDigest).HasMaxLength(64);
+    op.HasIndex(x => new { x.FirmId, x.IdempotencyKey }).IsUnique().HasDatabaseName("ux_operation_firm_key");
+    op.HasIndex(x => new { x.FirmId, x.ExecutionGroup, x.Status, x.NextAttemptAt, x.CreatedAt });
+    op.ToTable("durable_operations", t =>
+    {
+      t.HasCheckConstraint("ck_operation_state", "status IN ('PENDING','CLAIMED','REMOTE_STARTED','VERIFYING','COMPLETED','RETRY_WAIT','AUTHORIZATION_BLOCKED','PROVIDER_BLOCKED','RESULT_UNCERTAIN','DEAD_LETTER','CANCEL_REQUESTED','CANCELLED_WITH_DISPOSITION')");
+      t.HasCheckConstraint("ck_operation_counters", "attempt_token >= 0 AND attempt_count >= 0 AND expected_revision >= 1 AND schema_version >= 1 AND claimed_epoch >= 0");
+      t.HasCheckConstraint("ck_operation_request", "length(idempotency_key) > 0 AND request_digest ~ '^[0-9a-f]{64}$' AND octet_length(request_bytes) > 0 AND length(payload_json) <= 16384");
+      t.HasCheckConstraint("ck_operation_mode", "execution_mode IN ('LOCAL','SIMULATED','LIVE') AND authority_mode IN ('LOCAL_VALIDATION','SIMULATION')");
+      t.HasCheckConstraint("ck_operation_lease", "(status IN ('CLAIMED','REMOTE_STARTED','VERIFYING','CANCEL_REQUESTED') AND lease_owner IS NOT NULL AND lease_expires_at IS NOT NULL AND attempt_token > 0) OR (status NOT IN ('CLAIMED','REMOTE_STARTED','VERIFYING','CANCEL_REQUESTED') AND lease_owner IS NULL AND lease_expires_at IS NULL)");
+      t.HasCheckConstraint("ck_operation_scope", "engagement_id IS NULL OR client_id IS NOT NULL");
+      t.HasCheckConstraint("ck_operation_result", "status <> 'COMPLETED' OR (completed_at IS NOT NULL AND result_identity IS NOT NULL AND length(result_identity) > 0 AND result_digest IS NOT NULL AND result_digest ~ '^[0-9a-f]{64}$')");
+    });
+    op.HasOne<FirmSafetyState>().WithMany().HasForeignKey(x => x.FirmId).OnDelete(DeleteBehavior.Restrict);
+    op.HasOne<PracticeClient>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    op.HasOne<Engagement>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId })
+      .HasPrincipalKey(x => new { x.FirmId, x.PracticeClientId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    b.Entity<ClientSafetyState>().HasOne<PracticeClient>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.Id }).HasPrincipalKey(x => new { x.FirmId, x.Id })
+      .OnDelete(DeleteBehavior.Restrict);
+    b.Entity<FirmSafetyState>().ToTable("firm_safety_states", t =>
+      t.HasCheckConstraint("ck_firm_safety", "deployment_epoch >= 1 AND operating_mode IN ('LOCAL_ONLY','RECOVERY_QUARANTINE')"));
+    b.Entity<ClientSafetyState>().ToTable("client_safety_states", t =>
+      t.HasCheckConstraint("ck_client_generation", "input_generation >= 1"));
+    b.Entity<OperationAttempt>().HasIndex(x => new { x.OperationId, x.Token }).IsUnique();
+    b.Entity<OperationAttempt>().HasOne<DurableOperation>().WithMany().HasForeignKey(x => x.OperationId).OnDelete(DeleteBehavior.Restrict);
+    b.Entity<OperationEvent>().HasOne<DurableOperation>().WithMany().HasForeignKey(x => x.OperationId).OnDelete(DeleteBehavior.Restrict);
+    b.Entity<OperationEvent>().HasIndex(x => new { x.OperationId, x.OccurredAt });
   }
 
   private static void ConfigureMoney(ModelBuilder b)

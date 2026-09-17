@@ -1,6 +1,9 @@
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
+using AuditSphereOps.Domain.Completion;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 
 namespace AuditSphereOps.Domain.Tests;
 
@@ -23,7 +26,7 @@ public sealed class PgTestSchema : IAsyncDisposable
     _admin = admin;
   }
 
-  public static async Task<PgTestSchema> CreateAsync()
+  public static async Task<PgTestSchema> CreateAsync(string? targetMigration = null)
   {
     var builder = new NpgsqlConnectionStringBuilder(
       Environment.GetEnvironmentVariable("AUDITSPHERE_TEST_CONNECTION") ??
@@ -34,6 +37,11 @@ public sealed class PgTestSchema : IAsyncDisposable
     var schema = "test_" + Guid.NewGuid().ToString("N");
     var admin = new NpgsqlConnection(builder.ConnectionString);
     await admin.OpenAsync();
+    if (admin.PostgreSqlVersion.Major != 18)
+    {
+      await admin.DisposeAsync();
+      throw new InvalidOperationException("Database tests require PostgreSQL 18.");
+    }
     await using (var create = new NpgsqlCommand($"CREATE SCHEMA {schema}", admin))
       await create.ExecuteNonQueryAsync();
 
@@ -41,7 +49,7 @@ public sealed class PgTestSchema : IAsyncDisposable
     var options = new DbContextOptionsBuilder<AuditSphereDbContext>()
       .UseNpgsql(builder.ConnectionString).Options;
     await using (var db = new AuditSphereDbContext(options))
-      await db.Database.MigrateAsync();
+      await db.GetService<IMigrator>().MigrateAsync(targetMigration);
 
     return new PgTestSchema(schema, options, admin);
   }
@@ -67,6 +75,8 @@ public sealed class PgTestSchema : IAsyncDisposable
       PracticeClientId = clientId,
       CreatedAt = DateTimeOffset.UtcNow
     });
+    db.FirmSafetyStates.Add(new FirmSafetyState { Id = firmId });
+    db.ClientSafetyStates.Add(new ClientSafetyState { Id = clientId, FirmId = firmId });
     await db.SaveChangesAsync();
     return (firmId, clientId, engagementId);
   }

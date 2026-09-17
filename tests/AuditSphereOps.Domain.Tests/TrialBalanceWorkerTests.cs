@@ -1,4 +1,6 @@
 using AuditSphereOps.Domain.Accounting;
+using AuditSphereOps.Application.Accounting;
+using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -28,7 +30,7 @@ public sealed class TrialBalanceWorkerTests
       await seed.SaveChangesAsync();
     }
 
-    var worker = new TbWorker(new DbContextFactory(pg.Options), NullLogger<TbWorker>.Instance);
+    var worker = CreateWorker(pg, firmId);
     Assert.True(await worker.ProcessNextAsync());
     Assert.False(await worker.ProcessNextAsync());
 
@@ -68,7 +70,7 @@ public sealed class TrialBalanceWorkerTests
       await seed.SaveChangesAsync();
     }
 
-    var worker = new TbWorker(new DbContextFactory(pg.Options), NullLogger<TbWorker>.Instance);
+    var worker = CreateWorker(pg, firmId);
     // Both start simultaneously; FOR UPDATE SKIP LOCKED plus the terminal-status filter
     // must yield exactly one claim per dataset across both workers.
     var gate = new TaskCompletionSource();
@@ -84,6 +86,17 @@ public sealed class TrialBalanceWorkerTests
     Assert.Equal("Accepted", statuses[balanced]);
     Assert.Equal("Rejected", statuses[unbalanced]);
     Assert.Equal(0m, (await verify.TrialBalanceDatasets.SingleAsync(x => x.Id == balanced)).ControlTotal);
+  }
+
+  private static TbWorker CreateWorker(PgTestSchema pg, Guid firmId)
+  {
+    var factory = new OperationContextFactory(new DbContextFactory(pg.Options));
+    var store = new PostgresOperationStore(factory);
+    var options = new WorkerOptions(firmId, "Test");
+    var handler = new TrialBalanceValidationHandler();
+    var registry = new DurableOperationRegistry([handler], options);
+    return new(new OperationDispatcher(store, registry, options),
+      new TrialBalanceDiscovery(factory, store, handler, options), NullLogger<TbWorker>.Instance);
   }
 
   private sealed class DbContextFactory(DbContextOptions<AuditSphereDbContext> options)

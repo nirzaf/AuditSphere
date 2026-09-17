@@ -1,12 +1,15 @@
-using AuditSphereOps.Infrastructure.Persistence;
-using Microsoft.EntityFrameworkCore;
+using AuditSphereOps.Application.Accounting;
+using AuditSphereOps.Application.Operations;
 
 namespace AuditSphereOps.Worker;
 
-// Local database-only validation; no provider effects or professional approval.
-public sealed class Worker(IDbContextFactory<AuditSphereDbContext> contexts, ILogger<Worker> logger) : BackgroundService
+// Durable outbox + claim/lease/fence (ND-03, §29). Operation kinds are typed by name; only
+// claimed operations are executed, and retry is idempotent by (firm, idempotency_key).
+public sealed class Worker(
+  OperationDispatcher dispatcher,
+  TrialBalanceDiscovery discovery,
+  ILogger<Worker> logger) : BackgroundService
 {
-  /// <summary>Processes until no pending dataset remains; returns how many were processed in this call.</summary>
   public async Task<int> DrainAsync(CancellationToken ct = default)
   {
     var count = 0;
@@ -14,33 +17,13 @@ public sealed class Worker(IDbContextFactory<AuditSphereDbContext> contexts, ILo
     return count;
   }
 
+  /// <summary>
+  /// Claims and processes one queued operation; returns false when nothing is pending.
+  /// </summary>
   public async Task<bool> ProcessNextAsync(CancellationToken ct = default)
-  {    await using var db = await contexts.CreateDbContextAsync(ct);
-    await using var transaction = await db.Database.BeginTransactionAsync(ct);
-    // Rows are preserved. Serialize against row writers for this bounded proving slice.
-    await db.Database.ExecuteSqlRawAsync("LOCK TABLE trial_balance_rows IN SHARE MODE", ct);
-    var pending = await db.TrialBalanceDatasets.FromSqlRaw("""
-      SELECT * FROM trial_balance_datasets
-      WHERE validation_status = 'Pending' AND source_kind = 'Raw'
-      ORDER BY imported_at, id LIMIT 1 FOR UPDATE SKIP LOCKED
-      """).ToListAsync(ct);
-    var dataset = pending.SingleOrDefault();
-    if (dataset is null) return false;
-
-    var rows = await db.TrialBalanceRows.AsNoTracking()
-      .Where(x => x.DatasetId == dataset.Id).ToListAsync(ct);
-    var total = rows.Sum(x => x.Amount);
-    var valid = rows.Count > 0 && total == 0 &&
-      !string.IsNullOrWhiteSpace(dataset.Currency) &&
-      rows.All(x => x.Currency == dataset.Currency && !string.IsNullOrWhiteSpace(x.AccountCode)) &&
-      rows.Select(x => (x.Entity, x.AccountCode)).Distinct().Count() == rows.Count;
-    dataset.ControlTotal = total;
-    dataset.Balanced = rows.Count > 0 && total == 0;
-    dataset.ValidationStatus = valid ? "Accepted" : "Rejected";
-    await db.SaveChangesAsync(ct);
-    await transaction.CommitAsync(ct);
-    logger.LogInformation("Trial balance {DatasetId} validation: {Status}", dataset.Id, dataset.ValidationStatus);
-    return true;
+  {
+    await discovery.EnqueuePendingAsync(ct);
+    return await dispatcher.ProcessNextAsync(ct);
   }
 
   protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -55,7 +38,7 @@ public sealed class Worker(IDbContextFactory<AuditSphereDbContext> contexts, ILo
       catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { break; }
       catch (Exception)
       {
-        logger.LogError("Trial-balance validation failed; transaction rolled back. Retrying after delay.");
+        logger.LogError("Operation polling failed. Durable state will be reconciled on retry.");
         await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
       }
     }
