@@ -6,9 +6,16 @@ namespace AuditSphereOps.Worker;
 // Local database-only validation; no provider effects or professional approval.
 public sealed class Worker(IDbContextFactory<AuditSphereDbContext> contexts, ILogger<Worker> logger) : BackgroundService
 {
-  public async Task<bool> ProcessNextAsync(CancellationToken ct = default)
+  /// <summary>Processes until no pending dataset remains; returns how many were processed in this call.</summary>
+  public async Task<int> DrainAsync(CancellationToken ct = default)
   {
-    await using var db = await contexts.CreateDbContextAsync(ct);
+    var count = 0;
+    while (await ProcessNextAsync(ct)) count++;
+    return count;
+  }
+
+  public async Task<bool> ProcessNextAsync(CancellationToken ct = default)
+  {    await using var db = await contexts.CreateDbContextAsync(ct);
     await using var transaction = await db.Database.BeginTransactionAsync(ct);
     // Rows are preserved. Serialize against row writers for this bounded proving slice.
     await db.Database.ExecuteSqlRawAsync("LOCK TABLE trial_balance_rows IN SHARE MODE", ct);

@@ -98,6 +98,38 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     b.Entity<TrialBalanceRow>().HasIndex(x => x.DatasetId);
     b.Entity<AdjustmentJournal>().HasIndex(x => new { x.FirmId, x.EngagementId, x.BaseDatasetId, x.JournalNumber }).IsUnique();
     b.Entity<DocumentSnapshot>().HasIndex(x => new { x.DocumentReferenceId, x.VersionId }).IsUnique();
+
+    // Composite scope FKs (ND-03): a dataset can only reference a client and engagement
+    // that exist inside the same firm. The FK principal keys below create the required
+    // unique (firm, id) constraints on engagements and practice_clients.
+
+    b.Entity<TrialBalanceDataset>()
+      .HasOne<Engagement>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.EngagementId })
+      .HasPrincipalKey(e => new { e.FirmId, e.Id })
+      .OnDelete(DeleteBehavior.Restrict);
+    b.Entity<TrialBalanceDataset>()
+      .HasOne<PracticeClient>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId })
+      .HasPrincipalKey(c => new { c.FirmId, c.Id })
+      .OnDelete(DeleteBehavior.Restrict);
+    b.Entity<TrialBalanceRow>()
+      .HasOne<TrialBalanceDataset>().WithMany()
+      .HasForeignKey(x => x.DatasetId)
+      .OnDelete(DeleteBehavior.Restrict);
+    b.Entity<AdjustmentJournal>()
+      .HasOne<TrialBalanceDataset>().WithMany()
+      .HasForeignKey(x => x.BaseDatasetId)
+      .OnDelete(DeleteBehavior.Restrict);
+    b.Entity<AdjustmentJournal>()
+      .HasOne<Engagement>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.EngagementId })
+      .HasPrincipalKey(e => new { e.FirmId, e.Id })
+      .OnDelete(DeleteBehavior.Restrict);
+    b.Entity<AdjustmentLine>()
+      .HasOne<AdjustmentJournal>().WithMany()
+      .HasForeignKey(x => x.JournalId)
+      .OnDelete(DeleteBehavior.Restrict);
   }
 
   private static string ToSnake(string name)

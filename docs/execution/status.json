@@ -12,13 +12,13 @@
     "postgres": "18.6 user-local port 5433 (spec-required major; 16.8 cluster retained stopped at .pgsql16 for rollback)"
   },
   "active": {
-    "packageId": "A01/ND-01 toolchain + AT-07 validation slice",
+    "packageId": "A01/ND-01 + ND-03 accounting integrity",
     "issueNumber": null,
     "branch": null,
     "pullRequestNumber": null,
     "headCommit": null,
-    "implementationStatus": "FOUNDATION_RUNNABLE_PLUS_AT07_SLICE",
-    "acceptanceStatus": "PARTIAL_NT01_NT09_NT10_AT07_SLICE_SIMULATION_ONLY"
+    "implementationStatus": "FOUNDATION_PLUS_ACCOUNTING_INTEGRITY",
+    "acceptanceStatus": "PARTIAL_SIMULATION_ONLY_CHECKLIST_ITEMS_1_2"
   },
   "testEvidence": [
     {
@@ -27,19 +27,15 @@
     },
     {
       "command": "dotnet test AuditSphereOps.slnx",
-      "result": "Passed 6/6 on .NET 10 (5 arithmetic + 1 PostgreSQL integration test)"
+      "result": "Passed 12/12 on .NET 10 / PostgreSQL 18.6 (5 arithmetic, 7 database-backed incl. FK scope, immutability, concurrency)"
     },
     {
-      "command": "dotnet ef migrations add TrialBalanceValidation; dotnet ef database update",
-      "result": "Applied 20260917073959_InitialCreate and 20260917075145_TrialBalanceValidation; 42 public tables in auditsphere"
+      "command": "dotnet ef database update",
+      "result": "Applied InitialCreate, TrialBalanceValidation, AccountingIntegrity (composite scope FKs + immutability triggers)"
     },
     {
       "command": "scripts/db/status.ps1",
-      "result": "server_version 18.6 on 127.0.0.1:5433; both migrations reported on auditsphere"
-    },
-    {
-      "command": "rollback-protected psql probe (constraint_probe18.sql)",
-      "result": "Unbalanced dataset with validation_status='Accepted' rejected by ck_tb_validation_status; balanced insert accepted; zero residue after rollback"
+      "result": "server_version 18.6; three migrations applied on auditsphere"
     }
   ],
   "reviewEvidence": [],
@@ -53,8 +49,8 @@
     {
       "classification": "implementation-gap",
       "gate": "Schema integrity and release controls (spec §§27, 42)",
-      "missing": "foreign keys, row immutability after validation, import handoff, release gates, durable external operations",
-      "ownerAction": "Implement under the next issue with PostgreSQL-backed tests"
+      "missing": "remaining entity FKs (audit/reviews/documents/billing chains), release gates, durable external operations",
+      "ownerAction": "Continue checklist items 3-12 in docs/execution/implementation-checklist.md"
     }
   ],
   "nextPermittedAction": "Commit baseline; then schema-integrity slice (composite scope FKs, row immutability) with PostgreSQL-backed tests",
