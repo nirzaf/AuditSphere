@@ -3,7 +3,7 @@
   "specificationVersion": "5.0",
   "specificationSha256": "e1e9a10bb82c9eae1c1a28b7f17a90f61152d1198444cbd95392c9bd714812d4",
   "repository": "/Users/qts/Repos/AuditSphere",
-  "baseCommit": "3c01a2ca9b829f6fa08f48ba77dc9e27b40f2476",
+  "baseCommit": "881eda1e44c8eccba7fa7e8dd26f86ee4b4f5599",
   "sdk": {
     "version": "10.0.300",
     "efCore": "10.0.12",
@@ -12,15 +12,15 @@
     "postgres": "18.6 Homebrew user-local port 5433 (development only)"
   },
   "active": {
-    "packageId": "Checklist #6: ND-05 AT-01–06 practice CRM lead-opportunity-proposal-client",
+    "packageId": "Checklist #7: ND-06 time/budget approval and correction chain",
     "issueNumber": null,
-    "branch": "codex/checklist-6-crm",
-    "pullRequestNumber": 1,
-    "headCommit": "141a55d2c7a9df8e23f41b6365c3f2ac58148240",
+    "branch": "codex/checklist-7-time",
+    "pullRequestNumber": null,
+    "headCommit": "0a34400682aef19471b0cea119ce03bb77140d98",
     "implementationStatus": "IMPLEMENTED",
     "acceptanceStatus": "LOCAL_VERIFIED",
-    "worktree": "Working tree is clean after checklist #6 implementation commit 141a55d2c7a9df8e23f41b6365c3f2ac58148240 and documentation follow-up; PR #1 is open and merge is pending, with no independent reviewer evidence observed.",
-    "scope": "Checklist #6 only: guarded commercial CRM lead, opportunity, proposal revision/approval/send/response, and idempotent client-draft conversion that creates pending professional acceptance without activating work.",
+    "worktree": "Checklist #7 implementation commit 0a34400 is complete; execution documentation is being updated before the owner-authorized PR is opened. No independent human reviewer evidence is present.",
+    "scope": "Checklist #7 only: guarded task assignment/completion, integer-minute time approval/correction, immutable rate snapshots, versioned budgets, approval segregation, and approved-time budget actuals.",
     "productionEnabled": false
   },
   "testEvidence": [
@@ -34,19 +34,19 @@
     },
     {
       "command": "dotnet build AuditSphereOps.slnx",
-      "result": "Build succeeded, 0 warnings, 0 errors on the checklist #6 worktree."
+      "result": "Build succeeded, 0 warnings, 0 errors on the checklist #7 worktree."
     },
     {
       "command": "dotnet test AuditSphereOps.slnx --no-build",
-      "result": "Passed 69/69 on PostgreSQL 18.6; 0 skipped. Includes CRM workflow tests covering duplicate-lead rejection, firm-guard absence denial, guarded state transitions, commercial/professional separation, idempotent conversion, client safety-guard provisioning and generation fencing, acceptance binding to an existing client generation, scoped contact creation/primary serialization, malformed contact rejection, proposal revision fencing, transition order, cross-firm denial, invalid date/probability/owner rejection, and conflicting canonical identity rejection."
+      "result": "Passed 74/74 on PostgreSQL 18.6; 0 skipped. Includes CRM workflow tests plus time/budget tests for integer-minute validation, overlap rejection, independent approval, correction supersession, historical rate retention, version fencing, approval segregation, scoped task assignment, cross-firm denial, budget actuals from approved entries, and database-level invalid-shape rejection."
     },
     {
       "command": "dotnet ef database update --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Web --no-build --connection 'Host=127.0.0.1;Port=5433;Database=auditsphere;Username=postgres'",
-      "result": "Applied 20260918093347_PracticeCrmWorkflow and 20260918095500_CrmSafetyInvariants to the local development database; existing migrations preserved."
+      "result": "Applied 20260918111815_PracticeTimeBudgetWorkflow to the local development database; existing migrations preserved. The migration retains legacy budget rows under legacy_budget_versions and refuses ambiguous legacy time data."
     },
     {
       "command": "dotnet ef migrations list --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Web --no-build",
-      "result": "All eight migrations through CrmSafetyInvariants are applied; no pending migrations."
+      "result": "All nine migrations through PracticeTimeBudgetWorkflow are applied; no pending migrations."
     },
     {
       "command": "psql read-only version/table-count/constraint/index queries against 127.0.0.1:5433/auditsphere",
@@ -86,16 +86,16 @@
     {
       "classification": "implementation-gap",
       "gate": "Schema integrity and release controls (spec §§27, 42)",
-      "missing": "Mapping/FS package, remaining entity FKs, release gates, live provider adapters, time/billing/ledger, UI and full recovery",
-      "ownerAction": "After checklist #6 acceptance, continue dependency-ordered slices #7-14."
+      "missing": "Mapping/FS package, remaining entity FKs, release gates, live provider adapters, billing/ledger, UI and full recovery",
+      "ownerAction": "After checklist #7 acceptance, continue dependency-ordered slices #8-14."
     },
     {
       "classification": "authorization-review",
       "gate": "Independent review and PR/merge",
-      "missing": "Checklist #6 has no independent review or merge evidence; PR #1 is open and the owner has authorized the workflow",
-      "ownerAction": "Verify and complete PR #1 merge; obtain independent review evidence before treating checklist #6 as fully accepted or starting checklist #7."
+      "missing": "Checklist #7 has no independent human review evidence; PR #1 merged without independent human review and the checklist #7 PR is not yet open",
+      "ownerAction": "Open and complete the owner-authorized checklist #7 PR; obtain independent review evidence before treating the slice as fully accepted."
     }
   ],
-  "nextPermittedAction": "Verify the merge of PR #1 and keep checklist #7 paused until independent review/acceptance evidence exists.",
-  "lastVerifiedAt": "2026-09-18T10:49:44Z"
+  "nextPermittedAction": "Push commit 0a34400, open the owner-authorized checklist #7 PR against master, run its checks, and verify the merge.",
+  "lastVerifiedAt": "2026-09-18T11:32:28Z"
 }
