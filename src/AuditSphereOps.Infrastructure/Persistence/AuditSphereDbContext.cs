@@ -68,6 +68,7 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
   public DbSet<ReviewPoint> ReviewPoints => Set<ReviewPoint>();
   public DbSet<Approval> Approvals => Set<Approval>();
   public DbSet<ApprovalApplicability> ApprovalApplicabilities => Set<ApprovalApplicability>();
+  public DbSet<ReleaseCandidate> ReleaseCandidates => Set<ReleaseCandidate>();
   public DbSet<Release> Releases => Set<Release>();
   public DbSet<Archive> Archives => Set<Archive>();
   public DbSet<DurableOperation> DurableOperations => Set<DurableOperation>();
@@ -91,6 +92,7 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     ConfigureAccounting(b);
     ConfigureDocuments(b);
     ConfigureReviews(b);
+    ConfigureCompletion(b);
     ConfigureOperations(b);
     ConfigureSecurity(b);
   }
@@ -173,6 +175,59 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
       "status IN ('CURRENT','STALE','REJECTED') AND length(reason) > 0 AND current_target_revision >= 1 AND current_input_generation >= 1 AND current_policy_generation >= 1"));
     applicability.HasOne<Approval>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.ApprovalId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id })
+      .OnDelete(DeleteBehavior.Restrict);
+  }
+
+  private static void ConfigureCompletion(ModelBuilder b)
+  {
+    var candidate = b.Entity<ReleaseCandidate>();
+    candidate.HasAlternateKey(x => new { x.FirmId, x.Id })
+      .HasName("AK_release_candidates_firm_id_id");
+    candidate.Property(x => x.TargetKind).HasMaxLength(50);
+    candidate.Property(x => x.ManifestDigest).HasMaxLength(64);
+    candidate.Property(x => x.Status).HasMaxLength(16);
+    candidate.HasIndex(x => new
+      { x.FirmId, x.TargetKind, x.TargetId, x.TargetRevision, x.ManifestDigest })
+      .IsUnique().HasDatabaseName("ux_release_candidate_identity");
+    candidate.ToTable("release_candidates", t => t.HasCheckConstraint("ck_release_candidate_values",
+      "target_kind = 'WORKPAPER' AND revision >= 1 AND target_revision >= 1 AND input_generation >= 1 AND policy_generation >= 1 AND manifest_digest ~ '^[0-9a-f]{64}$' AND status IN ('READY','ISSUED')"));
+    candidate.HasOne<PracticeClient>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id })
+      .OnDelete(DeleteBehavior.Restrict);
+    candidate.HasOne<Engagement>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId })
+      .HasPrincipalKey(x => new { x.FirmId, x.PracticeClientId, x.Id })
+      .OnDelete(DeleteBehavior.Restrict);
+    candidate.HasOne<Approval>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ApprovalId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id })
+      .OnDelete(DeleteBehavior.Restrict);
+
+    var release = b.Entity<Release>();
+    release.HasAlternateKey(x => new { x.FirmId, x.Id })
+      .HasName("AK_releases_firm_id_id");
+    release.Property(x => x.ManifestDigest).HasMaxLength(64);
+    release.Property(x => x.AuthorizedReleaseKey).HasMaxLength(200);
+    release.HasIndex(x => new { x.FirmId, x.AuthorizedReleaseKey })
+      .IsUnique().HasDatabaseName("ux_release_authorized_key");
+    release.ToTable("releases", t => t.HasCheckConstraint("ck_release_values",
+      "package_revision >= 1 AND manifest_digest ~ '^[0-9a-f]{64}$' AND length(authorized_release_key) > 0 AND external_checkpoint"));
+    release.HasOne<ReleaseCandidate>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ReleaseCandidateId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id })
+      .OnDelete(DeleteBehavior.Restrict);
+    release.HasOne<PracticeClient>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id })
+      .OnDelete(DeleteBehavior.Restrict);
+    release.HasOne<Engagement>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId })
+      .HasPrincipalKey(x => new { x.FirmId, x.PracticeClientId, x.Id })
+      .OnDelete(DeleteBehavior.Restrict);
+    release.HasOne<AppUser>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ReleasedByUserId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id })
       .OnDelete(DeleteBehavior.Restrict);
   }
