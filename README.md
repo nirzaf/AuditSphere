@@ -150,7 +150,7 @@ The integration test requires PostgreSQL at `127.0.0.1:5433` and the `auditspher
 - **`docs/execution/current-slice.md`** — the verified local state and concise serialization of what was actually executed.
 - **Using the spec:** read `AuditSphereOps_NET_Codex_Implementation_Specification.md` (§§1–12, 22, 24, 27–33, 41–47) plus only the sections for the active issue.
 
-As of the last verification pass: **93/93 tests passed** on PostgreSQL 18.6, fifteen migrations applied, locked restore and build completed with zero warnings, the local restore rehearsal passed, and readiness returned healthy with no pending migrations. Hosted CI still needs its first observed run. The Entra/SharePoint/Purview production gates remain **recorded blockers** pending owner-authorized evidence.
+As of the last verification pass: **93/93 tests passed** on PostgreSQL 18.6, fifteen migrations applied, local locked restore and build completed with zero warnings, the local restore rehearsal passed, readiness returned healthy with no pending migrations, and hosted CI run `35370149111` passed all steps. The Entra/SharePoint/Purview production gates remain **recorded blockers** pending owner-authorized evidence.
 
 ## Implementation roadmap
 
@@ -177,7 +177,7 @@ The build advances through **14 dependency-ordered checklist slices** (spec §31
 - Financial-statement rendering, disclosures/cash-flow inputs, and the remaining entity foreign keys/data-model completion
 - Live provider adapters (Entra/Graph/SharePoint/Purview) behind the external-effect fence
 - Full UI surfaces and authorized operator recovery tooling
-- Hosted CI execution evidence and production-grade cross-store recovery
+- Production-grade cross-store recovery
 
 The external production gates (live Entra tenant, selected SharePoint grants, Purview records profile, signing methodology) stay **blocked** until owner-authorized evidence arrives; see `docs/execution/status.json`.
 

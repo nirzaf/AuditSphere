@@ -16,11 +16,11 @@
     "issueNumber": null,
     "branch": "master",
     "pullRequestNumber": null,
-    "headCommit": "847cada34bef902c80abc99b482616710c4af34f",
+    "headCommit": "bfe5a9a67ef5f77a9c21fdc72396550ba935c6a3",
     "implementationStatus": "PARTIAL",
-    "acceptanceStatus": "LOCAL_VERIFIED",
-    "worktree": "Local follow-up commit 847cada adds the mapping/financial-statement package workflow and committed NuGet lock files on master. Local verification passed; hosted Actions has not rerun because the account billing/spending limit remains unresolved; no independent human reviewer evidence is present.",
-    "scope": "Checklist #14 follow-up: deterministic mapping/adjusted-TB/package persistence, explicit review gating, guarded migration/restore evidence, and locked CI restore inputs.",
+    "acceptanceStatus": "LOCAL_AND_HOSTED_CI_VERIFIED",
+    "worktree": "Commits 847cada, 7fcbc35, and bfe5a9a add the mapping/financial-statement package workflow and hosted lock-file cache/restore fixes on master. Local verification passed and hosted run 35370149111 passed every CI step; no independent human reviewer evidence is present.",
+    "scope": "Checklist #14 follow-up: deterministic mapping/adjusted-TB/package persistence, explicit review gating, guarded migration/restore evidence, committed lock-file cache inputs, and hosted CI execution.",
     "productionEnabled": false
   },
   "testEvidence": [
@@ -69,8 +69,12 @@
       "result": "At master after local follow-up commit 847cada: locked restore completed; dotnet build completed with 0 warnings and 0 errors; dotnet test passed 93/93 with 0 skipped; scripts/db/restore-drill.sh restored PostgreSQL 18.6 with all fifteen migrations; /, /health/live, /health/ready and /app returned HTTP 200, readiness body was Healthy, and /app showed the locked no-OIDC sign-in state."
     },
     {
-      "command": "gh pr checks 10 / gh run view 35354557550",
-      "result": "GitGuardian passed. The hosted build-test-ready job did not start because recent account payments failed or the GitHub Actions spending limit needs to be increased; no hosted test result is claimed."
+      "command": "Historical gh pr checks 10 / gh run view 35354557550",
+      "result": "GitGuardian passed. The superseded hosted build-test-ready job did not start because recent account payments failed or the GitHub Actions spending limit needed attention."
+    },
+    {
+      "command": "gh run view 35370149111 --repo nirzaf/AuditSphere",
+      "result": "Hosted AuditSphereOps CI passed on commit bfe5a9a: setup-dotnet, tool restore, restore, build, EF migration, 93-test suite, migration-aware readiness, and cleanup all passed. The forced Node 24/Node 20 deprecation annotation was informational only."
     }
   ],
   "tenantEvidence": [
@@ -106,14 +110,8 @@
     {
       "classification": "implementation-gap",
       "gate": "Schema integrity, UI and recovery controls (spec §§27, 42, 43, 45)",
-      "missing": "Financial-statement rendering/disclosures/cash-flow inputs, remaining entity FKs, full route catalog/client portal/upload transport, full signing/protection evidence, live provider adapters, hosted CI result, production/cross-store recovery evidence and recovery UI",
-      "ownerAction": "Resolve the hosted Actions account block and rerun the workflow, then complete the remaining UI and financial-statement surfaces; external production gates remain blocked."
-    },
-    {
-      "classification": "account-infrastructure",
-      "gate": "Hosted GitHub Actions for checklist #14",
-      "missing": "Run 35354035869 could not start because recent account payments failed or the Actions spending limit needs to be increased.",
-      "ownerAction": "Restore the repository/account Actions billing limit, rerun the clean checklist #14 PR, and record the hosted result."
+      "missing": "Financial-statement rendering/disclosures/cash-flow inputs, remaining entity FKs, full route catalog/client portal/upload transport, full signing/protection evidence, live provider adapters, production/cross-store recovery evidence and recovery UI",
+      "ownerAction": "Complete the remaining UI and financial-statement surfaces; external production gates remain blocked."
     },
     {
       "classification": "authorization-review",
@@ -122,6 +120,6 @@
       "ownerAction": "Obtain independent review evidence before treating the merged slices as fully accepted."
     }
   ],
-  "nextPermittedAction": "Resolve the GitHub Actions account billing block and rerun the locked workflow, then complete the remaining UI/financial-statement surfaces. Independent human review evidence remains outstanding.",
-  "lastVerifiedAt": "2026-09-18T16:37:52Z"
+  "nextPermittedAction": "Complete the remaining UI/financial-statement surfaces and obtain independent review plus owner-authorized tenant/professional evidence. Production recovery remains unproven.",
+  "lastVerifiedAt": "2026-09-18T16:47:34Z"
 }
