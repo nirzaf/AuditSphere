@@ -62,7 +62,8 @@ builder.Services.AddScoped<CurrentActorResolver>();
 // Liveness/readiness split (§45.4): self = always; ready = DB reachable (custom check, no extra package).
 builder.Services.AddHealthChecks()
   .AddCheck("self", () => Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Healthy("web alive"))
-  .AddNpgSqlCheck(connectionString ?? "Host=127.0.0.1;Port=5433;Database=auditsphere;Username=postgres");
+  .AddNpgSqlCheck(connectionString ?? "Host=127.0.0.1;Port=5433;Database=auditsphere;Username=postgres")
+  .AddCheck<MigrationCheck>("migrations", tags: ["ready"]);
 
 var app = builder.Build();
 
@@ -125,4 +126,23 @@ file static class NpgsqlCheckExtensions
     this Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder builder,
     string connectionString) =>
     builder.AddCheck("postgres", new NpgsqlCheck(connectionString), tags: ["ready"]);
+}
+
+file sealed class MigrationCheck(IDbContextFactory<AuditSphereDbContext> factory) : IHealthCheck
+{
+  public async Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken ct = default)
+  {
+    try
+    {
+      await using var db = await factory.CreateDbContextAsync(ct);
+      var pending = await db.Database.GetPendingMigrationsAsync(ct);
+      return pending.Any()
+        ? HealthCheckResult.Unhealthy($"{pending.Count()} database migrations are pending")
+        : HealthCheckResult.Healthy("database schema is current");
+    }
+    catch (Exception ex)
+    {
+      return HealthCheckResult.Unhealthy("database migration state unavailable", ex);
+    }
+  }
 }
