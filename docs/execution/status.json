@@ -14,12 +14,12 @@
   "active": {
     "packageId": "Checklist #9: ND-08 bounded firm ledger",
     "issueNumber": null,
-    "branch": "codex/checklist-9-ledger",
-    "pullRequestNumber": null,
-    "headCommit": "ea4081424df8e3d24fd07feefb69f1d7631bb8c7",
+    "branch": "master",
+    "pullRequestNumber": 4,
+    "headCommit": "c01f3d31aea5b4c10f3293862a44439ff42d230d",
     "implementationStatus": "IMPLEMENTED",
     "acceptanceStatus": "LOCAL_VERIFIED",
-    "worktree": "Checklist #9 implementation commit ea40814 is present on codex/checklist-9-ledger; execution documentation is being recorded before the owner-authorized PR is opened. No independent human reviewer evidence is present.",
+    "worktree": "Checklist #9 implementation commit ea40814 was merged by owner-authorized PR #4 as c01f3d3 on master. No independent human reviewer evidence is present.",
     "scope": "Checklist #9 only: scoped firm accounts/periods, guarded journal transitions, immutable balanced postings, source/retry uniqueness, reversals, and period close/reopen decisions.",
     "productionEnabled": false
   },
@@ -34,11 +34,11 @@
     },
     {
       "command": "dotnet build AuditSphereOps.slnx",
-      "result": "Build succeeded, 0 warnings, 0 errors on the checklist #9 worktree at ea4081424df8e3d24fd07feefb69f1d7631bb8c7."
+      "result": "Build succeeded, 0 warnings, 0 errors for checklist #9 at ea4081424df8e3d24fd07feefb69f1d7631bb8c7; the implementation was subsequently merged as c01f3d3."
     },
     {
       "command": "dotnet test AuditSphereOps.slnx --no-build",
-      "result": "Passed 81/81 on PostgreSQL 18.6; 0 skipped. Includes four ledger workflow/security/database tests and a legacy ledger migration refusal test, plus the prior CRM, time/budget, billing, accounting, authorization, and outbox coverage."
+      "result": "Passed 81/81 on PostgreSQL 18.6; 0 skipped for checklist #9 at ea4081424df8e3d24fd07feefb69f1d7631bb8c7, subsequently merged as c01f3d3. Includes four ledger workflow/security/database tests and a legacy ledger migration refusal test, plus the prior CRM, time/budget, billing, accounting, authorization, and outbox coverage."
     },
     {
       "command": "dotnet ef database update --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Web --no-build",
@@ -92,10 +92,10 @@
     {
       "classification": "authorization-review",
       "gate": "Independent review and PR/merge",
-      "missing": "Checklist #9 has no independent human review evidence; PR #1, PR #2, and PR #3 merged without independent human review and the checklist #9 PR is pending",
-      "ownerAction": "Open and complete the owner-authorized checklist #9 PR; obtain independent review evidence before treating the slice as fully accepted."
+      "missing": "Checklist #9 has no independent human review evidence; PR #1, PR #2, PR #3, and PR #4 merged without independent human review",
+      "ownerAction": "Obtain independent review evidence before treating the merged slices as fully accepted."
     }
   ],
-  "nextPermittedAction": "Open the owner-authorized checklist #9 PR, run its checks, and verify the merge.",
-  "lastVerifiedAt": "2026-09-18T12:45:10Z"
+  "nextPermittedAction": "Begin dependency-ordered checklist #10: document snapshots; independent human review evidence remains outstanding.",
+  "lastVerifiedAt": "2026-09-18T12:50:00Z"
 }
