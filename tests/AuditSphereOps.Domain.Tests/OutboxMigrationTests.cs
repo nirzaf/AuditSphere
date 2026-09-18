@@ -64,8 +64,8 @@ public sealed class OutboxMigrationTests
     Assert.Equal(3, attempt);
     var pending = await db.Database.GetPendingMigrationsAsync();
     Assert.Contains("20260917104422_DurableOutbox", pending);
-    // DurableOutbox + AuthorizationIntegrity + AdjustmentSourceBridge + PracticeCrmWorkflow + CrmSafetyInvariants + PracticeTimeBudgetWorkflow + BillingArtifactWorkflow + FirmLedgerWorkflow + DocumentSnapshotIntegrity + ApprovalApplicabilityWorkflow remain unapplied.
-    Assert.Equal(10, pending.Count());
+    // DurableOutbox + AuthorizationIntegrity + AdjustmentSourceBridge + PracticeCrmWorkflow + CrmSafetyInvariants + PracticeTimeBudgetWorkflow + BillingArtifactWorkflow + FirmLedgerWorkflow + DocumentSnapshotIntegrity + ApprovalApplicabilityWorkflow + ReleaseGateWorkflow remain unapplied.
+    Assert.Equal(11, pending.Count());
   }
 
   [Fact]
@@ -85,7 +85,7 @@ public sealed class OutboxMigrationTests
     Assert.Contains("explicit legacy disposition", error.MessageText);
     var preserved = await db.Database.SqlQuery<Guid>($"SELECT id AS \"Value\" FROM firm_accounts WHERE id = {accountId}").SingleAsync();
     Assert.Equal(accountId, preserved);
-    Assert.Equal(3, (await db.Database.GetPendingMigrationsAsync()).Count());
+    Assert.Equal(4, (await db.Database.GetPendingMigrationsAsync()).Count());
   }
 
   [Fact]
@@ -105,7 +105,7 @@ public sealed class OutboxMigrationTests
     Assert.Contains("ambiguous document reference", error.MessageText);
     var preserved = await db.Database.SqlQuery<Guid>($"SELECT id AS \"Value\" FROM document_references WHERE id = {id}").SingleAsync();
     Assert.Equal(id, preserved);
-    Assert.Equal(2, (await db.Database.GetPendingMigrationsAsync()).Count());
+    Assert.Equal(3, (await db.Database.GetPendingMigrationsAsync()).Count());
   }
 
   [Fact]
@@ -126,6 +126,28 @@ public sealed class OutboxMigrationTests
     var error = await Assert.ThrowsAsync<PostgresException>(() => db.Database.MigrateAsync());
     Assert.Contains("explicit disposition", error.MessageText);
     var preserved = await db.Database.SqlQuery<Guid>($"SELECT id AS \"Value\" FROM approvals WHERE id = {id}").SingleAsync();
+    Assert.Equal(id, preserved);
+    Assert.Equal(2, (await db.Database.GetPendingMigrationsAsync()).Count());
+  }
+
+  [Fact]
+  [Trait("Profile", "Database")]
+  public async Task LegacyReleases_StopMigrationWithoutInventingCandidateIdentity()
+  {
+    await using var pg = await PgTestSchema.CreateAsync(Previous);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var id = Guid.NewGuid();
+    await db.Database.ExecuteSqlInterpolatedAsync($"""
+      INSERT INTO releases
+        (id, firm_id, client_id, engagement_id, package_id, package_revision,
+         manifest_digest, external_checkpoint, released_at, released_by_user_id)
+      VALUES ({id}, {Guid.NewGuid()}, {Guid.NewGuid()}, {Guid.NewGuid()}, {Guid.NewGuid()},
+              1, {new string('a', 64)}, TRUE, statement_timestamp(), {Guid.NewGuid()})
+      """);
+
+    var error = await Assert.ThrowsAsync<PostgresException>(() => db.Database.MigrateAsync());
+    Assert.Contains("explicit disposition", error.MessageText);
+    var preserved = await db.Database.SqlQuery<Guid>($"SELECT id AS \"Value\" FROM releases WHERE id = {id}").SingleAsync();
     Assert.Equal(id, preserved);
     Assert.Single(await db.Database.GetPendingMigrationsAsync());
   }

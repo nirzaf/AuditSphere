@@ -3,7 +3,7 @@
   "specificationVersion": "5.0",
   "specificationSha256": "e1e9a10bb82c9eae1c1a28b7f17a90f61152d1198444cbd95392c9bd714812d4",
   "repository": "/Users/qts/Repos/AuditSphere",
-  "baseCommit": "c83cd4738aa57e878c54439f31565cf65a57ea2c",
+  "baseCommit": "4113a6c98bbc648c2474c192eba8b0142229179a",
   "sdk": {
     "version": "10.0.300",
     "efCore": "10.0.12",
@@ -12,15 +12,15 @@
     "postgres": "18.6 Homebrew user-local port 5433 (development only)"
   },
   "active": {
-    "packageId": "Checklist #11: revision/generation-bound approvals",
+    "packageId": "Checklist #12: release-gate integrity",
     "issueNumber": null,
-    "branch": "master",
-    "pullRequestNumber": 6,
-    "headCommit": "87e2523dcc276d5a358d7bcbe2015d5f744efa4a",
+    "branch": "codex/checklist-12-release-gates",
+    "pullRequestNumber": null,
+    "headCommit": "3e3c82a35b32d4472f328d44529f9a9b048a5a7c",
     "implementationStatus": "IMPLEMENTED",
     "acceptanceStatus": "LOCAL_VERIFIED",
-    "worktree": "Checklist #11 implementation commit 94a8da3 was merged by owner-authorized PR #6 as 87e2523 on master. No independent human reviewer evidence is present.",
-    "scope": "Checklist #11 only: workpaper approval binding to target revision, client input generation and firm policy generation, immutable approval history, current applicability projection, and stale rejection.",
+    "worktree": "Checklist #12 implementation commit 3e3c82a is locally verified on its isolated branch. PR creation and independent human review are pending.",
+    "scope": "Checklist #12 only: workpaper release candidates, current approval/generation/manifest fencing, checkpoint-required immutable release events, scoped release idempotency, and local delivery outbox intent.",
     "productionEnabled": false
   },
   "testEvidence": [
@@ -34,23 +34,23 @@
     },
     {
       "command": "dotnet build AuditSphereOps.slnx",
-      "result": "Build succeeded, 0 warnings, 0 errors at checklist #11 implementation commit 94a8da3; the implementation was subsequently merged as 87e2523."
+      "result": "Build succeeded, 0 warnings, 0 errors at checklist #12 implementation commit 3e3c82a."
     },
     {
       "command": "dotnet test AuditSphereOps.slnx --no-build",
-      "result": "Passed 88/88 on PostgreSQL 18.6; 0 skipped at checklist #11 implementation commit 94a8da3, subsequently merged as 87e2523. Includes two approval binding/staleness tests and legacy migration coverage, plus the prior CRM, time/budget, billing, ledger, document, accounting, authorization, and outbox coverage."
+      "result": "Passed 91/91 on PostgreSQL 18.6; 0 skipped at checklist #12 implementation commit 3e3c82a. Includes two release gate tests, two approval binding/staleness tests, release legacy migration refusal, and the prior CRM, time/budget, billing, ledger, document, accounting, authorization, and outbox coverage."
     },
     {
       "command": "dotnet ef database update --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Web --no-build",
-      "result": "Applied 20260918131715_ApprovalApplicabilityWorkflow; local auditsphere is now up to date. Existing migrations and legacy tables were preserved."
+      "result": "Applied 20260918133707_ReleaseGateWorkflow; local auditsphere is now up to date. Existing migrations and legacy tables were preserved."
     },
     {
       "command": "dotnet ef migrations list --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Web --no-build",
-      "result": "All thirteen migrations through ApprovalApplicabilityWorkflow are present; database update reports no pending migrations."
+      "result": "All fourteen migrations through ReleaseGateWorkflow are present; database update reports no pending migrations."
     },
     {
       "command": "psql read-only version/trigger/constraint queries against 127.0.0.1:5433/auditsphere",
-      "result": "PostgreSQL 18.6; local probe found immutable approval and snapshot triggers, approval scope/applicability constraints, and the latest migration 20260918131715_ApprovalApplicabilityWorkflow. No production database was touched."
+      "result": "PostgreSQL 18.6; local probe found the immutable release trigger, release-candidate/release scope constraints, and latest migration 20260918133707_ReleaseGateWorkflow. No production database was touched."
     }
   ],
   "tenantEvidence": [
@@ -86,16 +86,16 @@
     {
       "classification": "implementation-gap",
       "gate": "Schema integrity and release controls (spec §§27, 42)",
-      "missing": "Mapping/FS package, remaining entity FKs, release gates, live provider adapters, UI and full recovery",
-      "ownerAction": "After checklist #11 acceptance, continue dependency-ordered slices #12-14."
+      "missing": "Mapping/FS package, remaining entity FKs, full signing/protection evidence, live provider adapters, UI and full recovery",
+      "ownerAction": "After checklist #12 review/merge, continue dependency-ordered slices #13-14."
     },
     {
       "classification": "authorization-review",
       "gate": "Independent review and PR/merge",
-      "missing": "Checklist #11 has no independent human review evidence; PR #1, PR #2, PR #3, PR #4, PR #5, and PR #6 merged without independent human review",
+      "missing": "Checklist #12 has no independent human review evidence; PR #1, PR #2, PR #3, PR #4, PR #5, and PR #6 merged without independent human review",
       "ownerAction": "Obtain independent review evidence before treating the merged slices as fully accepted."
     }
   ],
-  "nextPermittedAction": "Begin dependency-ordered checklist #12: release-gate integrity; independent human review evidence remains outstanding.",
-  "lastVerifiedAt": "2026-09-18T13:26:28Z"
+  "nextPermittedAction": "Open the owner-authorized PR for checklist #12, then continue dependency-ordered checklist #13; independent human review evidence remains outstanding.",
+  "lastVerifiedAt": "2026-09-18T13:43:33Z"
 }

@@ -1,15 +1,41 @@
 // Completion + records: releases, archives, durable operations outbox (§§24–25, 29).
 namespace AuditSphereOps.Domain.Completion;
 
+public static class ReleaseStates
+{
+  public const string Ready = "READY";
+  public const string Issued = "ISSUED";
+}
+
+public sealed class ReleaseCandidate
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public Guid EngagementId { get; set; }
+  public string TargetKind { get; set; } = "WORKPAPER";
+  public Guid TargetId { get; set; }
+  public long TargetRevision { get; set; } = 1;
+  public long Revision { get; set; } = 1;
+  public long InputGeneration { get; set; } = 1;
+  public long PolicyGeneration { get; set; } = 1;
+  public Guid ApprovalId { get; set; }
+  public string ManifestDigest { get; set; } = string.Empty;
+  public string Status { get; set; } = ReleaseStates.Ready;
+  public DateTimeOffset CreatedAt { get; set; }
+}
+
 public sealed class Release
 {
   public Guid Id { get; set; }
   public Guid FirmId { get; set; }
   public Guid ClientId { get; set; }
   public Guid EngagementId { get; set; }
+  public Guid ReleaseCandidateId { get; set; }
   public Guid PackageId { get; set; }
   public long PackageRevision { get; set; }
   public string ManifestDigest { get; set; } = string.Empty;
+  public string AuthorizedReleaseKey { get; set; } = string.Empty;
   public bool ExternalCheckpoint { get; set; }
   public DateTimeOffset ReleasedAt { get; set; }
   public Guid ReleasedByUserId { get; set; }
