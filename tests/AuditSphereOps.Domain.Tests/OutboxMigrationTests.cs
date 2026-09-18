@@ -57,7 +57,8 @@ public sealed class OutboxMigrationTests
     Assert.Equal(3, attempt);
     var pending = await db.Database.GetPendingMigrationsAsync();
     Assert.Contains("20260917104422_DurableOutbox", pending);
-    Assert.Equal(2, pending.Count());
+    // DurableOutbox + AuthorizationIntegrity + AdjustmentSourceBridge remain unapplied.
+    Assert.Equal(3, pending.Count());
   }
 
   [Theory]

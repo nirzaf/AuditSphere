@@ -19,6 +19,11 @@ public interface IAuditSphereDbContext : IAsyncDisposable
   DbSet<ClientSafetyState> ClientSafetyStates { get; }
   DbSet<TrialBalanceDataset> TrialBalanceDatasets { get; }
   DbSet<TrialBalanceRow> TrialBalanceRows { get; }
+  DbSet<AdjustmentJournal> AdjustmentJournals { get; }
+  DbSet<AdjustmentLine> AdjustmentLines { get; }
+  DbSet<JournalSourceReconciliation> JournalSourceReconciliations { get; }
+  DbSet<AdjustmentPlan> AdjustmentPlans { get; }
+  DbSet<AdjustmentPlanLine> AdjustmentPlanLines { get; }
   DbSet<Engagement> Engagements { get; }
   DbSet<EngagementHold> EngagementHolds { get; }
   DbSet<PracticeClient> PracticeClients { get; }

@@ -42,7 +42,10 @@ public sealed class MappingRule
   public DateTimeOffset CreatedAt { get; set; }
 }
 
-/// <summary>Adjustment journal header: draft → posted immutable; AJ numbers unique per base TB (§17.4, VX-07).</summary>
+/// <summary>Adjustment journal header: draft → posted immutable; AJ numbers unique per base TB (§17.4, VX-07).
+/// The logical identity (firm, engagement, journal number) is stable across replacement
+/// bases; each base carries its own revision row. CreatedByUserId enforces separation of
+/// duties: the preparer can never post their own journal.</summary>
 public sealed class AdjustmentJournal
 {
   public Guid Id { get; set; }
@@ -53,6 +56,7 @@ public sealed class AdjustmentJournal
   public string JournalNumber { get; set; } = string.Empty; // AJ-001
   public string Status { get; set; } = "Draft";             // Draft|Posted|ReflectedInSource|Void
   public long Revision { get; set; } = 1;
+  public Guid CreatedByUserId { get; set; }
   public DateTimeOffset CreatedAt { get; set; }
 }
 

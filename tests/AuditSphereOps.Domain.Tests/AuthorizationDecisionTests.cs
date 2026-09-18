@@ -365,6 +365,11 @@ public sealed class AuthorizationDecisionTests
     public DbSet<AuditSphereOps.Domain.Completion.ClientSafetyState> ClientSafetyStates => db.ClientSafetyStates;
     public DbSet<TrialBalanceDataset> TrialBalanceDatasets => db.TrialBalanceDatasets;
     public DbSet<AuditSphereOps.Domain.Accounting.TrialBalanceRow> TrialBalanceRows => db.TrialBalanceRows;
+    public DbSet<AuditSphereOps.Domain.Accounting.AdjustmentJournal> AdjustmentJournals => db.AdjustmentJournals;
+    public DbSet<AuditSphereOps.Domain.Accounting.AdjustmentLine> AdjustmentLines => db.AdjustmentLines;
+    public DbSet<AuditSphereOps.Domain.Accounting.JournalSourceReconciliation> JournalSourceReconciliations => db.JournalSourceReconciliations;
+    public DbSet<AuditSphereOps.Domain.Accounting.AdjustmentPlan> AdjustmentPlans => db.AdjustmentPlans;
+    public DbSet<AuditSphereOps.Domain.Accounting.AdjustmentPlanLine> AdjustmentPlanLines => db.AdjustmentPlanLines;
     public DbSet<Engagement> Engagements => db.Engagements;
     public DbSet<EngagementHold> EngagementHolds => db.EngagementHolds;
     public DbSet<PracticeClient> PracticeClients => db.PracticeClients;

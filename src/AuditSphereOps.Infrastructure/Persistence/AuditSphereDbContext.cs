@@ -47,6 +47,9 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
   public DbSet<MappingRule> MappingRules => Set<MappingRule>();
   public DbSet<AdjustmentJournal> AdjustmentJournals => Set<AdjustmentJournal>();
   public DbSet<AdjustmentLine> AdjustmentLines => Set<AdjustmentLine>();
+  public DbSet<JournalSourceReconciliation> JournalSourceReconciliations => Set<JournalSourceReconciliation>();
+  public DbSet<AdjustmentPlan> AdjustmentPlans => Set<AdjustmentPlan>();
+  public DbSet<AdjustmentPlanLine> AdjustmentPlanLines => Set<AdjustmentPlanLine>();
   public DbSet<FinancialPackage> FinancialPackages => Set<FinancialPackage>();
   public DbSet<AuditRisk> AuditRisks => Set<AuditRisk>();
   public DbSet<AuditProcedure> AuditProcedures => Set<AuditProcedure>();
@@ -178,6 +181,15 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
         "validation_status IN ('Pending', 'Accepted', 'Rejected') AND (validation_status <> 'Accepted' OR (balanced AND control_total = 0))"));
     b.Entity<TrialBalanceRow>().HasIndex(x => x.DatasetId);
     b.Entity<AdjustmentJournal>().HasIndex(x => new { x.FirmId, x.EngagementId, x.BaseDatasetId, x.JournalNumber }).IsUnique();
+    // Duplicate-file guard: the same source bytes can never become two datasets for one
+    // engagement. Partial so legacy/empty-hash fixtures stay migratable; the import
+    // command always stamps a real hash.
+    b.Entity<TrialBalanceDataset>().HasIndex(x => new { x.FirmId, x.EngagementId, x.Sha256Hex }).IsUnique()
+      .HasDatabaseName("ux_dataset_firm_engagement_hash").HasFilter("length(sha256_hex) > 0");
+    b.Entity<JournalSourceReconciliation>().HasIndex(x => new { x.FirmId, x.EngagementId, x.BaseDatasetId, x.LogicalJournalNumber }).IsUnique()
+      .HasDatabaseName("ux_reconciliation_base_journal");
+    b.Entity<AdjustmentPlanLine>().HasIndex(x => new { x.PlanId, x.LogicalJournalNumber, x.Layer }).IsUnique()
+      .HasDatabaseName("ux_planline_plan_journal_layer");
     b.Entity<DocumentSnapshot>().HasIndex(x => new { x.DocumentReferenceId, x.VersionId }).IsUnique();
 
     // Composite scope FKs (ND-03): a dataset can only reference a client and engagement
@@ -210,6 +222,59 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     b.Entity<AdjustmentLine>()
       .HasOne<AdjustmentJournal>().WithMany()
       .HasForeignKey(x => x.JournalId)
+      .OnDelete(DeleteBehavior.Restrict);
+    ConfigureAdjustmentBridge(b);
+  }
+
+  // Source bridge (§17.4): reviewer-verified reflection + immutable plans. Database
+  // constraints supplement reviewer evidence; they do not prove reflection is correct.
+  private static void ConfigureAdjustmentBridge(ModelBuilder b)
+  {
+    b.Entity<JournalSourceReconciliation>().ToTable("journal_source_reconciliations", t =>
+    {
+      t.HasCheckConstraint("ck_reconciliation_state",
+        "state IN ('UNKNOWN','NOT_REFLECTED','REFLECTED','PARTIALLY_REFLECTED','NOT_APPLICABLE')");
+      t.HasCheckConstraint("ck_reconciliation_revision", "journal_revision >= 1");
+      t.HasCheckConstraint("ck_reconciliation_evidence",
+        "(state IN ('REFLECTED','PARTIALLY_REFLECTED') AND length(evidence) > 0 AND length(evidence) <= 2000) OR " +
+        "(state NOT IN ('REFLECTED','PARTIALLY_REFLECTED') AND length(evidence) <= 2000)");
+      t.HasCheckConstraint("ck_reconciliation_number", "length(logical_journal_number) > 0 AND length(logical_journal_number) <= 32");
+    });
+    b.Entity<JournalSourceReconciliation>()
+      .HasOne<Engagement>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.EngagementId })
+      .HasPrincipalKey(e => new { e.FirmId, e.Id })
+      .OnDelete(DeleteBehavior.Restrict);
+    b.Entity<JournalSourceReconciliation>()
+      .HasOne<TrialBalanceDataset>().WithMany()
+      .HasForeignKey(x => x.BaseDatasetId)
+      .OnDelete(DeleteBehavior.Restrict);
+    b.Entity<AdjustmentPlan>().ToTable("adjustment_plans", t =>
+    {
+      t.HasCheckConstraint("ck_plan_status", "status IN ('Draft','Finalized')");
+      t.HasCheckConstraint("ck_plan_result",
+        "status = 'Draft' OR (result_hash IS NOT NULL AND result_hash ~ '^[0-9a-f]{64}$')");
+    });
+    b.Entity<AdjustmentPlan>()
+      .HasOne<Engagement>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.EngagementId })
+      .HasPrincipalKey(e => new { e.FirmId, e.Id })
+      .OnDelete(DeleteBehavior.Restrict);
+    b.Entity<AdjustmentPlan>()
+      .HasOne<TrialBalanceDataset>().WithMany()
+      .HasForeignKey(x => x.BaseDatasetId)
+      .OnDelete(DeleteBehavior.Restrict);
+    b.Entity<AdjustmentPlanLine>().ToTable("adjustment_plan_lines", t =>
+    {
+      t.HasCheckConstraint("ck_planline_revision", "journal_revision >= 1");
+      t.HasCheckConstraint("ck_planline_shape",
+        "length(logical_journal_number) > 0 AND length(logical_journal_number) <= 32 AND length(layer) > 0 AND length(layer) <= 32");
+      t.HasCheckConstraint("ck_planline_reflection",
+        "reflection_state IN ('UNKNOWN','NOT_REFLECTED','REFLECTED','PARTIALLY_REFLECTED','NOT_APPLICABLE')");
+    });
+    b.Entity<AdjustmentPlanLine>()
+      .HasOne<AdjustmentPlan>().WithMany()
+      .HasForeignKey(x => x.PlanId)
       .OnDelete(DeleteBehavior.Restrict);
   }
 
