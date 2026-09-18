@@ -1,6 +1,7 @@
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Application.Security;
+using AuditSphereOps.Domain.Acceptance;
 using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Engagements;
 using AuditSphereOps.Domain.Practice;
@@ -372,7 +373,13 @@ public sealed class AuthorizationDecisionTests
     public DbSet<AuditSphereOps.Domain.Accounting.AdjustmentPlanLine> AdjustmentPlanLines => db.AdjustmentPlanLines;
     public DbSet<Engagement> Engagements => db.Engagements;
     public DbSet<EngagementHold> EngagementHolds => db.EngagementHolds;
+    public DbSet<EvaluationResponse> EvaluationResponses => db.EvaluationResponses;
+    public DbSet<AcceptanceDecision> AcceptanceDecisions => db.AcceptanceDecisions;
+    public DbSet<Lead> Leads => db.Leads;
+    public DbSet<Opportunity> Opportunities => db.Opportunities;
+    public DbSet<Proposal> Proposals => db.Proposals;
     public DbSet<PracticeClient> PracticeClients => db.PracticeClients;
+    public DbSet<ClientContact> ClientContacts => db.ClientContacts;
     public DbSet<AppUser> Users => db.Users;
     public DbSet<RoleGrant> RoleGrants => db.RoleGrants;
     public Microsoft.EntityFrameworkCore.Infrastructure.DatabaseFacade Database => db.Database;

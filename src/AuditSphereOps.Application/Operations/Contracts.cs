@@ -1,4 +1,5 @@
 using System.Text;
+using AuditSphereOps.Domain.Acceptance;
 using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Engagements;
@@ -26,7 +27,13 @@ public interface IAuditSphereDbContext : IAsyncDisposable
   DbSet<AdjustmentPlanLine> AdjustmentPlanLines { get; }
   DbSet<Engagement> Engagements { get; }
   DbSet<EngagementHold> EngagementHolds { get; }
+  DbSet<EvaluationResponse> EvaluationResponses { get; }
+  DbSet<AcceptanceDecision> AcceptanceDecisions { get; }
+  DbSet<Lead> Leads { get; }
+  DbSet<Opportunity> Opportunities { get; }
+  DbSet<Proposal> Proposals { get; }
   DbSet<PracticeClient> PracticeClients { get; }
+  DbSet<ClientContact> ClientContacts { get; }
   DbSet<AppUser> Users { get; }
   DbSet<RoleGrant> RoleGrants { get; }
   DatabaseFacade Database { get; }
