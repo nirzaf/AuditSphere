@@ -1,0 +1,123 @@
+@page "/app"
+@page "/app/overview"
+@rendermode InteractiveServer
+@inject CurrentActorResolver ActorResolver
+@inject IDbContextFactory<AuditSphereDbContext> DbFactory
+@inject IConfiguration Configuration
+
+<PageTitle>Portfolio</PageTitle>
+<h1>Portfolio</h1>
+
+@if (_loading)
+{
+  <p role="status">Loading current scope…</p>
+}
+else if (_actor is null)
+{
+  <section class="notice" role="alert">
+    <h2>Sign-in required</h2>
+    <p>This staff view needs an authenticated identity mapped to an active AuditSphereOps user. No local demo actor is available.</p>
+    @if (OidcConfigured)
+    {
+      <a class="button" href="/auth/sign-in?returnUrl=%2Fapp">Sign in with Entra</a>
+    }
+    else
+    {
+      <p class="muted">Entra OIDC is not configured in this environment.</p>
+    }
+  </section>
+}
+else if (!IsStaff)
+{
+  <section class="notice" role="alert">
+    <h2>Access unavailable</h2>
+    <p>This staff shell is not available for the current role.</p>
+  </section>
+}
+else if (_error is not null)
+{
+  <section class="notice error" role="alert"><h2>Unable to load portfolio</h2><p>@_error</p></section>
+}
+else
+{
+  <p class="scope-note">Live projections for firm <code>@_actor.FirmId</code>. Counts are read from PostgreSQL and are not synthetic.</p>
+  <section class="metric-grid" aria-label="Portfolio metrics">
+    <article class="metric card"><span class="metric-label">Clients</span><strong class="metric-value">@_metrics.Clients</strong></article>
+    <article class="metric card"><span class="metric-label">Engagements</span><strong class="metric-value">@_metrics.Engagements</strong></article>
+    <article class="metric card"><span class="metric-label">Open holds</span><strong class="metric-value">@_metrics.OpenHolds</strong></article>
+    <article class="metric card"><span class="metric-label">Pending operations</span><strong class="metric-value">@_metrics.PendingOperations</strong></article>
+    <article class="metric card"><span class="metric-label">Ready candidates</span><strong class="metric-value">@_metrics.ReadyCandidates</strong></article>
+    <article class="metric card"><span class="metric-label">Issued releases</span><strong class="metric-value">@_metrics.IssuedReleases</strong></article>
+  </section>
+
+  <section class="card" aria-labelledby="candidate-title">
+    <h2 id="candidate-title">Release candidates</h2>
+    @if (_candidates.Count == 0)
+    {
+      <p class="muted">No release candidates are available in this firm scope.</p>
+    }
+    else
+    {
+      <div class="table-wrap">
+        <table>
+          <caption class="sr-only">Release candidates in the current firm scope</caption>
+          <thead><tr><th scope="col">Candidate</th><th scope="col">Revision</th><th scope="col">Status</th><th scope="col">Created</th><th scope="col"><span class="sr-only">Action</span></th></tr></thead>
+          <tbody>
+          @foreach (var candidate in _candidates)
+          {
+            <tr>
+              <td><code>@candidate.Id</code></td>
+              <td>@candidate.TargetRevision</td>
+              <td><span class="status">@candidate.Status</span></td>
+              <td>@candidate.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</td>
+              <td><a href="/app/releases/@candidate.Id">Open</a></td>
+            </tr>
+          }
+          </tbody>
+        </table>
+      </div>
+    }
+  </section>
+}
+
+@code {
+  private ActorContext? _actor;
+  private PortfolioMetrics _metrics;
+  private List<CandidateRow> _candidates = [];
+  private bool _loading = true;
+  private string? _error;
+
+  private bool OidcConfigured => !string.IsNullOrWhiteSpace(Configuration["Identity:TenantId"]) &&
+                                 !string.IsNullOrWhiteSpace(Configuration["Identity:ClientId"]);
+  private bool IsStaff => _actor is not null &&
+    _actor.Roles.Any(x => x is "Administrator" or "Partner" or "Manager" or "Reviewer" or "Staff");
+
+  protected override async Task OnInitializedAsync()
+  {
+    try
+    {
+      _actor = await ActorResolver.ResolveAsync();
+      if (_actor is null || !IsStaff) return;
+      await using var db = await DbFactory.CreateDbContextAsync();
+      _metrics = new PortfolioMetrics(
+        await db.PracticeClients.CountAsync(x => x.FirmId == _actor.FirmId),
+        await db.Engagements.CountAsync(x => x.FirmId == _actor.FirmId),
+        await db.EngagementHolds.CountAsync(x => x.FirmId == _actor.FirmId && !x.Released),
+        await db.DurableOperations.CountAsync(x => x.FirmId == _actor.FirmId && x.Status != Domain.Completion.OperationState.COMPLETED && x.Status != Domain.Completion.OperationState.CANCELLED_WITH_DISPOSITION),
+        await db.ReleaseCandidates.CountAsync(x => x.FirmId == _actor.FirmId && x.Status == ReleaseStates.Ready),
+        await db.Releases.CountAsync(x => x.FirmId == _actor.FirmId));
+      _candidates = await db.ReleaseCandidates.AsNoTracking().Where(x => x.FirmId == _actor.FirmId)
+        .OrderByDescending(x => x.CreatedAt).Take(25)
+        .Select(x => new CandidateRow(x.Id, x.TargetRevision, x.Status, x.CreatedAt)).ToListAsync();
+    }
+    catch (Exception ex)
+    {
+      _error = "The scoped portfolio could not be loaded.";
+      Console.Error.WriteLine($"Portfolio load failed: {ex.GetType().Name}");
+    }
+    finally { _loading = false; }
+  }
+
+  private readonly record struct PortfolioMetrics(int Clients, int Engagements, int OpenHolds, int PendingOperations, int ReadyCandidates, int IssuedReleases);
+  private sealed record CandidateRow(Guid Id, long TargetRevision, string Status, DateTimeOffset CreatedAt);
+}
