@@ -393,6 +393,15 @@ public sealed class AuthorizationDecisionTests
     public DbSet<ReceiptAllocation> ReceiptAllocations => db.ReceiptAllocations;
     public DbSet<CreditNote> CreditNotes => db.CreditNotes;
     public DbSet<BillingSourceAllocation> BillingSourceAllocations => db.BillingSourceAllocations;
+    public DbSet<FirmAccount> FirmAccounts => db.FirmAccounts;
+    public DbSet<FirmPeriod> FirmPeriods => db.FirmPeriods;
+    public DbSet<FirmJournal> FirmJournals => db.FirmJournals;
+    public DbSet<FirmJournalLine> FirmJournalLines => db.FirmJournalLines;
+    public DbSet<FirmPosting> FirmPostings => db.FirmPostings;
+    public DbSet<FirmPostingLine> FirmPostingLines => db.FirmPostingLines;
+    public DbSet<LedgerSourceLink> LedgerSourceLinks => db.LedgerSourceLinks;
+    public DbSet<LedgerPostingReceipt> LedgerPostingReceipts => db.LedgerPostingReceipts;
+    public DbSet<PeriodCloseDecision> PeriodCloseDecisions => db.PeriodCloseDecisions;
     public DbSet<AppUser> Users => db.Users;
     public DbSet<RoleGrant> RoleGrants => db.RoleGrants;
     public Microsoft.EntityFrameworkCore.Infrastructure.DatabaseFacade Database => db.Database;

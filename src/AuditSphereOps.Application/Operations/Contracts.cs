@@ -47,6 +47,15 @@ public interface IAuditSphereDbContext : IAsyncDisposable
   DbSet<ReceiptAllocation> ReceiptAllocations { get; }
   DbSet<CreditNote> CreditNotes { get; }
   DbSet<BillingSourceAllocation> BillingSourceAllocations { get; }
+  DbSet<FirmAccount> FirmAccounts { get; }
+  DbSet<FirmPeriod> FirmPeriods { get; }
+  DbSet<FirmJournal> FirmJournals { get; }
+  DbSet<FirmJournalLine> FirmJournalLines { get; }
+  DbSet<FirmPosting> FirmPostings { get; }
+  DbSet<FirmPostingLine> FirmPostingLines { get; }
+  DbSet<LedgerSourceLink> LedgerSourceLinks { get; }
+  DbSet<LedgerPostingReceipt> LedgerPostingReceipts { get; }
+  DbSet<PeriodCloseDecision> PeriodCloseDecisions { get; }
   DbSet<AppUser> Users { get; }
   DbSet<RoleGrant> RoleGrants { get; }
   DatabaseFacade Database { get; }
