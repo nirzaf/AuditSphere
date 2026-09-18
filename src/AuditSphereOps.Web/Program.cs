@@ -1,8 +1,12 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Npgsql;
 using Serilog;
+using AuditSphereOps.Web.Authentication;
 using AuditSphereOps.Infrastructure.Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -18,11 +22,42 @@ builder.Host.UseSerilog();
 // Razor components: Interactive Server, no prerender for auth-sensitive shells (§43.4 draft).
 builder.Services.AddRazorComponents()
   .AddInteractiveServerComponents();
+builder.Services.AddCascadingAuthenticationState();
+builder.Services.AddHttpContextAccessor();
 
 // PostgreSQL: single AuditSphere connection string; startup validates, never auto-applies destructive DDL (§45.6).
 var connectionString = builder.Configuration.GetConnectionString("AuditSphere");
-builder.Services.AddDbContext<AuditSphereDbContext>(options =>
+builder.Services.AddDbContextFactory<AuditSphereDbContext>(options =>
   options.UseNpgsql(connectionString ?? "Host=127.0.0.1;Port=5433;Database=auditsphere;Username=postgres"));
+
+var identity = builder.Configuration.GetSection("Identity");
+var tenantId = identity["TenantId"];
+var clientId = identity["ClientId"];
+var clientSecret = identity["ClientSecret"];
+var oidcConfigured = !string.IsNullOrWhiteSpace(tenantId) &&
+                     !string.IsNullOrWhiteSpace(clientId) &&
+                     !string.IsNullOrWhiteSpace(clientSecret);
+var authentication = builder.Services.AddAuthentication(options =>
+{
+  options.DefaultAuthenticateScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+  options.DefaultSignInScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+  options.DefaultChallengeScheme = oidcConfigured ? "Entra" : CookieAuthenticationDefaults.AuthenticationScheme;
+}).AddCookie(options => options.LoginPath = "/auth/sign-in");
+if (oidcConfigured)
+{
+  authentication.AddOpenIdConnect("Entra", options =>
+  {
+    options.Authority = $"https://login.microsoftonline.com/{tenantId}/v2.0";
+    options.ClientId = clientId!;
+    options.ClientSecret = clientSecret!;
+    options.ResponseType = "code";
+    options.CallbackPath = identity["CallbackPath"] ?? "/signin-oidc";
+    options.SaveTokens = false;
+    options.GetClaimsFromUserInfoEndpoint = false;
+  });
+}
+builder.Services.AddAuthorization();
+builder.Services.AddScoped<CurrentActorResolver>();
 
 // Liveness/readiness split (§45.4): self = always; ready = DB reachable (custom check, no extra package).
 builder.Services.AddHealthChecks()
@@ -38,15 +73,29 @@ if (!app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseStaticFiles();
+app.UseAuthentication();
+app.UseAuthorization();
 app.UseAntiforgery();
 app.MapHealthChecks("/health/live", new() { Predicate = r => r.Name == "self" });
 app.MapHealthChecks("/health/ready", new() { Predicate = r => r.Tags.Contains("ready") });
-app.MapGet("/", () => Results.Ok(new
+if (oidcConfigured)
 {
-  service = "AuditSphereOps.Web",
-  environment = app.Environment.EnvironmentName,
-  note = "Blazor shell lands incrementally per §43 route catalog; health endpoints verify topology first (NT-01/NT-18)."
-}));
+  app.MapGet("/auth/sign-in", (HttpContext http, string? returnUrl) =>
+  {
+    var destination = !string.IsNullOrWhiteSpace(returnUrl) && returnUrl.StartsWith('/') &&
+                      !returnUrl.StartsWith("//", StringComparison.Ordinal)
+      ? returnUrl : "/app";
+    return Results.Challenge(new AuthenticationProperties { RedirectUri = destination }, ["Entra"]);
+  });
+  app.MapGet("/auth/sign-out", async (HttpContext http) =>
+  {
+    await http.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+    return Results.Redirect("/");
+  });
+}
+app.MapRazorComponents<AuditSphereOps.Web.Components.App>()
+  .AddInteractiveServerRenderMode();
 
 app.Run();
 
@@ -77,4 +126,3 @@ file static class NpgsqlCheckExtensions
     string connectionString) =>
     builder.AddCheck("postgres", new NpgsqlCheck(connectionString), tags: ["ready"]);
 }
-

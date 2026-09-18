@@ -1,0 +1,22 @@
+@inherits LayoutComponentBase
+
+<div class="shell">
+  <header class="topbar">
+    <a class="brand" href="/">AuditSphereOps</a>
+    <span class="environment">@EnvironmentLabel</span>
+  </header>
+  <div class="shell-body">
+    <nav aria-label="Primary navigation" class="sidebar">
+      <a href="/app">Portfolio</a>
+      <a href="/health/ready">Readiness</a>
+    </nav>
+    <main class="content" id="main-content">
+      @Body
+    </main>
+  </div>
+</div>
+
+@code {
+  [Inject] private IConfiguration Configuration { get; set; } = default!;
+  private string EnvironmentLabel => Configuration["ASPNETCORE_ENVIRONMENT"] ?? "Development";
+}

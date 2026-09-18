@@ -1,0 +1,93 @@
+@page "/app/releases/{CandidateId:guid}"
+@rendermode InteractiveServer
+@inject CurrentActorResolver ActorResolver
+@inject IDbContextFactory<AuditSphereDbContext> DbFactory
+
+<PageTitle>Release candidate</PageTitle>
+<a class="back-link" href="/app">← Back to portfolio</a>
+<h1>Release candidate</h1>
+
+@if (_loading)
+{
+  <p role="status">Loading current candidate…</p>
+}
+else if (_actor is null || !IsStaff)
+{
+  <section class="notice" role="alert"><h2>Access unavailable</h2><p>Sign in with an authorized staff identity to view this candidate.</p></section>
+}
+else if (_candidate is null)
+{
+  <section class="notice" role="alert"><h2>Candidate unavailable</h2><p>The candidate is not available in the current firm scope.</p></section>
+}
+else
+{
+  <section class="card" aria-labelledby="candidate-heading">
+    <p class="eyebrow">@_candidate.Status</p>
+    <h2 id="candidate-heading"><code>@_candidate.Id</code></h2>
+    <dl class="details">
+      <dt>Target</dt><dd>@_candidate.TargetKind / revision @_candidate.TargetRevision</dd>
+      <dt>Candidate revision</dt><dd>@_candidate.Revision</dd>
+      <dt>Manifest digest</dt><dd><code>@_candidate.ManifestDigest</code></dd>
+      <dt>Created</dt><dd>@_candidate.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</dd>
+    </dl>
+  </section>
+
+  @if (_candidate.Status == ReleaseStates.Issued)
+  {
+    <section class="notice success"><h2>Issued</h2><p>This candidate already has an immutable release event. Repeating the same authorized request is idempotent.</p></section>
+  }
+  else
+  {
+    <section class="card" aria-labelledby="issue-heading">
+      <h2 id="issue-heading">Issue exact package</h2>
+      <p class="muted">This command rechecks current scope, approval applicability, revisions, generations, holds, manifest and recovery mode. It does not sign files or call a provider.</p>
+      <div class="field">
+        <label for="release-key">Authorized release key</label>
+        <input id="release-key" @bind="_releaseKey" maxlength="200" autocomplete="off" />
+      </div>
+      <label class="check"><input type="checkbox" @bind="_checkpointVerified" /> I confirm the external release checkpoint has been verified for this exact manifest.</label>
+      <button class="button" @onclick="IssueAsync" disabled="@(_busy || !_checkpointVerified || string.IsNullOrWhiteSpace(_releaseKey))">@(_busy ? "Issuing…" : "Issue release")</button>
+      @if (_result is not null)
+      {
+        <p class="command-result @(_result.Succeeded ? "success-text" : "error-text")" role="status">@(_result.Succeeded ? $"Release event: {_result.Value}" : $"Blocked: {_result.ErrorCode}")</p>
+      }
+    </section>
+  }
+}
+
+@code {
+  [Parameter] public Guid CandidateId { get; set; }
+  private ActorContext? _actor;
+  private ReleaseCandidate? _candidate;
+  private CommandResult<Guid>? _result;
+  private string _releaseKey = string.Empty;
+  private bool _checkpointVerified;
+  private bool _loading = true;
+  private bool _busy;
+  private bool IsStaff => _actor is not null && _actor.Roles.Any(x => x is "Administrator" or "Partner" or "Manager" or "Reviewer" or "Staff");
+
+  protected override async Task OnInitializedAsync()
+  {
+    _actor = await ActorResolver.ResolveAsync();
+    if (_actor is not null && IsStaff)
+    {
+      await using var db = await DbFactory.CreateDbContextAsync();
+      _candidate = await db.ReleaseCandidates.AsNoTracking().SingleOrDefaultAsync(x => x.Id == CandidateId && x.FirmId == _actor.FirmId);
+    }
+    _loading = false;
+  }
+
+  private async Task IssueAsync()
+  {
+    if (_actor is null || _candidate is null || _busy) return;
+    _busy = true;
+    try
+    {
+      await using var db = await DbFactory.CreateDbContextAsync();
+      _result = await ReleaseService.IssueAsync(db, _actor,
+        new IssueReleaseRequest(_candidate.Id, _candidate.Revision, _candidate.ManifestDigest, _releaseKey, _checkpointVerified));
+      if (_result.Succeeded) _candidate.Status = ReleaseStates.Issued;
+    }
+    finally { _busy = false; }
+  }
+}
