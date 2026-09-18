@@ -3,7 +3,7 @@
   "specificationVersion": "5.0",
   "specificationSha256": "e1e9a10bb82c9eae1c1a28b7f17a90f61152d1198444cbd95392c9bd714812d4",
   "repository": "/Users/qts/Repos/AuditSphere",
-  "baseCommit": "1686bc699229415606496f9bffc97994daac8c84",
+  "baseCommit": "c83cd4738aa57e878c54439f31565cf65a57ea2c",
   "sdk": {
     "version": "10.0.300",
     "efCore": "10.0.12",
@@ -12,15 +12,15 @@
     "postgres": "18.6 Homebrew user-local port 5433 (development only)"
   },
   "active": {
-    "packageId": "Checklist #10: ND-04 document snapshots",
+    "packageId": "Checklist #11: revision/generation-bound approvals",
     "issueNumber": null,
-    "branch": "master",
-    "pullRequestNumber": 5,
-    "headCommit": "c091bf2bf0a859173ee4228b359c90d1b5202320",
+    "branch": "codex/checklist-11-approvals",
+    "pullRequestNumber": null,
+    "headCommit": "94a8da3",
     "implementationStatus": "IMPLEMENTED",
     "acceptanceStatus": "LOCAL_VERIFIED",
-    "worktree": "Checklist #10 implementation commit 0f9fe20 was merged by owner-authorized PR #5 as c091bf2 on master. No independent human reviewer evidence is present.",
-    "scope": "Checklist #10 only: authorized exact-byte snapshot hashing, unique document/provider-version identity, composite document scope FKs, legacy preflight, and append-only snapshot protection.",
+    "worktree": "Checklist #11 implementation commit 94a8da3 is present on codex/checklist-11-approvals; the owner-authorized PR is not yet opened. No independent human reviewer evidence is present.",
+    "scope": "Checklist #11 only: workpaper approval binding to target revision, client input generation and firm policy generation, immutable approval history, current applicability projection, and stale rejection.",
     "productionEnabled": false
   },
   "testEvidence": [
@@ -34,23 +34,23 @@
     },
     {
       "command": "dotnet build AuditSphereOps.slnx",
-      "result": "Build succeeded, 0 warnings, 0 errors at checklist #10 implementation commit 0f9fe20; the implementation was subsequently merged as c091bf2."
+      "result": "Build succeeded, 0 warnings, 0 errors at checklist #11 implementation commit 94a8da3."
     },
     {
       "command": "dotnet test AuditSphereOps.slnx --no-build",
-      "result": "Passed 85/85 on PostgreSQL 18.6; 0 skipped at checklist #10 implementation commit 0f9fe20, subsequently merged as c091bf2. Includes three document snapshot integrity tests and legacy migration coverage, plus the prior CRM, time/budget, billing, ledger, accounting, authorization, and outbox coverage."
+      "result": "Passed 88/88 on PostgreSQL 18.6; 0 skipped at checklist #11 implementation commit 94a8da3. Includes two approval binding/staleness tests and legacy migration coverage, plus the prior CRM, time/budget, billing, ledger, document, accounting, authorization, and outbox coverage."
     },
     {
       "command": "dotnet ef database update --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Web --no-build",
-      "result": "Applied 20260918125731_DocumentSnapshotIntegrity; local auditsphere is now up to date. Existing migrations and legacy tables were preserved."
+      "result": "Applied 20260918131715_ApprovalApplicabilityWorkflow; local auditsphere is now up to date. Existing migrations and legacy tables were preserved."
     },
     {
       "command": "dotnet ef migrations list --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Web --no-build",
-      "result": "All twelve migrations through DocumentSnapshotIntegrity are present; database update reports no pending migrations."
+      "result": "All thirteen migrations through ApprovalApplicabilityWorkflow are present; database update reports no pending migrations."
     },
     {
       "command": "psql read-only version/trigger/constraint queries against 127.0.0.1:5433/auditsphere",
-      "result": "PostgreSQL 18.6; local probe found the document_snapshots append-only trigger plus document scope/hash/version checks and the latest migration 20260918125731_DocumentSnapshotIntegrity. No production database was touched."
+      "result": "PostgreSQL 18.6; local probe found immutable approval and snapshot triggers, approval scope/applicability constraints, and the latest migration 20260918131715_ApprovalApplicabilityWorkflow. No production database was touched."
     }
   ],
   "tenantEvidence": [
@@ -86,16 +86,16 @@
     {
       "classification": "implementation-gap",
       "gate": "Schema integrity and release controls (spec §§27, 42)",
-      "missing": "Mapping/FS package, remaining entity FKs, approvals, release gates, live provider adapters, UI and full recovery",
-      "ownerAction": "After checklist #10 acceptance, continue dependency-ordered slices #11-14."
+      "missing": "Mapping/FS package, remaining entity FKs, release gates, live provider adapters, UI and full recovery",
+      "ownerAction": "After checklist #11 acceptance, continue dependency-ordered slices #12-14."
     },
     {
       "classification": "authorization-review",
       "gate": "Independent review and PR/merge",
-      "missing": "Checklist #10 has no independent human review evidence; PR #1, PR #2, PR #3, PR #4, and PR #5 merged without independent human review",
-      "ownerAction": "Obtain independent review evidence before treating the merged slices as fully accepted."
+      "missing": "Checklist #11 has no independent human review evidence; PR #1, PR #2, PR #3, PR #4, and PR #5 merged without independent human review",
+      "ownerAction": "Open and complete the owner-authorized checklist #11 PR; obtain independent review evidence before treating the slice as fully accepted."
     }
   ],
-  "nextPermittedAction": "Begin dependency-ordered checklist #11: approvals bound to revision and generation; independent human review evidence remains outstanding.",
-  "lastVerifiedAt": "2026-09-18T13:10:00Z"
+  "nextPermittedAction": "Open the owner-authorized checklist #11 PR, run its checks, and verify the merge.",
+  "lastVerifiedAt": "2026-09-18T13:23:07Z"
 }

@@ -29,6 +29,29 @@ public sealed class Approval
   public long InputGeneration { get; set; }
   public long PolicyGeneration { get; set; }
   public string ManifestDigest { get; set; } = string.Empty;
+  public string Decision { get; set; } = "APPROVED";
   public Guid DecidedByUserId { get; set; }
   public DateTimeOffset DecidedAt { get; set; }
+}
+
+public static class ApprovalStates
+{
+  public const string Approved = "APPROVED";
+  public const string Rejected = "REJECTED";
+  public const string Current = "CURRENT";
+  public const string Stale = "STALE";
+}
+
+/// <summary>Mutable applicability projection for an immutable historical approval.</summary>
+public sealed class ApprovalApplicability
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ApprovalId { get; set; }
+  public string Status { get; set; } = ApprovalStates.Current;
+  public string Reason { get; set; } = string.Empty;
+  public long CurrentTargetRevision { get; set; }
+  public long CurrentInputGeneration { get; set; }
+  public long CurrentPolicyGeneration { get; set; }
+  public DateTimeOffset EvaluatedAt { get; set; }
 }
