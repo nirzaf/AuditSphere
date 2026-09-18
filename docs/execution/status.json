@@ -16,10 +16,10 @@
     "issueNumber": null,
     "branch": "codex/checklist-6-crm",
     "pullRequestNumber": null,
-    "headCommit": "14cbd01d17507040d5d9a59f903f5a36da6bc634",
+    "headCommit": "141a55d2c7a9df8e23f41b6365c3f2ac58148240",
     "implementationStatus": "IMPLEMENTED",
     "acceptanceStatus": "LOCAL_VERIFIED",
-    "worktree": "Checklist #6 is committed as 14cbd01d17507040d5d9a59f903f5a36da6bc634 on codex/checklist-6-crm; the owner-authorized PR/merge workflow is pending and no independent reviewer evidence has been observed.",
+    "worktree": "Working tree is clean after the checklist #6 implementation commit 141a55d2c7a9df8e23f41b6365c3f2ac58148240; the owner-authorized PR/merge workflow is pending and no independent reviewer evidence has been observed.",
     "scope": "Checklist #6 only: guarded commercial CRM lead, opportunity, proposal revision/approval/send/response, and idempotent client-draft conversion that creates pending professional acceptance without activating work.",
     "productionEnabled": false
   },
@@ -96,6 +96,6 @@
       "ownerAction": "Push the committed branch, open/verify the PR and merge workflow; obtain independent review evidence before treating checklist #6 as fully accepted or starting checklist #7."
     }
   ],
-  "nextPermittedAction": "Push commit 14cbd01d17507040d5d9a59f903f5a36da6bc634, open its PR, verify the merge result, and keep checklist #7 paused until independent review/acceptance evidence exists.",
+  "nextPermittedAction": "Push commit 141a55d2c7a9df8e23f41b6365c3f2ac58148240, open its PR, verify the merge result, and keep checklist #7 paused until independent review/acceptance evidence exists.",
   "lastVerifiedAt": "2026-09-18T10:49:44Z"
 }
