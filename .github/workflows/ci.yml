@@ -36,7 +36,7 @@ jobs:
           cache: true
           cache-dependency-path: '**/packages.lock.json'
       - run: dotnet tool restore
-      - run: dotnet restore AuditSphereOps.slnx --locked-mode
+      - run: dotnet restore AuditSphereOps.slnx
       - run: dotnet build AuditSphereOps.slnx --no-restore
       - run: dotnet ef database update --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Web --no-build
       - run: dotnet test AuditSphereOps.slnx --no-build
