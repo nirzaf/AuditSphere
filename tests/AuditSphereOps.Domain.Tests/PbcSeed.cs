@@ -1,21 +1,23 @@
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Documents;
+using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Domain.Documents;
 using AuditSphereOps.Domain.Engagements;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace AuditSphereOps.Domain.Tests;
 
 /// <summary>Shared PBC test fixture: one firm/client/engagement scope with staff,
-/// reviewer and client users plus scoped grants.</summary>
+/// reviewer, client and administrator users plus scoped grants.</summary>
 internal static class PbcSeed
 {
   internal sealed record Fixture(
     Guid FirmId, Guid ClientId, Guid EngagementId,
-    AppUser Staff, AppUser Reviewer, AppUser Client);
+    AppUser Staff, AppUser Reviewer, AppUser Client, AppUser Admin);
 
   internal static async Task<Fixture> SeedAsync(PgTestSchema pg)
   {
@@ -25,6 +27,7 @@ internal static class PbcSeed
     var staff = User(firmId, "Staff");
     var reviewer = User(firmId, "Staff");
     var client = User(firmId, "Client");
+    var admin = User(firmId, "Staff");
     await using var db = new AuditSphereDbContext(pg.Options);
     db.PracticeClients.Add(new PracticeClient
     {
@@ -40,13 +43,14 @@ internal static class PbcSeed
     {
       Id = clientId, FirmId = firmId
     });
-    db.Users.AddRange(staff, reviewer, client);
+    db.Users.AddRange(staff, reviewer, client, admin);
     db.RoleGrants.AddRange(
       Grant(firmId, staff, "Staff", clientId: clientId, engagementId: engagementId),
       Grant(firmId, reviewer, "Reviewer", clientId: clientId, engagementId: engagementId),
-      Grant(firmId, client, "ClientUser", clientId: clientId, engagementId: engagementId));
+      Grant(firmId, client, "ClientUser", clientId: clientId, engagementId: engagementId),
+      AdminGrant(firmId, admin));
     await db.SaveChangesAsync();
-    return new Fixture(firmId, clientId, engagementId, staff, reviewer, client);
+    return new Fixture(firmId, clientId, engagementId, staff, reviewer, client, admin);
   }
 
   internal static ActorContext Actor(AppUser user, string role) =>
@@ -65,6 +69,13 @@ internal static class PbcSeed
   {
     Id = Guid.NewGuid(), FirmId = firmId, UserId = user.Id, Role = role,
     ClientId = clientId, EngagementId = engagementId,
+    GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = user.Id
+  };
+
+  internal static RoleGrant AdminGrant(Guid firmId, AppUser user) => new()
+  {
+    Id = Guid.NewGuid(), FirmId = firmId, UserId = user.Id, Role = "Administrator",
+    ClientId = null, EngagementId = null,
     GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = user.Id
   };
 
@@ -105,7 +116,7 @@ internal static class PbcSeed
       if (!recorded.Succeeded)
         throw new InvalidOperationException("chunk failed: " + recorded.ErrorCode);
     }
-    return new PbcSeed.StagedUpload(uploadId, capability, declaredHash, stagingRoot, content.Length);
+    return new StagedUpload(uploadId, capability, declaredHash, stagingRoot, content.Length);
   }
 
   internal sealed record StagedUpload(
@@ -153,6 +164,74 @@ internal static class PbcSeed
     var store = new PostgresOperationStore(factory);
     var handler = new PbcDocumentTransferHandler(factory, sink);
     return (store, handler);
+  }
+
+  internal sealed record TransferHarness(
+    Fixture Fixture, Guid RequestId, StagedUpload Staged, string ProviderRoot,
+    WorkerOptions Options, PostgresOperationStore Store, PbcDocumentTransferHandler Handler,
+    AuditSphereOps.Worker.Worker Worker, PgTestSchema Pg);
+
+  /// <summary>Builds the full PBC transfer worker for one schema: seeds the scope, stages a
+  /// complete upload through the trusted completion boundary, and wires a worker around the
+  /// given (possibly scripted) provider sink.</summary>
+  internal static async Task<TransferHarness> CreateTransferHarnessAsync(
+    PgTestSchema pg, ScriptedSink? scripted = null)
+  {
+    var fixture = await SeedAsync(pg);
+    var staff = Actor(fixture.Staff, "Staff");
+    var client = Actor(fixture.Client, "ClientUser");
+    var requestId = await CreateSentAcknowledgedRequestAsync(pg, fixture, staff, client);
+    var staged = await StageUploadAsync(pg, fixture, client, requestId,
+      "%PDF-1.7 staged transfer evidence"u8.ToArray());
+    var providerRoot = Path.Combine(staged.StagingRoot, "provider");
+    var inner = new SimulationPbcProviderSink(providerRoot);
+    if (scripted is not null) scripted.Bind(inner);
+    IPbcProviderSink sink = scripted is not null ? scripted : inner;
+    var factory = new OperationContextFactory(new OptionsDbContextFactory(pg.Options));
+    var store = new PostgresOperationStore(factory);
+    var handler = new PbcDocumentTransferHandler(factory, sink);
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var completed = await PbcService.CompleteUploadAsync(db, staff,
+        new CompletePbcUploadRequest(staged.UploadIntentId, staged.DeclaredSha256Hex), store, handler);
+      if (!completed.Succeeded)
+        throw new InvalidOperationException("completion failed: " + completed.ErrorCode);
+    }
+    var options = new WorkerOptions(fixture.FirmId, "Test", AllowSimulationAdapters: true);
+    var registry = new DurableOperationRegistry([handler], options);
+    var discovery = new PbcTransferDiscovery(factory, store, handler, options);
+    var worker = new AuditSphereOps.Worker.Worker(new OperationDispatcher(store, registry, options),
+      [discovery], NullLogger<AuditSphereOps.Worker.Worker>.Instance);
+    return new(fixture, requestId, staged, providerRoot, options, store, handler, worker, pg);
+  }
+
+  /// <summary>Test sink wrapper that scripts provider behaviors before delegating to the
+  /// underlying simulated sink.</summary>
+  internal sealed class ScriptedSink : IPbcProviderSink
+  {
+    private readonly List<Func<PbcTransferPlan, Task<PbcProviderReceipt>>> uploadScript = [];
+
+    public IPbcProviderSink? Inner { get; private set; }
+
+    public void Bind(IPbcProviderSink inner) => Inner = inner;
+
+    public void OnUpload(Func<PbcTransferPlan, Task<PbcProviderReceipt>> behavior) =>
+      uploadScript.Add(behavior);
+
+    public async Task<PbcProviderReceipt> UploadAsync(PbcTransferPlan plan, CancellationToken ct)
+    {
+      var behavior = uploadScript.Count > 0
+        ? uploadScript[0]
+        : plan2 => Inner!.UploadAsync(plan2, ct);
+      if (uploadScript.Count > 0) uploadScript.RemoveAt(0);
+      return await behavior(plan);
+    }
+
+    public Task<PbcProviderReceipt?> VerifyAsync(string identity, CancellationToken ct) =>
+      Inner!.VerifyAsync(identity, ct);
+
+    public Task<PbcProviderReceipt?> ProbeAsync(Guid uploadIntentId, CancellationToken ct) =>
+      Inner!.ProbeAsync(uploadIntentId, ct);
   }
 
   internal static void DeleteDirectory(string path)

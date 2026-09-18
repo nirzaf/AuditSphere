@@ -1,0 +1,254 @@
+@page "/app/practice/invoices/{InvoiceId:guid}"
+@rendermode InteractiveServer
+@using AuditSphereOps.Application.Practice
+@using AuditSphereOps.Domain.Practice
+@using AuditSphereOps.Domain.Security
+@inject CurrentActorResolver ActorResolver
+@inject IDbContextFactory<AuditSphereDbContext> DbFactory
+
+<PageTitle>Invoice</PageTitle>
+<a class="back-link" href="/app">← Back to portfolio</a>
+<h1>Practice invoice</h1>
+
+@if (_loading)
+{
+  <p role="status">Loading invoice…</p>
+}
+else if (_actor is null || !_isAuthorized)
+{
+  <section class="notice" role="alert"><h2>Access unavailable</h2><p>Sign in with an authorized finance identity to view this invoice.</p></section>
+}
+else if (_invoice is null)
+{
+  <section class="notice" role="alert"><h2>Invoice unavailable</h2><p>The requested invoice was not found in the current firm scope.</p></section>
+}
+else
+{
+  <section class="card" aria-labelledby="invoice-heading">
+    <p class="eyebrow">Status: @_invoice.Status (Rev @_invoice.Revision)</p>
+    <h2 id="invoice-heading">@_invoice.InvoiceNumber</h2>
+    <dl class="details">
+      <dt>Invoice ID</dt><dd><code>@_invoice.Id</code></dd>
+      <dt>Currency</dt><dd>@(_invoice.Currency ?? "Default")</dd>
+      <dt>Subtotal</dt><dd>@_invoice.Subtotal.ToString("N2")</dd>
+      <dt>Tax</dt><dd>@_invoice.Tax.ToString("N2")</dd>
+      <dt>Total Amount</dt><dd><strong>@_invoice.Total.ToString("N2")</strong></dd>
+      <dt>Balance Outstanding</dt><dd><strong>@_balance.ToString("N2")</strong></dd>
+      <dt>Created</dt><dd>@_invoice.CreatedAt.ToString("yyyy-MM-dd HH:mm") UTC</dd>
+      @if (_invoice.PostedAt.HasValue)
+      {
+        <dt>Posted</dt><dd>@_invoice.PostedAt.Value.ToString("yyyy-MM-dd HH:mm") UTC</dd>
+      }
+    </dl>
+  </section>
+
+  @if (_result is not null)
+  {
+    <p class="command-result @(_result.Succeeded ? "success-text" : "error-text")" role="status">
+      @(_result.Succeeded ? (_successMessage ?? "Action completed successfully.") : "Blocked: " + _result.ErrorCode)
+    </p>
+  }
+
+  <section class="card" aria-labelledby="lines-heading">
+    <h2 id="lines-heading">Invoice line items</h2>
+    @if (_lines.Count == 0)
+    {
+      <p class="muted">No line items recorded on this invoice.</p>
+    }
+    else
+    {
+      <div class="table-wrap">
+        <table>
+          <caption class="sr-only">Invoice lines</caption>
+          <thead>
+            <tr>
+              <th scope="col">Description</th>
+              <th scope="col" style="text-align: right;">Quantity</th>
+              <th scope="col" style="text-align: right;">Unit Price</th>
+              <th scope="col" style="text-align: right;">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+          @foreach (var line in _lines)
+          {
+            <tr>
+              <td>@line.Description</td>
+              <td style="text-align: right;">@line.Quantity.ToString("N2")</td>
+              <td style="text-align: right;">@line.UnitPrice.ToString("N2")</td>
+              <td style="text-align: right;">@line.LineTotal.ToString("N2")</td>
+            </tr>
+          }
+          </tbody>
+          <tfoot>
+            <tr style="font-weight: bold;">
+              <td colspan="3" style="text-align: right;">Total</td>
+              <td style="text-align: right;">@_lines.Sum(x => x.LineTotal).ToString("N2")</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    }
+  </section>
+
+  <section class="card" aria-labelledby="alloc-heading">
+    <h2 id="alloc-heading">Receipt allocations</h2>
+    @if (_allocations.Count == 0)
+    {
+      <p class="muted">No payments or receipts allocated to this invoice.</p>
+    }
+    else
+    {
+      <div class="table-wrap">
+        <table>
+          <caption class="sr-only">Receipt allocations</caption>
+          <thead>
+            <tr>
+              <th scope="col">Receipt ID</th>
+              <th scope="col">Date</th>
+              <th scope="col" style="text-align: right;">Allocated Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+          @foreach (var alloc in _allocations)
+          {
+            <tr>
+              <td><code>@alloc.ReceiptId</code></td>
+              <td>@alloc.CreatedAt.ToString("yyyy-MM-dd HH:mm")</td>
+              <td style="text-align: right;">@alloc.Amount.ToString("N2")</td>
+            </tr>
+          }
+          </tbody>
+        </table>
+      </div>
+    }
+  </section>
+
+  @if (_canAct)
+  {
+    <section class="card" aria-labelledby="workflow-heading">
+      <h2 id="workflow-heading">Invoice workflow actions</h2>
+      <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+        @if (_invoice.Status == BillingStates.InvoiceReviewRequired)
+        {
+          <button class="button" @onclick="ApproveInvoiceAsync" disabled="@_busy">Approve invoice</button>
+        }
+        else if (_invoice.Status == BillingStates.InvoiceApproved)
+        {
+          <button class="button" @onclick="PostInvoiceAsync" disabled="@_busy">Post invoice (Freeze & Emit ledger event)</button>
+        }
+        else if (_invoice.Status == BillingStates.InvoicePosted)
+        {
+          <button class="button" @onclick="SendInvoiceAsync" disabled="@_busy">Mark sent to client</button>
+        }
+      </div>
+    </section>
+  }
+}
+
+@code {
+  [Parameter] public Guid InvoiceId { get; set; }
+  private ActorContext? _actor;
+  private bool _isAuthorized;
+  private bool _canAct;
+  private Invoice? _invoice;
+  private decimal _balance;
+  private List<InvoiceLine> _lines = [];
+  private List<ReceiptAllocation> _allocations = [];
+  private CommandResult? _result;
+  private string? _successMessage;
+  private bool _loading = true;
+  private bool _busy;
+
+  protected override async Task OnInitializedAsync()
+  {
+    _actor = await ActorResolver.ResolveAsync();
+    if (_actor is not null)
+    {
+      _isAuthorized = _actor.Roles.Any(x => x is "Administrator" or "Partner" or "Manager" or "FinanceOfficer" or "FinanceManager" or "Staff");
+      _canAct = _actor.Roles.Any(x => x is "Administrator" or "Partner" or "Manager" or "FinanceManager");
+      if (_isAuthorized)
+      {
+        await LoadInvoiceAsync();
+      }
+    }
+    _loading = false;
+  }
+
+  private async Task LoadInvoiceAsync()
+  {
+    if (_actor is null) return;
+    await using var db = await DbFactory.CreateDbContextAsync();
+    _invoice = await db.Invoices.AsNoTracking()
+      .SingleOrDefaultAsync(x => x.Id == InvoiceId && x.FirmId == _actor.FirmId);
+    if (_invoice is not null)
+    {
+      _lines = await db.InvoiceLines.AsNoTracking()
+        .Where(x => x.InvoiceId == _invoice.Id && x.FirmId == _actor.FirmId)
+        .ToListAsync();
+      _allocations = await db.ReceiptAllocations.AsNoTracking()
+        .Where(x => x.InvoiceId == _invoice.Id && x.FirmId == _actor.FirmId)
+        .OrderByDescending(x => x.CreatedAt)
+        .ToListAsync();
+
+      var balResult = await BillingService.GetInvoiceBalanceAsync(db, _actor, _invoice.Id);
+      _balance = balResult.Succeeded ? balResult.Value!.Outstanding : (_invoice.Total - _allocations.Sum(x => x.Amount));
+    }
+  }
+
+  private async Task ApproveInvoiceAsync()
+  {
+    if (_actor is null || _invoice is null || _busy) return;
+    _busy = true;
+    _result = null;
+    try
+    {
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var res = await BillingService.ApproveInvoiceAsync(db, _actor, _invoice.Id);
+      _result = res;
+      if (res.Succeeded)
+      {
+        _successMessage = "Invoice approved.";
+        await LoadInvoiceAsync();
+      }
+    }
+    finally { _busy = false; }
+  }
+
+  private async Task PostInvoiceAsync()
+  {
+    if (_actor is null || _invoice is null || _busy) return;
+    _busy = true;
+    _result = null;
+    try
+    {
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var res = await BillingService.PostInvoiceAsync(db, _actor, _invoice.Id);
+      _result = res;
+      if (res.Succeeded)
+      {
+        _successMessage = "Invoice posted and frozen.";
+        await LoadInvoiceAsync();
+      }
+    }
+    finally { _busy = false; }
+  }
+
+  private async Task SendInvoiceAsync()
+  {
+    if (_actor is null || _invoice is null || _busy) return;
+    _busy = true;
+    _result = null;
+    try
+    {
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var res = await BillingService.SendInvoiceAsync(db, _actor, _invoice.Id);
+      _result = res;
+      if (res.Succeeded)
+      {
+        _successMessage = "Invoice marked as sent.";
+        await LoadInvoiceAsync();
+      }
+    }
+    finally { _busy = false; }
+  }
+}

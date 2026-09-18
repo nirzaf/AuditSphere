@@ -50,6 +50,13 @@ public sealed record FinancialPackageBuildResult(
   string CalculationHash,
   IReadOnlyDictionary<string, decimal> StatementTotals);
 
+public sealed record FinancialStatementPackageArtifact(
+  Guid PackageId,
+  string CalculationHash,
+  string ArtifactSha256Hex,
+  byte[] ArtifactBytes,
+  string RenderedText);
+
 /// <summary>
 /// Versioned mapping and deterministic financial-statement calculation over the
 /// accepted TB/adjustment inputs. Rendering, disclosures and provider delivery stay
@@ -366,6 +373,124 @@ public static class FinancialStatementService
       return CommandResult<FinancialPackageBuildResult>.Fail(ErrorCodes.IdempotencyConflict,
         "The package identity changed; retry from the current mapping and plan.");
     }
+  }
+
+  /// <summary>
+  /// Deterministically renders the complete financial-statement package artifact to canonical UTF-8 bytes
+  /// and computes its SHA-256 digest.
+  /// </summary>
+  public static FinancialStatementPackageArtifact RenderPackageArtifact(
+    FinancialPackage package,
+    IReadOnlyCollection<FinancialPackageLine> lines,
+    IReadOnlyCollection<FinancialPackageCashFlowLine> cashFlowLines,
+    IReadOnlyCollection<FinancialPackageDisclosure> disclosures,
+    IReadOnlyCollection<FinancialPackageValidation> validations)
+  {
+    var sb = new System.Text.StringBuilder();
+    sb.AppendLine("=== AUDITSPHEREOPS FINANCIAL STATEMENT PACKAGE ===");
+    sb.AppendLine($"Package ID: {package.Id:D}");
+    sb.AppendLine($"Firm ID: {package.FirmId:D}");
+    sb.AppendLine($"Client ID: {package.ClientId:D}");
+    sb.AppendLine($"Engagement ID: {package.EngagementId:D}");
+    sb.AppendLine($"Framework: {package.Framework}");
+    sb.AppendLine($"Reporting Period: {package.PeriodStart} to {package.PeriodEnd}");
+    sb.AppendLine($"Currency: {package.Currency}");
+    sb.AppendLine($"Taxonomy Version: {package.TaxonomyVersion}");
+    sb.AppendLine($"Template Version: {package.TemplateVersion}");
+    sb.AppendLine($"Engine Version: {package.CalculationEngineVersion}");
+    sb.AppendLine($"Calculation Hash: {package.CalculationHash}");
+    if (package.SupplementaryHash is not null)
+      sb.AppendLine($"Supplementary Hash: {package.SupplementaryHash}");
+    sb.AppendLine($"Status: {package.Status}");
+    sb.AppendLine();
+
+    sb.AppendLine("--- STATEMENT LINES ---");
+    foreach (var line in lines.OrderBy(x => x.StatementSection, StringComparer.Ordinal)
+      .ThenBy(x => x.DestinationCode, StringComparer.Ordinal)
+      .ThenBy(x => x.SourceAccountCode, StringComparer.Ordinal))
+    {
+      sb.AppendLine($"{line.StatementSection} | {line.DestinationCode} | {line.SourceAccountCode} | {line.Amount.ToString("0.000000", CultureInfo.InvariantCulture)} {line.Currency} | {line.Fraction.ToString("0.000000", CultureInfo.InvariantCulture)}");
+    }
+    sb.AppendLine();
+
+    sb.AppendLine("--- STATEMENT TOTALS ---");
+    var totals = lines.GroupBy(x => x.StatementSection, StringComparer.Ordinal)
+      .OrderBy(x => x.Key, StringComparer.Ordinal);
+    foreach (var grp in totals)
+    {
+      var sum = MoneyPolicy.Normalize(grp.Sum(x => x.Amount));
+      sb.AppendLine($"{grp.Key}: {sum.ToString("0.000000", CultureInfo.InvariantCulture)} {package.Currency}");
+    }
+    sb.AppendLine();
+
+    if (cashFlowLines.Count > 0)
+    {
+      sb.AppendLine("--- CASH FLOW RECONCILIATION ---");
+      sb.AppendLine($"Beginning Cash: {package.CashBeginning?.ToString("0.000000", CultureInfo.InvariantCulture)} {package.Currency}");
+      sb.AppendLine($"Ending Cash: {package.CashEnding?.ToString("0.000000", CultureInfo.InvariantCulture)} {package.Currency}");
+      foreach (var cf in cashFlowLines.OrderBy(x => x.Section, StringComparer.OrdinalIgnoreCase).ThenBy(x => x.Description, StringComparer.Ordinal))
+      {
+        sb.AppendLine($"{cf.Section} | {cf.Description} | {cf.Amount.ToString("0.000000", CultureInfo.InvariantCulture)} {cf.Currency}");
+      }
+      sb.AppendLine();
+    }
+
+    if (disclosures.Count > 0)
+    {
+      sb.AppendLine("--- DISCLOSURES ---");
+      foreach (var disc in disclosures.OrderBy(x => x.Code, StringComparer.OrdinalIgnoreCase))
+      {
+        var resp = disc.NotApplicable ? $"[NOT APPLICABLE: {disc.Rationale}]" : disc.Response;
+        sb.AppendLine($"{disc.Code}: {resp}");
+      }
+      sb.AppendLine();
+    }
+
+    sb.AppendLine("--- VALIDATIONS ---");
+    foreach (var val in validations.OrderBy(x => x.Code, StringComparer.Ordinal))
+    {
+      sb.AppendLine($"{val.Code} | {(val.Passed ? "PASS" : "REVIEW")} | {val.Detail}");
+    }
+
+    var text = sb.ToString();
+    var bytes = System.Text.Encoding.UTF8.GetBytes(text);
+    var sha256 = Hashing.Sha256Hex(bytes);
+    return new FinancialStatementPackageArtifact(package.Id, package.CalculationHash, sha256, bytes, text);
+  }
+
+  /// <summary>
+  /// Loads a package and its related projections from the database and renders the deterministic package artifact.
+  /// </summary>
+  public static async Task<CommandResult<FinancialStatementPackageArtifact>> RenderPackageArtifactAsync(
+    IAuditSphereDbContext db,
+    ActorContext actor,
+    Guid packageId,
+    CancellationToken ct = default)
+  {
+    var package = await db.FinancialPackages.AsNoTracking()
+      .SingleOrDefaultAsync(x => x.Id == packageId && x.FirmId == actor.FirmId, ct);
+    if (package is null)
+      return CommandResult<FinancialStatementPackageArtifact>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+
+    var auth = await AuthorizeAsync(db, actor, package.FirmId, package.ClientId, package.EngagementId, PreparerRoles.ToArray(), ct);
+    if (!auth.Succeeded)
+      return CommandResult<FinancialStatementPackageArtifact>.Fail(auth.ErrorCode!, auth.Message!);
+
+    var lines = await db.FinancialPackageLines.AsNoTracking()
+      .Where(x => x.FinancialPackageId == package.Id && x.FirmId == actor.FirmId)
+      .ToListAsync(ct);
+    var cashFlowLines = await db.FinancialPackageCashFlowLines.AsNoTracking()
+      .Where(x => x.FinancialPackageId == package.Id && x.FirmId == actor.FirmId)
+      .ToListAsync(ct);
+    var disclosures = await db.FinancialPackageDisclosures.AsNoTracking()
+      .Where(x => x.FinancialPackageId == package.Id && x.FirmId == actor.FirmId)
+      .ToListAsync(ct);
+    var validations = await db.FinancialPackageValidations.AsNoTracking()
+      .Where(x => x.FinancialPackageId == package.Id && x.FirmId == actor.FirmId)
+      .ToListAsync(ct);
+
+    var artifact = RenderPackageArtifact(package, lines, cashFlowLines, disclosures, validations);
+    return CommandResult<FinancialStatementPackageArtifact>.Ok(artifact);
   }
 
   private static async Task<CommandResult> AuthorizeAsync(

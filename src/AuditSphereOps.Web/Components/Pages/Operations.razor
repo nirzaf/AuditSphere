@@ -1,0 +1,134 @@
+@page "/app/operations"
+@rendermode InteractiveServer
+@using AuditSphereOps.Application.Operations
+@using AuditSphereOps.Domain.Completion
+@inject CurrentActorResolver ActorResolver
+@inject IDbContextFactory<AuditSphereDbContext> DbFactory
+
+<PageTitle>Operations</PageTitle>
+<a class="back-link" href="/app">← Back to portfolio</a>
+<h1>Operations</h1>
+
+@if (_loading)
+{
+  <p role="status">Loading the durable operation ledger…</p>
+}
+else if (_actor is null || !_isAdmin)
+{
+  <section class="notice" role="alert"><h2>Access unavailable</h2><p>Sign in with an authorized administrator identity to view operations.</p></section>
+}
+else
+{
+    <p class="scope-note">Redacted operational evidence for the current firm only: classification codes and durable state, never payloads, request bytes or lease owner identities. A re-armed operation re-runs through the same guarded validation as a first attempt.</p>
+    @if (_operatingMode == "RECOVERY_QUARANTINE")
+    {
+      <section class="notice warning" role="alert">
+        <h2>Recovery Quarantine Active</h2>
+        <p>Firm operating mode is quarantined. Side effects and operations are fenced until authorized recovery is lifted.</p>
+        <button class="button" @onclick="LiftQuarantineAsync" disabled="@_busy">Lift recovery quarantine</button>
+      </section>
+    }
+    @if (_result is not null)
+    {
+      <p class="command-result @(_result.Succeeded ? "success-text" : "error-text")" role="status">
+        @(_result.Succeeded ? (_successMessage ?? "The action succeeded.") : "Blocked: " + _result.ErrorCode)
+      </p>
+    }
+  @if (_operations.Count == 0)
+  {
+    <section class="card"><p class="muted">No durable operations are recorded for this firm.</p></section>
+  }
+  else
+  {
+    <section class="card" aria-labelledby="operations-heading">
+      <h2 id="operations-heading">Latest 50 durable operations</h2>
+      <div class="table-wrap"><table>
+        <caption class="sr-only">Durable operations in the current firm scope</caption>
+        <thead><tr><th scope="col">Kind</th><th scope="col">Status</th><th scope="col">Attempts</th><th scope="col">Next attempt</th><th scope="col">Code</th><th scope="col">Action</th></tr></thead>
+        <tbody>
+        @foreach (var op in _operations)
+        {
+          <tr>
+            <td>@op.Kind</td>
+            <td><span class="status">@op.Status</span></td>
+            <td>@op.AttemptCount</td>
+            <td>@(op.NextAttemptAt == null ? "—" : op.NextAttemptAt.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm"))</td>
+            <td>@(op.ErrorCode ?? "—")</td>
+            <td>
+              @if (OperationRecoveryService.RetryableStates.Contains(Enum.Parse<OperationState>(op.Status)))
+              {
+                <button class="button" @onclick="() => RetryAsync(op)" disabled="@_busy">Re-arm for retry</button>
+              }
+            </td>
+          </tr>
+        }
+        </tbody>
+      </table></div>
+    </section>
+  }
+}
+
+@code {
+  private ActorContext? _actor;
+  private bool _isAdmin;
+  private string? _operatingMode;
+  private List<OperationProjection> _operations = [];
+  private CommandResult? _result;
+  private string? _successMessage;
+  private bool _loading = true;
+  private bool _busy;
+
+  protected override async Task OnInitializedAsync()
+  {
+    _actor = await ActorResolver.ResolveAsync();
+    if (_actor is not null)
+    {
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var mode = await OperationRecoveryService.GetFirmOperatingModeAsync(db, _actor);
+      if (mode.Succeeded)
+      {
+        _isAdmin = true;
+        _operatingMode = mode.Value;
+        var listed = await OperationRecoveryService.ListAsync(db, _actor);
+        if (listed.Succeeded)
+          _operations = listed.Value!.ToList();
+      }
+    }
+    _loading = false;
+  }
+
+  private async Task LiftQuarantineAsync()
+  {
+    if (_actor is null || _busy) return;
+    _busy = true;
+    try
+    {
+      await using var db = await DbFactory.CreateDbContextAsync();
+      _result = await OperationRecoveryService.LiftQuarantineAsync(db, _actor);
+      if (_result.Succeeded)
+      {
+        _successMessage = "Recovery quarantine was lifted; operating mode is now LOCAL_ONLY.";
+        var mode = await OperationRecoveryService.GetFirmOperatingModeAsync(db, _actor);
+        if (mode.Succeeded) _operatingMode = mode.Value;
+      }
+    }
+    finally { _busy = false; }
+  }
+
+  private async Task RetryAsync(OperationProjection op)
+  {
+    if (_actor is null || _busy) return;
+    _busy = true;
+    try
+    {
+      await using var db = await DbFactory.CreateDbContextAsync();
+      _result = await OperationRecoveryService.RetryAsync(db, _actor, new OperationRecoveryRequest(op.Id));
+      if (_result.Succeeded)
+        _successMessage = "The operation was re-armed for retry; the worker picks it up on its next attempt window.";
+      var listed = await OperationRecoveryService.ListAsync(db, _actor);
+      if (listed.Succeeded)
+        _operations = listed.Value!.ToList();
+    }
+    finally { _busy = false; }
+  }
+}

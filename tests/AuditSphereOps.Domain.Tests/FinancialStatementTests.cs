@@ -5,6 +5,7 @@ using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Engagements;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Security;
+using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
@@ -127,6 +128,85 @@ public sealed class FinancialStatementTests
       var lineId = await db.FinancialPackageLines.Select(x => x.Id).FirstAsync();
       await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
         $"UPDATE financial_package_lines SET amount = amount + 1 WHERE id = {lineId}"));
+    }
+  }
+
+  [Fact]
+  public async Task FinancialPackage_RendersDeterministicArtifact_WithVerifiableSha256()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await SeedAsync(pg);
+    var preparer = Actor(fixture.Preparer, "AccountingPreparer");
+    var reviewer = Actor(fixture.Reviewer, "AccountingReviewer");
+
+    Guid mappingId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var created = await FinancialStatementService.CreateMappingVersionAsync(db, preparer,
+        new CreateMappingVersionRequest(
+          fixture.DatasetId, "taxonomy-2026", "2026-01-01", "2026-12-31",
+          [new("1000", "CASH", "ASSETS", 1m, "Cash mapping"),
+           new("4000", "REVENUE", "INCOME", 1m, "Revenue mapping")]));
+      mappingId = created.Value;
+      Assert.True((await FinancialStatementService.ApproveMappingAsync(db, reviewer, mappingId, 1)).Succeeded);
+    }
+
+    Guid planId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var journal = (await AdjustmentJournalService.CreateDraftAsync(db, preparer, fixture.DatasetId,
+        "AJ-001", [("1000", 10m, 0m), ("4000", 0m, 10m)])).Value;
+      Assert.True((await AdjustmentJournalService.PostAsync(db, reviewer, journal)).Succeeded);
+      Assert.True((await SourceReconciliationService.ResolveAsync(db, reviewer, fixture.DatasetId,
+        "AJ-001", 1, ReflectionStates.NotApplicable, string.Empty)).Succeeded);
+      planId = (await AdjustmentPlanService.CreatePlanAsync(db, preparer, fixture.DatasetId,
+        [new PlanLineInput("AJ-001", 1)])).Value;
+      Assert.True((await AdjustmentPlanService.FinalizeAsync(db, preparer, planId)).Succeeded);
+    }
+
+    var request = new BuildFinancialPackageRequest(
+      planId, mappingId, "IFRS", "2026-01-01", "2026-12-31", "template-v1",
+      new FinancialSupplementaryInformation(
+        0m, 100m,
+        [new CashFlowLineInput("OPERATING", "Cash collections", 100m)],
+        [new DisclosureInput("NOTE_1", "Summary of significant accounting policies."),
+         new DisclosureInput("NOTE_2", string.Empty, NotApplicable: true, Rationale: "No discontinued operations.")]));
+
+    Guid packageId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var built = await FinancialStatementService.BuildFinancialPackageAsync(db, preparer, request);
+      Assert.True(built.Succeeded);
+      packageId = built.Value!.PackageId;
+    }
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var artifact1 = await FinancialStatementService.RenderPackageArtifactAsync(db, preparer, packageId);
+      Assert.True(artifact1.Succeeded);
+      Assert.NotNull(artifact1.Value);
+      Assert.NotEmpty(artifact1.Value.ArtifactBytes);
+      Assert.Equal(artifact1.Value.ArtifactSha256Hex, Hashing.Sha256Hex(artifact1.Value.ArtifactBytes));
+      Assert.Contains("=== AUDITSPHEREOPS FINANCIAL STATEMENT PACKAGE ===", artifact1.Value.RenderedText);
+      Assert.Contains("NOTE_1: Summary of significant accounting policies.", artifact1.Value.RenderedText);
+      Assert.Contains("[NOT APPLICABLE: No discontinued operations.]", artifact1.Value.RenderedText);
+
+      // Repeat render produces byte-for-byte identical output and digest
+      var artifact2 = await FinancialStatementService.RenderPackageArtifactAsync(db, reviewer, packageId);
+      Assert.True(artifact2.Succeeded);
+      Assert.Equal(artifact1.Value.ArtifactSha256Hex, artifact2.Value!.ArtifactSha256Hex);
+      Assert.Equal(artifact1.Value.ArtifactBytes, artifact2.Value.ArtifactBytes);
+
+      // Denied to client without accounting roles
+      var clientUser = User(fixture.FirmId);
+      db.Users.Add(clientUser);
+      db.RoleGrants.Add(Grant(fixture.FirmId, clientUser, "ClientUser"));
+      await db.SaveChangesAsync();
+      var clientActor = Actor(clientUser, "ClientUser");
+
+      var denied = await FinancialStatementService.RenderPackageArtifactAsync(db, clientActor, packageId);
+      Assert.False(denied.Succeeded);
+      Assert.Equal(ErrorCodes.ScopeDenied, denied.ErrorCode);
     }
   }
 

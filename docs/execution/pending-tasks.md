@@ -6,11 +6,11 @@ Full context: [authoritative v5.0 specification](../../AuditSphereOps_NET_Codex_
 
 ## Implementation backlog
 
-- [ ] Complete the remaining dependency-ordered staff and client route catalog, keeping commands scope-checked and UI projections non-authoritative.
-- [ ] Add the remaining scoped forms and workflows required by the specification, with command-level authorization and immutable evidence.
-- [ ] Complete generated financial-statement artifact creation and rendering, including deterministic package bytes and review visibility.
-- [ ] Complete authorized operator recovery screens/actions for blocked, dead-letter, uncertain, and quarantined operations; preserve append-only evidence and recovery fences.
-- [ ] Add the trusted final-completion boundary after staged PBC chunks, including durable worker/provider handoff and explicit failure/reconciliation states.
+- [x] Complete generated financial-statement artifact creation and rendering, including deterministic package bytes and review visibility.
+- [x] Complete authorized operator recovery screens/actions for blocked, dead-letter, uncertain, and quarantined operations; preserve append-only evidence and recovery fences.
+- [x] Add the trusted final-completion boundary after staged PBC chunks, including durable worker/provider handoff and explicit failure/reconciliation states.
+- [x] Complete the remaining dependency-ordered staff and client route catalog, keeping commands scope-checked and UI projections non-authoritative.
+- [x] Add the remaining scoped forms and workflows required by the specification, with command-level authorization and immutable evidence.
 - [ ] Implement live Entra/Graph/SharePoint/Purview adapters only behind the external-effects fence and selected-resource grants; never add tenant-wide scopes.
 - [ ] Finish remaining entity foreign keys and data-model integrity gaps identified by the specification and migration preflight rules.
 - [ ] Produce signing, protection, methodology, retention, and external-checkpoint evidence without inventing professional conclusions or provider success.

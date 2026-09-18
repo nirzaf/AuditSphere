@@ -1,0 +1,177 @@
+@page "/app/practice/leads"
+@rendermode InteractiveServer
+@using AuditSphereOps.Application.Practice
+@using AuditSphereOps.Domain.Practice
+@inject CurrentActorResolver ActorResolver
+@inject IDbContextFactory<AuditSphereDbContext> DbFactory
+
+<PageTitle>Practice leads</PageTitle>
+<a class="back-link" href="/app">← Back to portfolio</a>
+<h1>Practice leads</h1>
+
+@if (_loading)
+{
+  <p role="status">Loading practice leads…</p>
+}
+else if (_actor is null || !_isAuthorized)
+{
+  <section class="notice" role="alert"><h2>Access unavailable</h2><p>Sign in with an authorized commercial identity to view practice leads.</p></section>
+}
+else
+{
+  <p class="scope-note">Commercial opportunity progression for the current firm scope only. Converting a qualified lead requires separate client acceptance and credit decisions.</p>
+
+  @if (_result is not null)
+  {
+    <p class="command-result @(_result.Succeeded ? "success-text" : "error-text")" role="status">
+      @(_result.Succeeded ? (_successMessage ?? "Action completed successfully.") : "Blocked: " + _result.ErrorCode)
+    </p>
+  }
+
+  <section class="card" aria-labelledby="new-lead-heading">
+    <h2 id="new-lead-heading">Record new lead</h2>
+    <form @onsubmit="CreateLeadAsync" style="display: grid; gap: 0.75rem; max-width: 32rem;">
+      <label>
+        Lead / organization name
+        <input class="input" @bind="_newName" placeholder="e.g. Acme Corp" required disabled="@_busy" />
+      </label>
+      <label>
+        Source
+        <input class="input" @bind="_newSource" placeholder="e.g. Referral, Website" required disabled="@_busy" />
+      </label>
+      <label>
+        Primary contact name
+        <input class="input" @bind="_newContactName" placeholder="e.g. Jane Doe" disabled="@_busy" />
+      </label>
+      <label>
+        Primary contact email
+        <input class="input" type="email" @bind="_newContactEmail" placeholder="e.g. jane@example.com" disabled="@_busy" />
+      </label>
+      <button class="button" type="submit" disabled="@_busy">Create lead</button>
+    </form>
+  </section>
+
+  @if (_leads.Count == 0)
+  {
+    <section class="card"><p class="muted">No commercial leads are currently recorded for this firm.</p></section>
+  }
+  else
+  {
+    <section class="card" aria-labelledby="leads-table-heading">
+      <h2 id="leads-table-heading">Active leads (@_leads.Count)</h2>
+      <div class="table-wrap"><table>
+        <caption class="sr-only">Practice leads in the current firm scope</caption>
+        <thead>
+          <tr>
+            <th scope="col">Name</th>
+            <th scope="col">Source</th>
+            <th scope="col">Contact</th>
+            <th scope="col">Status</th>
+            <th scope="col">Recorded</th>
+            <th scope="col">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+        @foreach (var lead in _leads)
+        {
+          <tr>
+            <td><strong>@lead.Name</strong></td>
+            <td>@lead.Source</td>
+            <td>@(lead.PrimaryContactName ?? "—") @(lead.PrimaryContactEmail != null ? $"({lead.PrimaryContactEmail})" : "")</td>
+            <td><span class="status">@lead.Status</span></td>
+            <td>@lead.CreatedAt.ToString("yyyy-MM-dd")</td>
+            <td>
+              @if (lead.Status == CrmStates.LeadNew)
+              {
+                <button class="button" @onclick="() => QualifyLeadAsync(lead.Id)" disabled="@_busy">Qualify</button>
+              }
+            </td>
+          </tr>
+        }
+        </tbody>
+      </table></div>
+    </section>
+  }
+}
+
+@code {
+  private ActorContext? _actor;
+  private bool _isAuthorized;
+  private List<Lead> _leads = [];
+  private CommandResult? _result;
+  private string? _successMessage;
+  private bool _loading = true;
+  private bool _busy;
+
+  private string _newName = string.Empty;
+  private string _newSource = string.Empty;
+  private string? _newContactName;
+  private string? _newContactEmail;
+
+  protected override async Task OnInitializedAsync()
+  {
+    _actor = await ActorResolver.ResolveAsync();
+    if (_actor is not null)
+    {
+      _isAuthorized = _actor.Roles.Any(x => x is "Administrator" or "Partner" or "Manager" or "RelationshipManager");
+      if (_isAuthorized)
+      {
+        await LoadLeadsAsync();
+      }
+    }
+    _loading = false;
+  }
+
+  private async Task LoadLeadsAsync()
+  {
+    if (_actor is null) return;
+    await using var db = await DbFactory.CreateDbContextAsync();
+    _leads = await db.Leads.AsNoTracking()
+      .Where(x => x.FirmId == _actor.FirmId)
+      .OrderByDescending(x => x.CreatedAt)
+      .ToListAsync();
+  }
+
+  private async Task CreateLeadAsync()
+  {
+    if (_actor is null || _busy) return;
+    _busy = true;
+    try
+    {
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var req = new CreateLeadRequest(
+        _newName, _newSource, _newContactName, _newContactEmail,
+        OwnerUserId: _actor.UserId);
+      var res = await PracticeCrmService.CreateLeadAsync(db, _actor, req);
+      _result = res.Succeeded ? CommandResult.Ok() : CommandResult.Fail(res.ErrorCode!, res.Message!);
+      if (res.Succeeded)
+      {
+        _successMessage = "The lead was recorded successfully.";
+        _newName = string.Empty;
+        _newSource = string.Empty;
+        _newContactName = null;
+        _newContactEmail = null;
+        await LoadLeadsAsync();
+      }
+    }
+    finally { _busy = false; }
+  }
+
+  private async Task QualifyLeadAsync(Guid leadId)
+  {
+    if (_actor is null || _busy) return;
+    _busy = true;
+    try
+    {
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var res = await PracticeCrmService.QualifyLeadAsync(db, _actor, leadId);
+      _result = res;
+      if (res.Succeeded)
+      {
+        _successMessage = "The lead was qualified.";
+        await LoadLeadsAsync();
+      }
+    }
+    finally { _busy = false; }
+  }
+}

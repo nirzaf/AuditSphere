@@ -1,0 +1,176 @@
+using AuditSphereOps.Application.Abstractions;
+using AuditSphereOps.Application.Security;
+using AuditSphereOps.Domain.Completion;
+using AuditSphereOps.Domain.Shared;
+using Microsoft.EntityFrameworkCore;
+
+namespace AuditSphereOps.Application.Operations;
+
+public sealed record OperationRecoveryRequest(Guid OperationId);
+
+/// <summary>Operator-visible operation projections for the recovery screen. Payload bytes,
+/// request bytes and lease owner identities are never surfaced; only classification codes.</summary>
+public sealed record OperationProjection(
+  Guid Id, string Kind, string Status, Guid TargetId, long ExpectedRevision, int AttemptCount,
+  DateTimeOffset? NextAttemptAt, DateTimeOffset? LeaseExpiresAt, string? ErrorCode,
+  DateTimeOffset CreatedAt, DateTimeOffset? CompletedAt, bool HasResultEvidence);
+
+/// <summary>
+/// Authorized operator recovery (spec 43.2 operations route). It re-arms retryable terminal
+/// or uncertain operations inside the firm guard and records an append-only recovery event.
+/// It never rewrites completed results, request identity or attempt history.
+/// </summary>
+public static class OperationRecoveryService
+{
+  public static readonly OperationState[] RetryableStates =
+  [
+    OperationState.PROVIDER_BLOCKED, OperationState.DEAD_LETTER,
+    OperationState.AUTHORIZATION_BLOCKED, OperationState.RESULT_UNCERTAIN
+  ];
+
+  /// <summary>Bounded, redacted operation list for the operations screen.</summary>
+  public static async Task<CommandResult<IReadOnlyList<OperationProjection>>> ListAsync(
+    IAuditSphereDbContext db, ActorContext actor, CancellationToken ct = default)
+  {
+    var auth = await AuthorizeAsync(db, actor, ct);
+    if (!auth.Succeeded)
+      return CommandResult<IReadOnlyList<OperationProjection>>.Fail(auth.ErrorCode!, auth.Message!);
+    var operations = await db.DurableOperations.AsNoTracking()
+      .Where(o => o.FirmId == actor.FirmId)
+      .OrderByDescending(o => o.CreatedAt).ThenByDescending(o => o.Id)
+      .Take(50)
+      .Select(o => new OperationProjection(
+        o.Id, o.OperationKind, o.Status.ToString(), o.TargetId, o.ExpectedRevision, o.AttemptCount,
+        o.NextAttemptAt, o.LeaseExpiresAt, o.ErrorCode, o.CreatedAt, o.CompletedAt,
+        o.ResultIdentity != null && o.ResultDigest != null))
+      .ToListAsync(ct);
+    return CommandResult<IReadOnlyList<OperationProjection>>.Ok(operations);
+  }
+
+  /// <summary>
+  /// Re-arms a retryable operation: the mutable projection returns to RETRY_WAIT with a fresh
+  /// attempt budget under the explicit operator authorization, and an append-only event records
+  /// the operator identity. Completed results, request bytes and digests are untouched.
+  /// </summary>
+  public static async Task<CommandResult> RetryAsync(
+    IAuditSphereDbContext db, ActorContext actor, OperationRecoveryRequest input,
+    CancellationToken ct = default)
+  {
+    if (input.OperationId == Guid.Empty)
+      return CommandResult.Fail("operations.invalid", "An operation id is required.");
+    var auth = await AuthorizeAsync(db, actor, ct);
+    if (!auth.Succeeded)
+      return auth;
+
+    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    await db.Database.ExecuteSqlRawAsync(
+      "SET LOCAL lock_timeout = '5s'; SET LOCAL statement_timeout = '15s'", ct);
+    var safety = await db.FirmSafetyStates.FromSqlInterpolated($"""
+      SELECT * FROM firm_safety_states WHERE id = {actor.FirmId} FOR SHARE
+      """).AsNoTracking().ToListAsync(ct);
+    if (safety.Count != 1 || safety[0].OperatingMode != "LOCAL_ONLY")
+    {
+      await tx.RollbackAsync(ct);
+      return CommandResult.Fail("operations.quarantined",
+        "Recovery requires the firm to be in the local-only operating mode.");
+    }
+    var locked = await db.DurableOperations.FromSqlInterpolated($"""
+      SELECT * FROM durable_operations WHERE id = {input.OperationId} AND firm_id = {actor.FirmId} FOR UPDATE
+      """).ToListAsync(ct);
+    if (locked.Count == 0)
+      return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var op = locked[0];
+    if (!RetryableStates.Contains(op.Status))
+      return CommandResult.Fail("operations.state",
+        "Only blocked, dead-lettered, authorization-blocked or uncertain operations can be re-armed.");
+    if (op.LeaseOwner is not null)
+      return CommandResult.Fail("operations.lease", "The operation still holds an active lease.");
+
+    var count = await db.Database.ExecuteSqlInterpolatedAsync($"""
+      UPDATE durable_operations SET status = 'RETRY_WAIT', error_code = NULL,
+        next_attempt_at = statement_timestamp() + make_interval(secs => 5),
+        attempt_count = 0, lease_owner = NULL, lease_expires_at = NULL
+      WHERE id = {op.Id} AND firm_id = {actor.FirmId}
+        AND attempt_token = {op.AttemptToken} AND status = {op.Status.ToString()}
+      """, ct);
+    if (count != 1)
+      return CommandResult.Fail("operations.conflict", "The operation changed while the recovery command ran.");
+    db.OperationEvents.Add(new OperationEvent
+    {
+      Id = Guid.CreateVersion7(), OperationId = op.Id, Token = op.AttemptToken,
+      Kind = "operation.recovery-retry.v1", Executor = actor.UserId.ToString("D"),
+      OccurredAt = DateTimeOffset.UtcNow
+    });
+    await db.SaveChangesAsync(ct);
+    await tx.CommitAsync(ct);
+    return CommandResult.Ok();
+  }
+
+  /// <summary>Queries current firm operating mode (LOCAL_ONLY vs RECOVERY_QUARANTINE) for UI display.</summary>
+  public static async Task<CommandResult<string>> GetFirmOperatingModeAsync(
+    IAuditSphereDbContext db, ActorContext actor, CancellationToken ct = default)
+  {
+    var auth = await AuthorizeAsync(db, actor, ct);
+    if (!auth.Succeeded)
+      return CommandResult<string>.Fail(auth.ErrorCode!, auth.Message!);
+
+    var mode = await db.FirmSafetyStates.AsNoTracking()
+      .Where(x => x.Id == actor.FirmId)
+      .Select(x => x.OperatingMode)
+      .SingleOrDefaultAsync(ct);
+
+    return mode is not null
+      ? CommandResult<string>.Ok(mode)
+      : CommandResult<string>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+  }
+
+  /// <summary>
+  /// Lifts recovery quarantine for the firm under explicit administrator authorization.
+  /// Transitions operating mode from RECOVERY_QUARANTINE to LOCAL_ONLY and increments deployment epoch.
+  /// </summary>
+  public static async Task<CommandResult> LiftQuarantineAsync(
+    IAuditSphereDbContext db, ActorContext actor, CancellationToken ct = default)
+  {
+    var auth = await AuthorizeAsync(db, actor, ct);
+    if (!auth.Succeeded)
+      return auth;
+
+    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    await db.Database.ExecuteSqlRawAsync(
+      "SET LOCAL lock_timeout = '5s'; SET LOCAL statement_timeout = '15s'", ct);
+
+    var safety = await db.FirmSafetyStates.FromSqlInterpolated($"""
+      SELECT * FROM firm_safety_states WHERE id = {actor.FirmId} FOR UPDATE
+      """).ToListAsync(ct);
+    if (safety.Count != 1)
+    {
+      await tx.RollbackAsync(ct);
+      return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    }
+
+    if (safety[0].OperatingMode == "LOCAL_ONLY")
+    {
+      await tx.RollbackAsync(ct);
+      return CommandResult.Ok();
+    }
+
+    var count = await db.Database.ExecuteSqlInterpolatedAsync($"""
+      UPDATE firm_safety_states
+      SET operating_mode = 'LOCAL_ONLY', deployment_epoch = deployment_epoch + 1
+      WHERE id = {actor.FirmId} AND operating_mode = 'RECOVERY_QUARANTINE'
+      """, ct);
+    if (count != 1)
+    {
+      await tx.RollbackAsync(ct);
+      return CommandResult.Fail("operations.conflict", "Firm safety state changed while lifting quarantine.");
+    }
+
+    await tx.CommitAsync(ct);
+    return CommandResult.Ok();
+  }
+
+  private static async Task<CommandResult> AuthorizeAsync(
+    IAuditSphereDbContext db, ActorContext actor, CancellationToken ct) =>
+    await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, RequiredRoles: ["Administrator"]), ct);
+}

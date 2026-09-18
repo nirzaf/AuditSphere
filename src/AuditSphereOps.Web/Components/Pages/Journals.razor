@@ -1,0 +1,153 @@
+@page "/app/accounting/journals/{JournalId:guid}"
+@rendermode InteractiveServer
+@using AuditSphereOps.Application.Accounting
+@using AuditSphereOps.Domain.Accounting
+@inject CurrentActorResolver ActorResolver
+@inject IDbContextFactory<AuditSphereDbContext> DbFactory
+
+<PageTitle>Adjustment journal</PageTitle>
+<a class="back-link" href="/app">← Back to portfolio</a>
+<h1>Adjustment journal</h1>
+
+@if (_loading)
+{
+  <p role="status">Loading journal…</p>
+}
+else if (_actor is null || !_isStaff)
+{
+  <section class="notice" role="alert"><h2>Access unavailable</h2><p>Sign in with an authorized accounting identity to view this journal.</p></section>
+}
+else if (_journal is null)
+{
+  <section class="notice" role="alert"><h2>Journal unavailable</h2><p>The adjustment journal was not found in the current firm scope.</p></section>
+}
+else
+{
+  <section class="card" aria-labelledby="journal-heading">
+    <p class="eyebrow">Status: @_journal.Status (Rev @_journal.Revision)</p>
+    <h2 id="journal-heading">@_journal.JournalNumber</h2>
+    <dl class="details">
+      <dt>Journal ID</dt><dd><code>@_journal.Id</code></dd>
+      <dt>Base Dataset ID</dt><dd><code>@_journal.BaseDatasetId</code></dd>
+      <dt>Created</dt><dd>@_journal.CreatedAt.ToString("yyyy-MM-dd HH:mm") UTC</dd>
+      <dt>Created By</dt><dd><code>@_journal.CreatedByUserId</code></dd>
+    </dl>
+  </section>
+
+  @if (_result is not null)
+  {
+    <p class="command-result @(_result.Succeeded ? "success-text" : "error-text")" role="status">
+      @(_result.Succeeded ? (_successMessage ?? "Action completed successfully.") : "Blocked: " + _result.ErrorCode)
+    </p>
+  }
+
+  <section class="card" aria-labelledby="lines-heading">
+    <h2 id="lines-heading">Journal lines</h2>
+    <div class="table-wrap"><table>
+      <caption class="sr-only">Adjustment journal lines</caption>
+      <thead>
+        <tr>
+          <th scope="col">Account Code</th>
+          <th scope="col" style="text-align: right;">Debit</th>
+          <th scope="col" style="text-align: right;">Credit</th>
+        </tr>
+      </thead>
+      <tbody>
+      @foreach (var line in _lines)
+      {
+        <tr>
+          <td><code>@line.AccountCode</code></td>
+          <td style="text-align: right;">@line.Debit.ToString("N2")</td>
+          <td style="text-align: right;">@line.Credit.ToString("N2")</td>
+        </tr>
+      }
+      </tbody>
+      <tfoot>
+        <tr style="font-weight: bold;">
+          <td>Total</td>
+          <td style="text-align: right;">@_lines.Sum(x => x.Debit).ToString("N2")</td>
+          <td style="text-align: right;">@_lines.Sum(x => x.Credit).ToString("N2")</td>
+        </tr>
+      </tfoot>
+    </table></div>
+  </section>
+
+  @if (_journal.Status == "Draft")
+  {
+    <section class="card" aria-labelledby="post-heading">
+      <h2 id="post-heading">Review & Post</h2>
+      <p class="scope-note">Posting freezes the journal lines immutably. Separation of duties is enforced: a preparer cannot post their own journal.</p>
+      @if (_canPost)
+      {
+        <button class="button" @onclick="PostJournalAsync" disabled="@_busy">Post adjustment journal</button>
+      }
+      else
+      {
+        <p class="muted">You must have the AccountingReviewer, Partner or Manager role (and be a different user from the preparer) to post this journal.</p>
+      }
+    </section>
+  }
+}
+
+@code {
+  [Parameter] public Guid JournalId { get; set; }
+  private ActorContext? _actor;
+  private bool _isStaff;
+  private bool _canPost;
+  private AdjustmentJournal? _journal;
+  private List<AdjustmentLine> _lines = [];
+  private CommandResult? _result;
+  private string? _successMessage;
+  private bool _loading = true;
+  private bool _busy;
+
+  protected override async Task OnInitializedAsync()
+  {
+    _actor = await ActorResolver.ResolveAsync();
+    if (_actor is not null)
+    {
+      _isStaff = _actor.Roles.Any(x => x is "Administrator" or "Partner" or "Manager" or "Staff" or "AccountingPreparer" or "AccountingReviewer");
+      if (_isStaff)
+      {
+        await LoadJournalAsync();
+      }
+    }
+    _loading = false;
+  }
+
+  private async Task LoadJournalAsync()
+  {
+    if (_actor is null) return;
+    await using var db = await DbFactory.CreateDbContextAsync();
+    _journal = await db.AdjustmentJournals.AsNoTracking()
+      .SingleOrDefaultAsync(x => x.Id == JournalId && x.FirmId == _actor.FirmId);
+    if (_journal is not null)
+    {
+      _lines = await db.AdjustmentLines.AsNoTracking()
+        .Where(x => x.JournalId == _journal.Id)
+        .OrderBy(x => x.AccountCode)
+        .ToListAsync();
+
+      _canPost = _actor.UserId != _journal.CreatedByUserId &&
+                 _actor.Roles.Any(x => x is "AccountingReviewer" or "Partner" or "Manager");
+    }
+  }
+
+  private async Task PostJournalAsync()
+  {
+    if (_actor is null || _journal is null || _busy) return;
+    _busy = true;
+    try
+    {
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var res = await AdjustmentJournalService.PostAsync(db, _actor, _journal.Id);
+      _result = res;
+      if (res.Succeeded)
+      {
+        _successMessage = "Adjustment journal was posted and frozen.";
+        await LoadJournalAsync();
+      }
+    }
+    finally { _busy = false; }
+  }
+}

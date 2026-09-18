@@ -1,0 +1,127 @@
+@page "/app/administration"
+@rendermode InteractiveServer
+@using AuditSphereOps.Domain.Security
+@inject CurrentActorResolver ActorResolver
+@inject IDbContextFactory<AuditSphereDbContext> DbFactory
+@inject IConfiguration Configuration
+
+<PageTitle>Firm administration</PageTitle>
+<a class="back-link" href="/app">← Back to portfolio</a>
+<h1>Firm administration & security</h1>
+
+@if (_loading)
+{
+  <p role="status">Loading administration details…</p>
+}
+else if (_actor is null || !_isAdmin)
+{
+  <section class="notice" role="alert"><h2>Access unavailable</h2><p>Sign in with an authorized Administrator or Partner identity to view firm administration.</p></section>
+}
+else
+{
+  <p class="scope-note">System and firm-level administrative configuration (§43.2). Versioned configuration and role grants; direct database manipulation consoles are prohibited.</p>
+
+  <section class="card" aria-labelledby="safety-heading">
+    <h2 id="safety-heading">Firm safety state</h2>
+    <dl class="details">
+      <dt>Firm ID</dt><dd><code>@_actor.FirmId</code></dd>
+      <dt>Operating Mode</dt>
+      <dd>
+        @if (_safetyState?.OperatingMode == "RECOVERY_QUARANTINE")
+        {
+          <span class="error-text"><strong>RECOVERY_QUARANTINE</strong> (New operations halted; manual operator review required)</span>
+        }
+        else
+        {
+          <span class="success-text"><strong>@(_safetyState?.OperatingMode ?? "LOCAL_ONLY")</strong> (Normal operations active)</span>
+        }
+      </dd>
+      <dt>Deployment Epoch</dt><dd>@(_safetyState?.DeploymentEpoch ?? 1)</dd>
+      <dt>Operations Panel</dt><dd><a href="/app/operations">Manage durable operations & recovery</a></dd>
+    </dl>
+  </section>
+
+  <section class="card" aria-labelledby="env-heading">
+    <h2 id="env-heading">Runtime environment & security fences</h2>
+    <dl class="details">
+      <dt>Hosting Environment</dt><dd>@Configuration["ASPNETCORE_ENVIRONMENT"]</dd>
+      <dt>External Effects Enabled</dt><dd><code>@Configuration["ExternalEffects:Enabled"]</code> (Strictly fenced)</dd>
+      <dt>Simulation Adapters Allowed</dt><dd><code>@Configuration["ExternalEffects:AllowSimulationAdapters"]</code></dd>
+      <dt>System Liveness</dt><dd><a href="/health/live" target="_blank">Check /health/live</a></dd>
+      <dt>System Readiness</dt><dd><a href="/health/ready" target="_blank">Check /health/ready (migration verified)</a></dd>
+    </dl>
+  </section>
+
+  <section class="card" aria-labelledby="roles-heading">
+    <h2 id="roles-heading">Firm role grants</h2>
+    @if (_grants.Count == 0)
+    {
+      <p class="muted">No role grants found in current firm scope.</p>
+    }
+    else
+    {
+      <div class="table-wrap">
+        <table>
+          <caption class="sr-only">Firm role grants</caption>
+          <thead>
+            <tr>
+              <th scope="col">User ID</th>
+              <th scope="col">Role</th>
+              <th scope="col">Client Scope</th>
+              <th scope="col">Engagement Scope</th>
+              <th scope="col">Granted</th>
+            </tr>
+          </thead>
+          <tbody>
+          @foreach (var grant in _grants)
+          {
+            <tr>
+              <td><code>@grant.UserId</code></td>
+              <td><strong>@grant.Role</strong></td>
+              <td>@(grant.ClientId.HasValue ? grant.ClientId.Value.ToString() : "Firm-wide")</td>
+              <td>@(grant.EngagementId.HasValue ? grant.EngagementId.Value.ToString() : "—")</td>
+              <td>@grant.GrantedAt.ToString("yyyy-MM-dd HH:mm")</td>
+            </tr>
+          }
+          </tbody>
+        </table>
+      </div>
+    }
+  </section>
+}
+
+@code {
+  private ActorContext? _actor;
+  private bool _isAdmin;
+  private FirmSafetyState? _safetyState;
+  private List<RoleGrant> _grants = [];
+  private bool _loading = true;
+
+  protected override async Task OnInitializedAsync()
+  {
+    _actor = await ActorResolver.ResolveAsync();
+    if (_actor is not null)
+    {
+      _isAdmin = _actor.Roles.Any(x => x is "Administrator" or "Partner");
+      if (_isAdmin)
+      {
+        await LoadAdminDataAsync();
+      }
+    }
+    _loading = false;
+  }
+
+  private async Task LoadAdminDataAsync()
+  {
+    if (_actor is null) return;
+    await using var db = await DbFactory.CreateDbContextAsync();
+    _safetyState = await db.FirmSafetyStates.AsNoTracking()
+      .SingleOrDefaultAsync(x => x.Id == _actor.FirmId);
+
+    _grants = await db.RoleGrants.AsNoTracking()
+      .Where(x => x.FirmId == _actor.FirmId)
+      .OrderBy(x => x.Role)
+      .ThenBy(x => x.UserId)
+      .ToListAsync();
+  }
+}

@@ -1,0 +1,240 @@
+@page "/app/finance"
+@rendermode InteractiveServer
+@using AuditSphereOps.Application.Practice
+@using AuditSphereOps.Domain.Practice
+@using AuditSphereOps.Domain.Security
+@inject CurrentActorResolver ActorResolver
+@inject IDbContextFactory<AuditSphereDbContext> DbFactory
+
+<PageTitle>Firm ledger</PageTitle>
+<a class="back-link" href="/app">← Back to portfolio</a>
+<h1>Firm ledger & financial operations</h1>
+
+@if (_loading)
+{
+  <p role="status">Loading firm finance records…</p>
+}
+else if (_actor is null || !_isAuthorized)
+{
+  <section class="notice" role="alert"><h2>Access unavailable</h2><p>Sign in with an authorized finance identity to access the firm ledger.</p></section>
+}
+else
+{
+  <p class="scope-note">Restricted firm-ledger operations (§41.3). Firm accounts, balanced postings, and period close decisions enforce exact monetary balance and strict immutability.</p>
+
+  @if (_result is not null)
+  {
+    <p class="command-result @(_result.Succeeded ? "success-text" : "error-text")" role="status">
+      @(_result.Succeeded ? (_successMessage ?? "Action completed successfully.") : "Blocked: " + _result.ErrorCode)
+    </p>
+  }
+
+  <section class="card" aria-labelledby="periods-heading">
+    <h2 id="periods-heading">Fiscal periods</h2>
+    @if (_periods.Count == 0)
+    {
+      <p class="muted">No fiscal periods are configured for this firm.</p>
+    }
+    else
+    {
+      <div class="table-wrap">
+        <table>
+          <caption class="sr-only">Fiscal periods</caption>
+          <thead>
+            <tr>
+              <th scope="col">Period Code</th>
+              <th scope="col">Status</th>
+              <th scope="col">Revision</th>
+              <th scope="col">Closed Date</th>
+              <th scope="col"><span class="sr-only">Actions</span></th>
+            </tr>
+          </thead>
+          <tbody>
+          @foreach (var period in _periods)
+          {
+            <tr>
+              <td><strong>@period.PeriodCode</strong></td>
+              <td><span class="status">@period.Status</span></td>
+              <td>Rev @period.Revision</td>
+              <td>@(period.ClosedAt.HasValue ? period.ClosedAt.Value.ToString("yyyy-MM-dd HH:mm") : "—")</td>
+              <td>
+                @if (period.Status == LedgerStates.PeriodOpen && _canClosePeriod)
+                {
+                  <button class="button small" @onclick="() => PromptClosePeriod(period.Id)" disabled="@_busy">Close period</button>
+                }
+              </td>
+            </tr>
+          }
+          </tbody>
+        </table>
+      </div>
+    }
+
+    @if (_selectedPeriodIdToClose.HasValue)
+    {
+      <div style="margin-top: 1rem; padding: 1rem; border: 1px solid var(--border-color, #ccc); border-radius: 4px;">
+        <h3>Confirm period close</h3>
+        <p class="scope-note">Closing a fiscal period freezes it. All journals within the period must be posted prior to close.</p>
+        <label>
+          Close reason
+          <input class="input" @bind="_closeReason" placeholder="e.g. Year-end financial close" disabled="@_busy" />
+        </label>
+        <div style="margin-top: 0.5rem; display: flex; gap: 0.5rem;">
+          <button class="button" @onclick="ExecuteClosePeriodAsync" disabled="@_busy">Confirm close</button>
+          <button class="button" style="background: transparent; color: inherit;" @onclick="() => _selectedPeriodIdToClose = null" disabled="@_busy">Cancel</button>
+        </div>
+      </div>
+    }
+  </section>
+
+  <section class="card" aria-labelledby="accounts-heading">
+    <h2 id="accounts-heading">Chart of firm accounts</h2>
+    @if (_accounts.Count == 0)
+    {
+      <p class="muted">No firm posting accounts are configured.</p>
+    }
+    else
+    {
+      <div class="table-wrap">
+        <table>
+          <caption class="sr-only">Firm posting accounts</caption>
+          <thead>
+            <tr>
+              <th scope="col">Code</th>
+              <th scope="col">Account Name</th>
+              <th scope="col">Type</th>
+              <th scope="col">Normal Side</th>
+              <th scope="col">Posting Allowed</th>
+            </tr>
+          </thead>
+          <tbody>
+          @foreach (var account in _accounts)
+          {
+            <tr>
+              <td><code>@account.Code</code></td>
+              <td>@account.Name</td>
+              <td>@account.AccountType</td>
+              <td>@account.NormalSide</td>
+              <td>@(account.PostingAllowed ? "Yes" : "No")</td>
+            </tr>
+          }
+          </tbody>
+        </table>
+      </div>
+    }
+  </section>
+
+  <section class="card" aria-labelledby="postings-heading">
+    <h2 id="postings-heading">Recent firm postings</h2>
+    @if (_postings.Count == 0)
+    {
+      <p class="muted">No immutable postings recorded in the firm ledger yet.</p>
+    }
+    else
+    {
+      <div class="table-wrap">
+        <table>
+          <caption class="sr-only">Firm ledger postings</caption>
+          <thead>
+            <tr>
+              <th scope="col">Posting ID</th>
+              <th scope="col">Posted Date</th>
+              <th scope="col">Currency</th>
+              <th scope="col">Posted By</th>
+              <th scope="col">Reversal</th>
+            </tr>
+          </thead>
+          <tbody>
+          @foreach (var post in _postings)
+          {
+            <tr>
+              <td><code>@post.Id</code></td>
+              <td>@post.PostedAt.ToString("yyyy-MM-dd HH:mm") UTC</td>
+              <td>@post.Currency</td>
+              <td><code>@post.PostedByUserId</code></td>
+              <td>@(post.ReversalOfPostingId.HasValue ? $"Reversal of {post.ReversalOfPostingId.Value}" : "—")</td>
+            </tr>
+          }
+          </tbody>
+        </table>
+      </div>
+    }
+  </section>
+}
+
+@code {
+  private ActorContext? _actor;
+  private bool _isAuthorized;
+  private bool _canClosePeriod;
+  private List<FirmPeriod> _periods = [];
+  private List<FirmAccount> _accounts = [];
+  private List<FirmPosting> _postings = [];
+  private Guid? _selectedPeriodIdToClose;
+  private string _closeReason = "Standard accounting period close";
+  private CommandResult? _result;
+  private string? _successMessage;
+  private bool _loading = true;
+  private bool _busy;
+
+  protected override async Task OnInitializedAsync()
+  {
+    _actor = await ActorResolver.ResolveAsync();
+    if (_actor is not null)
+    {
+      _isAuthorized = _actor.Roles.Any(x => x is "Administrator" or "Partner" or "Manager" or "FinanceOfficer" or "FinanceManager");
+      _canClosePeriod = _actor.Roles.Any(x => x is "Administrator" or "Partner" or "FinanceManager");
+      if (_isAuthorized)
+      {
+        await LoadFinanceDataAsync();
+      }
+    }
+    _loading = false;
+  }
+
+  private async Task LoadFinanceDataAsync()
+  {
+    if (_actor is null) return;
+    await using var db = await DbFactory.CreateDbContextAsync();
+    _periods = await db.FirmPeriods.AsNoTracking()
+      .Where(x => x.FirmId == _actor.FirmId)
+      .OrderByDescending(x => x.PeriodCode)
+      .ToListAsync();
+
+    _accounts = await db.FirmAccounts.AsNoTracking()
+      .Where(x => x.FirmId == _actor.FirmId)
+      .OrderBy(x => x.Code)
+      .ToListAsync();
+
+    _postings = await db.FirmPostings.AsNoTracking()
+      .Where(x => x.FirmId == _actor.FirmId)
+      .OrderByDescending(x => x.PostedAt)
+      .Take(25)
+      .ToListAsync();
+  }
+
+  private void PromptClosePeriod(Guid periodId)
+  {
+    _selectedPeriodIdToClose = periodId;
+    _closeReason = "Standard accounting period close";
+  }
+
+  private async Task ExecuteClosePeriodAsync()
+  {
+    if (_actor is null || !_selectedPeriodIdToClose.HasValue || _busy) return;
+    _busy = true;
+    _result = null;
+    try
+    {
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var res = await LedgerService.CloseFiscalPeriodAsync(db, _actor, _selectedPeriodIdToClose.Value, _closeReason);
+      _result = res;
+      if (res.Succeeded)
+      {
+        _successMessage = "Fiscal period successfully closed.";
+        _selectedPeriodIdToClose = null;
+        await LoadFinanceDataAsync();
+      }
+    }
+    finally { _busy = false; }
+  }
+}

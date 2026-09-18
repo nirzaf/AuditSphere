@@ -1,5 +1,6 @@
 @page "/app/accounting/packages/{PackageId:guid}"
 @rendermode InteractiveServer
+@using AuditSphereOps.Application.Accounting
 @inject CurrentActorResolver ActorResolver
 @inject IDbContextFactory<AuditSphereDbContext> DbFactory
 
@@ -98,12 +99,28 @@ else
       </table></div>
     </section>
   }
+
+  @if (_artifact is not null)
+  {
+    <section class="card" aria-labelledby="artifact-heading">
+      <h2 id="artifact-heading">Deterministic package artifact</h2>
+      <dl class="details">
+        <dt>Artifact SHA-256</dt><dd><code>@_artifact.ArtifactSha256Hex</code></dd>
+        <dt>Artifact size</dt><dd>@_artifact.ArtifactBytes.Length bytes</dd>
+      </dl>
+      <details style="margin-top: 1rem;">
+        <summary>View canonical artifact text</summary>
+        <pre class="code-block" style="white-space: pre-wrap; font-family: monospace; background: var(--bg-surface-secondary, #f4f4f5); padding: 1rem; border-radius: 4px; overflow-x: auto;"><code>@_artifact.RenderedText</code></pre>
+      </details>
+    </section>
+  }
 }
 
 @code {
   [Parameter] public Guid PackageId { get; set; }
   private ActorContext? _actor;
   private FinancialPackageEntity? _package;
+  private FinancialStatementPackageArtifact? _artifact;
   private List<FinancialPackageValidation> _validations = [];
   private List<FinancialPackageLine> _lines = [];
   private List<FinancialPackageCashFlowLine> _cashFlowLines = [];
@@ -137,6 +154,7 @@ else
         _disclosures = await db.FinancialPackageDisclosures.AsNoTracking()
           .Where(x => x.FirmId == _actor.FirmId && x.ClientId == _package.ClientId && x.EngagementId == _package.EngagementId && x.FinancialPackageId == _package.Id)
           .OrderBy(x => x.Code).ToListAsync();
+        _artifact = FinancialStatementService.RenderPackageArtifact(_package, _lines, _cashFlowLines, _disclosures, _validations);
       }
     }
     _loading = false;

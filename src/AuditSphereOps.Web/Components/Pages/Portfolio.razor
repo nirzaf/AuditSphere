@@ -50,6 +50,17 @@ else
     <article class="metric card"><span class="metric-label">Issued releases</span><strong class="metric-value">@_metrics.IssuedReleases</strong></article>
   </section>
 
+  <section class="card" aria-labelledby="quick-routes-heading">
+    <h2 id="quick-routes-heading">Practice & operational surfaces</h2>
+    <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+      <a class="button" href="/app/practice/leads">Practice leads</a>
+      <a class="button" href="/app/practice/time">Time tracking & approvals</a>
+      <a class="button" href="/app/finance">Firm ledger & periods</a>
+      <a class="button" href="/app/operations">Durable operations & recovery</a>
+      <a class="button" href="/app/administration">Firm administration</a>
+    </div>
+  </section>
+
   <section class="card" aria-labelledby="candidate-title">
     <h2 id="candidate-title">Release candidates</h2>
     @if (_candidates.Count == 0)

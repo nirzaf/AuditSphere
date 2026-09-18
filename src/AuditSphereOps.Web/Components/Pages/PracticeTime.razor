@@ -1,0 +1,322 @@
+@page "/app/practice/time"
+@rendermode InteractiveServer
+@using AuditSphereOps.Application.Practice
+@using AuditSphereOps.Domain.Practice
+@using AuditSphereOps.Domain.Security
+@inject CurrentActorResolver ActorResolver
+@inject IDbContextFactory<AuditSphereDbContext> DbFactory
+
+<PageTitle>Time & work records</PageTitle>
+<a class="back-link" href="/app">← Back to portfolio</a>
+<h1>Practice time & task records</h1>
+
+@if (_loading)
+{
+  <p role="status">Loading time records…</p>
+}
+else if (_actor is null || !_isStaff)
+{
+  <section class="notice" role="alert"><h2>Access unavailable</h2><p>Sign in with an authorized internal staff identity to view and record time.</p></section>
+}
+else
+{
+  <p class="scope-note">Time entries are recorded against assigned firm tasks with exact integer minutes, immutable rate snapshots, and independent approval segregation.</p>
+
+  @if (_result is not null)
+  {
+    <p class="command-result @(_result.Succeeded ? "success-text" : "error-text")" role="status">
+      @(_result.Succeeded ? (_successMessage ?? "Action completed successfully.") : "Blocked: " + _result.ErrorCode)
+    </p>
+  }
+
+  <section class="card" aria-labelledby="log-heading">
+    <h2 id="log-heading">Record time draft</h2>
+    @if (_availableTasks.Count == 0)
+    {
+      <p class="muted">No open tasks are currently available to book time against. Create or assign an open task first.</p>
+    }
+    else
+    {
+      <form @onsubmit="SaveTimeDraftAsync" style="display: grid; gap: 0.75rem; max-width: 32rem;">
+        <label>
+          Work task
+          <select class="input" @bind="_selectedTaskId" required disabled="@_busy">
+            @foreach (var task in _availableTasks)
+            {
+              <option value="@task.Id">@task.Title (@task.Status)</option>
+            }
+          </select>
+        </label>
+        <div style="display: flex; gap: 0.75rem;">
+          <label style="flex: 1;">
+            Date
+            <input class="input" type="date" @bind="_workDate" required disabled="@_busy" />
+          </label>
+          <label style="flex: 1;">
+            Duration (minutes)
+            <input class="input" type="number" min="15" step="15" @bind="_durationMinutes" required disabled="@_busy" />
+          </label>
+        </div>
+        <div style="display: flex; gap: 0.75rem;">
+          <label style="flex: 1;">
+            Role
+            <input class="input" @bind="_role" placeholder="Staff, Manager, Partner" required disabled="@_busy" />
+          </label>
+          <label style="flex: 1;">
+            Activity
+            <input class="input" @bind="_activity" placeholder="Fieldwork, Review, Planning" required disabled="@_busy" />
+          </label>
+        </div>
+        <label style="display: flex; align-items: center; gap: 0.5rem;">
+          <input type="checkbox" @bind="_isBillable" disabled="@_busy" />
+          Billable to client
+        </label>
+        <label>
+          Narrative
+          <textarea class="input" @bind="_narrative" rows="2" placeholder="Summary of work performed" disabled="@_busy"></textarea>
+        </label>
+        <button class="button" type="submit" disabled="@_busy">Save time draft</button>
+      </form>
+    }
+  </section>
+
+  <section class="card" aria-labelledby="my-time-heading">
+    <h2 id="my-time-heading">My recorded time</h2>
+    @if (_myEntries.Count == 0)
+    {
+      <p class="muted">You have not recorded any time entries in the current firm scope.</p>
+    }
+    else
+    {
+      <div class="table-wrap">
+        <table>
+          <caption class="sr-only">My recorded time entries</caption>
+          <thead>
+            <tr>
+              <th scope="col">Date</th>
+              <th scope="col">Task</th>
+              <th scope="col">Duration</th>
+              <th scope="col">Classification</th>
+              <th scope="col">Status</th>
+              <th scope="col"><span class="sr-only">Actions</span></th>
+            </tr>
+          </thead>
+          <tbody>
+          @foreach (var entry in _myEntries)
+          {
+            var taskTitle = _taskMap.TryGetValue(entry.TaskId, out var t) ? t : entry.TaskId.ToString();
+            <tr>
+              <td>@entry.WorkDate.ToString("yyyy-MM-dd")</td>
+              <td>@taskTitle</td>
+              <td>@(entry.DurationMinutes)m (@((entry.DurationMinutes / 60.0).ToString("0.0"))h)</td>
+              <td>@entry.BillableClassification</td>
+              <td><span class="status">@entry.Status</span></td>
+              <td>
+                @if (entry.Status == PracticeTimeStates.TimeDraft)
+                {
+                  <button class="button small" @onclick="() => SubmitTimeAsync(entry.Id)" disabled="@_busy">Submit</button>
+                }
+                else
+                {
+                  <span class="muted">@entry.Status</span>
+                }
+              </td>
+            </tr>
+          }
+          </tbody>
+        </table>
+      </div>
+    }
+  </section>
+
+  @if (_isApprover)
+  {
+    <section class="card" aria-labelledby="queue-heading">
+      <h2 id="queue-heading">Time approval queue</h2>
+      <p class="scope-note">Independent approval segregation: managers and partners cannot approve their own time entries.</p>
+      @if (_submittedEntries.Count == 0)
+      {
+        <p class="muted">No pending submitted time entries awaiting approval.</p>
+      }
+      else
+      {
+        <div class="table-wrap">
+          <table>
+            <caption class="sr-only">Submitted time entries awaiting approval</caption>
+            <thead>
+              <tr>
+                <th scope="col">Date</th>
+                <th scope="col">Staff User</th>
+                <th scope="col">Task</th>
+                <th scope="col">Duration</th>
+                <th scope="col">Activity</th>
+                <th scope="col">Narrative</th>
+                <th scope="col"><span class="sr-only">Action</span></th>
+              </tr>
+            </thead>
+            <tbody>
+            @foreach (var entry in _submittedEntries)
+            {
+              var taskTitle = _taskMap.TryGetValue(entry.TaskId, out var t) ? t : entry.TaskId.ToString();
+              <tr>
+                <td>@entry.WorkDate.ToString("yyyy-MM-dd")</td>
+                <td><code>@entry.UserId</code></td>
+                <td>@taskTitle</td>
+                <td>@(entry.DurationMinutes)m</td>
+                <td>@entry.Activity</td>
+                <td>@entry.Narrative</td>
+                <td>
+                  <button class="button small" @onclick="() => ApproveTimeAsync(entry.Id)" disabled="@_busy">Approve</button>
+                </td>
+              </tr>
+            }
+            </tbody>
+          </table>
+        </div>
+      }
+    </section>
+  }
+}
+
+@code {
+  private ActorContext? _actor;
+  private bool _isStaff;
+  private bool _isApprover;
+  private List<WorkTask> _availableTasks = [];
+  private Dictionary<Guid, string> _taskMap = [];
+  private List<TimeEntry> _myEntries = [];
+  private List<TimeEntry> _submittedEntries = [];
+  private CommandResult? _result;
+  private string? _successMessage;
+  private bool _loading = true;
+  private bool _busy;
+
+  private Guid _selectedTaskId;
+  private DateOnly _workDate = DateOnly.FromDateTime(DateTime.UtcNow);
+  private int _durationMinutes = 60;
+  private string _role = "Staff";
+  private string _activity = "Fieldwork";
+  private bool _isBillable = true;
+  private string _narrative = string.Empty;
+
+  protected override async Task OnInitializedAsync()
+  {
+    _actor = await ActorResolver.ResolveAsync();
+    if (_actor is not null)
+    {
+      _isStaff = _actor.Roles.Any(x => x is "Administrator" or "Partner" or "Manager" or "Staff" or "EngagementLeader");
+      _isApprover = _actor.Roles.Any(x => x is "Administrator" or "Partner" or "Manager");
+      _role = _actor.Roles.FirstOrDefault() ?? "Staff";
+      if (_isStaff)
+      {
+        await LoadDataAsync();
+      }
+    }
+    _loading = false;
+  }
+
+  private async Task LoadDataAsync()
+  {
+    if (_actor is null) return;
+    await using var db = await DbFactory.CreateDbContextAsync();
+    _availableTasks = await db.WorkTasks.AsNoTracking()
+      .Where(x => x.FirmId == _actor.FirmId && x.Status != PracticeTimeStates.TaskCancelled && x.Status != PracticeTimeStates.TaskCompleted)
+      .OrderBy(x => x.Title)
+      .ToListAsync();
+
+    if (_selectedTaskId == Guid.Empty && _availableTasks.Count > 0)
+    {
+      _selectedTaskId = _availableTasks[0].Id;
+    }
+
+    var allTasks = await db.WorkTasks.AsNoTracking()
+      .Where(x => x.FirmId == _actor.FirmId)
+      .Select(x => new { x.Id, x.Title })
+      .ToListAsync();
+    _taskMap = allTasks.ToDictionary(x => x.Id, x => x.Title);
+
+    _myEntries = await db.TimeEntries.AsNoTracking()
+      .Where(x => x.FirmId == _actor.FirmId && x.UserId == _actor.UserId)
+      .OrderByDescending(x => x.WorkDate)
+      .ThenByDescending(x => x.CreatedAt)
+      .ToListAsync();
+
+    if (_isApprover)
+    {
+      _submittedEntries = await db.TimeEntries.AsNoTracking()
+        .Where(x => x.FirmId == _actor.FirmId && x.Status == PracticeTimeStates.TimeSubmitted && x.UserId != _actor.UserId)
+        .OrderBy(x => x.WorkDate)
+        .ToListAsync();
+    }
+  }
+
+  private async Task SaveTimeDraftAsync()
+  {
+    if (_actor is null || _selectedTaskId == Guid.Empty || _busy) return;
+    _busy = true;
+    _result = null;
+    try
+    {
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var req = new SaveTimeDraftRequest(
+        TaskId: _selectedTaskId,
+        WorkDate: _workDate,
+        StartMinute: 540, // 09:00 AM
+        DurationMinutes: _durationMinutes,
+        Role: _role,
+        Activity: _activity,
+        BillableClassification: _isBillable ? PracticeTimeStates.Billable : PracticeTimeStates.NonBillable,
+        Narrative: _narrative,
+        NarrativeVisibility: PracticeTimeStates.NarrativeInternal,
+        Currency: "QAR"
+      );
+      var res = await PracticeTimeService.SaveTimeDraftAsync(db, _actor, req);
+      _result = res.Succeeded ? CommandResult.Ok() : CommandResult.Fail(res.ErrorCode!, res.Message!);
+      if (res.Succeeded)
+      {
+        _successMessage = $"Time draft recorded ({_durationMinutes}m).";
+        _narrative = string.Empty;
+        await LoadDataAsync();
+      }
+    }
+    finally { _busy = false; }
+  }
+
+  private async Task SubmitTimeAsync(Guid entryId)
+  {
+    if (_actor is null || _busy) return;
+    _busy = true;
+    _result = null;
+    try
+    {
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var res = await PracticeTimeService.SubmitTimeAsync(db, _actor, entryId);
+      _result = res;
+      if (res.Succeeded)
+      {
+        _successMessage = "Time entry was submitted for approval.";
+        await LoadDataAsync();
+      }
+    }
+    finally { _busy = false; }
+  }
+
+  private async Task ApproveTimeAsync(Guid entryId)
+  {
+    if (_actor is null || _busy) return;
+    _busy = true;
+    _result = null;
+    try
+    {
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var res = await PracticeTimeService.ApproveTimeAsync(db, _actor, entryId);
+      _result = res;
+      if (res.Succeeded)
+      {
+        _successMessage = "Time entry was approved.";
+        await LoadDataAsync();
+      }
+    }
+    finally { _busy = false; }
+  }
+}
