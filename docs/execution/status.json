@@ -12,15 +12,15 @@
     "postgres": "18.6 Homebrew user-local port 5433 (development only)"
   },
   "active": {
-    "packageId": "Checklist #14 follow-up: capability-bound PBC chunk transport and controlled upload boundary",
+    "packageId": "Checklist #14 follow-up stage 2: trusted PBC final completion and durable provider handoff",
     "issueNumber": null,
     "branch": "master",
     "pullRequestNumber": null,
-    "headCommit": "6e31ab5298f40f1ded4b27007e82b7751708b72d",
+    "headCommit": "df73109ed0a33d3df43bc5a37707911453fe7f50",
     "implementationStatus": "PARTIAL",
-    "acceptanceStatus": "LOCAL_AND_HOSTED_CI_VERIFIED",
-    "worktree": "Commit 6e31ab5 adds a capability-bound same-origin PBC chunk endpoint: the browser sends sequential 8 MiB chunks, the server streams each chunk to a generated staging path outside webroot, verifies origin/capability/scope/offset/length/hash, and records the immutable receipt only after verification. Local verification passed; hosted run 35377533259 passed every CI step on head 6e31ab5; no independent human reviewer evidence is present.",
-    "scope": "Checklist #14 follow-up: deterministic accounting package inputs plus scoped PBC/upload persistence, capability-bound browser chunk transport, client/staff views, guarded migration/restore evidence, committed lock-file cache inputs, and hosted CI execution.",
+    "acceptanceStatus": "LOCAL_VERIFIED_HOSTED_CI_PENDING",
+    "worktree": "Commit df73109 adds the trusted final-completion boundary after staged PBC chunks: staff-gated completion re-reads every staged chunk, verifies receipt digests and the combined SHA-256, rejects executable magic-number content, marks the intent STAGED, and enqueues a durable TransferPbcDocument.v1 operation in the same transaction. A SIMULATED worker handoff registers provider receipt evidence and only then marks the intent and PBC request RECEIVED; interrupted effects preserve RESULT_UNCERTAIN and reconcile, deterministic rejection lands PROVIDER_BLOCKED, and safe transient failures retry. Local verification passed on head df73109; hosted CI has not run on this head yet.",
+    "scope": "Checklist #14 follow-up stage 2: trusted completion boundary, durable transfer operation with provider receipt evidence, explicit failure/reconciliation states, staff completion actions on the engagement PBC route, and the scoped transfer-operation FK. No live provider is claimed.",
     "productionEnabled": false
   },
   "testEvidence": [
@@ -75,6 +75,22 @@
     {
       "command": "gh run view 35377533259 --repo nirzaf/AuditSphere",
       "result": "Hosted AuditSphereOps CI passed on head 6e31ab5; setup-dotnet, tool restore, restore, build, EF migration, 94-test suite, migration-aware readiness, and cleanup all passed. The forced Node 24/Node 20 deprecation annotation and punycode warning were informational only."
+    },
+    {
+      "command": "dotnet build AuditSphereOps.slnx + dotnet test AuditSphereOps.slnx --no-build at df73109",
+      "result": "Build succeeded with 0 warnings and 0 errors; the full suite passed 106/106 on PostgreSQL 18.6 with 0 skipped. New coverage: staged-byte tampering and missing-chunk refusals, executable-content rejection independent of declared type, staged-only completion without premature reception, idempotent completion replay, chunk-state gating after STAGED, chunk receipt immutability, worker-completed transfer marking intent+PBC RECEIVED only after provider registration, interrupted-effect RESULT_UNCERTAIN reconciling to RECEIVED, unknown-outcome reconciliation to PROVIDER_BLOCKED after confirming no effect, deterministic provider rejection, safe transient retry, and refusal of new uploads after reception."
+    },
+    {
+      "command": "dotnet ef database update at df73109",
+      "result": "Applied 20260918184938_PbcTrustedCompletion; local auditsphere now has nineteen migrations. The migration adds the STAGED upload state, provider receipt columns, a scoped FK from pbc_upload_intents to durable_operations (unique (firm_id, id) principal), tightened RECEIVED/STAGED check constraints, a refusal of previously RECEIVED intents on upgrade, and evidence-loss refusal on downgrade."
+    },
+    {
+      "command": "scripts/db/restore-drill.sh at df73109",
+      "result": "Loopback-only dump/restore passed; restored nineteen migrations with latest 20260918184938_PbcTrustedCompletion and removed only its generated database and temporary directory."
+    },
+    {
+      "command": "Migration-aware readiness smoke at df73109",
+      "result": "dotnet run on http://127.0.0.1:5099 returned HTTP 200 for /, /health/live, /health/ready, /app, and /portal; /health/ready queried __EFMigrationsHistory with no pending migrations. With OIDC unset the protected surfaces stayed locked; no demo actor was used."
     }
   ],
   "tenantEvidence": [
@@ -109,8 +125,8 @@
     },
     {
       "classification": "implementation-gap",
-      "gate": "Schema integrity, UI and recovery controls (spec §§27, 42, 43, 45)",
-      "missing": "Generated financial-statement artifacts/rendering, remaining entity FKs, full route catalog beyond the PBC slice, trusted final-completion/worker/provider SharePoint transfer, full signing/protection evidence, live provider adapters, production/cross-store recovery evidence and recovery UI",
+      "gate": "Schema integrity, UI and recovery controls (spec \u00a7\u00a727, 42, 43, 45)",
+      "missing": "Remaining staff/client route catalog, actual bounded byte-stream endpoint wiring to SharePoint transfer, generated financial-statement artifact rendering, full signing/protection evidence, live provider adapters, production/cross-store recovery evidence and recovery UI. The PBC trusted completion and durable simulated handoff boundary now exist; live provider execution stays fenced.",
       "ownerAction": "Complete the remaining staff/client routes, trusted final-completion/provider boundary, operator recovery controls and artifact rendering; external production gates remain blocked."
     },
     {
@@ -120,6 +136,6 @@
       "ownerAction": "Obtain independent review evidence before treating the merged slices as fully accepted."
     }
   ],
-  "nextPermittedAction": "Continue the remaining scoped staff/client route catalog with operator recovery and generated artifact rendering, then complete the trusted final-completion/provider boundary and obtain independent human review plus owner-authorized tenant/professional evidence. Production recovery remains unproven.",
-  "lastVerifiedAt": "2026-09-18T18:06:55Z"
+  "nextPermittedAction": "Push head df73109, confirm hosted CI on the new head, then continue the remaining scoped staff/client route catalog with operator recovery and generated artifact rendering. External production gates remain blocked on owner-authorized evidence.",
+  "lastVerifiedAt": "2026-09-18T19:14:30Z"
 }
