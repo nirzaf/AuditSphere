@@ -12,37 +12,37 @@
     "postgres": "18.6 user-local port 5433 (spec-required major; 16.8 cluster retained stopped at .pgsql16 for rollback)"
   },
   "active": {
-    "packageId": "Checklist #4: ND-02 / A02-B02 command-enforced authorization",
+    "packageId": "Checklist #5: NT-09/10 AT-07/10 TB import, AJ post, source bridge",
     "issueNumber": null,
     "branch": "master",
     "pullRequestNumber": null,
-    "headCommit": "16f10f4b9f6f55fa4580521adf67ed30656c1fd6",
+    "headCommit": "995990e9d289ebd31810badd97f34e0585940b0b",
     "implementationStatus": "IMPLEMENTED",
     "acceptanceStatus": "LOCAL_VERIFIED",
-    "worktree": "Implementation committed as 16f10f4; tracking docs sync follows in the next commit",
-    "scope": "Checklist #4 only: synthetic identity + authorization decision inside commands with PostgreSQL scope guards. Not Entra OIDC, SharePoint grants, or tenant acceptance.",
+    "worktree": "Implementation committed as 995990e; tracking docs sync follows in the next commit",
+    "scope": "Checklist #5 only: CSV import, AJ draft/post with separation of duties, reviewer source bridge, immutable plans. No mapping/FS package, billing/ledger, UI, or tenant acceptance.",
     "productionEnabled": false
   },
   "testEvidence": [
     {
       "command": "dotnet build AuditSphereOps.slnx",
-      "result": "Build succeeded, 0 warnings, 0 errors (at 16f10f4)"
+      "result": "Build succeeded, 0 warnings, 0 errors (at 995990e)"
     },
     {
       "command": "dotnet test AuditSphereOps.slnx --no-build",
-      "result": "Passed 51/51 on PostgreSQL 18.6; 0 skipped. 40 prior cases preserved plus 11 authorization-decision cases (cross-firm/client/engagement denial, disabled/stale session, role, hold gate, internal-only, guessed-ID, constraint refusal)."
+      "result": "Passed 62/62 on PostgreSQL 18.6; 0 skipped. 51 prior cases preserved plus 11 import/journal/bridge cases (CSV D.2 totals, duplicate reuse, 175k cycle with reflected zero-apply, unbalanced rejection, stale-plan block, cross-scope denial, guard refusal)."
     },
     {
       "command": "dotnet ef database update --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Web --no-build --connection 'Host=127.0.0.1;Port=5433;Database=auditsphere;Username=postgres'",
-      "result": "Applied 20260918041428_AuthorizationIntegrity only to the local development database; existing accounting/outbox migrations preserved."
+      "result": "Applied 20260918083524_AdjustmentSourceBridge only to the local development database; existing migrations preserved."
     },
     {
       "command": "dotnet ef migrations list --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Web --no-build",
-      "result": "InitialCreate, TrialBalanceValidation, AccountingIntegrity, DurableOutbox and AuthorizationIntegrity applied; no pending migrations."
+      "result": "InitialCreate, TrialBalanceValidation, AccountingIntegrity, DurableOutbox, AuthorizationIntegrity and AdjustmentSourceBridge applied; no pending migrations."
     },
     {
       "command": "psql read-only version/table-count/constraint/index queries against 127.0.0.1:5433/auditsphere",
-      "result": "PostgreSQL 18.6; 46 public tables; ux_users_tenant_subject index present; FKs FK_role_grants_* (3), FK_engagements_practice_clients_*, FK_engagement_holds_* present; checks ck_users_kind, ck_users_session, ck_role_grant_scope, ck_engagement_generation, ck_hold_release present."
+      "result": "PostgreSQL 18.6; 49 public tables; indexes ux_dataset_firm_engagement_hash, ux_reconciliation_base_journal, ux_planline_plan_journal_layer present; checks ck_reconciliation_state/evidence, ck_plan_status/result, ck_planline_reflection present."
     }
   ],
   "reviewEvidence": [],
@@ -56,8 +56,8 @@
     {
       "classification": "implementation-gap",
       "gate": "Schema integrity and release controls (spec §§27, 42)",
-      "missing": "Remaining entity FKs, release gates, live provider adapters, source reflection, billing/ledger, UI and full recovery",
-      "ownerAction": "Continue dependency-ordered slices; #5-14 were not started."
+      "missing": "Mapping/FS package, remaining entity FKs, release gates, live provider adapters, billing/ledger, UI and full recovery",
+      "ownerAction": "Continue dependency-ordered slices; #6-14 were not started."
     },
     {
       "classification": "authorization-review",
@@ -66,6 +66,6 @@
       "ownerAction": "Independent reviewer to review cc6384c on origin/master; owner to authorize PR/merge workflow if required."
     }
   ],
-  "nextPermittedAction": "Proceed to checklist #5 (TB import CSV, validate, AJ post, re-upload source bridge) as the smallest next slice.",
-  "lastVerifiedAt": "2026-09-18T04:19:41Z"
+  "nextPermittedAction": "Proceed to checklist #6 (practice CRM lead-opportunity-proposal-client) as the smallest next slice.",
+  "lastVerifiedAt": "2026-09-18T05:35:24Z"
 }
