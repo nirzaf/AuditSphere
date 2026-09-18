@@ -91,6 +91,10 @@
     {
       "command": "Migration-aware readiness smoke at df73109",
       "result": "dotnet run on http://127.0.0.1:5099 returned HTTP 200 for /, /health/live, /health/ready, /app, and /portal; /health/ready queried __EFMigrationsHistory with no pending migrations. With OIDC unset the protected surfaces stayed locked; no demo actor was used."
+    },
+    {
+      "command": "Hosted CI run 35385091372 on head b69e718",
+      "result": "Failed at the test step: 105/106 with PostgresException 53300 (too many clients) in PgTestSchema.CreateAsync. Root cause: each per-test schema owns its own Npgsql pool and idle connections accumulated past the hosted runner default max_connections=100. Fix: cap every per-schema test pool at Maximum Pool Size=3 in PgTestSchema (local re-run 106/106 passed; local cluster max_connections stays 200). An initdb-level change was rejected because initdb does not accept max_connections."
     }
   ],
   "tenantEvidence": [
@@ -137,5 +141,5 @@
     }
   ],
   "nextPermittedAction": "Push head df73109, confirm hosted CI on the new head, then continue the remaining scoped staff/client route catalog with operator recovery and generated artifact rendering. External production gates remain blocked on owner-authorized evidence.",
-  "lastVerifiedAt": "2026-09-18T19:14:30Z"
+  "lastVerifiedAt": "2026-09-18T19:25:00Z"
 }

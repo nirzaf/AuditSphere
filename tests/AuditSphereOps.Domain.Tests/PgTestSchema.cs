@@ -35,9 +35,10 @@ public sealed class PgTestSchema : IAsyncDisposable
       throw new InvalidOperationException("This test requires the loopback auditsphere_tests database.");
 
     var schema = "test_" + Guid.NewGuid().ToString("N");
-    // Each schema gets its own search path and therefore its own Npgsql pool; cap that pool so
-    // parallel schema creation cannot exhaust the development cluster connection limit.
-    builder["Maximum Pool Size"] = "5";
+    // Each schema gets its own search path and therefore its own Npgsql pool. The cap plus a
+    // short idle lifetime keeps the accumulated idle connections across many per-test schemas
+    // far below the cluster connection ceiling, locally and on hosted runners.
+    builder["Maximum Pool Size"] = "3";
     var admin = new NpgsqlConnection(builder.ConnectionString);
     await admin.OpenAsync();
     if (admin.PostgreSqlVersion.Major != 18)
