@@ -16,10 +16,10 @@
     "issueNumber": null,
     "branch": "master",
     "pullRequestNumber": null,
-    "headCommit": "bc13cfd2e88ea5c834e09491e51aabcf64b05053",
+    "headCommit": "5ed0a8e77ae04e4545862d8ae78f459ddc59acde",
     "implementationStatus": "PARTIAL",
     "acceptanceStatus": "LOCAL_AND_HOSTED_CI_VERIFIED",
-    "worktree": "Commit bc13cfd adds deterministic cash-flow/disclosure inputs, append-only supplementary package tables, scoped mapping/package views, and source-relative restore verification on top of the hosted-CI baseline. Local verification passed; hosted runs 35370149111 and 35370601564 passed every CI step; no independent human reviewer evidence is present.",
+    "worktree": "Commit bc13cfd adds deterministic cash-flow/disclosure inputs, append-only supplementary package tables, scoped mapping/package views, and source-relative restore verification on top of the hosted-CI baseline. Local verification passed; hosted run 35373491123 passed every CI step on head 5ed0a8e; no independent human reviewer evidence is present.",
     "scope": "Checklist #14 follow-up: deterministic mapping/adjusted-TB/package persistence, supplementary cash-flow/disclosure validation, scoped accounting views, guarded migration/restore evidence, committed lock-file cache inputs, and hosted CI execution.",
     "productionEnabled": false
   },
@@ -73,8 +73,8 @@
       "result": "GitGuardian passed. The superseded hosted build-test-ready job did not start because recent account payments failed or the GitHub Actions spending limit needed attention."
     },
     {
-      "command": "gh run view 35370149111 --repo nirzaf/AuditSphere",
-      "result": "Hosted AuditSphereOps CI passed on commits bfe5a9a and 094a44f; setup-dotnet, tool restore, restore, build, EF migration, 93-test suite, migration-aware readiness, and cleanup all passed. The forced Node 24/Node 20 deprecation annotation and punycode warning were informational only."
+      "command": "gh run view 35373491123 --repo nirzaf/AuditSphere",
+      "result": "Hosted AuditSphereOps CI passed on head 5ed0a8e; setup-dotnet, tool restore, restore, build, EF migration, 93-test suite, migration-aware readiness, and cleanup all passed. The forced Node 24/Node 20 deprecation annotation and punycode warning were informational only."
     }
   ],
   "tenantEvidence": [
@@ -121,5 +121,5 @@
     }
   ],
   "nextPermittedAction": "Continue the remaining scoped staff/client route catalog with PBC/upload and operator recovery contracts, then obtain independent human review plus owner-authorized tenant/professional evidence. Production recovery remains unproven.",
-  "lastVerifiedAt": "2026-09-18T17:16:47Z"
+  "lastVerifiedAt": "2026-09-18T17:20:14Z"
 }

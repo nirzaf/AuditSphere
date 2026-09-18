@@ -17,7 +17,7 @@ Dependency-ordered per spec Appendix G and the "first proving slice". One item a
 | 11 | Approvals bound to revision + generation; stale rejected | §22, AT-19/26 | Change after approval invalidates it; stale approval fails release | ✅ `94a8da3`, PR #6 merged as `87e2523` (local verification; no independent human review) |
 | 12 | Release gate (manifest digest, external checkpoint) | §24, AT-25/26 | Wrong-version report blocked; no checkpoint, no release | ✅ `3e3c82a`, PR #7 merged as `2dd97f9` (local verification; no independent human review) |
 | 13 | Blazor staff/portal screens over implemented commands | ND-10, §43 | Real screens driving real commands | 🟡 `c127448`, PR #8 merged as `ff57783` (initial shell only; remaining UI open) |
-| 14 | CI, backup/restore drill, readiness with migration check, mapping/FS package slice | ND-11, §§42, 45 | Hosted pipeline, deterministic package/review gate, restore rehearsal documented | 🟡 `ab8e1d1` + local follow-up (hosted runs `35370149111`, `35370601564` passed; full UI/portal/recovery remain open) |
+| 14 | CI, backup/restore drill, readiness with migration check, mapping/FS package slice | ND-11, §§42, 45 | Hosted pipeline, deterministic package/review gate, restore rehearsal documented | 🟡 `ab8e1d1` + local follow-up (hosted run `35373491123` passed; full UI/portal/recovery remain open) |
 | 15 | Entra OIDC, SharePoint grants, Purview profile, methodology/signing approvals, independent review + protected merge | §47.2 | Owner-supplied tenant/professional evidence | 🚫 |
 | 16 | Full-cycle acceptance run on real tenant | §47, §1.4 | All 120 scenarios observed as specified | 🚫 |
 

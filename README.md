@@ -150,7 +150,7 @@ The integration test requires PostgreSQL at `127.0.0.1:5433` and the `auditspher
 - **`docs/execution/current-slice.md`** — the verified local state and concise serialization of what was actually executed.
 - **Using the spec:** read `AuditSphereOps_NET_Codex_Implementation_Specification.md` (§§1–12, 22, 24, 27–33, 41–47) plus only the sections for the active issue.
 
-As of the last verification pass: **93/93 tests passed** on PostgreSQL 18.6, sixteen migrations applied, local locked restore and build completed with zero warnings, the source-relative local restore rehearsal passed, readiness returned healthy with no pending migrations, and hosted CI runs `35370149111` and `35370601564` passed all steps. The Entra/SharePoint/Purview production gates remain **recorded blockers** pending owner-authorized evidence.
+As of the last verification pass: **93/93 tests passed** on PostgreSQL 18.6, sixteen migrations applied, local locked restore and build completed with zero warnings, the source-relative local restore rehearsal passed, readiness returned healthy with no pending migrations, and hosted CI run `35373491123` passed all steps. The Entra/SharePoint/Purview production gates remain **recorded blockers** pending owner-authorized evidence.
 
 ## Implementation roadmap
 
