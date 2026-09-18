@@ -164,7 +164,7 @@ public static class AuditPlanningService
         var assessmentId = Guid.NewGuid();
         await db.Database.ExecuteSqlInterpolatedAsync(
             $"""
-            INSERT INTO audit.materiality_assessments
+            INSERT INTO materiality_assessments
                 (id, engagement_id, actor_id, benchmark_source, benchmark_version, rationale,
                  benchmark_amount, rate_applied, overall_materiality, performance_materiality,
                  clearly_trivial_threshold, qualitative_considerations, status, created_at)
@@ -197,18 +197,20 @@ public static class AuditPlanningService
 
         await using var tx = await db.Database.BeginTransactionAsync(ct);
 
-        _ = await db.Engagements.FirstOrDefaultAsync(e => e.Id == req.EngagementId, ct)
+        var eng = await db.Engagements.FirstOrDefaultAsync(e => e.Id == req.EngagementId, ct)
             ?? throw new InvalidOperationException($"Engagement {req.EngagementId} not found.");
 
         var riskId = Guid.NewGuid();
         await db.Database.ExecuteSqlInterpolatedAsync(
             $"""
-            INSERT INTO audit.audit_risks
-                (id, engagement_id, actor_id, account_area, assertion, drivers,
-                 significance_decision, controls_considered, response_description,
-                 status, created_at)
-            VALUES ({riskId},{req.EngagementId},{req.ActorId},{req.AccountOrDisclosureArea},{req.Assertion},{req.Drivers},
-                    {req.SignificanceDecision},{req.ControlsConsidered},{req.ResponseDescription},'IDENTIFIED',now())
+            INSERT INTO audit_risks
+                (id, firm_id, client_id, engagement_id, actor_id, account_area, assertion,
+                 description, drivers, severity, significance_decision,
+                 controls_considered, response_description, status, created_at)
+            VALUES ({riskId},{eng.FirmId},{eng.PracticeClientId},{req.EngagementId},{req.ActorId},
+                    {req.AccountOrDisclosureArea},{req.Assertion},{req.Drivers},{req.Drivers},
+                    {req.SignificanceDecision},{req.SignificanceDecision},{req.ControlsConsidered},
+                    {req.ResponseDescription},'IDENTIFIED',now())
             """, ct);
 
         await tx.CommitAsync(ct);
@@ -243,7 +245,7 @@ public static class AuditPlanningService
         var populationId = Guid.NewGuid();
         await db.Database.ExecuteSqlInterpolatedAsync(
             $"""
-            INSERT INTO audit.population_versions
+            INSERT INTO population_versions
                 (id, engagement_id, actor_id, purpose, assertion, source_receipt_ref,
                  extraction_parameters, row_count, monetary_control_total, currency,
                  exclusions, status, created_at)
@@ -274,17 +276,18 @@ public static class AuditPlanningService
 
         await using var tx = await db.Database.BeginTransactionAsync(ct);
 
-        _ = await db.Engagements.FirstOrDefaultAsync(e => e.Id == req.EngagementId, ct)
+        var eng = await db.Engagements.FirstOrDefaultAsync(e => e.Id == req.EngagementId, ct)
             ?? throw new InvalidOperationException($"Engagement {req.EngagementId} not found.");
 
         var workpaperId = Guid.NewGuid();
         await db.Database.ExecuteSqlInterpolatedAsync(
             $"""
-            INSERT INTO audit.workpapers
-                (id, engagement_id, actor_id, wp_index, title, objective,
-                 template_version, procedure, revision, status, created_at)
-            VALUES ({workpaperId},{req.EngagementId},{req.ActorId},{req.Index},{req.Title},{req.Objective},
-                    {req.TemplateVersion},{req.Procedure},1,'WORKING',now())
+            INSERT INTO workpapers
+                (id, firm_id, client_id, engagement_id, procedure_id, actor_id, wp_index, title, objective,
+                 template_version, procedure, state, status, revision, generation, created_at)
+            VALUES ({workpaperId},{eng.FirmId},{eng.PracticeClientId},{req.EngagementId},{Guid.Empty},{req.ActorId},
+                    {req.Index},{req.Title},{req.Objective},{req.TemplateVersion},{req.Procedure},
+                    'WORKING','WORKING',1,1,now())
             """, ct);
 
         await tx.CommitAsync(ct);
@@ -306,7 +309,7 @@ public static class AuditPlanningService
         await using var tx = await db.Database.BeginTransactionAsync(ct);
 
         var rows = await db.Database.SqlQuery<WorkpaperStatusRow>(
-            $"SELECT id, revision, status FROM audit.workpapers WHERE id = {req.WorkpaperId} FOR UPDATE").ToListAsync(ct);
+            $"SELECT id, revision, status FROM workpapers WHERE id = {req.WorkpaperId} FOR UPDATE").ToListAsync(ct);
 
         var row = rows.FirstOrDefault()
             ?? throw new InvalidOperationException($"Workpaper {req.WorkpaperId} not found.");
@@ -320,8 +323,9 @@ public static class AuditPlanningService
 
         await db.Database.ExecuteSqlInterpolatedAsync(
             $"""
-            UPDATE audit.workpapers
+            UPDATE workpapers
             SET    status         = 'SUBMITTED_SNAPSHOT',
+                   state          = 'SUBMITTED_SNAPSHOT',
                    revision       = {newRevision},
                    work_performed = {req.WorkPerformed},
                    conclusion     = {req.Conclusion},
@@ -332,7 +336,7 @@ public static class AuditPlanningService
         var submissionId = Guid.NewGuid();
         await db.Database.ExecuteSqlInterpolatedAsync(
             $"""
-            INSERT INTO audit.workpaper_submissions
+            INSERT INTO workpaper_submissions
                 (id, workpaper_id, actor_id, revision, conclusion, submitted_at)
             VALUES ({submissionId},{req.WorkpaperId},{req.ActorId},{newRevision},{req.Conclusion},now())
             """, ct);
@@ -359,17 +363,17 @@ public static class AuditPlanningService
 
         await using var tx = await db.Database.BeginTransactionAsync(ct);
 
-        _ = await db.Engagements.FirstOrDefaultAsync(e => e.Id == req.EngagementId, ct)
+        var eng = await db.Engagements.FirstOrDefaultAsync(e => e.Id == req.EngagementId, ct)
             ?? throw new InvalidOperationException($"Engagement {req.EngagementId} not found.");
 
         var findingId = Guid.NewGuid();
         await db.Database.ExecuteSqlInterpolatedAsync(
             $"""
-            INSERT INTO audit.findings
-                (id, engagement_id, actor_id, finding_type, impact_description,
-                 corrected, monetary_amount, management_response, status, created_at)
-            VALUES ({findingId},{req.EngagementId},{req.ActorId},
-                    {req.FindingType},{req.ImpactDescription},
+            INSERT INTO findings
+                (id, firm_id, client_id, engagement_id, actor_id, title, severity, finding_type,
+                 impact_description, corrected, monetary_amount, management_response, status, created_at)
+            VALUES ({findingId},{eng.FirmId},{eng.PracticeClientId},{req.EngagementId},{req.ActorId},
+                    {req.FindingType},{req.FindingType},{req.FindingType},{req.ImpactDescription},
                     {req.Corrected},{req.MonetaryAmount},{req.ManagementResponse},'OPEN',now())
             """, ct);
 
