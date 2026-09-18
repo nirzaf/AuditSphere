@@ -10,8 +10,10 @@ public sealed class AuditSphereDbContextFactory : IDesignTimeDbContextFactory<Au
 {
   public AuditSphereDbContext CreateDbContext(string[] args)
   {
+    var connection = Environment.GetEnvironmentVariable("AUDITSPHERE_EF_CONNECTION") ??
+      "Host=127.0.0.1;Port=5433;Database=auditsphere;Username=postgres";
     var options = new DbContextOptionsBuilder<AuditSphereDbContext>()
-      .UseNpgsql("Host=127.0.0.1;Port=5433;Database=auditsphere;Username=postgres")
+      .UseNpgsql(connection)
       .Options;
     return new AuditSphereDbContext(options);
   }
