@@ -14,12 +14,12 @@
   "active": {
     "packageId": "Checklist #14: CI, restore and migration-aware readiness",
     "issueNumber": null,
-    "branch": "codex/checklist-14-ops",
+    "branch": "codex/checklist-14-ops-clean",
     "pullRequestNumber": null,
-    "headCommit": "6d1dd5c44bf88f803e961242fe9dfe1e83e42f99",
+    "headCommit": "ab8e1d149214325ab9259795b3d5bf9e80ccd220",
     "implementationStatus": "PARTIAL",
     "acceptanceStatus": "LOCAL_VERIFIED",
-    "worktree": "Checklist #14 implementation commit 6d1dd5c is locally verified on its isolated branch. Hosted CI has not yet produced an observed run; PR creation and independent human review are pending.",
+    "worktree": "Checklist #14 clean implementation commit ab8e1d1 is locally verified on its isolated branch. The superseded hosted run could not start because the GitHub account Actions billing/spending limit failed; PR creation and independent human review are pending.",
     "scope": "Checklist #14 only: migration-aware readiness, disposable CI database build/test/migration flow, and loopback-only PostgreSQL backup/restore rehearsal.",
     "productionEnabled": false
   },
@@ -34,11 +34,11 @@
     },
     {
       "command": "dotnet build AuditSphereOps.slnx",
-      "result": "Build succeeded, 0 warnings, 0 errors at checklist #14 implementation commit 6d1dd5c."
+      "result": "Build succeeded, 0 warnings, 0 errors at checklist #14 clean implementation commit ab8e1d1."
     },
     {
       "command": "dotnet test AuditSphereOps.slnx --no-build",
-      "result": "Passed 91/91 on PostgreSQL 18.6; 0 skipped at checklist #14 implementation commit 6d1dd5c. Includes two release gate tests, two approval binding/staleness tests, release legacy migration refusal, and the prior CRM, time/budget, billing, ledger, document, accounting, authorization, and outbox coverage."
+      "result": "Passed 91/91 on PostgreSQL 18.6; 0 skipped at checklist #14 clean implementation commit ab8e1d1. Includes two release gate tests, two approval binding/staleness tests, release legacy migration refusal, and the prior CRM, time/budget, billing, ledger, document, accounting, authorization, and outbox coverage."
     },
     {
       "command": "dotnet ef database update --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Web --no-build",
@@ -102,12 +102,18 @@
       "ownerAction": "Review/merge checklist #14 after hosted CI observation, then complete the remaining UI surface; external production gates remain blocked."
     },
     {
+      "classification": "account-infrastructure",
+      "gate": "Hosted GitHub Actions for checklist #14",
+      "missing": "Run 35354035869 could not start because recent account payments failed or the Actions spending limit needs to be increased.",
+      "ownerAction": "Restore the repository/account Actions billing limit, rerun the clean checklist #14 PR, and record the hosted result."
+    },
+    {
       "classification": "authorization-review",
       "gate": "Independent review and PR/merge",
       "missing": "Checklist #14 has no independent human review evidence; PR #1, PR #2, PR #3, PR #4, PR #5, PR #6, PR #7, and PR #8 merged without independent human review",
       "ownerAction": "Obtain independent review evidence before treating the merged slices as fully accepted."
     }
   ],
-  "nextPermittedAction": "Open the owner-authorized PR for checklist #14 and observe hosted CI, then complete the remaining UI surface; independent human review evidence remains outstanding.",
-  "lastVerifiedAt": "2026-09-18T14:04:27Z"
+  "nextPermittedAction": "Open the clean owner-authorized PR for checklist #14 and observe hosted CI after the account billing block is resolved; then complete the remaining UI surface. Independent human review evidence remains outstanding.",
+  "lastVerifiedAt": "2026-09-18T14:09:29Z"
 }
