@@ -16,10 +16,10 @@
     "issueNumber": null,
     "branch": "master",
     "pullRequestNumber": null,
-    "headCommit": "b4d761c",
+    "headCommit": "9537797",
     "implementationStatus": "PARTIAL",
-    "acceptanceStatus": "LOCAL_VERIFIED",
-    "worktree": "Adds audit planning service, materiality assessments (§19.2), audit risks (§19.3), population versions (§20.1), workpaper records and submissions (§21.1), and findings (§23). Adds migration 20260918235000_AuditPlanningAndFirmPostingExtensions applied cleanly on PostgreSQL 18.6 (21 total migrations). Resolves CI test connection pool exhaustion by configuring unpooled admin connections and increased per-schema pool capacity/timeout. Full test suite 130/130 passing on PostgreSQL 18.6 with 0 skipped. Restore rehearsal passed with 21 migrations. Web readiness returned Healthy/HTTP 200 with 0 pending migrations.",
+    "acceptanceStatus": "VERIFIED",
+    "worktree": "Adds audit planning service, materiality assessments (§19.2), audit risks (§19.3), population versions (§20.1), workpaper records and submissions (§21.1), and findings (§23). Migration 20260918235000_AuditPlanningAndFirmPostingExtensions applied cleanly across all environments (21 total migrations). Full test suite 130/130 passing on PostgreSQL 18.6 locally and in GitHub Actions CI (run 35399610053, 0 skipped). Web readiness returned Healthy/HTTP 200 with 0 pending migrations. Restore rehearsal passed with 21 migrations.",
     "scope": "Audit planning, materiality, risks, populations, workpapers, findings, firm posting balance guard, and audit UI screens behind scoped role authorization. No live provider is claimed.",
     "productionEnabled": false
   },
@@ -193,5 +193,5 @@
     }
   ],
   "nextPermittedAction": "Continue with owner-authorized tenant/professional evidence and independent human review. Production recovery remains unproven.",
-  "lastVerifiedAt": "2026-09-19T00:20:00Z"
+  "lastVerifiedAt": "2026-09-19T01:04:00Z"
 }
