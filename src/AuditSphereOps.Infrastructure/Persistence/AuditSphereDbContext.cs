@@ -30,10 +30,13 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
   public DbSet<EngagementBudget> EngagementBudgets => Set<EngagementBudget>();
   public DbSet<BudgetLine> BudgetLines => Set<BudgetLine>();
   public DbSet<BillingAccount> BillingAccounts => Set<BillingAccount>();
+  public DbSet<FirmFinanceProfile> FirmFinanceProfiles => Set<FirmFinanceProfile>();
   public DbSet<Invoice> Invoices => Set<Invoice>();
   public DbSet<InvoiceLine> InvoiceLines => Set<InvoiceLine>();
   public DbSet<Receipt> Receipts => Set<Receipt>();
-  public DbSet<Allocation> Allocations => Set<Allocation>();
+  public DbSet<ReceiptAllocation> ReceiptAllocations => Set<ReceiptAllocation>();
+  public DbSet<CreditNote> CreditNotes => Set<CreditNote>();
+  public DbSet<BillingSourceAllocation> BillingSourceAllocations => Set<BillingSourceAllocation>();
   public DbSet<FirmAccount> FirmAccounts => Set<FirmAccount>();
   public DbSet<FirmPeriod> FirmPeriods => Set<FirmPeriod>();
   public DbSet<FirmJournal> FirmJournals => Set<FirmJournal>();
@@ -176,6 +179,14 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     b.Entity<RateCardVersion>().HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_rate_cards_firm_id_id");
     b.Entity<EngagementBudget>().HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_budgets_firm_id_id");
     b.Entity<BudgetLine>().HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_budget_lines_firm_id_id");
+    b.Entity<BillingAccount>().HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_billing_accounts_firm_id_id");
+    b.Entity<FirmFinanceProfile>().HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_finance_profiles_firm_id_id");
+    b.Entity<Invoice>().HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_invoices_firm_id_id");
+    b.Entity<InvoiceLine>().HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_invoice_lines_firm_id_id");
+    b.Entity<Receipt>().HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_receipts_firm_id_id");
+    b.Entity<ReceiptAllocation>().HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_receipt_allocations_firm_id_id");
+    b.Entity<CreditNote>().HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_credit_notes_firm_id_id");
+    b.Entity<BillingSourceAllocation>().HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_billing_sources_firm_id_id");
     b.Entity<Lead>().HasIndex(x => new { x.FirmId, x.Status, x.CreatedAt });
     b.Entity<Opportunity>().HasIndex(x => new { x.FirmId, x.LeadId, x.Stage });
     b.Entity<Proposal>().HasIndex(x => new { x.FirmId, x.OpportunityId, x.Revision }).IsUnique();
@@ -184,7 +195,14 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     b.Entity<RateCardVersion>().HasIndex(x => new { x.FirmId, x.Role, x.Activity, x.Currency, x.Version }).IsUnique();
     b.Entity<EngagementBudget>().HasIndex(x => new { x.FirmId, x.EngagementId, x.Version }).IsUnique();
     b.Entity<BudgetLine>().HasIndex(x => new { x.FirmId, x.EngagementBudgetId, x.Role, x.Activity }).IsUnique();
+    b.Entity<BillingAccount>().HasIndex(x => new { x.FirmId, x.PracticeClientId }).IsUnique();
+    b.Entity<FirmFinanceProfile>().HasIndex(x => x.FirmId).IsUnique();
     b.Entity<Invoice>().HasIndex(x => new { x.FirmId, x.InvoiceNumber }).IsUnique();
+    b.Entity<InvoiceLine>().HasIndex(x => new { x.FirmId, x.InvoiceId });
+    b.Entity<Receipt>().HasIndex(x => new { x.FirmId, x.BillingAccountId, x.ReceivedAt });
+    b.Entity<ReceiptAllocation>().HasIndex(x => new { x.FirmId, x.ReceiptId, x.InvoiceId }).IsUnique();
+    b.Entity<CreditNote>().HasIndex(x => new { x.FirmId, x.NoteNumber }).IsUnique();
+    b.Entity<BillingSourceAllocation>().HasIndex(x => new { x.FirmId, x.SourceKind, x.SourceId, x.SourceRevision }).IsUnique();
     b.Entity<FirmAccount>().HasIndex(x => new { x.FirmId, x.Code }).IsUnique();
     b.Entity<FirmJournal>().HasIndex(x => new { x.FirmId, x.SourceKind, x.SourceKey }).IsUnique();
     b.Entity<FirmPeriod>().HasIndex(x => new { x.FirmId, x.PeriodCode }).IsUnique();
@@ -218,6 +236,30 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
       "version >= 1 AND currency ~ '^[A-Z]{3}$' AND status IN ('DRAFT','APPROVED','SUPERSEDED')"));
     b.Entity<BudgetLine>().ToTable("budget_lines", t => t.HasCheckConstraint("ck_budget_line_values",
       "length(role) > 0 AND length(activity) > 0 AND forecast_minutes > 0 AND rate_per_hour >= 0 AND forecast_cost >= 0"));
+    b.Entity<BillingAccount>().ToTable("billing_accounts", t => t.HasCheckConstraint("ck_billing_account_currency",
+      "currency ~ '^[A-Z]{3}$'"));
+    b.Entity<FirmFinanceProfile>().ToTable("firm_finance_profiles", t =>
+    {
+      t.HasCheckConstraint("ck_finance_profile_currency", "functional_currency ~ '^[A-Z]{3}$'");
+      t.HasCheckConstraint("ck_finance_profile_kind", "profile_kind IN ('TEST','PRODUCTION')");
+      t.HasCheckConstraint("ck_finance_profile_approval", "(approved = false AND approved_at IS NULL AND approved_by_user_id IS NULL) OR (approved = true AND approved_at IS NOT NULL AND approved_by_user_id IS NOT NULL)");
+    });
+    b.Entity<Invoice>().ToTable("invoices", t =>
+    {
+      t.HasCheckConstraint("ck_invoice_state", "status IN ('DRAFT','REVIEW_REQUIRED','APPROVED','POSTED','SENT','CANCELLED') AND revision >= 1");
+      t.HasCheckConstraint("ck_invoice_values", "length(invoice_number) > 0 AND (currency IS NULL OR currency ~ '^[A-Z]{3}$') AND subtotal >= 0 AND tax >= 0 AND total >= 0 AND total = subtotal + tax");
+      t.HasCheckConstraint("ck_invoice_cancel", "(status = 'CANCELLED' AND cancelled_at IS NOT NULL AND length(cancellation_reason) > 0) OR status <> 'CANCELLED'");
+    });
+    b.Entity<InvoiceLine>().ToTable("invoice_lines", t => t.HasCheckConstraint("ck_invoice_line_values",
+      "length(description) > 0 AND quantity > 0 AND unit_price >= 0 AND line_total >= 0 AND line_total = round(quantity * unit_price, 6) AND ((length(source_kind) = 0 AND source_id IS NULL AND source_revision IS NULL) OR (length(source_kind) > 0 AND source_id IS NOT NULL AND source_revision >= 1))"));
+    b.Entity<Receipt>().ToTable("receipts", t => t.HasCheckConstraint("ck_receipt_values",
+      "amount > 0 AND (currency IS NULL OR currency ~ '^[A-Z]{3}$') AND length(reference) > 0 AND status = 'RECORDED'"));
+    b.Entity<ReceiptAllocation>().ToTable("allocations", t => t.HasCheckConstraint("ck_receipt_allocation_amount",
+      "amount > 0"));
+    b.Entity<CreditNote>().ToTable("credit_notes", t => t.HasCheckConstraint("ck_credit_note_values",
+      "length(note_number) > 0 AND currency ~ '^[A-Z]{3}$' AND amount > 0 AND length(reason) > 0 AND status = 'ISSUED'"));
+    b.Entity<BillingSourceAllocation>().ToTable("billing_source_allocations", t => t.HasCheckConstraint("ck_billing_source_values",
+      "length(source_kind) > 0 AND source_revision >= 1 AND quantity > 0 AND amount > 0"));
     b.Entity<Lead>().HasOne<AppUser>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.OwnerUserId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
@@ -292,6 +334,48 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     b.Entity<BudgetLine>().HasOne<RateCardVersion>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.RateCardVersionId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    b.Entity<BillingAccount>().HasOne<PracticeClient>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.PracticeClientId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    b.Entity<FirmFinanceProfile>().HasOne<AppUser>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ApprovedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    b.Entity<Invoice>().HasOne<BillingAccount>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.BillingAccountId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    b.Entity<Invoice>().HasOne<AppUser>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.CreatedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    b.Entity<Invoice>().HasOne<AppUser>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ApprovedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    b.Entity<InvoiceLine>().HasOne<Invoice>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.InvoiceId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    b.Entity<Receipt>().HasOne<BillingAccount>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.BillingAccountId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    b.Entity<Receipt>().HasOne<AppUser>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.RecordedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    b.Entity<ReceiptAllocation>().HasOne<Receipt>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ReceiptId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    b.Entity<ReceiptAllocation>().HasOne<Invoice>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.InvoiceId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    b.Entity<CreditNote>().HasOne<BillingAccount>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.BillingAccountId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    b.Entity<CreditNote>().HasOne<Invoice>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.InvoiceId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    b.Entity<CreditNote>().HasOne<AppUser>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.CreatedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    b.Entity<BillingSourceAllocation>().HasOne<InvoiceLine>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.InvoiceLineId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
   }
 
