@@ -14,12 +14,12 @@
   "active": {
     "packageId": "Checklist #14: CI, restore and migration-aware readiness",
     "issueNumber": null,
-    "branch": "codex/checklist-14-ops-clean",
-    "pullRequestNumber": null,
-    "headCommit": "ab8e1d149214325ab9259795b3d5bf9e80ccd220",
+    "branch": "master",
+    "pullRequestNumber": 10,
+    "headCommit": "b8dc95cfdea034fedf21a611506b52002d5983e2",
     "implementationStatus": "PARTIAL",
     "acceptanceStatus": "LOCAL_VERIFIED",
-    "worktree": "Checklist #14 clean implementation commit ab8e1d1 is locally verified on its isolated branch. The superseded hosted run could not start because the GitHub account Actions billing/spending limit failed; PR creation and independent human review are pending.",
+    "worktree": "Checklist #14 clean implementation commit ab8e1d1 was merged by owner-authorized PR #10 as b8dc95c on master. GitGuardian passed; hosted Actions could not start because the GitHub account Actions billing/spending limit failed; no independent human reviewer evidence is present.",
     "scope": "Checklist #14 only: migration-aware readiness, disposable CI database build/test/migration flow, and loopback-only PostgreSQL backup/restore rehearsal.",
     "productionEnabled": false
   },
@@ -63,6 +63,10 @@
     {
       "command": "Migration-aware readiness smoke",
       "result": "Web readiness queried __EFMigrationsHistory and returned Healthy/HTTP 200 with no pending migrations; web startup did not apply migrations."
+    },
+    {
+      "command": "gh pr checks 10 / gh run view 35354557550",
+      "result": "GitGuardian passed. The hosted build-test-ready job did not start because recent account payments failed or the GitHub Actions spending limit needs to be increased; no hosted test result is claimed."
     }
   ],
   "tenantEvidence": [
@@ -99,7 +103,7 @@
       "classification": "implementation-gap",
       "gate": "Schema integrity, UI and recovery controls (spec §§27, 42, 43, 45)",
       "missing": "Mapping/FS package, remaining entity FKs, full route catalog/client portal/upload transport, full signing/protection evidence, live provider adapters, hosted CI result, production/cross-store recovery evidence and recovery UI",
-      "ownerAction": "Review/merge checklist #14 after hosted CI observation, then complete the remaining UI surface; external production gates remain blocked."
+      "ownerAction": "Resolve the hosted Actions account block and rerun the merged workflow, then complete the remaining UI surface; external production gates remain blocked."
     },
     {
       "classification": "account-infrastructure",
@@ -110,10 +114,10 @@
     {
       "classification": "authorization-review",
       "gate": "Independent review and PR/merge",
-      "missing": "Checklist #14 has no independent human review evidence; PR #1, PR #2, PR #3, PR #4, PR #5, PR #6, PR #7, and PR #8 merged without independent human review",
+      "missing": "Checklist #14 has no independent human review evidence; PR #1, PR #2, PR #3, PR #4, PR #5, PR #6, PR #7, PR #8, and PR #10 merged without independent human review",
       "ownerAction": "Obtain independent review evidence before treating the merged slices as fully accepted."
     }
   ],
-  "nextPermittedAction": "Open the clean owner-authorized PR for checklist #14 and observe hosted CI after the account billing block is resolved; then complete the remaining UI surface. Independent human review evidence remains outstanding.",
-  "lastVerifiedAt": "2026-09-18T14:09:29Z"
+  "nextPermittedAction": "Resolve the GitHub Actions account billing block and rerun the merged workflow, then complete the remaining UI surface. Independent human review evidence remains outstanding.",
+  "lastVerifiedAt": "2026-09-18T14:10:58Z"
 }
