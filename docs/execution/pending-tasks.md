@@ -1,6 +1,6 @@
 # AuditSphereOps — pending tasks
 
-Paused after the capability-bound PBC chunk transport slice on 2026-09-18. The implementation head is `6e31ab5298f40f1ded4b27007e82b7751708b72d`; hosted CI run [35377533259](https://github.com/nirzaf/AuditSphere/actions/runs/35377533259) passed.
+Paused after the audit planning lifecycle and CI schema isolation slice on 2026-09-19. The implementation head is `861ad2f`; hosted CI runs [35399610053](https://github.com/nirzaf/AuditSphere/actions/runs/35399610053) and [35399859095](https://github.com/nirzaf/AuditSphere/actions/runs/35399859095) passed with all 130 tests passing.
 
 Full context: [authoritative v5.0 specification](../../AuditSphereOps_NET_Codex_Implementation_Specification.md), [execution status](status.json), [current verified slice](current-slice.md), and [implementation checklist](implementation-checklist.md).
 
