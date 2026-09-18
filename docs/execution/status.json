@@ -12,15 +12,15 @@
     "postgres": "18.6 Homebrew user-local port 5433 (development only)"
   },
   "active": {
-    "packageId": "Checklist #14: CI, restore and migration-aware readiness",
+    "packageId": "Checklist #14 follow-up: mapping/financial-statement package and locked CI restore",
     "issueNumber": null,
     "branch": "master",
-    "pullRequestNumber": 10,
-    "headCommit": "b8dc95cfdea034fedf21a611506b52002d5983e2",
+    "pullRequestNumber": null,
+    "headCommit": "847cada34bef902c80abc99b482616710c4af34f",
     "implementationStatus": "PARTIAL",
     "acceptanceStatus": "LOCAL_VERIFIED",
-    "worktree": "Checklist #14 clean implementation commit ab8e1d1 was merged by owner-authorized PR #10 as b8dc95c on master. GitGuardian passed; hosted Actions could not start because the GitHub account Actions billing/spending limit failed; no independent human reviewer evidence is present.",
-    "scope": "Checklist #14 only: migration-aware readiness, disposable CI database build/test/migration flow, and loopback-only PostgreSQL backup/restore rehearsal.",
+    "worktree": "Local follow-up commit 847cada adds the mapping/financial-statement package workflow and committed NuGet lock files on master. Local verification passed; hosted Actions has not rerun because the account billing/spending limit remains unresolved; no independent human reviewer evidence is present.",
+    "scope": "Checklist #14 follow-up: deterministic mapping/adjusted-TB/package persistence, explicit review gating, guarded migration/restore evidence, and locked CI restore inputs.",
     "productionEnabled": false
   },
   "testEvidence": [
@@ -34,23 +34,23 @@
     },
     {
       "command": "dotnet build AuditSphereOps.slnx",
-      "result": "Build succeeded, 0 warnings, 0 errors at checklist #14 clean implementation commit ab8e1d1."
+      "result": "Build succeeded, 0 warnings, 0 errors at local follow-up commit 847cada."
     },
     {
       "command": "dotnet test AuditSphereOps.slnx --no-build",
-      "result": "Passed 91/91 on PostgreSQL 18.6; 0 skipped at checklist #14 clean implementation commit ab8e1d1. Includes two release gate tests, two approval binding/staleness tests, release legacy migration refusal, and the prior CRM, time/budget, billing, ledger, document, accounting, authorization, and outbox coverage."
+      "result": "Passed 93/93 on PostgreSQL 18.6; 0 skipped at local follow-up commit 847cada. Includes mapping/package determinism and immutability tests, legacy financial-package migration refusal, two release gate tests, two approval binding/staleness tests, and the prior CRM, time/budget, billing, ledger, document, accounting, authorization, and outbox coverage."
     },
     {
       "command": "dotnet ef database update --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Web --no-build",
-      "result": "Applied 20260918133707_ReleaseGateWorkflow; local auditsphere is now up to date. Existing migrations and legacy tables were preserved."
+      "result": "Applied 20260918161647_MappingAndFinancialStatementWorkflow; local auditsphere is now up to date. The migration refuses ambiguous pre-existing financial-package rows and preserves legacy tables."
     },
     {
       "command": "dotnet ef migrations list --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Web --no-build",
-      "result": "All fourteen migrations through ReleaseGateWorkflow are present; database update reports no pending migrations."
+      "result": "All fifteen migrations through MappingAndFinancialStatementWorkflow are present; database update reports no pending migrations."
     },
     {
       "command": "psql read-only version/trigger/constraint queries against 127.0.0.1:5433/auditsphere",
-      "result": "PostgreSQL 18.6; local probe found the immutable release trigger, release-candidate/release scope constraints, and latest migration 20260918133707_ReleaseGateWorkflow. No production database was touched."
+      "result": "PostgreSQL 18.6; local probe found the financial-statement artifact triggers, scoped mapping/package constraints, and latest migration 20260918161647_MappingAndFinancialStatementWorkflow. No production database was touched."
     },
     {
       "command": "dotnet run --project src/AuditSphereOps.Web --no-build --urls http://127.0.0.1:5099 plus HTTP smoke requests",
@@ -58,7 +58,7 @@
     },
     {
       "command": "scripts/db/restore-drill.sh",
-      "result": "Loopback-only custom-format dump/restore passed. Generated temporary database restored with 14 migrations; latest was 20260918133707_ReleaseGateWorkflow; generated database and temporary directory were removed."
+      "result": "Loopback-only custom-format dump/restore passed. Generated temporary database restored with 15 migrations; latest was 20260918161647_MappingAndFinancialStatementWorkflow; generated database and temporary directory were removed."
     },
     {
       "command": "Migration-aware readiness smoke",
@@ -66,7 +66,7 @@
     },
     {
       "command": "Current master local gates",
-      "result": "At master after the checklist #14 merge-evidence commits: dotnet build completed with 0 warnings and 0 errors; dotnet test passed 91/91 with 0 skipped; scripts/db/restore-drill.sh restored PostgreSQL 18.6 with all fourteen migrations; /, /health/live, /health/ready and /app returned HTTP 200, readiness body was Healthy, and /app showed the locked no-OIDC sign-in state."
+      "result": "At master after local follow-up commit 847cada: locked restore completed; dotnet build completed with 0 warnings and 0 errors; dotnet test passed 93/93 with 0 skipped; scripts/db/restore-drill.sh restored PostgreSQL 18.6 with all fifteen migrations; /, /health/live, /health/ready and /app returned HTTP 200, readiness body was Healthy, and /app showed the locked no-OIDC sign-in state."
     },
     {
       "command": "gh pr checks 10 / gh run view 35354557550",
@@ -106,8 +106,8 @@
     {
       "classification": "implementation-gap",
       "gate": "Schema integrity, UI and recovery controls (spec §§27, 42, 43, 45)",
-      "missing": "Mapping/FS package, remaining entity FKs, full route catalog/client portal/upload transport, full signing/protection evidence, live provider adapters, hosted CI result, production/cross-store recovery evidence and recovery UI",
-      "ownerAction": "Resolve the hosted Actions account block and rerun the merged workflow, then complete the remaining UI surface; external production gates remain blocked."
+      "missing": "Financial-statement rendering/disclosures/cash-flow inputs, remaining entity FKs, full route catalog/client portal/upload transport, full signing/protection evidence, live provider adapters, hosted CI result, production/cross-store recovery evidence and recovery UI",
+      "ownerAction": "Resolve the hosted Actions account block and rerun the workflow, then complete the remaining UI and financial-statement surfaces; external production gates remain blocked."
     },
     {
       "classification": "account-infrastructure",
@@ -122,6 +122,6 @@
       "ownerAction": "Obtain independent review evidence before treating the merged slices as fully accepted."
     }
   ],
-  "nextPermittedAction": "Resolve the GitHub Actions account billing block and rerun the merged workflow, then complete the remaining UI surface. Independent human review evidence remains outstanding.",
-  "lastVerifiedAt": "2026-09-18T14:18:47Z"
+  "nextPermittedAction": "Resolve the GitHub Actions account billing block and rerun the locked workflow, then complete the remaining UI/financial-statement surfaces. Independent human review evidence remains outstanding.",
+  "lastVerifiedAt": "2026-09-18T16:37:52Z"
 }
