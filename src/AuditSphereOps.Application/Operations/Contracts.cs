@@ -1,10 +1,12 @@
 using System.Text;
 using AuditSphereOps.Domain.Acceptance;
 using AuditSphereOps.Domain.Accounting;
+using AuditSphereOps.Domain.Audit;
 using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Engagements;
 using AuditSphereOps.Domain.Documents;
 using AuditSphereOps.Domain.Practice;
+using AuditSphereOps.Domain.Reviews;
 using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Shared;
 using Microsoft.EntityFrameworkCore;
@@ -30,6 +32,9 @@ public interface IAuditSphereDbContext : IAsyncDisposable
   DbSet<EngagementHold> EngagementHolds { get; }
   DbSet<DocumentReference> DocumentReferences { get; }
   DbSet<DocumentSnapshot> DocumentSnapshots { get; }
+  DbSet<Workpaper> Workpapers { get; }
+  DbSet<Approval> Approvals { get; }
+  DbSet<ApprovalApplicability> ApprovalApplicabilities { get; }
   DbSet<EvaluationResponse> EvaluationResponses { get; }
   DbSet<AcceptanceDecision> AcceptanceDecisions { get; }
   DbSet<Lead> Leads { get; }

@@ -96,6 +96,7 @@ public sealed class FirmSafetyState
   public Guid Id { get; set; }
   public string OperatingMode { get; set; } = "LOCAL_ONLY";
   public long DeploymentEpoch { get; set; } = 1;
+  public long PolicyGeneration { get; set; } = 1;
 }
 
 public sealed class ClientSafetyState
