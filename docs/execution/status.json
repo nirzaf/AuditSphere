@@ -14,12 +14,12 @@
   "active": {
     "packageId": "Checklist #10: ND-04 document snapshots",
     "issueNumber": null,
-    "branch": "codex/checklist-10-snapshots",
-    "pullRequestNumber": null,
-    "headCommit": "0f9fe20",
+    "branch": "master",
+    "pullRequestNumber": 5,
+    "headCommit": "c091bf2bf0a859173ee4228b359c90d1b5202320",
     "implementationStatus": "IMPLEMENTED",
     "acceptanceStatus": "LOCAL_VERIFIED",
-    "worktree": "Checklist #10 implementation commit 0f9fe20 is present on codex/checklist-10-snapshots; the owner-authorized PR is not yet opened. No independent human reviewer evidence is present.",
+    "worktree": "Checklist #10 implementation commit 0f9fe20 was merged by owner-authorized PR #5 as c091bf2 on master. No independent human reviewer evidence is present.",
     "scope": "Checklist #10 only: authorized exact-byte snapshot hashing, unique document/provider-version identity, composite document scope FKs, legacy preflight, and append-only snapshot protection.",
     "productionEnabled": false
   },
@@ -34,11 +34,11 @@
     },
     {
       "command": "dotnet build AuditSphereOps.slnx",
-      "result": "Build succeeded, 0 warnings, 0 errors at checklist #10 implementation commit 0f9fe20."
+      "result": "Build succeeded, 0 warnings, 0 errors at checklist #10 implementation commit 0f9fe20; the implementation was subsequently merged as c091bf2."
     },
     {
       "command": "dotnet test AuditSphereOps.slnx --no-build",
-      "result": "Passed 85/85 on PostgreSQL 18.6; 0 skipped at checklist #10 implementation commit 0f9fe20. Includes three document snapshot integrity tests and legacy migration coverage, plus the prior CRM, time/budget, billing, ledger, accounting, authorization, and outbox coverage."
+      "result": "Passed 85/85 on PostgreSQL 18.6; 0 skipped at checklist #10 implementation commit 0f9fe20, subsequently merged as c091bf2. Includes three document snapshot integrity tests and legacy migration coverage, plus the prior CRM, time/budget, billing, ledger, accounting, authorization, and outbox coverage."
     },
     {
       "command": "dotnet ef database update --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Web --no-build",
@@ -92,10 +92,10 @@
     {
       "classification": "authorization-review",
       "gate": "Independent review and PR/merge",
-      "missing": "Checklist #10 has no independent human review evidence; PR #1, PR #2, PR #3, and PR #4 merged without independent human review",
-      "ownerAction": "Open and complete the owner-authorized checklist #10 PR; obtain independent review evidence before treating the slice as fully accepted."
+      "missing": "Checklist #10 has no independent human review evidence; PR #1, PR #2, PR #3, PR #4, and PR #5 merged without independent human review",
+      "ownerAction": "Obtain independent review evidence before treating the merged slices as fully accepted."
     }
   ],
-  "nextPermittedAction": "Open the owner-authorized checklist #10 PR, run its checks, and verify the merge.",
-  "lastVerifiedAt": "2026-09-18T13:06:36Z"
+  "nextPermittedAction": "Begin dependency-ordered checklist #11: approvals bound to revision and generation; independent human review evidence remains outstanding.",
+  "lastVerifiedAt": "2026-09-18T13:10:00Z"
 }
