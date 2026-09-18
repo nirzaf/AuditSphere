@@ -65,6 +65,10 @@
       "result": "Web readiness queried __EFMigrationsHistory and returned Healthy/HTTP 200 with no pending migrations; web startup did not apply migrations."
     },
     {
+      "command": "Current master local gates",
+      "result": "At master after the checklist #14 merge-evidence commits: dotnet build completed with 0 warnings and 0 errors; dotnet test passed 91/91 with 0 skipped; scripts/db/restore-drill.sh restored PostgreSQL 18.6 with all fourteen migrations; /, /health/live, /health/ready and /app returned HTTP 200, readiness body was Healthy, and /app showed the locked no-OIDC sign-in state."
+    },
+    {
       "command": "gh pr checks 10 / gh run view 35354557550",
       "result": "GitGuardian passed. The hosted build-test-ready job did not start because recent account payments failed or the GitHub Actions spending limit needs to be increased; no hosted test result is claimed."
     }
@@ -119,5 +123,5 @@
     }
   ],
   "nextPermittedAction": "Resolve the GitHub Actions account billing block and rerun the merged workflow, then complete the remaining UI surface. Independent human review evidence remains outstanding.",
-  "lastVerifiedAt": "2026-09-18T14:16:41Z"
+  "lastVerifiedAt": "2026-09-18T14:18:47Z"
 }
