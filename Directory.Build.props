@@ -9,6 +9,7 @@
     <WarningsNotAsErrors>NU1900</WarningsNotAsErrors>
     <Continuous>10.0.300</Continuous>
     <ContinuousSdkVersion>10.0.300</ContinuousSdkVersion>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
     <LangVersion>14</LangVersion>
     <Deterministic>true</Deterministic>
     <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>

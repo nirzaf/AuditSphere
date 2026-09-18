@@ -1,0 +1,494 @@
+using System.Globalization;
+using AuditSphereOps.Application.Abstractions;
+using AuditSphereOps.Application.Operations;
+using AuditSphereOps.Application.Security;
+using AuditSphereOps.Domain.Accounting;
+using AuditSphereOps.Domain.Completion;
+using AuditSphereOps.Domain.Shared;
+using Microsoft.EntityFrameworkCore;
+
+namespace AuditSphereOps.Application.Accounting;
+
+public sealed record MappingAllocationInput(
+  string SourceAccountCode,
+  string DestinationCode,
+  string StatementSection,
+  decimal Fraction,
+  string Rationale,
+  string? AuditArea = null);
+
+public sealed record CreateMappingVersionRequest(
+  Guid DatasetId,
+  string TaxonomyVersion,
+  string PeriodStart,
+  string PeriodEnd,
+  IReadOnlyList<MappingAllocationInput> Allocations);
+
+public sealed record BuildFinancialPackageRequest(
+  Guid AdjustmentPlanId,
+  Guid MappingVersionId,
+  string Framework,
+  string PeriodStart,
+  string PeriodEnd,
+  string TemplateVersion);
+
+public sealed record FinancialPackageBuildResult(
+  Guid PackageId,
+  Guid AdjustedSnapshotId,
+  string Status,
+  string CalculationHash,
+  IReadOnlyDictionary<string, decimal> StatementTotals);
+
+/// <summary>
+/// Versioned mapping and deterministic financial-statement calculation over the
+/// accepted TB/adjustment inputs. Rendering, disclosures and provider delivery stay
+/// separate; missing supplementary information is persisted as an explicit review gate.
+/// </summary>
+public static class FinancialStatementService
+{
+  private static readonly string[] PreparerRoles = ["AccountingPreparer", "AccountingReviewer", "Manager", "Partner", "Administrator"];
+  private static readonly string[] ReviewerRoles = ["AccountingReviewer", "Manager", "Partner", "Administrator"];
+  private const string CalculationEngineVersion = "auditsphere.fs-engine.v1";
+
+  public static async Task<CommandResult<Guid>> CreateMappingVersionAsync(
+    IAuditSphereDbContext db,
+    ActorContext actor,
+    CreateMappingVersionRequest request,
+    CancellationToken ct = default)
+  {
+    var invalid = ValidateMappingRequest(request);
+    if (invalid is not null)
+      return CommandResult<Guid>.Fail("mapping.invalid", invalid);
+
+    var dataset = await db.TrialBalanceDatasets.AsNoTracking()
+      .SingleOrDefaultAsync(x => x.Id == request.DatasetId, ct);
+    if (dataset is null)
+      return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    if (dataset.ValidationStatus != "Accepted" || !dataset.Balanced || dataset.ControlTotal != 0m)
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Mappings require an accepted balanced dataset.");
+
+    var auth = await AuthorizeAsync(db, actor, dataset.FirmId, dataset.ClientId, dataset.EngagementId, PreparerRoles.ToArray(), ct);
+    if (!auth.Succeeded)
+      return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+
+    var rows = await db.TrialBalanceRows.AsNoTracking()
+      .Where(x => x.DatasetId == dataset.Id)
+      .Select(x => new SourceBalance(x.AccountCode, x.Amount))
+      .ToListAsync(ct);
+    var mappingError = ValidateAllocations(rows, request.Allocations);
+    if (mappingError is not null)
+      return CommandResult<Guid>.Fail("mapping.incomplete", mappingError);
+
+    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    if (await LockFirmAsync(db, actor.FirmId, ct) is null)
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
+    var client = await LockClientAsync(db, actor.FirmId, dataset.ClientId, ct);
+    if (client is null)
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Client safety state is unavailable.");
+
+    var version = (await db.MappingVersions
+      .Where(x => x.FirmId == actor.FirmId && x.EngagementId == dataset.EngagementId)
+      .Select(x => (long?)x.Version).MaxAsync(ct) ?? 0) + 1;
+    var mapping = new MappingVersion
+    {
+      Id = Guid.CreateVersion7(), FirmId = dataset.FirmId, ClientId = dataset.ClientId,
+      EngagementId = dataset.EngagementId, DatasetId = dataset.Id, Version = version,
+      Generation = client.InputGeneration, TaxonomyVersion = request.TaxonomyVersion.Trim(),
+      PeriodStart = request.PeriodStart.Trim(), PeriodEnd = request.PeriodEnd.Trim(),
+      CreatedByUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
+    };
+    db.MappingVersions.Add(mapping);
+    foreach (var input in request.Allocations)
+      db.MappingAllocations.Add(ToAllocation(mapping, input));
+
+    try
+    {
+      await db.SaveChangesAsync(ct);
+      await tx.CommitAsync(ct);
+      return CommandResult<Guid>.Ok(mapping.Id);
+    }
+    catch (DbUpdateException)
+    {
+      return CommandResult<Guid>.Fail(ErrorCodes.IdempotencyConflict,
+        "The mapping version identity changed; reload the current dataset.");
+    }
+  }
+
+  public static async Task<CommandResult> ApproveMappingAsync(
+    IAuditSphereDbContext db,
+    ActorContext actor,
+    Guid mappingVersionId,
+    long expectedVersion,
+    CancellationToken ct = default)
+  {
+    if (mappingVersionId == Guid.Empty || expectedVersion < 1)
+      return CommandResult.Fail("mapping.invalid", "A mapping version and positive expected version are required.");
+
+    var snapshot = await db.MappingVersions.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.Id == mappingVersionId && x.FirmId == actor.FirmId, ct);
+    if (snapshot is null)
+      return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var auth = await AuthorizeAsync(db, actor, snapshot.FirmId, snapshot.ClientId, snapshot.EngagementId, ReviewerRoles.ToArray(), ct);
+    if (!auth.Succeeded)
+      return auth;
+
+    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    if (await LockFirmAsync(db, actor.FirmId, ct) is null)
+      return CommandResult.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
+    var client = await LockClientAsync(db, actor.FirmId, snapshot.ClientId, ct);
+    if (client is null)
+      return CommandResult.Fail(ErrorCodes.GateBlocked, "Client safety state is unavailable.");
+    var mapping = await db.MappingVersions
+      .FromSqlInterpolated($"SELECT * FROM mapping_versions WHERE id = {mappingVersionId} AND firm_id = {actor.FirmId} FOR UPDATE")
+      .SingleOrDefaultAsync(ct);
+    if (mapping is null)
+      return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    if (mapping.Version != expectedVersion)
+      return CommandResult.Fail(ErrorCodes.StaleRevision, "The mapping version changed; reload it.");
+    if (mapping.Status == AccountingPackageStates.MappingApproved)
+      return CommandResult.Ok();
+    if (mapping.Status != AccountingPackageStates.MappingDraft)
+      return CommandResult.Fail(ErrorCodes.ProtectedState, "Only a draft mapping can be approved.");
+
+    var dataset = await db.TrialBalanceDatasets.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.Id == mapping.DatasetId && x.FirmId == mapping.FirmId, ct);
+    if (dataset is null || dataset.ClientId != mapping.ClientId || dataset.EngagementId != mapping.EngagementId ||
+        dataset.ValidationStatus != "Accepted" || !dataset.Balanced || dataset.ControlTotal != 0m)
+      return CommandResult.Fail(ErrorCodes.GateBlocked, "The mapping dataset is no longer eligible.");
+    var rows = await db.TrialBalanceRows.AsNoTracking()
+      .Where(x => x.DatasetId == mapping.DatasetId)
+      .Select(x => new SourceBalance(x.AccountCode, x.Amount)).ToListAsync(ct);
+    var allocations = await db.MappingAllocations.AsNoTracking()
+      .Where(x => x.FirmId == mapping.FirmId && x.MappingVersionId == mapping.Id)
+      .Select(x => new MappingAllocationInput(x.SourceAccountCode, x.DestinationCode,
+        x.StatementSection, x.Fraction, x.Rationale, x.AuditArea)).ToListAsync(ct);
+    var mappingError = ValidateAllocations(rows, allocations);
+    if (mappingError is not null)
+      return CommandResult.Fail("mapping.incomplete", mappingError);
+
+    client.InputGeneration++;
+    mapping.Generation = client.InputGeneration;
+    mapping.Status = AccountingPackageStates.MappingApproved;
+    mapping.ApprovedByUserId = actor.UserId;
+    mapping.ApprovedAt = DateTimeOffset.UtcNow;
+    await db.SaveChangesAsync(ct);
+    await tx.CommitAsync(ct);
+    return CommandResult.Ok();
+  }
+
+  public static async Task<CommandResult<FinancialPackageBuildResult>> BuildFinancialPackageAsync(
+    IAuditSphereDbContext db,
+    ActorContext actor,
+    BuildFinancialPackageRequest request,
+    CancellationToken ct = default)
+  {
+    var invalid = ValidatePackageRequest(request);
+    if (invalid is not null)
+      return CommandResult<FinancialPackageBuildResult>.Fail("package.invalid", invalid);
+
+    var mapping = await db.MappingVersions.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.Id == request.MappingVersionId && x.FirmId == actor.FirmId, ct);
+    var plan = await db.AdjustmentPlans.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.Id == request.AdjustmentPlanId && x.FirmId == actor.FirmId, ct);
+    if (mapping is null || plan is null || mapping.FirmId != plan.FirmId ||
+        mapping.ClientId != plan.ClientId || mapping.EngagementId != plan.EngagementId ||
+        mapping.DatasetId != plan.BaseDatasetId)
+      return CommandResult<FinancialPackageBuildResult>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    if (mapping.Status != AccountingPackageStates.MappingApproved)
+      return CommandResult<FinancialPackageBuildResult>.Fail(ErrorCodes.GateBlocked, "An approved mapping is required.");
+    if (plan.Status != "Finalized" || string.IsNullOrWhiteSpace(plan.ResultHash))
+      return CommandResult<FinancialPackageBuildResult>.Fail(ErrorCodes.GateBlocked, "A finalized adjustment plan is required.");
+
+    var auth = await AuthorizeAsync(db, actor, mapping.FirmId, mapping.ClientId, mapping.EngagementId, PreparerRoles.ToArray(), ct);
+    if (!auth.Succeeded)
+      return CommandResult<FinancialPackageBuildResult>.Fail(auth.ErrorCode!, auth.Message!);
+
+    var calculated = await CalculateAdjustedBalancesAsync(db, plan, ct);
+    if (!calculated.Succeeded)
+      return CommandResult<FinancialPackageBuildResult>.Fail(calculated.ErrorCode!, calculated.Message!);
+    if (calculated.Value!.ResultHash != plan.ResultHash)
+      return CommandResult<FinancialPackageBuildResult>.Fail(ErrorCodes.StaleRevision,
+        "The finalized adjustment plan no longer matches its stored calculation hash.");
+
+    var dataset = await db.TrialBalanceDatasets.AsNoTracking().SingleOrDefaultAsync(x => x.Id == plan.BaseDatasetId, ct);
+    if (dataset is null || dataset.Currency.Length != 3 || dataset.Currency != dataset.Currency.ToUpperInvariant())
+      return CommandResult<FinancialPackageBuildResult>.Fail(ErrorCodes.GateBlocked, "The source dataset is unavailable.");
+    var allocations = await db.MappingAllocations.AsNoTracking()
+      .Where(x => x.FirmId == mapping.FirmId && x.MappingVersionId == mapping.Id)
+      .Select(x => new MappingAllocationInput(x.SourceAccountCode, x.DestinationCode,
+        x.StatementSection, x.Fraction, x.Rationale, x.AuditArea)).ToListAsync(ct);
+    var allocationError = ValidateAllocations(
+      calculated.Value.Balances.Select(x => new SourceBalance(x.Key, x.Value)).ToList(), allocations);
+    if (allocationError is not null)
+      return CommandResult<FinancialPackageBuildResult>.Fail("mapping.incomplete", allocationError);
+
+    var packageLines = BuildPackageLines(calculated.Value.Balances, allocations, dataset.Currency);
+    var statementTotals = packageLines.GroupBy(x => x.StatementSection, StringComparer.Ordinal)
+      .ToDictionary(x => x.Key, x => MoneyPolicy.Normalize(x.Sum(y => y.Amount)), StringComparer.Ordinal);
+    var packageHash = ComputePackageHash(request, mapping, plan, calculated.Value.ResultHash, packageLines);
+
+    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    if (await LockFirmAsync(db, actor.FirmId, ct) is null)
+      return CommandResult<FinancialPackageBuildResult>.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
+    var client = await LockClientAsync(db, actor.FirmId, mapping.ClientId, ct);
+    if (client is null)
+      return CommandResult<FinancialPackageBuildResult>.Fail(ErrorCodes.GateBlocked, "Client safety state is unavailable.");
+
+    var existing = await db.FinancialPackages.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.FirmId == actor.FirmId && x.AdjustmentPlanId == plan.Id &&
+      x.MappingVersionId == mapping.Id && x.TemplateVersion == request.TemplateVersion.Trim(), ct);
+    if (existing is not null)
+    {
+      if (existing.CalculationHash != packageHash)
+        return CommandResult<FinancialPackageBuildResult>.Fail(ErrorCodes.IdempotencyConflict,
+          "The package identity is already bound to different calculation inputs.");
+      await tx.CommitAsync(ct);
+      return CommandResult<FinancialPackageBuildResult>.Ok(new FinancialPackageBuildResult(
+        existing.Id, existing.AdjustedDatasetId, existing.Status, existing.CalculationHash, statementTotals));
+    }
+
+    var adjusted = await db.AdjustedTrialBalanceSnapshots.SingleOrDefaultAsync(x =>
+      x.FirmId == actor.FirmId && x.AdjustmentPlanId == plan.Id, ct);
+    if (adjusted is null)
+    {
+      adjusted = new AdjustedTrialBalanceSnapshot
+      {
+        Id = Guid.CreateVersion7(), FirmId = plan.FirmId, ClientId = plan.ClientId,
+        EngagementId = plan.EngagementId, BaseDatasetId = plan.BaseDatasetId,
+        AdjustmentPlanId = plan.Id, Revision = 1, Currency = dataset.Currency,
+        ResultHash = calculated.Value.ResultHash, CreatedByUserId = actor.UserId,
+        CreatedAt = DateTimeOffset.UtcNow
+      };
+      db.AdjustedTrialBalanceSnapshots.Add(adjusted);
+      foreach (var balance in calculated.Value.Balances)
+        db.AdjustedTrialBalanceRows.Add(new AdjustedTrialBalanceRow
+        {
+          Id = Guid.CreateVersion7(), SnapshotId = adjusted.Id, AccountCode = balance.Key,
+          Amount = balance.Value, Currency = dataset.Currency
+        });
+    }
+    else if (adjusted.ResultHash != calculated.Value.ResultHash)
+    {
+      return CommandResult<FinancialPackageBuildResult>.Fail(ErrorCodes.StaleRevision,
+        "The adjustment snapshot does not match the finalized plan.");
+    }
+
+    var package = new FinancialPackage
+    {
+      Id = Guid.CreateVersion7(), FirmId = mapping.FirmId, ClientId = mapping.ClientId,
+      EngagementId = mapping.EngagementId, AdjustedDatasetId = adjusted.Id,
+      MappingVersionId = mapping.Id, AdjustmentPlanId = plan.Id,
+      Framework = request.Framework.Trim(), PeriodStart = request.PeriodStart.Trim(),
+      PeriodEnd = request.PeriodEnd.Trim(), TaxonomyVersion = mapping.TaxonomyVersion,
+      TemplateVersion = request.TemplateVersion.Trim(), CalculationEngineVersion = CalculationEngineVersion,
+      CalculationHash = packageHash, Currency = dataset.Currency, Revision = 1,
+      Generation = client.InputGeneration, Status = AccountingPackageStates.PackageReviewRequired,
+      CreatedAt = DateTimeOffset.UtcNow
+    };
+    db.FinancialPackages.Add(package);
+    foreach (var line in packageLines)
+      db.FinancialPackageLines.Add(new FinancialPackageLine
+      {
+        Id = Guid.CreateVersion7(), FirmId = package.FirmId, ClientId = package.ClientId,
+        EngagementId = package.EngagementId, FinancialPackageId = package.Id,
+        SourceAccountCode = line.SourceAccountCode, DestinationCode = line.DestinationCode,
+        StatementSection = line.StatementSection, Amount = line.Amount, Fraction = line.Fraction,
+        Currency = package.Currency, AdjustedSnapshotId = adjusted.Id, CreatedAt = package.CreatedAt
+      });
+    AddValidation(db, package, "TB_BALANCED", calculated.Value.TotalSigned == 0m,
+      "Adjusted signed total is zero at six-decimal precision.");
+    AddValidation(db, package, "MAPPING_COMPLETE", true,
+      "Every non-zero adjusted account has a reviewed allocation totaling 100%.");
+    AddValidation(db, package, "ADJUSTMENTS_REPRODUCIBLE", true,
+      "The adjusted snapshot hash matches the finalized adjustment plan.");
+    AddValidation(db, package, "PACKAGE_BALANCED", MoneyPolicy.Normalize(packageLines.Sum(x => x.Amount)) == 0m,
+      "Mapped presentation lines retain a zero signed total.");
+    AddValidation(db, package, "SUPPLEMENTARY_INFORMATION", false,
+      "Cash-flow workings, disclosures and management information require separate approved inputs.");
+
+    try
+    {
+      await db.SaveChangesAsync(ct);
+      await tx.CommitAsync(ct);
+      return CommandResult<FinancialPackageBuildResult>.Ok(new FinancialPackageBuildResult(
+        package.Id, adjusted.Id, package.Status, package.CalculationHash, statementTotals));
+    }
+    catch (DbUpdateException)
+    {
+      return CommandResult<FinancialPackageBuildResult>.Fail(ErrorCodes.IdempotencyConflict,
+        "The package identity changed; retry from the current mapping and plan.");
+    }
+  }
+
+  private static async Task<CommandResult> AuthorizeAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid firmId, Guid clientId, Guid engagementId,
+    IReadOnlyList<string> roles, CancellationToken ct) =>
+    await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(firmId, clientId, engagementId, roles.ToArray(), InternalOnly: true), ct);
+
+  private static async Task<FirmSafetyState?> LockFirmAsync(
+    IAuditSphereDbContext db, Guid firmId, CancellationToken ct) =>
+    await db.FirmSafetyStates.FromSqlInterpolated(
+      $"SELECT * FROM firm_safety_states WHERE id = {firmId} FOR UPDATE").SingleOrDefaultAsync(ct);
+
+  private static async Task<ClientSafetyState?> LockClientAsync(
+    IAuditSphereDbContext db, Guid firmId, Guid clientId, CancellationToken ct) =>
+    await db.ClientSafetyStates.FromSqlInterpolated(
+      $"SELECT * FROM client_safety_states WHERE firm_id = {firmId} AND id = {clientId} FOR UPDATE").SingleOrDefaultAsync(ct);
+
+  private static MappingAllocation ToAllocation(MappingVersion mapping, MappingAllocationInput input) => new()
+  {
+    Id = Guid.CreateVersion7(), FirmId = mapping.FirmId, ClientId = mapping.ClientId,
+    EngagementId = mapping.EngagementId, MappingVersionId = mapping.Id,
+    SourceAccountCode = input.SourceAccountCode.Trim(), DestinationCode = input.DestinationCode.Trim(),
+    StatementSection = input.StatementSection.Trim().ToUpperInvariant(),
+    AuditArea = string.IsNullOrWhiteSpace(input.AuditArea) ? null : input.AuditArea.Trim(),
+    Fraction = MoneyPolicy.Normalize(input.Fraction), Rationale = input.Rationale.Trim(),
+    CreatedAt = mapping.CreatedAt
+  };
+
+  private static string? ValidateMappingRequest(CreateMappingVersionRequest request)
+  {
+    if (request.DatasetId == Guid.Empty || string.IsNullOrWhiteSpace(request.TaxonomyVersion) ||
+        string.IsNullOrWhiteSpace(request.PeriodStart) || string.IsNullOrWhiteSpace(request.PeriodEnd))
+      return "Dataset, taxonomy and reporting period are required.";
+    if (!ValidDate(request.PeriodStart) || !ValidDate(request.PeriodEnd) || string.CompareOrdinal(request.PeriodStart, request.PeriodEnd) > 0)
+      return "Reporting period must be an ordered ISO date range.";
+    return request.Allocations.Count == 0 ? "At least one mapping allocation is required." : null;
+  }
+
+  private static string? ValidatePackageRequest(BuildFinancialPackageRequest request)
+  {
+    if (request.AdjustmentPlanId == Guid.Empty || request.MappingVersionId == Guid.Empty ||
+        string.IsNullOrWhiteSpace(request.Framework) || string.IsNullOrWhiteSpace(request.TemplateVersion))
+      return "Adjustment plan, mapping, framework and template version are required.";
+    if (!ValidDate(request.PeriodStart) || !ValidDate(request.PeriodEnd) || string.CompareOrdinal(request.PeriodStart, request.PeriodEnd) > 0)
+      return "Reporting period must be an ordered ISO date range.";
+    return null;
+  }
+
+  private static string? ValidateAllocations(
+    IReadOnlyCollection<SourceBalance> rows,
+    IReadOnlyCollection<MappingAllocationInput> allocations)
+  {
+    var sourceAmounts = rows.Select(row => (Account: row.AccountCode.Trim(), Amount: row.Amount)).ToList();
+    var accountSet = sourceAmounts.Select(x => x.Account).ToHashSet(StringComparer.Ordinal);
+    var normalized = allocations.Select(x => new MappingAllocationInput(
+      x.SourceAccountCode.Trim(), x.DestinationCode.Trim(), x.StatementSection.Trim().ToUpperInvariant(),
+      MoneyPolicy.Normalize(x.Fraction), x.Rationale.Trim(), string.IsNullOrWhiteSpace(x.AuditArea) ? null : x.AuditArea.Trim())).ToList();
+    if (normalized.Any(x => x.SourceAccountCode.Length == 0 || x.DestinationCode.Length == 0 ||
+        x.StatementSection.Length == 0 || x.Rationale.Length == 0 || x.Fraction <= 0m || x.Fraction > 1m))
+      return "Each allocation needs a positive fraction, destination, statement section and rationale.";
+    if (normalized.Any(x => !accountSet.Contains(x.SourceAccountCode)))
+      return "A mapping allocation references an account outside the selected dataset.";
+    if (normalized.GroupBy(x => (x.SourceAccountCode, x.DestinationCode)).Any(x => x.Count() > 1))
+      return "A source account and destination may occur only once in a mapping version.";
+    foreach (var source in sourceAmounts.Where(x => x.Amount != 0m).Select(x => x.Account).Distinct(StringComparer.Ordinal))
+    {
+      var sum = normalized.Where(x => x.SourceAccountCode == source).Sum(x => x.Fraction);
+      if (MoneyPolicy.Normalize(sum) != 1m)
+        return $"Non-zero account {source} must be allocated exactly 100%.";
+    }
+    return null;
+  }
+
+  private static List<PackageLine> BuildPackageLines(
+    IReadOnlyDictionary<string, decimal> balances,
+    IReadOnlyCollection<MappingAllocationInput> allocations,
+    string currency)
+  {
+    var lines = new List<PackageLine>();
+    foreach (var balance in balances.OrderBy(x => x.Key, StringComparer.Ordinal))
+    {
+      foreach (var allocation in allocations.Where(x => x.SourceAccountCode == balance.Key)
+        .OrderBy(x => x.DestinationCode, StringComparer.Ordinal))
+      {
+        lines.Add(new PackageLine(balance.Key, allocation.DestinationCode, allocation.StatementSection,
+          MoneyPolicy.Normalize(balance.Value * allocation.Fraction), allocation.Fraction, currency));
+      }
+    }
+    return lines;
+  }
+
+  private static string ComputePackageHash(
+    BuildFinancialPackageRequest request,
+    MappingVersion mapping,
+    AdjustmentPlan plan,
+    string adjustedHash,
+    IReadOnlyCollection<PackageLine> lines)
+  {
+    var canonical = string.Join('\n', new[]
+    {
+      "financial-statement-package.v1", mapping.Id.ToString("D"), mapping.Version.ToString(CultureInfo.InvariantCulture),
+      plan.Id.ToString("D"), plan.ResultHash ?? string.Empty, adjustedHash, request.Framework.Trim(),
+      request.PeriodStart.Trim(), request.PeriodEnd.Trim(), mapping.TaxonomyVersion,
+      request.TemplateVersion.Trim(), CalculationEngineVersion
+    }.Concat(lines.OrderBy(x => x.SourceAccountCode, StringComparer.Ordinal)
+      .ThenBy(x => x.DestinationCode, StringComparer.Ordinal)
+      .Select(x => string.Join('|', x.SourceAccountCode, x.DestinationCode, x.StatementSection,
+        x.Amount.ToString("0.000000", CultureInfo.InvariantCulture), x.Fraction.ToString("0.000000", CultureInfo.InvariantCulture), x.Currency))));
+    return Hashing.Sha256Hex(canonical);
+  }
+
+  private static void AddValidation(
+    IAuditSphereDbContext db, FinancialPackage package, string code, bool passed, string detail) =>
+    db.FinancialPackageValidations.Add(new FinancialPackageValidation
+    {
+      Id = Guid.CreateVersion7(), FirmId = package.FirmId, FinancialPackageId = package.Id,
+      Code = code, Passed = passed, Detail = detail, CreatedAt = package.CreatedAt
+    });
+
+  private static async Task<CommandResult<AdjustedCalculation>> CalculateAdjustedBalancesAsync(
+    IAuditSphereDbContext db, AdjustmentPlan plan, CancellationToken ct)
+  {
+    var rows = await db.TrialBalanceRows.AsNoTracking()
+      .Where(x => x.DatasetId == plan.BaseDatasetId).ToListAsync(ct);
+    if (rows.Count == 0)
+      return CommandResult<AdjustedCalculation>.Fail(ErrorCodes.GateBlocked, "The adjustment base has no rows.");
+    var balances = rows.ToDictionary(x => x.AccountCode, x => x.Amount, StringComparer.Ordinal);
+    var lines = await db.AdjustmentPlanLines.AsNoTracking().Where(x => x.PlanId == plan.Id).ToListAsync(ct);
+    if (lines.Count == 0)
+      return CommandResult<AdjustedCalculation>.Fail(ErrorCodes.GateBlocked, "The finalized plan has no journal selections.");
+    foreach (var line in lines.Where(x => x.ReflectionState == ReflectionStates.NotReflected))
+    {
+      var journal = await db.AdjustmentJournals.AsNoTracking().SingleOrDefaultAsync(x =>
+        x.FirmId == plan.FirmId && x.EngagementId == plan.EngagementId &&
+        x.JournalNumber == line.LogicalJournalNumber && x.Revision == line.JournalRevision && x.Status == "Posted", ct);
+      if (journal is null)
+        return CommandResult<AdjustedCalculation>.Fail(ErrorCodes.GateBlocked, "A finalized plan references a missing posted journal.");
+      var journalLines = await db.AdjustmentLines.AsNoTracking().Where(x => x.JournalId == journal.Id).ToListAsync(ct);
+      try
+      {
+        balances = new Dictionary<string, decimal>(TrialBalanceCalculator.ApplyJournal(
+          balances, journalLines.Select(x => (x.AccountCode, x.Debit, x.Credit))), StringComparer.Ordinal);
+      }
+      catch (InvalidOperationException ex)
+      {
+        return CommandResult<AdjustedCalculation>.Fail(ErrorCodes.GateBlocked, ex.Message);
+      }
+    }
+    var signed = MoneyPolicy.Normalize(balances.Values.Sum());
+    var canonical = string.Join('\n', balances.OrderBy(x => x.Key, StringComparer.Ordinal)
+      .Select(x => $"{x.Key}|{x.Value.ToString("0.000000", CultureInfo.InvariantCulture)}"));
+    return CommandResult<AdjustedCalculation>.Ok(new AdjustedCalculation(
+      balances, signed, Hashing.Sha256Hex(canonical),
+      balances.Values.Where(x => x >= 0m).Sum(), balances.Values.Where(x => x < 0m).Sum(x => -x)));
+  }
+
+  private static bool ValidDate(string value) =>
+    DateOnly.TryParseExact(value, "yyyy-MM-dd", CultureInfo.InvariantCulture,
+      DateTimeStyles.None, out _);
+
+  private sealed record PackageLine(
+    string SourceAccountCode, string DestinationCode, string StatementSection,
+    decimal Amount, decimal Fraction, string Currency);
+
+  private sealed record SourceBalance(string AccountCode, decimal Amount);
+
+  private sealed record AdjustedCalculation(
+    IReadOnlyDictionary<string, decimal> Balances,
+    decimal TotalSigned,
+    string ResultHash,
+    decimal TotalDebits,
+    decimal TotalCreditsAbs);
+}

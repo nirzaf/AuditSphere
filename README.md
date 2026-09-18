@@ -132,7 +132,8 @@ Overrides: `PGSQL_HOME`, `PGSQL_DATA`, `PGSQL_RUN`, `PGSQL_LOG`, `PGSQL_PORT`. S
 ## Build, migrate, test
 
 ```powershell
-dotnet build AuditSphereOps.slnx
+dotnet restore AuditSphereOps.slnx --locked-mode
+dotnet build AuditSphereOps.slnx --no-restore
 dotnet ef database update --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Web
 dotnet test AuditSphereOps.slnx
 ```
@@ -149,13 +150,13 @@ The integration test requires PostgreSQL at `127.0.0.1:5433` and the `auditspher
 - **`docs/execution/current-slice.md`** — the verified local state and concise serialization of what was actually executed.
 - **Using the spec:** read `AuditSphereOps_NET_Codex_Implementation_Specification.md` (§§1–12, 22, 24, 27–33, 41–47) plus only the sections for the active issue.
 
-As of the last verification pass: **91/91 tests passed** on PostgreSQL 18.6, fourteen migrations applied, build clean with zero warnings, the local restore rehearsal passed, and readiness returned healthy with no pending migrations. Hosted CI still needs its first observed run. The Entra/SharePoint/Purview production gates remain **recorded blockers** pending owner-authorized evidence.
+As of the last verification pass: **93/93 tests passed** on PostgreSQL 18.6, fifteen migrations applied, locked restore and build completed with zero warnings, the local restore rehearsal passed, and readiness returned healthy with no pending migrations. Hosted CI still needs its first observed run. The Entra/SharePoint/Purview production gates remain **recorded blockers** pending owner-authorized evidence.
 
 ## Implementation roadmap
 
 The build advances through **14 dependency-ordered checklist slices** (spec §31–§32), each landing as a reviewed PR with executed test evidence. Slices may not weaken controls, and a slice is accepted only with independent review evidence.
 
-**Delivered (checklists #1–#12 plus initial #13/#14 controls, verified locally — 91/91 tests, fourteen migrations):**
+**Delivered (checklists #1–#12 plus initial #13/#14 controls and the local mapping/FS follow-up, verified locally — 93/93 tests, fifteen migrations):**
 
 - Security & authorization integrity — `ActorContext`, scope/role matrix, firm→client→engagement guards, finance-role separation
 - Trial-balance intake & validation engine — Appendix D fixture, database-level `ck_tb_validation_status` control
@@ -168,12 +169,12 @@ The build advances through **14 dependency-ordered checklist slices** (spec §31
 - Document snapshots — scope-bound exact-byte SHA-256 capture, one snapshot per source version, legacy ambiguity refusal, and append-only database protection
 - Revision/generation-bound approvals — immutable historical decisions, current applicability projection, and stale approval rejection
 - Release-gate integrity — workpaper candidates bound to current approvals/generations/manifests, checkpoint-required immutable release events, scoped idempotency, and delivery outbox intent
+- Mapping and financial-statement package foundation — approved versioned mappings, deterministic adjusted-TB snapshots/package lines, explicit review validations, and append-only artifact protection
 - Initial scoped Blazor shell — live portfolio projections and a release command screen behind real authenticated-user-to-firm mapping; unauthenticated/local environments fail closed
 
 **Remaining proof and scope (checklists #13–#14):**
 
-- Mapping package & financial-statement production
-- Remaining entity foreign keys and data-model completion
+- Financial-statement rendering, disclosures/cash-flow inputs, and the remaining entity foreign keys/data-model completion
 - Live provider adapters (Entra/Graph/SharePoint/Purview) behind the external-effect fence
 - Full UI surfaces and authorized operator recovery tooling
 - Hosted CI execution evidence and production-grade cross-store recovery

@@ -43,7 +43,7 @@ restored_migrations="$($psql_bin -h "$db_host" -p "$db_port" -U "$db_user" -d "$
   -Atc 'SELECT count(*) FROM "__EFMigrationsHistory"')"
 latest_migration="$($psql_bin -h "$db_host" -p "$db_port" -U "$db_user" -d "$restore_db" \
   -Atc 'SELECT "MigrationId" FROM "__EFMigrationsHistory" ORDER BY "MigrationId" DESC LIMIT 1')"
-if [[ "$restored_migrations" != "14" || "$latest_migration" != "20260918133707_ReleaseGateWorkflow" ]]; then
+if [[ "$restored_migrations" != "15" || "$latest_migration" != "20260918161647_MappingAndFinancialStatementWorkflow" ]]; then
   echo "Restore verification failed: migrations=$restored_migrations latest=$latest_migration" >&2
   exit 1
 fi
