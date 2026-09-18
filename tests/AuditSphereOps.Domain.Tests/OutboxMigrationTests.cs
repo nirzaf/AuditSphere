@@ -64,8 +64,8 @@ public sealed class OutboxMigrationTests
     Assert.Equal(3, attempt);
     var pending = await db.Database.GetPendingMigrationsAsync();
     Assert.Contains("20260917104422_DurableOutbox", pending);
-    // DurableOutbox + AuthorizationIntegrity + AdjustmentSourceBridge + PracticeCrmWorkflow + CrmSafetyInvariants + PracticeTimeBudgetWorkflow + BillingArtifactWorkflow + FirmLedgerWorkflow remain unapplied.
-    Assert.Equal(8, pending.Count());
+    // DurableOutbox + AuthorizationIntegrity + AdjustmentSourceBridge + PracticeCrmWorkflow + CrmSafetyInvariants + PracticeTimeBudgetWorkflow + BillingArtifactWorkflow + FirmLedgerWorkflow + DocumentSnapshotIntegrity remain unapplied.
+    Assert.Equal(9, pending.Count());
   }
 
   [Fact]
@@ -85,6 +85,26 @@ public sealed class OutboxMigrationTests
     Assert.Contains("explicit legacy disposition", error.MessageText);
     var preserved = await db.Database.SqlQuery<Guid>($"SELECT id AS \"Value\" FROM firm_accounts WHERE id = {accountId}").SingleAsync();
     Assert.Equal(accountId, preserved);
+    Assert.Equal(2, (await db.Database.GetPendingMigrationsAsync()).Count());
+  }
+
+  [Fact]
+  [Trait("Profile", "Database")]
+  public async Task LegacyDocumentRows_StopMigrationWithoutInventingScopeOrHash()
+  {
+    await using var pg = await PgTestSchema.CreateAsync(Previous);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var id = Guid.NewGuid();
+    await db.Database.ExecuteSqlInterpolatedAsync($"""
+      INSERT INTO document_references
+        (id, firm_id, client_id, engagement_id, provider, drive_id, item_id, path, purpose, created_at)
+      VALUES ({id}, {Guid.NewGuid()}, {Guid.NewGuid()}, {Guid.NewGuid()}, 'SharePoint', 'drive', 'item', '/legacy', 'Evidence', statement_timestamp())
+      """);
+
+    var error = await Assert.ThrowsAsync<PostgresException>(() => db.Database.MigrateAsync());
+    Assert.Contains("ambiguous document reference", error.MessageText);
+    var preserved = await db.Database.SqlQuery<Guid>($"SELECT id AS \"Value\" FROM document_references WHERE id = {id}").SingleAsync();
+    Assert.Equal(id, preserved);
     Assert.Single(await db.Database.GetPendingMigrationsAsync());
   }
 

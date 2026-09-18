@@ -88,8 +88,48 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     ConfigureMoney(b);
     ConfigurePractice(b);
     ConfigureAccounting(b);
+    ConfigureDocuments(b);
     ConfigureOperations(b);
     ConfigureSecurity(b);
+  }
+
+  private static void ConfigureDocuments(ModelBuilder b)
+  {
+    var reference = b.Entity<DocumentReference>();
+    reference.HasAlternateKey(x => new { x.FirmId, x.Id })
+      .HasName("AK_document_references_firm_id_id");
+    reference.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
+      .HasName("AK_document_references_scope_id");
+    reference.Property(x => x.Provider).HasMaxLength(50);
+    reference.Property(x => x.DriveId).HasMaxLength(200);
+    reference.Property(x => x.ItemId).HasMaxLength(200);
+    reference.Property(x => x.Path).HasMaxLength(2000);
+    reference.Property(x => x.Purpose).HasMaxLength(100);
+    reference.ToTable("document_references", t => t.HasCheckConstraint("ck_document_reference_values",
+      "length(trim(provider)) > 0 AND length(drive_id) > 0 AND length(item_id) > 0 AND length(path) > 0 AND length(purpose) > 0"));
+    reference.HasOne<PracticeClient>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id })
+      .OnDelete(DeleteBehavior.Restrict);
+    reference.HasOne<Engagement>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId })
+      .HasPrincipalKey(x => new { x.FirmId, x.PracticeClientId, x.Id })
+      .OnDelete(DeleteBehavior.Restrict);
+
+    var snapshot = b.Entity<DocumentSnapshot>();
+    snapshot.Property(x => x.DriveId).HasMaxLength(200);
+    snapshot.Property(x => x.ItemId).HasMaxLength(200);
+    snapshot.Property(x => x.VersionId).HasMaxLength(200);
+    snapshot.Property(x => x.Sha256Hex).HasMaxLength(64);
+    snapshot.Property(x => x.CapturedBy).HasMaxLength(100);
+    snapshot.HasIndex(x => new { x.FirmId, x.DocumentReferenceId, x.VersionId })
+      .IsUnique().HasDatabaseName("ux_document_snapshot_firm_document_version");
+    snapshot.ToTable("document_snapshots", t => t.HasCheckConstraint("ck_document_snapshot_values",
+      "length(drive_id) > 0 AND length(item_id) > 0 AND length(version_id) > 0 AND sha256_hex ~ '^[0-9a-f]{64}$' AND byte_count >= 0 AND length(captured_by) > 0"));
+    snapshot.HasOne<DocumentReference>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.DocumentReferenceId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
+      .OnDelete(DeleteBehavior.Restrict);
   }
 
   private static void ConfigureSecurity(ModelBuilder b)
