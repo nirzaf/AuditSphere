@@ -2,17 +2,18 @@
 
 The build contract is `AuditSphereOps_NET_Codex_Implementation_Specification.md` (v5.0) at repo root. The v5 specification already requires .NET 10 (SDK 10.0.300) and PostgreSQL 18; an earlier note claiming .NET 10 was a deviation was incorrect. The local server is now PostgreSQL 18.6, matching the spec's required major version.
 
-## Verified locally (as of 2026-09-18)
+## Verified locally (as of 2026-09-19)
 
 - SDK 10.0.300; six projects targeting net10.0 (five application projects, one test project).
 - EF Core 10.0.12, Npgsql EF provider 10.0.0, `dotnet-ef` tool 10.0.12.
 - PostgreSQL 18.6 development cluster at `/opt/homebrew/var/postgresql@18`, loopback + trust auth (development only), port 5433. The local `auditsphere` and `auditsphere_tests` databases were created for this host.
-- Eighteen applied migrations on `auditsphere`, ending at `20260918175205_PbcUploadCapability`; `dotnet ef database update` reported no pending migrations. The latest migration stores a one-time capability hash and server-staged path for the bounded PBC chunk transport; it refuses to upgrade existing upload intents because capability material cannot be reconstructed.
-- Build: zero warnings/errors. Full suite: 94/94 passed, zero skipped. The suite now also covers PBC state transitions, scoped client upload, idempotent chunk replay, offset/hash enforcement, trusted completion and immutable chunk evidence alongside the financial-package and prior accounting/security coverage.
+- Twenty-one applied migrations on `auditsphere`, ending at `20260918235000_AuditPlanningAndFirmPostingExtensions`; `dotnet ef database update` reported no pending migrations. Adds materiality assessments, audit risks, population versions, workpapers, submissions, findings, and firm posting balance assertions.
+- Build: zero warnings/errors. Full suite: 130/130 passed, zero skipped. The suite covers audit planning, materiality, risk coverage, population versioning, workpaper submission immutability, findings lifecycle, PBC state transitions, client upload capabilities, cash-flow bridge/disclosure validation, supplementary-artifact immutability, mapping/package determinism, release/approval binding, and the prior CRM, time/budget, billing, ledger, document, accounting, authorization, and outbox coverage.
 - Outbox tests cover concurrent enqueue/claim, locked-row skipping, scoped idempotency conflicts, atomic rollback, lease renewal/expiry, stale attempts, changed input/epoch, cancellation, retry exhaustion, append-only evidence, migration safety, and simulated provider-success/local-failure reconciliation. The provider fixture persists effects independently; it is not a live Microsoft adapter.
+- Test connection pool robustness: `PgTestSchema` uses unpooled administrative connections for schema creation and drop, and per-schema connection pools with 6-connection headroom and 60-second timeouts, eliminating connection exhaustion during parallel xUnit execution in CI.
 - Database-level control probe on 18.6: inserting an unbalanced dataset with `validation_status='Accepted'` is rejected by `ck_tb_validation_status`; a balanced insert is accepted; no residue after rollback.
 - Migration-aware readiness: `/health/ready` returned `Healthy`/HTTP 200 after querying `__EFMigrationsHistory`; the web host does not auto-apply migrations.
-- Restore rehearsal: `scripts/db/restore-drill.sh` dumped and restored `auditsphere` into a generated temporary loopback database, compared restored migration evidence with the source, verified eighteen migrations with latest `20260918175205_PbcUploadCapability`, then cleaned its generated database and temporary files.
+- Restore rehearsal: `scripts/db/restore-drill.sh` dumped and restored `auditsphere` into a generated temporary loopback database, compared restored migration evidence with the source, verified twenty-one migrations with latest `20260918235000_AuditPlanningAndFirmPostingExtensions`, then cleaned its generated database and temporary files.
 
 ## Run verification
 

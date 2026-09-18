@@ -16,46 +16,66 @@ public sealed class PgTestSchema : IAsyncDisposable
 {
   public string Schema { get; }
   public DbContextOptions<AuditSphereDbContext> Options { get; }
+  public string ConnectionString { get; }
 
-  private readonly NpgsqlConnection _admin;
+  private readonly string _adminConnectionString;
 
-  private PgTestSchema(string schema, DbContextOptions<AuditSphereDbContext> options, NpgsqlConnection admin)
+  private PgTestSchema(
+    string schema,
+    DbContextOptions<AuditSphereDbContext> options,
+    string connectionString,
+    string adminConnectionString)
   {
     Schema = schema;
     Options = options;
-    _admin = admin;
+    ConnectionString = connectionString;
+    _adminConnectionString = adminConnectionString;
   }
 
   public static async Task<PgTestSchema> CreateAsync(string? targetMigration = null)
   {
-    var builder = new NpgsqlConnectionStringBuilder(
-      Environment.GetEnvironmentVariable("AUDITSPHERE_TEST_CONNECTION") ??
-      "Host=127.0.0.1;Port=5433;Database=auditsphere_tests;Username=postgres");
-    if (builder.Database != "auditsphere_tests" || builder.Host != "127.0.0.1")
+    var rawConnection = Environment.GetEnvironmentVariable("AUDITSPHERE_TEST_CONNECTION") ??
+      "Host=127.0.0.1;Port=5433;Database=auditsphere_tests;Username=postgres";
+
+    var baseBuilder = new NpgsqlConnectionStringBuilder(rawConnection);
+    if (baseBuilder.Database != "auditsphere_tests" || baseBuilder.Host != "127.0.0.1")
       throw new InvalidOperationException("This test requires the loopback auditsphere_tests database.");
 
     var schema = "test_" + Guid.NewGuid().ToString("N");
-    // Each schema gets its own search path and therefore its own Npgsql pool. The cap plus a
-    // short idle lifetime keeps the accumulated idle connections across many per-test schemas
-    // far below the cluster connection ceiling, locally and on hosted runners.
-    builder["Maximum Pool Size"] = "3";
-    var admin = new NpgsqlConnection(builder.ConnectionString);
-    await admin.OpenAsync();
-    if (admin.PostgreSqlVersion.Major != 18)
-    {
-      await admin.DisposeAsync();
-      throw new InvalidOperationException("Database tests require PostgreSQL 18.");
-    }
-    await using (var create = new NpgsqlCommand($"CREATE SCHEMA {schema}", admin))
-      await create.ExecuteNonQueryAsync();
 
-    builder.SearchPath = schema;
+    // Administrative connection: unpooled so it never occupies or waits for slots
+    // in any shared connection pool and is disposed immediately.
+    var adminBuilder = new NpgsqlConnectionStringBuilder(rawConnection)
+    {
+      Pooling = false,
+      Timeout = 60
+    };
+    await using (var admin = new NpgsqlConnection(adminBuilder.ConnectionString))
+    {
+      await admin.OpenAsync();
+      if (admin.PostgreSqlVersion.Major != 18)
+        throw new InvalidOperationException("Database tests require PostgreSQL 18.");
+
+      await using var create = new NpgsqlCommand($"CREATE SCHEMA {schema}", admin);
+      await create.ExecuteNonQueryAsync();
+    }
+
+    // Per-schema connection string: each test schema gets its own search path and pool.
+    var schemaBuilder = new NpgsqlConnectionStringBuilder(rawConnection)
+    {
+      SearchPath = schema,
+      Pooling = true,
+      Timeout = 60
+    };
+    schemaBuilder["Maximum Pool Size"] = "6";
+
+    var schemaConnectionString = schemaBuilder.ConnectionString;
     var options = new DbContextOptionsBuilder<AuditSphereDbContext>()
-      .UseNpgsql(builder.ConnectionString).Options;
+      .UseNpgsql(schemaConnectionString).Options;
     await using (var db = new AuditSphereDbContext(options))
       await db.GetService<IMigrator>().MigrateAsync(targetMigration);
 
-    return new PgTestSchema(schema, options, admin);
+    return new PgTestSchema(schema, options, schemaConnectionString, adminBuilder.ConnectionString);
   }
 
   /// <summary>Seeds one valid firm/client/engagement scope and returns its identifiers.</summary>
@@ -89,12 +109,23 @@ public sealed class PgTestSchema : IAsyncDisposable
   {
     try
     {
-      await using var drop = new NpgsqlCommand($"DROP SCHEMA {Schema} CASCADE", _admin);
+      NpgsqlConnection.ClearPool(new NpgsqlConnection(ConnectionString));
+    }
+    catch
+    {
+      // Best-effort pool eviction
+    }
+
+    try
+    {
+      await using var admin = new NpgsqlConnection(_adminConnectionString);
+      await admin.OpenAsync();
+      await using var drop = new NpgsqlCommand($"DROP SCHEMA {Schema} CASCADE", admin);
       await drop.ExecuteNonQueryAsync();
     }
-    finally
+    catch
     {
-      await _admin.DisposeAsync();
+      // Best-effort cleanup
     }
   }
 }
