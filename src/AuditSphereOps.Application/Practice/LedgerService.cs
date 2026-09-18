@@ -128,6 +128,8 @@ public static class LedgerService
       .ToDictionaryAsync(x => x.Id, ct);
     if (accounts.Count != accountIds.Length)
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "A journal account is outside the firm scope.");
+    if (accounts.Values.Any(x => !x.PostingAllowed))
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "A journal uses an account that is not open for posting.");
     var journal = new FirmJournal
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, PeriodId = lockedPeriod.Id,
@@ -220,8 +222,13 @@ public static class LedgerService
       RequestKey = SourceRequestKey(lockedJournal),
       RequestDigest = Hashing.Sha256Hex(SourceRequestKey(lockedJournal)), CreatedAt = DateTimeOffset.UtcNow
     });
-    lockedJournal.Status = LedgerStates.JournalPosted;
-    lockedJournal.PostedAt = posting.PostedAt;
+    var journalUpdated = await db.FirmJournals
+      .Where(x => x.Id == lockedJournal.Id && x.FirmId == actor.FirmId && x.Status == LedgerStates.JournalApproved)
+      .ExecuteUpdateAsync(setters => setters
+        .SetProperty(x => x.Status, LedgerStates.JournalPosted)
+        .SetProperty(x => x.PostedAt, posting.PostedAt), ct);
+    if (journalUpdated != 1)
+      return CommandResult<Guid>.Fail("ledger.conflict", "The journal state changed; reload the journal.");
     try
     {
       await db.SaveChangesAsync(ct);
@@ -335,9 +342,15 @@ public static class LedgerService
     if (await db.FirmJournals.AnyAsync(x => x.FirmId == actor.FirmId && x.PeriodId == periodId &&
         x.Status != LedgerStates.JournalPosted, ct))
       return CommandResult.Fail(ErrorCodes.GateBlocked, "All journals must be posted before period close.");
-    period.Status = LedgerStates.PeriodClosed;
-    period.Revision++;
-    period.ClosedAt = DateTimeOffset.UtcNow;
+    var closedAt = DateTimeOffset.UtcNow;
+    var periodUpdated = await db.FirmPeriods
+      .Where(x => x.Id == period.Id && x.FirmId == actor.FirmId && x.Status == LedgerStates.PeriodOpen)
+      .ExecuteUpdateAsync(setters => setters
+        .SetProperty(x => x.Status, LedgerStates.PeriodClosed)
+        .SetProperty(x => x.Revision, x => x.Revision + 1)
+        .SetProperty(x => x.ClosedAt, closedAt), ct);
+    if (periodUpdated != 1)
+      return CommandResult.Fail("ledger.conflict", "The fiscal period state changed; reload the period.");
     db.PeriodCloseDecisions.Add(new PeriodCloseDecision
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, PeriodId = period.Id,
@@ -364,9 +377,14 @@ public static class LedgerService
     if (period.Status == LedgerStates.PeriodOpen) return CommandResult.Ok();
     if (period.Status != LedgerStates.PeriodClosed)
       return CommandResult.Fail(ErrorCodes.ProtectedState, "Only a closed period can be reopened.");
-    period.Status = LedgerStates.PeriodOpen;
-    period.Revision++;
-    period.ClosedAt = null;
+    var periodUpdated = await db.FirmPeriods
+      .Where(x => x.Id == period.Id && x.FirmId == actor.FirmId && x.Status == LedgerStates.PeriodClosed)
+      .ExecuteUpdateAsync(setters => setters
+        .SetProperty(x => x.Status, LedgerStates.PeriodOpen)
+        .SetProperty(x => x.Revision, x => x.Revision + 1)
+        .SetProperty(x => x.ClosedAt, (DateTimeOffset?)null), ct);
+    if (periodUpdated != 1)
+      return CommandResult.Fail("ledger.conflict", "The fiscal period state changed; reload the period.");
     db.PeriodCloseDecisions.Add(new PeriodCloseDecision
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, PeriodId = period.Id,
@@ -398,13 +416,16 @@ public static class LedgerService
       return CommandResult.Fail(ErrorCodes.ProtectedState, "The journal or period is not in the required state.");
     if (forbidActor.HasValue && locked.CreatedByUserId == forbidActor.Value)
       return CommandResult.Fail(ErrorCodes.ProtectedState, "Journal preparers cannot approve their own journal.");
-    locked.Status = next;
-    if (next == LedgerStates.JournalApproved)
-    {
-      locked.ApprovedByUserId = actor.UserId;
-      locked.ApprovedAt = DateTimeOffset.UtcNow;
-    }
-    await db.SaveChangesAsync(ct);
+    var changed = next == LedgerStates.JournalApproved
+      ? await db.FirmJournals.Where(x => x.Id == locked.Id && x.FirmId == actor.FirmId && x.Status == expected)
+        .ExecuteUpdateAsync(setters => setters
+          .SetProperty(x => x.Status, next)
+          .SetProperty(x => x.ApprovedByUserId, actor.UserId)
+          .SetProperty(x => x.ApprovedAt, DateTimeOffset.UtcNow), ct)
+      : await db.FirmJournals.Where(x => x.Id == locked.Id && x.FirmId == actor.FirmId && x.Status == expected)
+        .ExecuteUpdateAsync(setters => setters.SetProperty(x => x.Status, next), ct);
+    if (changed != 1)
+      return CommandResult.Fail("ledger.conflict", "The journal state changed; reload the journal.");
     await tx.CommitAsync(ct);
     return CommandResult.Ok();
   }
@@ -419,9 +440,9 @@ public static class LedgerService
       ? "Account code is required and bounded."
       : string.IsNullOrWhiteSpace(request.Name) || request.Name.Trim().Length > 200
         ? "Account name is required and bounded."
-        : !AccountTypes.Contains(request.AccountType.Trim().ToUpperInvariant())
+      : string.IsNullOrWhiteSpace(request.AccountType) || !AccountTypes.Contains(request.AccountType.Trim().ToUpperInvariant())
           ? "Account type is invalid."
-          : request.NormalSide.Trim().ToUpperInvariant() is not (LedgerStates.Debit or LedgerStates.Credit)
+          : string.IsNullOrWhiteSpace(request.NormalSide) || request.NormalSide.Trim().ToUpperInvariant() is not (LedgerStates.Debit or LedgerStates.Credit)
             ? "Normal side is invalid." : null;
 
   private static string? ValidateJournal(CreateFirmJournalDraftRequest request)
@@ -454,11 +475,11 @@ public static class LedgerService
   }
 
   private static string? CurrencyError(string currency) =>
-    currency.Trim().Length == 3 && currency.All(char.IsLetter)
+    !string.IsNullOrWhiteSpace(currency) && currency.Trim().Length == 3 && currency.All(char.IsLetter)
       ? null : "Currency must be a three-letter code.";
 
   private static bool ValidPeriodCode(string value) =>
-    DateTime.TryParseExact(value.Trim() + "-01", "yyyy-MM-dd", CultureInfo.InvariantCulture,
+    !string.IsNullOrWhiteSpace(value) && DateTime.TryParseExact(value.Trim() + "-01", "yyyy-MM-dd", CultureInfo.InvariantCulture,
       DateTimeStyles.None, out _);
 
   private static string SourceRequestKey(FirmJournal journal) =>
@@ -467,15 +488,23 @@ public static class LedgerService
   private static Task<FirmSafetyState?> LockFirmAsync(
     IAuditSphereDbContext db, Guid firmId, CancellationToken ct) =>
     db.FirmSafetyStates.FromSqlInterpolated(
-      $"SELECT * FROM firm_safety_states WHERE id = {firmId} FOR UPDATE").SingleOrDefaultAsync(ct);
+      $"SELECT * FROM firm_safety_states WHERE id = {firmId} FOR UPDATE").AsTracking().SingleOrDefaultAsync(ct);
 
-  private static Task<FirmPeriod?> LoadPeriodForUpdateAsync(
-    IAuditSphereDbContext db, Guid firmId, Guid periodId, CancellationToken ct) =>
-    db.FirmPeriods.FromSqlInterpolated(
-      $"SELECT * FROM firm_periods WHERE id = {periodId} AND firm_id = {firmId} FOR UPDATE").SingleOrDefaultAsync(ct);
+  private static async Task<FirmPeriod?> LoadPeriodForUpdateAsync(
+    IAuditSphereDbContext db, Guid firmId, Guid periodId, CancellationToken ct)
+  {
+    var locked = await db.FirmPeriods.FromSqlInterpolated(
+      $"SELECT * FROM firm_periods WHERE id = {periodId} AND firm_id = {firmId} FOR UPDATE")
+      .AsNoTracking().SingleOrDefaultAsync(ct);
+    return locked;
+  }
 
-  private static Task<FirmJournal?> LoadJournalForUpdateAsync(
-    IAuditSphereDbContext db, Guid firmId, Guid journalId, CancellationToken ct) =>
-    db.FirmJournals.FromSqlInterpolated(
-      $"SELECT * FROM firm_journals WHERE id = {journalId} AND firm_id = {firmId} FOR UPDATE").SingleOrDefaultAsync(ct);
+  private static async Task<FirmJournal?> LoadJournalForUpdateAsync(
+    IAuditSphereDbContext db, Guid firmId, Guid journalId, CancellationToken ct)
+  {
+    var locked = await db.FirmJournals.FromSqlInterpolated(
+      $"SELECT * FROM firm_journals WHERE id = {journalId} AND firm_id = {firmId} FOR UPDATE")
+      .AsNoTracking().SingleOrDefaultAsync(ct);
+    return locked;
+  }
 }

@@ -64,8 +64,28 @@ public sealed class OutboxMigrationTests
     Assert.Equal(3, attempt);
     var pending = await db.Database.GetPendingMigrationsAsync();
     Assert.Contains("20260917104422_DurableOutbox", pending);
-    // DurableOutbox + AuthorizationIntegrity + AdjustmentSourceBridge + PracticeCrmWorkflow + CrmSafetyInvariants + PracticeTimeBudgetWorkflow + BillingArtifactWorkflow remain unapplied.
-    Assert.Equal(7, pending.Count());
+    // DurableOutbox + AuthorizationIntegrity + AdjustmentSourceBridge + PracticeCrmWorkflow + CrmSafetyInvariants + PracticeTimeBudgetWorkflow + BillingArtifactWorkflow + FirmLedgerWorkflow remain unapplied.
+    Assert.Equal(8, pending.Count());
+  }
+
+  [Fact]
+  [Trait("Profile", "Database")]
+  public async Task LegacyFirmLedgerRows_StopMigrationWithoutInventingAccountType()
+  {
+    await using var pg = await PgTestSchema.CreateAsync(Previous);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var accountId = Guid.NewGuid();
+    var firmId = Guid.NewGuid();
+    await db.Database.ExecuteSqlInterpolatedAsync($"""
+      INSERT INTO firm_accounts (id, firm_id, code, name, normal_side, posting_allowed)
+      VALUES ({accountId}, {firmId}, '1000', 'Legacy cash', 'Debit', TRUE)
+      """);
+
+    var error = await Assert.ThrowsAsync<PostgresException>(() => db.Database.MigrateAsync());
+    Assert.Contains("explicit legacy disposition", error.MessageText);
+    var preserved = await db.Database.SqlQuery<Guid>($"SELECT id AS \"Value\" FROM firm_accounts WHERE id = {accountId}").SingleAsync();
+    Assert.Equal(accountId, preserved);
+    Assert.Single(await db.Database.GetPendingMigrationsAsync());
   }
 
   [Theory]
