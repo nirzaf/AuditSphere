@@ -385,6 +385,14 @@ public sealed class AuthorizationDecisionTests
     public DbSet<RateCardVersion> RateCardVersions => db.RateCardVersions;
     public DbSet<EngagementBudget> EngagementBudgets => db.EngagementBudgets;
     public DbSet<BudgetLine> BudgetLines => db.BudgetLines;
+    public DbSet<BillingAccount> BillingAccounts => db.BillingAccounts;
+    public DbSet<FirmFinanceProfile> FirmFinanceProfiles => db.FirmFinanceProfiles;
+    public DbSet<Invoice> Invoices => db.Invoices;
+    public DbSet<InvoiceLine> InvoiceLines => db.InvoiceLines;
+    public DbSet<Receipt> Receipts => db.Receipts;
+    public DbSet<ReceiptAllocation> ReceiptAllocations => db.ReceiptAllocations;
+    public DbSet<CreditNote> CreditNotes => db.CreditNotes;
+    public DbSet<BillingSourceAllocation> BillingSourceAllocations => db.BillingSourceAllocations;
     public DbSet<AppUser> Users => db.Users;
     public DbSet<RoleGrant> RoleGrants => db.RoleGrants;
     public Microsoft.EntityFrameworkCore.Infrastructure.DatabaseFacade Database => db.Database;
