@@ -15,11 +15,11 @@
     "packageId": "Checklist #7: ND-06 time/budget approval and correction chain",
     "issueNumber": null,
     "branch": "codex/checklist-7-time",
-    "pullRequestNumber": null,
+    "pullRequestNumber": 2,
     "headCommit": "0a34400682aef19471b0cea119ce03bb77140d98",
     "implementationStatus": "IMPLEMENTED",
     "acceptanceStatus": "LOCAL_VERIFIED",
-    "worktree": "Checklist #7 implementation commit 0a34400 is complete; execution documentation is being updated before the owner-authorized PR is opened. No independent human reviewer evidence is present.",
+    "worktree": "Checklist #7 implementation commit 0a34400 and execution documentation are pushed on codex/checklist-7-time; owner-authorized PR #2 is open. No independent human reviewer evidence is present.",
     "scope": "Checklist #7 only: guarded task assignment/completion, integer-minute time approval/correction, immutable rate snapshots, versioned budgets, approval segregation, and approved-time budget actuals.",
     "productionEnabled": false
   },
@@ -92,10 +92,10 @@
     {
       "classification": "authorization-review",
       "gate": "Independent review and PR/merge",
-      "missing": "Checklist #7 has no independent human review evidence; PR #1 merged without independent human review and the checklist #7 PR is not yet open",
-      "ownerAction": "Open and complete the owner-authorized checklist #7 PR; obtain independent review evidence before treating the slice as fully accepted."
+      "missing": "Checklist #7 has no independent human review evidence; PR #1 merged without independent human review and PR #2 is open",
+      "ownerAction": "Complete the owner-authorized checklist #7 PR #2; obtain independent review evidence before treating the slice as fully accepted."
     }
   ],
-  "nextPermittedAction": "Push commit 0a34400, open the owner-authorized checklist #7 PR against master, run its checks, and verify the merge.",
-  "lastVerifiedAt": "2026-09-18T11:32:28Z"
+  "nextPermittedAction": "Run checks on owner-authorized PR #2 for checklist #7 and verify the merge.",
+  "lastVerifiedAt": "2026-09-18T11:35:11Z"
 }
