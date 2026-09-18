@@ -1,0 +1,114 @@
+@page "/app/accounting/mappings/{MappingId:guid}"
+@rendermode InteractiveServer
+@inject CurrentActorResolver ActorResolver
+@inject IDbContextFactory<AuditSphereDbContext> DbFactory
+
+<PageTitle>Accounting mapping</PageTitle>
+<a class="back-link" href="/app">← Back to portfolio</a>
+<h1>Accounting mapping</h1>
+
+@if (_loading)
+{
+  <p role="status">Loading the scoped mapping…</p>
+}
+else if (_actor is null || !IsStaff)
+{
+  <section class="notice" role="alert"><h2>Access unavailable</h2><p>Sign in with an authorized staff identity to view this mapping.</p></section>
+}
+else if (_mapping is null)
+{
+  <section class="notice" role="alert"><h2>Mapping unavailable</h2><p>The mapping is not available in the current firm scope.</p></section>
+}
+else
+{
+  <section class="card" aria-labelledby="mapping-heading">
+    <p class="eyebrow">@_mapping.Status</p>
+    <h2 id="mapping-heading"><code>@_mapping.Id</code></h2>
+    <dl class="details">
+      <dt>Taxonomy</dt><dd>@_mapping.TaxonomyVersion</dd>
+      <dt>Period</dt><dd>@_mapping.PeriodStart to @_mapping.PeriodEnd</dd>
+      <dt>Version</dt><dd>@_mapping.Version</dd>
+      <dt>Generation</dt><dd>@_mapping.Generation</dd>
+    </dl>
+  </section>
+
+  <section class="card" aria-labelledby="allocation-heading">
+    <h2 id="allocation-heading">Allocations</h2>
+    <div class="table-wrap">
+      <table>
+        <caption class="sr-only">Immutable mapping allocations</caption>
+        <thead><tr><th scope="col">Source account</th><th scope="col">Destination</th><th scope="col">Statement section</th><th scope="col">Fraction</th><th scope="col">Rationale</th></tr></thead>
+        <tbody>
+        @foreach (var allocation in _allocations)
+        {
+          <tr>
+            <td><code>@allocation.SourceAccountCode</code></td>
+            <td>@allocation.DestinationCode</td>
+            <td>@allocation.StatementSection</td>
+            <td>@allocation.Fraction.ToString("P2")</td>
+            <td>@allocation.Rationale</td>
+          </tr>
+        }
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  @if (_mapping.Status == AccountingPackageStates.MappingDraft)
+  {
+    <section class="card" aria-labelledby="approve-heading">
+      <h2 id="approve-heading">Approve mapping</h2>
+      <p class="muted">Approval rechecks the accepted dataset, full allocation and current firm/client generation.</p>
+      <button class="button" @onclick="ApproveAsync" disabled="@_busy">@(_busy ? "Approving…" : "Approve mapping")</button>
+      @if (_result is not null)
+      {
+        <p class="command-result @(_result.Succeeded ? "success-text" : "error-text")" role="status">@(_result.Succeeded ? "Mapping approved." : $"Blocked: {_result.ErrorCode}")</p>
+      }
+    </section>
+  }
+  else
+  {
+    <section class="notice success" role="status"><h2>Reviewed mapping</h2><p>This version is immutable and can be used by a package build.</p></section>
+  }
+}
+
+@code {
+  [Parameter] public Guid MappingId { get; set; }
+  private ActorContext? _actor;
+  private MappingVersion? _mapping;
+  private List<MappingAllocation> _allocations = [];
+  private CommandResult? _result;
+  private bool _loading = true;
+  private bool _busy;
+  private bool IsStaff => _actor is not null && _actor.Roles.Any(x => x is "Administrator" or "Partner" or "Manager" or "Reviewer" or "Staff" or "AccountingPreparer" or "AccountingReviewer");
+
+  protected override async Task OnInitializedAsync()
+  {
+    _actor = await ActorResolver.ResolveAsync();
+    if (_actor is not null && IsStaff)
+    {
+      await using var db = await DbFactory.CreateDbContextAsync();
+      _mapping = await db.MappingVersions.AsNoTracking()
+        .SingleOrDefaultAsync(x => x.Id == MappingId && x.FirmId == _actor.FirmId);
+      if (_mapping is not null)
+        _allocations = await db.MappingAllocations.AsNoTracking()
+          .Where(x => x.FirmId == _actor.FirmId && x.ClientId == _mapping.ClientId &&
+                      x.EngagementId == _mapping.EngagementId && x.MappingVersionId == _mapping.Id)
+          .OrderBy(x => x.SourceAccountCode).ThenBy(x => x.DestinationCode).ToListAsync();
+    }
+    _loading = false;
+  }
+
+  private async Task ApproveAsync()
+  {
+    if (_actor is null || _mapping is null || _busy) return;
+    _busy = true;
+    try
+    {
+      await using var db = await DbFactory.CreateDbContextAsync();
+      _result = await FinancialStatementService.ApproveMappingAsync(db, _actor, _mapping.Id, _mapping.Version);
+      if (_result.Succeeded) _mapping.Status = AccountingPackageStates.MappingApproved;
+    }
+    finally { _busy = false; }
+  }
+}

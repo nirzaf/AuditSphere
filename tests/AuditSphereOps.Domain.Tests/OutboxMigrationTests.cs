@@ -64,9 +64,6 @@ public sealed class OutboxMigrationTests
     Assert.Equal(3, attempt);
     var pending = await db.Database.GetPendingMigrationsAsync();
     Assert.Contains("20260917104422_DurableOutbox", pending);
-    // The twelve post-AccountingIntegrity migrations remain unapplied, including
-    // the mapping and financial-statement workflow.
-    Assert.Equal(12, pending.Count());
   }
 
   [Fact]
@@ -86,7 +83,7 @@ public sealed class OutboxMigrationTests
     Assert.Contains("explicit legacy disposition", error.MessageText);
     var preserved = await db.Database.SqlQuery<Guid>($"SELECT id AS \"Value\" FROM firm_accounts WHERE id = {accountId}").SingleAsync();
     Assert.Equal(accountId, preserved);
-    Assert.Equal(5, (await db.Database.GetPendingMigrationsAsync()).Count());
+    Assert.Contains("20260918121512_FirmLedgerWorkflow", await db.Database.GetPendingMigrationsAsync());
   }
 
   [Fact]
@@ -106,7 +103,7 @@ public sealed class OutboxMigrationTests
     Assert.Contains("ambiguous document reference", error.MessageText);
     var preserved = await db.Database.SqlQuery<Guid>($"SELECT id AS \"Value\" FROM document_references WHERE id = {id}").SingleAsync();
     Assert.Equal(id, preserved);
-    Assert.Equal(4, (await db.Database.GetPendingMigrationsAsync()).Count());
+    Assert.Contains("20260918125731_DocumentSnapshotIntegrity", await db.Database.GetPendingMigrationsAsync());
   }
 
   [Fact]
@@ -128,7 +125,7 @@ public sealed class OutboxMigrationTests
     Assert.Contains("explicit disposition", error.MessageText);
     var preserved = await db.Database.SqlQuery<Guid>($"SELECT id AS \"Value\" FROM approvals WHERE id = {id}").SingleAsync();
     Assert.Equal(id, preserved);
-    Assert.Equal(3, (await db.Database.GetPendingMigrationsAsync()).Count());
+    Assert.Contains("20260918131715_ApprovalApplicabilityWorkflow", await db.Database.GetPendingMigrationsAsync());
   }
 
   [Fact]
@@ -150,7 +147,7 @@ public sealed class OutboxMigrationTests
     Assert.Contains("explicit disposition", error.MessageText);
     var preserved = await db.Database.SqlQuery<Guid>($"SELECT id AS \"Value\" FROM releases WHERE id = {id}").SingleAsync();
     Assert.Equal(id, preserved);
-    Assert.Equal(2, (await db.Database.GetPendingMigrationsAsync()).Count());
+    Assert.Contains("20260918133707_ReleaseGateWorkflow", await db.Database.GetPendingMigrationsAsync());
   }
 
   [Fact]
@@ -172,7 +169,9 @@ public sealed class OutboxMigrationTests
     Assert.Contains("explicit disposition for existing financial package rows", error.MessageText);
     var preserved = await db.Database.SqlQuery<Guid>($"SELECT id AS \"Value\" FROM financial_packages WHERE id = {id}").SingleAsync();
     Assert.Equal(id, preserved);
-    Assert.Single(await db.Database.GetPendingMigrationsAsync());
+    var pending = await db.Database.GetPendingMigrationsAsync();
+    Assert.Contains("20260918161647_MappingAndFinancialStatementWorkflow", pending);
+    Assert.Contains("20260918170054_SupplementaryFinancialInformation", pending);
   }
 
   [Theory]

@@ -67,6 +67,8 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
   public DbSet<FinancialPackage> FinancialPackages => Set<FinancialPackage>();
   public DbSet<FinancialPackageLine> FinancialPackageLines => Set<FinancialPackageLine>();
   public DbSet<FinancialPackageValidation> FinancialPackageValidations => Set<FinancialPackageValidation>();
+  public DbSet<FinancialPackageCashFlowLine> FinancialPackageCashFlowLines => Set<FinancialPackageCashFlowLine>();
+  public DbSet<FinancialPackageDisclosure> FinancialPackageDisclosures => Set<FinancialPackageDisclosure>();
   public DbSet<AuditRisk> AuditRisks => Set<AuditRisk>();
   public DbSet<AuditProcedure> AuditProcedures => Set<AuditProcedure>();
   public DbSet<Workpaper> Workpapers => Set<Workpaper>();
@@ -819,10 +821,11 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     package.Property(x => x.CalculationHash).HasMaxLength(64);
     package.Property(x => x.Currency).HasMaxLength(3);
     package.Property(x => x.Status).HasMaxLength(20);
+    package.Property(x => x.SupplementaryHash).HasMaxLength(64);
     package.HasIndex(x => new { x.FirmId, x.AdjustmentPlanId, x.MappingVersionId, x.TemplateVersion })
       .IsUnique().HasDatabaseName("ux_financial_package_identity");
     package.ToTable("financial_packages", t => t.HasCheckConstraint("ck_financial_package_values",
-      "revision >= 1 AND generation >= 1 AND length(framework) > 0 AND length(period_start) = 10 AND length(period_end) = 10 AND period_start <= period_end AND length(taxonomy_version) > 0 AND length(template_version) > 0 AND length(calculation_engine_version) > 0 AND calculation_hash ~ '^[0-9a-f]{64}$' AND currency ~ '^[A-Z]{3}$' AND status IN ('REVIEW_REQUIRED','VALIDATED')"));
+      "revision >= 1 AND generation >= 1 AND length(framework) > 0 AND length(period_start) = 10 AND length(period_end) = 10 AND period_start <= period_end AND length(taxonomy_version) > 0 AND length(template_version) > 0 AND length(calculation_engine_version) > 0 AND calculation_hash ~ '^[0-9a-f]{64}$' AND currency ~ '^[A-Z]{3}$' AND status IN ('REVIEW_REQUIRED','VALIDATED') AND ((cash_beginning IS NULL AND cash_ending IS NULL AND supplementary_hash IS NULL) OR (cash_beginning IS NOT NULL AND cash_ending IS NOT NULL AND supplementary_hash ~ '^[0-9a-f]{64}$'))"));
     package.HasOne<PracticeClient>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.ClientId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
@@ -865,6 +868,30 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     validation.HasOne<FinancialPackage>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.FinancialPackageId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var cashFlow = b.Entity<FinancialPackageCashFlowLine>();
+    cashFlow.Property(x => x.Section).HasMaxLength(20);
+    cashFlow.Property(x => x.Description).HasMaxLength(2000);
+    cashFlow.Property(x => x.Currency).HasMaxLength(3);
+    cashFlow.HasIndex(x => new { x.FirmId, x.FinancialPackageId, x.Section, x.Description })
+      .IsUnique().HasDatabaseName("ux_financial_package_cash_flow_line_identity");
+    cashFlow.ToTable("financial_package_cash_flow_lines", t => t.HasCheckConstraint("ck_financial_package_cash_flow_values",
+      "section IN ('OPERATING','INVESTING','FINANCING') AND length(trim(description)) > 0 AND currency ~ '^[A-Z]{3}$'"));
+    cashFlow.HasOne<FinancialPackage>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.FinancialPackageId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var disclosure = b.Entity<FinancialPackageDisclosure>();
+    disclosure.Property(x => x.Code).HasMaxLength(100);
+    disclosure.Property(x => x.Response).HasMaxLength(4000);
+    disclosure.Property(x => x.Rationale).HasMaxLength(2000);
+    disclosure.HasIndex(x => new { x.FirmId, x.FinancialPackageId, x.Code })
+      .IsUnique().HasDatabaseName("ux_financial_package_disclosure_code");
+    disclosure.ToTable("financial_package_disclosures", t => t.HasCheckConstraint("ck_financial_package_disclosure_values",
+      "length(trim(code)) > 0 AND ((not_applicable = false AND length(trim(response)) > 0) OR (not_applicable = true AND length(trim(rationale)) > 0))"));
+    disclosure.HasOne<FinancialPackage>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.FinancialPackageId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
   }
 
   private static string ToSnake(string name)

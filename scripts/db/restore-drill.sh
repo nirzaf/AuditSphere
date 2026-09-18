@@ -32,6 +32,10 @@ trap cleanup EXIT
 
 "$psql_bin" -h "$db_host" -p "$db_port" -U "$db_user" -d "$source_db" \
   -v ON_ERROR_STOP=1 -Atc 'SELECT current_setting('"'"'server_version_num'"'"')::int >= 180000'
+expected_migrations="$($psql_bin -h "$db_host" -p "$db_port" -U "$db_user" -d "$source_db" \
+  -Atc 'SELECT count(*) FROM "__EFMigrationsHistory"')"
+expected_latest_migration="$($psql_bin -h "$db_host" -p "$db_port" -U "$db_user" -d "$source_db" \
+  -Atc 'SELECT "MigrationId" FROM "__EFMigrationsHistory" ORDER BY "MigrationId" DESC LIMIT 1')"
 "$pg_dump_bin" -h "$db_host" -p "$db_port" -U "$db_user" -d "$source_db" \
   --format=custom --no-owner --no-acl --file "$dump_file"
 "$psql_bin" -h "$db_host" -p "$db_port" -U "$db_user" -d postgres \
@@ -43,8 +47,8 @@ restored_migrations="$($psql_bin -h "$db_host" -p "$db_port" -U "$db_user" -d "$
   -Atc 'SELECT count(*) FROM "__EFMigrationsHistory"')"
 latest_migration="$($psql_bin -h "$db_host" -p "$db_port" -U "$db_user" -d "$restore_db" \
   -Atc 'SELECT "MigrationId" FROM "__EFMigrationsHistory" ORDER BY "MigrationId" DESC LIMIT 1')"
-if [[ "$restored_migrations" != "15" || "$latest_migration" != "20260918161647_MappingAndFinancialStatementWorkflow" ]]; then
-  echo "Restore verification failed: migrations=$restored_migrations latest=$latest_migration" >&2
+if [[ "$restored_migrations" != "$expected_migrations" || "$latest_migration" != "$expected_latest_migration" ]]; then
+  echo "Restore verification failed: source migrations=$expected_migrations latest=$expected_latest_migration; restored migrations=$restored_migrations latest=$latest_migration" >&2
   exit 1
 fi
 echo "Restore rehearsal passed: PostgreSQL 18 schema restored with $restored_migrations migrations; latest $latest_migration."

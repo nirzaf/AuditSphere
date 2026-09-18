@@ -78,12 +78,42 @@ else
       </div>
     }
   </section>
+
+  <section class="card" aria-labelledby="package-title">
+    <h2 id="package-title">Financial-statement packages</h2>
+    @if (_packages.Count == 0)
+    {
+      <p class="muted">No financial-statement packages are available in this firm scope.</p>
+    }
+    else
+    {
+      <div class="table-wrap">
+        <table>
+          <caption class="sr-only">Financial-statement packages in the current firm scope</caption>
+          <thead><tr><th scope="col">Package</th><th scope="col">Framework</th><th scope="col">Period</th><th scope="col">Status</th><th scope="col"><span class="sr-only">Action</span></th></tr></thead>
+          <tbody>
+          @foreach (var package in _packages)
+          {
+            <tr>
+              <td><code>@package.Id</code></td>
+              <td>@package.Framework</td>
+              <td>@package.PeriodStart to @package.PeriodEnd</td>
+              <td><span class="status">@package.Status</span></td>
+              <td><a href="/app/accounting/packages/@package.Id">Open</a></td>
+            </tr>
+          }
+          </tbody>
+        </table>
+      </div>
+    }
+  </section>
 }
 
 @code {
   private ActorContext? _actor;
   private PortfolioMetrics _metrics;
   private List<CandidateRow> _candidates = [];
+  private List<PackageRow> _packages = [];
   private bool _loading = true;
   private string? _error;
 
@@ -109,6 +139,9 @@ else
       _candidates = await db.ReleaseCandidates.AsNoTracking().Where(x => x.FirmId == _actor.FirmId)
         .OrderByDescending(x => x.CreatedAt).Take(25)
         .Select(x => new CandidateRow(x.Id, x.TargetRevision, x.Status, x.CreatedAt)).ToListAsync();
+      _packages = await db.FinancialPackages.AsNoTracking().Where(x => x.FirmId == _actor.FirmId)
+        .OrderByDescending(x => x.CreatedAt).Take(25)
+        .Select(x => new PackageRow(x.Id, x.Framework, x.PeriodStart, x.PeriodEnd, x.Status)).ToListAsync();
     }
     catch (Exception ex)
     {
@@ -120,4 +153,5 @@ else
 
   private readonly record struct PortfolioMetrics(int Clients, int Engagements, int OpenHolds, int PendingOperations, int ReadyCandidates, int IssuedReleases);
   private sealed record CandidateRow(Guid Id, long TargetRevision, string Status, DateTimeOffset CreatedAt);
+  private sealed record PackageRow(Guid Id, string Framework, string PeriodStart, string PeriodEnd, string Status);
 }

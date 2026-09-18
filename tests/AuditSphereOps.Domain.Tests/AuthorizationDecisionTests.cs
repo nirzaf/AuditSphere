@@ -378,6 +378,8 @@ public sealed class AuthorizationDecisionTests
     public DbSet<AuditSphereOps.Domain.Accounting.FinancialPackage> FinancialPackages => db.FinancialPackages;
     public DbSet<AuditSphereOps.Domain.Accounting.FinancialPackageLine> FinancialPackageLines => db.FinancialPackageLines;
     public DbSet<AuditSphereOps.Domain.Accounting.FinancialPackageValidation> FinancialPackageValidations => db.FinancialPackageValidations;
+    public DbSet<AuditSphereOps.Domain.Accounting.FinancialPackageCashFlowLine> FinancialPackageCashFlowLines => db.FinancialPackageCashFlowLines;
+    public DbSet<AuditSphereOps.Domain.Accounting.FinancialPackageDisclosure> FinancialPackageDisclosures => db.FinancialPackageDisclosures;
     public DbSet<Engagement> Engagements => db.Engagements;
     public DbSet<EngagementHold> EngagementHolds => db.EngagementHolds;
     public DbSet<AuditSphereOps.Domain.Documents.DocumentReference> DocumentReferences => db.DocumentReferences;

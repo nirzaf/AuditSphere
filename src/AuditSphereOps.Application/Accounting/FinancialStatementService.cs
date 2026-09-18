@@ -30,7 +30,18 @@ public sealed record BuildFinancialPackageRequest(
   string Framework,
   string PeriodStart,
   string PeriodEnd,
-  string TemplateVersion);
+  string TemplateVersion,
+  FinancialSupplementaryInformation? SupplementaryInformation = null);
+
+public sealed record FinancialSupplementaryInformation(
+  decimal CashBeginning,
+  decimal CashEnding,
+  IReadOnlyList<CashFlowLineInput> CashFlowLines,
+  IReadOnlyList<DisclosureInput> Disclosures);
+
+public sealed record CashFlowLineInput(string Section, string Description, decimal Amount);
+
+public sealed record DisclosureInput(string Code, string Response, bool NotApplicable = false, string? Rationale = null);
 
 public sealed record FinancialPackageBuildResult(
   Guid PackageId,
@@ -222,10 +233,17 @@ public static class FinancialStatementService
     if (allocationError is not null)
       return CommandResult<FinancialPackageBuildResult>.Fail("mapping.incomplete", allocationError);
 
+    var supplementaryError = ValidateSupplementaryInformation(request.SupplementaryInformation);
+    if (supplementaryError is not null)
+      return CommandResult<FinancialPackageBuildResult>.Fail("package.supplementary.invalid", supplementaryError);
+
     var packageLines = BuildPackageLines(calculated.Value.Balances, allocations, dataset.Currency);
     var statementTotals = packageLines.GroupBy(x => x.StatementSection, StringComparer.Ordinal)
       .ToDictionary(x => x.Key, x => MoneyPolicy.Normalize(x.Sum(y => y.Amount)), StringComparer.Ordinal);
-    var packageHash = ComputePackageHash(request, mapping, plan, calculated.Value.ResultHash, packageLines);
+    var supplementaryHash = request.SupplementaryInformation is null
+      ? null
+      : ComputeSupplementaryHash(request.SupplementaryInformation, dataset.Currency);
+    var packageHash = ComputePackageHash(request, mapping, plan, calculated.Value.ResultHash, packageLines, supplementaryHash);
 
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     if (await LockFirmAsync(db, actor.FirmId, ct) is null)
@@ -282,7 +300,12 @@ public static class FinancialStatementService
       PeriodEnd = request.PeriodEnd.Trim(), TaxonomyVersion = mapping.TaxonomyVersion,
       TemplateVersion = request.TemplateVersion.Trim(), CalculationEngineVersion = CalculationEngineVersion,
       CalculationHash = packageHash, Currency = dataset.Currency, Revision = 1,
-      Generation = client.InputGeneration, Status = AccountingPackageStates.PackageReviewRequired,
+      Generation = client.InputGeneration,
+      Status = request.SupplementaryInformation is null
+        ? AccountingPackageStates.PackageReviewRequired : AccountingPackageStates.PackageValidated,
+      CashBeginning = request.SupplementaryInformation?.CashBeginning,
+      CashEnding = request.SupplementaryInformation?.CashEnding,
+      SupplementaryHash = supplementaryHash,
       CreatedAt = DateTimeOffset.UtcNow
     };
     db.FinancialPackages.Add(package);
@@ -303,8 +326,33 @@ public static class FinancialStatementService
       "The adjusted snapshot hash matches the finalized adjustment plan.");
     AddValidation(db, package, "PACKAGE_BALANCED", MoneyPolicy.Normalize(packageLines.Sum(x => x.Amount)) == 0m,
       "Mapped presentation lines retain a zero signed total.");
-    AddValidation(db, package, "SUPPLEMENTARY_INFORMATION", false,
-      "Cash-flow workings, disclosures and management information require separate approved inputs.");
+    var hasSupplementary = request.SupplementaryInformation is not null;
+    AddValidation(db, package, "CASH_FLOW_RECONCILED", hasSupplementary,
+      hasSupplementary ? "Cash-flow lines reconcile to the supplied opening and closing cash." : "Cash-flow workings are not supplied.");
+    AddValidation(db, package, "DISCLOSURES_COMPLETE", hasSupplementary,
+      hasSupplementary ? "Disclosure responses are present, including rationale for not-applicable items." : "Disclosure responses are not supplied.");
+    AddValidation(db, package, "SUPPLEMENTARY_INFORMATION", hasSupplementary,
+      hasSupplementary ? "Cash-flow workings and disclosure responses are persisted with the package." : "Cash-flow workings, disclosures and management information require separate approved inputs.");
+    if (request.SupplementaryInformation is not null)
+    {
+      foreach (var line in request.SupplementaryInformation.CashFlowLines)
+        db.FinancialPackageCashFlowLines.Add(new FinancialPackageCashFlowLine
+        {
+          Id = Guid.CreateVersion7(), FirmId = package.FirmId, ClientId = package.ClientId,
+          EngagementId = package.EngagementId, FinancialPackageId = package.Id,
+          Section = line.Section.Trim().ToUpperInvariant(), Description = line.Description.Trim(),
+          Amount = MoneyPolicy.Normalize(line.Amount), Currency = package.Currency, CreatedAt = package.CreatedAt
+        });
+      foreach (var disclosure in request.SupplementaryInformation.Disclosures)
+        db.FinancialPackageDisclosures.Add(new FinancialPackageDisclosure
+        {
+          Id = Guid.CreateVersion7(), FirmId = package.FirmId, ClientId = package.ClientId,
+          EngagementId = package.EngagementId, FinancialPackageId = package.Id,
+          Code = disclosure.Code.Trim().ToUpperInvariant(), Response = disclosure.NotApplicable ? string.Empty : disclosure.Response.Trim(),
+          NotApplicable = disclosure.NotApplicable,
+          Rationale = disclosure.NotApplicable ? disclosure.Rationale!.Trim() : null, CreatedAt = package.CreatedAt
+        });
+    }
 
     try
     {
@@ -415,18 +463,61 @@ public static class FinancialStatementService
     MappingVersion mapping,
     AdjustmentPlan plan,
     string adjustedHash,
-    IReadOnlyCollection<PackageLine> lines)
+    IReadOnlyCollection<PackageLine> lines,
+    string? supplementaryHash)
   {
     var canonical = string.Join('\n', new[]
     {
       "financial-statement-package.v1", mapping.Id.ToString("D"), mapping.Version.ToString(CultureInfo.InvariantCulture),
       plan.Id.ToString("D"), plan.ResultHash ?? string.Empty, adjustedHash, request.Framework.Trim(),
       request.PeriodStart.Trim(), request.PeriodEnd.Trim(), mapping.TaxonomyVersion,
-      request.TemplateVersion.Trim(), CalculationEngineVersion
+      request.TemplateVersion.Trim(), CalculationEngineVersion, supplementaryHash ?? string.Empty
     }.Concat(lines.OrderBy(x => x.SourceAccountCode, StringComparer.Ordinal)
       .ThenBy(x => x.DestinationCode, StringComparer.Ordinal)
       .Select(x => string.Join('|', x.SourceAccountCode, x.DestinationCode, x.StatementSection,
         x.Amount.ToString("0.000000", CultureInfo.InvariantCulture), x.Fraction.ToString("0.000000", CultureInfo.InvariantCulture), x.Currency))));
+    return Hashing.Sha256Hex(canonical);
+  }
+
+  private static string? ValidateSupplementaryInformation(FinancialSupplementaryInformation? input)
+  {
+    if (input is null) return null;
+    if (input.CashFlowLines.Count == 0 || input.Disclosures.Count == 0)
+      return "Cash-flow lines and disclosure responses are both required.";
+    if (input.CashFlowLines.Any(x => x.Section.Trim().ToUpperInvariant() is not ("OPERATING" or "INVESTING" or "FINANCING") ||
+                                     string.IsNullOrWhiteSpace(x.Description) || x.Description.Trim().Length > 2000))
+      return "Each cash-flow line needs an allowed section and description.";
+    if (input.CashFlowLines.GroupBy(x => x.Section.Trim().ToUpperInvariant() + "\u001f" + x.Description.Trim(), StringComparer.Ordinal).Any(x => x.Count() != 1))
+      return "Cash-flow section and description pairs must be unique.";
+    if (MoneyPolicy.Normalize(input.CashBeginning) != input.CashBeginning ||
+        MoneyPolicy.Normalize(input.CashEnding) != input.CashEnding ||
+        input.CashFlowLines.Any(x => MoneyPolicy.Normalize(x.Amount) != x.Amount))
+      return "Cash-flow amounts exceed the six-decimal precision policy.";
+    if (input.Disclosures.Any(x => string.IsNullOrWhiteSpace(x.Code) ||
+      x.Code.Trim().Length > 100 || x.Response.Trim().Length > 4000 || (x.Rationale?.Trim().Length ?? 0) > 2000 ||
+      (!x.NotApplicable && string.IsNullOrWhiteSpace(x.Response)) ||
+      (x.NotApplicable && string.IsNullOrWhiteSpace(x.Rationale))))
+      return "Each disclosure needs a response or a not-applicable rationale.";
+    if (input.Disclosures.GroupBy(x => x.Code.Trim(), StringComparer.OrdinalIgnoreCase).Any(x => x.Count() != 1))
+      return "Disclosure codes must be unique in a package.";
+    var expected = MoneyPolicy.Normalize(input.CashEnding - input.CashBeginning);
+    var actual = MoneyPolicy.Normalize(input.CashFlowLines.Sum(x => x.Amount));
+    return expected == actual ? null : $"Cash-flow lines total {actual} but the opening/closing bridge is {expected}.";
+  }
+
+  private static string ComputeSupplementaryHash(FinancialSupplementaryInformation input, string currency)
+  {
+    var canonical = string.Join('\n', new[]
+    {
+      "financial-supplementary-information.v1", currency,
+      input.CashBeginning.ToString("0.000000", CultureInfo.InvariantCulture),
+      input.CashEnding.ToString("0.000000", CultureInfo.InvariantCulture)
+    }.Concat(input.CashFlowLines.OrderBy(x => x.Section, StringComparer.OrdinalIgnoreCase)
+      .ThenBy(x => x.Description, StringComparer.Ordinal)
+      .Select(x => string.Join('|', x.Section.Trim().ToUpperInvariant(), x.Description.Trim(),
+        x.Amount.ToString("0.000000", CultureInfo.InvariantCulture))))
+     .Concat(input.Disclosures.OrderBy(x => x.Code, StringComparer.OrdinalIgnoreCase)
+       .Select(x => string.Join('|', x.Code.Trim().ToUpperInvariant(), x.NotApplicable ? "NA" : x.Response.Trim(), x.Rationale?.Trim() ?? string.Empty))));
     return Hashing.Sha256Hex(canonical);
   }
 

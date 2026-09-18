@@ -88,6 +88,40 @@ public sealed class FinancialStatementTests
       Assert.Contains(checks, x => x.Code == "SUPPLEMENTARY_INFORMATION" && !x.Passed);
     }
 
+    var completeRequest = request with
+    {
+      TemplateVersion = "template-v2",
+      SupplementaryInformation = new FinancialSupplementaryInformation(
+        0m, 100m,
+        [new CashFlowLineInput("OPERATING", "Cash receipts", 100m)],
+        [new DisclosureInput("CASH_POLICY", "Cash and cash equivalents are presented at face value."),
+         new DisclosureInput("COMMITMENTS", string.Empty, NotApplicable: true, Rationale: "No commitments were identified in the supplied management information.")])
+    };
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var complete = await FinancialStatementService.BuildFinancialPackageAsync(db, preparer, completeRequest);
+      Assert.True(complete.Succeeded);
+      Assert.Equal(AccountingPackageStates.PackageValidated, complete.Value!.Status);
+      Assert.NotEqual(first.CalculationHash, complete.Value.CalculationHash);
+      Assert.Equal(1, await db.FinancialPackageCashFlowLines.CountAsync(x => x.FinancialPackageId == complete.Value.PackageId));
+      Assert.Equal(2, await db.FinancialPackageDisclosures.CountAsync(x => x.FinancialPackageId == complete.Value.PackageId));
+      var checks = await db.FinancialPackageValidations.AsNoTracking()
+        .Where(x => x.FinancialPackageId == complete.Value.PackageId).ToListAsync();
+      Assert.All(checks.Where(x => x.Code is "CASH_FLOW_RECONCILED" or "DISCLOSURES_COMPLETE" or "SUPPLEMENTARY_INFORMATION"), x => Assert.True(x.Passed));
+
+      var cashFlowLineId = await db.FinancialPackageCashFlowLines.Where(x => x.FinancialPackageId == complete.Value.PackageId).Select(x => x.Id).SingleAsync();
+      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+        $"UPDATE financial_package_cash_flow_lines SET amount = amount + 1 WHERE id = {cashFlowLineId}"));
+    }
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var invalidSupplement = await FinancialStatementService.BuildFinancialPackageAsync(db, preparer,
+        completeRequest with { TemplateVersion = "template-v3", SupplementaryInformation = completeRequest.SupplementaryInformation! with { CashEnding = 200m } });
+      Assert.False(invalidSupplement.Succeeded);
+      Assert.Equal("package.supplementary.invalid", invalidSupplement.ErrorCode);
+    }
+
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       var lineId = await db.FinancialPackageLines.Select(x => x.Id).FirstAsync();

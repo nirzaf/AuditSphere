@@ -159,6 +159,9 @@ public sealed class FinancialPackage
   public long Revision { get; set; } = 1;
   public long Generation { get; set; } = 1;
   public string Status { get; set; } = AccountingPackageStates.PackageReviewRequired;
+  public decimal? CashBeginning { get; set; }
+  public decimal? CashEnding { get; set; }
+  public string? SupplementaryHash { get; set; }
   public DateTimeOffset CreatedAt { get; set; }
 }
 
@@ -187,5 +190,33 @@ public sealed class FinancialPackageValidation
   public string Code { get; set; } = string.Empty;
   public bool Passed { get; set; }
   public string Detail { get; set; } = string.Empty;
+  public DateTimeOffset CreatedAt { get; set; }
+}
+
+public sealed class FinancialPackageCashFlowLine
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public Guid EngagementId { get; set; }
+  public Guid FinancialPackageId { get; set; }
+  public string Section { get; set; } = string.Empty;
+  public string Description { get; set; } = string.Empty;
+  public decimal Amount { get; set; }
+  public string Currency { get; set; } = string.Empty;
+  public DateTimeOffset CreatedAt { get; set; }
+}
+
+public sealed class FinancialPackageDisclosure
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public Guid EngagementId { get; set; }
+  public Guid FinancialPackageId { get; set; }
+  public string Code { get; set; } = string.Empty;
+  public string Response { get; set; } = string.Empty;
+  public bool NotApplicable { get; set; }
+  public string? Rationale { get; set; }
   public DateTimeOffset CreatedAt { get; set; }
 }
