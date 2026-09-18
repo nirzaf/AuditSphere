@@ -7,7 +7,7 @@
 
 **AuditSphereOps** is a professional audit, accounting & assurance operations platform — a .NET 10 modular monolith covering the complete engagement lifecycle: client acceptance, practice management, trial-balance intake, financial-statement production, audit execution, review, controlled signing/release, and records retention.
 
-> **Status: implementation in progress.** This repository is a specification-driven build, currently at checklist #12 of 14 dependency-ordered slices. A green UI or a mocked provider is **not** production evidence — external gates (Entra tenant, SharePoint grants, Purview profile, signing methodology) remain explicitly blocked until owner-authorized, and are never fake-passed.
+> **Status: implementation in progress.** This repository is a specification-driven build, currently at checklist #13 of 14 dependency-ordered slices. A green UI or a mocked provider is **not** production evidence — external gates (Entra tenant, SharePoint grants, Purview profile, signing methodology) remain explicitly blocked until owner-authorized, and are never fake-passed.
 
 ## Table of contents
 
@@ -168,6 +168,7 @@ The build advances through **14 dependency-ordered checklist slices** (spec §31
 - Document snapshots — scope-bound exact-byte SHA-256 capture, one snapshot per source version, legacy ambiguity refusal, and append-only database protection
 - Revision/generation-bound approvals — immutable historical decisions, current applicability projection, and stale approval rejection
 - Release-gate integrity — workpaper candidates bound to current approvals/generations/manifests, checkpoint-required immutable release events, scoped idempotency, and delivery outbox intent
+- Initial scoped Blazor shell — live portfolio projections and a release command screen behind real authenticated-user-to-firm mapping; unauthenticated/local environments fail closed
 
 **Remaining (checklists #13–#14):**
 
@@ -175,6 +176,7 @@ The build advances through **14 dependency-ordered checklist slices** (spec §31
 - Remaining entity foreign keys and data-model completion
 - Live provider adapters (Entra/Graph/SharePoint/Purview) behind the external-effect fence
 - Full UI surfaces and authorized operator recovery tooling
+- CI, backup/restore rehearsal, and migration-aware readiness pipeline
 
 The external production gates (live Entra tenant, selected SharePoint grants, Purview records profile, signing methodology) stay **blocked** until owner-authorized evidence arrives; see `docs/execution/status.json`.
 
