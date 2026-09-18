@@ -55,7 +55,9 @@ public sealed class OutboxMigrationTests
     Assert.Contains("disposition of legacy operations", error.MessageText);
     var attempt = await db.Database.SqlQuery<int>($"SELECT attempt AS \"Value\" FROM durable_operations WHERE id = {id}").SingleAsync();
     Assert.Equal(3, attempt);
-    Assert.Single(await db.Database.GetPendingMigrationsAsync());
+    var pending = await db.Database.GetPendingMigrationsAsync();
+    Assert.Contains("20260917104422_DurableOutbox", pending);
+    Assert.Equal(2, pending.Count());
   }
 
   [Theory]

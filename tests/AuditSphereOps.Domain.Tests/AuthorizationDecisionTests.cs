@@ -1,0 +1,377 @@
+using AuditSphereOps.Application.Abstractions;
+using AuditSphereOps.Application.Accounting;
+using AuditSphereOps.Application.Security;
+using AuditSphereOps.Domain.Accounting;
+using AuditSphereOps.Domain.Engagements;
+using AuditSphereOps.Domain.Practice;
+using AuditSphereOps.Domain.Security;
+using AuditSphereOps.Domain.Shared;
+using AuditSphereOps.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
+
+namespace AuditSphereOps.Domain.Tests;
+
+// ND-02 / §8: authorization is decided inside commands from current stored state,
+// never by the presentation layer. Synthetic firms/clients/users prove cross-scope
+// denial through the same code path that real commands use.
+[Trait("Profile", "Database")]
+public sealed class AuthorizationDecisionTests
+{
+  private sealed record Scope(Guid FirmId, Guid ClientId, Guid EngagementId, Guid DatasetId);
+
+  private static async Task<Scope> SeedScopeAsync(
+    AuditSphereDbContext db, Guid firmId, string clientName, bool professionalWorkBlocked = false)
+  {
+    var clientId = Guid.NewGuid();
+    var engagementId = Guid.NewGuid();
+    var datasetId = Guid.NewGuid();
+    db.PracticeClients.Add(new PracticeClient
+    {
+      Id = clientId, FirmId = firmId, LegalName = clientName, CreatedAt = DateTimeOffset.UtcNow
+    });
+    db.Engagements.Add(new Engagement
+    {
+      Id = engagementId, FirmId = firmId, PracticeClientId = clientId,
+      ProfessionalWorkBlocked = professionalWorkBlocked, CreatedAt = DateTimeOffset.UtcNow
+    });
+    if (!await db.FirmSafetyStates.AnyAsync(f => f.Id == firmId))
+      db.FirmSafetyStates.Add(new AuditSphereOps.Domain.Completion.FirmSafetyState { Id = firmId });
+    db.ClientSafetyStates.Add(new AuditSphereOps.Domain.Completion.ClientSafetyState
+      { Id = clientId, FirmId = firmId });
+    db.TrialBalanceDatasets.Add(new TrialBalanceDataset
+    {
+      Id = datasetId, FirmId = firmId, ClientId = clientId, EngagementId = engagementId,
+      Currency = "QAR", ImportedAt = DateTimeOffset.UtcNow
+    });
+    await db.SaveChangesAsync();
+    return new Scope(firmId, clientId, engagementId, datasetId);
+  }
+
+  private static async Task<AppUser> SeedUserAsync(
+    AuditSphereDbContext db, Guid firmId, string kind = "Staff", bool disabled = false)
+  {
+    var user = new AppUser
+    {
+      Id = Guid.NewGuid(), FirmId = firmId,
+      Subject = "sub-" + Guid.NewGuid().ToString("N"),
+      TenantId = "tenant-" + Guid.NewGuid().ToString("N"),
+      Email = $"user-{Guid.NewGuid():N}@example.test",
+      DisplayName = "Synthetic User",
+      UserKind = kind, Disabled = disabled, SessionEpoch = 1,
+      CreatedAt = DateTimeOffset.UtcNow
+    };
+    db.Users.Add(user);
+    await db.SaveChangesAsync();
+    return user;
+  }
+
+  private static async Task GrantAsync(
+    AuditSphereDbContext db, Guid firmId, Guid userId, string role,
+    Guid? clientId = null, Guid? engagementId = null, Guid? grantedBy = null)
+  {
+    db.RoleGrants.Add(new RoleGrant
+    {
+      Id = Guid.NewGuid(), FirmId = firmId, UserId = userId, Role = role,
+      ClientId = clientId, EngagementId = engagementId,
+      GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = grantedBy ?? userId
+    });
+    await db.SaveChangesAsync();
+  }
+
+  private static ActorContext Actor(AppUser user, params string[] roles) =>
+    new(user.Id, user.FirmId, user.SessionEpoch, roles);
+
+  [Fact]
+  public async Task FirmWideGrant_CanReadOwnDataset_ThroughCommand()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var firmId = Guid.NewGuid();
+    Scope scope;
+    AppUser user;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      scope = await SeedScopeAsync(db, firmId, "CLIENT A");
+      user = await SeedUserAsync(db, firmId);
+      await GrantAsync(db, firmId, user.Id, "Staff");
+    }
+    await using var query = new AuditSphereDbContext(pg.Options);
+    var result = await TrialBalanceDatasetQuery.GetDatasetAsync(
+      new OperationContextAdapter(query), Actor(user, "Staff"), scope.DatasetId);
+    Assert.True(result.Succeeded);
+    Assert.Equal(scope.DatasetId, result.Value!.Id);
+  }
+
+  [Fact]
+  public async Task CrossFirm_DatasetRead_IsDenied()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    Scope a; Scope b; AppUser userA;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      a = await SeedScopeAsync(db, Guid.NewGuid(), "FIRM A CLIENT");
+      b = await SeedScopeAsync(db, Guid.NewGuid(), "FIRM B CLIENT");
+      userA = await SeedUserAsync(db, a.FirmId);
+      await GrantAsync(db, a.FirmId, userA.Id, "Staff");
+    }
+    await using var query = new AuditSphereDbContext(pg.Options);
+    var cross = await TrialBalanceDatasetQuery.GetDatasetAsync(
+      new OperationContextAdapter(query), Actor(userA, "Staff"), b.DatasetId);
+    Assert.False(cross.Succeeded);
+    Assert.Equal(ErrorCodes.ScopeDenied, cross.ErrorCode);
+  }
+
+  [Fact]
+  public async Task CrossClient_GrantForOtherClient_IsDenied()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var firmId = Guid.NewGuid();
+    Scope a; Scope b; AppUser user;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      a = await SeedScopeAsync(db, firmId, "CLIENT A");
+      b = await SeedScopeAsync(db, firmId, "CLIENT B");
+      user = await SeedUserAsync(db, firmId);
+      await GrantAsync(db, firmId, user.Id, "Staff", a.ClientId);
+    }
+    await using var query = new AuditSphereDbContext(pg.Options);
+    var denied = await TrialBalanceDatasetQuery.GetDatasetAsync(
+      new OperationContextAdapter(query), Actor(user, "Staff"), b.DatasetId);
+    Assert.False(denied.Succeeded);
+    var allowed = await TrialBalanceDatasetQuery.GetDatasetAsync(
+      new OperationContextAdapter(query), Actor(user, "Staff"), a.DatasetId);
+    Assert.True(allowed.Succeeded);
+  }
+
+  [Fact]
+  public async Task EngagementScopedGrant_CoversOnlyItsEngagement()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var firmId = Guid.NewGuid();
+    Scope a; Scope b; AppUser user;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      a = await SeedScopeAsync(db, firmId, "CLIENT A");
+      // Second engagement under the same client proves engagement scoping, not client scoping.
+      b = new Scope(firmId, a.ClientId, Guid.NewGuid(), Guid.NewGuid());
+      db.Engagements.Add(new Engagement
+      {
+        Id = b.EngagementId, FirmId = firmId, PracticeClientId = a.ClientId,
+        CreatedAt = DateTimeOffset.UtcNow
+      });
+      db.TrialBalanceDatasets.Add(new TrialBalanceDataset
+      {
+        Id = b.DatasetId, FirmId = firmId, ClientId = a.ClientId, EngagementId = b.EngagementId,
+        Currency = "QAR", ImportedAt = DateTimeOffset.UtcNow
+      });
+      await db.SaveChangesAsync();
+      user = await SeedUserAsync(db, firmId);
+      await GrantAsync(db, firmId, user.Id, "Staff", a.ClientId, a.EngagementId);
+    }
+    await using var query = new AuditSphereDbContext(pg.Options);
+    var denied = await TrialBalanceDatasetQuery.GetDatasetAsync(
+      new OperationContextAdapter(query), Actor(user, "Staff"), b.DatasetId);
+    Assert.False(denied.Succeeded);
+    var allowed = await TrialBalanceDatasetQuery.GetDatasetAsync(
+      new OperationContextAdapter(query), Actor(user, "Staff"), a.DatasetId);
+    Assert.True(allowed.Succeeded);
+  }
+
+  [Fact]
+  public async Task DisabledUser_AndStaleSession_AreDenied()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var firmId = Guid.NewGuid();
+    Scope scope; AppUser disabled; AppUser stale;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      scope = await SeedScopeAsync(db, firmId, "CLIENT A");
+      disabled = await SeedUserAsync(db, firmId, disabled: true);
+      await GrantAsync(db, firmId, disabled.Id, "Staff");
+      stale = await SeedUserAsync(db, firmId);
+      await GrantAsync(db, firmId, stale.Id, "Staff");
+      stale.SessionEpoch = 2;
+      await db.SaveChangesAsync();
+    }
+    await using var query = new AuditSphereDbContext(pg.Options);
+    var adapter = new OperationContextAdapter(query);
+    var deniedDisabled = await TrialBalanceDatasetQuery.GetDatasetAsync(
+      adapter, Actor(disabled, "Staff"), scope.DatasetId);
+    Assert.False(deniedDisabled.Succeeded);
+    // Actor presents the pre-disable epoch captured before the bump.
+    var deniedStale = await TrialBalanceDatasetQuery.GetDatasetAsync(
+      adapter, new ActorContext(stale.Id, stale.FirmId, 1, ["Staff"]), scope.DatasetId);
+    Assert.False(deniedStale.Succeeded);
+    Assert.Equal(ErrorCodes.GenerationStale, deniedStale.ErrorCode);
+  }
+
+  [Fact]
+  public async Task MissingGrant_OrMissingRole_IsDenied()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var firmId = Guid.NewGuid();
+    Scope scope; AppUser nogt; AppUser wrong;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      scope = await SeedScopeAsync(db, firmId, "CLIENT A");
+      nogt = await SeedUserAsync(db, firmId);
+      wrong = await SeedUserAsync(db, firmId);
+      await GrantAsync(db, firmId, wrong.Id, "Staff", scope.ClientId);
+    }
+    await using var query = new AuditSphereDbContext(pg.Options);
+    var adapter = new OperationContextAdapter(query);
+    Assert.False((await TrialBalanceDatasetQuery.GetDatasetAsync(
+      adapter, Actor(nogt, "Staff"), scope.DatasetId)).Succeeded);
+    var roleDenied = await AuthorizationDecision.AuthorizeAsync(adapter,
+      Actor(wrong, "Staff"),
+      new AuthorizationRequest(firmId, scope.ClientId, scope.EngagementId, ["Partner"]));
+    Assert.False(roleDenied.Succeeded);
+    var roleAllowed = await AuthorizationDecision.AuthorizeAsync(adapter,
+      Actor(wrong, "Staff"),
+      new AuthorizationRequest(firmId, scope.ClientId, scope.EngagementId, ["Staff"]));
+    Assert.True(roleAllowed.Succeeded);
+  }
+
+  [Fact]
+  public async Task UnreleasedHold_BlocksProfessionalWork_ButNotPlainReads()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var firmId = Guid.NewGuid();
+    Scope scope; AppUser user;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      scope = await SeedScopeAsync(db, firmId, "CLIENT A");
+      user = await SeedUserAsync(db, firmId);
+      await GrantAsync(db, firmId, user.Id, "Staff");
+      db.EngagementHolds.Add(new EngagementHold
+      {
+        Id = Guid.NewGuid(), FirmId = firmId, EngagementId = scope.EngagementId,
+        HoldKind = "Acceptance", Reason = "synthetic", CreatedAt = DateTimeOffset.UtcNow
+      });
+      await db.SaveChangesAsync();
+    }
+    await using var query = new AuditSphereDbContext(pg.Options);
+    var adapter = new OperationContextAdapter(query);
+    var blocked = await AuthorizationDecision.AuthorizeAsync(adapter, Actor(user, "Staff"),
+      new AuthorizationRequest(firmId, scope.ClientId, scope.EngagementId, null, false, true));
+    Assert.False(blocked.Succeeded);
+    Assert.Equal(ErrorCodes.GateBlocked, blocked.ErrorCode);
+    var read = await TrialBalanceDatasetQuery.GetDatasetAsync(adapter, Actor(user, "Staff"), scope.DatasetId);
+    Assert.True(read.Succeeded);
+  }
+
+  [Fact]
+  public async Task ClientUser_IsDenied_InternalOnlyTargets()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var firmId = Guid.NewGuid();
+    Scope scope; AppUser client;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      scope = await SeedScopeAsync(db, firmId, "CLIENT A");
+      client = await SeedUserAsync(db, firmId, kind: "Client");
+      await GrantAsync(db, firmId, client.Id, "ClientUser", scope.ClientId);
+    }
+    await using var query = new AuditSphereDbContext(pg.Options);
+    var adapter = new OperationContextAdapter(query);
+    var internalDenied = await AuthorizationDecision.AuthorizeAsync(adapter,
+      Actor(client, "ClientUser"),
+      new AuthorizationRequest(firmId, scope.ClientId, scope.EngagementId, null, true));
+    Assert.False(internalDenied.Succeeded);
+  }
+
+  [Fact]
+  public async Task GuessedDatasetId_DoesNotDiscloseExistence()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    AppUser user;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var scope = await SeedScopeAsync(db, Guid.NewGuid(), "CLIENT A");
+      user = await SeedUserAsync(db, scope.FirmId);
+      await GrantAsync(db, scope.FirmId, user.Id, "Staff");
+    }
+    await using var query = new AuditSphereDbContext(pg.Options);
+    var guessed = await TrialBalanceDatasetQuery.GetDatasetAsync(
+      new OperationContextAdapter(query), Actor(user, "Staff"), Guid.NewGuid());
+    Assert.False(guessed.Succeeded);
+    Assert.Equal(ErrorCodes.ScopeDenied, guessed.ErrorCode);
+  }
+
+  [Fact]
+  public async Task DuplicateIdentityBinding_IsRejected()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var firmId = Guid.NewGuid();
+    db.Users.Add(new AppUser
+    {
+      Id = Guid.NewGuid(), FirmId = firmId, Subject = "same-sub", TenantId = "same-tenant",
+      Email = "a@example.test", DisplayName = "A", CreatedAt = DateTimeOffset.UtcNow
+    });
+    await db.SaveChangesAsync();
+    db.Users.Add(new AppUser
+    {
+      Id = Guid.NewGuid(), FirmId = firmId, Subject = "same-sub", TenantId = "same-tenant",
+      Email = "b@example.test", DisplayName = "B", CreatedAt = DateTimeOffset.UtcNow
+    });
+    await Assert.ThrowsAsync<DbUpdateException>(() => db.SaveChangesAsync());
+  }
+
+  [Fact]
+  public async Task OrphanGrant_OrphanEngagement_AndEngagementGrantWithoutClient_AreRejected()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var user = await SeedUserAsync(db, Guid.NewGuid());
+      db.RoleGrants.Add(new RoleGrant
+      {
+        Id = Guid.NewGuid(), FirmId = user.FirmId, UserId = user.Id, Role = "Staff",
+        ClientId = Guid.NewGuid(), GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = user.Id
+      });
+      await Assert.ThrowsAsync<DbUpdateException>(() => db.SaveChangesAsync());
+    }
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      db.Engagements.Add(new Engagement
+      {
+        Id = Guid.NewGuid(), FirmId = Guid.NewGuid(), PracticeClientId = Guid.NewGuid(),
+        CreatedAt = DateTimeOffset.UtcNow
+      });
+      await Assert.ThrowsAsync<DbUpdateException>(() => db.SaveChangesAsync());
+    }
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var scope = await SeedScopeAsync(db, Guid.NewGuid(), "CLIENT A");
+      var user = await SeedUserAsync(db, scope.FirmId);
+      db.RoleGrants.Add(new RoleGrant
+      {
+        Id = Guid.NewGuid(), FirmId = scope.FirmId, UserId = user.Id, Role = "Staff",
+        EngagementId = scope.EngagementId, GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = user.Id
+      });
+      await Assert.ThrowsAsync<DbUpdateException>(() => db.SaveChangesAsync());
+    }
+  }
+
+  // Minimal adapter: the decision service operates on the persistence boundary,
+  // so commands never depend on the concrete DbContext type directly.
+  private sealed class OperationContextAdapter(AuditSphereDbContext db)
+    : AuditSphereOps.Application.Operations.IAuditSphereDbContext
+  {
+    public DbSet<AuditSphereOps.Domain.Completion.DurableOperation> DurableOperations => db.DurableOperations;
+    public DbSet<AuditSphereOps.Domain.Completion.OperationAttempt> OperationAttempts => db.OperationAttempts;
+    public DbSet<AuditSphereOps.Domain.Completion.OperationEvent> OperationEvents => db.OperationEvents;
+    public DbSet<AuditSphereOps.Domain.Completion.FirmSafetyState> FirmSafetyStates => db.FirmSafetyStates;
+    public DbSet<AuditSphereOps.Domain.Completion.ClientSafetyState> ClientSafetyStates => db.ClientSafetyStates;
+    public DbSet<TrialBalanceDataset> TrialBalanceDatasets => db.TrialBalanceDatasets;
+    public DbSet<AuditSphereOps.Domain.Accounting.TrialBalanceRow> TrialBalanceRows => db.TrialBalanceRows;
+    public DbSet<Engagement> Engagements => db.Engagements;
+    public DbSet<EngagementHold> EngagementHolds => db.EngagementHolds;
+    public DbSet<PracticeClient> PracticeClients => db.PracticeClients;
+    public DbSet<AppUser> Users => db.Users;
+    public DbSet<RoleGrant> RoleGrants => db.RoleGrants;
+    public Microsoft.EntityFrameworkCore.Infrastructure.DatabaseFacade Database => db.Database;
+    public Task<int> SaveChangesAsync(CancellationToken ct = default) => db.SaveChangesAsync(ct);
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+  }
+}

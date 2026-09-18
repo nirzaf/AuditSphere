@@ -44,14 +44,22 @@ public sealed class AccountingIntegrityTests
   {
     await using var pg = await PgTestSchema.CreateAsync();
     var (firmId, clientId, _) = await pg.SeedScopeAsync();
-    // A second firm owns a valid engagement, but the client belongs to the first firm.
+    // A second firm owns a valid client/engagement, but the dataset client belongs to the first firm.
     var otherEngagementId = Guid.NewGuid();
     await using (var seed = new AuditSphereDbContext(pg.Options))
     {
+      var otherFirmId = Guid.NewGuid();
+      var otherClientId = Guid.NewGuid();
+      seed.PracticeClients.Add(new AuditSphereOps.Domain.Practice.PracticeClient
+      {
+        Id = otherClientId, FirmId = otherFirmId,
+        LegalName = "OTHER FIRM CLIENT " + otherClientId.ToString("N")[..8],
+        CreatedAt = DateTimeOffset.UtcNow
+      });
       seed.Engagements.Add(new AuditSphereOps.Domain.Engagements.Engagement
       {
-        Id = otherEngagementId, FirmId = Guid.NewGuid(),
-        PracticeClientId = Guid.NewGuid(), CreatedAt = DateTimeOffset.UtcNow
+        Id = otherEngagementId, FirmId = otherFirmId,
+        PracticeClientId = otherClientId, CreatedAt = DateTimeOffset.UtcNow
       });
       await seed.SaveChangesAsync();
     }

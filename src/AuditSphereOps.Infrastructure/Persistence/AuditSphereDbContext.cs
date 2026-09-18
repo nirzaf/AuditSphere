@@ -76,6 +76,43 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     ConfigurePractice(b);
     ConfigureAccounting(b);
     ConfigureOperations(b);
+    ConfigureSecurity(b);
+  }
+
+  private static void ConfigureSecurity(ModelBuilder b)
+  {
+    b.Entity<AppUser>().HasIndex(x => new { x.TenantId, x.Subject }).IsUnique()
+      .HasDatabaseName("ux_users_tenant_subject");
+    b.Entity<AppUser>().ToTable("users", t =>
+    {
+      t.HasCheckConstraint("ck_users_kind", "user_kind IN ('Staff','Client')");
+      t.HasCheckConstraint("ck_users_session",
+        "session_epoch >= 1 AND length(subject) > 0 AND length(tenant_id) > 0 AND length(email) > 0");
+    });
+    b.Entity<Engagement>().ToTable("engagements", t =>
+      t.HasCheckConstraint("ck_engagement_generation", "generation >= 1"));
+    b.Entity<Engagement>()
+      .HasOne<PracticeClient>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.PracticeClientId })
+      .HasPrincipalKey(c => new { c.FirmId, c.Id })
+      .OnDelete(DeleteBehavior.Restrict);
+    b.Entity<RoleGrant>().HasOne<AppUser>().WithMany()
+      .HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Restrict);
+    b.Entity<RoleGrant>().HasOne<PracticeClient>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    b.Entity<RoleGrant>().HasOne<Engagement>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.EngagementId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    b.Entity<RoleGrant>().ToTable("role_grants", t =>
+      t.HasCheckConstraint("ck_role_grant_scope",
+        "length(role) > 0 AND (engagement_id IS NULL OR client_id IS NOT NULL)"));
+    b.Entity<EngagementHold>().HasOne<Engagement>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.EngagementId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    b.Entity<EngagementHold>().ToTable("engagement_holds", t =>
+      t.HasCheckConstraint("ck_hold_release",
+        "length(hold_kind) > 0 AND (NOT released OR released_at IS NOT NULL)"));
   }
 
   private static void ConfigureOperations(ModelBuilder b)

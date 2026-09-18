@@ -2,6 +2,8 @@ using System.Text;
 using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Engagements;
+using AuditSphereOps.Domain.Practice;
+using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Shared;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -18,6 +20,10 @@ public interface IAuditSphereDbContext : IAsyncDisposable
   DbSet<TrialBalanceDataset> TrialBalanceDatasets { get; }
   DbSet<TrialBalanceRow> TrialBalanceRows { get; }
   DbSet<Engagement> Engagements { get; }
+  DbSet<EngagementHold> EngagementHolds { get; }
+  DbSet<PracticeClient> PracticeClients { get; }
+  DbSet<AppUser> Users { get; }
+  DbSet<RoleGrant> RoleGrants { get; }
   DatabaseFacade Database { get; }
   Task<int> SaveChangesAsync(CancellationToken ct = default);
 }
