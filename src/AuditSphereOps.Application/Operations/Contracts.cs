@@ -34,6 +34,11 @@ public interface IAuditSphereDbContext : IAsyncDisposable
   DbSet<Proposal> Proposals { get; }
   DbSet<PracticeClient> PracticeClients { get; }
   DbSet<ClientContact> ClientContacts { get; }
+  DbSet<WorkTask> WorkTasks { get; }
+  DbSet<TimeEntry> TimeEntries { get; }
+  DbSet<RateCardVersion> RateCardVersions { get; }
+  DbSet<EngagementBudget> EngagementBudgets { get; }
+  DbSet<BudgetLine> BudgetLines { get; }
   DbSet<AppUser> Users { get; }
   DbSet<RoleGrant> RoleGrants { get; }
   DatabaseFacade Database { get; }

@@ -380,6 +380,11 @@ public sealed class AuthorizationDecisionTests
     public DbSet<Proposal> Proposals => db.Proposals;
     public DbSet<PracticeClient> PracticeClients => db.PracticeClients;
     public DbSet<ClientContact> ClientContacts => db.ClientContacts;
+    public DbSet<WorkTask> WorkTasks => db.WorkTasks;
+    public DbSet<TimeEntry> TimeEntries => db.TimeEntries;
+    public DbSet<RateCardVersion> RateCardVersions => db.RateCardVersions;
+    public DbSet<EngagementBudget> EngagementBudgets => db.EngagementBudgets;
+    public DbSet<BudgetLine> BudgetLines => db.BudgetLines;
     public DbSet<AppUser> Users => db.Users;
     public DbSet<RoleGrant> RoleGrants => db.RoleGrants;
     public Microsoft.EntityFrameworkCore.Infrastructure.DatabaseFacade Database => db.Database;

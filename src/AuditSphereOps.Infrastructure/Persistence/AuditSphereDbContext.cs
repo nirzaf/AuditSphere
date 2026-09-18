@@ -26,7 +26,9 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
   public DbSet<ClientContact> ClientContacts => Set<ClientContact>();
   public DbSet<WorkTask> WorkTasks => Set<WorkTask>();
   public DbSet<TimeEntry> TimeEntries => Set<TimeEntry>();
-  public DbSet<BudgetVersion> BudgetVersions => Set<BudgetVersion>();
+  public DbSet<RateCardVersion> RateCardVersions => Set<RateCardVersion>();
+  public DbSet<EngagementBudget> EngagementBudgets => Set<EngagementBudget>();
+  public DbSet<BudgetLine> BudgetLines => Set<BudgetLine>();
   public DbSet<BillingAccount> BillingAccounts => Set<BillingAccount>();
   public DbSet<Invoice> Invoices => Set<Invoice>();
   public DbSet<InvoiceLine> InvoiceLines => Set<InvoiceLine>();
@@ -169,9 +171,19 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
   private static void ConfigurePractice(ModelBuilder b)
   {
     b.Entity<PracticeClient>().HasIndex(x => new { x.FirmId, x.LegalName }).IsUnique();
+    b.Entity<WorkTask>().HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_work_tasks_firm_id_id");
+    b.Entity<TimeEntry>().HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_time_entries_firm_id_id");
+    b.Entity<RateCardVersion>().HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_rate_cards_firm_id_id");
+    b.Entity<EngagementBudget>().HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_budgets_firm_id_id");
+    b.Entity<BudgetLine>().HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_budget_lines_firm_id_id");
     b.Entity<Lead>().HasIndex(x => new { x.FirmId, x.Status, x.CreatedAt });
     b.Entity<Opportunity>().HasIndex(x => new { x.FirmId, x.LeadId, x.Stage });
     b.Entity<Proposal>().HasIndex(x => new { x.FirmId, x.OpportunityId, x.Revision }).IsUnique();
+    b.Entity<WorkTask>().HasIndex(x => new { x.FirmId, x.Status, x.CreatedAt });
+    b.Entity<TimeEntry>().HasIndex(x => new { x.FirmId, x.UserId, x.WorkDate, x.Status });
+    b.Entity<RateCardVersion>().HasIndex(x => new { x.FirmId, x.Role, x.Activity, x.Currency, x.Version }).IsUnique();
+    b.Entity<EngagementBudget>().HasIndex(x => new { x.FirmId, x.EngagementId, x.Version }).IsUnique();
+    b.Entity<BudgetLine>().HasIndex(x => new { x.FirmId, x.EngagementBudgetId, x.Role, x.Activity }).IsUnique();
     b.Entity<Invoice>().HasIndex(x => new { x.FirmId, x.InvoiceNumber }).IsUnique();
     b.Entity<FirmAccount>().HasIndex(x => new { x.FirmId, x.Code }).IsUnique();
     b.Entity<FirmJournal>().HasIndex(x => new { x.FirmId, x.SourceKind, x.SourceKey }).IsUnique();
@@ -191,6 +203,21 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
       "length(legal_name) > 0"));
     b.Entity<ClientContact>().ToTable("client_contacts", t => t.HasCheckConstraint("ck_client_contact",
       "length(full_name) > 0 AND length(email) > 0 AND length(role) > 0 AND (valid_to IS NULL OR valid_from IS NULL OR valid_to >= valid_from)"));
+    b.Entity<WorkTask>().ToTable("work_tasks", t => t.HasCheckConstraint("ck_work_task_state",
+      "status IN ('OPEN','IN_PROGRESS','COMPLETED','CANCELLED') AND length(title) > 0 AND (engagement_id IS NULL OR client_id IS NOT NULL)"));
+    b.Entity<TimeEntry>().ToTable("time_entries", t =>
+    {
+      t.HasCheckConstraint("ck_time_entry_state",
+        "status IN ('DRAFT','SUBMITTED','APPROVED','SUPERSEDED') AND revision >= 1 AND start_minute BETWEEN 0 AND 1439 AND duration_minutes BETWEEN 1 AND 1440 AND start_minute + duration_minutes <= 1440");
+      t.HasCheckConstraint("ck_time_entry_content",
+        "length(role) > 0 AND length(activity) > 0 AND billable_classification IN ('BILLABLE','NON_BILLABLE','NO_CHARGE') AND narrative_visibility IN ('INTERNAL','CLIENT_VISIBLE') AND ((billable_classification = 'BILLABLE' AND rate_card_version_id IS NOT NULL AND rate_per_hour IS NOT NULL AND rate_per_hour >= 0) OR billable_classification <> 'BILLABLE')");
+    });
+    b.Entity<RateCardVersion>().ToTable("rate_card_versions", t => t.HasCheckConstraint("ck_rate_card_state",
+      "version >= 1 AND length(role) > 0 AND length(activity) > 0 AND currency ~ '^[A-Z]{3}$' AND rate_per_hour >= 0 AND status IN ('DRAFT','APPROVED','SUPERSEDED')"));
+    b.Entity<EngagementBudget>().ToTable("engagement_budgets", t => t.HasCheckConstraint("ck_budget_state",
+      "version >= 1 AND currency ~ '^[A-Z]{3}$' AND status IN ('DRAFT','APPROVED','SUPERSEDED')"));
+    b.Entity<BudgetLine>().ToTable("budget_lines", t => t.HasCheckConstraint("ck_budget_line_values",
+      "length(role) > 0 AND length(activity) > 0 AND forecast_minutes > 0 AND rate_per_hour >= 0 AND forecast_cost >= 0"));
     b.Entity<Lead>().HasOne<AppUser>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.OwnerUserId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
@@ -214,6 +241,57 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     b.Entity<ClientContact>().HasOne<PracticeClient>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.PracticeClientId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    b.Entity<WorkTask>().HasOne<PracticeClient>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    b.Entity<WorkTask>().HasOne<Engagement>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId })
+      .HasPrincipalKey(x => new { x.FirmId, x.PracticeClientId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    b.Entity<WorkTask>().HasOne<AppUser>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.AssigneeUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    b.Entity<TimeEntry>().HasOne<WorkTask>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.TaskId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    b.Entity<TimeEntry>().HasOne<PracticeClient>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    b.Entity<TimeEntry>().HasOne<Engagement>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId })
+      .HasPrincipalKey(x => new { x.FirmId, x.PracticeClientId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    b.Entity<TimeEntry>().HasOne<AppUser>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.UserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    b.Entity<TimeEntry>().HasOne<AppUser>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ApprovedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    b.Entity<TimeEntry>().HasOne<RateCardVersion>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.RateCardVersionId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    b.Entity<TimeEntry>().HasOne<TimeEntry>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.SupersedesId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    b.Entity<RateCardVersion>().HasOne<AppUser>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.CreatedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    b.Entity<RateCardVersion>().HasOne<AppUser>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ApprovedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    b.Entity<EngagementBudget>().HasOne<Engagement>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.EngagementId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    b.Entity<EngagementBudget>().HasOne<AppUser>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.CreatedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    b.Entity<EngagementBudget>().HasOne<AppUser>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ApprovedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    b.Entity<BudgetLine>().HasOne<EngagementBudget>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.EngagementBudgetId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    b.Entity<BudgetLine>().HasOne<RateCardVersion>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.RateCardVersionId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
   }
 
