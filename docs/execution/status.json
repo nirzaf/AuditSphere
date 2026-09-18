@@ -16,10 +16,10 @@
     "issueNumber": null,
     "branch": "master",
     "pullRequestNumber": null,
-    "headCommit": "df73109ed0a33d3df43bc5a37707911453fe7f50",
+    "headCommit": "08e5327",
     "implementationStatus": "PARTIAL",
-    "acceptanceStatus": "LOCAL_VERIFIED_HOSTED_CI_PENDING",
-    "worktree": "Commit df73109 adds the trusted final-completion boundary after staged PBC chunks: staff-gated completion re-reads every staged chunk, verifies receipt digests and the combined SHA-256, rejects executable magic-number content, marks the intent STAGED, and enqueues a durable TransferPbcDocument.v1 operation in the same transaction. A SIMULATED worker handoff registers provider receipt evidence and only then marks the intent and PBC request RECEIVED; interrupted effects preserve RESULT_UNCERTAIN and reconcile, deterministic rejection lands PROVIDER_BLOCKED, and safe transient failures retry. Local verification passed on head df73109; hosted CI has not run on this head yet.",
+    "acceptanceStatus": "LOCAL_AND_HOSTED_CI_VERIFIED",
+    "worktree": "Commit df73109 adds the trusted final-completion boundary after staged PBC chunks: staff-gated completion re-reads every staged chunk, verifies receipt digests and the combined SHA-256, rejects executable magic-number content, marks the intent STAGED, and enqueues a durable TransferPbcDocument.v1 operation in the same transaction. A SIMULATED worker handoff registers provider receipt evidence and only then marks the intent and PBC request RECEIVED; interrupted effects preserve RESULT_UNCERTAIN and reconcile, deterministic rejection lands PROVIDER_BLOCKED, and safe transient failures retry. Local verification passed on head df73109; hosted run 35385844180 passed every CI step on head 08e5327; no independent human reviewer evidence is present.",
     "scope": "Checklist #14 follow-up stage 2: trusted completion boundary, durable transfer operation with provider receipt evidence, explicit failure/reconciliation states, staff completion actions on the engagement PBC route, and the scoped transfer-operation FK. No live provider is claimed.",
     "productionEnabled": false
   },
@@ -95,6 +95,10 @@
     {
       "command": "Hosted CI run 35385091372 on head b69e718",
       "result": "Failed at the test step: 105/106 with PostgresException 53300 (too many clients) in PgTestSchema.CreateAsync. Root cause: each per-test schema owns its own Npgsql pool and idle connections accumulated past the hosted runner default max_connections=100. Fix: cap every per-schema test pool at Maximum Pool Size=3 in PgTestSchema (local re-run 106/106 passed; local cluster max_connections stays 200). An initdb-level change was rejected because initdb does not accept max_connections."
+    },
+    {
+      "command": "gh run view 35385844180 on head 08e5327",
+      "result": "Hosted AuditSphereOps CI passed every step: setup-dotnet, tool restore, restore, build, EF migration, the 106-test suite, migration-aware readiness, and cleanup. The bounded per-schema test pool resolved the prior 53300 connection exhaustion."
     }
   ],
   "tenantEvidence": [
@@ -140,6 +144,6 @@
       "ownerAction": "Obtain independent review evidence before treating the merged slices as fully accepted."
     }
   ],
-  "nextPermittedAction": "Push head df73109, confirm hosted CI on the new head, then continue the remaining scoped staff/client route catalog with operator recovery and generated artifact rendering. External production gates remain blocked on owner-authorized evidence.",
-  "lastVerifiedAt": "2026-09-18T19:25:00Z"
+  "nextPermittedAction": "Continue the remaining scoped staff/client route catalog with operator recovery and generated artifact rendering, then obtain independent human review plus owner-authorized tenant/professional evidence. Production recovery remains unproven.",
+  "lastVerifiedAt": "2026-09-18T19:29:30Z"
 }
