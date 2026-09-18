@@ -66,6 +66,7 @@ public sealed class PbcUploadIntent
   public string ContentType { get; set; } = string.Empty;
   public long DeclaredByteCount { get; set; }
   public string DeclaredSha256Hex { get; set; } = string.Empty;
+  public string CapabilityHash { get; set; } = string.Empty;
   public long ReceivedByteCount { get; set; }
   public string State { get; set; } = PbcUploadStates.Started;
   public DateTimeOffset ExpiresAt { get; set; }
@@ -87,5 +88,6 @@ public sealed class PbcUploadChunk
   public long Offset { get; set; }
   public int ByteCount { get; set; }
   public string Sha256Hex { get; set; } = string.Empty;
+  public string? StagedPath { get; set; }
   public DateTimeOffset ReceivedAt { get; set; }
 }

@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @inject CurrentActorResolver ActorResolver
 @inject IDbContextFactory<AuditSphereDbContext> DbFactory
+@inject IJSRuntime JS
 
 <PageTitle>Client request</PageTitle>
 <a class="back-link" href="/portal">← Back to client portal</a>
@@ -32,6 +33,7 @@ else
   <section class="card" aria-labelledby="upload-heading">
     <h2 id="upload-heading">Prepare a controlled upload</h2>
     <p class="muted">This creates a request-bound, expiring transfer intent. Content bytes are not accepted through the interactive circuit and are not marked received until a trusted completion boundary verifies the staged file.</p>
+    <div class="field"><label for="pbc-file">File</label><input id="pbc-file" type="file" /></div>
     <div class="field"><label for="file-name">File name</label><input id="file-name" @bind="_fileName" maxlength="255" /></div>
     <div class="field"><label for="content-type">Content type</label><input id="content-type" @bind="_contentType" maxlength="200" /></div>
     <div class="field"><label for="byte-count">Declared bytes</label><input id="byte-count" type="number" min="1" max="262144000" @bind="_byteCount" /></div>
@@ -40,6 +42,10 @@ else
     @if (_result is not null)
     {
       <p class="command-result @(_result.Succeeded ? "success-text" : "error-text")" role="status">@(_result.Succeeded ? "Transfer intent created; continue through the approved upload transport." : $"Blocked: {_result.ErrorCode}")</p>
+    }
+    @if (!string.IsNullOrWhiteSpace(_uploadMessage))
+    {
+      <p class="muted" role="status">@_uploadMessage</p>
     }
   </section>
 
@@ -66,11 +72,12 @@ else
   private ActorContext? _actor;
   private PbcRequest? _request;
   private List<PbcUploadIntent> _uploads = [];
-  private CommandResult<Guid>? _result;
+  private CommandResult<PbcUploadReceipt>? _result;
   private string _fileName = string.Empty;
   private string _contentType = "application/octet-stream";
   private long _byteCount;
   private string _contentHash = string.Empty;
+  private string? _uploadMessage;
   private bool _loading = true;
   private bool _busy;
 
@@ -99,13 +106,35 @@ else
     _busy = true;
     try
     {
-      await using var db = await DbFactory.CreateDbContextAsync();
-      _result = await PbcService.StartUploadAsync(db, _actor,
-        new StartPbcUploadRequest(_request.Id, _fileName, _contentType, _byteCount, _contentHash));
+      var metadata = await JS.InvokeAsync<PbcFileMetadata?>("auditSpherePbc.readFileMetadata", "pbc-file");
+      if (metadata is null)
+      {
+        _result = CommandResult<PbcUploadReceipt>.Fail("pbc.file-required", "Select a file before preparing the upload.");
+        return;
+      }
+      _fileName = metadata.Name;
+      _contentType = metadata.Type;
+      _byteCount = metadata.Size;
+      await using (var db = await DbFactory.CreateDbContextAsync())
+      {
+        _result = await PbcService.StartUploadAsync(db, _actor,
+          new StartPbcUploadRequest(_request.Id, _fileName, _contentType, _byteCount, _contentHash));
+      }
       if (_result.Succeeded)
-        _uploads = await db.PbcUploadIntents.AsNoTracking().Where(x =>
+      {
+        _uploadMessage = await JS.InvokeAsync<string>("auditSpherePbc.uploadChunks", "pbc-file",
+          _result.Value!.UploadIntentId, _result.Value.Capability!);
+        await using var refreshDb = await DbFactory.CreateDbContextAsync();
+        _uploads = await refreshDb.PbcUploadIntents.AsNoTracking().Where(x =>
           x.FirmId == _actor.FirmId && x.PbcRequestId == _request.Id).OrderByDescending(x => x.CreatedAt).ToListAsync();
+      }
+    }
+    catch (JSException ex)
+    {
+      _uploadMessage = $"Transfer stopped before trusted completion: {ex.Message}";
     }
     finally { _busy = false; }
   }
+
+  private sealed record PbcFileMetadata(string Name, string Type, long Size);
 }

@@ -47,23 +47,29 @@ public sealed class PbcTests
       var started = await PbcService.StartUploadAsync(db, client, new StartPbcUploadRequest(
         requestId, "bank-statements.csv", "text/csv", 10, declaredHash));
       Assert.True(started.Succeeded);
-      uploadId = started.Value;
+      uploadId = started.Value!.UploadIntentId;
+      Assert.NotNull(started.Value.Capability);
+      _capability = started.Value.Capability!;
     }
 
     var firstHash = new string('b', 64);
     var secondHash = new string('c', 64);
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
+      var wrongCapability = await PbcService.RecordChunkAsync(db, client,
+        new RecordPbcUploadChunkRequest(uploadId, 0, 0, 6, firstHash, new string('e', 64)));
+      Assert.False(wrongCapability.Succeeded);
+      Assert.Equal("scope.denied", wrongCapability.ErrorCode);
       Assert.True((await PbcService.RecordChunkAsync(db, client,
-        new RecordPbcUploadChunkRequest(uploadId, 0, 0, 6, firstHash))).Succeeded);
+        new RecordPbcUploadChunkRequest(uploadId, 0, 0, 6, firstHash, _capability))).Succeeded);
       var replay = await PbcService.RecordChunkAsync(db, client,
-        new RecordPbcUploadChunkRequest(uploadId, 0, 0, 6, firstHash));
+        new RecordPbcUploadChunkRequest(uploadId, 0, 0, 6, firstHash, _capability));
       Assert.True(replay.Succeeded);
       Assert.Equal(6, replay.Value!.ReceivedByteCount);
       Assert.False((await PbcService.RecordChunkAsync(db, client,
-        new RecordPbcUploadChunkRequest(uploadId, 0, 0, 5, firstHash))).Succeeded);
+        new RecordPbcUploadChunkRequest(uploadId, 0, 0, 5, firstHash, _capability))).Succeeded);
       Assert.True((await PbcService.RecordChunkAsync(db, client,
-        new RecordPbcUploadChunkRequest(uploadId, 1, 6, 4, secondHash))).Succeeded);
+        new RecordPbcUploadChunkRequest(uploadId, 1, 6, 4, secondHash, _capability))).Succeeded);
     }
 
     await using (var db = new AuditSphereDbContext(pg.Options))
@@ -96,6 +102,8 @@ public sealed class PbcTests
         $"UPDATE pbc_upload_chunks SET byte_count = 7 WHERE id = {chunkId}"));
     }
   }
+
+  private string _capability = string.Empty;
 
   private static async Task<Fixture> SeedAsync(PgTestSchema pg)
   {

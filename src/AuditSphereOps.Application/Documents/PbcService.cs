@@ -4,6 +4,7 @@ using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Documents;
 using AuditSphereOps.Domain.Shared;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Cryptography;
 
 namespace AuditSphereOps.Application.Documents;
 
@@ -41,12 +42,14 @@ public sealed record RecordPbcUploadChunkRequest(
   int ChunkIndex,
   long Offset,
   int ByteCount,
-  string Sha256Hex);
+  string Sha256Hex,
+  string Capability,
+  string? StagedPath = null);
 
 public sealed record CompletePbcUploadRequest(Guid UploadIntentId, string FinalSha256Hex);
 
 public sealed record PbcUploadReceipt(Guid UploadIntentId, Guid PbcRequestId, string State,
-  long ReceivedByteCount, long Revision);
+  long ReceivedByteCount, long Revision, string? Capability = null);
 
 /// <summary>
 /// Local PBC and upload boundary. It records bounded transfer intent/chunk receipts
@@ -170,34 +173,35 @@ public static class PbcService
     return CommandResult.Ok();
   }
 
-  public static async Task<CommandResult<Guid>> StartUploadAsync(
+  public static async Task<CommandResult<PbcUploadReceipt>> StartUploadAsync(
     IAuditSphereDbContext db, ActorContext actor, StartPbcUploadRequest input,
     CancellationToken ct = default)
   {
     var validation = ValidateUpload(input);
     if (validation is not null)
-      return CommandResult<Guid>.Fail("pbc.upload.invalid", validation);
+      return CommandResult<PbcUploadReceipt>.Fail("pbc.upload.invalid", validation);
 
     var request = await db.PbcRequests.AsNoTracking().SingleOrDefaultAsync(x =>
       x.Id == input.PbcRequestId && x.FirmId == actor.FirmId, ct);
     if (request is null)
-      return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+      return CommandResult<PbcUploadReceipt>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var auth = await AuthorizeUploadActorAsync(db, actor, request, ct);
     if (!auth.Succeeded)
-      return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+      return CommandResult<PbcUploadReceipt>.Fail(auth.ErrorCode!, auth.Message!);
     if (request.State is not (PbcStates.Sent or PbcStates.Acknowledged or PbcStates.Resubmitted or PbcStates.PartiallyReceived))
-      return CommandResult<Guid>.Fail("pbc.upload-state", "The request is not accepting an upload.");
+      return CommandResult<PbcUploadReceipt>.Fail("pbc.upload-state", "The request is not accepting an upload.");
 
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     var lockedRequest = await db.PbcRequests.FromSqlInterpolated($"""
       SELECT * FROM pbc_requests WHERE firm_id = {actor.FirmId} AND id = {input.PbcRequestId} FOR UPDATE
       """).SingleOrDefaultAsync(ct);
     if (lockedRequest is null)
-      return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+      return CommandResult<PbcUploadReceipt>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     if (lockedRequest.State is not (PbcStates.Sent or PbcStates.Acknowledged or PbcStates.Resubmitted or PbcStates.PartiallyReceived))
-      return CommandResult<Guid>.Fail("pbc.upload-state", "The request is not accepting an upload.");
+      return CommandResult<PbcUploadReceipt>.Fail("pbc.upload-state", "The request is not accepting an upload.");
 
     var now = DateTimeOffset.UtcNow;
+    var capability = Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();
     var intent = new PbcUploadIntent
     {
       Id = Guid.CreateVersion7(),
@@ -210,6 +214,7 @@ public static class PbcService
       ContentType = input.ContentType.Trim(),
       DeclaredByteCount = input.DeclaredByteCount,
       DeclaredSha256Hex = input.DeclaredSha256Hex.ToLowerInvariant(),
+      CapabilityHash = Hashing.Sha256Hex(capability),
       ExpiresAt = now.AddHours(24),
       CreatedAt = now
     };
@@ -219,7 +224,8 @@ public static class PbcService
     db.PbcUploadIntents.Add(intent);
     await db.SaveChangesAsync(ct);
     await tx.CommitAsync(ct);
-    return CommandResult<Guid>.Ok(intent.Id);
+    return CommandResult<PbcUploadReceipt>.Ok(new PbcUploadReceipt(
+      intent.Id, intent.PbcRequestId, intent.State, intent.ReceivedByteCount, intent.Revision, capability));
   }
 
   public static async Task<CommandResult<PbcUploadReceipt>> RecordChunkAsync(
@@ -233,6 +239,8 @@ public static class PbcService
     var intent = await db.PbcUploadIntents.AsNoTracking().SingleOrDefaultAsync(x =>
       x.Id == input.UploadIntentId && x.FirmId == actor.FirmId, ct);
     if (intent is null)
+      return CommandResult<PbcUploadReceipt>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    if (!IsCapability(input.Capability) || Hashing.Sha256Hex(input.Capability) != intent.CapabilityHash)
       return CommandResult<PbcUploadReceipt>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var request = await db.PbcRequests.AsNoTracking().SingleAsync(x =>
       x.Id == intent.PbcRequestId && x.FirmId == actor.FirmId, ct);
@@ -278,7 +286,7 @@ public static class PbcService
       Id = Guid.CreateVersion7(), FirmId = intent.FirmId, ClientId = intent.ClientId,
       EngagementId = intent.EngagementId, PbcUploadIntentId = intent.Id,
       ChunkIndex = input.ChunkIndex, Offset = input.Offset, ByteCount = input.ByteCount,
-      Sha256Hex = hash, ReceivedAt = DateTimeOffset.UtcNow
+      Sha256Hex = hash, StagedPath = input.StagedPath, ReceivedAt = DateTimeOffset.UtcNow
     });
     intent.ReceivedByteCount += input.ByteCount;
     intent.State = PbcUploadStates.Chunking;
@@ -413,6 +421,8 @@ public static class PbcService
 
   private static bool IsSha256(string? value) => value is { Length: 64 } &&
     value.All(c => c is >= '0' and <= '9' or >= 'a' and <= 'f' or >= 'A' and <= 'F');
+
+  private static bool IsCapability(string? value) => IsSha256(value);
 
   private static bool ValidDate(string value) =>
     DateOnly.TryParseExact(value, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture,
