@@ -84,6 +84,8 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
 
   private static void ConfigureSecurity(ModelBuilder b)
   {
+    b.Entity<AppUser>().HasAlternateKey(x => new { x.FirmId, x.Id })
+      .HasName("AK_users_firm_id_id");
     b.Entity<AppUser>().HasIndex(x => new { x.TenantId, x.Subject }).IsUnique()
       .HasDatabaseName("ux_users_tenant_subject");
     b.Entity<AppUser>().ToTable("users", t =>
@@ -167,10 +169,52 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
   private static void ConfigurePractice(ModelBuilder b)
   {
     b.Entity<PracticeClient>().HasIndex(x => new { x.FirmId, x.LegalName }).IsUnique();
+    b.Entity<Lead>().HasIndex(x => new { x.FirmId, x.Status, x.CreatedAt });
+    b.Entity<Opportunity>().HasIndex(x => new { x.FirmId, x.LeadId, x.Stage });
+    b.Entity<Proposal>().HasIndex(x => new { x.FirmId, x.OpportunityId, x.Revision }).IsUnique();
     b.Entity<Invoice>().HasIndex(x => new { x.FirmId, x.InvoiceNumber }).IsUnique();
     b.Entity<FirmAccount>().HasIndex(x => new { x.FirmId, x.Code }).IsUnique();
     b.Entity<FirmJournal>().HasIndex(x => new { x.FirmId, x.SourceKind, x.SourceKey }).IsUnique();
     b.Entity<FirmPeriod>().HasIndex(x => new { x.FirmId, x.PeriodCode }).IsUnique();
+    b.Entity<Lead>().ToTable("leads", t => t.HasCheckConstraint("ck_lead_status",
+      "status IN ('NEW','QUALIFIED','UNQUALIFIED','LOST') AND length(name) > 0 AND length(source) > 0"));
+    b.Entity<Opportunity>().ToTable("opportunities", t => t.HasCheckConstraint("ck_opportunity_state",
+      "stage IN ('DISCOVERY','PROPOSAL','NEGOTIATION','WON','LOST') AND length(service_route) > 0 AND length(entity_scope) > 0 AND length(period_start) = 10 AND length(period_end) = 10 AND period_start <= period_end AND expected_fee >= 0 AND (probability IS NULL OR probability BETWEEN 0 AND 100) AND currency ~ '^[A-Z]{3}$'"));
+    b.Entity<Proposal>().ToTable("proposals", t =>
+    {
+      t.HasCheckConstraint("ck_proposal_state",
+        "status IN ('DRAFT','INTERNAL_REVIEW','SENT','ACCEPTED','DECLINED','SUPERSEDED') AND revision >= 1");
+      t.HasCheckConstraint("ck_proposal_content",
+        "length(service_profile_id) > 0 AND length(scope) > 0 AND length(deliverables) > 0 AND length(period_start) = 10 AND length(period_end) = 10 AND period_start <= period_end AND fee >= 0 AND currency ~ '^[A-Z]{3}$'");
+    });
+    b.Entity<PracticeClient>().ToTable("practice_clients", t => t.HasCheckConstraint("ck_practice_client_name",
+      "length(legal_name) > 0"));
+    b.Entity<ClientContact>().ToTable("client_contacts", t => t.HasCheckConstraint("ck_client_contact",
+      "length(full_name) > 0 AND length(email) > 0 AND length(role) > 0 AND (valid_to IS NULL OR valid_from IS NULL OR valid_to >= valid_from)"));
+    b.Entity<Lead>().HasOne<AppUser>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.OwnerUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    b.Entity<Opportunity>().HasOne<AppUser>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.OwnerUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    b.Entity<Proposal>().HasOne<AppUser>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ApprovedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    b.Entity<Opportunity>().HasOne<Lead>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.LeadId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    b.Entity<Opportunity>().HasOne<PracticeClient>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.PracticeClientId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    b.Entity<Proposal>().HasOne<Opportunity>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.OpportunityId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    b.Entity<Proposal>().HasOne<PracticeClient>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.PracticeClientId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    b.Entity<ClientContact>().HasOne<PracticeClient>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.PracticeClientId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
   }
 
   private static void ConfigureAccounting(ModelBuilder b)

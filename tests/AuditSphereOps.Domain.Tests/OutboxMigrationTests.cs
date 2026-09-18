@@ -21,7 +21,14 @@ public sealed class OutboxMigrationTests
     var firm = Guid.NewGuid(); var client = Guid.NewGuid(); var engagement = Guid.NewGuid(); var dataset = Guid.NewGuid();
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
-      db.PracticeClients.Add(new PracticeClient { Id = client, FirmId = firm, LegalName = "Migration fixture" });
+      // This context intentionally targets the pre-CRM schema; seed the unchanged
+      // legacy table shape before asking the current model to migrate it forward.
+      const string legacyName = "Migration fixture";
+      const string legacyStatus = "Prospect";
+      await db.Database.ExecuteSqlInterpolatedAsync($"""
+        INSERT INTO practice_clients (id, firm_id, legal_name, commercial_name, status, billing_account_id, created_at)
+        VALUES ({client}, {firm}, {legacyName}, NULL, {legacyStatus}, NULL, statement_timestamp())
+        """);
       db.Engagements.Add(new Engagement { Id = engagement, FirmId = firm, PracticeClientId = client });
       db.TrialBalanceDatasets.Add(new TrialBalanceDataset { Id = dataset, FirmId = firm,
         ClientId = client, EngagementId = engagement, Currency = "QAR" });
@@ -57,8 +64,8 @@ public sealed class OutboxMigrationTests
     Assert.Equal(3, attempt);
     var pending = await db.Database.GetPendingMigrationsAsync();
     Assert.Contains("20260917104422_DurableOutbox", pending);
-    // DurableOutbox + AuthorizationIntegrity + AdjustmentSourceBridge remain unapplied.
-    Assert.Equal(3, pending.Count());
+    // DurableOutbox + AuthorizationIntegrity + AdjustmentSourceBridge + PracticeCrmWorkflow + CrmSafetyInvariants remain unapplied.
+    Assert.Equal(5, pending.Count());
   }
 
   [Theory]

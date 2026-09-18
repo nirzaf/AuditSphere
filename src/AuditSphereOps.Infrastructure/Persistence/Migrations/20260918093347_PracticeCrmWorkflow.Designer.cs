@@ -3,6 +3,7 @@ using System;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AuditSphereDbContext))]
-    partial class AuditSphereDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260918093347_PracticeCrmWorkflow")]
+    partial class PracticeCrmWorkflow
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1522,7 +1525,7 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.ToTable("client_contacts", null, t =>
                         {
-                            t.HasCheckConstraint("ck_client_contact", "length(full_name) > 0 AND length(email) > 0 AND length(role) > 0 AND (valid_to IS NULL OR valid_from IS NULL OR valid_to >= valid_from)");
+                            t.HasCheckConstraint("ck_client_contact", "length(full_name) > 0 AND length(email) > 0 AND length(role) > 0");
                         });
                 });
 
@@ -1802,8 +1805,6 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("FirmId", "OwnerUserId");
-
                     b.HasIndex("FirmId", "Status", "CreatedAt");
 
                     b.ToTable("leads", null, t =>
@@ -1883,15 +1884,13 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("FirmId", "OwnerUserId");
-
                     b.HasIndex("FirmId", "PracticeClientId");
 
                     b.HasIndex("FirmId", "LeadId", "Stage");
 
                     b.ToTable("opportunities", null, t =>
                         {
-                            t.HasCheckConstraint("ck_opportunity_state", "stage IN ('DISCOVERY','PROPOSAL','NEGOTIATION','WON','LOST') AND length(service_route) > 0 AND length(entity_scope) > 0 AND length(period_start) = 10 AND length(period_end) = 10 AND period_start <= period_end AND expected_fee >= 0 AND (probability IS NULL OR probability BETWEEN 0 AND 100) AND currency ~ '^[A-Z]{3}$'");
+                            t.HasCheckConstraint("ck_opportunity_state", "stage IN ('DISCOVERY','PROPOSAL','NEGOTIATION','WON','LOST') AND length(service_route) > 0 AND length(entity_scope) > 0");
                         });
                 });
 
@@ -2053,8 +2052,6 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("FirmId", "ApprovedByUserId");
-
                     b.HasIndex("FirmId", "PracticeClientId");
 
                     b.HasIndex("FirmId", "OpportunityId", "Revision")
@@ -2062,7 +2059,7 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.ToTable("proposals", null, t =>
                         {
-                            t.HasCheckConstraint("ck_proposal_content", "length(service_profile_id) > 0 AND length(scope) > 0 AND length(deliverables) > 0 AND length(period_start) = 10 AND length(period_end) = 10 AND period_start <= period_end AND fee >= 0 AND currency ~ '^[A-Z]{3}$'");
+                            t.HasCheckConstraint("ck_proposal_content", "length(service_profile_id) > 0 AND length(scope) > 0 AND length(deliverables) > 0 AND length(currency) = 3");
 
                             t.HasCheckConstraint("ck_proposal_state", "status IN ('DRAFT','INTERNAL_REVIEW','SENT','ACCEPTED','DECLINED','SUPERSEDED') AND revision >= 1");
                         });
@@ -2400,9 +2397,6 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasAlternateKey("FirmId", "Id")
-                        .HasName("AK_users_firm_id_id");
-
                     b.HasIndex("TenantId", "Subject")
                         .IsUnique()
                         .HasDatabaseName("ux_users_tenant_subject");
@@ -2640,15 +2634,6 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("AuditSphereOps.Domain.Practice.Lead", b =>
-                {
-                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
-                        .WithMany()
-                        .HasForeignKey("FirmId", "OwnerUserId")
-                        .HasPrincipalKey("FirmId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict);
-                });
-
             modelBuilder.Entity("AuditSphereOps.Domain.Practice.Opportunity", b =>
                 {
                     b.HasOne("AuditSphereOps.Domain.Practice.Lead", null)
@@ -2657,12 +2642,6 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasPrincipalKey("FirmId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
-
-                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
-                        .WithMany()
-                        .HasForeignKey("FirmId", "OwnerUserId")
-                        .HasPrincipalKey("FirmId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("AuditSphereOps.Domain.Practice.PracticeClient", null)
                         .WithMany()
@@ -2673,12 +2652,6 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("AuditSphereOps.Domain.Practice.Proposal", b =>
                 {
-                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
-                        .WithMany()
-                        .HasForeignKey("FirmId", "ApprovedByUserId")
-                        .HasPrincipalKey("FirmId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.HasOne("AuditSphereOps.Domain.Practice.Opportunity", null)
                         .WithMany()
                         .HasForeignKey("FirmId", "OpportunityId")

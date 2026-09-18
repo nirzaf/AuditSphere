@@ -23,6 +23,6 @@ public sealed class AcceptanceDecision
   public string Decision { get; set; } = "Pending"; // Pending|Accepted|AcceptedWithConditions|Declined
   public string ServiceRoute { get; set; } = string.Empty;
   public long Generation { get; set; } = 1;         // §22: approvals bind to generation
-  public Guid DecidedByUserId { get; set; }
-  public DateTimeOffset DecidedAt { get; set; }
+  public Guid? DecidedByUserId { get; set; }
+  public DateTimeOffset? DecidedAt { get; set; }
 }
