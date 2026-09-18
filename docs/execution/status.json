@@ -14,12 +14,12 @@
   "active": {
     "packageId": "Checklist #11: revision/generation-bound approvals",
     "issueNumber": null,
-    "branch": "codex/checklist-11-approvals",
-    "pullRequestNumber": null,
-    "headCommit": "94a8da3",
+    "branch": "master",
+    "pullRequestNumber": 6,
+    "headCommit": "87e2523dcc276d5a358d7bcbe2015d5f744efa4a",
     "implementationStatus": "IMPLEMENTED",
     "acceptanceStatus": "LOCAL_VERIFIED",
-    "worktree": "Checklist #11 implementation commit 94a8da3 is present on codex/checklist-11-approvals; the owner-authorized PR is not yet opened. No independent human reviewer evidence is present.",
+    "worktree": "Checklist #11 implementation commit 94a8da3 was merged by owner-authorized PR #6 as 87e2523 on master. No independent human reviewer evidence is present.",
     "scope": "Checklist #11 only: workpaper approval binding to target revision, client input generation and firm policy generation, immutable approval history, current applicability projection, and stale rejection.",
     "productionEnabled": false
   },
@@ -34,11 +34,11 @@
     },
     {
       "command": "dotnet build AuditSphereOps.slnx",
-      "result": "Build succeeded, 0 warnings, 0 errors at checklist #11 implementation commit 94a8da3."
+      "result": "Build succeeded, 0 warnings, 0 errors at checklist #11 implementation commit 94a8da3; the implementation was subsequently merged as 87e2523."
     },
     {
       "command": "dotnet test AuditSphereOps.slnx --no-build",
-      "result": "Passed 88/88 on PostgreSQL 18.6; 0 skipped at checklist #11 implementation commit 94a8da3. Includes two approval binding/staleness tests and legacy migration coverage, plus the prior CRM, time/budget, billing, ledger, document, accounting, authorization, and outbox coverage."
+      "result": "Passed 88/88 on PostgreSQL 18.6; 0 skipped at checklist #11 implementation commit 94a8da3, subsequently merged as 87e2523. Includes two approval binding/staleness tests and legacy migration coverage, plus the prior CRM, time/budget, billing, ledger, document, accounting, authorization, and outbox coverage."
     },
     {
       "command": "dotnet ef database update --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Web --no-build",
@@ -92,10 +92,10 @@
     {
       "classification": "authorization-review",
       "gate": "Independent review and PR/merge",
-      "missing": "Checklist #11 has no independent human review evidence; PR #1, PR #2, PR #3, PR #4, and PR #5 merged without independent human review",
-      "ownerAction": "Open and complete the owner-authorized checklist #11 PR; obtain independent review evidence before treating the slice as fully accepted."
+      "missing": "Checklist #11 has no independent human review evidence; PR #1, PR #2, PR #3, PR #4, PR #5, and PR #6 merged without independent human review",
+      "ownerAction": "Obtain independent review evidence before treating the merged slices as fully accepted."
     }
   ],
-  "nextPermittedAction": "Open the owner-authorized checklist #11 PR, run its checks, and verify the merge.",
-  "lastVerifiedAt": "2026-09-18T13:23:07Z"
+  "nextPermittedAction": "Begin dependency-ordered checklist #12: release-gate integrity; independent human review evidence remains outstanding.",
+  "lastVerifiedAt": "2026-09-18T13:26:28Z"
 }
