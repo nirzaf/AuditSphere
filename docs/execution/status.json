@@ -15,11 +15,11 @@
     "packageId": "Checklist #8: ND-07 billing artifacts and receipt allocation",
     "issueNumber": null,
     "branch": "codex/checklist-8-billing",
-    "pullRequestNumber": null,
+    "pullRequestNumber": 3,
     "headCommit": "88e3409a4796c667aadc855e91b4eb25b53ed324",
     "implementationStatus": "IMPLEMENTED",
     "acceptanceStatus": "LOCAL_VERIFIED",
-    "worktree": "Checklist #8 implementation commit 88e3409 is complete; execution documentation is being updated before the owner-authorized PR is opened. No independent human reviewer evidence is present.",
+    "worktree": "Checklist #8 implementation commit 88e3409 and execution documentation are pushed on codex/checklist-8-billing; owner-authorized PR #3 is open. No independent human reviewer evidence is present.",
     "scope": "Checklist #8 only: scoped billing accounts, invoice/credit/receipt/allocation commands, finance-profile gating, balance limits, source-allocation uniqueness, and posted-history immutability.",
     "productionEnabled": false
   },
@@ -92,10 +92,10 @@
     {
       "classification": "authorization-review",
       "gate": "Independent review and PR/merge",
-      "missing": "Checklist #8 has no independent human review evidence; PR #1 and PR #2 merged without independent human review and the checklist #8 PR is not yet open",
-      "ownerAction": "Open and complete the owner-authorized checklist #8 PR; obtain independent review evidence before treating the slice as fully accepted."
+      "missing": "Checklist #8 has no independent human review evidence; PR #1 and PR #2 merged without independent human review and PR #3 is open",
+      "ownerAction": "Complete the owner-authorized checklist #8 PR #3; obtain independent review evidence before treating the slice as fully accepted."
     }
   ],
-  "nextPermittedAction": "Push commit 88e3409, open the owner-authorized checklist #8 PR against master, run its checks, and verify the merge.",
-  "lastVerifiedAt": "2026-09-18T11:58:04Z"
+  "nextPermittedAction": "Run checks on owner-authorized PR #3 for checklist #8 and verify the merge.",
+  "lastVerifiedAt": "2026-09-18T12:02:09Z"
 }
