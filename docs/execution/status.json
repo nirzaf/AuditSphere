@@ -12,15 +12,15 @@
     "postgres": "18.6 Homebrew user-local port 5433 (development only)"
   },
   "active": {
-    "packageId": "Checklist #14 follow-up: scoped PBC requests and controlled upload boundary",
+    "packageId": "Checklist #14 follow-up: capability-bound PBC chunk transport and controlled upload boundary",
     "issueNumber": null,
     "branch": "master",
     "pullRequestNumber": null,
-    "headCommit": "a8062b4bb208c963fd77c25285e07026980c948d",
+    "headCommit": "6e31ab5298f40f1ded4b27007e82b7751708b72d",
     "implementationStatus": "PARTIAL",
     "acceptanceStatus": "LOCAL_AND_HOSTED_CI_VERIFIED",
-    "worktree": "Commit a8062b4 adds a scoped PBC request state machine, bounded upload intents, sequential immutable chunk receipts, reviewer-gated trusted completion, client/staff portal routes, and the prior financial-statement/CI controls. Local verification passed; hosted run 35375711799 passed every CI step on head a8062b4; no independent human reviewer evidence is present.",
-    "scope": "Checklist #14 follow-up: deterministic accounting package inputs plus scoped PBC/upload persistence, client/staff views, guarded migration/restore evidence, committed lock-file cache inputs, and hosted CI execution.",
+    "worktree": "Commit 6e31ab5 adds a capability-bound same-origin PBC chunk endpoint: the browser sends sequential 8 MiB chunks, the server streams each chunk to a generated staging path outside webroot, verifies origin/capability/scope/offset/length/hash, and records the immutable receipt only after verification. Local verification passed; hosted run 35377533259 passed every CI step on head 6e31ab5; no independent human reviewer evidence is present.",
+    "scope": "Checklist #14 follow-up: deterministic accounting package inputs plus scoped PBC/upload persistence, capability-bound browser chunk transport, client/staff views, guarded migration/restore evidence, committed lock-file cache inputs, and hosted CI execution.",
     "productionEnabled": false
   },
   "testEvidence": [
@@ -34,31 +34,31 @@
     },
     {
       "command": "dotnet build AuditSphereOps.slnx",
-      "result": "Build succeeded, 0 warnings, 0 errors at local follow-up commit a8062b4."
+      "result": "Build succeeded, 0 warnings, 0 errors at implementation commit 6e31ab5."
     },
     {
       "command": "dotnet test AuditSphereOps.slnx --no-build",
-      "result": "Passed 94/94 on PostgreSQL 18.6; 0 skipped at local follow-up commit a8062b4. Includes PBC state/upload sequencing, idempotent chunk replay, offset/hash enforcement, trusted completion and immutable chunk evidence, cash-flow bridge/disclosure validation, supplementary-artifact immutability, mapping/package determinism, release/approval binding, and the prior CRM, time/budget, billing, ledger, document, accounting, authorization, and outbox coverage."
+      "result": "Passed 94/94 on PostgreSQL 18.6; 0 skipped at implementation commit 6e31ab5. Includes capability-bound PBC state/upload sequencing, idempotent chunk replay, offset/hash/length enforcement, streamed staging outside webroot, trusted completion and immutable chunk evidence, cash-flow bridge/disclosure validation, supplementary-artifact immutability, mapping/package determinism, release/approval binding, and the prior CRM, time/budget, billing, ledger, document, accounting, authorization, and outbox coverage."
     },
     {
       "command": "dotnet ef database update --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Web --no-build",
-      "result": "Applied 20260918173327_PbcUploadWorkflow; local auditsphere is now up to date with seventeen migrations. The migration adds scoped PBC/upload/chunk tables and an append-only chunk trigger; downgrade refuses populated PBC evidence."
+      "result": "Applied 20260918175205_PbcUploadCapability; local auditsphere is now up to date with eighteen migrations. The migration adds a stored capability hash and server-staged-path column; upgrade refuses existing upload intents because capability material cannot be reconstructed, and downgrade refuses populated PBC evidence."
     },
     {
       "command": "dotnet ef migrations list --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Web --no-build",
-      "result": "All seventeen migrations through PbcUploadWorkflow are present; database update reports no pending migrations."
+      "result": "All eighteen migrations through PbcUploadCapability are present; database update reports no pending migrations."
     },
     {
       "command": "psql read-only version/trigger/constraint queries against 127.0.0.1:5433/auditsphere",
-      "result": "PostgreSQL 18.6; local probe found the financial-statement artifact triggers, scoped mapping/package/supplementary constraints, PBC scope checks and the immutable chunk trigger, with latest migration 20260918173327_PbcUploadWorkflow. No production database was touched."
+      "result": "PostgreSQL 18.6; local probe found the financial-statement artifact triggers, scoped mapping/package/supplementary constraints, PBC scope checks, the immutable chunk trigger, and the capability/staged-path columns, with latest migration 20260918175205_PbcUploadCapability. No production database was touched."
     },
     {
       "command": "dotnet run --project src/AuditSphereOps.Web --no-build --urls http://127.0.0.1:5099 plus HTTP smoke requests",
-      "result": "Web host started cleanly at a8062b4; /, /health/live, /health/ready, /app, /portal, /portal/requests/{guid}, and /app/engagements/{guid}/pbc returned HTTP 200. With OIDC unset, staff and client surfaces remained locked; no demo actor was used."
+      "result": "Web host started cleanly at 6e31ab5; /, /health/live, /health/ready, /app, /portal, /portal/requests/{guid}, /app/engagements/{guid}/pbc, and /pbc-upload.js returned HTTP 200. An unauthenticated POST to the bounded chunk route returned HTTP 401. With OIDC unset, staff and client surfaces remained locked; no demo actor was used."
     },
     {
       "command": "scripts/db/restore-drill.sh",
-      "result": "Loopback-only custom-format dump/restore passed. The drill compared source and restored migration count/latest ID, restored seventeen migrations with latest 20260918173327_PbcUploadWorkflow, and removed only its generated database and temporary directory."
+      "result": "Loopback-only custom-format dump/restore passed. The drill compared source and restored migration count/latest ID, restored eighteen migrations with latest 20260918175205_PbcUploadCapability, and removed only its generated database and temporary directory."
     },
     {
       "command": "Migration-aware readiness smoke",
@@ -66,15 +66,15 @@
     },
     {
       "command": "Current master local gates",
-      "result": "At implementation commit a8062b4: locked restore completed; dotnet build completed with 0 warnings and 0 errors; dotnet test passed 94/94 with 0 skipped; scripts/db/restore-drill.sh restored PostgreSQL 18.6 with all seventeen migrations; readiness body was Healthy; /, /health/live, /health/ready, /app, /portal, /portal/requests/{guid}, and /app/engagements/{guid}/pbc returned HTTP 200, and OIDC-unset protected pages remained locked."
+      "result": "At implementation commit 6e31ab5: locked restore completed; dotnet build completed with 0 warnings and 0 errors; dotnet test passed 94/94 with 0 skipped; scripts/db/restore-drill.sh restored PostgreSQL 18.6 with all eighteen migrations; readiness body was Healthy; /, /health/live, /health/ready, /app, /portal, /portal/requests/{guid}, /app/engagements/{guid}/pbc, and /pbc-upload.js returned HTTP 200; the unauthenticated chunk route returned HTTP 401; and OIDC-unset protected pages remained locked."
     },
     {
       "command": "Historical gh pr checks 10 / gh run view 35354557550",
       "result": "GitGuardian passed. The superseded hosted build-test-ready job did not start because recent account payments failed or the GitHub Actions spending limit needed attention."
     },
     {
-      "command": "gh run view 35375711799 --repo nirzaf/AuditSphere",
-      "result": "Hosted AuditSphereOps CI passed on head a8062b4; setup-dotnet, tool restore, restore, build, EF migration, 94-test suite, migration-aware readiness, and cleanup all passed. The forced Node 24/Node 20 deprecation annotation and punycode warning were informational only."
+      "command": "gh run view 35377533259 --repo nirzaf/AuditSphere",
+      "result": "Hosted AuditSphereOps CI passed on head 6e31ab5; setup-dotnet, tool restore, restore, build, EF migration, 94-test suite, migration-aware readiness, and cleanup all passed. The forced Node 24/Node 20 deprecation annotation and punycode warning were informational only."
     }
   ],
   "tenantEvidence": [
@@ -110,8 +110,8 @@
     {
       "classification": "implementation-gap",
       "gate": "Schema integrity, UI and recovery controls (spec §§27, 42, 43, 45)",
-      "missing": "Generated financial-statement artifacts/rendering, remaining entity FKs, full route catalog beyond the PBC slice, actual bounded byte-stream endpoint and SharePoint transfer, full signing/protection evidence, live provider adapters, production/cross-store recovery evidence and recovery UI",
-      "ownerAction": "Complete the remaining staff/client routes, trusted byte transport/provider boundary, operator recovery controls and artifact rendering; external production gates remain blocked."
+      "missing": "Generated financial-statement artifacts/rendering, remaining entity FKs, full route catalog beyond the PBC slice, trusted final-completion/worker/provider SharePoint transfer, full signing/protection evidence, live provider adapters, production/cross-store recovery evidence and recovery UI",
+      "ownerAction": "Complete the remaining staff/client routes, trusted final-completion/provider boundary, operator recovery controls and artifact rendering; external production gates remain blocked."
     },
     {
       "classification": "authorization-review",
@@ -120,6 +120,6 @@
       "ownerAction": "Obtain independent review evidence before treating the merged slices as fully accepted."
     }
   ],
-  "nextPermittedAction": "Continue the remaining scoped staff/client route catalog with operator recovery and generated artifact rendering, then obtain independent human review plus owner-authorized tenant/professional evidence. Production recovery remains unproven.",
-  "lastVerifiedAt": "2026-09-18T17:42:54Z"
+  "nextPermittedAction": "Continue the remaining scoped staff/client route catalog with operator recovery and generated artifact rendering, then complete the trusted final-completion/provider boundary and obtain independent human review plus owner-authorized tenant/professional evidence. Production recovery remains unproven.",
+  "lastVerifiedAt": "2026-09-18T18:06:55Z"
 }

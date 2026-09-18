@@ -150,13 +150,13 @@ The integration test requires PostgreSQL at `127.0.0.1:5433` and the `auditspher
 - **`docs/execution/current-slice.md`** — the verified local state and concise serialization of what was actually executed.
 - **Using the spec:** read `AuditSphereOps_NET_Codex_Implementation_Specification.md` (§§1–12, 22, 24, 27–33, 41–47) plus only the sections for the active issue.
 
-As of the last verification pass: **94/94 tests passed** on PostgreSQL 18.6, seventeen migrations applied, local locked restore and build completed with zero warnings, the source-relative local restore rehearsal passed, readiness returned healthy with no pending migrations, and hosted CI run `35375711799` passed all steps. The Entra/SharePoint/Purview production gates remain **recorded blockers** pending owner-authorized evidence.
+As of the last verification pass: **94/94 tests passed** on PostgreSQL 18.6, eighteen migrations applied, local locked restore and build completed with zero warnings, the source-relative local restore rehearsal passed, readiness returned healthy with no pending migrations, and hosted CI run `35377533259` passed all steps on `6e31ab5`. The Entra/SharePoint/Purview production gates remain **recorded blockers** pending owner-authorized evidence.
 
 ## Implementation roadmap
 
 The build advances through **14 dependency-ordered checklist slices** (spec §31–§32), each landing as a reviewed PR with executed test evidence. Slices may not weaken controls, and a slice is accepted only with independent review evidence.
 
-**Delivered (checklists #1–#12 plus initial #13/#14 controls and the local mapping/FS/PBC follow-up, verified locally — 94/94 tests, seventeen migrations):**
+**Delivered (checklists #1–#12 plus initial #13/#14 controls and the local mapping/FS/PBC follow-up, verified locally — 94/94 tests, eighteen migrations):**
 
 - Security & authorization integrity — `ActorContext`, scope/role matrix, firm→client→engagement guards, finance-role separation
 - Trial-balance intake & validation engine — Appendix D fixture, database-level `ck_tb_validation_status` control
@@ -176,7 +176,7 @@ The build advances through **14 dependency-ordered checklist slices** (spec §31
 
 - Financial-statement rendering, disclosures/cash-flow inputs, and the remaining entity foreign keys/data-model completion
 - Live provider adapters (Entra/Graph/SharePoint/Purview) behind the external-effect fence
-- Full UI surfaces and authorized operator recovery tooling
+- Full UI surfaces, trusted final-completion/provider delivery, and authorized operator recovery tooling
 - Production-grade cross-store recovery
 
 The external production gates (live Entra tenant, selected SharePoint grants, Purview records profile, signing methodology) stay **blocked** until owner-authorized evidence arrives; see `docs/execution/status.json`.
