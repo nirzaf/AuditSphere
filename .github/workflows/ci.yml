@@ -15,7 +15,7 @@ jobs:
       postgres:
         image: postgres:18
         env:
-          POSTGRES_PASSWORD: postgres
+          POSTGRES_HOST_AUTH_METHOD: trust
           POSTGRES_DB: auditsphere_tests
         ports:
           - 5433:5432
@@ -25,9 +25,9 @@ jobs:
           --health-timeout 5s
           --health-retries 20
     env:
-      AUDITSPHERE_TEST_CONNECTION: Host=127.0.0.1;Port=5433;Database=auditsphere_tests;Username=postgres;Password=postgres
-      ConnectionStrings__AuditSphere: Host=127.0.0.1;Port=5433;Database=auditsphere_tests;Username=postgres;Password=postgres
-      AUDITSPHERE_EF_CONNECTION: Host=127.0.0.1;Port=5433;Database=auditsphere_tests;Username=postgres;Password=postgres
+      AUDITSPHERE_TEST_CONNECTION: Host=127.0.0.1;Port=5433;Database=auditsphere_tests;Username=postgres
+      ConnectionStrings__AuditSphere: Host=127.0.0.1;Port=5433;Database=auditsphere_tests;Username=postgres
+      AUDITSPHERE_EF_CONNECTION: Host=127.0.0.1;Port=5433;Database=auditsphere_tests;Username=postgres
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
