@@ -3,6 +3,7 @@ using AuditSphereOps.Domain.Acceptance;
 using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Engagements;
+using AuditSphereOps.Domain.Documents;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Shared;
@@ -27,6 +28,8 @@ public interface IAuditSphereDbContext : IAsyncDisposable
   DbSet<AdjustmentPlanLine> AdjustmentPlanLines { get; }
   DbSet<Engagement> Engagements { get; }
   DbSet<EngagementHold> EngagementHolds { get; }
+  DbSet<DocumentReference> DocumentReferences { get; }
+  DbSet<DocumentSnapshot> DocumentSnapshots { get; }
   DbSet<EvaluationResponse> EvaluationResponses { get; }
   DbSet<AcceptanceDecision> AcceptanceDecisions { get; }
   DbSet<Lead> Leads { get; }

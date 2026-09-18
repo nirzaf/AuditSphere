@@ -373,6 +373,8 @@ public sealed class AuthorizationDecisionTests
     public DbSet<AuditSphereOps.Domain.Accounting.AdjustmentPlanLine> AdjustmentPlanLines => db.AdjustmentPlanLines;
     public DbSet<Engagement> Engagements => db.Engagements;
     public DbSet<EngagementHold> EngagementHolds => db.EngagementHolds;
+    public DbSet<AuditSphereOps.Domain.Documents.DocumentReference> DocumentReferences => db.DocumentReferences;
+    public DbSet<AuditSphereOps.Domain.Documents.DocumentSnapshot> DocumentSnapshots => db.DocumentSnapshots;
     public DbSet<EvaluationResponse> EvaluationResponses => db.EvaluationResponses;
     public DbSet<AcceptanceDecision> AcceptanceDecisions => db.AcceptanceDecisions;
     public DbSet<Lead> Leads => db.Leads;
