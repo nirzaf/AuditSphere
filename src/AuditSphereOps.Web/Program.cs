@@ -1,6 +1,8 @@
 using System.Buffers;
 using System.Security.Cryptography;
+using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Application.Documents;
+using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Domain.Shared;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication;
@@ -63,6 +65,18 @@ if (oidcConfigured)
 builder.Services.AddAuthorization();
 builder.Services.AddScoped<CurrentActorResolver>();
 builder.Services.AddScoped<TrustedActorResolver>();
+
+// Durable operation enqueue boundary for trusted PBC completion (§43.5 item 5). The web host
+// records transfer intents in the durable outbox inside the completion transaction; it never
+// executes provider effects and never claims operations, so no claim registry is registered.
+// The simulated sink is harmless here: simulated execution requires the Test worker
+// composition, and this host only records queue entries.
+builder.Services.AddSingleton<IAuditSphereDbContextFactory, OperationContextFactory>();
+builder.Services.AddSingleton<IOperationStore, PostgresOperationStore>();
+var simulationSinkRoot = builder.Configuration["Storage:PbcProviderSimulationRoot"]
+  ?? Path.Combine(Path.GetTempPath(), "AuditSphereOps", "pbc-provider-simulation");
+builder.Services.AddSingleton<IPbcProviderSink>(new SimulationPbcProviderSink(simulationSinkRoot));
+builder.Services.AddSingleton<PbcDocumentTransferHandler>();
 
 // Liveness/readiness split (§45.4): self = always; ready = DB reachable (custom check, no extra package).
 builder.Services.AddHealthChecks()

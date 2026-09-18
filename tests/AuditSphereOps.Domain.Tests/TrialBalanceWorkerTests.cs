@@ -96,7 +96,7 @@ public sealed class TrialBalanceWorkerTests
     var handler = new TrialBalanceValidationHandler();
     var registry = new DurableOperationRegistry([handler], options);
     return new(new OperationDispatcher(store, registry, options),
-      new TrialBalanceDiscovery(factory, store, handler, options), NullLogger<TbWorker>.Instance);
+      [new TrialBalanceDiscovery(factory, store, handler, options)], NullLogger<TbWorker>.Instance);
   }
 
   private sealed class DbContextFactory(DbContextOptions<AuditSphereDbContext> options)

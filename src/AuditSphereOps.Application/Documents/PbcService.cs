@@ -5,6 +5,7 @@ using AuditSphereOps.Domain.Documents;
 using AuditSphereOps.Domain.Shared;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Cryptography;
+using System.Text.Json;
 
 namespace AuditSphereOps.Application.Documents;
 
@@ -274,6 +275,9 @@ public static class PbcService
       await tx.CommitAsync(ct);
       return CommandResult<PbcUploadReceipt>.Fail("pbc.upload-expired", "The upload capability expired.");
     }
+    if (intent.State is not (PbcUploadStates.Started or PbcUploadStates.Chunking))
+      return CommandResult<PbcUploadReceipt>.Fail("pbc.chunk-state",
+        "The upload intent no longer accepts new chunks.");
     var expectedIndex = await db.PbcUploadChunks.CountAsync(x =>
       x.FirmId == actor.FirmId && x.PbcUploadIntentId == intent.Id, ct);
     if (input.ChunkIndex != expectedIndex || input.Offset != intent.ReceivedByteCount)
@@ -297,8 +301,16 @@ public static class PbcService
       intent.State, intent.ReceivedByteCount, intent.Revision));
   }
 
+  /// <summary>
+  /// Trusted final-completion boundary (spec 43.5 item 5). Staff-gated: every staged chunk is
+  /// re-read, its receipt digest re-verified, the combined SHA-256 checked against the declared
+  /// hash and an executable-content signature is rejected independently of extension/MIME.
+  /// On success the intent becomes STAGED and a durable TransferPbcDocument.v1 operation is
+  /// queued in the same transaction. The PBC request is never RECEIVED from this command.
+  /// </summary>
   public static async Task<CommandResult<PbcUploadReceipt>> CompleteUploadAsync(
     IAuditSphereDbContext db, ActorContext actor, CompletePbcUploadRequest input,
+    IOperationStore operationStore, PbcDocumentTransferHandler transferHandler,
     CancellationToken ct = default)
   {
     if (input.UploadIntentId == Guid.Empty || !IsSha256(input.FinalSha256Hex))
@@ -318,7 +330,7 @@ public static class PbcService
       """).SingleOrDefaultAsync(ct);
     if (intent is null)
       return CommandResult<PbcUploadReceipt>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    if (intent.State == PbcUploadStates.Received)
+    if (intent.State is PbcUploadStates.Staged or PbcUploadStates.Received)
     {
       return string.Equals(intent.FinalSha256Hex, input.FinalSha256Hex, StringComparison.OrdinalIgnoreCase)
         ? CommandResult<PbcUploadReceipt>.Ok(new PbcUploadReceipt(intent.Id, intent.PbcRequestId,
@@ -330,23 +342,113 @@ public static class PbcService
     if (!string.Equals(intent.DeclaredSha256Hex, input.FinalSha256Hex, StringComparison.OrdinalIgnoreCase))
       return CommandResult<PbcUploadReceipt>.Fail("pbc.hash-mismatch", "The completed content hash does not match the declared content.");
 
-    var request = await db.PbcRequests.FromSqlInterpolated($"""
-      SELECT * FROM pbc_requests WHERE firm_id = {actor.FirmId} AND id = {intent.PbcRequestId} FOR UPDATE
-      """).SingleOrDefaultAsync(ct);
-    if (request is null)
-      return CommandResult<PbcUploadReceipt>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    intent.State = PbcUploadStates.Received;
+    var staged = await VerifyStagedChunksAsync(db, actor.FirmId, intent, ct);
+    if (staged.Error is not null)
+      return CommandResult<PbcUploadReceipt>.Fail(staged.Error, staged.Message);
+
+    var nextRevision = intent.Revision + 1;
+    var requestPayload = JsonSerializer.Serialize(new
+    {
+      uploadIntentId = intent.Id.ToString("D"),
+      intentRevision = nextRevision,
+      finalSha256Hex = intent.DeclaredSha256Hex.ToLowerInvariant(),
+      declaredByteCount = intent.DeclaredByteCount
+    });
+    CommandResult<Guid> enqueued;
+    try
+    {
+      enqueued = await operationStore.EnqueueAsync(db, new OperationRequest(
+        actor.FirmId, intent.ClientId, intent.EngagementId, PbcDocumentTransferHandler.Kind,
+        intent.Id, nextRevision, "pbc-transfer:" + intent.Id.ToString("D") + ":" + nextRevision.ToString(System.Globalization.CultureInfo.InvariantCulture),
+        requestPayload, actor.UserId), transferHandler, ct);
+    }
+    catch (OperationBlockedException)
+    {
+      enqueued = CommandResult<Guid>.Fail("pbc.transfer-request", "The transfer operation request was refused.");
+    }
+    if (!enqueued.Succeeded)
+      return CommandResult<PbcUploadReceipt>.Fail(enqueued.ErrorCode!, enqueued.Message!);
+
+    intent.State = PbcUploadStates.Staged;
+    intent.TransferOperationId = enqueued.Value;
     intent.CompletedAt = DateTimeOffset.UtcNow;
     intent.FinalSha256Hex = input.FinalSha256Hex.ToLowerInvariant();
-    intent.Revision++;
-    request.State = PbcStates.Received;
-    request.Revision++;
-    request.UpdatedAt = intent.CompletedAt.Value;
+    intent.Revision = nextRevision;
     await db.SaveChangesAsync(ct);
     await tx.CommitAsync(ct);
     return CommandResult<PbcUploadReceipt>.Ok(new PbcUploadReceipt(intent.Id, intent.PbcRequestId,
       intent.State, intent.ReceivedByteCount, intent.Revision));
   }
+
+  private sealed record StagedVerification(string? Error = null, string Message = "")
+  {
+    public static StagedVerification Ok() => new();
+    public static StagedVerification Fail(string error, string message) => new(error, message);
+  }
+
+  /// <summary>Streams every staged chunk in receipt order, re-verifying its digest, the
+  /// contiguous offsets, the total byte count and the combined declared SHA-256. Returns the
+  /// first failure, including a non-executable content-signature verdict.</summary>
+  private static async Task<StagedVerification> VerifyStagedChunksAsync(
+    IAuditSphereDbContext db, Guid firmId, PbcUploadIntent intent, CancellationToken ct)
+  {
+    var chunks = await db.PbcUploadChunks.AsNoTracking()
+      .Where(x => x.FirmId == firmId && x.PbcUploadIntentId == intent.Id)
+      .OrderBy(x => x.ChunkIndex).ToListAsync(ct);
+    if (chunks.Count == 0 || chunks[0].ChunkIndex != 0)
+      return StagedVerification.Fail("pbc.staging-unverifiable", "No staged chunk receipts are available.");
+    using var combined = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+    var buffer = new byte[64 * 1024];
+    var head = new byte[8];
+    var headLength = 0;
+    long total = 0;
+    foreach (var chunk in chunks)
+    {
+      if (chunk.Offset != total || string.IsNullOrWhiteSpace(chunk.StagedPath) || !File.Exists(chunk.StagedPath))
+        return StagedVerification.Fail("pbc.staging-unverifiable", "A staged chunk is missing from the bounded staging volume.");
+      using var digest = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+      await using var stream = new FileStream(chunk.StagedPath, FileMode.Open, FileAccess.Read,
+        FileShare.Read, buffer.Length, options: FileOptions.Asynchronous | FileOptions.SequentialScan);
+      long count = 0;
+      int read;
+      while ((read = await stream.ReadAsync(buffer.AsMemory(0, buffer.Length), ct)) > 0)
+      {
+        count += read;
+        if (count > chunk.ByteCount)
+          return StagedVerification.Fail("pbc.staging-unverifiable", "A staged chunk is longer than its recorded receipt.");
+        digest.AppendData(buffer, 0, read);
+        combined.AppendData(buffer, 0, read);
+        if (headLength < 8)
+        {
+          var take = Math.Min(8 - headLength, read);
+          buffer.AsSpan(0, take).CopyTo(head.AsSpan(headLength));
+          headLength += take;
+        }
+      }
+      if (count != chunk.ByteCount ||
+          !string.Equals(Convert.ToHexString(digest.GetHashAndReset()).ToLowerInvariant(),
+            chunk.Sha256Hex, StringComparison.OrdinalIgnoreCase))
+        return StagedVerification.Fail("pbc.staging-unverifiable", "A staged chunk does not match its recorded digest.");
+      total += count;
+    }
+    if (total != intent.ReceivedByteCount || total != intent.DeclaredByteCount ||
+        !string.Equals(Convert.ToHexString(combined.GetHashAndReset()).ToLowerInvariant(),
+          intent.DeclaredSha256Hex, StringComparison.OrdinalIgnoreCase))
+      return StagedVerification.Fail("pbc.staging-unverifiable", "The staged bytes do not match the declared content identity.");
+    if (IsExecutableSignature(head.AsSpan(0, headLength)))
+      return StagedVerification.Fail("pbc.content-rejected",
+        "Executable content is rejected independently of the declared extension or content type.");
+    return StagedVerification.Ok();
+  }
+
+  /// <summary>Conservative magic-number screen: known executable formats are refused before any
+  /// provider transfer. Unknown or document signatures remain subject to the separate,
+  /// sandboxed parsing boundary; no malware-free claim is ever made (spec 43.5 item 5).</summary>
+  private static bool IsExecutableSignature(ReadOnlySpan<byte> head) =>
+    head.Length >= 2 && head[0] == 0x4D && head[1] == 0x5A ||                    // PE/MZ
+    head.Length >= 4 && head[0] == 0x7F && head[1] == (byte)'E' && head[2] == (byte)'L' && head[3] == (byte)'F' || // ELF
+    head.Length >= 4 && head[0] == 0xCA && head[1] == 0xFE && head[2] == 0xBA && head[3] == 0xBE || // Java class
+    head.Length >= 2 && head[0] == (byte)'#' && head[1] == (byte)'!'; // Shebang script
 
   private static async Task<CommandResult> AuthorizeStaffAsync(
     IAuditSphereDbContext db, ActorContext actor, Guid clientId, Guid engagementId, CancellationToken ct) =>

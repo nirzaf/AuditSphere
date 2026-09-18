@@ -1,5 +1,6 @@
 using AuditSphereOps.Worker;
 using AuditSphereOps.Application.Accounting;
+using AuditSphereOps.Application.Documents;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -17,16 +18,43 @@ var workerOptions = new WorkerOptions(firmId, builder.Environment.EnvironmentNam
   builder.Configuration.GetValue<bool>("AllowSimulationAdapters"),
   builder.Configuration.GetValue<bool>("ExternalEffects:Enabled"),
   DeploymentEpoch: builder.Configuration.GetValue("Worker:DeploymentEpoch", 1L));
-var handler = new TrialBalanceValidationHandler();
-var registry = new DurableOperationRegistry([handler], workerOptions);
+
 builder.Services.AddSingleton(workerOptions);
-builder.Services.AddSingleton(handler);
-builder.Services.AddSingleton(registry);
+builder.Services.AddSingleton<TrialBalanceValidationHandler>();
 builder.Services.AddSingleton<IAuditSphereDbContextFactory, OperationContextFactory>();
 builder.Services.AddSingleton<IOperationStore, PostgresOperationStore>();
+
+// Simulation adapters compose only in a Test environment with the explicit enablement flag.
+// In Development the PBC transfer operations remain queued pending an approved provider
+// boundary; the durable queue records the truthful pending state instead of executing.
+var simulationAllowed = workerOptions.EnvironmentName == "Test" && workerOptions.AllowSimulationAdapters;
+if (simulationAllowed)
+{
+  var providerRoot = builder.Configuration["Storage:PbcProviderSimulationRoot"]
+    ?? throw new InvalidOperationException("Storage:PbcProviderSimulationRoot is required for simulated transfers.");
+  builder.Services.AddSingleton<IPbcProviderSink>(new SimulationPbcProviderSink(providerRoot));
+  builder.Services.AddSingleton<PbcDocumentTransferHandler>();
+  builder.Services.AddSingleton<IPendingOperationDiscovery>(sp => new PbcTransferDiscovery(
+    sp.GetRequiredService<IAuditSphereDbContextFactory>(),
+    sp.GetRequiredService<IOperationStore>(),
+    sp.GetRequiredService<PbcDocumentTransferHandler>(),
+    workerOptions));
+}
+
+builder.Services.AddSingleton<IPendingOperationDiscovery>(sp =>
+  sp.GetRequiredService<TrialBalanceDiscovery>());
+builder.Services.AddSingleton(sp => new DurableOperationRegistry(
+  ResolveHandlers(sp, simulationAllowed), workerOptions));
 builder.Services.AddSingleton<OperationDispatcher>();
-builder.Services.AddSingleton<TrialBalanceDiscovery>();
 builder.Services.AddHostedService<Worker>();
 
 var host = builder.Build();
 host.Run();
+
+static IOperationHandler[] ResolveHandlers(IServiceProvider sp, bool simulationAllowed)
+{
+  var validation = sp.GetRequiredService<TrialBalanceValidationHandler>();
+  return simulationAllowed
+    ? [validation, sp.GetRequiredService<PbcDocumentTransferHandler>()]
+    : [validation];
+}

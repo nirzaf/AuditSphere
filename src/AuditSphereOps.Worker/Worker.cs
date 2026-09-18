@@ -1,4 +1,5 @@
 using AuditSphereOps.Application.Accounting;
+using AuditSphereOps.Application.Documents;
 using AuditSphereOps.Application.Operations;
 
 namespace AuditSphereOps.Worker;
@@ -7,7 +8,7 @@ namespace AuditSphereOps.Worker;
 // claimed operations are executed, and retry is idempotent by (firm, idempotency_key).
 public sealed class Worker(
   OperationDispatcher dispatcher,
-  TrialBalanceDiscovery discovery,
+  IEnumerable<IPendingOperationDiscovery> discoveries,
   ILogger<Worker> logger) : BackgroundService
 {
   public async Task<int> DrainAsync(CancellationToken ct = default)
@@ -18,11 +19,13 @@ public sealed class Worker(
   }
 
   /// <summary>
-  /// Claims and processes one queued operation; returns false when nothing is pending.
+  /// Enqueues every registered slice's pending durable work, then claims and processes one
+  /// queued operation; returns false when nothing was claimed.
   /// </summary>
   public async Task<bool> ProcessNextAsync(CancellationToken ct = default)
   {
-    await discovery.EnqueuePendingAsync(ct);
+    foreach (var discovery in discoveries)
+      await discovery.EnqueuePendingAsync(ct);
     return await dispatcher.ProcessNextAsync(ct);
   }
 
@@ -44,4 +47,3 @@ public sealed class Worker(
     }
   }
 }
-

@@ -1,7 +1,11 @@
 @page "/app/engagements/{EngagementId:guid}/pbc"
 @rendermode InteractiveServer
+@using AuditSphereOps.Application.Operations
+@using AuditSphereOps.Domain.Completion
 @inject CurrentActorResolver ActorResolver
 @inject IDbContextFactory<AuditSphereDbContext> DbFactory
+@inject IOperationStore OperationStore
+@inject PbcDocumentTransferHandler TransferHandler
 
 <PageTitle>PBC requests</PageTitle>
 <a class="back-link" href="/app">← Back to portfolio</a>
@@ -25,35 +29,74 @@ else if (_denied)
 }
 else
 {
-  <p class="scope-note">Only request metadata and upload receipts are shown. A received file is not accepted evidence until the assigned reviewer completes suitability review.</p>
-  <section class="card" aria-labelledby="pbc-heading">
-    <h2 id="pbc-heading">@_engagement.ServiceRoute — @_engagement.PeriodStart to @_engagement.PeriodEnd</h2>
-    @if (_requests.Count == 0)
-    {
+  <p class="scope-note">Only request metadata, upload receipts and durable transfer state are shown. A received file is not accepted evidence until the assigned reviewer completes suitability review.</p>
+  @if (_requests.Count == 0)
+  {
+    <section class="card" aria-labelledby="pbc-heading">
+      <h2 id="pbc-heading">@_engagement.ServiceRoute — @_engagement.PeriodStart to @_engagement.PeriodEnd</h2>
       <p class="muted">No PBC requests are recorded for this engagement.</p>
-    }
-    else
+    </section>
+  }
+  else
+  {
+    @foreach (var request in _requests)
     {
-      <div class="table-wrap">
-        <table>
-          <caption class="sr-only">PBC requests for the current engagement</caption>
-          <thead><tr><th scope="col">Area</th><th scope="col">Objective</th><th scope="col">Due</th><th scope="col">State</th><th scope="col">Revision</th></tr></thead>
-          <tbody>
-          @foreach (var request in _requests)
-          {
-            <tr>
-              <td><a href="/app/engagements/@EngagementId/pbc">@request.Area</a></td>
-              <td>@request.Objective</td>
-              <td>@request.DueDate</td>
-              <td><span class="status">@request.State</span></td>
-              <td>@request.Revision</td>
-            </tr>
-          }
-          </tbody>
-        </table>
-      </div>
+      <section class="card" aria-labelledby="@HeadingId(request.Id)">
+        <h2 id="@HeadingId(request.Id)">@request.Area — @request.State</h2>
+        <p class="muted">@request.Objective · due @request.DueDate · revision @request.Revision</p>
+        @if (!_intents.TryGetValue(request.Id, out var intents) || intents.Count == 0)
+        {
+          <p class="muted">No upload intents are recorded for this request.</p>
+        }
+        else
+        {
+          <div class="table-wrap"><table>
+            <caption class="sr-only">Upload intents for request @request.Area</caption>
+            <thead><tr><th scope="col">File</th><th scope="col">Bytes</th><th scope="col">Intent state</th><th scope="col">Transfer state</th><th scope="col">Action</th></tr></thead>
+            <tbody>
+            @foreach (var intent in intents)
+            {
+              var transferState = intent.TransferOperationId is { } operationId &&
+                _operations.TryGetValue(operationId, out var operation) ? operation.Status.ToString() : "—";
+              <tr>
+                <td>@intent.FileName</td>
+                <td>@intent.ReceivedByteCount / @intent.DeclaredByteCount</td>
+                <td><span class="status">@intent.State</span></td>
+                <td><span class="status">@transferState</span></td>
+                <td>
+                  @if (intent.State == PbcUploadStates.Chunking &&
+                       intent.ReceivedByteCount == intent.DeclaredByteCount)
+                  {
+                    <button class="button" @onclick="() => CompleteUploadAsync(intent)"
+                            disabled="@_busy">Complete staged transfer</button>
+                  }
+                  else if (intent.State == PbcUploadStates.Staged)
+                  {
+                    <span class="muted">Awaiting durable transfer</span>
+                  }
+                  else if (intent.State == PbcUploadStates.Received)
+                  {
+                    <span class="muted">Provider registered</span>
+                  }
+                </td>
+              </tr>
+              if (_results.TryGetValue(intent.Id, out var result))
+              {
+                <tr><td colspan="5">
+                  <p class="command-result @(result.Succeeded ? "success-text" : "error-text")" role="status">
+                    @(result.Succeeded
+                      ? "Staged bytes verified; a durable provider transfer is queued. The request is not received until that transfer completes."
+                      : $"Blocked: {result.ErrorCode}")
+                  </p>
+                </td></tr>
+              }
+            }
+            </tbody>
+          </table></div>
+        }
+      </section>
     }
-  </section>
+  }
 }
 
 @code {
@@ -61,9 +104,15 @@ else
   private ActorContext? _actor;
   private Engagement? _engagement;
   private List<PbcRequest> _requests = [];
+  private Dictionary<Guid, List<PbcUploadIntent>> _intents = [];
+  private Dictionary<Guid, DurableOperation> _operations = [];
+  private Dictionary<Guid, CommandResult<PbcUploadReceipt>> _results = [];
   private bool _loading = true;
+  private bool _busy;
   private bool _denied;
   private bool IsStaff => _actor is not null && _actor.Roles.Any(x => x is "Administrator" or "Partner" or "Manager" or "Reviewer" or "Staff" or "AccountingPreparer" or "AccountingReviewer");
+
+  private static string HeadingId(Guid requestId) => "pbc-" + requestId.ToString("N");
 
   protected override async Task OnInitializedAsync()
   {
@@ -80,11 +129,46 @@ else
             InternalOnly: true));
         _denied = !auth.Succeeded;
         if (!_denied)
-          _requests = await db.PbcRequests.AsNoTracking().Where(x =>
-            x.FirmId == _actor.FirmId && x.ClientId == _engagement.PracticeClientId && x.EngagementId == EngagementId)
-            .OrderBy(x => x.DueDate).ThenBy(x => x.Area).ToListAsync();
+          await LoadAsync(db);
       }
     }
     _loading = false;
+  }
+
+  private async Task LoadAsync(IAuditSphereDbContext db)
+  {
+    var actor = _actor!;
+    var engagement = _engagement!;
+    _requests = await db.PbcRequests.AsNoTracking().Where(x =>
+      x.FirmId == actor.FirmId && x.ClientId == engagement.PracticeClientId &&
+      x.EngagementId == EngagementId)
+      .OrderBy(x => x.DueDate).ThenBy(x => x.Area).ToListAsync();
+    var requestIds = _requests.Select(x => x.Id).ToArray();
+    var intents = await db.PbcUploadIntents.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && requestIds.Contains(x.PbcRequestId))
+      .OrderByDescending(x => x.CreatedAt).ToListAsync();
+    _intents = intents.GroupBy(x => x.PbcRequestId).ToDictionary(g => g.Key, g => g.ToList());
+    var operationIds = intents.Where(x => x.TransferOperationId.HasValue)
+      .Select(x => x.TransferOperationId!.Value).Distinct().ToArray();
+    _operations = await db.DurableOperations.AsNoTracking()
+      .Where(o => o.FirmId == actor.FirmId && operationIds.Contains(o.Id))
+      .ToDictionaryAsync(o => o.Id);
+  }
+
+  private async Task CompleteUploadAsync(PbcUploadIntent intent)
+  {
+    if (_actor is null || _busy) return;
+    _busy = true;
+    try
+    {
+      await using var db = await DbFactory.CreateDbContextAsync();
+      // The staff boundary verifies the staged bytes and binds a durable transfer; the declared
+      // hash is the only admissible final identity.
+      _results[intent.Id] = await PbcService.CompleteUploadAsync(db, _actor,
+        new CompletePbcUploadRequest(intent.Id, intent.DeclaredSha256Hex),
+        OperationStore, TransferHandler);
+      await LoadAsync(db);
+    }
+    finally { _busy = false; }
   }
 }

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using AuditSphereOps.Application.Documents;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Shared;
@@ -68,7 +69,7 @@ public sealed class TrialBalanceValidationHandler : IOperationHandler
 }
 
 public sealed class TrialBalanceDiscovery(IAuditSphereDbContextFactory factory, IOperationStore store,
-  TrialBalanceValidationHandler handler, WorkerOptions options)
+  TrialBalanceValidationHandler handler, WorkerOptions options) : IPendingOperationDiscovery
 {
   public async Task<int> EnqueuePendingAsync(CancellationToken ct)
   {

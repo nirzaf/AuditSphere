@@ -20,6 +20,10 @@ public static class PbcUploadStates
 {
   public const string Started = "STARTED";
   public const string Chunking = "CHUNKING";
+  // STAGED: every declared byte was durably staged and its combined digest verified at the
+  // trusted completion boundary; a durable provider transfer operation is queued and the
+  // PBC request is not RECEIVED until that transfer completes or reconciles (§43.5).
+  public const string Staged = "STAGED";
   public const string Received = "RECEIVED";
   public const string Failed = "FAILED";
   public const string Expired = "EXPIRED";
@@ -74,6 +78,11 @@ public sealed class PbcUploadIntent
   public DateTimeOffset? CompletedAt { get; set; }
   public string? FinalSha256Hex { get; set; }
   public string? FailureReason { get; set; }
+  // Provider handoff evidence (§43.5 items 6–7): the durable transfer operation and the
+  // verified provider registration are recorded before the intent is RECEIVED.
+  public Guid? TransferOperationId { get; set; }
+  public string? ProviderReceiptDigest { get; set; }
+  public DateTimeOffset? ProviderRegisteredAt { get; set; }
   public long Revision { get; set; } = 1;
 }
 

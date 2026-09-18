@@ -156,9 +156,10 @@ public sealed class AdjustmentBridgeTests
     var factory = new OperationContextFactory(new DbFactory(pg.Options));
     var store = new PostgresOperationStore(factory);
     var options = new WorkerOptions(firmId, "Test");
-    var worker = new TbWorker(new OperationDispatcher(store, new([new TrialBalanceValidationHandler()], options), options),
-      new TrialBalanceDiscovery(factory, store, new TrialBalanceValidationHandler(), options),
-      NullLogger<TbWorker>.Instance);
+    var handler = new TrialBalanceValidationHandler();
+    var discovery = new TrialBalanceDiscovery(factory, store, handler, options);
+    var worker = new TbWorker(new OperationDispatcher(store, new([handler], options), options),
+      [discovery], NullLogger<TbWorker>.Instance);
     while (await worker.ProcessNextAsync()) { }
   }
 
