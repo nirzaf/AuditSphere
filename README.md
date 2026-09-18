@@ -7,7 +7,7 @@
 
 **AuditSphereOps** is a professional audit, accounting & assurance operations platform — a .NET 10 modular monolith covering the complete engagement lifecycle: client acceptance, practice management, trial-balance intake, financial-statement production, audit execution, review, controlled signing/release, and records retention.
 
-> **Status: implementation in progress.** This repository is a specification-driven build, currently at checklist #13 of 14 dependency-ordered slices. A green UI or a mocked provider is **not** production evidence — external gates (Entra tenant, SharePoint grants, Purview profile, signing methodology) remain explicitly blocked until owner-authorized, and are never fake-passed.
+> **Status: implementation in progress.** This repository is a specification-driven build, currently at checklist #14 of 14 dependency-ordered slices. A green UI or a mocked provider is **not** production evidence — external gates (Entra tenant, SharePoint grants, Purview profile, signing methodology) remain explicitly blocked until owner-authorized, and are never fake-passed.
 
 ## Table of contents
 
@@ -149,13 +149,13 @@ The integration test requires PostgreSQL at `127.0.0.1:5433` and the `auditspher
 - **`docs/execution/current-slice.md`** — the verified local state and concise serialization of what was actually executed.
 - **Using the spec:** read `AuditSphereOps_NET_Codex_Implementation_Specification.md` (§§1–12, 22, 24, 27–33, 41–47) plus only the sections for the active issue.
 
-As of the last verification pass: **91/91 tests passed** on PostgreSQL 18.6, fourteen migrations applied, build clean with zero warnings. The Entra/SharePoint/Purview production gates remain **recorded blockers** pending owner-authorized evidence.
+As of the last verification pass: **91/91 tests passed** on PostgreSQL 18.6, fourteen migrations applied, build clean with zero warnings, the local restore rehearsal passed, and readiness returned healthy with no pending migrations. Hosted CI still needs its first observed run. The Entra/SharePoint/Purview production gates remain **recorded blockers** pending owner-authorized evidence.
 
 ## Implementation roadmap
 
 The build advances through **14 dependency-ordered checklist slices** (spec §31–§32), each landing as a reviewed PR with executed test evidence. Slices may not weaken controls, and a slice is accepted only with independent review evidence.
 
-**Delivered (checklists #1–#12, verified locally — 91/91 tests, fourteen migrations):**
+**Delivered (checklists #1–#12 plus initial #13/#14 controls, verified locally — 91/91 tests, fourteen migrations):**
 
 - Security & authorization integrity — `ActorContext`, scope/role matrix, firm→client→engagement guards, finance-role separation
 - Trial-balance intake & validation engine — Appendix D fixture, database-level `ck_tb_validation_status` control
@@ -170,13 +170,13 @@ The build advances through **14 dependency-ordered checklist slices** (spec §31
 - Release-gate integrity — workpaper candidates bound to current approvals/generations/manifests, checkpoint-required immutable release events, scoped idempotency, and delivery outbox intent
 - Initial scoped Blazor shell — live portfolio projections and a release command screen behind real authenticated-user-to-firm mapping; unauthenticated/local environments fail closed
 
-**Remaining (checklists #13–#14):**
+**Remaining proof and scope (checklists #13–#14):**
 
 - Mapping package & financial-statement production
 - Remaining entity foreign keys and data-model completion
 - Live provider adapters (Entra/Graph/SharePoint/Purview) behind the external-effect fence
 - Full UI surfaces and authorized operator recovery tooling
-- CI, backup/restore rehearsal, and migration-aware readiness pipeline
+- Hosted CI execution evidence and production-grade cross-store recovery
 
 The external production gates (live Entra tenant, selected SharePoint grants, Purview records profile, signing methodology) stay **blocked** until owner-authorized evidence arrives; see `docs/execution/status.json`.
 

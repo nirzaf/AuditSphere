@@ -12,15 +12,15 @@
     "postgres": "18.6 Homebrew user-local port 5433 (development only)"
   },
   "active": {
-    "packageId": "Checklist #13: initial Blazor shell",
+    "packageId": "Checklist #14: CI, restore and migration-aware readiness",
     "issueNumber": null,
-    "branch": "master",
-    "pullRequestNumber": 8,
-    "headCommit": "ff577837241a7bd2797bb5776dbcce7687ed8e05",
-    "implementationStatus": "IMPLEMENTED",
+    "branch": "codex/checklist-14-ops-clean",
+    "pullRequestNumber": null,
+    "headCommit": "ab8e1d149214325ab9259795b3d5bf9e80ccd220",
+    "implementationStatus": "PARTIAL",
     "acceptanceStatus": "LOCAL_VERIFIED",
-    "worktree": "Checklist #13 initial UI shell commit c127448 was merged by owner-authorized PR #8 as ff57783 on master. The full route catalog remains incomplete; no independent human reviewer evidence is present.",
-    "scope": "Checklist #13 only: Blazor shell, trusted authenticated-user-to-firm resolution, live scoped portfolio projections, and a release command screen over existing application services.",
+    "worktree": "Checklist #14 clean implementation commit ab8e1d1 is locally verified on its isolated branch. The superseded hosted run could not start because the GitHub account Actions billing/spending limit failed; PR creation and independent human review are pending.",
+    "scope": "Checklist #14 only: migration-aware readiness, disposable CI database build/test/migration flow, and loopback-only PostgreSQL backup/restore rehearsal.",
     "productionEnabled": false
   },
   "testEvidence": [
@@ -34,11 +34,11 @@
     },
     {
       "command": "dotnet build AuditSphereOps.slnx",
-      "result": "Build succeeded, 0 warnings, 0 errors at checklist #12 implementation commit 3e3c82a; the implementation was subsequently merged as 2dd97f9."
+      "result": "Build succeeded, 0 warnings, 0 errors at checklist #14 clean implementation commit ab8e1d1."
     },
     {
       "command": "dotnet test AuditSphereOps.slnx --no-build",
-      "result": "Passed 91/91 on PostgreSQL 18.6; 0 skipped at checklist #12 implementation commit 3e3c82a, subsequently merged as 2dd97f9. Includes two release gate tests, two approval binding/staleness tests, release legacy migration refusal, and the prior CRM, time/budget, billing, ledger, document, accounting, authorization, and outbox coverage."
+      "result": "Passed 91/91 on PostgreSQL 18.6; 0 skipped at checklist #14 clean implementation commit ab8e1d1. Includes two release gate tests, two approval binding/staleness tests, release legacy migration refusal, and the prior CRM, time/budget, billing, ledger, document, accounting, authorization, and outbox coverage."
     },
     {
       "command": "dotnet ef database update --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Web --no-build",
@@ -55,6 +55,14 @@
     {
       "command": "dotnet run --project src/AuditSphereOps.Web --no-build --urls http://127.0.0.1:5099 plus HTTP smoke requests",
       "result": "Web host started cleanly at checklist #13 commit c127448; /, /health/live, /health/ready, and /app returned HTTP 200. With OIDC unset, /app rendered the explicit sign-in-required state; no demo actor was used. The implementation was subsequently merged as ff57783."
+    },
+    {
+      "command": "scripts/db/restore-drill.sh",
+      "result": "Loopback-only custom-format dump/restore passed. Generated temporary database restored with 14 migrations; latest was 20260918133707_ReleaseGateWorkflow; generated database and temporary directory were removed."
+    },
+    {
+      "command": "Migration-aware readiness smoke",
+      "result": "Web readiness queried __EFMigrationsHistory and returned Healthy/HTTP 200 with no pending migrations; web startup did not apply migrations."
     }
   ],
   "tenantEvidence": [
@@ -90,16 +98,22 @@
     {
       "classification": "implementation-gap",
       "gate": "Schema integrity, UI and recovery controls (spec §§27, 42, 43, 45)",
-      "missing": "Mapping/FS package, remaining entity FKs, full route catalog/client portal/upload transport, full signing/protection evidence, live provider adapters, backup/restore rehearsal and recovery UI",
-      "ownerAction": "Review/merge the initial checklist #13 shell, then complete the remaining UI surface and checklist #14."
+      "missing": "Mapping/FS package, remaining entity FKs, full route catalog/client portal/upload transport, full signing/protection evidence, live provider adapters, hosted CI result, production/cross-store recovery evidence and recovery UI",
+      "ownerAction": "Review/merge checklist #14 after hosted CI observation, then complete the remaining UI surface; external production gates remain blocked."
+    },
+    {
+      "classification": "account-infrastructure",
+      "gate": "Hosted GitHub Actions for checklist #14",
+      "missing": "Run 35354035869 could not start because recent account payments failed or the Actions spending limit needs to be increased.",
+      "ownerAction": "Restore the repository/account Actions billing limit, rerun the clean checklist #14 PR, and record the hosted result."
     },
     {
       "classification": "authorization-review",
       "gate": "Independent review and PR/merge",
-      "missing": "Checklist #13 has no independent human review evidence; PR #1, PR #2, PR #3, PR #4, PR #5, PR #6, PR #7, and PR #8 merged without independent human review",
+      "missing": "Checklist #14 has no independent human review evidence; PR #1, PR #2, PR #3, PR #4, PR #5, PR #6, PR #7, and PR #8 merged without independent human review",
       "ownerAction": "Obtain independent review evidence before treating the merged slices as fully accepted."
     }
   ],
-  "nextPermittedAction": "Complete the remaining UI surface, then begin dependency-ordered checklist #14: CI, backup/restore and migration-aware readiness; independent human review evidence remains outstanding.",
-  "lastVerifiedAt": "2026-09-18T13:57:27Z"
+  "nextPermittedAction": "Open the clean owner-authorized PR for checklist #14 and observe hosted CI after the account billing block is resolved; then complete the remaining UI surface. Independent human review evidence remains outstanding.",
+  "lastVerifiedAt": "2026-09-18T14:09:29Z"
 }
