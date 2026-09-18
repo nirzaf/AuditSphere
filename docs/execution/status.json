@@ -3,7 +3,7 @@
   "specificationVersion": "5.0",
   "specificationSha256": "e1e9a10bb82c9eae1c1a28b7f17a90f61152d1198444cbd95392c9bd714812d4",
   "repository": "/Users/qts/Repos/AuditSphere",
-  "baseCommit": "b1b23bef1a0f9cbc63a2a757bf369c873671e303",
+  "baseCommit": "3bcdaa7812904e8259f128b5bdae0f99d773dce3",
   "sdk": {
     "version": "10.0.300",
     "efCore": "10.0.12",
@@ -12,15 +12,15 @@
     "postgres": "18.6 Homebrew user-local port 5433 (development only)"
   },
   "active": {
-    "packageId": "Checklist #8: ND-07 billing artifacts and receipt allocation",
+    "packageId": "Checklist #9: ND-08 bounded firm ledger",
     "issueNumber": null,
-    "branch": "codex/checklist-8-billing",
-    "pullRequestNumber": 3,
-    "headCommit": "88e3409a4796c667aadc855e91b4eb25b53ed324",
+    "branch": "codex/checklist-9-ledger",
+    "pullRequestNumber": null,
+    "headCommit": "ea4081424df8e3d24fd07feefb69f1d7631bb8c7",
     "implementationStatus": "IMPLEMENTED",
     "acceptanceStatus": "LOCAL_VERIFIED",
-    "worktree": "Checklist #8 implementation commit 88e3409 and execution documentation are pushed on codex/checklist-8-billing; owner-authorized PR #3 is open. No independent human reviewer evidence is present.",
-    "scope": "Checklist #8 only: scoped billing accounts, invoice/credit/receipt/allocation commands, finance-profile gating, balance limits, source-allocation uniqueness, and posted-history immutability.",
+    "worktree": "Checklist #9 implementation commit ea40814 is present on codex/checklist-9-ledger; execution documentation is being recorded before the owner-authorized PR is opened. No independent human reviewer evidence is present.",
+    "scope": "Checklist #9 only: scoped firm accounts/periods, guarded journal transitions, immutable balanced postings, source/retry uniqueness, reversals, and period close/reopen decisions.",
     "productionEnabled": false
   },
   "testEvidence": [
@@ -34,23 +34,23 @@
     },
     {
       "command": "dotnet build AuditSphereOps.slnx",
-      "result": "Build succeeded, 0 warnings, 0 errors on the checklist #8 worktree."
+      "result": "Build succeeded, 0 warnings, 0 errors on the checklist #9 worktree at ea4081424df8e3d24fd07feefb69f1d7631bb8c7."
     },
     {
       "command": "dotnet test AuditSphereOps.slnx --no-build",
-      "result": "Passed 76/76 on PostgreSQL 18.6; 0 skipped. Includes CRM and time/budget tests plus billing tests for finance-role separation, finance-profile gating, invoice/credit/receipt balance enforcement, concurrent source-allocation uniqueness, posted-history trigger rejection, and invalid legacy migration refusal."
+      "result": "Passed 81/81 on PostgreSQL 18.6; 0 skipped. Includes four ledger workflow/security/database tests and a legacy ledger migration refusal test, plus the prior CRM, time/budget, billing, accounting, authorization, and outbox coverage."
     },
     {
-      "command": "dotnet ef database update --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Web --no-build --connection 'Host=127.0.0.1;Port=5433;Database=auditsphere;Username=postgres'",
-      "result": "Applied 20260918115026_BillingArtifactWorkflow to the local development database; existing migrations preserved. The migration preserves the allocation table, normalizes only unambiguous legacy billing rows, and refuses ambiguous scope/currency/state data."
+      "command": "dotnet ef database update --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Web --no-build",
+      "result": "No migrations were applied; local auditsphere is already up to date through 20260918121512_FirmLedgerWorkflow. Existing migrations and legacy tables were preserved."
     },
     {
       "command": "dotnet ef migrations list --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Web --no-build",
-      "result": "All ten migrations through BillingArtifactWorkflow are applied; no pending migrations."
+      "result": "All eleven migrations through FirmLedgerWorkflow are present; database update reports no pending migrations."
     },
     {
-      "command": "psql read-only version/table-count/constraint/index queries against 127.0.0.1:5433/auditsphere",
-      "result": "PostgreSQL 18.6; local read-only probe found six billing append-only triggers and five billing checks, with no production database touched."
+      "command": "psql read-only version/trigger/constraint queries against 127.0.0.1:5433/auditsphere",
+      "result": "PostgreSQL 18.6; local probe found eight ledger triggers, including deferred balance triggers, and eleven ledger checks/trigger constraints. No production database was touched."
     }
   ],
   "tenantEvidence": [
@@ -86,16 +86,16 @@
     {
       "classification": "implementation-gap",
       "gate": "Schema integrity and release controls (spec §§27, 42)",
-      "missing": "Mapping/FS package, remaining entity FKs, release gates, live provider adapters, firm ledger, UI and full recovery",
-      "ownerAction": "After checklist #8 acceptance, continue dependency-ordered slices #9-14."
+      "missing": "Mapping/FS package, remaining entity FKs, document snapshots, approvals, release gates, live provider adapters, UI and full recovery",
+      "ownerAction": "After checklist #9 acceptance, continue dependency-ordered slices #10-14."
     },
     {
       "classification": "authorization-review",
       "gate": "Independent review and PR/merge",
-      "missing": "Checklist #8 has no independent human review evidence; PR #1 and PR #2 merged without independent human review and PR #3 is open",
-      "ownerAction": "Complete the owner-authorized checklist #8 PR #3; obtain independent review evidence before treating the slice as fully accepted."
+      "missing": "Checklist #9 has no independent human review evidence; PR #1, PR #2, and PR #3 merged without independent human review and the checklist #9 PR is pending",
+      "ownerAction": "Open and complete the owner-authorized checklist #9 PR; obtain independent review evidence before treating the slice as fully accepted."
     }
   ],
-  "nextPermittedAction": "Run checks on owner-authorized PR #3 for checklist #8 and verify the merge.",
-  "lastVerifiedAt": "2026-09-18T12:02:09Z"
+  "nextPermittedAction": "Open the owner-authorized checklist #9 PR, run its checks, and verify the merge.",
+  "lastVerifiedAt": "2026-09-18T12:45:10Z"
 }

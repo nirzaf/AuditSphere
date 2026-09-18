@@ -7,7 +7,7 @@
 
 **AuditSphereOps** is a professional audit, accounting & assurance operations platform — a .NET 10 modular monolith covering the complete engagement lifecycle: client acceptance, practice management, trial-balance intake, financial-statement production, audit execution, review, controlled signing/release, and records retention.
 
-> **Status: implementation in progress.** This repository is a specification-driven build, currently at checklist #8 of 14 dependency-ordered slices. A green UI or a mocked provider is **not** production evidence — external gates (Entra tenant, SharePoint grants, Purview profile, signing methodology) remain explicitly blocked until owner-authorized, and are never fake-passed.
+> **Status: implementation in progress.** This repository is a specification-driven build, currently at checklist #9 of 14 dependency-ordered slices. A green UI or a mocked provider is **not** production evidence — external gates (Entra tenant, SharePoint grants, Purview profile, signing methodology) remain explicitly blocked until owner-authorized, and are never fake-passed.
 
 ## Table of contents
 
@@ -86,6 +86,7 @@ Shared configuration: `Directory.Build.props` (common compiler settings), `Direc
 - **Durable outbox with exactly-once discipline:** deterministic dataset/revision keys, `SKIP LOCKED` claiming with leases (60 s lease, 20 s renewal, 5 attempts, persisted exponential backoff), immutable request/attempt/event evidence, digest-verified reconciliation, and `RESULT_UNCERTAIN` for proofless-after-effect outcomes.
 - **Append-only evidence:** completed results, posted billing history, and operation events cannot be rewritten — enforced at the database with triggers and checks, not only in C#.
 - **Scope-checked authorization everywhere:** firm → client → dataset/engagement lock ordering; finance-role separation and finance-profile gating on billing.
+- **Firm-ledger integrity:** finance-role journal approval, exact balanced immutable postings, source/retry uniqueness, reversal links, and shared firm/period locks for posting and close.
 - **Never-fake external effects:** `ExternalEffects.Enabled=false` locally; simulation handlers exist for tests only (Test environment + explicit `AllowSimulationAdapters=true`), and they are not live adapters.
 - **Fail-closed migrations:** migrations refuse to discard append-only evidence, refuse ambiguous legacy billing data, and web startup never auto-applies them.
 
@@ -148,13 +149,13 @@ The integration test requires PostgreSQL at `127.0.0.1:5433` and the `auditspher
 - **`docs/execution/current-slice.md`** — the verified local state and concise serialization of what was actually executed.
 - **Using the spec:** read `AuditSphereOps_NET_Codex_Implementation_Specification.md` (§§1–12, 22, 24, 27–33, 41–47) plus only the sections for the active issue.
 
-As of the last verification pass: **76/76 tests passed** on PostgreSQL 18.6, ten migrations applied, build clean with zero warnings. The Entra/SharePoint/Purview production gates remain **recorded blockers** pending owner-authorized evidence.
+As of the last verification pass: **81/81 tests passed** on PostgreSQL 18.6, eleven migrations applied, build clean with zero warnings. The Entra/SharePoint/Purview production gates remain **recorded blockers** pending owner-authorized evidence.
 
 ## Implementation roadmap
 
 The build advances through **14 dependency-ordered checklist slices** (spec §31–§32), each landing as a reviewed PR with executed test evidence. Slices may not weaken controls, and a slice is accepted only with independent review evidence.
 
-**Delivered (checklists #1–#8, verified locally — 76/76 tests, ten migrations):**
+**Delivered (checklists #1–#9, verified locally — 81/81 tests, eleven migrations):**
 
 - Security & authorization integrity — `ActorContext`, scope/role matrix, firm→client→engagement guards, finance-role separation
 - Trial-balance intake & validation engine — Appendix D fixture, database-level `ck_tb_validation_status` control
@@ -162,7 +163,8 @@ The build advances through **14 dependency-ordered checklist slices** (spec §31
 - Durable outbox & validation worker — `SKIP LOCKED` leases, reconciliation, recovery-safe migration
 - Practice CRM workflow + safety invariants
 - Practice time & budget workflow
-- Billing artifacts — invoices, credit notes, receipts, allocations with balance limits, source-allocation uniqueness, posted-history immutability (current slice, PR under review)
+- Billing artifacts — invoices, credit notes, receipts, allocations with balance limits, source-allocation uniqueness, posted-history immutability
+- Bounded firm ledger — finance-role journal workflow, immutable balanced postings, source/retry uniqueness, reversals, period close/reopen, and database deferred-balance enforcement
 
 **Remaining (checklists #9–#14):**
 
@@ -170,7 +172,6 @@ The build advances through **14 dependency-ordered checklist slices** (spec §31
 - Remaining entity foreign keys and data-model completion
 - Release gates & controlled signing workflow
 - Live provider adapters (Entra/Graph/SharePoint/Purview) behind the external-effect fence
-- Firm ledger completion
 - Full UI surfaces and authorized operator recovery tooling
 
 The external production gates (live Entra tenant, selected SharePoint grants, Purview records profile, signing methodology) stay **blocked** until owner-authorized evidence arrives; see `docs/execution/status.json`.
