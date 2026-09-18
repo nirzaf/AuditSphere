@@ -1,0 +1,72 @@
+@page "/portal"
+@rendermode InteractiveServer
+@inject CurrentActorResolver ActorResolver
+@inject IDbContextFactory<AuditSphereDbContext> DbFactory
+
+<PageTitle>Client portal</PageTitle>
+<h1>Client portal</h1>
+
+@if (_loading)
+{
+  <p role="status">Loading assigned requests…</p>
+}
+else if (_actor is null || !_clientIds.Any())
+{
+  <section class="notice" role="alert"><h2>Portal unavailable</h2><p>An authenticated client identity with an active assigned engagement is required.</p></section>
+}
+else
+{
+  <p class="scope-note">This restricted view contains assigned PBC requests and transfer receipts only. Internal risk, review and workpaper content is not exposed.</p>
+  <section class="card" aria-labelledby="client-pbc-heading">
+    <h2 id="client-pbc-heading">Requests</h2>
+    @if (_requests.Count == 0)
+    {
+      <p class="muted">No requests are assigned to this client identity.</p>
+    }
+    else
+    {
+      <div class="table-wrap">
+        <table>
+          <caption class="sr-only">Assigned PBC requests</caption>
+          <thead><tr><th scope="col">Area</th><th scope="col">Period</th><th scope="col">Due</th><th scope="col">State</th><th scope="col"><span class="sr-only">Action</span></th></tr></thead>
+          <tbody>
+          @foreach (var request in _requests)
+          {
+            <tr>
+              <td>@request.Area</td>
+              <td>@request.PeriodStart to @request.PeriodEnd</td>
+              <td>@request.DueDate</td>
+              <td><span class="status">@request.State</span></td>
+              <td><a href="/portal/requests/@request.Id">Open</a></td>
+            </tr>
+          }
+          </tbody>
+        </table>
+      </div>
+    }
+  </section>
+}
+
+@code {
+  private ActorContext? _actor;
+  private List<Guid> _clientIds = [];
+  private List<PbcRequest> _requests = [];
+  private bool _loading = true;
+
+  protected override async Task OnInitializedAsync()
+  {
+    _actor = await ActorResolver.ResolveAsync();
+    if (_actor is not null)
+    {
+      await using var db = await DbFactory.CreateDbContextAsync();
+      _clientIds = await db.RoleGrants.AsNoTracking().Where(x =>
+        x.FirmId == _actor.FirmId && x.UserId == _actor.UserId && x.Role == "ClientUser" &&
+        x.ClientId.HasValue && x.RevokedAt == null).Select(x => x.ClientId!.Value).Distinct().ToListAsync();
+      if (_clientIds.Count > 0)
+        _requests = await db.PbcRequests.AsNoTracking().Where(x =>
+          x.FirmId == _actor.FirmId && _clientIds.Contains(x.ClientId) &&
+          x.ClientOwnerUserId == _actor.UserId).OrderBy(x => x.DueDate).ThenBy(x => x.Area).ToListAsync();
+    }
+    _loading = false;
+  }
+}

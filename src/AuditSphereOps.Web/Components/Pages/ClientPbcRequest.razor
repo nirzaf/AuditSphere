@@ -1,0 +1,111 @@
+@page "/portal/requests/{RequestId:guid}"
+@rendermode InteractiveServer
+@inject CurrentActorResolver ActorResolver
+@inject IDbContextFactory<AuditSphereDbContext> DbFactory
+
+<PageTitle>Client request</PageTitle>
+<a class="back-link" href="/portal">← Back to client portal</a>
+<h1>PBC request</h1>
+
+@if (_loading)
+{
+  <p role="status">Loading the request…</p>
+}
+else if (_actor is null || _request is null)
+{
+  <section class="notice" role="alert"><h2>Request unavailable</h2><p>This request is not available in the current client scope.</p></section>
+}
+else
+{
+  <section class="card" aria-labelledby="request-heading">
+    <p class="eyebrow">@_request.State</p>
+    <h2 id="request-heading">@_request.Area</h2>
+    <dl class="details">
+      <dt>Objective</dt><dd>@_request.Objective</dd>
+      <dt>Period</dt><dd>@_request.PeriodStart to @_request.PeriodEnd</dd>
+      <dt>Requested format</dt><dd>@_request.RequestedFormat</dd>
+      <dt>Due</dt><dd>@_request.DueDate</dd>
+      <dt>Acceptance criteria</dt><dd>@_request.AcceptanceCriteria</dd>
+    </dl>
+  </section>
+
+  <section class="card" aria-labelledby="upload-heading">
+    <h2 id="upload-heading">Prepare a controlled upload</h2>
+    <p class="muted">This creates a request-bound, expiring transfer intent. Content bytes are not accepted through the interactive circuit and are not marked received until a trusted completion boundary verifies the staged file.</p>
+    <div class="field"><label for="file-name">File name</label><input id="file-name" @bind="_fileName" maxlength="255" /></div>
+    <div class="field"><label for="content-type">Content type</label><input id="content-type" @bind="_contentType" maxlength="200" /></div>
+    <div class="field"><label for="byte-count">Declared bytes</label><input id="byte-count" type="number" min="1" max="262144000" @bind="_byteCount" /></div>
+    <div class="field"><label for="content-hash">Declared SHA-256</label><input id="content-hash" @bind="_contentHash" maxlength="64" autocomplete="off" /></div>
+    <button class="button" @onclick="StartUploadAsync" disabled="@_busy">@(_busy ? "Preparing…" : "Prepare upload")</button>
+    @if (_result is not null)
+    {
+      <p class="command-result @(_result.Succeeded ? "success-text" : "error-text")" role="status">@(_result.Succeeded ? "Transfer intent created; continue through the approved upload transport." : $"Blocked: {_result.ErrorCode}")</p>
+    }
+  </section>
+
+  <section class="card" aria-labelledby="receipt-heading">
+    <h2 id="receipt-heading">Transfer receipts</h2>
+    @if (_uploads.Count == 0)
+    {
+      <p class="muted">No transfer intents are recorded for this request.</p>
+    }
+    else
+    {
+      <div class="table-wrap"><table><caption class="sr-only">PBC upload receipts</caption><thead><tr><th scope="col">File</th><th scope="col">Bytes</th><th scope="col">State</th><th scope="col">Expires</th></tr></thead><tbody>
+      @foreach (var upload in _uploads)
+      {
+        <tr><td>@upload.FileName</td><td>@upload.ReceivedByteCount / @upload.DeclaredByteCount</td><td><span class="status">@upload.State</span></td><td>@upload.ExpiresAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</td></tr>
+      }
+      </tbody></table></div>
+    }
+  </section>
+}
+
+@code {
+  [Parameter] public Guid RequestId { get; set; }
+  private ActorContext? _actor;
+  private PbcRequest? _request;
+  private List<PbcUploadIntent> _uploads = [];
+  private CommandResult<Guid>? _result;
+  private string _fileName = string.Empty;
+  private string _contentType = "application/octet-stream";
+  private long _byteCount;
+  private string _contentHash = string.Empty;
+  private bool _loading = true;
+  private bool _busy;
+
+  protected override async Task OnInitializedAsync()
+  {
+    _actor = await ActorResolver.ResolveAsync();
+    if (_actor is not null)
+    {
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var clientIds = await db.RoleGrants.AsNoTracking().Where(x =>
+        x.FirmId == _actor.FirmId && x.UserId == _actor.UserId && x.Role == "ClientUser" &&
+        x.ClientId.HasValue && x.RevokedAt == null).Select(x => x.ClientId!.Value).Distinct().ToListAsync();
+      _request = await db.PbcRequests.AsNoTracking().SingleOrDefaultAsync(x =>
+        x.Id == RequestId && x.FirmId == _actor.FirmId && clientIds.Contains(x.ClientId) &&
+        x.ClientOwnerUserId == _actor.UserId);
+      if (_request is not null)
+        _uploads = await db.PbcUploadIntents.AsNoTracking().Where(x =>
+          x.FirmId == _actor.FirmId && x.PbcRequestId == _request.Id).OrderByDescending(x => x.CreatedAt).ToListAsync();
+    }
+    _loading = false;
+  }
+
+  private async Task StartUploadAsync()
+  {
+    if (_actor is null || _request is null || _busy) return;
+    _busy = true;
+    try
+    {
+      await using var db = await DbFactory.CreateDbContextAsync();
+      _result = await PbcService.StartUploadAsync(db, _actor,
+        new StartPbcUploadRequest(_request.Id, _fileName, _contentType, _byteCount, _contentHash));
+      if (_result.Succeeded)
+        _uploads = await db.PbcUploadIntents.AsNoTracking().Where(x =>
+          x.FirmId == _actor.FirmId && x.PbcRequestId == _request.Id).OrderByDescending(x => x.CreatedAt).ToListAsync();
+    }
+    finally { _busy = false; }
+  }
+}

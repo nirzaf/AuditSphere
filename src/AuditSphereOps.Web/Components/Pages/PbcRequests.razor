@@ -1,0 +1,90 @@
+@page "/app/engagements/{EngagementId:guid}/pbc"
+@rendermode InteractiveServer
+@inject CurrentActorResolver ActorResolver
+@inject IDbContextFactory<AuditSphereDbContext> DbFactory
+
+<PageTitle>PBC requests</PageTitle>
+<a class="back-link" href="/app">← Back to portfolio</a>
+<h1>Prepared-by-client requests</h1>
+
+@if (_loading)
+{
+  <p role="status">Loading the scoped PBC inbox…</p>
+}
+else if (_actor is null || !IsStaff)
+{
+  <section class="notice" role="alert"><h2>Access unavailable</h2><p>Sign in with an authorized staff identity to view PBC requests.</p></section>
+}
+else if (_engagement is null)
+{
+  <section class="notice" role="alert"><h2>Engagement unavailable</h2><p>The engagement is not available in the current firm scope.</p></section>
+}
+else if (_denied)
+{
+  <section class="notice" role="alert"><h2>Access unavailable</h2><p>The current staff assignment does not cover this engagement.</p></section>
+}
+else
+{
+  <p class="scope-note">Only request metadata and upload receipts are shown. A received file is not accepted evidence until the assigned reviewer completes suitability review.</p>
+  <section class="card" aria-labelledby="pbc-heading">
+    <h2 id="pbc-heading">@_engagement.ServiceRoute — @_engagement.PeriodStart to @_engagement.PeriodEnd</h2>
+    @if (_requests.Count == 0)
+    {
+      <p class="muted">No PBC requests are recorded for this engagement.</p>
+    }
+    else
+    {
+      <div class="table-wrap">
+        <table>
+          <caption class="sr-only">PBC requests for the current engagement</caption>
+          <thead><tr><th scope="col">Area</th><th scope="col">Objective</th><th scope="col">Due</th><th scope="col">State</th><th scope="col">Revision</th></tr></thead>
+          <tbody>
+          @foreach (var request in _requests)
+          {
+            <tr>
+              <td><a href="/app/engagements/@EngagementId/pbc">@request.Area</a></td>
+              <td>@request.Objective</td>
+              <td>@request.DueDate</td>
+              <td><span class="status">@request.State</span></td>
+              <td>@request.Revision</td>
+            </tr>
+          }
+          </tbody>
+        </table>
+      </div>
+    }
+  </section>
+}
+
+@code {
+  [Parameter] public Guid EngagementId { get; set; }
+  private ActorContext? _actor;
+  private Engagement? _engagement;
+  private List<PbcRequest> _requests = [];
+  private bool _loading = true;
+  private bool _denied;
+  private bool IsStaff => _actor is not null && _actor.Roles.Any(x => x is "Administrator" or "Partner" or "Manager" or "Reviewer" or "Staff" or "AccountingPreparer" or "AccountingReviewer");
+
+  protected override async Task OnInitializedAsync()
+  {
+    _actor = await ActorResolver.ResolveAsync();
+    if (_actor is not null && IsStaff)
+    {
+      await using var db = await DbFactory.CreateDbContextAsync();
+      _engagement = await db.Engagements.AsNoTracking().SingleOrDefaultAsync(x =>
+        x.Id == EngagementId && x.FirmId == _actor.FirmId);
+      if (_engagement is not null)
+      {
+        var auth = await AuthorizationDecision.AuthorizeAsync(db, _actor,
+          new AuthorizationRequest(_actor.FirmId, _engagement.PracticeClientId, _engagement.Id,
+            InternalOnly: true));
+        _denied = !auth.Succeeded;
+        if (!_denied)
+          _requests = await db.PbcRequests.AsNoTracking().Where(x =>
+            x.FirmId == _actor.FirmId && x.ClientId == _engagement.PracticeClientId && x.EngagementId == EngagementId)
+            .OrderBy(x => x.DueDate).ThenBy(x => x.Area).ToListAsync();
+      }
+    }
+    _loading = false;
+  }
+}
