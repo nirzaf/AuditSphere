@@ -1,0 +1,126 @@
+@page "/app/audit/workpapers/{Id:guid}"
+@using Microsoft.AspNetCore.Components.Authorization
+@inject AuthenticationStateProvider Auth
+@inject NavigationManager Nav
+
+<PageTitle>Workpaper — AuditSphereOps</PageTitle>
+
+<div class="page-header">
+    <nav class="breadcrumb-nav">
+        <a href="/app">Portfolio</a> /
+        <span>Workpaper @Id</span>
+    </nav>
+    <h1>Workpaper: @_title</h1>
+    <span class="status-badge @_statusClass">@_status</span>
+</div>
+
+@if (_loading) { <div class="loading-state">Loading workpaper…</div> }
+else
+{
+    <div class="workpaper-shell">
+
+        <section class="card">
+            <h2>Workpaper Details</h2>
+            <dl class="detail-grid">
+                <dt>Index</dt><dd>@_index</dd>
+                <dt>Objective</dt><dd>@_objective</dd>
+                <dt>Template version</dt><dd>@_templateVersion</dd>
+                <dt>Procedure</dt><dd>@_procedure</dd>
+                <dt>Risks / Assertions</dt><dd>@string.Join(", ", _riskRefs)</dd>
+                <dt>Revision</dt><dd>@_revision</dd>
+            </dl>
+        </section>
+
+        <!-- Submission history -->
+        <section class="card">
+            <h2>Submission History</h2>
+            <p class="notice-text">
+                Submission freezes the content into an immutable snapshot. The reviewer sees 
+                exactly what was submitted. "Open current working file" and "open version under review" 
+                are distinct actions.
+            </p>
+            <table class="data-table">
+                <thead>
+                    <tr><th>Rev</th><th>Submitted by</th><th>Date</th><th>Conclusion</th><th>Review result</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var sub in _submissions)
+                    {
+                        <tr>
+                            <td>@sub.Rev</td>
+                            <td>@sub.Preparer</td>
+                            <td>@sub.Date.ToString("yyyy-MM-dd")</td>
+                            <td>@sub.Conclusion</td>
+                            <td><span class="badge @sub.ReviewClass">@sub.ReviewResult</span></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </section>
+
+        <!-- Working draft -->
+        @if (_status == "WORKING" || _status == "CHANGES_REQUIRED")
+        {
+            <section class="card">
+                <h2>Working Draft</h2>
+                <div class="form-group">
+                    <label for="wp-work">Work Performed</label>
+                    <textarea id="wp-work" rows="5" @bind="_draftWork" />
+                </div>
+                <div class="form-group">
+                    <label for="wp-conclusion">Conclusion</label>
+                    <textarea id="wp-conclusion" rows="3" @bind="_draftConclusion" />
+                </div>
+                <div class="action-bar">
+                    <button class="btn-secondary" @onclick="SaveDraft">Save Draft</button>
+                    <button class="btn-primary" @onclick="Submit">Submit for Review</button>
+                </div>
+            </section>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    bool _loading = true;
+    string _title = "—";
+    string _index = "—";
+    string _objective = "—";
+    string _templateVersion = "—";
+    string _procedure = "—";
+    string[] _riskRefs = [];
+    long _revision = 1;
+    string _status = "WORKING";
+    string _statusClass = "badge-yellow";
+    string _draftWork = "";
+    string _draftConclusion = "";
+
+    record SubmissionRow(int Rev, string Preparer, DateTime Date, string Conclusion, string ReviewResult, string ReviewClass);
+    List<SubmissionRow> _submissions = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await Auth.GetAuthenticationStateAsync();
+        if (state.User.Identity?.IsAuthenticated != true)
+        { Nav.NavigateTo("/login"); return; }
+
+        _title = "Cash & Bank — Bank Reconciliation";
+        _index = "CB-02";
+        _objective = "Verify completeness and accuracy of bank reconciliation at 31 Dec 2025";
+        _templateVersion = "CASH-2025-v3";
+        _procedure = "Obtain bank confirmations, agree to TB, test reconciling items";
+        _riskRefs = ["REV-001 Completeness", "CASH-001 Existence"];
+        _revision = 2;
+        _status = "CHANGES_REQUIRED";
+        _statusClass = "badge-orange";
+        _submissions =
+        [
+            new(1, "Staff A", DateTime.UtcNow.AddDays(-7), "Reconciliation agrees; minor items cleared.", "CHANGES_REQUIRED", "badge-orange"),
+        ];
+        _loading = false;
+    }
+
+    async Task SaveDraft() { await Task.Delay(100); /* debounced save command */ }
+    async Task Submit() { await Task.Delay(100); _status = "SUBMITTED_SNAPSHOT"; _statusClass = "badge-blue"; }
+}

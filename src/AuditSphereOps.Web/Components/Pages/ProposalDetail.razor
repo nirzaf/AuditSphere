@@ -1,0 +1,121 @@
+@page "/app/practice/proposals/{Id:guid}"
+@using Microsoft.AspNetCore.Components.Authorization
+@inject AuthenticationStateProvider Auth
+@inject NavigationManager Nav
+
+<PageTitle>Proposal — AuditSphereOps</PageTitle>
+
+<div class="page-header">
+    <nav class="breadcrumb-nav">
+        <a href="/app">Portfolio</a> /
+        <a href="/app/practice/leads">Leads &amp; Opportunities</a> /
+        <span>Proposal @Id</span>
+    </nav>
+    <h1>Proposal</h1>
+    <span class="status-badge @_statusClass">@_status</span>
+</div>
+
+@if (_loading)
+{
+    <div class="loading-state">Loading proposal…</div>
+}
+else
+{
+    <div class="proposal-shell">
+
+        <section class="card">
+            <h2>Proposal Details</h2>
+            <dl class="detail-grid">
+                <dt>Client</dt><dd>@_clientName</dd>
+                <dt>Service scope</dt><dd>@_serviceScope</dd>
+                <dt>Period</dt><dd>@_period</dd>
+                <dt>Proposed fee</dt><dd>@_currency @_proposedFee.ToString("N2")</dd>
+                <dt>Version</dt><dd>@_version</dd>
+                <dt>Owner</dt><dd>@_ownerName</dd>
+            </dl>
+        </section>
+
+        <section class="card">
+            <h2>Versions</h2>
+            <table class="data-table">
+                <thead>
+                    <tr><th>Rev</th><th>Status</th><th>Sent</th><th>Response</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var v in _versions)
+                    {
+                        <tr>
+                            <td>@v.Rev</td>
+                            <td>@v.Status</td>
+                            <td>@(v.SentAt?.ToString("yyyy-MM-dd") ?? "—")</td>
+                            <td>@(v.Response ?? "—")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </section>
+
+        <section class="card">
+            <h2>Actions</h2>
+            <div class="action-bar">
+                @if (_status == "DRAFT" || _status == "INTERNAL_REVIEW")
+                {
+                    <button class="btn-primary" @onclick="SubmitForReview">Submit for Internal Review</button>
+                }
+                @if (_status == "INTERNAL_REVIEW")
+                {
+                    <button class="btn-primary" @onclick="ApproveAndSend">Approve &amp; Send</button>
+                }
+                @if (_status == "SENT")
+                {
+                    <button class="btn-secondary" @onclick="RecordResponse">Record Client Response</button>
+                }
+            </div>
+        </section>
+    </div>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    bool _loading = true;
+    string _status = "DRAFT";
+    string _statusClass = "badge-yellow";
+    string _clientName = "—";
+    string _serviceScope = "—";
+    string _period = "—";
+    string _currency = "QAR";
+    decimal _proposedFee;
+    int _version;
+    string _ownerName = "—";
+
+    record VersionRow(int Rev, string Status, DateTime? SentAt, string? Response);
+    List<VersionRow> _versions = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await Auth.GetAuthenticationStateAsync();
+        if (state.User.Identity?.IsAuthenticated != true)
+        { Nav.NavigateTo("/login"); return; }
+
+        // Stub projection.
+        _clientName = "Acme Holdings W.L.L.";
+        _serviceScope = "Statutory audit — financial statements year ended 31 Dec 2025";
+        _period = "2025";
+        _proposedFee = 45000m;
+        _version = 2;
+        _status = "INTERNAL_REVIEW";
+        _statusClass = "badge-blue";
+        _ownerName = "Senior Manager A";
+        _versions =
+        [
+            new(1, "SUPERSEDED", DateTime.UtcNow.AddDays(-14), null),
+            new(2, "INTERNAL_REVIEW", null, null),
+        ];
+        _loading = false;
+    }
+
+    async Task SubmitForReview() { await Task.Delay(100); _status = "INTERNAL_REVIEW"; _statusClass = "badge-blue"; }
+    async Task ApproveAndSend() { await Task.Delay(100); _status = "SENT"; _statusClass = "badge-purple"; }
+    async Task RecordResponse() => Nav.NavigateTo($"/app/practice/proposals/{Id}/response");
+}

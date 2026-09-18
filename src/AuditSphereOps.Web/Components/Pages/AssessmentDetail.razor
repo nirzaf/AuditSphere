@@ -1,0 +1,124 @@
+@page "/app/assessments/{Id:guid}"
+@using Microsoft.AspNetCore.Components.Authorization
+@inject AuthenticationStateProvider Auth
+@inject NavigationManager Nav
+
+<PageTitle>Client Assessment — AuditSphereOps</PageTitle>
+
+<div class="page-header">
+    <nav aria-label="breadcrumb" class="breadcrumb-nav">
+        <a href="/app">Portfolio</a> /
+        <a href="/app/clients/@ClientId">Client</a> /
+        <span>Assessment @Id</span>
+    </nav>
+    <h1>Client Evaluation &amp; Continuance Assessment</h1>
+</div>
+
+@if (_loading)
+{
+    <div class="loading-state">Loading assessment…</div>
+}
+else
+{
+    <div class="assessment-shell">
+
+        <!-- CE / RV question sections -->
+        <section class="card">
+            <h2>Question Sections</h2>
+            <div class="section-list">
+                @foreach (var s in _sections)
+                {
+                    <div class="section-row @(s.Complete ? "complete" : "incomplete")">
+                        <span class="section-label">@s.Name</span>
+                        <span class="section-status">@(s.Complete ? "✓ Complete" : $"{s.Answered}/{s.Total} answered")</span>
+                        <button class="btn-small" @onclick="() => OpenSection(s.Id)">Review</button>
+                    </div>
+                }
+            </div>
+        </section>
+
+        <!-- Clearances / holds -->
+        <section class="card">
+            <h2>Clearances &amp; Holds</h2>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Area</th><th>Status</th><th>Authority</th><th>Date</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var c in _clearances)
+                    {
+                        <tr>
+                            <td>@c.Area</td>
+                            <td><span class="badge @c.StatusClass">@c.Status</span></td>
+                            <td>@c.Authority</td>
+                            <td>@c.Date.ToString("yyyy-MM-dd")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </section>
+
+        <!-- Decision action -->
+        <section class="card">
+            <h2>Partner Decision</h2>
+            @if (_allSectionsClear)
+            {
+                <p class="info-text">All blocking clearances resolved. Partner may record acceptance/continuance decision.</p>
+                <a class="btn-primary" href="/app/assessments/@Id/decision">Record Decision</a>
+            }
+            else
+            {
+                <p class="warn-text">Outstanding blocking items must be resolved before the partner decision is available.</p>
+            }
+        </section>
+    </div>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    Guid? ClientId;
+    bool _loading = true;
+    bool _allSectionsClear;
+
+    record SectionRow(Guid Id, string Name, int Answered, int Total, bool Complete);
+    record ClearanceRow(string Area, string Status, string StatusClass, string Authority, DateTime Date);
+
+    List<SectionRow> _sections = [];
+    List<ClearanceRow> _clearances = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await Auth.GetAuthenticationStateAsync();
+        if (state.User.Identity?.IsAuthenticated != true)
+        { Nav.NavigateTo("/login"); return; }
+
+        // Stub projection — real implementation queries assessment aggregate.
+        ClientId = Guid.NewGuid();
+        _sections =
+        [
+            new(Guid.NewGuid(), "A — Identity & Legal Existence", 7, 10, false),
+            new(Guid.NewGuid(), "B — Ownership & Beneficial Ownership", 10, 10, true),
+            new(Guid.NewGuid(), "C — Management Integrity & Reputation", 10, 10, true),
+            new(Guid.NewGuid(), "D — AML/CFT, Sanctions & PEP Risk", 12, 14, false),
+            new(Guid.NewGuid(), "E — Previous Auditor & History", 8, 8, true),
+            new(Guid.NewGuid(), "F — Financial & Going-Concern Profile", 9, 12, false),
+            new(Guid.NewGuid(), "G — Engagement Complexity & Resources", 10, 10, true),
+            new(Guid.NewGuid(), "H — Independence, Ethics & Conflicts", 10, 10, true),
+            new(Guid.NewGuid(), "I — Commercial & Engagement Viability", 8, 8, true),
+            new(Guid.NewGuid(), "J — Data, Cyber & Confidentiality", 8, 10, false),
+        ];
+        _clearances =
+        [
+            new("Independence check", "CLEARED", "badge-green", "Partner A", DateTime.UtcNow.AddDays(-2)),
+            new("AML screening", "HOLD", "badge-red", "Compliance Officer", DateTime.UtcNow.AddDays(-1)),
+            new("Fee agreement", "PENDING", "badge-yellow", "—", DateTime.UtcNow),
+        ];
+        _allSectionsClear = _sections.All(s => s.Complete) && _clearances.All(c => c.Status == "CLEARED");
+        _loading = false;
+    }
+
+    void OpenSection(Guid sectionId) => Nav.NavigateTo($"/app/assessments/{Id}/section/{sectionId}");
+}

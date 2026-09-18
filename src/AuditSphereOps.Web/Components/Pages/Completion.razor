@@ -1,0 +1,123 @@
+@page "/app/completion/{Id:guid}"
+@using Microsoft.AspNetCore.Components.Authorization
+@inject AuthenticationStateProvider Auth
+@inject NavigationManager Nav
+
+<PageTitle>Engagement Completion — AuditSphereOps</PageTitle>
+
+<div class="page-header">
+    <nav class="breadcrumb-nav">
+        <a href="/app">Portfolio</a> /
+        <a href="/app/engagements/@_engagementId">Engagement</a> /
+        <span>Completion</span>
+    </nav>
+    <h1>Engagement Completion Checklist</h1>
+</div>
+
+@if (_loading) { <div class="loading-state">Loading…</div> }
+else
+{
+    <div class="completion-shell">
+
+        <section class="card">
+            <h2>Completion Gates</h2>
+            <p class="notice-text">All gates must be satisfied before issuance. A paid invoice cannot clear any professional gate.</p>
+            <table class="data-table">
+                <thead>
+                    <tr><th>Gate</th><th>Status</th><th>Authority</th><th>Date</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var g in _gates)
+                    {
+                        <tr>
+                            <td>@g.Name</td>
+                            <td><span class="badge @g.StatusClass">@g.Status</span></td>
+                            <td>@(g.Authority ?? "—")</td>
+                            <td>@(g.Date?.ToString("yyyy-MM-dd") ?? "—")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </section>
+
+        <section class="card">
+            <h2>Written Representations</h2>
+            <p class="info-text">Management representations are required before the report date. Each representation is version-bound to the exact final package.</p>
+            @foreach (var r in _representations)
+            {
+                <div class="representation-row">
+                    <span class="rep-id">@r.Id</span>
+                    <span class="rep-text">@r.Text</span>
+                    <span class="badge @(r.Obtained ? "badge-green" : "badge-red")">@(r.Obtained ? "Obtained" : "Pending")</span>
+                </div>
+            }
+        </section>
+
+        <section class="card">
+            <h2>Final Financial Statements</h2>
+            <dl class="detail-grid">
+                <dt>Package ID</dt><dd>@_packageId</dd>
+                <dt>Package status</dt><dd>@_packageStatus</dd>
+                <dt>Partner approval</dt><dd>@(_partnerApproved ? "✓ Approved" : "Pending")</dd>
+                <dt>EQR status</dt><dd>@(_eqrStatus)</dd>
+            </dl>
+        </section>
+
+        <section class="card">
+            <h2>Actions</h2>
+            <div class="action-bar">
+                <a class="btn-primary" href="/app/releases/@Id">View Release Candidate</a>
+                <a class="btn-secondary" href="/app/accounting/packages/@_packageId">Open Financial Package</a>
+            </div>
+        </section>
+    </div>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    Guid? _engagementId;
+    Guid? _packageId;
+    bool _loading = true;
+    string _packageStatus = "—";
+    bool _partnerApproved;
+    string _eqrStatus = "PENDING";
+
+    record GateRow(string Name, string Status, string StatusClass, string? Authority, DateTime? Date);
+    record RepresentationRow(string Id, string Text, bool Obtained);
+
+    List<GateRow> _gates = [];
+    List<RepresentationRow> _representations = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await Auth.GetAuthenticationStateAsync();
+        if (state.User.Identity?.IsAuthenticated != true)
+        { Nav.NavigateTo("/login"); return; }
+
+        _engagementId = Guid.NewGuid();
+        _packageId = Guid.NewGuid();
+        _packageStatus = "APPROVED";
+        _partnerApproved = true;
+        _eqrStatus = "IN_PROGRESS";
+
+        _gates =
+        [
+            new("All review points cleared (blocker)", "CLEARED", "badge-green", "Senior Manager A", DateTime.UtcNow.AddDays(-5)),
+            new("Final financial statements approved", "APPROVED", "badge-green", "Partner A", DateTime.UtcNow.AddDays(-3)),
+            new("Written representations obtained", "PENDING", "badge-yellow", null, null),
+            new("EQR completed", "IN_PROGRESS", "badge-blue", "EQR Partner B", null),
+            new("Subsequent events review", "APPROVED", "badge-green", "Senior Manager A", DateTime.UtcNow.AddDays(-2)),
+            new("Going concern assessment", "APPROVED", "badge-green", "Partner A", DateTime.UtcNow.AddDays(-4)),
+            new("Independence final confirmation", "APPROVED", "badge-green", "Compliance Officer", DateTime.UtcNow.AddDays(-7)),
+        ];
+        _representations =
+        [
+            new("R-01", "Management has provided all information relevant to the audit.", false),
+            new("R-02", "All transactions have been recorded and reflected in the financial statements.", false),
+            new("R-03", "Management acknowledges its responsibility for the design of internal controls.", true),
+            new("R-04", "There are no known events after the reporting date that would require adjustment.", false),
+        ];
+        _loading = false;
+    }
+}

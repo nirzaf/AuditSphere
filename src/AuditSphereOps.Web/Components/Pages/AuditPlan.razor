@@ -1,0 +1,127 @@
+@page "/app/audit/plans/{Id:guid}"
+@using Microsoft.AspNetCore.Components.Authorization
+@inject AuthenticationStateProvider Auth
+@inject NavigationManager Nav
+
+<PageTitle>Audit Plan — AuditSphereOps</PageTitle>
+
+<div class="page-header">
+    <nav class="breadcrumb-nav">
+        <a href="/app">Portfolio</a> /
+        <a href="/app/engagements/@_engagementId">Engagement</a> /
+        <span>Audit Plan</span>
+    </nav>
+    <h1>Audit Plan &amp; Strategy</h1>
+    <span class="status-badge badge-blue">@_status</span>
+</div>
+
+@if (_loading)
+{
+    <div class="loading-state">Loading plan…</div>
+}
+else
+{
+    <div class="plan-shell">
+
+        <!-- Materiality -->
+        <section class="card">
+            <h2>Materiality</h2>
+            @if (_materiality is not null)
+            {
+                <dl class="detail-grid">
+                    <dt>Overall</dt><dd>@_materiality.Currency @_materiality.Overall.ToString("N0")</dd>
+                    <dt>Performance</dt><dd>@_materiality.Currency @_materiality.Performance.ToString("N0")</dd>
+                    <dt>Clearly trivial</dt><dd>@_materiality.Currency @_materiality.ClearlyTrivial.ToString("N0")</dd>
+                    <dt>Benchmark</dt><dd>@_materiality.Benchmark</dd>
+                    <dt>Status</dt><dd>@_materiality.Status</dd>
+                </dl>
+            }
+            else
+            {
+                <p class="empty-state">No materiality assessment created yet.</p>
+                <button class="btn-small" @onclick="NewMateriality">Create Assessment</button>
+            }
+        </section>
+
+        <!-- Risks -->
+        <section class="card">
+            <h2>Identified Risks</h2>
+            <table class="data-table">
+                <thead>
+                    <tr><th>Area</th><th>Assertion</th><th>Significance</th><th>Status</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var r in _risks)
+                    {
+                        <tr>
+                            <td>@r.Area</td>
+                            <td>@r.Assertion</td>
+                            <td><span class="badge @(r.Significance == "SIGNIFICANT" ? "badge-red" : "badge-yellow")">@r.Significance</span></td>
+                            <td>@r.Status</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            <button class="btn-small mt-2" @onclick="NewRisk">Add Risk</button>
+        </section>
+
+        <!-- Programs -->
+        <section class="card">
+            <h2>Audit Programs</h2>
+            <ul class="program-list">
+                @foreach (var p in _programs)
+                {
+                    <li>
+                        <span class="program-name">@p.Name</span>
+                        <span class="program-status">@p.ProcedureCount procedures · @p.CoveragePercent% coverage</span>
+                        <a class="btn-small" href="/app/audit/plans/@Id/programs/@p.Id">Open</a>
+                    </li>
+                }
+            </ul>
+        </section>
+    </div>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    Guid? _engagementId;
+    bool _loading = true;
+    string _status = "IN_PROGRESS";
+
+    record MaterialityRow(string Currency, decimal Overall, decimal Performance, decimal ClearlyTrivial, string Benchmark, string Status);
+    record RiskRow(string Area, string Assertion, string Significance, string Status);
+    record ProgramRow(Guid Id, string Name, int ProcedureCount, int CoveragePercent);
+
+    MaterialityRow? _materiality;
+    List<RiskRow> _risks = [];
+    List<ProgramRow> _programs = [];
+
+    void NewMateriality() => Nav.NavigateTo($"/app/audit/plans/{Id}/materiality/new");
+    void NewRisk() => Nav.NavigateTo($"/app/audit/plans/{Id}/risks/new");
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await Auth.GetAuthenticationStateAsync();
+        if (state.User.Identity?.IsAuthenticated != true)
+        { Nav.NavigateTo("/login"); return; }
+
+        _engagementId = Guid.NewGuid();
+        _materiality = new("QAR", 250_000m, 187_500m, 12_500m, "Total assets", "APPROVED");
+        _risks =
+        [
+            new("Revenue recognition", "Occurrence", "SIGNIFICANT", "RESPONSE_DEFINED"),
+            new("Accounts receivable", "Valuation", "ELEVATED", "RESPONSE_DEFINED"),
+            new("Payroll", "Completeness", "NORMAL", "IDENTIFIED"),
+            new("Inventory", "Existence", "ELEVATED", "RESPONSE_DEFINED"),
+        ];
+        _programs =
+        [
+            new(Guid.NewGuid(), "Cash & Bank", 8, 100),
+            new(Guid.NewGuid(), "Revenue & Receivables", 14, 78),
+            new(Guid.NewGuid(), "Inventory", 10, 60),
+            new(Guid.NewGuid(), "Payables & Accruals", 9, 100),
+        ];
+        _loading = false;
+    }
+}

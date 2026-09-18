@@ -1,0 +1,126 @@
+@page "/app/audit/populations/{Id:guid}"
+@using Microsoft.AspNetCore.Components.Authorization
+@inject AuthenticationStateProvider Auth
+@inject NavigationManager Nav
+
+<PageTitle>Population — AuditSphereOps</PageTitle>
+
+<div class="page-header">
+    <nav class="breadcrumb-nav">
+        <a href="/app">Portfolio</a> /
+        <span>Population @Id</span>
+    </nav>
+    <h1>Population Record</h1>
+    <span class="status-badge badge-blue">@_status</span>
+</div>
+
+@if (_loading) { <div class="loading-state">Loading…</div> }
+else
+{
+    <div class="population-shell">
+        <section class="card">
+            <h2>Population Details</h2>
+            <dl class="detail-grid">
+                <dt>Purpose</dt><dd>@_purpose</dd>
+                <dt>Assertion</dt><dd>@_assertion</dd>
+                <dt>Source receipt</dt><dd>@_sourceReceipt</dd>
+                <dt>Row count</dt><dd>@_rowCount.ToString("N0")</dd>
+                <dt>Monetary control total</dt><dd>@_currency @_monetaryTotal.ToString("N2")</dd>
+                <dt>Exclusions</dt><dd>@(_exclusions ?? "None")</dd>
+            </dl>
+        </section>
+
+        <section class="card">
+            <h2>Selections</h2>
+            <div class="selection-mode-bar">
+                <span>Mode: <strong>@_selectionMode</strong></span>
+                <button class="btn-small" @onclick="() => _showModePanel = !_showModePanel">Change Mode</button>
+            </div>
+
+            @if (_showModePanel)
+            {
+                <div class="mode-panel">
+                    <label>Selection Mode</label>
+                    <select @bind="_selectionMode">
+                        <option value="100%">100% Examination</option>
+                        <option value="SPECIFIC_ITEM">Specific-Item Selection</option>
+                        <option value="NON_STATISTICAL">Approved Non-Statistical Plan</option>
+                        <option value="STATISTICAL">Validated Statistical Method</option>
+                    </select>
+                    <button class="btn-small mt-1" @onclick="() => _showModePanel = false">Apply</button>
+                </div>
+            }
+
+            <table class="data-table mt-2">
+                <thead>
+                    <tr><th>Item ID</th><th>Amount</th><th>Reason</th><th>Result</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var s in _selections)
+                    {
+                        <tr>
+                            <td>@s.ItemId</td>
+                            <td>@_currency @s.Amount.ToString("N2")</td>
+                            <td>@s.Reason</td>
+                            <td><span class="badge @(s.Result == "PASS" ? "badge-green" : s.Result == "EXCEPTION" ? "badge-red" : "badge-yellow")">@s.Result</span></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </section>
+
+        <section class="card">
+            <h2>Evaluation</h2>
+            <p class="info-text">Projection and sampling risk evaluated under the approved methodology. Selection corrections retain the replaced item and reviewer relationship.</p>
+            <dl class="detail-grid">
+                <dt>Items tested</dt><dd>@_selections.Count</dd>
+                <dt>Exceptions</dt><dd>@_selections.Count(s => s.Result == "EXCEPTION")</dd>
+                <dt>Coverage</dt><dd>@(_coverage.ToString("N1"))%</dd>
+            </dl>
+        </section>
+    </div>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    bool _loading = true;
+    string _status = "PENDING_APPROVAL";
+    string _purpose = "—";
+    string _assertion = "—";
+    string _sourceReceipt = "—";
+    int _rowCount;
+    string _currency = "QAR";
+    decimal _monetaryTotal;
+    string? _exclusions;
+    string _selectionMode = "SPECIFIC_ITEM";
+    bool _showModePanel;
+    decimal _coverage;
+
+    record SelectionRow(string ItemId, decimal Amount, string Reason, string Result);
+    List<SelectionRow> _selections = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await Auth.GetAuthenticationStateAsync();
+        if (state.User.Identity?.IsAuthenticated != true)
+        { Nav.NavigateTo("/login"); return; }
+
+        _purpose = "Test existence of year-end trade receivables balance";
+        _assertion = "Existence / Rights";
+        _sourceReceipt = "AR-EXPORT-20251231-v2";
+        _rowCount = 342;
+        _monetaryTotal = 4_870_250m;
+        _exclusions = "Intercompany balances excluded";
+        _status = "APPROVED";
+        _selections =
+        [
+            new("AR-001234", 450_000m, "High-value ≥ QAR 400k", "PASS"),
+            new("AR-005678", 320_000m, "High-value ≥ QAR 300k", "PASS"),
+            new("AR-002345", 185_000m, "Random selection", "EXCEPTION"),
+            new("AR-009012", 92_500m,  "Random selection", "PASS"),
+        ];
+        _coverage = _selections.Sum(s => s.Amount) / _monetaryTotal * 100m;
+        _loading = false;
+    }
+}

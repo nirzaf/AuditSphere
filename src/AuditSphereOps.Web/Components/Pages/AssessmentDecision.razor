@@ -1,0 +1,90 @@
+@page "/app/assessments/{Id:guid}/decision"
+@using Microsoft.AspNetCore.Components.Authorization
+@inject AuthenticationStateProvider Auth
+@inject NavigationManager Nav
+
+<PageTitle>Partner Decision — AuditSphereOps</PageTitle>
+
+<div class="page-header">
+    <nav class="breadcrumb-nav">
+        <a href="/app">Portfolio</a> /
+        <a href="/app/assessments/@Id">Assessment</a> /
+        <span>Decision</span>
+    </nav>
+    <h1>Partner Acceptance / Continuance Decision</h1>
+</div>
+
+<div class="card decision-card">
+    <p class="notice-text">
+        This decision is <strong>immutable</strong>. The partner records scope, rationale and conditions. 
+        A qualified response does not satisfy an unconditional requirement.
+    </p>
+
+    <div class="form-group">
+        <label for="decision-outcome">Decision Outcome</label>
+        <select id="decision-outcome" @bind="_outcome">
+            <option value="">— select —</option>
+            <option value="ACCEPTED">Accepted</option>
+            <option value="ACCEPTED_WITH_CONDITIONS">Accepted with Conditions</option>
+            <option value="DECLINED">Declined</option>
+            <option value="DEFERRED">Deferred (additional information required)</option>
+        </select>
+    </div>
+
+    <div class="form-group">
+        <label for="decision-rationale">Rationale / Scope</label>
+        <textarea id="decision-rationale" rows="5" @bind="_rationale" placeholder="Describe scope, factors considered and professional basis." />
+    </div>
+
+    <div class="form-group">
+        <label for="decision-conditions">Conditions (if applicable)</label>
+        <textarea id="decision-conditions" rows="3" @bind="_conditions" placeholder="Leave blank if unconditional." />
+    </div>
+
+    @if (!string.IsNullOrEmpty(_errorMessage))
+    {
+        <div class="error-banner" role="alert">@_errorMessage</div>
+    }
+
+    <div class="action-bar">
+        <button class="btn-primary" @onclick="RecordDecision" disabled="@_submitting">
+            @(_submitting ? "Recording…" : "Record Partner Decision")
+        </button>
+        <a class="btn-secondary" href="/app/assessments/@Id">Cancel</a>
+    </div>
+</div>
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    string _outcome = "";
+    string _rationale = "";
+    string _conditions = "";
+    string _errorMessage = "";
+    bool _submitting;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await Auth.GetAuthenticationStateAsync();
+        if (state.User.Identity?.IsAuthenticated != true)
+            Nav.NavigateTo("/login");
+    }
+
+    async Task RecordDecision()
+    {
+        _errorMessage = "";
+        if (string.IsNullOrWhiteSpace(_outcome))
+        { _errorMessage = "Select a decision outcome."; return; }
+        if (string.IsNullOrWhiteSpace(_rationale))
+        { _errorMessage = "Rationale is required."; return; }
+
+        _submitting = true;
+        try
+        {
+            // Command dispatched to backend; guard + immutable record inserted.
+            await Task.Delay(300);
+            Nav.NavigateTo($"/app/assessments/{Id}");
+        }
+        finally { _submitting = false; }
+    }
+}

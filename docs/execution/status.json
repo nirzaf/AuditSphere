@@ -12,15 +12,15 @@
     "postgres": "18.6 Homebrew user-local port 5433 (development only)"
   },
   "active": {
-    "packageId": "Complete core staff route catalog, practice operations, operator recovery, and deterministic financial statements",
+    "packageId": "Complete audit planning, materiality, risks, populations, workpapers, findings lifecycle (NT-21..24) and audit UI routes",
     "issueNumber": null,
     "branch": "master",
     "pullRequestNumber": null,
     "headCommit": "08e5327",
     "implementationStatus": "PARTIAL",
     "acceptanceStatus": "LOCAL_VERIFIED",
-    "worktree": "Adds complete core staff route catalog and practice screens: ClientDetail (/app/clients/{id}), EngagementDetail (/app/engagements/{id}), PracticeTime (/app/practice/time), InvoiceDetail (/app/practice/invoices/{id}), Finance (/app/finance), Administration (/app/administration), Leads (/app/practice/leads), Operations (/app/operations), Journals (/app/accounting/journals/{id}), and FinancialPackage (/app/accounting/packages/{id}), all backed by command-level services. 115/115 tests passing on PostgreSQL 18.6; restore rehearsal passed with 20 migrations; web smoke tests returned HTTP 200 on all catalog routes.",
-    "scope": "Core staff route catalog, practice CRM, time recording, billing, firm ledger, operator recovery, and financial package artifact rendering behind scoped role authorization. No live provider is claimed.",
+    "worktree": "Adds audit planning service, materiality assessments (§19.2), audit risks (§19.3), population versions (§20.1), workpaper records and submissions (§21.1), and findings (§23). Adds migration 20260918235000_AuditPlanningAndFirmPostingExtensions applied cleanly on PostgreSQL 18.6 (21 total migrations). Full test suite 130/130 passing on PostgreSQL 18.6 with 0 skipped. Restore rehearsal passed with 21 migrations. Web readiness returned Healthy/HTTP 200 with 0 pending migrations.",
+    "scope": "Audit planning, materiality, risks, populations, workpapers, findings, firm posting balance guard, and audit UI screens behind scoped role authorization. No live provider is claimed.",
     "productionEnabled": false
   },
   "testEvidence": [
@@ -127,6 +127,26 @@
     {
       "command": "Web host catalog smoke",
       "result": "Web host on port 5099 returned HTTP 200 for /, /health/live, /health/ready, /app, /app/practice/leads, /app/practice/time, /app/finance, /app/operations, /app/administration, /app/clients/{id}, /app/engagements/{id}, /app/practice/invoices/{id}, and /portal."
+    },
+    {
+      "command": "dotnet ef database update --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Web",
+      "result": "Applied 20260918235000_AuditPlanningAndFirmPostingExtensions; local auditsphere is now up to date with twenty-one migrations."
+    },
+    {
+      "command": "dotnet build AuditSphereOps.slnx",
+      "result": "Build succeeded with 0 warnings and 0 errors across all 6 projects."
+    },
+    {
+      "command": "dotnet test AuditSphereOps.slnx --no-build",
+      "result": "Passed 130/130 on PostgreSQL 18.6 with 0 skipped. New coverage: AuditPlanningTests (15 tests) covering NT-21 (materiality threshold invariants, risk persistence/empty-rejections, population control totals and negative-rejection, workpaper submission revision increments and stale revision conflict, finding types/amounts and empty-rejections), NT-22 (posting balance domain invariant), NT-23 (tenant prerequisites absence verification with provenance), and NT-24 (immutable approved time entries and client safety state generation invariant)."
+    },
+    {
+      "command": "scripts/db/restore-drill.sh",
+      "result": "Loopback-only dump/restore passed; restored 21 migrations with latest 20260918235000_AuditPlanningAndFirmPostingExtensions and removed only its generated database and temporary directory."
+    },
+    {
+      "command": "dotnet run --project src/AuditSphereOps.Web --urls http://127.0.0.1:5099 plus HTTP smoke requests",
+      "result": "Web host started cleanly on port 5099; HTTP 200 returned for /health/live and /health/ready. /health/ready queried __EFMigrationsHistory and reported Healthy with 0 pending migrations."
     }
   ],
   "tenantEvidence": [
@@ -173,5 +193,5 @@
     }
   ],
   "nextPermittedAction": "Continue with owner-authorized tenant/professional evidence and independent human review. Production recovery remains unproven.",
-  "lastVerifiedAt": "2026-09-18T20:15:00Z"
+  "lastVerifiedAt": "2026-09-19T00:20:00Z"
 }

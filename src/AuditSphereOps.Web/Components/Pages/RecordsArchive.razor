@@ -1,0 +1,126 @@
+@page "/app/records/archives/{Id:guid}"
+@using Microsoft.AspNetCore.Components.Authorization
+@inject AuthenticationStateProvider Auth
+@inject NavigationManager Nav
+
+<PageTitle>Records Archive — AuditSphereOps</PageTitle>
+
+<div class="page-header">
+    <nav class="breadcrumb-nav">
+        <a href="/app">Portfolio</a> /
+        <span>Archive @Id</span>
+    </nav>
+    <h1>Records Archive</h1>
+    <span class="status-badge @_statusClass">@_status</span>
+</div>
+
+@if (_loading) { <div class="loading-state">Loading archive…</div> }
+else
+{
+    <div class="archive-shell">
+
+        <section class="card">
+            <h2>Archive Manifest</h2>
+            <dl class="detail-grid">
+                <dt>Engagement</dt><dd>@_engagementName</dd>
+                <dt>Period</dt><dd>@_period</dd>
+                <dt>Created</dt><dd>@_createdAt.ToString("yyyy-MM-dd HH:mm")</dd>
+                <dt>Retention profile</dt><dd>@_retentionProfile</dd>
+                <dt>Protection level</dt><dd>@_protectionLevel</dd>
+                <dt>Manifest hash</dt><dd><code>@_manifestHash</code></dd>
+                <dt>Holds</dt><dd>@(_holdCount > 0 ? $"{_holdCount} active hold(s)" : "None")</dd>
+            </dl>
+        </section>
+
+        <section class="card">
+            <h2>Archive Contents</h2>
+            <table class="data-table">
+                <thead>
+                    <tr><th>Index</th><th>Document</th><th>SHA-256</th><th>Size</th><th>Status</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var d in _documents)
+                    {
+                        <tr>
+                            <td>@d.Index</td>
+                            <td>@d.Name</td>
+                            <td><code class="hash-snippet">@d.HashSnippet</code></td>
+                            <td>@d.SizeKb KB</td>
+                            <td><span class="badge @(d.Status == "VERIFIED" ? "badge-green" : "badge-red")">@d.Status</span></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </section>
+
+        <section class="card">
+            <h2>Exceptions</h2>
+            @if (_exceptions.Count > 0)
+            {
+                <ul class="exception-list">
+                    @foreach (var ex in _exceptions)
+                    {
+                        <li class="exception-item badge-red">@ex</li>
+                    }
+                </ul>
+            }
+            else
+            {
+                <p class="empty-state">No archive exceptions.</p>
+            }
+        </section>
+
+        <section class="card">
+            <h2>Structured Exports</h2>
+            <p class="notice-text">Exports are structured, hash-verified packages. Raw filesystem access is not available through this interface.</p>
+            <button class="btn-secondary" @onclick="RequestExport" disabled="@(_status != "PROTECTED")">
+                Request Structured Export
+            </button>
+        </section>
+    </div>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    bool _loading = true;
+    string _status = "PROTECTED";
+    string _statusClass = "badge-green";
+    string _engagementName = "—";
+    string _period = "—";
+    DateTime _createdAt;
+    string _retentionProfile = "—";
+    string _protectionLevel = "—";
+    string _manifestHash = "—";
+    int _holdCount;
+
+    record DocumentRow(string Index, string Name, string HashSnippet, int SizeKb, string Status);
+    List<DocumentRow> _documents = [];
+    List<string> _exceptions = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await Auth.GetAuthenticationStateAsync();
+        if (state.User.Identity?.IsAuthenticated != true)
+        { Nav.NavigateTo("/login"); return; }
+
+        _engagementName = "Acme Holdings — Statutory Audit 2025";
+        _period = "Year ended 31 December 2025";
+        _createdAt = DateTime.UtcNow.AddDays(-10);
+        _retentionProfile = "ISA-7YR";
+        _protectionLevel = "IMMUTABLE_WORM";
+        _manifestHash = "sha256:3f9a2b…e4c1d7";
+        _holdCount = 0;
+        _documents =
+        [
+            new("CB-01", "Cash Lead Schedule.xlsx", "a1b2c3…", 42, "VERIFIED"),
+            new("CB-02", "Bank Reconciliation.xlsx", "d4e5f6…", 88, "VERIFIED"),
+            new("REV-01", "Revenue Testing Workpaper.xlsx", "g7h8i9…", 215, "VERIFIED"),
+            new("FS-FINAL", "Final Financial Statements.pdf", "j0k1l2…", 1_240, "VERIFIED"),
+            new("SIGN-01", "Signed Audit Report.pdf", "m3n4o5…", 320, "VERIFIED"),
+        ];
+        _loading = false;
+    }
+
+    void RequestExport() { /* Dispatch export command; worker creates verified package */ }
+}

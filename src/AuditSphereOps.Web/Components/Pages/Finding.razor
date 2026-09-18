@@ -1,0 +1,113 @@
+@page "/app/findings/{Id:guid}"
+@using Microsoft.AspNetCore.Components.Authorization
+@inject AuthenticationStateProvider Auth
+@inject NavigationManager Nav
+
+<PageTitle>Finding — AuditSphereOps</PageTitle>
+
+<div class="page-header">
+    <nav class="breadcrumb-nav">
+        <a href="/app">Portfolio</a> /
+        <span>Finding @Id</span>
+    </nav>
+    <h1>Audit Finding</h1>
+    <span class="status-badge @(_corrected ? "badge-green" : "badge-red")">@(_corrected ? "CORRECTED" : "UNCORRECTED")</span>
+</div>
+
+@if (_loading) { <div class="loading-state">Loading…</div> }
+else
+{
+    <div class="finding-shell">
+
+        <section class="card">
+            <h2>Finding Details</h2>
+            <dl class="detail-grid">
+                <dt>Type</dt><dd>@_findingType</dd>
+                <dt>Impact description</dt><dd>@_impactDescription</dd>
+                <dt>Monetary amount</dt><dd>@(_monetaryAmount.HasValue ? $"{_currency} {_monetaryAmount:N2}" : "—")</dd>
+                <dt>Corrected</dt><dd>@(_corrected ? "Yes" : "No")</dd>
+                <dt>Status</dt><dd>@_status</dd>
+            </dl>
+        </section>
+
+        <section class="card">
+            <h2>Management Response &amp; Action</h2>
+            @if (!string.IsNullOrEmpty(_managementResponse))
+            {
+                <blockquote class="management-response">@_managementResponse</blockquote>
+                <p class="meta-text">Response recorded @_responseDate.ToString("yyyy-MM-dd"). Remediation target: @_remediationTarget</p>
+            }
+            else
+            {
+                <p class="empty-state">No management response recorded.</p>
+            }
+        </section>
+
+        <section class="card">
+            <h2>Audit Conclusion</h2>
+            <p>@_auditConclusion</p>
+            <p class="notice-text">
+                A paid invoice cannot clear this finding. Future-period remediation is distinct from current audit conclusion.
+            </p>
+        </section>
+
+        @if (_status == "OPEN")
+        {
+            <section class="card">
+                <h2>Record Management Response</h2>
+                <div class="form-group">
+                    <label for="mgmt-response">Management Response</label>
+                    <textarea id="mgmt-response" rows="4" @bind="_draftResponse" />
+                </div>
+                <div class="form-group">
+                    <label for="remediation-target">Remediation Target Date</label>
+                    <input id="remediation-target" type="date" @bind="_draftRemediationTarget" />
+                </div>
+                <button class="btn-primary" @onclick="RecordResponse">Record Response</button>
+            </section>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    bool _loading = true;
+    string _findingType = "—";
+    string _impactDescription = "—";
+    decimal? _monetaryAmount;
+    string _currency = "QAR";
+    bool _corrected;
+    string _status = "OPEN";
+    string? _managementResponse;
+    DateTime _responseDate;
+    string _remediationTarget = "—";
+    string _auditConclusion = "—";
+    string _draftResponse = "";
+    DateTime _draftRemediationTarget = DateTime.UtcNow.AddMonths(3);
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await Auth.GetAuthenticationStateAsync();
+        if (state.User.Identity?.IsAuthenticated != true)
+        { Nav.NavigateTo("/login"); return; }
+
+        _findingType = "Misstatement — Revenue Cut-off";
+        _impactDescription = "Revenue of QAR 380,000 recognized in December 2025 relates to services delivered in January 2026 under contract XYZ-441.";
+        _monetaryAmount = 380_000m;
+        _corrected = false;
+        _status = "OPEN";
+        _auditConclusion = "Material uncorrected misstatement. Requires management correction or modification of audit opinion.";
+        _loading = false;
+    }
+
+    async Task RecordResponse()
+    {
+        if (string.IsNullOrWhiteSpace(_draftResponse)) return;
+        await Task.Delay(100);
+        _managementResponse = _draftResponse;
+        _responseDate = DateTime.UtcNow;
+        _remediationTarget = _draftRemediationTarget.ToString("yyyy-MM-dd");
+        _draftResponse = "";
+    }
+}

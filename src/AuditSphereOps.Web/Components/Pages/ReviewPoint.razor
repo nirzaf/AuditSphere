@@ -1,0 +1,156 @@
+@page "/app/reviews/{Id:guid}"
+@using Microsoft.AspNetCore.Components.Authorization
+@inject AuthenticationStateProvider Auth
+@inject NavigationManager Nav
+
+<PageTitle>Review Point — AuditSphereOps</PageTitle>
+
+<div class="page-header">
+    <nav class="breadcrumb-nav">
+        <a href="/app">Portfolio</a> /
+        <span>Review @Id</span>
+    </nav>
+    <h1>Review Point</h1>
+    <span class="status-badge @_statusClass">@_status</span>
+</div>
+
+@if (_loading) { <div class="loading-state">Loading…</div> }
+else
+{
+    <div class="review-shell">
+
+        <section class="card">
+            <h2>Review Context</h2>
+            <dl class="detail-grid">
+                <dt>Snapshot under review</dt><dd>@_snapshotId</dd>
+                <dt>Current working revision</dt><dd>@_workingRevision</dd>
+                <dt>Reviewer authority</dt><dd>@_reviewerAuthority</dd>
+                <dt>Blocks gate</dt><dd>@(_blocksGate ? "Yes" : "No")</dd>
+                <dt>Severity</dt><dd><span class="badge @(_severity == "MATERIAL" ? "badge-red" : "badge-yellow")">@_severity</span></dd>
+            </dl>
+            @if (_dependenciesChanged)
+            {
+                <div class="warn-banner" role="alert">⚠ Dependencies have changed since review was raised. Reviewer must assess impact.</div>
+            }
+        </section>
+
+        <section class="card">
+            <h2>Review Point</h2>
+            <p>@_pointDescription</p>
+            @if (!string.IsNullOrEmpty(_cellReference))
+            {
+                <p class="meta-text">Reference: <code>@_cellReference</code> (snapshot @_snapshotId)</p>
+            }
+        </section>
+
+        <section class="card">
+            <h2>Response History</h2>
+            <div class="thread">
+                @foreach (var e in _events)
+                {
+                    <div class="thread-item">
+                        <span class="thread-actor">@e.Actor</span>
+                        <span class="thread-date">@e.Date.ToString("yyyy-MM-dd HH:mm")</span>
+                        <span class="thread-action badge @e.ActionClass">@e.Action</span>
+                        <p class="thread-note">@e.Note</p>
+                    </div>
+                }
+            </div>
+        </section>
+
+        @if (_status is "OPEN" or "IN_PROGRESS" or "RESPONDED")
+        {
+            <section class="card">
+                <h2>@(_isReviewer ? "Clear / Reopen" : "Respond")</h2>
+                <div class="form-group">
+                    <label for="rv-note">Note</label>
+                    <textarea id="rv-note" rows="4" @bind="_responseNote" />
+                </div>
+                <div class="action-bar">
+                    @if (!_isReviewer)
+                    {
+                        <button class="btn-primary" @onclick="MarkResponded">Mark as Responded</button>
+                    }
+                    else
+                    {
+                        <button class="btn-primary btn-green" @onclick="Clear">Clear</button>
+                        <button class="btn-secondary btn-red" @onclick="Reopen">Reopen</button>
+                    }
+                </div>
+            </section>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    bool _loading = true;
+    string _status = "IN_PROGRESS";
+    string _statusClass = "badge-blue";
+    string _snapshotId = "—";
+    long _workingRevision;
+    string _reviewerAuthority = "—";
+    bool _blocksGate;
+    string _severity = "SIGNIFICANT";
+    bool _dependenciesChanged;
+    string _pointDescription = "—";
+    string? _cellReference;
+    bool _isReviewer;
+    string _responseNote = "";
+
+    record EventRow(string Actor, DateTime Date, string Action, string ActionClass, string Note);
+    List<EventRow> _events = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await Auth.GetAuthenticationStateAsync();
+        if (state.User.Identity?.IsAuthenticated != true)
+        { Nav.NavigateTo("/login"); return; }
+
+        _snapshotId = "SNAP-2025-CB02-v1";
+        _workingRevision = 2;
+        _reviewerAuthority = "Senior Manager";
+        _blocksGate = true;
+        _severity = "SIGNIFICANT";
+        _dependenciesChanged = false;
+        _pointDescription = "Bank reconciliation worksheet does not agree item at row 47: unreconciled difference of QAR 12,350. Investigate and correct.";
+        _cellReference = "CB-02.xlsx!Reconciliation!E47";
+        _isReviewer = false;
+        _events =
+        [
+            new("Senior Manager A", DateTime.UtcNow.AddDays(-3), "RAISED", "badge-red", _pointDescription),
+            new("Staff A", DateTime.UtcNow.AddDays(-1), "IN_PROGRESS", "badge-yellow", "Investigating — bank confirmed the difference relates to a timing item."),
+        ];
+        _status = "IN_PROGRESS";
+        _statusClass = "badge-blue";
+        _loading = false;
+    }
+
+    async Task MarkResponded()
+    {
+        if (string.IsNullOrWhiteSpace(_responseNote)) return;
+        await Task.Delay(100);
+        _events.Add(new("Staff A", DateTime.UtcNow, "RESPONDED", "badge-purple", _responseNote));
+        _status = "RESPONDED"; _statusClass = "badge-purple";
+        _responseNote = "";
+    }
+
+    async Task Clear()
+    {
+        if (string.IsNullOrWhiteSpace(_responseNote)) return;
+        await Task.Delay(100);
+        _events.Add(new("Reviewer", DateTime.UtcNow, "CLEARED", "badge-green", _responseNote));
+        _status = "CLEARED"; _statusClass = "badge-green";
+        _responseNote = "";
+    }
+
+    async Task Reopen()
+    {
+        if (string.IsNullOrWhiteSpace(_responseNote)) return;
+        await Task.Delay(100);
+        _events.Add(new("Reviewer", DateTime.UtcNow, "REOPENED", "badge-red", _responseNote));
+        _status = "OPEN"; _statusClass = "badge-red";
+        _responseNote = "";
+    }
+}
