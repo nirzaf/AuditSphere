@@ -16,7 +16,7 @@
     "issueNumber": null,
     "branch": "master",
     "pullRequestNumber": null,
-    "headCommit": "uncommitted working tree on base 8a0f035",
+    "headCommit": "24a90d4",
     "implementationStatus": "IMPLEMENTED",
     "acceptanceStatus": "LOCAL_VERIFIED",
     "worktree": "materiality_assessments, population_versions and workpaper_submissions are now EF-model entities (the snapshot owned 79 entities and did not own them). audit_risks/workpapers/findings gained their real columns in the model; the vestigial workpapers.state/generation and findings.title/severity columns are dropped, and the three single-column *_engagement_id_fkey constraints (which never proved matching client scope) are replaced by composite (firm, client, engagement) foreign keys with ON DELETE RESTRICT. The migration restores the NOT NULL scope columns that 20260918235000 had relaxed, adds 16 model-declared CHECK constraints, and installs append-only triggers on materiality_assessments, population_versions and workpaper_submissions plus a submitted-workpaper freeze trigger. AuditPlanningService now authorizes each command against the stored engagement scope, returns CommandResult codes instead of throwing, and writes through entities; the previously shifted column mappings (audit_risks.description/severity, findings.title/severity) each receive their own input. AuditPlan/Workpaper/AuditPopulation/Finding pages read persisted rows and invoke the real commands; their fabricated content was removed. 152/152 tests pass on PostgreSQL 18.6 with 0 skipped.",
