@@ -7,6 +7,7 @@ db_host="127.0.0.1"
 db_port="5433"
 source_db="auditsphere"
 db_user="postgres"
+evidence_file="${AUDITSPHERE_EVIDENCE_FILE:-docs/evidence/restore-drill-latest.json}"
 psql_bin="$(command -v psql || true)"
 if [[ -z "$psql_bin" && -x /opt/homebrew/opt/postgresql@18/bin/psql ]]; then
   psql_bin=/opt/homebrew/opt/postgresql@18/bin/psql
@@ -51,4 +52,33 @@ if [[ "$restored_migrations" != "$expected_migrations" || "$latest_migration" !=
   echo "Restore verification failed: source migrations=$expected_migrations latest=$expected_latest_migration; restored migrations=$restored_migrations latest=$latest_migration" >&2
   exit 1
 fi
-echo "Restore rehearsal passed: PostgreSQL 18 schema restored with $restored_migrations migrations; latest $latest_migration."
+
+source_checkpoint_summary="$($psql_bin -h "$db_host" -p "$db_port" -U "$db_user" -d "$source_db" \
+  -Atc "SELECT count(*)::text || '|' || COALESCE(string_agg(manifest_digest, ',' ORDER BY id), '') FROM release_checkpoints")"
+restored_checkpoint_summary="$($psql_bin -h "$db_host" -p "$db_port" -U "$db_user" -d "$restore_db" \
+  -Atc "SELECT count(*)::text || '|' || COALESCE(string_agg(manifest_digest, ',' ORDER BY id), '') FROM release_checkpoints")"
+if [[ "$source_checkpoint_summary" != "$restored_checkpoint_summary" ]]; then
+  echo "Restore checkpoint reconciliation failed: source=$source_checkpoint_summary restored=$restored_checkpoint_summary" >&2
+  exit 1
+fi
+
+mkdir -p "$(dirname "$evidence_file")"
+printf '%s\n' \
+  '{' \
+  "  \"status\": \"PASS\"," \
+  "  \"recordedAt\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"," \
+  "  \"databaseHost\": \"$db_host\"," \
+  "  \"sourceDatabase\": \"$source_db\"," \
+  "  \"restoredDatabase\": \"$restore_db\"," \
+  "  \"expectedMigrationCount\": $expected_migrations," \
+  "  \"restoredMigrationCount\": $restored_migrations," \
+  "  \"expectedLatestMigration\": \"$expected_latest_migration\"," \
+  "  \"restoredLatestMigration\": \"$latest_migration\"," \
+  "  \"releaseCheckpointDatabaseSummary\": \"$source_checkpoint_summary\"," \
+  "  \"restoredReleaseCheckpointDatabaseSummary\": \"$restored_checkpoint_summary\"," \
+  '  "checkpointDatabaseReconciliation": "PASS",' \
+  '  "externalCheckpointStoreVerification": "NOT_RUN",' \
+  '  "custodiallySeparateStorage": false,' \
+  '  "productionRpoRto": "NOT_RUN"' \
+  '}' > "$evidence_file"
+echo "Restore rehearsal passed: PostgreSQL 18 schema restored with $restored_migrations migrations; latest $latest_migration. Evidence: $evidence_file."

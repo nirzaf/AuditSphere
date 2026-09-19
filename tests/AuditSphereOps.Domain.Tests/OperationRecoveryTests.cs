@@ -166,6 +166,34 @@ public sealed class OperationRecoveryTests
   }
 
   [Fact]
+  public async Task RecoverySession_RequiresPersistedApprovalBeforeRestart()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var harness = await PbcSeed.CreateTransferHarnessAsync(pg);
+    var admin = PbcSeed.Actor(harness.Fixture.Admin, "Administrator");
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var started = await OperationRecoveryService.BeginRecoverySessionAsync(db, admin,
+        new RecoverySessionRequest("restore-20260919", 7, "release-checkpoints-and-pending-effects",
+          "Checkpoint comparison required before restart."));
+      Assert.True(started.Succeeded, started.ErrorCode);
+      Assert.Equal("RECOVERY_QUARANTINE", (await db.FirmSafetyStates.AsNoTracking().SingleAsync()).OperatingMode);
+      Assert.Equal(7, (await db.FirmSafetyStates.AsNoTracking().SingleAsync()).RecoveryEpoch);
+
+      var approved = await OperationRecoveryService.ApproveRecoveryRestartAsync(db, admin,
+        new RecoveryRestartRequest(started.Value!, "Counts and digests reconciled; no replay permitted."));
+      Assert.True(approved.Succeeded, approved.ErrorCode);
+      var safety = await db.FirmSafetyStates.AsNoTracking().SingleAsync();
+      Assert.Equal("LOCAL_ONLY", safety.OperatingMode);
+      Assert.Equal(2, safety.DeploymentEpoch);
+      Assert.True(await db.RecoverySessions.AsNoTracking().AnyAsync(x =>
+        x.Id == started.Value && x.ApprovedByUserId == harness.Fixture.Admin.Id));
+    }
+    PbcSeed.DeleteDirectory(harness.Staged.StagingRoot);
+  }
+
+  [Fact]
   public async Task CrossFirmOperation_IsNondisclosingDenied()
   {
     await using var pg = await PgTestSchema.CreateAsync();

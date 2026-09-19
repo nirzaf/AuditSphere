@@ -363,9 +363,11 @@ public sealed class AuthorizationDecisionTests
     public DbSet<AuditSphereOps.Domain.Completion.OperationAttempt> OperationAttempts => db.OperationAttempts;
     public DbSet<AuditSphereOps.Domain.Completion.OperationEvent> OperationEvents => db.OperationEvents;
     public DbSet<AuditSphereOps.Domain.Completion.FirmSafetyState> FirmSafetyStates => db.FirmSafetyStates;
+    public DbSet<AuditSphereOps.Domain.Completion.RecoverySession> RecoverySessions => db.RecoverySessions;
     public DbSet<AuditSphereOps.Domain.Completion.ClientSafetyState> ClientSafetyStates => db.ClientSafetyStates;
     public DbSet<TrialBalanceDataset> TrialBalanceDatasets => db.TrialBalanceDatasets;
     public DbSet<AuditSphereOps.Domain.Accounting.TrialBalanceRow> TrialBalanceRows => db.TrialBalanceRows;
+    public DbSet<AuditSphereOps.Domain.Accounting.MappingRule> MappingRules => db.MappingRules;
     public DbSet<AuditSphereOps.Domain.Accounting.MappingVersion> MappingVersions => db.MappingVersions;
     public DbSet<AuditSphereOps.Domain.Accounting.MappingAllocation> MappingAllocations => db.MappingAllocations;
     public DbSet<AuditSphereOps.Domain.Accounting.AdjustedTrialBalanceSnapshot> AdjustedTrialBalanceSnapshots => db.AdjustedTrialBalanceSnapshots;
@@ -382,6 +384,9 @@ public sealed class AuthorizationDecisionTests
     public DbSet<AuditSphereOps.Domain.Accounting.FinancialPackageDisclosure> FinancialPackageDisclosures => db.FinancialPackageDisclosures;
     public DbSet<Engagement> Engagements => db.Engagements;
     public DbSet<EngagementHold> EngagementHolds => db.EngagementHolds;
+    public DbSet<AuditSphereOps.Domain.Documents.RepositoryBinding> RepositoryBindings => db.RepositoryBindings;
+    public DbSet<AuditSphereOps.Domain.Documents.SyncCursor> SyncCursors => db.SyncCursors;
+    public DbSet<AuditSphereOps.Domain.Documents.IntegrationCapability> IntegrationCapabilities => db.IntegrationCapabilities;
     public DbSet<AuditSphereOps.Domain.Documents.DocumentReference> DocumentReferences => db.DocumentReferences;
     public DbSet<AuditSphereOps.Domain.Documents.DocumentSnapshot> DocumentSnapshots => db.DocumentSnapshots;
     public DbSet<AuditSphereOps.Domain.Documents.PbcRequest> PbcRequests => db.PbcRequests;
@@ -394,6 +399,7 @@ public sealed class AuthorizationDecisionTests
     public DbSet<AuditSphereOps.Domain.Audit.AuditRisk> AuditRisks => db.AuditRisks;
     public DbSet<AuditSphereOps.Domain.Audit.AuditProcedure> AuditProcedures => db.AuditProcedures;
     public DbSet<AuditSphereOps.Domain.Audit.Finding> Findings => db.Findings;
+    public DbSet<AuditSphereOps.Domain.Reviews.ReviewPoint> ReviewPoints => db.ReviewPoints;
     public DbSet<AuditSphereOps.Domain.Reviews.Approval> Approvals => db.Approvals;
     public DbSet<AuditSphereOps.Domain.Reviews.ApprovalApplicability> ApprovalApplicabilities => db.ApprovalApplicabilities;
     public DbSet<AuditSphereOps.Domain.Completion.ReleaseCandidate> ReleaseCandidates => db.ReleaseCandidates;
@@ -401,6 +407,14 @@ public sealed class AuthorizationDecisionTests
     public DbSet<AuditSphereOps.Domain.Completion.ReleaseCheckpoint> ReleaseCheckpoints => db.ReleaseCheckpoints;
     public DbSet<AuditSphereOps.Domain.Completion.SignatureLineage> SignatureLineages => db.SignatureLineages;
     public DbSet<AuditSphereOps.Domain.Records.ProtectionAttestation> ProtectionAttestations => db.ProtectionAttestations;
+    public DbSet<AuditSphereOps.Domain.Completion.Archive> Archives => db.Archives;
+    public DbSet<AuditSphereOps.Domain.Records.RecordsProfile> RecordsProfiles => db.RecordsProfiles;
+    public DbSet<AuditSphereOps.Domain.Records.ArchiveManifest> ArchiveManifests => db.ArchiveManifests;
+    public DbSet<AuditSphereOps.Domain.Records.ArchiveManifestEntry> ArchiveManifestEntries => db.ArchiveManifestEntries;
+    public DbSet<AuditSphereOps.Domain.Records.ArchiveStructuredExport> ArchiveStructuredExports => db.ArchiveStructuredExports;
+    public DbSet<AuditSphereOps.Domain.Records.RecordsActionEvidence> RecordsActionEvidences => db.RecordsActionEvidences;
+    public DbSet<AuditSphereOps.Domain.Records.RecordsAction> RecordsActions => db.RecordsActions;
+    public DbSet<AuditSphereOps.Domain.Records.LegalHold> LegalHolds => db.LegalHolds;
     public DbSet<AuditSphereOps.Domain.Completion.EqrCase> EqrCases => db.EqrCases;
 
     public DbSet<AuditSphereOps.Domain.Completion.WrittenRepresentation> WrittenRepresentations => db.WrittenRepresentations;

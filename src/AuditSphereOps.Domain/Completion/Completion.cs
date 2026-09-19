@@ -83,7 +83,10 @@ public sealed class Archive
   public Guid ClientId { get; set; }
   public Guid EngagementId { get; set; }
   public string ProfileId { get; set; } = string.Empty;
-  public string Status { get; set; } = "Pending";
+  public long ProfileVersion { get; set; } = 1;
+  public string? ObservedProtectionState { get; set; }
+  public DateTimeOffset? ObservedProtectionAt { get; set; }
+  public string Status { get; set; } = AuditSphereOps.Domain.Records.ArchiveStates.Issued;
   public DateTimeOffset CreatedAt { get; set; }
 }
 
@@ -187,7 +190,21 @@ public sealed class FirmSafetyState
   public Guid Id { get; set; }
   public string OperatingMode { get; set; } = "LOCAL_ONLY";
   public long DeploymentEpoch { get; set; } = 1;
+  public long RecoveryEpoch { get; set; }
   public long PolicyGeneration { get; set; } = 1;
+}
+
+public sealed class RecoverySession
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public string RestorePoint { get; set; } = string.Empty;
+  public long ExternalEpoch { get; set; }
+  public string ReconciliationScope { get; set; } = string.Empty;
+  public string Findings { get; set; } = string.Empty;
+  public DateTimeOffset CreatedAt { get; set; }
+  public DateTimeOffset? ApprovedRestartAt { get; set; }
+  public Guid? ApprovedByUserId { get; set; }
 }
 
 public sealed class ClientSafetyState

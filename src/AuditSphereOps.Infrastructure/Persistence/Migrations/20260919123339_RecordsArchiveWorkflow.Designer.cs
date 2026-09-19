@@ -3,6 +3,7 @@ using System;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AuditSphereDbContext))]
-    partial class AuditSphereDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260919123339_RecordsArchiveWorkflow")]
+    partial class RecordsArchiveWorkflow
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -2017,15 +2020,6 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("firm_id");
 
-                    b.Property<DateTimeOffset?>("ObservedProtectionAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("observed_protection_at");
-
-                    b.Property<string>("ObservedProtectionState")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("observed_protection_state");
-
                     b.Property<string>("ProfileId")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -2052,7 +2046,7 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.ToTable("archives", null, t =>
                         {
-                            t.HasCheckConstraint("ck_archive_values", "length(trim(profile_id)) > 0 AND profile_version >= 1 AND status IN ('ISSUED','ASSEMBLY_IN_PROGRESS','MANIFEST_BUILT','ASSEMBLY_REVIEWED','RECORDS_ACTION_REQUESTED','PROTECTION_OBSERVED','ARCHIVE_VERIFIED') AND ((status IN ('PROTECTION_OBSERVED','ARCHIVE_VERIFIED') AND length(trim(observed_protection_state)) > 0 AND observed_protection_at IS NOT NULL) OR status IN ('ISSUED','ASSEMBLY_IN_PROGRESS','MANIFEST_BUILT','ASSEMBLY_REVIEWED','RECORDS_ACTION_REQUESTED'))");
+                            t.HasCheckConstraint("ck_archive_values", "length(trim(profile_id)) > 0 AND profile_version >= 1 AND status IN ('ISSUED','ASSEMBLY_IN_PROGRESS','MANIFEST_BUILT','ASSEMBLY_REVIEWED','RECORDS_ACTION_REQUESTED','PROTECTION_OBSERVED','ARCHIVE_VERIFIED')");
                         });
                 });
 
@@ -2327,15 +2321,11 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("bigint")
                         .HasColumnName("policy_generation");
 
-                    b.Property<long>("RecoveryEpoch")
-                        .HasColumnType("bigint")
-                        .HasColumnName("recovery_epoch");
-
                     b.HasKey("Id");
 
                     b.ToTable("firm_safety_states", null, t =>
                         {
-                            t.HasCheckConstraint("ck_firm_safety", "deployment_epoch >= 1 AND recovery_epoch >= 0 AND policy_generation >= 1 AND operating_mode IN ('LOCAL_ONLY','RECOVERY_QUARANTINE')");
+                            t.HasCheckConstraint("ck_firm_safety", "deployment_epoch >= 1 AND policy_generation >= 1 AND operating_mode IN ('LOCAL_ONLY','RECOVERY_QUARANTINE')");
                         });
                 });
 
@@ -2409,66 +2399,6 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.HasIndex("OperationId", "OccurredAt");
 
                     b.ToTable("operation_events");
-                });
-
-            modelBuilder.Entity("AuditSphereOps.Domain.Completion.RecoverySession", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<Guid?>("ApprovedByUserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("approved_by_user_id");
-
-                    b.Property<DateTimeOffset?>("ApprovedRestartAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("approved_restart_at");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<long>("ExternalEpoch")
-                        .HasColumnType("bigint")
-                        .HasColumnName("external_epoch");
-
-                    b.Property<string>("Findings")
-                        .IsRequired()
-                        .HasMaxLength(10000)
-                        .HasColumnType("character varying(10000)")
-                        .HasColumnName("findings");
-
-                    b.Property<Guid>("FirmId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("firm_id");
-
-                    b.Property<string>("ReconciliationScope")
-                        .IsRequired()
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)")
-                        .HasColumnName("reconciliation_scope");
-
-                    b.Property<string>("RestorePoint")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)")
-                        .HasColumnName("restore_point");
-
-                    b.HasKey("Id");
-
-                    b.HasAlternateKey("FirmId", "Id")
-                        .HasName("AK_recovery_sessions_firm_id_id");
-
-                    b.HasIndex("FirmId", "ApprovedByUserId");
-
-                    b.HasIndex("FirmId", "CreatedAt");
-
-                    b.ToTable("recovery_sessions", null, t =>
-                        {
-                            t.HasCheckConstraint("ck_recovery_session_values", "external_epoch >= 1 AND length(trim(restore_point)) > 0 AND length(trim(reconciliation_scope)) > 0 AND length(trim(findings)) > 0 AND ((approved_restart_at IS NULL AND approved_by_user_id IS NULL) OR (approved_restart_at IS NOT NULL AND approved_by_user_id IS NOT NULL))");
-                        });
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Completion.Release", b =>
@@ -2920,10 +2850,6 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(100)")
                         .HasColumnName("purpose");
 
-                    b.Property<Guid>("RepositoryBindingId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("repository_binding_id");
-
                     b.HasKey("Id");
 
                     b.HasAlternateKey("FirmId", "Id")
@@ -2931,8 +2857,6 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.HasAlternateKey("FirmId", "ClientId", "EngagementId", "Id")
                         .HasName("AK_document_references_scope_id");
-
-                    b.HasIndex("FirmId", "ClientId", "EngagementId", "RepositoryBindingId");
 
                     b.ToTable("document_references", null, t =>
                         {
@@ -3078,52 +3002,6 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.ToTable("evidence_links", null, t =>
                         {
                             t.HasCheckConstraint("ck_evidence_link_values", "length(trim(purpose)) > 0 AND length(trim(assertion)) > 0 AND length(trim(relevance_reliability_assessment)) > 0");
-                        });
-                });
-
-            modelBuilder.Entity("AuditSphereOps.Domain.Documents.IntegrationCapability", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<Guid>("FirmId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("firm_id");
-
-                    b.Property<string>("HealthStatus")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasColumnName("health_status");
-
-                    b.Property<Guid>("RepositoryBindingId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("repository_binding_id");
-
-                    b.Property<DateTimeOffset?>("TestedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("tested_at");
-
-                    b.Property<string>("TestedPermissions")
-                        .IsRequired()
-                        .HasMaxLength(4000)
-                        .HasColumnType("character varying(4000)")
-                        .HasColumnName("tested_permissions");
-
-                    b.HasKey("Id");
-
-                    b.HasAlternateKey("FirmId", "Id")
-                        .HasName("AK_integration_capabilities_firm_id_id");
-
-                    b.HasIndex("FirmId", "RepositoryBindingId")
-                        .IsUnique()
-                        .HasDatabaseName("ux_integration_capability_binding");
-
-                    b.ToTable("integration_capabilities", null, t =>
-                        {
-                            t.HasCheckConstraint("ck_integration_capability_values", "length(trim(health_status)) > 0 AND length(trim(tested_permissions)) > 0 AND ((tested_at IS NULL AND health_status IN ('UNKNOWN','BLOCKED')) OR tested_at IS NOT NULL)");
                         });
                 });
 
@@ -3469,91 +3347,6 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         });
                 });
 
-            modelBuilder.Entity("AuditSphereOps.Domain.Documents.RepositoryBinding", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<string>("CapabilityProfile")
-                        .IsRequired()
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)")
-                        .HasColumnName("capability_profile");
-
-                    b.Property<string>("Classification")
-                        .IsRequired()
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)")
-                        .HasColumnName("classification");
-
-                    b.Property<Guid>("ClientId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("client_id");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<string>("DesiredAccess")
-                        .IsRequired()
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)")
-                        .HasColumnName("desired_access");
-
-                    b.Property<string>("DriveId")
-                        .IsRequired()
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)")
-                        .HasColumnName("drive_id");
-
-                    b.Property<Guid>("EngagementId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("engagement_id");
-
-                    b.Property<Guid>("FirmId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("firm_id");
-
-                    b.Property<string>("ObservedAccess")
-                        .IsRequired()
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)")
-                        .HasColumnName("observed_access");
-
-                    b.Property<string>("RootFolderId")
-                        .IsRequired()
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)")
-                        .HasColumnName("root_folder_id");
-
-                    b.Property<string>("SiteId")
-                        .IsRequired()
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)")
-                        .HasColumnName("site_id");
-
-                    b.Property<string>("TenantId")
-                        .IsRequired()
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)")
-                        .HasColumnName("tenant_id");
-
-                    b.HasKey("Id");
-
-                    b.HasAlternateKey("FirmId", "Id")
-                        .HasName("AK_repository_bindings_firm_id_id");
-
-                    b.HasAlternateKey("FirmId", "ClientId", "EngagementId", "Id")
-                        .HasName("AK_repository_bindings_scope_id");
-
-                    b.ToTable("repository_bindings", null, t =>
-                        {
-                            t.HasCheckConstraint("ck_repository_binding_values", "length(trim(tenant_id)) > 0 AND length(trim(site_id)) > 0 AND length(trim(drive_id)) > 0 AND length(trim(root_folder_id)) > 0 AND length(trim(classification)) > 0 AND length(trim(desired_access)) > 0 AND length(trim(observed_access)) > 0 AND length(trim(capability_profile)) > 0");
-                        });
-                });
-
             modelBuilder.Entity("AuditSphereOps.Domain.Documents.SourceReceipt", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3620,50 +3413,6 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.ToTable("source_receipts", null, t =>
                         {
                             t.HasCheckConstraint("ck_source_receipt_values", "source_type IN ('PBC_UPLOAD','DIRECT_FEED','CSV_IMPORT') AND length(trim(receipt_token)) > 0 AND sha256_digest ~ '^[0-9a-f]{64}$' AND byte_count > 0 AND length(trim(original_file_name)) > 0");
-                        });
-                });
-
-            modelBuilder.Entity("AuditSphereOps.Domain.Documents.SyncCursor", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<string>("Cursor")
-                        .IsRequired()
-                        .HasMaxLength(4000)
-                        .HasColumnType("character varying(4000)")
-                        .HasColumnName("cursor");
-
-                    b.Property<Guid>("FirmId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("firm_id");
-
-                    b.Property<long>("Generation")
-                        .HasColumnType("bigint")
-                        .HasColumnName("generation");
-
-                    b.Property<DateTimeOffset?>("LastSyncAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("last_sync_at");
-
-                    b.Property<Guid>("RepositoryBindingId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("repository_binding_id");
-
-                    b.HasKey("Id");
-
-                    b.HasAlternateKey("FirmId", "Id")
-                        .HasName("AK_sync_cursors_firm_id_id");
-
-                    b.HasIndex("FirmId", "RepositoryBindingId")
-                        .IsUnique()
-                        .HasDatabaseName("ux_sync_cursor_binding");
-
-                    b.ToTable("sync_cursors", null, t =>
-                        {
-                            t.HasCheckConstraint("ck_sync_cursor_values", "length(trim(cursor)) > 0 AND generation >= 1");
                         });
                 });
 
@@ -5722,85 +5471,6 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         });
                 });
 
-            modelBuilder.Entity("AuditSphereOps.Domain.Records.ArchiveStructuredExport", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<Guid>("ArchiveId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("archive_id");
-
-                    b.Property<Guid>("ArchiveManifestId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("archive_manifest_id");
-
-                    b.Property<long>("ByteCount")
-                        .HasColumnType("bigint")
-                        .HasColumnName("byte_count");
-
-                    b.Property<Guid>("ClientId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("client_id");
-
-                    b.Property<string>("ContentHash")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)")
-                        .HasColumnName("content_hash");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<Guid>("EngagementId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("engagement_id");
-
-                    b.Property<Guid>("FirmId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("firm_id");
-
-                    b.Property<string>("PayloadJson")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("payload_json");
-
-                    b.Property<string>("Schema")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("schema");
-
-                    b.Property<long>("Version")
-                        .HasColumnType("bigint")
-                        .HasColumnName("version");
-
-                    b.HasKey("Id");
-
-                    b.HasAlternateKey("FirmId", "Id")
-                        .HasName("AK_archive_structured_exports_firm_id_id");
-
-                    b.HasAlternateKey("FirmId", "ClientId", "EngagementId", "Id")
-                        .HasName("AK_archive_structured_exports_scope_id");
-
-                    b.HasIndex("FirmId", "ArchiveManifestId", "Version")
-                        .IsUnique()
-                        .HasDatabaseName("ux_archive_structured_export_manifest_version");
-
-                    b.HasIndex("FirmId", "ClientId", "EngagementId", "ArchiveId");
-
-                    b.HasIndex("FirmId", "ClientId", "EngagementId", "ArchiveManifestId")
-                        .HasDatabaseName("IX_archive_structured_exports_firm_id_client_id_engagement_id~1");
-
-                    b.ToTable("archive_structured_exports", null, t =>
-                        {
-                            t.HasCheckConstraint("ck_archive_structured_export_values", "version >= 1 AND schema = 'records-export.v1' AND length(trim(payload_json)) > 0 AND content_hash ~ '^[0-9a-f]{64}$' AND byte_count > 0");
-                        });
-                });
-
             modelBuilder.Entity("AuditSphereOps.Domain.Records.LegalHold", b =>
                 {
                     b.Property<Guid>("Id")
@@ -6127,12 +5797,6 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasAlternateKey("FirmId", "Id")
-                        .HasName("AK_records_actions_firm_id_id");
-
-                    b.HasAlternateKey("FirmId", "ClientId", "EngagementId", "Id")
-                        .HasName("AK_records_actions_scope_id");
-
                     b.HasIndex("FirmId", "ArchiveId")
                         .IsUnique()
                         .HasDatabaseName("ux_records_action_archive");
@@ -6146,116 +5810,6 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.ToTable("records_actions", null, t =>
                         {
                             t.HasCheckConstraint("ck_records_action_values", "length(trim(desired_label)) > 0 AND length(trim(desired_protection)) > 0 AND state IN ('REQUESTED','OBSERVED','FAILED') AND ((state = 'OBSERVED' AND length(trim(observed_label)) > 0 AND length(trim(observed_protection)) > 0 AND observed_at IS NOT NULL AND length(trim(observed_by)) > 0) OR (state = 'FAILED' AND length(trim(exception)) > 0) OR state = 'REQUESTED')");
-                        });
-                });
-
-            modelBuilder.Entity("AuditSphereOps.Domain.Records.RecordsActionEvidence", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<Guid>("ActorUserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("actor_user_id");
-
-                    b.Property<Guid>("ArchiveId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("archive_id");
-
-                    b.Property<Guid>("ArchiveManifestId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("archive_manifest_id");
-
-                    b.Property<Guid>("ClientId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("client_id");
-
-                    b.Property<string>("DesiredLabel")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)")
-                        .HasColumnName("desired_label");
-
-                    b.Property<string>("DesiredProtection")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)")
-                        .HasColumnName("desired_protection");
-
-                    b.Property<Guid>("EngagementId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("engagement_id");
-
-                    b.Property<string>("EventKind")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)")
-                        .HasColumnName("event_kind");
-
-                    b.Property<string>("Exception")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)")
-                        .HasColumnName("exception");
-
-                    b.Property<string>("ExternalReference")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)")
-                        .HasColumnName("external_reference");
-
-                    b.Property<Guid>("FirmId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("firm_id");
-
-                    b.Property<string>("ObservedBy")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)")
-                        .HasColumnName("observed_by");
-
-                    b.Property<string>("ObservedLabel")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)")
-                        .HasColumnName("observed_label");
-
-                    b.Property<string>("ObservedProtection")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)")
-                        .HasColumnName("observed_protection");
-
-                    b.Property<DateTimeOffset>("OccurredAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("occurred_at");
-
-                    b.Property<Guid>("RecordsActionId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("records_action_id");
-
-                    b.Property<long>("Sequence")
-                        .HasColumnType("bigint")
-                        .HasColumnName("sequence");
-
-                    b.HasKey("Id");
-
-                    b.HasAlternateKey("FirmId", "Id")
-                        .HasName("AK_records_action_evidence_firm_id_id");
-
-                    b.HasIndex("FirmId", "ActorUserId");
-
-                    b.HasIndex("FirmId", "RecordsActionId", "Sequence")
-                        .IsUnique()
-                        .HasDatabaseName("ux_records_action_evidence_sequence");
-
-                    b.HasIndex("FirmId", "ClientId", "EngagementId", "ArchiveId");
-
-                    b.HasIndex("FirmId", "ClientId", "EngagementId", "ArchiveManifestId")
-                        .HasDatabaseName("IX_records_action_evidence_firm_id_client_id_engagement_id_ar~1");
-
-                    b.HasIndex("FirmId", "ClientId", "EngagementId", "RecordsActionId");
-
-                    b.ToTable("records_action_evidence", null, t =>
-                        {
-                            t.HasCheckConstraint("ck_records_action_evidence_values", "sequence >= 1 AND event_kind IN ('REQUESTED','OBSERVED','FAILED') AND length(trim(desired_label)) > 0 AND length(trim(desired_protection)) > 0 AND ((event_kind = 'OBSERVED' AND length(trim(observed_label)) > 0 AND length(trim(observed_protection)) > 0 AND length(trim(observed_by)) > 0) OR (event_kind = 'FAILED' AND length(trim(exception)) > 0) OR event_kind = 'REQUESTED')");
                         });
                 });
 
@@ -7231,21 +6785,6 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("AuditSphereOps.Domain.Completion.RecoverySession", b =>
-                {
-                    b.HasOne("AuditSphereOps.Domain.Completion.FirmSafetyState", null)
-                        .WithMany()
-                        .HasForeignKey("FirmId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
-                        .WithMany()
-                        .HasForeignKey("FirmId", "ApprovedByUserId")
-                        .HasPrincipalKey("FirmId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict);
-                });
-
             modelBuilder.Entity("AuditSphereOps.Domain.Completion.Release", b =>
                 {
                     b.HasOne("AuditSphereOps.Domain.Completion.ReleaseCheckpoint", null)
@@ -7367,13 +6906,6 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasPrincipalKey("FirmId", "PracticeClientId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
-
-                    b.HasOne("AuditSphereOps.Domain.Documents.RepositoryBinding", null)
-                        .WithMany()
-                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "RepositoryBindingId")
-                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Documents.DocumentSnapshot", b =>
@@ -7407,16 +6939,6 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasForeignKey("FirmId", "ClientId", "EngagementId", "WorkpaperId")
                         .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
                         .OnDelete(DeleteBehavior.Restrict);
-                });
-
-            modelBuilder.Entity("AuditSphereOps.Domain.Documents.IntegrationCapability", b =>
-                {
-                    b.HasOne("AuditSphereOps.Domain.Documents.RepositoryBinding", null)
-                        .WithMany()
-                        .HasForeignKey("FirmId", "RepositoryBindingId")
-                        .HasPrincipalKey("FirmId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Documents.PbcRequest", b =>
@@ -7503,23 +7025,6 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("AuditSphereOps.Domain.Documents.RepositoryBinding", b =>
-                {
-                    b.HasOne("AuditSphereOps.Domain.Practice.PracticeClient", null)
-                        .WithMany()
-                        .HasForeignKey("FirmId", "ClientId")
-                        .HasPrincipalKey("FirmId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("AuditSphereOps.Domain.Engagements.Engagement", null)
-                        .WithMany()
-                        .HasForeignKey("FirmId", "ClientId", "EngagementId")
-                        .HasPrincipalKey("FirmId", "PracticeClientId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-                });
-
             modelBuilder.Entity("AuditSphereOps.Domain.Documents.SourceReceipt", b =>
                 {
                     b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
@@ -7533,16 +7038,6 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("FirmId", "ClientId", "EngagementId")
                         .HasPrincipalKey("FirmId", "PracticeClientId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("AuditSphereOps.Domain.Documents.SyncCursor", b =>
-                {
-                    b.HasOne("AuditSphereOps.Domain.Documents.RepositoryBinding", null)
-                        .WithMany()
-                        .HasForeignKey("FirmId", "RepositoryBindingId")
-                        .HasPrincipalKey("FirmId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
@@ -8040,30 +7535,6 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("AuditSphereOps.Domain.Records.ArchiveStructuredExport", b =>
-                {
-                    b.HasOne("AuditSphereOps.Domain.Engagements.Engagement", null)
-                        .WithMany()
-                        .HasForeignKey("FirmId", "ClientId", "EngagementId")
-                        .HasPrincipalKey("FirmId", "PracticeClientId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("AuditSphereOps.Domain.Completion.Archive", null)
-                        .WithMany()
-                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "ArchiveId")
-                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("AuditSphereOps.Domain.Records.ArchiveManifest", null)
-                        .WithMany()
-                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "ArchiveManifestId")
-                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-                });
-
             modelBuilder.Entity("AuditSphereOps.Domain.Records.LegalHold", b =>
                 {
                     b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
@@ -8120,44 +7591,6 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.HasOne("AuditSphereOps.Domain.Records.ArchiveManifest", null)
                         .WithMany()
                         .HasForeignKey("FirmId", "ClientId", "EngagementId", "ArchiveManifestId")
-                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("AuditSphereOps.Domain.Records.RecordsActionEvidence", b =>
-                {
-                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
-                        .WithMany()
-                        .HasForeignKey("FirmId", "ActorUserId")
-                        .HasPrincipalKey("FirmId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("AuditSphereOps.Domain.Engagements.Engagement", null)
-                        .WithMany()
-                        .HasForeignKey("FirmId", "ClientId", "EngagementId")
-                        .HasPrincipalKey("FirmId", "PracticeClientId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("AuditSphereOps.Domain.Completion.Archive", null)
-                        .WithMany()
-                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "ArchiveId")
-                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("AuditSphereOps.Domain.Records.ArchiveManifest", null)
-                        .WithMany()
-                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "ArchiveManifestId")
-                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("AuditSphereOps.Domain.Records.RecordsAction", null)
-                        .WithMany()
-                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "RecordsActionId")
                         .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();

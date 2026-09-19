@@ -90,6 +90,16 @@ public sealed class DocumentSnapshotTests
       CapturedAt = DateTimeOffset.UtcNow
     });
     await Assert.ThrowsAsync<DbUpdateException>(() => db.SaveChangesAsync());
+    db.ChangeTracker.Clear();
+
+    db.DocumentReferences.Add(new DocumentReference
+    {
+      Id = Guid.NewGuid(), FirmId = fixture.FirmId, ClientId = reference.ClientId,
+      EngagementId = reference.EngagementId, RepositoryBindingId = Guid.NewGuid(),
+      Provider = reference.Provider, DriveId = reference.DriveId, ItemId = "unbound-item",
+      Path = "/Documents/unbound.txt", Purpose = reference.Purpose, CreatedAt = DateTimeOffset.UtcNow
+    });
+    await Assert.ThrowsAsync<DbUpdateException>(() => db.SaveChangesAsync());
   }
 
   [Fact]
@@ -125,10 +135,19 @@ public sealed class DocumentSnapshotTests
       ClientId = scope.ClientId, EngagementId = scope.EngagementId,
       GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = user.Id
     });
+    db.RepositoryBindings.Add(new RepositoryBinding
+    {
+      Id = scope.EngagementId, FirmId = scope.FirmId, ClientId = scope.ClientId,
+      EngagementId = scope.EngagementId, TenantId = "tenant", SiteId = "site",
+      DriveId = "drive-1", RootFolderId = "root", Classification = "working",
+      DesiredAccess = "read-write", ObservedAccess = "not-tested", CapabilityProfile = "selected-site",
+      CreatedAt = DateTimeOffset.UtcNow
+    });
     db.DocumentReferences.Add(new DocumentReference
     {
       Id = referenceId, FirmId = scope.FirmId, ClientId = scope.ClientId,
-      EngagementId = scope.EngagementId, Provider = "SharePoint", DriveId = "drive-1",
+      EngagementId = scope.EngagementId, RepositoryBindingId = scope.EngagementId,
+      Provider = "SharePoint", DriveId = "drive-1",
       ItemId = "item-1", Path = "/Documents/source.xlsx", Purpose = "Evidence",
       CreatedAt = DateTimeOffset.UtcNow
     });

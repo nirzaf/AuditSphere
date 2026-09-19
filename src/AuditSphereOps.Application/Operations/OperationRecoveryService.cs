@@ -7,6 +7,9 @@ using Microsoft.EntityFrameworkCore;
 namespace AuditSphereOps.Application.Operations;
 
 public sealed record OperationRecoveryRequest(Guid OperationId);
+public sealed record RecoverySessionRequest(string RestorePoint, long ExternalEpoch,
+  string ReconciliationScope, string Findings);
+public sealed record RecoveryRestartRequest(Guid SessionId, string Findings);
 
 /// <summary>Operator-visible operation projections for the recovery screen. Payload bytes,
 /// request bytes and lease owner identities are never surfaced; only classification codes.</summary>
@@ -122,6 +125,78 @@ public static class OperationRecoveryService
     return mode is not null
       ? CommandResult<string>.Ok(mode)
       : CommandResult<string>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+  }
+
+  /// <summary>Places a restored firm in quarantine and records the reconciliation scope.</summary>
+  public static async Task<CommandResult<Guid>> BeginRecoverySessionAsync(
+    IAuditSphereDbContext db, ActorContext actor, RecoverySessionRequest input,
+    CancellationToken ct = default)
+  {
+    if (string.IsNullOrWhiteSpace(input.RestorePoint) || input.ExternalEpoch < 1 ||
+        string.IsNullOrWhiteSpace(input.ReconciliationScope) || string.IsNullOrWhiteSpace(input.Findings))
+      return CommandResult<Guid>.Fail("recovery.invalid", "Restore point, epoch, scope and findings are required.");
+    var auth = await AuthorizeAsync(db, actor, ct);
+    if (!auth.Succeeded)
+      return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+
+    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    var safety = await db.FirmSafetyStates.FromSqlInterpolated($"""
+      SELECT * FROM firm_safety_states WHERE id = {actor.FirmId} FOR UPDATE
+      """).ToListAsync(ct);
+    if (safety.Count != 1)
+      return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+
+    var session = new RecoverySession
+    {
+      Id = Guid.CreateVersion7(), FirmId = actor.FirmId,
+      RestorePoint = input.RestorePoint.Trim(), ExternalEpoch = input.ExternalEpoch,
+      ReconciliationScope = input.ReconciliationScope.Trim(), Findings = input.Findings.Trim(),
+      CreatedAt = DateTimeOffset.UtcNow
+    };
+    db.RecoverySessions.Add(session);
+    await db.Database.ExecuteSqlInterpolatedAsync($"""
+      UPDATE firm_safety_states
+      SET operating_mode = 'RECOVERY_QUARANTINE', recovery_epoch = {input.ExternalEpoch}
+      WHERE id = {actor.FirmId}
+      """, ct);
+    await db.SaveChangesAsync(ct);
+    await tx.CommitAsync(ct);
+    return CommandResult<Guid>.Ok(session.Id);
+  }
+
+  /// <summary>Authorizes restart only after persisted reconciliation findings are updated.</summary>
+  public static async Task<CommandResult> ApproveRecoveryRestartAsync(
+    IAuditSphereDbContext db, ActorContext actor, RecoveryRestartRequest input,
+    CancellationToken ct = default)
+  {
+    if (input.SessionId == Guid.Empty || string.IsNullOrWhiteSpace(input.Findings))
+      return CommandResult.Fail("recovery.invalid", "Session and reconciliation findings are required.");
+    var auth = await AuthorizeAsync(db, actor, ct);
+    if (!auth.Succeeded)
+      return auth;
+
+    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    var session = await db.RecoverySessions.FromSqlInterpolated($"""
+      SELECT * FROM recovery_sessions WHERE firm_id = {actor.FirmId} AND id = {input.SessionId} FOR UPDATE
+      """).SingleOrDefaultAsync(ct);
+    if (session is null)
+      return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    if (session.ApprovedRestartAt is not null)
+      return CommandResult.Ok();
+
+    session.Findings = input.Findings.Trim();
+    session.ApprovedRestartAt = DateTimeOffset.UtcNow;
+    session.ApprovedByUserId = actor.UserId;
+    var count = await db.Database.ExecuteSqlInterpolatedAsync($"""
+      UPDATE firm_safety_states
+      SET operating_mode = 'LOCAL_ONLY', deployment_epoch = deployment_epoch + 1
+      WHERE id = {actor.FirmId} AND operating_mode = 'RECOVERY_QUARANTINE'
+      """, ct);
+    if (count != 1)
+      return CommandResult.Fail("operations.conflict", "The firm is not awaiting recovery restart approval.");
+    await db.SaveChangesAsync(ct);
+    await tx.CommitAsync(ct);
+    return CommandResult.Ok();
   }
 
   /// <summary>

@@ -99,7 +99,19 @@ public sealed class PgTestSchema : IAsyncDisposable
       PracticeClientId = clientId,
       CreatedAt = DateTimeOffset.UtcNow
     });
-    db.FirmSafetyStates.Add(new FirmSafetyState { Id = firmId });
+    var hasRecoveryEpoch = await db.Database.SqlQuery<int>($"""
+      SELECT count(*)::int AS "Value"
+      FROM information_schema.columns
+      WHERE table_schema = current_schema() AND table_name = 'firm_safety_states'
+        AND column_name = 'recovery_epoch'
+      """).SingleAsync() == 1;
+    if (hasRecoveryEpoch)
+      db.FirmSafetyStates.Add(new FirmSafetyState { Id = firmId });
+    else
+      await db.Database.ExecuteSqlInterpolatedAsync($"""
+        INSERT INTO firm_safety_states (id, operating_mode, deployment_epoch, policy_generation)
+        VALUES ({firmId}, 'LOCAL_ONLY', 1, 1)
+        """);
     db.ClientSafetyStates.Add(new ClientSafetyState { Id = clientId, FirmId = firmId });
     await db.SaveChangesAsync();
     return (firmId, clientId, engagementId);
