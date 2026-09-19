@@ -1,6 +1,6 @@
 # AuditSphereOps — pending tasks
 
-Paused after the audit planning lifecycle and CI schema isolation slice on 2026-09-19. The implementation head is `861ad2f`; hosted CI runs [35399610053](https://github.com/nirzaf/AuditSphere/actions/runs/35399610053) and [35399859095](https://github.com/nirzaf/AuditSphere/actions/runs/35399859095) passed with all 130 tests passing.
+Paused after the core entity catalog extensions (§27.2), CE-62/RV-30 question banks (§13/§14), and UI ground truth slice on 2026-09-19. The implementation head is `a338ad3`; hosted CI run [35408208512](https://github.com/nirzaf/AuditSphere/actions/runs/35408208512) passed with all 136 tests passing across 22 applied migrations.
 
 Full context: [authoritative v5.0 specification](../../AuditSphereOps_NET_Codex_Implementation_Specification.md), [execution status](status.json), [current verified slice](current-slice.md), and [implementation checklist](implementation-checklist.md).
 

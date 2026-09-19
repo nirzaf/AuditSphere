@@ -16,10 +16,10 @@
     "issueNumber": null,
     "branch": "master",
     "pullRequestNumber": null,
-    "headCommit": "dbd16ef",
+    "headCommit": "a338ad3",
     "implementationStatus": "PARTIAL",
-    "acceptanceStatus": "LOCAL_VERIFIED",
-    "worktree": "Adds missing core entity catalog models (EngagementAssignment, EqrCase, WrittenRepresentation, SpecialistClearance, SourceReceipt, EvidenceLink, QuestionnaireTemplate, QuestionDefinition). Applies migration 20260918232054_CoreEntityCatalogAndQuestionnaireExtensions (22 total migrations). Seeds CE-62 and RV-30 question banks. Purges fabricated state from Completion.razor, AuditPlan.razor, AssessmentDetail.razor, and ReviewPoint.razor to query real database entities and display genuine empty states. 136/136 tests passing on PostgreSQL 18.6 with 0 skipped. Restore rehearsal passed with 22 migrations. Web readiness returned Healthy/HTTP 200 with 0 pending migrations.",
+    "acceptanceStatus": "CI_VERIFIED",
+    "worktree": "Adds missing core entity catalog models (EngagementAssignment, EqrCase, WrittenRepresentation, SpecialistClearance, SourceReceipt, EvidenceLink, QuestionnaireTemplate, QuestionDefinition). Applies migration 20260918232054_CoreEntityCatalogAndQuestionnaireExtensions (22 total migrations). Seeds CE-62 and RV-30 question banks. Purges fabricated state from Completion.razor, AuditPlan.razor, AssessmentDetail.razor, and ReviewPoint.razor to query real database entities and display genuine empty states. 136/136 tests passing on PostgreSQL 18.6 with 0 skipped. Restore rehearsal passed with 22 migrations. Web readiness returned Healthy/HTTP 200 with 0 pending migrations. Hosted CI run 35408208512 passed with 136/136 tests passing.",
     "scope": "Core entity catalog, question banks, and UI ground truth. No live provider is claimed.",
     "productionEnabled": false
   },
@@ -163,6 +163,10 @@
     {
       "command": "dotnet run --project src/AuditSphereOps.Web --urls http://127.0.0.1:5099 plus HTTP smoke requests",
       "result": "Web host started cleanly on port 5099; HTTP 200 returned for /health/live and /health/ready. /health/ready queried __EFMigrationsHistory and reported Healthy with 0 pending migrations."
+    },
+    {
+      "command": "gh run view 35408208512",
+      "result": "Hosted AuditSphereOps CI run 35408208512 passed on head a338ad3 in 2m42s: setup-dotnet, tool restore, restore, build, 22-migration EF update, the 136-test suite, migration-aware readiness check, and container cleanup all succeeded."
     }
   ],
   "tenantEvidence": [
@@ -209,5 +213,5 @@
     }
   ],
   "nextPermittedAction": "Continue with owner-authorized tenant/professional evidence and independent human review. Production recovery remains unproven.",
-  "lastVerifiedAt": "2026-09-19T02:27:00Z"
+  "lastVerifiedAt": "2026-09-19T03:10:00Z"
 }

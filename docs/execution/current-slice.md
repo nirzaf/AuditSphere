@@ -15,7 +15,8 @@ The build contract is `AuditSphereOps_NET_Codex_Implementation_Specification.md`
 - Schema isolation: audit domain tables (`materiality_assessments`, `audit_risks`, `population_versions`, `workpapers`, `workpaper_submissions`, `findings`) are scoped to the active `search_path`, ensuring complete schema isolation for concurrent test runs without cross-schema foreign-key collisions.
 - Database-level control probe on 18.6: inserting an unbalanced dataset with `validation_status='Accepted'` is rejected by `ck_tb_validation_status`; a balanced insert is accepted; no residue after rollback.
 - Migration-aware readiness: `/health/ready` returned `Healthy`/HTTP 200 after querying `__EFMigrationsHistory`; the web host does not auto-apply migrations.
-- Restore rehearsal: `scripts/db/restore-drill.sh` dumped and restored `auditsphere` into a generated temporary loopback database, compared restored migration evidence with the source, verified twenty-two migrations with latest `20260918235000_AuditPlanningAndFirmPostingExtensions`, then cleaned its generated database and temporary files.
+- Restore rehearsal: `scripts/db/restore-drill.sh` dumped and restored `auditsphere` into a generated temporary loopback database, compared restored migration evidence with the source, verified twenty-two migrations with latest `20260918232054_CoreEntityCatalogAndQuestionnaireExtensions`, then cleaned its generated database and temporary files.
+- Hosted CI verification: Run [35408208512](https://github.com/nirzaf/AuditSphere/actions/runs/35408208512) passed on head `a338ad3` in 2m42s. All steps succeeded: tool restore, dotnet restore, build, 22-migration EF update, full 136-test suite, and migration-aware readiness probe.
 
 ## Run verification
 
