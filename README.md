@@ -7,7 +7,7 @@
 
 **AuditSphereOps** is a professional audit, accounting & assurance operations platform — a .NET 10 modular monolith covering the complete engagement lifecycle: client acceptance, practice management, trial-balance intake, financial-statement production, audit execution, review, controlled signing/release, and records retention.
 
-> **Status: implementation in progress.** This repository is a specification-driven build. All core domain modules, practice management, trial-balance engine, audit planning lifecycle, core entity catalog (§27.2), question banks (§13/§14), operator recovery, complete staff/client Blazor route catalog with UI ground truth, records/archive local model with version lineage, repository binding, fail-closed provider boundaries, and recovery quarantine are implemented and verified locally (**165/165 tests passing on PostgreSQL 18.6 across 31 migrations**). External production gates (Entra tenant, selected SharePoint grants, Purview profile, signing methodology) remain explicitly blocked until owner-authorized, and are never fake-passed.
+> **Status: implementation in progress.** This repository is a specification-driven build. All core domain modules, practice management, trial-balance engine, audit planning lifecycle, core entity catalog (§27.2), question banks (§13/§14), operator recovery, complete staff/client Blazor route catalog with UI ground truth, records/archive local model with version lineage, repository binding, fail-closed provider boundaries, and recovery quarantine are implemented and verified locally (**165/165 tests passing on PostgreSQL 18.6 across 31 migrations**). EasyGuide developer-tenant evidence now includes a selected SharePoint grant and a Purview test label/publication; live runtime credentials, provider behavior, compliance approval, signing methodology, recovery, and independent review remain explicitly blocked and are never fake-passed.
 
 ## Table of contents
 
@@ -150,7 +150,7 @@ The integration test requires PostgreSQL at `127.0.0.1:5433` and the `auditspher
 - **`docs/execution/current-slice.md`** — the verified local state and concise serialization of what was actually executed.
 - **Using the spec:** read `AuditSphereOps_NET_Codex_Implementation_Specification.md` (§§1–12, 22, 24, 27–33, 41–47) plus only the sections for the active issue.
 
-As of the last verification pass: **165/165 tests passed** on PostgreSQL 18.6 with 0 skipped, thirty-one migrations applied (latest: `20260919203959_ArchiveVersionLineage`), local locked restore and build completed with zero warnings, the loopback restore rehearsal passed with 31 migrations, and readiness returned healthy with no pending migrations. The Entra/SharePoint/Purview production gates remain **recorded blockers** pending owner-authorized evidence.
+As of the last verification pass: **165/165 tests passed** on PostgreSQL 18.6 with 0 skipped, thirty-one migrations applied (latest: `20260919203959_ArchiveVersionLineage`), local locked restore and build completed with zero warnings, the loopback restore rehearsal passed with 31 migrations, and readiness returned healthy with no pending migrations. The EasyGuide developer configuration is recorded in `docs/evidence/easyguide-purview-20260919.json`; runtime identity, live provider behavior, compliance approval, signing, recovery, and independent-review gates remain **recorded blockers**.
 
 ## Implementation roadmap
 
@@ -180,9 +180,9 @@ The build advances through dependency-ordered work packages (P0–P10 per the [p
 | P1 | Live Entra OIDC + runtime identity fixtures | BLOCKED_EXTERNAL |
 | P2 | Live bounded SharePoint/Graph document provider | BLOCKED_EXTERNAL |
 | P3 | External release checkpoint store + capability evidence | BLOCKED_EXTERNAL |
-| P4 | Purview records profile + reviewer fixtures + behavior evidence | BLOCKED_EXTERNAL |
+| P4 | Purview records profile + reviewer fixtures + behavior evidence | IN_PROGRESS (developer configuration; propagation/readback pending) |
 | P5 | Approved signing methodology + signature lineage | BLOCKED_EXTERNAL |
-| P6 | Records/archive residual hardening | IN_PROGRESS |
+| P6 | Records/archive residual hardening | LOCAL_VERIFIED |
 | P7 | Cross-store recovery + production RPO/RTO | BLOCKED_EXTERNAL |
 | P8 | Production secrets/observability/capacity | BLOCKED_EXTERNAL |
 | P9 | Independent review + protected merge governance | BLOCKED_EXTERNAL |
@@ -190,7 +190,7 @@ The build advances through dependency-ordered work packages (P0–P10 per the [p
 
 See [`docs/execution/pending-tasks.md`](docs/execution/pending-tasks.md) for the full dependency story and acceptance criteria.
 
-The external production gates (live Entra tenant, selected SharePoint grants, Purview records profile, signing methodology) stay **blocked** until owner-authorized evidence arrives; see `docs/execution/status.json`.
+The remaining external production gates (live Entra runtime identity/provider, Purview protection readback and compliance approval, signing methodology, recovery, and independent review) stay **blocked** until owner-authorized evidence arrives; see `docs/execution/status.json`.
 
 ## Documentation
 
