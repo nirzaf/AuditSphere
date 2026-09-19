@@ -7,7 +7,7 @@
 
 **AuditSphereOps** is a professional audit, accounting & assurance operations platform — a .NET 10 modular monolith covering the complete engagement lifecycle: client acceptance, practice management, trial-balance intake, financial-statement production, audit execution, review, controlled signing/release, and records retention.
 
-> **Status: implementation in progress.** This repository is a specification-driven build. All core domain modules, practice management, trial-balance engine, audit planning lifecycle, core entity catalog (§27.2), question banks (§13/§14), operator recovery, complete staff/client Blazor route catalog with UI ground truth, records/archive local model, repository binding, fail-closed provider boundaries, and recovery quarantine are implemented and verified locally (**161/161 tests passing on PostgreSQL 18.6 across 30 migrations**). External production gates (Entra tenant, selected SharePoint grants, Purview profile, signing methodology) remain explicitly blocked until owner-authorized, and are never fake-passed.
+> **Status: implementation in progress.** This repository is a specification-driven build. All core domain modules, practice management, trial-balance engine, audit planning lifecycle, core entity catalog (§27.2), question banks (§13/§14), operator recovery, complete staff/client Blazor route catalog with UI ground truth, records/archive local model with version lineage, repository binding, fail-closed provider boundaries, and recovery quarantine are implemented and verified locally (**165/165 tests passing on PostgreSQL 18.6 across 31 migrations**). External production gates (Entra tenant, selected SharePoint grants, Purview profile, signing methodology) remain explicitly blocked until owner-authorized, and are never fake-passed.
 
 ## Table of contents
 
@@ -150,13 +150,13 @@ The integration test requires PostgreSQL at `127.0.0.1:5433` and the `auditspher
 - **`docs/execution/current-slice.md`** — the verified local state and concise serialization of what was actually executed.
 - **Using the spec:** read `AuditSphereOps_NET_Codex_Implementation_Specification.md` (§§1–12, 22, 24, 27–33, 41–47) plus only the sections for the active issue.
 
-As of the last verification pass: **161/161 tests passed** on PostgreSQL 18.6 with 0 skipped, thirty migrations applied (latest: `20260919134442_RecordsActionEvidence`), local locked restore and build completed with zero warnings, the loopback restore rehearsal passed with 30 migrations, and readiness returned healthy with no pending migrations. The Entra/SharePoint/Purview production gates remain **recorded blockers** pending owner-authorized evidence.
+As of the last verification pass: **165/165 tests passed** on PostgreSQL 18.6 with 0 skipped, thirty-one migrations applied (latest: `20260919203959_ArchiveVersionLineage`), local locked restore and build completed with zero warnings, the loopback restore rehearsal passed with 31 migrations, and readiness returned healthy with no pending migrations. The Entra/SharePoint/Purview production gates remain **recorded blockers** pending owner-authorized evidence.
 
 ## Implementation roadmap
 
 The build advances through dependency-ordered work packages (P0–P10 per the [pending-work story](docs/execution/pending-tasks.md)), each landing as a reviewed PR with executed test evidence. Slices may not weaken controls, and a slice is accepted only with independent review evidence.
 
-**Delivered (locally verified — 161/161 tests, 30 migrations, master @ `b34447b`):**
+**Delivered (locally verified — 165/165 tests, 31 migrations):**
 
 - **Security & authorization integrity:** `ActorContext`, scope/role matrix, firm→client→engagement guards, finance-role separation, in-command authorization for all planning and operational commands.
 - **Trial-balance intake & validation engine:** Appendix D fixture, database-level `ck_tb_validation_status` control, source reflection bridges.
@@ -168,7 +168,7 @@ The build advances through dependency-ordered work packages (P0–P10 per the [p
 - **Core entity catalog & questionnaire banks (§27.2, §13, §14):** `EngagementAssignment`, `EqrCase`, `WrittenRepresentation`, `SpecialistClearance`, `SourceReceipt`, `EvidenceLink`, `QuestionnaireTemplate`, `QuestionDefinition`; full seeding of 62 Client Evaluation (`CE-001`..`CE-097`) and 30 Review (`RV-001`..`RV-030`) question banks.
 - **Audit planning lifecycle & scope integrity (§§19–23, 27.4–27.6, 42.3–42.4):** EF-owned models for `MaterialityAssessment`, `PopulationVersion`, `WorkpaperSubmission`, `AuditRisk`, `AuditProcedure`, `Finding`; composite scope foreign keys with `ON DELETE RESTRICT` across all evidence tables; database append-only triggers on materiality, populations, and workpaper submissions; freeze trigger on submitted workpapers.
 - **Complete staff & client route catalog with UI ground truth:** Blazor Interactive Server screens for Portfolio, Clients, Engagements, Leads, Time, Invoices, Finance, Operations, Administration, Journals, Packages, Audit Plans, Populations, Workpapers, Findings, Assessments, Review Points, and Client Portal. All fabricated state, dummy IDs, and simulated approvals purged in favor of truthful persisted state.
-- **Records/archive local model (§25, PR #11):** `RecordsProfile`, `ArchiveManifest`, `ArchiveManifestEntry`, structured export, `RecordsAction`, `LegalHold`, archive state machine, requested-vs-observed protection state, truthful archive UI.
+- **Records/archive local model & version lineage (§25, PR #11, P6):** `RecordsProfile`, `ArchiveManifest`, `ArchiveManifestEntry`, structured export, `RecordsAction`, `LegalHold`, archive state machine, requested-vs-observed protection state, deterministic re-archive with predecessor/supersession version lineage (`predecessor_manifest_id`, `superseded_by_manifest_id`), legal-hold disposition blocking, approved profile version requirement, digest stability, and truthful archive UI.
 - **Repository binding (§27.2, PR #11):** Tenant/site/drive/root binding records, document references tied to approved bindings, capability records, sync cursor model.
 - **Provider safety fences (§43.8, PR #11):** Live Graph provider boundaries fail closed (`live-provider-not-approved`); production startup rejects simulation configuration; external effects remain disabled by default.
 - **Recovery controls (§24.4/§45, PR #11):** Recovery sessions, recovery epoch, `RECOVERY_QUARANTINE`, authorized restart, stale-worker fencing, machine-readable restore evidence.

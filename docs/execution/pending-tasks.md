@@ -3,7 +3,7 @@
 **Repository:** nirzaf/AuditSphere  
 **Authoritative specification:** `AuditSphereOps_NET_Codex_Implementation_Specification.md` v5.0  
 **Reviewed baseline:** master at `b34447ba2d87e81ed865081b7dedb1415e5efdce`  
-**Current verified baseline:** 30 migrations, 161/161 PostgreSQL-backed tests, records/archive + provider-fence + recovery-quarantine merged (PR #11)
+**Current verified baseline:** 31 migrations, 165/165 PostgreSQL-backed tests, records/archive residual hardening (P6) locally verified
 
 ---
 
@@ -262,25 +262,28 @@ P10 Full §47 real-tenant acceptance cycle
 
 ## P6 — Records / Archive Residual Hardening
 
-**Status:** `NOT_STARTED` (can be done locally, no external prerequisite)  
+**Status:** `LOCAL_VERIFIED`  
 **Milestone:** R2 — Records & Signing  
 **GitHub Issue:** #9
 
 **User story:** As the records custodian, I want archive revisions and disposition controls to remain immutable and reproducible across re-archive events so later actions cannot erase prior evidence.
 
 **Tasks:**
-- Deterministic re-archive/version lineage.
-- No overwrite of prior manifest/export.
-- Predecessor/supersession references.
-- Digest-stable structured exports.
-- Disposition-package blocking.
-- Evidence-safe downgrade paths.
-- Repeated archive generation tests.
-- Legal-hold/disposition conflict tests.
-- Profile-version change tests.
-- Superseded records-action tests.
+- [x] Deterministic re-archive/version lineage.
+- [x] No overwrite of prior manifest/export.
+- [x] Predecessor/supersession references.
+- [x] Digest-stable structured exports.
+- [x] Disposition-package blocking.
+- [x] Evidence-safe downgrade paths.
+- [x] Repeated archive generation tests.
+- [x] Legal-hold/disposition conflict tests.
+- [x] Profile-version change tests.
+- [x] Superseded records-action tests.
 
 **Acceptance criteria:** re-archive creates new immutable version; old archive remains verifiable; disposition blocked under legal hold; historic profile version never silently changes; digest changes only when canonical content changes; downgrade refuses evidence loss.
+- 31 migrations applied (latest: `20260919203959_ArchiveVersionLineage`).
+- 165/165 PostgreSQL-backed tests green.
+- Restore drill passed with 31 migrations.
 
 ---
 

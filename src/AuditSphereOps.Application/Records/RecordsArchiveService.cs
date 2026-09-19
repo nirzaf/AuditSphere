@@ -30,6 +30,8 @@ public sealed record RequestLegalHoldRequest(Guid ArchiveId, string HoldReferenc
 
 public sealed record ObserveLegalHoldRequest(Guid ArchiveId, string HoldReference, string? ExternalReference);
 
+public sealed record ReleaseLegalHoldRequest(Guid ArchiveId, string HoldReference, string? Notes);
+
 /// <summary>
 /// Local records-control commands. Microsoft Purview calls are deliberately absent: a requested
 /// action is not treated as observed protection or a legal hold (§25.4, §25.6).
@@ -81,7 +83,7 @@ public static class RecordsArchiveService
       """).AsNoTracking().SingleOrDefaultAsync(ct);
     if (archive is null)
       return CommandResult<ArchiveManifestResult>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    if (archive.Status is not (ArchiveStates.Issued or ArchiveStates.AssemblyInProgress))
+    if (archive.Status is not (ArchiveStates.Issued or ArchiveStates.AssemblyInProgress or ArchiveStates.ManifestBuilt))
       return CommandResult<ArchiveManifestResult>.Fail(ErrorCodes.ProtectedState,
         "The archive is not in an assembly state.");
     var profile = await db.RecordsProfiles.AsNoTracking().SingleOrDefaultAsync(x =>
@@ -96,6 +98,12 @@ public static class RecordsArchiveService
     var manifestVersion = (await db.ArchiveManifests
       .Where(x => x.FirmId == archive.FirmId && x.ArchiveId == archive.Id)
       .Select(x => (long?)x.Version).MaxAsync(ct) ?? 0) + 1;
+    // Predecessor: the current latest manifest (if any) becomes this version's predecessor.
+    var predecessorManifest = manifestVersion > 1
+      ? await db.ArchiveManifests
+          .Where(x => x.FirmId == archive.FirmId && x.ArchiveId == archive.Id)
+          .OrderByDescending(x => x.Version).FirstOrDefaultAsync(ct)
+      : null;
     var references = await db.DocumentReferences.AsNoTracking()
       .Where(x => x.FirmId == archive.FirmId && x.ClientId == archive.ClientId && x.EngagementId == archive.EngagementId)
       .Select(x => x.Id).ToHashSetAsync(ct);
@@ -132,6 +140,7 @@ public static class RecordsArchiveService
     {
       Id = Guid.CreateVersion7(), FirmId = archive.FirmId, ClientId = archive.ClientId,
       EngagementId = archive.EngagementId, ArchiveId = archive.Id, Version = manifestVersion,
+      PredecessorManifestId = predecessorManifest?.Id,
       Status = "BUILT", ManifestDigest = digest, EntryCount = entries.Count,
       CompletenessStatus = complete ? "COMPLETE" : "INCOMPLETE",
       CompletenessException = complete ? null : $"{missingReferences} snapshot reference(s) are missing.",
@@ -147,10 +156,13 @@ public static class RecordsArchiveService
       ContentHash = Hashing.Sha256Hex(structuredBytes), ByteCount = structuredBytes.Length,
       CreatedAt = DateTimeOffset.UtcNow
     });
+    // Mark the prior manifest as superseded now that a new version exists.
+    if (predecessorManifest is not null)
+      predecessorManifest.SupersededByManifestId = manifest.Id;
+    await db.SaveChangesAsync(ct);
     if (complete)
       await db.Archives.Where(x => x.Id == archive.Id && x.FirmId == archive.FirmId)
         .ExecuteUpdateAsync(s => s.SetProperty(x => x.Status, ArchiveStates.ManifestBuilt), ct);
-    await db.SaveChangesAsync(ct);
     await tx.CommitAsync(ct);
 
     var result = new ArchiveManifestResult(archive.Id, manifest.Id, manifest.Status, manifest.ManifestDigest,
@@ -162,7 +174,8 @@ public static class RecordsArchiveService
   }
 
   public static async Task<CommandResult<ArchiveManifestResult>> ReviewManifestAsync(
-    IAuditSphereDbContext db, ActorContext actor, Guid archiveId, CancellationToken ct = default)
+    IAuditSphereDbContext db, ActorContext actor, Guid archiveId, Guid? manifestId = null,
+    CancellationToken ct = default)
   {
     var authorized = await AuthorizeArchiveAsync(db, actor, archiveId, ct);
     if (!authorized.Succeeded)
@@ -172,11 +185,16 @@ public static class RecordsArchiveService
       return CommandResult<ArchiveManifestResult>.Fail(ErrorCodes.ProtectedState,
         "Only a complete built manifest can be reviewed.");
 
-    var manifest = await db.ArchiveManifests.Where(x => x.Id == archiveId || x.ArchiveId == archiveId)
-      .Where(x => x.FirmId == actor.FirmId && x.ArchiveId == archive.Id)
-      .OrderByDescending(x => x.Version).FirstOrDefaultAsync(ct);
+    var query = db.ArchiveManifests
+      .Where(x => x.FirmId == actor.FirmId && x.ArchiveId == archive.Id);
+    if (manifestId.HasValue)
+      query = query.Where(x => x.Id == manifestId.Value);
+    var manifest = await query.OrderByDescending(x => x.Version).FirstOrDefaultAsync(ct);
     if (manifest is null || manifest.CompletenessStatus != "COMPLETE")
       return CommandResult<ArchiveManifestResult>.Fail(ErrorCodes.GateBlocked, "A complete archive manifest is required.");
+    if (manifest.SupersededByManifestId is not null)
+      return CommandResult<ArchiveManifestResult>.Fail(ErrorCodes.ProtectedState,
+        "This manifest has been superseded by a newer version and cannot be reviewed.");
 
     manifest.Status = "REVIEWED";
     manifest.ReviewedAt = DateTimeOffset.UtcNow;
@@ -292,6 +310,13 @@ public static class RecordsArchiveService
     var archive = authorized.Value!;
     if (archive.Status != ArchiveStates.ProtectionObserved)
       return CommandResult.Fail(ErrorCodes.ProtectedState, "Observed records protection is required before verification.");
+    // Disposition is blocked while any active (applied/observed but not released) legal hold exists.
+    var activeHold = await db.LegalHolds.AsNoTracking()
+      .Where(x => x.ArchiveId == archiveId && x.FirmId == actor.FirmId && x.State == "OBSERVED" && x.ReleasedAt == null)
+      .AnyAsync(ct);
+    if (activeHold)
+      return CommandResult.Fail(ErrorCodes.GateBlocked,
+        "An active legal hold prevents archive verification. Release the hold before proceeding.");
     var action = await db.RecordsActions.AsNoTracking().SingleOrDefaultAsync(x => x.ArchiveId == archive.Id, ct);
     var manifest = await db.ArchiveManifests.AsNoTracking().SingleOrDefaultAsync(x => x.ArchiveId == archive.Id, ct);
     if (action?.State != "OBSERVED" || manifest?.CompletenessStatus != "COMPLETE")
@@ -339,6 +364,27 @@ public static class RecordsArchiveService
     hold.ExternalReference = request.ExternalReference?.Trim();
     hold.AppliedAt ??= DateTimeOffset.UtcNow;
     hold.ObservedAt = DateTimeOffset.UtcNow;
+    await db.SaveChangesAsync(ct);
+    return CommandResult.Ok();
+  }
+
+  public static async Task<CommandResult> ReleaseLegalHoldAsync(
+    IAuditSphereDbContext db, ActorContext actor, ReleaseLegalHoldRequest request,
+    CancellationToken ct = default)
+  {
+    var authorized = await AuthorizeArchiveAsync(db, actor, request.ArchiveId, ct);
+    if (!authorized.Succeeded)
+      return CommandResult.Fail(authorized.ErrorCode!, authorized.Message!);
+    var hold = await db.LegalHolds.SingleOrDefaultAsync(x => x.ArchiveId == request.ArchiveId &&
+      x.FirmId == actor.FirmId && x.HoldReference == request.HoldReference, ct);
+    if (hold is null)
+      return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    if (hold.State == "RELEASED")
+      return CommandResult.Fail(ErrorCodes.ProtectedState, "This legal hold has already been released.");
+    hold.State = "RELEASED";
+    hold.ReleasedAt = DateTimeOffset.UtcNow;
+    if (request.Notes is not null)
+      hold.Notes = request.Notes.Trim();
     await db.SaveChangesAsync(ct);
     return CommandResult.Ok();
   }

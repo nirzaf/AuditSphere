@@ -16,13 +16,34 @@ Acceptance criteria for P0:
 - Every pending package has a GitHub issue, owner, and milestone.
 - No credentials or secrets are stored in Git.
 
+## P6 — Records / Archive Residual Hardening (locally verified, 2026-09-19)
+
+**Base:** `b34447ba2d87e81ed865081b7dedb1415e5efdce`  
+**Tests:** 165/165 passing, 0 skipped, PostgreSQL 18.6  
+**Migrations:** 31 (latest: `20260919203959_ArchiveVersionLineage`)
+
+This slice closes residual records/archive hardening gaps:
+- Migration `20260919203959_ArchiveVersionLineage` adds `predecessor_manifest_id` and `superseded_by_manifest_id` self-referential foreign keys to `archive_manifests` with `ON DELETE RESTRICT`, plus check constraint `ck_archive_manifests_lineage_no_self_ref`.
+- `RecordsArchiveService.BuildManifestAsync`: chains back to predecessor manifest on re-archive (version > 1) and marks prior manifest superseded (`superseded_by_manifest_id`) within the same transaction.
+- `RecordsArchiveService.ReviewManifestAsync`: rejects reviewing superseded manifests (`ErrorCodes.ProtectedState`).
+- `RecordsArchiveService.VerifyArchiveAsync`: blocks archive verification when an active (`OBSERVED`, not `RELEASED`) legal hold exists (`ErrorCodes.GateBlocked`).
+- `RecordsArchiveService.ReleaseLegalHoldAsync`: enables releasing an active legal hold.
+- Evidence-safe downgrade: `Down` method in migration throws exception (`ERRCODE = '55000'`) refusing downgrade if any version lineage rows exist.
+- 4 new PostgreSQL-backed tests in `RecordsArchiveTests`:
+  1. `ReArchive_ProducesSeparateVersionWithPredecessorLink`
+  2. `VerifyArchive_BlockedByActiveLegalHold`
+  3. `BuildManifest_RequiresCurrentApprovedProfile`
+  4. `ReArchive_DigestStableForIdenticalContent`
+- Full test suite: 165/165 passed on PostgreSQL 18.6 with 0 skipped.
+- Restore drill: `scripts/db/restore-drill.sh` passed with 31 migrations.
+
 ## Verified locally (as of 2026-09-19)
 
 - SDK 10.0.300; six projects targeting net10.0 (five application projects, one test project).
 - EF Core 10.0.12, Npgsql EF provider 10.0.0, `dotnet-ef` tool 10.0.12.
 - PostgreSQL 18.6 development cluster at `/opt/homebrew/var/postgresql@18`, loopback + trust auth (development only), port 5433. The local `auditsphere` and `auditsphere_tests` databases were created for this host.
-- Thirty applied migrations on `auditsphere`, ending at `20260919134442_RecordsActionEvidence`; `dotnet ef database update` reports no pending migrations. The latest slices add the persisted §25.3 structured export, append-only records-action evidence, the scoped repository-binding/sync/capability model, and recovery-session quarantine state.
-- Build: zero warnings/errors across all 6 projects. Full suite: 161/161 passed, zero skipped locally on PostgreSQL 18.6. New coverage includes persisted full structured-export payloads, append-only records-action history, archive state/protection checks, repository-binding FK refusal, fail-closed Graph boundaries, recovery-session approval, and legacy migration compatibility.
+- Thirty-one applied migrations on `auditsphere`, ending at `20260919203959_ArchiveVersionLineage`; `dotnet ef database update` reports no pending migrations. The latest slices add the persisted §25.3 structured export, append-only records-action evidence, the scoped repository-binding/sync/capability model, recovery-session quarantine state, and archive version lineage.
+- Build: zero warnings/errors across all 6 projects. Full suite: 165/165 passed, zero skipped locally on PostgreSQL 18.6. New coverage includes archive version lineage with predecessor/supersession links, legal-hold disposition blocking, approved profile version requirement, and manifest digest stability.
 - UI Ground Truth: `Release.razor` removed the caller confirmation checkbox and now renders truthful gate statuses (`absent` / `pending` / `verified` / `mismatched` / `expired`) for external checkpoints, Microsoft Purview protection attestations, and signature lineages, with an explicit notice that no live Microsoft records action is observed.
 - Restore rehearsal: `scripts/db/restore-drill.sh` dumped and restored `auditsphere` into a generated temporary loopback database, compared migration history and release-checkpoint database summaries, wrote `docs/evidence/restore-drill-latest.json`, then cleaned its generated database and temporary files. The evidence marks external custody and production RPO/RTO as not run.
 - Migration-aware readiness: `/health/ready` returned `Healthy`/HTTP 200 after querying `__EFMigrationsHistory`; `/health/live` returned HTTP 200.

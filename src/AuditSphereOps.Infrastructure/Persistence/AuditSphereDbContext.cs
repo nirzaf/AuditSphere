@@ -1450,13 +1450,32 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     manifest.HasIndex(x => new { x.FirmId, x.ArchiveId, x.Version }).IsUnique()
       .HasDatabaseName("ux_archive_manifest_archive_version");
     ScopeToEngagement(manifest, nameof(ArchiveManifest.FirmId), nameof(ArchiveManifest.ClientId), nameof(ArchiveManifest.EngagementId));
-    manifest.ToTable("archive_manifests", t => t.HasCheckConstraint("ck_archive_manifest_values",
-      "version >= 1 AND status IN ('BUILT','REVIEWED') AND manifest_digest ~ '^[0-9a-f]{64}$'" +
-      " AND entry_count >= 0 AND completeness_status IN ('COMPLETE','INCOMPLETE')" +
-      " AND ((completeness_status = 'INCOMPLETE' AND length(trim(completeness_exception)) > 0)" +
-      " OR (completeness_status = 'COMPLETE' AND completeness_exception IS NULL))"));
+    manifest.ToTable("archive_manifests", t =>
+    {
+      t.HasCheckConstraint("ck_archive_manifest_values",
+        "version >= 1 AND status IN ('BUILT','REVIEWED') AND manifest_digest ~ '^[0-9a-f]{64}$'" +
+        " AND entry_count >= 0 AND completeness_status IN ('COMPLETE','INCOMPLETE')" +
+        " AND ((completeness_status = 'INCOMPLETE' AND length(trim(completeness_exception)) > 0)" +
+        " OR (completeness_status = 'COMPLETE' AND completeness_exception IS NULL))");
+      t.HasCheckConstraint("ck_archive_manifests_lineage_no_self_ref",
+        "(predecessor_manifest_id IS NULL OR predecessor_manifest_id <> id) AND (superseded_by_manifest_id IS NULL OR superseded_by_manifest_id <> id)");
+    });
     manifest.HasOne<Archive>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.ArchiveId })
       .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    // Self-referential predecessor link: the first manifest has no predecessor; re-archives chain back.
+    manifest.Property(x => x.PredecessorManifestId).HasColumnName("predecessor_manifest_id");
+    manifest.HasOne<ArchiveManifest>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.PredecessorManifestId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id })
+      .OnDelete(DeleteBehavior.Restrict)
+      .IsRequired(false);
+    // Self-referential supersession link: set on a manifest when it is superseded by a newer version.
+    manifest.Property(x => x.SupersededByManifestId).HasColumnName("superseded_by_manifest_id");
+    manifest.HasOne<ArchiveManifest>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.SupersededByManifestId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id })
+      .OnDelete(DeleteBehavior.Restrict)
+      .IsRequired(false);
 
     var structuredExport = b.Entity<ArchiveStructuredExport>();
     structuredExport.HasAlternateKey(x => new { x.FirmId, x.Id })

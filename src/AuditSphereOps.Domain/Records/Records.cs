@@ -56,6 +56,8 @@ public sealed class ArchiveManifest
   public Guid EngagementId { get; set; }
   public Guid ArchiveId { get; set; }
   public long Version { get; set; } = 1;
+  public Guid? PredecessorManifestId { get; set; }    // null on first build; set on every re-archive
+  public Guid? SupersededByManifestId { get; set; }   // set on prior version when a new one is built
   public string Status { get; set; } = "BUILT";
   public string ManifestDigest { get; set; } = string.Empty;
   public int EntryCount { get; set; }

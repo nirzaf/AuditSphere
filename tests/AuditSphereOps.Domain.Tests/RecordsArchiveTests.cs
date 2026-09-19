@@ -1,6 +1,7 @@
 using AuditSphereOps.Application.Records;
 using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Records;
+using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
@@ -136,5 +137,203 @@ public sealed class RecordsArchiveTests
     Assert.True(requested.Succeeded, requested.Message);
     Assert.Equal(ArchiveStates.RecordsActionRequested, await db.Archives.Where(x => x.Id == archiveId).Select(x => x.Status).SingleAsync());
     Assert.NotEqual(ArchiveStates.ProtectionObserved, await db.Archives.Where(x => x.Id == archiveId).Select(x => x.Status).SingleAsync());
+  }
+
+  [Fact]
+  public async Task ReArchive_ProducesSeparateVersionWithPredecessorLink()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await PlanningSeed.CreateAsync(pg, "Partner");
+    var scope = fixture.Primary;
+    var archiveId = Guid.CreateVersion7();
+
+    await using (var seed = new AuditSphereDbContext(pg.Options))
+    {
+      seed.RecordsProfiles.Add(new RecordsProfile
+      {
+        Id = Guid.CreateVersion7(), FirmId = scope.FirmId, ProfileCode = "AUDIT-RECORDS",
+        Version = 1, RecordClass = "Issued audit file", Jurisdiction = "TEST",
+        ServiceRoute = "STATUTORY_AUDIT", RetentionTrigger = "REPORT_DATE",
+        RetentionDurationDays = null, ProtectionMode = "PURVIEW_RECORD",
+        LabelId = "label-test-audit-record", LegalHoldBehavior = "SUSPEND_DISPOSITION",
+        AmendmentRoute = "CONTROLLED_AMENDMENT", DispositionOwner = "Records Custodian",
+        BackupRequirements = "Protected checkpoint", CreatedByUserId = scope.Actor.UserId,
+        Approved = true, ApprovedAt = DateTimeOffset.UtcNow, ApprovedByUserId = scope.Actor.UserId,
+        CreatedAt = DateTimeOffset.UtcNow
+      });
+      seed.Archives.Add(new Archive
+      {
+        Id = archiveId, FirmId = scope.FirmId, ClientId = scope.ClientId,
+        EngagementId = scope.EngagementId, ProfileId = "AUDIT-RECORDS", ProfileVersion = 1,
+        Status = ArchiveStates.Issued, CreatedAt = DateTimeOffset.UtcNow
+      });
+      await seed.SaveChangesAsync();
+    }
+
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var v1 = await RecordsArchiveService.BuildManifestAsync(db, scope.Actor, archiveId);
+    Assert.True(v1.Succeeded, v1.Message);
+
+    var manifest1 = await db.ArchiveManifests.SingleAsync(x => x.Id == v1.Value!.ManifestId);
+    Assert.Equal(1, manifest1.Version);
+    Assert.Null(manifest1.PredecessorManifestId);
+    Assert.Null(manifest1.SupersededByManifestId);
+
+    // Re-archive: rebuild manifest produces v2 chaining back to v1
+    var v2 = await RecordsArchiveService.BuildManifestAsync(db, scope.Actor, archiveId);
+    Assert.True(v2.Succeeded, v2.Message);
+
+    var manifest2 = await db.ArchiveManifests.SingleAsync(x => x.Id == v2.Value!.ManifestId);
+    Assert.Equal(2, manifest2.Version);
+    Assert.Equal(manifest1.Id, manifest2.PredecessorManifestId);
+    Assert.Null(manifest2.SupersededByManifestId);
+
+    // Prior manifest is now marked as superseded
+    await db.Entry(manifest1).ReloadAsync();
+    Assert.Equal(manifest2.Id, manifest1.SupersededByManifestId);
+
+    // Superseded manifest cannot be reviewed
+    var reviewSuperseded = await RecordsArchiveService.ReviewManifestAsync(db, scope.Actor, archiveId, manifest1.Id);
+    Assert.False(reviewSuperseded.Succeeded);
+    Assert.Equal(ErrorCodes.ProtectedState, reviewSuperseded.ErrorCode);
+  }
+
+  [Fact]
+  public async Task VerifyArchive_BlockedByActiveLegalHold()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await PlanningSeed.CreateAsync(pg, "Partner");
+    var scope = fixture.Primary;
+    var archiveId = Guid.CreateVersion7();
+
+    await using (var seed = new AuditSphereDbContext(pg.Options))
+    {
+      seed.RecordsProfiles.Add(new RecordsProfile
+      {
+        Id = Guid.CreateVersion7(), FirmId = scope.FirmId, ProfileCode = "AUDIT-RECORDS",
+        Version = 1, RecordClass = "Issued audit file", Jurisdiction = "TEST",
+        ServiceRoute = "STATUTORY_AUDIT", RetentionTrigger = "REPORT_DATE",
+        ProtectionMode = "PURVIEW_RECORD", LabelId = "label-test-audit-record",
+        LegalHoldBehavior = "SUSPEND_DISPOSITION", AmendmentRoute = "CONTROLLED_AMENDMENT",
+        DispositionOwner = "Records Custodian", BackupRequirements = "Protected checkpoint",
+        CreatedByUserId = scope.Actor.UserId, Approved = true,
+        ApprovedAt = DateTimeOffset.UtcNow, ApprovedByUserId = scope.Actor.UserId,
+        CreatedAt = DateTimeOffset.UtcNow
+      });
+      seed.Archives.Add(new Archive
+      {
+        Id = archiveId, FirmId = scope.FirmId, ClientId = scope.ClientId,
+        EngagementId = scope.EngagementId, ProfileId = "AUDIT-RECORDS", ProfileVersion = 1,
+        Status = ArchiveStates.Issued, CreatedAt = DateTimeOffset.UtcNow
+      });
+      await seed.SaveChangesAsync();
+    }
+
+    await using var db = new AuditSphereDbContext(pg.Options);
+    Assert.True((await RecordsArchiveService.BuildManifestAsync(db, scope.Actor, archiveId)).Succeeded);
+    Assert.True((await RecordsArchiveService.ReviewManifestAsync(db, scope.Actor, archiveId)).Succeeded);
+    Assert.True((await RecordsArchiveService.RequestRecordsActionAsync(db, scope.Actor,
+      new RequestRecordsActionRequest(archiveId, "req-1"))).Succeeded);
+    Assert.True((await RecordsArchiveService.ObserveRecordsActionAsync(db, scope.Actor,
+      new ObserveRecordsActionRequest(archiveId, "label-test-audit-record", "RECORD_LOCKED", "records-admin@test", "obs-1"))).Succeeded);
+
+    // Apply and observe an active legal hold
+    Assert.True((await RecordsArchiveService.RequestLegalHoldAsync(db, scope.Actor,
+      new RequestLegalHoldRequest(archiveId, "HOLD-LITIGATION-01", "Pending litigation"))).Succeeded);
+    Assert.True((await RecordsArchiveService.ObserveLegalHoldAsync(db, scope.Actor,
+      new ObserveLegalHoldRequest(archiveId, "HOLD-LITIGATION-01", "purview-hold-lit-1"))).Succeeded);
+
+    // Verification must be blocked while hold is active
+    var blocked = await RecordsArchiveService.VerifyArchiveAsync(db, scope.Actor, archiveId);
+    Assert.False(blocked.Succeeded);
+    Assert.Equal(ErrorCodes.GateBlocked, blocked.ErrorCode);
+
+    // Release the hold
+    var released = await RecordsArchiveService.ReleaseLegalHoldAsync(db, scope.Actor,
+      new ReleaseLegalHoldRequest(archiveId, "HOLD-LITIGATION-01", "Litigation resolved"));
+    Assert.True(released.Succeeded, released.Message);
+
+    // Now verification succeeds
+    var verified = await RecordsArchiveService.VerifyArchiveAsync(db, scope.Actor, archiveId);
+    Assert.True(verified.Succeeded, verified.Message);
+    Assert.Equal(ArchiveStates.ArchiveVerified, (await db.Archives.AsNoTracking().SingleAsync(x => x.Id == archiveId)).Status);
+  }
+
+  [Fact]
+  public async Task BuildManifest_RequiresCurrentApprovedProfile()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await PlanningSeed.CreateAsync(pg, "Partner");
+    var scope = fixture.Primary;
+    var archiveId = Guid.CreateVersion7();
+
+    await using (var seed = new AuditSphereDbContext(pg.Options))
+    {
+      seed.RecordsProfiles.Add(new RecordsProfile
+      {
+        Id = Guid.CreateVersion7(), FirmId = scope.FirmId, ProfileCode = "AUDIT-RECORDS",
+        Version = 1, RecordClass = "Issued audit file", Jurisdiction = "TEST",
+        ServiceRoute = "STATUTORY_AUDIT", RetentionTrigger = "REPORT_DATE",
+        ProtectionMode = "PURVIEW_RECORD", LabelId = "label-test-audit-record",
+        LegalHoldBehavior = "SUSPEND_DISPOSITION", AmendmentRoute = "CONTROLLED_AMENDMENT",
+        DispositionOwner = "Records Custodian", BackupRequirements = "Protected checkpoint",
+        CreatedByUserId = scope.Actor.UserId, Approved = false, // Not approved!
+        CreatedAt = DateTimeOffset.UtcNow
+      });
+      seed.Archives.Add(new Archive
+      {
+        Id = archiveId, FirmId = scope.FirmId, ClientId = scope.ClientId,
+        EngagementId = scope.EngagementId, ProfileId = "AUDIT-RECORDS", ProfileVersion = 1,
+        Status = ArchiveStates.Issued, CreatedAt = DateTimeOffset.UtcNow
+      });
+      await seed.SaveChangesAsync();
+    }
+
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var built = await RecordsArchiveService.BuildManifestAsync(db, scope.Actor, archiveId);
+    Assert.False(built.Succeeded);
+    Assert.Equal(ErrorCodes.GateBlocked, built.ErrorCode);
+  }
+
+  [Fact]
+  public async Task ReArchive_DigestStableForIdenticalContent()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await PlanningSeed.CreateAsync(pg, "Partner");
+    var scope = fixture.Primary;
+    var archiveId = Guid.CreateVersion7();
+
+    await using (var seed = new AuditSphereDbContext(pg.Options))
+    {
+      seed.RecordsProfiles.Add(new RecordsProfile
+      {
+        Id = Guid.CreateVersion7(), FirmId = scope.FirmId, ProfileCode = "AUDIT-RECORDS",
+        Version = 1, RecordClass = "Issued audit file", Jurisdiction = "TEST",
+        ServiceRoute = "STATUTORY_AUDIT", RetentionTrigger = "REPORT_DATE",
+        ProtectionMode = "PURVIEW_RECORD", LabelId = "label-test-audit-record",
+        LegalHoldBehavior = "SUSPEND_DISPOSITION", AmendmentRoute = "CONTROLLED_AMENDMENT",
+        DispositionOwner = "Records Custodian", BackupRequirements = "Protected checkpoint",
+        CreatedByUserId = scope.Actor.UserId, Approved = true,
+        ApprovedAt = DateTimeOffset.UtcNow, ApprovedByUserId = scope.Actor.UserId,
+        CreatedAt = DateTimeOffset.UtcNow
+      });
+      seed.Archives.Add(new Archive
+      {
+        Id = archiveId, FirmId = scope.FirmId, ClientId = scope.ClientId,
+        EngagementId = scope.EngagementId, ProfileId = "AUDIT-RECORDS", ProfileVersion = 1,
+        Status = ArchiveStates.Issued, CreatedAt = DateTimeOffset.UtcNow
+      });
+      await seed.SaveChangesAsync();
+    }
+
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var v1 = await RecordsArchiveService.BuildManifestAsync(db, scope.Actor, archiveId);
+    Assert.True(v1.Succeeded);
+
+    var v2 = await RecordsArchiveService.BuildManifestAsync(db, scope.Actor, archiveId);
+    Assert.True(v2.Succeeded);
+
+    // Identical underlying documents & structured export produce identical manifest digests
+    Assert.Equal(v1.Value!.Digest, v2.Value!.Digest);
   }
 }
