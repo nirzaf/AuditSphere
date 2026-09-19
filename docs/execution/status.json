@@ -255,7 +255,14 @@
       "result": "The new Purview portal loaded for tenant 4de3e6fd-51aa-4ba7-b2c5-82106d2e45f0. Information Protection sensitivity labels showed no data, and Data Lifecycle Management retention labels showed no data with no retention labels detected. A label creation draft was opened for inspection and discarded; no Purview label or policy was created."
     }
   ],
-  "reviewEvidence": [],
+  "reviewEvidence": [
+    {
+      "observedAt": "2026-09-19T14:08:19Z",
+      "pullRequest": 11,
+      "headCommit": "97892639a7c3123fbf5ce678f35fc21754f04d1f",
+      "result": "Hosted build-test-ready, GitGuardian and Cubic checks are complete; the configured Codex review commented on the prior implementation commit fae8723. No independent human approval is recorded, so Checklist #14 remains blocked and the PR is not merged."
+    }
+  ],
   "blockers": [
     {
       "classification": "external-tenant",
