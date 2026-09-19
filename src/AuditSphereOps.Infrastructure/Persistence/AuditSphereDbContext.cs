@@ -50,6 +50,9 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
   public DbSet<AcceptanceDecision> AcceptanceDecisions => Set<AcceptanceDecision>();
   public DbSet<Engagement> Engagements => Set<Engagement>();
   public DbSet<EngagementHold> EngagementHolds => Set<EngagementHold>();
+  public DbSet<RepositoryBinding> RepositoryBindings => Set<RepositoryBinding>();
+  public DbSet<SyncCursor> SyncCursors => Set<SyncCursor>();
+  public DbSet<IntegrationCapability> IntegrationCapabilities => Set<IntegrationCapability>();
   public DbSet<DocumentReference> DocumentReferences => Set<DocumentReference>();
   public DbSet<DocumentSnapshot> DocumentSnapshots => Set<DocumentSnapshot>();
   public DbSet<PbcRequest> PbcRequests => Set<PbcRequest>();
@@ -87,11 +90,19 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
   public DbSet<ReleaseCheckpoint> ReleaseCheckpoints => Set<ReleaseCheckpoint>();
   public DbSet<SignatureLineage> SignatureLineages => Set<SignatureLineage>();
   public DbSet<ProtectionAttestation> ProtectionAttestations => Set<ProtectionAttestation>();
+  public DbSet<RecordsProfile> RecordsProfiles => Set<RecordsProfile>();
+  public DbSet<ArchiveManifest> ArchiveManifests => Set<ArchiveManifest>();
+  public DbSet<ArchiveManifestEntry> ArchiveManifestEntries => Set<ArchiveManifestEntry>();
+  public DbSet<ArchiveStructuredExport> ArchiveStructuredExports => Set<ArchiveStructuredExport>();
+  public DbSet<RecordsActionEvidence> RecordsActionEvidences => Set<RecordsActionEvidence>();
+  public DbSet<RecordsAction> RecordsActions => Set<RecordsAction>();
+  public DbSet<LegalHold> LegalHolds => Set<LegalHold>();
   public DbSet<Archive> Archives => Set<Archive>();
   public DbSet<DurableOperation> DurableOperations => Set<DurableOperation>();
   public DbSet<OperationAttempt> OperationAttempts => Set<OperationAttempt>();
   public DbSet<OperationEvent> OperationEvents => Set<OperationEvent>();
   public DbSet<FirmSafetyState> FirmSafetyStates => Set<FirmSafetyState>();
+  public DbSet<RecoverySession> RecoverySessions => Set<RecoverySession>();
   public DbSet<ClientSafetyState> ClientSafetyStates => Set<ClientSafetyState>();
   public DbSet<RecordState> RecordStates => Set<RecordState>();
   public DbSet<EqrCase> EqrCases => Set<EqrCase>();
@@ -127,6 +138,57 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
 
   private static void ConfigureDocuments(ModelBuilder b)
   {
+    var binding = b.Entity<RepositoryBinding>();
+    binding.HasAlternateKey(x => new { x.FirmId, x.Id })
+      .HasName("AK_repository_bindings_firm_id_id");
+    binding.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
+      .HasName("AK_repository_bindings_scope_id");
+    binding.Property(x => x.TenantId).HasMaxLength(2000);
+    binding.Property(x => x.SiteId).HasMaxLength(2000);
+    binding.Property(x => x.DriveId).HasMaxLength(2000);
+    binding.Property(x => x.RootFolderId).HasMaxLength(2000);
+    binding.Property(x => x.Classification).HasMaxLength(2000);
+    binding.Property(x => x.DesiredAccess).HasMaxLength(2000);
+    binding.Property(x => x.ObservedAccess).HasMaxLength(2000);
+    binding.Property(x => x.CapabilityProfile).HasMaxLength(2000);
+    binding.ToTable("repository_bindings", t => t.HasCheckConstraint("ck_repository_binding_values",
+      "length(trim(tenant_id)) > 0 AND length(trim(site_id)) > 0 AND length(trim(drive_id)) > 0 AND length(trim(root_folder_id)) > 0 AND length(trim(classification)) > 0 AND length(trim(desired_access)) > 0 AND length(trim(observed_access)) > 0 AND length(trim(capability_profile)) > 0"));
+    binding.HasOne<PracticeClient>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id })
+      .OnDelete(DeleteBehavior.Restrict);
+    binding.HasOne<Engagement>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId })
+      .HasPrincipalKey(x => new { x.FirmId, x.PracticeClientId, x.Id })
+      .OnDelete(DeleteBehavior.Restrict);
+
+    var cursor = b.Entity<SyncCursor>();
+    cursor.HasAlternateKey(x => new { x.FirmId, x.Id })
+      .HasName("AK_sync_cursors_firm_id_id");
+    cursor.Property(x => x.Cursor).HasMaxLength(4000);
+    cursor.HasIndex(x => new { x.FirmId, x.RepositoryBindingId })
+      .IsUnique().HasDatabaseName("ux_sync_cursor_binding");
+    cursor.ToTable("sync_cursors", t => t.HasCheckConstraint("ck_sync_cursor_values",
+      "length(trim(cursor)) > 0 AND generation >= 1"));
+    cursor.HasOne<RepositoryBinding>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.RepositoryBindingId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id })
+      .OnDelete(DeleteBehavior.Restrict);
+
+    var capability = b.Entity<IntegrationCapability>();
+    capability.HasAlternateKey(x => new { x.FirmId, x.Id })
+      .HasName("AK_integration_capabilities_firm_id_id");
+    capability.Property(x => x.HealthStatus).HasMaxLength(50);
+    capability.Property(x => x.TestedPermissions).HasMaxLength(4000);
+    capability.HasIndex(x => new { x.FirmId, x.RepositoryBindingId })
+      .IsUnique().HasDatabaseName("ux_integration_capability_binding");
+    capability.ToTable("integration_capabilities", t => t.HasCheckConstraint("ck_integration_capability_values",
+      "length(trim(health_status)) > 0 AND length(trim(tested_permissions)) > 0 AND ((tested_at IS NULL AND health_status IN ('UNKNOWN','BLOCKED')) OR tested_at IS NOT NULL)"));
+    capability.HasOne<RepositoryBinding>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.RepositoryBindingId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id })
+      .OnDelete(DeleteBehavior.Restrict);
+
     var reference = b.Entity<DocumentReference>();
     reference.HasAlternateKey(x => new { x.FirmId, x.Id })
       .HasName("AK_document_references_firm_id_id");
@@ -146,6 +208,10 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     reference.HasOne<Engagement>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId })
       .HasPrincipalKey(x => new { x.FirmId, x.PracticeClientId, x.Id })
+      .OnDelete(DeleteBehavior.Restrict);
+    reference.HasOne<RepositoryBinding>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.RepositoryBindingId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
       .OnDelete(DeleteBehavior.Restrict);
 
     var snapshot = b.Entity<DocumentSnapshot>();
@@ -454,7 +520,24 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
       .HasForeignKey(x => new { x.FirmId, x.Id }).HasPrincipalKey(x => new { x.FirmId, x.Id })
       .OnDelete(DeleteBehavior.Restrict);
     b.Entity<FirmSafetyState>().ToTable("firm_safety_states", t =>
-      t.HasCheckConstraint("ck_firm_safety", "deployment_epoch >= 1 AND policy_generation >= 1 AND operating_mode IN ('LOCAL_ONLY','RECOVERY_QUARANTINE')"));
+      t.HasCheckConstraint("ck_firm_safety", "deployment_epoch >= 1 AND recovery_epoch >= 0 AND policy_generation >= 1 AND operating_mode IN ('LOCAL_ONLY','RECOVERY_QUARANTINE')"));
+    var recovery = b.Entity<RecoverySession>();
+    recovery.HasAlternateKey(x => new { x.FirmId, x.Id })
+      .HasName("AK_recovery_sessions_firm_id_id");
+    recovery.Property(x => x.RestorePoint).HasMaxLength(500);
+    recovery.Property(x => x.ReconciliationScope).HasMaxLength(2000);
+    recovery.Property(x => x.Findings).HasMaxLength(10000);
+    recovery.HasIndex(x => new { x.FirmId, x.CreatedAt });
+    recovery.ToTable("recovery_sessions", t => t.HasCheckConstraint("ck_recovery_session_values",
+      "external_epoch >= 1 AND length(trim(restore_point)) > 0 AND length(trim(reconciliation_scope)) > 0 AND length(trim(findings)) > 0 AND ((approved_restart_at IS NULL AND approved_by_user_id IS NULL) OR (approved_restart_at IS NOT NULL AND approved_by_user_id IS NOT NULL))"));
+    recovery.HasOne<FirmSafetyState>().WithMany()
+      .HasForeignKey(x => new { x.FirmId })
+      .HasPrincipalKey(x => new { x.Id })
+      .OnDelete(DeleteBehavior.Restrict);
+    recovery.HasOne<AppUser>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ApprovedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id })
+      .OnDelete(DeleteBehavior.Restrict);
     b.Entity<ClientSafetyState>().ToTable("client_safety_states", t =>
       t.HasCheckConstraint("ck_client_generation", "input_generation >= 1"));
     b.Entity<OperationAttempt>().HasIndex(x => new { x.OperationId, x.Token }).IsUnique();
@@ -1313,13 +1396,184 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     reviewPoint.ToTable("review_points", t => t.HasCheckConstraint("ck_review_point_values",
       "length(trim(target_kind)) > 0 AND target_revision >= 1 AND length(trim(comment)) > 0"));
 
+    var profile = b.Entity<RecordsProfile>();
+    profile.HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_records_profiles_firm_id_id");
+    profile.Property(x => x.ProfileCode).HasMaxLength(100);
+    profile.Property(x => x.RecordClass).HasMaxLength(100);
+    profile.Property(x => x.Jurisdiction).HasMaxLength(100);
+    profile.Property(x => x.ServiceRoute).HasMaxLength(100);
+    profile.Property(x => x.RetentionTrigger).HasMaxLength(200);
+    profile.Property(x => x.ProtectionMode).HasMaxLength(100);
+    profile.Property(x => x.LabelId).HasMaxLength(200);
+    profile.Property(x => x.LegalHoldBehavior).HasMaxLength(200);
+    profile.Property(x => x.AmendmentRoute).HasMaxLength(500);
+    profile.Property(x => x.DispositionOwner).HasMaxLength(200);
+    profile.Property(x => x.BackupRequirements).HasMaxLength(1000);
+    profile.HasIndex(x => new { x.FirmId, x.ProfileCode, x.Version }).IsUnique()
+      .HasDatabaseName("ux_records_profile_code_version");
+    profile.ToTable("records_profiles", t => t.HasCheckConstraint("ck_records_profile_values",
+      "version >= 1 AND length(trim(profile_code)) > 0 AND length(trim(record_class)) > 0" +
+      " AND length(trim(jurisdiction)) > 0 AND length(trim(service_route)) > 0" +
+      " AND length(trim(retention_trigger)) > 0 AND (retention_duration_days IS NULL OR retention_duration_days > 0)" +
+      " AND length(trim(protection_mode)) > 0 AND length(trim(label_id)) > 0" +
+      " AND length(trim(legal_hold_behavior)) > 0 AND length(trim(amendment_route)) > 0" +
+      " AND length(trim(disposition_owner)) > 0 AND length(trim(backup_requirements)) > 0" +
+      " AND ((approved = false AND approved_at IS NULL AND approved_by_user_id IS NULL)" +
+      " OR (approved = true AND approved_at IS NOT NULL AND approved_by_user_id IS NOT NULL))"));
+    profile.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.CreatedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    profile.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.ApprovedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
     var archive = b.Entity<Archive>();
+    archive.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
+      .HasName("AK_archives_scope_id");
     archive.Property(x => x.ProfileId).HasMaxLength(100);
+    archive.Property(x => x.ProfileVersion);
+    archive.Property(x => x.ObservedProtectionState).HasMaxLength(100);
     archive.Property(x => x.Status).HasMaxLength(40);
     archive.HasIndex(x => new { x.FirmId, x.EngagementId, x.Status }).HasDatabaseName("ix_archives_scope_status");
     ScopeToEngagement(archive, nameof(Archive.FirmId), nameof(Archive.ClientId), nameof(Archive.EngagementId));
     archive.ToTable("archives", t => t.HasCheckConstraint("ck_archive_values",
-      "length(trim(profile_id)) > 0 AND length(trim(status)) > 0"));
+      "length(trim(profile_id)) > 0 AND profile_version >= 1 AND status IN ('ISSUED','ASSEMBLY_IN_PROGRESS','MANIFEST_BUILT','ASSEMBLY_REVIEWED','RECORDS_ACTION_REQUESTED','PROTECTION_OBSERVED','ARCHIVE_VERIFIED')" +
+      " AND ((status IN ('PROTECTION_OBSERVED','ARCHIVE_VERIFIED') AND length(trim(observed_protection_state)) > 0 AND observed_protection_at IS NOT NULL)" +
+      " OR status IN ('ISSUED','ASSEMBLY_IN_PROGRESS','MANIFEST_BUILT','ASSEMBLY_REVIEWED','RECORDS_ACTION_REQUESTED'))"));
+
+    var manifest = b.Entity<ArchiveManifest>();
+    manifest.HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_archive_manifests_firm_id_id");
+    manifest.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
+      .HasName("AK_archive_manifests_scope_id");
+    manifest.Property(x => x.Status).HasMaxLength(30);
+    manifest.Property(x => x.ManifestDigest).HasMaxLength(64);
+    manifest.Property(x => x.CompletenessStatus).HasMaxLength(30);
+    manifest.Property(x => x.CompletenessException).HasMaxLength(2000);
+    manifest.HasIndex(x => new { x.FirmId, x.ArchiveId, x.Version }).IsUnique()
+      .HasDatabaseName("ux_archive_manifest_archive_version");
+    ScopeToEngagement(manifest, nameof(ArchiveManifest.FirmId), nameof(ArchiveManifest.ClientId), nameof(ArchiveManifest.EngagementId));
+    manifest.ToTable("archive_manifests", t => t.HasCheckConstraint("ck_archive_manifest_values",
+      "version >= 1 AND status IN ('BUILT','REVIEWED') AND manifest_digest ~ '^[0-9a-f]{64}$'" +
+      " AND entry_count >= 0 AND completeness_status IN ('COMPLETE','INCOMPLETE')" +
+      " AND ((completeness_status = 'INCOMPLETE' AND length(trim(completeness_exception)) > 0)" +
+      " OR (completeness_status = 'COMPLETE' AND completeness_exception IS NULL))"));
+    manifest.HasOne<Archive>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.ArchiveId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var structuredExport = b.Entity<ArchiveStructuredExport>();
+    structuredExport.HasAlternateKey(x => new { x.FirmId, x.Id })
+      .HasName("AK_archive_structured_exports_firm_id_id");
+    structuredExport.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
+      .HasName("AK_archive_structured_exports_scope_id");
+    structuredExport.Property(x => x.Schema).HasMaxLength(100);
+    structuredExport.Property(x => x.ContentHash).HasMaxLength(64);
+    structuredExport.Property(x => x.PayloadJson).HasColumnType("text");
+    structuredExport.HasIndex(x => new { x.FirmId, x.ArchiveManifestId, x.Version }).IsUnique()
+      .HasDatabaseName("ux_archive_structured_export_manifest_version");
+    ScopeToEngagement(structuredExport, nameof(ArchiveStructuredExport.FirmId),
+      nameof(ArchiveStructuredExport.ClientId), nameof(ArchiveStructuredExport.EngagementId));
+    structuredExport.ToTable("archive_structured_exports", t => t.HasCheckConstraint("ck_archive_structured_export_values",
+      "version >= 1 AND schema = 'records-export.v1' AND length(trim(payload_json)) > 0" +
+      " AND content_hash ~ '^[0-9a-f]{64}$' AND byte_count > 0"));
+    structuredExport.HasOne<Archive>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.ArchiveId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    structuredExport.HasOne<ArchiveManifest>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.ArchiveManifestId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var manifestEntry = b.Entity<ArchiveManifestEntry>();
+    manifestEntry.Property(x => x.EntryKind).HasMaxLength(100);
+    manifestEntry.Property(x => x.SourceKind).HasMaxLength(100);
+    manifestEntry.Property(x => x.RelativeName).HasMaxLength(2000);
+    manifestEntry.Property(x => x.ContentHash).HasMaxLength(64);
+    manifestEntry.Property(x => x.MetadataJson).HasMaxLength(16384);
+    manifestEntry.HasIndex(x => new { x.FirmId, x.ArchiveManifestId, x.Ordinal }).IsUnique()
+      .HasDatabaseName("ux_archive_manifest_entry_ordinal");
+    manifestEntry.ToTable("archive_manifest_entries", t => t.HasCheckConstraint("ck_archive_manifest_entry_values",
+      "ordinal >= 1 AND length(trim(entry_kind)) > 0 AND length(trim(source_kind)) > 0" +
+      " AND length(trim(relative_name)) > 0 AND content_hash ~ '^[0-9a-f]{64}$' AND byte_count >= 0" +
+      " AND length(metadata_json) <= 16384"));
+    manifestEntry.HasOne<ArchiveManifest>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.ArchiveManifestId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var recordsAction = b.Entity<RecordsAction>();
+    recordsAction.HasAlternateKey(x => new { x.FirmId, x.Id })
+      .HasName("AK_records_actions_firm_id_id");
+    recordsAction.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
+      .HasName("AK_records_actions_scope_id");
+    recordsAction.Property(x => x.DesiredLabel).HasMaxLength(200);
+    recordsAction.Property(x => x.DesiredProtection).HasMaxLength(200);
+    recordsAction.Property(x => x.ObservedLabel).HasMaxLength(200);
+    recordsAction.Property(x => x.ObservedProtection).HasMaxLength(200);
+    recordsAction.Property(x => x.State).HasMaxLength(30);
+    recordsAction.Property(x => x.ExternalSystem).HasMaxLength(100);
+    recordsAction.Property(x => x.ExternalReference).HasMaxLength(500);
+    recordsAction.Property(x => x.ObservedBy).HasMaxLength(200);
+    recordsAction.Property(x => x.Exception).HasMaxLength(2000);
+    recordsAction.HasIndex(x => new { x.FirmId, x.ArchiveId }).IsUnique()
+      .HasDatabaseName("ux_records_action_archive");
+    recordsAction.ToTable("records_actions", t => t.HasCheckConstraint("ck_records_action_values",
+      "length(trim(desired_label)) > 0 AND length(trim(desired_protection)) > 0" +
+      " AND state IN ('REQUESTED','OBSERVED','FAILED')" +
+      " AND ((state = 'OBSERVED' AND length(trim(observed_label)) > 0 AND length(trim(observed_protection)) > 0 AND observed_at IS NOT NULL AND length(trim(observed_by)) > 0)" +
+      " OR (state = 'FAILED' AND length(trim(exception)) > 0) OR state = 'REQUESTED')"));
+    recordsAction.HasOne<Archive>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.ArchiveId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    recordsAction.HasOne<ArchiveManifest>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.ArchiveManifestId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    recordsAction.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.RequestedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var recordsActionEvidence = b.Entity<RecordsActionEvidence>();
+    recordsActionEvidence.HasAlternateKey(x => new { x.FirmId, x.Id })
+      .HasName("AK_records_action_evidence_firm_id_id");
+    recordsActionEvidence.Property(x => x.EventKind).HasMaxLength(30);
+    recordsActionEvidence.Property(x => x.DesiredLabel).HasMaxLength(200);
+    recordsActionEvidence.Property(x => x.DesiredProtection).HasMaxLength(200);
+    recordsActionEvidence.Property(x => x.ObservedLabel).HasMaxLength(200);
+    recordsActionEvidence.Property(x => x.ObservedProtection).HasMaxLength(200);
+    recordsActionEvidence.Property(x => x.ExternalReference).HasMaxLength(500);
+    recordsActionEvidence.Property(x => x.ObservedBy).HasMaxLength(200);
+    recordsActionEvidence.Property(x => x.Exception).HasMaxLength(2000);
+    recordsActionEvidence.HasIndex(x => new { x.FirmId, x.RecordsActionId, x.Sequence }).IsUnique()
+      .HasDatabaseName("ux_records_action_evidence_sequence");
+    recordsActionEvidence.ToTable("records_action_evidence", t => t.HasCheckConstraint("ck_records_action_evidence_values",
+      "sequence >= 1 AND event_kind IN ('REQUESTED','OBSERVED','FAILED')" +
+      " AND length(trim(desired_label)) > 0 AND length(trim(desired_protection)) > 0" +
+      " AND ((event_kind = 'OBSERVED' AND length(trim(observed_label)) > 0 AND length(trim(observed_protection)) > 0 AND length(trim(observed_by)) > 0)" +
+      " OR (event_kind = 'FAILED' AND length(trim(exception)) > 0) OR event_kind = 'REQUESTED')"));
+    ScopeToEngagement(recordsActionEvidence, nameof(RecordsActionEvidence.FirmId),
+      nameof(RecordsActionEvidence.ClientId), nameof(RecordsActionEvidence.EngagementId));
+    recordsActionEvidence.HasOne<RecordsAction>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.RecordsActionId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    recordsActionEvidence.HasOne<Archive>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.ArchiveId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    recordsActionEvidence.HasOne<ArchiveManifest>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.ArchiveManifestId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    recordsActionEvidence.HasOne<AppUser>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ActorUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var legalHold = b.Entity<LegalHold>();
+    legalHold.Property(x => x.HoldReference).HasMaxLength(200);
+    legalHold.Property(x => x.State).HasMaxLength(30);
+    legalHold.Property(x => x.ExternalSystem).HasMaxLength(100);
+    legalHold.Property(x => x.ExternalReference).HasMaxLength(500);
+    legalHold.Property(x => x.Notes).HasMaxLength(2000);
+    legalHold.HasIndex(x => new { x.FirmId, x.ArchiveId, x.HoldReference }).IsUnique()
+      .HasDatabaseName("ux_legal_hold_reference");
+    legalHold.ToTable("legal_holds", t => t.HasCheckConstraint("ck_legal_hold_values",
+      "length(trim(hold_reference)) > 0 AND state IN ('REQUESTED','APPLIED','OBSERVED','RELEASED')" +
+      " AND ((state IN ('APPLIED','OBSERVED') AND applied_at IS NOT NULL) OR state IN ('REQUESTED','RELEASED'))" +
+      " AND ((state = 'OBSERVED' AND observed_at IS NOT NULL) OR state <> 'OBSERVED')" +
+      " AND ((state = 'RELEASED' AND released_at IS NOT NULL) OR state <> 'RELEASED')"));
+    legalHold.HasOne<Archive>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.ArchiveId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    legalHold.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.RequestedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
 
     var recordState = b.Entity<RecordState>();
     recordState.Property(x => x.ArtifactKind).HasMaxLength(50);

@@ -16,10 +16,14 @@ if (string.IsNullOrWhiteSpace(connection))
 builder.Services.AddDbContextFactory<AuditSphereDbContext>(options => options.UseNpgsql(connection));
 if (!Guid.TryParse(builder.Configuration["Worker:FirmId"], out var firmId))
   throw new InvalidOperationException("Worker:FirmId is required.");
+if (!long.TryParse(builder.Configuration["Worker:DeploymentEpoch"], out var deploymentEpoch) || deploymentEpoch < 1)
+  throw new InvalidOperationException("Worker:DeploymentEpoch is required and must be positive.");
 var workerOptions = new WorkerOptions(firmId, builder.Environment.EnvironmentName,
   builder.Configuration.GetValue<bool>("AllowSimulationAdapters"),
   builder.Configuration.GetValue<bool>("ExternalEffects:Enabled"),
-  DeploymentEpoch: builder.Configuration.GetValue("Worker:DeploymentEpoch", 1L));
+  DeploymentEpoch: deploymentEpoch);
+if (workerOptions.ExternalEffectsEnabled)
+  throw new InvalidOperationException("ExternalEffects:Enabled requires an approved live provider composition; startup refused.");
 
 var releaseSafety = builder.Configuration.GetSection(ReleaseSafetyOptions.SectionName).Get<ReleaseSafetyOptions>() ?? new();
 releaseSafety.Validate(
@@ -74,4 +78,3 @@ static IOperationHandler[] ResolveHandlers(IServiceProvider sp, bool simulationA
     ? [validation, checkpoint, sp.GetRequiredService<PbcDocumentTransferHandler>()]
     : [validation, checkpoint];
 }
-

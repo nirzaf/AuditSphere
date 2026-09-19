@@ -21,10 +21,12 @@ public interface IAuditSphereDbContext : IAsyncDisposable
   DbSet<OperationAttempt> OperationAttempts { get; }
   DbSet<OperationEvent> OperationEvents { get; }
   DbSet<FirmSafetyState> FirmSafetyStates { get; }
+  DbSet<RecoverySession> RecoverySessions { get; }
   DbSet<ClientSafetyState> ClientSafetyStates { get; }
   DbSet<TrialBalanceDataset> TrialBalanceDatasets { get; }
   DbSet<TrialBalanceRow> TrialBalanceRows { get; }
   DbSet<MappingVersion> MappingVersions { get; }
+  DbSet<MappingRule> MappingRules { get; }
   DbSet<MappingAllocation> MappingAllocations { get; }
   DbSet<AdjustedTrialBalanceSnapshot> AdjustedTrialBalanceSnapshots { get; }
   DbSet<AdjustedTrialBalanceRow> AdjustedTrialBalanceRows { get; }
@@ -41,6 +43,9 @@ public interface IAuditSphereDbContext : IAsyncDisposable
 
   DbSet<Engagement> Engagements { get; }
   DbSet<EngagementHold> EngagementHolds { get; }
+  DbSet<RepositoryBinding> RepositoryBindings { get; }
+  DbSet<SyncCursor> SyncCursors { get; }
+  DbSet<IntegrationCapability> IntegrationCapabilities { get; }
   DbSet<DocumentReference> DocumentReferences { get; }
   DbSet<DocumentSnapshot> DocumentSnapshots { get; }
   DbSet<PbcRequest> PbcRequests { get; }
@@ -53,6 +58,7 @@ public interface IAuditSphereDbContext : IAsyncDisposable
   DbSet<AuditRisk> AuditRisks { get; }
   DbSet<AuditProcedure> AuditProcedures { get; }
   DbSet<Finding> Findings { get; }
+  DbSet<ReviewPoint> ReviewPoints { get; }
   DbSet<Approval> Approvals { get; }
   DbSet<ApprovalApplicability> ApprovalApplicabilities { get; }
   DbSet<ReleaseCandidate> ReleaseCandidates { get; }
@@ -60,6 +66,14 @@ public interface IAuditSphereDbContext : IAsyncDisposable
   DbSet<ReleaseCheckpoint> ReleaseCheckpoints { get; }
   DbSet<SignatureLineage> SignatureLineages { get; }
   DbSet<ProtectionAttestation> ProtectionAttestations { get; }
+  DbSet<Archive> Archives { get; }
+  DbSet<RecordsProfile> RecordsProfiles { get; }
+  DbSet<ArchiveManifest> ArchiveManifests { get; }
+  DbSet<ArchiveManifestEntry> ArchiveManifestEntries { get; }
+  DbSet<ArchiveStructuredExport> ArchiveStructuredExports { get; }
+  DbSet<RecordsActionEvidence> RecordsActionEvidences { get; }
+  DbSet<RecordsAction> RecordsActions { get; }
+  DbSet<LegalHold> LegalHolds { get; }
   DbSet<EqrCase> EqrCases { get; }
   DbSet<WrittenRepresentation> WrittenRepresentations { get; }
   DbSet<EngagementAssignment> EngagementAssignments { get; }

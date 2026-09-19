@@ -1,12 +1,50 @@
 // Documents: references, snapshots, version-bound approvals (§§11, 27.2, 42.5).
 namespace AuditSphereOps.Domain.Documents;
 
+public sealed class RepositoryBinding
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public Guid EngagementId { get; set; }
+  public string TenantId { get; set; } = string.Empty;
+  public string SiteId { get; set; } = string.Empty;
+  public string DriveId { get; set; } = string.Empty;
+  public string RootFolderId { get; set; } = string.Empty;
+  public string Classification { get; set; } = string.Empty;
+  public string DesiredAccess { get; set; } = string.Empty;
+  public string ObservedAccess { get; set; } = string.Empty;
+  public string CapabilityProfile { get; set; } = string.Empty;
+  public DateTimeOffset CreatedAt { get; set; }
+}
+
+public sealed class SyncCursor
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid RepositoryBindingId { get; set; }
+  public string Cursor { get; set; } = string.Empty;
+  public long Generation { get; set; }
+  public DateTimeOffset? LastSyncAt { get; set; }
+}
+
+public sealed class IntegrationCapability
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid RepositoryBindingId { get; set; }
+  public string HealthStatus { get; set; } = string.Empty;
+  public string TestedPermissions { get; set; } = string.Empty;
+  public DateTimeOffset? TestedAt { get; set; }
+}
+
 public sealed class DocumentReference
 {
   public Guid Id { get; set; }
   public Guid FirmId { get; set; }
   public Guid ClientId { get; set; }
   public Guid EngagementId { get; set; }
+  public Guid RepositoryBindingId { get; set; }
   public string Provider { get; set; } = "SharePoint";
   public string DriveId { get; set; } = string.Empty;
   public string ItemId { get; set; } = string.Empty;
@@ -59,4 +97,3 @@ public sealed class EvidenceLink
   public string RelevanceReliabilityAssessment { get; set; } = string.Empty;
   public DateTimeOffset CreatedAt { get; set; }
 }
-

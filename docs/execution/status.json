@@ -12,15 +12,15 @@
     "postgres": "18.6 Homebrew user-local port 5433 (development only)"
   },
   "active": {
-    "packageId": "Release evidence: stored checkpoints, protection attestations, signature lineages, durable handler, and fail-closed gate (spec §§24.4, 25.7, 42, 43, backlog item 3 part 1)",
+    "packageId": "AuditSphereOps v5 local completion slices: records archive, repository binding, fail-closed provider boundaries and recovery quarantine (spec §§24.4, 25, 27.2, 43, 45)",
     "issueNumber": null,
-    "branch": "master",
+    "branch": "codex/records-archive-slice",
     "pullRequestNumber": null,
-    "headCommit": "20bc7df",
-    "implementationStatus": "IMPLEMENTED",
+    "headCommit": "51cddce",
+    "implementationStatus": "PARTIAL",
     "acceptanceStatus": "LOCAL_VERIFIED",
-    "worktree": "Replaced the caller-supplied boolean checkpoint assertion on IssueReleaseRequest with stored, read-back evidence. Domain entities ReleaseCheckpoint, ProtectionAttestation, and SignatureLineage are append-only. External boundary IReleaseCheckpointStore and LocalAppendOnlyCheckpointStore implement content-addressed storage under Storage:ReleaseCheckpointRoot outside webroot. Durable operation handler RecordReleaseCheckpoint.v1 reconciles leased writes. ReleaseService.IssueAsync loads and verifies ReleaseCheckpoint, ProtectionAttestation (when enabled), and SignatureLineage (when enabled), failing closed if absent/unverified/mismatched/expired. Release.ExternalCheckpoint (bool) is replaced by checkpoint_id UUID NOT NULL FK to release_checkpoints. Migration 20260919111301_ReleaseEvidenceAndCheckpoints adds tables, composite scope FKs, CHECK constraints, and append-only immutability triggers. Release.razor renders gate statuses and truth notice without caller checkbox. 157/157 tests pass on PostgreSQL 18.6 with 0 skipped.",
-    "scope": "Release gate evidence storage, verification and fail-closed issuance. No live provider or records action is claimed.",
+    "worktree": "Release evidence, records archive, repository binding, fail-closed provider boundaries, startup fences and recovery quarantine are locally verified on codex/records-archive-slice. The tenant and production gates remain separate and unclaimed.",
+    "scope": "Local records/archive/repository/recovery enforcement and fail-closed provider composition. No live provider, Purview behavior, professional sign-off or production acceptance is claimed.",
     "productionEnabled": false
   },
 
@@ -184,6 +184,34 @@
     {
       "command": "Release evidence slice local gates (base 20bc7df, uncommitted working tree)",
       "result": "dotnet build AuditSphereOps.slnx: 0 warnings, 0 errors across 6 projects. dotnet ef database update applied 20260919111301_ReleaseEvidenceAndCheckpoints (24 migrations applied, 0 pending). dotnet test passed 157/157 on PostgreSQL 18.6 with 0 skipped. scripts/db/restore-drill.sh restored 24 migrations with latest 20260919111301_ReleaseEvidenceAndCheckpoints. Web readiness (/health/ready) returned Healthy/200; /health/live returned 200. information_schema probe confirmed 76 constraints and 8 append-only triggers across release_checkpoints, protection_attestations, signature_lineages, and releases."
+    },
+    {
+      "command": "Records archive slice local gates (codex/records-archive-slice, uncommitted working tree)",
+      "result": "Migrations 20260919123339_RecordsArchiveWorkflow and 20260919124558_ArchiveProtectionObservation applied to local PostgreSQL 18.6; model has no pending changes; dotnet build AuditSphereOps.slnx passed with 0 warnings/errors; RecordsArchiveTests passed 2/2 and full dotnet test passed 159/159 with 0 skipped; scripts/db/restore-drill.sh restored 26 migrations with latest 20260919124558_ArchiveProtectionObservation; /health/ready and /health/live returned Healthy/200."
+    },
+    {
+      "command": "Repository binding, provider fence and recovery quarantine local gates (codex/records-archive-slice, uncommitted working tree)",
+      "result": "Migrations 20260919130133_RepositoryBindingAndCapabilities and 20260919130821_RecoverySessionQuarantine applied to local PostgreSQL 18.6; dotnet build passed with 0 warnings/errors; full dotnet test passed 161/161 with 0 skipped; provider boundary tests proved live-provider-not-approved before any network call; scripts/verify-tenant.sh returned secret-free BLOCKED provenance with exit 2 when tenant prerequisites were absent; scripts/db/restore-drill.sh wrote docs/evidence/restore-drill-latest.json with 28/28 migrations and equal source/restored checkpoint database summaries."
+    },
+    {
+      "command": "Final startup-fence build/test/readiness smoke (2026-09-19)",
+      "result": "After the required identity/connection/deployment-epoch fence was added, dotnet tool restore and locked package restore succeeded, dotnet build passed with 0 warnings/errors, dotnet test passed 161/161 with 0 skipped, /health/live and /health/ready each returned Healthy/200, and the web host was stopped after the smoke check."
+    },
+    {
+      "command": "Persisted structured archive export and records-action evidence (2026-09-19)",
+      "result": "Applied migrations 20260919134031_ArchiveStructuredExports and 20260919134442_RecordsActionEvidence to local PostgreSQL 18.6. RecordsArchiveTests passed 2/2, including persisted full §25.3 payload coverage and PostgreSQL append-only evidence refusal; full dotnet test passed 161/161 with 0 skipped; dotnet build passed with 0 warnings/errors; and migrations report no pending model changes."
+    },
+    {
+      "command": "scripts/db/restore-drill.sh (2026-09-19T13:52:48Z)",
+      "result": "Loopback-only custom-format dump/restore passed with 30/30 migrations through 20260919134442_RecordsActionEvidence. Source/restored release-checkpoint database summaries matched; external checkpoint store verification, custodially separate storage and production RPO/RTO remain NOT_RUN."
+    },
+    {
+      "command": "Web readiness smoke (2026-09-19T13:54:02Z)",
+      "result": "Web host started on http://127.0.0.1:5099; /health/live returned HTTP 200 and /health/ready returned Healthy. The host was stopped after the smoke check."
+    },
+    {
+      "command": "Final records-action transaction regression (2026-09-19T13:56:14Z)",
+      "result": "Records-action request/observation persistence now commits projection and append-only evidence in one transaction. dotnet build passed with 0 warnings/errors; targeted RecordsArchiveTests passed 2/2; and the full PostgreSQL 18.6 suite passed 161/161 with 0 skipped."
     }
   ],
   "tenantEvidence": [
@@ -206,6 +234,21 @@
       "observedAt": "2026-09-18T10:14:52Z",
       "source": "Azure App registrations browser UI",
       "result": "No owned or directory-wide app registration named AuditSphere was found; existing registrations were not modified."
+    },
+    {
+      "observedAt": "2026-09-19T12:14:56Z",
+      "source": "Entra app registration and API permissions browser UI, authenticated as qts@easyguide.onmicrosoft.com",
+      "result": "EasyGuide tenant 4de3e6fd-51aa-4ba7-b2c5-82106d2e45f0 now contains the single-tenant AuditSphereOps Development app (client ID 29be1ee5-e90c-4ecc-b4f9-5bcce14774cc). Microsoft Graph application permission Sites.Selected is configured and shows Granted for easyguide. No client secret or certificate was created."
+    },
+    {
+      "observedAt": "2026-09-19T12:14:56Z",
+      "source": "Microsoft Graph Explorer, tenant label easyguide",
+      "result": "POST /v1.0/sites/easyguide.sharepoint.com,4668a3d6-8c1a-462d-accc-f95e7534aae5,b3c5cb09-7b20-4270-b352-aa4ca4db3722/permissions returned HTTP 201 Created for AuditSphereOps Development with roles [write]. Follow-up GET /permissions returned HTTP 200 and included the same application ID with roles [write]."
+    },
+    {
+      "observedAt": "2026-09-19T13:21:34Z",
+      "source": "Microsoft Purview browser UI, authenticated as qts@easyguide.onmicrosoft.com",
+      "result": "The new Purview portal loaded for tenant 4de3e6fd-51aa-4ba7-b2c5-82106d2e45f0. Information Protection sensitivity labels showed no data, and Data Lifecycle Management retention labels showed no data with no retention labels detected. A label creation draft was opened for inspection and discarded; no Purview label or policy was created."
     }
   ],
   "reviewEvidence": [],
@@ -213,14 +256,14 @@
     {
       "classification": "external-tenant",
       "gate": "Live Entra OIDC / selected SharePoint grants / Purview records profile / signing method",
-      "missing": "AuditSphere app registration, selected SharePoint resource grants, records profile/label behavior, methodology/template approvals, and signing evidence",
-      "ownerAction": "M365 admin + professional owners supply or authorize selected non-production resources and evidence; the observed tenant facts do not establish production readiness"
+      "missing": "Production OIDC/provider credentials and live acceptance evidence; Purview records profile/label behavior; methodology/template approvals; and signing evidence. The EasyGuide app registration, Sites.Selected admin consent, and selected non-production write grant are observed but do not establish production readiness.",
+      "ownerAction": "M365/operations and professional owners supply approved credentials/evidence and complete the remaining external acceptance actions; do not treat the developer-tenant grant as production approval."
     },
     {
       "classification": "implementation-gap",
       "gate": "Schema integrity, UI and recovery controls (spec §§27, 42, 43, 45)",
-      "missing": "Live provider adapters, production cross-store recovery evidence. The audit-planning data-model integrity gap (composite scope FKs, mandatory scope columns, planning immutability triggers, in-command authorization) and the release evidence gate (stored read-back checkpoints, protection attestations, signature lineages, fail-closed issuance, CheckpointId FK) are now closed.",
-      "ownerAction": "Complete the live provider adapters behind owner-approved external grants; external production gates remain blocked."
+      "missing": "Live provider adapters, disposition-package blocking, custodially separate checkpoint reconciliation, and production cross-store recovery evidence. Repository binding, fail-closed provider boundaries, versioned persisted full §25.3 structured export, append-only records-action evidence, startup fencing, recovery quarantine and local restore evidence are implemented and locally verified.",
+      "ownerAction": "Keep external provider effects disabled until approved credentials/bindings and independent acceptance evidence exist; add the authorized disposition-package workflow before production review."
     },
     {
       "classification": "authorization-review",
@@ -229,7 +272,6 @@
       "ownerAction": "Obtain independent review evidence before treating the merged slices as fully accepted."
     }
   ],
-  "nextPermittedAction": "Proceed to Slice 3 (Records profile, archive manifest, retention/hold evidence) in dependency order per spec §46.3. Release evidence slice is locally verified with 157/157 tests passing.",
-  "lastVerifiedAt": "2026-09-19T14:16:30Z"
+  "nextPermittedAction": "Obtain independent review and approved Purview/signing/operations evidence; keep live provider effects, production records actions and production RPO/RTO acceptance blocked until observed evidence exists.",
+  "lastVerifiedAt": "2026-09-19T13:56:14Z"
 }
-

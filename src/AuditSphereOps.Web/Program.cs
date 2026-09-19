@@ -75,6 +75,15 @@ builder.Services.AddScoped<TrustedActorResolver>();
 // composition, and this host only records queue entries.
 builder.Services.AddSingleton<IAuditSphereDbContextFactory, OperationContextFactory>();
 builder.Services.AddSingleton<IOperationStore, PostgresOperationStore>();
+var externalEffectsEnabled = builder.Configuration.GetValue<bool>("ExternalEffects:Enabled");
+if (externalEffectsEnabled)
+{
+  if (string.IsNullOrWhiteSpace(connectionString) || !oidcConfigured ||
+      !long.TryParse(builder.Configuration["ExternalEffects:DeploymentEpoch"], out var externalEpoch) || externalEpoch < 1)
+    throw new InvalidOperationException("External effects require a connection string, OIDC identity and positive deployment epoch.");
+  throw new InvalidOperationException("ExternalEffects:Enabled requires an approved live provider composition; startup refused.");
+}
+
 var simulationSinkRoot = builder.Configuration["Storage:PbcProviderSimulationRoot"]
   ?? Path.Combine(Path.GetTempPath(), "AuditSphereOps", "pbc-provider-simulation");
 builder.Services.AddSingleton<IPbcProviderSink>(new SimulationPbcProviderSink(simulationSinkRoot));
@@ -87,7 +96,7 @@ builder.Services.AddSingleton<ReleaseCheckpointHandler>();
 
 var releaseSafety = builder.Configuration.GetSection(ReleaseSafetyOptions.SectionName).Get<ReleaseSafetyOptions>() ?? new();
 releaseSafety.Validate(
-  builder.Configuration.GetValue<bool>("ExternalEffects:Enabled"),
+  externalEffectsEnabled,
   builder.Configuration.GetValue<bool>("Application:AllowSimulationAdapters"),
   builder.Environment.EnvironmentName,
   builder.Configuration.GetValue<bool>("FeatureActivation:LiveAuditRelease"));

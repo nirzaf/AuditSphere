@@ -1,7 +1,13 @@
 @page "/app/records/archives/{Id:guid}"
-@using Microsoft.AspNetCore.Components.Authorization
-@inject AuthenticationStateProvider Auth
-@inject NavigationManager Nav
+@rendermode InteractiveServer
+@using AuditSphereOps.Application.Security
+@using AuditSphereOps.Application.Abstractions
+@using AuditSphereOps.Domain.Records
+@using AuditSphereOps.Domain.Completion
+@using AuditSphereOps.Infrastructure.Persistence
+@using Microsoft.EntityFrameworkCore
+@inject CurrentActorResolver ActorResolver
+@inject IDbContextFactory<AuditSphereDbContext> DbFactory
 
 <PageTitle>Records Archive — AuditSphereOps</PageTitle>
 
@@ -11,71 +17,92 @@
         <span>Archive @Id</span>
     </nav>
     <h1>Records Archive</h1>
-    <span class="status-badge @_statusClass">@_status</span>
+    @if (_archive is not null)
+    {
+        <span class="status-badge @_statusClass">@_archive.Status</span>
+    }
 </div>
 
-@if (_loading) { <div class="loading-state">Loading archive…</div> }
+@if (_loading)
+{
+    <p role="status">Loading archive…</p>
+}
+else if (_accessDenied)
+{
+    <section class="notice" role="alert">
+        <h2>Archive unavailable</h2>
+        <p>The archive is not available in the current firm and engagement scope.</p>
+    </section>
+}
+else if (_archive is null)
+{
+    <section class="notice" role="alert">
+        <h2>Archive unavailable</h2>
+        <p>The requested archive was not found.</p>
+    </section>
+}
 else
 {
     <div class="archive-shell">
-
-        <section class="card">
-            <h2>Archive Manifest</h2>
+        <section class="card" aria-labelledby="archive-summary">
+            <h2 id="archive-summary">Archive Manifest</h2>
             <dl class="detail-grid">
-                <dt>Engagement</dt><dd>@_engagementName</dd>
-                <dt>Period</dt><dd>@_period</dd>
-                <dt>Created</dt><dd>@_createdAt.ToString("yyyy-MM-dd HH:mm")</dd>
-                <dt>Retention profile</dt><dd>@_retentionProfile</dd>
-                <dt>Protection level</dt><dd>@_protectionLevel</dd>
-                <dt>Manifest hash</dt><dd><code>@_manifestHash</code></dd>
-                <dt>Holds</dt><dd>@(_holdCount > 0 ? $"{_holdCount} active hold(s)" : "None")</dd>
+                <dt>Archive ID</dt><dd><code>@_archive.Id</code></dd>
+                <dt>Scope</dt><dd><code>@_archive.EngagementId</code></dd>
+                <dt>Created</dt><dd>@_archive.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss zzz")</dd>
+                <dt>Records profile</dt><dd>@_archive.ProfileId v@_archive.ProfileVersion</dd>
+                <dt>Protection</dt><dd>@(_action?.ObservedProtection ?? "Not observed")</dd>
+                <dt>Manifest hash</dt><dd><code>@(_manifest?.ManifestDigest ?? "Not built")</code></dd>
+                <dt>Active holds</dt><dd>@_activeHoldCount</dd>
             </dl>
-        </section>
-
-        <section class="card">
-            <h2>Archive Contents</h2>
-            <table class="data-table">
-                <thead>
-                    <tr><th>Index</th><th>Document</th><th>SHA-256</th><th>Size</th><th>Status</th></tr>
-                </thead>
-                <tbody>
-                    @foreach (var d in _documents)
-                    {
-                        <tr>
-                            <td>@d.Index</td>
-                            <td>@d.Name</td>
-                            <td><code class="hash-snippet">@d.HashSnippet</code></td>
-                            <td>@d.SizeKb KB</td>
-                            <td><span class="badge @(d.Status == "VERIFIED" ? "badge-green" : "badge-red")">@d.Status</span></td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        </section>
-
-        <section class="card">
-            <h2>Exceptions</h2>
-            @if (_exceptions.Count > 0)
+            @if (_manifest?.CompletenessStatus == "INCOMPLETE")
             {
-                <ul class="exception-list">
-                    @foreach (var ex in _exceptions)
-                    {
-                        <li class="exception-item badge-red">@ex</li>
-                    }
-                </ul>
+                <p class="notice" role="alert">Manifest incomplete: @_manifest.CompletenessException</p>
+            }
+            @if (_action?.State == "REQUESTED")
+            {
+                <p class="notice-text">Records action requested; this is not evidence of Purview protection.</p>
+            }
+        </section>
+
+        <section class="card" aria-labelledby="archive-contents">
+            <h2 id="archive-contents">Archive Contents</h2>
+            @if (_entries.Count == 0)
+            {
+                <p class="muted">No persisted manifest entries.</p>
             }
             else
             {
-                <p class="empty-state">No archive exceptions.</p>
+                <div class="table-wrap">
+                    <table class="data-table">
+                        <thead><tr><th>Index</th><th>Kind</th><th>Source</th><th>Hash</th><th>Bytes</th></tr></thead>
+                        <tbody>
+                            @foreach (var entry in _entries)
+                            {
+                                <tr>
+                                    <td>@entry.Ordinal</td>
+                                    <td>@entry.EntryKind</td>
+                                    <td>@entry.RelativeName</td>
+                                    <td><code class="hash-snippet">@entry.ContentHash</code></td>
+                                    <td>@entry.ByteCount</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
             }
         </section>
 
-        <section class="card">
-            <h2>Structured Exports</h2>
-            <p class="notice-text">Exports are structured, hash-verified packages. Raw filesystem access is not available through this interface.</p>
-            <button class="btn-secondary" @onclick="RequestExport" disabled="@(_status != "PROTECTED")">
-                Request Structured Export
-            </button>
+        <section class="card" aria-labelledby="records-evidence">
+            <h2 id="records-evidence">Records Evidence</h2>
+            <dl class="detail-grid">
+                <dt>Desired label</dt><dd>@(_action?.DesiredLabel ?? "Not requested")</dd>
+                <dt>Observed label</dt><dd>@(_action?.ObservedLabel ?? "Not observed")</dd>
+                <dt>Action state</dt><dd>@(_action?.State ?? "Not requested")</dd>
+                <dt>External reference</dt><dd>@(_action?.ExternalReference ?? "—")</dd>
+                <dt>Hold evidence</dt><dd>@(_activeHoldCount > 0 ? "Observed active hold" : "No active local hold")</dd>
+            </dl>
+            <p class="notice-text">A local action or legal hold records the requested/observed evidence only; it does not assert Microsoft Purview behavior without an external observation.</p>
         </section>
     </div>
 }
@@ -83,44 +110,62 @@ else
 @code {
     [Parameter] public Guid Id { get; set; }
 
-    bool _loading = true;
-    string _status = "PROTECTED";
-    string _statusClass = "badge-green";
-    string _engagementName = "—";
-    string _period = "—";
-    DateTime _createdAt;
-    string _retentionProfile = "—";
-    string _protectionLevel = "—";
-    string _manifestHash = "—";
-    int _holdCount;
-
-    record DocumentRow(string Index, string Name, string HashSnippet, int SizeKb, string Status);
-    List<DocumentRow> _documents = [];
-    List<string> _exceptions = [];
+    private bool _loading = true;
+    private bool _accessDenied;
+    private Archive? _archive;
+    private ArchiveManifest? _manifest;
+    private RecordsAction? _action;
+    private List<ArchiveManifestEntry> _entries = [];
+    private int _activeHoldCount;
+    private string _statusClass = "badge-gray";
 
     protected override async Task OnInitializedAsync()
     {
-        var state = await Auth.GetAuthenticationStateAsync();
-        if (state.User.Identity?.IsAuthenticated != true)
-        { Nav.NavigateTo("/login"); return; }
+        var actor = await ActorResolver.ResolveAsync();
+        if (actor is null)
+        {
+            _accessDenied = true;
+            _loading = false;
+            return;
+        }
 
-        _engagementName = "Acme Holdings — Statutory Audit 2025";
-        _period = "Year ended 31 December 2025";
-        _createdAt = DateTime.UtcNow.AddDays(-10);
-        _retentionProfile = "ISA-7YR";
-        _protectionLevel = "IMMUTABLE_WORM";
-        _manifestHash = "sha256:3f9a2b…e4c1d7";
-        _holdCount = 0;
-        _documents =
-        [
-            new("CB-01", "Cash Lead Schedule.xlsx", "a1b2c3…", 42, "VERIFIED"),
-            new("CB-02", "Bank Reconciliation.xlsx", "d4e5f6…", 88, "VERIFIED"),
-            new("REV-01", "Revenue Testing Workpaper.xlsx", "g7h8i9…", 215, "VERIFIED"),
-            new("FS-FINAL", "Final Financial Statements.pdf", "j0k1l2…", 1_240, "VERIFIED"),
-            new("SIGN-01", "Signed Audit Report.pdf", "m3n4o5…", 320, "VERIFIED"),
-        ];
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var archive = await db.Archives.AsNoTracking()
+            .SingleOrDefaultAsync(x => x.Id == Id && x.FirmId == actor.FirmId);
+        if (archive is null)
+        {
+            _accessDenied = true;
+            _loading = false;
+            return;
+        }
+
+        var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+            new AuthorizationRequest(actor.FirmId, archive.ClientId, archive.EngagementId,
+                RequiredRoles: ["Administrator", "Partner", "Manager", "EngagementLeader", "Senior", "Staff", "Auditor", "RecordsCustodian"],
+                InternalOnly: true));
+        if (!auth.Succeeded)
+        {
+            _accessDenied = true;
+            _loading = false;
+            return;
+        }
+
+        _archive = archive;
+        _manifest = await db.ArchiveManifests.AsNoTracking()
+            .Where(x => x.FirmId == actor.FirmId && x.ArchiveId == archive.Id)
+            .OrderByDescending(x => x.Version).FirstOrDefaultAsync();
+        if (_manifest is not null)
+        {
+            _entries = await db.ArchiveManifestEntries.AsNoTracking()
+                .Where(x => x.FirmId == actor.FirmId && x.ArchiveManifestId == _manifest.Id)
+                .OrderBy(x => x.Ordinal).ToListAsync();
+        }
+        _action = await db.RecordsActions.AsNoTracking()
+            .SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.ArchiveId == archive.Id);
+        _activeHoldCount = await db.LegalHolds.AsNoTracking()
+            .CountAsync(x => x.FirmId == actor.FirmId && x.ArchiveId == archive.Id && x.State != "RELEASED");
+        _statusClass = archive.Status == ArchiveStates.ArchiveVerified ? "badge-green" :
+            archive.Status == ArchiveStates.ProtectionObserved ? "badge-blue" : "badge-yellow";
         _loading = false;
     }
-
-    void RequestExport() { /* Dispatch export command; worker creates verified package */ }
 }
