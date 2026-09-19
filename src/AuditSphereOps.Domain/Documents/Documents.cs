@@ -35,6 +35,7 @@ public sealed class SourceReceipt
 {
   public Guid Id { get; set; }
   public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
   public Guid EngagementId { get; set; }
   public string SourceType { get; set; } = "PBC_UPLOAD"; // PBC_UPLOAD|DIRECT_FEED|CSV_IMPORT
   public string ReceiptToken { get; set; } = string.Empty;
@@ -49,6 +50,7 @@ public sealed class EvidenceLink
 {
   public Guid Id { get; set; }
   public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
   public Guid EngagementId { get; set; }
   public Guid SourceReceiptId { get; set; }
   public Guid? WorkpaperId { get; set; }

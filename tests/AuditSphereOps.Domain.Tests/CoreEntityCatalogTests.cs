@@ -40,6 +40,7 @@ public sealed class CoreEntityCatalogTests
       {
         Id = assignmentId,
         FirmId = firmId,
+        ClientId = clientId,
         EngagementId = engId,
         UserId = userId,
         Role = "Senior",
@@ -228,10 +229,18 @@ public sealed class CoreEntityCatalogTests
 
     await using (var ctx = new AuditSphereDbContext(pg.Options))
     {
+      // The receipt's acquirer is a stored user: the scoped actor foreign key refuses an invented id.
+      ctx.Users.Add(new AppUser
+      {
+        Id = userId, FirmId = firmId, Subject = $"receipt-acquirer-{userId:N}", TenantId = "tenant-1",
+        Email = "acquirer@example.test", DisplayName = "Records Clerk", UserKind = "Staff",
+        SessionEpoch = 1, CreatedAt = DateTimeOffset.UtcNow
+      });
       ctx.SourceReceipts.Add(new SourceReceipt
       {
         Id = receiptId,
         FirmId = firmId,
+        ClientId = clientId,
         EngagementId = engId,
         SourceType = "PBC_UPLOAD",
         ReceiptToken = "RCPT-2026-00123",
@@ -246,6 +255,7 @@ public sealed class CoreEntityCatalogTests
       {
         Id = Guid.NewGuid(),
         FirmId = firmId,
+        ClientId = clientId,
         EngagementId = engId,
         SourceReceiptId = receiptId,
         Purpose = "Substantive testing of cash balances",

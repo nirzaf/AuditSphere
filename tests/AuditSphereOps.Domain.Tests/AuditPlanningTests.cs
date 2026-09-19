@@ -1,9 +1,11 @@
 using AuditSphereOps.Application.Audit;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Practice;
+using AuditSphereOps.Domain.Audit;
 using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Engagements;
 using AuditSphereOps.Domain.Practice;
+using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
@@ -21,17 +23,17 @@ public sealed class AuditPlanningTests
 {
     // ── NT-21.1 ─────────────────────────────────────────────────────────────
 
-    [Fact(DisplayName = "NT-21.1: Materiality assessment persists all fields correctly")]
+    [Fact(DisplayName = "NT-21.1: Materiality assessment persists every field under the resolved scope")]
     public async Task Materiality_PersistedCorrectly()
     {
         await using var pg = await PgTestSchema.CreateAsync();
-        var (firmId, clientId, _) = await pg.SeedScopeAsync();
-        var engId = await SeedEngagementAsync(pg, firmId, clientId);
+        var fixture = await PlanningSeed.CreateAsync(pg);
+        var scope = fixture.Primary;
 
         await using var ctx = new AuditSphereDbContext(pg.Options);
-        var result = await AuditPlanningService.CreateMaterialityAssessmentAsync(ctx,
+        var created = await AuditPlanningService.CreateMaterialityAssessmentAsync(ctx, scope.Actor,
             new CreateMaterialityRequest(
-                engId, Guid.NewGuid(),
+                scope.EngagementId,
                 "Total assets", "AFS-2025-v1",
                 "Selected as most stable benchmark",
                 BenchmarkAmount: 5_000_000m,
@@ -41,92 +43,141 @@ public sealed class AuditPlanningTests
                 ClearlyTrivialThreshold: 12_500m,
                 QualitativeConsiderations: "Related-party transactions elevated"));
 
-        Assert.NotEqual(Guid.Empty, result.AssessmentId);
-        Assert.Equal(250_000m, result.OverallMateriality);
-        Assert.Equal(187_500m, result.PerformanceMateriality);
-        Assert.Equal(12_500m, result.ClearlyTrivialThreshold);
-        Assert.Equal("DRAFT", result.Status);
+        Assert.True(created.Succeeded);
+        var saved = await ctx.MaterialityAssessments.AsNoTracking()
+            .SingleAsync(m => m.Id == created.Value!.AssessmentId);
+
+        Assert.Equal(scope.FirmId, saved.FirmId);
+        Assert.Equal(scope.ClientId, saved.ClientId);
+        Assert.Equal(scope.EngagementId, saved.EngagementId);
+        Assert.Equal(scope.Actor.UserId, saved.ActorId);
+        Assert.Equal("Total assets", saved.BenchmarkSource);
+        Assert.Equal("AFS-2025-v1", saved.BenchmarkVersion);
+        Assert.Equal("Selected as most stable benchmark", saved.Rationale);
+        Assert.Equal(5_000_000m, saved.BenchmarkAmount);
+        Assert.Equal(0.05m, saved.RateApplied);
+        Assert.Equal(250_000m, saved.OverallMateriality);
+        Assert.Equal(187_500m, saved.PerformanceMateriality);
+        Assert.Equal(12_500m, saved.ClearlyTrivialThreshold);
+        Assert.Equal("Related-party transactions elevated", saved.QualitativeConsiderations);
+        Assert.Equal(MaterialityStatuses.Draft, saved.Status);
     }
 
     // ── NT-21.2 ─────────────────────────────────────────────────────────────
 
-    [Fact(DisplayName = "NT-21.2: Materiality rejects inverted thresholds")]
-    public async Task Materiality_Rejects_InvertedThresholds()
+    [Theory(DisplayName = "NT-21.2: Inverted materiality thresholds are refused with a stable code")]
+    [InlineData(50_000, 60_000, 2_500)]   // performance >= overall
+    [InlineData(50_000, 40_000, 45_000)]  // trivial >= performance
+    [InlineData(0, 0, 0)]                 // overall materiality must be positive
+    public async Task Materiality_Rejects_InvertedThresholds(
+        decimal overall, decimal performance, decimal trivial)
     {
         await using var pg = await PgTestSchema.CreateAsync();
-        var (firmId, clientId, _) = await pg.SeedScopeAsync();
-        var engId = await SeedEngagementAsync(pg, firmId, clientId);
-
+        var fixture = await PlanningSeed.CreateAsync(pg);
         await using var ctx = new AuditSphereDbContext(pg.Options);
-        var ex = await Assert.ThrowsAsync<ArgumentException>(() =>
-            AuditPlanningService.CreateMaterialityAssessmentAsync(ctx,
-                new CreateMaterialityRequest(
-                    engId, Guid.NewGuid(),
-                    "Revenue", "AFS-2025-v1", "Rationale",
-                    1_000_000m, 0.05m,
-                    OverallMateriality: 50_000m,
-                    PerformanceMateriality: 60_000m,   // > overall → reject
-                    ClearlyTrivialThreshold: 2_500m,
-                    null)));
 
-        Assert.Contains("Performance materiality must be less than overall", ex.Message);
+        var refused = await AuditPlanningService.CreateMaterialityAssessmentAsync(ctx, fixture.Primary.Actor,
+            new CreateMaterialityRequest(fixture.Primary.EngagementId, "Revenue", "AFS-2025-v1", "Rationale",
+                1_000_000m, 0.05m, overall, performance, trivial, null));
+
+        Assert.False(refused.Succeeded);
+        Assert.Equal("audit-planning.invalid", refused.ErrorCode);
+        Assert.Equal(0, await ctx.MaterialityAssessments.CountAsync());
     }
 
     // ── NT-21.3 ─────────────────────────────────────────────────────────────
 
-    [Fact(DisplayName = "NT-21.3: Audit risk persists with required fields")]
+    [Fact(DisplayName = "NT-21.3: Audit risk persists each column from its own input (regression: shifted mapping)")]
     public async Task AuditRisk_PersistedCorrectly()
     {
         await using var pg = await PgTestSchema.CreateAsync();
-        var (firmId, clientId, _) = await pg.SeedScopeAsync();
-        var engId = await SeedEngagementAsync(pg, firmId, clientId);
+        var fixture = await PlanningSeed.CreateAsync(pg);
+        var scope = fixture.Primary;
 
         await using var ctx = new AuditSphereDbContext(pg.Options);
-        var result = await AuditPlanningService.CreateAuditRiskAsync(ctx,
+        var created = await AuditPlanningService.CreateAuditRiskAsync(ctx, scope.Actor,
             new CreateAuditRiskRequest(
-                engId, Guid.NewGuid(),
+                scope.EngagementId,
                 "Revenue recognition", "Occurrence",
+                "Revenue may be recognised before delivery occurs",
                 "Complex contracts with variable consideration",
-                "SIGNIFICANT",
+                SignificanceDecisions.Significant,
                 "No effective control identified",
                 "Extended substantive testing of contract population"));
 
-        Assert.NotEqual(Guid.Empty, result.RiskId);
-        Assert.Equal("Revenue recognition", result.Area);
-        Assert.Equal("SIGNIFICANT", result.SignificanceDecision);
-        Assert.Equal("IDENTIFIED", result.Status);
+        Assert.True(created.Succeeded);
+        var saved = await ctx.AuditRisks.AsNoTracking().SingleAsync(r => r.Id == created.Value!.RiskId);
+
+        Assert.Equal(scope.FirmId, saved.FirmId);
+        Assert.Equal(scope.ClientId, saved.ClientId);
+        Assert.Equal("Revenue recognition", saved.AccountArea);
+        Assert.Equal("Occurrence", saved.Assertion);
+        // Each column carries its own value; the description is not the drivers text and the
+        // severity is the classification derived from the significance decision.
+        Assert.Equal("Revenue may be recognised before delivery occurs", saved.Description);
+        Assert.Equal("Complex contracts with variable consideration", saved.Drivers);
+        Assert.Equal(RiskSeverities.Significant, saved.Severity);
+        Assert.Equal(SignificanceDecisions.Significant, saved.SignificanceDecision);
+        Assert.Equal("No effective control identified", saved.ControlsConsidered);
+        Assert.Equal("Extended substantive testing of contract population", saved.ResponseDescription);
+        Assert.Equal(RiskStatuses.Identified, saved.Status);
+        Assert.Equal(scope.Actor.UserId, saved.ActorId);
+    }
+
+    [Fact(DisplayName = "NT-21.3b: A normal significance decision classifies the risk as Normal")]
+    public async Task AuditRisk_NormalDecision_DerivesNormalSeverity()
+    {
+        await using var pg = await PgTestSchema.CreateAsync();
+        var fixture = await PlanningSeed.CreateAsync(pg);
+        await using var ctx = new AuditSphereDbContext(pg.Options);
+
+        var created = await AuditPlanningService.CreateAuditRiskAsync(ctx, fixture.Primary.Actor,
+            new CreateAuditRiskRequest(fixture.Primary.EngagementId, "Payroll", "Completeness",
+                "Payroll may be incomplete", "Simple recurring ledger postings",
+                SignificanceDecisions.Normal, null, "Analytical review by month"));
+
+        Assert.True(created.Succeeded);
+        var saved = await ctx.AuditRisks.AsNoTracking().SingleAsync(r => r.Id == created.Value!.RiskId);
+        Assert.Equal(RiskSeverities.Normal, saved.Severity);
+        Assert.Null(saved.ControlsConsidered);
     }
 
     // ── NT-21.4 ─────────────────────────────────────────────────────────────
 
-    [Fact(DisplayName = "NT-21.4: Risk requires non-empty assertion")]
-    public async Task AuditRisk_Rejects_EmptyAssertion()
+    [Fact(DisplayName = "NT-21.4: Risk requires non-empty assertion and a valid significance decision")]
+    public async Task AuditRisk_Rejects_InvalidInput()
     {
         await using var pg = await PgTestSchema.CreateAsync();
-        var (firmId, clientId, _) = await pg.SeedScopeAsync();
-        var engId = await SeedEngagementAsync(pg, firmId, clientId);
-
+        var fixture = await PlanningSeed.CreateAsync(pg);
         await using var ctx = new AuditSphereDbContext(pg.Options);
-        await Assert.ThrowsAsync<ArgumentException>(() =>
-            AuditPlanningService.CreateAuditRiskAsync(ctx,
-                new CreateAuditRiskRequest(
-                    engId, Guid.NewGuid(),
-                    "Revenue", Assertion: "",   // blank → reject
-                    "Drivers", "SIGNIFICANT", null, "Response")));
+
+        var blankAssertion = await AuditPlanningService.CreateAuditRiskAsync(ctx, fixture.Primary.Actor,
+            new CreateAuditRiskRequest(fixture.Primary.EngagementId, "Revenue", "", "Description",
+                "Drivers", SignificanceDecisions.Significant, null, "Response"));
+        Assert.False(blankAssertion.Succeeded);
+        Assert.Equal("audit-planning.invalid", blankAssertion.ErrorCode);
+
+        var unknownDecision = await AuditPlanningService.CreateAuditRiskAsync(ctx, fixture.Primary.Actor,
+            new CreateAuditRiskRequest(fixture.Primary.EngagementId, "Revenue", "Occurrence", "Description",
+                "Drivers", "MATERIAL-BUT-HOPEFULLY", null, "Response"));
+        Assert.False(unknownDecision.Succeeded);
+        Assert.Contains("significance decision", unknownDecision.Message!);
+
+        Assert.Equal(0, await ctx.AuditRisks.CountAsync());
     }
 
     // ── NT-21.5 ─────────────────────────────────────────────────────────────
 
-    [Fact(DisplayName = "NT-21.5: Population version persisted; negative row count rejected")]
+    [Fact(DisplayName = "NT-21.5: Population version persisted; negative control values refused")]
     public async Task Population_PersistedAndValidated()
     {
         await using var pg = await PgTestSchema.CreateAsync();
-        var (firmId, clientId, _) = await pg.SeedScopeAsync();
-        var engId = await SeedEngagementAsync(pg, firmId, clientId);
+        var fixture = await PlanningSeed.CreateAsync(pg);
+        var scope = fixture.Primary;
 
         await using var ctx = new AuditSphereDbContext(pg.Options);
         var req = new CreatePopulationRequest(
-            engId, Guid.NewGuid(),
+            scope.EngagementId,
             "Trade receivables existence testing",
             "Existence / Rights",
             "AR-EXPORT-20251231-v3",
@@ -136,93 +187,157 @@ public sealed class AuditPlanningTests
             Currency: "QAR",
             Exclusions: "Intercompany balances");
 
-        var result = await AuditPlanningService.CreatePopulationVersionAsync(ctx, req);
+        var created = await AuditPlanningService.CreatePopulationVersionAsync(ctx, scope.Actor, req);
+        Assert.True(created.Succeeded);
 
-        Assert.NotEqual(Guid.Empty, result.PopulationId);
-        Assert.Equal(342, result.RowCount);
-        Assert.Equal("PENDING_APPROVAL", result.Status);
+        var saved = await ctx.PopulationVersions.AsNoTracking().SingleAsync(p => p.Id == created.Value!.PopulationId);
+        Assert.Equal(scope.FirmId, saved.FirmId);
+        Assert.Equal(scope.ClientId, saved.ClientId);
+        Assert.Equal(342, saved.RowCount);
+        Assert.Equal(4_870_250m, saved.MonetaryControlTotal);
+        Assert.Equal("QAR", saved.Currency);
+        Assert.Equal("AR-EXPORT-20251231-v3", saved.SourceReceiptReference);
+        Assert.Equal(PopulationStatuses.PendingApproval, saved.Status);
 
-        // Negative row count rejected (pure guard — no DB access).
-        await Assert.ThrowsAsync<ArgumentException>(() =>
-            AuditPlanningService.CreatePopulationVersionAsync(
-                ctx, req with { RowCount = -1 }));
+        var negative = await AuditPlanningService.CreatePopulationVersionAsync(ctx, scope.Actor,
+            req with { RowCount = -1 });
+        Assert.False(negative.Succeeded);
+        Assert.Equal("audit-planning.invalid", negative.ErrorCode);
+
+        var lowercaseCurrency = await AuditPlanningService.CreatePopulationVersionAsync(ctx, scope.Actor,
+            req with { Currency = "qar" });
+        Assert.False(lowercaseCurrency.Succeeded);
+        Assert.Equal(1, await ctx.PopulationVersions.CountAsync());
     }
 
     // ── NT-21.6 ─────────────────────────────────────────────────────────────
 
-    [Fact(DisplayName = "NT-21.6: Workpaper created and submitted; revision conflict detected")]
+    [Fact(DisplayName = "NT-21.6: Workpaper created and submitted; stale revision refused, snapshot persisted")]
     public async Task Workpaper_CreateAndSubmit_RevisionConflict()
     {
         await using var pg = await PgTestSchema.CreateAsync();
-        var (firmId, clientId, _) = await pg.SeedScopeAsync();
-        var engId = await SeedEngagementAsync(pg, firmId, clientId);
-        var actorId = Guid.NewGuid();
+        var fixture = await PlanningSeed.CreateAsync(pg);
+        var scope = fixture.Primary;
 
         WorkpaperResult created;
         await using (var ctx = new AuditSphereDbContext(pg.Options))
         {
-            created = await AuditPlanningService.CreateWorkpaperAsync(ctx,
+            var result = await AuditPlanningService.CreateWorkpaperAsync(ctx, scope.Actor,
                 new CreateWorkpaperRequest(
-                    engId, actorId,
+                    scope.EngagementId,
                     "CB-02", "Bank Reconciliation",
                     "Verify year-end bank reconciliation",
-                    "CASH-2025-v3",
-                    ["CASH-001 Existence"],
+                    "CASH-2025-v3", null,
                     "Obtain bank confirmations and agree to TB"));
+            Assert.True(result.Succeeded);
+            created = result.Value!;
         }
 
-        Assert.Equal("WORKING", created.Status);
+        Assert.Equal(WorkpaperStatuses.Working, created.Status);
         Assert.Equal(1L, created.Revision);
 
-        // Submit succeeds with correct revision.
-        WorkpaperResult submitted;
         await using (var ctx = new AuditSphereDbContext(pg.Options))
         {
-            submitted = await AuditPlanningService.SubmitWorkpaperAsync(ctx,
+            var submitted = await AuditPlanningService.SubmitWorkpaperAsync(ctx, scope.Actor,
                 new SubmitWorkpaperRequest(
-                    created.WorkpaperId, actorId,
+                    created.WorkpaperId,
                     ExpectedRevision: 1,
                     WorkPerformed: "Obtained bank confirmation letters for 3 accounts; all agreed to TB.",
-                    EvidenceSnapshotIds: ["SNAP-001", "SNAP-002"],
                     Conclusion: "Bank reconciliation complete and supported."));
+            Assert.True(submitted.Succeeded);
+            Assert.Equal(WorkpaperStatuses.SubmittedSnapshot, submitted.Value!.Status);
+            Assert.Equal(2L, submitted.Value!.Revision);
         }
-        Assert.Equal("SUBMITTED_SNAPSHOT", submitted.Status);
-        Assert.Equal(2L, submitted.Revision);
 
-        // Submit with stale revision rejected.
-        await using var ctx3 = new AuditSphereDbContext(pg.Options);
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            AuditPlanningService.SubmitWorkpaperAsync(ctx3,
-                new SubmitWorkpaperRequest(
-                    created.WorkpaperId, actorId,
-                    ExpectedRevision: 1,   // stale
-                    WorkPerformed: "Stale attempt",
-                    EvidenceSnapshotIds: [],
-                    Conclusion: "Should be rejected.")));
+        await using (var ctx = new AuditSphereDbContext(pg.Options))
+        {
+            var submission = await ctx.WorkpaperSubmissions.AsNoTracking()
+                .SingleAsync(s => s.WorkpaperId == created.WorkpaperId);
+            Assert.Equal(2L, submission.Revision);
+            Assert.Equal("Bank reconciliation complete and supported.", submission.Conclusion);
+            Assert.Equal(scope.ClientId, submission.ClientId);
+            Assert.Equal(scope.Actor.UserId, submission.ActorId);
+        }
+
+        await using var stale = new AuditSphereDbContext(pg.Options);
+
+        // A frozen submission cannot be resubmitted at all, whatever revision the caller believed.
+        var refused = await AuditPlanningService.SubmitWorkpaperAsync(stale, scope.Actor,
+            new SubmitWorkpaperRequest(created.WorkpaperId, ExpectedRevision: 1,
+                WorkPerformed: "Second attempt", Conclusion: "Should be refused."));
+        Assert.False(refused.Succeeded);
+        Assert.Equal(ErrorCodes.ProtectedState, refused.ErrorCode);
+
+        // A still-working paper loaded against an outdated revision reports a revision conflict.
+        var other = await AuditPlanningService.CreateWorkpaperAsync(stale, scope.Actor,
+            new CreateWorkpaperRequest(scope.EngagementId, "CB-03", "Petty cash", "Confirm counts",
+              "CASH-2025-v3", null, "Count on the reporting date"));
+        var conflict = await AuditPlanningService.SubmitWorkpaperAsync(stale, scope.Actor,
+            new SubmitWorkpaperRequest(other.Value!.WorkpaperId, ExpectedRevision: 7,
+                WorkPerformed: "Counted", Conclusion: "Agreed."));
+        Assert.False(conflict.Succeeded);
+        Assert.Equal(ErrorCodes.StaleRevision, conflict.ErrorCode);
+
+        Assert.Equal(1, await stale.WorkpaperSubmissions.CountAsync());
     }
 
     // ── NT-21.7 ─────────────────────────────────────────────────────────────
 
-    [Fact(DisplayName = "NT-21.7: Finding persisted with type, impact and corrected flag")]
+    [Fact(DisplayName = "NT-21.7: Finding persisted with its own type, impact and corrected flag")]
     public async Task Finding_PersistedCorrectly()
     {
         await using var pg = await PgTestSchema.CreateAsync();
-        var (firmId, clientId, _) = await pg.SeedScopeAsync();
-        var engId = await SeedEngagementAsync(pg, firmId, clientId);
+        var fixture = await PlanningSeed.CreateAsync(pg);
+        var scope = fixture.Primary;
 
         await using var ctx = new AuditSphereDbContext(pg.Options);
-        var result = await AuditPlanningService.CreateFindingAsync(ctx,
+        var created = await AuditPlanningService.CreateFindingAsync(ctx, scope.Actor,
             new CreateFindingRequest(
-                engId, Guid.NewGuid(),
+                scope.EngagementId,
                 "Misstatement — Revenue Cut-off",
                 "Revenue QAR 380,000 recognized Dec 2025; relates to Jan 2026 services.",
                 Corrected: false,
                 MonetaryAmount: 380_000m,
                 ManagementResponse: null));
 
-        Assert.NotEqual(Guid.Empty, result.FindingId);
-        Assert.False(result.Corrected);
-        Assert.Equal("OPEN", result.Status);
+        Assert.True(created.Succeeded);
+        var saved = await ctx.Findings.AsNoTracking().SingleAsync(f => f.Id == created.Value!.FindingId);
+        Assert.Equal("Misstatement — Revenue Cut-off", saved.FindingType);
+        Assert.StartsWith("Revenue QAR 380,000", saved.ImpactDescription);
+        Assert.Equal(380_000m, saved.MonetaryAmount);
+        Assert.False(saved.Corrected);
+        Assert.Equal(FindingStatuses.Open, saved.Status);
+        Assert.Equal(scope.FirmId, saved.FirmId);
+        Assert.Equal(scope.ClientId, saved.ClientId);
+    }
+
+    [Fact(DisplayName = "NT-21.8: Filing a management response updates the working finding only")]
+    public async Task Finding_ManagementResponse_Recorded()
+    {
+        await using var pg = await PgTestSchema.CreateAsync();
+        var fixture = await PlanningSeed.CreateAsync(pg);
+        var scope = fixture.Primary;
+
+        await using var ctx = new AuditSphereDbContext(pg.Options);
+        var created = await AuditPlanningService.CreateFindingAsync(ctx, scope.Actor,
+            new CreateFindingRequest(scope.EngagementId, "Control deficiency", "Late bank fee posting",
+                false, null, null));
+        Assert.True(created.Succeeded);
+
+        var filed = await AuditPlanningService.RecordFindingResponseAsync(ctx, scope.Actor,
+            new RecordFindingResponseRequest(created.Value!.FindingId,
+                "Management will post fees on the standard schedule from February.", false));
+        Assert.True(filed.Succeeded);
+
+        var saved = await ctx.Findings.AsNoTracking().SingleAsync(f => f.Id == created.Value!.FindingId);
+        Assert.Equal("Management will post fees on the standard schedule from February.", saved.ManagementResponse);
+        Assert.Equal(FindingStatuses.Evaluated, saved.Status);
+        Assert.False(saved.Corrected);
+
+        var blank = await AuditPlanningService.RecordFindingResponseAsync(ctx, scope.Actor,
+            new RecordFindingResponseRequest(created.Value!.FindingId, "   ", false));
+        Assert.False(blank.Succeeded);
+        Assert.Equal("audit-planning.invalid", blank.ErrorCode);
     }
 
     // ── NT-22 — Posting balance guard (pure unit) ───────────────────────────
@@ -391,22 +506,5 @@ public sealed class AuditPlanningTests
                 .SingleAsync(x => x.Id == clientId)).InputGeneration;
 
         Assert.True(g2 > g1, "Input generation must increment on source change.");
-    }
-
-    // ── Helpers ─────────────────────────────────────────────────────────────
-
-    private static async Task<Guid> SeedEngagementAsync(PgTestSchema pg, Guid firmId, Guid clientId)
-    {
-        await using var ctx = new AuditSphereDbContext(pg.Options);
-        var eng = new Engagement
-        {
-            Id = Guid.NewGuid(),
-            FirmId = firmId,
-            PracticeClientId = clientId,
-            CreatedAt = DateTimeOffset.UtcNow,
-        };
-        ctx.Engagements.Add(eng);
-        await ctx.SaveChangesAsync();
-        return eng.Id;
     }
 }

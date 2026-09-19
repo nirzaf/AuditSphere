@@ -7,16 +7,16 @@ The build contract is `AuditSphereOps_NET_Codex_Implementation_Specification.md`
 - SDK 10.0.300; six projects targeting net10.0 (five application projects, one test project).
 - EF Core 10.0.12, Npgsql EF provider 10.0.0, `dotnet-ef` tool 10.0.12.
 - PostgreSQL 18.6 development cluster at `/opt/homebrew/var/postgresql@18`, loopback + trust auth (development only), port 5433. The local `auditsphere` and `auditsphere_tests` databases were created for this host.
-- Twenty-two applied migrations on `auditsphere`, ending at `20260918232054_CoreEntityCatalogAndQuestionnaireExtensions`; `dotnet ef database update` reported no pending migrations. Adds engagement assignments, EQR cases, written representations, specialist clearances, source receipts, evidence links, questionnaire templates, and question definitions.
-- Build: zero warnings/errors. Full suite: 136/136 passed, zero skipped locally on PostgreSQL 18.6 development cluster. The suite covers core entity catalog models (CAT-01..CAT-06), question bank seeding for CE-62 and RV-30, audit planning, materiality, risk coverage, population versioning, workpaper submission immutability, findings lifecycle, PBC state transitions, client upload capabilities, cash-flow bridge/disclosure validation, supplementary-artifact immutability, mapping/package determinism, release/approval binding, and the prior CRM, time/budget, billing, ledger, document, accounting, authorization, and outbox coverage.
-- UI Ground Truth: purged all fabricated state, `Guid.NewGuid()` generation, and hardcoded partner sign-offs from `Completion.razor`, `AuditPlan.razor`, `AssessmentDetail.razor`, and `ReviewPoint.razor`. Components now query real persisted database entities with scoped role authorization and display truthful empty/pending states when data is not yet recorded.
+- Twenty-three applied migrations on `auditsphere`, ending at `20260919005220_AuditPlanningScopeIntegrity`; `dotnet ef database update` reported no pending migrations. Adds engagement assignments, EQR cases, written representations, specialist clearances, source receipts, evidence links, questionnaire templates, question definitions, EF ownership of materiality assessments, population versions, and workpaper submissions, composite scope foreign keys (`ON DELETE RESTRICT`), and database immutability triggers.
+- Build: zero warnings/errors. Full suite: 152/152 passed, zero skipped locally on PostgreSQL 18.6 development cluster. The suite covers audit planning scope integrity (NT-11, NT-11b, NT-12, NT-12b, IG-01, IG-02, AUTH, MIG), core entity catalog models (CAT-01..CAT-06), question bank seeding for CE-62 and RV-30, materiality thresholds, risk coverage, population versioning, workpaper submission immutability, findings lifecycle, PBC state transitions, client upload capabilities, cash-flow bridge/disclosure validation, supplementary-artifact immutability, mapping/package determinism, release/approval binding, and the prior CRM, time/budget, billing, ledger, document, accounting, authorization, and outbox coverage.
+- UI Ground Truth: purged all fabricated state, `Guid.NewGuid()` generation, and hardcoded partner sign-offs from `Completion.razor`, `AuditPlan.razor`, `AssessmentDetail.razor`, `ReviewPoint.razor`, `Workpaper.razor`, `AuditPopulation.razor`, and `Finding.razor`. Components now query real persisted database entities with scoped role authorization and display truthful empty/pending states when data is not yet recorded.
 - Outbox tests cover concurrent enqueue/claim, locked-row skipping, scoped idempotency conflicts, atomic rollback, lease renewal/expiry, stale attempts, changed input/epoch, cancellation, retry exhaustion, append-only evidence, migration safety, and simulated provider-success/local-failure reconciliation. The provider fixture persists effects independently; it is not a live Microsoft adapter.
 - Test connection pool robustness: `PgTestSchema` uses unpooled administrative connections for schema creation and drop, and per-schema connection pools with 6-connection headroom and 60-second timeouts, eliminating connection exhaustion during parallel xUnit execution in CI.
 - Schema isolation: audit domain tables (`materiality_assessments`, `audit_risks`, `population_versions`, `workpapers`, `workpaper_submissions`, `findings`) are scoped to the active `search_path`, ensuring complete schema isolation for concurrent test runs without cross-schema foreign-key collisions.
 - Database-level control probe on 18.6: inserting an unbalanced dataset with `validation_status='Accepted'` is rejected by `ck_tb_validation_status`; a balanced insert is accepted; no residue after rollback.
 - Migration-aware readiness: `/health/ready` returned `Healthy`/HTTP 200 after querying `__EFMigrationsHistory`; the web host does not auto-apply migrations.
-- Restore rehearsal: `scripts/db/restore-drill.sh` dumped and restored `auditsphere` into a generated temporary loopback database, compared restored migration evidence with the source, verified twenty-two migrations with latest `20260918232054_CoreEntityCatalogAndQuestionnaireExtensions`, then cleaned its generated database and temporary files.
-- Hosted CI verification: Run [35408208512](https://github.com/nirzaf/AuditSphere/actions/runs/35408208512) passed on head `a338ad3` in 2m42s. All steps succeeded: tool restore, dotnet restore, build, 22-migration EF update, full 136-test suite, and migration-aware readiness probe.
+- Restore rehearsal: `scripts/db/restore-drill.sh` dumped and restored `auditsphere` into a generated temporary loopback database, compared restored migration evidence with the source, verified twenty-three migrations with latest `20260919005220_AuditPlanningScopeIntegrity`, then cleaned its generated database and temporary files.
+- Hosted CI verification: Run [35408208512](https://github.com/nirzaf/AuditSphere/actions/runs/35408208512) passed on head `a338ad3` in 2m42s. All steps succeeded: tool restore, dotnet restore, build, 22-migration EF update, full 136-test suite, and migration-aware readiness probe. The current slice advances head past `8a0f035` to 23 migrations and 152 tests.
 
 ## Run verification
 
@@ -76,7 +76,6 @@ Expired pre-effect claims can retry; started/unknown outcomes become `RESULT_UNC
 
 ## Checklist #5 — TB import, AJ post, source bridge (done locally, commit `995990e`)
 
-CSV intake parses Appendix D to 14 rows with D.2 control totals (1,820,000 each side, signed zero); mixed-currency, duplicate-account, >6dp, formula, and oversized inputs are rejected. The import command authorizes assignment, stamps the source hash, assigns per-engagement revisions, and reuses — never duplicates — identical bytes. AJ-001 drafts as preparer, posts as a different reviewer (self-post denied, double-post denied, unbalanced denied), and posted lines stay frozen. The reviewer bridge records NOT_REFLECTED for TB-1 (plan applies once → profit 175,000, PPE 95,000) and evidence-backed REFLECTED for replacement TB-2 (plan applies zero → profit stays 175,000, not 170,000). UNKNOWN/PARTIALLY and post-plan reflection changes block finalization instead of guessing. XLSX, mapping/FS packages, and ledger posting remain future work.
 CSV intake parses Appendix D to 14 rows with D.2 control totals (1,820,000 each side, signed zero); mixed-currency, duplicate-account, >6dp, formula, and oversized inputs are rejected. The import command authorizes assignment, stamps the source hash, assigns per-engagement revisions, and reuses — never duplicates — identical bytes. AJ-001 drafts as preparer, posts as a different reviewer (self-post denied, double-post denied, unbalanced denied), and posted lines stay frozen. The reviewer bridge records NOT_REFLECTED for TB-1 (plan applies once → profit 175,000, PPE 95,000) and evidence-backed REFLECTED for replacement TB-2 (plan applies zero → profit stays 175,000, not 170,000). UNKNOWN/PARTIALLY and post-plan reflection changes block finalization instead of guessing. XLSX, mapping/FS packages, and ledger posting remain future work.
 
 ## Checklist #6 — practice CRM (implemented and merged)
@@ -203,3 +202,65 @@ The current slice implements:
    - Readiness: `/health/ready` and `/health/live` returned `Healthy`/HTTP 200 with 0 pending migrations.
 
 The checklist #6 implementation is committed as `141a55d2c7a9df8e23f41b6365c3f2ac58148240`; owner-authorized PR #1 merged as `881eda1e44c8eccba7fa7e8dd26f86ee4b4f5599`, with GitGuardian passing, the automated reviewer neutral, and no independent human review observed. Checklist #7 is committed as `0a34400`; owner-authorized PR #2 merged as `b1b23bef1a0f9cbc63a2a757bf369c873671e303`. Checklist #8 implementation `88e3409` is merged as `3bcdaa7812904e8259f128b5bdae0f99d773dce3`; no independent human review was recorded. Checklist #9 implementation `ea4081424df8e3d24fd07feefb69f1d7631bb8c7` was merged by owner-authorized PR #4 as `c01f3d31aea5b4c10f3293862a44439ff42d230d`; no independent human review was recorded. Checklist #10 implementation `0f9fe20` was merged by owner-authorized PR #5 as `c091bf2bf0a859173ee4228b359c90d1b5202320`; no independent human review was recorded. Checklist #11 implementation `94a8da3` was merged by owner-authorized PR #6 as `87e2523dcc276d5a358d7bcbe2015d5f744efa4a`; no independent human review was recorded. Checklist #12 implementation `3e3c82a35b32d4472f328d44529f9a9b048a5a7c` was merged by owner-authorized PR #7 as `2dd97f93ae6f7e61ac9bad7eb378ea48922ff9f7`; no independent human review was recorded. Checklist #13 implementation `c127448e645da2b29018359a3226afa6b310e3b1` was merged by owner-authorized PR #8 as `ff577837241a7bd2797bb5776dbcce7687ed8e05`; no independent human review was recorded. Checklist #14 implementation commits `847cada`, `7fcbc35`, and `bfe5a9a` add the mapping/financial-statement workflow and hosted lock-file cache/restore fixes; hosted run `35375711799` passed all steps on head `a8062b4`, but no independent human review was recorded. The current follow-up also adds migration `20260918170054_SupplementaryFinancialInformation`, migration `20260918173327_PbcUploadWorkflow`, migration `20260918175205_PbcUploadCapability`, migration `20260918194920_OperatorRecoveryWorkflow`, migration `20260918235000_AuditPlanningAndFirmPostingExtensions`, deterministic cash-flow/disclosure persistence, scoped mapping/package views, client/staff PBC routes, sequential immutable chunk receipts, capability-bound same-origin 8 MiB chunk staging, authorized operator recovery, deterministic financial artifact rendering, staff route catalog, audit planning/materiality/risk/population/workpaper/finding lifecycle, and source-relative restore verification. Only the known local development database was migrated. Handoff pointer: `docs/execution/status.json`.
+
+## Audit-planning scope integrity, database immutability, and in-command authorization (locally verified, uncommitted)
+
+Base `8a0f035`. This closes the "remaining entity foreign keys and data-model integrity gaps" backlog item for
+the audit-planning domain (§27.4–27.6, §42.3–42.4).
+
+Observed defects that this slice removed, and what replaced them:
+
+1. **Three tables were outside EF ownership.** `materiality_assessments`, `population_versions` and
+   `workpaper_submissions` were created by raw SQL in `20260918235000`, which shipped without a Designer file and
+   without model-snapshot entries (the snapshot owned 79 entities and none of them were these tables). They are now
+   `MaterialityAssessment`, `PopulationVersion` and `WorkpaperSubmission` entities with `DbSet`s on both
+   `AuditSphereDbContext` and `IAuditSphereDbContext`, so a future migration diffs them like every other table.
+   `AuditSphereDbContext.Database.HasPendingModelChanges()` is asserted false by test `IG-01`.
+2. **Scope was weakened, not tightened, by the previous slice.** That migration dropped `NOT NULL` on
+   `audit_risks.{firm_id,client_id}`, `workpapers.{firm_id,client_id,procedure_id,state,generation}` and
+   `findings.{firm_id,client_id,title,severity}` while the EF model still declared them required, so the database
+   silently drifted from the model and EF had no diff to emit. `20260919005220_AuditPlanningScopeIntegrity` restores
+   the required scope columns and re-declares `workpapers.procedure_id` as genuinely optional (an empty GUID in a
+   scope key defeats duplicate prevention, §42.4).
+3. **No child row proved matching client scope.** The three `*_engagement_id_fkey` constraints referenced
+   `engagements(id)` alone. They are replaced by composite foreign keys onto `engagements (firm_id,
+   practice_client_id, id)` and, where a second parent exists, onto `(firm_id, client_id, engagement_id, id)`
+   principals for `audit_risks`, `audit_procedures`, `source_receipts`, `workpapers` and `users (firm_id, id)`.
+   Nineteen tables that previously had no firm-inclusive foreign key at all now have at least one, including
+   `engagement_assignments`, `eqr_cases`, `written_representations`, `evidence_links`, `review_points`, `archives`,
+   `record_states`, `mapping_rules`, `acceptance_decisions` and `evaluation_responses`.
+4. **Professional evidence cascaded on delete.** `DeleteBehavior.Cascade` on assignments, EQR cases, written
+   representations, source receipts, evidence links and questionnaire definitions became `Restrict` (§42.3).
+   `SELECT ... FROM pg_constraint WHERE contype='f' AND confdeltype <> 'r'` now returns zero rows for the whole
+   `public` schema, and test `NT-11b` proves an engagement with a workpaper cannot be deleted.
+5. **Immutable evidence was only a convention.** Append-only triggers (SQLSTATE `55000`) now protect
+   `materiality_assessments`, `population_versions` and `workpaper_submissions` outright, and `workpapers` become
+   frozen once their status is `SUBMITTED_SNAPSHOT` (update or delete refused). `NT-12` exercises all eight
+   mutations; `NT-12b` confirms a working paper stays editable.
+6. **Audit planning commands had no authorization and shifted their columns.** `AuditPlanningService` took a bare
+   `ActorId` Guid, inserted with raw SQL, and wrote `audit_risks.description` from `Drivers`,
+   `audit_risks.severity` from `SignificanceDecision`, `findings.title`/`severity` from `FindingType`. Every command
+   now takes an `ActorContext`, resolves the client from the stored engagement, calls
+   `AuthorizationDecision.AuthorizeAsync` (internal-only, professional-work gate, covering grant, planning roles),
+   serializes on the engagement row, writes through the model, and returns `CommandResult` codes (§27.7). Severity is
+   derived from the significance decision and pinned by `ck_audit_risk_values`, so the two cannot disagree.
+7. **Four audit screens were fabricated.** `Workpaper.razor`, `AuditPopulation.razor` and `Finding.razor` rendered
+   hardcoded banks, selections and "material uncorrected misstatement" conclusions with no data access, and
+   `AuditPlan.razor` queried five `materiality_assessments` columns that do not exist (`currency`,
+   `overall_amount`, `benchmark_type`, …), which would throw at runtime. All four now read persisted rows, show
+   truthful empty/pending states, and invoke the real commands; the invented audit conclusion was removed (the
+   application does not generate professional conclusions).
+
+Migration safety: the new migration refuses before modifying anything when any in-scope planning table holds rows
+(`55000`, "needs an explicit disposition"), because the added `NOT NULL` scope and actor columns cannot be backfilled
+without inventing an owner or a client — the same stance as the durable-outbox and release-gate migrations. Test
+`MIG` proves the refusal and that the legacy shape survives it. The downgrade path re-creates the three formerly
+model-external tables and the legacy columns exactly as `20260918235000` defined them; the revert and re-apply were
+both executed against the local `auditsphere` database.
+
+Local verification: build 0 warnings / 0 errors; locked restore; full suite 152/152 with 0 skipped (twice); 23-migration
+restore rehearsal; `Healthy` readiness with 0 pending migrations; HTTP 200 on `/`, `/health/live`, `/health/ready`,
+`/app`, `/portal` and the four audit/release routes. Runner parallelism was capped at three threads in
+`tests/AuditSphereOps.Domain.Tests/xunit.runner.json` after the added constraints made the full parallel run
+intermittently exhaust the loopback cluster's default shared lock budget (`53200`); no server setting was changed and
+no test was skipped. Hosted CI, independent review and any merge remain outstanding.

@@ -108,8 +108,10 @@ public sealed class ApprovalTests
     db.Workpapers.Add(new Workpaper
     {
       Id = workpaperId, FirmId = scope.FirmId, ClientId = scope.ClientId,
-      EngagementId = scope.EngagementId, ProcedureId = Guid.NewGuid(),
-      Title = "Cash workpaper", CreatedAt = DateTimeOffset.UtcNow
+      EngagementId = scope.EngagementId, ActorId = user.Id, Index = "C-01",
+      Title = "Cash workpaper", Objective = "Confirm the year-end cash balance",
+      TemplateVersion = "CASH-2026-v1", Procedure = "Agree bank confirmations to the ledger",
+      Status = "WORKING", CreatedAt = DateTimeOffset.UtcNow
     });
     await db.SaveChangesAsync();
     return new Fixture(scope.FirmId, scope.ClientId, workpaperId,

@@ -72,9 +72,12 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
   public DbSet<FinancialPackageValidation> FinancialPackageValidations => Set<FinancialPackageValidation>();
   public DbSet<FinancialPackageCashFlowLine> FinancialPackageCashFlowLines => Set<FinancialPackageCashFlowLine>();
   public DbSet<FinancialPackageDisclosure> FinancialPackageDisclosures => Set<FinancialPackageDisclosure>();
+  public DbSet<MaterialityAssessment> MaterialityAssessments => Set<MaterialityAssessment>();
   public DbSet<AuditRisk> AuditRisks => Set<AuditRisk>();
   public DbSet<AuditProcedure> AuditProcedures => Set<AuditProcedure>();
+  public DbSet<PopulationVersion> PopulationVersions => Set<PopulationVersion>();
   public DbSet<Workpaper> Workpapers => Set<Workpaper>();
+  public DbSet<WorkpaperSubmission> WorkpaperSubmissions => Set<WorkpaperSubmission>();
   public DbSet<Finding> Findings => Set<Finding>();
   public DbSet<ReviewPoint> ReviewPoints => Set<ReviewPoint>();
   public DbSet<Approval> Approvals => Set<Approval>();
@@ -108,6 +111,8 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     }
     ConfigureMoney(b);
     ConfigurePractice(b);
+    ConfigureAudit(b);
+    ConfigureScopedEvidence(b);
     ConfigureAccounting(b);
     ConfigureDocuments(b);
     ConfigurePbc(b);
@@ -988,40 +993,6 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
       .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.FinancialPackageId })
       .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
 
-    b.Entity<EngagementAssignment>(entity =>
-    {
-      entity.ToTable("engagement_assignments");
-      entity.HasKey(x => x.Id);
-      entity.HasIndex(x => new { x.EngagementId, x.UserId, x.Role });
-      entity.HasOne<Engagement>().WithMany().HasForeignKey(x => x.EngagementId).OnDelete(DeleteBehavior.Cascade);
-      entity.HasOne<AppUser>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Restrict);
-    });
-
-    b.Entity<EqrCase>(entity =>
-    {
-      entity.ToTable("eqr_cases");
-      entity.HasKey(x => x.Id);
-      entity.HasIndex(x => new { x.EngagementId }).IsUnique();
-      entity.HasOne<Engagement>().WithMany().HasForeignKey(x => x.EngagementId).OnDelete(DeleteBehavior.Cascade);
-      entity.HasOne<AppUser>().WithMany().HasForeignKey(x => x.EqrPartnerUserId).OnDelete(DeleteBehavior.Restrict);
-    });
-
-    b.Entity<WrittenRepresentation>(entity =>
-    {
-      entity.ToTable("written_representations");
-      entity.HasKey(x => x.Id);
-      entity.HasIndex(x => new { x.EngagementId, x.Code }).IsUnique();
-      entity.HasOne<Engagement>().WithMany().HasForeignKey(x => x.EngagementId).OnDelete(DeleteBehavior.Cascade);
-    });
-
-    b.Entity<SpecialistClearance>(entity =>
-    {
-      entity.ToTable("specialist_clearances");
-      entity.HasKey(x => x.Id);
-      entity.HasIndex(x => new { x.PracticeClientId, x.Area });
-      entity.HasOne<PracticeClient>().WithMany().HasForeignKey(x => x.PracticeClientId).OnDelete(DeleteBehavior.Cascade);
-    });
-
     b.Entity<QuestionnaireTemplate>(entity =>
     {
       entity.ToTable("questionnaire_templates");
@@ -1034,24 +1005,320 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
       entity.ToTable("question_definitions");
       entity.HasKey(x => x.Id);
       entity.HasIndex(x => new { x.TemplateId, x.QuestionCode }).IsUnique();
-      entity.HasOne<QuestionnaireTemplate>().WithMany().HasForeignKey(x => x.TemplateId).OnDelete(DeleteBehavior.Cascade);
+      entity.HasOne<QuestionnaireTemplate>().WithMany().HasForeignKey(x => x.TemplateId).OnDelete(DeleteBehavior.Restrict);
     });
+  }
 
-    b.Entity<SourceReceipt>(entity =>
-    {
-      entity.ToTable("source_receipts");
-      entity.HasKey(x => x.Id);
-      entity.HasIndex(x => new { x.EngagementId, x.ReceiptToken }).IsUnique();
-      entity.HasOne<Engagement>().WithMany().HasForeignKey(x => x.EngagementId).OnDelete(DeleteBehavior.Cascade);
-    });
+  // Audit planning and execution evidence (§§19–23, 27.2, 42.3–42.4). Every row carries the full
+  // (firm, client, engagement) triple and binds it to a real engagement through a composite foreign
+  // key, so a cross-scope link is rejected by PostgreSQL rather than only by application code.
+  private static void ConfigureAudit(ModelBuilder b)
+  {
+    var materiality = b.Entity<MaterialityAssessment>();
+    materiality.HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_materiality_assessments_firm_id_id");
+    materiality.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
+      .HasName("AK_materiality_assessments_scope_id");
+    materiality.Property(x => x.BenchmarkSource).HasMaxLength(200);
+    materiality.Property(x => x.BenchmarkVersion).HasMaxLength(100);
+    materiality.Property(x => x.Status).HasMaxLength(30);
+    materiality.HasIndex(x => new { x.FirmId, x.EngagementId, x.Status, x.CreatedAt })
+      .HasDatabaseName("ix_materiality_scope_status_created");
+    materiality.ToTable("materiality_assessments", t => t.HasCheckConstraint("ck_materiality_values",
+      "length(trim(benchmark_source)) > 0 AND length(trim(benchmark_version)) > 0 AND length(trim(rationale)) > 0" +
+      " AND benchmark_amount > 0 AND rate_applied > 0 AND rate_applied <= 1 AND overall_materiality > 0" +
+      " AND performance_materiality < overall_materiality AND clearly_trivial_threshold < performance_materiality" +
+      " AND status IN ('DRAFT','APPROVED')"));
+    ScopeToEngagement(materiality, nameof(MaterialityAssessment.FirmId),
+      nameof(MaterialityAssessment.ClientId), nameof(MaterialityAssessment.EngagementId));
+    materiality.HasOne<AppUser>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ActorId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
 
-    b.Entity<EvidenceLink>(entity =>
-    {
-      entity.ToTable("evidence_links");
-      entity.HasKey(x => x.Id);
-      entity.HasIndex(x => new { x.EngagementId, x.SourceReceiptId });
-      entity.HasOne<SourceReceipt>().WithMany().HasForeignKey(x => x.SourceReceiptId).OnDelete(DeleteBehavior.Cascade);
-    });
+    var risk = b.Entity<AuditRisk>();
+    risk.HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_audit_risks_firm_id_id");
+    risk.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
+      .HasName("AK_audit_risks_scope_id");
+    risk.Property(x => x.AccountArea).HasMaxLength(200);
+    risk.Property(x => x.Assertion).HasMaxLength(100);
+    risk.Property(x => x.Severity).HasMaxLength(30);
+    risk.Property(x => x.SignificanceDecision).HasMaxLength(30);
+    risk.Property(x => x.Status).HasMaxLength(30);
+    risk.HasIndex(x => new { x.FirmId, x.EngagementId, x.Status }).HasDatabaseName("ix_audit_risks_scope_status");
+    risk.HasIndex(x => new { x.FirmId, x.ClientId, x.EngagementId, x.CreatedAt })
+      .HasDatabaseName("ix_audit_risks_scope_created");
+    risk.ToTable("audit_risks", t => t.HasCheckConstraint("ck_audit_risk_values",
+      "length(trim(account_area)) > 0 AND length(trim(assertion)) > 0 AND length(trim(description)) > 0" +
+      " AND length(trim(drivers)) > 0 AND length(trim(response_description)) > 0" +
+      " AND significance_decision IN ('SIGNIFICANT','NORMAL') AND status IN ('IDENTIFIED','ASSESSED','RESPONDED')" +
+      " AND severity = CASE WHEN significance_decision = 'SIGNIFICANT' THEN 'Significant' ELSE 'Normal' END"));
+    ScopeToEngagement(risk, nameof(AuditRisk.FirmId), nameof(AuditRisk.ClientId), nameof(AuditRisk.EngagementId));
+    risk.HasOne<AppUser>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ActorId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var population = b.Entity<PopulationVersion>();
+    population.HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_population_versions_firm_id_id");
+    population.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
+      .HasName("AK_population_versions_scope_id");
+    population.Property(x => x.Purpose).HasMaxLength(300);
+    population.Property(x => x.Assertion).HasMaxLength(100);
+    population.Property(x => x.SourceReceiptReference).HasColumnName("source_receipt_ref").HasMaxLength(200);
+    population.Property(x => x.Currency).HasMaxLength(3).IsFixedLength();
+    population.Property(x => x.Status).HasMaxLength(30);
+    population.HasIndex(x => new { x.FirmId, x.EngagementId, x.Status }).HasDatabaseName("ix_population_scope_status");
+    population.ToTable("population_versions", t => t.HasCheckConstraint("ck_population_values",
+      "length(trim(purpose)) > 0 AND length(trim(assertion)) > 0 AND length(trim(source_receipt_ref)) > 0" +
+      " AND length(trim(extraction_parameters)) > 0 AND row_count >= 0 AND monetary_control_total >= 0" +
+      " AND currency ~ '^[A-Z]{3}$' AND status IN ('PENDING_APPROVAL','APPROVED','REJECTED')"));
+    ScopeToEngagement(population, nameof(PopulationVersion.FirmId), nameof(PopulationVersion.ClientId),
+      nameof(PopulationVersion.EngagementId));
+    population.HasOne<AppUser>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ActorId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var workpaper = b.Entity<Workpaper>();
+    workpaper.HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_workpapers_firm_id_id");
+    workpaper.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
+      .HasName("AK_workpapers_scope_id");
+    workpaper.Property(x => x.Index).HasColumnName("wp_index").HasMaxLength(30);
+    workpaper.Property(x => x.Title).HasMaxLength(300);
+    workpaper.Property(x => x.TemplateVersion).HasMaxLength(100);
+    workpaper.Property(x => x.Status).HasMaxLength(30);
+    workpaper.HasIndex(x => new { x.FirmId, x.EngagementId, x.Status }).HasDatabaseName("ix_workpapers_scope_status");
+    workpaper.ToTable("workpapers", t => t.HasCheckConstraint("ck_workpaper_values",
+      "revision > 0 AND length(trim(wp_index)) > 0 AND length(trim(title)) > 0 AND length(trim(objective)) > 0" +
+      " AND length(trim(template_version)) > 0 AND length(trim(procedure)) > 0" +
+      " AND status IN ('WORKING','SUBMITTED_SNAPSHOT')" +
+      " AND ((status = 'SUBMITTED_SNAPSHOT' AND submitted_at IS NOT NULL AND length(trim(conclusion)) > 0)" +
+      "   OR (status = 'WORKING' AND submitted_at IS NULL))"));
+    ScopeToEngagement(workpaper, nameof(Workpaper.FirmId), nameof(Workpaper.ClientId),
+      nameof(Workpaper.EngagementId));
+    workpaper.HasOne<AppUser>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ActorId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    // A null procedure reference means "not procedure-driven"; an empty GUID in a scope key would
+    // defeat duplicate prevention (§42.4), so the column is genuinely optional.
+    workpaper.HasOne<AuditProcedure>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.ProcedureId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
+      .OnDelete(DeleteBehavior.Restrict);
+
+    var submission = b.Entity<WorkpaperSubmission>();
+    submission.HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_workpaper_submissions_firm_id_id");
+    submission.Property(x => x.Conclusion).HasMaxLength(20000);
+    submission.Property(x => x.WorkPerformed).HasMaxLength(100000);
+    submission.HasIndex(x => new { x.FirmId, x.WorkpaperId, x.Revision }).IsUnique()
+      .HasDatabaseName("ux_workpaper_submission_revision");
+    submission.ToTable("workpaper_submissions", t => t.HasCheckConstraint("ck_workpaper_submission_values",
+      "revision > 0 AND length(trim(conclusion)) > 0 AND length(trim(work_performed)) > 0"));
+    submission.HasOne<Workpaper>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.WorkpaperId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
+      .OnDelete(DeleteBehavior.Restrict);
+    submission.HasOne<AppUser>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ActorId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var procedure = b.Entity<AuditProcedure>();
+    procedure.HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_audit_procedures_firm_id_id");
+    procedure.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
+      .HasName("AK_audit_procedures_scope_id");
+    procedure.ToTable("audit_procedures", t => t.HasCheckConstraint("ck_audit_procedure_values",
+      "length(trim(title)) > 0"));
+    ScopeToEngagement(procedure, nameof(AuditProcedure.FirmId), nameof(AuditProcedure.ClientId),
+      nameof(AuditProcedure.EngagementId));
+    procedure.HasOne<AuditRisk>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.RiskId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
+      .OnDelete(DeleteBehavior.Restrict);
+
+    var finding = b.Entity<Finding>();
+    finding.HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_findings_firm_id_id");
+    finding.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
+      .HasName("AK_findings_scope_id");
+    finding.Property(x => x.FindingType).HasMaxLength(100);
+    finding.Property(x => x.Status).HasMaxLength(30);
+    finding.HasIndex(x => new { x.FirmId, x.EngagementId, x.Status }).HasDatabaseName("ix_findings_scope_status");
+    finding.HasIndex(x => new { x.FirmId, x.ClientId, x.EngagementId, x.CreatedAt })
+      .HasDatabaseName("ix_findings_scope_created");
+    finding.ToTable("findings", t => t.HasCheckConstraint("ck_finding_values",
+      "length(trim(finding_type)) > 0 AND length(trim(impact_description)) > 0" +
+      " AND (monetary_amount IS NULL OR monetary_amount >= 0) AND status IN ('OPEN','CORRECTED','EVALUATED')" +
+      " AND ((corrected AND status <> 'OPEN') OR NOT corrected)"));
+    ScopeToEngagement(finding, nameof(Finding.FirmId), nameof(Finding.ClientId), nameof(Finding.EngagementId));
+    finding.HasOne<AppUser>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ActorId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+  }
+
+  /// <summary>
+  /// Professional records must never disappear because a parent row was deleted (§42.3), so each
+  /// scoped child links to the engagement's composite (firm, client, engagement) identity with
+  /// RESTRICT semantics. Property names are validated by EF model building, so a typo fails on the
+  /// first test that constructs the context.
+  /// </summary>
+  private static void ScopeToEngagement<TEntity>(
+    Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<TEntity> entity,
+    string firm,
+    string client,
+    string engagement) where TEntity : class =>
+    entity.HasOne<Engagement>().WithMany()
+      .HasForeignKey(firm, client, engagement)
+      .HasPrincipalKey(x => new { x.FirmId, x.PracticeClientId, x.Id })
+      .OnDelete(DeleteBehavior.Restrict);
+
+  private static void ConfigureScopedEvidence(ModelBuilder b)
+  {
+    var assignment = b.Entity<EngagementAssignment>();
+    assignment.Property(x => x.Role).HasMaxLength(50);
+    assignment.HasIndex(x => new { x.FirmId, x.EngagementId, x.UserId, x.Role })
+      .HasDatabaseName("ix_engagement_assignments_scope");
+    ScopeToEngagement(assignment, nameof(EngagementAssignment.FirmId), nameof(EngagementAssignment.ClientId),
+      nameof(EngagementAssignment.EngagementId));
+    assignment.HasOne<AppUser>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.UserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    assignment.ToTable("engagement_assignments", t => t.HasCheckConstraint("ck_engagement_assignment_values",
+      "length(trim(role)) > 0 AND allocated_hours >= 0" +
+      " AND ((start_date IS NULL OR end_date IS NULL) OR start_date <= end_date)"));
+
+    var eqr = b.Entity<EqrCase>();
+    eqr.Property(x => x.Status).HasMaxLength(30);
+    eqr.HasIndex(x => new { x.FirmId, x.EngagementId }).IsUnique().HasDatabaseName("ux_eqr_case_engagement");
+    ScopeToEngagement(eqr, nameof(EqrCase.FirmId), nameof(EqrCase.ClientId), nameof(EqrCase.EngagementId));
+    eqr.HasOne<AppUser>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.EqrPartnerUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    eqr.ToTable("eqr_cases", t => t.HasCheckConstraint("ck_eqr_case_values",
+      "status IN ('PENDING','IN_PROGRESS','CONCURRED','CHANGES_REQUESTED')" +
+      " AND ((status = 'CONCURRED' AND concurrence_date IS NOT NULL AND completed_at IS NOT NULL)" +
+      "   OR status <> 'CONCURRED')"));
+
+    var representation = b.Entity<WrittenRepresentation>();
+    representation.Property(x => x.Code).HasMaxLength(20);
+    representation.Property(x => x.Title).HasMaxLength(300);
+    representation.HasIndex(x => new { x.FirmId, x.EngagementId, x.Code }).IsUnique()
+      .HasDatabaseName("ux_written_representation_code");
+    ScopeToEngagement(representation, nameof(WrittenRepresentation.FirmId), nameof(WrittenRepresentation.ClientId),
+      nameof(WrittenRepresentation.EngagementId));
+    representation.ToTable("written_representations", t => t.HasCheckConstraint("ck_written_representation_values",
+      "length(trim(code)) > 0 AND length(trim(title)) > 0 AND length(trim(narrative)) > 0" +
+      " AND ((obtained AND obtained_at IS NOT NULL) OR NOT obtained)"));
+
+    var clearance = b.Entity<SpecialistClearance>();
+    clearance.Property(x => x.Area).HasMaxLength(100);
+    clearance.Property(x => x.Status).HasMaxLength(30);
+    clearance.HasIndex(x => new { x.FirmId, x.PracticeClientId, x.Area }).HasDatabaseName("ix_clearance_client_area");
+    clearance.HasOne<PracticeClient>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.PracticeClientId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    clearance.ToTable("specialist_clearances", t => t.HasCheckConstraint("ck_specialist_clearance_values",
+      "length(trim(area)) > 0 AND length(trim(specialist_name)) > 0" +
+      " AND status IN ('PENDING','CLEARED','HOLD','CONDITIONS')" +
+      " AND ((status = 'CLEARED' AND cleared_at IS NOT NULL) OR status <> 'CLEARED')" +
+      " AND ((status = 'CONDITIONS' AND length(trim(conditions)) > 0) OR status <> 'CONDITIONS')"));
+
+    var receipt = b.Entity<SourceReceipt>();
+    receipt.Property(x => x.SourceType).HasMaxLength(30);
+    receipt.Property(x => x.ReceiptToken).HasMaxLength(200);
+    receipt.Property(x => x.Sha256Digest).HasMaxLength(64);
+    receipt.Property(x => x.OriginalFileName).HasMaxLength(255);
+    receipt.HasIndex(x => new { x.FirmId, x.EngagementId, x.ReceiptToken }).IsUnique()
+      .HasDatabaseName("ux_source_receipt_scope_token");
+    ScopeToEngagement(receipt, nameof(SourceReceipt.FirmId), nameof(SourceReceipt.ClientId),
+      nameof(SourceReceipt.EngagementId));
+    receipt.ToTable("source_receipts", t => t.HasCheckConstraint("ck_source_receipt_values",
+      "source_type IN ('PBC_UPLOAD','DIRECT_FEED','CSV_IMPORT') AND length(trim(receipt_token)) > 0" +
+      " AND sha256_digest ~ '^[0-9a-f]{64}$' AND byte_count > 0 AND length(trim(original_file_name)) > 0"));
+    receipt.HasOne<AppUser>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.AcquiredByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var evidence = b.Entity<EvidenceLink>();
+    evidence.Property(x => x.Purpose).HasMaxLength(500);
+    evidence.Property(x => x.Assertion).HasMaxLength(100);
+    evidence.HasIndex(x => new { x.FirmId, x.EngagementId, x.SourceReceiptId }).HasDatabaseName("ix_evidence_scope_receipt");
+    ScopeToEngagement(evidence, nameof(EvidenceLink.FirmId), nameof(EvidenceLink.ClientId),
+      nameof(EvidenceLink.EngagementId));
+    evidence.HasOne<SourceReceipt>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.SourceReceiptId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
+      .OnDelete(DeleteBehavior.Restrict);
+    // A workpaper evidence link must match an authorized snapshot scope (§27.2): the composite key
+    // makes a cross-client link unrepresentable rather than merely discouraged.
+    evidence.HasOne<Workpaper>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.WorkpaperId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
+      .OnDelete(DeleteBehavior.Restrict);
+    evidence.ToTable("evidence_links", t => t.HasCheckConstraint("ck_evidence_link_values",
+      "length(trim(purpose)) > 0 AND length(trim(assertion)) > 0 AND length(trim(relevance_reliability_assessment)) > 0"));
+
+    var reviewPoint = b.Entity<ReviewPoint>();
+    reviewPoint.Property(x => x.TargetKind).HasMaxLength(50);
+    reviewPoint.Property(x => x.Comment).HasMaxLength(20000);
+    reviewPoint.HasIndex(x => new { x.FirmId, x.EngagementId, x.TargetId, x.Cleared })
+      .HasDatabaseName("ix_review_points_scope_cleared");
+    ScopeToEngagement(reviewPoint, nameof(ReviewPoint.FirmId), nameof(ReviewPoint.ClientId),
+      nameof(ReviewPoint.EngagementId));
+    reviewPoint.HasOne<AppUser>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.RaisedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    reviewPoint.ToTable("review_points", t => t.HasCheckConstraint("ck_review_point_values",
+      "length(trim(target_kind)) > 0 AND target_revision >= 1 AND length(trim(comment)) > 0"));
+
+    var archive = b.Entity<Archive>();
+    archive.Property(x => x.ProfileId).HasMaxLength(100);
+    archive.Property(x => x.Status).HasMaxLength(40);
+    archive.HasIndex(x => new { x.FirmId, x.EngagementId, x.Status }).HasDatabaseName("ix_archives_scope_status");
+    ScopeToEngagement(archive, nameof(Archive.FirmId), nameof(Archive.ClientId), nameof(Archive.EngagementId));
+    archive.ToTable("archives", t => t.HasCheckConstraint("ck_archive_values",
+      "length(trim(profile_id)) > 0 AND length(trim(status)) > 0"));
+
+    var recordState = b.Entity<RecordState>();
+    recordState.Property(x => x.ArtifactKind).HasMaxLength(50);
+    recordState.Property(x => x.LocalState).HasMaxLength(30);
+    recordState.Property(x => x.ObservedLabel).HasMaxLength(200);
+    recordState.HasIndex(x => new { x.FirmId, x.EngagementId, x.ArtifactId }).IsUnique()
+      .HasDatabaseName("ux_record_state_artifact");
+    ScopeToEngagement(recordState, nameof(RecordState.FirmId), nameof(RecordState.ClientId),
+      nameof(RecordState.EngagementId));
+    recordState.ToTable("record_states", t => t.HasCheckConstraint("ck_record_state_values",
+      "length(trim(artifact_kind)) > 0 AND local_state IN ('Active','Locked','Archived')"));
+
+    var acceptance = b.Entity<AcceptanceDecision>();
+    acceptance.Property(x => x.Decision).HasMaxLength(40);
+    acceptance.Property(x => x.ServiceRoute).HasMaxLength(50);
+    acceptance.HasIndex(x => new { x.FirmId, x.PracticeClientId, x.Generation }).HasDatabaseName("ix_acceptance_client_generation");
+    acceptance.HasOne<PracticeClient>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.PracticeClientId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    acceptance.ToTable("acceptance_decisions", t => t.HasCheckConstraint("ck_acceptance_decision_values",
+      "generation >= 1 AND length(trim(service_route)) > 0" +
+      " AND decision IN ('Pending','Accepted','AcceptedWithConditions','Declined')" +
+      " AND ((decision IN ('Accepted','AcceptedWithConditions','Declined') AND decided_at IS NOT NULL" +
+      "        AND decided_by_user_id IS NOT NULL) OR decision = 'Pending')"));
+
+    var evaluation = b.Entity<EvaluationResponse>();
+    evaluation.Property(x => x.Bank).HasMaxLength(4);
+    evaluation.Property(x => x.QuestionId).HasMaxLength(50);
+    evaluation.Property(x => x.Answer).HasMaxLength(2000);
+    evaluation.HasIndex(x => new { x.FirmId, x.PracticeClientId, x.Bank, x.QuestionId, x.Revision }).IsUnique()
+      .HasDatabaseName("ux_evaluation_response_question");
+    evaluation.HasOne<PracticeClient>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.PracticeClientId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    evaluation.ToTable("evaluation_responses", t => t.HasCheckConstraint("ck_evaluation_response_values",
+      "bank IN ('CE','RV') AND revision >= 1 AND length(trim(question_id)) > 0 AND length(trim(answer)) > 0"));
+
+    var mappingRule = b.Entity<MappingRule>();
+    mappingRule.Property(x => x.MappingCode).HasMaxLength(50);
+    mappingRule.Property(x => x.SourcePattern).HasMaxLength(200);
+    mappingRule.HasIndex(x => new { x.FirmId, x.EngagementId, x.MappingCode, x.Revision }).IsUnique()
+      .HasDatabaseName("ux_mapping_rule_code_revision");
+    ScopeToEngagement(mappingRule, nameof(MappingRule.FirmId), nameof(MappingRule.ClientId),
+      nameof(MappingRule.EngagementId));
+    mappingRule.ToTable("mapping_rules", t => t.HasCheckConstraint("ck_mapping_rule_values",
+      "revision >= 1 AND length(trim(mapping_code)) > 0 AND length(trim(source_pattern)) > 0"));
   }
 
   private static string ToSnake(string name)

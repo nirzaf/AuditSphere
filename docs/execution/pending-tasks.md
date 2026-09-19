@@ -1,6 +1,6 @@
 # AuditSphereOps — pending tasks
 
-Paused after the core entity catalog extensions (§27.2), CE-62/RV-30 question banks (§13/§14), and UI ground truth slice on 2026-09-19. The implementation head is `a338ad3`; hosted CI run [35408208512](https://github.com/nirzaf/AuditSphere/actions/runs/35408208512) passed with all 136 tests passing across 22 applied migrations.
+Paused after the audit planning scope integrity, database immutability, and in-command authorization slice on 2026-09-19. Advancing past base `8a0f035` with 23 applied migrations and all 152 tests passing on PostgreSQL 18.6 with 0 skipped.
 
 Full context: [authoritative v5.0 specification](../../AuditSphereOps_NET_Codex_Implementation_Specification.md), [execution status](status.json), [current verified slice](current-slice.md), and [implementation checklist](implementation-checklist.md).
 
@@ -12,7 +12,7 @@ Full context: [authoritative v5.0 specification](../../AuditSphereOps_NET_Codex_
 - [x] Complete the remaining dependency-ordered staff and client route catalog, keeping commands scope-checked and UI projections non-authoritative.
 - [x] Add the remaining scoped forms and workflows required by the specification, with command-level authorization and immutable evidence.
 - [ ] Implement live Entra/Graph/SharePoint/Purview adapters only behind the external-effects fence and selected-resource grants; never add tenant-wide scopes.
-- [ ] Finish remaining entity foreign keys and data-model integrity gaps identified by the specification and migration preflight rules.
+- [x] Finish remaining entity foreign keys and data-model integrity gaps identified by the specification and migration preflight rules. (Audit-planning domain closed and locally verified in the uncommitted working tree on base `8a0f035`: 152/152 tests, composite scope FKs, every foreign key `ON DELETE RESTRICT`, append-only triggers on frozen planning evidence, in-command authorization. Remaining modules still need the same sweep.)
 - [ ] Produce signing, protection, methodology, retention, and external-checkpoint evidence without inventing professional conclusions or provider success.
 - [ ] Prove production-grade cross-store backup/recovery and RPO/RTO with owner-authorized non-production resources.
 

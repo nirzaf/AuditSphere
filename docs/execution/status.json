@@ -12,15 +12,15 @@
     "postgres": "18.6 Homebrew user-local port 5433 (development only)"
   },
   "active": {
-    "packageId": "Complete core entity catalog extensions (§27.2), CE-62/RV-30 question banks (§13, §14), and UI state integrity",
+    "packageId": "Audit-planning scope integrity: EF-owned planning tables, composite scope FKs, database immutability, and in-command authorization (spec §§19-23, 27.4-27.6, 42.3-42.4)",
     "issueNumber": null,
     "branch": "master",
     "pullRequestNumber": null,
-    "headCommit": "a338ad3",
-    "implementationStatus": "PARTIAL",
-    "acceptanceStatus": "CI_VERIFIED",
-    "worktree": "Adds missing core entity catalog models (EngagementAssignment, EqrCase, WrittenRepresentation, SpecialistClearance, SourceReceipt, EvidenceLink, QuestionnaireTemplate, QuestionDefinition). Applies migration 20260918232054_CoreEntityCatalogAndQuestionnaireExtensions (22 total migrations). Seeds CE-62 and RV-30 question banks. Purges fabricated state from Completion.razor, AuditPlan.razor, AssessmentDetail.razor, and ReviewPoint.razor to query real database entities and display genuine empty states. 136/136 tests passing on PostgreSQL 18.6 with 0 skipped. Restore rehearsal passed with 22 migrations. Web readiness returned Healthy/HTTP 200 with 0 pending migrations. Hosted CI run 35408208512 passed with 136/136 tests passing.",
-    "scope": "Core entity catalog, question banks, and UI ground truth. No live provider is claimed.",
+    "headCommit": "uncommitted working tree on base 8a0f035",
+    "implementationStatus": "IMPLEMENTED",
+    "acceptanceStatus": "LOCAL_VERIFIED",
+    "worktree": "materiality_assessments, population_versions and workpaper_submissions are now EF-model entities (the snapshot owned 79 entities and did not own them). audit_risks/workpapers/findings gained their real columns in the model; the vestigial workpapers.state/generation and findings.title/severity columns are dropped, and the three single-column *_engagement_id_fkey constraints (which never proved matching client scope) are replaced by composite (firm, client, engagement) foreign keys with ON DELETE RESTRICT. The migration restores the NOT NULL scope columns that 20260918235000 had relaxed, adds 16 model-declared CHECK constraints, and installs append-only triggers on materiality_assessments, population_versions and workpaper_submissions plus a submitted-workpaper freeze trigger. AuditPlanningService now authorizes each command against the stored engagement scope, returns CommandResult codes instead of throwing, and writes through entities; the previously shifted column mappings (audit_risks.description/severity, findings.title/severity) each receive their own input. AuditPlan/Workpaper/AuditPopulation/Finding pages read persisted rows and invoke the real commands; their fabricated content was removed. 152/152 tests pass on PostgreSQL 18.6 with 0 skipped.",
+    "scope": "Schema, authorization and UI ground truth for audit planning. No live provider is claimed and no professional conclusion is generated.",
     "productionEnabled": false
   },
   "testEvidence": [
@@ -165,6 +165,18 @@
       "result": "Web host started cleanly on port 5099; HTTP 200 returned for /health/live and /health/ready. /health/ready queried __EFMigrationsHistory and reported Healthy with 0 pending migrations."
     },
     {
+      "command": "Audit-planning scope integrity slice local gates (base 8a0f035, uncommitted working tree)",
+      "result": "dotnet build AuditSphereOps.slnx: 0 warnings, 0 errors across 6 projects. dotnet restore --locked-mode succeeded against the committed lock files. dotnet ef database update applied 20260919005220_AuditPlanningScopeIntegrity (23 migrations) and the same migration was reverted and re-applied cleanly, so both directions are exercised. dotnet test passed 152/152 on PostgreSQL 18.6 with 0 skipped, stable across two consecutive full runs. scripts/db/restore-drill.sh restored 23 migrations with latest 20260919005220_AuditPlanningScopeIntegrity. Readiness returned Healthy and /, /health/live, /health/ready, /app, /portal, /app/audit/plans/{id}, /app/audit/populations/{id}, /app/audit/workpapers/{id}, /app/findings/{id} and /app/releases/{id} each returned HTTP 200 with no errors in the host log."
+    },
+    {
+      "command": "psql read-only constraint probes against 127.0.0.1:5433/auditsphere after the scope migration",
+      "result": "SELECT confrelid::regclass, conrelid::regclass FROM pg_constraint WHERE contype='f' AND confdeltype <> 'r' returned 0 rows: every foreign key in the public schema is ON DELETE RESTRICT. The 19 planning and evidence tables in scope each carry a non-null firm_id column and at least one firm-inclusive composite foreign key (previously 19 of them had none). Append-only triggers now exist on materiality_assessments, population_versions, workpaper_submissions and workpapers, joining the pre-existing approvals, document_snapshots, releases and trial_balance_rows triggers. No production database was touched."
+    },
+    {
+      "command": "Observed test-infrastructure constraint of this slice",
+      "result": "With the new foreign keys and per-schema migrations, the full 152-test parallel run intermittently failed unrelated tests with PostgresException 53200 (out of shared memory) — the default max_locks_per_transaction budget of the loopback cluster. Fixed in test infrastructure by capping the runner at maxParallelThreads 3 through tests/AuditSphereOps.Domain.Tests/xunit.runner.json; no server setting was changed, no test was skipped, and two consecutive full runs then passed 152/152."
+    },
+    {
       "command": "gh run view 35408208512",
       "result": "Hosted AuditSphereOps CI run 35408208512 passed on head a338ad3 in 2m42s: setup-dotnet, tool restore, restore, build, 22-migration EF update, the 136-test suite, migration-aware readiness check, and container cleanup all succeeded."
     }
@@ -202,7 +214,7 @@
     {
       "classification": "implementation-gap",
       "gate": "Schema integrity, UI and recovery controls (spec §§27, 42, 43, 45)",
-      "missing": "Live provider adapters, full signing/protection evidence, production/cross-store recovery evidence. Operator recovery controls, deterministic financial-statement artifact rendering, and core staff route catalog items are now implemented; live provider execution stays fenced.",
+      "missing": "Live provider adapters, full signing/protection evidence, production/cross-store recovery evidence. The audit-planning data-model integrity gap is now closed (composite scope foreign keys, mandatory scope columns, database-level immutability of frozen planning evidence, in-command authorization); release checkpoint, protection attestation and signature lineage are still asserted by a caller-supplied flag rather than stored verified evidence.",
       "ownerAction": "Complete the live provider adapters behind owner-approved external grants; external production gates remain blocked."
     },
     {
@@ -212,6 +224,6 @@
       "ownerAction": "Obtain independent review evidence before treating the merged slices as fully accepted."
     }
   ],
-  "nextPermittedAction": "Continue with owner-authorized tenant/professional evidence and independent human review. Production recovery remains unproven.",
-  "lastVerifiedAt": "2026-09-19T03:10:00Z"
+  "nextPermittedAction": "Continue with owner-authorized tenant/professional evidence and independent human review. The audit-planning scope-integrity slice is locally verified and still uncommitted; hosted CI for it has not been observed. Production recovery remains unproven.",
+  "lastVerifiedAt": "2026-09-19T04:40:00Z"
 }

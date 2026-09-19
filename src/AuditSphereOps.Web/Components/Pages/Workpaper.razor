@@ -1,6 +1,13 @@
 @page "/app/audit/workpapers/{Id:guid}"
-@using Microsoft.AspNetCore.Components.Authorization
-@inject AuthenticationStateProvider Auth
+@rendermode InteractiveServer
+@using AuditSphereOps.Application.Audit
+@using AuditSphereOps.Domain.Audit
+@using FindingRecord = AuditSphereOps.Domain.Audit.Finding
+@using WorkpaperRecord = AuditSphereOps.Domain.Audit.Workpaper
+@using AuditSphereOps.Infrastructure.Persistence
+@using Microsoft.EntityFrameworkCore
+@inject CurrentActorResolver ActorResolver
+@inject IDbContextFactory<AuditSphereDbContext> DbFactory
 @inject NavigationManager Nav
 
 <PageTitle>Workpaper — AuditSphereOps</PageTitle>
@@ -8,13 +15,35 @@
 <div class="page-header">
     <nav class="breadcrumb-nav">
         <a href="/app">Portfolio</a> /
-        <span>Workpaper @Id</span>
+        @if (_workpaper is not null)
+        {
+            <a href="@($"/app/engagements/{_workpaper.EngagementId}/audit-plan")">Audit plan</a>
+            <span> / </span>
+        }
+        <span>Workpaper</span>
     </nav>
-    <h1>Workpaper: @_title</h1>
-    <span class="status-badge @_statusClass">@_status</span>
+    <h1>Workpaper: @_workpaper?.Title</h1>
+    <span class="status-badge @(_workpaper?.Status == WorkpaperStatuses.SubmittedSnapshot ? "badge-blue" : "badge-yellow")">@(_workpaper?.Status)</span>
 </div>
 
-@if (_loading) { <div class="loading-state">Loading workpaper…</div> }
+@if (_loading)
+{
+    <p role="status">Loading workpaper…</p>
+}
+else if (_actor is null)
+{
+    <section class="notice" role="alert">
+        <h2>Sign in required</h2>
+        <p>An authenticated staff session is required to open a workpaper.</p>
+    </section>
+}
+else if (_workpaper is null)
+{
+    <section class="notice" role="alert">
+        <h2>Workpaper unavailable</h2>
+        <p>The requested workpaper was not found in the current firm scope.</p>
+    </section>
+}
 else
 {
     <div class="workpaper-shell">
@@ -22,12 +51,13 @@ else
         <section class="card">
             <h2>Workpaper Details</h2>
             <dl class="detail-grid">
-                <dt>Index</dt><dd>@_index</dd>
-                <dt>Objective</dt><dd>@_objective</dd>
-                <dt>Template version</dt><dd>@_templateVersion</dd>
-                <dt>Procedure</dt><dd>@_procedure</dd>
-                <dt>Risks / Assertions</dt><dd>@string.Join(", ", _riskRefs)</dd>
-                <dt>Revision</dt><dd>@_revision</dd>
+                <dt>Index</dt><dd>@_workpaper.Index</dd>
+                <dt>Objective</dt><dd>@_workpaper.Objective</dd>
+                <dt>Template version</dt><dd>@_workpaper.TemplateVersion</dd>
+                <dt>Procedure</dt><dd>@_workpaper.Procedure</dd>
+                <dt>Linked procedure</dt><dd>@(_procedure?.Title ?? "Not linked to a planned procedure")</dd>
+                <dt>Current revision</dt><dd>@_workpaper.Revision</dd>
+                <dt>Created</dt><dd>@_workpaper.CreatedAt.ToUniversalTime().ToString("yyyy-MM-dd HH:mm") UTC</dd>
             </dl>
         </section>
 
@@ -35,36 +65,42 @@ else
         <section class="card">
             <h2>Submission History</h2>
             <p class="notice-text">
-                Submission freezes the content into an immutable snapshot. The reviewer sees 
-                exactly what was submitted. "Open current working file" and "open version under review" 
-                are distinct actions.
+                Submission freezes the content into an immutable snapshot: the reviewer sees exactly
+                what was submitted, and a corrected conclusion requires a new workpaper revision.
+                "Open current working content" and "open the submitted snapshot" are distinct actions.
             </p>
-            <table class="data-table">
-                <thead>
-                    <tr><th>Rev</th><th>Submitted by</th><th>Date</th><th>Conclusion</th><th>Review result</th></tr>
-                </thead>
-                <tbody>
-                    @foreach (var sub in _submissions)
-                    {
-                        <tr>
-                            <td>@sub.Rev</td>
-                            <td>@sub.Preparer</td>
-                            <td>@sub.Date.ToString("yyyy-MM-dd")</td>
-                            <td>@sub.Conclusion</td>
-                            <td><span class="badge @sub.ReviewClass">@sub.ReviewResult</span></td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
+            @if (_submissions.Count == 0)
+            {
+                <p class="empty-state">No submission has been frozen for this workpaper yet.</p>
+            }
+            else
+            {
+                <table class="data-table">
+                    <caption class="sr-only">Immutable submissions of this workpaper</caption>
+                    <thead>
+                        <tr><th scope="col">Rev</th><th scope="col">Submitted at (UTC)</th><th scope="col">Conclusion</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var sub in _submissions)
+                        {
+                            <tr>
+                                <td>@sub.Revision</td>
+                                <td>@sub.SubmittedAt.ToUniversalTime().ToString("yyyy-MM-dd HH:mm")</td>
+                                <td>@sub.Conclusion</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
         </section>
 
         <!-- Working draft -->
-        @if (_status == "WORKING" || _status == "CHANGES_REQUIRED")
+        @if (_workpaper.Status == WorkpaperStatuses.Working)
         {
             <section class="card">
-                <h2>Working Draft</h2>
+                <h2>Working Content</h2>
                 <div class="form-group">
-                    <label for="wp-work">Work Performed</label>
+                    <label for="wp-work">Work performed</label>
                     <textarea id="wp-work" rows="5" @bind="_draftWork" />
                 </div>
                 <div class="form-group">
@@ -72,10 +108,33 @@ else
                     <textarea id="wp-conclusion" rows="3" @bind="_draftConclusion" />
                 </div>
                 <div class="action-bar">
-                    <button class="btn-secondary" @onclick="SaveDraft">Save Draft</button>
-                    <button class="btn-primary" @onclick="Submit">Submit for Review</button>
+                    <button class="btn-primary" @onclick="SubmitAsync" disabled="@_busy">Submit for review</button>
                 </div>
+                <p class="notice-text">
+                    Submitting records revision @(_workpaper.Revision + 1) as a frozen snapshot against the
+                    revision you loaded (@_workpaper.Revision). If the workpaper changed meanwhile the command
+                    is refused; nothing is overwritten automatically.
+                </p>
             </section>
+        }
+        else
+        {
+            <section class="card">
+                <h2>Submitted Content</h2>
+                <dl class="detail-grid">
+                    <dt>Work performed</dt><dd>@_workpaper.WorkPerformed</dd>
+                    <dt>Conclusion</dt><dd>@_workpaper.Conclusion</dd>
+                    <dt>Submitted at</dt><dd>@_workpaper.SubmittedAt?.ToUniversalTime().ToString("yyyy-MM-dd HH:mm") UTC</dd>
+                </dl>
+                <p class="notice-text">A frozen submission is immutable; review targets this exact revision.</p>
+            </section>
+        }
+
+        @if (_result is not null)
+        {
+            <p class="command-result @(_result.Succeeded ? "success-text" : "error-text")" role="status">
+                @(_result.Succeeded ? "The submission was recorded." : "Blocked: " + _result.ErrorCode + " — " + _result.Message)
+            </p>
         }
     </div>
 }
@@ -83,44 +142,56 @@ else
 @code {
     [Parameter] public Guid Id { get; set; }
 
-    bool _loading = true;
-    string _title = "—";
-    string _index = "—";
-    string _objective = "—";
-    string _templateVersion = "—";
-    string _procedure = "—";
-    string[] _riskRefs = [];
-    long _revision = 1;
-    string _status = "WORKING";
-    string _statusClass = "badge-yellow";
-    string _draftWork = "";
-    string _draftConclusion = "";
-
-    record SubmissionRow(int Rev, string Preparer, DateTime Date, string Conclusion, string ReviewResult, string ReviewClass);
-    List<SubmissionRow> _submissions = [];
+    private AuditSphereOps.Application.Abstractions.ActorContext? _actor;
+    private WorkpaperRecord? _workpaper;
+    private AuditProcedure? _procedure;
+    private List<WorkpaperSubmission> _submissions = [];
+    private CommandResult? _result;
+    private bool _loading = true;
+    private bool _busy;
+    private string _draftWork = "";
+    private string _draftConclusion = "";
 
     protected override async Task OnInitializedAsync()
     {
-        var state = await Auth.GetAuthenticationStateAsync();
-        if (state.User.Identity?.IsAuthenticated != true)
-        { Nav.NavigateTo("/login"); return; }
-
-        _title = "Cash & Bank — Bank Reconciliation";
-        _index = "CB-02";
-        _objective = "Verify completeness and accuracy of bank reconciliation at 31 Dec 2025";
-        _templateVersion = "CASH-2025-v3";
-        _procedure = "Obtain bank confirmations, agree to TB, test reconciling items";
-        _riskRefs = ["REV-001 Completeness", "CASH-001 Existence"];
-        _revision = 2;
-        _status = "CHANGES_REQUIRED";
-        _statusClass = "badge-orange";
-        _submissions =
-        [
-            new(1, "Staff A", DateTime.UtcNow.AddDays(-7), "Reconciliation agrees; minor items cleared.", "CHANGES_REQUIRED", "badge-orange"),
-        ];
+        _actor = await ActorResolver.ResolveAsync();
+        if (_actor is not null)
+            await RefreshAsync();
         _loading = false;
     }
 
-    async Task SaveDraft() { await Task.Delay(100); /* debounced save command */ }
-    async Task Submit() { await Task.Delay(100); _status = "SUBMITTED_SNAPSHOT"; _statusClass = "badge-blue"; }
+    private async Task RefreshAsync()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        _workpaper = await db.Workpapers.AsNoTracking()
+            .FirstOrDefaultAsync(w => w.Id == Id && w.FirmId == _actor!.FirmId);
+        if (_workpaper is null) return;
+
+        _draftWork = _workpaper.WorkPerformed ?? "";
+        _draftConclusion = _workpaper.Conclusion ?? "";
+
+        if (_workpaper.ProcedureId is { } procedureId)
+            _procedure = await db.AuditProcedures.AsNoTracking()
+                .FirstOrDefaultAsync(p => p.Id == procedureId && p.FirmId == _actor!.FirmId);
+
+        _submissions = await db.WorkpaperSubmissions.AsNoTracking()
+            .Where(s => s.WorkpaperId == _workpaper.Id)
+            .OrderByDescending(s => s.Revision)
+            .ToListAsync();
+    }
+
+    private async Task SubmitAsync()
+    {
+        if (_actor is null || _workpaper is null || _busy) return;
+        _busy = true;
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var submitted = await AuditPlanningService.SubmitWorkpaperAsync(db, _actor,
+                new SubmitWorkpaperRequest(_workpaper.Id, _workpaper.Revision, _draftWork, _draftConclusion));
+            _result = submitted.Succeeded ? CommandResult.Ok() : CommandResult.Fail(submitted.ErrorCode!, submitted.Message ?? "The command was refused.");
+            if (_result.Succeeded) await RefreshAsync();
+        }
+        finally { _busy = false; }
+    }
 }

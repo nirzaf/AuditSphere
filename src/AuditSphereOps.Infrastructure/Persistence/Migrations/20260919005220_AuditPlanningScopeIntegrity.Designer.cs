@@ -3,6 +3,7 @@ using System;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AuditSphereDbContext))]
-    partial class AuditSphereDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260919005220_AuditPlanningScopeIntegrity")]
+    partial class AuditPlanningScopeIntegrity
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -454,7 +457,7 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.HasIndex("FirmId", "EngagementId", "BaseDatasetId", "JournalNumber")
                         .IsUnique();
 
-                    b.ToTable("adjustment_journals", (string)null);
+                    b.ToTable("adjustment_journals");
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Accounting.AdjustmentLine", b =>
@@ -485,7 +488,7 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("JournalId");
 
-                    b.ToTable("adjustment_lines", (string)null);
+                    b.ToTable("adjustment_lines");
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Accounting.AdjustmentPlan", b =>
@@ -1407,7 +1410,7 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("DatasetId");
 
-                    b.ToTable("trial_balance_rows", (string)null);
+                    b.ToTable("trial_balance_rows");
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Audit.AuditProcedure", b =>
@@ -2354,7 +2357,7 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.HasIndex("OperationId", "Token")
                         .IsUnique();
 
-                    b.ToTable("operation_attempts", (string)null);
+                    b.ToTable("operation_attempts");
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Completion.OperationEvent", b =>
@@ -2390,7 +2393,7 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("OperationId", "OccurredAt");
 
-                    b.ToTable("operation_events", (string)null);
+                    b.ToTable("operation_events");
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Completion.Release", b =>

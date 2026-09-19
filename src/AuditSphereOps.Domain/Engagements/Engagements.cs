@@ -32,6 +32,7 @@ public sealed class EngagementAssignment
 {
   public Guid Id { get; set; }
   public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
   public Guid EngagementId { get; set; }
   public Guid UserId { get; set; }
   public string Role { get; set; } = string.Empty;        // Partner|SeniorManager|Senior|Staff|EQR

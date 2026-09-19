@@ -122,8 +122,10 @@ public sealed class ReleaseTests
     db.Workpapers.Add(new Workpaper
     {
       Id = workpaperId, FirmId = scope.FirmId, ClientId = scope.ClientId,
-      EngagementId = scope.EngagementId, ProcedureId = Guid.NewGuid(),
-      Title = "Release workpaper", CreatedAt = DateTimeOffset.UtcNow
+      EngagementId = scope.EngagementId, ActorId = partner.Id, Index = "R-01",
+      Title = "Release workpaper", Objective = "Support the released conclusion",
+      TemplateVersion = "RELEASE-2026-v1", Procedure = "Agree the frozen package to evidence",
+      Status = "WORKING", CreatedAt = DateTimeOffset.UtcNow
     });
     await db.Engagements.Where(x => x.FirmId == scope.FirmId && x.Id == scope.EngagementId)
       .ExecuteUpdateAsync(s => s.SetProperty(x => x.ProfessionalWorkBlocked, false));

@@ -1,6 +1,13 @@
 @page "/app/findings/{Id:guid}"
-@using Microsoft.AspNetCore.Components.Authorization
-@inject AuthenticationStateProvider Auth
+@rendermode InteractiveServer
+@using AuditSphereOps.Application.Audit
+@using AuditSphereOps.Domain.Audit
+@using FindingRecord = AuditSphereOps.Domain.Audit.Finding
+@using WorkpaperRecord = AuditSphereOps.Domain.Audit.Workpaper
+@using AuditSphereOps.Infrastructure.Persistence
+@using Microsoft.EntityFrameworkCore
+@inject CurrentActorResolver ActorResolver
+@inject IDbContextFactory<AuditSphereDbContext> DbFactory
 @inject NavigationManager Nav
 
 <PageTitle>Finding — AuditSphereOps</PageTitle>
@@ -8,63 +15,82 @@
 <div class="page-header">
     <nav class="breadcrumb-nav">
         <a href="/app">Portfolio</a> /
-        <span>Finding @Id</span>
+        <span>Finding</span>
     </nav>
     <h1>Audit Finding</h1>
-    <span class="status-badge @(_corrected ? "badge-green" : "badge-red")">@(_corrected ? "CORRECTED" : "UNCORRECTED")</span>
+    <span class="status-badge @(_finding?.Corrected == true ? "badge-green" : "badge-red")">@(_finding?.Status)</span>
 </div>
 
-@if (_loading) { <div class="loading-state">Loading…</div> }
+@if (_loading)
+{
+    <p role="status">Loading…</p>
+}
+else if (_actor is null)
+{
+    <section class="notice" role="alert">
+        <h2>Sign in required</h2>
+        <p>An authenticated staff session is required to view a finding.</p>
+    </section>
+}
+else if (_finding is null)
+{
+    <section class="notice" role="alert">
+        <h2>Finding unavailable</h2>
+        <p>The requested finding was not found in the current firm scope.</p>
+    </section>
+}
 else
 {
     <div class="finding-shell">
 
         <section class="card">
-            <h2>Finding Details</h2>
+            <h2>Finding Details (§23)</h2>
             <dl class="detail-grid">
-                <dt>Type</dt><dd>@_findingType</dd>
-                <dt>Impact description</dt><dd>@_impactDescription</dd>
-                <dt>Monetary amount</dt><dd>@(_monetaryAmount.HasValue ? $"{_currency} {_monetaryAmount:N2}" : "—")</dd>
-                <dt>Corrected</dt><dd>@(_corrected ? "Yes" : "No")</dd>
-                <dt>Status</dt><dd>@_status</dd>
+                <dt>Type</dt><dd>@_finding.FindingType</dd>
+                <dt>Impact description</dt><dd>@_finding.ImpactDescription</dd>
+                <dt>Monetary amount</dt><dd>@(_finding.MonetaryAmount?.ToString("N2") ?? "Not quantified")</dd>
+                <dt>Corrected in the period under audit</dt><dd>@(_finding.Corrected ? "Yes" : "No")</dd>
+                <dt>Status</dt><dd>@_finding.Status</dd>
+                <dt>Raised</dt><dd>@_finding.CreatedAt.ToUniversalTime().ToString("yyyy-MM-dd HH:mm") UTC</dd>
             </dl>
         </section>
 
         <section class="card">
             <h2>Management Response &amp; Action</h2>
-            @if (!string.IsNullOrEmpty(_managementResponse))
+            @if (_finding.ManagementResponse is not null)
             {
-                <blockquote class="management-response">@_managementResponse</blockquote>
-                <p class="meta-text">Response recorded @_responseDate.ToString("yyyy-MM-dd"). Remediation target: @_remediationTarget</p>
+                <blockquote class="management-response">@_finding.ManagementResponse</blockquote>
             }
             else
             {
-                <p class="empty-state">No management response recorded.</p>
+                <p class="empty-state">No management response has been recorded.</p>
             }
         </section>
 
         <section class="card">
-            <h2>Audit Conclusion</h2>
-            <p>@_auditConclusion</p>
+            <h2>Record Management Response</h2>
+            <div class="form-group">
+                <label for="mgmt-response">Management response</label>
+                <textarea id="mgmt-response" rows="4" @bind="_draftResponse" />
+            </div>
+            <label class="check">
+                <input type="checkbox" @bind="_draftCorrected" />
+                Management corrected the matter within the period under audit
+            </label>
+            <button class="btn-primary" @onclick="RecordResponseAsync" disabled="@(_busy || _engagement?.ProfessionalWorkBlocked == true)">
+                Record response
+            </button>
             <p class="notice-text">
-                A paid invoice cannot clear this finding. Future-period remediation is distinct from current audit conclusion.
+                Correction inside the audited period and future-period remediation are tracked separately;
+                filing a response here does not state an audit conclusion.
             </p>
         </section>
 
-        @if (_status == "OPEN")
+        @if (_result is not null)
         {
-            <section class="card">
-                <h2>Record Management Response</h2>
-                <div class="form-group">
-                    <label for="mgmt-response">Management Response</label>
-                    <textarea id="mgmt-response" rows="4" @bind="_draftResponse" />
-                </div>
-                <div class="form-group">
-                    <label for="remediation-target">Remediation Target Date</label>
-                    <input id="remediation-target" type="date" @bind="_draftRemediationTarget" />
-                </div>
-                <button class="btn-primary" @onclick="RecordResponse">Record Response</button>
-            </section>
+            <p class="command-result @(_result.Succeeded ? "success-text" : "error-text")" role="status">
+                @(_result.Succeeded ? "The management response was recorded." : "Blocked: " + _result.ErrorCode + " — " + _result.Message)
+            </p>
         }
     </div>
 }
@@ -72,42 +98,48 @@ else
 @code {
     [Parameter] public Guid Id { get; set; }
 
-    bool _loading = true;
-    string _findingType = "—";
-    string _impactDescription = "—";
-    decimal? _monetaryAmount;
-    string _currency = "QAR";
-    bool _corrected;
-    string _status = "OPEN";
-    string? _managementResponse;
-    DateTime _responseDate;
-    string _remediationTarget = "—";
-    string _auditConclusion = "—";
-    string _draftResponse = "";
-    DateTime _draftRemediationTarget = DateTime.UtcNow.AddMonths(3);
+    private AuditSphereOps.Application.Abstractions.ActorContext? _actor;
+    private FindingRecord? _finding;
+    private AuditSphereOps.Domain.Engagements.Engagement? _engagement;
+    private CommandResult? _result;
+    private bool _loading = true;
+    private bool _busy;
+    private string _draftResponse = "";
+    private bool _draftCorrected;
 
     protected override async Task OnInitializedAsync()
     {
-        var state = await Auth.GetAuthenticationStateAsync();
-        if (state.User.Identity?.IsAuthenticated != true)
-        { Nav.NavigateTo("/login"); return; }
-
-        _findingType = "Misstatement — Revenue Cut-off";
-        _impactDescription = "Revenue of QAR 380,000 recognized in December 2025 relates to services delivered in January 2026 under contract XYZ-441.";
-        _monetaryAmount = 380_000m;
-        _corrected = false;
-        _status = "OPEN";
-        _auditConclusion = "Material uncorrected misstatement. Requires management correction or modification of audit opinion.";
+        _actor = await ActorResolver.ResolveAsync();
+        if (_actor is not null)
+            await RefreshAsync();
         _loading = false;
     }
 
-    async Task RecordResponse()
+    private async Task RefreshAsync()
     {
-        if (string.IsNullOrWhiteSpace(_draftResponse)) return;
-        await Task.Delay(100);
-        _managementResponse = _draftResponse;
-        _responseDate = DateTime.UtcNow;
-        _remediationTarget = _draftRemediationTarget.ToString("yyyy-MM-dd");
-        _draftResponse = "";
+        await using var db = await DbFactory.CreateDbContextAsync();
+        _finding = await db.Findings.AsNoTracking()
+            .FirstOrDefaultAsync(f => f.Id == Id && f.FirmId == _actor!.FirmId);
+        if (_finding is null) return;
+
+        _draftResponse = _finding.ManagementResponse ?? "";
+        _draftCorrected = _finding.Corrected;
+        _engagement = await db.Engagements.AsNoTracking()
+            .FirstOrDefaultAsync(e => e.Id == _finding.EngagementId && e.FirmId == _actor!.FirmId);
+    }
+
+    private async Task RecordResponseAsync()
+    {
+        if (_actor is null || _finding is null || _busy) return;
+        _busy = true;
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var filed = await AuditPlanningService.RecordFindingResponseAsync(db, _actor,
+                new RecordFindingResponseRequest(_finding.Id, _draftResponse, _draftCorrected));
+            _result = filed.Succeeded ? CommandResult.Ok() : CommandResult.Fail(filed.ErrorCode!, filed.Message ?? "The command was refused.");
+            if (_result.Succeeded) await RefreshAsync();
+        }
+        finally { _busy = false; }
     }
 }

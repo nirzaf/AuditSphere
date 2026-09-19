@@ -1,6 +1,10 @@
 @page "/app/audit/populations/{Id:guid}"
-@using Microsoft.AspNetCore.Components.Authorization
-@inject AuthenticationStateProvider Auth
+@rendermode InteractiveServer
+@using AuditSphereOps.Domain.Audit
+@using AuditSphereOps.Infrastructure.Persistence
+@using Microsoft.EntityFrameworkCore
+@inject CurrentActorResolver ActorResolver
+@inject IDbContextFactory<AuditSphereDbContext> DbFactory
 @inject NavigationManager Nav
 
 <PageTitle>Population — AuditSphereOps</PageTitle>
@@ -8,75 +12,75 @@
 <div class="page-header">
     <nav class="breadcrumb-nav">
         <a href="/app">Portfolio</a> /
-        <span>Population @Id</span>
+        <span>Population</span>
     </nav>
     <h1>Population Record</h1>
-    <span class="status-badge badge-blue">@_status</span>
+    <span class="status-badge badge-blue">@(_population?.Status)</span>
 </div>
 
-@if (_loading) { <div class="loading-state">Loading…</div> }
+@if (_loading)
+{
+    <p role="status">Loading…</p>
+}
+else if (_actor is null)
+{
+    <section class="notice" role="alert">
+        <h2>Sign in required</h2>
+        <p>An authenticated staff session is required to view a population.</p>
+    </section>
+}
+else if (_population is null)
+{
+    <section class="notice" role="alert">
+        <h2>Population unavailable</h2>
+        <p>The requested population was not found in the current firm scope.</p>
+    </section>
+}
 else
 {
     <div class="population-shell">
         <section class="card">
-            <h2>Population Details</h2>
+            <h2>Population Details (§20.1)</h2>
             <dl class="detail-grid">
-                <dt>Purpose</dt><dd>@_purpose</dd>
-                <dt>Assertion</dt><dd>@_assertion</dd>
-                <dt>Source receipt</dt><dd>@_sourceReceipt</dd>
-                <dt>Row count</dt><dd>@_rowCount.ToString("N0")</dd>
-                <dt>Monetary control total</dt><dd>@_currency @_monetaryTotal.ToString("N2")</dd>
-                <dt>Exclusions</dt><dd>@(_exclusions ?? "None")</dd>
+                <dt>Purpose</dt><dd>@_population.Purpose</dd>
+                <dt>Assertion</dt><dd>@_population.Assertion</dd>
+                <dt>Source receipt reference</dt><dd>@_population.SourceReceiptReference</dd>
+                <dt>Extraction parameters</dt><dd>@_population.ExtractionParameters</dd>
+                <dt>Row count</dt><dd>@_population.RowCount.ToString("N0")</dd>
+                <dt>Monetary control total</dt><dd>@_population.Currency @_population.MonetaryControlTotal.ToString("N2")</dd>
+                <dt>Exclusions</dt><dd>@(_population.Exclusions ?? "None recorded")</dd>
+                <dt>Status</dt><dd>@_population.Status</dd>
+                <dt>Extracted</dt><dd>@_population.CreatedAt.ToUniversalTime().ToString("yyyy-MM-dd HH:mm") UTC</dd>
             </dl>
         </section>
 
         <section class="card">
-            <h2>Selections</h2>
-            <div class="selection-mode-bar">
-                <span>Mode: <strong>@_selectionMode</strong></span>
-                <button class="btn-small" @onclick="() => _showModePanel = !_showModePanel">Change Mode</button>
-            </div>
+            <h2>Selections and test results</h2>
+            <p class="empty-state">
+                No sampling plan, selected items or test results are recorded for this population.
+                Statistical and non-statistical selection records are not implemented yet, so nothing is
+                displayed here as if it had been selected or tested.
+            </p>
+        </section>
 
-            @if (_showModePanel)
+        <section class="card">
+            <h2>Linked evidence</h2>
+            @if (_evidence.Count == 0)
             {
-                <div class="mode-panel">
-                    <label>Selection Mode</label>
-                    <select @bind="_selectionMode">
-                        <option value="100%">100% Examination</option>
-                        <option value="SPECIFIC_ITEM">Specific-Item Selection</option>
-                        <option value="NON_STATISTICAL">Approved Non-Statistical Plan</option>
-                        <option value="STATISTICAL">Validated Statistical Method</option>
-                    </select>
-                    <button class="btn-small mt-1" @onclick="() => _showModePanel = false">Apply</button>
-                </div>
+                <p class="empty-state">No source receipts are linked to this engagement as evidence.</p>
             }
-
-            <table class="data-table mt-2">
-                <thead>
-                    <tr><th>Item ID</th><th>Amount</th><th>Reason</th><th>Result</th></tr>
-                </thead>
-                <tbody>
-                    @foreach (var s in _selections)
+            else
+            {
+                <ul class="program-list">
+                    @foreach (var link in _evidence)
                     {
-                        <tr>
-                            <td>@s.ItemId</td>
-                            <td>@_currency @s.Amount.ToString("N2")</td>
-                            <td>@s.Reason</td>
-                            <td><span class="badge @(s.Result == "PASS" ? "badge-green" : s.Result == "EXCEPTION" ? "badge-red" : "badge-yellow")">@s.Result</span></td>
-                        </tr>
+                        <li>
+                            <span class="program-name">@link.Purpose (@link.Assertion)</span>
+                            <span class="program-status">Receipt @_receiptTokens[link.SourceReceiptId]</span>
+                        </li>
                     }
-                </tbody>
-            </table>
-        </section>
-
-        <section class="card">
-            <h2>Evaluation</h2>
-            <p class="info-text">Projection and sampling risk evaluated under the approved methodology. Selection corrections retain the replaced item and reviewer relationship.</p>
-            <dl class="detail-grid">
-                <dt>Items tested</dt><dd>@_selections.Count</dd>
-                <dt>Exceptions</dt><dd>@_selections.Count(s => s.Result == "EXCEPTION")</dd>
-                <dt>Coverage</dt><dd>@(_coverage.ToString("N1"))%</dd>
-            </dl>
+                </ul>
+            }
         </section>
     </div>
 }
@@ -84,43 +88,32 @@ else
 @code {
     [Parameter] public Guid Id { get; set; }
 
-    bool _loading = true;
-    string _status = "PENDING_APPROVAL";
-    string _purpose = "—";
-    string _assertion = "—";
-    string _sourceReceipt = "—";
-    int _rowCount;
-    string _currency = "QAR";
-    decimal _monetaryTotal;
-    string? _exclusions;
-    string _selectionMode = "SPECIFIC_ITEM";
-    bool _showModePanel;
-    decimal _coverage;
-
-    record SelectionRow(string ItemId, decimal Amount, string Reason, string Result);
-    List<SelectionRow> _selections = [];
+    private AuditSphereOps.Application.Abstractions.ActorContext? _actor;
+    private PopulationVersion? _population;
+    private List<EvidenceLink> _evidence = [];
+    private Dictionary<Guid, string> _receiptTokens = new();
+    private bool _loading = true;
 
     protected override async Task OnInitializedAsync()
     {
-        var state = await Auth.GetAuthenticationStateAsync();
-        if (state.User.Identity?.IsAuthenticated != true)
-        { Nav.NavigateTo("/login"); return; }
-
-        _purpose = "Test existence of year-end trade receivables balance";
-        _assertion = "Existence / Rights";
-        _sourceReceipt = "AR-EXPORT-20251231-v2";
-        _rowCount = 342;
-        _monetaryTotal = 4_870_250m;
-        _exclusions = "Intercompany balances excluded";
-        _status = "APPROVED";
-        _selections =
-        [
-            new("AR-001234", 450_000m, "High-value ≥ QAR 400k", "PASS"),
-            new("AR-005678", 320_000m, "High-value ≥ QAR 300k", "PASS"),
-            new("AR-002345", 185_000m, "Random selection", "EXCEPTION"),
-            new("AR-009012", 92_500m,  "Random selection", "PASS"),
-        ];
-        _coverage = _selections.Sum(s => s.Amount) / _monetaryTotal * 100m;
+        _actor = await ActorResolver.ResolveAsync();
+        if (_actor is not null)
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            _population = await db.PopulationVersions.AsNoTracking()
+                .FirstOrDefaultAsync(p => p.Id == Id && p.FirmId == _actor.FirmId);
+            if (_population is not null)
+            {
+                _evidence = await db.EvidenceLinks.AsNoTracking()
+                    .Where(e => e.FirmId == _population.FirmId && e.EngagementId == _population.EngagementId)
+                    .OrderByDescending(e => e.CreatedAt)
+                    .ToListAsync();
+                var receiptIds = _evidence.Select(e => e.SourceReceiptId).Distinct().ToArray();
+                _receiptTokens = await db.SourceReceipts.AsNoTracking()
+                    .Where(r => receiptIds.Contains(r.Id))
+                    .ToDictionaryAsync(r => r.Id, r => r.ReceiptToken);
+            }
+        }
         _loading = false;
     }
 }

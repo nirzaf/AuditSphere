@@ -1,16 +1,18 @@
+using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
-using AuditSphereOps.Domain.Engagements;
+using AuditSphereOps.Application.Security;
+using AuditSphereOps.Domain.Audit;
+using AuditSphereOps.Domain.Shared;
 using Microsoft.EntityFrameworkCore;
 
 namespace AuditSphereOps.Application.Audit;
 
 // ---------------------------------------------------------------------------
-// Materiality
+// Requests and results (§27.7: stable codes, no failure body behind HTTP 200)
 // ---------------------------------------------------------------------------
 
 public sealed record CreateMaterialityRequest(
     Guid EngagementId,
-    Guid ActorId,
     string BenchmarkSource,
     string BenchmarkVersion,
     string Rationale,
@@ -28,15 +30,11 @@ public sealed record MaterialityResult(
     decimal ClearlyTrivialThreshold,
     string Status);
 
-// ---------------------------------------------------------------------------
-// Risk
-// ---------------------------------------------------------------------------
-
 public sealed record CreateAuditRiskRequest(
     Guid EngagementId,
-    Guid ActorId,
     string AccountOrDisclosureArea,
     string Assertion,
+    string Description,
     string Drivers,
     string SignificanceDecision,
     string? ControlsConsidered,
@@ -47,15 +45,11 @@ public sealed record AuditRiskResult(
     string Area,
     string Assertion,
     string SignificanceDecision,
+    string Severity,
     string Status);
-
-// ---------------------------------------------------------------------------
-// Population
-// ---------------------------------------------------------------------------
 
 public sealed record CreatePopulationRequest(
     Guid EngagementId,
-    Guid ActorId,
     string Purpose,
     string Assertion,
     string SourceReceiptReference,
@@ -72,26 +66,19 @@ public sealed record PopulationResult(
     decimal MonetaryControlTotal,
     string Status);
 
-// ---------------------------------------------------------------------------
-// WorkPaper
-// ---------------------------------------------------------------------------
-
 public sealed record CreateWorkpaperRequest(
     Guid EngagementId,
-    Guid ActorId,
     string Index,
     string Title,
     string Objective,
     string TemplateVersion,
-    string[] RiskAssertionRefs,
+    Guid? ProcedureId,
     string Procedure);
 
 public sealed record SubmitWorkpaperRequest(
     Guid WorkpaperId,
-    Guid ActorId,
     long ExpectedRevision,
     string WorkPerformed,
-    string[] EvidenceSnapshotIds,
     string Conclusion);
 
 public sealed record WorkpaperResult(
@@ -101,13 +88,8 @@ public sealed record WorkpaperResult(
     string Status,
     long Revision);
 
-// ---------------------------------------------------------------------------
-// Finding
-// ---------------------------------------------------------------------------
-
 public sealed record CreateFindingRequest(
     Guid EngagementId,
-    Guid ActorId,
     string FindingType,
     string ImpactDescription,
     bool Corrected,
@@ -119,6 +101,21 @@ public sealed record FindingResult(
     string FindingType,
     bool Corrected,
     string Status);
+
+/// <summary>
+/// Records the management response and correction outcome (§23). A finding is a working record, so
+/// the response is revised in place; the professional conclusion it feeds remains immutable evidence.
+/// Remediation ownership and dates are a separate future-action record, not part of this command.
+/// </summary>
+public sealed record RecordFindingResponseRequest(
+    Guid FindingId,
+    string ManagementResponse,
+    bool Corrected);
+
+public sealed record FindingResponseResult(
+    Guid FindingId,
+    string Status,
+    bool Corrected);
 
 // ---------------------------------------------------------------------------
 // Posting balance guard record (NT-22.1 unit test support)
@@ -137,249 +134,378 @@ public sealed record TenantCapabilityResult(string Status, string Provenance);
 // Service
 // ---------------------------------------------------------------------------
 
+/// <summary>
+/// Guarded audit-planning commands (§§19–23). Each command authorizes the actor against the stored
+/// engagement scope inside the command transaction, resolves the client from persisted rows only,
+/// and writes through the EF model so the composite scope foreign keys and CHECK constraints are
+/// the last word (§42.3). Nothing here records a professional conclusion.
+/// </summary>
 public static class AuditPlanningService
 {
+    private const string InvalidCode = "audit-planning.invalid";
+
+    /// <summary>Internal staff roles permitted to plan and document audit work.</summary>
+    private static readonly string[] PlanningRoles =
+        ["Partner", "Manager", "SeniorManager", "Senior", "Staff", "Auditor", "EngagementLeader", "Administrator"];
+
     // ── Materiality ─────────────────────────────────────────────────────────
 
-    public static async Task<MaterialityResult> CreateMaterialityAssessmentAsync(
+    public static async Task<CommandResult<MaterialityResult>> CreateMaterialityAssessmentAsync(
         IAuditSphereDbContext db,
+        ActorContext actor,
         CreateMaterialityRequest req,
         CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(db);
         ArgumentNullException.ThrowIfNull(req);
 
-        if (req.OverallMateriality <= 0)
-            throw new ArgumentException("Overall materiality must be positive.");
-        if (req.PerformanceMateriality >= req.OverallMateriality)
-            throw new ArgumentException("Performance materiality must be less than overall materiality.");
-        if (req.ClearlyTrivialThreshold >= req.PerformanceMateriality)
-            throw new ArgumentException("Clearly trivial threshold must be less than performance materiality.");
+        var invalid = ValidateMateriality(req);
+        if (invalid is not null)
+            return CommandResult<MaterialityResult>.Fail(InvalidCode, invalid);
 
         await using var tx = await db.Database.BeginTransactionAsync(ct);
+        var scope = await LockedEngagementAsync(db, actor, req.EngagementId, ct);
+        if (scope.Denied is not null)
+            return CommandResult<MaterialityResult>.Fail(scope.Denied, scope.Message);
 
-        _ = await db.Engagements.FirstOrDefaultAsync(e => e.Id == req.EngagementId, ct)
-            ?? throw new InvalidOperationException($"Engagement {req.EngagementId} not found.");
-
-        var assessmentId = Guid.NewGuid();
-        await db.Database.ExecuteSqlInterpolatedAsync(
-            $"""
-            INSERT INTO materiality_assessments
-                (id, engagement_id, actor_id, benchmark_source, benchmark_version, rationale,
-                 benchmark_amount, rate_applied, overall_materiality, performance_materiality,
-                 clearly_trivial_threshold, qualitative_considerations, status, created_at)
-            VALUES ({assessmentId},{req.EngagementId},{req.ActorId},{req.BenchmarkSource},{req.BenchmarkVersion},{req.Rationale},
-                    {req.BenchmarkAmount},{req.RateApplied},{req.OverallMateriality},{req.PerformanceMateriality},
-                    {req.ClearlyTrivialThreshold},{req.QualitativeConsiderations},'DRAFT',now())
-            """, ct);
-
+        var assessment = new MaterialityAssessment
+        {
+            Id = Guid.CreateVersion7(),
+            FirmId = scope.FirmId,
+            ClientId = scope.ClientId,
+            EngagementId = req.EngagementId,
+            ActorId = actor.UserId,
+            BenchmarkSource = req.BenchmarkSource.Trim(),
+            BenchmarkVersion = req.BenchmarkVersion.Trim(),
+            Rationale = req.Rationale.Trim(),
+            BenchmarkAmount = req.BenchmarkAmount,
+            RateApplied = req.RateApplied,
+            OverallMateriality = req.OverallMateriality,
+            PerformanceMateriality = req.PerformanceMateriality,
+            ClearlyTrivialThreshold = req.ClearlyTrivialThreshold,
+            QualitativeConsiderations = Blank(req.QualitativeConsiderations) ? null : req.QualitativeConsiderations!.Trim(),
+            Status = MaterialityStatuses.Draft,
+            CreatedAt = DateTimeOffset.UtcNow
+        };
+        db.MaterialityAssessments.Add(assessment);
+        await db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
 
-        return new MaterialityResult(
-            assessmentId, req.OverallMateriality, req.PerformanceMateriality,
-            req.ClearlyTrivialThreshold, "DRAFT");
+        return CommandResult<MaterialityResult>.Ok(new MaterialityResult(
+            assessment.Id, assessment.OverallMateriality, assessment.PerformanceMateriality,
+            assessment.ClearlyTrivialThreshold, assessment.Status));
     }
 
     // ── Risk ────────────────────────────────────────────────────────────────
 
-    public static async Task<AuditRiskResult> CreateAuditRiskAsync(
+    public static async Task<CommandResult<AuditRiskResult>> CreateAuditRiskAsync(
         IAuditSphereDbContext db,
+        ActorContext actor,
         CreateAuditRiskRequest req,
         CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(db);
         ArgumentNullException.ThrowIfNull(req);
 
-        if (string.IsNullOrWhiteSpace(req.Assertion))
-            throw new ArgumentException("Assertion is required.");
-        if (string.IsNullOrWhiteSpace(req.ResponseDescription))
-            throw new ArgumentException("Response description is required.");
+        var invalid = ValidateRisk(req);
+        if (invalid is not null)
+            return CommandResult<AuditRiskResult>.Fail(InvalidCode, invalid);
 
         await using var tx = await db.Database.BeginTransactionAsync(ct);
+        var scope = await LockedEngagementAsync(db, actor, req.EngagementId, ct);
+        if (scope.Denied is not null)
+            return CommandResult<AuditRiskResult>.Fail(scope.Denied, scope.Message);
 
-        var eng = await db.Engagements.FirstOrDefaultAsync(e => e.Id == req.EngagementId, ct)
-            ?? throw new InvalidOperationException($"Engagement {req.EngagementId} not found.");
-
-        var riskId = Guid.NewGuid();
-        await db.Database.ExecuteSqlInterpolatedAsync(
-            $"""
-            INSERT INTO audit_risks
-                (id, firm_id, client_id, engagement_id, actor_id, account_area, assertion,
-                 description, drivers, severity, significance_decision,
-                 controls_considered, response_description, status, created_at)
-            VALUES ({riskId},{eng.FirmId},{eng.PracticeClientId},{req.EngagementId},{req.ActorId},
-                    {req.AccountOrDisclosureArea},{req.Assertion},{req.Drivers},{req.Drivers},
-                    {req.SignificanceDecision},{req.SignificanceDecision},{req.ControlsConsidered},
-                    {req.ResponseDescription},'IDENTIFIED',now())
-            """, ct);
-
+        var risk = new AuditRisk
+        {
+            Id = Guid.CreateVersion7(),
+            FirmId = scope.FirmId,
+            ClientId = scope.ClientId,
+            EngagementId = req.EngagementId,
+            ActorId = actor.UserId,
+            AccountArea = req.AccountOrDisclosureArea.Trim(),
+            Assertion = req.Assertion.Trim(),
+            Description = req.Description.Trim(),
+            Drivers = req.Drivers.Trim(),
+            // Severity is a classification derived from the §19.3 significance decision, never a
+            // free-text field the caller can shift into another column.
+            Severity = RiskSeverities.ForDecision(req.SignificanceDecision),
+            SignificanceDecision = req.SignificanceDecision,
+            ControlsConsidered = Blank(req.ControlsConsidered) ? null : req.ControlsConsidered!.Trim(),
+            ResponseDescription = req.ResponseDescription.Trim(),
+            Status = RiskStatuses.Identified,
+            CreatedAt = DateTimeOffset.UtcNow
+        };
+        db.AuditRisks.Add(risk);
+        await db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
 
-        return new AuditRiskResult(
-            riskId, req.AccountOrDisclosureArea, req.Assertion,
-            req.SignificanceDecision, "IDENTIFIED");
+        return CommandResult<AuditRiskResult>.Ok(new AuditRiskResult(
+            risk.Id, risk.AccountArea, risk.Assertion, risk.SignificanceDecision, risk.Severity, risk.Status));
     }
 
     // ── Population ──────────────────────────────────────────────────────────
 
-    public static async Task<PopulationResult> CreatePopulationVersionAsync(
+    public static async Task<CommandResult<PopulationResult>> CreatePopulationVersionAsync(
         IAuditSphereDbContext db,
+        ActorContext actor,
         CreatePopulationRequest req,
         CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(db);
         ArgumentNullException.ThrowIfNull(req);
 
-        if (req.RowCount < 0)
-            throw new ArgumentException("Row count cannot be negative.");
-        if (req.MonetaryControlTotal < 0)
-            throw new ArgumentException("Monetary control total cannot be negative.");
-        if (string.IsNullOrWhiteSpace(req.Currency))
-            throw new ArgumentException("Currency is required.");
+        var invalid = ValidatePopulation(req);
+        if (invalid is not null)
+            return CommandResult<PopulationResult>.Fail(InvalidCode, invalid);
 
         await using var tx = await db.Database.BeginTransactionAsync(ct);
+        var scope = await LockedEngagementAsync(db, actor, req.EngagementId, ct);
+        if (scope.Denied is not null)
+            return CommandResult<PopulationResult>.Fail(scope.Denied, scope.Message);
 
-        _ = await db.Engagements.FirstOrDefaultAsync(e => e.Id == req.EngagementId, ct)
-            ?? throw new InvalidOperationException($"Engagement {req.EngagementId} not found.");
-
-        var populationId = Guid.NewGuid();
-        await db.Database.ExecuteSqlInterpolatedAsync(
-            $"""
-            INSERT INTO population_versions
-                (id, engagement_id, actor_id, purpose, assertion, source_receipt_ref,
-                 extraction_parameters, row_count, monetary_control_total, currency,
-                 exclusions, status, created_at)
-            VALUES ({populationId},{req.EngagementId},{req.ActorId},{req.Purpose},{req.Assertion},{req.SourceReceiptReference},
-                    {req.ExtractionParameters},{req.RowCount},{req.MonetaryControlTotal},{req.Currency},{req.Exclusions},'PENDING_APPROVAL',now())
-            """, ct);
-
+        var population = new PopulationVersion
+        {
+            Id = Guid.CreateVersion7(),
+            FirmId = scope.FirmId,
+            ClientId = scope.ClientId,
+            EngagementId = req.EngagementId,
+            ActorId = actor.UserId,
+            Purpose = req.Purpose.Trim(),
+            Assertion = req.Assertion.Trim(),
+            SourceReceiptReference = req.SourceReceiptReference.Trim(),
+            ExtractionParameters = req.ExtractionParameters.Trim(),
+            RowCount = req.RowCount,
+            MonetaryControlTotal = req.MonetaryControlTotal,
+            Currency = req.Currency.Trim(),
+            Exclusions = Blank(req.Exclusions) ? null : req.Exclusions!.Trim(),
+            Status = PopulationStatuses.PendingApproval,
+            CreatedAt = DateTimeOffset.UtcNow
+        };
+        db.PopulationVersions.Add(population);
+        await db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
 
-        return new PopulationResult(
-            populationId, req.Purpose, req.RowCount, req.MonetaryControlTotal, "PENDING_APPROVAL");
+        return CommandResult<PopulationResult>.Ok(new PopulationResult(
+            population.Id, population.Purpose, population.RowCount,
+            population.MonetaryControlTotal, population.Status));
     }
 
     // ── Workpaper ───────────────────────────────────────────────────────────
 
-    public static async Task<WorkpaperResult> CreateWorkpaperAsync(
+    public static async Task<CommandResult<WorkpaperResult>> CreateWorkpaperAsync(
         IAuditSphereDbContext db,
+        ActorContext actor,
         CreateWorkpaperRequest req,
         CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(db);
         ArgumentNullException.ThrowIfNull(req);
 
-        if (string.IsNullOrWhiteSpace(req.Title))
-            throw new ArgumentException("Title is required.");
-        if (string.IsNullOrWhiteSpace(req.Objective))
-            throw new ArgumentException("Objective is required.");
+        var invalid = ValidateWorkpaper(req);
+        if (invalid is not null)
+            return CommandResult<WorkpaperResult>.Fail(InvalidCode, invalid);
 
         await using var tx = await db.Database.BeginTransactionAsync(ct);
+        var scope = await LockedEngagementAsync(db, actor, req.EngagementId, ct);
+        if (scope.Denied is not null)
+            return CommandResult<WorkpaperResult>.Fail(scope.Denied, scope.Message);
 
-        var eng = await db.Engagements.FirstOrDefaultAsync(e => e.Id == req.EngagementId, ct)
-            ?? throw new InvalidOperationException($"Engagement {req.EngagementId} not found.");
+        // A supplied procedure must live in the same scope. The composite foreign key makes an
+        // out-of-scope reference unrepresentable; an unknown id is denied without disclosing it (§42.3).
+        if (req.ProcedureId is { } procedureId &&
+            !await db.AuditProcedures.AnyAsync(p => p.Id == procedureId && p.FirmId == scope.FirmId &&
+              p.ClientId == scope.ClientId && p.EngagementId == req.EngagementId, ct))
+            return CommandResult<WorkpaperResult>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
 
-        var workpaperId = Guid.NewGuid();
-        await db.Database.ExecuteSqlInterpolatedAsync(
-            $"""
-            INSERT INTO workpapers
-                (id, firm_id, client_id, engagement_id, procedure_id, actor_id, wp_index, title, objective,
-                 template_version, procedure, state, status, revision, generation, created_at)
-            VALUES ({workpaperId},{eng.FirmId},{eng.PracticeClientId},{req.EngagementId},{Guid.Empty},{req.ActorId},
-                    {req.Index},{req.Title},{req.Objective},{req.TemplateVersion},{req.Procedure},
-                    'WORKING','WORKING',1,1,now())
-            """, ct);
-
+        var workpaper = new Workpaper
+        {
+            Id = Guid.CreateVersion7(),
+            FirmId = scope.FirmId,
+            ClientId = scope.ClientId,
+            EngagementId = req.EngagementId,
+            ProcedureId = req.ProcedureId,
+            ActorId = actor.UserId,
+            Index = req.Index.Trim(),
+            Title = req.Title.Trim(),
+            Objective = req.Objective.Trim(),
+            TemplateVersion = req.TemplateVersion.Trim(),
+            Procedure = req.Procedure.Trim(),
+            Revision = 1,
+            Status = WorkpaperStatuses.Working,
+            CreatedAt = DateTimeOffset.UtcNow
+        };
+        db.Workpapers.Add(workpaper);
+        await db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
 
-        return new WorkpaperResult(workpaperId, req.Index, req.Title, "WORKING", 1);
+        return CommandResult<WorkpaperResult>.Ok(new WorkpaperResult(
+            workpaper.Id, workpaper.Index, workpaper.Title, workpaper.Status, workpaper.Revision));
     }
 
-    public static async Task<WorkpaperResult> SubmitWorkpaperAsync(
+    /// <summary>
+    /// Freezes the working content into an immutable submission (§21.1). A later review or release
+    /// targets the frozen revision only; the submission row itself is never updated afterwards.
+    /// </summary>
+    public static async Task<CommandResult<WorkpaperResult>> SubmitWorkpaperAsync(
         IAuditSphereDbContext db,
+        ActorContext actor,
         SubmitWorkpaperRequest req,
         CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(db);
         ArgumentNullException.ThrowIfNull(req);
 
-        if (string.IsNullOrWhiteSpace(req.Conclusion))
-            throw new ArgumentException("Conclusion is required.");
+        if (Blank(req.Conclusion))
+            return CommandResult<WorkpaperResult>.Fail(InvalidCode, "Conclusion is required.");
+        if (Blank(req.WorkPerformed))
+            return CommandResult<WorkpaperResult>.Fail(InvalidCode,
+                "The work performed must be recorded before submission.");
 
         await using var tx = await db.Database.BeginTransactionAsync(ct);
 
-        var rows = await db.Database.SqlQuery<WorkpaperStatusRow>(
-            $"SELECT id, revision, status FROM workpapers WHERE id = {req.WorkpaperId} FOR UPDATE").ToListAsync(ct);
+        // Snapshot read first, then the fixed lock order (engagement → target), then a locked
+        // re-read so a concurrent edit cannot slip between the scope check and the freeze (§22.4).
+        var snapshot = await db.Workpapers.AsNoTracking().SingleOrDefaultAsync(
+            x => x.Id == req.WorkpaperId && x.FirmId == actor.FirmId, ct);
+        if (snapshot is null)
+            return CommandResult<WorkpaperResult>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
 
-        var row = rows.FirstOrDefault()
-            ?? throw new InvalidOperationException($"Workpaper {req.WorkpaperId} not found.");
+        var scope = await LockedEngagementAsync(db, actor, snapshot.EngagementId, ct, snapshot.ClientId);
+        if (scope.Denied is not null)
+            return CommandResult<WorkpaperResult>.Fail(scope.Denied, scope.Message);
 
-        if (row.Status != "WORKING")
-            throw new InvalidOperationException($"Workpaper is in status {row.Status}; cannot submit.");
-        if (row.Revision != req.ExpectedRevision)
-            throw new InvalidOperationException("Revision conflict — workpaper was modified concurrently.");
+        var target = await db.Workpapers.FromSqlInterpolated($"""
+            SELECT * FROM workpapers WHERE id = {req.WorkpaperId} AND firm_id = {actor.FirmId} FOR UPDATE
+            """).AsNoTracking().SingleOrDefaultAsync(ct);
+        if (target is null || target.ClientId != snapshot.ClientId ||
+            target.EngagementId != snapshot.EngagementId)
+            return CommandResult<WorkpaperResult>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
 
-        var newRevision = row.Revision + 1;
+        if (target.Status != WorkpaperStatuses.Working)
+            return CommandResult<WorkpaperResult>.Fail(ErrorCodes.ProtectedState,
+                $"A {target.Status} workpaper cannot be submitted again; a corrected conclusion requires a new workpaper revision.");
+        if (target.Revision != req.ExpectedRevision)
+            return CommandResult<WorkpaperResult>.Fail(ErrorCodes.StaleRevision,
+                "The workpaper changed while you were working; reload the current revision.");
 
-        await db.Database.ExecuteSqlInterpolatedAsync(
-            $"""
-            UPDATE workpapers
-            SET    status         = 'SUBMITTED_SNAPSHOT',
-                   state          = 'SUBMITTED_SNAPSHOT',
-                   revision       = {newRevision},
-                   work_performed = {req.WorkPerformed},
-                   conclusion     = {req.Conclusion},
-                   submitted_at   = now()
-            WHERE  id = {req.WorkpaperId}
-            """, ct);
+        var revision = target.Revision + 1;
+        var now = DateTimeOffset.UtcNow;
+        var workPerformed = req.WorkPerformed.Trim();
+        var conclusion = req.Conclusion.Trim();
 
-        var submissionId = Guid.NewGuid();
-        await db.Database.ExecuteSqlInterpolatedAsync(
-            $"""
-            INSERT INTO workpaper_submissions
-                (id, workpaper_id, actor_id, revision, conclusion, submitted_at)
-            VALUES ({submissionId},{req.WorkpaperId},{req.ActorId},{newRevision},{req.Conclusion},now())
-            """, ct);
+        await db.Workpapers.Where(x => x.Id == req.WorkpaperId).ExecuteUpdateAsync(s => s
+            .SetProperty(x => x.Status, WorkpaperStatuses.SubmittedSnapshot)
+            .SetProperty(x => x.Revision, revision)
+            .SetProperty(x => x.WorkPerformed, workPerformed)
+            .SetProperty(x => x.Conclusion, conclusion)
+            .SetProperty(x => x.SubmittedAt, now), ct);
 
+        db.WorkpaperSubmissions.Add(new WorkpaperSubmission
+        {
+            Id = Guid.CreateVersion7(),
+            FirmId = target.FirmId,
+            ClientId = target.ClientId,
+            EngagementId = target.EngagementId,
+            WorkpaperId = target.Id,
+            ActorId = actor.UserId,
+            Revision = revision,
+            WorkPerformed = workPerformed,
+            Conclusion = conclusion,
+            SubmittedAt = now
+        });
+        await db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
 
-        return new WorkpaperResult(req.WorkpaperId, string.Empty, string.Empty, "SUBMITTED_SNAPSHOT", newRevision);
+        return CommandResult<WorkpaperResult>.Ok(new WorkpaperResult(
+            target.Id, target.Index, target.Title, WorkpaperStatuses.SubmittedSnapshot, revision));
     }
 
     // ── Finding ─────────────────────────────────────────────────────────────
 
-    public static async Task<FindingResult> CreateFindingAsync(
+    public static async Task<CommandResult<FindingResult>> CreateFindingAsync(
         IAuditSphereDbContext db,
+        ActorContext actor,
         CreateFindingRequest req,
         CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(db);
         ArgumentNullException.ThrowIfNull(req);
 
-        if (string.IsNullOrWhiteSpace(req.FindingType))
-            throw new ArgumentException("Finding type is required.");
-        if (string.IsNullOrWhiteSpace(req.ImpactDescription))
-            throw new ArgumentException("Impact description is required.");
+        var invalid = ValidateFinding(req);
+        if (invalid is not null)
+            return CommandResult<FindingResult>.Fail(InvalidCode, invalid);
+
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+        var scope = await LockedEngagementAsync(db, actor, req.EngagementId, ct);
+        if (scope.Denied is not null)
+            return CommandResult<FindingResult>.Fail(scope.Denied, scope.Message);
+
+        var finding = new Finding
+        {
+            Id = Guid.CreateVersion7(),
+            FirmId = scope.FirmId,
+            ClientId = scope.ClientId,
+            EngagementId = req.EngagementId,
+            ActorId = actor.UserId,
+            FindingType = req.FindingType.Trim(),
+            ImpactDescription = req.ImpactDescription.Trim(),
+            Corrected = req.Corrected,
+            MonetaryAmount = req.MonetaryAmount,
+            ManagementResponse = Blank(req.ManagementResponse) ? null : req.ManagementResponse!.Trim(),
+            Status = req.Corrected ? FindingStatuses.Corrected : FindingStatuses.Open,
+            CreatedAt = DateTimeOffset.UtcNow
+        };
+        db.Findings.Add(finding);
+        await db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
+
+        return CommandResult<FindingResult>.Ok(new FindingResult(
+            finding.Id, finding.FindingType, finding.Corrected, finding.Status));
+    }
+
+    public static async Task<CommandResult<FindingResponseResult>> RecordFindingResponseAsync(
+        IAuditSphereDbContext db,
+        ActorContext actor,
+        RecordFindingResponseRequest req,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(db);
+        ArgumentNullException.ThrowIfNull(req);
+
+        if (Blank(req.ManagementResponse))
+            return CommandResult<FindingResponseResult>.Fail(InvalidCode,
+                "The management response must be recorded verbatim before it can be filed.");
 
         await using var tx = await db.Database.BeginTransactionAsync(ct);
 
-        var eng = await db.Engagements.FirstOrDefaultAsync(e => e.Id == req.EngagementId, ct)
-            ?? throw new InvalidOperationException($"Engagement {req.EngagementId} not found.");
+        var snapshot = await db.Findings.AsNoTracking()
+            .SingleOrDefaultAsync(f => f.Id == req.FindingId && f.FirmId == actor.FirmId, ct);
+        if (snapshot is null)
+            return CommandResult<FindingResponseResult>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
 
-        var findingId = Guid.NewGuid();
-        await db.Database.ExecuteSqlInterpolatedAsync(
-            $"""
-            INSERT INTO findings
-                (id, firm_id, client_id, engagement_id, actor_id, title, severity, finding_type,
-                 impact_description, corrected, monetary_amount, management_response, status, created_at)
-            VALUES ({findingId},{eng.FirmId},{eng.PracticeClientId},{req.EngagementId},{req.ActorId},
-                    {req.FindingType},{req.FindingType},{req.FindingType},{req.ImpactDescription},
-                    {req.Corrected},{req.MonetaryAmount},{req.ManagementResponse},'OPEN',now())
-            """, ct);
+        var scope = await LockedEngagementAsync(db, actor, snapshot.EngagementId, ct, snapshot.ClientId);
+        if (scope.Denied is not null)
+            return CommandResult<FindingResponseResult>.Fail(scope.Denied, scope.Message);
 
+        var target = await db.Findings.FromSqlInterpolated($"""
+            SELECT * FROM findings WHERE id = {req.FindingId} AND firm_id = {actor.FirmId} FOR UPDATE
+            """).AsNoTracking().SingleOrDefaultAsync(ct);
+        if (target is null || target.ClientId != snapshot.ClientId || target.EngagementId != snapshot.EngagementId)
+            return CommandResult<FindingResponseResult>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+
+        var response = req.ManagementResponse.Trim();
+        var status = req.Corrected ? FindingStatuses.Corrected : FindingStatuses.Evaluated;
+        await db.Findings.Where(x => x.Id == req.FindingId).ExecuteUpdateAsync(s => s
+            .SetProperty(x => x.ManagementResponse, response)
+            .SetProperty(x => x.Corrected, req.Corrected)
+            .SetProperty(x => x.Status, status), ct);
+
+        await db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
 
-        return new FindingResult(findingId, req.FindingType, req.Corrected, "OPEN");
+        return CommandResult<FindingResponseResult>.Ok(new FindingResponseResult(
+            target.Id, status, req.Corrected));
     }
 
     // ── Posting balance guard (NT-22.1 — pure domain invariant) ─────────────
@@ -417,7 +543,102 @@ public static class AuditPlanningService
             : new("READY", "All tenant prerequisites confirmed.");
     }
 
-    // ── Helpers ─────────────────────────────────────────────────────────────
+    // ── Scope resolution ────────────────────────────────────────────────────
 
-    private sealed record WorkpaperStatusRow(Guid Id, long Revision, string Status);
+    /// <summary>Resolved engagement scope, or the nondisclosing denial for an actor who may not write it.</summary>
+    private sealed record Scope(Guid FirmId, Guid ClientId, string? Denied, string Message = "Access denied.");
+
+    /// <summary>
+    /// Resolves the stored engagement, authorizes the actor against that stored scope, and
+    /// serializes the command on the engagement row. The client comes from the engagement record,
+    /// never from the request (§42.3). Lock order stays firm → client → engagement (§29).
+    /// </summary>
+    private static async Task<Scope> LockedEngagementAsync(
+        IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct,
+        Guid? expectedClientId = null)
+    {
+        var engagement = await db.Engagements.FromSqlInterpolated($"""
+            SELECT * FROM engagements WHERE id = {engagementId} AND firm_id = {actor.FirmId} FOR UPDATE
+            """).AsNoTracking().SingleOrDefaultAsync(ct);
+        if (engagement is null ||
+            (expectedClientId is not null && engagement.PracticeClientId != expectedClientId))
+            return new Scope(Guid.Empty, Guid.Empty, ErrorCodes.ScopeDenied, "Access denied.");
+
+        var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+            new AuthorizationRequest(actor.FirmId, engagement.PracticeClientId, engagement.Id,
+                PlanningRoles, InternalOnly: true, RequireProfessionalWork: true), ct);
+        return auth.Succeeded
+            ? new Scope(engagement.FirmId, engagement.PracticeClientId, null)
+            : new Scope(engagement.FirmId, engagement.PracticeClientId, auth.ErrorCode,
+                auth.Message ?? "Access denied.");
+    }
+
+    // ── Validation (§27.7: malformed input is a 400-class failure, never a silent default) ──
+
+    private static string? ValidateMateriality(CreateMaterialityRequest req)
+    {
+        if (Blank(req.BenchmarkSource) || Blank(req.BenchmarkVersion) || Blank(req.Rationale))
+            return "The benchmark source, benchmark version and rationale are required.";
+        if (req.BenchmarkAmount <= 0)
+            return "The benchmark amount must be positive.";
+        if (req.RateApplied <= 0 || req.RateApplied > 1)
+            return "The applied rate must be greater than zero and no more than one.";
+        if (req.OverallMateriality <= 0)
+            return "Overall materiality must be positive.";
+        if (req.PerformanceMateriality >= req.OverallMateriality)
+            return "Performance materiality must be less than overall materiality.";
+        return req.ClearlyTrivialThreshold >= req.PerformanceMateriality
+            ? "Clearly trivial threshold must be less than performance materiality."
+            : null;
+    }
+
+    private static string? ValidateRisk(CreateAuditRiskRequest req)
+    {
+        if (Blank(req.AccountOrDisclosureArea))
+            return "The account or disclosure area is required.";
+        if (Blank(req.Assertion))
+            return "Assertion is required.";
+        if (Blank(req.Description))
+            return "The risk description is required.";
+        if (Blank(req.Drivers))
+            return "The risk drivers are required.";
+        if (Blank(req.ResponseDescription))
+            return "Response description is required.";
+        return req.SignificanceDecision is not (SignificanceDecisions.Significant or SignificanceDecisions.Normal)
+            ? "The significance decision must be SIGNIFICANT or NORMAL."
+            : null;
+    }
+
+    private static string? ValidatePopulation(CreatePopulationRequest req)
+    {
+        if (Blank(req.Purpose) || Blank(req.Assertion) || Blank(req.SourceReceiptReference) ||
+            Blank(req.ExtractionParameters))
+            return "Purpose, assertion, source receipt reference and extraction parameters are required.";
+        if (req.RowCount < 0)
+            return "Row count cannot be negative.";
+        if (req.MonetaryControlTotal < 0)
+            return "Monetary control total cannot be negative.";
+        var currency = req.Currency.Trim();
+        return currency.Length != 3 || !currency.All(char.IsUpper)
+            ? "Currency must be a three-character uppercase ISO code."
+            : null;
+    }
+
+    private static string? ValidateWorkpaper(CreateWorkpaperRequest req) =>
+        Blank(req.Index) ? "The workpaper index is required." :
+        Blank(req.Title) ? "Title is required." :
+        Blank(req.Objective) ? "Objective is required." :
+        Blank(req.TemplateVersion) ? "The template version is required." :
+        Blank(req.Procedure) ? "The procedure description is required." : null;
+
+    private static string? ValidateFinding(CreateFindingRequest req)
+    {
+        if (Blank(req.FindingType))
+            return "Finding type is required.";
+        if (Blank(req.ImpactDescription))
+            return "Impact description is required.";
+        return req.MonetaryAmount < 0 ? "The finding amount cannot be negative." : null;
+    }
+
+    private static bool Blank(string? value) => string.IsNullOrWhiteSpace(value);
 }

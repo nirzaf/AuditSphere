@@ -1,7 +1,10 @@
 @page "/app/audit/plans/{Id:guid}"
 @page "/app/engagements/{EngagementId:guid}/audit-plan"
 @rendermode InteractiveServer
+@using AuditSphereOps.Application.Audit
 @using AuditSphereOps.Domain.Audit
+@using FindingRecord = AuditSphereOps.Domain.Audit.Finding
+@using WorkpaperRecord = AuditSphereOps.Domain.Audit.Workpaper
 @using AuditSphereOps.Domain.Engagements
 @using AuditSphereOps.Domain.Security
 @using AuditSphereOps.Infrastructure.Persistence
@@ -54,18 +57,60 @@ else
             @if (_materiality is not null)
             {
                 <dl class="detail-grid">
-                    <dt>Overall</dt><dd>@_materiality.Currency @_materiality.Overall.ToString("N0")</dd>
-                    <dt>Performance</dt><dd>@_materiality.Currency @_materiality.Performance.ToString("N0")</dd>
-                    <dt>Clearly trivial</dt><dd>@_materiality.Currency @_materiality.ClearlyTrivial.ToString("N0")</dd>
-                    <dt>Benchmark</dt><dd>@_materiality.Benchmark</dd>
+                    <dt>Overall</dt><dd>@_materiality.OverallMateriality.ToString("N2")</dd>
+                    <dt>Performance</dt><dd>@_materiality.PerformanceMateriality.ToString("N2")</dd>
+                    <dt>Clearly trivial</dt><dd>@_materiality.ClearlyTrivialThreshold.ToString("N2")</dd>
+                    <dt>Benchmark</dt><dd>@_materiality.BenchmarkSource (@_materiality.BenchmarkVersion)</dd>
+                    <dt>Benchmark amount</dt><dd>@_materiality.BenchmarkAmount.ToString("N2") × @_materiality.RateApplied.ToString("P2")</dd>
+                    <dt>Rationale</dt><dd>@_materiality.Rationale</dd>
                     <dt>Status</dt><dd>@_materiality.Status</dd>
                 </dl>
+                @if (_materiality.QualitativeConsiderations is not null)
+                {
+                    <p class="info-text">Qualitative considerations: @_materiality.QualitativeConsiderations</p>
+                }
             }
             else
             {
-                <p class="empty-state">No materiality assessment created yet.</p>
-                <button class="btn-small" @onclick="NewMateriality">Create Assessment</button>
+                <p class="empty-state">No materiality assessment has been recorded for this engagement.</p>
             }
+
+            <fieldset class="inline-form">
+                <legend>Record a materiality assessment</legend>
+                <div class="form-group">
+                    <label for="mat-benchmark">Benchmark source</label>
+                    <input id="mat-benchmark" @bind="_matBenchmark" maxlength="200" />
+                </div>
+                <div class="form-group">
+                    <label for="mat-version">Benchmark version</label>
+                    <input id="mat-version" @bind="_matVersion" maxlength="100" />
+                </div>
+                <div class="form-group">
+                    <label for="mat-amount">Benchmark amount</label>
+                    <input id="mat-amount" type="number" step="0.000001" @bind="_matAmount" />
+                </div>
+                <div class="form-group">
+                    <label for="mat-rate">Applied rate (0–1)</label>
+                    <input id="mat-rate" type="number" step="0.0001" @bind="_matRate" />
+                </div>
+                <div class="form-group">
+                    <label for="mat-overall">Overall materiality</label>
+                    <input id="mat-overall" type="number" step="0.000001" @bind="_matOverall" />
+                </div>
+                <div class="form-group">
+                    <label for="mat-performance">Performance materiality</label>
+                    <input id="mat-performance" type="number" step="0.000001" @bind="_matPerformance" />
+                </div>
+                <div class="form-group">
+                    <label for="mat-trivial">Clearly trivial threshold</label>
+                    <input id="mat-trivial" type="number" step="0.000001" @bind="_matTrivial" />
+                </div>
+                <div class="form-group">
+                    <label for="mat-rationale">Rationale</label>
+                    <textarea id="mat-rationale" rows="2" @bind="_matRationale"></textarea>
+                </div>
+                <button class="btn-small" @onclick="CreateMaterialityAsync" disabled="@(_busy || _engagement.ProfessionalWorkBlocked)">Record assessment</button>
+            </fieldset>
         </section>
 
         <!-- Risks -->
@@ -73,27 +118,163 @@ else
             <h2 id="risks-heading">Identified Risks (§19.3)</h2>
             @if (_risks.Count == 0)
             {
-                <p class="empty-state">No audit risks identified yet.</p>
+                <p class="empty-state">No audit risks have been recorded for this engagement.</p>
             }
             else
             {
                 <table class="data-table">
+                    <caption class="sr-only">Audit risks recorded in this engagement</caption>
                     <thead>
-                        <tr><th>Description</th><th>Assertion</th><th>Severity</th></tr>
+                        <tr><th scope="col">Area</th><th scope="col">Description</th><th scope="col">Assertion</th><th scope="col">Severity</th><th scope="col">Status</th></tr>
                     </thead>
                     <tbody>
                         @foreach (var r in _risks)
                         {
                             <tr>
+                                <td>@r.AccountArea</td>
                                 <td>@r.Description</td>
                                 <td>@r.Assertion</td>
-                                <td><span class="badge @(r.Severity == "CRITICAL" || r.Severity == "HIGH" || r.Severity == "Significant" ? "badge-red" : "badge-yellow")">@r.Severity</span></td>
+                                <td><span class="badge @(r.Severity == RiskSeverities.Significant ? "badge-red" : "badge-yellow")">@r.Severity</span></td>
+                                <td>@r.Status</td>
                             </tr>
                         }
                     </tbody>
                 </table>
             }
-            <button class="btn-small mt-2" @onclick="NewRisk">Add Risk</button>
+
+            <fieldset class="inline-form">
+                <legend>Record an identified risk</legend>
+                <div class="form-group">
+                    <label for="risk-area">Account or disclosure area</label>
+                    <input id="risk-area" @bind="_riskArea" maxlength="200" />
+                </div>
+                <div class="form-group">
+                    <label for="risk-assertion">Assertion</label>
+                    <input id="risk-assertion" @bind="_riskAssertion" maxlength="100" />
+                </div>
+                <div class="form-group">
+                    <label for="risk-description">Risk description</label>
+                    <textarea id="risk-description" rows="2" @bind="_riskDescription"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="risk-drivers">Drivers</label>
+                    <textarea id="risk-drivers" rows="2" @bind="_riskDrivers"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="risk-significance">Significance decision</label>
+                    <select id="risk-significance" @bind="_riskSignificance">
+                        <option value="@SignificanceDecisions.Normal">@SignificanceDecisions.Normal</option>
+                        <option value="@SignificanceDecisions.Significant">@SignificanceDecisions.Significant</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="risk-response">Planned response</label>
+                    <textarea id="risk-response" rows="2" @bind="_riskResponse"></textarea>
+                </div>
+                <button class="btn-small" @onclick="CreateRiskAsync" disabled="@(_busy || _engagement.ProfessionalWorkBlocked)">Record risk</button>
+            </fieldset>
+        </section>
+
+        <!-- Populations -->
+        <section class="card" aria-labelledby="populations-heading">
+            <h2 id="populations-heading">Populations (§20.1)</h2>
+            @if (_populations.Count == 0)
+            {
+                <p class="empty-state">No population has been extracted for this engagement.</p>
+            }
+            else
+            {
+                <table class="data-table">
+                    <caption class="sr-only">Populations recorded in this engagement</caption>
+                    <thead>
+                        <tr><th scope="col">Purpose</th><th scope="col">Assertion</th><th scope="col">Rows</th><th scope="col">Control total</th><th scope="col">Status</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var p in _populations)
+                        {
+                            <tr>
+                                <td><a href="/app/audit/populations/@p.Id">@p.Purpose</a></td>
+                                <td>@p.Assertion</td>
+                                <td>@p.RowCount.ToString("N0")</td>
+                                <td>@p.Currency @p.MonetaryControlTotal.ToString("N2")</td>
+                                <td>@p.Status</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+
+            <fieldset class="inline-form">
+                <legend>Record a population version</legend>
+                <div class="form-group">
+                    <label for="pop-purpose">Purpose</label>
+                    <input id="pop-purpose" @bind="_popPurpose" maxlength="300" />
+                </div>
+                <div class="form-group">
+                    <label for="pop-assertion">Assertion</label>
+                    <input id="pop-assertion" @bind="_popAssertion" maxlength="100" />
+                </div>
+                <div class="form-group">
+                    <label for="pop-receipt">Source receipt reference</label>
+                    <input id="pop-receipt" @bind="_popReceiptRef" maxlength="200" />
+                </div>
+                <div class="form-group">
+                    <label for="pop-extraction">Extraction parameters</label>
+                    <textarea id="pop-extraction" rows="2" @bind="_popExtraction"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="pop-rows">Row count</label>
+                    <input id="pop-rows" type="number" min="0" @bind="_popRows" />
+                </div>
+                <div class="form-group">
+                    <label for="pop-total">Monetary control total</label>
+                    <input id="pop-total" type="number" step="0.000001" min="0" @bind="_popTotal" />
+                </div>
+                <div class="form-group">
+                    <label for="pop-currency">Currency (ISO 4217)</label>
+                    <input id="pop-currency" @bind="_popCurrency" maxlength="3" />
+                </div>
+                <button class="btn-small" @onclick="CreatePopulationAsync" disabled="@(_busy || _engagement.ProfessionalWorkBlocked)">Record population</button>
+            </fieldset>
+        </section>
+
+        <!-- Findings -->
+        <section class="card" aria-labelledby="findings-heading">
+            <h2 id="findings-heading">Findings (§23)</h2>
+            @if (_findings.Count == 0)
+            {
+                <p class="empty-state">No finding has been recorded for this engagement.</p>
+            }
+            else
+            {
+                <ul class="program-list">
+                    @foreach (var f in _findings)
+                    {
+                        <li>
+                            <span class="program-name">@f.FindingType</span>
+                            <span class="program-status">@f.Status · @(f.MonetaryAmount?.ToString("N2") ?? "unquantified")</span>
+                            <a class="btn-small" href="/app/findings/@f.Id">Open</a>
+                        </li>
+                    }
+                </ul>
+            }
+
+            <fieldset class="inline-form">
+                <legend>Record a finding</legend>
+                <div class="form-group">
+                    <label for="find-type">Finding type</label>
+                    <input id="find-type" @bind="_findingType" maxlength="100" />
+                </div>
+                <div class="form-group">
+                    <label for="find-impact">Impact description</label>
+                    <textarea id="find-impact" rows="2" @bind="_findingImpact"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="find-amount">Monetary amount (optional)</label>
+                    <input id="find-amount" type="number" step="0.000001" min="0" @bind="_findingAmount" />
+                </div>
+                <button class="btn-small" @onclick="CreateFindingAsync" disabled="@(_busy || _engagement.ProfessionalWorkBlocked)">Record finding</button>
+            </fieldset>
         </section>
 
         <!-- Programs / Workpapers -->
@@ -109,14 +290,25 @@ else
                     @foreach (var wp in _workpapers)
                     {
                         <li>
-                            <span class="program-name">@wp.Title</span>
-                            <span class="program-status">State: @wp.State · Generation @wp.Generation</span>
+                            <span class="program-name">@wp.Index — @wp.Title</span>
+                            <span class="program-status">Status: @wp.Status · Revision @wp.Revision</span>
                             <a class="btn-small" href="/app/audit/workpapers/@wp.Id">Open</a>
                         </li>
                     }
                 </ul>
             }
         </section>
+
+        @if (_result is not null)
+        {
+            <p class="command-result @(_result.Succeeded ? "success-text" : "error-text")" role="status">
+                @(_result.Succeeded ? _successMessage ?? "Recorded." : "Blocked: " + _result.ErrorCode + " — " + _result.Message)
+            </p>
+        }
+        @if (_engagement.ProfessionalWorkBlocked)
+        {
+            <p class="notice-text">Professional work is blocked on this engagement; planning commands are refused until the hold is cleared.</p>
+        }
     </div>
 }
 
@@ -127,20 +319,47 @@ else
     Guid? _effectiveEngagementId;
     AuditSphereOps.Application.Abstractions.ActorContext? _actor;
     bool _isStaff;
+    bool _busy;
+    CommandResult? _result;
+    string? _successMessage;
+
     bool _loading = true;
     string _status = "IN_PROGRESS";
 
     Engagement? _engagement;
+    MaterialityAssessment? _materiality;
+    List<AuditRisk> _risks = [];
+    List<PopulationVersion> _populations = [];
+    List<FindingRecord> _findings = [];
+    List<WorkpaperRecord> _workpapers = [];
 
-    record MaterialityRow(string Currency, decimal Overall, decimal Performance, decimal ClearlyTrivial, string Benchmark, string Status);
-    record RiskRow(string Description, string Assertion, string Severity);
+    string _matBenchmark = "";
+    string _matVersion = "";
+    string _matRationale = "";
+    decimal _matAmount;
+    decimal _matRate;
+    decimal _matOverall;
+    decimal _matPerformance;
+    decimal _matTrivial;
 
-    MaterialityRow? _materiality;
-    List<RiskRow> _risks = [];
-    List<AuditSphereOps.Domain.Audit.Workpaper> _workpapers = [];
+    string _riskArea = "";
+    string _riskAssertion = "";
+    string _riskDescription = "";
+    string _riskDrivers = "";
+    string _riskSignificance = SignificanceDecisions.Normal;
+    string _riskResponse = "";
 
-    void NewMateriality() => Nav.NavigateTo($"/app/audit/plans/{_effectiveEngagementId}/materiality/new");
-    void NewRisk() => Nav.NavigateTo($"/app/audit/plans/{_effectiveEngagementId}/risks/new");
+    string _popPurpose = "";
+    string _popAssertion = "";
+    string _popReceiptRef = "";
+    string _popExtraction = "";
+    int _popRows;
+    decimal _popTotal;
+    string _popCurrency = "";
+
+    string _findingType = "";
+    string _findingImpact = "";
+    decimal _findingAmount;
 
     protected override async Task OnInitializedAsync()
     {
@@ -155,59 +374,112 @@ else
             return;
         }
 
-        await using var db = await DbFactory.CreateDbContextAsync();
-        _engagement = await db.Engagements.AsNoTracking()
-            .FirstOrDefaultAsync(e => e.Id == _effectiveEngagementId.Value && e.FirmId == _actor.FirmId);
-
-        if (_engagement is null)
-        {
-            _loading = false;
-            return;
-        }
-
-        _status = _engagement.ProfessionalWorkBlocked ? "PLANNING_BLOCKED" : "PLANNING_ACTIVE";
-
-        // Query real materiality assessment
-        var mat = await db.Database.SqlQueryRaw<MaterialityDto>(
-            """
-            SELECT currency AS "Currency", overall_amount AS "Overall",
-                   performance_amount AS "Performance", clearly_trivial_amount AS "ClearlyTrivial",
-                   benchmark_type AS "Benchmark", status AS "Status"
-            FROM materiality_assessments
-            WHERE engagement_id = {0}
-            ORDER BY created_at DESC
-            LIMIT 1
-            """, _engagement.Id).FirstOrDefaultAsync();
-
-        if (mat is not null)
-        {
-            _materiality = new(mat.Currency, mat.Overall, mat.Performance, mat.ClearlyTrivial, mat.Benchmark, mat.Status);
-        }
-
-        // Query real audit risks
-        var risks = await db.AuditRisks.AsNoTracking()
-            .Where(r => r.EngagementId == _engagement.Id)
-            .OrderBy(r => r.CreatedAt)
-            .ToListAsync();
-
-        _risks = risks.Select(r => new RiskRow(r.Description, r.Assertion, r.Severity)).ToList();
-
-        // Query real workpapers
-        _workpapers = await db.Workpapers.AsNoTracking()
-            .Where(w => w.EngagementId == _engagement.Id)
-            .OrderBy(w => w.Title)
-            .ToListAsync();
-
+        await RefreshAsync();
         _loading = false;
     }
 
-    private sealed class MaterialityDto
+    private async Task RefreshAsync()
     {
-        public string Currency { get; set; } = string.Empty;
-        public decimal Overall { get; set; }
-        public decimal Performance { get; set; }
-        public decimal ClearlyTrivial { get; set; }
-        public string Benchmark { get; set; } = string.Empty;
-        public string Status { get; set; } = string.Empty;
+        await using var db = await DbFactory.CreateDbContextAsync();
+        _engagement = await db.Engagements.AsNoTracking()
+            .FirstOrDefaultAsync(e => e.Id == _effectiveEngagementId!.Value && e.FirmId == _actor!.FirmId);
+
+        if (_engagement is null)
+            return;
+
+        _status = _engagement.ProfessionalWorkBlocked ? "PLANNING_BLOCKED" : "PLANNING_ACTIVE";
+
+        _materiality = await db.MaterialityAssessments.AsNoTracking()
+            .Where(m => m.FirmId == _engagement.FirmId && m.EngagementId == _engagement.Id)
+            .OrderByDescending(m => m.CreatedAt)
+            .FirstOrDefaultAsync();
+
+        _risks = await db.AuditRisks.AsNoTracking()
+            .Where(r => r.FirmId == _engagement.FirmId && r.EngagementId == _engagement.Id)
+            .OrderBy(r => r.CreatedAt)
+            .ToListAsync();
+
+        _workpapers = await db.Workpapers.AsNoTracking()
+            .Where(w => w.FirmId == _engagement.FirmId && w.EngagementId == _engagement.Id)
+            .OrderBy(w => w.Index)
+            .ToListAsync();
+
+        _populations = await db.PopulationVersions.AsNoTracking()
+            .Where(p => p.FirmId == _engagement.FirmId && p.EngagementId == _engagement.Id)
+            .OrderByDescending(p => p.CreatedAt)
+            .ToListAsync();
+
+        _findings = await db.Findings.AsNoTracking()
+            .Where(f => f.FirmId == _engagement.FirmId && f.EngagementId == _engagement.Id)
+            .OrderByDescending(f => f.CreatedAt)
+            .ToListAsync();
+    }
+
+    private async Task CreateMaterialityAsync()
+    {
+        if (_actor is null || _engagement is null || _busy) return;
+        _busy = true;
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var created = await AuditPlanningService.CreateMaterialityAssessmentAsync(db, _actor,
+                new CreateMaterialityRequest(_engagement.Id, _matBenchmark, _matVersion, _matRationale,
+                    _matAmount, _matRate, _matOverall, _matPerformance, _matTrivial, null));
+            _result = created.Succeeded ? CommandResult.Ok() : CommandResult.Fail(created.ErrorCode!, created.Message ?? "The command was refused.");
+            _successMessage = created.Succeeded ? "The materiality assessment was recorded as a draft." : null;
+            if (created.Succeeded) await RefreshAsync();
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task CreateRiskAsync()
+    {
+        if (_actor is null || _engagement is null || _busy) return;
+        _busy = true;
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var created = await AuditPlanningService.CreateAuditRiskAsync(db, _actor,
+                new CreateAuditRiskRequest(_engagement.Id, _riskArea, _riskAssertion, _riskDescription,
+                    _riskDrivers, _riskSignificance, null, _riskResponse));
+            _result = created.Succeeded ? CommandResult.Ok() : CommandResult.Fail(created.ErrorCode!, created.Message ?? "The command was refused.");
+            _successMessage = created.Succeeded ? "The identified risk was recorded." : null;
+            if (created.Succeeded) await RefreshAsync();
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task CreatePopulationAsync()
+    {
+        if (_actor is null || _engagement is null || _busy) return;
+        _busy = true;
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var created = await AuditPlanningService.CreatePopulationVersionAsync(db, _actor,
+                new CreatePopulationRequest(_engagement.Id, _popPurpose, _popAssertion, _popReceiptRef,
+                    _popExtraction, _popRows, _popTotal, _popCurrency, null));
+            _result = created.Succeeded ? CommandResult.Ok() : CommandResult.Fail(created.ErrorCode!, created.Message ?? "The command was refused.");
+            _successMessage = created.Succeeded ? "The population version was recorded as pending approval." : null;
+            if (created.Succeeded) await RefreshAsync();
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task CreateFindingAsync()
+    {
+        if (_actor is null || _engagement is null || _busy) return;
+        _busy = true;
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var created = await AuditPlanningService.CreateFindingAsync(db, _actor,
+                new CreateFindingRequest(_engagement.Id, _findingType, _findingImpact, false,
+                    _findingAmount == 0 ? null : _findingAmount, null));
+            _result = created.Succeeded ? CommandResult.Ok() : CommandResult.Fail(created.ErrorCode!, created.Message ?? "The command was refused.");
+            _successMessage = created.Succeeded ? "The finding was recorded as open." : null;
+            if (created.Succeeded) await RefreshAsync();
+        }
+        finally { _busy = false; }
     }
 }

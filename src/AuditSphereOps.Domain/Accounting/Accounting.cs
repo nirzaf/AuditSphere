@@ -34,6 +34,7 @@ public sealed class MappingRule
 {
   public Guid Id { get; set; }
   public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
   public Guid EngagementId { get; set; }
   public string MappingCode { get; set; } = string.Empty;
   public string SourcePattern { get; set; } = string.Empty;

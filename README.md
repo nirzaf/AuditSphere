@@ -7,7 +7,7 @@
 
 **AuditSphereOps** is a professional audit, accounting & assurance operations platform — a .NET 10 modular monolith covering the complete engagement lifecycle: client acceptance, practice management, trial-balance intake, financial-statement production, audit execution, review, controlled signing/release, and records retention.
 
-> **Status: implementation in progress.** This repository is a specification-driven build, currently at checklist #14 of 14 dependency-ordered slices. A green UI or a mocked provider is **not** production evidence — external gates (Entra tenant, SharePoint grants, Purview profile, signing methodology) remain explicitly blocked until owner-authorized, and are never fake-passed.
+> **Status: implementation in progress.** This repository is a specification-driven build. All core domain modules, practice management, trial-balance engine, audit planning lifecycle, core entity catalog (§27.2), question banks (§13/§14), operator recovery, and complete staff/client Blazor route catalog with UI ground truth are implemented and verified locally (**152/152 tests passing on PostgreSQL 18.6 across 23 migrations**). External production gates (Entra tenant, selected SharePoint grants, Purview profile, signing methodology) remain explicitly blocked until owner-authorized, and are never fake-passed.
 
 ## Table of contents
 
@@ -150,34 +150,31 @@ The integration test requires PostgreSQL at `127.0.0.1:5433` and the `auditspher
 - **`docs/execution/current-slice.md`** — the verified local state and concise serialization of what was actually executed.
 - **Using the spec:** read `AuditSphereOps_NET_Codex_Implementation_Specification.md` (§§1–12, 22, 24, 27–33, 41–47) plus only the sections for the active issue.
 
-As of the last verification pass: **94/94 tests passed** on PostgreSQL 18.6, eighteen migrations applied, local locked restore and build completed with zero warnings, the source-relative local restore rehearsal passed, readiness returned healthy with no pending migrations, and hosted CI run `35377533259` passed all steps on `6e31ab5`. The Entra/SharePoint/Purview production gates remain **recorded blockers** pending owner-authorized evidence.
+As of the last verification pass: **152/152 tests passed** on PostgreSQL 18.6 with 0 skipped, twenty-three migrations applied (latest: `20260919005220_AuditPlanningScopeIntegrity`), local locked restore and build completed with zero warnings, the loopback restore rehearsal passed with 23 migrations, and readiness returned healthy with no pending migrations. The Entra/SharePoint/Purview production gates remain **recorded blockers** pending owner-authorized evidence.
 
 ## Implementation roadmap
 
 The build advances through **14 dependency-ordered checklist slices** (spec §31–§32), each landing as a reviewed PR with executed test evidence. Slices may not weaken controls, and a slice is accepted only with independent review evidence.
 
-**Delivered (checklists #1–#12 plus initial #13/#14 controls and the local mapping/FS/PBC follow-up, verified locally — 94/94 tests, eighteen migrations):**
+**Delivered (checklists #1–#14, verified locally — 152/152 tests, 23 migrations):**
 
-- Security & authorization integrity — `ActorContext`, scope/role matrix, firm→client→engagement guards, finance-role separation
-- Trial-balance intake & validation engine — Appendix D fixture, database-level `ck_tb_validation_status` control
-- Accounting integrity adjustments — source-reflection bridges, accounting-only scope
-- Durable outbox & validation worker — `SKIP LOCKED` leases, reconciliation, recovery-safe migration
-- Practice CRM workflow + safety invariants
-- Practice time & budget workflow
-- Billing artifacts — invoices, credit notes, receipts, allocations with balance limits, source-allocation uniqueness, posted-history immutability
-- Bounded firm ledger — finance-role journal workflow, immutable balanced postings, source/retry uniqueness, reversals, period close/reopen, and database deferred-balance enforcement
-- Document snapshots — scope-bound exact-byte SHA-256 capture, one snapshot per source version, legacy ambiguity refusal, and append-only database protection
-- Revision/generation-bound approvals — immutable historical decisions, current applicability projection, and stale approval rejection
-- Release-gate integrity — workpaper candidates bound to current approvals/generations/manifests, checkpoint-required immutable release events, scoped idempotency, and delivery outbox intent
-- Mapping and financial-statement package foundation — approved versioned mappings, deterministic adjusted-TB snapshots/package lines, explicit review validations, and append-only artifact protection
-- Initial scoped Blazor shell — live portfolio projections and a release command screen behind real authenticated-user-to-firm mapping; unauthenticated/local environments fail closed
+- **Security & authorization integrity:** `ActorContext`, scope/role matrix, firm→client→engagement guards, finance-role separation, in-command authorization for all planning and operational commands.
+- **Trial-balance intake & validation engine:** Appendix D fixture, database-level `ck_tb_validation_status` control, source reflection bridges.
+- **Durable outbox & validation worker:** `SKIP LOCKED` leases, reconciliation, recovery-safe migration, operator recovery controls (`/app/operations`).
+- **Practice management:** CRM workflow (lead→opportunity→proposal→client), time & budget approval/correction chain, billing artifacts (invoices, credit notes, receipts, allocations), and bounded firm ledger with immutable postings.
+- **Document snapshots & approvals:** Scope-bound exact-byte SHA-256 capture, revision/generation-bound approvals with stale rejection, release-gate candidates.
+- **Financial-statement production:** Approved versioned mappings, deterministic adjusted-TB snapshots, opening/closing cash-flow bridge, disclosure validations, and canonical UTF-8 artifact rendering with SHA-256 digest verification.
+- **Trusted PBC upload transport:** Same-origin 8 MiB chunk staging outside webroot, capability-bound sequencing, reviewer-gated completion, and durable handoff.
+- **Core entity catalog & questionnaire banks (§27.2, §13, §14):** `EngagementAssignment`, `EqrCase`, `WrittenRepresentation`, `SpecialistClearance`, `SourceReceipt`, `EvidenceLink`, `QuestionnaireTemplate`, `QuestionDefinition`; full seeding of 62 Client Evaluation (`CE-001`..`CE-097`) and 30 Review (`RV-001`..`RV-030`) question banks.
+- **Audit planning lifecycle & scope integrity (§§19–23, 27.4–27.6, 42.3–42.4):** EF-owned models for `MaterialityAssessment`, `PopulationVersion`, `WorkpaperSubmission`, `AuditRisk`, `AuditProcedure`, `Finding`; composite scope foreign keys with `ON DELETE RESTRICT` across all evidence tables; database append-only triggers on materiality, populations, and workpaper submissions; freeze trigger on submitted workpapers.
+- **Complete staff & client route catalog with UI ground truth:** Blazor Interactive Server screens for Portfolio, Clients, Engagements, Leads, Time, Invoices, Finance, Operations, Administration, Journals, Packages, Audit Plans, Populations, Workpapers, Findings, Assessments, Review Points, and Client Portal. All fabricated state, dummy IDs, and simulated approvals purged in favor of truthful persisted state.
 
-**Remaining proof and scope (checklists #13–#14):**
+**Remaining proof and scope:**
 
-- Financial-statement rendering, disclosures/cash-flow inputs, and the remaining entity foreign keys/data-model completion
-- Live provider adapters (Entra/Graph/SharePoint/Purview) behind the external-effect fence
-- Full UI surfaces, trusted final-completion/provider delivery, and authorized operator recovery tooling
-- Production-grade cross-store recovery
+- Live provider adapters (Entra/Graph/SharePoint/Purview) behind the external-effects fence and selected-resource grants.
+- Stored release checkpoint verification, protection attestation, and signature lineage evidence.
+- Production-grade cross-store recovery and RPO/RTO validation.
+- Real-tenant acceptance cycle (spec §47).
 
 The external production gates (live Entra tenant, selected SharePoint grants, Purview records profile, signing methodology) stay **blocked** until owner-authorized evidence arrives; see `docs/execution/status.json`.
 
