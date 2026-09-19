@@ -1,6 +1,8 @@
 using System.Buffers;
 using System.Security.Cryptography;
+using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Accounting;
+using AuditSphereOps.Application.Completion;
 using AuditSphereOps.Application.Documents;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Domain.Shared;
@@ -77,6 +79,19 @@ var simulationSinkRoot = builder.Configuration["Storage:PbcProviderSimulationRoo
   ?? Path.Combine(Path.GetTempPath(), "AuditSphereOps", "pbc-provider-simulation");
 builder.Services.AddSingleton<IPbcProviderSink>(new SimulationPbcProviderSink(simulationSinkRoot));
 builder.Services.AddSingleton<PbcDocumentTransferHandler>();
+
+var checkpointRoot = builder.Configuration["Storage:ReleaseCheckpointRoot"]
+  ?? Path.Combine(Path.GetTempPath(), "AuditSphereOps", "release-checkpoints");
+builder.Services.AddSingleton<IReleaseCheckpointStore>(new LocalAppendOnlyCheckpointStore(checkpointRoot));
+builder.Services.AddSingleton<ReleaseCheckpointHandler>();
+
+var releaseSafety = builder.Configuration.GetSection(ReleaseSafetyOptions.SectionName).Get<ReleaseSafetyOptions>() ?? new();
+releaseSafety.Validate(
+  builder.Configuration.GetValue<bool>("ExternalEffects:Enabled"),
+  builder.Configuration.GetValue<bool>("Application:AllowSimulationAdapters"),
+  builder.Environment.EnvironmentName,
+  builder.Configuration.GetValue<bool>("FeatureActivation:LiveAuditRelease"));
+builder.Services.AddSingleton(releaseSafety);
 
 // Liveness/readiness split (§45.4): self = always; ready = DB reachable (custom check, no extra package).
 builder.Services.AddHealthChecks()

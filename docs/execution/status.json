@@ -12,17 +12,18 @@
     "postgres": "18.6 Homebrew user-local port 5433 (development only)"
   },
   "active": {
-    "packageId": "Audit-planning scope integrity: EF-owned planning tables, composite scope FKs, database immutability, and in-command authorization (spec §§19-23, 27.4-27.6, 42.3-42.4)",
+    "packageId": "Release evidence: stored checkpoints, protection attestations, signature lineages, durable handler, and fail-closed gate (spec §§24.4, 25.7, 42, 43, backlog item 3 part 1)",
     "issueNumber": null,
     "branch": "master",
     "pullRequestNumber": null,
-    "headCommit": "24a90d4",
+    "headCommit": "20bc7df",
     "implementationStatus": "IMPLEMENTED",
     "acceptanceStatus": "LOCAL_VERIFIED",
-    "worktree": "materiality_assessments, population_versions and workpaper_submissions are now EF-model entities (the snapshot owned 79 entities and did not own them). audit_risks/workpapers/findings gained their real columns in the model; the vestigial workpapers.state/generation and findings.title/severity columns are dropped, and the three single-column *_engagement_id_fkey constraints (which never proved matching client scope) are replaced by composite (firm, client, engagement) foreign keys with ON DELETE RESTRICT. The migration restores the NOT NULL scope columns that 20260918235000 had relaxed, adds 16 model-declared CHECK constraints, and installs append-only triggers on materiality_assessments, population_versions and workpaper_submissions plus a submitted-workpaper freeze trigger. AuditPlanningService now authorizes each command against the stored engagement scope, returns CommandResult codes instead of throwing, and writes through entities; the previously shifted column mappings (audit_risks.description/severity, findings.title/severity) each receive their own input. AuditPlan/Workpaper/AuditPopulation/Finding pages read persisted rows and invoke the real commands; their fabricated content was removed. 152/152 tests pass on PostgreSQL 18.6 with 0 skipped.",
-    "scope": "Schema, authorization and UI ground truth for audit planning. No live provider is claimed and no professional conclusion is generated.",
+    "worktree": "Replaced the caller-supplied boolean checkpoint assertion on IssueReleaseRequest with stored, read-back evidence. Domain entities ReleaseCheckpoint, ProtectionAttestation, and SignatureLineage are append-only. External boundary IReleaseCheckpointStore and LocalAppendOnlyCheckpointStore implement content-addressed storage under Storage:ReleaseCheckpointRoot outside webroot. Durable operation handler RecordReleaseCheckpoint.v1 reconciles leased writes. ReleaseService.IssueAsync loads and verifies ReleaseCheckpoint, ProtectionAttestation (when enabled), and SignatureLineage (when enabled), failing closed if absent/unverified/mismatched/expired. Release.ExternalCheckpoint (bool) is replaced by checkpoint_id UUID NOT NULL FK to release_checkpoints. Migration 20260919111301_ReleaseEvidenceAndCheckpoints adds tables, composite scope FKs, CHECK constraints, and append-only immutability triggers. Release.razor renders gate statuses and truth notice without caller checkbox. 157/157 tests pass on PostgreSQL 18.6 with 0 skipped.",
+    "scope": "Release gate evidence storage, verification and fail-closed issuance. No live provider or records action is claimed.",
     "productionEnabled": false
   },
+
   "testEvidence": [
     {
       "command": "dotnet tool restore",
@@ -179,6 +180,10 @@
     {
       "command": "gh run view 35408208512",
       "result": "Hosted AuditSphereOps CI run 35408208512 passed on head a338ad3 in 2m42s: setup-dotnet, tool restore, restore, build, 22-migration EF update, the 136-test suite, migration-aware readiness check, and container cleanup all succeeded."
+    },
+    {
+      "command": "Release evidence slice local gates (base 20bc7df, uncommitted working tree)",
+      "result": "dotnet build AuditSphereOps.slnx: 0 warnings, 0 errors across 6 projects. dotnet ef database update applied 20260919111301_ReleaseEvidenceAndCheckpoints (24 migrations applied, 0 pending). dotnet test passed 157/157 on PostgreSQL 18.6 with 0 skipped. scripts/db/restore-drill.sh restored 24 migrations with latest 20260919111301_ReleaseEvidenceAndCheckpoints. Web readiness (/health/ready) returned Healthy/200; /health/live returned 200. information_schema probe confirmed 76 constraints and 8 append-only triggers across release_checkpoints, protection_attestations, signature_lineages, and releases."
     }
   ],
   "tenantEvidence": [
@@ -214,7 +219,7 @@
     {
       "classification": "implementation-gap",
       "gate": "Schema integrity, UI and recovery controls (spec §§27, 42, 43, 45)",
-      "missing": "Live provider adapters, full signing/protection evidence, production/cross-store recovery evidence. The audit-planning data-model integrity gap is now closed (composite scope foreign keys, mandatory scope columns, database-level immutability of frozen planning evidence, in-command authorization); release checkpoint, protection attestation and signature lineage are still asserted by a caller-supplied flag rather than stored verified evidence.",
+      "missing": "Live provider adapters, production cross-store recovery evidence. The audit-planning data-model integrity gap (composite scope FKs, mandatory scope columns, planning immutability triggers, in-command authorization) and the release evidence gate (stored read-back checkpoints, protection attestations, signature lineages, fail-closed issuance, CheckpointId FK) are now closed.",
       "ownerAction": "Complete the live provider adapters behind owner-approved external grants; external production gates remain blocked."
     },
     {
@@ -224,6 +229,7 @@
       "ownerAction": "Obtain independent review evidence before treating the merged slices as fully accepted."
     }
   ],
-  "nextPermittedAction": "Continue with owner-authorized tenant/professional evidence and independent human review. The audit-planning scope-integrity slice is locally verified and still uncommitted; hosted CI for it has not been observed. Production recovery remains unproven.",
-  "lastVerifiedAt": "2026-09-19T04:40:00Z"
+  "nextPermittedAction": "Proceed to Slice 3 (Records profile, archive manifest, retention/hold evidence) in dependency order per spec §46.3. Release evidence slice is locally verified with 157/157 tests passing.",
+  "lastVerifiedAt": "2026-09-19T14:16:30Z"
 }
+

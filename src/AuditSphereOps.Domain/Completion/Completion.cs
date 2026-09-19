@@ -36,9 +36,44 @@ public sealed class Release
   public long PackageRevision { get; set; }
   public string ManifestDigest { get; set; } = string.Empty;
   public string AuthorizedReleaseKey { get; set; } = string.Empty;
-  public bool ExternalCheckpoint { get; set; }
+  public Guid CheckpointId { get; set; }
   public DateTimeOffset ReleasedAt { get; set; }
   public Guid ReleasedByUserId { get; set; }
+}
+
+public sealed class ReleaseCheckpoint
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public Guid EngagementId { get; set; }
+  public Guid ReleaseCandidateId { get; set; }
+  public long CandidateRevision { get; set; }
+  public string AuthorizedReleaseKey { get; set; } = string.Empty;
+  public string ManifestDigest { get; set; } = string.Empty;
+  public string StoredReference { get; set; } = string.Empty;
+  public string ReadBackDigest { get; set; } = string.Empty;
+  public string VerifiedStatus { get; set; } = "PENDING";
+  public DateTimeOffset? VerifiedAt { get; set; }
+  public string Verifier { get; set; } = string.Empty;
+  public DateTimeOffset CreatedAt { get; set; }
+}
+
+public sealed class SignatureLineage
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public Guid EngagementId { get; set; }
+  public Guid CandidateId { get; set; }
+  public string PreSignArtifactHash { get; set; } = string.Empty;
+  public string SignedArtifactHash { get; set; } = string.Empty;
+  public string SigningMethod { get; set; } = string.Empty;
+  public string RequestIdentity { get; set; } = string.Empty;
+  public string VerificationOutcome { get; set; } = "VERIFIED";
+  public string Verifier { get; set; } = string.Empty;
+  public DateTimeOffset VerifiedAt { get; set; }
+  public DateTimeOffset CreatedAt { get; set; }
 }
 
 public sealed class Archive

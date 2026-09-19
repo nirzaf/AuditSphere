@@ -22,3 +22,18 @@ public interface IClock
 {
   DateTimeOffset UtcNow { get; }
 }
+
+/// <summary>Verified release checkpoint storage evidence outside the application database (§24.4, §25.7).</summary>
+public sealed record CheckpointReceipt(string Reference, string ContentSha256Hex, long ByteCount);
+
+/// <summary>
+/// Trusted external checkpoint storage boundary for release manifests (spec §24.4 step 10, §25.7, §47.5).
+/// Writes release evidence outside the application database, then re-reads and compares.
+/// </summary>
+public interface IReleaseCheckpointStore
+{
+  Task<CheckpointReceipt> WriteAsync(string manifestDigest, byte[] manifestBytes, CancellationToken ct = default);
+  Task<CheckpointReceipt?> VerifyAsync(string reference, string expectedDigest, CancellationToken ct = default);
+  Task<CheckpointReceipt?> ProbeAsync(string manifestDigest, CancellationToken ct = default);
+}
+

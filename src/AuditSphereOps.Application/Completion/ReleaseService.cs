@@ -25,8 +25,7 @@ public sealed record IssueReleaseRequest(
   Guid CandidateId,
   long ExpectedCandidateRevision,
   string ManifestDigest,
-  string AuthorizedReleaseKey,
-  bool ExternalCheckpointVerified);
+  string AuthorizedReleaseKey);
 
 /// <summary>Local, provider-free release fencing for the supported workpaper slice.</summary>
 public static class ReleaseService
@@ -126,8 +125,11 @@ public static class ReleaseService
     IAuditSphereDbContext db,
     ActorContext actor,
     IssueReleaseRequest request,
+    ReleaseSafetyOptions? options = null,
     CancellationToken ct = default)
   {
+    options ??= new ReleaseSafetyOptions();
+
     var invalid = ValidateIssueRequest(request);
     if (invalid is not null)
       return CommandResult<Guid>.Fail("release.invalid", invalid);
@@ -161,8 +163,6 @@ public static class ReleaseService
       return CommandResult<Guid>.Fail(ErrorCodes.IdempotencyConflict, "The authorized release key is already bound to another release.");
     }
 
-    if (!request.ExternalCheckpointVerified)
-      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The external release checkpoint is not verified.");
     if (candidate.Revision != request.ExpectedCandidateRevision)
       return CommandResult<Guid>.Fail(ErrorCodes.StaleRevision, "The release candidate changed; reload it.");
     if (candidate.ManifestDigest != request.ManifestDigest)
@@ -171,6 +171,50 @@ public static class ReleaseService
       return CommandResult<Guid>.Fail(ErrorCodes.ProtectedState, "The candidate is not ready for issuance.");
     if (firm.OperatingMode != "LOCAL_ONLY")
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Release is blocked while the firm is in recovery quarantine.");
+
+    var checkpoint = await db.ReleaseCheckpoints.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.FirmId == actor.FirmId && x.ClientId == candidate.ClientId && x.EngagementId == candidate.EngagementId &&
+      x.ReleaseCandidateId == candidate.Id && x.CandidateRevision == candidate.Revision &&
+      x.ManifestDigest == request.ManifestDigest, ct);
+
+    if (options.RequireExternalCheckpointBeforeDelivery)
+    {
+      if (checkpoint is null)
+        return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The external release checkpoint is absent.");
+      if (checkpoint.VerifiedStatus != "VERIFIED" || checkpoint.VerifiedAt is null)
+        return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The external release checkpoint is not verified.");
+      if (!string.Equals(checkpoint.ReadBackDigest, request.ManifestDigest, StringComparison.OrdinalIgnoreCase))
+        return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The external release checkpoint digest does not match manifest.");
+    }
+
+    if (options.RequireProtectionAttestation)
+    {
+      var attestation = await db.ProtectionAttestations.AsNoTracking().SingleOrDefaultAsync(x =>
+        x.FirmId == actor.FirmId && x.ClientId == candidate.ClientId && x.EngagementId == candidate.EngagementId &&
+        x.ArtifactHash == request.ManifestDigest, ct);
+
+      if (attestation is null)
+        return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Protection attestation is absent.");
+      if (attestation.ObservedState != "PROTECTED")
+        return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Protection attestation is not in protected state.");
+      if (attestation.ExpiryTime.HasValue && attestation.ExpiryTime.Value <= DateTimeOffset.UtcNow)
+        return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Protection attestation has expired.");
+    }
+
+    if (options.RequireSignatureLineage)
+    {
+      var lineage = await db.SignatureLineages.AsNoTracking().SingleOrDefaultAsync(x =>
+        x.FirmId == actor.FirmId && x.ClientId == candidate.ClientId && x.EngagementId == candidate.EngagementId &&
+        x.CandidateId == candidate.Id, ct);
+
+      if (lineage is null)
+        return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Signature lineage is absent.");
+      if (lineage.VerificationOutcome != "VERIFIED")
+        return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Signature lineage verification failed.");
+      if (!string.Equals(lineage.PreSignArtifactHash, request.ManifestDigest, StringComparison.OrdinalIgnoreCase))
+        return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Signature lineage pre-sign hash does not match candidate manifest.");
+    }
+
 
     var current = await LoadWorkpaperAsync(db, actor.FirmId, candidate.TargetId, true, ct);
     if (current is null || current.ClientId != candidate.ClientId || current.EngagementId != candidate.EngagementId)
@@ -194,13 +238,16 @@ public static class ReleaseService
         applicability is null || applicability.Status != ApprovalStates.Current)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The required approval is not current for this release.");
 
+    if (checkpoint is null)
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Release checkpoint is required for release issuance.");
+
     var release = new Release
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = candidate.ClientId,
       EngagementId = candidate.EngagementId, ReleaseCandidateId = candidate.Id,
       PackageId = candidate.TargetId, PackageRevision = candidate.TargetRevision,
       ManifestDigest = candidate.ManifestDigest, AuthorizedReleaseKey = releaseKey,
-      ExternalCheckpoint = true, ReleasedAt = DateTimeOffset.UtcNow, ReleasedByUserId = actor.UserId
+      CheckpointId = checkpoint.Id, ReleasedAt = DateTimeOffset.UtcNow, ReleasedByUserId = actor.UserId
     };
     var payload = JsonSerializer.Serialize(new
     {
@@ -213,6 +260,7 @@ public static class ReleaseService
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = candidate.ClientId,
       EngagementId = candidate.EngagementId, OperationKind = "ReleaseDelivery.v1",
+
       PayloadJson = payload, IdempotencyKey = "release:" + releaseKey,
       RequestDigest = Hashing.Sha256Hex(payloadBytes), RequestBytes = payloadBytes,
       Status = OperationState.PENDING, ExecutionMode = OperationMode.LOCAL,

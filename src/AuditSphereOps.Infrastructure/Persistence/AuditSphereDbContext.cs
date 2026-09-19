@@ -84,6 +84,9 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
   public DbSet<ApprovalApplicability> ApprovalApplicabilities => Set<ApprovalApplicability>();
   public DbSet<ReleaseCandidate> ReleaseCandidates => Set<ReleaseCandidate>();
   public DbSet<Release> Releases => Set<Release>();
+  public DbSet<ReleaseCheckpoint> ReleaseCheckpoints => Set<ReleaseCheckpoint>();
+  public DbSet<SignatureLineage> SignatureLineages => Set<SignatureLineage>();
+  public DbSet<ProtectionAttestation> ProtectionAttestations => Set<ProtectionAttestation>();
   public DbSet<Archive> Archives => Set<Archive>();
   public DbSet<DurableOperation> DurableOperations => Set<DurableOperation>();
   public DbSet<OperationAttempt> OperationAttempts => Set<OperationAttempt>();
@@ -313,6 +316,45 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
       .HasPrincipalKey(x => new { x.FirmId, x.Id })
       .OnDelete(DeleteBehavior.Restrict);
 
+    var checkpoint = b.Entity<ReleaseCheckpoint>();
+    checkpoint.HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_release_checkpoints_firm_id_id");
+    checkpoint.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
+      .HasName("AK_release_checkpoints_scope_id");
+    checkpoint.Property(x => x.AuthorizedReleaseKey).HasMaxLength(200);
+    checkpoint.Property(x => x.ManifestDigest).HasMaxLength(64);
+    checkpoint.Property(x => x.StoredReference).HasMaxLength(500);
+    checkpoint.Property(x => x.ReadBackDigest).HasMaxLength(64);
+    checkpoint.Property(x => x.VerifiedStatus).HasMaxLength(30);
+    checkpoint.Property(x => x.Verifier).HasMaxLength(200);
+    checkpoint.HasIndex(x => new { x.FirmId, x.ReleaseCandidateId, x.CandidateRevision, x.ManifestDigest })
+      .HasDatabaseName("ix_release_checkpoint_candidate_manifest");
+    checkpoint.ToTable("release_checkpoints", t => t.HasCheckConstraint("ck_release_checkpoint_values",
+      "candidate_revision >= 1 AND manifest_digest ~ '^[0-9a-f]{64}$' AND read_back_digest ~ '^[0-9a-f]{64}$' AND length(trim(authorized_release_key)) > 0 AND length(trim(stored_reference)) > 0 AND verified_status IN ('VERIFIED','PENDING','MISMATCHED','EXPIRED')"));
+    ScopeToEngagement(checkpoint, nameof(ReleaseCheckpoint.FirmId), nameof(ReleaseCheckpoint.ClientId), nameof(ReleaseCheckpoint.EngagementId));
+    checkpoint.HasOne<ReleaseCandidate>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ReleaseCandidateId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id })
+      .OnDelete(DeleteBehavior.Restrict);
+
+    var lineage = b.Entity<SignatureLineage>();
+    lineage.HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_signature_lineages_firm_id_id");
+    lineage.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
+      .HasName("AK_signature_lineages_scope_id");
+    lineage.Property(x => x.PreSignArtifactHash).HasMaxLength(64);
+    lineage.Property(x => x.SignedArtifactHash).HasMaxLength(64);
+    lineage.Property(x => x.SigningMethod).HasMaxLength(100);
+    lineage.Property(x => x.RequestIdentity).HasMaxLength(200);
+    lineage.Property(x => x.VerificationOutcome).HasMaxLength(30);
+    lineage.Property(x => x.Verifier).HasMaxLength(200);
+    lineage.HasIndex(x => new { x.FirmId, x.CandidateId }).HasDatabaseName("ix_signature_lineages_candidate");
+    lineage.ToTable("signature_lineages", t => t.HasCheckConstraint("ck_signature_lineage_values",
+      "pre_sign_artifact_hash ~ '^[0-9a-f]{64}$' AND signed_artifact_hash ~ '^[0-9a-f]{64}$' AND length(trim(signing_method)) > 0 AND length(trim(request_identity)) > 0 AND verification_outcome IN ('VERIFIED','INVALID','REJECTED')"));
+    ScopeToEngagement(lineage, nameof(SignatureLineage.FirmId), nameof(SignatureLineage.ClientId), nameof(SignatureLineage.EngagementId));
+    lineage.HasOne<ReleaseCandidate>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.CandidateId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id })
+      .OnDelete(DeleteBehavior.Restrict);
+
     var release = b.Entity<Release>();
     release.HasAlternateKey(x => new { x.FirmId, x.Id })
       .HasName("AK_releases_firm_id_id");
@@ -321,9 +363,13 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     release.HasIndex(x => new { x.FirmId, x.AuthorizedReleaseKey })
       .IsUnique().HasDatabaseName("ux_release_authorized_key");
     release.ToTable("releases", t => t.HasCheckConstraint("ck_release_values",
-      "package_revision >= 1 AND manifest_digest ~ '^[0-9a-f]{64}$' AND length(authorized_release_key) > 0 AND external_checkpoint"));
+      "package_revision >= 1 AND manifest_digest ~ '^[0-9a-f]{64}$' AND length(authorized_release_key) > 0"));
     release.HasOne<ReleaseCandidate>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.ReleaseCandidateId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id })
+      .OnDelete(DeleteBehavior.Restrict);
+    release.HasOne<ReleaseCheckpoint>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.CheckpointId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id })
       .OnDelete(DeleteBehavior.Restrict);
     release.HasOne<PracticeClient>().WithMany()
@@ -339,6 +385,7 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
       .HasPrincipalKey(x => new { x.FirmId, x.Id })
       .OnDelete(DeleteBehavior.Restrict);
   }
+
 
   private static void ConfigureSecurity(ModelBuilder b)
   {
@@ -1285,7 +1332,24 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     recordState.ToTable("record_states", t => t.HasCheckConstraint("ck_record_state_values",
       "length(trim(artifact_kind)) > 0 AND local_state IN ('Active','Locked','Archived')"));
 
+    var attestation = b.Entity<ProtectionAttestation>();
+    attestation.HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_protection_attestations_firm_id_id");
+    attestation.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
+      .HasName("AK_protection_attestations_scope_id");
+    attestation.Property(x => x.ArtifactHash).HasMaxLength(64);
+    attestation.Property(x => x.Binding).HasMaxLength(200);
+    attestation.Property(x => x.ProfileId).HasMaxLength(100);
+    attestation.Property(x => x.ObservedState).HasMaxLength(30);
+    attestation.Property(x => x.Verifier).HasMaxLength(200);
+    attestation.Property(x => x.RecheckRule).HasMaxLength(200);
+    attestation.HasIndex(x => new { x.FirmId, x.EngagementId, x.ArtifactHash }).HasDatabaseName("ix_protection_attestations_artifact");
+    attestation.ToTable("protection_attestations", t => t.HasCheckConstraint("ck_protection_attestation_values",
+      "artifact_hash ~ '^[0-9a-f]{64}$' AND profile_version >= 1 AND length(trim(binding)) > 0 AND length(trim(profile_id)) > 0 AND observed_state IN ('PROTECTED','PENDING','EXPIRED','RECHECK_REQUIRED')"));
+    ScopeToEngagement(attestation, nameof(ProtectionAttestation.FirmId), nameof(ProtectionAttestation.ClientId),
+      nameof(ProtectionAttestation.EngagementId));
+
     var acceptance = b.Entity<AcceptanceDecision>();
+
     acceptance.Property(x => x.Decision).HasMaxLength(40);
     acceptance.Property(x => x.ServiceRoute).HasMaxLength(50);
     acceptance.HasIndex(x => new { x.FirmId, x.PracticeClientId, x.Generation }).HasDatabaseName("ix_acceptance_client_generation");

@@ -6,6 +6,7 @@ using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Engagements;
 using AuditSphereOps.Domain.Documents;
 using AuditSphereOps.Domain.Practice;
+using AuditSphereOps.Domain.Records;
 using AuditSphereOps.Domain.Reviews;
 using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Shared;
@@ -37,6 +38,7 @@ public interface IAuditSphereDbContext : IAsyncDisposable
   DbSet<FinancialPackageValidation> FinancialPackageValidations { get; }
   DbSet<FinancialPackageCashFlowLine> FinancialPackageCashFlowLines { get; }
   DbSet<FinancialPackageDisclosure> FinancialPackageDisclosures { get; }
+
   DbSet<Engagement> Engagements { get; }
   DbSet<EngagementHold> EngagementHolds { get; }
   DbSet<DocumentReference> DocumentReferences { get; }
@@ -55,6 +57,9 @@ public interface IAuditSphereDbContext : IAsyncDisposable
   DbSet<ApprovalApplicability> ApprovalApplicabilities { get; }
   DbSet<ReleaseCandidate> ReleaseCandidates { get; }
   DbSet<Release> Releases { get; }
+  DbSet<ReleaseCheckpoint> ReleaseCheckpoints { get; }
+  DbSet<SignatureLineage> SignatureLineages { get; }
+  DbSet<ProtectionAttestation> ProtectionAttestations { get; }
   DbSet<EqrCase> EqrCases { get; }
   DbSet<WrittenRepresentation> WrittenRepresentations { get; }
   DbSet<EngagementAssignment> EngagementAssignments { get; }

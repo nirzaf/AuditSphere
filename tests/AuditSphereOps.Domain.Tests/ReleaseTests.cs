@@ -21,7 +21,10 @@ public sealed class ReleaseTests
   {
     await using var pg = await PgTestSchema.CreateAsync();
     var fixture = await SeedAsync(pg);
-    var digest = new string('a', 64);
+    var manifestBytes = System.Text.Encoding.UTF8.GetBytes("release-test-manifest-payload-a");
+    var digest = Hashing.Sha256Hex(manifestBytes);
+    var checkpointDir = Path.Combine(Path.GetTempPath(), "AuditSphereOps-Tests", Guid.NewGuid().ToString("N"));
+    var store = new LocalAppendOnlyCheckpointStore(checkpointDir);
     Guid candidateId;
 
     await using (var db = new AuditSphereDbContext(pg.Options))
@@ -38,23 +41,33 @@ public sealed class ReleaseTests
 
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
+      // 1. Blocked when external checkpoint is absent
       var blocked = await ReleaseService.IssueAsync(db, fixture.Partner,
-        new IssueReleaseRequest(candidateId, 1, digest, "release-001", false));
+        new IssueReleaseRequest(candidateId, 1, digest, "release-001"));
       Assert.False(blocked.Succeeded);
       Assert.Equal(ErrorCodes.GateBlocked, blocked.ErrorCode);
       Assert.Empty(await db.Releases.ToListAsync());
 
+      // 2. Mismatched manifest rejected
       var wrongManifest = await ReleaseService.IssueAsync(db, fixture.Partner,
-        new IssueReleaseRequest(candidateId, 1, new string('b', 64), "release-002", true));
+        new IssueReleaseRequest(candidateId, 1, new string('b', 64), "release-002"));
       Assert.False(wrongManifest.Succeeded);
       Assert.Equal(ErrorCodes.ManifestMismatch, wrongManifest.ErrorCode);
       Assert.Empty(await db.Releases.ToListAsync());
 
+      // 3. Record verified external checkpoint
+      var cpResult = await ReleaseCheckpointService.RecordCheckpointDirectAsync(db, store, fixture.Partner,
+        new RecordReleaseCheckpointRequest(candidateId, 1, "release-001", digest, manifestBytes));
+      Assert.True(cpResult.Succeeded);
+
+      // 4. Issue release succeeds
       var issued = await ReleaseService.IssueAsync(db, fixture.Partner,
-        new IssueReleaseRequest(candidateId, 1, digest, "release-001", true));
+        new IssueReleaseRequest(candidateId, 1, digest, "release-001"));
       Assert.True(issued.Succeeded);
+
+      // 5. Idempotent re-issuance returns same ID
       var repeated = await ReleaseService.IssueAsync(db, fixture.Partner,
-        new IssueReleaseRequest(candidateId, 1, digest, "release-001", true));
+        new IssueReleaseRequest(candidateId, 1, digest, "release-001"));
       Assert.True(repeated.Succeeded);
       Assert.Equal(issued.Value, repeated.Value);
       Assert.Single(await db.Releases.ToListAsync());
@@ -75,7 +88,10 @@ public sealed class ReleaseTests
   {
     await using var pg = await PgTestSchema.CreateAsync();
     var fixture = await SeedAsync(pg);
-    var digest = new string('d', 64);
+    var manifestBytes = System.Text.Encoding.UTF8.GetBytes("release-test-manifest-payload-d");
+    var digest = Hashing.Sha256Hex(manifestBytes);
+    var checkpointDir = Path.Combine(Path.GetTempPath(), "AuditSphereOps-Tests", Guid.NewGuid().ToString("N"));
+    var store = new LocalAppendOnlyCheckpointStore(checkpointDir);
     Guid candidateId;
 
     await using (var db = new AuditSphereDbContext(pg.Options))
@@ -87,6 +103,10 @@ public sealed class ReleaseTests
         new CreateReleaseCandidateRequest(approval.Value, "WORKPAPER", fixture.WorkpaperId, 1, 1, 1, digest));
       Assert.True(candidate.Succeeded);
       candidateId = candidate.Value;
+
+      var cpResult = await ReleaseCheckpointService.RecordCheckpointDirectAsync(db, store, fixture.Partner,
+        new RecordReleaseCheckpointRequest(candidateId, 1, "release-generation", digest, manifestBytes));
+      Assert.True(cpResult.Succeeded);
     }
 
     await using (var db = new AuditSphereDbContext(pg.Options))
@@ -94,7 +114,7 @@ public sealed class ReleaseTests
       await db.ClientSafetyStates.Where(x => x.FirmId == fixture.FirmId && x.Id == fixture.ClientId)
         .ExecuteUpdateAsync(s => s.SetProperty(x => x.InputGeneration, x => x.InputGeneration + 1));
       var staleGeneration = await ReleaseService.IssueAsync(db, fixture.Partner,
-        new IssueReleaseRequest(candidateId, 1, digest, "release-generation", true));
+        new IssueReleaseRequest(candidateId, 1, digest, "release-generation"));
       Assert.False(staleGeneration.Succeeded);
       Assert.Equal(ErrorCodes.GenerationStale, staleGeneration.ErrorCode);
       Assert.Empty(await db.Releases.ToListAsync());
@@ -103,11 +123,12 @@ public sealed class ReleaseTests
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       var staleCandidate = await ReleaseService.IssueAsync(db, fixture.Partner,
-        new IssueReleaseRequest(candidateId, 2, digest, "release-revision", true));
+        new IssueReleaseRequest(candidateId, 2, digest, "release-revision"));
       Assert.False(staleCandidate.Succeeded);
       Assert.Equal(ErrorCodes.StaleRevision, staleCandidate.ErrorCode);
     }
   }
+
 
   private static async Task<Fixture> SeedAsync(PgTestSchema pg)
   {

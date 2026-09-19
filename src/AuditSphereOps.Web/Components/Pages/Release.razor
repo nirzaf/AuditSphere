@@ -1,7 +1,9 @@
 @page "/app/releases/{CandidateId:guid}"
 @rendermode InteractiveServer
+@using AuditSphereOps.Domain.Records
 @inject CurrentActorResolver ActorResolver
 @inject IDbContextFactory<AuditSphereDbContext> DbFactory
+
 
 <PageTitle>Release candidate</PageTitle>
 <a class="back-link" href="/app">← Back to portfolio</a>
@@ -38,6 +40,59 @@ else
   }
   else
   {
+    <section class="card" aria-labelledby="gates-heading">
+      <h2 id="gates-heading">Release evidence gates (§24.4, §25.7)</h2>
+      <p class="muted">Every gate requires stored, read-back evidence. Caller assertions are not accepted.</p>
+      <dl class="details">
+        <dt>External checkpoint</dt>
+        <dd>
+          @if (_checkpoint is null)
+          {
+            <span class="error-text">absent — No external checkpoint recorded</span>
+          }
+          else if (_checkpoint.VerifiedStatus == "VERIFIED")
+          {
+            <span class="success-text">verified — Stored reference: <code>@_checkpoint.StoredReference</code></span>
+          }
+          else
+          {
+            <span class="error-text">@_checkpoint.VerifiedStatus</span>
+          }
+        </dd>
+        <dt>Protection attestation</dt>
+        <dd>
+          @if (_attestation is null)
+          {
+            <span class="muted">absent — No Microsoft Purview protection observed (optional in local mode)</span>
+          }
+          else if (_attestation.ObservedState == "PROTECTED")
+          {
+            <span class="success-text">verified — Profile @_attestation.ProfileId (v@_attestation.ProfileVersion)</span>
+          }
+          else
+          {
+            <span class="error-text">@_attestation.ObservedState</span>
+          }
+        </dd>
+        <dt>Signature lineage</dt>
+        <dd>
+          @if (_lineage is null)
+          {
+            <span class="muted">absent — Unsigned candidate (optional in local mode)</span>
+          }
+          else if (_lineage.VerificationOutcome == "VERIFIED")
+          {
+            <span class="success-text">verified — @_lineage.SigningMethod</span>
+          }
+          else
+          {
+            <span class="error-text">@_lineage.VerificationOutcome</span>
+          }
+        </dd>
+      </dl>
+      <p class="notice muted">Notice: No live Microsoft records action is observed. Local development enforces offline verified evidence.</p>
+    </section>
+
     <section class="card" aria-labelledby="issue-heading">
       <h2 id="issue-heading">Issue exact package</h2>
       <p class="muted">This command rechecks current scope, approval applicability, revisions, generations, holds, manifest and recovery mode. It does not sign files or call a provider.</p>
@@ -45,8 +100,7 @@ else
         <label for="release-key">Authorized release key</label>
         <input id="release-key" @bind="_releaseKey" maxlength="200" autocomplete="off" />
       </div>
-      <label class="check"><input type="checkbox" @bind="_checkpointVerified" /> I confirm the external release checkpoint has been verified for this exact manifest.</label>
-      <button class="button" @onclick="IssueAsync" disabled="@(_busy || !_checkpointVerified || string.IsNullOrWhiteSpace(_releaseKey))">@(_busy ? "Issuing…" : "Issue release")</button>
+      <button class="button" @onclick="IssueAsync" disabled="@(_busy || _checkpoint?.VerifiedStatus != "VERIFIED" || string.IsNullOrWhiteSpace(_releaseKey))">@(_busy ? "Issuing…" : "Issue release")</button>
       @if (_result is not null)
       {
         <p class="command-result @(_result.Succeeded ? "success-text" : "error-text")" role="status">@(_result.Succeeded ? $"Release event: {_result.Value}" : $"Blocked: {_result.ErrorCode}")</p>
@@ -59,9 +113,11 @@ else
   [Parameter] public Guid CandidateId { get; set; }
   private ActorContext? _actor;
   private ReleaseCandidate? _candidate;
+  private ReleaseCheckpoint? _checkpoint;
+  private ProtectionAttestation? _attestation;
+  private SignatureLineage? _lineage;
   private CommandResult<Guid>? _result;
   private string _releaseKey = string.Empty;
-  private bool _checkpointVerified;
   private bool _loading = true;
   private bool _busy;
   private bool IsStaff => _actor is not null && _actor.Roles.Any(x => x is "Administrator" or "Partner" or "Manager" or "Reviewer" or "Staff");
@@ -73,6 +129,16 @@ else
     {
       await using var db = await DbFactory.CreateDbContextAsync();
       _candidate = await db.ReleaseCandidates.AsNoTracking().SingleOrDefaultAsync(x => x.Id == CandidateId && x.FirmId == _actor.FirmId);
+      if (_candidate is not null)
+      {
+        _checkpoint = await db.ReleaseCheckpoints.AsNoTracking().SingleOrDefaultAsync(x =>
+          x.FirmId == _actor.FirmId && x.ReleaseCandidateId == CandidateId &&
+          x.CandidateRevision == _candidate.Revision && x.ManifestDigest == _candidate.ManifestDigest);
+        _attestation = await db.ProtectionAttestations.AsNoTracking().SingleOrDefaultAsync(x =>
+          x.FirmId == _actor.FirmId && x.ArtifactHash == _candidate.ManifestDigest);
+        _lineage = await db.SignatureLineages.AsNoTracking().SingleOrDefaultAsync(x =>
+          x.FirmId == _actor.FirmId && x.CandidateId == CandidateId);
+      }
     }
     _loading = false;
   }
@@ -85,9 +151,10 @@ else
     {
       await using var db = await DbFactory.CreateDbContextAsync();
       _result = await ReleaseService.IssueAsync(db, _actor,
-        new IssueReleaseRequest(_candidate.Id, _candidate.Revision, _candidate.ManifestDigest, _releaseKey, _checkpointVerified));
+        new IssueReleaseRequest(_candidate.Id, _candidate.Revision, _candidate.ManifestDigest, _releaseKey));
       if (_result.Succeeded) _candidate.Status = ReleaseStates.Issued;
     }
     finally { _busy = false; }
   }
 }
+

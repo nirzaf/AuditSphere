@@ -1,5 +1,7 @@
 using AuditSphereOps.Worker;
+using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Accounting;
+using AuditSphereOps.Application.Completion;
 using AuditSphereOps.Application.Documents;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Infrastructure.Persistence;
@@ -18,6 +20,19 @@ var workerOptions = new WorkerOptions(firmId, builder.Environment.EnvironmentNam
   builder.Configuration.GetValue<bool>("AllowSimulationAdapters"),
   builder.Configuration.GetValue<bool>("ExternalEffects:Enabled"),
   DeploymentEpoch: builder.Configuration.GetValue("Worker:DeploymentEpoch", 1L));
+
+var releaseSafety = builder.Configuration.GetSection(ReleaseSafetyOptions.SectionName).Get<ReleaseSafetyOptions>() ?? new();
+releaseSafety.Validate(
+  builder.Configuration.GetValue<bool>("ExternalEffects:Enabled"),
+  builder.Configuration.GetValue<bool>("AllowSimulationAdapters"),
+  builder.Environment.EnvironmentName,
+  builder.Configuration.GetValue<bool>("FeatureActivation:LiveAuditRelease"));
+builder.Services.AddSingleton(releaseSafety);
+
+var checkpointRoot = builder.Configuration["Storage:ReleaseCheckpointRoot"]
+  ?? Path.Combine(Path.GetTempPath(), "AuditSphereOps", "release-checkpoints");
+builder.Services.AddSingleton<IReleaseCheckpointStore>(new LocalAppendOnlyCheckpointStore(checkpointRoot));
+builder.Services.AddSingleton<ReleaseCheckpointHandler>();
 
 builder.Services.AddSingleton(workerOptions);
 builder.Services.AddSingleton<TrialBalanceValidationHandler>();
@@ -54,7 +69,9 @@ host.Run();
 static IOperationHandler[] ResolveHandlers(IServiceProvider sp, bool simulationAllowed)
 {
   var validation = sp.GetRequiredService<TrialBalanceValidationHandler>();
+  var checkpoint = sp.GetRequiredService<ReleaseCheckpointHandler>();
   return simulationAllowed
-    ? [validation, sp.GetRequiredService<PbcDocumentTransferHandler>()]
-    : [validation];
+    ? [validation, checkpoint, sp.GetRequiredService<PbcDocumentTransferHandler>()]
+    : [validation, checkpoint];
 }
+
