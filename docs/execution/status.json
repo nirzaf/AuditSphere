@@ -3,7 +3,7 @@
   "specificationVersion": "5.0",
   "specificationSha256": "e1e9a10bb82c9eae1c1a28b7f17a90f61152d1198444cbd95392c9bd714812d4",
   "repository": "/Users/qts/Repos/AuditSphere",
-  "baseCommit": "4113a6c98bbc648c2474c192eba8b0142229179a",
+  "baseCommit": "b34447ba2d87e81ed865081b7dedb1415e5efdce",
   "sdk": {
     "version": "10.0.300",
     "efCore": "10.0.12",
@@ -12,15 +12,15 @@
     "postgres": "18.6 Homebrew user-local port 5433 (development only)"
   },
   "active": {
-    "packageId": "AuditSphereOps v5 local completion slices: records archive, repository binding, fail-closed provider boundaries and recovery quarantine (spec §§24.4, 25, 27.2, 43, 45)",
-    "issueNumber": null,
-    "branch": "codex/records-archive-slice",
-    "pullRequestNumber": 11,
-    "headCommit": "fae8723",
-    "implementationStatus": "PARTIAL",
+    "packageId": "P0 — Repository truth, backlog and governance cleanup",
+    "issueNumber": 1,
+    "branch": "master",
+    "pullRequestNumber": null,
+    "headCommit": "b34447ba2d87e81ed865081b7dedb1415e5efdce",
+    "implementationStatus": "IN_PROGRESS",
     "acceptanceStatus": "LOCAL_VERIFIED",
-    "worktree": "Release evidence, records archive, repository binding, fail-closed provider boundaries, startup fences and recovery quarantine are locally verified on codex/records-archive-slice. The tenant and production gates remain separate and unclaimed.",
-    "scope": "Local records/archive/repository/recovery enforcement and fail-closed provider composition. No live provider, Purview behavior, professional sign-off or production acceptance is claimed.",
+    "worktree": "PR #11 (records archive, repository binding, fail-closed provider boundaries, recovery quarantine) merged to master at b34447b. P0 governance cleanup in progress: reconciling execution ledgers, creating GitHub milestones R1–R4 and 14 dependency-ordered issues, and preparing branch-protection configuration. No code changes; 161/161 tests and 30 migrations remain green.",
+    "scope": "Documentation and GitHub backlog alignment only. No application code, migrations, or external provider effects touched.",
     "productionEnabled": false
   },
 
@@ -259,30 +259,72 @@
     {
       "observedAt": "2026-09-19T14:08:19Z",
       "pullRequest": 11,
-      "headCommit": "97892639a7c3123fbf5ce678f35fc21754f04d1f",
-      "result": "Hosted build-test-ready, GitGuardian and Cubic checks are complete; the configured Codex review commented on the prior implementation commit fae8723. No independent human approval is recorded, so Checklist #14 remains blocked and the PR is not merged."
+      "headCommit": "b34447ba2d87e81ed865081b7dedb1415e5efdce",
+      "result": "PR #11 merged to master at b34447b (2026-09-19). Hosted CI run 35447359338 passed in 3m25s on head fae8723: setup-dotnet, locked tool restore, package restore, build, EF migration, 161-test PostgreSQL suite, migration-aware readiness, and cleanup. GitGuardian also passed. No independent human approval is recorded for PR #11 or prior merged PRs; this remains an outstanding governance gate."
     }
   ],
   "blockers": [
     {
       "classification": "external-tenant",
-      "gate": "Live Entra OIDC / selected SharePoint grants / Purview records profile / signing method",
-      "missing": "Production OIDC/provider credentials and live acceptance evidence; Purview records profile/label behavior; methodology/template approvals; and signing evidence. The EasyGuide app registration, Sites.Selected admin consent, and selected non-production write grant are observed but do not establish production readiness.",
-      "ownerAction": "M365/operations and professional owners supply approved credentials/evidence and complete the remaining external acceptance actions; do not treat the developer-tenant grant as production approval."
+      "gate": "P1 — Live Entra OIDC / runtime identity",
+      "missing": "Production OIDC configuration, approved non-production credentials, redirect URIs, and live identity acceptance evidence with real tenant fixtures (authorized staff, Client A/B, disabled/revoked, changed-UPN, wrong-tenant).",
+      "ownerAction": "M365/operations owner supplies approved app configuration, credential reference in secret store, and completes P1 acceptance criteria before P2 work begins."
+    },
+    {
+      "classification": "external-tenant",
+      "gate": "P2 — Live bounded SharePoint/Graph document provider",
+      "missing": "Approved non-production credentials bound to RepositoryBinding, real provider upload/download/version/reconciliation acceptance, and isolation proof (Client A ≠ Client B, wrong-tenant denial).",
+      "ownerAction": "Depends on P1 completion. Operations owner supplies Graph credential and completes P2 isolation/reconciliation matrix."
+    },
+    {
+      "classification": "external-tenant",
+      "gate": "P3 — External release checkpoint store + capability evidence",
+      "missing": "Approved live IReleaseCheckpointStore implementation and non-production readback evidence. Local store is test-only.",
+      "ownerAction": "Operations owner provisions the independently administered checkpoint store and completes P3 acceptance criteria."
+    },
+    {
+      "classification": "external-tenant",
+      "gate": "P4 — Purview records profile + reviewer fixtures + behavior evidence",
+      "missing": "Test-only Purview records profile, approved retention/record label, named disposition reviewer/custodian/admin fixtures, and observed label/protection-state evidence. The Purview portal is accessible but no label or policy was created.",
+      "ownerAction": "Compliance Officer configures Purview test-only records profile and named reviewer fixtures; records custodian executes the reviewer/editor/custodian/admin matrix."
+    },
+    {
+      "classification": "external-tenant",
+      "gate": "P5 — Approved signing methodology + signature lineage",
+      "missing": "Approved X.509/HSM or equivalent signing method, certificate/key custody, authorized signatory rules, and immutable signature lineage bound to exact released artifacts.",
+      "ownerAction": "Audit firm technical committee approves methodology; operations owner provisions signing infrastructure."
     },
     {
       "classification": "implementation-gap",
-      "gate": "Schema integrity, UI and recovery controls (spec §§27, 42, 43, 45)",
-      "missing": "Live provider adapters, disposition-package blocking, custodially separate checkpoint reconciliation, and production cross-store recovery evidence. Repository binding, fail-closed provider boundaries, versioned persisted full §25.3 structured export, append-only records-action evidence, startup fencing, recovery quarantine and local restore evidence are implemented and locally verified.",
-      "ownerAction": "Keep external provider effects disabled until approved credentials/bindings and independent acceptance evidence exist; add the authorized disposition-package workflow before production review."
+      "gate": "P6 — Records/archive residual hardening",
+      "missing": "Deterministic re-archive/version lineage, disposition-package blocking, evidence-safe downgrade paths, and legal-hold/disposition conflict tests.",
+      "ownerAction": "Implementer delivers P6 locally before P7; no external prerequisites for the local subset."
+    },
+    {
+      "classification": "external-tenant",
+      "gate": "P7 — Cross-store recovery + production RPO/RTO",
+      "missing": "Custodially separate backup/checkpoint environment, named recovery custodians, isolated restore, measured RPO/RTO, and human-reviewed reconciliation evidence.",
+      "ownerAction": "Operations owner provisions separate recovery environment and named custodians; implementer executes and documents recovery runbook."
+    },
+    {
+      "classification": "external-tenant",
+      "gate": "P8 — Production secrets/observability/capacity",
+      "missing": "Approved secret store, Data Protection key-ring, structured telemetry, alert thresholds, and workload capacity validation.",
+      "ownerAction": "Operations/security owner provisions production configuration; implementer wires and validates."
     },
     {
       "classification": "authorization-review",
-      "gate": "Independent review and PR/merge",
-      "missing": "Checklist #14 has no independent human review evidence; PR #1, PR #2, PR #3, PR #4, PR #5, PR #6, PR #7, PR #8, PR #10, and open PR #11 have no independent human review recorded",
-      "ownerAction": "Obtain independent review evidence before treating the merged slices as fully accepted."
+      "gate": "P9 — Independent review + protected merge governance",
+      "missing": "Independent human review of all merged slices (PR #1–#11); branch protection on master with required CI and reviewer approval; no self-approval counted as independent review.",
+      "ownerAction": "Repository owner (nirzaf) enables branch protection; designated independent reviewer conducts review and records evidence in the execution ledger."
+    },
+    {
+      "classification": "external-tenant",
+      "gate": "P10 — Full §47 real-tenant acceptance cycle",
+      "missing": "P1–P9 complete or explicitly approved for the tested release profile; complete §47 lifecycle executed with real authorized tenant resources, professional approvals, and independent reviewer sign-off on evidence package.",
+      "ownerAction": "Product owner and professional adoption authority authorize and execute the full §47 lifecycle; independent reviewer signs evidence package."
     }
   ],
-  "nextPermittedAction": "Obtain independent review and approved Purview/signing/operations evidence; keep live provider effects, production records actions and production RPO/RTO acceptance blocked until observed evidence exists.",
-  "lastVerifiedAt": "2026-09-19T14:03:17Z"
+  "nextPermittedAction": "Complete P0 governance cleanup (this commit). Then P1: obtain approved Entra app credentials in secret store and begin live OIDC integration. Keep live provider effects, Purview, signing, production RPO/RTO and §47 acceptance blocked until each phase’s prerequisites and independent evidence exist.",
+  "lastVerifiedAt": "2026-09-19T20:10:00Z"
 }

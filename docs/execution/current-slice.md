@@ -1,6 +1,20 @@
-# AuditSphereOps — implementation in progress
+# AuditSphereOps — current state and active slice
 
 The build contract is `AuditSphereOps_NET_Codex_Implementation_Specification.md` (v5.0) at repo root. The v5 specification already requires .NET 10 (SDK 10.0.300) and PostgreSQL 18; an earlier note claiming .NET 10 was a deviation was incorrect. The local server is now PostgreSQL 18.6, matching the spec's required major version.
+
+## P0 — Repository Truth, Backlog and Governance Cleanup (active, master @ `b34447b`)
+
+**Base:** `b34447ba2d87e81ed865081b7dedb1415e5efdce` (merge of PR #11, 2026-09-19)  
+**Tests:** 161/161 passing, 0 skipped, PostgreSQL 18.6  
+**Migrations:** 30 (latest: `20260919134442_RecordsActionEvidence`)
+
+This slice makes no code or schema changes. It reconciles all execution-ledger documents with the current merged `master` reality, creates GitHub milestones R1–R4 and 14 dependency-ordered issues for P1–P10 remaining work, and prepares the branch-protection configuration for owner action.
+
+Acceptance criteria for P0:
+- README, status.json, current-slice.md, implementation-checklist.md, and pending-tasks.md all agree on `b34447b` baseline.
+- No merged PR is shown as active.
+- Every pending package has a GitHub issue, owner, and milestone.
+- No credentials or secrets are stored in Git.
 
 ## Verified locally (as of 2026-09-19)
 
