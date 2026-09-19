@@ -1,6 +1,13 @@
 @page "/app/audit/plans/{Id:guid}"
-@using Microsoft.AspNetCore.Components.Authorization
-@inject AuthenticationStateProvider Auth
+@page "/app/engagements/{EngagementId:guid}/audit-plan"
+@rendermode InteractiveServer
+@using AuditSphereOps.Domain.Audit
+@using AuditSphereOps.Domain.Engagements
+@using AuditSphereOps.Domain.Security
+@using AuditSphereOps.Infrastructure.Persistence
+@using Microsoft.EntityFrameworkCore
+@inject CurrentActorResolver ActorResolver
+@inject IDbContextFactory<AuditSphereDbContext> DbFactory
 @inject NavigationManager Nav
 
 <PageTitle>Audit Plan — AuditSphereOps</PageTitle>
@@ -8,7 +15,11 @@
 <div class="page-header">
     <nav class="breadcrumb-nav">
         <a href="/app">Portfolio</a> /
-        <a href="/app/engagements/@_engagementId">Engagement</a> /
+        @if (_effectiveEngagementId.HasValue)
+        {
+            <a href="@($"/app/engagements/{_effectiveEngagementId}")">Engagement</a>
+            <span> / </span>
+        }
         <span>Audit Plan</span>
     </nav>
     <h1>Audit Plan &amp; Strategy</h1>
@@ -17,15 +28,29 @@
 
 @if (_loading)
 {
-    <div class="loading-state">Loading plan…</div>
+    <p role="status">Loading plan…</p>
+}
+else if (_actor is null || !_isStaff)
+{
+    <section class="notice" role="alert">
+        <h2>Access unavailable</h2>
+        <p>Sign in with an authorized internal staff identity to view audit plans.</p>
+    </section>
+}
+else if (_engagement is null)
+{
+    <section class="notice" role="alert">
+        <h2>Plan unavailable</h2>
+        <p>The requested engagement or plan was not found in the current firm scope.</p>
+    </section>
 }
 else
 {
     <div class="plan-shell">
 
         <!-- Materiality -->
-        <section class="card">
-            <h2>Materiality</h2>
+        <section class="card" aria-labelledby="materiality-heading">
+            <h2 id="materiality-heading">Materiality (§19.2)</h2>
             @if (_materiality is not null)
             {
                 <dl class="detail-grid">
@@ -44,84 +69,145 @@ else
         </section>
 
         <!-- Risks -->
-        <section class="card">
-            <h2>Identified Risks</h2>
-            <table class="data-table">
-                <thead>
-                    <tr><th>Area</th><th>Assertion</th><th>Significance</th><th>Status</th></tr>
-                </thead>
-                <tbody>
-                    @foreach (var r in _risks)
-                    {
-                        <tr>
-                            <td>@r.Area</td>
-                            <td>@r.Assertion</td>
-                            <td><span class="badge @(r.Significance == "SIGNIFICANT" ? "badge-red" : "badge-yellow")">@r.Significance</span></td>
-                            <td>@r.Status</td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
+        <section class="card" aria-labelledby="risks-heading">
+            <h2 id="risks-heading">Identified Risks (§19.3)</h2>
+            @if (_risks.Count == 0)
+            {
+                <p class="empty-state">No audit risks identified yet.</p>
+            }
+            else
+            {
+                <table class="data-table">
+                    <thead>
+                        <tr><th>Description</th><th>Assertion</th><th>Severity</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var r in _risks)
+                        {
+                            <tr>
+                                <td>@r.Description</td>
+                                <td>@r.Assertion</td>
+                                <td><span class="badge @(r.Severity == "CRITICAL" || r.Severity == "HIGH" || r.Severity == "Significant" ? "badge-red" : "badge-yellow")">@r.Severity</span></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
             <button class="btn-small mt-2" @onclick="NewRisk">Add Risk</button>
         </section>
 
-        <!-- Programs -->
-        <section class="card">
-            <h2>Audit Programs</h2>
-            <ul class="program-list">
-                @foreach (var p in _programs)
-                {
-                    <li>
-                        <span class="program-name">@p.Name</span>
-                        <span class="program-status">@p.ProcedureCount procedures · @p.CoveragePercent% coverage</span>
-                        <a class="btn-small" href="/app/audit/plans/@Id/programs/@p.Id">Open</a>
-                    </li>
-                }
-            </ul>
+        <!-- Programs / Workpapers -->
+        <section class="card" aria-labelledby="workpapers-heading">
+            <h2 id="workpapers-heading">Audit Workpapers (§21.1)</h2>
+            @if (_workpapers.Count == 0)
+            {
+                <p class="empty-state">No workpapers created for this audit plan yet.</p>
+            }
+            else
+            {
+                <ul class="program-list">
+                    @foreach (var wp in _workpapers)
+                    {
+                        <li>
+                            <span class="program-name">@wp.Title</span>
+                            <span class="program-status">State: @wp.State · Generation @wp.Generation</span>
+                            <a class="btn-small" href="/app/audit/workpapers/@wp.Id">Open</a>
+                        </li>
+                    }
+                </ul>
+            }
         </section>
     </div>
 }
 
 @code {
-    [Parameter] public Guid Id { get; set; }
+    [Parameter] public Guid? Id { get; set; }
+    [Parameter] public Guid? EngagementId { get; set; }
 
-    Guid? _engagementId;
+    Guid? _effectiveEngagementId;
+    AuditSphereOps.Application.Abstractions.ActorContext? _actor;
+    bool _isStaff;
     bool _loading = true;
     string _status = "IN_PROGRESS";
 
+    Engagement? _engagement;
+
     record MaterialityRow(string Currency, decimal Overall, decimal Performance, decimal ClearlyTrivial, string Benchmark, string Status);
-    record RiskRow(string Area, string Assertion, string Significance, string Status);
-    record ProgramRow(Guid Id, string Name, int ProcedureCount, int CoveragePercent);
+    record RiskRow(string Description, string Assertion, string Severity);
 
     MaterialityRow? _materiality;
     List<RiskRow> _risks = [];
-    List<ProgramRow> _programs = [];
+    List<AuditSphereOps.Domain.Audit.Workpaper> _workpapers = [];
 
-    void NewMateriality() => Nav.NavigateTo($"/app/audit/plans/{Id}/materiality/new");
-    void NewRisk() => Nav.NavigateTo($"/app/audit/plans/{Id}/risks/new");
+    void NewMateriality() => Nav.NavigateTo($"/app/audit/plans/{_effectiveEngagementId}/materiality/new");
+    void NewRisk() => Nav.NavigateTo($"/app/audit/plans/{_effectiveEngagementId}/risks/new");
 
     protected override async Task OnInitializedAsync()
     {
-        var state = await Auth.GetAuthenticationStateAsync();
-        if (state.User.Identity?.IsAuthenticated != true)
-        { Nav.NavigateTo("/login"); return; }
+        _loading = true;
+        _actor = await ActorResolver.ResolveAsync();
+        _isStaff = _actor is not null && _actor.Roles.Any(x => x is "Administrator" or "Partner" or "Manager" or "Staff" or "EngagementLeader" or "Auditor");
 
-        _engagementId = Guid.NewGuid();
-        _materiality = new("QAR", 250_000m, 187_500m, 12_500m, "Total assets", "APPROVED");
-        _risks =
-        [
-            new("Revenue recognition", "Occurrence", "SIGNIFICANT", "RESPONSE_DEFINED"),
-            new("Accounts receivable", "Valuation", "ELEVATED", "RESPONSE_DEFINED"),
-            new("Payroll", "Completeness", "NORMAL", "IDENTIFIED"),
-            new("Inventory", "Existence", "ELEVATED", "RESPONSE_DEFINED"),
-        ];
-        _programs =
-        [
-            new(Guid.NewGuid(), "Cash & Bank", 8, 100),
-            new(Guid.NewGuid(), "Revenue & Receivables", 14, 78),
-            new(Guid.NewGuid(), "Inventory", 10, 60),
-            new(Guid.NewGuid(), "Payables & Accruals", 9, 100),
-        ];
+        _effectiveEngagementId = EngagementId ?? Id;
+        if (_actor is null || !_isStaff || !_effectiveEngagementId.HasValue)
+        {
+            _loading = false;
+            return;
+        }
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+        _engagement = await db.Engagements.AsNoTracking()
+            .FirstOrDefaultAsync(e => e.Id == _effectiveEngagementId.Value && e.FirmId == _actor.FirmId);
+
+        if (_engagement is null)
+        {
+            _loading = false;
+            return;
+        }
+
+        _status = _engagement.ProfessionalWorkBlocked ? "PLANNING_BLOCKED" : "PLANNING_ACTIVE";
+
+        // Query real materiality assessment
+        var mat = await db.Database.SqlQueryRaw<MaterialityDto>(
+            """
+            SELECT currency AS "Currency", overall_amount AS "Overall",
+                   performance_amount AS "Performance", clearly_trivial_amount AS "ClearlyTrivial",
+                   benchmark_type AS "Benchmark", status AS "Status"
+            FROM materiality_assessments
+            WHERE engagement_id = {0}
+            ORDER BY created_at DESC
+            LIMIT 1
+            """, _engagement.Id).FirstOrDefaultAsync();
+
+        if (mat is not null)
+        {
+            _materiality = new(mat.Currency, mat.Overall, mat.Performance, mat.ClearlyTrivial, mat.Benchmark, mat.Status);
+        }
+
+        // Query real audit risks
+        var risks = await db.AuditRisks.AsNoTracking()
+            .Where(r => r.EngagementId == _engagement.Id)
+            .OrderBy(r => r.CreatedAt)
+            .ToListAsync();
+
+        _risks = risks.Select(r => new RiskRow(r.Description, r.Assertion, r.Severity)).ToList();
+
+        // Query real workpapers
+        _workpapers = await db.Workpapers.AsNoTracking()
+            .Where(w => w.EngagementId == _engagement.Id)
+            .OrderBy(w => w.Title)
+            .ToListAsync();
+
         _loading = false;
+    }
+
+    private sealed class MaterialityDto
+    {
+        public string Currency { get; set; } = string.Empty;
+        public decimal Overall { get; set; }
+        public decimal Performance { get; set; }
+        public decimal ClearlyTrivial { get; set; }
+        public string Benchmark { get; set; } = string.Empty;
+        public string Status { get; set; } = string.Empty;
     }
 }

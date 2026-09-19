@@ -12,15 +12,15 @@
     "postgres": "18.6 Homebrew user-local port 5433 (development only)"
   },
   "active": {
-    "packageId": "Complete audit planning, materiality, risks, populations, workpapers, findings lifecycle (NT-21..24) and audit UI routes",
+    "packageId": "Complete core entity catalog extensions (§27.2), CE-62/RV-30 question banks (§13, §14), and UI state integrity",
     "issueNumber": null,
     "branch": "master",
     "pullRequestNumber": null,
-    "headCommit": "9537797",
+    "headCommit": "dbd16ef",
     "implementationStatus": "PARTIAL",
-    "acceptanceStatus": "VERIFIED",
-    "worktree": "Adds audit planning service, materiality assessments (§19.2), audit risks (§19.3), population versions (§20.1), workpaper records and submissions (§21.1), and findings (§23). Migration 20260918235000_AuditPlanningAndFirmPostingExtensions applied cleanly across all environments (21 total migrations). Full test suite 130/130 passing on PostgreSQL 18.6 locally and in GitHub Actions CI (run 35399610053, 0 skipped). Web readiness returned Healthy/HTTP 200 with 0 pending migrations. Restore rehearsal passed with 21 migrations.",
-    "scope": "Audit planning, materiality, risks, populations, workpapers, findings, firm posting balance guard, and audit UI screens behind scoped role authorization. No live provider is claimed.",
+    "acceptanceStatus": "LOCAL_VERIFIED",
+    "worktree": "Adds missing core entity catalog models (EngagementAssignment, EqrCase, WrittenRepresentation, SpecialistClearance, SourceReceipt, EvidenceLink, QuestionnaireTemplate, QuestionDefinition). Applies migration 20260918232054_CoreEntityCatalogAndQuestionnaireExtensions (22 total migrations). Seeds CE-62 and RV-30 question banks. Purges fabricated state from Completion.razor, AuditPlan.razor, AssessmentDetail.razor, and ReviewPoint.razor to query real database entities and display genuine empty states. 136/136 tests passing on PostgreSQL 18.6 with 0 skipped. Restore rehearsal passed with 22 migrations. Web readiness returned Healthy/HTTP 200 with 0 pending migrations.",
+    "scope": "Core entity catalog, question banks, and UI ground truth. No live provider is claimed.",
     "productionEnabled": false
   },
   "testEvidence": [
@@ -145,6 +145,22 @@
       "result": "Loopback-only dump/restore passed; restored 21 migrations with latest 20260918235000_AuditPlanningAndFirmPostingExtensions and removed only its generated database and temporary directory."
     },
     {
+      "command": "dotnet ef database update --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Web",
+      "result": "Applied 20260918232054_CoreEntityCatalogAndQuestionnaireExtensions; local auditsphere is now up to date with twenty-two migrations. Adds engagement_assignments, eqr_cases, written_representations, specialist_clearances, source_receipts, evidence_links, questionnaire_templates, and question_definitions."
+    },
+    {
+      "command": "dotnet build AuditSphereOps.slnx",
+      "result": "Build succeeded with 0 warnings and 0 errors across all 6 projects."
+    },
+    {
+      "command": "dotnet test AuditSphereOps.slnx --no-build",
+      "result": "Passed 136/136 on PostgreSQL 18.6 with 0 skipped. New coverage: CoreEntityCatalogTests (6 tests) covering CAT-01 (engagement assignment persistence and role constraints), CAT-02 (EQR case concurrence lifecycle and unique engagement guard), CAT-03 (written representation unique code and obtained status), CAT-04 (specialist clearance condition gates), CAT-05 (source receipt SHA-256 digest preservation and evidence link linkage), and CAT-06 (QuestionnaireSeed populating CE-62 and RV-30 question banks)."
+    },
+    {
+      "command": "scripts/db/restore-drill.sh",
+      "result": "Loopback-only dump/restore passed; restored 22 migrations with latest 20260918235000_AuditPlanningAndFirmPostingExtensions and removed only its generated database and temporary directory."
+    },
+    {
       "command": "dotnet run --project src/AuditSphereOps.Web --urls http://127.0.0.1:5099 plus HTTP smoke requests",
       "result": "Web host started cleanly on port 5099; HTTP 200 returned for /health/live and /health/ready. /health/ready queried __EFMigrationsHistory and reported Healthy with 0 pending migrations."
     }
@@ -193,5 +209,5 @@
     }
   ],
   "nextPermittedAction": "Continue with owner-authorized tenant/professional evidence and independent human review. Production recovery remains unproven.",
-  "lastVerifiedAt": "2026-09-19T01:04:00Z"
+  "lastVerifiedAt": "2026-09-19T02:27:00Z"
 }

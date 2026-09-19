@@ -1,6 +1,13 @@
 @page "/app/assessments/{Id:guid}"
-@using Microsoft.AspNetCore.Components.Authorization
-@inject AuthenticationStateProvider Auth
+@page "/app/clients/{ClientId:guid}/assessment"
+@rendermode InteractiveServer
+@using AuditSphereOps.Domain.Acceptance
+@using AuditSphereOps.Domain.Practice
+@using AuditSphereOps.Domain.Security
+@using AuditSphereOps.Infrastructure.Persistence
+@using Microsoft.EntityFrameworkCore
+@inject CurrentActorResolver ActorResolver
+@inject IDbContextFactory<AuditSphereDbContext> DbFactory
 @inject NavigationManager Nav
 
 <PageTitle>Client Assessment — AuditSphereOps</PageTitle>
@@ -8,117 +15,239 @@
 <div class="page-header">
     <nav aria-label="breadcrumb" class="breadcrumb-nav">
         <a href="/app">Portfolio</a> /
-        <a href="/app/clients/@ClientId">Client</a> /
-        <span>Assessment @Id</span>
+        @if (_effectiveClientId.HasValue)
+        {
+            <a href="@($"/app/clients/{_effectiveClientId}")">@(_client?.LegalName ?? "Client")</a>
+            <span> / </span>
+        }
+        <span>Assessment</span>
     </nav>
     <h1>Client Evaluation &amp; Continuance Assessment</h1>
 </div>
 
 @if (_loading)
 {
-    <div class="loading-state">Loading assessment…</div>
+    <p role="status">Loading assessment…</p>
+}
+else if (_actor is null || !_isStaff)
+{
+    <section class="notice" role="alert">
+        <h2>Access unavailable</h2>
+        <p>Sign in with an authorized internal staff identity to view assessments.</p>
+    </section>
+}
+else if (_client is null)
+{
+    <section class="notice" role="alert">
+        <h2>Client unavailable</h2>
+        <p>The client or assessment was not found in the current firm scope.</p>
+    </section>
 }
 else
 {
     <div class="assessment-shell">
 
+        <!-- Assessment summary -->
+        <section class="card" aria-labelledby="summary-heading">
+            <h2 id="summary-heading">Assessment Profile</h2>
+            <dl class="detail-grid">
+                <dt>Client</dt><dd>@_client.LegalName</dd>
+                <dt>Registration</dt><dd>@(_client.RegistrationNumber ?? "—")</dd>
+                <dt>Relationship State</dt><dd>@_client.Status</dd>
+                <dt>Acceptance Status</dt><dd>@(_decision?.Decision ?? "Pending Evaluation")</dd>
+                <dt>Decision Generation</dt><dd>@(_decision?.Generation.ToString() ?? "—")</dd>
+            </dl>
+        </section>
+
         <!-- CE / RV question sections -->
-        <section class="card">
-            <h2>Question Sections</h2>
-            <div class="section-list">
-                @foreach (var s in _sections)
-                {
-                    <div class="section-row @(s.Complete ? "complete" : "incomplete")">
-                        <span class="section-label">@s.Name</span>
-                        <span class="section-status">@(s.Complete ? "✓ Complete" : $"{s.Answered}/{s.Total} answered")</span>
-                        <button class="btn-small" @onclick="() => OpenSection(s.Id)">Review</button>
-                    </div>
-                }
-            </div>
-        </section>
-
-        <!-- Clearances / holds -->
-        <section class="card">
-            <h2>Clearances &amp; Holds</h2>
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th>Area</th><th>Status</th><th>Authority</th><th>Date</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var c in _clearances)
-                    {
-                        <tr>
-                            <td>@c.Area</td>
-                            <td><span class="badge @c.StatusClass">@c.Status</span></td>
-                            <td>@c.Authority</td>
-                            <td>@c.Date.ToString("yyyy-MM-dd")</td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        </section>
-
-        <!-- Decision action -->
-        <section class="card">
-            <h2>Partner Decision</h2>
-            @if (_allSectionsClear)
+        <section class="card" aria-labelledby="sections-heading">
+            <h2 id="sections-heading">Question Sections (§13, §14)</h2>
+            @if (_sections.Count == 0)
             {
-                <p class="info-text">All blocking clearances resolved. Partner may record acceptance/continuance decision.</p>
-                <a class="btn-primary" href="/app/assessments/@Id/decision">Record Decision</a>
+                <p class="empty-state">No question templates loaded. Question banks can be initialized from the administrative console.</p>
             }
             else
             {
-                <p class="warn-text">Outstanding blocking items must be resolved before the partner decision is available.</p>
+                <div class="section-list">
+                    @foreach (var s in _sections)
+                    {
+                        <div class="section-row @(s.Complete ? "complete" : "incomplete")" style="display:flex; justify-content:space-between; align-items:center; padding:0.6rem 0; border-bottom:1px solid #eee;">
+                            <div>
+                                <strong>@s.SectionCode</strong> — <span class="section-label">@s.Name</span>
+                            </div>
+                            <div>
+                                <span class="section-status badge @(s.Complete ? "badge-green" : "badge-yellow")">
+                                    @(s.Complete ? "✓ Complete" : $"{s.Answered}/{s.Total} answered")
+                                </span>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </section>
+
+        <!-- Clearances / holds -->
+        <section class="card" aria-labelledby="clearances-heading">
+            <h2 id="clearances-heading">Specialist Clearances (§13.3)</h2>
+            @if (_clearances.Count == 0)
+            {
+                <p class="muted">No specialist clearances currently required or recorded for this client.</p>
+            }
+            else
+            {
+                <div class="table-wrap">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Area</th><th>Specialist</th><th>Status</th><th>Evidence Ref</th><th>Date</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var c in _clearances)
+                            {
+                                <tr>
+                                    <td><strong>@c.Area</strong></td>
+                                    <td>@c.Specialist</td>
+                                    <td><span class="badge @c.StatusClass">@c.Status</span></td>
+                                    <td>@(c.EvidenceRef ?? "—")</td>
+                                    <td>@(c.Date?.ToString("yyyy-MM-dd") ?? "—")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </section>
+
+        <!-- Partner Decision -->
+        <section class="card" aria-labelledby="decision-heading">
+            <h2 id="decision-heading">Partner Decision</h2>
+            @if (_decision is not null && _decision.Decision != "Pending")
+            {
+                <div class="alert alert-success">
+                    <strong>Decision recorded:</strong> @_decision.Decision by Partner @(_decision.DecidedByUserId?.ToString()[..8] ?? "—") on @(_decision.DecidedAt?.ToString("yyyy-MM-dd HH:mm") ?? "—") UTC.
+                </div>
+            }
+            else if (_allSectionsClear)
+            {
+                <p class="info-text">All required evaluations and clearances are satisfied. An authorized partner may record the acceptance or continuance decision.</p>
+            }
+            else
+            {
+                <p class="warn-text">Outstanding questionnaire responses or pending specialist clearances block acceptance decision.</p>
             }
         </section>
     </div>
 }
 
 @code {
-    [Parameter] public Guid Id { get; set; }
+    [Parameter] public Guid? Id { get; set; }
+    [Parameter] public Guid? ClientId { get; set; }
 
-    Guid? ClientId;
+    Guid? _effectiveClientId;
+    AuditSphereOps.Application.Abstractions.ActorContext? _actor;
+    bool _isStaff;
     bool _loading = true;
     bool _allSectionsClear;
 
-    record SectionRow(Guid Id, string Name, int Answered, int Total, bool Complete);
-    record ClearanceRow(string Area, string Status, string StatusClass, string Authority, DateTime Date);
+    PracticeClient? _client;
+    AcceptanceDecision? _decision;
+
+    record SectionRow(string SectionCode, string Name, int Answered, int Total, bool Complete);
+    record ClearanceRow(string Area, string Specialist, string Status, string StatusClass, string? EvidenceRef, DateTimeOffset? Date);
 
     List<SectionRow> _sections = [];
     List<ClearanceRow> _clearances = [];
 
     protected override async Task OnInitializedAsync()
     {
-        var state = await Auth.GetAuthenticationStateAsync();
-        if (state.User.Identity?.IsAuthenticated != true)
-        { Nav.NavigateTo("/login"); return; }
+        _loading = true;
+        _actor = await ActorResolver.ResolveAsync();
+        _isStaff = _actor is not null && _actor.Roles.Any(x => x is "Administrator" or "Partner" or "Manager" or "Staff" or "EngagementLeader" or "Auditor");
 
-        // Stub projection — real implementation queries assessment aggregate.
-        ClientId = Guid.NewGuid();
-        _sections =
-        [
-            new(Guid.NewGuid(), "A — Identity & Legal Existence", 7, 10, false),
-            new(Guid.NewGuid(), "B — Ownership & Beneficial Ownership", 10, 10, true),
-            new(Guid.NewGuid(), "C — Management Integrity & Reputation", 10, 10, true),
-            new(Guid.NewGuid(), "D — AML/CFT, Sanctions & PEP Risk", 12, 14, false),
-            new(Guid.NewGuid(), "E — Previous Auditor & History", 8, 8, true),
-            new(Guid.NewGuid(), "F — Financial & Going-Concern Profile", 9, 12, false),
-            new(Guid.NewGuid(), "G — Engagement Complexity & Resources", 10, 10, true),
-            new(Guid.NewGuid(), "H — Independence, Ethics & Conflicts", 10, 10, true),
-            new(Guid.NewGuid(), "I — Commercial & Engagement Viability", 8, 8, true),
-            new(Guid.NewGuid(), "J — Data, Cyber & Confidentiality", 8, 10, false),
-        ];
-        _clearances =
-        [
-            new("Independence check", "CLEARED", "badge-green", "Partner A", DateTime.UtcNow.AddDays(-2)),
-            new("AML screening", "HOLD", "badge-red", "Compliance Officer", DateTime.UtcNow.AddDays(-1)),
-            new("Fee agreement", "PENDING", "badge-yellow", "—", DateTime.UtcNow),
-        ];
-        _allSectionsClear = _sections.All(s => s.Complete) && _clearances.All(c => c.Status == "CLEARED");
+        _effectiveClientId = ClientId ?? Id;
+        if (_actor is null || !_isStaff || !_effectiveClientId.HasValue)
+        {
+            _loading = false;
+            return;
+        }
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+        _client = await db.PracticeClients.AsNoTracking()
+            .FirstOrDefaultAsync(c => c.Id == _effectiveClientId.Value && c.FirmId == _actor.FirmId);
+
+        // If Id was passed as an AcceptanceDecision ID, check that too
+        if (_client is null && Id.HasValue)
+        {
+            _decision = await db.AcceptanceDecisions.AsNoTracking()
+                .FirstOrDefaultAsync(d => d.Id == Id.Value && d.FirmId == _actor.FirmId);
+            if (_decision is not null)
+            {
+                _effectiveClientId = _decision.PracticeClientId;
+                _client = await db.PracticeClients.AsNoTracking()
+                    .FirstOrDefaultAsync(c => c.Id == _effectiveClientId.Value && c.FirmId == _actor.FirmId);
+            }
+        }
+        else if (_client is not null)
+        {
+            _decision = await db.AcceptanceDecisions.AsNoTracking()
+                .Where(d => d.PracticeClientId == _client.Id && d.FirmId == _actor.FirmId)
+                .OrderByDescending(d => d.Generation)
+                .FirstOrDefaultAsync();
+        }
+
+        if (_client is null)
+        {
+            _loading = false;
+            return;
+        }
+
+        // Query real evaluation responses for this client
+        var responses = await db.EvaluationResponses.AsNoTracking()
+            .Where(r => r.PracticeClientId == _client.Id && r.FirmId == _actor.FirmId)
+            .ToListAsync();
+
+        var answeredCodes = responses.Select(r => r.QuestionId).ToHashSet();
+
+        // Query questionnaire definitions
+        var questions = await db.QuestionDefinitions.AsNoTracking()
+            .OrderBy(q => q.SortOrder)
+            .ToListAsync();
+
+        if (questions.Count > 0)
+        {
+            var groups = questions.GroupBy(q => q.Section).OrderBy(g => g.Key);
+            foreach (var g in groups)
+            {
+                var total = g.Count();
+                var answered = g.Count(q => answeredCodes.Contains(q.QuestionCode));
+                var categoryName = g.First().Category;
+                _sections.Add(new(g.Key, categoryName, answered, total, answered == total && total > 0));
+            }
+        }
+
+        // Query real specialist clearances
+        var clearances = await db.SpecialistClearances.AsNoTracking()
+            .Where(sc => sc.PracticeClientId == _client.Id && sc.FirmId == _actor.FirmId)
+            .ToListAsync();
+
+        foreach (var sc in clearances)
+        {
+            string statusClass = sc.Status switch
+            {
+                "CLEARED" => "badge-green",
+                "HOLD" => "badge-red",
+                "CONDITIONS" => "badge-orange",
+                _ => "badge-yellow"
+            };
+            _clearances.Add(new(sc.Area, string.IsNullOrEmpty(sc.SpecialistName) ? "Unassigned" : sc.SpecialistName,
+                sc.Status, statusClass, sc.EvidenceReference, sc.ClearedAt));
+        }
+
+        bool allClearancesPass = _clearances.Count == 0 || _clearances.All(c => c.Status == "CLEARED");
+        bool allSectionsPass = _sections.Count > 0 && _sections.All(s => s.Complete);
+        _allSectionsClear = allClearancesPass && allSectionsPass;
+
         _loading = false;
     }
-
-    void OpenSection(Guid sectionId) => Nav.NavigateTo($"/app/assessments/{Id}/section/{sectionId}");
 }

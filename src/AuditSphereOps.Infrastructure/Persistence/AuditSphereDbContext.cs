@@ -88,6 +88,14 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
   public DbSet<FirmSafetyState> FirmSafetyStates => Set<FirmSafetyState>();
   public DbSet<ClientSafetyState> ClientSafetyStates => Set<ClientSafetyState>();
   public DbSet<RecordState> RecordStates => Set<RecordState>();
+  public DbSet<EqrCase> EqrCases => Set<EqrCase>();
+  public DbSet<WrittenRepresentation> WrittenRepresentations => Set<WrittenRepresentation>();
+  public DbSet<EngagementAssignment> EngagementAssignments => Set<EngagementAssignment>();
+  public DbSet<SpecialistClearance> SpecialistClearances => Set<SpecialistClearance>();
+  public DbSet<QuestionnaireTemplate> QuestionnaireTemplates => Set<QuestionnaireTemplate>();
+  public DbSet<QuestionDefinition> QuestionDefinitions => Set<QuestionDefinition>();
+  public DbSet<SourceReceipt> SourceReceipts => Set<SourceReceipt>();
+  public DbSet<EvidenceLink> EvidenceLinks => Set<EvidenceLink>();
 
   protected override void OnModelCreating(ModelBuilder b)
   {
@@ -979,6 +987,71 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     disclosure.HasOne<FinancialPackage>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.FinancialPackageId })
       .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    b.Entity<EngagementAssignment>(entity =>
+    {
+      entity.ToTable("engagement_assignments");
+      entity.HasKey(x => x.Id);
+      entity.HasIndex(x => new { x.EngagementId, x.UserId, x.Role });
+      entity.HasOne<Engagement>().WithMany().HasForeignKey(x => x.EngagementId).OnDelete(DeleteBehavior.Cascade);
+      entity.HasOne<AppUser>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Restrict);
+    });
+
+    b.Entity<EqrCase>(entity =>
+    {
+      entity.ToTable("eqr_cases");
+      entity.HasKey(x => x.Id);
+      entity.HasIndex(x => new { x.EngagementId }).IsUnique();
+      entity.HasOne<Engagement>().WithMany().HasForeignKey(x => x.EngagementId).OnDelete(DeleteBehavior.Cascade);
+      entity.HasOne<AppUser>().WithMany().HasForeignKey(x => x.EqrPartnerUserId).OnDelete(DeleteBehavior.Restrict);
+    });
+
+    b.Entity<WrittenRepresentation>(entity =>
+    {
+      entity.ToTable("written_representations");
+      entity.HasKey(x => x.Id);
+      entity.HasIndex(x => new { x.EngagementId, x.Code }).IsUnique();
+      entity.HasOne<Engagement>().WithMany().HasForeignKey(x => x.EngagementId).OnDelete(DeleteBehavior.Cascade);
+    });
+
+    b.Entity<SpecialistClearance>(entity =>
+    {
+      entity.ToTable("specialist_clearances");
+      entity.HasKey(x => x.Id);
+      entity.HasIndex(x => new { x.PracticeClientId, x.Area });
+      entity.HasOne<PracticeClient>().WithMany().HasForeignKey(x => x.PracticeClientId).OnDelete(DeleteBehavior.Cascade);
+    });
+
+    b.Entity<QuestionnaireTemplate>(entity =>
+    {
+      entity.ToTable("questionnaire_templates");
+      entity.HasKey(x => x.Id);
+      entity.HasIndex(x => new { x.Bank, x.Version }).IsUnique();
+    });
+
+    b.Entity<QuestionDefinition>(entity =>
+    {
+      entity.ToTable("question_definitions");
+      entity.HasKey(x => x.Id);
+      entity.HasIndex(x => new { x.TemplateId, x.QuestionCode }).IsUnique();
+      entity.HasOne<QuestionnaireTemplate>().WithMany().HasForeignKey(x => x.TemplateId).OnDelete(DeleteBehavior.Cascade);
+    });
+
+    b.Entity<SourceReceipt>(entity =>
+    {
+      entity.ToTable("source_receipts");
+      entity.HasKey(x => x.Id);
+      entity.HasIndex(x => new { x.EngagementId, x.ReceiptToken }).IsUnique();
+      entity.HasOne<Engagement>().WithMany().HasForeignKey(x => x.EngagementId).OnDelete(DeleteBehavior.Cascade);
+    });
+
+    b.Entity<EvidenceLink>(entity =>
+    {
+      entity.ToTable("evidence_links");
+      entity.HasKey(x => x.Id);
+      entity.HasIndex(x => new { x.EngagementId, x.SourceReceiptId });
+      entity.HasOne<SourceReceipt>().WithMany().HasForeignKey(x => x.SourceReceiptId).OnDelete(DeleteBehavior.Cascade);
+    });
   }
 
   private static string ToSnake(string name)

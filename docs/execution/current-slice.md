@@ -7,17 +7,28 @@ The build contract is `AuditSphereOps_NET_Codex_Implementation_Specification.md`
 - SDK 10.0.300; six projects targeting net10.0 (five application projects, one test project).
 - EF Core 10.0.12, Npgsql EF provider 10.0.0, `dotnet-ef` tool 10.0.12.
 - PostgreSQL 18.6 development cluster at `/opt/homebrew/var/postgresql@18`, loopback + trust auth (development only), port 5433. The local `auditsphere` and `auditsphere_tests` databases were created for this host.
-- Twenty-one applied migrations on `auditsphere`, ending at `20260918235000_AuditPlanningAndFirmPostingExtensions`; `dotnet ef database update` reported no pending migrations. Adds materiality assessments, audit risks, population versions, workpapers, submissions, findings, and firm posting balance assertions.
-- Build: zero warnings/errors. Full suite: 130/130 passed, zero skipped locally and in GitHub Actions CI (run 35399610053). The suite covers audit planning, materiality, risk coverage, population versioning, workpaper submission immutability, findings lifecycle, PBC state transitions, client upload capabilities, cash-flow bridge/disclosure validation, supplementary-artifact immutability, mapping/package determinism, release/approval binding, and the prior CRM, time/budget, billing, ledger, document, accounting, authorization, and outbox coverage.
+- Twenty-two applied migrations on `auditsphere`, ending at `20260918232054_CoreEntityCatalogAndQuestionnaireExtensions`; `dotnet ef database update` reported no pending migrations. Adds engagement assignments, EQR cases, written representations, specialist clearances, source receipts, evidence links, questionnaire templates, and question definitions.
+- Build: zero warnings/errors. Full suite: 136/136 passed, zero skipped locally on PostgreSQL 18.6 development cluster. The suite covers core entity catalog models (CAT-01..CAT-06), question bank seeding for CE-62 and RV-30, audit planning, materiality, risk coverage, population versioning, workpaper submission immutability, findings lifecycle, PBC state transitions, client upload capabilities, cash-flow bridge/disclosure validation, supplementary-artifact immutability, mapping/package determinism, release/approval binding, and the prior CRM, time/budget, billing, ledger, document, accounting, authorization, and outbox coverage.
+- UI Ground Truth: purged all fabricated state, `Guid.NewGuid()` generation, and hardcoded partner sign-offs from `Completion.razor`, `AuditPlan.razor`, `AssessmentDetail.razor`, and `ReviewPoint.razor`. Components now query real persisted database entities with scoped role authorization and display truthful empty/pending states when data is not yet recorded.
 - Outbox tests cover concurrent enqueue/claim, locked-row skipping, scoped idempotency conflicts, atomic rollback, lease renewal/expiry, stale attempts, changed input/epoch, cancellation, retry exhaustion, append-only evidence, migration safety, and simulated provider-success/local-failure reconciliation. The provider fixture persists effects independently; it is not a live Microsoft adapter.
 - Test connection pool robustness: `PgTestSchema` uses unpooled administrative connections for schema creation and drop, and per-schema connection pools with 6-connection headroom and 60-second timeouts, eliminating connection exhaustion during parallel xUnit execution in CI.
 - Schema isolation: audit domain tables (`materiality_assessments`, `audit_risks`, `population_versions`, `workpapers`, `workpaper_submissions`, `findings`) are scoped to the active `search_path`, ensuring complete schema isolation for concurrent test runs without cross-schema foreign-key collisions.
 - Database-level control probe on 18.6: inserting an unbalanced dataset with `validation_status='Accepted'` is rejected by `ck_tb_validation_status`; a balanced insert is accepted; no residue after rollback.
 - Migration-aware readiness: `/health/ready` returned `Healthy`/HTTP 200 after querying `__EFMigrationsHistory`; the web host does not auto-apply migrations.
-- Restore rehearsal: `scripts/db/restore-drill.sh` dumped and restored `auditsphere` into a generated temporary loopback database, compared restored migration evidence with the source, verified twenty-one migrations with latest `20260918235000_AuditPlanningAndFirmPostingExtensions`, then cleaned its generated database and temporary files.
+- Restore rehearsal: `scripts/db/restore-drill.sh` dumped and restored `auditsphere` into a generated temporary loopback database, compared restored migration evidence with the source, verified twenty-two migrations with latest `20260918235000_AuditPlanningAndFirmPostingExtensions`, then cleaned its generated database and temporary files.
 
 ## Run verification
 
+On macOS:
+```bash
+pg_ctl -D /opt/homebrew/var/postgresql@18 -o "-p 5433" start
+dotnet tool restore
+dotnet build AuditSphereOps.slnx
+dotnet test AuditSphereOps.slnx
+./scripts/db/restore-drill.sh
+```
+
+On Windows:
 ```powershell
 Set-Location 'C:\Users\DELL\repos\AuditSphere'
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\db\status.ps1

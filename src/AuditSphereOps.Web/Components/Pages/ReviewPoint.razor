@@ -1,6 +1,11 @@
 @page "/app/reviews/{Id:guid}"
-@using Microsoft.AspNetCore.Components.Authorization
-@inject AuthenticationStateProvider Auth
+@rendermode InteractiveServer
+@using AuditSphereOps.Domain.Reviews
+@using AuditSphereOps.Domain.Security
+@using AuditSphereOps.Infrastructure.Persistence
+@using Microsoft.EntityFrameworkCore
+@inject CurrentActorResolver ActorResolver
+@inject IDbContextFactory<AuditSphereDbContext> DbFactory
 @inject NavigationManager Nav
 
 <PageTitle>Review Point — AuditSphereOps</PageTitle>
@@ -8,149 +13,157 @@
 <div class="page-header">
     <nav class="breadcrumb-nav">
         <a href="/app">Portfolio</a> /
+        @if (_point is not null)
+        {
+            <a href="@($"/app/engagements/{_point.EngagementId}")">Engagement</a>
+            <span> / </span>
+        }
         <span>Review @Id</span>
     </nav>
     <h1>Review Point</h1>
     <span class="status-badge @_statusClass">@_status</span>
 </div>
 
-@if (_loading) { <div class="loading-state">Loading…</div> }
+@if (_loading)
+{
+    <p role="status">Loading review point…</p>
+}
+else if (_actor is null || !_isStaff)
+{
+    <section class="notice" role="alert">
+        <h2>Access unavailable</h2>
+        <p>Sign in with an authorized internal staff identity to view review points.</p>
+    </section>
+}
+else if (_point is null)
+{
+    <section class="notice" role="alert">
+        <h2>Review point unavailable</h2>
+        <p>The requested review point was not found in the current firm scope.</p>
+    </section>
+}
 else
 {
     <div class="review-shell">
 
-        <section class="card">
-            <h2>Review Context</h2>
+        <section class="card" aria-labelledby="context-heading">
+            <h2 id="context-heading">Review Context</h2>
             <dl class="detail-grid">
-                <dt>Snapshot under review</dt><dd>@_snapshotId</dd>
-                <dt>Current working revision</dt><dd>@_workingRevision</dd>
-                <dt>Reviewer authority</dt><dd>@_reviewerAuthority</dd>
-                <dt>Blocks gate</dt><dd>@(_blocksGate ? "Yes" : "No")</dd>
-                <dt>Severity</dt><dd><span class="badge @(_severity == "MATERIAL" ? "badge-red" : "badge-yellow")">@_severity</span></dd>
+                <dt>Target Kind</dt><dd>@_point.TargetKind</dd>
+                <dt>Target ID</dt><dd>@_point.TargetId</dd>
+                <dt>Target Revision</dt><dd>@_point.TargetRevision</dd>
+                <dt>Raised By</dt><dd>User @_point.RaisedByUserId.ToString()[..8]</dd>
+                <dt>Raised At</dt><dd>@_point.RaisedAt.ToString("yyyy-MM-dd HH:mm") UTC</dd>
+                <dt>Blocks gate</dt><dd>@(_point.Significant ? "Yes (Significant)" : "No")</dd>
+                <dt>Status</dt><dd><span class="badge @_statusClass">@_status</span></dd>
             </dl>
-            @if (_dependenciesChanged)
-            {
-                <div class="warn-banner" role="alert">⚠ Dependencies have changed since review was raised. Reviewer must assess impact.</div>
-            }
         </section>
 
-        <section class="card">
-            <h2>Review Point</h2>
-            <p>@_pointDescription</p>
-            @if (!string.IsNullOrEmpty(_cellReference))
-            {
-                <p class="meta-text">Reference: <code>@_cellReference</code> (snapshot @_snapshotId)</p>
-            }
+        <section class="card" aria-labelledby="comment-heading">
+            <h2 id="comment-heading">Review Comment</h2>
+            <p>@_point.Comment</p>
         </section>
 
-        <section class="card">
-            <h2>Response History</h2>
-            <div class="thread">
-                @foreach (var e in _events)
+        <section class="card" aria-labelledby="actions-heading">
+            <h2 id="actions-heading">Review Disposition</h2>
+            @if (_actionSuccess)
+            {
+                <div class="alert alert-success" style="margin-bottom:0.75rem;">Disposition updated successfully.</div>
+            }
+            <div class="action-bar" style="display:flex; gap:0.75rem;">
+                @if (!_point.Cleared)
                 {
-                    <div class="thread-item">
-                        <span class="thread-actor">@e.Actor</span>
-                        <span class="thread-date">@e.Date.ToString("yyyy-MM-dd HH:mm")</span>
-                        <span class="thread-action badge @e.ActionClass">@e.Action</span>
-                        <p class="thread-note">@e.Note</p>
-                    </div>
+                    <button class="btn-primary btn-green" @onclick="ClearPoint">Clear Review Point</button>
                 }
+                else
+                {
+                    <button class="btn-secondary btn-red" @onclick="ReopenPoint">Reopen Review Point</button>
+                }
+                <a class="button" href="/app/engagements/@_point.EngagementId">Back to Engagement</a>
             </div>
         </section>
-
-        @if (_status is "OPEN" or "IN_PROGRESS" or "RESPONDED")
-        {
-            <section class="card">
-                <h2>@(_isReviewer ? "Clear / Reopen" : "Respond")</h2>
-                <div class="form-group">
-                    <label for="rv-note">Note</label>
-                    <textarea id="rv-note" rows="4" @bind="_responseNote" />
-                </div>
-                <div class="action-bar">
-                    @if (!_isReviewer)
-                    {
-                        <button class="btn-primary" @onclick="MarkResponded">Mark as Responded</button>
-                    }
-                    else
-                    {
-                        <button class="btn-primary btn-green" @onclick="Clear">Clear</button>
-                        <button class="btn-secondary btn-red" @onclick="Reopen">Reopen</button>
-                    }
-                </div>
-            </section>
-        }
     </div>
 }
 
 @code {
     [Parameter] public Guid Id { get; set; }
 
+    AuditSphereOps.Application.Abstractions.ActorContext? _actor;
+    bool _isStaff;
     bool _loading = true;
-    string _status = "IN_PROGRESS";
-    string _statusClass = "badge-blue";
-    string _snapshotId = "—";
-    long _workingRevision;
-    string _reviewerAuthority = "—";
-    bool _blocksGate;
-    string _severity = "SIGNIFICANT";
-    bool _dependenciesChanged;
-    string _pointDescription = "—";
-    string? _cellReference;
-    bool _isReviewer;
-    string _responseNote = "";
+    bool _actionSuccess;
 
-    record EventRow(string Actor, DateTime Date, string Action, string ActionClass, string Note);
-    List<EventRow> _events = [];
+    AuditSphereOps.Domain.Reviews.ReviewPoint? _point;
+    string _status = "OPEN";
+    string _statusClass = "badge-red";
 
     protected override async Task OnInitializedAsync()
     {
-        var state = await Auth.GetAuthenticationStateAsync();
-        if (state.User.Identity?.IsAuthenticated != true)
-        { Nav.NavigateTo("/login"); return; }
+        _loading = true;
+        _actor = await ActorResolver.ResolveAsync();
+        _isStaff = _actor is not null && _actor.Roles.Any(x => x is "Administrator" or "Partner" or "Manager" or "Staff" or "EngagementLeader" or "Auditor");
 
-        _snapshotId = "SNAP-2025-CB02-v1";
-        _workingRevision = 2;
-        _reviewerAuthority = "Senior Manager";
-        _blocksGate = true;
-        _severity = "SIGNIFICANT";
-        _dependenciesChanged = false;
-        _pointDescription = "Bank reconciliation worksheet does not agree item at row 47: unreconciled difference of QAR 12,350. Investigate and correct.";
-        _cellReference = "CB-02.xlsx!Reconciliation!E47";
-        _isReviewer = false;
-        _events =
-        [
-            new("Senior Manager A", DateTime.UtcNow.AddDays(-3), "RAISED", "badge-red", _pointDescription),
-            new("Staff A", DateTime.UtcNow.AddDays(-1), "IN_PROGRESS", "badge-yellow", "Investigating — bank confirmed the difference relates to a timing item."),
-        ];
-        _status = "IN_PROGRESS";
-        _statusClass = "badge-blue";
+        if (_actor is null || !_isStaff)
+        {
+            _loading = false;
+            return;
+        }
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+        _point = await db.ReviewPoints.AsNoTracking()
+            .FirstOrDefaultAsync(rp => rp.Id == Id && rp.FirmId == _actor.FirmId);
+
+        UpdateStatusBadge();
         _loading = false;
     }
 
-    async Task MarkResponded()
+    private void UpdateStatusBadge()
     {
-        if (string.IsNullOrWhiteSpace(_responseNote)) return;
-        await Task.Delay(100);
-        _events.Add(new("Staff A", DateTime.UtcNow, "RESPONDED", "badge-purple", _responseNote));
-        _status = "RESPONDED"; _statusClass = "badge-purple";
-        _responseNote = "";
+        if (_point is null) return;
+        if (_point.Cleared)
+        {
+            _status = "CLEARED";
+            _statusClass = "badge-green";
+        }
+        else if (_point.Significant)
+        {
+            _status = "BLOCKING";
+            _statusClass = "badge-red";
+        }
+        else
+        {
+            _status = "OPEN";
+            _statusClass = "badge-yellow";
+        }
     }
 
-    async Task Clear()
+    async Task ClearPoint()
     {
-        if (string.IsNullOrWhiteSpace(_responseNote)) return;
-        await Task.Delay(100);
-        _events.Add(new("Reviewer", DateTime.UtcNow, "CLEARED", "badge-green", _responseNote));
-        _status = "CLEARED"; _statusClass = "badge-green";
-        _responseNote = "";
+        if (_point is null || _actor is null) return;
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var entity = await db.ReviewPoints.FirstOrDefaultAsync(rp => rp.Id == _point.Id && rp.FirmId == _actor.FirmId);
+        if (entity is not null)
+        {
+            entity.Cleared = true;
+            await db.SaveChangesAsync();
+            _point.Cleared = true;
+            UpdateStatusBadge();
+            _actionSuccess = true;
+        }
     }
 
-    async Task Reopen()
+    async Task ReopenPoint()
     {
-        if (string.IsNullOrWhiteSpace(_responseNote)) return;
-        await Task.Delay(100);
-        _events.Add(new("Reviewer", DateTime.UtcNow, "REOPENED", "badge-red", _responseNote));
-        _status = "OPEN"; _statusClass = "badge-red";
-        _responseNote = "";
+        if (_point is null || _actor is null) return;
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var entity = await db.ReviewPoints.FirstOrDefaultAsync(rp => rp.Id == _point.Id && rp.FirmId == _actor.FirmId);
+        if (entity is not null)
+        {
+            entity.Cleared = false;
+            await db.SaveChangesAsync();
+            _point.Cleared = false;
+            UpdateStatusBadge();
+            _actionSuccess = true;
+        }
     }
 }

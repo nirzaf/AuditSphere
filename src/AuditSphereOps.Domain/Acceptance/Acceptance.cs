@@ -26,3 +26,43 @@ public sealed class AcceptanceDecision
   public Guid? DecidedByUserId { get; set; }
   public DateTimeOffset? DecidedAt { get; set; }
 }
+
+public sealed class SpecialistClearance
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid PracticeClientId { get; set; }
+  public Guid? EngagementId { get; set; }
+  public string Area { get; set; } = string.Empty; // Independence|AML|Valuation|Tax|IT
+  public Guid? SpecialistUserId { get; set; }
+  public string SpecialistName { get; set; } = string.Empty;
+  public string Status { get; set; } = "PENDING"; // PENDING|CLEARED|HOLD|CONDITIONS
+  public string? EvidenceReference { get; set; }
+  public string? Conditions { get; set; }
+  public DateTimeOffset? ClearedAt { get; set; }
+  public DateTimeOffset CreatedAt { get; set; }
+}
+
+public sealed class QuestionnaireTemplate
+{
+  public Guid Id { get; set; }
+  public string Bank { get; set; } = "CE"; // CE|RV
+  public string Version { get; set; } = "1.0";
+  public string Name { get; set; } = string.Empty;
+  public bool IsActive { get; set; } = true;
+  public DateTimeOffset CreatedAt { get; set; }
+}
+
+public sealed class QuestionDefinition
+{
+  public Guid Id { get; set; }
+  public Guid TemplateId { get; set; }
+  public string QuestionCode { get; set; } = string.Empty; // CE-01..CE-62, RV-01..RV-30
+  public string Section { get; set; } = string.Empty;      // Section letter / title
+  public string PromptText { get; set; } = string.Empty;
+  public string Category { get; set; } = string.Empty;
+  public string AnswerType { get; set; } = "BOOLEAN";      // BOOLEAN|TEXT|CHOICE
+  public bool RequiresEvidence { get; set; }
+  public int SortOrder { get; set; }
+}
+

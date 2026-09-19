@@ -52,6 +52,36 @@ public sealed class Archive
   public DateTimeOffset CreatedAt { get; set; }
 }
 
+public sealed class EqrCase
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public Guid EngagementId { get; set; }
+  public Guid EqrPartnerUserId { get; set; }
+  public string Status { get; set; } = "PENDING"; // PENDING|IN_PROGRESS|CONCURRED|CHANGES_REQUESTED
+  public DateOnly? ConcurrenceDate { get; set; }
+  public bool FindingsDiscussed { get; set; }
+  public string? Notes { get; set; }
+  public DateTimeOffset CreatedAt { get; set; }
+  public DateTimeOffset? CompletedAt { get; set; }
+}
+
+public sealed class WrittenRepresentation
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public Guid EngagementId { get; set; }
+  public string Code { get; set; } = string.Empty; // e.g. R-01
+  public string Title { get; set; } = string.Empty;
+  public string Narrative { get; set; } = string.Empty;
+  public bool Obtained { get; set; }
+  public DateTimeOffset? ObtainedAt { get; set; }
+  public string? SignatoryName { get; set; }
+}
+
+
 public sealed class DurableOperation
 {
   public Guid Id { get; set; }

@@ -392,6 +392,14 @@ public sealed class AuthorizationDecisionTests
     public DbSet<AuditSphereOps.Domain.Reviews.ApprovalApplicability> ApprovalApplicabilities => db.ApprovalApplicabilities;
     public DbSet<AuditSphereOps.Domain.Completion.ReleaseCandidate> ReleaseCandidates => db.ReleaseCandidates;
     public DbSet<AuditSphereOps.Domain.Completion.Release> Releases => db.Releases;
+    public DbSet<AuditSphereOps.Domain.Completion.EqrCase> EqrCases => db.EqrCases;
+    public DbSet<AuditSphereOps.Domain.Completion.WrittenRepresentation> WrittenRepresentations => db.WrittenRepresentations;
+    public DbSet<AuditSphereOps.Domain.Engagements.EngagementAssignment> EngagementAssignments => db.EngagementAssignments;
+    public DbSet<AuditSphereOps.Domain.Acceptance.SpecialistClearance> SpecialistClearances => db.SpecialistClearances;
+    public DbSet<AuditSphereOps.Domain.Acceptance.QuestionnaireTemplate> QuestionnaireTemplates => db.QuestionnaireTemplates;
+    public DbSet<AuditSphereOps.Domain.Acceptance.QuestionDefinition> QuestionDefinitions => db.QuestionDefinitions;
+    public DbSet<AuditSphereOps.Domain.Documents.SourceReceipt> SourceReceipts => db.SourceReceipts;
+    public DbSet<AuditSphereOps.Domain.Documents.EvidenceLink> EvidenceLinks => db.EvidenceLinks;
     public DbSet<EvaluationResponse> EvaluationResponses => db.EvaluationResponses;
     public DbSet<AcceptanceDecision> AcceptanceDecisions => db.AcceptanceDecisions;
     public DbSet<Lead> Leads => db.Leads;

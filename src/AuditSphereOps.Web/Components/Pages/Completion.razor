@@ -1,6 +1,15 @@
 @page "/app/completion/{Id:guid}"
-@using Microsoft.AspNetCore.Components.Authorization
-@inject AuthenticationStateProvider Auth
+@page "/app/engagements/{EngagementId:guid}/completion"
+@rendermode InteractiveServer
+@using AuditSphereOps.Domain.Accounting
+@using AuditSphereOps.Domain.Completion
+@using AuditSphereOps.Domain.Engagements
+@using AuditSphereOps.Domain.Reviews
+@using AuditSphereOps.Domain.Security
+@using AuditSphereOps.Infrastructure.Persistence
+@using Microsoft.EntityFrameworkCore
+@inject CurrentActorResolver ActorResolver
+@inject IDbContextFactory<AuditSphereDbContext> DbFactory
 @inject NavigationManager Nav
 
 <PageTitle>Engagement Completion — AuditSphereOps</PageTitle>
@@ -8,116 +17,236 @@
 <div class="page-header">
     <nav class="breadcrumb-nav">
         <a href="/app">Portfolio</a> /
-        <a href="/app/engagements/@_engagementId">Engagement</a> /
+        @if (_effectiveEngagementId.HasValue)
+        {
+            <a href="@($"/app/engagements/{_effectiveEngagementId}")">Engagement</a>
+            <span> / </span>
+        }
         <span>Completion</span>
     </nav>
     <h1>Engagement Completion Checklist</h1>
 </div>
 
-@if (_loading) { <div class="loading-state">Loading…</div> }
+@if (_loading)
+{
+    <p role="status">Loading completion state…</p>
+}
+else if (_actor is null || !_isStaff)
+{
+    <section class="notice" role="alert">
+        <h2>Access unavailable</h2>
+        <p>Sign in with an authorized internal staff identity to view completion checklists.</p>
+    </section>
+}
+else if (_engagement is null)
+{
+    <section class="notice" role="alert">
+        <h2>Engagement unavailable</h2>
+        <p>The requested engagement was not found in the current firm scope.</p>
+    </section>
+}
 else
 {
     <div class="completion-shell">
 
-        <section class="card">
-            <h2>Completion Gates</h2>
-            <p class="notice-text">All gates must be satisfied before issuance. A paid invoice cannot clear any professional gate.</p>
-            <table class="data-table">
-                <thead>
-                    <tr><th>Gate</th><th>Status</th><th>Authority</th><th>Date</th></tr>
-                </thead>
-                <tbody>
-                    @foreach (var g in _gates)
-                    {
-                        <tr>
-                            <td>@g.Name</td>
-                            <td><span class="badge @g.StatusClass">@g.Status</span></td>
-                            <td>@(g.Authority ?? "—")</td>
-                            <td>@(g.Date?.ToString("yyyy-MM-dd") ?? "—")</td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        </section>
-
-        <section class="card">
-            <h2>Written Representations</h2>
-            <p class="info-text">Management representations are required before the report date. Each representation is version-bound to the exact final package.</p>
-            @foreach (var r in _representations)
+        <section class="card" aria-labelledby="gates-heading">
+            <h2 id="gates-heading">Completion Gates</h2>
+            <p class="notice-text">All gates must be satisfied before issuance. Projections reflect persisted commands; a paid invoice cannot clear any professional gate.</p>
+            @if (_gates.Count == 0)
             {
-                <div class="representation-row">
-                    <span class="rep-id">@r.Id</span>
-                    <span class="rep-text">@r.Text</span>
-                    <span class="badge @(r.Obtained ? "badge-green" : "badge-red")">@(r.Obtained ? "Obtained" : "Pending")</span>
+                <p class="muted">No completion gates recorded yet.</p>
+            }
+            else
+            {
+                <div class="table-wrap">
+                    <table class="data-table">
+                        <thead>
+                            <tr><th>Gate</th><th>Status</th><th>Authority</th><th>Date</th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var g in _gates)
+                            {
+                                <tr>
+                                    <td>@g.Name</td>
+                                    <td><span class="badge @g.StatusClass">@g.Status</span></td>
+                                    <td>@(g.Authority ?? "—")</td>
+                                    <td>@(g.Date?.ToString("yyyy-MM-dd HH:mm") ?? "—")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
                 </div>
             }
         </section>
 
-        <section class="card">
-            <h2>Final Financial Statements</h2>
+        <section class="card" aria-labelledby="rep-heading">
+            <h2 id="rep-heading">Written Representations</h2>
+            <p class="info-text">Management representations are required before the report date. Each representation is version-bound to the exact final package.</p>
+            @if (_representations.Count == 0)
+            {
+                <p class="muted">No written representations recorded for this engagement.</p>
+            }
+            else
+            {
+                @foreach (var r in _representations)
+                {
+                    <div class="representation-row" style="display:flex; justify-content:space-between; padding:0.5rem 0; border-bottom:1px solid #eee;">
+                        <span class="rep-id"><strong>@r.Code</strong></span>
+                        <span class="rep-text">@r.Title: @r.Narrative</span>
+                        <span class="badge @(r.Obtained ? "badge-green" : "badge-red")">@(r.Obtained ? "Obtained" : "Pending")</span>
+                    </div>
+                }
+            }
+        </section>
+
+        <section class="card" aria-labelledby="fs-heading">
+            <h2 id="fs-heading">Final Financial Statements</h2>
             <dl class="detail-grid">
-                <dt>Package ID</dt><dd>@_packageId</dd>
+                <dt>Package ID</dt><dd>@(_packageId?.ToString() ?? "None")</dd>
                 <dt>Package status</dt><dd>@_packageStatus</dd>
                 <dt>Partner approval</dt><dd>@(_partnerApproved ? "✓ Approved" : "Pending")</dd>
-                <dt>EQR status</dt><dd>@(_eqrStatus)</dd>
+                <dt>EQR status</dt><dd>@_eqrStatus</dd>
             </dl>
         </section>
 
-        <section class="card">
-            <h2>Actions</h2>
-            <div class="action-bar">
-                <a class="btn-primary" href="/app/releases/@Id">View Release Candidate</a>
-                <a class="btn-secondary" href="/app/accounting/packages/@_packageId">Open Financial Package</a>
+        <section class="card" aria-labelledby="actions-heading">
+            <h2 id="actions-heading">Actions</h2>
+            <div class="action-bar" style="display:flex; gap:0.75rem; margin-top:0.5rem;">
+                @if (_releaseCandidateId.HasValue)
+                {
+                    <a class="btn-primary" href="/app/releases/@_releaseCandidateId">View Release Candidate</a>
+                }
+                @if (_packageId.HasValue)
+                {
+                    <a class="btn-secondary" href="/app/accounting/packages/@_packageId">Open Financial Package</a>
+                }
+                <a class="button" href="/app/engagements/@_engagement.Id">Back to Engagement</a>
             </div>
         </section>
     </div>
 }
 
 @code {
-    [Parameter] public Guid Id { get; set; }
+    [Parameter] public Guid? Id { get; set; }
+    [Parameter] public Guid? EngagementId { get; set; }
 
-    Guid? _engagementId;
-    Guid? _packageId;
+    Guid? _effectiveEngagementId;
+    AuditSphereOps.Application.Abstractions.ActorContext? _actor;
+    bool _isStaff;
     bool _loading = true;
+
+    Engagement? _engagement;
+    Guid? _packageId;
+    Guid? _releaseCandidateId;
     string _packageStatus = "—";
     bool _partnerApproved;
-    string _eqrStatus = "PENDING";
+    string _eqrStatus = "NOT_ASSIGNED";
 
-    record GateRow(string Name, string Status, string StatusClass, string? Authority, DateTime? Date);
-    record RepresentationRow(string Id, string Text, bool Obtained);
-
+    record GateRow(string Name, string Status, string StatusClass, string? Authority, DateTimeOffset? Date);
     List<GateRow> _gates = [];
-    List<RepresentationRow> _representations = [];
+    List<WrittenRepresentation> _representations = [];
 
     protected override async Task OnInitializedAsync()
     {
-        var state = await Auth.GetAuthenticationStateAsync();
-        if (state.User.Identity?.IsAuthenticated != true)
-        { Nav.NavigateTo("/login"); return; }
+        _loading = true;
+        _actor = await ActorResolver.ResolveAsync();
+        _isStaff = _actor is not null && _actor.Roles.Any(x => x is "Administrator" or "Partner" or "Manager" or "Staff" or "EngagementLeader" or "Auditor");
 
-        _engagementId = Guid.NewGuid();
-        _packageId = Guid.NewGuid();
-        _packageStatus = "APPROVED";
-        _partnerApproved = true;
-        _eqrStatus = "IN_PROGRESS";
+        _effectiveEngagementId = EngagementId ?? Id;
+        if (_actor is null || !_isStaff || !_effectiveEngagementId.HasValue)
+        {
+            _loading = false;
+            return;
+        }
 
-        _gates =
-        [
-            new("All review points cleared (blocker)", "CLEARED", "badge-green", "Senior Manager A", DateTime.UtcNow.AddDays(-5)),
-            new("Final financial statements approved", "APPROVED", "badge-green", "Partner A", DateTime.UtcNow.AddDays(-3)),
-            new("Written representations obtained", "PENDING", "badge-yellow", null, null),
-            new("EQR completed", "IN_PROGRESS", "badge-blue", "EQR Partner B", null),
-            new("Subsequent events review", "APPROVED", "badge-green", "Senior Manager A", DateTime.UtcNow.AddDays(-2)),
-            new("Going concern assessment", "APPROVED", "badge-green", "Partner A", DateTime.UtcNow.AddDays(-4)),
-            new("Independence final confirmation", "APPROVED", "badge-green", "Compliance Officer", DateTime.UtcNow.AddDays(-7)),
-        ];
-        _representations =
-        [
-            new("R-01", "Management has provided all information relevant to the audit.", false),
-            new("R-02", "All transactions have been recorded and reflected in the financial statements.", false),
-            new("R-03", "Management acknowledges its responsibility for the design of internal controls.", true),
-            new("R-04", "There are no known events after the reporting date that would require adjustment.", false),
-        ];
+        await using var db = await DbFactory.CreateDbContextAsync();
+        _engagement = await db.Engagements.AsNoTracking()
+            .FirstOrDefaultAsync(e => e.Id == _effectiveEngagementId.Value && e.FirmId == _actor.FirmId);
+
+        if (_engagement is null)
+        {
+            _loading = false;
+            return;
+        }
+
+        // Real Review Points Gate
+        var openReviewPointsCount = await db.ReviewPoints.AsNoTracking()
+            .CountAsync(rp => rp.EngagementId == _engagement.Id && !rp.Cleared);
+        var totalReviewPointsCount = await db.ReviewPoints.AsNoTracking()
+            .CountAsync(rp => rp.EngagementId == _engagement.Id);
+
+        string reviewGateStatus = totalReviewPointsCount == 0 ? "NONE_RECORDED" :
+            (openReviewPointsCount == 0 ? "CLEARED" : "BLOCKING");
+        string reviewGateClass = reviewGateStatus == "CLEARED" ? "badge-green" :
+            (reviewGateStatus == "BLOCKING" ? "badge-red" : "badge-gray");
+
+        _gates.Add(new("All review points cleared (blocker)", reviewGateStatus, reviewGateClass,
+            openReviewPointsCount > 0 ? $"{openReviewPointsCount} open points" : null, null));
+
+        // Real Financial Package & Approvals
+        var latestPackage = await db.FinancialPackages.AsNoTracking()
+            .Where(fp => fp.EngagementId == _engagement.Id && fp.FirmId == _actor.FirmId)
+            .OrderByDescending(fp => fp.Revision)
+            .FirstOrDefaultAsync();
+
+        if (latestPackage is not null)
+        {
+            _packageId = latestPackage.Id;
+            _packageStatus = latestPackage.Status;
+
+            var packageApproval = await db.Approvals.AsNoTracking()
+                .Where(a => a.EngagementId == _engagement.Id && a.TargetId == latestPackage.Id && a.Decision == "APPROVED")
+                .OrderByDescending(a => a.DecidedAt)
+                .FirstOrDefaultAsync();
+
+            _partnerApproved = packageApproval is not null;
+
+            _gates.Add(new("Final financial statements approved",
+                _partnerApproved ? "APPROVED" : "PENDING",
+                _partnerApproved ? "badge-green" : "badge-yellow",
+                _partnerApproved ? $"User {packageApproval!.DecidedByUserId.ToString()[..8]}" : null,
+                packageApproval?.DecidedAt));
+        }
+        else
+        {
+            _gates.Add(new("Final financial statements approved", "NO_PACKAGE", "badge-gray", null, null));
+        }
+
+        // Real Written Representations
+        _representations = await db.WrittenRepresentations.AsNoTracking()
+            .Where(r => r.EngagementId == _engagement.Id && r.FirmId == _actor.FirmId)
+            .OrderBy(r => r.Code)
+            .ToListAsync();
+
+        bool allRepsObtained = _representations.Count > 0 && _representations.All(r => r.Obtained);
+        _gates.Add(new("Written representations obtained",
+            _representations.Count == 0 ? "PENDING_REQUEST" : (allRepsObtained ? "OBTAINED" : "PENDING"),
+            allRepsObtained ? "badge-green" : "badge-yellow", null, null));
+
+        // Real EQR Case
+        var eqr = await db.EqrCases.AsNoTracking()
+            .FirstOrDefaultAsync(e => e.EngagementId == _engagement.Id && e.FirmId == _actor.FirmId);
+
+        if (eqr is not null)
+        {
+            _eqrStatus = eqr.Status;
+            _gates.Add(new("EQR completed", eqr.Status,
+                eqr.Status == "CONCURRED" ? "badge-green" : (eqr.Status == "IN_PROGRESS" ? "badge-blue" : "badge-yellow"),
+                $"Partner {eqr.EqrPartnerUserId.ToString()[..8]}", eqr.CompletedAt));
+        }
+        else
+        {
+            _gates.Add(new("EQR completed", "NOT_ASSIGNED", "badge-gray", null, null));
+        }
+
+        // Real Release Candidate
+        var rc = await db.ReleaseCandidates.AsNoTracking()
+            .Where(r => r.EngagementId == _engagement.Id && r.FirmId == _actor.FirmId)
+            .OrderByDescending(r => r.CreatedAt)
+            .FirstOrDefaultAsync();
+
+        _releaseCandidateId = rc?.Id;
+
         _loading = false;
     }
 }

@@ -30,3 +30,31 @@ public sealed class DocumentSnapshot
   public string CapturedBy { get; set; } = string.Empty;
   public DateTimeOffset CapturedAt { get; set; }
 }
+
+public sealed class SourceReceipt
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid EngagementId { get; set; }
+  public string SourceType { get; set; } = "PBC_UPLOAD"; // PBC_UPLOAD|DIRECT_FEED|CSV_IMPORT
+  public string ReceiptToken { get; set; } = string.Empty;
+  public string Sha256Digest { get; set; } = string.Empty;
+  public long ByteCount { get; set; }
+  public string OriginalFileName { get; set; } = string.Empty;
+  public DateTimeOffset AcquiredAt { get; set; }
+  public Guid AcquiredByUserId { get; set; }
+}
+
+public sealed class EvidenceLink
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid EngagementId { get; set; }
+  public Guid SourceReceiptId { get; set; }
+  public Guid? WorkpaperId { get; set; }
+  public string Purpose { get; set; } = string.Empty;
+  public string Assertion { get; set; } = string.Empty;
+  public string RelevanceReliabilityAssessment { get; set; } = string.Empty;
+  public DateTimeOffset CreatedAt { get; set; }
+}
+

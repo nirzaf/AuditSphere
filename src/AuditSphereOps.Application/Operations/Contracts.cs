@@ -49,6 +49,14 @@ public interface IAuditSphereDbContext : IAsyncDisposable
   DbSet<ApprovalApplicability> ApprovalApplicabilities { get; }
   DbSet<ReleaseCandidate> ReleaseCandidates { get; }
   DbSet<Release> Releases { get; }
+  DbSet<EqrCase> EqrCases { get; }
+  DbSet<WrittenRepresentation> WrittenRepresentations { get; }
+  DbSet<EngagementAssignment> EngagementAssignments { get; }
+  DbSet<SpecialistClearance> SpecialistClearances { get; }
+  DbSet<QuestionnaireTemplate> QuestionnaireTemplates { get; }
+  DbSet<QuestionDefinition> QuestionDefinitions { get; }
+  DbSet<SourceReceipt> SourceReceipts { get; }
+  DbSet<EvidenceLink> EvidenceLinks { get; }
   DbSet<EvaluationResponse> EvaluationResponses { get; }
   DbSet<AcceptanceDecision> AcceptanceDecisions { get; }
   DbSet<Lead> Leads { get; }

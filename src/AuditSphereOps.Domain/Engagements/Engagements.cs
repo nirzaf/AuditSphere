@@ -27,3 +27,19 @@ public sealed class EngagementHold
   public DateTimeOffset CreatedAt { get; set; }
   public DateTimeOffset? ReleasedAt { get; set; }
 }
+
+public sealed class EngagementAssignment
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid EngagementId { get; set; }
+  public Guid UserId { get; set; }
+  public string Role { get; set; } = string.Empty;        // Partner|SeniorManager|Senior|Staff|EQR
+  public DateOnly? StartDate { get; set; }
+  public DateOnly? EndDate { get; set; }
+  public decimal AllocatedHours { get; set; }
+  public bool Active { get; set; } = true;
+  public DateTimeOffset CreatedAt { get; set; }
+  public Guid CreatedByUserId { get; set; }
+}
+
