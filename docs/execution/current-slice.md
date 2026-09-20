@@ -365,3 +365,35 @@ workpapers, so the durable draft editor was not browser-exercised without invent
 fake-workpaper route rendered the safe `Workpaper unavailable` state; the current unauthenticated 5100 route correctly
 renders `Sign in required`. Chrome itself blocked direct health navigation with `ERR_BLOCKED_BY_CLIENT`; the health result
 above is from the direct loopback HTTP probe.
+
+## Audit workflow gap-closure implementation (locally verified, uncommitted; 2026-09-20)
+
+The implementation now covers the locally actionable portion of
+`docs/requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md`:
+
+- The source manifest contains exactly 20 sections and 165 stable AWP procedure IDs with the source SHA-256.
+- Versioned program publication, idempotent adoption, engagement-scoped applicability, structured procedure results,
+  immutable workpaper submissions, generation guards, reviewer separation, changes-requested resubmission, and
+  append-only review evidence are implemented.
+- Shared fieldwork primitives cover versioned schedules and signed control totals, populations and selections, item
+  tests/reviews, confirmation and alternative-procedure cases, typed area assessments, signed differences, and
+  completion blockers. The existing archive export includes the new source/program/fieldwork evidence.
+- The audit fieldwork UI exposes the real adopted program and statuses; the population UI exposes persisted selections
+  and item-test review counts. No professional conclusion or external provider acceptance is simulated.
+
+Verification observed on the local PostgreSQL 18.6 development database:
+
+- `dotnet build --no-restore`: succeeded with 0 warnings and 0 errors.
+- `dotnet test --no-build --no-restore`: 170/170 passed, 0 skipped.
+- EF database update applied `20260920102142_WorkpaperDraftsAndTrialBalanceSealing`,
+  `20260920140141_AuditProgramExecutionWorkflow`, `20260920142129_AuditFieldworkEvidence`, and
+  `20260920145407_AuditResponseReviewAndItemGeneration`.
+- `dotnet ef migrations list` reports all 35 migrations through `20260920145407_AuditResponseReviewAndItemGeneration` with none pending.
+- `scripts/db/restore-drill.sh`: passed with 35 migrations and latest
+  `20260920145407_AuditResponseReviewAndItemGeneration`.
+- Local web smoke returned HTTP 200 for `/`, `/health/live`, `/health/ready`, and the fieldwork route; readiness was
+  `Healthy`.
+
+The requirements document remains the authoritative acceptance checklist and is intentionally not marked complete:
+live Entra/Graph/SharePoint/Purview behavior, approved professional methodology/signing, independent human review and
+merge evidence, and production cross-store recovery/RPO/RTO remain external or human gates requiring their owners.

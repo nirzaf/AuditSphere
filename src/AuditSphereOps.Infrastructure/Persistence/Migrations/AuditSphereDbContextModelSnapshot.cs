@@ -1419,7 +1419,7 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.ToTable("trial_balance_rows");
                 });
 
-            modelBuilder.Entity("AuditSphereOps.Domain.Audit.AuditProcedure", b =>
+            modelBuilder.Entity("AuditSphereOps.Domain.Audit.AuditAlternativeProcedure", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -1430,9 +1430,264 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("client_id");
 
+                    b.Property<string>("Conclusion")
+                        .IsRequired()
+                        .HasMaxLength(20000)
+                        .HasColumnType("character varying(20000)")
+                        .HasColumnName("conclusion");
+
+                    b.Property<Guid>("ConfirmationCaseId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("confirmation_case_id");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<Guid>("EngagementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("engagement_id");
+
+                    b.Property<string>("EvidenceReferencesJson")
+                        .IsRequired()
+                        .HasMaxLength(20000)
+                        .HasColumnType("character varying(20000)")
+                        .HasColumnName("evidence_references_json");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<string>("Purpose")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("purpose");
+
+                    b.Property<DateTimeOffset?>("ReviewedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("reviewed_at");
+
+                    b.Property<Guid?>("ReviewedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reviewed_by_user_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("FirmId", "Id")
+                        .HasName("AK_audit_alternatives_firm_id_id");
+
+                    b.HasIndex("FirmId", "CreatedByUserId");
+
+                    b.HasIndex("FirmId", "ReviewedByUserId");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "ConfirmationCaseId");
+
+                    b.ToTable("audit_alternative_procedures", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_audit_alternative_values", "length(trim(purpose)) > 0 AND length(trim(evidence_references_json)) > 0 AND length(trim(conclusion)) > 0 AND status IN ('SUBMITTED','REVIEWED')");
+                        });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Audit.AuditAreaAssessment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("AreaCode")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("area_code");
+
+                    b.Property<string>("AssessmentKind")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)")
+                        .HasColumnName("assessment_kind");
+
+                    b.Property<decimal?>("AuditedAmount")
+                        .HasColumnType("numeric(19,6)")
+                        .HasColumnName("audited_amount");
+
+                    b.Property<decimal?>("BookedAmount")
+                        .HasColumnType("numeric(19,6)")
+                        .HasColumnName("booked_amount");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<string>("Conclusion")
+                        .IsRequired()
+                        .HasMaxLength(20000)
+                        .HasColumnType("character varying(20000)")
+                        .HasColumnName("conclusion");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<string>("Currency")
+                        .HasMaxLength(3)
+                        .HasColumnType("character(3)")
+                        .HasColumnName("currency")
+                        .IsFixedLength();
+
+                    b.Property<Guid>("EngagementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("engagement_id");
+
+                    b.Property<string>("EvidenceReferencesJson")
+                        .IsRequired()
+                        .HasMaxLength(20000)
+                        .HasColumnType("character varying(20000)")
+                        .HasColumnName("evidence_references_json");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<long>("InputGeneration")
+                        .HasColumnType("bigint")
+                        .HasColumnName("input_generation");
+
+                    b.Property<string>("InputSnapshotJson")
+                        .IsRequired()
+                        .HasMaxLength(100000)
+                        .HasColumnType("character varying(100000)")
+                        .HasColumnName("input_snapshot_json");
+
+                    b.Property<string>("MethodologyReference")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("methodology_reference");
+
+                    b.Property<DateOnly?>("PeriodEnd")
+                        .HasColumnType("date")
+                        .HasColumnName("period_end");
+
+                    b.Property<DateOnly?>("PeriodStart")
+                        .HasColumnType("date")
+                        .HasColumnName("period_start");
+
+                    b.Property<Guid?>("ProcedureId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("procedure_id");
+
+                    b.Property<decimal?>("ResidualAmount")
+                        .HasColumnType("numeric(19,6)")
+                        .HasColumnName("residual_amount");
+
+                    b.Property<DateTimeOffset?>("ReviewedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("reviewed_at");
+
+                    b.Property<Guid?>("ReviewedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reviewed_by_user_id");
+
+                    b.Property<long>("Revision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("revision");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("status");
+
+                    b.Property<decimal?>("VariancePercent")
+                        .HasColumnType("numeric(19,6)")
+                        .HasColumnName("variance_percent");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("FirmId", "Id")
+                        .HasName("AK_audit_area_assessments_firm_id_id");
+
+                    b.HasAlternateKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .HasName("AK_audit_area_assessments_scope_id");
+
+                    b.HasIndex("FirmId", "CreatedByUserId");
+
+                    b.HasIndex("FirmId", "ReviewedByUserId");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "ProcedureId");
+
+                    b.ToTable("audit_area_assessments", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_audit_area_assessment_values", "area_code IN ('CASH_BANK','RECEIVABLES','INVENTORY','REVENUE','PAYABLES','FIXED_ASSETS','EXPENSES','PAYROLL','LOANS','EQUITY','RELATED_PARTIES','TAX_STATUTORY','JOURNALS_FRAUD','ANALYTICAL_REVIEW','GOING_CONCERN','SUBSEQUENT_EVENTS','FINANCIAL_STATEMENTS','AUDIT_DIFFERENCES') AND length(trim(assessment_kind)) > 0 AND length(trim(methodology_reference)) > 0 AND length(trim(input_snapshot_json)) > 0 AND length(trim(evidence_references_json)) > 0 AND length(trim(conclusion)) > 0 AND input_generation > 0 AND revision > 0 AND status IN ('SUBMITTED','REVIEWED','CHANGES_REQUIRED')");
+                        });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Audit.AuditConfirmationCase", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("AreaCode")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("area_code");
+
+                    b.Property<decimal>("BookedAmount")
+                        .HasColumnType("numeric(19,6)")
+                        .HasColumnName("booked_amount");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<DateOnly>("ConfirmationDate")
+                        .HasColumnType("date")
+                        .HasColumnName("confirmation_date");
+
+                    b.Property<string>("ContactValidationSource")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("contact_validation_source");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character(3)")
+                        .HasColumnName("currency")
+                        .IsFixedLength();
+
+                    b.Property<string>("DispatchReference")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("dispatch_reference");
 
                     b.Property<Guid>("EngagementId")
                         .HasColumnType("uuid")
@@ -1442,9 +1697,517 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("firm_id");
 
-                    b.Property<Guid>("RiskId")
+                    b.Property<long>("InputGeneration")
+                        .HasColumnType("bigint")
+                        .HasColumnName("input_generation");
+
+                    b.Property<Guid?>("ProcedureId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("procedure_id");
+
+                    b.Property<string>("Respondent")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("respondent");
+
+                    b.Property<string>("SourceRecordId")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("source_record_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("status");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("FirmId", "Id")
+                        .HasName("AK_audit_confirmation_cases_firm_id_id");
+
+                    b.HasAlternateKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .HasName("AK_audit_confirmation_cases_scope_id");
+
+                    b.HasIndex("FirmId", "CreatedByUserId");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "ProcedureId");
+
+                    b.ToTable("audit_confirmation_cases", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_audit_confirmation_case_values", "length(trim(area_code)) > 0 AND length(trim(source_record_id)) > 0 AND currency ~ '^[A-Z]{3}$' AND length(trim(respondent)) > 0 AND length(trim(contact_validation_source)) > 0 AND input_generation > 0 AND status IN ('DRAFT','APPROVED','DISPATCHED','RESPONSE_RECEIVED','NO_RESPONSE','ALTERNATIVE_REQUIRED','CLOSED')");
+                        });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Audit.AuditConfirmationResponse", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("AuthenticityAssessment")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)")
+                        .HasColumnName("authenticity_assessment");
+
+                    b.Property<string>("Channel")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("channel");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<Guid>("ConfirmationCaseId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("confirmation_case_id");
+
+                    b.Property<decimal?>("ConfirmedAmount")
+                        .HasColumnType("numeric(19,6)")
+                        .HasColumnName("confirmed_amount");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<string>("Decision")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("decision");
+
+                    b.Property<decimal?>("DifferenceAmount")
+                        .HasColumnType("numeric(19,6)")
+                        .HasColumnName("difference_amount");
+
+                    b.Property<Guid>("EngagementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("engagement_id");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<string>("Origin")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("origin");
+
+                    b.Property<DateTimeOffset>("ReceivedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("received_at");
+
+                    b.Property<string>("ResponseReference")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("response_reference");
+
+                    b.Property<DateTimeOffset?>("ReviewedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("reviewed_at");
+
+                    b.Property<Guid?>("ReviewedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reviewed_by_user_id");
+
+                    b.Property<long>("Revision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("revision");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("FirmId", "Id")
+                        .HasName("AK_audit_confirmation_responses_firm_id_id");
+
+                    b.HasAlternateKey("FirmId", "ConfirmationCaseId", "Revision")
+                        .HasName("AK_audit_confirmation_responses_case_revision");
+
+                    b.HasIndex("FirmId", "CreatedByUserId");
+
+                    b.HasIndex("FirmId", "ReviewedByUserId");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "ConfirmationCaseId");
+
+                    b.ToTable("audit_confirmation_responses", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_audit_confirmation_response_values", "revision > 0 AND length(trim(origin)) > 0 AND length(trim(channel)) > 0 AND length(trim(response_reference)) > 0 AND length(trim(authenticity_assessment)) > 0 AND decision IN ('PENDING','AGREED','DIFFERENCE','NO_RESPONSE','ALTERNATIVE_REQUIRED')");
+                        });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Audit.AuditDifference", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("AccountArea")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("account_area");
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("numeric(19,6)")
+                        .HasColumnName("amount");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<bool>("Corrected")
+                        .HasColumnType("boolean")
+                        .HasColumnName("corrected");
+
+                    b.Property<string>("CorrectionReference")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("correction_reference");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character(3)")
+                        .HasColumnName("currency")
+                        .IsFixedLength();
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)")
+                        .HasColumnName("description");
+
+                    b.Property<string>("DifferenceType")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)")
+                        .HasColumnName("difference_type");
+
+                    b.Property<Guid>("EngagementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("engagement_id");
+
+                    b.Property<DateTimeOffset?>("EvaluatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("evaluated_at");
+
+                    b.Property<Guid?>("EvaluatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("evaluated_by_user_id");
+
+                    b.Property<string>("Evaluation")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)")
+                        .HasColumnName("evaluation");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<long>("InputGeneration")
+                        .HasColumnType("bigint")
+                        .HasColumnName("input_generation");
+
+                    b.Property<string>("ManagementResponse")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)")
+                        .HasColumnName("management_response");
+
+                    b.Property<Guid?>("ProcedureId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("procedure_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("status");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("FirmId", "Id")
+                        .HasName("AK_audit_differences_firm_id_id");
+
+                    b.HasAlternateKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .HasName("AK_audit_differences_scope_id");
+
+                    b.HasIndex("FirmId", "CreatedByUserId");
+
+                    b.HasIndex("FirmId", "EvaluatedByUserId");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "ProcedureId");
+
+                    b.ToTable("audit_differences", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_audit_difference_values", "length(trim(account_area)) > 0 AND length(trim(difference_type)) > 0 AND length(trim(description)) > 0 AND currency ~ '^[A-Z]{3}$' AND amount <> 0 AND input_generation > 0 AND status IN ('OPEN','MANAGEMENT_RESPONDED','EVALUATED','CORRECTED') AND ((corrected AND correction_reference IS NOT NULL AND status = 'CORRECTED') OR NOT corrected)");
+                        });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Audit.AuditItemTest", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<string>("ContradictoryEvidence")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)")
+                        .HasColumnName("contradictory_evidence");
+
+                    b.Property<Guid>("EngagementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("engagement_id");
+
+                    b.Property<string>("EvidenceReferencesJson")
+                        .IsRequired()
+                        .HasMaxLength(20000)
+                        .HasColumnType("character varying(20000)")
+                        .HasColumnName("evidence_references_json");
+
+                    b.Property<decimal?>("ExceptionAmount")
+                        .HasColumnType("numeric(19,6)")
+                        .HasColumnName("exception_amount");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<string>("FollowUp")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)")
+                        .HasColumnName("follow_up");
+
+                    b.Property<long>("InputGeneration")
+                        .HasColumnType("bigint")
+                        .HasColumnName("input_generation");
+
+                    b.Property<Guid>("ProcedureId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("procedure_id");
+
+                    b.Property<string>("Result")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("result");
+
+                    b.Property<long>("Revision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("revision");
+
+                    b.Property<Guid>("SelectionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("selection_id");
+
+                    b.Property<Guid>("SelectionItemId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("selection_item_id");
+
+                    b.Property<DateTimeOffset>("TestedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("tested_at");
+
+                    b.Property<Guid>("TestedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tested_by_user_id");
+
+                    b.Property<string>("WorkPerformed")
+                        .IsRequired()
+                        .HasMaxLength(100000)
+                        .HasColumnType("character varying(100000)")
+                        .HasColumnName("work_performed");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("FirmId", "Id")
+                        .HasName("AK_audit_item_tests_firm_id_id");
+
+                    b.HasAlternateKey("FirmId", "SelectionItemId", "Revision")
+                        .HasName("AK_audit_item_tests_item_revision");
+
+                    b.HasIndex("FirmId", "TestedByUserId");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "ProcedureId");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "SelectionId");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "SelectionItemId")
+                        .HasDatabaseName("IX_audit_item_tests_firm_id_client_id_engagement_id_selection~1");
+
+                    b.ToTable("audit_item_tests", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_audit_item_test_values", "revision > 0 AND length(trim(work_performed)) > 0 AND length(trim(evidence_references_json)) > 0 AND input_generation > 0 AND result IN ('PENDING','PASS','EXCEPTION','LIMITATION')");
+                        });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Audit.AuditItemTestReview", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("AuditItemTestId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("audit_item_test_id");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<string>("Comment")
+                        .HasMaxLength(20000)
+                        .HasColumnType("character varying(20000)")
+                        .HasColumnName("comment");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Decision")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("decision");
+
+                    b.Property<Guid>("EngagementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("engagement_id");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<Guid>("ReviewerUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reviewer_user_id");
+
+                    b.Property<Guid>("SelectionItemId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("selection_item_id");
+
+                    b.Property<long>("TestRevision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("test_revision");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("FirmId", "Id")
+                        .HasName("AK_audit_item_test_reviews_firm_id_id");
+
+                    b.HasIndex("FirmId", "ReviewerUserId");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "AuditItemTestId");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "SelectionItemId");
+
+                    b.ToTable("audit_item_test_reviews", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_audit_item_test_review_values", "test_revision > 0 AND decision IN ('REVIEWED','CHANGES_REQUIRED')");
+                        });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Audit.AuditProcedure", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset?>("ApplicabilityDecidedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("applicability_decided_at");
+
+                    b.Property<Guid?>("ApplicabilityDecidedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("applicability_decided_by_user_id");
+
+                    b.Property<string>("ApplicabilityRationale")
+                        .HasColumnType("text")
+                        .HasColumnName("applicability_rationale");
+
+                    b.Property<string>("ApplicabilityStatus")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("applicability_status");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<long>("CurrentResultRevision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("current_result_revision");
+
+                    b.Property<Guid>("EngagementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("engagement_id");
+
+                    b.Property<Guid?>("EngagementProgramId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("engagement_program_id");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<Guid?>("ProgramProcedureId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("program_procedure_id");
+
+                    b.Property<Guid?>("RiskId")
                         .HasColumnType("uuid")
                         .HasColumnName("risk_id");
+
+                    b.Property<string>("SourceProcedureId")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("source_procedure_id");
+
+                    b.Property<int?>("SourceSectionNumber")
+                        .HasColumnType("integer")
+                        .HasColumnName("source_section_number");
+
+                    b.Property<string>("SourceSectionTitle")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("source_section_title");
+
+                    b.Property<string>("SourceWording")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("source_wording");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -1464,11 +2227,343 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.HasAlternateKey("FirmId", "ClientId", "EngagementId", "Id")
                         .HasName("AK_audit_procedures_scope_id");
 
+                    b.HasIndex("FirmId", "ApplicabilityDecidedByUserId");
+
+                    b.HasIndex("FirmId", "ProgramProcedureId");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "EngagementProgramId");
+
                     b.HasIndex("FirmId", "ClientId", "EngagementId", "RiskId");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "SourceProcedureId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_audit_procedure_scope_source");
 
                     b.ToTable("audit_procedures", null, t =>
                         {
-                            t.HasCheckConstraint("ck_audit_procedure_values", "length(trim(title)) > 0");
+                            t.HasCheckConstraint("ck_audit_procedure_values", "length(trim(title)) > 0 AND status IN ('PLANNED','IN_PROGRESS','SUBMITTED','IN_REVIEW','CHANGES_REQUIRED','REVIEWED') AND applicability_status IN ('PENDING','APPLICABLE','NA_PENDING_REVIEW','NA_APPROVED')");
+                        });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Audit.AuditProcedureResult", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("AuditProcedureId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("audit_procedure_id");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<string>("Conclusion")
+                        .IsRequired()
+                        .HasMaxLength(20000)
+                        .HasColumnType("character varying(20000)")
+                        .HasColumnName("conclusion");
+
+                    b.Property<Guid>("EngagementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("engagement_id");
+
+                    b.Property<string>("EvidenceReferencesJson")
+                        .IsRequired()
+                        .HasMaxLength(20000)
+                        .HasColumnType("character varying(20000)")
+                        .HasColumnName("evidence_references_json");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<long>("InputGeneration")
+                        .HasColumnType("bigint")
+                        .HasColumnName("input_generation");
+
+                    b.Property<Guid>("PreparedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("prepared_by_user_id");
+
+                    b.Property<string>("ReviewComment")
+                        .HasColumnType("text")
+                        .HasColumnName("review_comment");
+
+                    b.Property<DateTimeOffset?>("ReviewedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("reviewed_at");
+
+                    b.Property<Guid?>("ReviewedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reviewed_by_user_id");
+
+                    b.Property<long>("Revision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("revision");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("StructuredResultJson")
+                        .IsRequired()
+                        .HasMaxLength(100000)
+                        .HasColumnType("character varying(100000)")
+                        .HasColumnName("structured_result_json");
+
+                    b.Property<DateTimeOffset>("SubmittedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("submitted_at");
+
+                    b.Property<string>("WorkPerformed")
+                        .IsRequired()
+                        .HasMaxLength(100000)
+                        .HasColumnType("character varying(100000)")
+                        .HasColumnName("work_performed");
+
+                    b.Property<Guid?>("WorkpaperId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("workpaper_id");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("FirmId", "Id")
+                        .HasName("AK_audit_procedure_results_firm_id_id");
+
+                    b.HasIndex("FirmId", "PreparedByUserId");
+
+                    b.HasIndex("FirmId", "ReviewedByUserId");
+
+                    b.HasIndex("FirmId", "AuditProcedureId", "Revision")
+                        .IsUnique()
+                        .HasDatabaseName("ux_audit_procedure_result_revision");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "AuditProcedureId");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "WorkpaperId");
+
+                    b.ToTable("audit_procedure_results", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_audit_procedure_result_values", "revision > 0 AND input_generation > 0 AND length(trim(work_performed)) > 0 AND length(trim(structured_result_json)) > 0 AND length(trim(conclusion)) > 0 AND status IN ('SUBMITTED','CHANGES_REQUIRED','REVIEWED') AND ((status = 'REVIEWED' AND reviewed_by_user_id IS NOT NULL AND reviewed_at IS NOT NULL) OR status <> 'REVIEWED')");
+                        });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Audit.AuditProcedureReview", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("AuditProcedureId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("audit_procedure_id");
+
+                    b.Property<Guid>("AuditProcedureResultId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("audit_procedure_result_id");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<string>("Comment")
+                        .HasMaxLength(20000)
+                        .HasColumnType("character varying(20000)")
+                        .HasColumnName("comment");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Decision")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("decision");
+
+                    b.Property<Guid>("EngagementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("engagement_id");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<long>("ResultRevision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("result_revision");
+
+                    b.Property<Guid>("ReviewerUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reviewer_user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("FirmId", "Id")
+                        .HasName("AK_audit_procedure_reviews_firm_id_id");
+
+                    b.HasIndex("FirmId", "ReviewerUserId");
+
+                    b.HasIndex("FirmId", "AuditProcedureResultId", "CreatedAt")
+                        .HasDatabaseName("ix_audit_procedure_reviews_result_created");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "AuditProcedureId");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "AuditProcedureResultId")
+                        .HasDatabaseName("IX_audit_procedure_reviews_firm_id_client_id_engagement_id_au~1");
+
+                    b.ToTable("audit_procedure_reviews", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_audit_procedure_review_values", "result_revision > 0 AND decision IN ('REVIEWED','CHANGES_REQUIRED')");
+                        });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Audit.AuditProgramProcedure", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("ApplicabilityCondition")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("applicability_condition");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("ExpectedEvidence")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("expected_evidence");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<int>("Ordinal")
+                        .HasColumnType("integer")
+                        .HasColumnName("ordinal");
+
+                    b.Property<Guid>("ProgramVersionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("program_version_id");
+
+                    b.Property<int>("SectionNumber")
+                        .HasColumnType("integer")
+                        .HasColumnName("section_number");
+
+                    b.Property<string>("SectionTitle")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("section_title");
+
+                    b.Property<string>("SourceProcedureId")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("source_procedure_id");
+
+                    b.Property<string>("SourceWording")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("source_wording");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("FirmId", "Id")
+                        .HasName("AK_audit_program_procedures_firm_id_id");
+
+                    b.HasAlternateKey("FirmId", "ProgramVersionId", "SourceProcedureId")
+                        .HasName("AK_audit_program_procedures_version_source");
+
+                    b.HasIndex("FirmId", "ProgramVersionId", "SectionNumber", "Ordinal")
+                        .HasDatabaseName("ix_audit_program_procedures_version_order");
+
+                    b.ToTable("audit_program_procedures", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_audit_program_procedure_values", "section_number BETWEEN 1 AND 20 AND ordinal >= 1 AND length(trim(source_procedure_id)) > 0 AND length(trim(section_title)) > 0 AND length(trim(source_wording)) > 0");
+                        });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Audit.AuditProgramVersion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset?>("ApprovedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("approved_at");
+
+                    b.Property<Guid?>("ApprovedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("approved_by_user_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<string>("ProgramCode")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("program_code");
+
+                    b.Property<string>("SourceHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character(64)")
+                        .HasColumnName("source_hash")
+                        .IsFixedLength();
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("Version")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("version");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("FirmId", "Id")
+                        .HasName("AK_audit_program_versions_firm_id_id");
+
+                    b.HasIndex("FirmId", "ApprovedByUserId");
+
+                    b.HasIndex("FirmId", "CreatedByUserId");
+
+                    b.HasIndex("FirmId", "ProgramCode", "Version")
+                        .IsUnique()
+                        .HasDatabaseName("ux_audit_program_version_code_version");
+
+                    b.ToTable("audit_program_versions", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_audit_program_version_values", "length(trim(program_code)) > 0 AND length(trim(version)) > 0 AND length(source_hash) = 64 AND status IN ('DRAFT','PUBLISHED','RETIRED') AND ((status = 'PUBLISHED' AND approved_by_user_id IS NOT NULL AND approved_at IS NOT NULL) OR status <> 'PUBLISHED')");
                         });
                 });
 
@@ -1567,6 +2662,467 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.ToTable("audit_risks", null, t =>
                         {
                             t.HasCheckConstraint("ck_audit_risk_values", "length(trim(account_area)) > 0 AND length(trim(assertion)) > 0 AND length(trim(description)) > 0 AND length(trim(drivers)) > 0 AND length(trim(response_description)) > 0 AND significance_decision IN ('SIGNIFICANT','NORMAL') AND status IN ('IDENTIFIED','ASSESSED','RESPONDED') AND severity = CASE WHEN significance_decision = 'SIGNIFICANT' THEN 'Significant' ELSE 'Normal' END");
+                        });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Audit.AuditSchedule", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset?>("AsOfDate")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("as_of_date");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<string>("CompletenessDecision")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("completeness_decision");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character(3)")
+                        .HasColumnName("currency")
+                        .IsFixedLength();
+
+                    b.Property<Guid>("EngagementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("engagement_id");
+
+                    b.Property<string>("EntityIdentifier")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("entity_identifier");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<decimal>("GlControlTotal")
+                        .HasColumnType("numeric(19,6)")
+                        .HasColumnName("gl_control_total");
+
+                    b.Property<long>("InputGeneration")
+                        .HasColumnType("bigint")
+                        .HasColumnName("input_generation");
+
+                    b.Property<DateOnly?>("PeriodEnd")
+                        .HasColumnType("date")
+                        .HasColumnName("period_end");
+
+                    b.Property<DateOnly?>("PeriodStart")
+                        .HasColumnType("date")
+                        .HasColumnName("period_start");
+
+                    b.Property<decimal>("Residual")
+                        .HasColumnType("numeric(19,6)")
+                        .HasColumnName("residual");
+
+                    b.Property<int>("RowCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("row_count");
+
+                    b.Property<string>("ScheduleType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("schedule_type");
+
+                    b.Property<string>("SignConvention")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("sign_convention");
+
+                    b.Property<decimal>("SignedControlTotal")
+                        .HasColumnType("numeric(19,6)")
+                        .HasColumnName("signed_control_total");
+
+                    b.Property<string>("SourceHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character(64)")
+                        .HasColumnName("source_hash")
+                        .IsFixedLength();
+
+                    b.Property<string>("SourceReceiptReference")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("source_receipt_reference");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("status");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("FirmId", "Id")
+                        .HasName("AK_audit_schedules_firm_id_id");
+
+                    b.HasAlternateKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .HasName("AK_audit_schedules_scope_id");
+
+                    b.HasIndex("FirmId", "CreatedByUserId");
+
+                    b.HasIndex("FirmId", "EngagementId", "ScheduleType", "AsOfDate")
+                        .HasDatabaseName("ix_audit_schedule_scope_type_date");
+
+                    b.HasIndex("FirmId", "EngagementId", "SourceReceiptReference", "SourceHash")
+                        .IsUnique()
+                        .HasDatabaseName("ux_audit_schedule_source_version");
+
+                    b.ToTable("audit_schedules", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_audit_schedule_values", "length(trim(schedule_type)) > 0 AND length(trim(entity_identifier)) > 0 AND length(trim(source_receipt_reference)) > 0 AND length(source_hash) = 64 AND currency ~ '^[A-Z]{3}$' AND length(trim(sign_convention)) > 0 AND row_count >= 0 AND input_generation > 0 AND status IN ('PENDING_REVIEW','RECONCILED','UNRECONCILED','APPROVED','SUPERSEDED')");
+                        });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Audit.AuditScheduleRow", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("AccountCode")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("account_code");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character(3)")
+                        .HasColumnName("currency")
+                        .IsFixedLength();
+
+                    b.Property<DateOnly?>("DeliveryDate")
+                        .HasColumnType("date")
+                        .HasColumnName("delivery_date");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("description");
+
+                    b.Property<Guid>("EngagementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("engagement_id");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<string>("OriginalValuesJson")
+                        .IsRequired()
+                        .HasMaxLength(20000)
+                        .HasColumnType("character varying(20000)")
+                        .HasColumnName("original_values_json");
+
+                    b.Property<DateOnly?>("PostingDate")
+                        .HasColumnType("date")
+                        .HasColumnName("posting_date");
+
+                    b.Property<Guid>("ScheduleId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("schedule_id");
+
+                    b.Property<DateOnly?>("ServiceDate")
+                        .HasColumnType("date")
+                        .HasColumnName("service_date");
+
+                    b.Property<decimal>("SignedAmount")
+                        .HasColumnType("numeric(19,6)")
+                        .HasColumnName("signed_amount");
+
+                    b.Property<int>("SourceLineNumber")
+                        .HasColumnType("integer")
+                        .HasColumnName("source_line_number");
+
+                    b.Property<string>("StableRowId")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("stable_row_id");
+
+                    b.Property<DateOnly?>("TransactionDate")
+                        .HasColumnType("date")
+                        .HasColumnName("transaction_date");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("FirmId", "Id")
+                        .HasName("AK_audit_schedule_rows_firm_id_id");
+
+                    b.HasAlternateKey("FirmId", "ScheduleId", "StableRowId")
+                        .HasName("AK_audit_schedule_rows_schedule_stable");
+
+                    b.HasIndex("FirmId", "ScheduleId", "SourceLineNumber")
+                        .HasDatabaseName("ix_audit_schedule_rows_order");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "ScheduleId");
+
+                    b.ToTable("audit_schedule_rows", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_audit_schedule_row_values", "source_line_number > 0 AND length(trim(stable_row_id)) > 0 AND length(trim(account_code)) > 0 AND length(trim(description)) > 0 AND currency ~ '^[A-Z]{3}$' AND length(trim(original_values_json)) > 0");
+                        });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Audit.AuditSelection", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<Guid>("EngagementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("engagement_id");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<long>("InputGeneration")
+                        .HasColumnType("bigint")
+                        .HasColumnName("input_generation");
+
+                    b.Property<string>("Method")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("method");
+
+                    b.Property<Guid?>("PopulationVersionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("population_version_id");
+
+                    b.Property<Guid>("ProcedureId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("procedure_id");
+
+                    b.Property<string>("Rationale")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)")
+                        .HasColumnName("rationale");
+
+                    b.Property<DateTimeOffset?>("ReviewedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("reviewed_at");
+
+                    b.Property<Guid?>("ReviewedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reviewed_by_user_id");
+
+                    b.Property<Guid?>("ScheduleId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("schedule_id");
+
+                    b.Property<int>("SelectedCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("selected_count");
+
+                    b.Property<decimal>("SelectedSignedTotal")
+                        .HasColumnType("numeric(19,6)")
+                        .HasColumnName("selected_signed_total");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("status");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("FirmId", "Id")
+                        .HasName("AK_audit_selections_firm_id_id");
+
+                    b.HasAlternateKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .HasName("AK_audit_selections_scope_id");
+
+                    b.HasIndex("FirmId", "CreatedByUserId");
+
+                    b.HasIndex("FirmId", "ReviewedByUserId");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "PopulationVersionId");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "ProcedureId");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "ScheduleId");
+
+                    b.ToTable("audit_selections", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_audit_selection_values", "length(trim(method)) > 0 AND length(trim(rationale)) > 0 AND selected_count > 0 AND input_generation > 0 AND status IN ('SUBMITTED','REVIEWED','CHANGES_REQUIRED')");
+                        });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Audit.AuditSelectionItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character(3)")
+                        .HasColumnName("currency")
+                        .IsFixedLength();
+
+                    b.Property<Guid>("EngagementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("engagement_id");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<string>("InclusionReason")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("inclusion_reason");
+
+                    b.Property<Guid?>("ScheduleRowId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("schedule_row_id");
+
+                    b.Property<Guid>("SelectionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("selection_id");
+
+                    b.Property<decimal>("SignedAmount")
+                        .HasColumnType("numeric(19,6)")
+                        .HasColumnName("signed_amount");
+
+                    b.Property<string>("StableRowId")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("stable_row_id");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("FirmId", "Id")
+                        .HasName("AK_audit_selection_items_firm_id_id");
+
+                    b.HasAlternateKey("FirmId", "SelectionId", "StableRowId")
+                        .HasName("AK_audit_selection_items_selection_stable");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "ScheduleRowId");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "SelectionId");
+
+                    b.ToTable("audit_selection_items", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_audit_selection_item_values", "length(trim(stable_row_id)) > 0 AND currency ~ '^[A-Z]{3}$' AND length(trim(inclusion_reason)) > 0");
+                        });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Audit.EngagementAuditProgram", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("AdoptedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("adopted_at");
+
+                    b.Property<Guid>("AdoptedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("adopted_by_user_id");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<Guid>("EngagementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("engagement_id");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<Guid>("ProgramVersionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("program_version_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("FirmId", "Id")
+                        .HasName("AK_engagement_audit_programs_firm_id_id");
+
+                    b.HasAlternateKey("FirmId", "ClientId", "EngagementId", "ProgramVersionId")
+                        .HasName("AK_engagement_audit_programs_scope_version");
+
+                    b.HasIndex("FirmId", "AdoptedByUserId");
+
+                    b.HasIndex("FirmId", "ProgramVersionId");
+
+                    b.ToTable("engagement_audit_programs", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_engagement_audit_program_values", "status IN ('ADOPTED','SUPERSEDED')");
                         });
                 });
 
@@ -7142,8 +8698,21 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("AuditSphereOps.Domain.Audit.AuditProcedure", b =>
+            modelBuilder.Entity("AuditSphereOps.Domain.Audit.AuditAlternativeProcedure", b =>
                 {
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "CreatedByUserId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ReviewedByUserId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("AuditSphereOps.Domain.Engagements.Engagement", null)
                         .WithMany()
                         .HasForeignKey("FirmId", "ClientId", "EngagementId")
@@ -7151,10 +8720,317 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("AuditSphereOps.Domain.Audit.AuditConfirmationCase", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "ConfirmationCaseId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Audit.AuditAreaAssessment", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "CreatedByUserId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ReviewedByUserId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("AuditSphereOps.Domain.Engagements.Engagement", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId")
+                        .HasPrincipalKey("FirmId", "PracticeClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Audit.AuditProcedure", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "ProcedureId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Audit.AuditConfirmationCase", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "CreatedByUserId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Engagements.Engagement", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId")
+                        .HasPrincipalKey("FirmId", "PracticeClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Audit.AuditProcedure", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "ProcedureId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Audit.AuditConfirmationResponse", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "CreatedByUserId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ReviewedByUserId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("AuditSphereOps.Domain.Engagements.Engagement", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId")
+                        .HasPrincipalKey("FirmId", "PracticeClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Audit.AuditConfirmationCase", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "ConfirmationCaseId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Audit.AuditDifference", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "CreatedByUserId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "EvaluatedByUserId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("AuditSphereOps.Domain.Engagements.Engagement", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId")
+                        .HasPrincipalKey("FirmId", "PracticeClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Audit.AuditProcedure", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "ProcedureId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Audit.AuditItemTest", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "TestedByUserId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Engagements.Engagement", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId")
+                        .HasPrincipalKey("FirmId", "PracticeClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Audit.AuditProcedure", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "ProcedureId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Audit.AuditSelection", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "SelectionId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Audit.AuditSelectionItem", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "SelectionItemId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Audit.AuditItemTestReview", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ReviewerUserId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Engagements.Engagement", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId")
+                        .HasPrincipalKey("FirmId", "PracticeClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Audit.AuditItemTest", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "AuditItemTestId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Audit.AuditSelectionItem", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "SelectionItemId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Audit.AuditProcedure", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ApplicabilityDecidedByUserId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("AuditSphereOps.Domain.Audit.AuditProgramProcedure", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ProgramProcedureId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("AuditSphereOps.Domain.Engagements.Engagement", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId")
+                        .HasPrincipalKey("FirmId", "PracticeClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Audit.EngagementAuditProgram", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "EngagementProgramId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("AuditSphereOps.Domain.Audit.AuditRisk", null)
                         .WithMany()
                         .HasForeignKey("FirmId", "ClientId", "EngagementId", "RiskId")
                         .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Audit.AuditProcedureResult", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "PreparedByUserId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ReviewedByUserId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("AuditSphereOps.Domain.Engagements.Engagement", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId")
+                        .HasPrincipalKey("FirmId", "PracticeClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Audit.AuditProcedure", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "AuditProcedureId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Audit.Workpaper", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "WorkpaperId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Audit.AuditProcedureReview", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ReviewerUserId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Engagements.Engagement", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId")
+                        .HasPrincipalKey("FirmId", "PracticeClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Audit.AuditProcedure", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "AuditProcedureId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Audit.AuditProcedureResult", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "AuditProcedureResultId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Audit.AuditProgramProcedure", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Audit.AuditProgramVersion", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ProgramVersionId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Audit.AuditProgramVersion", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ApprovedByUserId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "CreatedByUserId")
+                        .HasPrincipalKey("FirmId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
@@ -7164,6 +9040,129 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
                         .WithMany()
                         .HasForeignKey("FirmId", "ActorId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Engagements.Engagement", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId")
+                        .HasPrincipalKey("FirmId", "PracticeClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Audit.AuditSchedule", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "CreatedByUserId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Engagements.Engagement", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId")
+                        .HasPrincipalKey("FirmId", "PracticeClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Audit.AuditScheduleRow", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Engagements.Engagement", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId")
+                        .HasPrincipalKey("FirmId", "PracticeClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Audit.AuditSchedule", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "ScheduleId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Audit.AuditSelection", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "CreatedByUserId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ReviewedByUserId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("AuditSphereOps.Domain.Engagements.Engagement", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId")
+                        .HasPrincipalKey("FirmId", "PracticeClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Audit.PopulationVersion", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "PopulationVersionId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("AuditSphereOps.Domain.Audit.AuditProcedure", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "ProcedureId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Audit.AuditSchedule", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "ScheduleId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Audit.AuditSelectionItem", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Engagements.Engagement", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId")
+                        .HasPrincipalKey("FirmId", "PracticeClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Audit.AuditScheduleRow", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "ScheduleRowId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("AuditSphereOps.Domain.Audit.AuditSelection", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "SelectionId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Audit.EngagementAuditProgram", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "AdoptedByUserId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Audit.AuditProgramVersion", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ProgramVersionId")
                         .HasPrincipalKey("FirmId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();

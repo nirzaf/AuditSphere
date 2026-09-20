@@ -12,15 +12,15 @@
     "postgres": "18.6 Homebrew user-local port 5433 (development only)"
   },
   "active": {
-    "packageId": "P0 — Repository truth, backlog and governance cleanup",
-    "issueNumber": 12,
+    "packageId": "Audit workflow gap-closure — locally actionable implementation",
+    "issueNumber": null,
     "branch": "master",
     "pullRequestNumber": null,
-    "headCommit": "1322bc36113a43e3f6a1bdb36f5e04cd78949bea",
+    "headCommit": "ffe4b5fea725eef5ae355e0b85039eb0885f38db",
     "implementationStatus": "IN_PROGRESS",
     "acceptanceStatus": "LOCAL_VERIFIED",
-    "worktree": "P6 remains complete at master@1184485 (165/165 tests, 31 migrations). Current master@1322bc3 contains the raw Entra oid/tid claim mapping fix and the evidence-ledger refresh. P0 remains the active dependency-ready package: branch protection and CI requirements are configured and verified, while independent human review remains open. The EasyGuide observations remain historical evidence and do not advance P4 past its blocked P1/P2 predecessors. Runtime identity fixtures, label application/protection readback, P2/P3, professional sign-off, recovery, and independent human review remain open.",
-    "scope": "Active package: repository truth, backlog and governance reconciliation with merged reality, plus the bounded local OIDC claim-mapping fix and synthetic EasyGuide developer-tenant evidence. No production content, credentials, or secret values were changed.",
+    "worktree": "master@ffe4b5f remains the last committed head. The local audit-workflow gap-closure implementation is verified but uncommitted; unrelated .graphify_detect.json and graphify-out/ remain untracked and are excluded. The requirements document remains user-owned and preserved.",
+    "scope": "Local implementation of the audit-workflow gap-closure stories: 20-section/165-procedure program catalog, scoped adoption and applicability, structured result/review lifecycle, fieldwork evidence primitives, completion blockers, archive export, UI status surfaces, tests, migrations, and restore/runtime evidence. No production content, credentials, or secret values were changed.",
     "productionEnabled": false
   },
 
@@ -344,6 +344,31 @@
       "observedAt": "2026-09-20T08:51:29Z",
       "source": "Microsoft Entra Users browser UI, authenticated as qts@easyguide.onmicrosoft.com",
       "result": "The EasyGuide Users inventory reported 16 users. Searching AuditSphere P0 returned only enabled Member fixtures: Client X (object ID bb5e8021-8c86-46eb-80e3-1b13f1caedbf, auditp0-client-x@easyguide.onmicrosoft.com), Client Y (object ID 8e64950c-e8f2-48f9-aeae-be15f0e82939, auditp0-client-y@easyguide.onmicrosoft.com), and Staff (object ID 99eaa47e-d18d-4e7f-90d7-804e20a46fd3, auditp0-staff@easyguide.onmicrosoft.com). Exact searches for AuditSphere P0 Client A, AuditSphere P0 Client B, disabled, and revoked returned 0 users. No wrong-tenant/guest fixture was observed. No account was created or altered during this read-only inventory."
+    },
+    {
+      "observedAt": "2026-09-20T15:04:30Z",
+      "source": "Audit workflow gap-closure implementation",
+      "result": "AuditProgramCatalog contains exactly 20 source sections and 165 stable AWP procedure IDs. Program publication/adoption, applicability, structured results, immutable submissions, generation checks, reviewer separation, changes-requested resubmission, and append-only reviews are implemented. Shared fieldwork covers schedules/control totals, selections/item tests, current-generation item-test review, confirmations/response review/alternatives, typed area assessments, signed differences, completion blockers, and archive export."
+    },
+    {
+      "observedAt": "2026-09-20T15:04:30Z",
+      "source": "dotnet build --no-restore; dotnet test --no-build --no-restore",
+      "result": "Build succeeded with 0 warnings and 0 errors. PostgreSQL 18.6 full suite passed 170/170 with 0 skipped."
+    },
+    {
+      "observedAt": "2026-09-20T15:04:30Z",
+      "source": "EF database update and migrations list",
+      "result": "Applied 20260920102142_WorkpaperDraftsAndTrialBalanceSealing, 20260920140141_AuditProgramExecutionWorkflow, 20260920142129_AuditFieldworkEvidence, and 20260920145407_AuditResponseReviewAndItemGeneration to the local development database. All 35 migrations are present with none pending."
+    },
+    {
+      "observedAt": "2026-09-20T14:59:32Z",
+      "source": "scripts/db/restore-drill.sh",
+      "result": "Loopback restore rehearsal passed with 35 migrations and latest 20260920145407_AuditResponseReviewAndItemGeneration."
+    },
+    {
+      "observedAt": "2026-09-20T15:01:12Z",
+      "source": "dotnet run --project src/AuditSphereOps.Web --no-build and loopback HTTP smoke",
+      "result": "The local web host started cleanly. HTTP 200 returned for /, /health/live, /health/ready, and /app/engagements/{guid}/audit-fieldwork; readiness body was Healthy. The host was stopped cleanly after the probe."
     }
   ],
   "reviewEvidence": [
@@ -416,6 +441,6 @@
       "ownerAction": "Product owner and professional adoption authority authorize and execute the full §47 lifecycle; independent reviewer signs evidence package."
     }
   ],
-  "nextPermittedAction": "P0 is the active dependency-ready package and its remaining reconciliation items are verified; P6 is complete locally. The EasyGuide P4 developer-tenant observations are retained as historical evidence, but P4 stays BLOCKED_EXTERNAL on its P1/P2 predecessors, label propagation/protection observation, and compliance approval. Master merge protection is verified, but P9 still requires independent human review. P1 remains blocked on approved secret-store reference/rotation evidence, required identity fixtures, and live acceptance; P2–P3, P5, P7–P8, and P10 remain blocked until their required provider credentials, custodians, professional approvals, recovery measurements, and independent review exist.",
-  "lastVerifiedAt": "2026-09-20T11:26:28Z"
+  "nextPermittedAction": "Review and commit the locally verified gap-closure slice if desired. Do not mark the requirements checklist complete until live Entra/Graph/SharePoint/Purview behavior, approved professional methodology/signing, independent human review and merge evidence, and production cross-store recovery/RPO/RTO are separately observed and recorded.",
+  "lastVerifiedAt": "2026-09-20T15:04:30Z"
 }

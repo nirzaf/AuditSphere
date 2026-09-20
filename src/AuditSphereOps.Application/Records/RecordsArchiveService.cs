@@ -480,9 +480,26 @@ public static class RecordsArchiveService
     var risks = await db.AuditRisks.AsNoTracking()
       .Where(x => x.FirmId == archive.FirmId && x.ClientId == archive.ClientId && x.EngagementId == archive.EngagementId)
       .OrderBy(x => x.Id).Select(x => new { x.Id, x.AccountArea, x.Assertion, x.Description, x.Drivers, x.Severity, x.SignificanceDecision, x.ControlsConsidered, x.ResponseDescription, x.Status, x.CreatedAt }).ToListAsync(ct);
-    var riskIds = risks.Select(x => x.Id).ToArray();
-    var procedures = await db.AuditProcedures.AsNoTracking().Where(x => riskIds.Contains(x.RiskId))
-      .OrderBy(x => x.Id).Select(x => new { x.Id, x.RiskId, x.Title, x.Status, x.CreatedAt }).ToListAsync(ct);
+    var engagementPrograms = await db.EngagementAuditPrograms.AsNoTracking()
+      .Where(x => x.FirmId == archive.FirmId && x.ClientId == archive.ClientId && x.EngagementId == archive.EngagementId)
+      .OrderBy(x => x.Id).Select(x => new { x.Id, x.ProgramVersionId, x.Status, x.AdoptedByUserId, x.AdoptedAt }).ToListAsync(ct);
+    var programVersionIds = engagementPrograms.Select(x => x.ProgramVersionId).Distinct().ToArray();
+    var programVersions = await db.AuditProgramVersions.AsNoTracking().Where(x =>
+      x.FirmId == archive.FirmId && programVersionIds.Contains(x.Id))
+      .OrderBy(x => x.Id).Select(x => new { x.Id, x.ProgramCode, x.Version, x.SourceHash, x.Status, x.CreatedByUserId, x.ApprovedByUserId, x.CreatedAt, x.ApprovedAt }).ToListAsync(ct);
+    var programProcedures = await db.AuditProgramProcedures.AsNoTracking().Where(x =>
+      x.FirmId == archive.FirmId && programVersionIds.Contains(x.ProgramVersionId))
+      .OrderBy(x => x.Id).Select(x => new { x.Id, x.ProgramVersionId, x.SourceProcedureId, x.SectionNumber, x.SectionTitle, x.Ordinal, x.SourceWording, x.ApplicabilityCondition, x.ExpectedEvidence, x.CreatedAt }).ToListAsync(ct);
+    var procedures = await db.AuditProcedures.AsNoTracking()
+      .Where(x => x.FirmId == archive.FirmId && x.ClientId == archive.ClientId && x.EngagementId == archive.EngagementId)
+      .OrderBy(x => x.Id).Select(x => new { x.Id, x.RiskId, x.EngagementProgramId, x.ProgramProcedureId, x.SourceProcedureId, x.SourceSectionNumber, x.SourceSectionTitle, x.SourceWording, x.ApplicabilityStatus, x.ApplicabilityRationale, x.Title, x.Status, x.CurrentResultRevision, x.CreatedAt }).ToListAsync(ct);
+    var procedureIds = procedures.Select(x => x.Id).ToArray();
+    var procedureResults = await db.AuditProcedureResults.AsNoTracking().Where(x =>
+      x.FirmId == archive.FirmId && x.ClientId == archive.ClientId && x.EngagementId == archive.EngagementId && procedureIds.Contains(x.AuditProcedureId))
+      .OrderBy(x => x.Id).Select(x => new { x.Id, x.AuditProcedureId, x.WorkpaperId, x.Revision, x.InputGeneration, x.WorkPerformed, x.StructuredResultJson, x.EvidenceReferencesJson, x.Conclusion, x.Status, x.PreparedByUserId, x.ReviewedByUserId, x.SubmittedAt, x.ReviewedAt }).ToListAsync(ct);
+    var procedureReviews = await db.AuditProcedureReviews.AsNoTracking().Where(x =>
+      x.FirmId == archive.FirmId && x.ClientId == archive.ClientId && x.EngagementId == archive.EngagementId && procedureIds.Contains(x.AuditProcedureId))
+      .OrderBy(x => x.Id).Select(x => new { x.Id, x.AuditProcedureResultId, x.AuditProcedureId, x.ResultRevision, x.Decision, x.Comment, x.ReviewerUserId, x.CreatedAt }).ToListAsync(ct);
     var populations = await db.PopulationVersions.AsNoTracking()
       .Where(x => x.FirmId == archive.FirmId && x.ClientId == archive.ClientId && x.EngagementId == archive.EngagementId)
       .OrderBy(x => x.Id).Select(x => new { x.Id, x.Purpose, x.Assertion, x.SourceReceiptReference, x.ExtractionParameters, x.RowCount, x.MonetaryControlTotal, x.Currency, x.Exclusions, x.Status, x.CreatedAt }).ToListAsync(ct);
@@ -495,6 +512,44 @@ public static class RecordsArchiveService
     var findings = await db.Findings.AsNoTracking()
       .Where(x => x.FirmId == archive.FirmId && x.ClientId == archive.ClientId && x.EngagementId == archive.EngagementId)
       .OrderBy(x => x.Id).Select(x => new { x.Id, x.FindingType, x.ImpactDescription, x.Corrected, x.MonetaryAmount, x.ManagementResponse, x.Status, x.CreatedAt }).ToListAsync(ct);
+    var schedules = await db.AuditSchedules.AsNoTracking().Where(x =>
+      x.FirmId == archive.FirmId && x.ClientId == archive.ClientId && x.EngagementId == archive.EngagementId)
+      .OrderBy(x => x.Id).Select(x => new { x.Id, x.ScheduleType, x.EntityIdentifier, x.SourceReceiptReference, x.AsOfDate, x.PeriodStart, x.PeriodEnd, x.Currency, x.SignConvention, x.SourceHash, x.RowCount, x.SignedControlTotal, x.GlControlTotal, x.Residual, x.InputGeneration, x.CompletenessDecision, x.Status, x.CreatedByUserId, x.CreatedAt }).ToListAsync(ct);
+    var scheduleIds = schedules.Select(x => x.Id).ToArray();
+    var scheduleRows = await db.AuditScheduleRows.AsNoTracking().Where(x =>
+      x.FirmId == archive.FirmId && x.ClientId == archive.ClientId && x.EngagementId == archive.EngagementId && scheduleIds.Contains(x.ScheduleId))
+      .OrderBy(x => x.Id).Select(x => new { x.Id, x.ScheduleId, x.StableRowId, x.SourceLineNumber, x.AccountCode, x.Description, x.SignedAmount, x.Currency, x.TransactionDate, x.PostingDate, x.DeliveryDate, x.ServiceDate, x.OriginalValuesJson, x.CreatedAt }).ToListAsync(ct);
+    var selections = await db.AuditSelections.AsNoTracking().Where(x =>
+      x.FirmId == archive.FirmId && x.ClientId == archive.ClientId && x.EngagementId == archive.EngagementId)
+      .OrderBy(x => x.Id).Select(x => new { x.Id, x.ScheduleId, x.PopulationVersionId, x.ProcedureId, x.Method, x.Rationale, x.SelectedCount, x.SelectedSignedTotal, x.Status, x.InputGeneration, x.CreatedByUserId, x.ReviewedByUserId, x.CreatedAt, x.ReviewedAt }).ToListAsync(ct);
+    var selectionIds = selections.Select(x => x.Id).ToArray();
+    var selectionItems = await db.AuditSelectionItems.AsNoTracking().Where(x =>
+      x.FirmId == archive.FirmId && x.ClientId == archive.ClientId && x.EngagementId == archive.EngagementId && selectionIds.Contains(x.SelectionId))
+      .OrderBy(x => x.Id).Select(x => new { x.Id, x.SelectionId, x.ScheduleRowId, x.StableRowId, x.SignedAmount, x.Currency, x.InclusionReason, x.CreatedAt }).ToListAsync(ct);
+    var selectionItemIds = selectionItems.Select(x => x.Id).ToArray();
+    var itemTests = await db.AuditItemTests.AsNoTracking().Where(x =>
+      x.FirmId == archive.FirmId && x.ClientId == archive.ClientId && x.EngagementId == archive.EngagementId && selectionItemIds.Contains(x.SelectionItemId))
+      .OrderBy(x => x.Id).Select(x => new { x.Id, x.SelectionId, x.SelectionItemId, x.ProcedureId, x.Revision, x.WorkPerformed, x.EvidenceReferencesJson, x.Result, x.ExceptionAmount, x.ContradictoryEvidence, x.FollowUp, x.InputGeneration, x.TestedByUserId, x.TestedAt }).ToListAsync(ct);
+    var itemTestIds = itemTests.Select(x => x.Id).ToArray();
+    var itemTestReviews = await db.AuditItemTestReviews.AsNoTracking().Where(x =>
+      x.FirmId == archive.FirmId && x.ClientId == archive.ClientId && x.EngagementId == archive.EngagementId && itemTestIds.Contains(x.AuditItemTestId))
+      .OrderBy(x => x.Id).Select(x => new { x.Id, x.SelectionItemId, x.AuditItemTestId, x.TestRevision, x.Decision, x.Comment, x.ReviewerUserId, x.CreatedAt }).ToListAsync(ct);
+    var confirmationCases = await db.AuditConfirmationCases.AsNoTracking().Where(x =>
+      x.FirmId == archive.FirmId && x.ClientId == archive.ClientId && x.EngagementId == archive.EngagementId)
+      .OrderBy(x => x.Id).Select(x => new { x.Id, x.ProcedureId, x.AreaCode, x.SourceRecordId, x.BookedAmount, x.Currency, x.ConfirmationDate, x.Respondent, x.ContactValidationSource, x.InputGeneration, x.Status, x.DispatchReference, x.CreatedByUserId, x.CreatedAt }).ToListAsync(ct);
+    var confirmationIds = confirmationCases.Select(x => x.Id).ToArray();
+    var confirmationResponses = await db.AuditConfirmationResponses.AsNoTracking().Where(x =>
+      x.FirmId == archive.FirmId && x.ClientId == archive.ClientId && x.EngagementId == archive.EngagementId && confirmationIds.Contains(x.ConfirmationCaseId))
+      .OrderBy(x => x.Id).Select(x => new { x.Id, x.ConfirmationCaseId, x.Revision, x.Origin, x.Channel, x.ReceivedAt, x.ResponseReference, x.ConfirmedAmount, x.DifferenceAmount, x.AuthenticityAssessment, x.Decision, x.CreatedByUserId, x.ReviewedByUserId, x.ReviewedAt, x.CreatedAt }).ToListAsync(ct);
+    var alternatives = await db.AuditAlternativeProcedures.AsNoTracking().Where(x =>
+      x.FirmId == archive.FirmId && x.ClientId == archive.ClientId && x.EngagementId == archive.EngagementId && confirmationIds.Contains(x.ConfirmationCaseId))
+      .OrderBy(x => x.Id).Select(x => new { x.Id, x.ConfirmationCaseId, x.Purpose, x.EvidenceReferencesJson, x.Conclusion, x.Status, x.CreatedByUserId, x.ReviewedByUserId, x.CreatedAt, x.ReviewedAt }).ToListAsync(ct);
+    var areaAssessments = await db.AuditAreaAssessments.AsNoTracking().Where(x =>
+      x.FirmId == archive.FirmId && x.ClientId == archive.ClientId && x.EngagementId == archive.EngagementId)
+      .OrderBy(x => x.Id).Select(x => new { x.Id, x.ProcedureId, x.AreaCode, x.AssessmentKind, x.MethodologyReference, x.InputSnapshotJson, x.BookedAmount, x.AuditedAmount, x.ResidualAmount, x.VariancePercent, x.Currency, x.PeriodStart, x.PeriodEnd, x.EvidenceReferencesJson, x.InputGeneration, x.Revision, x.Conclusion, x.Status, x.CreatedByUserId, x.ReviewedByUserId, x.CreatedAt, x.ReviewedAt }).ToListAsync(ct);
+    var differences = await db.AuditDifferences.AsNoTracking().Where(x =>
+      x.FirmId == archive.FirmId && x.ClientId == archive.ClientId && x.EngagementId == archive.EngagementId)
+      .OrderBy(x => x.Id).Select(x => new { x.Id, x.ProcedureId, x.AccountArea, x.DifferenceType, x.Description, x.Amount, x.Currency, x.Corrected, x.ManagementResponse, x.CorrectionReference, x.Evaluation, x.InputGeneration, x.Status, x.CreatedByUserId, x.EvaluatedByUserId, x.CreatedAt, x.EvaluatedAt }).ToListAsync(ct);
     var reviewPoints = await db.ReviewPoints.AsNoTracking()
       .Where(x => x.FirmId == archive.FirmId && x.ClientId == archive.ClientId && x.EngagementId == archive.EngagementId)
       .OrderBy(x => x.Id).Select(x => new { x.Id, x.TargetId, x.TargetKind, x.TargetRevision, x.Comment, x.Significant, x.Cleared, x.RaisedAt }).ToListAsync(ct);
@@ -595,7 +650,31 @@ public static class RecordsArchiveService
         cashFlowLines,
         disclosures
       },
-      audit = new { risks, procedures, populations, workpapers, submissions, findings },
+      audit = new
+      {
+        risks,
+        programVersions,
+        programProcedures,
+        engagementPrograms,
+        procedures,
+        procedureResults,
+        procedureReviews,
+        populations,
+        workpapers,
+        submissions,
+        findings,
+        schedules,
+        scheduleRows,
+        selections,
+        selectionItems,
+        itemTests,
+        itemTestReviews,
+        confirmationCases,
+        confirmationResponses,
+        alternatives,
+        areaAssessments,
+        differences
+      },
       review = new { reviewPoints, approvals, approvalApplicability, assignments, eqrCases, writtenRepresentations },
       controls = new { engagementHolds, recordsActions, recordsActionEvidence, legalHolds },
       release = new { releaseCandidates, releases, releaseCheckpoints, signatureLineages, protectionAttestations },

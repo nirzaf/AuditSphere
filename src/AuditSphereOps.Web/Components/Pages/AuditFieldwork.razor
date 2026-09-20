@@ -1,0 +1,197 @@
+@page "/app/engagements/{EngagementId:guid}/audit-fieldwork"
+@rendermode InteractiveServer
+@using AuditSphereOps.Application.Abstractions
+@using AuditSphereOps.Application.Audit
+@using AuditSphereOps.Application.Security
+@using AuditSphereOps.Domain.Audit
+@using AuditSphereOps.Domain.Engagements
+@using AuditSphereOps.Infrastructure.Persistence
+@using Microsoft.EntityFrameworkCore
+@inject CurrentActorResolver ActorResolver
+@inject IDbContextFactory<AuditSphereDbContext> DbFactory
+
+<PageTitle>Audit Fieldwork — AuditSphereOps</PageTitle>
+
+<div class="page-header">
+    <nav class="breadcrumb-nav">
+        <a href="/app">Portfolio</a> /
+        @if (EngagementId != Guid.Empty)
+        {
+            <a href="@($"/app/engagements/{EngagementId}")">Engagement</a>
+            <span> / </span>
+        }
+        <span>Audit Fieldwork</span>
+    </nav>
+    <h1>Controlled Audit Fieldwork</h1>
+</div>
+
+@if (_loading)
+{
+    <p role="status">Loading fieldwork coverage…</p>
+}
+else if (_actor is null || _engagement is null)
+{
+    <section class="notice" role="alert"><h2>Fieldwork unavailable</h2><p>An authorized internal engagement scope is required.</p></section>
+}
+else if (_authorizationMessage is not null)
+{
+    <section class="notice" role="alert"><h2>Access blocked</h2><p>@_authorizationMessage</p></section>
+}
+else
+{
+    <div class="plan-shell">
+        <section class="card" aria-labelledby="program-heading">
+            <h2 id="program-heading">Versioned audit program</h2>
+            <p class="info-text">The controlled source catalog contains @AuditProgramCatalog.Items.Count procedures across 20 sections. Applicability and evidence status are persisted per engagement.</p>
+            @if (_programVersion is null)
+            {
+                <p class="empty-state">No published program has been adopted for this engagement.</p>
+                <button class="btn-small" @onclick="PublishAndAdoptAsync" disabled="@_busy">Publish and adopt @(_version)</button>
+            }
+            else
+            {
+                <dl class="detail-grid">
+                    <dt>Program</dt><dd>@_programVersion.ProgramCode v@_programVersion.Version</dd>
+                    <dt>Source hash</dt><dd><code>@_programVersion.SourceHash</code></dd>
+                    <dt>Adopted procedures</dt><dd>@_procedures.Count</dd>
+                    <dt>Applicable / reviewed</dt><dd>@_procedures.Count(x => x.ApplicabilityStatus == AuditApplicabilityStatuses.Applicable) / @_procedures.Count(x => x.Status == AuditProcedureStatuses.Reviewed)</dd>
+                </dl>
+                <p><a class="btn-secondary" href="@($"/app/engagements/{EngagementId}/audit-plan")">Open planning</a> <a class="btn-secondary" href="@($"/app/engagements/{EngagementId}/completion")">Open completion</a></p>
+            }
+        </section>
+
+        @if (_programVersion is not null)
+        {
+            <section class="card" aria-labelledby="coverage-heading">
+                <h2 id="coverage-heading">Procedure applicability and evidence coverage</h2>
+                <p class="notice-text">An applicable procedure cannot be completed from a title alone. Submit work, evidence and a current independent review through the guarded commands.</p>
+                <div class="table-wrap">
+                    <table class="data-table">
+                        <caption class="sr-only">Controlled procedure coverage</caption>
+                        <thead><tr><th scope="col">Source</th><th scope="col">Section</th><th scope="col">Procedure</th><th scope="col">Applicability</th><th scope="col">Evidence</th><th scope="col">Action</th></tr></thead>
+                        <tbody>
+                            @foreach (var procedure in _procedures)
+                            {
+                                <tr>
+                                    <td><code>@procedure.SourceProcedureId</code></td>
+                                    <td>@procedure.SourceSectionTitle</td>
+                                    <td>@procedure.Title</td>
+                                    <td>@procedure.ApplicabilityStatus</td>
+                                    <td>@procedure.Status</td>
+                                    <td>
+                                        @if (procedure.ApplicabilityStatus == AuditApplicabilityStatuses.Pending)
+                                        {
+                                            <button class="btn-small" @onclick="() => DecideApplicabilityAsync(procedure.Id, AuditApplicabilityStatuses.Applicable)" disabled="@_busy">Applicable</button>
+                                            <button class="btn-small" @onclick="() => DecideApplicabilityAsync(procedure.Id, AuditApplicabilityStatuses.NotApplicablePendingReview)" disabled="@_busy">N/A for review</button>
+                                        }
+                                        else if (procedure.ApplicabilityStatus == AuditApplicabilityStatuses.Applicable)
+                                        {
+                                            <span class="muted">Execute from source workflow</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="muted">Reviewer disposition required</span>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        }
+
+        @if (_result is not null)
+        {
+            <p class="command-result @(_result.Succeeded ? "success-text" : "error-text")" role="status">
+                @(_result.Succeeded ? "Recorded." : "Blocked: " + _result.ErrorCode + " — " + _result.Message)
+            </p>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public Guid EngagementId { get; set; }
+
+    private ActorContext? _actor;
+    private Engagement? _engagement;
+    private AuditProgramVersion? _programVersion;
+    private List<AuditProcedure> _procedures = [];
+    private CommandResult? _result;
+    private string? _authorizationMessage;
+    private string _version = "2026.1";
+    private bool _loading = true;
+    private bool _busy;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _actor = await ActorResolver.ResolveAsync();
+        if (_actor is null)
+        {
+            _loading = false;
+            return;
+        }
+        await using var db = await DbFactory.CreateDbContextAsync();
+        _engagement = await db.Engagements.AsNoTracking().SingleOrDefaultAsync(x => x.Id == EngagementId && x.FirmId == _actor.FirmId);
+        if (_engagement is null)
+        {
+            _loading = false;
+            return;
+        }
+        var authorization = await AuthorizationDecision.AuthorizeAsync(db, _actor,
+            new AuthorizationRequest(_actor.FirmId, _engagement.PracticeClientId, _engagement.Id,
+                ["Partner", "Manager", "SeniorManager", "Senior", "Staff", "Auditor", "EngagementLeader", "Administrator"], true, true));
+        if (!authorization.Succeeded)
+        {
+            _authorizationMessage = authorization.Message;
+            _loading = false;
+            return;
+        }
+        var adoption = await db.EngagementAuditPrograms.AsNoTracking()
+            .Where(x => x.FirmId == _actor.FirmId && x.ClientId == _engagement.PracticeClientId && x.EngagementId == _engagement.Id && x.Status == EngagementAuditProgramStatuses.Adopted)
+            .OrderByDescending(x => x.AdoptedAt).FirstOrDefaultAsync();
+        if (adoption is not null)
+        {
+            _programVersion = await db.AuditProgramVersions.AsNoTracking().SingleAsync(x => x.Id == adoption.ProgramVersionId && x.FirmId == _actor.FirmId);
+            _procedures = await db.AuditProcedures.AsNoTracking()
+                .Where(x => x.FirmId == _actor.FirmId && x.ClientId == _engagement.PracticeClientId && x.EngagementId == _engagement.Id && x.EngagementProgramId == adoption.Id)
+                .OrderBy(x => x.SourceSectionNumber).ThenBy(x => x.SourceProcedureId).ToListAsync();
+        }
+        _loading = false;
+    }
+
+    private async Task PublishAndAdoptAsync()
+    {
+        if (_actor is null || _engagement is null) return;
+        _busy = true;
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var published = await AuditProgramService.PublishAsync(db, _actor, new PublishAuditProgramRequest(_version, AuditProgramCatalog.SourceHash));
+        if (published.Succeeded)
+        {
+            var adopted = await AuditProgramService.AdoptAsync(db, _actor, new AdoptAuditProgramRequest(EngagementId, published.Value!.ProgramVersionId));
+            _result = adopted.Succeeded ? CommandResult.Ok() : CommandResult.Fail(adopted.ErrorCode!, adopted.Message!);
+        }
+        else
+        {
+            _result = CommandResult.Fail(published.ErrorCode!, published.Message!);
+        }
+        _busy = false;
+        await LoadAsync();
+    }
+
+    private async Task DecideApplicabilityAsync(Guid procedureId, string decision)
+    {
+        if (_actor is null) return;
+        _busy = true;
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var result = await AuditProgramService.DecideApplicabilityAsync(db, _actor,
+            new DecideProcedureApplicabilityRequest(procedureId, decision,
+                decision == AuditApplicabilityStatuses.NotApplicablePendingReview ? "Not applicable pending independent review." : null));
+        _result = result.Succeeded ? CommandResult.Ok() : CommandResult.Fail(result.ErrorCode!, result.Message!);
+        _busy = false;
+        await LoadAsync();
+    }
+}

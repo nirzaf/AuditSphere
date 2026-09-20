@@ -82,6 +82,22 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
   public DbSet<Workpaper> Workpapers => Set<Workpaper>();
   public DbSet<WorkpaperDraft> WorkpaperDrafts => Set<WorkpaperDraft>();
   public DbSet<WorkpaperSubmission> WorkpaperSubmissions => Set<WorkpaperSubmission>();
+  public DbSet<AuditProgramVersion> AuditProgramVersions => Set<AuditProgramVersion>();
+  public DbSet<AuditProgramProcedure> AuditProgramProcedures => Set<AuditProgramProcedure>();
+  public DbSet<EngagementAuditProgram> EngagementAuditPrograms => Set<EngagementAuditProgram>();
+  public DbSet<AuditProcedureResult> AuditProcedureResults => Set<AuditProcedureResult>();
+  public DbSet<AuditProcedureReview> AuditProcedureReviews => Set<AuditProcedureReview>();
+  public DbSet<AuditSchedule> AuditSchedules => Set<AuditSchedule>();
+  public DbSet<AuditScheduleRow> AuditScheduleRows => Set<AuditScheduleRow>();
+  public DbSet<AuditSelection> AuditSelections => Set<AuditSelection>();
+  public DbSet<AuditSelectionItem> AuditSelectionItems => Set<AuditSelectionItem>();
+  public DbSet<AuditItemTest> AuditItemTests => Set<AuditItemTest>();
+  public DbSet<AuditItemTestReview> AuditItemTestReviews => Set<AuditItemTestReview>();
+  public DbSet<AuditConfirmationCase> AuditConfirmationCases => Set<AuditConfirmationCase>();
+  public DbSet<AuditConfirmationResponse> AuditConfirmationResponses => Set<AuditConfirmationResponse>();
+  public DbSet<AuditAlternativeProcedure> AuditAlternativeProcedures => Set<AuditAlternativeProcedure>();
+  public DbSet<AuditAreaAssessment> AuditAreaAssessments => Set<AuditAreaAssessment>();
+  public DbSet<AuditDifference> AuditDifferences => Set<AuditDifference>();
   public DbSet<Finding> Findings => Set<Finding>();
   public DbSet<ReviewPoint> ReviewPoints => Set<ReviewPoint>();
   public DbSet<Approval> Approvals => Set<Approval>();
@@ -127,6 +143,7 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     ConfigureMoney(b);
     ConfigurePractice(b);
     ConfigureAudit(b);
+    ConfigureFieldwork(b);
     ConfigureScopedEvidence(b);
     ConfigureAccounting(b);
     ConfigureDocuments(b);
@@ -1193,6 +1210,62 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
       .HasForeignKey(x => new { x.FirmId, x.ActorId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
 
+    var programVersion = b.Entity<AuditProgramVersion>();
+    programVersion.HasAlternateKey(x => new { x.FirmId, x.Id })
+      .HasName("AK_audit_program_versions_firm_id_id");
+    programVersion.Property(x => x.ProgramCode).HasMaxLength(100);
+    programVersion.Property(x => x.Version).HasMaxLength(100);
+    programVersion.Property(x => x.SourceHash).HasMaxLength(64).IsFixedLength();
+    programVersion.Property(x => x.Status).HasMaxLength(20);
+    programVersion.HasIndex(x => new { x.FirmId, x.ProgramCode, x.Version }).IsUnique()
+      .HasDatabaseName("ux_audit_program_version_code_version");
+    programVersion.ToTable("audit_program_versions", t => t.HasCheckConstraint("ck_audit_program_version_values",
+      "length(trim(program_code)) > 0 AND length(trim(version)) > 0 AND length(source_hash) = 64" +
+      " AND status IN ('DRAFT','PUBLISHED','RETIRED')" +
+      " AND ((status = 'PUBLISHED' AND approved_by_user_id IS NOT NULL AND approved_at IS NOT NULL) OR status <> 'PUBLISHED')"));
+    programVersion.HasOne<AppUser>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.CreatedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    programVersion.HasOne<AppUser>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ApprovedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var programProcedure = b.Entity<AuditProgramProcedure>();
+    programProcedure.HasAlternateKey(x => new { x.FirmId, x.Id })
+      .HasName("AK_audit_program_procedures_firm_id_id");
+    programProcedure.HasAlternateKey(x => new { x.FirmId, x.ProgramVersionId, x.SourceProcedureId })
+      .HasName("AK_audit_program_procedures_version_source");
+    programProcedure.Property(x => x.SourceProcedureId).HasMaxLength(20);
+    programProcedure.Property(x => x.SectionTitle).HasMaxLength(200);
+    programProcedure.Property(x => x.SourceWording).HasMaxLength(2000);
+    programProcedure.Property(x => x.ApplicabilityCondition).HasMaxLength(1000);
+    programProcedure.Property(x => x.ExpectedEvidence).HasMaxLength(2000);
+    programProcedure.ToTable("audit_program_procedures", t => t.HasCheckConstraint("ck_audit_program_procedure_values",
+      "section_number BETWEEN 1 AND 20 AND ordinal >= 1 AND length(trim(source_procedure_id)) > 0" +
+      " AND length(trim(section_title)) > 0 AND length(trim(source_wording)) > 0"));
+    programProcedure.HasIndex(x => new { x.FirmId, x.ProgramVersionId, x.SectionNumber, x.Ordinal })
+      .HasDatabaseName("ix_audit_program_procedures_version_order");
+    programProcedure.HasOne<AuditProgramVersion>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ProgramVersionId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var engagementProgram = b.Entity<EngagementAuditProgram>();
+    engagementProgram.HasAlternateKey(x => new { x.FirmId, x.Id })
+      .HasName("AK_engagement_audit_programs_firm_id_id");
+    engagementProgram.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.ProgramVersionId })
+      .HasName("AK_engagement_audit_programs_scope_version");
+    engagementProgram.Property(x => x.Status).HasMaxLength(20);
+    engagementProgram.ToTable("engagement_audit_programs", t => t.HasCheckConstraint("ck_engagement_audit_program_values",
+      "status IN ('ADOPTED','SUPERSEDED')"));
+    ScopeToEngagement(engagementProgram, nameof(EngagementAuditProgram.FirmId),
+      nameof(EngagementAuditProgram.ClientId), nameof(EngagementAuditProgram.EngagementId));
+    engagementProgram.HasOne<AuditProgramVersion>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ProgramVersionId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    engagementProgram.HasOne<AppUser>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.AdoptedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
     var population = b.Entity<PopulationVersion>();
     population.HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_population_versions_firm_id_id");
     population.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
@@ -1283,14 +1356,87 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     procedure.HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_audit_procedures_firm_id_id");
     procedure.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
       .HasName("AK_audit_procedures_scope_id");
+    procedure.Property(x => x.SourceProcedureId).HasMaxLength(20);
+    procedure.Property(x => x.SourceSectionTitle).HasMaxLength(200);
+    procedure.Property(x => x.SourceWording).HasMaxLength(2000);
+    procedure.Property(x => x.ApplicabilityStatus).HasMaxLength(30);
     procedure.ToTable("audit_procedures", t => t.HasCheckConstraint("ck_audit_procedure_values",
-      "length(trim(title)) > 0"));
+      "length(trim(title)) > 0 AND status IN ('PLANNED','IN_PROGRESS','SUBMITTED','IN_REVIEW','CHANGES_REQUIRED','REVIEWED')" +
+      " AND applicability_status IN ('PENDING','APPLICABLE','NA_PENDING_REVIEW','NA_APPROVED')"));
+    procedure.HasIndex(x => new { x.FirmId, x.ClientId, x.EngagementId, x.SourceProcedureId })
+      .IsUnique().HasDatabaseName("ux_audit_procedure_scope_source");
     ScopeToEngagement(procedure, nameof(AuditProcedure.FirmId), nameof(AuditProcedure.ClientId),
       nameof(AuditProcedure.EngagementId));
     procedure.HasOne<AuditRisk>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.RiskId })
       .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
       .OnDelete(DeleteBehavior.Restrict);
+    procedure.HasOne<EngagementAuditProgram>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.EngagementProgramId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
+      .OnDelete(DeleteBehavior.Restrict);
+    procedure.HasOne<AuditProgramProcedure>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ProgramProcedureId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id })
+      .OnDelete(DeleteBehavior.Restrict);
+    procedure.HasOne<AppUser>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ApplicabilityDecidedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var procedureResult = b.Entity<AuditProcedureResult>();
+    procedureResult.HasAlternateKey(x => new { x.FirmId, x.Id })
+      .HasName("AK_audit_procedure_results_firm_id_id");
+    procedureResult.Property(x => x.WorkPerformed).HasMaxLength(100000);
+    procedureResult.Property(x => x.StructuredResultJson).HasMaxLength(100000);
+    procedureResult.Property(x => x.EvidenceReferencesJson).HasMaxLength(20000);
+    procedureResult.Property(x => x.Conclusion).HasMaxLength(20000);
+    procedureResult.Property(x => x.Status).HasMaxLength(30);
+    procedureResult.HasIndex(x => new { x.FirmId, x.AuditProcedureId, x.Revision }).IsUnique()
+      .HasDatabaseName("ux_audit_procedure_result_revision");
+    procedureResult.ToTable("audit_procedure_results", t => t.HasCheckConstraint("ck_audit_procedure_result_values",
+      "revision > 0 AND input_generation > 0 AND length(trim(work_performed)) > 0" +
+      " AND length(trim(structured_result_json)) > 0 AND length(trim(conclusion)) > 0" +
+      " AND status IN ('SUBMITTED','CHANGES_REQUIRED','REVIEWED')" +
+      " AND ((status = 'REVIEWED' AND reviewed_by_user_id IS NOT NULL AND reviewed_at IS NOT NULL) OR status <> 'REVIEWED')"));
+    ScopeToEngagement(procedureResult, nameof(AuditProcedureResult.FirmId),
+      nameof(AuditProcedureResult.ClientId), nameof(AuditProcedureResult.EngagementId));
+    procedureResult.HasOne<AuditProcedure>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.AuditProcedureId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
+      .OnDelete(DeleteBehavior.Restrict);
+    procedureResult.HasOne<Workpaper>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.WorkpaperId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
+      .OnDelete(DeleteBehavior.Restrict);
+    procedureResult.HasOne<AppUser>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.PreparedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    procedureResult.HasOne<AppUser>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ReviewedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var procedureReview = b.Entity<AuditProcedureReview>();
+    procedureReview.HasAlternateKey(x => new { x.FirmId, x.Id })
+      .HasName("AK_audit_procedure_reviews_firm_id_id");
+    procedureReview.Property(x => x.Decision).HasMaxLength(30);
+    procedureReview.Property(x => x.Comment).HasMaxLength(20000);
+    procedureReview.HasIndex(x => new { x.FirmId, x.AuditProcedureResultId, x.CreatedAt })
+      .HasDatabaseName("ix_audit_procedure_reviews_result_created");
+    procedureReview.ToTable("audit_procedure_reviews", t => t.HasCheckConstraint("ck_audit_procedure_review_values",
+      "result_revision > 0 AND decision IN ('REVIEWED','CHANGES_REQUIRED')"));
+    ScopeToEngagement(procedureReview, nameof(AuditProcedureReview.FirmId),
+      nameof(AuditProcedureReview.ClientId), nameof(AuditProcedureReview.EngagementId));
+    procedureReview.HasOne<AuditProcedureResult>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.AuditProcedureResultId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
+      .OnDelete(DeleteBehavior.Restrict);
+    procedureReview.HasOne<AuditProcedure>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.AuditProcedureId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
+      .OnDelete(DeleteBehavior.Restrict);
+    procedureReview.HasOne<AppUser>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ReviewerUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
 
     var finding = b.Entity<Finding>();
     finding.HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_findings_firm_id_id");
@@ -1308,6 +1454,235 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     ScopeToEngagement(finding, nameof(Finding.FirmId), nameof(Finding.ClientId), nameof(Finding.EngagementId));
     finding.HasOne<AppUser>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.ActorId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+  }
+
+  private static void ConfigureFieldwork(ModelBuilder b)
+  {
+    var schedule = b.Entity<AuditSchedule>();
+    schedule.HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_audit_schedules_firm_id_id");
+    schedule.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
+      .HasName("AK_audit_schedules_scope_id");
+    schedule.Property(x => x.ScheduleType).HasMaxLength(100);
+    schedule.Property(x => x.EntityIdentifier).HasMaxLength(200);
+    schedule.Property(x => x.SourceReceiptReference).HasMaxLength(200);
+    schedule.Property(x => x.Currency).HasMaxLength(3).IsFixedLength();
+    schedule.Property(x => x.SignConvention).HasMaxLength(100);
+    schedule.Property(x => x.SourceHash).HasMaxLength(64).IsFixedLength();
+    schedule.Property(x => x.CompletenessDecision).HasMaxLength(2000);
+    schedule.Property(x => x.Status).HasMaxLength(30);
+    schedule.HasIndex(x => new { x.FirmId, x.EngagementId, x.SourceReceiptReference, x.SourceHash }).IsUnique()
+      .HasDatabaseName("ux_audit_schedule_source_version");
+    schedule.HasIndex(x => new { x.FirmId, x.EngagementId, x.ScheduleType, x.AsOfDate })
+      .HasDatabaseName("ix_audit_schedule_scope_type_date");
+    schedule.ToTable("audit_schedules", t => t.HasCheckConstraint("ck_audit_schedule_values",
+      "length(trim(schedule_type)) > 0 AND length(trim(entity_identifier)) > 0" +
+      " AND length(trim(source_receipt_reference)) > 0 AND length(source_hash) = 64" +
+      " AND currency ~ '^[A-Z]{3}$' AND length(trim(sign_convention)) > 0" +
+      " AND row_count >= 0 AND input_generation > 0 AND status IN ('PENDING_REVIEW','RECONCILED','UNRECONCILED','APPROVED','SUPERSEDED')"));
+    ScopeToEngagement(schedule, nameof(AuditSchedule.FirmId), nameof(AuditSchedule.ClientId), nameof(AuditSchedule.EngagementId));
+    schedule.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.CreatedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var scheduleRow = b.Entity<AuditScheduleRow>();
+    scheduleRow.HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_audit_schedule_rows_firm_id_id");
+    scheduleRow.HasAlternateKey(x => new { x.FirmId, x.ScheduleId, x.StableRowId })
+      .HasName("AK_audit_schedule_rows_schedule_stable");
+    scheduleRow.Property(x => x.StableRowId).HasMaxLength(200);
+    scheduleRow.Property(x => x.AccountCode).HasMaxLength(100);
+    scheduleRow.Property(x => x.Description).HasMaxLength(1000);
+    scheduleRow.Property(x => x.Currency).HasMaxLength(3).IsFixedLength();
+    scheduleRow.Property(x => x.OriginalValuesJson).HasMaxLength(20000);
+    scheduleRow.ToTable("audit_schedule_rows", t => t.HasCheckConstraint("ck_audit_schedule_row_values",
+      "source_line_number > 0 AND length(trim(stable_row_id)) > 0 AND length(trim(account_code)) > 0" +
+      " AND length(trim(description)) > 0 AND currency ~ '^[A-Z]{3}$' AND length(trim(original_values_json)) > 0"));
+    ScopeToEngagement(scheduleRow, nameof(AuditScheduleRow.FirmId), nameof(AuditScheduleRow.ClientId), nameof(AuditScheduleRow.EngagementId));
+    scheduleRow.HasOne<AuditSchedule>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.ScheduleId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    scheduleRow.HasIndex(x => new { x.FirmId, x.ScheduleId, x.SourceLineNumber })
+      .HasDatabaseName("ix_audit_schedule_rows_order");
+
+    var selection = b.Entity<AuditSelection>();
+    selection.HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_audit_selections_firm_id_id");
+    selection.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
+      .HasName("AK_audit_selections_scope_id");
+    selection.Property(x => x.Method).HasMaxLength(100);
+    selection.Property(x => x.Rationale).HasMaxLength(4000);
+    selection.Property(x => x.Status).HasMaxLength(30);
+    selection.ToTable("audit_selections", t => t.HasCheckConstraint("ck_audit_selection_values",
+      "length(trim(method)) > 0 AND length(trim(rationale)) > 0 AND selected_count > 0" +
+      " AND input_generation > 0 AND status IN ('SUBMITTED','REVIEWED','CHANGES_REQUIRED')"));
+    ScopeToEngagement(selection, nameof(AuditSelection.FirmId), nameof(AuditSelection.ClientId), nameof(AuditSelection.EngagementId));
+    selection.HasOne<AuditProcedure>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.ProcedureId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    selection.HasOne<AuditSchedule>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.ScheduleId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    selection.HasOne<PopulationVersion>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.PopulationVersionId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    selection.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.CreatedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    selection.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.ReviewedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var selectionItem = b.Entity<AuditSelectionItem>();
+    selectionItem.HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_audit_selection_items_firm_id_id");
+    selectionItem.HasAlternateKey(x => new { x.FirmId, x.SelectionId, x.StableRowId })
+      .HasName("AK_audit_selection_items_selection_stable");
+    selectionItem.Property(x => x.StableRowId).HasMaxLength(200);
+    selectionItem.Property(x => x.Currency).HasMaxLength(3).IsFixedLength();
+    selectionItem.Property(x => x.InclusionReason).HasMaxLength(1000);
+    selectionItem.ToTable("audit_selection_items", t => t.HasCheckConstraint("ck_audit_selection_item_values",
+      "length(trim(stable_row_id)) > 0 AND currency ~ '^[A-Z]{3}$' AND length(trim(inclusion_reason)) > 0"));
+    ScopeToEngagement(selectionItem, nameof(AuditSelectionItem.FirmId), nameof(AuditSelectionItem.ClientId), nameof(AuditSelectionItem.EngagementId));
+    selectionItem.HasOne<AuditSelection>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.SelectionId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    selectionItem.HasOne<AuditScheduleRow>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.ScheduleRowId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var itemTest = b.Entity<AuditItemTest>();
+    itemTest.HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_audit_item_tests_firm_id_id");
+    itemTest.HasAlternateKey(x => new { x.FirmId, x.SelectionItemId, x.Revision })
+      .HasName("AK_audit_item_tests_item_revision");
+    itemTest.Property(x => x.WorkPerformed).HasMaxLength(100000);
+    itemTest.Property(x => x.EvidenceReferencesJson).HasMaxLength(20000);
+    itemTest.Property(x => x.Result).HasMaxLength(20);
+    itemTest.Property(x => x.ContradictoryEvidence).HasMaxLength(4000);
+    itemTest.Property(x => x.FollowUp).HasMaxLength(4000);
+    itemTest.ToTable("audit_item_tests", t => t.HasCheckConstraint("ck_audit_item_test_values",
+      "revision > 0 AND length(trim(work_performed)) > 0 AND length(trim(evidence_references_json)) > 0" +
+      " AND input_generation > 0 AND result IN ('PENDING','PASS','EXCEPTION','LIMITATION')"));
+    ScopeToEngagement(itemTest, nameof(AuditItemTest.FirmId), nameof(AuditItemTest.ClientId), nameof(AuditItemTest.EngagementId));
+    itemTest.HasOne<AuditSelection>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.SelectionId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    itemTest.HasOne<AuditSelectionItem>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.SelectionItemId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    itemTest.HasOne<AuditProcedure>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.ProcedureId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    itemTest.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.TestedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var itemTestReview = b.Entity<AuditItemTestReview>();
+    itemTestReview.HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_audit_item_test_reviews_firm_id_id");
+    itemTestReview.Property(x => x.Decision).HasMaxLength(30);
+    itemTestReview.Property(x => x.Comment).HasMaxLength(20000);
+    itemTestReview.ToTable("audit_item_test_reviews", t => t.HasCheckConstraint("ck_audit_item_test_review_values",
+      "test_revision > 0 AND decision IN ('REVIEWED','CHANGES_REQUIRED')"));
+    ScopeToEngagement(itemTestReview, nameof(AuditItemTestReview.FirmId), nameof(AuditItemTestReview.ClientId), nameof(AuditItemTestReview.EngagementId));
+    itemTestReview.HasOne<AuditItemTest>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.AuditItemTestId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    itemTestReview.HasOne<AuditSelectionItem>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.SelectionItemId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    itemTestReview.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.ReviewerUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var confirmation = b.Entity<AuditConfirmationCase>();
+    confirmation.HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_audit_confirmation_cases_firm_id_id");
+    confirmation.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
+      .HasName("AK_audit_confirmation_cases_scope_id");
+    confirmation.Property(x => x.AreaCode).HasMaxLength(40);
+    confirmation.Property(x => x.SourceRecordId).HasMaxLength(200);
+    confirmation.Property(x => x.Currency).HasMaxLength(3).IsFixedLength();
+    confirmation.Property(x => x.Respondent).HasMaxLength(500);
+    confirmation.Property(x => x.ContactValidationSource).HasMaxLength(2000);
+    confirmation.Property(x => x.Status).HasMaxLength(30);
+    confirmation.Property(x => x.DispatchReference).HasMaxLength(500);
+    confirmation.ToTable("audit_confirmation_cases", t => t.HasCheckConstraint("ck_audit_confirmation_case_values",
+      "length(trim(area_code)) > 0 AND length(trim(source_record_id)) > 0 AND currency ~ '^[A-Z]{3}$'" +
+      " AND length(trim(respondent)) > 0 AND length(trim(contact_validation_source)) > 0" +
+      " AND input_generation > 0 AND status IN ('DRAFT','APPROVED','DISPATCHED','RESPONSE_RECEIVED','NO_RESPONSE','ALTERNATIVE_REQUIRED','CLOSED')"));
+    ScopeToEngagement(confirmation, nameof(AuditConfirmationCase.FirmId), nameof(AuditConfirmationCase.ClientId), nameof(AuditConfirmationCase.EngagementId));
+    confirmation.HasOne<AuditProcedure>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.ProcedureId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    confirmation.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.CreatedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var response = b.Entity<AuditConfirmationResponse>();
+    response.HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_audit_confirmation_responses_firm_id_id");
+    response.HasAlternateKey(x => new { x.FirmId, x.ConfirmationCaseId, x.Revision })
+      .HasName("AK_audit_confirmation_responses_case_revision");
+    response.Property(x => x.Origin).HasMaxLength(40);
+    response.Property(x => x.Channel).HasMaxLength(40);
+    response.Property(x => x.ResponseReference).HasMaxLength(500);
+    response.Property(x => x.AuthenticityAssessment).HasMaxLength(4000);
+    response.Property(x => x.Decision).HasMaxLength(30);
+    response.ToTable("audit_confirmation_responses", t => t.HasCheckConstraint("ck_audit_confirmation_response_values",
+      "revision > 0 AND length(trim(origin)) > 0 AND length(trim(channel)) > 0" +
+      " AND length(trim(response_reference)) > 0 AND length(trim(authenticity_assessment)) > 0" +
+      " AND decision IN ('PENDING','AGREED','DIFFERENCE','NO_RESPONSE','ALTERNATIVE_REQUIRED')"));
+    ScopeToEngagement(response, nameof(AuditConfirmationResponse.FirmId), nameof(AuditConfirmationResponse.ClientId), nameof(AuditConfirmationResponse.EngagementId));
+    response.HasOne<AuditConfirmationCase>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.ConfirmationCaseId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    response.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.CreatedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    response.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.ReviewedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var alternative = b.Entity<AuditAlternativeProcedure>();
+    alternative.HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_audit_alternatives_firm_id_id");
+    alternative.Property(x => x.Purpose).HasMaxLength(2000);
+    alternative.Property(x => x.EvidenceReferencesJson).HasMaxLength(20000);
+    alternative.Property(x => x.Conclusion).HasMaxLength(20000);
+    alternative.Property(x => x.Status).HasMaxLength(20);
+    alternative.ToTable("audit_alternative_procedures", t => t.HasCheckConstraint("ck_audit_alternative_values",
+      "length(trim(purpose)) > 0 AND length(trim(evidence_references_json)) > 0 AND length(trim(conclusion)) > 0" +
+      " AND status IN ('SUBMITTED','REVIEWED')"));
+    ScopeToEngagement(alternative, nameof(AuditAlternativeProcedure.FirmId), nameof(AuditAlternativeProcedure.ClientId), nameof(AuditAlternativeProcedure.EngagementId));
+    alternative.HasOne<AuditConfirmationCase>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.ConfirmationCaseId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    alternative.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.CreatedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    alternative.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.ReviewedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var assessment = b.Entity<AuditAreaAssessment>();
+    assessment.HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_audit_area_assessments_firm_id_id");
+    assessment.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
+      .HasName("AK_audit_area_assessments_scope_id");
+    assessment.Property(x => x.AreaCode).HasMaxLength(40);
+    assessment.Property(x => x.AssessmentKind).HasMaxLength(60);
+    assessment.Property(x => x.MethodologyReference).HasMaxLength(500);
+    assessment.Property(x => x.InputSnapshotJson).HasMaxLength(100000);
+    assessment.Property(x => x.Currency).HasMaxLength(3).IsFixedLength();
+    assessment.Property(x => x.EvidenceReferencesJson).HasMaxLength(20000);
+    assessment.Property(x => x.Conclusion).HasMaxLength(20000);
+    assessment.Property(x => x.Status).HasMaxLength(30);
+    assessment.ToTable("audit_area_assessments", t => t.HasCheckConstraint("ck_audit_area_assessment_values",
+      "area_code IN ('CASH_BANK','RECEIVABLES','INVENTORY','REVENUE','PAYABLES','FIXED_ASSETS','EXPENSES','PAYROLL','LOANS','EQUITY','RELATED_PARTIES','TAX_STATUTORY','JOURNALS_FRAUD','ANALYTICAL_REVIEW','GOING_CONCERN','SUBSEQUENT_EVENTS','FINANCIAL_STATEMENTS','AUDIT_DIFFERENCES')" +
+      " AND length(trim(assessment_kind)) > 0 AND length(trim(methodology_reference)) > 0" +
+      " AND length(trim(input_snapshot_json)) > 0 AND length(trim(evidence_references_json)) > 0" +
+      " AND length(trim(conclusion)) > 0 AND input_generation > 0 AND revision > 0" +
+      " AND status IN ('SUBMITTED','REVIEWED','CHANGES_REQUIRED')"));
+    ScopeToEngagement(assessment, nameof(AuditAreaAssessment.FirmId), nameof(AuditAreaAssessment.ClientId), nameof(AuditAreaAssessment.EngagementId));
+    assessment.HasOne<AuditProcedure>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.ProcedureId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    assessment.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.CreatedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    assessment.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.ReviewedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var difference = b.Entity<AuditDifference>();
+    difference.HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_audit_differences_firm_id_id");
+    difference.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
+      .HasName("AK_audit_differences_scope_id");
+    difference.Property(x => x.AccountArea).HasMaxLength(200);
+    difference.Property(x => x.DifferenceType).HasMaxLength(60);
+    difference.Property(x => x.Description).HasMaxLength(4000);
+    difference.Property(x => x.Currency).HasMaxLength(3).IsFixedLength();
+    difference.Property(x => x.ManagementResponse).HasMaxLength(4000);
+    difference.Property(x => x.CorrectionReference).HasMaxLength(500);
+    difference.Property(x => x.Evaluation).HasMaxLength(4000);
+    difference.Property(x => x.Status).HasMaxLength(30);
+    difference.ToTable("audit_differences", t => t.HasCheckConstraint("ck_audit_difference_values",
+      "length(trim(account_area)) > 0 AND length(trim(difference_type)) > 0 AND length(trim(description)) > 0" +
+      " AND currency ~ '^[A-Z]{3}$' AND amount <> 0 AND input_generation > 0" +
+      " AND status IN ('OPEN','MANAGEMENT_RESPONDED','EVALUATED','CORRECTED')" +
+      " AND ((corrected AND correction_reference IS NOT NULL AND status = 'CORRECTED') OR NOT corrected)"));
+    ScopeToEngagement(difference, nameof(AuditDifference.FirmId), nameof(AuditDifference.ClientId), nameof(AuditDifference.EngagementId));
+    difference.HasOne<AuditProcedure>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.ProcedureId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    difference.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.CreatedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    difference.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.EvaluatedByUserId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
   }
 

@@ -58,6 +58,22 @@ public interface IAuditSphereDbContext : IAsyncDisposable
   DbSet<PopulationVersion> PopulationVersions { get; }
   DbSet<AuditRisk> AuditRisks { get; }
   DbSet<AuditProcedure> AuditProcedures { get; }
+  DbSet<AuditProgramVersion> AuditProgramVersions { get; }
+  DbSet<AuditProgramProcedure> AuditProgramProcedures { get; }
+  DbSet<EngagementAuditProgram> EngagementAuditPrograms { get; }
+  DbSet<AuditProcedureResult> AuditProcedureResults { get; }
+  DbSet<AuditProcedureReview> AuditProcedureReviews { get; }
+  DbSet<AuditSchedule> AuditSchedules { get; }
+  DbSet<AuditScheduleRow> AuditScheduleRows { get; }
+  DbSet<AuditSelection> AuditSelections { get; }
+  DbSet<AuditSelectionItem> AuditSelectionItems { get; }
+  DbSet<AuditItemTest> AuditItemTests { get; }
+  DbSet<AuditItemTestReview> AuditItemTestReviews { get; }
+  DbSet<AuditConfirmationCase> AuditConfirmationCases { get; }
+  DbSet<AuditConfirmationResponse> AuditConfirmationResponses { get; }
+  DbSet<AuditAlternativeProcedure> AuditAlternativeProcedures { get; }
+  DbSet<AuditAreaAssessment> AuditAreaAssessments { get; }
+  DbSet<AuditDifference> AuditDifferences { get; }
   DbSet<Finding> Findings { get; }
   DbSet<ReviewPoint> ReviewPoints { get; }
   DbSet<Approval> Approvals { get; }

@@ -1,0 +1,1230 @@
+{
+  "nodes": [
+    {
+      "id": "specification_v5_build_contract",
+      "label": "AuditSphereOps .NET Spec v5.0 (build contract)",
+      "file_type": "document",
+      "source_file": "AuditSphereOps_NET_Codex_Implementation_Specification.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "Authoritative single source of truth for architecture, data model, acceptance tests and execution protocol; mirrors docs/specification/AuditSphereOps.NET.md."
+    },
+    {
+      "id": "spec_section_3_architecture",
+      "label": "Spec \u00a73 System architecture & data ownership",
+      "file_type": "document",
+      "source_file": "AuditSphereOps_NET_Codex_Implementation_Specification.md"
+    },
+    {
+      "id": "spec_section_8_authorization",
+      "label": "Spec \u00a78 Authorization & role matrix",
+      "file_type": "document",
+      "source_file": "AuditSphereOps_NET_Codex_Implementation_Specification.md"
+    },
+    {
+      "id": "spec_section_11_snapshots",
+      "label": "Spec \u00a711 Document snapshots & version-bound approvals",
+      "file_type": "document",
+      "source_file": "AuditSphereOps_NET_Codex_Implementation_Specification.md"
+    },
+    {
+      "id": "spec_section_15_pbc",
+      "label": "Spec \u00a715 Client portal, PBC & controlled uploads",
+      "file_type": "document",
+      "source_file": "AuditSphereOps_NET_Codex_Implementation_Specification.md"
+    },
+    {
+      "id": "spec_section_19_23_audit",
+      "label": "Spec \u00a7\u00a719-23 Audit planning to findings",
+      "file_type": "document",
+      "source_file": "AuditSphereOps_NET_Codex_Implementation_Specification.md"
+    },
+    {
+      "id": "spec_section_24_release",
+      "label": "Spec \u00a724 Final approval, EQR, signing & controlled release",
+      "file_type": "document",
+      "source_file": "AuditSphereOps_NET_Codex_Implementation_Specification.md"
+    },
+    {
+      "id": "spec_section_25_purview",
+      "label": "Spec \u00a725 Purview retention, archive & disposal",
+      "file_type": "document",
+      "source_file": "AuditSphereOps_NET_Codex_Implementation_Specification.md"
+    },
+    {
+      "id": "spec_section_27_datamodel",
+      "label": "Spec \u00a727 Detailed application data model",
+      "file_type": "document",
+      "source_file": "AuditSphereOps_NET_Codex_Implementation_Specification.md"
+    },
+    {
+      "id": "spec_section_29_durable",
+      "label": "Spec \u00a729 Durable jobs, transactions & event contracts",
+      "file_type": "document",
+      "source_file": "AuditSphereOps_NET_Codex_Implementation_Specification.md"
+    },
+    {
+      "id": "spec_section_41_practice",
+      "label": "Spec \u00a741 Native practice management & firm ledger",
+      "file_type": "document",
+      "source_file": "AuditSphereOps_NET_Codex_Implementation_Specification.md"
+    },
+    {
+      "id": "spec_section_42_postgres",
+      "label": "Spec \u00a742 PostgreSQL schema & financial persistence",
+      "file_type": "document",
+      "source_file": "AuditSphereOps_NET_Codex_Implementation_Specification.md"
+    },
+    {
+      "id": "spec_section_43_blazor",
+      "label": "Spec \u00a743 Blazor UX, routing & document transfers",
+      "file_type": "document",
+      "source_file": "AuditSphereOps_NET_Codex_Implementation_Specification.md"
+    },
+    {
+      "id": "spec_section_45_ciops",
+      "label": "Spec \u00a745 Local setup, CI/CD & operations",
+      "file_type": "document",
+      "source_file": "AuditSphereOps_NET_Codex_Implementation_Specification.md"
+    },
+    {
+      "id": "spec_section_47_acceptance",
+      "label": "Spec \u00a747 Complete-system acceptance",
+      "file_type": "document",
+      "source_file": "AuditSphereOps_NET_Codex_Implementation_Specification.md"
+    },
+    {
+      "id": "doc_agents_md",
+      "label": "AGENTS.md (agent safety pointer)",
+      "file_type": "document",
+      "source_file": "AGENTS.md",
+      "rationale": "Short pointer to the spec; governs agent/repository safety and never-fake external-effect discipline."
+    },
+    {
+      "id": "doc_readme",
+      "label": "README (project overview)",
+      "file_type": "document",
+      "source_file": "README.md"
+    },
+    {
+      "id": "doc_status_json",
+      "label": "docs/execution/status.json (live progress pointer)",
+      "file_type": "document",
+      "source_file": "docs/execution/status.json",
+      "rationale": "A pointer to current reality; must be re-read against repo/GitHub state and never overrides actual reality."
+    },
+    {
+      "id": "doc_current_slice",
+      "label": "docs/execution/current-slice.md (verified local state)",
+      "file_type": "document",
+      "source_file": "docs/execution/current-slice.md"
+    },
+    {
+      "id": "doc_checklist",
+      "label": "docs/execution/implementation-checklist.md",
+      "file_type": "document",
+      "source_file": "docs/execution/implementation-checklist.md"
+    },
+    {
+      "id": "doc_pending_tasks",
+      "label": "docs/execution/pending-tasks.md (P0-P10 dependency story)",
+      "file_type": "document",
+      "source_file": "docs/execution/pending-tasks.md"
+    },
+    {
+      "id": "doc_restore_drill",
+      "label": "Restore drill runbook",
+      "file_type": "document",
+      "source_file": "docs/execution/restore-drill.md",
+      "rationale": "Loopback-only rehearsal proves schema/referential reconciliation and local quarantine/epoch boundary, NOT production RPO/RTO or external-store recovery."
+    },
+    {
+      "id": "doc_connection_capacity",
+      "label": "PostgreSQL connection-capacity decision",
+      "file_type": "document",
+      "source_file": "docs/operations/connection-capacity-decision.md",
+      "rationale": "Retain direct Npgsql pooling until representative evidence justifies a pooler; an over-threshold pool is a review signal, not approval to deploy PgBouncer."
+    },
+    {
+      "id": "doc_telemetry",
+      "label": "Operational telemetry (OpenTelemetry)",
+      "file_type": "document",
+      "source_file": "docs/operations/telemetry.md",
+      "rationale": "Telemetry is diagnostic-only and independent from ExternalEffects; a collector outage must never roll back a durable command or leak identifiers/secrets."
+    },
+    {
+      "id": "doc_user_stories",
+      "label": "Audit Workflow Gap-Closure user stories (ASH backlog)",
+      "file_type": "document",
+      "source_file": "docs/requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md"
+    },
+    {
+      "id": "doc_ci_workflow",
+      "label": "GitHub Actions CI (build-test-ready)",
+      "file_type": "document",
+      "source_file": ".github/workflows/ci.yml",
+      "rationale": "Provisions PostgreSQL 18, restores/builds/tests, applies EF migrations to a disposable DB, and fails unless /health/ready reports Healthy."
+    },
+    {
+      "id": "src_auditsphereops_application_operations_contracts",
+      "label": "Durable outbox (SKIP LOCKED, exactly-once)",
+      "file_type": "code",
+      "source_file": "src/AuditSphereOps.Application/Operations/Contracts.cs"
+    },
+    {
+      "id": "src_auditsphereops_application_operations_operationrecoveryservice",
+      "label": "OperationRecoveryService",
+      "file_type": "code",
+      "source_file": "src/AuditSphereOps.Application/Operations/OperationRecoveryService.cs"
+    },
+    {
+      "id": "src_auditsphereops_application_security_authorization",
+      "label": "AuthorizationDecision (in-command authz)",
+      "file_type": "code",
+      "source_file": "src/AuditSphereOps.Application/Security/Authorization.cs"
+    },
+    {
+      "id": "src_auditsphereops_application_abstractions_boundaries_auditsphereops_application_abstractions_actorcontext",
+      "label": "ActorContext",
+      "file_type": "code",
+      "source_file": "src/AuditSphereOps.Application/Abstractions/Boundaries.cs"
+    },
+    {
+      "id": "src_auditsphereops_application_accounting_trialbalanceimportservice",
+      "label": "Trial-balance intake & validation engine",
+      "file_type": "code",
+      "source_file": "src/AuditSphereOps.Application/Accounting/TrialBalanceImportService.cs"
+    },
+    {
+      "id": "src_auditsphereops_application_accounting_adjustmentplanservice",
+      "label": "AdjustmentPlanService (source bridge)",
+      "file_type": "code",
+      "source_file": "src/AuditSphereOps.Application/Accounting/AdjustmentPlanService.cs"
+    },
+    {
+      "id": "src_auditsphereops_application_accounting_financialstatementservice",
+      "label": "FinancialStatementService",
+      "file_type": "code",
+      "source_file": "src/AuditSphereOps.Application/Accounting/FinancialStatementService.cs"
+    },
+    {
+      "id": "src_auditsphereops_application_accounting_financialstatementcalculator",
+      "label": "FinancialStatementCalculator (pure calc boundary)",
+      "file_type": "code",
+      "source_file": "src/AuditSphereOps.Application/Accounting/FinancialStatementCalculator.cs"
+    },
+    {
+      "id": "src_auditsphereops_application_audit_auditplanningservice",
+      "label": "AuditPlanningService",
+      "file_type": "code",
+      "source_file": "src/AuditSphereOps.Application/Audit/AuditPlanningService.cs"
+    },
+    {
+      "id": "src_auditsphereops_application_documents_documentsnapshotservice",
+      "label": "DocumentSnapshotService",
+      "file_type": "code",
+      "source_file": "src/AuditSphereOps.Application/Documents/DocumentSnapshotService.cs"
+    },
+    {
+      "id": "src_auditsphereops_application_reviews_approvalservice",
+      "label": "ApprovalService (revision/generation-bound)",
+      "file_type": "code",
+      "source_file": "src/AuditSphereOps.Application/Reviews/ApprovalService.cs"
+    },
+    {
+      "id": "src_auditsphereops_application_completion_releaseservice",
+      "label": "ReleaseService (release gate)",
+      "file_type": "code",
+      "source_file": "src/AuditSphereOps.Application/Completion/ReleaseService.cs"
+    },
+    {
+      "id": "src_auditsphereops_application_completion_releasecheckpointservice",
+      "label": "ReleaseCheckpointService",
+      "file_type": "code",
+      "source_file": "src/AuditSphereOps.Application/Completion/ReleaseCheckpointService.cs"
+    },
+    {
+      "id": "src_auditsphereops_application_documents_pbcservice",
+      "label": "PbcService (trusted PBC upload transport)",
+      "file_type": "code",
+      "source_file": "src/AuditSphereOps.Application/Documents/PbcService.cs"
+    },
+    {
+      "id": "src_auditsphereops_application_records_recordsarchiveservice",
+      "label": "RecordsArchiveService (version lineage)",
+      "file_type": "code",
+      "source_file": "src/AuditSphereOps.Application/Records/RecordsArchiveService.cs"
+    },
+    {
+      "id": "src_auditsphereops_application_practice_ledgerservice",
+      "label": "LedgerService (bounded firm ledger)",
+      "file_type": "code",
+      "source_file": "src/AuditSphereOps.Application/Practice/LedgerService.cs"
+    },
+    {
+      "id": "src_auditsphereops_application_practice_billingservice",
+      "label": "BillingService",
+      "file_type": "code",
+      "source_file": "src/AuditSphereOps.Application/Practice/BillingService.cs"
+    },
+    {
+      "id": "src_auditsphereops_application_practice_practicetimeservice",
+      "label": "PracticeTimeService",
+      "file_type": "code",
+      "source_file": "src/AuditSphereOps.Application/Practice/PracticeTimeService.cs"
+    },
+    {
+      "id": "src_auditsphereops_application_practice_practicecrmservice",
+      "label": "PracticeCrmService",
+      "file_type": "code",
+      "source_file": "src/AuditSphereOps.Application/Practice/PracticeCrmService.cs"
+    },
+    {
+      "id": "src_auditsphereops_infrastructure_providers_graphpbcprovidersink",
+      "label": "GraphPbcProviderSink (fail-closed)",
+      "file_type": "code",
+      "source_file": "src/AuditSphereOps.Infrastructure/Providers/GraphPbcProviderSink.cs"
+    },
+    {
+      "id": "src_auditsphereops_infrastructure_providers_graphreleasecheckpointstore",
+      "label": "GraphReleaseCheckpointStore (fail-closed)",
+      "file_type": "code",
+      "source_file": "src/AuditSphereOps.Infrastructure/Providers/GraphReleaseCheckpointStore.cs"
+    },
+    {
+      "id": "src_auditsphereops_application_diagnostics_auditdiagnostics",
+      "label": "AuditDiagnostics (telemetry signals)",
+      "file_type": "code",
+      "source_file": "src/AuditSphereOps.Application/Diagnostics/AuditDiagnostics.cs"
+    },
+    {
+      "id": "src_auditsphereops_domain_shared_kernel",
+      "label": "Domain shared kernel",
+      "file_type": "code",
+      "source_file": "src/AuditSphereOps.Domain/Shared/Kernel.cs"
+    },
+    {
+      "id": "inv_numeric_19_6",
+      "label": "Invariant: money is numeric(19,6)",
+      "file_type": "document",
+      "source_file": "README.md"
+    },
+    {
+      "id": "inv_append_only",
+      "label": "Invariant: append-only audit evidence (DB triggers)",
+      "file_type": "document",
+      "source_file": "README.md"
+    },
+    {
+      "id": "inv_composite_scope_fk",
+      "label": "Invariant: composite scope FKs, ON DELETE RESTRICT",
+      "file_type": "document",
+      "source_file": "docs/execution/current-slice.md"
+    },
+    {
+      "id": "inv_scope_checked_authz",
+      "label": "Invariant: scope-checked authorization (firm\u2192client\u2192dataset)",
+      "file_type": "document",
+      "source_file": "README.md"
+    },
+    {
+      "id": "inv_version_bound_approvals",
+      "label": "Invariant: version-bound approvals, stale rejected",
+      "file_type": "document",
+      "source_file": "README.md"
+    },
+    {
+      "id": "inv_exactly_once",
+      "label": "Invariant: exactly-once outbox & RESULT_UNCERTAIN",
+      "file_type": "document",
+      "source_file": "README.md"
+    },
+    {
+      "id": "inv_fail_closed_migrations",
+      "label": "Invariant: fail-closed migrations never discard evidence",
+      "file_type": "document",
+      "source_file": "README.md"
+    },
+    {
+      "id": "gate_external_effects",
+      "label": "Gate: ExternalEffects.Enabled=false (never fake providers)",
+      "file_type": "document",
+      "source_file": "AGENTS.md",
+      "rationale": "Simulation handlers are Test-only; production startup rejects simulation config; live provider fences throw live-provider-not-approved."
+    },
+    {
+      "id": "gate_no_autonomous_conclusions",
+      "label": "Gate: no autonomous professional conclusions",
+      "file_type": "document",
+      "source_file": "AGENTS.md"
+    },
+    {
+      "id": "tech_dotnet10",
+      "label": ".NET 10 (SDK 10.0.300 pinned)",
+      "file_type": "document",
+      "source_file": "README.md"
+    },
+    {
+      "id": "tech_efcore_npgsql",
+      "label": "EF Core 10 + Npgsql 10",
+      "file_type": "document",
+      "source_file": "README.md"
+    },
+    {
+      "id": "tech_postgres18",
+      "label": "PostgreSQL 18.6 (loopback :5433 dev)",
+      "file_type": "document",
+      "source_file": "README.md"
+    },
+    {
+      "id": "tech_blazor",
+      "label": "Blazor Interactive Server",
+      "file_type": "document",
+      "source_file": "README.md"
+    },
+    {
+      "id": "tech_entra",
+      "label": "Microsoft Entra ID (OIDC)",
+      "file_type": "document",
+      "source_file": "README.md"
+    },
+    {
+      "id": "tech_graph_sharepoint",
+      "label": "Microsoft Graph + SharePoint Online",
+      "file_type": "document",
+      "source_file": "README.md"
+    },
+    {
+      "id": "tech_purview",
+      "label": "Microsoft Purview (retention/records)",
+      "file_type": "document",
+      "source_file": "README.md"
+    },
+    {
+      "id": "wp_p0",
+      "label": "P0 Repository truth & governance cleanup",
+      "file_type": "document",
+      "source_file": "docs/execution/pending-tasks.md"
+    },
+    {
+      "id": "wp_p1",
+      "label": "P1 Live Entra OIDC & runtime identity",
+      "file_type": "document",
+      "source_file": "docs/execution/pending-tasks.md"
+    },
+    {
+      "id": "wp_p2",
+      "label": "P2 Live SharePoint/Graph document provider",
+      "file_type": "document",
+      "source_file": "docs/execution/pending-tasks.md"
+    },
+    {
+      "id": "wp_p3",
+      "label": "P3 External release checkpoint & capability evidence",
+      "file_type": "document",
+      "source_file": "docs/execution/pending-tasks.md"
+    },
+    {
+      "id": "wp_p4",
+      "label": "P4 Purview records profile & reviewer fixtures",
+      "file_type": "document",
+      "source_file": "docs/execution/pending-tasks.md"
+    },
+    {
+      "id": "wp_p5",
+      "label": "P5 Signing methodology & signature lineage",
+      "file_type": "document",
+      "source_file": "docs/execution/pending-tasks.md"
+    },
+    {
+      "id": "wp_p6",
+      "label": "P6 Records/archive residual hardening",
+      "file_type": "document",
+      "source_file": "docs/execution/pending-tasks.md"
+    },
+    {
+      "id": "wp_p7",
+      "label": "P7 Cross-store recovery & production RPO/RTO",
+      "file_type": "document",
+      "source_file": "docs/execution/pending-tasks.md"
+    },
+    {
+      "id": "wp_p8",
+      "label": "P8 Production secrets/observability/capacity",
+      "file_type": "document",
+      "source_file": "docs/execution/pending-tasks.md"
+    },
+    {
+      "id": "wp_p9",
+      "label": "P9 Independent review & protected merge governance",
+      "file_type": "document",
+      "source_file": "docs/execution/pending-tasks.md"
+    },
+    {
+      "id": "wp_p10",
+      "label": "P10 Full \u00a747 real-tenant acceptance cycle",
+      "file_type": "document",
+      "source_file": "docs/execution/pending-tasks.md"
+    },
+    {
+      "id": "ash_01_telemetry",
+      "label": "ASH-01 Telemetry composition",
+      "file_type": "document",
+      "source_file": "docs/execution/current-slice.md"
+    },
+    {
+      "id": "ash_02_tb_sealing",
+      "label": "ASH-02 Trial-balance dataset sealing",
+      "file_type": "document",
+      "source_file": "docs/execution/current-slice.md"
+    },
+    {
+      "id": "ash_03_calc_boundary",
+      "label": "ASH-03 Financial calculation boundary",
+      "file_type": "document",
+      "source_file": "docs/execution/current-slice.md"
+    },
+    {
+      "id": "ash_04_error_catalog",
+      "label": "ASH-04 Stable error catalog",
+      "file_type": "document",
+      "source_file": "docs/execution/current-slice.md"
+    },
+    {
+      "id": "ash_05_durable_drafts",
+      "label": "ASH-05 Durable workpaper drafts",
+      "file_type": "document",
+      "source_file": "docs/execution/current-slice.md"
+    },
+    {
+      "id": "ash_06_connection",
+      "label": "ASH-06 Connection-capacity baseline",
+      "file_type": "document",
+      "source_file": "docs/execution/current-slice.md"
+    }
+  ],
+  "edges": [
+    {
+      "source": "doc_agents_md",
+      "target": "specification_v5_build_contract",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "AGENTS.md",
+      "weight": 1.0
+    },
+    {
+      "source": "doc_readme",
+      "target": "specification_v5_build_contract",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "README.md",
+      "weight": 1.0
+    },
+    {
+      "source": "doc_current_slice",
+      "target": "specification_v5_build_contract",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/execution/current-slice.md",
+      "weight": 1.0
+    },
+    {
+      "source": "doc_checklist",
+      "target": "specification_v5_build_contract",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/execution/implementation-checklist.md",
+      "weight": 1.0
+    },
+    {
+      "source": "doc_pending_tasks",
+      "target": "specification_v5_build_contract",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/execution/pending-tasks.md",
+      "weight": 1.0
+    },
+    {
+      "source": "doc_user_stories",
+      "target": "specification_v5_build_contract",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md",
+      "weight": 1.0
+    },
+    {
+      "source": "doc_status_json",
+      "target": "doc_current_slice",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/execution/status.json",
+      "weight": 0.8
+    },
+    {
+      "source": "doc_checklist",
+      "target": "doc_pending_tasks",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/execution/implementation-checklist.md",
+      "weight": 0.8
+    },
+    {
+      "source": "doc_restore_drill",
+      "target": "wp_p7",
+      "relation": "references",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "docs/execution/restore-drill.md",
+      "weight": 0.7
+    },
+    {
+      "source": "specification_v5_build_contract",
+      "target": "spec_section_3_architecture",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "AuditSphereOps_NET_Codex_Implementation_Specification.md",
+      "weight": 0.6
+    },
+    {
+      "source": "specification_v5_build_contract",
+      "target": "spec_section_8_authorization",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "AuditSphereOps_NET_Codex_Implementation_Specification.md",
+      "weight": 0.6
+    },
+    {
+      "source": "specification_v5_build_contract",
+      "target": "spec_section_27_datamodel",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "AuditSphereOps_NET_Codex_Implementation_Specification.md",
+      "weight": 0.6
+    },
+    {
+      "source": "specification_v5_build_contract",
+      "target": "spec_section_42_postgres",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "AuditSphereOps_NET_Codex_Implementation_Specification.md",
+      "weight": 0.6
+    },
+    {
+      "source": "specification_v5_build_contract",
+      "target": "spec_section_47_acceptance",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "AuditSphereOps_NET_Codex_Implementation_Specification.md",
+      "weight": 0.6
+    },
+    {
+      "source": "src_auditsphereops_application_operations_contracts",
+      "target": "spec_section_29_durable",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/execution/current-slice.md",
+      "weight": 1.0
+    },
+    {
+      "source": "src_auditsphereops_application_security_authorization",
+      "target": "spec_section_8_authorization",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/execution/current-slice.md",
+      "weight": 1.0
+    },
+    {
+      "source": "src_auditsphereops_application_documents_documentsnapshotservice",
+      "target": "spec_section_11_snapshots",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/execution/current-slice.md",
+      "weight": 1.0
+    },
+    {
+      "source": "src_auditsphereops_application_reviews_approvalservice",
+      "target": "spec_section_11_snapshots",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/execution/current-slice.md",
+      "weight": 1.0
+    },
+    {
+      "source": "src_auditsphereops_application_completion_releaseservice",
+      "target": "spec_section_24_release",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/execution/current-slice.md",
+      "weight": 1.0
+    },
+    {
+      "source": "src_auditsphereops_application_documents_pbcservice",
+      "target": "spec_section_15_pbc",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/execution/current-slice.md",
+      "weight": 1.0
+    },
+    {
+      "source": "src_auditsphereops_application_records_recordsarchiveservice",
+      "target": "spec_section_25_purview",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/execution/current-slice.md",
+      "weight": 1.0
+    },
+    {
+      "source": "src_auditsphereops_application_practice_ledgerservice",
+      "target": "spec_section_41_practice",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/execution/current-slice.md",
+      "weight": 1.0
+    },
+    {
+      "source": "src_auditsphereops_application_practice_billingservice",
+      "target": "spec_section_41_practice",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/execution/current-slice.md",
+      "weight": 1.0
+    },
+    {
+      "source": "src_auditsphereops_application_practice_practicecrmservice",
+      "target": "spec_section_41_practice",
+      "relation": "implements",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "docs/execution/current-slice.md",
+      "weight": 0.8
+    },
+    {
+      "source": "src_auditsphereops_application_practice_practicetimeservice",
+      "target": "spec_section_41_practice",
+      "relation": "implements",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "docs/execution/current-slice.md",
+      "weight": 0.8
+    },
+    {
+      "source": "src_auditsphereops_application_audit_auditplanningservice",
+      "target": "spec_section_19_23_audit",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/execution/current-slice.md",
+      "weight": 1.0
+    },
+    {
+      "source": "src_auditsphereops_application_accounting_financialstatementservice",
+      "target": "spec_section_27_datamodel",
+      "relation": "implements",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "docs/execution/current-slice.md",
+      "weight": 0.7
+    },
+    {
+      "source": "src_auditsphereops_application_diagnostics_auditdiagnostics",
+      "target": "spec_section_43_blazor",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.6,
+      "source_file": "docs/operations/telemetry.md",
+      "weight": 0.5
+    },
+    {
+      "source": "src_auditsphereops_application_abstractions_boundaries_auditsphereops_application_abstractions_actorcontext",
+      "target": "src_auditsphereops_application_security_authorization",
+      "relation": "shares_data_with",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/AuditSphereOps.Application/Security/Authorization.cs",
+      "weight": 1.0
+    },
+    {
+      "source": "src_auditsphereops_application_security_authorization",
+      "target": "inv_scope_checked_authz",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/execution/current-slice.md",
+      "weight": 1.0
+    },
+    {
+      "source": "src_auditsphereops_application_completion_releaseservice",
+      "target": "src_auditsphereops_application_reviews_approvalservice",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/execution/current-slice.md",
+      "weight": 1.0
+    },
+    {
+      "source": "src_auditsphereops_application_completion_releasecheckpointservice",
+      "target": "src_auditsphereops_infrastructure_providers_graphreleasecheckpointstore",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/execution/current-slice.md",
+      "weight": 1.0
+    },
+    {
+      "source": "src_auditsphereops_application_completion_releaseservice",
+      "target": "src_auditsphereops_application_completion_releasecheckpointservice",
+      "relation": "calls",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "docs/execution/current-slice.md",
+      "weight": 0.9
+    },
+    {
+      "source": "src_auditsphereops_application_documents_pbcservice",
+      "target": "src_auditsphereops_infrastructure_providers_graphpbcprovidersink",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/execution/current-slice.md",
+      "weight": 1.0
+    },
+    {
+      "source": "src_auditsphereops_application_accounting_financialstatementservice",
+      "target": "src_auditsphereops_application_accounting_financialstatementcalculator",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/execution/current-slice.md",
+      "weight": 1.0
+    },
+    {
+      "source": "src_auditsphereops_application_accounting_adjustmentplanservice",
+      "target": "src_auditsphereops_application_accounting_trialbalanceimportservice",
+      "relation": "shares_data_with",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/execution/current-slice.md",
+      "weight": 0.9
+    },
+    {
+      "source": "src_auditsphereops_application_accounting_financialstatementservice",
+      "target": "src_auditsphereops_application_accounting_adjustmentplanservice",
+      "relation": "references",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "docs/execution/current-slice.md",
+      "weight": 0.8
+    },
+    {
+      "source": "src_auditsphereops_application_practice_ledgerservice",
+      "target": "inv_append_only",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/execution/current-slice.md",
+      "weight": 0.9
+    },
+    {
+      "source": "src_auditsphereops_application_records_recordsarchiveservice",
+      "target": "src_auditsphereops_application_documents_documentsnapshotservice",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/execution/current-slice.md",
+      "weight": 0.9
+    },
+    {
+      "source": "src_auditsphereops_application_operations_operationrecoveryservice",
+      "target": "src_auditsphereops_application_operations_contracts",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/execution/current-slice.md",
+      "weight": 1.0
+    },
+    {
+      "source": "src_auditsphereops_infrastructure_providers_graphpbcprovidersink",
+      "target": "gate_external_effects",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/execution/current-slice.md",
+      "weight": 1.0
+    },
+    {
+      "source": "src_auditsphereops_infrastructure_providers_graphreleasecheckpointstore",
+      "target": "gate_external_effects",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/execution/current-slice.md",
+      "weight": 1.0
+    },
+    {
+      "source": "inv_numeric_19_6",
+      "target": "spec_section_42_postgres",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "README.md",
+      "weight": 0.8
+    },
+    {
+      "source": "inv_composite_scope_fk",
+      "target": "spec_section_27_datamodel",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/execution/current-slice.md",
+      "weight": 0.8
+    },
+    {
+      "source": "inv_append_only",
+      "target": "inv_fail_closed_migrations",
+      "relation": "rationale_for",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "README.md",
+      "weight": 0.7
+    },
+    {
+      "source": "inv_exactly_once",
+      "target": "src_auditsphereops_application_operations_contracts",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "README.md",
+      "weight": 0.9
+    },
+    {
+      "source": "inv_version_bound_approvals",
+      "target": "src_auditsphereops_application_reviews_approvalservice",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/execution/current-slice.md",
+      "weight": 0.9
+    },
+    {
+      "source": "gate_external_effects",
+      "target": "gate_no_autonomous_conclusions",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.7,
+      "source_file": "AGENTS.md",
+      "weight": 0.5
+    },
+    {
+      "source": "src_auditsphereops_application_operations_contracts",
+      "target": "tech_postgres18",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/execution/current-slice.md",
+      "weight": 0.7
+    },
+    {
+      "source": "src_auditsphereops_domain_shared_kernel",
+      "target": "tech_efcore_npgsql",
+      "relation": "references",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "README.md",
+      "weight": 0.6
+    },
+    {
+      "source": "tech_blazor",
+      "target": "spec_section_43_blazor",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "README.md",
+      "weight": 0.7
+    },
+    {
+      "source": "tech_entra",
+      "target": "wp_p1",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/execution/pending-tasks.md",
+      "weight": 0.8
+    },
+    {
+      "source": "tech_graph_sharepoint",
+      "target": "wp_p2",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/execution/pending-tasks.md",
+      "weight": 0.8
+    },
+    {
+      "source": "tech_purview",
+      "target": "wp_p4",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/execution/pending-tasks.md",
+      "weight": 0.8
+    },
+    {
+      "source": "doc_ci_workflow",
+      "target": "spec_section_45_ciops",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": ".github/workflows/ci.yml",
+      "weight": 0.9
+    },
+    {
+      "source": "doc_ci_workflow",
+      "target": "tech_postgres18",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": ".github/workflows/ci.yml",
+      "weight": 0.7
+    },
+    {
+      "source": "doc_ci_workflow",
+      "target": "tech_dotnet10",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": ".github/workflows/ci.yml",
+      "weight": 0.7
+    },
+    {
+      "source": "wp_p6",
+      "target": "src_auditsphereops_application_records_recordsarchiveservice",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/execution/pending-tasks.md",
+      "weight": 0.9
+    },
+    {
+      "source": "wp_p3",
+      "target": "src_auditsphereops_application_completion_releasecheckpointservice",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/execution/pending-tasks.md",
+      "weight": 0.9
+    },
+    {
+      "source": "wp_p7",
+      "target": "src_auditsphereops_application_operations_operationrecoveryservice",
+      "relation": "references",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "docs/execution/pending-tasks.md",
+      "weight": 0.8
+    },
+    {
+      "source": "wp_p10",
+      "target": "spec_section_47_acceptance",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/execution/pending-tasks.md",
+      "weight": 0.9
+    },
+    {
+      "source": "wp_p9",
+      "target": "doc_ci_workflow",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.6,
+      "source_file": "docs/execution/pending-tasks.md",
+      "weight": 0.5
+    },
+    {
+      "source": "ash_01_telemetry",
+      "target": "src_auditsphereops_application_diagnostics_auditdiagnostics",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/execution/current-slice.md",
+      "weight": 0.9
+    },
+    {
+      "source": "ash_01_telemetry",
+      "target": "doc_telemetry",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/execution/current-slice.md",
+      "weight": 0.9
+    },
+    {
+      "source": "ash_02_tb_sealing",
+      "target": "src_auditsphereops_application_accounting_trialbalanceimportservice",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/execution/current-slice.md",
+      "weight": 0.9
+    },
+    {
+      "source": "ash_02_tb_sealing",
+      "target": "inv_append_only",
+      "relation": "references",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "docs/execution/current-slice.md",
+      "weight": 0.6
+    },
+    {
+      "source": "ash_03_calc_boundary",
+      "target": "src_auditsphereops_application_accounting_financialstatementcalculator",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/execution/current-slice.md",
+      "weight": 0.9
+    },
+    {
+      "source": "ash_05_durable_drafts",
+      "target": "src_auditsphereops_application_audit_auditplanningservice",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/execution/current-slice.md",
+      "weight": 0.9
+    },
+    {
+      "source": "ash_06_connection",
+      "target": "doc_connection_capacity",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/execution/current-slice.md",
+      "weight": 0.9
+    },
+    {
+      "source": "ash_06_connection",
+      "target": "tech_postgres18",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/operations/connection-capacity-decision.md",
+      "weight": 0.7
+    },
+    {
+      "source": "doc_user_stories",
+      "target": "ash_01_telemetry",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md",
+      "weight": 0.6
+    },
+    {
+      "source": "doc_user_stories",
+      "target": "ash_05_durable_drafts",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md",
+      "weight": 0.6
+    },
+    {
+      "source": "src_auditsphereops_application_accounting_trialbalanceimportservice",
+      "target": "src_auditsphereops_application_accounting_financialstatementservice",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.65,
+      "source_file": "docs/execution/current-slice.md",
+      "weight": 0.4
+    },
+    {
+      "source": "src_auditsphereops_infrastructure_providers_graphpbcprovidersink",
+      "target": "src_auditsphereops_infrastructure_providers_graphreleasecheckpointstore",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "docs/execution/current-slice.md",
+      "weight": 0.6
+    }
+  ],
+  "hyperedges": [
+    {
+      "id": "release_safety_chain",
+      "label": "Controlled release safety chain",
+      "nodes": [
+        "src_auditsphereops_application_documents_documentsnapshotservice",
+        "src_auditsphereops_application_reviews_approvalservice",
+        "src_auditsphereops_application_completion_releaseservice",
+        "src_auditsphereops_application_completion_releasecheckpointservice",
+        "src_auditsphereops_infrastructure_providers_graphreleasecheckpointstore"
+      ],
+      "relation": "participate_in",
+      "confidence": "EXTRACTED",
+      "confidence_score": 0.9,
+      "source_file": "docs/execution/current-slice.md"
+    },
+    {
+      "id": "financial_pipeline",
+      "label": "Trial-balance to financial-statement pipeline",
+      "nodes": [
+        "src_auditsphereops_application_accounting_trialbalanceimportservice",
+        "src_auditsphereops_application_accounting_adjustmentplanservice",
+        "src_auditsphereops_application_accounting_financialstatementservice",
+        "src_auditsphereops_application_accounting_financialstatementcalculator",
+        "src_auditsphereops_application_practice_ledgerservice"
+      ],
+      "relation": "participate_in",
+      "confidence": "EXTRACTED",
+      "confidence_score": 0.85,
+      "source_file": "docs/execution/current-slice.md"
+    },
+    {
+      "id": "external_effect_gates",
+      "label": "Never-fake external effect gates (P1-P5,P7-P10)",
+      "nodes": [
+        "gate_external_effects",
+        "wp_p1",
+        "wp_p2",
+        "wp_p3",
+        "wp_p4",
+        "wp_p5",
+        "wp_p7",
+        "wp_p8",
+        "wp_p10"
+      ],
+      "relation": "form",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "docs/execution/pending-tasks.md"
+    }
+  ],
+  "input_tokens": 0,
+  "output_tokens": 0
+}

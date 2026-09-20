@@ -56,11 +56,34 @@ else
 
         <section class="card">
             <h2>Selections and test results</h2>
-            <p class="empty-state">
-                No sampling plan, selected items or test results are recorded for this population.
-                Statistical and non-statistical selection records are not implemented yet, so nothing is
-                displayed here as if it had been selected or tested.
-            </p>
+            @if (_selections.Count == 0)
+            {
+                <p class="empty-state">No selection has been recorded for this population version.</p>
+            }
+            else
+            {
+                <div class="table-wrap">
+                    <table class="data-table">
+                        <caption class="sr-only">Selections and item-test review status</caption>
+                        <thead>
+                            <tr><th scope="col">Method</th><th scope="col">Status</th><th scope="col">Items</th><th scope="col">Tests</th><th scope="col">Reviewed tests</th><th scope="col">Rationale</th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var selection in _selections)
+                            {
+                                <tr>
+                                    <td>@selection.Method</td>
+                                    <td>@selection.Status</td>
+                                    <td>@selection.ItemCount</td>
+                                    <td>@selection.TestCount</td>
+                                    <td>@selection.ReviewedTestCount</td>
+                                    <td>@selection.Rationale</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
         </section>
 
         <section class="card">
@@ -92,7 +115,10 @@ else
     private PopulationVersion? _population;
     private List<EvidenceLink> _evidence = [];
     private Dictionary<Guid, string> _receiptTokens = new();
+    private List<SelectionSummary> _selections = [];
     private bool _loading = true;
+
+    private sealed record SelectionSummary(string Method, string Status, string Rationale, int ItemCount, int TestCount, int ReviewedTestCount);
 
     protected override async Task OnInitializedAsync()
     {
@@ -112,6 +138,27 @@ else
                 _receiptTokens = await db.SourceReceipts.AsNoTracking()
                     .Where(r => receiptIds.Contains(r.Id))
                     .ToDictionaryAsync(r => r.Id, r => r.ReceiptToken);
+
+                var selectionRows = await db.AuditSelections.AsNoTracking()
+                    .Where(s => s.FirmId == _population.FirmId && s.ClientId == _population.ClientId &&
+                        s.EngagementId == _population.EngagementId && s.PopulationVersionId == _population.Id)
+                    .OrderBy(s => s.CreatedAt)
+                    .ToListAsync();
+                var selectionIds = selectionRows.Select(s => s.Id).ToArray();
+                var itemRows = await db.AuditSelectionItems.AsNoTracking()
+                    .Where(i => selectionIds.Contains(i.SelectionId)).Select(i => new { i.Id, i.SelectionId }).ToListAsync();
+                var itemIds = itemRows.Select(i => i.Id).ToArray();
+                var testRows = await db.AuditItemTests.AsNoTracking()
+                    .Where(t => itemIds.Contains(t.SelectionItemId)).Select(t => new { t.Id, t.SelectionId }).ToListAsync();
+                var testIds = testRows.Select(t => t.Id).ToArray();
+                var reviewedTestIds = await db.AuditItemTestReviews.AsNoTracking()
+                    .Where(r => testIds.Contains(r.AuditItemTestId) && r.Decision == AuditItemTestReviewDecisions.Reviewed)
+                    .Select(r => r.AuditItemTestId).Distinct().ToListAsync();
+                _selections = selectionRows.Select(s => new SelectionSummary(
+                    s.Method, s.Status, s.Rationale,
+                    itemRows.Count(i => i.SelectionId == s.Id),
+                    testRows.Count(t => t.SelectionId == s.Id),
+                    testRows.Count(t => t.SelectionId == s.Id && reviewedTestIds.Contains(t.Id)))).ToList();
             }
         }
         _loading = false;

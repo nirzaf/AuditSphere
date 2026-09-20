@@ -27,6 +27,10 @@
     </nav>
     <h1>Audit Plan &amp; Strategy</h1>
     <span class="status-badge badge-blue">@_status</span>
+    @if (_effectiveEngagementId.HasValue)
+    {
+        <a class="btn-secondary" href="@($"/app/engagements/{_effectiveEngagementId}/audit-fieldwork")">Fieldwork control center</a>
+    }
 </div>
 
 @if (_loading)

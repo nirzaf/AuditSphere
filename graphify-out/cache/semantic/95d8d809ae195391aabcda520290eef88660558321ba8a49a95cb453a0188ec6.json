@@ -1,0 +1,1 @@
+{"nodes": [{"id": "src_auditsphereops_application_accounting_adjustmentplanservice", "label": "AdjustmentPlanService (source bridge)", "file_type": "code", "source_file": "src/AuditSphereOps.Application/Accounting/AdjustmentPlanService.cs"}], "edges": [], "hyperedges": []}

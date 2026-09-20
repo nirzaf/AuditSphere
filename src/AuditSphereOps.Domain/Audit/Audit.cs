@@ -105,10 +105,39 @@ public sealed class AuditProcedure
   public Guid FirmId { get; set; }
   public Guid ClientId { get; set; }
   public Guid EngagementId { get; set; }
-  public Guid RiskId { get; set; }
+  public Guid? RiskId { get; set; }
+  public Guid? EngagementProgramId { get; set; }
+  public Guid? ProgramProcedureId { get; set; }
+  public string SourceProcedureId { get; set; } = string.Empty;
+  public int? SourceSectionNumber { get; set; }
+  public string? SourceSectionTitle { get; set; }
+  public string? SourceWording { get; set; }
+  public string ApplicabilityStatus { get; set; } = AuditApplicabilityStatuses.Pending;
+  public string? ApplicabilityRationale { get; set; }
+  public Guid? ApplicabilityDecidedByUserId { get; set; }
+  public DateTimeOffset? ApplicabilityDecidedAt { get; set; }
+  public long CurrentResultRevision { get; set; }
   public string Title { get; set; } = string.Empty;
   public string Status { get; set; } = "Planned";
   public DateTimeOffset CreatedAt { get; set; }
+}
+
+public static class AuditApplicabilityStatuses
+{
+  public const string Pending = "PENDING";
+  public const string Applicable = "APPLICABLE";
+  public const string NotApplicablePendingReview = "NA_PENDING_REVIEW";
+  public const string NotApplicableApproved = "NA_APPROVED";
+}
+
+public static class AuditProcedureStatuses
+{
+  public const string Planned = "PLANNED";
+  public const string InProgress = "IN_PROGRESS";
+  public const string Submitted = "SUBMITTED";
+  public const string InReview = "IN_REVIEW";
+  public const string ChangesRequired = "CHANGES_REQUIRED";
+  public const string Reviewed = "REVIEWED";
 }
 
 public sealed class Workpaper
@@ -198,6 +227,115 @@ public sealed class Finding
   public string? ManagementResponse { get; set; }
   public string Status { get; set; } = FindingStatuses.Open;
   public DateTimeOffset CreatedAt { get; set; }
+}
+
+/// <summary>Immutable firm methodology version sourced from the controlled audit program.</summary>
+public sealed class AuditProgramVersion
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public string ProgramCode { get; set; } = "AUDIT";
+  public string Version { get; set; } = string.Empty;
+  public string SourceHash { get; set; } = string.Empty;
+  public string Status { get; set; } = AuditProgramStatuses.Draft;
+  public Guid CreatedByUserId { get; set; }
+  public Guid? ApprovedByUserId { get; set; }
+  public DateTimeOffset CreatedAt { get; set; }
+  public DateTimeOffset? ApprovedAt { get; set; }
+}
+
+public static class AuditProgramStatuses
+{
+  public const string Draft = "DRAFT";
+  public const string Published = "PUBLISHED";
+  public const string Retired = "RETIRED";
+}
+
+/// <summary>Source procedure template. SourceProcedureId is stable across program versions.</summary>
+public sealed class AuditProgramProcedure
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ProgramVersionId { get; set; }
+  public string SourceProcedureId { get; set; } = string.Empty;
+  public int SectionNumber { get; set; }
+  public string SectionTitle { get; set; } = string.Empty;
+  public int Ordinal { get; set; }
+  public string SourceWording { get; set; } = string.Empty;
+  public string? ApplicabilityCondition { get; set; }
+  public string? ExpectedEvidence { get; set; }
+  public DateTimeOffset CreatedAt { get; set; }
+}
+
+/// <summary>Immutable adoption of a published methodology version by one engagement.</summary>
+public sealed class EngagementAuditProgram
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public Guid EngagementId { get; set; }
+  public Guid ProgramVersionId { get; set; }
+  public string Status { get; set; } = EngagementAuditProgramStatuses.Adopted;
+  public Guid AdoptedByUserId { get; set; }
+  public DateTimeOffset AdoptedAt { get; set; }
+}
+
+public static class EngagementAuditProgramStatuses
+{
+  public const string Adopted = "ADOPTED";
+  public const string Superseded = "SUPERSEDED";
+}
+
+/// <summary>Immutable structured result for one procedure revision.</summary>
+public sealed class AuditProcedureResult
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public Guid EngagementId { get; set; }
+  public Guid AuditProcedureId { get; set; }
+  public Guid? WorkpaperId { get; set; }
+  public long Revision { get; set; }
+  public long InputGeneration { get; set; }
+  public string WorkPerformed { get; set; } = string.Empty;
+  public string StructuredResultJson { get; set; } = string.Empty;
+  public string EvidenceReferencesJson { get; set; } = "[]";
+  public string Conclusion { get; set; } = string.Empty;
+  public string Status { get; set; } = AuditProcedureResultStatuses.Submitted;
+  public Guid PreparedByUserId { get; set; }
+  public Guid? ReviewedByUserId { get; set; }
+  public string? ReviewComment { get; set; }
+  public DateTimeOffset SubmittedAt { get; set; }
+  public DateTimeOffset? ReviewedAt { get; set; }
+}
+
+public static class AuditProcedureResultStatuses
+{
+  public const string Submitted = "SUBMITTED";
+  public const string ChangesRequired = "CHANGES_REQUIRED";
+  public const string Reviewed = "REVIEWED";
+}
+
+/// <summary>Append-only reviewer decision for an immutable procedure result.</summary>
+public sealed class AuditProcedureReview
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public Guid EngagementId { get; set; }
+  public Guid AuditProcedureResultId { get; set; }
+  public Guid AuditProcedureId { get; set; }
+  public long ResultRevision { get; set; }
+  public string Decision { get; set; } = AuditProcedureReviewDecisions.ChangesRequired;
+  public string? Comment { get; set; }
+  public Guid ReviewerUserId { get; set; }
+  public DateTimeOffset CreatedAt { get; set; }
+}
+
+public static class AuditProcedureReviewDecisions
+{
+  public const string Reviewed = "REVIEWED";
+  public const string ChangesRequired = "CHANGES_REQUIRED";
 }
 
 public static class FindingStatuses
