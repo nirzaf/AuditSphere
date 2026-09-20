@@ -185,7 +185,7 @@ The build advances through dependency-ordered work packages (P0–P10 per the [p
 | P6 | Records/archive residual hardening | LOCAL_VERIFIED |
 | P7 | Cross-store recovery + production RPO/RTO | BLOCKED_EXTERNAL |
 | P8 | Production secrets/observability/capacity | BLOCKED_EXTERNAL |
-| P9 | Independent review + protected merge governance | BLOCKED_EXTERNAL |
+| P9 | Independent review + protected merge governance | IN_PROGRESS (master protected; independent human review pending) |
 | P10 | Full §47 real-tenant acceptance cycle | BLOCKED_EXTERNAL |
 
 See [`docs/execution/pending-tasks.md`](docs/execution/pending-tasks.md) for the full dependency story and acceptance criteria.

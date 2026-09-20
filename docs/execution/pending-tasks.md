@@ -130,7 +130,7 @@ P10 Full §47 real-tenant acceptance cycle
 
 ## P1 — Microsoft Entra OIDC and Runtime Identity
 
-**Status:** `BLOCKED_EXTERNAL`  
+**Status:** `BLOCKED_EXTERNAL`
 **Milestone:** R1 — Tenant Integration  
 **GitHub Issue:** #2
 
@@ -341,7 +341,7 @@ P10 Full §47 real-tenant acceptance cycle
 
 ## P9 — Independent Review and Protected Merge Governance
 
-**Status:** `BLOCKED_EXTERNAL`  
+**Status:** `IN_PROGRESS` — `master` protection is configured; independent human review remains blocked
 **Milestone:** R3 — Recovery & Production Readiness  
 **GitHub Issue:** #13
 
@@ -349,10 +349,12 @@ P10 Full §47 real-tenant acceptance cycle
 
 **Tasks:**
 - Designate independent reviewer.
-- Protect master: require CI checks, require review approval, prevent force push/deletion as appropriate, require current-head review after material changes.
+- [x] Protect master: require CI checks, require review approval, prevent force push/deletion, require current-head review after material changes.
 - Record reviewer/date/commit in execution ledger.
 - Distinguish automated review from human review.
 - Never count self-approval as independent review.
+
+**Observed governance evidence (2026-09-20):** GitHub confirms `master` protection with one required approval, stale-review dismissal, approval of the most recent reviewable push, required `build-test-ready`, up-to-date branches, conversation resolution, administrator enforcement, and force-push/deletion disabled. No independent human approval has been recorded.
 
 **Acceptance criteria:** current candidate has independent human review; valid findings resolved; non-applicable findings include rationale; CI runs on reviewed head; merge uses project authorization workflow; ledger identifies exact merged commit.
 

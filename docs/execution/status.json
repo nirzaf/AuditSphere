@@ -19,7 +19,7 @@
     "headCommit": "c3caa95",
     "implementationStatus": "IN_PROGRESS",
     "acceptanceStatus": "BLOCKED_EXTERNAL",
-    "worktree": "P6 is complete at master@1184485 (165/165 tests, 31 migrations). PR #26 records live EasyGuide developer-tenant Purview evidence: a test-only retention label was created and a scoped publication policy was submitted successfully. Label application/protection readback, P1/P2/P3, professional sign-off, recovery, and independent review remain open.",
+    "worktree": "P6 is complete at master@1184485 (165/165 tests, 31 migrations). PR #26 records live EasyGuide developer-tenant Purview evidence: a test-only retention label was created and a scoped publication policy was submitted successfully. GitHub master protection is now configured and verified; label application/protection readback, P1/P2/P3, professional sign-off, recovery, and independent human review remain open.",
     "scope": "Evidence-ledger update for a synthetic EasyGuide developer-tenant Purview configuration. No production content, credentials, secrets, or application code changed.",
     "productionEnabled": false
   },
@@ -329,8 +329,8 @@
     {
       "classification": "authorization-review",
       "gate": "P9 — Independent review + protected merge governance",
-      "missing": "Independent human review of all merged slices (PR #1–#11); branch protection on master with required CI and reviewer approval; no self-approval counted as independent review.",
-      "ownerAction": "Repository owner (nirzaf) enables branch protection; designated independent reviewer conducts review and records evidence in the execution ledger."
+      "missing": "Independent human review of all merged slices (PR #1–#11 and current candidate PR #26); no self-approval counted as independent review.",
+      "ownerAction": "Designated independent reviewer conducts review on the exact current heads and records reviewer/date/commit evidence in the execution ledger. GitHub master protection is already enabled and verified."
     },
     {
       "classification": "external-tenant",
@@ -339,6 +339,6 @@
       "ownerAction": "Product owner and professional adoption authority authorize and execute the full §47 lifecycle; independent reviewer signs evidence package."
     }
   ],
-  "nextPermittedAction": "P0 and P6 are complete locally. EasyGuide P4 developer configuration is partially evidenced; label propagation/protection observation and compliance approval remain open. P1–P3, P5, P7–P10 remain blocked until their required credentials, custodians, professional approvals, and independent review exist.",
-  "lastVerifiedAt": "2026-09-19T21:03:14Z"
+  "nextPermittedAction": "P0 and P6 are complete locally. EasyGuide P4 developer configuration is partially evidenced; label propagation/protection observation and compliance approval remain open. Master merge protection is verified, but P9 still requires independent human review. P1–P3, P5, P7–P8, and P10 remain blocked until their required credentials, custodians, professional approvals, recovery measurements, and independent review exist.",
+  "lastVerifiedAt": "2026-09-20T03:30:05Z"
 }

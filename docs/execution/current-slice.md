@@ -8,7 +8,7 @@ The build contract is `AuditSphereOps_NET_Codex_Implementation_Specification.md`
 **Tests:** 165/165 passing, 0 skipped, PostgreSQL 18.6
 **Migrations:** 31 (latest: `20260919203959_ArchiveVersionLineage`)
 
-P0 repository/backlog reconciliation is complete. GitHub branch protection is still pending repository-owner sudo confirmation; independent human review remains a separate gate.
+P0 repository/backlog reconciliation is complete. GitHub `master` is now protected with one approving review, current-head review, stale-review dismissal, `build-test-ready`, up-to-date branches, conversation resolution, administrator enforcement, and force-push/deletion disabled. Independent human review remains a separate gate.
 
 ## P6 — Records / Archive Residual Hardening (locally verified, 2026-09-19)
 
@@ -211,6 +211,7 @@ The initial Blazor shell now includes scoped mapping/package views and a restric
 - On 2026-09-19, Purview displayed `Submitted successfully` after creating `AuditSphere Dev Test Record` with one-day retention, record locking, disposition review, reference ID `AS-DEV-REC-001`, and reviewer `qts@easyguide.onmicrosoft.com`.
 - On 2026-09-19, Purview displayed `Your retention label was published` after submitting `AuditSphere Dev Test Record Publication` for only `https://easyguide.sharepoint.com/sites/AuditSphereDevelopment`; policy propagation and actual content protection observation remain pending.
 - The selected non-production grant does not provide production credentials, Purview approval, professional sign-off, independent review, or real-tenant RPO/RTO evidence; those gates remain blocked.
+- On 2026-09-20, GitHub confirmed branch protection for `master` with one required approval, current-head review, stale-review dismissal, `build-test-ready`, up-to-date branches, conversation resolution, administrator enforcement, and force-push/deletion disabled. This advances P9 governance only; no independent human review has been recorded.
 
 ## Records profile, archive manifest, retention and hold evidence (local, observed 2026-09-19)
 
