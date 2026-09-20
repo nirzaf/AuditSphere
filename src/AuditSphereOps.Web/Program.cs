@@ -58,6 +58,8 @@ if (oidcConfigured)
     options.Authority = $"https://login.microsoftonline.com/{tenantId}/v2.0";
     options.ClientId = clientId!;
     options.ClientSecret = clientSecret!;
+    // TrustedActorResolver intentionally matches the immutable raw Entra oid/tid claims.
+    options.MapInboundClaims = false;
     options.ResponseType = "code";
     options.CallbackPath = identity["CallbackPath"] ?? "/signin-oidc";
     options.SaveTokens = false;

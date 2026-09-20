@@ -2,7 +2,7 @@
 
 **Repository:** nirzaf/AuditSphere  
 **Authoritative specification:** `AuditSphereOps_NET_Codex_Implementation_Specification.md` v5.0  
-**Reviewed baseline:** master at `b34447ba2d87e81ed865081b7dedb1415e5efdce`  
+**Reviewed baseline:** master at `1184485797f359c89b5f9f82c264d05845dfe0ff`
 **Current verified baseline:** 31 migrations, 165/165 PostgreSQL-backed tests, records/archive residual hardening (P6) locally verified
 
 ---

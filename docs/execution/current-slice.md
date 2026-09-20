@@ -2,16 +2,16 @@
 
 The build contract is `AuditSphereOps_NET_Codex_Implementation_Specification.md` (v5.0) at repo root. The v5 specification already requires .NET 10 (SDK 10.0.300) and PostgreSQL 18; an earlier note claiming .NET 10 was a deviation was incorrect. The local server is now PostgreSQL 18.6, matching the spec's required major version.
 
-## P0 — Repository Truth, Backlog and Governance Cleanup (active, master @ `b34447b`)
+## P0 — Repository Truth, Backlog and Governance Cleanup (historical ledger section; current master @ `1184485`)
 
-**Base:** `b34447ba2d87e81ed865081b7dedb1415e5efdce` (merge of PR #11, 2026-09-19)  
-**Tests:** 161/161 passing, 0 skipped, PostgreSQL 18.6  
-**Migrations:** 30 (latest: `20260919134442_RecordsActionEvidence`)
+**Current master:** `1184485797f359c89b5f9f82c264d05845dfe0ff` (P6 records/archive hardening, 2026-09-19)
+**Tests:** 165/165 passing, 0 skipped, PostgreSQL 18.6
+**Migrations:** 31 (latest: `20260919203959_ArchiveVersionLineage`)
 
 This slice makes no code or schema changes. It reconciles all execution-ledger documents with the current merged `master` reality, creates GitHub milestones R1–R4 and 14 dependency-ordered issues for P1–P10 remaining work, and prepares the branch-protection configuration for owner action.
 
 Acceptance criteria for P0:
-- README, status.json, current-slice.md, implementation-checklist.md, and pending-tasks.md all agree on `b34447b` baseline.
+- README, status.json, current-slice.md, implementation-checklist.md, and pending-tasks.md record the current master baseline.
 - No merged PR is shown as active.
 - Every pending package has a GitHub issue, owner, and milestone.
 - No credentials or secrets are stored in Git.
@@ -78,7 +78,28 @@ The restore rehearsal is development-only and loopback-only; it does not establi
 
 Repository bindings now scope document references to an authorized tenant/site/drive/root binding. `GraphPbcProviderSink` and `GraphReleaseCheckpointStore` are signature-only fail-closed boundaries. Web and worker startup refuse external effects without a complete approved identity/connection/epoch composition. Recovery sessions persist quarantine, external epoch, reconciliation scope and reviewed findings before an authorized restart advances the deployment epoch. Records archives persist the complete local §25.3 structured payload and append-only requested/observed records-action evidence.
 
-The EasyGuide tenant evidence is limited to the observed `Sites.Selected` app permission and selected-site `write` grant. Purview was inspected as `qts@easyguide.onmicrosoft.com`; both Information Protection sensitivity labels and Data Lifecycle Management retention labels showed no data, and the creation draft was discarded. No Purview production profile/label behavior, professional signing approval, independent human review, or production RPO/RTO acceptance is claimed.
+The EasyGuide tenant evidence is limited to the observed `Sites.Selected` app permission and selected-site `write` grant. Purview was inspected as `qts@easyguide.onmicrosoft.com`; no production profile, professional signing approval, independent human review, or production RPO/RTO acceptance is claimed.
+
+## Browser tenant verification (2026-09-20)
+
+- Entra tenant `easyguide` (`4de3e6fd-51aa-4ba7-b2c5-82106d2e45f0`) contains the single-tenant `AuditSphereOps Development` app (`29be1ee5-e90c-4ecc-b4f9-5bcce14774cc`). Its registered redirect URI is `http://localhost:5099/signin-oidc`; Microsoft Graph shows delegated `User.Read` and application `Sites.Selected`, both granted for `easyguide`. A non-production client secret was created with the portal-recommended 180-day lifetime (expires 2027-03-19) and stored in Infisical under the `Quadrate Tech Solutions` organization, `AuditSphereOps` project, `Development` environment. No certificate exists; live confidential OIDC runtime sign-in and fixture acceptance remain unverified.
+- The tenant currently contains `AuditSphere P0 Client X Fixture` (`auditp0-client-x@easyguide.onmicrosoft.com`), `AuditSphere P0 Client Y Fixture` (`auditp0-client-y@easyguide.onmicrosoft.com`), and `AuditSphere P0 Staff Fixture` (`auditp0-staff@easyguide.onmicrosoft.com`). Entra user properties currently show all three positive fixtures as enabled. Changed-UPN, wrong-tenant, and AuditSphere app sign-in acceptance evidence were not observed; the separate temporary disabled-state check is recorded below.
+- The existing Client X fixture was temporarily set to Disabled in Entra; the browser UI showed `Account status Disabled`, then it was restored to Enabled and Entra confirmed both updates. No other account was changed. This observes the negative fixture state only; no disabled-user AuditSphere sign-in denial was performed.
+- Purview now shows the active `AuditSphere Dev Test Record` label (`AS-DEV-REC-001`, one-day retention, review required) and the enabled `AuditSphere Dev Test Record Publication` policy. The policy is statically scoped to exactly `https://easyguide.sharepoint.com/sites/AuditSphereDevelopment` and publishes one label.
+- A synthetic `AuditSphere-Purview-Propagation-Test.txt` item was created in `AuditSphere Development` → `Client Content` under the approved test action. SharePoint exposes a `Retention label` view column, but the item value is blank. `Compliance details` reports: not subject to a retention policy, not on hold, and not an in-place record. Purview label-application activity remains empty; label propagation/application and protection behavior are therefore still blocked and unclaimed. The synthetic item remains as external test evidence.
+- A fresh read-only Purview/SharePoint check on 2026-09-20 reached the Records Management overview and File plan. The label remains Active with `Is record = Yes`, one-day retention, and `Review required`; pending dispositions for the label remain 0 and the label-application chart reports `No data`. The synthetic item still has a blank Retention label column and the Compliance details dialog still reports no retention policy, no hold, and not an in-place record.
+- The approved test-only Purview publishing wizard then completed successfully as `AuditSphere Dev Test Label Policy` for exactly one label (`AuditSphere Dev Test Record`) and exactly one static SharePoint site (`AuditSphere Development`); Exchange, OneDrive, and Microsoft 365 group locations were disabled. A SharePoint refresh 15 seconds later still showed no label picker/value, and Purview stated that availability can take up to a week. The test file therefore remains unprotected and P4 is not closed.
+- A later Purview `Label policies` readback shows both `AuditSphere Dev Test Label Policy` and `AuditSphere Dev Test Record Publication` as Enabled. A new SharePoint `Compliance details` readback still says `This item is not subject to a retention policy`, with `Not on hold` and `Not an in-place record`; no protection evidence is claimed.
+- Purview `Policy lookup` for `https://easyguide.sharepoint.com/sites/AuditSphereDevelopment` returns both enabled policies with `StaticScope` and `SharePoint` application. This rules out a missing site-scope inclusion; the remaining P4 gate is asynchronous label availability/application plus the named reviewer/custodian/admin behavior matrix.
+- After a further bounded wait and fresh SharePoint reload, the synthetic file still had a blank `Retention label` value; `Compliance details` again reported no retention policy, no hold, and not an in-place record. No further tenant mutation is justified until Microsoft 365 finishes publishing the label.
+
+## Local runtime verification (2026-09-20)
+
+- PostgreSQL 18.6 is running on loopback port 5433. `auditsphere` has all 31 migrations applied through `20260919203959_ArchiveVersionLineage`; the clean `auditsphere_tests` database was migrated by the test runner.
+- The web host runs at `http://localhost:5099` with `ExternalEffects.Enabled=false`. The non-production Entra values were supplied from the Infisical Development entries at process start; the client-secret value was not written to the repository or execution ledger.
+- The Entra OIDC callback completed successfully at `/signin-oidc` for the authorized `qts@easyguide.onmicrosoft.com` account. `TrustedActorResolver` matched the immutable raw `oid`/`tid` claims to a local-only staff fixture and loaded firm `11111111-1111-1111-1111-111111111111`; Portfolio displayed live PostgreSQL counts with no local demo actor.
+- `http://localhost:5099/health/live` and `/health/ready` returned `Healthy`/HTTP 200. `dotnet build --no-restore` passed with 0 warnings/errors, and `dotnet test --no-build` passed 165/165 with 0 skipped on PostgreSQL 18.6.
+- This verifies the local runtime and one authorized staff mapping only. It does not close the P1 fixture matrix or P2–P10 external, professional-approval, recovery, governance, or production-readiness gates.
 
 ## Durable outbox and validation worker
 
