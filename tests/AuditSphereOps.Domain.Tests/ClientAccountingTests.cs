@@ -885,8 +885,8 @@ public sealed class ClientAccountingTests
   {
     var components = new[]
     {
-      new ConsolidationComponentBalance(Guid.Parse("00000000-0000-0000-0000-000000000001"), Guid.NewGuid(), "CASH", 100m, "QAR", 100m, "CONTROLLED"),
-      new ConsolidationComponentBalance(Guid.Parse("00000000-0000-0000-0000-000000000002"), Guid.NewGuid(), "REVENUE", -100m, "QAR", 100m, "CONTROLLED")
+      new ConsolidationComponentBalance(Guid.Parse("00000000-0000-0000-0000-000000000001"), Guid.NewGuid(), "CASH", 100m, "QAR", 100m, "CONTROLLED", Hashing.Sha256Hex("component-a")),
+      new ConsolidationComponentBalance(Guid.Parse("00000000-0000-0000-0000-000000000002"), Guid.NewGuid(), "REVENUE", -100m, "QAR", 100m, "CONTROLLED", Hashing.Sha256Hex("component-b"))
     };
     var first = ConsolidationCalculator.Compute("QAR", ConsolidationCalculator.RestrictedMethod, "OPENING-2026", components, []);
     var second = ConsolidationCalculator.Compute("QAR", ConsolidationCalculator.RestrictedMethod, "OPENING-2026", components, []);
@@ -1000,9 +1000,21 @@ public sealed class ClientAccountingTests
          new(null, "REVENUE", 0m, 100m, "Group-only revenue reclassification")]))).Value;
       Assert.True((await ConsolidationService.ApproveConsolidationJournalAsync(db, reviewer, journalId)).Succeeded);
       runId = (await ConsolidationService.RunAsync(db, preparer, consolidationScopeId)).Value;
-      Assert.True((await ConsolidationService.ApproveRunAsync(db, reviewer, runId)).Succeeded);
+      var changedJournalId = (await ConsolidationService.CreateConsolidationJournalAsync(db, preparer,
+        new ConsolidationJournalRequest(consolidationScopeId, "GC-002", "GROUP_RECLASSIFICATION", "QAR", "group-adjustment-002",
+        [new(null, "CASH", 50m, 0m, "Post-run group-only cash reclassification"),
+         new(null, "REVENUE", 0m, 50m, "Post-run group-only revenue reclassification")]))).Value;
+      Assert.True((await ConsolidationService.ApproveConsolidationJournalAsync(db, reviewer, changedJournalId)).Succeeded);
+      var stale = await ConsolidationService.ApproveRunAsync(db, reviewer, runId);
+      Assert.False(stale.Succeeded);
+      Assert.Equal(ErrorCodes.GenerationStale, stale.ErrorCode);
+      var rebuiltRunId = (await ConsolidationService.RunAsync(db, preparer, consolidationScopeId)).Value;
+      Assert.NotEqual(runId, rebuiltRunId);
+      Assert.True((await ConsolidationService.ApproveRunAsync(db, reviewer, rebuiltRunId)).Succeeded);
       Assert.Equal(4, await db.ConsolidationRunLines.CountAsync(x => x.RunId == runId));
       Assert.Equal(2, await db.ConsolidationRunLines.CountAsync(x => x.RunId == runId && x.ConsolidationJournalId == journalId));
+      Assert.Equal(6, await db.ConsolidationRunLines.CountAsync(x => x.RunId == rebuiltRunId));
+      Assert.Equal(2, await db.ConsolidationRunLines.CountAsync(x => x.RunId == rebuiltRunId && x.ConsolidationJournalId == changedJournalId));
       Assert.All(await db.ConsolidationComponents.Where(x => x.ScopeVersionId == consolidationScopeId).ToListAsync(), x => Assert.Equal(AccountingWorkflowStates.Approved, x.Status));
     }
   }

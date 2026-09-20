@@ -37,6 +37,10 @@ public sealed record ConsolidationJournalRequest(
 
 public static class ConsolidationService
 {
+  private sealed record ConsolidationBuild(
+    ConsolidationCalculation Calculation,
+    IReadOnlyList<(ConsolidationElimination Elimination, Guid? JournalId)> EliminationSources);
+
   private static readonly string[] PreparerRoles = ["AccountingPreparer", "AccountingReviewer", "Manager", "Partner", "Administrator"];
   private static readonly string[] ReviewerRoles = ["AccountingReviewer", "Manager", "Partner", "Administrator"];
 
@@ -366,36 +370,11 @@ public static class ConsolidationService
       return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
     if (scope.Status != AccountingWorkflowStates.Approved)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "An approved perimeter is required before calculation.");
-    var components = await db.ConsolidationComponents.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ScopeVersionId == scope.Id &&
-      x.Status == AccountingWorkflowStates.Approved).OrderBy(x => x.Id).ToListAsync(ct);
-    var componentIds = components.Select(x => x.Id).ToHashSet();
-    var packageLines = await db.FinancialPackageLines.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&
-      components.Select(c => c.PackageId).Contains(x.FinancialPackageId)).ToListAsync(ct);
-    var balances = packageLines.Join(components, line => line.FinancialPackageId, component => component.PackageId,
-      (line, component) => new ConsolidationComponentBalance(component.Id, component.ClientId, line.DestinationCode,
-        line.Amount, line.Currency, component.OwnershipPercent, component.ControlMethod)).ToList();
-    var matches = await db.IntercompanyMatches.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ScopeVersionId == scope.Id &&
-      x.Status == AccountingWorkflowStates.Approved).ToListAsync(ct);
-    var approvedJournals = await db.ConsolidationJournals.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&
-      x.ScopeVersionId == scope.Id && x.Status == AccountingWorkflowStates.Approved).ToListAsync(ct);
-    var journalIds = approvedJournals.Select(x => x.Id).ToArray();
-    var journalLines = await db.ConsolidationJournalLines.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&
-      journalIds.Contains(x.ConsolidationJournalId)).ToListAsync(ct);
-    var linkedMatches = journalLines.Where(x => x.IntercompanyMatchId.HasValue).Select(x => x.IntercompanyMatchId!.Value).ToHashSet();
-    var eliminationSources = matches.Where(x => !linkedMatches.Contains(x.Id))
-      .Select(x => (new ConsolidationElimination(x.Id, x.AccountNature, -x.MatchedAmount, x.Currency), (Guid?)null))
-      .Concat(journalLines.Select(x => (new ConsolidationElimination(x.Id, x.TaxonomyCode, x.Debit - x.Credit, x.Currency), (Guid?)x.ConsolidationJournalId)))
-      .ToList();
-    ConsolidationCalculation calculation;
-    try
-    {
-      calculation = ConsolidationCalculator.Compute(scope.ReportingCurrency, scope.Method, scope.OpeningBasis, balances,
-        eliminationSources.Select(x => x.Item1).ToList());
-    }
-    catch (InvalidOperationException ex)
-    {
-      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, ex.Message);
-    }
+    var build = await BuildCalculationAsync(db, actor.FirmId, scope, ct);
+    if (!build.Succeeded)
+      return CommandResult<Guid>.Fail(build.ErrorCode!, build.Message!);
+    var calculation = build.Value!.Calculation;
+    var eliminationSources = build.Value.EliminationSources;
     var existing = await db.ConsolidationRuns.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId &&
       x.ScopeVersionId == scope.Id && x.RunHash == calculation.RunHash, ct);
     if (existing is not null)
@@ -437,11 +416,63 @@ public static class ConsolidationService
       return CommandResult.Fail(ErrorCodes.Accounting.MappingInvalid, "Only a separate reviewer can approve a submitted balanced run.");
     if (run.SignedTotal != 0m)
       return CommandResult.Fail(ErrorCodes.GateBlocked, "The consolidation run is not balanced.");
+    var scope = await db.ConsolidationScopeVersions.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.Id == run.ScopeVersionId && x.FirmId == actor.FirmId && x.GroupId == run.GroupId, ct);
+    if (scope is null || scope.Status != AccountingWorkflowStates.Approved)
+      return CommandResult.Fail(ErrorCodes.GenerationStale, "The consolidation perimeter changed; rebuild the group run.");
+    var current = await BuildCalculationAsync(db, actor.FirmId, scope, ct);
+    if (!current.Succeeded)
+      return CommandResult.Fail(current.ErrorCode!, current.Message!);
+    if (current.Value!.Calculation.RunHash != run.RunHash || current.Value.Calculation.InputManifest != run.InputManifest)
+      return CommandResult.Fail(ErrorCodes.GenerationStale, "A component, match or group journal changed; rebuild the group run.");
     run.Status = AccountingWorkflowStates.Approved;
     run.ApprovedByUserId = actor.UserId;
     run.ApprovedAt = DateTimeOffset.UtcNow;
     await db.SaveChangesAsync(ct);
     return CommandResult.Ok();
+  }
+
+  private static async Task<CommandResult<ConsolidationBuild>> BuildCalculationAsync(
+    IClientAccountingDbContext db, Guid firmId, ConsolidationScopeVersion scope, CancellationToken ct)
+  {
+    var components = await db.ConsolidationComponents.AsNoTracking().Where(x => x.FirmId == firmId && x.ScopeVersionId == scope.Id &&
+      x.Status == AccountingWorkflowStates.Approved).OrderBy(x => x.Id).ToListAsync(ct);
+    if (components.Count == 0)
+      return CommandResult<ConsolidationBuild>.Fail(ErrorCodes.GateBlocked, "At least one approved component package is required.");
+    var packageIds = components.Select(x => x.PackageId).ToArray();
+    var packages = await db.FinancialPackages.AsNoTracking().Where(x => x.FirmId == firmId && packageIds.Contains(x.Id)).ToListAsync(ct);
+    if (packages.Count != components.Count || components.Any(component =>
+        packages.All(package => package.Id != component.PackageId || package.CalculationHash != component.PackageHash ||
+          package.Status != AccountingPackageStates.PackageValidated || package.Currency != scope.ReportingCurrency)))
+      return CommandResult<ConsolidationBuild>.Fail(ErrorCodes.GenerationStale,
+        "A component package changed; rebuild the group run from current approved packages.");
+    var packageLines = await db.FinancialPackageLines.AsNoTracking().Where(x => x.FirmId == firmId &&
+      packageIds.Contains(x.FinancialPackageId)).ToListAsync(ct);
+    var balances = packageLines.Join(components, line => line.FinancialPackageId, component => component.PackageId,
+      (line, component) => new ConsolidationComponentBalance(component.Id, component.ClientId, line.DestinationCode,
+        line.Amount, line.Currency, component.OwnershipPercent, component.ControlMethod, component.PackageHash)).ToList();
+    var matches = await db.IntercompanyMatches.AsNoTracking().Where(x => x.FirmId == firmId && x.ScopeVersionId == scope.Id &&
+      x.Status == AccountingWorkflowStates.Approved).ToListAsync(ct);
+    var approvedJournals = await db.ConsolidationJournals.AsNoTracking().Where(x => x.FirmId == firmId &&
+      x.ScopeVersionId == scope.Id && x.Status == AccountingWorkflowStates.Approved).ToListAsync(ct);
+    var journalIds = approvedJournals.Select(x => x.Id).ToArray();
+    var journalLines = await db.ConsolidationJournalLines.AsNoTracking().Where(x => x.FirmId == firmId &&
+      journalIds.Contains(x.ConsolidationJournalId)).ToListAsync(ct);
+    var linkedMatches = journalLines.Where(x => x.IntercompanyMatchId.HasValue).Select(x => x.IntercompanyMatchId!.Value).ToHashSet();
+    var eliminationSources = matches.Where(x => !linkedMatches.Contains(x.Id))
+      .Select(x => (new ConsolidationElimination(x.Id, x.AccountNature, -x.MatchedAmount, x.Currency), (Guid?)null))
+      .Concat(journalLines.Select(x => (new ConsolidationElimination(x.Id, x.TaxonomyCode, x.Debit - x.Credit, x.Currency), (Guid?)x.ConsolidationJournalId)))
+      .ToList();
+    try
+    {
+      var calculation = ConsolidationCalculator.Compute(scope.ReportingCurrency, scope.Method, scope.OpeningBasis, balances,
+        eliminationSources.Select(x => x.Item1).ToList());
+      return CommandResult<ConsolidationBuild>.Ok(new ConsolidationBuild(calculation, eliminationSources));
+    }
+    catch (InvalidOperationException ex)
+    {
+      return CommandResult<ConsolidationBuild>.Fail(ErrorCodes.GateBlocked, ex.Message);
+    }
   }
 
   private static async Task<CommandResult> FirmAuthAsync(

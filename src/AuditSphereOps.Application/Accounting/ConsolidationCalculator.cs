@@ -10,7 +10,8 @@ public sealed record ConsolidationComponentBalance(
   decimal Amount,
   string Currency,
   decimal OwnershipPercent,
-  string ControlMethod);
+  string ControlMethod,
+  string PackageHash = "");
 
 public sealed record ConsolidationElimination(
   Guid MatchId,
@@ -67,6 +68,8 @@ public static class ConsolidationCalculator
     if (components.Any(x => x.Currency != reportingCurrency || x.OwnershipPercent != 100m ||
         !x.ControlMethod.Equals("CONTROLLED", StringComparison.OrdinalIgnoreCase)))
       throw new InvalidOperationException("The restricted profile requires fully owned, controlled components in one currency.");
+    if (components.Any(x => x.PackageHash.Length != 64 || x.PackageHash.Any(c => c is < '0' or > '9' and < 'a' or > 'f')))
+      throw new InvalidOperationException("Every component must be bound to a valid package hash.");
     if (components.Any(x => string.IsNullOrWhiteSpace(x.TaxonomyCode)))
       throw new InvalidOperationException("Every component balance needs an approved taxonomy code.");
     if (eliminations.Any(x => x.Currency != reportingCurrency || string.IsNullOrWhiteSpace(x.TaxonomyCode)))
@@ -109,7 +112,8 @@ public static class ConsolidationCalculator
       .Select(x => string.Join('|', x.ComponentId?.ToString("D") ?? string.Empty,
         x.MatchId?.ToString("D") ?? string.Empty, x.TaxonomyCode,
         x.ComponentAmount.ToString("0.000000", CultureInfo.InvariantCulture),
-        x.EliminationAmount.ToString("0.000000", CultureInfo.InvariantCulture), x.Currency))));
+        x.EliminationAmount.ToString("0.000000", CultureInfo.InvariantCulture), x.Currency,
+        components.FirstOrDefault(c => c.ComponentId == x.ComponentId)?.PackageHash ?? string.Empty))));
     return new ConsolidationCalculation(totals, lines, signedTotal, manifest, Hashing.Sha256Hex(manifest));
   }
 }
