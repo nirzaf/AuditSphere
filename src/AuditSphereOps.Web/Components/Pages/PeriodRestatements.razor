@@ -1,0 +1,204 @@
+@page "/app/accounting/restatements"
+@rendermode InteractiveServer
+@using AuditSphereOps.Application.Accounting
+@using AuditSphereOps.Domain.Accounting
+@inject CurrentActorResolver ActorResolver
+@inject IDbContextFactory<AuditSphereDbContext> DbFactory
+
+<PageTitle>Period restatements</PageTitle>
+<a class="back-link" href="/app/accounting">← Back to accounting workspace</a>
+<h1>Period restatements</h1>
+
+@if (_loading)
+{
+  <p role="status">Loading scoped restatements…</p>
+}
+else if (_actor is null || !_isStaff)
+{
+  <section class="notice" role="alert"><h2>Access unavailable</h2><p>Sign in with an authorized accounting identity to manage period restatements.</p></section>
+}
+else
+{
+  <p class="scope-note">A restatement links two validated immutable packages for one closed period. Creation and independent review remain separate actions.</p>
+
+  <section class="card" aria-labelledby="create-heading">
+    <h2 id="create-heading">Request a restatement</h2>
+    <div class="form-grid">
+      <label>Client<select @bind="_selectedClientId"><option value="">Select a client</option>@foreach (var client in _clients) { <option value="@client.Id">@client.Name</option> }</select></label>
+      <label>Closed period<select @bind="_selectedPeriodId"><option value="">Select a period</option>@foreach (var period in _periods) { <option value="@period.Id">@period.Label</option> }</select></label>
+      <label>Original package<select @bind="_selectedOriginalPackageId"><option value="">Select package</option>@foreach (var package in _packages) { <option value="@package.Id">@package.Label</option> }</select></label>
+      <label>Revised package<select @bind="_selectedRevisedPackageId"><option value="">Select package</option>@foreach (var package in _packages) { <option value="@package.Id">@package.Label</option> }</select></label>
+      <label>Revised basis<input @bind="_revisedBasis" maxlength="200" /></label>
+      <label>Evidence reference<input @bind="_evidenceReference" maxlength="2000" /></label>
+    </div>
+    <label>Reason<textarea @bind="_reason" maxlength="4000" rows="3"></textarea></label>
+    <div style="display:flex;gap:.75rem;align-items:center;margin-top:1rem;flex-wrap:wrap">
+      <button class="button" @onclick="LoadSelectionAsync" disabled="@_busy">Load closed-period packages</button>
+      <button class="button" @onclick="CreateAsync" disabled="@_busy">@(_busy ? "Saving…" : "Create restatement request")</button>
+    </div>
+  </section>
+
+  @if (_result is not null)
+  {
+    <p class="command-result @(_result.Succeeded ? "success-text" : "error-text")" role="status">
+      @(_result.Succeeded ? (_successMessage ?? "Action completed successfully.") : "Blocked: " + _result.ErrorCode)
+    </p>
+  }
+
+  <section class="card" aria-labelledby="history-heading">
+    <h2 id="history-heading">Restatement history</h2>
+    @if (_restatements.Count == 0)
+    {
+      <p class="muted">No restatement requests are available in the current scope.</p>
+    }
+    else
+    {
+      <div class="table-wrap"><table>
+        <caption class="sr-only">Scoped period restatement requests</caption>
+        <thead><tr><th scope="col">Client</th><th scope="col">Period</th><th scope="col">Basis</th><th scope="col">Status</th><th scope="col">Evidence</th><th scope="col">Action</th></tr></thead>
+        <tbody>
+        @foreach (var restatement in _restatements)
+        {
+          <tr>
+            <td>@restatement.ClientName</td>
+            <td>@restatement.PeriodCode</td>
+            <td>@restatement.RevisedBasis</td>
+            <td><span class="status">@restatement.Status</span></td>
+            <td><code>@restatement.EvidenceReference</code></td>
+            <td>@if (restatement.Status == AccountingWorkflowStates.Submitted && _canReview) { <button class="button" @onclick="() => ApproveAsync(restatement.Id)" disabled="@_busy">Approve independently</button> } else { <span class="muted">—</span> }</td>
+          </tr>
+        }
+        </tbody>
+      </table></div>
+    }
+  </section>
+}
+
+@code {
+  private sealed record ClientOption(Guid Id, string Name);
+  private sealed record PeriodOption(Guid Id, string Label);
+  private sealed record PackageOption(Guid Id, string Label);
+  private sealed record RestatementRow(Guid Id, string ClientName, string PeriodCode, string RevisedBasis, string Status, string EvidenceReference);
+
+  private ActorContext? _actor;
+  private bool _loading = true;
+  private bool _busy;
+  private bool _isStaff;
+  private bool _canReview;
+  private List<ClientOption> _clients = [];
+  private List<PeriodOption> _periods = [];
+  private List<PackageOption> _packages = [];
+  private List<RestatementRow> _restatements = [];
+  private string _selectedClientId = string.Empty;
+  private string _selectedPeriodId = string.Empty;
+  private string _selectedOriginalPackageId = string.Empty;
+  private string _selectedRevisedPackageId = string.Empty;
+  private string _revisedBasis = string.Empty;
+  private string _reason = string.Empty;
+  private string _evidenceReference = string.Empty;
+  private CommandResult? _result;
+  private string? _successMessage;
+
+  protected override async Task OnInitializedAsync()
+  {
+    _actor = await ActorResolver.ResolveAsync();
+    _isStaff = _actor is not null && _actor.Roles.Any(x => x is "Administrator" or "Partner" or "Manager" or "Staff" or "AccountingPreparer" or "AccountingReviewer");
+    _canReview = _actor is not null && _actor.Roles.Any(x => x is "Administrator" or "Partner" or "Manager" or "AccountingReviewer");
+    if (_isStaff && _actor is not null)
+    {
+      await LoadDataAsync();
+      if (_clients.Count > 0)
+      {
+        _selectedClientId = _clients[0].Id.ToString();
+        await LoadSelectionAsync();
+      }
+    }
+    _loading = false;
+  }
+
+  private async Task LoadDataAsync()
+  {
+    if (_actor is null) return;
+    await using var db = await DbFactory.CreateDbContextAsync();
+    var clientIds = await ScopedClientIdsAsync(db, _actor);
+    var clients = await db.PracticeClients.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
+      (clientIds.Length == 0 || clientIds.Contains(x.Id))).OrderBy(x => x.LegalName).ToListAsync();
+    var periods = await db.ClientReportingPeriods.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
+      (clientIds.Length == 0 || clientIds.Contains(x.ClientId))).ToDictionaryAsync(x => x.Id);
+    _clients = clients.Select(x => new ClientOption(x.Id, x.LegalName)).ToList();
+    var restatements = await db.ClientPeriodRestatements.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
+      (clientIds.Length == 0 || clientIds.Contains(x.ClientId))).OrderByDescending(x => x.CreatedAt).ToListAsync();
+    _restatements = restatements.Select(x => new RestatementRow(x.Id,
+      clients.FirstOrDefault(c => c.Id == x.ClientId)?.LegalName ?? "Scoped client",
+      periods.GetValueOrDefault(x.PeriodId)?.PeriodCode ?? "Unknown period", x.RevisedBasis, x.Status, x.EvidenceReference)).ToList();
+  }
+
+  private async Task LoadSelectionAsync()
+  {
+    if (_actor is null || !Guid.TryParse(_selectedClientId, out var clientId)) return;
+    await using var db = await DbFactory.CreateDbContextAsync();
+    var periods = await db.ClientReportingPeriods.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && x.ClientId == clientId && x.Status == AccountingWorkflowStates.Closed)
+      .OrderByDescending(x => x.EndDate).ToListAsync();
+    _periods = periods.Select(x => new PeriodOption(x.Id, $"{x.PeriodCode} ({x.StartDate:yyyy-MM-dd} to {x.EndDate:yyyy-MM-dd})")).ToList();
+    _selectedPeriodId = _periods.FirstOrDefault()?.Id.ToString() ?? string.Empty;
+    _selectedOriginalPackageId = string.Empty;
+    _selectedRevisedPackageId = string.Empty;
+    _packages = [];
+    if (Guid.TryParse(_selectedPeriodId, out var periodId))
+    {
+      var period = periods.Single(x => x.Id == periodId);
+      var packages = await db.FinancialPackages.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && x.ClientId == clientId &&
+        x.Status == AccountingPackageStates.PackageValidated && x.PeriodStart == period.StartDate.ToString("yyyy-MM-dd") && x.PeriodEnd == period.EndDate.ToString("yyyy-MM-dd"))
+        .OrderBy(x => x.CreatedAt).ToListAsync();
+      _packages = packages.Select(x => new PackageOption(x.Id, $"{x.Id} · {x.Currency} · {x.CalculationHash[..Math.Min(12, x.CalculationHash.Length)]}")).ToList();
+    }
+  }
+
+  private async Task CreateAsync()
+  {
+    if (_actor is null || _busy || !Guid.TryParse(_selectedClientId, out var clientId) || !Guid.TryParse(_selectedPeriodId, out var periodId) ||
+        !Guid.TryParse(_selectedOriginalPackageId, out var originalId) || !Guid.TryParse(_selectedRevisedPackageId, out var revisedId))
+    {
+      _result = CommandResult.Fail(ErrorCodes.Accounting.ReconciliationRejected, "Select one client, closed period and two distinct validated packages.");
+      return;
+    }
+    _busy = true;
+    try
+    {
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var created = await ClientAccountingService.CreatePeriodRestatementAsync(db, _actor,
+        new CreatePeriodRestatementRequest(clientId, periodId, originalId, revisedId, _revisedBasis, _reason, _evidenceReference));
+      if (created.Succeeded)
+      {
+        _result = CommandResult.Ok();
+        _successMessage = "Restatement request created; an independent reviewer must approve it.";
+        await LoadDataAsync();
+      }
+      else
+        _result = CommandResult.Fail(created.ErrorCode ?? ErrorCodes.Accounting.ReconciliationRejected, created.Message ?? "Restatement request was blocked.");
+    }
+    finally { _busy = false; }
+  }
+
+  private async Task ApproveAsync(Guid restatementId)
+  {
+    if (_actor is null || _busy) return;
+    _busy = true;
+    try
+    {
+      await using var db = await DbFactory.CreateDbContextAsync();
+      _result = await ClientAccountingService.ApprovePeriodRestatementAsync(db, _actor, restatementId);
+      if (_result.Succeeded)
+      {
+        _successMessage = "Restatement independently approved.";
+        await LoadDataAsync();
+      }
+    }
+    finally { _busy = false; }
+  }
+
+  private static async Task<Guid[]> ScopedClientIdsAsync(AuditSphereDbContext db, ActorContext actor) => actor.ClientId is { } clientId
+    ? [clientId]
+    : await db.RoleGrants.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.UserId == actor.UserId && x.RevokedAt == null)
+      .Select(x => x.ClientId).Where(x => x.HasValue).Select(x => x!.Value).Distinct().ToArrayAsync();
+}
