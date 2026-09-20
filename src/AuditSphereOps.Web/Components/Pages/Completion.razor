@@ -1,6 +1,8 @@
 @page "/app/completion/{Id:guid}"
 @page "/app/engagements/{EngagementId:guid}/completion"
 @rendermode InteractiveServer
+@using AuditSphereOps.Application.Completion
+@using AuditSphereOps.Application.Reviews
 @using AuditSphereOps.Domain.Accounting
 @using AuditSphereOps.Domain.Completion
 @using AuditSphereOps.Domain.Engagements
@@ -116,12 +118,22 @@ else
                 {
                     <a class="btn-primary" href="/app/releases/@_releaseCandidateId">View Release Candidate</a>
                 }
+                else if (_canPrepareRelease && _packageReviewsComplete && _packageStatus == AccountingPackageStates.PackageValidated)
+                {
+                    <button class="btn-primary" @onclick="PrepareReleaseCandidateAsync" disabled="@_busy">
+                        @(_busy ? "Preparing…" : "Prepare Release Candidate")
+                    </button>
+                }
                 @if (_packageId.HasValue)
                 {
                     <a class="btn-secondary" href="/app/accounting/packages/@_packageId">Open Financial Package</a>
                 }
                 <a class="button" href="/app/engagements/@_engagement.Id">Back to Engagement</a>
             </div>
+            @if (_releaseMessage is not null)
+            {
+                <p class="command-result @(_releaseSucceeded ? "success-text" : "error-text")" role="status">@_releaseMessage</p>
+            }
         </section>
     </div>
 }
@@ -140,7 +152,12 @@ else
     Guid? _releaseCandidateId;
     string _packageStatus = "—";
     bool _partnerApproved;
+    bool _packageReviewsComplete;
+    bool _canPrepareRelease;
     string _eqrStatus = "NOT_ASSIGNED";
+    string? _releaseMessage;
+    bool _releaseSucceeded;
+    bool _busy;
 
     record GateRow(string Name, string Status, string StatusClass, string? Authority, DateTimeOffset? Date);
     List<GateRow> _gates = [];
@@ -151,6 +168,7 @@ else
         _loading = true;
         _actor = await ActorResolver.ResolveAsync();
         _isStaff = _actor is not null && _actor.Roles.Any(x => x is "Administrator" or "Partner" or "Manager" or "Staff" or "EngagementLeader" or "Auditor");
+        _canPrepareRelease = _actor?.Roles.Any(x => x is "Administrator" or "Partner") == true;
 
         _effectiveEngagementId = EngagementId ?? Id;
         if (_actor is null || !_isStaff || !_effectiveEngagementId.HasValue)
@@ -200,11 +218,13 @@ else
                     x.PackageRevision == latestPackage.Revision && x.PackageGeneration == latestPackage.Generation &&
                     x.PackageHash == latestPackage.CalculationHash)
                 .ToListAsync();
+            _packageReviewsComplete = true;
             foreach (var stage in new[]
                 { FinancialPackageReviewStages.ManagementApproval, FinancialPackageReviewStages.AccountingReview, FinancialPackageReviewStages.PartnerApproval })
             {
                 var review = packageReviews.Where(x => x.Stage == stage).OrderByDescending(x => x.DecidedAt).FirstOrDefault();
                 var status = review?.Decision ?? "PENDING";
+                _packageReviewsComplete &= status == FinancialPackageReviewDecisions.Approved;
                 var statusClass = status == FinancialPackageReviewDecisions.Approved ? "badge-green" :
                     status is FinancialPackageReviewDecisions.ChangesRequired or FinancialPackageReviewDecisions.Rejected ? "badge-red" : "badge-yellow";
                 _gates.Add(new($"Package {stage}", status, statusClass, review?.EvidenceReference, review?.DecidedAt));
@@ -253,5 +273,72 @@ else
         _releaseCandidateId = rc?.Id;
 
         _loading = false;
+    }
+
+    private async Task PrepareReleaseCandidateAsync()
+    {
+        if (_actor is null || !_packageId.HasValue || !_canPrepareRelease || _busy)
+            return;
+
+        _busy = true;
+        _releaseMessage = null;
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var package = await db.FinancialPackages.AsNoTracking().SingleOrDefaultAsync(x =>
+                x.Id == _packageId.Value && x.FirmId == _actor.FirmId);
+            if (package is null)
+            {
+                _releaseMessage = "The financial package is unavailable in the current firm scope.";
+                return;
+            }
+
+            var existing = await db.ReleaseCandidates.AsNoTracking().SingleOrDefaultAsync(x =>
+                x.FirmId == _actor.FirmId && x.TargetKind == ReleaseTargetKinds.FinancialPackage &&
+                x.TargetId == package.Id && x.TargetRevision == package.Revision &&
+                x.ManifestDigest == package.CalculationHash);
+            if (existing is not null)
+            {
+                _releaseCandidateId = existing.Id;
+                _releaseSucceeded = true;
+                _releaseMessage = "The current release candidate is ready.";
+                return;
+            }
+
+            var firm = await db.FirmSafetyStates.AsNoTracking().SingleOrDefaultAsync(x => x.Id == _actor.FirmId);
+            var client = await db.ClientSafetyStates.AsNoTracking().SingleOrDefaultAsync(x =>
+                x.FirmId == _actor.FirmId && x.Id == package.ClientId);
+            if (firm is null || client is null)
+            {
+                _releaseMessage = "Release safety state is unavailable.";
+                return;
+            }
+
+            var approval = await ApprovalService.CreateAsync(db, _actor,
+                new CreateApprovalRequest(ReleaseTargetKinds.FinancialPackage, package.Id, package.Revision,
+                    client.InputGeneration, firm.PolicyGeneration, package.CalculationHash));
+            if (!approval.Succeeded)
+            {
+                _releaseMessage = $"Blocked: {approval.Message}";
+                return;
+            }
+
+            var candidate = await ReleaseService.CreateCandidateAsync(db, _actor,
+                new CreateReleaseCandidateRequest(approval.Value, ReleaseTargetKinds.FinancialPackage,
+                    package.Id, package.Revision, client.InputGeneration, firm.PolicyGeneration, package.CalculationHash));
+            if (!candidate.Succeeded)
+            {
+                _releaseMessage = $"Blocked: {candidate.Message}";
+                return;
+            }
+
+            _releaseCandidateId = candidate.Value;
+            _releaseSucceeded = true;
+            _releaseMessage = "Release candidate prepared from the exact reviewed package.";
+        }
+        finally
+        {
+            _busy = false;
+        }
     }
 }
