@@ -1697,12 +1697,25 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     specialist.Property(x => x.Area).HasMaxLength(80);
     specialist.Property(x => x.MethodologyVersion).HasMaxLength(100);
     specialist.Property(x => x.DepreciationMethod).HasMaxLength(80);
+    specialist.Property(x => x.PayrollContractReference).HasMaxLength(200);
+    specialist.Property(x => x.PayrollBankPaymentReference).HasMaxLength(200);
+    specialist.Property(x => x.LoanCovenantReference).HasMaxLength(200);
+    specialist.Property(x => x.RelatedPartyDisclosureReference).HasMaxLength(200);
+    specialist.Property(x => x.TaxJurisdiction).HasMaxLength(100);
+    specialist.Property(x => x.TaxRuleVersion).HasMaxLength(100);
+    specialist.Property(x => x.TaxReturnEvidenceReference).HasMaxLength(200);
+    specialist.Property(x => x.TaxPaymentEvidenceReference).HasMaxLength(200);
+    specialist.Property(x => x.TaxCorrespondenceReference).HasMaxLength(200);
+    specialist.Property(x => x.ForecastOwner).HasMaxLength(200);
+    specialist.Property(x => x.ForecastSensitivityReference).HasMaxLength(200);
+    specialist.Property(x => x.ForecastSensitivityResult).HasMaxLength(4000);
     specialist.Property(x => x.AssumptionsHash).HasMaxLength(64);
     specialist.Property(x => x.EvidenceReference).HasMaxLength(2000);
+    specialist.Property(x => x.ReviewConclusion).HasMaxLength(4000);
     specialist.Property(x => x.Status).HasMaxLength(30);
     specialist.HasIndex(x => new { x.FirmId, x.EngagementId, x.PeriodId, x.Area }).HasDatabaseName("ix_specialist_schedule_area");
     specialist.ToTable("specialist_accounting_schedules", t => t.HasCheckConstraint("ck_specialist_schedule_values",
-      "length(trim(area)) > 0 AND length(trim(methodology_version)) > 0 AND (area <> 'ASSETS' OR (length(trim(depreciation_method)) > 0 AND useful_life_months > 0))"));
+      "length(trim(area)) > 0 AND length(trim(methodology_version)) > 0 AND (area <> 'ASSETS' OR (length(trim(depreciation_method)) > 0 AND useful_life_months > 0)) AND (payroll_gross_amount IS NULL OR payroll_gross_amount >= 0) AND (payroll_deductions_amount IS NULL OR payroll_deductions_amount >= 0) AND (payroll_net_amount IS NULL OR payroll_net_amount >= 0) AND (loan_repayment_amount IS NULL OR loan_repayment_amount >= 0) AND (tax_base_amount IS NULL OR tax_base_amount >= 0) AND (tax_rate IS NULL OR tax_rate >= 0) AND (forecast_cash_input_amount IS NULL OR forecast_cash_input_amount >= 0) AND (forecast_debt_input_amount IS NULL OR forecast_debt_input_amount >= 0)"));
     ScopeToEngagement(specialist, nameof(SpecialistAccountingSchedule.FirmId), nameof(SpecialistAccountingSchedule.ClientId), nameof(SpecialistAccountingSchedule.EngagementId));
 
     var analysis = b.Entity<AnalyticalReview>();

@@ -255,6 +255,74 @@ public sealed class ClientAccountingTests
 
   [Fact]
   [Trait("Profile", "Database")]
+  public async Task SpecialistAreaSchedules_RetainTypedInputsAndRequireReviewEvidence()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var scope = await SeedAsync(pg);
+    var preparer = Actor(scope.Preparer, "AccountingPreparer");
+    var reviewer = Actor(scope.Reviewer, "AccountingReviewer");
+    var fixture = await CreateGlFixtureAsync(pg, scope, preparer);
+    var assumptions = new string('a', 64);
+    var ids = new Dictionary<string, Guid>(StringComparer.Ordinal);
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      ids["PAYROLL"] = (await AccountingAnalysisService.RecordSpecialistScheduleAsync(db, preparer,
+        new SpecialistScheduleRequest(scope.ClientA, scope.EngagementA, fixture.PeriodId, "PAYROLL", "payroll-v1",
+          0m, 0m, 0m, 0m, 0m, 0m, 0m, 0m, 0m, 0m, 0m, 7000m, assumptions, "payroll-sample",
+          PayrollGrossAmount: 10000m, PayrollDeductionsAmount: 3000m, PayrollNetAmount: 7000m,
+          PayrollContractReference: "contract-001", PayrollBankPaymentReference: "bank-payment-001"))).Value;
+      ids["LOANS"] = (await AccountingAnalysisService.RecordSpecialistScheduleAsync(db, preparer,
+        new SpecialistScheduleRequest(scope.ClientA, scope.EngagementA, fixture.PeriodId, "LOANS", "loan-v1",
+          1000m, 200m, 0m, 0m, 0m, 50m, 700m, 500m, 0m, 0m, 0m, 1200m, assumptions, "loan-schedule",
+          LoanRepaymentAmount: 50m, LoanMaturityDate: new DateOnly(2028, 12, 31), LoanCovenantReference: "covenant-001"))).Value;
+      ids["EQUITY"] = (await AccountingAnalysisService.RecordSpecialistScheduleAsync(db, preparer,
+        new SpecialistScheduleRequest(scope.ClientA, scope.EngagementA, fixture.PeriodId, "EQUITY", "equity-v1",
+          1000m, 0m, 0m, 0m, 0m, 0m, 0m, 0m, 100m, 25m, 0m, 1285m, assumptions, "equity-rollforward",
+          EquityProfitOrLossAmount: 200m, EquityOciAmount: 10m, RelatedPartyDisclosureReference: "related-party-note-001"))).Value;
+      ids["RELATED_PARTIES"] = (await AccountingAnalysisService.RecordSpecialistScheduleAsync(db, preparer,
+        new SpecialistScheduleRequest(scope.ClientA, scope.EngagementA, fixture.PeriodId, "RELATED_PARTIES", "related-party-v1",
+          10m, 5m, 2m, 0m, 0m, 0m, 0m, 0m, 0m, 0m, 0m, 13m, assumptions, "related-party-register",
+          RelatedPartyDisclosureReference: "related-party-note-002"))).Value;
+      ids["TAX"] = (await AccountingAnalysisService.RecordSpecialistScheduleAsync(db, preparer,
+        new SpecialistScheduleRequest(scope.ClientA, scope.EngagementA, fixture.PeriodId, "TAX", "tax-v1",
+          0m, 0m, 0m, 0m, 0m, 0m, 0m, 0m, 0m, 0m, 0m, 200m, assumptions, "tax-schedule",
+          TaxJurisdiction: "QA", TaxRuleVersion: "qa-cit-v1", TaxBaseAmount: 1000m, TaxRate: .2m,
+          TaxReturnEvidenceReference: "return-001", TaxPaymentEvidenceReference: "payment-001",
+          TaxCorrespondenceReference: "correspondence-001"))).Value;
+      ids["FORECAST"] = (await AccountingAnalysisService.RecordSpecialistScheduleAsync(db, preparer,
+        new SpecialistScheduleRequest(scope.ClientA, scope.EngagementA, fixture.PeriodId, "FORECAST", "forecast-v1",
+          0m, 0m, 0m, 0m, 0m, 0m, 0m, 0m, 0m, 0m, 0m, 400m, assumptions, "forecast-pack",
+          ForecastOwner: "management", ForecastHorizonEnd: new DateOnly(2027, 12, 31),
+          ForecastCashInputAmount: 1000m, ForecastDebtInputAmount: 600m,
+          ForecastSensitivityReference: "sensitivity-001", ForecastSensitivityResult: "Headroom remains positive."))).Value;
+
+      Assert.Equal(7000m, await db.SpecialistAccountingSchedules.Where(x => x.Id == ids["PAYROLL"]).Select(x => x.ClosingAmount).SingleAsync());
+      Assert.Equal(1200m, await db.SpecialistAccountingSchedules.Where(x => x.Id == ids["LOANS"]).Select(x => x.ClosingAmount).SingleAsync());
+      Assert.Equal(1285m, await db.SpecialistAccountingSchedules.Where(x => x.Id == ids["EQUITY"]).Select(x => x.ClosingAmount).SingleAsync());
+      Assert.Equal(200m, await db.SpecialistAccountingSchedules.Where(x => x.Id == ids["TAX"]).Select(x => x.ClosingAmount).SingleAsync());
+    }
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      foreach (var id in ids.Where(x => x.Key != "FORECAST").Select(x => x.Value))
+      {
+        var review = await AccountingAnalysisService.ReviewAccountingEvidenceAsync(db, reviewer,
+          new ReviewAccountingEvidenceRequest(AccountingEvidenceKinds.Specialist, id, AccountingEvidenceReviewDecisions.Approved));
+        Assert.True(review.Succeeded, review.Message);
+      }
+      var forecastReview = await AccountingAnalysisService.ReviewAccountingEvidenceAsync(db, reviewer,
+        new ReviewAccountingEvidenceRequest(AccountingEvidenceKinds.Specialist, ids["FORECAST"], AccountingEvidenceReviewDecisions.Approved,
+          Conclusion: "Management forecast has positive liquidity headroom under the supplied sensitivity."));
+      Assert.True(forecastReview.Succeeded, forecastReview.Message);
+      var forecast = await db.SpecialistAccountingSchedules.SingleAsync(x => x.Id == ids["FORECAST"]);
+      Assert.Equal(AccountingEvidenceReviewDecisions.Approved, forecast.Status);
+      Assert.Contains("positive liquidity", forecast.ReviewConclusion, StringComparison.OrdinalIgnoreCase);
+    }
+  }
+
+  [Fact]
+  [Trait("Profile", "Database")]
   public async Task StreamingGlImport_IsIdempotentAndSealsOnlyCompleteBatch()
   {
     await using var pg = await PgTestSchema.CreateAsync();

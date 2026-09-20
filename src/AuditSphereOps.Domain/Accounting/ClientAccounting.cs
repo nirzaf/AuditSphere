@@ -492,6 +492,30 @@ public sealed class SpecialistAccountingSchedule
   public string MethodologyVersion { get; set; } = string.Empty;
   public string DepreciationMethod { get; set; } = string.Empty;
   public int? UsefulLifeMonths { get; set; }
+  public decimal? PayrollGrossAmount { get; set; }
+  public decimal? PayrollDeductionsAmount { get; set; }
+  public decimal? PayrollNetAmount { get; set; }
+  public string PayrollContractReference { get; set; } = string.Empty;
+  public string PayrollBankPaymentReference { get; set; } = string.Empty;
+  public decimal? LoanRepaymentAmount { get; set; }
+  public DateOnly? LoanMaturityDate { get; set; }
+  public string LoanCovenantReference { get; set; } = string.Empty;
+  public decimal? EquityProfitOrLossAmount { get; set; }
+  public decimal? EquityOciAmount { get; set; }
+  public string RelatedPartyDisclosureReference { get; set; } = string.Empty;
+  public string TaxJurisdiction { get; set; } = string.Empty;
+  public string TaxRuleVersion { get; set; } = string.Empty;
+  public decimal? TaxBaseAmount { get; set; }
+  public decimal? TaxRate { get; set; }
+  public string TaxReturnEvidenceReference { get; set; } = string.Empty;
+  public string TaxPaymentEvidenceReference { get; set; } = string.Empty;
+  public string TaxCorrespondenceReference { get; set; } = string.Empty;
+  public string ForecastOwner { get; set; } = string.Empty;
+  public DateOnly? ForecastHorizonEnd { get; set; }
+  public decimal? ForecastCashInputAmount { get; set; }
+  public decimal? ForecastDebtInputAmount { get; set; }
+  public string ForecastSensitivityReference { get; set; } = string.Empty;
+  public string ForecastSensitivityResult { get; set; } = string.Empty;
   public decimal OpeningAmount { get; set; }
   public decimal AdditionsAmount { get; set; }
   public decimal DisposalsAmount { get; set; }
@@ -509,6 +533,7 @@ public sealed class SpecialistAccountingSchedule
   public decimal Difference { get; set; }
   public string AssumptionsHash { get; set; } = string.Empty;
   public string EvidenceReference { get; set; } = string.Empty;
+  public string ReviewConclusion { get; set; } = string.Empty;
   public string Status { get; set; } = AccountingWorkflowStates.Draft;
   public Guid CreatedByUserId { get; set; }
   public Guid? ReviewedByUserId { get; set; }

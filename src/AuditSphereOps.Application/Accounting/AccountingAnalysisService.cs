@@ -34,7 +34,16 @@ public sealed record SpecialistScheduleRequest(
   decimal DepreciationAmount, decimal ImpairmentAmount, decimal InterestAmount,
   decimal CurrentPortion, decimal NonCurrentPortion, decimal CapitalMovement,
   decimal Dividends, decimal TaxPaid, decimal ManagementAmount, string AssumptionsHash,
-  string EvidenceReference, string? DepreciationMethod = null, int? UsefulLifeMonths = null);
+  string EvidenceReference, string? DepreciationMethod = null, int? UsefulLifeMonths = null,
+  decimal? PayrollGrossAmount = null, decimal? PayrollDeductionsAmount = null, decimal? PayrollNetAmount = null,
+  string? PayrollContractReference = null, string? PayrollBankPaymentReference = null,
+  decimal? LoanRepaymentAmount = null, DateOnly? LoanMaturityDate = null, string? LoanCovenantReference = null,
+  decimal? EquityProfitOrLossAmount = null, decimal? EquityOciAmount = null, string? RelatedPartyDisclosureReference = null,
+  string? TaxJurisdiction = null, string? TaxRuleVersion = null, decimal? TaxBaseAmount = null, decimal? TaxRate = null,
+  string? TaxReturnEvidenceReference = null, string? TaxPaymentEvidenceReference = null, string? TaxCorrespondenceReference = null,
+  string? ForecastOwner = null, DateOnly? ForecastHorizonEnd = null, decimal? ForecastCashInputAmount = null,
+  decimal? ForecastDebtInputAmount = null, string? ForecastSensitivityReference = null,
+  string? ForecastSensitivityResult = null);
 
 public sealed record AnalyticalReviewRequest(
   Guid ClientId, Guid EngagementId, Guid PeriodId, Guid? ComparisonPeriodId,
@@ -47,7 +56,7 @@ public sealed record JournalRiskFlagRequest(
   string RuleCode, string Reason, decimal Score, string EvidenceReference);
 
 public sealed record ReviewAccountingEvidenceRequest(
-  string Kind, Guid EvidenceId, string Decision, string? Disposition = null);
+  string Kind, Guid EvidenceId, string Decision, string? Disposition = null, string? Conclusion = null);
 
 public sealed record GeneralLedgerLineProjection(
   Guid LineId, string JournalId, DateOnly PostingDate, string AccountCode,
@@ -440,8 +449,9 @@ public static class AccountingAnalysisService
     if (string.IsNullOrWhiteSpace(area) || string.IsNullOrWhiteSpace(request.MethodologyVersion) ||
         string.IsNullOrWhiteSpace(request.EvidenceReference) || !IsSha256(request.AssumptionsHash))
       return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ReconciliationRejected, "Specialist schedules need an approved method, evidence and assumptions.");
-    if (area == "ASSETS" && (string.IsNullOrWhiteSpace(request.DepreciationMethod) || request.UsefulLifeMonths is not > 0))
-      return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ReconciliationRejected, "Asset schedules need a depreciation method and positive useful life.");
+    var profileError = ValidateSpecialistProfile(request, area, out var calculated);
+    if (profileError is not null)
+      return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ReconciliationRejected, profileError);
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
       new AuthorizationRequest(actor.FirmId, request.ClientId, request.EngagementId, PreparerRoles, InternalOnly: true), ct);
     if (!auth.Succeeded)
@@ -452,8 +462,6 @@ public static class AccountingAnalysisService
       x.Id == request.ClientId && x.FirmId == actor.FirmId, ct);
     if (clientState is null)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Client accounting safety state is unavailable.");
-    var calculated = request.OpeningAmount + request.AdditionsAmount - request.DisposalsAmount -
-      request.DepreciationAmount - request.ImpairmentAmount;
     var schedule = new SpecialistAccountingSchedule
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = request.ClientId, EngagementId = request.EngagementId,
@@ -461,6 +469,30 @@ public static class AccountingAnalysisService
       MethodologyVersion = request.MethodologyVersion.Trim(),
       DepreciationMethod = request.DepreciationMethod?.Trim().ToUpperInvariant() ?? string.Empty,
       UsefulLifeMonths = request.UsefulLifeMonths,
+      PayrollGrossAmount = request.PayrollGrossAmount.HasValue ? MoneyPolicy.Normalize(request.PayrollGrossAmount.Value) : null,
+      PayrollDeductionsAmount = request.PayrollDeductionsAmount.HasValue ? MoneyPolicy.Normalize(request.PayrollDeductionsAmount.Value) : null,
+      PayrollNetAmount = request.PayrollNetAmount.HasValue ? MoneyPolicy.Normalize(request.PayrollNetAmount.Value) : null,
+      PayrollContractReference = request.PayrollContractReference?.Trim() ?? string.Empty,
+      PayrollBankPaymentReference = request.PayrollBankPaymentReference?.Trim() ?? string.Empty,
+      LoanRepaymentAmount = request.LoanRepaymentAmount.HasValue ? MoneyPolicy.Normalize(request.LoanRepaymentAmount.Value) : null,
+      LoanMaturityDate = request.LoanMaturityDate,
+      LoanCovenantReference = request.LoanCovenantReference?.Trim() ?? string.Empty,
+      EquityProfitOrLossAmount = request.EquityProfitOrLossAmount.HasValue ? MoneyPolicy.Normalize(request.EquityProfitOrLossAmount.Value) : null,
+      EquityOciAmount = request.EquityOciAmount.HasValue ? MoneyPolicy.Normalize(request.EquityOciAmount.Value) : null,
+      RelatedPartyDisclosureReference = request.RelatedPartyDisclosureReference?.Trim() ?? string.Empty,
+      TaxJurisdiction = request.TaxJurisdiction?.Trim() ?? string.Empty,
+      TaxRuleVersion = request.TaxRuleVersion?.Trim() ?? string.Empty,
+      TaxBaseAmount = request.TaxBaseAmount.HasValue ? MoneyPolicy.Normalize(request.TaxBaseAmount.Value) : null,
+      TaxRate = request.TaxRate.HasValue ? MoneyPolicy.Normalize(request.TaxRate.Value) : null,
+      TaxReturnEvidenceReference = request.TaxReturnEvidenceReference?.Trim() ?? string.Empty,
+      TaxPaymentEvidenceReference = request.TaxPaymentEvidenceReference?.Trim() ?? string.Empty,
+      TaxCorrespondenceReference = request.TaxCorrespondenceReference?.Trim() ?? string.Empty,
+      ForecastOwner = request.ForecastOwner?.Trim() ?? string.Empty,
+      ForecastHorizonEnd = request.ForecastHorizonEnd,
+      ForecastCashInputAmount = request.ForecastCashInputAmount.HasValue ? MoneyPolicy.Normalize(request.ForecastCashInputAmount.Value) : null,
+      ForecastDebtInputAmount = request.ForecastDebtInputAmount.HasValue ? MoneyPolicy.Normalize(request.ForecastDebtInputAmount.Value) : null,
+      ForecastSensitivityReference = request.ForecastSensitivityReference?.Trim() ?? string.Empty,
+      ForecastSensitivityResult = request.ForecastSensitivityResult?.Trim() ?? string.Empty,
       OpeningAmount = MoneyPolicy.Normalize(request.OpeningAmount), AdditionsAmount = MoneyPolicy.Normalize(request.AdditionsAmount),
       DisposalsAmount = MoneyPolicy.Normalize(request.DisposalsAmount), DepreciationAmount = MoneyPolicy.Normalize(request.DepreciationAmount),
       ImpairmentAmount = MoneyPolicy.Normalize(request.ImpairmentAmount), InterestAmount = MoneyPolicy.Normalize(request.InterestAmount),
@@ -548,7 +580,7 @@ public static class AccountingAnalysisService
       AccountingEvidenceReviewDecisions.ChangesRequired or AccountingEvidenceReviewDecisions.Rejected;
     var riskDecision = decision is AccountingEvidenceReviewDecisions.Cleared or
       AccountingEvidenceReviewDecisions.Escalated or AccountingEvidenceReviewDecisions.NotAnIssue;
-    if (request.EvidenceId == Guid.Empty ||
+    if (request.EvidenceId == Guid.Empty || (request.Conclusion?.Trim().Length ?? 0) > 4000 ||
         (kind is not (AccountingEvidenceKinds.Ecl or AccountingEvidenceKinds.Inventory or AccountingEvidenceKinds.Specialist or
           AccountingEvidenceKinds.Analytical or AccountingEvidenceKinds.JournalRisk)) ||
         (kind == AccountingEvidenceKinds.JournalRisk ? !riskDecision : !reviewerDecision))
@@ -594,9 +626,19 @@ public static class AccountingAnalysisService
         if (decision == AccountingEvidenceReviewDecisions.Approved && specialist.Area == "ASSETS" &&
             (string.IsNullOrWhiteSpace(specialist.DepreciationMethod) || specialist.UsefulLifeMonths is not > 0))
           return CommandResult.Fail(ErrorCodes.GateBlocked, "An asset schedule review needs a depreciation method and positive useful life.");
+        if (decision == AccountingEvidenceReviewDecisions.Approved && specialist.Area == "FORECAST" &&
+            string.IsNullOrWhiteSpace(request.Conclusion))
+          return CommandResult.Fail(ErrorCodes.GateBlocked, "A going-concern forecast review needs an auditor conclusion.");
         clientId = specialist.ClientId; engagementId = specialist.EngagementId; createdByUserId = specialist.CreatedByUserId;
         recordedInputGeneration = specialist.InputGeneration;
-        apply = () => { specialist.Status = decision; specialist.ReviewedByUserId = actor.UserId; specialist.ReviewedAt = DateTimeOffset.UtcNow; };
+        apply = () =>
+        {
+          specialist.Status = decision;
+          specialist.ReviewedByUserId = actor.UserId;
+          specialist.ReviewedAt = DateTimeOffset.UtcNow;
+          if (!string.IsNullOrWhiteSpace(request.Conclusion))
+            specialist.ReviewConclusion = request.Conclusion.Trim();
+        };
         break;
       case AccountingEvidenceKinds.Analytical:
         var analytical = await db.AnalyticalReviews.SingleOrDefaultAsync(x => x.Id == request.EvidenceId && x.FirmId == actor.FirmId, ct);
@@ -659,4 +701,73 @@ public static class AccountingAnalysisService
 
   private static bool IsSha256(string value) => value.Trim().Length == 64 && value.Trim().All(c =>
     c is >= '0' and <= '9' or >= 'a' and <= 'f' or >= 'A' and <= 'F');
+
+  private static string? ValidateSpecialistProfile(
+    SpecialistScheduleRequest request, string area, out decimal calculated)
+  {
+    calculated = 0m;
+    switch (area)
+    {
+      case "ASSETS":
+        if (string.IsNullOrWhiteSpace(request.DepreciationMethod) || request.UsefulLifeMonths is not > 0)
+          return "Asset schedules need a depreciation method and positive useful life.";
+        calculated = request.OpeningAmount + request.AdditionsAmount - request.DisposalsAmount -
+          request.DepreciationAmount - request.ImpairmentAmount;
+        return calculated < 0m ? "An asset closing balance cannot be negative." : null;
+
+      case "PAYROLL":
+        if (request.PayrollGrossAmount is not >= 0m || request.PayrollDeductionsAmount is not >= 0m ||
+            request.PayrollNetAmount is not >= 0m || string.IsNullOrWhiteSpace(request.PayrollContractReference) ||
+            string.IsNullOrWhiteSpace(request.PayrollBankPaymentReference))
+          return "Payroll schedules need non-negative gross, deductions and net amounts plus contract and bank-payment evidence.";
+        calculated = MoneyPolicy.Normalize(request.PayrollGrossAmount.Value - request.PayrollDeductionsAmount.Value);
+        return calculated != MoneyPolicy.Normalize(request.PayrollNetAmount.Value)
+          ? "Payroll net pay must equal gross pay less deductions." : null;
+
+      case "LOANS":
+        if (request.LoanRepaymentAmount is not >= 0m || request.LoanMaturityDate is null ||
+            request.CurrentPortion < 0m || request.NonCurrentPortion < 0m ||
+            string.IsNullOrWhiteSpace(request.LoanCovenantReference))
+          return "Loan schedules need repayments, maturity, current/non-current split and covenant evidence.";
+        calculated = request.OpeningAmount + request.AdditionsAmount - request.LoanRepaymentAmount.Value + request.InterestAmount;
+        return MoneyPolicy.Normalize(request.CurrentPortion + request.NonCurrentPortion) != MoneyPolicy.Normalize(calculated)
+          ? "Loan current and non-current portions must reconcile to the calculated closing balance." : null;
+
+      case "EQUITY":
+        if (request.EquityProfitOrLossAmount is null || request.EquityOciAmount is null ||
+            string.IsNullOrWhiteSpace(request.RelatedPartyDisclosureReference))
+          return "Equity schedules need profit/OCI inputs and a related-party disclosure reference.";
+        calculated = request.OpeningAmount + request.EquityProfitOrLossAmount.Value + request.EquityOciAmount.Value +
+          request.CapitalMovement - request.Dividends;
+        return null;
+
+      case "RELATED_PARTIES":
+        if (string.IsNullOrWhiteSpace(request.RelatedPartyDisclosureReference))
+          return "Related-party schedules need a disclosure reference.";
+        calculated = request.OpeningAmount + request.AdditionsAmount - request.DisposalsAmount;
+        return null;
+
+      case "TAX":
+        if (string.IsNullOrWhiteSpace(request.TaxJurisdiction) || string.IsNullOrWhiteSpace(request.TaxRuleVersion) ||
+            request.TaxBaseAmount is not >= 0m || request.TaxRate is not >= 0m ||
+            string.IsNullOrWhiteSpace(request.TaxReturnEvidenceReference) ||
+            string.IsNullOrWhiteSpace(request.TaxPaymentEvidenceReference) ||
+            string.IsNullOrWhiteSpace(request.TaxCorrespondenceReference))
+          return "Tax schedules need an approved jurisdiction/rule, explicit base/rate and return, payment and correspondence evidence.";
+        calculated = MoneyPolicy.Normalize(request.TaxBaseAmount.Value * request.TaxRate.Value);
+        return null;
+
+      case "FORECAST":
+        if (string.IsNullOrWhiteSpace(request.ForecastOwner) || request.ForecastHorizonEnd is null ||
+            request.ForecastCashInputAmount is not >= 0m || request.ForecastDebtInputAmount is not >= 0m ||
+            string.IsNullOrWhiteSpace(request.ForecastSensitivityReference) ||
+            string.IsNullOrWhiteSpace(request.ForecastSensitivityResult))
+          return "Going-concern forecasts need management ownership, horizon, cash/debt inputs and sensitivity evidence.";
+        calculated = MoneyPolicy.Normalize(request.ForecastCashInputAmount.Value - request.ForecastDebtInputAmount.Value);
+        return null;
+
+      default:
+        return "This specialist accounting area is not enabled for the current approved method.";
+    }
+  }
 }
