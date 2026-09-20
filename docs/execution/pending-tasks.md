@@ -3,7 +3,7 @@
 **Repository:** `nirzaf/AuditSphere`
 **Authoritative specification:** [`docs/SPECIFICATION.md`](../SPECIFICATION.md) v5.0
 **Requirements backlog:** [`docs/requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md`](../requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md)
-**Current head:** `master@923cbcc`
+**Current head:** `master@49f1a88`
 
 This is a resume checklist, not an acceptance certificate. Tenant identifiers, credentials, tokens, secret values, and private-provider URLs are deliberately absent from the public repository.
 
@@ -11,7 +11,7 @@ This is a resume checklist, not an acceptance certificate. Tenant identifiers, c
 
 - [x] .NET 10 solution builds with zero warnings/errors.
 - [x] PostgreSQL 18.6 development profile is used on loopback port 5433.
-- [x] 187/187 PostgreSQL-backed tests pass with 0 skipped.
+- [x] 188/188 PostgreSQL-backed tests pass with 0 skipped.
 - [x] 45 migrations are applied; latest is `20260920204413_GeneralLedgerStreamingImport`.
 - [x] EF model has no pending migration changes.
 - [x] Loopback restore drill passes and writes secret-free evidence to `docs/evidence/restore-drill-latest.json`.
@@ -26,7 +26,8 @@ This is a resume checklist, not an acceptance certificate. Tenant identifiers, c
 - [x] Entity package projections, equity, notes, comparatives, restatement lineage and bounded same-currency consolidation.
 - [x] Journal lineage, close checks and immutable management/accounting/partner package-review decisions.
 - [x] Add bounded, resumable GL chunk intake with canonical digest, idempotent retry and contiguous finalization.
-- [ ] Add complete user-facing management/audit/partner package-review and release surfaces.
+- [x] Add a client-safe validated-package view and signed-in management acknowledgement route with cross-client denial coverage.
+- [ ] Complete the staff-facing package-review queue and release handoff around the existing stage-bound decision service.
 - [ ] Add approved-method fixtures for mixed currency, complex ownership, acquisition, NCI and advanced eliminations before implementing those methods.
 - [ ] Deepen specialist schedules and account-area workpapers where the 28-story backlog still identifies a real workflow gap.
 - [ ] Add the remaining dashboard, roll-forward and cross-workflow navigation.

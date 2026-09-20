@@ -6,12 +6,12 @@ This file records observed repository state only. The authoritative build contra
 
 | Item | Observed value |
 |---|---|
-| Branch/head | `master@923cbcc` |
+| Branch/head | `master@49f1a88` |
 | Remote | `origin/master` points to the same head after the latest push |
 | SDK | .NET 10; repository solution targets `net10.0` |
 | Database | PostgreSQL 18.6 on loopback port 5433 for development only |
 | Build | `dotnet build AuditSphereOps.slnx --no-restore` — passed, 0 warnings/errors |
-| Tests | 187/187 passed, 0 skipped against PostgreSQL 18.6 |
+| Tests | 188/188 passed, 0 skipped against PostgreSQL 18.6 |
 | Migrations | 45 applied; latest `20260920204413_GeneralLedgerStreamingImport` |
 | Model drift | `dotnet ef migrations has-pending-model-changes` — no changes |
 | Restore drill | `scripts/db/restore-drill.sh` — passed; 45 migrations reconciled |
@@ -24,6 +24,7 @@ This file records observed repository state only. The authoritative build contra
 - Typed GL import, bounded paged reads, account-by-account trial-balance-to-GL completeness bridges, reconciliation workbenches, ECL/inventory/specialist/analytical/journal-risk workbenches, and entity package projections.
 - Equity, notes, comparatives, closed-period restatement lineage, restricted same-currency consolidation, journal lineage, and close checks.
 - Immutable package-review decisions for management, accounting, and partner stages. Decisions are bound to the exact package revision, generation and hash; evidence modes remain separated; append-only database protection is enforced.
+- Client-safe validated-package view and signed-in management acknowledgement are available at the restricted client portal route. The portal exposes statement totals and package metadata only; internal review history and workpapers remain staff-only.
 - Bounded GL chunk intake with canonical content digests, transactional batch locking, idempotent retries, contiguous finalization and persisted accepted-count reconciliation.
 - Blazor status surfaces for the implemented workflows, including period restatement and truthful release/package gate state.
 
@@ -31,7 +32,7 @@ This file records observed repository state only. The authoritative build contra
 
 These are product gaps, not claims of production readiness:
 
-- [ ] Add complete user-facing management/audit/partner package-review and release workflow surfaces.
+- [ ] Complete the staff-facing package-review queue and release handoff around the existing stage-bound decision service; the client management acknowledgement surface is now implemented.
 - [ ] Extend advanced accounting methods only where an approved method and test fixtures exist: mixed currency, complex ownership, acquisition, NCI, and advanced eliminations.
 - [ ] Deepen specialist schedules and account-area workpapers where the workflow stories still require more than the current bounded workbench.
 - [ ] Add the remaining dashboard, roll-forward, and cross-workflow navigation needed for operational usability.

@@ -2,7 +2,7 @@
 
 Dependency-ordered checklist for the [v5.0 specification](../SPECIFICATION.md) and the [workflow-gap backlog](../requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md).
 
-**Current baseline:** `master@923cbcc`; PostgreSQL 18.6; 45 migrations; 187/187 tests passed; 0 skipped.
+**Current baseline:** `master@49f1a88`; PostgreSQL 18.6; 45 migrations; 188/188 tests passed; 0 skipped.
 **Status meanings:** ✅ locally verified · 🟡 partial/local follow-up · ⬜ not started · 🚫 external gate
 
 | # | Work package | Status |
@@ -22,7 +22,7 @@ Dependency-ordered checklist for the [v5.0 specification](../SPECIFICATION.md) a
 | 13 | Entity packages, equity/notes/comparatives, restatement lineage and bounded same-currency consolidation | ✅ |
 | 14 | Journal lineage, close checks and immutable package-review decisions | ✅ |
 | 15 | Bounded streaming GL intake and durable resumability | ✅ |
-| 16 | Complete user-facing package-review and release workflow surfaces | 🟡 |
+| 16 | Client-safe management package view and staff package-review/release workflow surfaces | 🟡 |
 | 17 | Advanced/mixed-currency and complex group accounting methods with approved fixtures | 🟡 |
 | 18 | Remaining account-area schedules, dashboards and roll-forward usability | 🟡 |
 | P1 | Live Entra OIDC and runtime identity fixtures | 🚫 |
