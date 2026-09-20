@@ -652,6 +652,53 @@ public sealed class ClientAccountingTests
 
   [Fact]
   [Trait("Profile", "Database")]
+  public async Task PeriodRollForward_CopiesDraftBooksAndRequiresOpeningEvidence()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var scope = await SeedAsync(pg);
+    var preparer = Actor(scope.Preparer, "AccountingPreparer");
+    var reviewer = Actor(scope.Reviewer, "AccountingReviewer");
+    Guid priorPeriodId, nextPeriodId;
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      priorPeriodId = (await ClientAccountingService.CreatePeriodAsync(db, preparer,
+        new ReportingPeriodRequest(scope.ClientA, "2025", new DateOnly(2025, 1, 1), new DateOnly(2025, 12, 31), "STATUTORY", "QAR"))).Value;
+      Assert.True((await ClientAccountingService.CreateBookAsync(db, preparer,
+        new ReportingBookRequest(scope.ClientA, priorPeriodId, "STAT", "STATUTORY", "STATUTORY_ONLY", "QAR"))).Succeeded);
+      Assert.True((await ClientAccountingService.ClosePeriodAsync(db, reviewer, priorPeriodId, "Prior period issued")).Succeeded);
+
+      var rolled = await ClientAccountingService.RollForwardPeriodAsync(db, preparer,
+        new RollForwardPeriodRequest(scope.ClientA, priorPeriodId, "2026", new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31),
+          "STATUTORY", "QAR", new string('f', 64), 100m, 100m, "signed-prior-closing"));
+      Assert.True(rolled.Succeeded, rolled.Message);
+      nextPeriodId = rolled.Value;
+
+      var next = await db.ClientReportingPeriods.SingleAsync(x => x.Id == nextPeriodId);
+      Assert.Equal(priorPeriodId, next.PriorPeriodId);
+      Assert.Equal(AccountingWorkflowStates.Draft, next.Status);
+      Assert.Equal(1, next.Revision);
+      var book = await db.ClientReportingBooks.SingleAsync(x => x.PeriodId == nextPeriodId);
+      Assert.Equal("STAT", book.Code);
+      Assert.Equal(AccountingWorkflowStates.Draft, book.Status);
+      var bridge = await db.OpeningBalanceBridges.SingleAsync(x => x.CurrentPeriodId == nextPeriodId);
+      Assert.Equal("RECONCILED", bridge.Status);
+      Assert.Null(bridge.ApprovedByUserId);
+
+      var duplicate = await ClientAccountingService.RollForwardPeriodAsync(db, preparer,
+        new RollForwardPeriodRequest(scope.ClientA, priorPeriodId, "2026", new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31),
+          "STATUTORY", "QAR", new string('f', 64), 100m, 100m, "signed-prior-closing"));
+      Assert.False(duplicate.Succeeded);
+      Assert.Equal(ErrorCodes.IdempotencyConflict, duplicate.ErrorCode);
+    }
+
+    await using var verify = new AuditSphereDbContext(pg.Options);
+    Assert.Equal(1, await verify.ClientReportingPeriods.CountAsync(x => x.PriorPeriodId == priorPeriodId));
+    Assert.Equal(1, await verify.OpeningBalanceBridges.CountAsync(x => x.CurrentPeriodId == nextPeriodId));
+  }
+
+  [Fact]
+  [Trait("Profile", "Database")]
   public async Task FinancialPackageReviews_AreStageBoundAndImmutable()
   {
     await using var pg = await PgTestSchema.CreateAsync();

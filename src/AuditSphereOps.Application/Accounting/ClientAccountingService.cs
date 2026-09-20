@@ -19,6 +19,11 @@ public sealed record ReportingPeriodRequest(
   Guid ClientId, string PeriodCode, DateOnly StartDate, DateOnly EndDate,
   string Basis, string Currency, Guid? PriorPeriodId = null);
 
+public sealed record RollForwardPeriodRequest(
+  Guid ClientId, Guid PriorPeriodId, string PeriodCode, DateOnly StartDate, DateOnly EndDate,
+  string Basis, string Currency, string SourceHash, decimal PriorClosingAmount,
+  decimal CurrentOpeningAmount, string EvidenceReference, Guid? SourcePackageId = null);
+
 public sealed record ReportingBookRequest(
   Guid ClientId, Guid PeriodId, string Code, string Basis,
   string InclusionRule, string Currency);
@@ -149,6 +154,85 @@ public static class ClientAccountingService
     db.ClientReportingPeriods.Add(period);
     await db.SaveChangesAsync(ct);
     return CommandResult<Guid>.Ok(period.Id);
+  }
+
+  public static async Task<CommandResult<Guid>> RollForwardPeriodAsync(
+    IClientAccountingDbContext db, ActorContext actor, RollForwardPeriodRequest request,
+    CancellationToken ct = default)
+  {
+    var currency = request.Currency.Trim().ToUpperInvariant();
+    var sourceHash = request.SourceHash.Trim().ToLowerInvariant();
+    if (request.ClientId == Guid.Empty || request.PriorPeriodId == Guid.Empty || string.IsNullOrWhiteSpace(request.PeriodCode) ||
+        request.StartDate > request.EndDate || string.IsNullOrWhiteSpace(request.Basis) ||
+        currency.Length != 3 || currency.Any(c => c is < 'A' or > 'Z') ||
+        !IsSha256(sourceHash) || string.IsNullOrWhiteSpace(request.EvidenceReference) ||
+        request.PriorClosingAmount != MoneyPolicy.Normalize(request.PriorClosingAmount) ||
+        request.CurrentOpeningAmount != MoneyPolicy.Normalize(request.CurrentOpeningAmount))
+      return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ReconciliationRejected,
+        "A roll-forward needs valid dates, currency, opening amounts, source hash and evidence.");
+    var auth = await AuthorizeClientAsync(db, actor, request.ClientId, PreparerRoles, ct);
+    if (!auth.Succeeded)
+      return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+
+    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    var prior = await db.ClientReportingPeriods
+      .FromSqlInterpolated($"SELECT * FROM client_reporting_periods WHERE id = {request.PriorPeriodId} AND firm_id = {actor.FirmId} FOR UPDATE")
+      .SingleOrDefaultAsync(ct);
+    if (prior is null || prior.ClientId != request.ClientId)
+      return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "The prior period is outside the client scope.");
+    if (prior.Status != AccountingWorkflowStates.Closed)
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Only a closed period can be rolled forward.");
+    if (request.StartDate <= prior.EndDate || !string.Equals(currency, prior.Currency, StringComparison.Ordinal))
+      return CommandResult<Guid>.Fail(ErrorCodes.Accounting.MappingInvalid,
+        "The next period must follow the closed period and use the same reporting currency.");
+    if (await db.ClientReportingPeriods.AnyAsync(x => x.FirmId == actor.FirmId && x.ClientId == request.ClientId &&
+        x.PeriodCode == request.PeriodCode.Trim() && x.Basis == request.Basis.Trim(), ct))
+      return CommandResult<Guid>.Fail(ErrorCodes.IdempotencyConflict, "The reporting period already exists.");
+
+    if (request.SourcePackageId is { } sourcePackageId)
+    {
+      var sourcePackage = await db.FinancialPackages.AsNoTracking().SingleOrDefaultAsync(x =>
+        x.Id == sourcePackageId && x.FirmId == actor.FirmId && x.ClientId == request.ClientId, ct);
+      var priorStart = prior.StartDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+      var priorEnd = prior.EndDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+      if (sourcePackage is null || sourcePackage.Status != AccountingPackageStates.PackageValidated ||
+          sourcePackage.PeriodStart != priorStart || sourcePackage.PeriodEnd != priorEnd ||
+          !string.Equals(sourcePackage.Currency, currency, StringComparison.Ordinal) ||
+          !string.Equals(sourcePackage.CalculationHash, sourceHash, StringComparison.OrdinalIgnoreCase))
+        return CommandResult<Guid>.Fail(ErrorCodes.GenerationStale,
+          "The opening source package is outside the closed prior period or has a different hash.");
+    }
+
+    var current = new ClientReportingPeriod
+    {
+      Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = request.ClientId,
+      PeriodCode = request.PeriodCode.Trim(), StartDate = request.StartDate, EndDate = request.EndDate,
+      Basis = request.Basis.Trim(), Currency = currency, PriorPeriodId = prior.Id,
+      CreatedByUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
+    };
+    db.ClientReportingPeriods.Add(current);
+    var priorBooks = await db.ClientReportingBooks.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && x.ClientId == request.ClientId && x.PeriodId == prior.Id)
+      .ToListAsync(ct);
+    db.ClientReportingBooks.AddRange(priorBooks.Select(x => new ClientReportingBook
+    {
+      Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = request.ClientId, PeriodId = current.Id,
+      Code = x.Code, Basis = x.Basis, InclusionRule = x.InclusionRule, Currency = x.Currency,
+      Status = AccountingWorkflowStates.Draft, Revision = 1, CreatedByUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
+    }));
+    var residual = MoneyPolicy.Normalize(request.CurrentOpeningAmount - request.PriorClosingAmount);
+    db.OpeningBalanceBridges.Add(new OpeningBalanceBridge
+    {
+      Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = request.ClientId,
+      CurrentPeriodId = current.Id, PriorPeriodId = prior.Id, SourcePackageId = request.SourcePackageId,
+      SourceHash = sourceHash, PriorClosingAmount = MoneyPolicy.Normalize(request.PriorClosingAmount),
+      CurrentOpeningAmount = MoneyPolicy.Normalize(request.CurrentOpeningAmount), Residual = residual,
+      Status = residual == 0m ? "RECONCILED" : "UNEXPLAINED",
+      EvidenceReference = request.EvidenceReference.Trim(), CreatedAt = DateTimeOffset.UtcNow
+    });
+    await db.SaveChangesAsync(ct);
+    await tx.CommitAsync(ct);
+    return CommandResult<Guid>.Ok(current.Id);
   }
 
   public static async Task<CommandResult<Guid>> CreateBookAsync(
