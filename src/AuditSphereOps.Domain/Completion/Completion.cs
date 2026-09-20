@@ -7,6 +7,12 @@ public static class ReleaseStates
   public const string Issued = "ISSUED";
 }
 
+public static class ReleaseTargetKinds
+{
+  public const string Workpaper = "WORKPAPER";
+  public const string FinancialPackage = "FINANCIAL_PACKAGE";
+}
+
 public sealed class ReleaseCandidate
 {
   public Guid Id { get; set; }

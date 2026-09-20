@@ -433,7 +433,7 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
       { x.FirmId, x.TargetKind, x.TargetId, x.TargetRevision, x.ManifestDigest })
       .IsUnique().HasDatabaseName("ux_release_candidate_identity");
     candidate.ToTable("release_candidates", t => t.HasCheckConstraint("ck_release_candidate_values",
-      "target_kind = 'WORKPAPER' AND revision >= 1 AND target_revision >= 1 AND input_generation >= 1 AND policy_generation >= 1 AND manifest_digest ~ '^[0-9a-f]{64}$' AND status IN ('READY','ISSUED')"));
+      "target_kind IN ('WORKPAPER','FINANCIAL_PACKAGE') AND revision >= 1 AND target_revision >= 1 AND input_generation >= 1 AND policy_generation >= 1 AND manifest_digest ~ '^[0-9a-f]{64}$' AND status IN ('READY','ISSUED')"));
     candidate.HasOne<PracticeClient>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.ClientId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id })

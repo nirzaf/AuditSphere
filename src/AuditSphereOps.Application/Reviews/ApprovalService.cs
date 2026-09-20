@@ -1,7 +1,9 @@
 using AuditSphereOps.Application.Abstractions;
+using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Audit;
+using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Reviews;
 using AuditSphereOps.Domain.Shared;
@@ -34,6 +36,10 @@ public sealed record ApprovalApplicabilityResult(
 public static class ApprovalService
 {
   private static readonly string[] ApprovalRoles = ["Reviewer", "Manager", "Partner", "Administrator"];
+  private static readonly string[] PackageApprovalRoles = ["Partner", "Administrator"];
+
+  private sealed record ApprovalTarget(
+    string Kind, Guid Id, Guid ClientId, Guid EngagementId, long Revision, long Generation, bool Eligible);
 
   public static async Task<CommandResult<Guid>> CreateAsync(
     IAuditSphereDbContext db,
@@ -45,12 +51,24 @@ public static class ApprovalService
     if (validation is not null)
       return CommandResult<Guid>.Fail("approvals.invalid", validation);
 
-    var target = await LoadWorkpaperAsync(db, actor.FirmId, request.TargetId, forUpdate: false, ct);
+    var targetKind = request.TargetKind.Trim().ToUpperInvariant();
+    var target = await LoadTargetAsync(db, actor.FirmId, targetKind, request.TargetId, forUpdate: false, ct);
     if (target is null)
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    if (!target.Eligible)
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The target is not currently eligible for approval.");
     var auth = await AuthorizeAsync(db, actor, target, ct);
     if (!auth.Succeeded)
       return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+
+    if (target.Kind == ReleaseTargetKinds.FinancialPackage)
+    {
+      if (db is not IClientAccountingDbContext accountingDb)
+        return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Client accounting review persistence is unavailable.");
+      var packageReview = await FinancialPackageReviewService.RequireCurrentAsync(accountingDb, actor, target.Id, requirePartner: true, ct);
+      if (!packageReview.Succeeded)
+        return CommandResult<Guid>.Fail(packageReview.ErrorCode!, packageReview.Message!);
+    }
 
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     var firm = await db.FirmSafetyStates.FromSqlInterpolated(
@@ -62,14 +80,17 @@ public static class ApprovalService
       .AsNoTracking().SingleOrDefaultAsync(ct);
     if (client is null)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Client safety state is unavailable.");
-    var current = await LoadWorkpaperAsync(db, actor.FirmId, request.TargetId, forUpdate: true, ct);
+    var current = await LoadTargetAsync(db, actor.FirmId, targetKind, request.TargetId, forUpdate: true, ct);
     if (current is null)
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    if (!current.Eligible)
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The target is not currently eligible for approval.");
     auth = await AuthorizeAsync(db, actor, current, ct);
     if (!auth.Succeeded)
       return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
 
-    if (current.Revision != request.ExpectedRevision)
+    if (current.Revision != request.ExpectedRevision ||
+        (current.Kind == ReleaseTargetKinds.FinancialPackage && current.Generation != client.InputGeneration))
       return CommandResult<Guid>.Fail(ErrorCodes.StaleRevision, "The approved target changed; reload the current revision.");
     if (client.InputGeneration != request.ExpectedInputGeneration ||
         firm.PolicyGeneration != request.ExpectedPolicyGeneration)
@@ -78,7 +99,7 @@ public static class ApprovalService
     var approval = new Approval
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = current.ClientId,
-      EngagementId = current.EngagementId, TargetKind = "WORKPAPER", TargetId = current.Id,
+      EngagementId = current.EngagementId, TargetKind = current.Kind, TargetId = current.Id,
       TargetRevision = current.Revision, InputGeneration = client.InputGeneration,
       PolicyGeneration = firm.PolicyGeneration, ManifestDigest = request.ManifestDigest,
       Decision = request.Decision.Trim().ToUpperInvariant(), DecidedByUserId = actor.UserId,
@@ -117,7 +138,10 @@ public static class ApprovalService
       x.Id == approvalId && x.FirmId == actor.FirmId, ct);
     if (approval is null)
       return CommandResult<ApprovalApplicabilityResult>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    var auth = await AuthorizationAsync(db, actor, approval.ClientId, approval.EngagementId, ct);
+    var target = await LoadTargetAsync(db, actor.FirmId, approval.TargetKind, approval.TargetId, forUpdate: false, ct);
+    if (target is null)
+      return CommandResult<ApprovalApplicabilityResult>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var auth = await AuthorizeAsync(db, actor, target, ct);
     if (!auth.Succeeded)
       return CommandResult<ApprovalApplicabilityResult>.Fail(auth.ErrorCode!, auth.Message!);
 
@@ -127,17 +151,21 @@ public static class ApprovalService
     var client = await db.ClientSafetyStates.FromSqlInterpolated(
       $"SELECT * FROM client_safety_states WHERE firm_id = {actor.FirmId} AND id = {approval.ClientId} FOR UPDATE")
       .AsNoTracking().SingleOrDefaultAsync(ct);
-    var current = await LoadWorkpaperAsync(db, actor.FirmId, approval.TargetId, forUpdate: true, ct);
+    var current = await LoadTargetAsync(db, actor.FirmId, approval.TargetKind, approval.TargetId, forUpdate: true, ct);
     if (firm is null || client is null || current is null)
       return CommandResult<ApprovalApplicabilityResult>.Fail(ErrorCodes.GateBlocked, "Approval scope is unavailable.");
-    auth = await AuthorizationAsync(db, actor, current.ClientId, current.EngagementId, ct);
+    auth = await AuthorizeAsync(db, actor, current, ct);
     if (!auth.Succeeded)
       return CommandResult<ApprovalApplicabilityResult>.Fail(auth.ErrorCode!, auth.Message!);
 
     var (status, reason, failureCode) = approval.Decision != ApprovalStates.Approved
       ? (ApprovalStates.Rejected, "The historical approval decision was rejected.", ErrorCodes.GateBlocked)
+      : !current.Eligible
+        ? (ApprovalStates.Stale, "The approval target is no longer eligible.", ErrorCodes.GateBlocked)
       : current.Revision != approval.TargetRevision
         ? (ApprovalStates.Stale, "The approved target revision changed.", ErrorCodes.StaleRevision)
+        : current.Kind == ReleaseTargetKinds.FinancialPackage && current.Generation != approval.InputGeneration
+          ? (ApprovalStates.Stale, "The financial package generation changed.", ErrorCodes.GenerationStale)
         : client.InputGeneration != approval.InputGeneration || firm.PolicyGeneration != approval.PolicyGeneration
           ? (ApprovalStates.Stale, "The client input or firm policy generation changed.", ErrorCodes.GenerationStale)
           : (ApprovalStates.Current, "Approval matches the current target and generations.", (string?)null);
@@ -176,26 +204,49 @@ public static class ApprovalService
       : CommandResult.Fail(result.Value.FailureCode ?? ErrorCodes.GateBlocked, result.Value.Reason);
   }
 
-  private static async Task<CommandResult> AuthorizeAsync(
-    IAuditSphereDbContext db, ActorContext actor, Workpaper target, CancellationToken ct) =>
-    await AuthorizationAsync(db, actor, target.ClientId, target.EngagementId, ct);
+  private static Task<CommandResult> AuthorizeAsync(
+    IAuditSphereDbContext db, ActorContext actor, ApprovalTarget target, CancellationToken ct) =>
+    AuthorizationAsync(db, actor, target.ClientId, target.EngagementId,
+      target.Kind == ReleaseTargetKinds.FinancialPackage ? PackageApprovalRoles : ApprovalRoles, ct);
 
   private static Task<CommandResult> AuthorizationAsync(
-    IAuditSphereDbContext db, ActorContext actor, Guid clientId, Guid engagementId, CancellationToken ct) =>
+    IAuditSphereDbContext db, ActorContext actor, Guid clientId, Guid engagementId,
+    IReadOnlyList<string> roles, CancellationToken ct) =>
     AuthorizationDecision.AuthorizeAsync(db, actor,
-      new AuthorizationRequest(actor.FirmId, clientId, engagementId, ApprovalRoles, InternalOnly: true), ct);
+      new AuthorizationRequest(actor.FirmId, clientId, engagementId, roles.ToArray(), InternalOnly: true), ct);
 
-  private static Task<Workpaper?> LoadWorkpaperAsync(
-    IAuditSphereDbContext db, Guid firmId, Guid id, bool forUpdate, CancellationToken ct) =>
-    forUpdate
-      ? db.Workpapers.FromSqlInterpolated($"SELECT * FROM workpapers WHERE id = {id} AND firm_id = {firmId} FOR UPDATE")
-        .AsNoTracking().SingleOrDefaultAsync(ct)
-      : db.Workpapers.AsNoTracking().SingleOrDefaultAsync(x => x.Id == id && x.FirmId == firmId, ct);
+  private static async Task<ApprovalTarget?> LoadTargetAsync(
+    IAuditSphereDbContext db, Guid firmId, string targetKind, Guid id, bool forUpdate, CancellationToken ct)
+  {
+    if (targetKind == ReleaseTargetKinds.Workpaper)
+    {
+      var workpaper = forUpdate
+        ? await db.Workpapers.FromSqlInterpolated($"SELECT * FROM workpapers WHERE id = {id} AND firm_id = {firmId} FOR UPDATE")
+          .AsNoTracking().SingleOrDefaultAsync(ct)
+        : await db.Workpapers.AsNoTracking().SingleOrDefaultAsync(x => x.Id == id && x.FirmId == firmId, ct);
+      return workpaper is null ? null : new ApprovalTarget(targetKind, workpaper.Id, workpaper.ClientId,
+        workpaper.EngagementId, workpaper.Revision, 0, true);
+    }
+
+    if (targetKind == ReleaseTargetKinds.FinancialPackage)
+    {
+      var package = forUpdate
+        ? await db.FinancialPackages.FromSqlInterpolated($"SELECT * FROM financial_packages WHERE id = {id} AND firm_id = {firmId} FOR UPDATE")
+          .AsNoTracking().SingleOrDefaultAsync(ct)
+        : await db.FinancialPackages.AsNoTracking().SingleOrDefaultAsync(x => x.Id == id && x.FirmId == firmId, ct);
+      return package is null ? null : new ApprovalTarget(targetKind, package.Id, package.ClientId,
+        package.EngagementId, package.Revision, package.Generation,
+        package.Status == AccountingPackageStates.PackageValidated);
+    }
+
+    return null;
+  }
 
   private static string? Validate(CreateApprovalRequest request)
   {
-    if (request.TargetId == Guid.Empty || !string.Equals(request.TargetKind.Trim(), "WORKPAPER", StringComparison.OrdinalIgnoreCase))
-      return "Only a stored workpaper target is supported by this slice.";
+    if (request.TargetId == Guid.Empty ||
+        request.TargetKind.Trim().ToUpperInvariant() is not (ReleaseTargetKinds.Workpaper or ReleaseTargetKinds.FinancialPackage))
+      return "Only a stored workpaper or validated financial-package target is supported.";
     if (request.ExpectedRevision < 1 || request.ExpectedInputGeneration < 1 || request.ExpectedPolicyGeneration < 1)
       return "Approval revision and generations must be positive.";
     if (request.ManifestDigest.Length != 64 || request.ManifestDigest.Any(c => !Uri.IsHexDigit(c)) ||

@@ -1,10 +1,12 @@
 using System.Text;
 using System.Text.Json;
 using AuditSphereOps.Application.Abstractions;
+using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Reviews;
 using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Audit;
+using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Reviews;
 using AuditSphereOps.Domain.Shared;
@@ -32,6 +34,9 @@ public static class ReleaseService
 {
   private static readonly string[] ReleaseRoles = ["Partner", "Administrator"];
 
+  private sealed record ReleaseTarget(
+    string Kind, Guid Id, Guid ClientId, Guid EngagementId, long Revision, long Generation, bool Eligible);
+
   public static async Task<CommandResult<Guid>> CreateCandidateAsync(
     IAuditSphereDbContext db,
     ActorContext actor,
@@ -42,9 +47,12 @@ public static class ReleaseService
     if (invalid is not null)
       return CommandResult<Guid>.Fail("release.invalid", invalid);
 
-    var target = await LoadWorkpaperAsync(db, actor.FirmId, request.TargetId, false, ct);
+    var targetKind = request.TargetKind.Trim().ToUpperInvariant();
+    var target = await LoadTargetAsync(db, actor.FirmId, targetKind, request.TargetId, false, ct);
     if (target is null)
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    if (!target.Eligible)
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The release target is not currently eligible.");
     var auth = await AuthorizeAsync(db, actor, target, ct);
     if (!auth.Succeeded)
       return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
@@ -64,13 +72,16 @@ public static class ReleaseService
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     var firm = await LockFirmAsync(db, actor.FirmId, ct);
     var client = await LockClientAsync(db, actor.FirmId, target.ClientId, ct);
-    var current = await LoadWorkpaperAsync(db, actor.FirmId, target.Id, true, ct);
+    var current = await LoadTargetAsync(db, actor.FirmId, targetKind, target.Id, true, ct);
     if (firm is null || client is null || current is null)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Release scope is unavailable.");
+    if (!current.Eligible)
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The release target is not currently eligible.");
     auth = await AuthorizeAsync(db, actor, current, ct);
     if (!auth.Succeeded)
       return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
-    if (current.Revision != request.ExpectedTargetRevision)
+    if (current.Revision != request.ExpectedTargetRevision ||
+        (current.Kind == ReleaseTargetKinds.FinancialPackage && current.Generation != client.InputGeneration))
       return CommandResult<Guid>.Fail(ErrorCodes.StaleRevision, "The release target changed; reload the candidate.");
     if (client.InputGeneration != request.ExpectedInputGeneration ||
         firm.PolicyGeneration != request.ExpectedPolicyGeneration)
@@ -89,7 +100,7 @@ public static class ReleaseService
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The approval is not currently applicable.");
 
     var existing = await db.ReleaseCandidates.AsNoTracking().SingleOrDefaultAsync(x =>
-      x.FirmId == actor.FirmId && x.TargetKind == "WORKPAPER" && x.TargetId == current.Id &&
+      x.FirmId == actor.FirmId && x.TargetKind == current.Kind && x.TargetId == current.Id &&
       x.TargetRevision == current.Revision && x.ManifestDigest == request.ManifestDigest, ct);
     if (existing is not null)
     {
@@ -103,7 +114,7 @@ public static class ReleaseService
     var candidate = new ReleaseCandidate
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = current.ClientId,
-      EngagementId = current.EngagementId, TargetId = current.Id, TargetRevision = current.Revision,
+      EngagementId = current.EngagementId, TargetKind = current.Kind, TargetId = current.Id, TargetRevision = current.Revision,
       InputGeneration = client.InputGeneration, PolicyGeneration = firm.PolicyGeneration,
       ApprovalId = approval.Id, ManifestDigest = request.ManifestDigest,
       CreatedAt = DateTimeOffset.UtcNow
@@ -216,16 +227,29 @@ public static class ReleaseService
     }
 
 
-    var current = await LoadWorkpaperAsync(db, actor.FirmId, candidate.TargetId, true, ct);
+    var current = await LoadTargetAsync(db, actor.FirmId, candidate.TargetKind, candidate.TargetId, true, ct);
     if (current is null || current.ClientId != candidate.ClientId || current.EngagementId != candidate.EngagementId)
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    if (!current.Eligible)
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The release target is not currently eligible.");
     auth = await AuthorizeAsync(db, actor, current, ct);
     if (!auth.Succeeded)
       return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
-    if (current.Revision != candidate.TargetRevision)
+    if (current.Revision != candidate.TargetRevision ||
+        (current.Kind == ReleaseTargetKinds.FinancialPackage && current.Generation != candidate.InputGeneration))
       return CommandResult<Guid>.Fail(ErrorCodes.StaleRevision, "The release target changed; re-review is required.");
     if (client.InputGeneration != candidate.InputGeneration || firm.PolicyGeneration != candidate.PolicyGeneration)
       return CommandResult<Guid>.Fail(ErrorCodes.GenerationStale, "Release inputs or policy changed; re-review is required.");
+
+    if (current.Kind == ReleaseTargetKinds.FinancialPackage)
+    {
+      if (db is not IClientAccountingDbContext accountingDb)
+        return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Client accounting review persistence is unavailable.");
+      var packageReview = await FinancialPackageReviewService.RequireCurrentAsync(
+        accountingDb, actor, current.Id, requirePartner: true, ct);
+      if (!packageReview.Succeeded)
+        return CommandResult<Guid>.Fail(packageReview.ErrorCode!, packageReview.Message!);
+    }
 
     var approval = await db.Approvals.AsNoTracking().SingleOrDefaultAsync(x =>
       x.FirmId == actor.FirmId && x.Id == candidate.ApprovalId, ct);
@@ -293,7 +317,7 @@ public static class ReleaseService
   }
 
   private static Task<CommandResult> AuthorizeAsync(
-    IAuditSphereDbContext db, ActorContext actor, Workpaper target, CancellationToken ct) =>
+    IAuditSphereDbContext db, ActorContext actor, ReleaseTarget target, CancellationToken ct) =>
     AuthorizationAsync(db, actor, target.ClientId, target.EngagementId, ct);
 
   private static Task<CommandResult> AuthorizationAsync(
@@ -313,19 +337,39 @@ public static class ReleaseService
       $"SELECT * FROM client_safety_states WHERE firm_id = {firmId} AND id = {clientId} FOR UPDATE")
       .AsNoTracking().SingleOrDefaultAsync(ct);
 
-  private static Task<Workpaper?> LoadWorkpaperAsync(
-    IAuditSphereDbContext db, Guid firmId, Guid id, bool forUpdate, CancellationToken ct) =>
-    forUpdate
-      ? db.Workpapers.FromSqlInterpolated($"SELECT * FROM workpapers WHERE id = {id} AND firm_id = {firmId} FOR UPDATE")
-        .AsNoTracking().SingleOrDefaultAsync(ct)
-      : db.Workpapers.AsNoTracking().SingleOrDefaultAsync(x => x.Id == id && x.FirmId == firmId, ct);
+  private static async Task<ReleaseTarget?> LoadTargetAsync(
+    IAuditSphereDbContext db, Guid firmId, string targetKind, Guid id, bool forUpdate, CancellationToken ct)
+  {
+    if (targetKind == ReleaseTargetKinds.Workpaper)
+    {
+      var workpaper = forUpdate
+        ? await db.Workpapers.FromSqlInterpolated($"SELECT * FROM workpapers WHERE id = {id} AND firm_id = {firmId} FOR UPDATE")
+          .AsNoTracking().SingleOrDefaultAsync(ct)
+        : await db.Workpapers.AsNoTracking().SingleOrDefaultAsync(x => x.Id == id && x.FirmId == firmId, ct);
+      return workpaper is null ? null : new ReleaseTarget(targetKind, workpaper.Id, workpaper.ClientId,
+        workpaper.EngagementId, workpaper.Revision, 0, true);
+    }
 
-  private static (string Code, string Message)? CheckApproval(Approval approval, Workpaper target,
+    if (targetKind == ReleaseTargetKinds.FinancialPackage)
+    {
+      var package = forUpdate
+        ? await db.FinancialPackages.FromSqlInterpolated($"SELECT * FROM financial_packages WHERE id = {id} AND firm_id = {firmId} FOR UPDATE")
+          .AsNoTracking().SingleOrDefaultAsync(ct)
+        : await db.FinancialPackages.AsNoTracking().SingleOrDefaultAsync(x => x.Id == id && x.FirmId == firmId, ct);
+      return package is null ? null : new ReleaseTarget(targetKind, package.Id, package.ClientId,
+        package.EngagementId, package.Revision, package.Generation,
+        package.Status == AccountingPackageStates.PackageValidated);
+    }
+
+    return null;
+  }
+
+  private static (string Code, string Message)? CheckApproval(Approval approval, ReleaseTarget target,
     CreateReleaseCandidateRequest request)
   {
     if (approval.Decision != ApprovalStates.Approved)
       return (ErrorCodes.GateBlocked, "A rejected approval cannot satisfy release.");
-    if (approval.TargetKind != "WORKPAPER" || approval.TargetId != target.Id ||
+    if (approval.TargetKind != target.Kind || approval.TargetId != target.Id ||
         approval.ClientId != target.ClientId || approval.EngagementId != target.EngagementId)
       return (ErrorCodes.ScopeDenied, "Access denied.");
     if (approval.TargetRevision != request.ExpectedTargetRevision)
@@ -341,8 +385,8 @@ public static class ReleaseService
   private static string? ValidateCandidateRequest(CreateReleaseCandidateRequest request)
   {
     if (request.ApprovalId == Guid.Empty || request.TargetId == Guid.Empty ||
-        !string.Equals(request.TargetKind.Trim(), "WORKPAPER", StringComparison.OrdinalIgnoreCase))
-      return "Only a stored workpaper target is supported by this slice.";
+        request.TargetKind.Trim().ToUpperInvariant() is not (ReleaseTargetKinds.Workpaper or ReleaseTargetKinds.FinancialPackage))
+      return "Only a stored workpaper or validated financial-package target is supported.";
     if (request.ExpectedTargetRevision < 1 || request.ExpectedInputGeneration < 1 || request.ExpectedPolicyGeneration < 1)
       return "Release target revision and generations must be positive.";
     return IsDigest(request.ManifestDigest) ? null : "The release manifest digest must be lowercase SHA-256 hex.";

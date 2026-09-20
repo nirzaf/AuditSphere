@@ -1,5 +1,7 @@
 using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Application.Abstractions;
+using AuditSphereOps.Application.Completion;
+using AuditSphereOps.Application.Reviews;
 using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Engagements;
@@ -407,6 +409,65 @@ public sealed class ClientAccountingTests
     var mutation = await Assert.ThrowsAsync<PostgresException>(() => verify.Database.ExecuteSqlInterpolatedAsync(
       $"UPDATE financial_package_review_decisions SET comment = {"tampered"} WHERE id = {managementDecisionId}"));
     Assert.Equal("55000", mutation.SqlState);
+  }
+
+  [Fact]
+  [Trait("Profile", "Database")]
+  public async Task FinancialPackageRelease_BindsCandidateToCurrentPackageReviews()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var scope = await SeedAsync(pg);
+    var preparer = Actor(scope.Preparer, "AccountingPreparer");
+    var reviewer = Actor(scope.Reviewer, "AccountingReviewer");
+    var partner = Actor(scope.Reviewer, "Partner");
+    var manifestBytes = System.Text.Encoding.UTF8.GetBytes("financial-package-release-manifest");
+    var manifest = Hashing.Sha256Hex(manifestBytes);
+    Guid packageId, candidateId;
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      packageId = await AddPackageAsync(db, scope, scope.ClientA, scope.EngagementA, 100m, "CASH", "release");
+      await db.SaveChangesAsync();
+
+      Assert.True((await FinancialPackageReviewService.RecordAsync(db, preparer,
+        new FinancialPackageReviewRequest(packageId, FinancialPackageReviewStages.ManagementApproval,
+          FinancialPackageReviewDecisions.Approved, FinancialPackageReviewEvidenceModes.Offline,
+          "management-package-approval", "Management approved the exact package."))).Succeeded);
+      Assert.True((await FinancialPackageReviewService.RecordAsync(db, reviewer,
+        new FinancialPackageReviewRequest(packageId, FinancialPackageReviewStages.AccountingReview,
+          FinancialPackageReviewDecisions.Approved, FinancialPackageReviewEvidenceModes.SignedIn,
+          "accounting-package-review", "Accounting review completed."))).Succeeded);
+      Assert.True((await FinancialPackageReviewService.RecordAsync(db, partner,
+        new FinancialPackageReviewRequest(packageId, FinancialPackageReviewStages.PartnerApproval,
+          FinancialPackageReviewDecisions.Approved, FinancialPackageReviewEvidenceModes.SignedIn,
+          "partner-package-review", "Partner approval completed."))).Succeeded);
+
+      var approval = await ApprovalService.CreateAsync(db, partner,
+        new CreateApprovalRequest(ReleaseTargetKinds.FinancialPackage, packageId, 1, 1, 1, manifest));
+      Assert.True(approval.Succeeded, approval.Message);
+
+      var candidate = await ReleaseService.CreateCandidateAsync(db, partner,
+        new CreateReleaseCandidateRequest(approval.Value, ReleaseTargetKinds.FinancialPackage,
+          packageId, 1, 1, 1, manifest));
+      Assert.True(candidate.Succeeded, candidate.Message);
+      candidateId = candidate.Value;
+
+      var checkpointStore = new LocalAppendOnlyCheckpointStore(
+        Path.Combine(Path.GetTempPath(), "AuditSphereOps-Tests", Guid.NewGuid().ToString("N")));
+      var checkpoint = await ReleaseCheckpointService.RecordCheckpointDirectAsync(db, checkpointStore, partner,
+        new RecordReleaseCheckpointRequest(candidateId, 1, "financial-package-release-001", manifest, manifestBytes));
+      Assert.True(checkpoint.Succeeded, checkpoint.Message);
+
+      var issued = await ReleaseService.IssueAsync(db, partner,
+        new IssueReleaseRequest(candidateId, 1, manifest, "financial-package-release-001"));
+      Assert.True(issued.Succeeded, $"{issued.ErrorCode}: {issued.Message}");
+      Assert.Equal(packageId, await db.Releases.Where(x => x.Id == issued.Value).Select(x => x.PackageId).SingleAsync());
+    }
+
+    await using var verify = new AuditSphereDbContext(pg.Options);
+    var candidateRow = await verify.ReleaseCandidates.SingleAsync(x => x.Id == candidateId);
+    Assert.Equal(ReleaseTargetKinds.FinancialPackage, candidateRow.TargetKind);
+    Assert.Equal(ReleaseStates.Issued, candidateRow.Status);
   }
 
   [Fact]
