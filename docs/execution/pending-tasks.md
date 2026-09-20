@@ -2,7 +2,7 @@
 
 **Repository:** nirzaf/AuditSphere  
 **Authoritative specification:** `AuditSphereOps_NET_Codex_Implementation_Specification.md` v5.0  
-**Reviewed baseline:** master at `1184485797f359c89b5f9f82c264d05845dfe0ff`
+**Reviewed baseline:** master at `1322bc36113a43e3f6a1bdb36f5e04cd78949bea`
 **Current verified baseline:** 31 migrations, 165/165 PostgreSQL-backed tests, records/archive residual hardening (P6) locally verified
 
 ---
@@ -115,8 +115,8 @@ P10 Full §47 real-tenant acceptance cycle
 - [x] Reconcile `docs/execution/current-slice.md`.
 - [x] Reconcile `docs/execution/implementation-checklist.md`.
 - [x] Reconcile `docs/execution/pending-tasks.md` (this file).
-- [ ] Create GitHub issues for the remaining packages (14 issues, 4 milestones).
-- [ ] Prepare branch-protection/ruleset configuration for master.
+- [x] Create GitHub issues for the remaining packages (14 issues, 4 milestones).
+- [x] Prepare branch-protection/ruleset configuration for master.
 - [ ] Require CI and independent review before production-readiness merges.
 
 **Acceptance criteria:**
@@ -130,7 +130,7 @@ P10 Full §47 real-tenant acceptance cycle
 
 ## P1 — Microsoft Entra OIDC and Runtime Identity
 
-**Status:** `BLOCKED_EXTERNAL`  
+**Status:** `IN_PROGRESS` — developer app and redirect URI are configured; credential, fixtures, and live acceptance remain blocked
 **Milestone:** R1 — Tenant Integration  
 **GitHub Issue:** #2
 
@@ -150,6 +150,8 @@ P10 Full §47 real-tenant acceptance cycle
 **Required fixtures:** authorized staff, Client A, Client B, disabled/revoked, changed-UPN, wrong-tenant.
 
 **Owner prerequisites:** approved app configuration, redirect URIs, authentication flow, secret/certificate reference in approved secret store, tenant/environment authorization, approved fixture identities.
+
+**Observed EasyGuide developer configuration (2026-09-20):** single-tenant app `AuditSphereOps Development` has web redirect URI `http://localhost:5099/signin-oidc`, zero certificates, and one current non-production client secret expiring 2027-03-19. The secret value was not revealed. The restarted host's `/auth/sign-in` route returned HTTP 302 to the EasyGuide authorize endpoint using the Infisical-backed handoff, and after the raw `oid`/`tid` claim mapping fix a fresh qts callback rendered the live Portfolio shell. Infisical project `AuditSphereOps` / `Development` displays masked references for `Identity__CallbackPath`, `Identity__ClientId`, `Identity__ClientSecret`, and `Identity__TenantId`; its `Staging` and `Production` environments are empty. Approval Workflows shows zero open/closed change requests and no approval policies; Project Audit Logs require a paid plan and were not readable. No values were revealed or changed. Entra's 16-user inventory contains only Client X, Client Y, and Staff under the `AuditSphere P0` search; exact Client A, Client B, `disabled`, and `revoked` searches returned zero users, and no wrong-tenant/guest fixture was observed. A fresh SharePoint compliance reread at `09:23:29Z` still reported no retention policy, no hold, and no in-place record for `AuditSphere-Dev-Test-Record.txt`. The required fixture acceptance matrix, Purview protection evidence, and approved rotation/custody evidence remain open.
 
 **Acceptance criteria:**
 - Staff sign-in maps to expected (tenant, object) identity.
@@ -215,7 +217,7 @@ P10 Full §47 real-tenant acceptance cycle
 
 ## P4 — Microsoft Purview Records Profile and Reviewer Fixtures
 
-**Status:** `BLOCKED_EXTERNAL` (depends on P1, P2)  
+**Status:** `IN_PROGRESS` — developer-tenant profile and scoped publication submitted; behavior evidence still blocked by propagation/approval (depends on P1, P2)
 **Milestone:** R2 — Records & Signing  
 **GitHub Issues:** #6, #7
 
@@ -225,9 +227,14 @@ P10 Full §47 real-tenant acceptance cycle
 
 **Required Purview configuration:** test-only records profile, approved retention/record label, target SharePoint location, retention trigger/duration, disposition behavior, reviewer assignment, audit enabled, residual-risk statement.
 
+**Observed EasyGuide developer configuration (2026-09-19 through 2026-09-20):** `AuditSphere Dev Test Record` (`AS-DEV-REC-001`) was created with one-day retention, record locking, disposition review, and reviewer `qts@easyguide.onmicrosoft.com`. Publication policy `AuditSphere Dev Test Record Publication` was submitted successfully for only `https://easyguide.sharepoint.com/sites/AuditSphereDevelopment`; the policy and a second label policy now show Enabled in Purview. A synthetic `AuditSphere-Dev-Test-Record.txt` was created in the scoped SharePoint Documents library, but SharePoint Compliance details still report that the item is not subject to a retention policy, is not on hold, and is not an in-place record. Microsoft states availability may take up to a week, so actual label/protection propagation remains unverified.
+
 **Integration tasks:**
 - Map profile version to local `RecordsProfile`.
 - Request approved records action.
+- [x] Create the synthetic developer-tenant label and submit the site-scoped publication policy.
+- [ ] Wait for policy propagation and observe the label/protection state on a synthetic SharePoint record.
+- [ ] Obtain compliance-owner approval and residual-risk evidence.
 - Keep desired label separate from observed label.
 - Capture actual protection state, observation timestamp/operator, provider reference.
 - Never mark protection observed because request was submitted.
@@ -336,7 +343,7 @@ P10 Full §47 real-tenant acceptance cycle
 
 ## P9 — Independent Review and Protected Merge Governance
 
-**Status:** `BLOCKED_EXTERNAL`  
+**Status:** `IN_PROGRESS` — `master` protection is configured; independent human review remains blocked
 **Milestone:** R3 — Recovery & Production Readiness  
 **GitHub Issue:** #13
 
@@ -344,10 +351,12 @@ P10 Full §47 real-tenant acceptance cycle
 
 **Tasks:**
 - Designate independent reviewer.
-- Protect master: require CI checks, require review approval, prevent force push/deletion as appropriate, require current-head review after material changes.
+- [x] Protect master: require CI checks, require review approval, prevent force push/deletion, require current-head review after material changes.
 - Record reviewer/date/commit in execution ledger.
 - Distinguish automated review from human review.
 - Never count self-approval as independent review.
+
+**Observed governance evidence (2026-09-20):** GitHub confirms `master` protection with one required approval, stale-review dismissal, approval of the most recent reviewable push, required `build-test-ready`, up-to-date branches, conversation resolution, administrator enforcement, and force-push/deletion disabled. No independent human approval has been recorded.
 
 **Acceptance criteria:** current candidate has independent human review; valid findings resolved; non-applicable findings include rationale; CI runs on reviewed head; merge uses project authorization workflow; ledger identifies exact merged commit.
 

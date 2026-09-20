@@ -58,10 +58,11 @@ if (oidcConfigured)
     options.Authority = $"https://login.microsoftonline.com/{tenantId}/v2.0";
     options.ClientId = clientId!;
     options.ClientSecret = clientSecret!;
-    // TrustedActorResolver intentionally matches the immutable raw Entra oid/tid claims.
-    options.MapInboundClaims = false;
     options.ResponseType = "code";
     options.CallbackPath = identity["CallbackPath"] ?? "/signin-oidc";
+    // TrustedActorResolver intentionally consumes the immutable raw Entra oid/tid claims;
+    // do not rewrite them into WS-* claim URIs before the tenant/object lookup.
+    options.MapInboundClaims = false;
     options.SaveTokens = false;
     options.GetClaimsFromUserInfoEndpoint = false;
   });
