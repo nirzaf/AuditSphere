@@ -6,7 +6,7 @@ This file records observed repository state only. The authoritative build contra
 
 | Item | Observed value |
 |---|---|
-| Branch/head | `master@49f1a88` |
+| Branch/head | `master@2513d15` |
 | Remote | `origin/master` points to the same head after the latest push |
 | SDK | .NET 10; repository solution targets `net10.0` |
 | Database | PostgreSQL 18.6 on loopback port 5433 for development only |
@@ -25,6 +25,7 @@ This file records observed repository state only. The authoritative build contra
 - Equity, notes, comparatives, closed-period restatement lineage, restricted same-currency consolidation, journal lineage, and close checks.
 - Immutable package-review decisions for management, accounting, and partner stages. Decisions are bound to the exact package revision, generation and hash; evidence modes remain separated; append-only database protection is enforced.
 - Client-safe validated-package view and signed-in management acknowledgement are available at the restricted client portal route. The portal exposes statement totals and package metadata only; internal review history and workpapers remain staff-only.
+- An internal package-review queue lists only current validated packages in the actor's authorized client/engagement scopes and routes reviewers to the exact-version package surface.
 - Bounded GL chunk intake with canonical content digests, transactional batch locking, idempotent retries, contiguous finalization and persisted accepted-count reconciliation.
 - Blazor status surfaces for the implemented workflows, including period restatement and truthful release/package gate state.
 
@@ -32,7 +33,7 @@ This file records observed repository state only. The authoritative build contra
 
 These are product gaps, not claims of production readiness:
 
-- [ ] Complete the staff-facing package-review queue and release handoff around the existing stage-bound decision service; the client management acknowledgement surface is now implemented.
+- [ ] Complete the release handoff around the existing stage-bound decision service; client management acknowledgement and the staff review queue are implemented.
 - [ ] Extend advanced accounting methods only where an approved method and test fixtures exist: mixed currency, complex ownership, acquisition, NCI, and advanced eliminations.
 - [ ] Deepen specialist schedules and account-area workpapers where the workflow stories still require more than the current bounded workbench.
 - [ ] Add the remaining dashboard, roll-forward, and cross-workflow navigation needed for operational usability.

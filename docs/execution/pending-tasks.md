@@ -3,7 +3,7 @@
 **Repository:** `nirzaf/AuditSphere`
 **Authoritative specification:** [`docs/SPECIFICATION.md`](../SPECIFICATION.md) v5.0
 **Requirements backlog:** [`docs/requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md`](../requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md)
-**Current head:** `master@49f1a88`
+**Current head:** `master@2513d15`
 
 This is a resume checklist, not an acceptance certificate. Tenant identifiers, credentials, tokens, secret values, and private-provider URLs are deliberately absent from the public repository.
 
@@ -27,7 +27,8 @@ This is a resume checklist, not an acceptance certificate. Tenant identifiers, c
 - [x] Journal lineage, close checks and immutable management/accounting/partner package-review decisions.
 - [x] Add bounded, resumable GL chunk intake with canonical digest, idempotent retry and contiguous finalization.
 - [x] Add a client-safe validated-package view and signed-in management acknowledgement route with cross-client denial coverage.
-- [ ] Complete the staff-facing package-review queue and release handoff around the existing stage-bound decision service.
+- [x] Add an authorized staff package-review queue with exact-version stage status and direct package handoff.
+- [ ] Complete the release handoff around the existing stage-bound decision service.
 - [ ] Add approved-method fixtures for mixed currency, complex ownership, acquisition, NCI and advanced eliminations before implementing those methods.
 - [ ] Deepen specialist schedules and account-area workpapers where the 28-story backlog still identifies a real workflow gap.
 - [ ] Add the remaining dashboard, roll-forward and cross-workflow navigation.
