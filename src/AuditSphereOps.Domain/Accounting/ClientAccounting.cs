@@ -587,6 +587,20 @@ public sealed class JournalRiskFlag
   public DateTimeOffset? ReviewedAt { get; set; }
 }
 
+/// <summary>Typed link from accounting evidence to the immutable audit-procedure result that supports it.</summary>
+public sealed class AccountingEvidenceAuditLink
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public Guid EngagementId { get; set; }
+  public string EvidenceKind { get; set; } = string.Empty;
+  public Guid EvidenceId { get; set; }
+  public Guid AuditProcedureResultId { get; set; }
+  public Guid LinkedByUserId { get; set; }
+  public DateTimeOffset CreatedAt { get; set; }
+}
+
 public sealed class ConsolidationScopeVersion
 {
   public Guid Id { get; set; }

@@ -3,6 +3,7 @@ using System.Text;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Security;
+using AuditSphereOps.Domain.Audit;
 using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Shared;
 using Microsoft.EntityFrameworkCore;
@@ -57,6 +58,9 @@ public sealed record JournalRiskFlagRequest(
 
 public sealed record ReviewAccountingEvidenceRequest(
   string Kind, Guid EvidenceId, string Decision, string? Disposition = null, string? Conclusion = null);
+
+public sealed record LinkAccountingEvidenceRequest(
+  string Kind, Guid EvidenceId, Guid AuditProcedureResultId);
 
 public sealed record GeneralLedgerLineProjection(
   Guid LineId, string JournalId, DateOnly PostingDate, string AccountCode,
@@ -570,6 +574,88 @@ public static class AccountingAnalysisService
     return CommandResult<Guid>.Ok(flag.Id);
   }
 
+  public static async Task<CommandResult<Guid>> LinkAccountingEvidenceToProcedureAsync(
+    IClientAccountingDbContext db, ActorContext actor, LinkAccountingEvidenceRequest request,
+    CancellationToken ct = default)
+  {
+    var kind = request.Kind.Trim().ToUpperInvariant();
+    if (request.EvidenceId == Guid.Empty || request.AuditProcedureResultId == Guid.Empty ||
+        kind is not (AccountingEvidenceKinds.Ecl or AccountingEvidenceKinds.Inventory or AccountingEvidenceKinds.Specialist or
+          AccountingEvidenceKinds.Analytical or AccountingEvidenceKinds.JournalRisk))
+      return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ReconciliationRejected, "The accounting evidence link target is invalid.");
+
+    var result = await db.AuditProcedureResults.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.Id == request.AuditProcedureResultId && x.FirmId == actor.FirmId, ct);
+    if (result is null || result.WorkpaperId is null ||
+        result.Status is not (AuditProcedureResultStatuses.Submitted or AuditProcedureResultStatuses.Reviewed))
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Accounting evidence must link to a submitted audit procedure result with a workpaper.");
+
+    Guid clientId;
+    Guid engagementId;
+    switch (kind)
+    {
+      case AccountingEvidenceKinds.Ecl:
+        var ecl = await db.EclAssessments.AsNoTracking().SingleOrDefaultAsync(x => x.Id == request.EvidenceId && x.FirmId == actor.FirmId, ct);
+        if (ecl is null)
+          return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+        clientId = ecl.ClientId;
+        engagementId = ecl.EngagementId;
+        break;
+      case AccountingEvidenceKinds.Inventory:
+        var inventory = await db.InventoryValuationAssessments.AsNoTracking().SingleOrDefaultAsync(x => x.Id == request.EvidenceId && x.FirmId == actor.FirmId, ct);
+        if (inventory is null)
+          return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+        clientId = inventory.ClientId;
+        engagementId = inventory.EngagementId;
+        break;
+      case AccountingEvidenceKinds.Specialist:
+        var specialist = await db.SpecialistAccountingSchedules.AsNoTracking().SingleOrDefaultAsync(x => x.Id == request.EvidenceId && x.FirmId == actor.FirmId, ct);
+        if (specialist is null)
+          return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+        clientId = specialist.ClientId;
+        engagementId = specialist.EngagementId;
+        break;
+      case AccountingEvidenceKinds.Analytical:
+        var analytical = await db.AnalyticalReviews.AsNoTracking().SingleOrDefaultAsync(x => x.Id == request.EvidenceId && x.FirmId == actor.FirmId, ct);
+        if (analytical is null)
+          return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+        clientId = analytical.ClientId;
+        engagementId = analytical.EngagementId;
+        break;
+      default:
+        var risk = await db.JournalRiskFlags.AsNoTracking().SingleOrDefaultAsync(x => x.Id == request.EvidenceId && x.FirmId == actor.FirmId, ct);
+        if (risk is null)
+          return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+        clientId = risk.ClientId;
+        engagementId = risk.EngagementId;
+        break;
+    }
+
+    if (result.ClientId != clientId || result.EngagementId != engagementId)
+      return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "The audit result and accounting evidence are outside the same engagement scope.");
+    var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, clientId, engagementId, PreparerRoles, InternalOnly: true), ct);
+    if (!auth.Succeeded)
+      return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+
+    var existing = await db.AccountingEvidenceAuditLinks.SingleOrDefaultAsync(x =>
+      x.FirmId == actor.FirmId && x.ClientId == clientId && x.EngagementId == engagementId &&
+      x.EvidenceKind == kind && x.EvidenceId == request.EvidenceId &&
+      x.AuditProcedureResultId == request.AuditProcedureResultId, ct);
+    if (existing is not null)
+      return CommandResult<Guid>.Ok(existing.Id);
+
+    var link = new AccountingEvidenceAuditLink
+    {
+      Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = clientId, EngagementId = engagementId,
+      EvidenceKind = kind, EvidenceId = request.EvidenceId, AuditProcedureResultId = request.AuditProcedureResultId,
+      LinkedByUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
+    };
+    db.AccountingEvidenceAuditLinks.Add(link);
+    await db.SaveChangesAsync(ct);
+    return CommandResult<Guid>.Ok(link.Id);
+  }
+
   public static async Task<CommandResult> ReviewAccountingEvidenceAsync(
     IClientAccountingDbContext db, ActorContext actor, ReviewAccountingEvidenceRequest request,
     CancellationToken ct = default)
@@ -686,6 +772,18 @@ public static class AccountingAnalysisService
         x.Id == clientId && x.FirmId == actor.FirmId).Select(x => (long?)x.InputGeneration).SingleOrDefaultAsync(ct);
       if (currentGeneration is null || currentGeneration.Value != recordedGeneration)
         return CommandResult.Fail(ErrorCodes.GenerationStale, "The client input generation changed; prepare new evidence.");
+    }
+
+    if (decision == AccountingEvidenceReviewDecisions.Approved && kind != AccountingEvidenceKinds.JournalRisk)
+    {
+      var linkedReviewedResult = await db.AccountingEvidenceAuditLinks.AnyAsync(x =>
+        x.FirmId == actor.FirmId && x.ClientId == clientId && x.EngagementId == engagementId &&
+        x.EvidenceKind == kind && x.EvidenceId == request.EvidenceId &&
+        db.AuditProcedureResults.Any(result => result.FirmId == actor.FirmId &&
+          result.ClientId == clientId && result.EngagementId == engagementId &&
+          result.Id == x.AuditProcedureResultId && result.Status == AuditProcedureResultStatuses.Reviewed), ct);
+      if (!linkedReviewedResult)
+        return CommandResult.Fail(ErrorCodes.GateBlocked, "Accounting evidence approval requires a reviewed audit procedure result link.");
     }
 
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,

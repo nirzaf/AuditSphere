@@ -2,6 +2,7 @@ using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Completion;
 using AuditSphereOps.Application.Reviews;
+using AuditSphereOps.Domain.Audit;
 using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Engagements;
@@ -111,6 +112,18 @@ public sealed class ClientAccountingTests
         new AnalyticalReviewRequest(scope.ClientA, scope.EngagementA, periodId, null, "REVENUE", "monthly", 120m, 100m, 110m, "prior-year-total", "analytics-v1", "Seasonal movement explained by signed contracts."))).Value;
       riskId = (await AccountingAnalysisService.AddJournalRiskFlagAsync(db, preparer,
         new JournalRiskFlagRequest(scope.ClientA, scope.EngagementA, batchId, transactionId, "YEAR_END_MANUAL", "Manual year-end journal requires corroboration.", 75m, "journal-selection"))).Value;
+      var auditResultId = await AddReviewedAccountingProcedureResultAsync(db, scope, "MAIN", scope.Preparer.Id, scope.Reviewer.Id);
+      foreach (var link in new[]
+      {
+        (AccountingEvidenceKinds.Ecl, eclId), (AccountingEvidenceKinds.Inventory, inventoryId),
+        (AccountingEvidenceKinds.Specialist, specialistId), (AccountingEvidenceKinds.Analytical, analyticalId),
+        (AccountingEvidenceKinds.JournalRisk, riskId)
+      })
+      {
+        var linked = await AccountingAnalysisService.LinkAccountingEvidenceToProcedureAsync(db, preparer,
+          new LinkAccountingEvidenceRequest(link.Item1, link.Item2, auditResultId));
+        Assert.True(linked.Succeeded, linked.Message);
+      }
       var approvedReconciliation = await AccountingAnalysisService.ApproveReconciliationAsync(db, reviewer, reconciliationId);
       Assert.True(approvedReconciliation.Succeeded, approvedReconciliation.Message);
       var blockedClose = await ClientAccountingService.ClosePeriodAsync(db, reviewer, periodId, "Premature close");
@@ -305,6 +318,13 @@ public sealed class ClientAccountingTests
 
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
+      var auditResultId = await AddReviewedAccountingProcedureResultAsync(db, scope, "TYPED", scope.Preparer.Id, scope.Reviewer.Id);
+      foreach (var id in ids.Values)
+      {
+        var linked = await AccountingAnalysisService.LinkAccountingEvidenceToProcedureAsync(db, preparer,
+          new LinkAccountingEvidenceRequest(AccountingEvidenceKinds.Specialist, id, auditResultId));
+        Assert.True(linked.Succeeded, linked.Message);
+      }
       foreach (var id in ids.Where(x => x.Key != "FORECAST").Select(x => x.Value))
       {
         var review = await AccountingAnalysisService.ReviewAccountingEvidenceAsync(db, reviewer,
@@ -318,6 +338,45 @@ public sealed class ClientAccountingTests
       var forecast = await db.SpecialistAccountingSchedules.SingleAsync(x => x.Id == ids["FORECAST"]);
       Assert.Equal(AccountingEvidenceReviewDecisions.Approved, forecast.Status);
       Assert.Contains("positive liquidity", forecast.ReviewConclusion, StringComparison.OrdinalIgnoreCase);
+    }
+  }
+
+  [Fact]
+  [Trait("Profile", "Database")]
+  public async Task AccountingEvidenceApproval_RequiresReviewedProcedureLinkAndPreservesScope()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var scope = await SeedAsync(pg);
+    var preparer = Actor(scope.Preparer, "AccountingPreparer");
+    var reviewer = Actor(scope.Reviewer, "AccountingReviewer");
+    var fixture = await CreateGlFixtureAsync(pg, scope, preparer);
+    Guid scheduleId;
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      scheduleId = (await AccountingAnalysisService.RecordSpecialistScheduleAsync(db, preparer,
+        new SpecialistScheduleRequest(scope.ClientA, scope.EngagementA, fixture.PeriodId, "ASSETS", "asset-v1",
+          100m, 20m, 0m, 10m, 0m, 0m, 0m, 0m, 0m, 0m, 0m, 110m, new string('a', 64), "asset-register",
+          DepreciationMethod: "STRAIGHT_LINE", UsefulLifeMonths: 120))).Value;
+      var blocked = await AccountingAnalysisService.ReviewAccountingEvidenceAsync(db, reviewer,
+        new ReviewAccountingEvidenceRequest(AccountingEvidenceKinds.Specialist, scheduleId, AccountingEvidenceReviewDecisions.Approved));
+      Assert.False(blocked.Succeeded);
+      Assert.Equal(ErrorCodes.GateBlocked, blocked.ErrorCode);
+
+      var resultId = await AddReviewedAccountingProcedureResultAsync(db, scope, "LINK", scope.Preparer.Id, scope.Reviewer.Id);
+      var linked = await AccountingAnalysisService.LinkAccountingEvidenceToProcedureAsync(db, preparer,
+        new LinkAccountingEvidenceRequest(AccountingEvidenceKinds.Specialist, scheduleId, resultId));
+      Assert.True(linked.Succeeded, linked.Message);
+      Assert.True((await AccountingAnalysisService.ReviewAccountingEvidenceAsync(db, reviewer,
+        new ReviewAccountingEvidenceRequest(AccountingEvidenceKinds.Specialist, scheduleId, AccountingEvidenceReviewDecisions.Approved))).Succeeded);
+
+      var foreignResultId = await AddReviewedAccountingProcedureResultAsync(db, scope, "FOREIGN", scope.Preparer.Id, scope.Reviewer.Id,
+        scope.ClientB, scope.EngagementB);
+      var wrongScope = await AccountingAnalysisService.LinkAccountingEvidenceToProcedureAsync(db, preparer,
+        new LinkAccountingEvidenceRequest(AccountingEvidenceKinds.Specialist, scheduleId, foreignResultId));
+      Assert.False(wrongScope.Succeeded);
+      Assert.Equal(ErrorCodes.ScopeDenied, wrongScope.ErrorCode);
+      Assert.Equal(1, await db.AccountingEvidenceAuditLinks.CountAsync(x => x.EvidenceId == scheduleId));
     }
   }
 
@@ -881,6 +940,55 @@ public sealed class ClientAccountingTests
       Amount = amount, Fraction = 1m, Currency = "QAR", AdjustedSnapshotId = adjustedId, CreatedAt = now
     });
     return packageId;
+  }
+
+  private static async Task<Guid> AddReviewedAccountingProcedureResultAsync(
+    AuditSphereDbContext db, Scope scope, string suffix, Guid preparerId, Guid reviewerId,
+    Guid? clientId = null, Guid? engagementId = null)
+  {
+    var client = clientId ?? scope.ClientA;
+    var engagement = engagementId ?? scope.EngagementA;
+    var now = DateTimeOffset.UtcNow;
+    var procedureId = Guid.CreateVersion7();
+    var workpaperId = Guid.CreateVersion7();
+    var resultId = Guid.CreateVersion7();
+    var sourceProcedureId = "ACCT-" + suffix;
+    db.AuditProcedures.Add(new AuditProcedure
+    {
+      Id = procedureId, FirmId = scope.FirmId, ClientId = client, EngagementId = engagement,
+      SourceProcedureId = sourceProcedureId, SourceSectionNumber = 1, SourceSectionTitle = "Accounting evidence",
+      SourceWording = "Review the accounting evidence.", ApplicabilityStatus = AuditApplicabilityStatuses.Applicable,
+      CurrentResultRevision = 1, Title = "Accounting evidence review", Status = AuditProcedureStatuses.Reviewed, CreatedAt = now
+    });
+    db.Workpapers.Add(new Workpaper
+    {
+      Id = workpaperId, FirmId = scope.FirmId, ClientId = client, EngagementId = engagement, ProcedureId = procedureId,
+      ActorId = preparerId, Index = sourceProcedureId, Title = "Accounting evidence review", Objective = "Support accounting evidence",
+      TemplateVersion = "accounting-fixture-v1", Procedure = "Review the accounting evidence.", WorkPerformed = "Reviewed the supplied accounting evidence.",
+      Conclusion = "No exception noted.", Revision = 1, Status = WorkpaperStatuses.SubmittedSnapshot, SubmittedAt = now, CreatedAt = now
+    });
+    db.WorkpaperSubmissions.Add(new WorkpaperSubmission
+    {
+      Id = Guid.CreateVersion7(), FirmId = scope.FirmId, ClientId = client, EngagementId = engagement,
+      WorkpaperId = workpaperId, ActorId = preparerId, Revision = 1,
+      WorkPerformed = "Reviewed the supplied accounting evidence.", Conclusion = "No exception noted.", SubmittedAt = now
+    });
+    db.AuditProcedureResults.Add(new AuditProcedureResult
+    {
+      Id = resultId, FirmId = scope.FirmId, ClientId = client, EngagementId = engagement, AuditProcedureId = procedureId,
+      WorkpaperId = workpaperId, Revision = 1, InputGeneration = 1, WorkPerformed = "Reviewed the supplied accounting evidence.",
+      StructuredResultJson = "{\"result\":\"PASS\"}", EvidenceReferencesJson = "[\"accounting-fixture\"]",
+      Conclusion = "No exception noted.", Status = AuditProcedureResultStatuses.Reviewed, PreparedByUserId = preparerId,
+      ReviewedByUserId = reviewerId, ReviewComment = "Evidence and conclusion agree.", SubmittedAt = now, ReviewedAt = now
+    });
+    db.AuditProcedureReviews.Add(new AuditProcedureReview
+    {
+      Id = Guid.CreateVersion7(), FirmId = scope.FirmId, ClientId = client, EngagementId = engagement,
+      AuditProcedureResultId = resultId, AuditProcedureId = procedureId, ResultRevision = 1,
+      Decision = AuditProcedureReviewDecisions.Reviewed, Comment = "Evidence and conclusion agree.", ReviewerUserId = reviewerId, CreatedAt = now
+    });
+    await db.SaveChangesAsync();
+    return resultId;
   }
 
   private static AppUser User(Guid firmId, string name) => new()

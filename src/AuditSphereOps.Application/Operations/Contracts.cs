@@ -163,6 +163,7 @@ public interface IClientAccountingDbContext : IAuditSphereDbContext
   DbSet<SpecialistAccountingSchedule> SpecialistAccountingSchedules { get; }
   DbSet<AnalyticalReview> AnalyticalReviews { get; }
   DbSet<JournalRiskFlag> JournalRiskFlags { get; }
+  DbSet<AccountingEvidenceAuditLink> AccountingEvidenceAuditLinks { get; }
   DbSet<ConsolidationScopeVersion> ConsolidationScopeVersions { get; }
   DbSet<ConsolidationComponent> ConsolidationComponents { get; }
   DbSet<OwnershipInterestVersion> OwnershipInterestVersions { get; }

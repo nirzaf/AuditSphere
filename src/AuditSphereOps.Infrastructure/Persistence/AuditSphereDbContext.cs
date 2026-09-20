@@ -109,6 +109,7 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
   public DbSet<SpecialistAccountingSchedule> SpecialistAccountingSchedules => Set<SpecialistAccountingSchedule>();
   public DbSet<AnalyticalReview> AnalyticalReviews => Set<AnalyticalReview>();
   public DbSet<JournalRiskFlag> JournalRiskFlags => Set<JournalRiskFlag>();
+  public DbSet<AccountingEvidenceAuditLink> AccountingEvidenceAuditLinks => Set<AccountingEvidenceAuditLink>();
   public DbSet<ConsolidationScopeVersion> ConsolidationScopeVersions => Set<ConsolidationScopeVersion>();
   public DbSet<ConsolidationComponent> ConsolidationComponents => Set<ConsolidationComponent>();
   public DbSet<OwnershipInterestVersion> OwnershipInterestVersions => Set<OwnershipInterestVersion>();
@@ -1741,6 +1742,22 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     flag.ToTable("journal_risk_flags", t => t.HasCheckConstraint("ck_journal_risk_flag_values",
       "length(trim(rule_code)) > 0 AND length(trim(reason)) > 0 AND score >= 0 AND score <= 100"));
     ScopeToEngagement(flag, nameof(JournalRiskFlag.FirmId), nameof(JournalRiskFlag.ClientId), nameof(JournalRiskFlag.EngagementId));
+
+    var evidenceLink = b.Entity<AccountingEvidenceAuditLink>();
+    evidenceLink.Property(x => x.EvidenceKind).HasMaxLength(30);
+    evidenceLink.HasIndex(x => new { x.FirmId, x.ClientId, x.EngagementId, x.EvidenceKind, x.EvidenceId, x.AuditProcedureResultId })
+      .IsUnique().HasDatabaseName("ux_accounting_evidence_audit_link");
+    evidenceLink.ToTable("accounting_evidence_audit_links", t => t.HasCheckConstraint("ck_accounting_evidence_audit_link_values",
+      "evidence_kind IN ('ECL','INVENTORY','SPECIALIST','ANALYTICAL','JOURNAL_RISK')"));
+    ScopeToEngagement(evidenceLink, nameof(AccountingEvidenceAuditLink.FirmId), nameof(AccountingEvidenceAuditLink.ClientId), nameof(AccountingEvidenceAuditLink.EngagementId));
+    evidenceLink.HasOne<AuditProcedureResult>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.AuditProcedureResultId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
+      .OnDelete(DeleteBehavior.Restrict);
+    evidenceLink.HasOne<AppUser>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.LinkedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id })
+      .OnDelete(DeleteBehavior.Restrict);
   }
 
   private static void ConfigureConsolidation(ModelBuilder b)
