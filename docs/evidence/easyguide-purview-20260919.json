@@ -1,0 +1,42 @@
+{
+  "status": "PARTIAL_LIVE_DEVELOPER_TENANT_EVIDENCE",
+  "recordedAt": "2026-09-19T21:03:14Z",
+  "tenant": {
+    "label": "easyguide",
+    "tenantId": "4de3e6fd-51aa-4ba7-b2c5-82106d2e45f0",
+    "account": "qts@easyguide.onmicrosoft.com"
+  },
+  "sharePointTarget": {
+    "siteName": "AuditSphere Development",
+    "webUrl": "https://easyguide.sharepoint.com/sites/AuditSphereDevelopment",
+    "scope": "SharePoint classic and communication sites: one selected site"
+  },
+  "label": {
+    "name": "AuditSphere Dev Test Record",
+    "referenceId": "AS-DEV-REC-001",
+    "retention": "1 day",
+    "recordBehavior": "mark items as a record",
+    "disposition": "start a disposition review",
+    "reviewer": "qts@easyguide.onmicrosoft.com",
+    "creationUiResult": "Submitted successfully"
+  },
+  "publication": {
+    "name": "AuditSphere Dev Test Record Publication",
+    "includedLocations": [
+      "https://easyguide.sharepoint.com/sites/AuditSphereDevelopment"
+    ],
+    "excludedLocations": [
+      "Exchange mailboxes",
+      "OneDrive accounts",
+      "Microsoft 365 Group mailboxes and sites"
+    ],
+    "submissionUiResult": "Your retention label was published",
+    "availabilityNotice": "Microsoft Purview stated availability may take up to a week"
+  },
+  "notYetProven": [
+    "Label application to a synthetic SharePoint item",
+    "Observed protection-state readback",
+    "Compliance-owner approval and residual-risk sign-off",
+    "Production records behavior"
+  ]
+}

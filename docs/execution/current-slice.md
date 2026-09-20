@@ -2,19 +2,13 @@
 
 The build contract is `AuditSphereOps_NET_Codex_Implementation_Specification.md` (v5.0) at repo root. The v5 specification already requires .NET 10 (SDK 10.0.300) and PostgreSQL 18; an earlier note claiming .NET 10 was a deviation was incorrect. The local server is now PostgreSQL 18.6, matching the spec's required major version.
 
-## P0 — Repository Truth, Backlog and Governance Cleanup (active, master @ `b34447b`)
+## Current verified baseline — master @ `1184485`
 
-**Base:** `b34447ba2d87e81ed865081b7dedb1415e5efdce` (merge of PR #11, 2026-09-19)  
-**Tests:** 161/161 passing, 0 skipped, PostgreSQL 18.6  
-**Migrations:** 30 (latest: `20260919134442_RecordsActionEvidence`)
+**Base:** `1184485797f359c89b5f9f82c264d05845dfe0ff` (P6 merged baseline, 2026-09-19)
+**Tests:** 165/165 passing, 0 skipped, PostgreSQL 18.6
+**Migrations:** 31 (latest: `20260919203959_ArchiveVersionLineage`)
 
-This slice makes no code or schema changes. It reconciles all execution-ledger documents with the current merged `master` reality, creates GitHub milestones R1–R4 and 14 dependency-ordered issues for P1–P10 remaining work, and prepares the branch-protection configuration for owner action.
-
-Acceptance criteria for P0:
-- README, status.json, current-slice.md, implementation-checklist.md, and pending-tasks.md all agree on `b34447b` baseline.
-- No merged PR is shown as active.
-- Every pending package has a GitHub issue, owner, and milestone.
-- No credentials or secrets are stored in Git.
+P0 repository/backlog reconciliation is complete. GitHub `master` is now protected with one approving review, current-head review, stale-review dismissal, `build-test-ready`, up-to-date branches, conversation resolution, administrator enforcement, and force-push/deletion disabled. Independent human review remains a separate gate.
 
 ## P6 — Records / Archive Residual Hardening (locally verified, 2026-09-19)
 
@@ -78,7 +72,7 @@ The restore rehearsal is development-only and loopback-only; it does not establi
 
 Repository bindings now scope document references to an authorized tenant/site/drive/root binding. `GraphPbcProviderSink` and `GraphReleaseCheckpointStore` are signature-only fail-closed boundaries. Web and worker startup refuse external effects without a complete approved identity/connection/epoch composition. Recovery sessions persist quarantine, external epoch, reconciliation scope and reviewed findings before an authorized restart advances the deployment epoch. Records archives persist the complete local §25.3 structured payload and append-only requested/observed records-action evidence.
 
-The EasyGuide tenant evidence is limited to the observed `Sites.Selected` app permission and selected-site `write` grant. Purview was inspected as `qts@easyguide.onmicrosoft.com`; both Information Protection sensitivity labels and Data Lifecycle Management retention labels showed no data, and the creation draft was discarded. No Purview production profile/label behavior, professional signing approval, independent human review, or production RPO/RTO acceptance is claimed.
+The EasyGuide tenant evidence includes the observed `Sites.Selected` app permission and selected-site `write` grant, plus a synthetic Purview retention label (`AS-DEV-REC-001`) and a successfully submitted publication policy scoped to `AuditSphere Development`. The label is not yet observed applied/protected on content; no production profile, professional signing approval, independent human review, or production RPO/RTO acceptance is claimed.
 
 ## Durable outbox and validation worker
 
@@ -211,17 +205,21 @@ The initial Blazor shell now includes scoped mapping/package views and a restric
 
 - The requested browser session is authenticated as `qts@easyguide.onmicrosoft.com` in tenant `easyguide` (`hamzaholdings.com`), tenant ID `4de3e6fd-51aa-4ba7-b2c5-82106d2e45f0`. Graph Explorer `GET /v1.0/me` returned HTTP 200. The broad site-search query returned HTTP 403; no tenant-wide `Sites.Read.All` consent was granted.
 - `AuditSphere Development` is a private one-member site with empty `Client Content`, `Internal Workpapers`, and `Issued Records` libraries. The P0 client and issued-records test sites are private one-member sites with standard empty document surfaces observed.
-- Microsoft 365 admin showed the signed-in user with Microsoft 365 E5 Developer (without Windows and Audio Conferencing), Power Apps for Developer, and Power Automate Free. The new Purview portal is reachable with Microsoft 365 connected, but its displayed compliance posture is 0%; no production records profile, retention-label proof, or professional signing/methodology approval was observed.
+- Microsoft 365 admin showed the signed-in user with Microsoft 365 E5 Developer (without Windows and Audio Conferencing), Power Apps for Developer, and Power Automate Free. The new Purview portal is reachable with Microsoft 365 connected, but its displayed compliance posture is 0%; only the synthetic developer label/publication evidence below is observed, with no production records approval or professional signing/methodology approval.
 - On 2026-09-19, Entra showed the single-tenant `AuditSphereOps Development` app (`29be1ee5-e90c-4ecc-b4f9-5bcce14774cc`) with Microsoft Graph `Sites.Selected` application permission granted for EasyGuide. No client secret or certificate was created.
+- On 2026-09-20, Entra showed the same single-tenant app with web redirect URI `http://localhost:5099/signin-oidc`. This is developer configuration evidence only; no client secret/certificate, real identity fixtures, or live OIDC sign-in acceptance is claimed.
 - On 2026-09-19, Graph Explorer under the visible `easyguide` tenant label returned HTTP `201 Created` for a `write` permission on `AuditSphere Development` (`easyguide.sharepoint.com,4668a3d6-8c1a-462d-accc-f95e7534aae5,b3c5cb09-7b20-4270-b352-aa4ca4db3722`). A follow-up `GET /permissions` returned HTTP `200` with `roles: ["write"]` and the same application ID. No tenant-wide `Sites.Read.All` grant was added.
+- On 2026-09-19, Purview displayed `Submitted successfully` after creating `AuditSphere Dev Test Record` with one-day retention, record locking, disposition review, reference ID `AS-DEV-REC-001`, and reviewer `qts@easyguide.onmicrosoft.com`.
+- On 2026-09-19, Purview displayed `Your retention label was published` after submitting `AuditSphere Dev Test Record Publication` for only `https://easyguide.sharepoint.com/sites/AuditSphereDevelopment`; policy propagation and actual content protection observation remain pending.
 - The selected non-production grant does not provide production credentials, Purview approval, professional sign-off, independent review, or real-tenant RPO/RTO evidence; those gates remain blocked.
+- On 2026-09-20, GitHub confirmed branch protection for `master` with one required approval, current-head review, stale-review dismissal, `build-test-ready`, up-to-date branches, conversation resolution, administrator enforcement, and force-push/deletion disabled. This advances P9 governance only; no independent human review has been recorded.
 
 ## Records profile, archive manifest, retention and hold evidence (local, observed 2026-09-19)
 
 - Migrations `20260919123339_RecordsArchiveWorkflow`, `20260919124558_ArchiveProtectionObservation`, `20260919134031_ArchiveStructuredExports`, and `20260919134442_RecordsActionEvidence` add versioned `RecordsProfile`, scoped archive manifests/entries, persisted §25.3 structured exports, append-only records-action evidence, `RecordsAction`, and `LegalHold` persistence. Archive status is constrained to `ISSUED → ASSEMBLY_IN_PROGRESS → MANIFEST_BUILT → ASSEMBLY_REVIEWED → RECORDS_ACTION_REQUESTED → PROTECTION_OBSERVED → ARCHIVE_VERIFIED`; the database rejects `PROTECTION_OBSERVED`/`ARCHIVE_VERIFIED` without a stored observation state and timestamp.
 - `RecordsArchiveService` creates approved-profile metadata, builds a digest-stable manifest from real document snapshots plus a structured `records-export.v1` payload, validates document-reference completeness, records requested versus observed protection, and tracks requested/observed legal holds. It does not call Purview and never treats a requested action as proof.
 - `/app/records/archives/{id}` now reads the persisted archive, manifest, entries, records action and holds under the authenticated firm/engagement authorization boundary. Placeholder engagement names, hashes, dates and fake documents were removed.
-- Local evidence: `dotnet build AuditSphereOps.slnx` passed with 0 warnings/errors; `dotnet test` passed 161/161 on PostgreSQL 18.6 with 0 skipped; the archive tests passed; web `/health/ready` and `/health/live` returned Healthy/200; and the restore drill passed 30/30 migrations. Deterministic re-archive versions, disposition-package blocking, Purview behavior, production records approval and external recovery remain open.
+- Local evidence: `dotnet build AuditSphereOps.slnx` passed with 0 warnings/errors; `dotnet test` passed 165/165 on PostgreSQL 18.6 with 0 skipped; the archive tests passed; web `/health/ready` and `/health/live` returned Healthy/200; and the restore drill passed 31/31 migrations. Deterministic re-archive versions and disposition-package blocking are locally verified; Purview application/readback, production records approval and external recovery remain open.
 
 ## Audit planning, materiality, risks, populations, workpapers, findings lifecycle and UI routes (local verified)
 
