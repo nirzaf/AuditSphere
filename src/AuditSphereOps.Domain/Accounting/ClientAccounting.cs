@@ -490,6 +490,8 @@ public sealed class SpecialistAccountingSchedule
   public long InputGeneration { get; set; } = 1;
   public string Area { get; set; } = string.Empty; // ASSETS | PAYROLL | LOANS | EQUITY | TAX | FORECAST
   public string MethodologyVersion { get; set; } = string.Empty;
+  public string DepreciationMethod { get; set; } = string.Empty;
+  public int? UsefulLifeMonths { get; set; }
   public decimal OpeningAmount { get; set; }
   public decimal AdditionsAmount { get; set; }
   public decimal DisposalsAmount { get; set; }
@@ -503,6 +505,7 @@ public sealed class SpecialistAccountingSchedule
   public decimal TaxPaid { get; set; }
   public decimal ManagementAmount { get; set; }
   public decimal CalculatedAmount { get; set; }
+  public decimal ClosingAmount { get; set; }
   public decimal Difference { get; set; }
   public string AssumptionsHash { get; set; } = string.Empty;
   public string EvidenceReference { get; set; } = string.Empty;

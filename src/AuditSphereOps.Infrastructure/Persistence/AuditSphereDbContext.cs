@@ -1696,12 +1696,13 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     var specialist = b.Entity<SpecialistAccountingSchedule>();
     specialist.Property(x => x.Area).HasMaxLength(80);
     specialist.Property(x => x.MethodologyVersion).HasMaxLength(100);
+    specialist.Property(x => x.DepreciationMethod).HasMaxLength(80);
     specialist.Property(x => x.AssumptionsHash).HasMaxLength(64);
     specialist.Property(x => x.EvidenceReference).HasMaxLength(2000);
     specialist.Property(x => x.Status).HasMaxLength(30);
     specialist.HasIndex(x => new { x.FirmId, x.EngagementId, x.PeriodId, x.Area }).HasDatabaseName("ix_specialist_schedule_area");
     specialist.ToTable("specialist_accounting_schedules", t => t.HasCheckConstraint("ck_specialist_schedule_values",
-      "length(trim(area)) > 0 AND length(trim(methodology_version)) > 0"));
+      "length(trim(area)) > 0 AND length(trim(methodology_version)) > 0 AND (area <> 'ASSETS' OR (length(trim(depreciation_method)) > 0 AND useful_life_months > 0))"));
     ScopeToEngagement(specialist, nameof(SpecialistAccountingSchedule.FirmId), nameof(SpecialistAccountingSchedule.ClientId), nameof(SpecialistAccountingSchedule.EngagementId));
 
     var analysis = b.Entity<AnalyticalReview>();

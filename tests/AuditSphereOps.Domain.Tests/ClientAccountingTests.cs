@@ -105,7 +105,8 @@ public sealed class ClientAccountingTests
           OpeningAmount: 100m, AdditionsAmount: 20m, DisposalsAmount: 0m, DepreciationAmount: 10m,
           ImpairmentAmount: 0m, InterestAmount: 0m, CurrentPortion: 0m, NonCurrentPortion: 0m,
           CapitalMovement: 0m, Dividends: 0m, TaxPaid: 0m, ManagementAmount: 110m,
-          AssumptionsHash: new string('e', 64), EvidenceReference: "asset-register"))).Value;
+          AssumptionsHash: new string('e', 64), EvidenceReference: "asset-register",
+          DepreciationMethod: "STRAIGHT_LINE", UsefulLifeMonths: 120))).Value;
       analyticalId = (await AccountingAnalysisService.CreateAnalyticalReviewAsync(db, preparer,
         new AnalyticalReviewRequest(scope.ClientA, scope.EngagementA, periodId, null, "REVENUE", "monthly", 120m, 100m, 110m, "prior-year-total", "analytics-v1", "Seasonal movement explained by signed contracts."))).Value;
       riskId = (await AccountingAnalysisService.AddJournalRiskFlagAsync(db, preparer,
@@ -212,15 +213,29 @@ public sealed class ClientAccountingTests
 
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
+      var incompleteAsset = await AccountingAnalysisService.RecordSpecialistScheduleAsync(db, preparer,
+        new SpecialistScheduleRequest(scope.ClientA, scope.EngagementA, fixture.PeriodId, "ASSETS", "asset-v1",
+          OpeningAmount: 100m, AdditionsAmount: 20m, DisposalsAmount: 0m, DepreciationAmount: 10m,
+          ImpairmentAmount: 0m, InterestAmount: 0m, CurrentPortion: 0m, NonCurrentPortion: 0m,
+          CapitalMovement: 0m, Dividends: 0m, TaxPaid: 0m, ManagementAmount: 110m,
+          AssumptionsHash: new string('e', 64), EvidenceReference: "asset-register"));
+      Assert.False(incompleteAsset.Succeeded);
+      Assert.Equal(ErrorCodes.Accounting.ReconciliationRejected, incompleteAsset.ErrorCode);
+
       specialistId = (await AccountingAnalysisService.RecordSpecialistScheduleAsync(db, preparer,
         new SpecialistScheduleRequest(scope.ClientA, scope.EngagementA, fixture.PeriodId, "ASSETS", "asset-v1",
           OpeningAmount: 100m, AdditionsAmount: 20m, DisposalsAmount: 0m, DepreciationAmount: 10m,
           ImpairmentAmount: 0m, InterestAmount: 0m, CurrentPortion: 0m, NonCurrentPortion: 0m,
           CapitalMovement: 0m, Dividends: 0m, TaxPaid: 0m, ManagementAmount: 110m,
-          AssumptionsHash: new string('e', 64), EvidenceReference: "asset-register"))).Value;
+          AssumptionsHash: new string('e', 64), EvidenceReference: "asset-register",
+          DepreciationMethod: "STRAIGHT_LINE", UsefulLifeMonths: 120))).Value;
       analyticalId = (await AccountingAnalysisService.CreateAnalyticalReviewAsync(db, preparer,
         new AnalyticalReviewRequest(scope.ClientA, scope.EngagementA, fixture.PeriodId, null, "REVENUE", "monthly",
           120m, 100m, 110m, "prior-year-total", "analytics-v1", "Seasonal movement explained by signed contracts."))).Value;
+      var schedule = await db.SpecialistAccountingSchedules.SingleAsync(x => x.Id == specialistId);
+      Assert.Equal("STRAIGHT_LINE", schedule.DepreciationMethod);
+      Assert.Equal(120, schedule.UsefulLifeMonths);
+      Assert.Equal(110m, schedule.ClosingAmount);
 
       var clientState = await db.ClientSafetyStates.SingleAsync(x => x.FirmId == scope.FirmId && x.Id == scope.ClientA);
       clientState.InputGeneration++;

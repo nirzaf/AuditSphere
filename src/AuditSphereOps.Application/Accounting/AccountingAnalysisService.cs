@@ -34,7 +34,7 @@ public sealed record SpecialistScheduleRequest(
   decimal DepreciationAmount, decimal ImpairmentAmount, decimal InterestAmount,
   decimal CurrentPortion, decimal NonCurrentPortion, decimal CapitalMovement,
   decimal Dividends, decimal TaxPaid, decimal ManagementAmount, string AssumptionsHash,
-  string EvidenceReference);
+  string EvidenceReference, string? DepreciationMethod = null, int? UsefulLifeMonths = null);
 
 public sealed record AnalyticalReviewRequest(
   Guid ClientId, Guid EngagementId, Guid PeriodId, Guid? ComparisonPeriodId,
@@ -436,9 +436,12 @@ public static class AccountingAnalysisService
     IClientAccountingDbContext db, ActorContext actor, SpecialistScheduleRequest request,
     CancellationToken ct = default)
   {
-    if (string.IsNullOrWhiteSpace(request.Area) || string.IsNullOrWhiteSpace(request.MethodologyVersion) ||
+    var area = request.Area?.Trim().ToUpperInvariant() ?? string.Empty;
+    if (string.IsNullOrWhiteSpace(area) || string.IsNullOrWhiteSpace(request.MethodologyVersion) ||
         string.IsNullOrWhiteSpace(request.EvidenceReference) || !IsSha256(request.AssumptionsHash))
       return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ReconciliationRejected, "Specialist schedules need an approved method, evidence and assumptions.");
+    if (area == "ASSETS" && (string.IsNullOrWhiteSpace(request.DepreciationMethod) || request.UsefulLifeMonths is not > 0))
+      return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ReconciliationRejected, "Asset schedules need a depreciation method and positive useful life.");
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
       new AuthorizationRequest(actor.FirmId, request.ClientId, request.EngagementId, PreparerRoles, InternalOnly: true), ct);
     if (!auth.Succeeded)
@@ -454,15 +457,18 @@ public static class AccountingAnalysisService
     var schedule = new SpecialistAccountingSchedule
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = request.ClientId, EngagementId = request.EngagementId,
-      PeriodId = request.PeriodId, InputGeneration = clientState.InputGeneration, Area = request.Area.Trim().ToUpperInvariant(),
+      PeriodId = request.PeriodId, InputGeneration = clientState.InputGeneration, Area = area,
       MethodologyVersion = request.MethodologyVersion.Trim(),
+      DepreciationMethod = request.DepreciationMethod?.Trim().ToUpperInvariant() ?? string.Empty,
+      UsefulLifeMonths = request.UsefulLifeMonths,
       OpeningAmount = MoneyPolicy.Normalize(request.OpeningAmount), AdditionsAmount = MoneyPolicy.Normalize(request.AdditionsAmount),
       DisposalsAmount = MoneyPolicy.Normalize(request.DisposalsAmount), DepreciationAmount = MoneyPolicy.Normalize(request.DepreciationAmount),
       ImpairmentAmount = MoneyPolicy.Normalize(request.ImpairmentAmount), InterestAmount = MoneyPolicy.Normalize(request.InterestAmount),
       CurrentPortion = MoneyPolicy.Normalize(request.CurrentPortion), NonCurrentPortion = MoneyPolicy.Normalize(request.NonCurrentPortion),
       CapitalMovement = MoneyPolicy.Normalize(request.CapitalMovement), Dividends = MoneyPolicy.Normalize(request.Dividends),
       TaxPaid = MoneyPolicy.Normalize(request.TaxPaid), ManagementAmount = MoneyPolicy.Normalize(request.ManagementAmount),
-      CalculatedAmount = MoneyPolicy.Normalize(calculated), Difference = MoneyPolicy.Normalize(calculated - request.ManagementAmount),
+      CalculatedAmount = MoneyPolicy.Normalize(calculated), ClosingAmount = MoneyPolicy.Normalize(calculated),
+      Difference = MoneyPolicy.Normalize(calculated - request.ManagementAmount),
       AssumptionsHash = request.AssumptionsHash.Trim().ToLowerInvariant(), EvidenceReference = request.EvidenceReference.Trim(),
       CreatedByUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
     };
@@ -585,6 +591,9 @@ public static class AccountingAnalysisService
           return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
         if (decision == AccountingEvidenceReviewDecisions.Approved && specialist.EvidenceReference.Length == 0)
           return CommandResult.Fail(ErrorCodes.GateBlocked, "A specialist schedule review needs evidence.");
+        if (decision == AccountingEvidenceReviewDecisions.Approved && specialist.Area == "ASSETS" &&
+            (string.IsNullOrWhiteSpace(specialist.DepreciationMethod) || specialist.UsefulLifeMonths is not > 0))
+          return CommandResult.Fail(ErrorCodes.GateBlocked, "An asset schedule review needs a depreciation method and positive useful life.");
         clientId = specialist.ClientId; engagementId = specialist.EngagementId; createdByUserId = specialist.CreatedByUserId;
         recordedInputGeneration = specialist.InputGeneration;
         apply = () => { specialist.Status = decision; specialist.ReviewedByUserId = actor.UserId; specialist.ReviewedAt = DateTimeOffset.UtcNow; };
