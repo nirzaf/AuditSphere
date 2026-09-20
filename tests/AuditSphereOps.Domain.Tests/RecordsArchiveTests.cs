@@ -55,6 +55,7 @@ public sealed class RecordsArchiveTests
     Assert.Equal("records-export.v1", structuredExport.Schema);
     Assert.Contains("\"accounting\"", structuredExport.PayloadJson);
     Assert.Contains("\"reportingPeriods\"", structuredExport.PayloadJson);
+    Assert.Contains("\"periodAmendments\"", structuredExport.PayloadJson);
     Assert.Contains("\"specialistSchedules\"", structuredExport.PayloadJson);
     Assert.Contains("\"accountingEvidenceAuditLinks\"", structuredExport.PayloadJson);
     Assert.Contains("\"activityEvents\"", structuredExport.PayloadJson);

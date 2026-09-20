@@ -950,7 +950,10 @@ public static class ClientAccountingService
     IClientAccountingDbContext db, ActorContext actor, Guid periodId, string reason,
     CancellationToken ct = default)
   {
-    var period = await db.ClientReportingPeriods.SingleOrDefaultAsync(x => x.Id == periodId && x.FirmId == actor.FirmId, ct);
+    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    var period = await db.ClientReportingPeriods
+      .FromSqlInterpolated($"SELECT * FROM client_reporting_periods WHERE id = {periodId} AND firm_id = {actor.FirmId} FOR UPDATE")
+      .SingleOrDefaultAsync(ct);
     if (period is null)
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var auth = await AuthorizeClientAsync(db, actor, period.ClientId, ReviewerRoles, ct);
@@ -978,12 +981,26 @@ public static class ClientAccountingService
       x.Status == "OPEN" && db.SourceImportBatches.Any(b => b.Id == x.ImportBatchId && b.PeriodId == period.Id), ct);
     if (unreviewedEcl || unreviewedInventory || unreviewedSpecialist || unreviewedAnalytics || openRisk)
       return CommandResult.Fail(ErrorCodes.GateBlocked, "Unreviewed accounting analysis or journal-risk evidence blocks period close.");
+    var periodStart = period.StartDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+    var periodEnd = period.EndDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+    var packageIds = await db.FinancialPackages.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && x.ClientId == period.ClientId &&
+        x.PeriodStart == periodStart && x.PeriodEnd == periodEnd)
+      .Select(x => x.Id).ToListAsync(ct);
+    foreach (var packageId in packageIds)
+    {
+      var packageReview = await FinancialPackageReviewService.RequireCurrentAsync(db, actor, packageId, requirePartner: true, ct);
+      if (!packageReview.Succeeded)
+        return CommandResult.Fail(ErrorCodes.GateBlocked,
+          "Every financial package for the period needs current management, accounting, and partner approval before close.");
+    }
     period.Status = AccountingWorkflowStates.Closed;
     period.ClosedByUserId = actor.UserId;
     period.ClosedAt = DateTimeOffset.UtcNow;
     period.CloseReason = reason.Trim();
     period.Revision++;
     await db.SaveChangesAsync(ct);
+    await tx.CommitAsync(ct);
     return CommandResult.Ok();
   }
 
@@ -991,7 +1008,10 @@ public static class ClientAccountingService
     IClientAccountingDbContext db, ActorContext actor, Guid periodId, string reason,
     CancellationToken ct = default)
   {
-    var period = await db.ClientReportingPeriods.SingleOrDefaultAsync(x => x.Id == periodId && x.FirmId == actor.FirmId, ct);
+    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    var period = await db.ClientReportingPeriods
+      .FromSqlInterpolated($"SELECT * FROM client_reporting_periods WHERE id = {periodId} AND firm_id = {actor.FirmId} FOR UPDATE")
+      .SingleOrDefaultAsync(ct);
     if (period is null)
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var auth = await AuthorizeClientAsync(db, actor, period.ClientId, ["Partner", "Administrator"], ct);
@@ -999,12 +1019,21 @@ public static class ClientAccountingService
       return auth;
     if (period.Status != AccountingWorkflowStates.Closed || string.IsNullOrWhiteSpace(reason))
       return CommandResult.Fail(ErrorCodes.GateBlocked, "Only a closed period can be reopened with a recorded decision.");
+    var previousRevision = period.Revision;
+    var amendmentRevision = previousRevision + 1;
     period.Status = AccountingWorkflowStates.Draft;
     period.CloseReason = "REOPENED: " + reason.Trim();
-    period.Revision++;
+    period.Revision = amendmentRevision;
     period.ClosedAt = null;
     period.ClosedByUserId = null;
+    db.ClientPeriodAmendments.Add(new ClientPeriodAmendment
+    {
+      Id = Guid.CreateVersion7(), FirmId = period.FirmId, ClientId = period.ClientId, PeriodId = period.Id,
+      PreviousRevision = previousRevision, AmendmentRevision = amendmentRevision,
+      Reason = reason.Trim(), CreatedByUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
+    });
     await db.SaveChangesAsync(ct);
+    await tx.CommitAsync(ct);
     return CommandResult.Ok();
   }
 

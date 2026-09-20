@@ -569,6 +569,89 @@ public sealed class ClientAccountingTests
 
   [Fact]
   [Trait("Profile", "Database")]
+  public async Task PeriodReopen_RecordsImmutableRevisionLineage()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var scope = await SeedAsync(pg);
+    var preparer = Actor(scope.Preparer, "AccountingPreparer");
+    var reviewer = Actor(scope.Reviewer, "AccountingReviewer");
+    var partner = Actor(scope.Reviewer, "Partner");
+    Guid periodId, amendmentId;
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      periodId = (await ClientAccountingService.CreatePeriodAsync(db, preparer,
+        new ReportingPeriodRequest(scope.ClientA, "2026", new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31), "STATUTORY", "QAR"))).Value;
+      Assert.True((await ClientAccountingService.ClosePeriodAsync(db, reviewer, periodId, "Initial close")).Succeeded);
+      Assert.True((await ClientAccountingService.ReopenPeriodAsync(db, partner, periodId, "Correct the approved opening bridge")).Succeeded);
+
+      var period = await db.ClientReportingPeriods.SingleAsync(x => x.Id == periodId);
+      Assert.Equal(AccountingWorkflowStates.Draft, period.Status);
+      Assert.Equal(3, period.Revision);
+      var first = await db.ClientPeriodAmendments.SingleAsync(x => x.PeriodId == periodId);
+      Assert.Equal(2, first.PreviousRevision);
+      Assert.Equal(3, first.AmendmentRevision);
+      Assert.Equal("Correct the approved opening bridge", first.Reason);
+      amendmentId = first.Id;
+
+      Assert.True((await ClientAccountingService.ClosePeriodAsync(db, reviewer, periodId, "Corrected close")).Succeeded);
+      Assert.True((await ClientAccountingService.ReopenPeriodAsync(db, partner, periodId, "Record the final correction")).Succeeded);
+    }
+
+    await using var verify = new AuditSphereDbContext(pg.Options);
+    var amendments = await verify.ClientPeriodAmendments.Where(x => x.PeriodId == periodId)
+      .OrderBy(x => x.AmendmentRevision).ToListAsync();
+    Assert.Equal(2, amendments.Count);
+    Assert.Equal((2L, 3L), (amendments[0].PreviousRevision, amendments[0].AmendmentRevision));
+    Assert.Equal((4L, 5L), (amendments[1].PreviousRevision, amendments[1].AmendmentRevision));
+    var mutation = await Assert.ThrowsAsync<PostgresException>(() => verify.Database.ExecuteSqlInterpolatedAsync(
+      $"UPDATE client_period_amendments SET reason = {"tampered"} WHERE id = {amendmentId}"));
+    Assert.Equal("55000", mutation.SqlState);
+  }
+
+  [Fact]
+  [Trait("Profile", "Database")]
+  public async Task PeriodClose_RequiresCurrentReviewsForMatchingFinancialPackages()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var scope = await SeedAsync(pg);
+    var preparer = Actor(scope.Preparer, "AccountingPreparer");
+    var reviewer = Actor(scope.Reviewer, "AccountingReviewer");
+    var partner = Actor(scope.Reviewer, "Partner");
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var periodId = (await ClientAccountingService.CreatePeriodAsync(db, preparer,
+        new ReportingPeriodRequest(scope.ClientA, "2026", new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31), "STATUTORY", "QAR"))).Value;
+      var packageId = await AddPackageAsync(db, scope, scope.ClientA, scope.EngagementA, 100m, "CASH", "period-close-gate");
+      await db.SaveChangesAsync();
+
+      var blocked = await ClientAccountingService.ClosePeriodAsync(db, reviewer, periodId, "Package approvals pending");
+      Assert.False(blocked.Succeeded);
+      Assert.Equal(ErrorCodes.GateBlocked, blocked.ErrorCode);
+
+      Assert.True((await FinancialPackageReviewService.RecordAsync(db, preparer,
+        new FinancialPackageReviewRequest(packageId, FinancialPackageReviewStages.ManagementApproval,
+          FinancialPackageReviewDecisions.Approved, FinancialPackageReviewEvidenceModes.Offline,
+          "management-close-gate", "Management approved the exact package."))).Succeeded);
+      Assert.True((await FinancialPackageReviewService.RecordAsync(db, reviewer,
+        new FinancialPackageReviewRequest(packageId, FinancialPackageReviewStages.AccountingReview,
+          FinancialPackageReviewDecisions.Approved, FinancialPackageReviewEvidenceModes.SignedIn,
+          "accounting-close-gate", "Accounting review completed."))).Succeeded);
+      Assert.True((await FinancialPackageReviewService.RecordAsync(db, partner,
+        new FinancialPackageReviewRequest(packageId, FinancialPackageReviewStages.PartnerApproval,
+          FinancialPackageReviewDecisions.Approved, FinancialPackageReviewEvidenceModes.SignedIn,
+          "partner-close-gate", "Partner approval completed."))).Succeeded);
+
+      var closed = await ClientAccountingService.ClosePeriodAsync(db, reviewer, periodId, "All package approvals complete");
+      Assert.True(closed.Succeeded, closed.Message);
+      Assert.Equal(AccountingWorkflowStates.Closed,
+        await db.ClientReportingPeriods.Where(x => x.Id == periodId).Select(x => x.Status).SingleAsync());
+    }
+  }
+
+  [Fact]
+  [Trait("Profile", "Database")]
   public async Task FinancialPackageReviews_AreStageBoundAndImmutable()
   {
     await using var pg = await PgTestSchema.CreateAsync();

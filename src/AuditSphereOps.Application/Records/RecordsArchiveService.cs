@@ -484,6 +484,9 @@ public static class RecordsArchiveService
     var reportingPeriods = typedAccounting is null ? [] : await typedAccounting.ClientReportingPeriods.AsNoTracking()
       .Where(x => x.FirmId == archive.FirmId && x.ClientId == archive.ClientId).OrderBy(x => x.Id)
       .Select(x => new { x.Id, x.PeriodCode, x.StartDate, x.EndDate, x.Basis, x.Currency, x.Status, x.PriorPeriodId, x.Revision, x.ClosedAt, x.CloseReason, x.CreatedAt }).ToListAsync(ct);
+    var periodAmendments = typedAccounting is null ? [] : await typedAccounting.ClientPeriodAmendments.AsNoTracking()
+      .Where(x => x.FirmId == archive.FirmId && x.ClientId == archive.ClientId).OrderBy(x => x.Id)
+      .Select(x => new { x.Id, x.PeriodId, x.PreviousRevision, x.AmendmentRevision, x.Reason, x.CreatedByUserId, x.CreatedAt }).ToListAsync(ct);
     var reportingBooks = typedAccounting is null ? [] : await typedAccounting.ClientReportingBooks.AsNoTracking()
       .Where(x => x.FirmId == archive.FirmId && x.ClientId == archive.ClientId).OrderBy(x => x.Id)
       .Select(x => new { x.Id, x.PeriodId, x.Code, x.Basis, x.InclusionRule, x.Currency, x.Status, x.Revision, x.CreatedAt }).ToListAsync(ct);
@@ -709,6 +712,7 @@ public static class RecordsArchiveService
       {
         clientProfiles,
         reportingPeriods,
+        periodAmendments,
         reportingBooks,
         openingBalanceBridges,
         periodRestatements,

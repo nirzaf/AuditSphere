@@ -89,6 +89,7 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
   public DbSet<ClientGroupMembership> ClientGroupMemberships => Set<ClientGroupMembership>();
   public DbSet<GroupAccessGrant> GroupAccessGrants => Set<GroupAccessGrant>();
   public DbSet<ClientReportingPeriod> ClientReportingPeriods => Set<ClientReportingPeriod>();
+  public DbSet<ClientPeriodAmendment> ClientPeriodAmendments => Set<ClientPeriodAmendment>();
   public DbSet<ClientReportingBook> ClientReportingBooks => Set<ClientReportingBook>();
   public DbSet<OpeningBalanceBridge> OpeningBalanceBridges => Set<OpeningBalanceBridge>();
   public DbSet<ClientPeriodRestatement> ClientPeriodRestatements => Set<ClientPeriodRestatement>();
@@ -1431,6 +1432,17 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     period.HasOne<ClientReportingPeriod>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.PriorPeriodId })
       .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var amendment = b.Entity<ClientPeriodAmendment>();
+    amendment.Property(x => x.Reason).HasMaxLength(4000);
+    amendment.HasIndex(x => new { x.FirmId, x.ClientId, x.PeriodId, x.AmendmentRevision }).IsUnique()
+      .HasDatabaseName("ux_client_period_amendment_revision");
+    amendment.ToTable("client_period_amendments", t => t.HasCheckConstraint("ck_client_period_amendment_values",
+      "previous_revision >= 1 AND amendment_revision = previous_revision + 1 AND length(trim(reason)) > 0"));
+    amendment.HasOne<ClientReportingPeriod>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.PeriodId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    amendment.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.CreatedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
 
     var book = b.Entity<ClientReportingBook>();
     book.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.Id }).HasName("ak_client_reporting_books_scope_id");

@@ -128,6 +128,20 @@ public sealed class ClientReportingPeriod
   public DateTimeOffset CreatedAt { get; set; }
 }
 
+/// <summary>Immutable record of an authorized reopen that creates a new period revision.</summary>
+public sealed class ClientPeriodAmendment
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public Guid PeriodId { get; set; }
+  public long PreviousRevision { get; set; }
+  public long AmendmentRevision { get; set; }
+  public string Reason { get; set; } = string.Empty;
+  public Guid CreatedByUserId { get; set; }
+  public DateTimeOffset CreatedAt { get; set; }
+}
+
 public sealed class ClientReportingBook
 {
   public Guid Id { get; set; }
