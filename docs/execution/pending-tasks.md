@@ -2,7 +2,7 @@
 
 **Repository:** nirzaf/AuditSphere  
 **Authoritative specification:** `AuditSphereOps_NET_Codex_Implementation_Specification.md` v5.0  
-**Reviewed baseline:** master at `1184485797f359c89b5f9f82c264d05845dfe0ff`
+**Reviewed baseline:** master at `1322bc36113a43e3f6a1bdb36f5e04cd78949bea`
 **Current verified baseline:** 31 migrations, 165/165 PostgreSQL-backed tests, records/archive residual hardening (P6) locally verified
 
 ---
@@ -116,7 +116,7 @@ P10 Full §47 real-tenant acceptance cycle
 - [x] Reconcile `docs/execution/implementation-checklist.md`.
 - [x] Reconcile `docs/execution/pending-tasks.md` (this file).
 - [x] Create GitHub issues for the remaining packages (14 issues, 4 milestones).
-- [ ] Prepare branch-protection/ruleset configuration for master.
+- [x] Prepare branch-protection/ruleset configuration for master.
 - [ ] Require CI and independent review before production-readiness merges.
 
 **Acceptance criteria:**
@@ -151,7 +151,7 @@ P10 Full §47 real-tenant acceptance cycle
 
 **Owner prerequisites:** approved app configuration, redirect URIs, authentication flow, secret/certificate reference in approved secret store, tenant/environment authorization, approved fixture identities.
 
-**Observed EasyGuide developer configuration (2026-09-20):** single-tenant app `AuditSphereOps Development` has web redirect URI `http://localhost:5099/signin-oidc`, zero certificates, and one current non-production client secret expiring 2027-03-19. The secret value was not revealed. The restarted host's `/auth/sign-in` route returned HTTP 302 to the EasyGuide authorize endpoint using the Infisical-backed handoff, and after the raw `oid`/`tid` claim mapping fix a fresh qts callback rendered the live Portfolio shell. Infisical project `AuditSphereOps` / `Development` displays masked references for `Identity__CallbackPath`, `Identity__ClientId`, `Identity__ClientSecret`, and `Identity__TenantId`; its `Staging` and `Production` environments are empty. No values were revealed or changed. Entra's 16-user inventory contains only Client X, Client Y, and Staff under the `AuditSphere P0` search; exact Client A, Client B, `disabled`, and `revoked` searches returned zero users, and no wrong-tenant/guest fixture was observed. The required fixture acceptance matrix remains open, and approved rotation/custody evidence is still not established.
+**Observed EasyGuide developer configuration (2026-09-20):** single-tenant app `AuditSphereOps Development` has web redirect URI `http://localhost:5099/signin-oidc`, zero certificates, and one current non-production client secret expiring 2027-03-19. The secret value was not revealed. The restarted host's `/auth/sign-in` route returned HTTP 302 to the EasyGuide authorize endpoint using the Infisical-backed handoff, and after the raw `oid`/`tid` claim mapping fix a fresh qts callback rendered the live Portfolio shell. Infisical project `AuditSphereOps` / `Development` displays masked references for `Identity__CallbackPath`, `Identity__ClientId`, `Identity__ClientSecret`, and `Identity__TenantId`; its `Staging` and `Production` environments are empty. Approval Workflows shows zero open/closed change requests and no approval policies; Project Audit Logs require a paid plan and were not readable. No values were revealed or changed. Entra's 16-user inventory contains only Client X, Client Y, and Staff under the `AuditSphere P0` search; exact Client A, Client B, `disabled`, and `revoked` searches returned zero users, and no wrong-tenant/guest fixture was observed. A fresh SharePoint compliance reread at `09:23:29Z` still reported no retention policy, no hold, and no in-place record for `AuditSphere-Dev-Test-Record.txt`. The required fixture acceptance matrix, Purview protection evidence, and approved rotation/custody evidence remain open.
 
 **Acceptance criteria:**
 - Staff sign-in maps to expected (tenant, object) identity.

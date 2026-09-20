@@ -16,11 +16,11 @@
     "issueNumber": 12,
     "branch": "master",
     "pullRequestNumber": null,
-    "headCommit": "1184485797f359c89b5f9f82c264d05845dfe0ff",
+    "headCommit": "1322bc36113a43e3f6a1bdb36f5e04cd78949bea",
     "implementationStatus": "IN_PROGRESS",
     "acceptanceStatus": "LOCAL_VERIFIED",
-    "worktree": "P6 is complete at master@1184485 (165/165 tests, 31 migrations). P0 is the active dependency-ready package: its remaining reconciliation items (master branch protection, CI and independent-review merge requirements) are configured and verified. PR #26 is an evidence-ledger-only submission retained in this branch's history: it records live EasyGuide developer-tenant observations (Entra app/redirect configuration, selected SharePoint grant, Purview test label/publication) as historical evidence without advancing P4 past its blocked P1/P2 predecessors, per the dependency order in pending-tasks.md §4. GitHub master protection is now configured and verified; runtime credentials/identity fixtures, label application/protection readback, P2/P3, professional sign-off, recovery, and independent human review remain open.",
-    "scope": "Active package: repository truth, backlog and governance reconciliation with merged reality. This branch contributes only the synthetic EasyGuide developer-tenant evidence ledger entries; no production content, credentials, secrets, or application code changed.",
+    "worktree": "P6 remains complete at master@1184485 (165/165 tests, 31 migrations). Current master@1322bc3 contains the raw Entra oid/tid claim mapping fix and the evidence-ledger refresh. P0 remains the active dependency-ready package: branch protection and CI requirements are configured and verified, while independent human review remains open. The EasyGuide observations remain historical evidence and do not advance P4 past its blocked P1/P2 predecessors. Runtime identity fixtures, label application/protection readback, P2/P3, professional sign-off, recovery, and independent human review remain open.",
+    "scope": "Active package: repository truth, backlog and governance reconciliation with merged reality, plus the bounded local OIDC claim-mapping fix and synthetic EasyGuide developer-tenant evidence. No production content, credentials, or secret values were changed.",
     "productionEnabled": false
   },
 
@@ -240,6 +240,10 @@
     {
       "command": "Purview label propagation and SharePoint protection readback (2026-09-20T09:10:12Z)",
       "result": "Purview File plan showed AuditSphere Dev Test Record as Active with one-day retention, record locking, disposition review, and reference ID AS-DEV-REC-001. Label policies showed AuditSphere Dev Test Record Publication and AuditSphere Dev Test Label Policy as Enabled. A synthetic AuditSphere-Dev-Test-Record.txt was created in the scoped AuditSphere Development Documents library. SharePoint Compliance details read back that the item is not subject to a retention policy, is not on hold, and is not an in-place record; actual label/protection propagation remains unobserved."
+    },
+    {
+      "command": "Fresh SharePoint compliance reread and authenticated local shell (2026-09-20T09:23:29Z)",
+      "result": "A fresh browser reread of SharePoint Compliance details returned the same negative protection state for AuditSphere-Dev-Test-Record.txt: no retention policy, not on hold, and not an in-place record. The authenticated local Portfolio shell remained rendered at http://localhost:5099/app with live PostgreSQL counts; no tenant data or permissions were changed."
     }
   ],
   "tenantEvidence": [
@@ -287,6 +291,16 @@
       "observedAt": "2026-09-20T09:14:35Z",
       "source": "Infisical Secrets browser UI, AuditSphereOps project / Staging and Production environments",
       "result": "The Staging and Production environments were empty. No additional fixture credentials or production runtime references were present; Development remains the only environment with the four masked OIDC references."
+    },
+    {
+      "observedAt": "2026-09-20T09:16:44Z",
+      "source": "Infisical Approval Workflows and Project Audit Logs browser UI",
+      "result": "Approval Workflows showed zero open and zero closed change requests and no approval policies. Project Audit Logs were unavailable on the Free plan and required an upgrade, so secret-change custody/rotation history could not be read."
+    },
+    {
+      "observedAt": "2026-09-20T09:23:29Z",
+      "source": "Microsoft SharePoint Compliance details and local AuditSphere browser UI",
+      "result": "A fresh reread of AuditSphere-Dev-Test-Record.txt again reported no retention policy, Hold Status: Not on hold, and In Place Records Management Status: Not an in-place record. The authenticated local Portfolio shell remained available with live PostgreSQL counts."
     },
     {
       "observedAt": "2026-09-19T12:14:56Z",
@@ -395,5 +409,5 @@
     }
   ],
   "nextPermittedAction": "P0 is the active dependency-ready package and its remaining reconciliation items are verified; P6 is complete locally. The EasyGuide P4 developer-tenant observations are retained as historical evidence, but P4 stays BLOCKED_EXTERNAL on its P1/P2 predecessors, label propagation/protection observation, and compliance approval. Master merge protection is verified, but P9 still requires independent human review. P1 remains blocked on approved secret-store reference/rotation evidence, required identity fixtures, and live acceptance; P2–P3, P5, P7–P8, and P10 remain blocked until their required provider credentials, custodians, professional approvals, recovery measurements, and independent review exist.",
-  "lastVerifiedAt": "2026-09-20T09:10:12Z"
+  "lastVerifiedAt": "2026-09-20T09:23:29Z"
 }
