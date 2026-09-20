@@ -3,7 +3,7 @@
 **Repository:** `nirzaf/AuditSphere`
 **Authoritative specification:** [`docs/SPECIFICATION.md`](../SPECIFICATION.md) v5.0
 **Requirements backlog:** [`docs/requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md`](../requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md)
-**Current head:** `master@9b5e515`
+**Current head:** `master@618ec84`
 
 This is a resume checklist, not an acceptance certificate. Tenant identifiers, credentials, tokens, secret values, and private-provider URLs are deliberately absent from the public repository.
 
@@ -11,8 +11,8 @@ This is a resume checklist, not an acceptance certificate. Tenant identifiers, c
 
 - [x] .NET 10 solution builds with zero warnings/errors.
 - [x] PostgreSQL 18.6 development profile is used on loopback port 5433.
-- [x] 186/186 PostgreSQL-backed tests pass with 0 skipped.
-- [x] 44 migrations are applied; latest is `20260920195800_FinancialPackageReviewDecisions`.
+- [x] 187/187 PostgreSQL-backed tests pass with 0 skipped.
+- [x] 45 migrations are applied; latest is `20260920204413_GeneralLedgerStreamingImport`.
 - [x] EF model has no pending migration changes.
 - [x] Loopback restore drill passes and writes secret-free evidence to `docs/evidence/restore-drill-latest.json`.
 - [x] Generated Graphify output and local agent state are ignored and removed from Git tracking.
@@ -25,7 +25,7 @@ This is a resume checklist, not an acceptance certificate. Tenant identifiers, c
 - [x] Reconciliation, ECL, inventory, specialist, analytical and journal-risk workbenches.
 - [x] Entity package projections, equity, notes, comparatives, restatement lineage and bounded same-currency consolidation.
 - [x] Journal lineage, close checks and immutable management/accounting/partner package-review decisions.
-- [ ] Add streaming-scale GL intake with bounded memory and durable resumability.
+- [x] Add bounded, resumable GL chunk intake with canonical digest, idempotent retry and contiguous finalization.
 - [ ] Add complete user-facing management/audit/partner package-review and release surfaces.
 - [ ] Add approved-method fixtures for mixed currency, complex ownership, acquisition, NCI and advanced eliminations before implementing those methods.
 - [ ] Deepen specialist schedules and account-area workpapers where the 28-story backlog still identifies a real workflow gap.

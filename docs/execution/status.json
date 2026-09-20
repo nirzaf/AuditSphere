@@ -4,10 +4,10 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "9b5e515",
+  "headCommit": "618ec84",
   "remoteHeadVerified": true,
   "productionEnabled": false,
-  "verifiedAt": "2026-09-20T20:30:58Z",
+  "verifiedAt": "2026-09-20T20:49:45Z",
   "toolchain": {
     "sdk": ".NET 10",
     "efCore": "10.0.12",
@@ -17,10 +17,10 @@
   },
   "verification": {
     "build": "PASS: dotnet build AuditSphereOps.slnx --no-restore; 0 warnings/errors",
-    "tests": "PASS: 186/186 PostgreSQL-backed tests; 0 skipped",
-    "migrations": "PASS: 44 applied; latest 20260920195800_FinancialPackageReviewDecisions",
+    "tests": "PASS: 187/187 PostgreSQL-backed tests; 0 skipped",
+    "migrations": "PASS: 45 applied; latest 20260920204413_GeneralLedgerStreamingImport",
     "pendingModelChanges": "PASS: no changes",
-    "restoreDrill": "PASS: loopback restore reconciled 44 migrations; external custody and production RPO/RTO not run",
+    "restoreDrill": "PASS: loopback restore reconciled 45 migrations; external custody and production RPO/RTO not run",
     "database": "127.0.0.1:5433 development only"
   },
   "active": {
@@ -28,7 +28,7 @@
     "implementationStatus": "IN_PROGRESS",
     "acceptanceStatus": "LOCAL_VERIFIED",
     "scope": "Local audit workflow, client accounting, GL intake, completeness, package, restatement, consolidation, journal-lineage, close-check and package-review slices.",
-    "nextAction": "Implement one remaining local accounting/UI slice, then verify and push it before starting the next slice."
+    "nextAction": "Implement the next remaining local accounting/UI slice, then verify and push it before starting the next slice."
   },
   "localEvidence": [
     {
@@ -39,7 +39,7 @@
     {
       "item": "GL completeness and specialist workbenches",
       "status": "LOCAL_VERIFIED",
-      "details": "Typed GL imports, bounded paged reads, account-by-account completeness bridges, reconciliations and bounded specialist/analytical/journal-risk workflows."
+      "details": "Typed GL imports, bounded resumable GL chunks with canonical digest/idempotent finalization, bounded paged reads, account-by-account completeness bridges, reconciliations and bounded specialist/analytical/journal-risk workflows."
     },
     {
       "item": "Package and close governance",
@@ -53,7 +53,6 @@
     }
   ],
   "remainingLocalWork": [
-    "Streaming-scale GL intake with durable resumability",
     "Complete user-facing package-review and release surfaces",
     "Approved-method advanced and mixed-currency accounting fixtures",
     "Deeper specialist schedules and remaining dashboard/roll-forward usability"
