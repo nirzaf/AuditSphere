@@ -7,7 +7,7 @@
 
 **AuditSphereOps** is a professional audit, accounting & assurance operations platform — a .NET 10 modular monolith covering the complete engagement lifecycle: client acceptance, practice management, trial-balance intake, financial-statement production, audit execution, review, controlled signing/release, and records retention.
 
-> **Status: implementation in progress.** This repository is a specification-driven build. All core domain modules, practice management, trial-balance engine, audit planning lifecycle, core entity catalog (§27.2), question banks (§13/§14), operator recovery, complete staff/client Blazor route catalog with UI ground truth, records/archive local model with version lineage, repository binding, fail-closed provider boundaries, and recovery quarantine are implemented and verified locally (**165/165 tests passing on PostgreSQL 18.6 across 31 migrations**). EasyGuide developer-tenant evidence now includes a selected SharePoint grant and a Purview test label/publication; live runtime credentials, provider behavior, compliance approval, signing methodology, recovery, and independent review remain explicitly blocked and are never fake-passed.
+> **Status: implementation in progress.** This repository is a specification-driven build. Core domain modules, practice management, trial-balance and GL intake, audit planning, package production, archive lineage, provider safety fences, recovery quarantine, and governed financial-package review decisions are implemented and verified locally (**186/186 tests passing on PostgreSQL 18.6 across 44 migrations**). Live provider behavior, compliance approval, signing methodology, production recovery, and independent review remain explicitly blocked and are never fake-passed.
 
 ## Table of contents
 
@@ -146,17 +146,17 @@ The integration test requires PostgreSQL at `127.0.0.1:5433` and the `auditspher
 
 ## Verification & evidence discipline
 
-- **`docs/execution/status.json`** — a pointer to current reality: specification SHA-256, baseline commit, active issue/branch/PR, implemented slice, test evidence, tenant evidence, open blockers, and the next permitted action. Re-read repo/GitHub state when resuming; the file never overrides actual reality.
+- **`docs/execution/status.json`** — a public-safe pointer to current reality: specification SHA-256, baseline commit, active slice, local test evidence, external gates, and the next permitted action. Tenant identifiers, credentials, and secret values are intentionally excluded. Re-read repo/GitHub state when resuming; the file never overrides actual reality.
 - **`docs/execution/current-slice.md`** — the verified local state and concise serialization of what was actually executed.
-- **Using the spec:** read `AuditSphereOps_NET_Codex_Implementation_Specification.md` (§§1–12, 22, 24, 27–33, 41–47) plus only the sections for the active issue.
+- **Using the spec:** read `docs/SPECIFICATION.md` (§§1–12, 22, 24, 27–33, 41–47) plus only the sections for the active issue.
 
-As of the last verification pass: **165/165 tests passed** on PostgreSQL 18.6 with 0 skipped, thirty-one migrations applied (latest: `20260919203959_ArchiveVersionLineage`), local locked restore and build completed with zero warnings, the loopback restore rehearsal passed with 31 migrations, and readiness returned healthy with no pending migrations. The EasyGuide developer configuration is recorded in `docs/evidence/easyguide-purview-20260919.json`; runtime identity, live provider behavior, compliance approval, signing, recovery, and independent-review gates remain **recorded blockers**.
+As of the last verification pass: **186/186 tests passed** on PostgreSQL 18.6 with 0 skipped, forty-four migrations applied (latest: `20260920195800_FinancialPackageReviewDecisions`), local restore and build completed with zero warnings, the loopback restore rehearsal passed with 44 migrations, and readiness returned healthy with no pending migrations. A redacted non-production evidence note is retained only to document the evidence boundary; tenant identifiers and credentials are not committed. Runtime identity fixtures, live provider behavior, compliance approval, signing, recovery, and independent-review gates remain **recorded blockers**.
 
 ## Implementation roadmap
 
 The build advances through dependency-ordered work packages (P0–P10 per the [pending-work story](docs/execution/pending-tasks.md)), each landing as a reviewed PR with executed test evidence. Slices may not weaken controls, and a slice is accepted only with independent review evidence.
 
-**Delivered (locally verified — 165/165 tests, 31 migrations):**
+**Delivered (locally verified — 186/186 tests, 44 migrations):**
 
 - **Security & authorization integrity:** `ActorContext`, scope/role matrix, firm→client→engagement guards, finance-role separation, in-command authorization for all planning and operational commands.
 - **Trial-balance intake & validation engine:** Appendix D fixture, database-level `ck_tb_validation_status` control, source reflection bridges.
@@ -172,20 +172,21 @@ The build advances through dependency-ordered work packages (P0–P10 per the [p
 - **Repository binding (§27.2, PR #11):** Tenant/site/drive/root binding records, document references tied to approved bindings, capability records, sync cursor model.
 - **Provider safety fences (§43.8, PR #11):** Live Graph provider boundaries fail closed (`live-provider-not-approved`); production startup rejects simulation configuration; external effects remain disabled by default.
 - **Recovery controls (§24.4/§45, PR #11):** Recovery sessions, recovery epoch, `RECOVERY_QUARANTINE`, authorized restart, stale-worker fencing, machine-readable restore evidence.
+- **Client accounting and package governance:** Client accounting profiles, periods/books, chart-of-accounts mappings, versioned trial-balance profiles and multi-entity batches, typed GL imports, paged completeness bridges, reconciliations, specialist workbenches, entity-package projections, restatement lineage, bounded same-currency consolidation, journal lineage, close checks, and immutable management/accounting/partner package-review decisions bound to exact package revision, generation and hash.
 
 **Remaining work — dependency-ordered (P1–P10):**
 
 | Phase | Gate | Status |
 |---|---|---|
-| P1 | Live Entra OIDC + runtime identity fixtures | IN_PROGRESS (developer app/redirect configured; credential and fixtures pending) |
+| P1 | Live Entra OIDC + runtime identity fixtures | BLOCKED_EXTERNAL |
 | P2 | Live bounded SharePoint/Graph document provider | BLOCKED_EXTERNAL |
 | P3 | External release checkpoint store + capability evidence | BLOCKED_EXTERNAL |
-| P4 | Purview records profile + reviewer fixtures + behavior evidence | IN_PROGRESS (developer configuration; propagation/readback pending) |
+| P4 | Purview records profile + reviewer fixtures + behavior evidence | BLOCKED_EXTERNAL |
 | P5 | Approved signing methodology + signature lineage | BLOCKED_EXTERNAL |
 | P6 | Records/archive residual hardening | LOCAL_VERIFIED |
 | P7 | Cross-store recovery + production RPO/RTO | BLOCKED_EXTERNAL |
 | P8 | Production secrets/observability/capacity | BLOCKED_EXTERNAL |
-| P9 | Independent review + protected merge governance | IN_PROGRESS (master protected; independent human review pending) |
+| P9 | Independent review + protected merge governance | BLOCKED_EXTERNAL |
 | P10 | Full §47 real-tenant acceptance cycle | BLOCKED_EXTERNAL |
 
 See [`docs/execution/pending-tasks.md`](docs/execution/pending-tasks.md) for the full dependency story and acceptance criteria.
@@ -196,7 +197,7 @@ The remaining external production gates (live Entra runtime identity/provider, P
 
 | Document | Purpose |
 |---|---|
-| `AuditSphereOps_NET_Codex_Implementation_Specification.md` | **Authoritative v5.0 build contract** — architecture, workflows, data model, acceptance tests, execution protocol |
+| `docs/SPECIFICATION.md` | **Authoritative v5.0 build contract** — architecture, workflows, data model, acceptance tests, execution protocol |
 | `docs/execution/status.json` | Live progress pointer: evidence, blockers, next step |
 | `docs/execution/current-slice.md` | Verified local state + runbook for the current slice |
 | `AGENTS.md` | Short agent pointer to the specification (never a full copy) |

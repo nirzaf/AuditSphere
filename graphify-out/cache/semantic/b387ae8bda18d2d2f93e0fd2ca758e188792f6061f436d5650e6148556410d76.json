@@ -1,1 +1,0 @@
-{"nodes": [{"id": "src_auditsphereops_application_operations_contracts", "label": "Durable outbox (SKIP LOCKED, exactly-once)", "file_type": "code", "source_file": "src/AuditSphereOps.Application/Operations/Contracts.cs"}], "edges": [], "hyperedges": []}

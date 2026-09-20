@@ -1,466 +1,74 @@
 {
   "schemaVersion": "1",
   "specificationVersion": "5.0",
-  "specificationSha256": "e1e9a10bb82c9eae1c1a28b7f17a90f61152d1198444cbd95392c9bd714812d4",
-  "repository": "/Users/qts/Repos/AuditSphere",
-  "baseCommit": "1184485797f359c89b5f9f82c264d05845dfe0ff",
-  "sdk": {
-    "version": "10.0.300",
+  "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
+  "repository": "nirzaf/AuditSphere",
+  "branch": "master",
+  "headCommit": "ab7c4fe001a1b342880aae6bbca1bbc157c9716a",
+  "remoteHeadVerified": true,
+  "productionEnabled": false,
+  "verifiedAt": "2026-09-20T20:03:12Z",
+  "toolchain": {
+    "sdk": ".NET 10",
     "efCore": "10.0.12",
-    "efTool": "10.0.12",
+    "dotnetEf": "10.0.12",
     "npgsqlEf": "10.0.0",
-    "postgres": "18.6 Homebrew user-local port 5433 (development only)"
+    "postgres": "18.6 loopback development profile"
+  },
+  "verification": {
+    "build": "PASS: dotnet build AuditSphereOps.slnx --no-restore; 0 warnings/errors",
+    "tests": "PASS: 186/186 PostgreSQL-backed tests; 0 skipped",
+    "migrations": "PASS: 44 applied; latest 20260920195800_FinancialPackageReviewDecisions",
+    "pendingModelChanges": "PASS: no changes",
+    "restoreDrill": "PASS: loopback restore reconciled 44 migrations; external custody and production RPO/RTO not run",
+    "database": "127.0.0.1:5433 development only"
   },
   "active": {
-    "packageId": "Audit workflow gap-closure — locally actionable implementation",
-    "issueNumber": null,
-    "branch": "master",
-    "pullRequestNumber": null,
-    "headCommit": "bc2dba3",
+    "packageId": "Audit workflow gap-closure and client accounting implementation",
     "implementationStatus": "IN_PROGRESS",
     "acceptanceStatus": "LOCAL_VERIFIED",
-    "worktree": "master@bc2dba3 is pushed to origin/master. The audit-workflow and accounting-module implementation is committed; unrelated Graphify artifacts, if present, remain excluded. The requirements documents remain user-owned and preserved.",
-    "scope": "Local implementation of the audit-workflow and accounting-module requirements: 20-section/165-procedure program catalog, scoped adoption and applicability, structured result/review lifecycle, fieldwork evidence primitives, client accounting periods/books/COA/aliases, versioned signed-net/debit-credit TB profiles, atomic multi-entity TB batches, typed GL imports, bounded paged GL reads and account-by-account TB-to-GL completeness bridges, reconciliations, ECL/inventory/specialist/analytics workbenches, bounded entity-package projections including equity, notes and comparatives, closed-period restatement lineage, restricted same-currency consolidation, journal lineage, completion blockers, archive export, UI status surfaces, tests, migrations, and restore/runtime evidence. No production content, credentials, or secret values were changed.",
-    "productionEnabled": false
+    "scope": "Local audit workflow, client accounting, GL intake, completeness, package, restatement, consolidation, journal-lineage, close-check and package-review slices.",
+    "nextAction": "Implement one remaining local accounting/UI slice, then verify and push it before starting the next slice."
   },
-
-  "testEvidence": [
+  "localEvidence": [
     {
-      "command": "dotnet tool restore",
-      "result": "Restored local dotnet-ef 10.0.12 from .config/dotnet-tools.json."
+      "item": "Client accounting foundation",
+      "status": "LOCAL_VERIFIED",
+      "details": "Profiles, periods, books, COA mappings, versioned TB profiles, signed-net/debit-credit normalization and multi-entity batches."
     },
     {
-      "command": "PostgreSQL 18.6 local setup",
-      "result": "Installed and initialized the Homebrew PostgreSQL 18.6 development cluster at 127.0.0.1:5433; created local auditsphere and auditsphere_tests databases."
+      "item": "GL completeness and specialist workbenches",
+      "status": "LOCAL_VERIFIED",
+      "details": "Typed GL imports, bounded paged reads, account-by-account completeness bridges, reconciliations and bounded specialist/analytical/journal-risk workflows."
     },
     {
-      "command": "dotnet build AuditSphereOps.slnx",
-      "result": "Build succeeded, 0 warnings, 0 errors at implementation commit 6e31ab5."
+      "item": "Package and close governance",
+      "status": "LOCAL_VERIFIED",
+      "details": "Entity packages, restatement lineage, restricted same-currency consolidation, journal lineage, close checks and immutable stage-bound review decisions."
     },
     {
-      "command": "dotnet test AuditSphereOps.slnx --no-build",
-      "result": "Passed 94/94 on PostgreSQL 18.6; 0 skipped at implementation commit 6e31ab5. Includes capability-bound PBC state/upload sequencing, idempotent chunk replay, offset/hash/length enforcement, streamed staging outside webroot, trusted completion and immutable chunk evidence, cash-flow bridge/disclosure validation, supplementary-artifact immutability, mapping/package determinism, release/approval binding, and the prior CRM, time/budget, billing, ledger, document, accounting, authorization, and outbox coverage."
-    },
-    {
-      "command": "dotnet ef database update --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Web --no-build",
-      "result": "Applied 20260918175205_PbcUploadCapability; local auditsphere is now up to date with eighteen migrations. The migration adds a stored capability hash and server-staged-path column; upgrade refuses existing upload intents because capability material cannot be reconstructed, and downgrade refuses populated PBC evidence."
-    },
-    {
-      "command": "dotnet ef migrations list --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Web --no-build",
-      "result": "All eighteen migrations through PbcUploadCapability are present; database update reports no pending migrations."
-    },
-    {
-      "command": "psql read-only version/trigger/constraint queries against 127.0.0.1:5433/auditsphere",
-      "result": "PostgreSQL 18.6; local probe found the financial-statement artifact triggers, scoped mapping/package/supplementary constraints, PBC scope checks, the immutable chunk trigger, and the capability/staged-path columns, with latest migration 20260918175205_PbcUploadCapability. No production database was touched."
-    },
-    {
-      "command": "dotnet run --project src/AuditSphereOps.Web --no-build --urls http://127.0.0.1:5099 plus HTTP smoke requests",
-      "result": "Web host started cleanly at 6e31ab5; /, /health/live, /health/ready, /app, /portal, /portal/requests/{guid}, /app/engagements/{guid}/pbc, and /pbc-upload.js returned HTTP 200. An unauthenticated POST to the bounded chunk route returned HTTP 401. With OIDC unset, staff and client surfaces remained locked; no demo actor was used."
-    },
-    {
-      "command": "scripts/db/restore-drill.sh",
-      "result": "Loopback-only custom-format dump/restore passed. The drill compared source and restored migration count/latest ID, restored eighteen migrations with latest 20260918175205_PbcUploadCapability, and removed only its generated database and temporary directory."
-    },
-    {
-      "command": "Migration-aware readiness smoke",
-      "result": "Web readiness queried __EFMigrationsHistory and returned Healthy/HTTP 200 with no pending migrations; web startup did not apply migrations."
-    },
-    {
-      "command": "Current master local gates",
-      "result": "At implementation commit 6e31ab5: locked restore completed; dotnet build completed with 0 warnings and 0 errors; dotnet test passed 94/94 with 0 skipped; scripts/db/restore-drill.sh restored PostgreSQL 18.6 with all eighteen migrations; readiness body was Healthy; /, /health/live, /health/ready, /app, /portal, /portal/requests/{guid}, /app/engagements/{guid}/pbc, and /pbc-upload.js returned HTTP 200; the unauthenticated chunk route returned HTTP 401; and OIDC-unset protected pages remained locked."
-    },
-    {
-      "command": "Historical gh pr checks 10 / gh run view 35354557550",
-      "result": "GitGuardian passed. The superseded hosted build-test-ready job did not start because recent account payments failed or the GitHub Actions spending limit needed attention."
-    },
-    {
-      "command": "gh run view 35377533259 --repo nirzaf/AuditSphere",
-      "result": "Hosted AuditSphereOps CI passed on head 6e31ab5; setup-dotnet, tool restore, restore, build, EF migration, 94-test suite, migration-aware readiness, and cleanup all passed. The forced Node 24/Node 20 deprecation annotation and punycode warning were informational only."
-    },
-    {
-      "command": "dotnet build AuditSphereOps.slnx + dotnet test AuditSphereOps.slnx --no-build at df73109",
-      "result": "Build succeeded with 0 warnings and 0 errors; the full suite passed 106/106 on PostgreSQL 18.6 with 0 skipped. New coverage: staged-byte tampering and missing-chunk refusals, executable-content rejection independent of declared type, staged-only completion without premature reception, idempotent completion replay, chunk-state gating after STAGED, chunk receipt immutability, worker-completed transfer marking intent+PBC RECEIVED only after provider registration, interrupted-effect RESULT_UNCERTAIN reconciling to RECEIVED, unknown-outcome reconciliation to PROVIDER_BLOCKED after confirming no effect, deterministic provider rejection, safe transient retry, and refusal of new uploads after reception."
-    },
-    {
-      "command": "dotnet ef database update at df73109",
-      "result": "Applied 20260918184938_PbcTrustedCompletion; local auditsphere now has nineteen migrations. The migration adds the STAGED upload state, provider receipt columns, a scoped FK from pbc_upload_intents to durable_operations (unique (firm_id, id) principal), tightened RECEIVED/STAGED check constraints, a refusal of previously RECEIVED intents on upgrade, and evidence-loss refusal on downgrade."
-    },
-    {
-      "command": "scripts/db/restore-drill.sh at df73109",
-      "result": "Loopback-only dump/restore passed; restored nineteen migrations with latest 20260918184938_PbcTrustedCompletion and removed only its generated database and temporary directory."
-    },
-    {
-      "command": "Migration-aware readiness smoke at df73109",
-      "result": "dotnet run on http://127.0.0.1:5099 returned HTTP 200 for /, /health/live, /health/ready, /app, and /portal; /health/ready queried __EFMigrationsHistory with no pending migrations. With OIDC unset the protected surfaces stayed locked; no demo actor was used."
-    },
-    {
-      "command": "Hosted CI run 35385091372 on head b69e718",
-      "result": "Failed at the test step: 105/106 with PostgresException 53300 (too many clients) in PgTestSchema.CreateAsync. Root cause: each per-test schema owns its own Npgsql pool and idle connections accumulated past the hosted runner default max_connections=100. Fix: cap every per-schema test pool at Maximum Pool Size=3 in PgTestSchema (local re-run 106/106 passed; local cluster max_connections stays 200). An initdb-level change was rejected because initdb does not accept max_connections."
-    },
-    {
-      "command": "gh run view 35385844180 on head 08e5327",
-      "result": "Hosted AuditSphereOps CI passed every step: setup-dotnet, tool restore, restore, build, EF migration, the 106-test suite, migration-aware readiness, and cleanup. The bounded per-schema test pool resolved the prior 53300 connection exhaustion."
-    },
-    {
-      "command": "dotnet ef database update --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Web --no-build",
-      "result": "Applied 20260918194920_OperatorRecoveryWorkflow; local auditsphere is now up to date with twenty migrations. The migration updates enforce_operation_request() trigger function to allow attempt_count reset when status = 'RETRY_WAIT', preserving monotonicity during normal operation and strict immutability of tokens and results."
-    },
-    {
-      "command": "dotnet build AuditSphereOps.slnx",
-      "result": "Build succeeded with 0 warnings and 0 errors."
-    },
-    {
-      "command": "dotnet test AuditSphereOps.slnx --no-build",
-      "result": "Passed 112/112 on PostgreSQL 18.6 with 0 skipped. New coverage: OperationRecoveryTests (quarantine lifting, role gating, attempt count reset to RETRY_WAIT under enforce_operation_request trigger, immutable violation refusal) and FinancialStatementTests deterministic package artifact rendering with SHA-256 digest."
-    },
-    {
-      "command": "scripts/db/restore-drill.sh",
-      "result": "Loopback-only dump/restore passed; restored twenty migrations with latest 20260918194920_OperatorRecoveryWorkflow and removed only its generated database and temporary directory."
-    },
-    {
-      "command": "dotnet run --project src/AuditSphereOps.Web --no-build --urls http://127.0.0.1:5099 plus HTTP smoke requests",
-      "result": "Web host started cleanly on port 5099; HTTP 200 returned for /, /health/live, /health/ready, /app, /app/operations, /app/practice/leads, /portal. /health/ready queried __EFMigrationsHistory and reported Healthy."
-    },
-    {
-      "command": "dotnet test AuditSphereOps.slnx --no-build (route catalog additions)",
-      "result": "Passed 115/115 on PostgreSQL 18.6 with 0 skipped. New coverage: RouteCatalogTests (client contact primary flag and generation increment, time draft/submit/approve with segregation of duties, and fiscal period close with unposted journal guard and idempotent re-close)."
-    },
-    {
-      "command": "Web host catalog smoke",
-      "result": "Web host on port 5099 returned HTTP 200 for /, /health/live, /health/ready, /app, /app/practice/leads, /app/practice/time, /app/finance, /app/operations, /app/administration, /app/clients/{id}, /app/engagements/{id}, /app/practice/invoices/{id}, and /portal."
-    },
-    {
-      "command": "dotnet ef database update --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Web",
-      "result": "Applied 20260918235000_AuditPlanningAndFirmPostingExtensions; local auditsphere is now up to date with twenty-one migrations."
-    },
-    {
-      "command": "dotnet build AuditSphereOps.slnx",
-      "result": "Build succeeded with 0 warnings and 0 errors across all 6 projects."
-    },
-    {
-      "command": "dotnet test AuditSphereOps.slnx --no-build",
-      "result": "Passed 130/130 on PostgreSQL 18.6 with 0 skipped. New coverage: AuditPlanningTests (15 tests) covering NT-21 (materiality threshold invariants, risk persistence/empty-rejections, population control totals and negative-rejection, workpaper submission revision increments and stale revision conflict, finding types/amounts and empty-rejections), NT-22 (posting balance domain invariant), NT-23 (tenant prerequisites absence verification with provenance), and NT-24 (immutable approved time entries and client safety state generation invariant)."
-    },
-    {
-      "command": "scripts/db/restore-drill.sh",
-      "result": "Loopback-only dump/restore passed; restored 21 migrations with latest 20260918235000_AuditPlanningAndFirmPostingExtensions and removed only its generated database and temporary directory."
-    },
-    {
-      "command": "dotnet ef database update --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Web",
-      "result": "Applied 20260918232054_CoreEntityCatalogAndQuestionnaireExtensions; local auditsphere is now up to date with twenty-two migrations. Adds engagement_assignments, eqr_cases, written_representations, specialist_clearances, source_receipts, evidence_links, questionnaire_templates, and question_definitions."
-    },
-    {
-      "command": "dotnet build AuditSphereOps.slnx",
-      "result": "Build succeeded with 0 warnings and 0 errors across all 6 projects."
-    },
-    {
-      "command": "dotnet test AuditSphereOps.slnx --no-build",
-      "result": "Passed 136/136 on PostgreSQL 18.6 with 0 skipped. New coverage: CoreEntityCatalogTests (6 tests) covering CAT-01 (engagement assignment persistence and role constraints), CAT-02 (EQR case concurrence lifecycle and unique engagement guard), CAT-03 (written representation unique code and obtained status), CAT-04 (specialist clearance condition gates), CAT-05 (source receipt SHA-256 digest preservation and evidence link linkage), and CAT-06 (QuestionnaireSeed populating CE-62 and RV-30 question banks)."
-    },
-    {
-      "command": "scripts/db/restore-drill.sh",
-      "result": "Loopback-only dump/restore passed; restored 22 migrations with latest 20260918235000_AuditPlanningAndFirmPostingExtensions and removed only its generated database and temporary directory."
-    },
-    {
-      "command": "dotnet run --project src/AuditSphereOps.Web --urls http://127.0.0.1:5099 plus HTTP smoke requests",
-      "result": "Web host started cleanly on port 5099; HTTP 200 returned for /health/live and /health/ready. /health/ready queried __EFMigrationsHistory and reported Healthy with 0 pending migrations."
-    },
-    {
-      "command": "Audit-planning scope integrity slice local gates (base 8a0f035, uncommitted working tree)",
-      "result": "dotnet build AuditSphereOps.slnx: 0 warnings, 0 errors across 6 projects. dotnet restore --locked-mode succeeded against the committed lock files. dotnet ef database update applied 20260919005220_AuditPlanningScopeIntegrity (23 migrations) and the same migration was reverted and re-applied cleanly, so both directions are exercised. dotnet test passed 152/152 on PostgreSQL 18.6 with 0 skipped, stable across two consecutive full runs. scripts/db/restore-drill.sh restored 23 migrations with latest 20260919005220_AuditPlanningScopeIntegrity. Readiness returned Healthy and /, /health/live, /health/ready, /app, /portal, /app/audit/plans/{id}, /app/audit/populations/{id}, /app/audit/workpapers/{id}, /app/findings/{id} and /app/releases/{id} each returned HTTP 200 with no errors in the host log."
-    },
-    {
-      "command": "psql read-only constraint probes against 127.0.0.1:5433/auditsphere after the scope migration",
-      "result": "SELECT confrelid::regclass, conrelid::regclass FROM pg_constraint WHERE contype='f' AND confdeltype <> 'r' returned 0 rows: every foreign key in the public schema is ON DELETE RESTRICT. The 19 planning and evidence tables in scope each carry a non-null firm_id column and at least one firm-inclusive composite foreign key (previously 19 of them had none). Append-only triggers now exist on materiality_assessments, population_versions, workpaper_submissions and workpapers, joining the pre-existing approvals, document_snapshots, releases and trial_balance_rows triggers. No production database was touched."
-    },
-    {
-      "command": "Observed test-infrastructure constraint of this slice",
-      "result": "With the new foreign keys and per-schema migrations, the full 152-test parallel run intermittently failed unrelated tests with PostgresException 53200 (out of shared memory) — the default max_locks_per_transaction budget of the loopback cluster. Fixed in test infrastructure by capping the runner at maxParallelThreads 3 through tests/AuditSphereOps.Domain.Tests/xunit.runner.json; no server setting was changed, no test was skipped, and two consecutive full runs then passed 152/152."
-    },
-    {
-      "command": "gh run view 35408208512",
-      "result": "Hosted AuditSphereOps CI run 35408208512 passed on head a338ad3 in 2m42s: setup-dotnet, tool restore, restore, build, 22-migration EF update, the 136-test suite, migration-aware readiness check, and container cleanup all succeeded."
-    },
-    {
-      "command": "Release evidence slice local gates (base 20bc7df, uncommitted working tree)",
-      "result": "dotnet build AuditSphereOps.slnx: 0 warnings, 0 errors across 6 projects. dotnet ef database update applied 20260919111301_ReleaseEvidenceAndCheckpoints (24 migrations applied, 0 pending). dotnet test passed 157/157 on PostgreSQL 18.6 with 0 skipped. scripts/db/restore-drill.sh restored 24 migrations with latest 20260919111301_ReleaseEvidenceAndCheckpoints. Web readiness (/health/ready) returned Healthy/200; /health/live returned 200. information_schema probe confirmed 76 constraints and 8 append-only triggers across release_checkpoints, protection_attestations, signature_lineages, and releases."
-    },
-    {
-      "command": "Records archive slice local gates (codex/records-archive-slice, uncommitted working tree)",
-      "result": "Migrations 20260919123339_RecordsArchiveWorkflow and 20260919124558_ArchiveProtectionObservation applied to local PostgreSQL 18.6; model has no pending changes; dotnet build AuditSphereOps.slnx passed with 0 warnings/errors; RecordsArchiveTests passed 2/2 and full dotnet test passed 159/159 with 0 skipped; scripts/db/restore-drill.sh restored 26 migrations with latest 20260919124558_ArchiveProtectionObservation; /health/ready and /health/live returned Healthy/200."
-    },
-    {
-      "command": "Repository binding, provider fence and recovery quarantine local gates (codex/records-archive-slice, uncommitted working tree)",
-      "result": "Migrations 20260919130133_RepositoryBindingAndCapabilities and 20260919130821_RecoverySessionQuarantine applied to local PostgreSQL 18.6; dotnet build passed with 0 warnings/errors; full dotnet test passed 161/161 with 0 skipped; provider boundary tests proved live-provider-not-approved before any network call; scripts/verify-tenant.sh returned secret-free BLOCKED provenance with exit 2 when tenant prerequisites were absent; scripts/db/restore-drill.sh wrote docs/evidence/restore-drill-latest.json with 28/28 migrations and equal source/restored checkpoint database summaries."
-    },
-    {
-      "command": "Final startup-fence build/test/readiness smoke (2026-09-19)",
-      "result": "After the required identity/connection/deployment-epoch fence was added, dotnet tool restore and locked package restore succeeded, dotnet build passed with 0 warnings/errors, dotnet test passed 161/161 with 0 skipped, /health/live and /health/ready each returned Healthy/200, and the web host was stopped after the smoke check."
-    },
-    {
-      "command": "Persisted structured archive export and records-action evidence (2026-09-19)",
-      "result": "Applied migrations 20260919134031_ArchiveStructuredExports and 20260919134442_RecordsActionEvidence to local PostgreSQL 18.6. RecordsArchiveTests passed 2/2, including persisted full §25.3 payload coverage and PostgreSQL append-only evidence refusal; full dotnet test passed 161/161 with 0 skipped; dotnet build passed with 0 warnings/errors; and migrations report no pending model changes."
-    },
-    {
-      "command": "scripts/db/restore-drill.sh (2026-09-19T13:52:48Z)",
-      "result": "Loopback-only custom-format dump/restore passed with 30/30 migrations through 20260919134442_RecordsActionEvidence. Source/restored release-checkpoint database summaries matched; external checkpoint store verification, custodially separate storage and production RPO/RTO remain NOT_RUN."
-    },
-    {
-      "command": "Web readiness smoke (2026-09-19T13:54:02Z)",
-      "result": "Web host started on http://127.0.0.1:5099; /health/live returned HTTP 200 and /health/ready returned Healthy. The host was stopped after the smoke check."
-    },
-    {
-      "command": "Final records-action transaction regression (2026-09-19T13:56:14Z)",
-      "result": "Records-action request/observation persistence now commits projection and append-only evidence in one transaction. dotnet build passed with 0 warnings/errors; targeted RecordsArchiveTests passed 2/2; and the full PostgreSQL 18.6 suite passed 161/161 with 0 skipped."
-    },
-    {
-      "command": "Hosted PR #11 CI run 35447359338 (2026-09-19)",
-      "result": "Passed in 3m25s on head fae8723: setup-dotnet, locked tool restore, package restore, build, EF migration, 161-test PostgreSQL suite, migration-aware readiness, and cleanup. GitGuardian also passed. The Node.js 20 deprecation annotation was informational; the workflow completed successfully under the runner's Node 24 default."
-    },
-    {
-      "command": "P6 — Records/archive residual hardening (2026-09-19T20:43:00Z)",
-      "result": "Applied migration 20260919203959_ArchiveVersionLineage (31 migrations total); dotnet build passed with 0 warnings/errors; targeted RecordsArchiveTests passed 6/6 and full PostgreSQL 18.6 suite passed 165/165 with 0 skipped; scripts/db/restore-drill.sh restored 31 migrations and verified release-checkpoint database summaries."
-    },
-    {
-      "command": "Protected shell sign-out and re-authentication check (2026-09-20T07:42:40Z)",
-      "result": "The local cookie was signed out; /app rendered Sign-in required and explicitly stated that no local demo actor is available. Selecting the already signed-in qts@easyguide.onmicrosoft.com Entra account completed the localhost callback again and restored Portfolio with live PostgreSQL counts. No tenant data or permissions were changed."
-    },
-    {
-      "command": "Evidence refresh build/test/runtime check (2026-09-20T08:49:30Z)",
-      "result": "dotnet build passed with 0 warnings and 0 errors using the installed .NET 10.0.401 SDK from outside the repository because global.json pins unavailable 10.0.300; dotnet test passed 165/165 with 0 skipped against PostgreSQL 18.6. status.json parsed successfully, git diff --check passed, and the restarted local host returned HTTP 200 Healthy from /health/live and /health/ready."
-    },
-    {
-      "command": "Infisical-backed OIDC runtime route check (2026-09-20T08:54:06Z)",
-      "result": "The local host was restarted with the Infisical-backed non-production OIDC handoff without logging the secret value. A read-only GET /auth/sign-in?returnUrl=/app returned HTTP 302 to the EasyGuide tenant authorization endpoint; the existing qts browser session remained authenticated. This verifies local runtime consumption, not approved rotation/custody evidence."
-    },
-    {
-      "command": "Raw Entra claim mapping fix and live staff callback (2026-09-20T09:03:15Z)",
-      "result": "The web OIDC handler now preserves raw oid/tid claims for TrustedActorResolver. dotnet build passed with 0 warnings/errors; the PostgreSQL suite passed 165/165 with 0 skipped; and a fresh qts@easyguide.onmicrosoft.com browser sign-in completed the localhost callback and rendered Portfolio with live PostgreSQL counts for firm 11111111-1111-1111-1111-111111111111."
-    },
-    {
-      "command": "Purview label propagation and SharePoint protection readback (2026-09-20T09:10:12Z)",
-      "result": "Purview File plan showed AuditSphere Dev Test Record as Active with one-day retention, record locking, disposition review, and reference ID AS-DEV-REC-001. Label policies showed AuditSphere Dev Test Record Publication and AuditSphere Dev Test Label Policy as Enabled. A synthetic AuditSphere-Dev-Test-Record.txt was created in the scoped AuditSphere Development Documents library. SharePoint Compliance details read back that the item is not subject to a retention policy, is not on hold, and is not an in-place record; actual label/protection propagation remains unobserved."
-    },
-    {
-      "command": "Fresh SharePoint compliance reread and authenticated local shell (2026-09-20T09:23:29Z)",
-      "result": "A fresh browser reread of SharePoint Compliance details returned the same negative protection state for AuditSphere-Dev-Test-Record.txt: no retention policy, not on hold, and not an in-place record. The authenticated local Portfolio shell remained rendered at http://localhost:5099/app with live PostgreSQL counts; no tenant data or permissions were changed."
-    },
-    {
-      "command": "Focused engineering hardening verification (2026-09-20T11:15:04Z)",
-      "result": "ASH-01 through ASH-06 implementation changes are present in the uncommitted worktree, including one-way SEALED enforcement and named Web/Worker Npgsql data sources. PostgreSQL 18.6 full suite passed 168/168 with 0 skipped; serial Web and Worker isolated builds passed with 0 warnings and 0 errors using installed SDK 10.0.401 from outside the repository because the pinned 10.0.300 SDK is unavailable; EF reported no pending model changes; status.json parsed successfully; and git diff --check passed. The read-only local connection baseline for auditsphere_tests returned NOT JUSTIFIED - RETAIN NPGSQL POOLING, so no pooler deployment was authorized or made."
-    },
-    {
-      "command": "Current hardening migration and built-in browser smoke (2026-09-20T11:26:28Z)",
-      "result": "The current Web project rebuilt with 0 warnings/errors, migration 20260920102142_WorkpaperDraftsAndTrialBalanceSealing was applied to the local development database only, and the current hardened host started on http://127.0.0.1:5100. Direct probes returned HTTP 200 Healthy for /health/live and /health/ready. Built-in Chrome rendered the current Portfolio shell at /app; the clean process had no OIDC environment values, so the protected shell truthfully rendered Sign-in required. The local auditsphere database contains 0 workpapers, so no real draft editor could be exercised in the browser without inventing business data. The earlier 5099 fake-workpaper route rendered the safe Workpaper unavailable state rather than an exception; the current unauthenticated 5100 route correctly rendered Sign in required. The browser blocked direct /health/ready navigation as ERR_BLOCKED_BY_CLIENT, so health evidence came from the direct local HTTP probe."
-    },
-    {
-      "command": "Accounting module local implementation verification (2026-09-20T17:58:49Z)",
-      "result": "Client accounting and restricted consolidation slices are implemented with scoped profiles, periods/books, opening-balance bridges, versioned charts and aliases, approved taxonomy/mapping gates, raw-versus-normalized source identity, typed GL imports, period close/reopen, source-bound reconciliations and analysis workbenches, journal management-decision and reversal lineage, typed difference correction links, and archive export fields. dotnet build AuditSphereOps.slnx --no-restore passed with 0 warnings/errors; dotnet test AuditSphereOps.slnx --no-build passed 179/179 with 0 skipped; dotnet ef migrations list reported 38 migrations through 20260920173922_AccountingJournalLineage; scripts/db/restore-drill.sh passed with 38/38 migrations and matching checkpoint summaries; git diff --check passed. XLSX intake, streaming-scale import, advanced/mixed-currency consolidation, live provider behavior, professional approvals, independent review, and production recovery/RPO/RTO remain unverified or externally gated."
-    },
-    {
-      "command": "Accounting package comparative/equity verification (2026-09-20T18:39:56Z)",
-      "result": "Financial packages now persist immutable statement-of-changes-in-equity lines, structured note cross-casts, comparative-package identity/basis/evidence, and deterministic equity/supplementary hashes. Migration 20260920182812_FinancialPackageComparativeEquity is applied locally and protected by append-only database triggers. dotnet build AuditSphereOps.slnx --no-restore passed with 0 warnings/errors; PostgreSQL 18.6 full suite passed 181/181 with 0 skipped; EF reported no pending model changes; 40 migrations are listed through 20260920182812_FinancialPackageComparativeEquity; scripts/db/restore-drill.sh restored all 40 migrations with matching checkpoint summaries; git diff --check passed. Period restatement/rollforward, streamed/paged GL intake, advanced/mixed-currency consolidation, live provider behavior, professional approvals, independent review, and production recovery/RPO/RTO remain unverified or externally gated."
-    },
-    {
-      "command": "Accounting period-restatement verification (2026-09-20T18:57:07Z)",
-      "result": "Closed-period restatement lineage now records distinct validated original/revised package hashes, revised basis, reason, evidence, preparer and independent reviewer approval; issued packages remain unchanged and an approved restatement rejects direct mutation with PostgreSQL SQLSTATE 55000."
-    },
-    {
-      "command": "Accounting import profiles and multi-entity batch verification (2026-09-20T19:15:40Z)",
-      "result": "Versioned signed-net and debit/credit profiles now preserve source-side debit/credit values and layout/profile metadata. Atomic multi-entity TB batches create one sealed raw receipt and independently scoped per-entity datasets; repeated raw bytes are rejected. dotnet build AuditSphereOps.slnx --no-restore passed with 0 warnings/errors; focused and full PostgreSQL 18.6 suite passed 184/184 with 0 skipped; EF reported no pending model changes; 42 migrations are listed through 20260920191216_TrialBalanceProfilesAndBatches; scripts/db/restore-drill.sh restored all 42 migrations with matching checkpoint summaries; git diff --check passed. Streamed/paged GL completeness bridges, advanced/mixed-currency consolidation, user-facing management/release/restatement surfaces, live provider behavior, professional approvals, independent review, and production recovery/RPO/RTO remain unverified or externally gated."
-    },
-    {
-      "command": "GL completeness bridge and bounded paging verification (2026-09-20T19:38:13Z)",
-      "result": "GeneralLedgerCompletenessBridge now persists account-by-account TB-to-GL residuals, deterministic residual digest, source hashes, coverage dates, period/book/entity/currency binding, and independent reviewer outcome. GetGeneralLedgerPageAsync returns authorization-checked, stable, bounded pages without exposing another client scope. dotnet build AuditSphereOps.slnx --no-restore passed with 0 warnings/errors; focused and full PostgreSQL 18.6 suite passed 185/185 with 0 skipped; EF reported no pending model changes; 43 migrations are listed through 20260920193246_GeneralLedgerCompletenessBridge; scripts/db/restore-drill.sh restored all 43 migrations with matching checkpoint summaries; git diff --check passed. Streaming-scale GL upload/intake, advanced/mixed-currency consolidation, user-facing management/release/restatement surfaces, live provider behavior, professional approvals, independent review/merge, and production recovery/RPO/RTO remain unverified or externally gated."
+      "item": "Public repository hygiene",
+      "status": "LOCAL_VERIFIED",
+      "details": "Generated graph artifacts are ignored/untracked and public evidence is redacted. Historical commits were not rewritten."
     }
   ],
-  "tenantEvidence": [
-    {
-      "observedAt": "2026-09-18T10:14:52Z",
-      "source": "Azure portal and Microsoft Graph Explorer, browser-authenticated as qts@easyguide.onmicrosoft.com",
-      "result": "Tenant easyguide (hamzaholdings.com), tenant ID 4de3e6fd-51aa-4ba7-b2c5-82106d2e45f0; GET /v1.0/me returned HTTP 200. A broad GET /v1.0/sites?search=AuditSphere query returned HTTP 403; no tenant-wide Sites.Read.All consent was granted."
-    },
-    {
-      "observedAt": "2026-09-18T10:14:52Z",
-      "source": "SharePoint browser UI",
-      "result": "AuditSphere Development is a private one-member site with empty Client Content, Internal Workpapers, and Issued Records libraries. AuditSphere P0 Client A, AuditSphere P0 Client B, and AuditSphere P0 Issued Records are private one-member test sites with only standard Documents/content surfaces observed."
-    },
-    {
-      "observedAt": "2026-09-18T10:14:52Z",
-      "source": "Microsoft 365 admin center and Microsoft Purview browser UI",
-      "result": "The signed-in user has Microsoft 365 E5 Developer (without Windows and Audio Conferencing), Microsoft Power Apps for Developer, and Microsoft Power Automate Free. Microsoft 365 is connected to the new Purview portal; its displayed compliance posture is 0%. A production records-management profile, retention label behavior, selected-resource app grant, and signing/methodology approval evidence were not observed."
-    },
-    {
-      "observedAt": "2026-09-18T10:14:52Z",
-      "source": "Azure App registrations browser UI",
-      "result": "No owned or directory-wide app registration named AuditSphere was found; existing registrations were not modified."
-    },
-    {
-      "observedAt": "2026-09-19T12:14:56Z",
-      "source": "Entra app registration and API permissions browser UI, authenticated as qts@easyguide.onmicrosoft.com",
-      "result": "EasyGuide tenant 4de3e6fd-51aa-4ba7-b2c5-82106d2e45f0 now contains the single-tenant AuditSphereOps Development app (client ID 29be1ee5-e90c-4ecc-b4f9-5bcce14774cc). Microsoft Graph application permission Sites.Selected is configured and shows Granted for easyguide. No client secret or certificate was created."
-    },
-    {
-      "observedAt": "2026-09-20T03:41:42Z",
-      "source": "Microsoft Entra app Authentication (Preview) browser UI, authenticated as qts@easyguide.onmicrosoft.com",
-      "result": "AuditSphereOps Development shows the web redirect URI http://localhost:5099/signin-oidc. This is developer configuration evidence only; no client secret/certificate, real identity fixtures, or live OIDC sign-in acceptance was observed."
-    },
-    {
-      "observedAt": "2026-09-20T08:34:32Z",
-      "source": "Microsoft Entra app registration Certificates & secrets browser UI, authenticated as qts@easyguide.onmicrosoft.com",
-      "result": "AuditSphereOps Development (29be1ee5-e90c-4ecc-b4f9-5bcce14774cc) shows zero certificates and one current client secret labeled AuditSphereOps Development non-production runtime, expiring 2027-03-19. Only masked secret metadata was read; the secret value was not revealed. This resolves the app-credential existence check; the required identity-fixture acceptance matrix remains open."
-    },
-    {
-      "observedAt": "2026-09-20T08:40:21Z",
-      "source": "Infisical Secrets browser UI, AuditSphereOps project / Development environment",
-      "result": "Infisical displayed four masked non-production runtime secret references: Identity__CallbackPath, Identity__ClientId, Identity__ClientSecret, and Identity__TenantId. No secret value was revealed or changed. The page confirms named references exist, but does not establish approved rotation/custody evidence or runtime consumption."
-    },
-    {
-      "observedAt": "2026-09-20T09:14:35Z",
-      "source": "Infisical Secrets browser UI, AuditSphereOps project / Staging and Production environments",
-      "result": "The Staging and Production environments were empty. No additional fixture credentials or production runtime references were present; Development remains the only environment with the four masked OIDC references."
-    },
-    {
-      "observedAt": "2026-09-20T09:16:44Z",
-      "source": "Infisical Approval Workflows and Project Audit Logs browser UI",
-      "result": "Approval Workflows showed zero open and zero closed change requests and no approval policies. Project Audit Logs were unavailable on the Free plan and required an upgrade, so secret-change custody/rotation history could not be read."
-    },
-    {
-      "observedAt": "2026-09-20T09:23:29Z",
-      "source": "Microsoft SharePoint Compliance details and local AuditSphere browser UI",
-      "result": "A fresh reread of AuditSphere-Dev-Test-Record.txt again reported no retention policy, Hold Status: Not on hold, and In Place Records Management Status: Not an in-place record. The authenticated local Portfolio shell remained available with live PostgreSQL counts."
-    },
-    {
-      "observedAt": "2026-09-19T12:14:56Z",
-      "source": "Microsoft Graph Explorer, tenant label easyguide",
-      "result": "POST /v1.0/sites/easyguide.sharepoint.com,4668a3d6-8c1a-462d-accc-f95e7534aae5,b3c5cb09-7b20-4270-b352-aa4ca4db3722/permissions returned HTTP 201 Created for AuditSphereOps Development with roles [write]. Follow-up GET /permissions returned HTTP 200 and included the same application ID with roles [write]."
-    },
-    {
-      "observedAt": "2026-09-19T13:21:34Z",
-      "source": "Microsoft Purview browser UI, authenticated as qts@easyguide.onmicrosoft.com",
-      "result": "The new Purview portal loaded for tenant 4de3e6fd-51aa-4ba7-b2c5-82106d2e45f0. Information Protection sensitivity labels showed no data, and Data Lifecycle Management retention labels showed no data with no retention labels detected. A label creation draft was opened for inspection and discarded; no Purview label or policy was created."
-    },
-    {
-      "observedAt": "2026-09-19T21:03:14Z",
-      "source": "Microsoft Purview File plan browser UI, authenticated as qts@easyguide.onmicrosoft.com",
-      "result": "Created retention label AuditSphere Dev Test Record (reference ID AS-DEV-REC-001) in tenant 4de3e6fd-51aa-4ba7-b2c5-82106d2e45f0. The label is a synthetic developer-test record profile with one-day retention, record locking, disposition review, and named reviewer qts@easyguide.onmicrosoft.com. The portal displayed Submitted successfully and Your retention label is created."
-    },
-    {
-      "observedAt": "2026-09-19T21:03:14Z",
-      "source": "Microsoft Purview label publication wizard, authenticated as qts@easyguide.onmicrosoft.com",
-      "result": "Submitted policy AuditSphere Dev Test Record Publication successfully. The policy includes only SharePoint classic and communication site https://easyguide.sharepoint.com/sites/AuditSphereDevelopment; Exchange mailboxes, OneDrive accounts, and Microsoft 365 Group mailboxes/sites were disabled. The portal displayed Your retention label was published and stated that availability may take up to a week. Actual label application/protection readback is not yet observed."
-    },
-    {
-      "observedAt": "2026-09-20T09:10:12Z",
-      "source": "Microsoft Purview Records Management and SharePoint browser UI, authenticated as qts@easyguide.onmicrosoft.com",
-      "result": "Purview File plan showed AuditSphere Dev Test Record as Active with one-day retention, record locking, disposition review, and reference ID AS-DEV-REC-001. Label policies showed AuditSphere Dev Test Record Publication and AuditSphere Dev Test Label Policy as Enabled, with the publication details scoped to the AuditSphere Development site. A synthetic AuditSphere-Dev-Test-Record.txt was created in the scoped Documents library. SharePoint Compliance details reported This item is not subject to a retention policy, Hold Status: Not on hold, and In Place Records Management Status: Not an in place record. This confirms negative protection-state readback while propagation remains pending."
-    },
-    {
-      "observedAt": "2026-09-20T08:30:25Z",
-      "source": "Microsoft Entra user profile browser UI, authenticated as qts@easyguide.onmicrosoft.com",
-      "result": "AuditSphere P0 Client Y Fixture (8e64950c-e8f2-48f9-aeae-be15f0e82939) was temporarily renamed from auditp0-client-y@easyguide.onmicrosoft.com to auditp0-client-y-renamed@easyguide.onmicrosoft.com and then restored. Entra showed the same object ID and Account status Enabled after the rename and after restoration. No other tenant account was changed. This is UPN-stability fixture evidence only; no client sign-in acceptance was performed."
-    },
-    {
-      "observedAt": "2026-09-20T08:51:29Z",
-      "source": "Microsoft Entra Users browser UI, authenticated as qts@easyguide.onmicrosoft.com",
-      "result": "The EasyGuide Users inventory reported 16 users. Searching AuditSphere P0 returned only enabled Member fixtures: Client X (object ID bb5e8021-8c86-46eb-80e3-1b13f1caedbf, auditp0-client-x@easyguide.onmicrosoft.com), Client Y (object ID 8e64950c-e8f2-48f9-aeae-be15f0e82939, auditp0-client-y@easyguide.onmicrosoft.com), and Staff (object ID 99eaa47e-d18d-4e7f-90d7-804e20a46fd3, auditp0-staff@easyguide.onmicrosoft.com). Exact searches for AuditSphere P0 Client A, AuditSphere P0 Client B, disabled, and revoked returned 0 users. No wrong-tenant/guest fixture was observed. No account was created or altered during this read-only inventory."
-    },
-    {
-      "observedAt": "2026-09-20T15:04:30Z",
-      "source": "Audit workflow gap-closure implementation",
-      "result": "AuditProgramCatalog contains exactly 20 source sections and 165 stable AWP procedure IDs. Program publication/adoption, applicability, structured results, immutable submissions, generation checks, reviewer separation, changes-requested resubmission, and append-only reviews are implemented. Shared fieldwork covers schedules/control totals, selections/item tests, current-generation item-test review, confirmations/response review/alternatives, typed area assessments, signed differences, completion blockers, and archive export."
-    },
-    {
-      "observedAt": "2026-09-20T15:04:30Z",
-      "source": "dotnet build --no-restore; dotnet test --no-build --no-restore",
-      "result": "Build succeeded with 0 warnings and 0 errors. PostgreSQL 18.6 full suite passed 170/170 with 0 skipped."
-    },
-    {
-      "observedAt": "2026-09-20T15:04:30Z",
-      "source": "EF database update and migrations list",
-      "result": "Applied 20260920102142_WorkpaperDraftsAndTrialBalanceSealing, 20260920140141_AuditProgramExecutionWorkflow, 20260920142129_AuditFieldworkEvidence, and 20260920145407_AuditResponseReviewAndItemGeneration to the local development database. All 35 migrations are present with none pending."
-    },
-    {
-      "observedAt": "2026-09-20T14:59:32Z",
-      "source": "scripts/db/restore-drill.sh",
-      "result": "Loopback restore rehearsal passed with 35 migrations and latest 20260920145407_AuditResponseReviewAndItemGeneration."
-    },
-    {
-      "observedAt": "2026-09-20T15:01:12Z",
-      "source": "dotnet run --project src/AuditSphereOps.Web --no-build and loopback HTTP smoke",
-      "result": "The local web host started cleanly. HTTP 200 returned for /, /health/live, /health/ready, and /app/engagements/{guid}/audit-fieldwork; readiness body was Healthy. The host was stopped cleanly after the probe."
-    }
+  "remainingLocalWork": [
+    "Streaming-scale GL intake with durable resumability",
+    "Complete user-facing package-review and release surfaces",
+    "Approved-method advanced and mixed-currency accounting fixtures",
+    "Deeper specialist schedules and remaining dashboard/roll-forward usability"
   ],
-  "reviewEvidence": [
-    {
-      "observedAt": "2026-09-19T14:08:19Z",
-      "pullRequest": 11,
-      "headCommit": "b34447ba2d87e81ed865081b7dedb1415e5efdce",
-      "result": "PR #11 merged to master at b34447b (2026-09-19). Hosted CI run 35447359338 passed in 3m25s on head fae8723: setup-dotnet, locked tool restore, package restore, build, EF migration, 161-test PostgreSQL suite, migration-aware readiness, and cleanup. GitGuardian also passed. No independent human approval is recorded for PR #11 or prior merged PRs; this remains an outstanding governance gate."
-    }
+  "externalGates": [
+    { "gate": "P1", "status": "BLOCKED_EXTERNAL", "required": "Live Entra OIDC and runtime identity fixtures" },
+    { "gate": "P2", "status": "BLOCKED_EXTERNAL", "required": "Selected-resource SharePoint/Graph provider acceptance" },
+    { "gate": "P3", "status": "BLOCKED_EXTERNAL", "required": "Independent release checkpoint store and capability evidence" },
+    { "gate": "P4", "status": "BLOCKED_EXTERNAL", "required": "Approved Purview records profile and observed protection behavior" },
+    { "gate": "P5", "status": "BLOCKED_EXTERNAL", "required": "Approved signing methodology and exact-byte signature lineage" },
+    { "gate": "P6", "status": "LOCAL_VERIFIED", "required": "Records/archive residual hardening" },
+    { "gate": "P7", "status": "BLOCKED_EXTERNAL", "required": "Custodially separate recovery rehearsal and measured production RPO/RTO" },
+    { "gate": "P8", "status": "BLOCKED_EXTERNAL", "required": "Production secret custody, observability and capacity evidence" },
+    { "gate": "P9", "status": "BLOCKED_EXTERNAL", "required": "Independent human review and protected merge evidence" },
+    { "gate": "P10", "status": "BLOCKED_EXTERNAL", "required": "Full §47 real-tenant acceptance and professional sign-off" }
   ],
-  "blockers": [
-    {
-      "classification": "external-tenant",
-      "gate": "P1 — Live Entra OIDC / runtime identity",
-      "missing": "Approval/rotation evidence for the secret-store credential reference, Client A/B, disabled/revoked, changed-UPN, and wrong-tenant fixtures, plus live OIDC acceptance for the remaining matrix. The qts staff identity now completes the localhost callback and maps by immutable tenant/object claims, but the remaining fixture matrix is not provisioned or accepted.",
-      "ownerAction": "M365/operations owner confirms the approved secret-store reference and fixture identities; implementer completes the live OIDC acceptance matrix before P2 work begins."
-    },
-    {
-      "classification": "external-tenant",
-      "gate": "P2 — Live bounded SharePoint/Graph document provider",
-      "missing": "Approved non-production credentials bound to RepositoryBinding, real provider upload/download/version/reconciliation acceptance, and isolation proof (Client A ≠ Client B, wrong-tenant denial).",
-      "ownerAction": "Depends on P1 completion. Operations owner supplies Graph credential and completes P2 isolation/reconciliation matrix."
-    },
-    {
-      "classification": "external-tenant",
-      "gate": "P3 — External release checkpoint store + capability evidence",
-      "missing": "Approved live IReleaseCheckpointStore implementation and non-production readback evidence. Local store is test-only.",
-      "ownerAction": "Operations owner provisions the independently administered checkpoint store and completes P3 acceptance criteria."
-    },
-    {
-      "classification": "external-tenant",
-      "gate": "P4 — Purview records profile + reviewer fixtures + behavior evidence",
-      "missing": "Compliance approval/residual-risk evidence, positive label propagation/protection-state readback on a synthetic SharePoint record, audit evidence, and the complete reviewer/editor/custodian/admin matrix. The developer tenant has the active test label and enabled site-scoped publication policies, but the synthetic record's Compliance details still report no retention policy, no hold, and no in-place record. P4 depends on P1/P2 readiness and has not been advanced past those blocked predecessors; the developer-tenant configuration entries in tenantEvidence are retained as historical observations only.",
-      "ownerAction": "Compliance Officer reviews the developer profile and residual risk; records custodian waits for policy propagation, applies the label to a synthetic record, captures observed state/audit evidence, and executes the reviewer/editor/custodian/admin matrix."
-    },
-    {
-      "classification": "external-tenant",
-      "gate": "P5 — Approved signing methodology + signature lineage",
-      "missing": "Approved X.509/HSM or equivalent signing method, certificate/key custody, authorized signatory rules, and immutable signature lineage bound to exact released artifacts.",
-      "ownerAction": "Audit firm technical committee approves methodology; operations owner provisions signing infrastructure."
-    },
-    {
-      "classification": "resolved-local",
-      "gate": "P6 — Records/archive residual hardening",
-      "missing": "None. Deterministic re-archive/version lineage, disposition blocking under active legal hold, approved profile version requirement, and evidence-safe downgrade paths verified locally (165/165 tests, 31 migrations).",
-      "ownerAction": "Completed locally."
-    },
-    {
-      "classification": "external-tenant",
-      "gate": "P7 — Cross-store recovery + production RPO/RTO",
-      "missing": "Custodially separate backup/checkpoint environment, named recovery custodians, isolated restore, measured RPO/RTO, and human-reviewed reconciliation evidence.",
-      "ownerAction": "Operations owner provisions separate recovery environment and named custodians; implementer executes and documents recovery runbook."
-    },
-    {
-      "classification": "external-tenant",
-      "gate": "P8 — Production secrets/observability/capacity",
-      "missing": "Approved secret store, Data Protection key-ring, structured telemetry, alert thresholds, and workload capacity validation.",
-      "ownerAction": "Operations/security owner provisions production configuration; implementer wires and validates."
-    },
-    {
-      "classification": "authorization-review",
-      "gate": "P9 — Independent review + protected merge governance",
-      "missing": "Independent human review of all merged slices (PR #1–#11 and current candidate PR #26); no self-approval counted as independent review.",
-      "ownerAction": "Designated independent reviewer conducts review on the exact current heads and records reviewer/date/commit evidence in the execution ledger. GitHub master protection is already enabled and verified."
-    },
-    {
-      "classification": "external-tenant",
-      "gate": "P10 — Full §47 real-tenant acceptance cycle",
-      "missing": "P1–P9 complete or explicitly approved for the tested release profile; complete §47 lifecycle executed with real authorized tenant resources, professional approvals, and independent reviewer sign-off on evidence package.",
-      "ownerAction": "Product owner and professional adoption authority authorize and execute the full §47 lifecycle; independent reviewer signs evidence package."
-    }
-  ],
-  "nextPermittedAction": "Continue the remaining locally actionable accounting surfaces, or obtain the separately owned external and human approvals. Do not mark the requirements checklist complete until live Entra/Graph/SharePoint/Purview behavior, approved professional methodology/signing, independent human review and merge evidence, and production cross-store recovery/RPO/RTO are separately observed and recorded.",
-  "lastVerifiedAt": "2026-09-20T19:38:13Z"
+  "evidenceBoundary": "This public pointer contains no tenant identifiers, user principals, credentials, tokens, secret values or private-provider URLs. Local evidence does not establish production acceptance or professional conclusions."
 }

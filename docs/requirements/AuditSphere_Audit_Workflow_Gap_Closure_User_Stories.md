@@ -10,10 +10,10 @@
 | Source checklist | `Audit working process - Audit Tool New.docx` |
 | Source scope | **20 audit sections; 165 individual procedures** |
 | Backlog | **28 issue-ready stories**, grouped into 5 proposed milestones |
-| Repository snapshot inspected | `master@45f6ed0e09552807c54ae7a15465d5c8b2ada61e` |
-| Status | Proposed implementation backlog; not executed acceptance evidence |
+| Repository snapshot inspected | `master@ab7c4fe001a1b342880aae6bbca1bbc157c9716a` |
+| Status | Partially implemented; local evidence is summarized in the execution ledger; not professional or production acceptance |
 | Suggested repository location | `docs/requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md` |
-| Repository changes made by this document task | None; no issues, branches, PRs, milestones or merges created |
+| Repository changes made by this document task | Requirements documentation only; implementation evidence is tracked separately |
 
 > **Epic outcome:** An authorized auditor can perform, evidence, review and conclude every applicable procedure in the uploaded checklist using AuditSphere, and the existing final release gate consumes those exact reviewed results. Reuse working capabilities; implement only demonstrated gaps. Do not confuse a template, database entity or generic workpaper with accepted end-to-end functionality.
 
@@ -81,7 +81,7 @@ Every source paragraph has exactly one primary story and acceptance-criterion ow
 
 ### 2.2 Repository facts inspected for this backlog
 
-The inspected `AGENTS.md` points to the root `AuditSphereOps_NET_Codex_Implementation_Specification.md`, mirrored at `docs/specification/AuditSphereOps.NET.md`, and specifies the existing .NET/Blazor/EF Core/PostgreSQL approach. The specification is an implementation contract, not executed production evidence. [R1] [R2]
+The inspected `AGENTS.md` points to the consolidated `docs/SPECIFICATION.md` (the v5.0 build contract), and specifies the existing .NET/Blazor/EF Core/PostgreSQL approach. The specification is an implementation contract, not executed production evidence. [R1] [R2]
 
 The inspected audit domain includes `MaterialityAssessment`, `AuditRisk`, `AuditProcedure`, `PopulationVersion`, `Workpaper`, `WorkpaperDraft`, `WorkpaperSubmission` and `Finding`. Reuse these where appropriate. Their existence does not establish that every source procedure has a UI, command, sufficient evidence model or passing acceptance scenario. [R3]
 
@@ -89,7 +89,11 @@ The inspected financial calculator already builds package lines and deterministi
 
 The existing specification requires manual-first sampling, a confirmation register, specialized programs, exact submitted evidence and approval invalidation. It also distinguishes monetary findings, management decisions, EQR, signed artifacts, provider protection and issuance/delivery. Preserve those semantics. [R4] [R5]
 
-**Verification limit:** This document was prepared from the complete uploaded checklist and targeted repository reads. No build, application test suite, database migration, user-acceptance test, live tenant action or production release was executed for this documentation task. `AS-AUD-001` must re-read current repository state before implementation and resolve any behavior already completed since this snapshot.
+**Verification limit:** This document was prepared from the complete uploaded checklist and targeted repository reads. The current repository has since verified local accounting and audit slices; see `docs/execution/current-slice.md` and `docs/execution/status.json` for executed evidence. No local evidence substitutes for live-provider, professional-approval, production-recovery, or independent-review acceptance. `AS-AUD-001` must re-read current repository state before implementation and resolve any behavior already completed since this snapshot.
+
+### 2.4 Current implementation evidence
+
+At `master@ab7c4fe`, the repository records **186/186 PostgreSQL-backed tests passing with 0 skipped**, **44 applied migrations**, a successful loopback restore rehearsal, and a zero-warning build. The accounting slice includes client accounting profiles, versioned trial-balance and GL ingestion, completeness bridges, reconciliations, specialist workbenches, package projections, restatement lineage, bounded same-currency consolidation, journal lineage, close checks, and immutable package-review decisions. Remaining stories are not implicitly complete: user-facing workflow depth, advanced accounting methods, and external acceptance must still be verified in the execution ledger.
 
 ### 2.3 Reuse versus gap rule
 
@@ -2044,12 +2048,12 @@ The following are commit-pinned repository references inspected to ground reuse 
 
 No outside accounting/tax/legal standard was researched or incorporated as an additional source. Professional policy choices not specified by S1 must be supplied through approved methodology as listed in Section 7.
 
-[R1]: https://github.com/nirzaf/AuditSphere/blob/45f6ed0e09552807c54ae7a15465d5c8b2ada61e/AGENTS.md
-[R2]: https://github.com/nirzaf/AuditSphere/blob/45f6ed0e09552807c54ae7a15465d5c8b2ada61e/AuditSphereOps_NET_Codex_Implementation_Specification.md
-[R3]: https://github.com/nirzaf/AuditSphere/blob/45f6ed0e09552807c54ae7a15465d5c8b2ada61e/src/AuditSphereOps.Domain/Audit/Audit.cs
-[R4]: https://github.com/nirzaf/AuditSphere/blob/45f6ed0e09552807c54ae7a15465d5c8b2ada61e/AuditSphereOps_NET_Codex_Implementation_Specification.md#s20
-[R5]: https://github.com/nirzaf/AuditSphere/blob/45f6ed0e09552807c54ae7a15465d5c8b2ada61e/AuditSphereOps_NET_Codex_Implementation_Specification.md#s23
-[R6]: https://github.com/nirzaf/AuditSphere/blob/45f6ed0e09552807c54ae7a15465d5c8b2ada61e/src/AuditSphereOps.Application/Accounting/FinancialStatementCalculator.cs
+[R1]: https://github.com/nirzaf/AuditSphere/blob/ab7c4fe001a1b342880aae6bbca1bbc157c9716a/AGENTS.md
+[R2]: https://github.com/nirzaf/AuditSphere/blob/ab7c4fe001a1b342880aae6bbca1bbc157c9716a/docs/SPECIFICATION.md
+[R3]: https://github.com/nirzaf/AuditSphere/blob/ab7c4fe001a1b342880aae6bbca1bbc157c9716a/src/AuditSphereOps.Domain/Audit/Audit.cs
+[R4]: https://github.com/nirzaf/AuditSphere/blob/ab7c4fe001a1b342880aae6bbca1bbc157c9716a/docs/SPECIFICATION.md#s20
+[R5]: https://github.com/nirzaf/AuditSphere/blob/ab7c4fe001a1b342880aae6bbca1bbc157c9716a/docs/SPECIFICATION.md#s23
+[R6]: https://github.com/nirzaf/AuditSphere/blob/ab7c4fe001a1b342880aae6bbca1bbc157c9716a/src/AuditSphereOps.Application/Accounting/FinancialStatementCalculator.cs
 
 ---
 

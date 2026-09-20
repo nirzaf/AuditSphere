@@ -3,9 +3,9 @@
 
 **Repository:** `nirzaf/AuditSphere`
 **Branch inspected:** `master`
-**Pinned review commit:** `68450dea3a3f06dd805d2957b9250e87fa8e5a75`
+**Pinned review commit:** `ab7c4fe001a1b342880aae6bbca1bbc157c9716a`
 **Commit date / review date:** 20 September 2026
-**Deliverable status:** Proposed product and engineering backlog; not implementation, professional-methodology approval, or production acceptance.
+**Deliverable status:** Active product and engineering backlog grounded in the current local implementation; not professional-methodology approval or production acceptance.
 
 ---
 
@@ -27,6 +27,12 @@ The current v5 specification explicitly limits the first operational profile to 
 
 A relationship group is not the same as a consolidation perimeter. A group name organizes clients; a consolidation perimeter identifies which entities and packages belong in a particular reporting exercise under an approved method.
 
+### Current implementation snapshot (2026-09-20)
+
+The local implementation now covers client accounting profiles, periods/books, chart-of-accounts mappings, versioned trial-balance profiles and multi-entity batches, typed GL imports, paged account-completeness bridges, reconciliations, specialist workbenches, entity-package projections, restatement lineage, bounded same-currency consolidation, journal lineage, close checks, and immutable financial-package review decisions. Package-review decisions are stage-bound, exact package revision/generation/hash-bound, and append-only.
+
+Local verification at `master@ab7c4fe` is **186/186 PostgreSQL-backed tests passing with 0 skipped**, **44 migrations applied**, a successful loopback restore rehearsal, and a zero-warning build. The remaining items in this document are implementation backlog or verification work unless the execution ledger explicitly marks them locally verified. Local evidence does not establish live Microsoft-provider behavior, professional approval, signing acceptance, production recovery, or independent human review.
+
 ---
 
 ## 2. Evidence, sources and limitations
@@ -41,7 +47,7 @@ A relationship group is not the same as a consolidation perimeter. A group name 
 
 ### 2.2 What this review does and does not establish
 
-This is a **source-level architecture and product review**. No .NET build, PostgreSQL migration, test suite, authenticated browser journey, Microsoft tenant operation or production deployment was executed during this review. A programmatic repository clone was unavailable in this environment; code was inspected through the GitHub connector instead. No source or remote data was changed.
+This document began as a source-level architecture and product review. Its current implementation snapshot is refreshed from the local repository and execution evidence above. It does not claim professional-methodology approval, live tenant acceptance or a production deployment.
 
 “Present” means the inspected code represents the capability. “Partial” means a useful implementation exists but does not yet satisfy the broader requested behavior. “Not found” refers to the inspected model/service inventory, not to an assertion based only on a failed keyword search. Documentation completion labels and historical test counts are not treated as proof of the newly requested scope.
 
@@ -894,8 +900,8 @@ The best architecture is a native audit-accounting workbench inside the existing
 
 Repository sources below were inspected at the pinned commit. File paths plus named methods in this report are the review locators; do not assume current branch line numbers will stay unchanged.
 
-- **R1:** GitHub `master` metadata and Domain/Application inventory at `68450dea3a3f06dd805d2957b9250e87fa8e5a75`.
-- **R2:** `AuditSphereOps.md`, introduction and §§1.2–1.5: .NET adoption, service boundaries, single-entity initial scope and explicit group capability extension.
+- **R1:** GitHub `master` metadata and Domain/Application inventory at `ab7c4fe001a1b342880aae6bbca1bbc157c9716a`.
+- **R2:** `docs/SPECIFICATION.md`, introduction and §§1.2–1.5: .NET adoption, service boundaries, single-entity initial scope and explicit group capability extension.
 - **R3:** `src/AuditSphereOps.Domain/Practice/FirmLedger.cs`: firm-only accounting boundary.
 - **R4:** `src/AuditSphereOps.Domain/Practice/Crm.cs`: canonical client and contact model.
 - **R5:** `src/AuditSphereOps.Domain/Accounting/Accounting.cs`: datasets, rows, maps, journals and entity packages.
@@ -914,7 +920,7 @@ Repository sources below were inspected at the pinned commit. File paths plus na
 
 ```text
 Repository at reviewed commit:
-https://github.com/nirzaf/AuditSphere/tree/68450dea3a3f06dd805d2957b9250e87fa8e5a75
+https://github.com/nirzaf/AuditSphere/tree/ab7c4fe001a1b342880aae6bbca1bbc157c9716a
 
 E1 — ERPNext Chart of Accounts
 https://docs.frappe.io/erpnext/chart-of-accounts

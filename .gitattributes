@@ -1,0 +1,22 @@
+# Normalize line endings so a Windows/macOS mixed team does not produce churn.
+# Shell scripts must keep LF (they run under bash on macOS/Linux); PowerShell
+# scripts are executed on Windows and are tolerant of CRLF, so let git normalize.
+* text=auto eol=lf
+
+*.sh text eol=lf
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Binary and generated-in-binary assets: never diff or merge them as text.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.ttf binary
+*.woff binary
+*.woff2 binary
+*.snk binary
+*.pfx binary

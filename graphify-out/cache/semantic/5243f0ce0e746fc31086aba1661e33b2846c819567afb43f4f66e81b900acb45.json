@@ -1,1 +1,0 @@
-{"nodes": [{"id": "src_auditsphereops_infrastructure_providers_graphpbcprovidersink", "label": "GraphPbcProviderSink (fail-closed)", "file_type": "code", "source_file": "src/AuditSphereOps.Infrastructure/Providers/GraphPbcProviderSink.cs"}], "edges": [], "hyperedges": []}

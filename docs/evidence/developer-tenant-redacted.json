@@ -1,0 +1,12 @@
+{
+  "status": "PARTIAL_NON_PRODUCTION_EVIDENCE",
+  "recordedAt": "2026-09-20T20:03:12Z",
+  "environment": "owner-authorized non-production developer tenant; identifiers intentionally omitted",
+  "observed": [
+    "A selected-resource Microsoft Graph/SharePoint permission was configured outside this public repository.",
+    "A synthetic Purview test profile and publication submission were created outside this public repository.",
+    "Positive label application and protection readback were not observed in the recorded acceptance cycle.",
+    "No production approval, signing, independent review, or production recovery evidence is claimed."
+  ],
+  "redaction": "Tenant IDs, user principals, app IDs, site IDs, URLs, secrets, and other tenant-specific identifiers are intentionally excluded from this public repository."
+}
