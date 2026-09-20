@@ -8,6 +8,6 @@
 4. compare source/restored migration history and the release-checkpoint database count/digest summary; and
 5. write the secret-free result to `docs/evidence/restore-drill-latest.json`, then drop only the generated restore database and temporary directory.
 
-The latest observed run passed with 45 migrations through `20260920204413_GeneralLedgerStreamingImport`. The evidence record explicitly reports `externalCheckpointStoreVerification: NOT_RUN`, `custodiallySeparateStorage: false`, and `productionRpoRto: NOT_RUN`.
+The latest observed run passed with 46 migrations through `20260920213841_FinancialPackageReleaseTarget`. The evidence record explicitly reports `externalCheckpointStoreVerification: NOT_RUN`, `custodiallySeparateStorage: false`, and `productionRpoRto: NOT_RUN`.
 
 The dump and restore are on the same loopback development host, so the files are not custodially separate and this proves schema/referential reconciliation plus the local quarantine/epoch boundary only. Production RPO/RTO and cross-store SharePoint/Purview/checkpoint recovery remain unproven until the approved operations and records custodians run an isolated rehearsal.
