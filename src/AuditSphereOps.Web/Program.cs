@@ -60,6 +60,9 @@ if (oidcConfigured)
     options.ClientSecret = clientSecret!;
     options.ResponseType = "code";
     options.CallbackPath = identity["CallbackPath"] ?? "/signin-oidc";
+    // TrustedActorResolver intentionally consumes the immutable raw Entra oid/tid claims;
+    // do not rewrite them into WS-* claim URIs before the tenant/object lookup.
+    options.MapInboundClaims = false;
     options.SaveTokens = false;
     options.GetClaimsFromUserInfoEndpoint = false;
   });

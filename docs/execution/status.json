@@ -220,6 +220,26 @@
     {
       "command": "P6 — Records/archive residual hardening (2026-09-19T20:43:00Z)",
       "result": "Applied migration 20260919203959_ArchiveVersionLineage (31 migrations total); dotnet build passed with 0 warnings/errors; targeted RecordsArchiveTests passed 6/6 and full PostgreSQL 18.6 suite passed 165/165 with 0 skipped; scripts/db/restore-drill.sh restored 31 migrations and verified release-checkpoint database summaries."
+    },
+    {
+      "command": "Protected shell sign-out and re-authentication check (2026-09-20T07:42:40Z)",
+      "result": "The local cookie was signed out; /app rendered Sign-in required and explicitly stated that no local demo actor is available. Selecting the already signed-in qts@easyguide.onmicrosoft.com Entra account completed the localhost callback again and restored Portfolio with live PostgreSQL counts. No tenant data or permissions were changed."
+    },
+    {
+      "command": "Evidence refresh build/test/runtime check (2026-09-20T08:49:30Z)",
+      "result": "dotnet build passed with 0 warnings and 0 errors using the installed .NET 10.0.401 SDK from outside the repository because global.json pins unavailable 10.0.300; dotnet test passed 165/165 with 0 skipped against PostgreSQL 18.6. status.json parsed successfully, git diff --check passed, and the restarted local host returned HTTP 200 Healthy from /health/live and /health/ready."
+    },
+    {
+      "command": "Infisical-backed OIDC runtime route check (2026-09-20T08:54:06Z)",
+      "result": "The local host was restarted with the Infisical-backed non-production OIDC handoff without logging the secret value. A read-only GET /auth/sign-in?returnUrl=/app returned HTTP 302 to the EasyGuide tenant authorization endpoint; the existing qts browser session remained authenticated. This verifies local runtime consumption, not approved rotation/custody evidence."
+    },
+    {
+      "command": "Raw Entra claim mapping fix and live staff callback (2026-09-20T09:03:15Z)",
+      "result": "The web OIDC handler now preserves raw oid/tid claims for TrustedActorResolver. dotnet build passed with 0 warnings/errors; the PostgreSQL suite passed 165/165 with 0 skipped; and a fresh qts@easyguide.onmicrosoft.com browser sign-in completed the localhost callback and rendered Portfolio with live PostgreSQL counts for firm 11111111-1111-1111-1111-111111111111."
+    },
+    {
+      "command": "Purview label propagation and SharePoint protection readback (2026-09-20T09:10:12Z)",
+      "result": "Purview File plan showed AuditSphere Dev Test Record as Active with one-day retention, record locking, disposition review, and reference ID AS-DEV-REC-001. Label policies showed AuditSphere Dev Test Record Publication and AuditSphere Dev Test Label Policy as Enabled. A synthetic AuditSphere-Dev-Test-Record.txt was created in the scoped AuditSphere Development Documents library. SharePoint Compliance details read back that the item is not subject to a retention policy, is not on hold, and is not an in-place record; actual label/protection propagation remains unobserved."
     }
   ],
   "tenantEvidence": [
@@ -254,6 +274,21 @@
       "result": "AuditSphereOps Development shows the web redirect URI http://localhost:5099/signin-oidc. This is developer configuration evidence only; no client secret/certificate, real identity fixtures, or live OIDC sign-in acceptance was observed."
     },
     {
+      "observedAt": "2026-09-20T08:34:32Z",
+      "source": "Microsoft Entra app registration Certificates & secrets browser UI, authenticated as qts@easyguide.onmicrosoft.com",
+      "result": "AuditSphereOps Development (29be1ee5-e90c-4ecc-b4f9-5bcce14774cc) shows zero certificates and one current client secret labeled AuditSphereOps Development non-production runtime, expiring 2027-03-19. Only masked secret metadata was read; the secret value was not revealed. This resolves the app-credential existence check; the required identity-fixture acceptance matrix remains open."
+    },
+    {
+      "observedAt": "2026-09-20T08:40:21Z",
+      "source": "Infisical Secrets browser UI, AuditSphereOps project / Development environment",
+      "result": "Infisical displayed four masked non-production runtime secret references: Identity__CallbackPath, Identity__ClientId, Identity__ClientSecret, and Identity__TenantId. No secret value was revealed or changed. The page confirms named references exist, but does not establish approved rotation/custody evidence or runtime consumption."
+    },
+    {
+      "observedAt": "2026-09-20T09:14:35Z",
+      "source": "Infisical Secrets browser UI, AuditSphereOps project / Staging and Production environments",
+      "result": "The Staging and Production environments were empty. No additional fixture credentials or production runtime references were present; Development remains the only environment with the four masked OIDC references."
+    },
+    {
       "observedAt": "2026-09-19T12:14:56Z",
       "source": "Microsoft Graph Explorer, tenant label easyguide",
       "result": "POST /v1.0/sites/easyguide.sharepoint.com,4668a3d6-8c1a-462d-accc-f95e7534aae5,b3c5cb09-7b20-4270-b352-aa4ca4db3722/permissions returned HTTP 201 Created for AuditSphereOps Development with roles [write]. Follow-up GET /permissions returned HTTP 200 and included the same application ID with roles [write]."
@@ -272,6 +307,21 @@
       "observedAt": "2026-09-19T21:03:14Z",
       "source": "Microsoft Purview label publication wizard, authenticated as qts@easyguide.onmicrosoft.com",
       "result": "Submitted policy AuditSphere Dev Test Record Publication successfully. The policy includes only SharePoint classic and communication site https://easyguide.sharepoint.com/sites/AuditSphereDevelopment; Exchange mailboxes, OneDrive accounts, and Microsoft 365 Group mailboxes/sites were disabled. The portal displayed Your retention label was published and stated that availability may take up to a week. Actual label application/protection readback is not yet observed."
+    },
+    {
+      "observedAt": "2026-09-20T09:10:12Z",
+      "source": "Microsoft Purview Records Management and SharePoint browser UI, authenticated as qts@easyguide.onmicrosoft.com",
+      "result": "Purview File plan showed AuditSphere Dev Test Record as Active with one-day retention, record locking, disposition review, and reference ID AS-DEV-REC-001. Label policies showed AuditSphere Dev Test Record Publication and AuditSphere Dev Test Label Policy as Enabled, with the publication details scoped to the AuditSphere Development site. A synthetic AuditSphere-Dev-Test-Record.txt was created in the scoped Documents library. SharePoint Compliance details reported This item is not subject to a retention policy, Hold Status: Not on hold, and In Place Records Management Status: Not an in place record. This confirms negative protection-state readback while propagation remains pending."
+    },
+    {
+      "observedAt": "2026-09-20T08:30:25Z",
+      "source": "Microsoft Entra user profile browser UI, authenticated as qts@easyguide.onmicrosoft.com",
+      "result": "AuditSphere P0 Client Y Fixture (8e64950c-e8f2-48f9-aeae-be15f0e82939) was temporarily renamed from auditp0-client-y@easyguide.onmicrosoft.com to auditp0-client-y-renamed@easyguide.onmicrosoft.com and then restored. Entra showed the same object ID and Account status Enabled after the rename and after restoration. No other tenant account was changed. This is UPN-stability fixture evidence only; no client sign-in acceptance was performed."
+    },
+    {
+      "observedAt": "2026-09-20T08:51:29Z",
+      "source": "Microsoft Entra Users browser UI, authenticated as qts@easyguide.onmicrosoft.com",
+      "result": "The EasyGuide Users inventory reported 16 users. Searching AuditSphere P0 returned only enabled Member fixtures: Client X (object ID bb5e8021-8c86-46eb-80e3-1b13f1caedbf, auditp0-client-x@easyguide.onmicrosoft.com), Client Y (object ID 8e64950c-e8f2-48f9-aeae-be15f0e82939, auditp0-client-y@easyguide.onmicrosoft.com), and Staff (object ID 99eaa47e-d18d-4e7f-90d7-804e20a46fd3, auditp0-staff@easyguide.onmicrosoft.com). Exact searches for AuditSphere P0 Client A, AuditSphere P0 Client B, disabled, and revoked returned 0 users. No wrong-tenant/guest fixture was observed. No account was created or altered during this read-only inventory."
     }
   ],
   "reviewEvidence": [
@@ -286,8 +336,8 @@
     {
       "classification": "external-tenant",
       "gate": "P1 — Live Entra OIDC / runtime identity",
-      "missing": "Approved credential reference in a secret store, real identity fixtures (authorized staff, Client A/B, disabled/revoked, changed-UPN, wrong-tenant), and live OIDC sign-in acceptance. The developer app and localhost redirect URI are configured, but no secret/certificate was created.",
-      "ownerAction": "M365/operations owner supplies the approved credential reference and fixture identities; implementer completes live OIDC acceptance before P2 work begins."
+      "missing": "Approval/rotation evidence for the secret-store credential reference, Client A/B, disabled/revoked, changed-UPN, and wrong-tenant fixtures, plus live OIDC acceptance for the remaining matrix. The qts staff identity now completes the localhost callback and maps by immutable tenant/object claims, but the remaining fixture matrix is not provisioned or accepted.",
+      "ownerAction": "M365/operations owner confirms the approved secret-store reference and fixture identities; implementer completes the live OIDC acceptance matrix before P2 work begins."
     },
     {
       "classification": "external-tenant",
@@ -304,7 +354,7 @@
     {
       "classification": "external-tenant",
       "gate": "P4 — Purview records profile + reviewer fixtures + behavior evidence",
-      "missing": "Compliance approval/residual-risk evidence, label propagation and actual protection-state readback on a synthetic SharePoint record, audit evidence, and the complete reviewer/editor/custodian/admin matrix. The developer tenant now has the test label and a publication policy scoped to the selected AuditSphere Development site. P4 depends on P1/P2 readiness and has not been advanced past those blocked predecessors; the developer-tenant configuration entries in tenantEvidence are retained as historical observations only.",
+      "missing": "Compliance approval/residual-risk evidence, positive label propagation/protection-state readback on a synthetic SharePoint record, audit evidence, and the complete reviewer/editor/custodian/admin matrix. The developer tenant has the active test label and enabled site-scoped publication policies, but the synthetic record's Compliance details still report no retention policy, no hold, and no in-place record. P4 depends on P1/P2 readiness and has not been advanced past those blocked predecessors; the developer-tenant configuration entries in tenantEvidence are retained as historical observations only.",
       "ownerAction": "Compliance Officer reviews the developer profile and residual risk; records custodian waits for policy propagation, applies the label to a synthetic record, captures observed state/audit evidence, and executes the reviewer/editor/custodian/admin matrix."
     },
     {
@@ -344,6 +394,6 @@
       "ownerAction": "Product owner and professional adoption authority authorize and execute the full §47 lifecycle; independent reviewer signs evidence package."
     }
   ],
-  "nextPermittedAction": "P0 is the active dependency-ready package and its remaining reconciliation items are verified; P6 is complete locally. The EasyGuide P4 developer-tenant observations are retained as historical evidence, but P4 stays BLOCKED_EXTERNAL on its P1/P2 predecessors, label propagation/protection observation, and compliance approval. Master merge protection is verified, but P9 still requires independent human review. P1–P3, P5, P7–P8, and P10 remain blocked until their required credentials, custodians, professional approvals, recovery measurements, and independent review exist.",
-  "lastVerifiedAt": "2026-09-20T03:41:42Z"
+  "nextPermittedAction": "P0 is the active dependency-ready package and its remaining reconciliation items are verified; P6 is complete locally. The EasyGuide P4 developer-tenant observations are retained as historical evidence, but P4 stays BLOCKED_EXTERNAL on its P1/P2 predecessors, label propagation/protection observation, and compliance approval. Master merge protection is verified, but P9 still requires independent human review. P1 remains blocked on approved secret-store reference/rotation evidence, required identity fixtures, and live acceptance; P2–P3, P5, P7–P8, and P10 remain blocked until their required provider credentials, custodians, professional approvals, recovery measurements, and independent review exist.",
+  "lastVerifiedAt": "2026-09-20T09:10:12Z"
 }

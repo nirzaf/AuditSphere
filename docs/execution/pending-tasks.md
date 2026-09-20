@@ -151,7 +151,7 @@ P10 Full §47 real-tenant acceptance cycle
 
 **Owner prerequisites:** approved app configuration, redirect URIs, authentication flow, secret/certificate reference in approved secret store, tenant/environment authorization, approved fixture identities.
 
-**Observed EasyGuide developer configuration (2026-09-20):** single-tenant app `AuditSphereOps Development` has web redirect URI `http://localhost:5099/signin-oidc`. No client secret/certificate, live sign-in acceptance, or required identity fixtures have been recorded.
+**Observed EasyGuide developer configuration (2026-09-20):** single-tenant app `AuditSphereOps Development` has web redirect URI `http://localhost:5099/signin-oidc`, zero certificates, and one current non-production client secret expiring 2027-03-19. The secret value was not revealed. The restarted host's `/auth/sign-in` route returned HTTP 302 to the EasyGuide authorize endpoint using the Infisical-backed handoff, and after the raw `oid`/`tid` claim mapping fix a fresh qts callback rendered the live Portfolio shell. Infisical project `AuditSphereOps` / `Development` displays masked references for `Identity__CallbackPath`, `Identity__ClientId`, `Identity__ClientSecret`, and `Identity__TenantId`; its `Staging` and `Production` environments are empty. No values were revealed or changed. Entra's 16-user inventory contains only Client X, Client Y, and Staff under the `AuditSphere P0` search; exact Client A, Client B, `disabled`, and `revoked` searches returned zero users, and no wrong-tenant/guest fixture was observed. The required fixture acceptance matrix remains open, and approved rotation/custody evidence is still not established.
 
 **Acceptance criteria:**
 - Staff sign-in maps to expected (tenant, object) identity.
@@ -227,7 +227,7 @@ P10 Full §47 real-tenant acceptance cycle
 
 **Required Purview configuration:** test-only records profile, approved retention/record label, target SharePoint location, retention trigger/duration, disposition behavior, reviewer assignment, audit enabled, residual-risk statement.
 
-**Observed EasyGuide developer configuration (2026-09-19):** `AuditSphere Dev Test Record` (`AS-DEV-REC-001`) was created with one-day retention, record locking, disposition review, and reviewer `qts@easyguide.onmicrosoft.com`. Publication policy `AuditSphere Dev Test Record Publication` was submitted successfully for only `https://easyguide.sharepoint.com/sites/AuditSphereDevelopment`; Microsoft states availability may take up to a week.
+**Observed EasyGuide developer configuration (2026-09-19 through 2026-09-20):** `AuditSphere Dev Test Record` (`AS-DEV-REC-001`) was created with one-day retention, record locking, disposition review, and reviewer `qts@easyguide.onmicrosoft.com`. Publication policy `AuditSphere Dev Test Record Publication` was submitted successfully for only `https://easyguide.sharepoint.com/sites/AuditSphereDevelopment`; the policy and a second label policy now show Enabled in Purview. A synthetic `AuditSphere-Dev-Test-Record.txt` was created in the scoped SharePoint Documents library, but SharePoint Compliance details still report that the item is not subject to a retention policy, is not on hold, and is not an in-place record. Microsoft states availability may take up to a week, so actual label/protection propagation remains unverified.
 
 **Integration tasks:**
 - Map profile version to local `RecordsProfile`.
