@@ -6,12 +6,12 @@ This file records observed repository state only. The authoritative build contra
 
 | Item | Observed value |
 |---|---|
-| Source implementation checkpoint | `master@d65bba0` |
-| Remote | `origin/master` points to `ca50667` after the implementation and documentation checkpoint pushes; code checkpoint is `d65bba0` |
+| Source implementation checkpoint | `master@0e60fe4` |
+| Remote | `origin/master` points to `0e60fe4` after the controlled roll-forward checkpoint push |
 | SDK | .NET 10; repository solution targets `net10.0` |
 | Database | PostgreSQL 18.6 on loopback port 5433 for development only |
 | Build | `dotnet build AuditSphereOps.slnx --no-restore --configuration Release` — passed, 0 warnings/errors |
-| Tests | 195/195 passed, 0 skipped against PostgreSQL 18.6 |
+| Tests | 196/196 passed, 0 skipped against PostgreSQL 18.6 |
 | Migrations | 52 applied; latest `20260920230951_ClientPeriodAmendmentLineage` |
 | Model drift | `dotnet ef migrations has-pending-model-changes` — no changes |
 | Restore drill | `scripts/db/restore-drill.sh` — passed; 52 migrations reconciled |
@@ -26,6 +26,7 @@ This file records observed repository state only. The authoritative build contra
 - Immutable package-review decisions for management, accounting, and partner stages. Decisions are bound to the exact package revision, generation and hash; evidence modes remain separated; append-only database protection is enforced.
 - Accounting evidence links are typed, scope-checked and bound to reviewed audit procedure results; the staff evidence queue exposes only the actor's explicit client scope, and records export preserves typed accounting lineage.
 - Period close runs under a row lock, blocks matching financial packages without current management/accounting/partner approval, and authorized reopen creates an immutable append-only amendment record with the new working revision.
+- Controlled roll-forward creates a new draft period, copies prior reporting books as drafts, and creates a hash/evidence-bound opening bridge without copying prior approvals.
 - Client-safe validated-package view and signed-in management acknowledgement are available at the restricted client portal route. The portal exposes statement totals and package metadata only; internal review history and workpapers remain staff-only.
 - An internal package-review queue lists only current validated packages in the actor's authorized client/engagement scopes and routes reviewers to the exact-version package surface.
 - A validated financial package can now become a release candidate only through the existing guarded approval/release path; the candidate records `FINANCIAL_PACKAGE`, exact package revision/generation/hash, current management/accounting/partner decisions, and the normal checkpoint gate.
@@ -44,9 +45,10 @@ These are product gaps, not claims of production readiness:
 - [x] Add typed payroll, loan, equity, related-party, tax and going-concern forecast inputs with evidence-bound approval.
 - [x] Link typed accounting evidence to reviewed audit procedure results and expose a scoped evidence queue; preserve the links in records exports.
 - [x] Govern package-aware period close and immutable authorized reopen/amendment lineage.
+- [x] Add controlled entity-period roll-forward with draft book copies and explicit opening-balance evidence.
 - [ ] Extend advanced accounting methods only where an approved method and test fixtures exist: mixed currency, complex ownership, acquisition, NCI, and advanced eliminations.
 - [ ] Add deeper audit workpaper/evidence links and account-area UI around the current typed specialist schedules.
-- [ ] Add the remaining dashboard, roll-forward, and cross-workflow navigation around the implemented accounting and release workflows.
+- [ ] Add the remaining dashboard and cross-workflow navigation around the implemented accounting, roll-forward and release workflows.
 - [x] Re-run focused tests, full tests, build, migration drift and restore drill for the current coherent slice; repeat this checklist for the next slice.
 
 ## External acceptance gates
