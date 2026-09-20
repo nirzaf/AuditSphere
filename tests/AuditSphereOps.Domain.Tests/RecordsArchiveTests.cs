@@ -54,6 +54,9 @@ public sealed class RecordsArchiveTests
       .Where(x => x.ArchiveManifestId == built.Value!.ManifestId).SingleAsync();
     Assert.Equal("records-export.v1", structuredExport.Schema);
     Assert.Contains("\"accounting\"", structuredExport.PayloadJson);
+    Assert.Contains("\"reportingPeriods\"", structuredExport.PayloadJson);
+    Assert.Contains("\"specialistSchedules\"", structuredExport.PayloadJson);
+    Assert.Contains("\"accountingEvidenceAuditLinks\"", structuredExport.PayloadJson);
     Assert.Contains("\"activityEvents\"", structuredExport.PayloadJson);
     Assert.Equal(structuredExport.ByteCount, System.Text.Encoding.UTF8.GetByteCount(structuredExport.PayloadJson));
 
