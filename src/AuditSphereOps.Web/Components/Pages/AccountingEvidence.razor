@@ -46,7 +46,13 @@ else
               <td>@row.PeriodCode</td>
               <td><span class="status">@row.Status@(row.IsStale ? " · STALE" : "")</span></td>
               <td>@row.InputGeneration / @row.CurrentGeneration</td>
-              <td><span class="status">@row.LinkStatus</span></td>
+              <td>
+                <span class="status">@row.LinkStatus</span>
+                @if (row.WorkpaperId is { } workpaperId)
+                {
+                  <br /><a href="@($"/app/audit/workpapers/{workpaperId}")">Open linked workpaper</a>
+                }
+              </td>
               <td><span class="muted">@row.Reference</span></td>
             </tr>
           }
@@ -60,10 +66,12 @@ else
 @code {
   private sealed record EvidenceRow(
     string Kind, string Area, string ClientName, string PeriodCode, string Status,
-    long InputGeneration, long CurrentGeneration, string LinkStatus, string Reference)
+    long InputGeneration, long CurrentGeneration, string LinkStatus, Guid? WorkpaperId, string Reference)
   {
     public bool IsStale => InputGeneration != CurrentGeneration;
   }
+
+  private sealed record AuditLinkTarget(string Status, Guid? WorkpaperId);
 
   private ActorContext? _actor;
   private bool _loading = true;
@@ -101,10 +109,16 @@ else
     var batches = await db.SourceImportBatches.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && (inScope == null || inScope.Contains(x.ClientId)))
       .ToDictionaryAsync(x => x.Id);
     var links = await db.AccountingEvidenceAuditLinks.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && (inScope == null || inScope.Contains(x.ClientId))).ToListAsync();
-    var reviewedResults = await db.AuditProcedureResults.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && x.Status == "REVIEWED")
-      .Select(x => x.Id).ToHashSetAsync();
+    var resultInfo = await db.AuditProcedureResults.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
+      (inScope == null || inScope.Contains(x.ClientId)))
+      .Select(x => new { x.Id, x.Status, x.WorkpaperId }).ToDictionaryAsync(x => x.Id);
     var linkStatus = links.GroupBy(x => Key(x.EvidenceKind, x.EvidenceId)).ToDictionary(
-      x => x.Key, x => x.Any(link => reviewedResults.Contains(link.AuditProcedureResultId)) ? "REVIEWED_RESULT" : "LINKED_PENDING_REVIEW");
+      x => x.Key,
+      x => x.Select(link => resultInfo.GetValueOrDefault(link.AuditProcedureResultId))
+        .Where(result => result is not null)
+        .OrderByDescending(result => result!.Status == "REVIEWED")
+        .Select(result => new AuditLinkTarget(result!.Status == "REVIEWED" ? "REVIEWED_RESULT" : "LINKED_PENDING_REVIEW", result.WorkpaperId))
+        .FirstOrDefault() ?? new AuditLinkTarget("LINKED_PENDING_REVIEW", null));
 
     var rows = new List<EvidenceRow>();
     var ecls = await db.EclAssessments.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && (inScope == null || inScope.Contains(x.ClientId))).ToListAsync();
@@ -143,9 +157,12 @@ else
     _loading = false;
 
     EvidenceRow Row(string kind, string area, Guid evidenceId, Guid clientId, string periodCode, string status, long inputGeneration,
-      long currentGeneration, IReadOnlyDictionary<string, string> statuses, string reference) =>
-      new(kind, area, clients.GetValueOrDefault(clientId, "—"), periodCode, status, inputGeneration, currentGeneration,
-        statuses.GetValueOrDefault(Key(kind, evidenceId), "LINK_PENDING"), reference);
+      long currentGeneration, IReadOnlyDictionary<string, AuditLinkTarget> statuses, string reference)
+    {
+      var link = statuses.GetValueOrDefault(Key(kind, evidenceId));
+      return new(kind, area, clients.GetValueOrDefault(clientId, "—"), periodCode, status, inputGeneration, currentGeneration,
+        link?.Status ?? "LINK_PENDING", link?.WorkpaperId, reference);
+    }
   }
 
   private static bool IsTerminal(EvidenceRow row) => row.Kind == "JOURNAL_RISK"
