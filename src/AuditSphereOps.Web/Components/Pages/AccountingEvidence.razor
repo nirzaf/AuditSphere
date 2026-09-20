@@ -1,0 +1,156 @@
+@page "/app/accounting/evidence"
+@rendermode InteractiveServer
+@using AuditSphereOps.Domain.Accounting
+@inject CurrentActorResolver ActorResolver
+@inject IDbContextFactory<AuditSphereDbContext> DbFactory
+
+<PageTitle>Accounting evidence queue</PageTitle>
+<a class="back-link" href="/app/accounting">← Back to accounting workspace</a>
+<h1>Accounting evidence queue</h1>
+
+@if (_loading)
+{
+  <p role="status">Loading scoped accounting evidence…</p>
+}
+else if (!_authorized)
+{
+  <section class="notice" role="alert"><h2>Access unavailable</h2><p>This queue requires an authorized internal accounting role and an explicit client scope.</p></section>
+}
+else
+{
+  <p class="scope-note">Only accounting evidence in the authenticated client scope is shown. Approval requires a reviewed audit-procedure result; a free-text reference alone is not approval evidence.</p>
+  <section class="metric-grid" aria-label="Accounting evidence metrics">
+    <article class="metric card"><span class="metric-label">Evidence records</span><strong class="metric-value">@_rows.Count</strong></article>
+    <article class="metric card"><span class="metric-label">Awaiting action</span><strong class="metric-value">@_rows.Count(x => !IsTerminal(x))</strong></article>
+    <article class="metric card"><span class="metric-label">Stale generation</span><strong class="metric-value">@_rows.Count(x => x.IsStale)</strong></article>
+    <article class="metric card"><span class="metric-label">Reviewed result linked</span><strong class="metric-value">@_rows.Count(x => x.LinkStatus == "REVIEWED_RESULT")</strong></article>
+  </section>
+  @if (_rows.Count == 0)
+  {
+    <section class="notice"><h2>No accounting evidence</h2><p>No ECL, inventory, specialist, analytical or journal-risk records are available in the selected scope.</p></section>
+  }
+  else
+  {
+    <section class="card" aria-labelledby="evidence-heading">
+      <h2 id="evidence-heading">Account-area evidence</h2>
+      <div class="table-wrap">
+        <table>
+          <caption class="sr-only">Scoped accounting evidence queue</caption>
+          <thead><tr><th scope="col">Area</th><th scope="col">Client</th><th scope="col">Period</th><th scope="col">Status</th><th scope="col">Input generation</th><th scope="col">Audit evidence</th><th scope="col">Reference</th></tr></thead>
+          <tbody>
+          @foreach (var row in _rows)
+          {
+            <tr>
+              <td><strong>@row.Kind</strong><br /><span class="muted">@row.Area</span></td>
+              <td>@row.ClientName</td>
+              <td>@row.PeriodCode</td>
+              <td><span class="status">@row.Status@(row.IsStale ? " · STALE" : "")</span></td>
+              <td>@row.InputGeneration / @row.CurrentGeneration</td>
+              <td><span class="status">@row.LinkStatus</span></td>
+              <td><span class="muted">@row.Reference</span></td>
+            </tr>
+          }
+          </tbody>
+        </table>
+      </div>
+    </section>
+  }
+}
+
+@code {
+  private sealed record EvidenceRow(
+    string Kind, string Area, string ClientName, string PeriodCode, string Status,
+    long InputGeneration, long CurrentGeneration, string LinkStatus, string Reference)
+  {
+    public bool IsStale => InputGeneration != CurrentGeneration;
+  }
+
+  private ActorContext? _actor;
+  private bool _loading = true;
+  private bool _authorized;
+  private List<EvidenceRow> _rows = [];
+
+  protected override async Task OnInitializedAsync()
+  {
+    _actor = await ActorResolver.ResolveAsync();
+    _authorized = _actor is not null && _actor.Roles.Any(x => x is "Administrator" or "Partner" or "Manager" or "AccountingPreparer" or "AccountingReviewer");
+    if (_actor is null || !_authorized)
+    {
+      _loading = false;
+      return;
+    }
+
+    await using var db = await DbFactory.CreateDbContextAsync();
+    var grants = db.RoleGrants.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && x.UserId == _actor.UserId && x.RevokedAt == null);
+    var unrestricted = _actor.Roles.Any(x => x is "Administrator" or "Partner") || await grants.AnyAsync(x => x.ClientId == null);
+    var clientIds = await grants.Where(x => x.ClientId.HasValue).Select(x => x.ClientId!.Value).Distinct().ToArrayAsync();
+    if (!unrestricted && clientIds.Length == 0)
+    {
+      _loading = false;
+      return;
+    }
+    var inScope = unrestricted ? null : clientIds;
+    var clients = await db.PracticeClients.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && (inScope == null || inScope.Contains(x.Id)))
+      .ToDictionaryAsync(x => x.Id, x => x.LegalName);
+    var periods = await db.ClientReportingPeriods.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && (inScope == null || inScope.Contains(x.ClientId)))
+      .ToDictionaryAsync(x => x.Id, x => x.PeriodCode);
+    var generations = await db.ClientSafetyStates.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && (inScope == null || inScope.Contains(x.Id)))
+      .ToDictionaryAsync(x => x.Id, x => x.InputGeneration);
+    var reconciliations = await db.AccountingReconciliations.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && (inScope == null || inScope.Contains(x.ClientId)))
+      .ToDictionaryAsync(x => x.Id);
+    var batches = await db.SourceImportBatches.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && (inScope == null || inScope.Contains(x.ClientId)))
+      .ToDictionaryAsync(x => x.Id);
+    var links = await db.AccountingEvidenceAuditLinks.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && (inScope == null || inScope.Contains(x.ClientId))).ToListAsync();
+    var reviewedResults = await db.AuditProcedureResults.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && x.Status == "REVIEWED")
+      .Select(x => x.Id).ToHashSetAsync();
+    var linkStatus = links.GroupBy(x => Key(x.EvidenceKind, x.EvidenceId)).ToDictionary(
+      x => x.Key, x => x.Any(link => reviewedResults.Contains(link.AuditProcedureResultId)) ? "REVIEWED_RESULT" : "LINKED_PENDING_REVIEW");
+
+    var rows = new List<EvidenceRow>();
+    var ecls = await db.EclAssessments.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && (inScope == null || inScope.Contains(x.ClientId))).ToListAsync();
+    rows.AddRange(ecls.Select(x =>
+    {
+      var reconciliation = reconciliations[x.ReconciliationId];
+      return Row("ECL", reconciliation.Area, x.Id, x.ClientId, periods.GetValueOrDefault(reconciliation.PeriodId, "—"), x.Status,
+        x.InputGeneration, generations.GetValueOrDefault(x.ClientId, 0), linkStatus, x.MethodologyVersion);
+    }));
+
+    var inventory = await db.InventoryValuationAssessments.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && (inScope == null || inScope.Contains(x.ClientId))).ToListAsync();
+    rows.AddRange(inventory.Select(x =>
+    {
+      var reconciliation = reconciliations[x.ReconciliationId];
+      return Row("INVENTORY", reconciliation.Area, x.Id, x.ClientId, periods.GetValueOrDefault(reconciliation.PeriodId, "—"), x.Status,
+        x.InputGeneration, generations.GetValueOrDefault(x.ClientId, 0), linkStatus, x.MethodologyVersion);
+    }));
+
+    var specialist = await db.SpecialistAccountingSchedules.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && (inScope == null || inScope.Contains(x.ClientId))).ToListAsync();
+    rows.AddRange(specialist.Select(x => Row("SPECIALIST", x.Area, x.Id, x.ClientId, periods.GetValueOrDefault(x.PeriodId, "—"), x.Status,
+      x.InputGeneration, generations.GetValueOrDefault(x.ClientId, 0), linkStatus, x.EvidenceReference)));
+
+    var analytical = await db.AnalyticalReviews.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && (inScope == null || inScope.Contains(x.ClientId))).ToListAsync();
+    rows.AddRange(analytical.Select(x => Row("ANALYTICAL", x.Area, x.Id, x.ClientId, periods.GetValueOrDefault(x.PeriodId, "—"), x.Status,
+      x.InputGeneration, generations.GetValueOrDefault(x.ClientId, 0), linkStatus, x.Explanation)));
+
+    var risks = await db.JournalRiskFlags.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && (inScope == null || inScope.Contains(x.ClientId))).ToListAsync();
+    rows.AddRange(risks.Select(x =>
+    {
+      var batch = batches.GetValueOrDefault(x.ImportBatchId);
+      var periodCode = batch is null ? "—" : periods.GetValueOrDefault(batch.PeriodId, "—");
+      return Row("JOURNAL_RISK", x.RuleCode, x.Id, x.ClientId, periodCode, x.Status, generations.GetValueOrDefault(x.ClientId, 0),
+        generations.GetValueOrDefault(x.ClientId, 0), linkStatus, x.EvidenceReference);
+    }));
+    _rows = rows.OrderBy(x => x.ClientName).ThenBy(x => x.PeriodCode).ThenBy(x => x.Kind).ToList();
+    _loading = false;
+
+    EvidenceRow Row(string kind, string area, Guid evidenceId, Guid clientId, string periodCode, string status, long inputGeneration,
+      long currentGeneration, IReadOnlyDictionary<string, string> statuses, string reference) =>
+      new(kind, area, clients.GetValueOrDefault(clientId, "—"), periodCode, status, inputGeneration, currentGeneration,
+        statuses.GetValueOrDefault(Key(kind, evidenceId), "LINK_PENDING"), reference);
+  }
+
+  private static bool IsTerminal(EvidenceRow row) => row.Kind == "JOURNAL_RISK"
+    ? row.Status is "CLEARED" or "NOT_AN_ISSUE"
+    : row.Status is "APPROVED" or "REJECTED";
+
+  private static string Key(string kind, Guid id) => $"{kind}:{id:D}";
+}
