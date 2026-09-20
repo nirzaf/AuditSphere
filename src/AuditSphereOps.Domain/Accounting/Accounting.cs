@@ -286,6 +286,56 @@ public sealed class FinancialPackage
   public DateTimeOffset CreatedAt { get; set; }
 }
 
+public static class FinancialPackageReviewStages
+{
+  public const string ManagementApproval = "MANAGEMENT_APPROVAL";
+  public const string AccountingReview = "ACCOUNTING_REVIEW";
+  public const string PartnerApproval = "PARTNER_APPROVAL";
+
+  public static readonly IReadOnlySet<string> All = new HashSet<string>(StringComparer.Ordinal)
+  {
+    ManagementApproval, AccountingReview, PartnerApproval
+  };
+}
+
+public static class FinancialPackageReviewDecisions
+{
+  public const string Approved = "APPROVED";
+  public const string ChangesRequired = "CHANGES_REQUIRED";
+  public const string Rejected = "REJECTED";
+
+  public static readonly IReadOnlySet<string> All = new HashSet<string>(StringComparer.Ordinal)
+  {
+    Approved, ChangesRequired, Rejected
+  };
+}
+
+public static class FinancialPackageReviewEvidenceModes
+{
+  public const string SignedIn = "SIGNED_IN";
+  public const string Offline = "OFFLINE";
+}
+
+/// <summary>Immutable stage decision for one exact financial package version.</summary>
+public sealed class FinancialPackageReviewDecision
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public Guid EngagementId { get; set; }
+  public Guid FinancialPackageId { get; set; }
+  public long PackageRevision { get; set; }
+  public long PackageGeneration { get; set; }
+  public string PackageHash { get; set; } = string.Empty;
+  public string Stage { get; set; } = string.Empty;
+  public string Decision { get; set; } = string.Empty;
+  public string EvidenceMode { get; set; } = string.Empty;
+  public string EvidenceReference { get; set; } = string.Empty;
+  public string Comment { get; set; } = string.Empty;
+  public Guid? DecidedByUserId { get; set; }
+  public DateTimeOffset DecidedAt { get; set; }
+}
+
 public sealed class FinancialPackageLine
 {
   public Guid Id { get; set; }

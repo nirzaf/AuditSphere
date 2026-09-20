@@ -176,6 +176,7 @@ public interface IClientAccountingDbContext : IAuditSphereDbContext
   DbSet<TranslationResult> TranslationResults { get; }
   DbSet<FinancialPackageEquityLine> FinancialPackageEquityLines { get; }
   DbSet<FinancialPackageNoteLine> FinancialPackageNoteLines { get; }
+  DbSet<FinancialPackageReviewDecision> FinancialPackageReviewDecisions { get; }
 }
 
 public interface IAdjustmentJournalDbContext : IAuditSphereDbContext

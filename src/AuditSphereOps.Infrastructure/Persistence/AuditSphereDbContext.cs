@@ -81,6 +81,7 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
   public DbSet<FinancialPackageDisclosure> FinancialPackageDisclosures => Set<FinancialPackageDisclosure>();
   public DbSet<FinancialPackageEquityLine> FinancialPackageEquityLines => Set<FinancialPackageEquityLine>();
   public DbSet<FinancialPackageNoteLine> FinancialPackageNoteLines => Set<FinancialPackageNoteLine>();
+  public DbSet<FinancialPackageReviewDecision> FinancialPackageReviewDecisions => Set<FinancialPackageReviewDecision>();
   public DbSet<AccountingCapabilityProfile> AccountingCapabilityProfiles => Set<AccountingCapabilityProfile>();
   public DbSet<AccountingCapabilityAcceptance> AccountingCapabilityAcceptances => Set<AccountingCapabilityAcceptance>();
   public DbSet<ClientAccountingProfile> ClientAccountingProfiles => Set<ClientAccountingProfile>();
@@ -1294,6 +1295,31 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     noteLine.HasOne<FinancialPackage>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.FinancialPackageId })
       .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var packageReview = b.Entity<FinancialPackageReviewDecision>();
+    packageReview.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
+      .HasName("AK_financial_package_review_decisions_scope_id");
+    packageReview.Property(x => x.PackageHash).HasMaxLength(64);
+    packageReview.Property(x => x.Stage).HasMaxLength(40);
+    packageReview.Property(x => x.Decision).HasMaxLength(30);
+    packageReview.Property(x => x.EvidenceMode).HasMaxLength(20);
+    packageReview.Property(x => x.EvidenceReference).HasMaxLength(2000);
+    packageReview.Property(x => x.Comment).HasMaxLength(4000);
+    packageReview.HasIndex(x => new { x.FirmId, x.ClientId, x.EngagementId, x.FinancialPackageId, x.Stage, x.DecidedAt })
+      .HasDatabaseName("ix_financial_package_review_stage");
+    packageReview.ToTable("financial_package_review_decisions", t => t.HasCheckConstraint("ck_financial_package_review_values",
+      "package_revision >= 1 AND package_generation >= 1 AND package_hash ~ '^[0-9a-f]{64}$'" +
+      " AND stage IN ('MANAGEMENT_APPROVAL','ACCOUNTING_REVIEW','PARTNER_APPROVAL')" +
+      " AND decision IN ('APPROVED','CHANGES_REQUIRED','REJECTED')" +
+      " AND evidence_mode IN ('SIGNED_IN','OFFLINE') AND length(trim(evidence_reference)) > 0" +
+      " AND ((evidence_mode = 'SIGNED_IN' AND decided_by_user_id IS NOT NULL) OR evidence_mode = 'OFFLINE')"));
+    ScopeToEngagement(packageReview, nameof(FinancialPackageReviewDecision.FirmId), nameof(FinancialPackageReviewDecision.ClientId), nameof(FinancialPackageReviewDecision.EngagementId));
+    packageReview.HasOne<FinancialPackage>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.FinancialPackageId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    packageReview.HasOne<AppUser>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.DecidedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
 
     b.Entity<QuestionnaireTemplate>(entity =>
     {

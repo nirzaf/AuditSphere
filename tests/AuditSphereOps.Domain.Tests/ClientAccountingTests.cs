@@ -279,6 +279,67 @@ public sealed class ClientAccountingTests
   }
 
   [Fact]
+  [Trait("Profile", "Database")]
+  public async Task FinancialPackageReviews_AreStageBoundAndImmutable()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var scope = await SeedAsync(pg);
+    var preparer = Actor(scope.Preparer, "AccountingPreparer");
+    var reviewer = Actor(scope.Reviewer, "AccountingReviewer");
+    var partner = Actor(scope.Reviewer, "Partner");
+    Guid packageId, managementDecisionId;
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      packageId = await AddPackageAsync(db, scope, scope.ClientA, scope.EngagementA, 100m, "CASH", "review");
+      await db.SaveChangesAsync();
+
+      var management = await FinancialPackageReviewService.RecordAsync(db, preparer,
+        new FinancialPackageReviewRequest(packageId, FinancialPackageReviewStages.ManagementApproval,
+          FinancialPackageReviewDecisions.Approved, FinancialPackageReviewEvidenceModes.Offline,
+          "signed-management-approval", "Management approval received offline."));
+      Assert.True(management.Succeeded, management.Message);
+      managementDecisionId = management.Value;
+
+      var accounting = await FinancialPackageReviewService.RecordAsync(db, reviewer,
+        new FinancialPackageReviewRequest(packageId, FinancialPackageReviewStages.AccountingReview,
+          FinancialPackageReviewDecisions.Approved, FinancialPackageReviewEvidenceModes.SignedIn,
+          "accounting-review-session", "Tie-outs and validations reviewed."));
+      Assert.True(accounting.Succeeded, accounting.Message);
+
+      var current = await FinancialPackageReviewService.RequireCurrentAsync(db, partner, packageId, requirePartner: false);
+      Assert.True(current.Succeeded, current.Message);
+      var missingPartner = await FinancialPackageReviewService.RequireCurrentAsync(db, partner, packageId, requirePartner: true);
+      Assert.False(missingPartner.Succeeded);
+      Assert.Equal(ErrorCodes.GateBlocked, missingPartner.ErrorCode);
+
+      var duplicate = await FinancialPackageReviewService.RecordAsync(db, preparer,
+        new FinancialPackageReviewRequest(packageId, FinancialPackageReviewStages.ManagementApproval,
+          FinancialPackageReviewDecisions.Approved, FinancialPackageReviewEvidenceModes.Offline,
+          "signed-management-approval", "Management approval received offline."));
+      Assert.False(duplicate.Succeeded);
+      Assert.Equal(ErrorCodes.IdempotencyConflict, duplicate.ErrorCode);
+
+      var partnerApproval = await FinancialPackageReviewService.RecordAsync(db, partner,
+        new FinancialPackageReviewRequest(packageId, FinancialPackageReviewStages.PartnerApproval,
+          FinancialPackageReviewDecisions.Approved, FinancialPackageReviewEvidenceModes.SignedIn,
+          "partner-review-session", "Partner approval recorded."));
+      Assert.True(partnerApproval.Succeeded, partnerApproval.Message);
+      var complete = await FinancialPackageReviewService.RequireCurrentAsync(db, partner, packageId, requirePartner: true);
+      Assert.True(complete.Succeeded, complete.Message);
+
+      var reviews = await FinancialPackageReviewService.GetAsync(db, partner, packageId);
+      Assert.True(reviews.Succeeded, reviews.Message);
+      Assert.Equal(3, reviews.Value!.Count);
+    }
+
+    await using var verify = new AuditSphereDbContext(pg.Options);
+    var mutation = await Assert.ThrowsAsync<PostgresException>(() => verify.Database.ExecuteSqlInterpolatedAsync(
+      $"UPDATE financial_package_review_decisions SET comment = {"tampered"} WHERE id = {managementDecisionId}"));
+    Assert.Equal("55000", mutation.SqlState);
+  }
+
+  [Fact]
   [Trait("Profile", "Unit")]
   public void RestrictedConsolidation_IsDeterministicAndFailsClosed()
   {
