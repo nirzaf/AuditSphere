@@ -3,7 +3,7 @@
 
 **Repository:** `nirzaf/AuditSphere`
 **Branch inspected:** `master`
-**Pinned review commit:** `2aaa294` (typed specialist area schedules)
+**Pinned review commit:** `d65bba0` (period close/reopen lineage and package-review gate)
 **Commit date / review date:** 20 September 2026
 **Deliverable status:** Active product and engineering backlog grounded in the current local implementation; not professional-methodology approval or production acceptance.
 
@@ -29,9 +29,9 @@ A relationship group is not the same as a consolidation perimeter. A group name 
 
 ### Current implementation snapshot (2026-09-20)
 
-The local implementation now covers client accounting profiles, periods/books, chart-of-accounts mappings, versioned trial-balance profiles and multi-entity batches, typed GL imports, paged account-completeness bridges, source-bound reconciliations, generation-bound ECL/inventory/specialist/analytical evidence, typed payroll/loan/equity/related-party/tax/going-concern forecast schedules, explicit asset-schedule depreciation method/useful-life and closing-balance controls, entity-package projections, restatement lineage, bounded same-currency consolidation, journal lineage, close checks, immutable financial-package review decisions, package-bound release candidates, and completion-screen candidate preparation. Package-review decisions are stage-bound, exact package revision/generation/hash-bound, and append-only; release candidates now preserve the `FINANCIAL_PACKAGE` target and re-check the current management, accounting and partner decisions before checkpointed issuance. Accounting evidence captures the relevant client input generation and fails closed when that generation changes; source-bound ECL and inventory evidence also preserves the reconciliation source hash. A restricted client portal now exposes validated package metadata and statement totals and permits signed-in management acknowledgement without exposing internal review history or workpapers; an authorized staff queue lists pending stages and routes to the exact package surface.
+The local implementation now covers client accounting profiles, periods/books, chart-of-accounts mappings, versioned trial-balance profiles and multi-entity batches, typed GL imports, paged account-completeness bridges, source-bound reconciliations, generation-bound ECL/inventory/specialist/analytical evidence, typed payroll/loan/equity/related-party/tax/going-concern forecast schedules, explicit asset-schedule depreciation method/useful-life and closing-balance controls, entity-package projections, restatement lineage, bounded same-currency consolidation, journal lineage, close checks, immutable financial-package review decisions, package-bound release candidates, completion-screen candidate preparation, typed accounting-evidence links to reviewed audit procedure results, a scoped evidence queue, and accounting archive lineage. Period close is row-locked and package-aware: matching packages must have current management, accounting and partner approval; authorized reopen creates an immutable append-only amendment record and a new working revision. Package-review decisions are stage-bound, exact package revision/generation/hash-bound, and append-only; release candidates now preserve the `FINANCIAL_PACKAGE` target and re-check the current management, accounting and partner decisions before checkpointed issuance. Accounting evidence captures the relevant client input generation and fails closed when that generation changes; source-bound ECL and inventory evidence also preserves the reconciliation source hash. A restricted client portal now exposes validated package metadata and statement totals and permits signed-in management acknowledgement without exposing internal review history or workpapers; authorized staff queues expose only the actor's explicit client/engagement scope.
 
-Local verification at `master@2aaa294` is **192/192 PostgreSQL-backed tests passing with 0 skipped**, **50 migrations applied**, a successful loopback restore rehearsal, and a zero-warning build. The current GL intake includes bounded resumable chunks, canonical digests, transactional locking, idempotent retries and contiguous finalization; completion and release now read the same exact-package review decisions that gate the accounting workflow, including the partner-only candidate-preparation action. ECL, inventory, specialist and analytical review tests reject changed client generations after evidence preparation; asset schedules require an explicit depreciation method and positive useful life and persist the calculated closing balance; payroll, loans, equity, related-party, tax and going-concern forecast schedules retain typed inputs and require the relevant evidence before approval. The remaining items in this document are implementation backlog or verification work unless the execution ledger explicitly marks them locally verified. Local evidence does not establish live Microsoft-provider behavior, professional approval, signing acceptance, production recovery, or independent human review.
+Local verification at `master@d65bba0` is **195/195 PostgreSQL-backed tests passing with 0 skipped**, **52 migrations applied**, a successful loopback restore rehearsal through `20260920230951_ClientPeriodAmendmentLineage`, a zero-warning build, and no pending EF model changes. The current GL intake includes bounded resumable chunks, canonical digests, transactional locking, idempotent retries and contiguous finalization; completion and release now read the same exact-package review decisions that gate the accounting workflow, including the partner-only candidate-preparation action. ECL, inventory, specialist and analytical review tests reject changed client generations after evidence preparation; asset schedules require an explicit depreciation method and positive useful life and persist the calculated closing balance; payroll, loans, equity, related-party, tax and going-concern forecast schedules retain typed inputs and require the relevant evidence before approval. The remaining items in this document are implementation backlog or verification work unless the execution ledger explicitly marks them locally verified. Local evidence does not establish live Microsoft-provider behavior, professional approval, signing acceptance, production recovery, or independent human review.
 
 ---
 
@@ -249,7 +249,7 @@ Do not reorganize the entire repository merely to achieve this folder structure.
 | Domain | Proposed records | Required relationship/control |
 |---|---|---|
 | Client organization | `ClientAccountingProfile`, `ClientGroup`, `ClientGroupMembership` | Reuse `PracticeClient` as legal-entity identity; effective-dated group membership; no implicit access. |
-| Periods and books | `ClientReportingPeriod`, `ClientReportingBook`, `OpeningBalanceBridge` | Entity + period + basis; prior-period linkage; approved close/reopen and amendments. |
+| Periods and books | `ClientReportingPeriod`, `ClientPeriodAmendment`, `ClientReportingBook`, `OpeningBalanceBridge` | Entity + period + basis; prior-period linkage; approved close/reopen and immutable amendment lineage. |
 | Client COA | `ClientChartVersion`, `ClientAccount`, `SourceAccountAlias` | Stable account identity; immutable published versions; code uniqueness within its declared source scope. |
 | Reporting taxonomy | `ReportingTaxonomyVersion`, `ReportingTaxonomyNode`, rule/template metadata | Approved immutable versions; tree/cycle checks; no client confidential data in firm-wide masters. |
 | Import and GL | `SourceImportBatch`, typed GL transaction/line records, source/parse manifest | Original byte hash distinct from normalized digest; typed account/date/party/currency fields. Reuse source-receipt mechanism. |
@@ -340,7 +340,7 @@ All story criteria below are proposed and unchecked. Each story inherits the com
 - [ ] Prior-year signed/issued closing balances link to the current opening bridge, with unexplained differences visible.
 - [ ] Short periods, different year-ends and post-year-end evidence dates are distinguishable.
 - [ ] Management/statutory/reporting/consolidation adjustments have explicit inclusion rules; no ambiguous blank “all books” default.
-- [ ] Close prevents unauthorized changes; reopen requires a recorded decision and creates a new working revision.
+- [x] Close prevents unauthorized changes; reopen requires a recorded decision and creates an immutable amendment record with a new working revision.
 - [ ] Restatements preserve originally issued comparative values and identify the revised basis.
 
 ### AC-04 — Introduce versioned client charts of accounts
@@ -658,8 +658,8 @@ All story criteria below are proposed and unchecked. Each story inherits the com
 **Priority / dependencies:** P2/P4; AC-03, AC-16, AC-23.
 
 **Acceptance criteria**
-- [ ] Close checks outstanding reconciliations, differences, approvals and required reporting artifacts.
-- [ ] A post-close change opens an authorized amendment version; the issued package is preserved.
+- [x] Close checks outstanding reconciliations, typed accounting evidence, journal-risk state and current package approvals.
+- [x] A post-close change opens an authorized immutable amendment version; issued package history remains preserved through package/restatement lineage.
 - [ ] Rollforward copies eligible master/mapping/template structure as a draft and links opening balances to the approved prior period.
 - [ ] Do not copy prior-year acceptance, materiality, audit conclusions or approval applicability as current.
 - [ ] Group rollforward carries approved opening consolidation reserves, historical FX and recurring elimination lineage without duplicate application.
@@ -900,7 +900,7 @@ The best architecture is a native audit-accounting workbench inside the existing
 
 Repository sources below were inspected at the pinned commit. File paths plus named methods in this report are the review locators; do not assume current branch line numbers will stay unchanged.
 
-- **R1:** GitHub `master` metadata and Domain/Application inventory at `2aaa294`.
+- **R1:** GitHub `master` metadata and Domain/Application inventory at `d65bba0`.
 - **R2:** `docs/SPECIFICATION.md`, introduction and §§1.2–1.5: .NET adoption, service boundaries, single-entity initial scope and explicit group capability extension.
 - **R3:** `src/AuditSphereOps.Domain/Practice/FirmLedger.cs`: firm-only accounting boundary.
 - **R4:** `src/AuditSphereOps.Domain/Practice/Crm.cs`: canonical client and contact model.
@@ -920,7 +920,7 @@ Repository sources below were inspected at the pinned commit. File paths plus na
 
 ```text
 Repository at reviewed commit:
-https://github.com/nirzaf/AuditSphere/tree/2aaa294
+https://github.com/nirzaf/AuditSphere/tree/d65bba0
 
 E1 — ERPNext Chart of Accounts
 https://docs.frappe.io/erpnext/chart-of-accounts
