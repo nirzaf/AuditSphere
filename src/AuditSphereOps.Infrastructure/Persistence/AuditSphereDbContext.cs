@@ -1671,6 +1671,7 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     var ecl = b.Entity<EclAssessment>();
     ecl.Property(x => x.Method).HasMaxLength(100);
     ecl.Property(x => x.MethodologyVersion).HasMaxLength(100);
+    ecl.Property(x => x.ReconciliationSourceHash).HasMaxLength(64);
     ecl.Property(x => x.AssumptionsHash).HasMaxLength(64);
     ecl.Property(x => x.Status).HasMaxLength(30);
     ecl.HasIndex(x => new { x.FirmId, x.ReconciliationId, x.Version }).IsUnique().HasDatabaseName("ux_ecl_assessment_version");
@@ -1681,6 +1682,7 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
       .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
 
     var inventory = b.Entity<InventoryValuationAssessment>();
+    inventory.Property(x => x.ReconciliationSourceHash).HasMaxLength(64);
     inventory.Property(x => x.MethodologyVersion).HasMaxLength(100);
     inventory.Property(x => x.AssumptionsHash).HasMaxLength(64);
     inventory.Property(x => x.Status).HasMaxLength(30);

@@ -432,6 +432,8 @@ public sealed class EclAssessment
   public Guid ClientId { get; set; }
   public Guid EngagementId { get; set; }
   public Guid ReconciliationId { get; set; }
+  public string ReconciliationSourceHash { get; set; } = string.Empty;
+  public long InputGeneration { get; set; } = 1;
   public int Version { get; set; } = 1;
   public DateOnly AsOfDate { get; set; }
   public string Method { get; set; } = string.Empty;
@@ -458,6 +460,8 @@ public sealed class InventoryValuationAssessment
   public Guid ClientId { get; set; }
   public Guid EngagementId { get; set; }
   public Guid ReconciliationId { get; set; }
+  public string ReconciliationSourceHash { get; set; } = string.Empty;
+  public long InputGeneration { get; set; } = 1;
   public int Version { get; set; } = 1;
   public DateOnly AsOfDate { get; set; }
   public decimal Quantity { get; set; }

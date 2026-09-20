@@ -156,6 +156,51 @@ public sealed class ClientAccountingTests
 
   [Fact]
   [Trait("Profile", "Database")]
+  public async Task ValuationEvidence_BlocksWhenClientGenerationChanges()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var scope = await SeedAsync(pg);
+    var preparer = Actor(scope.Preparer, "AccountingPreparer");
+    var reviewer = Actor(scope.Reviewer, "AccountingReviewer");
+    var fixture = await CreateGlFixtureAsync(pg, scope, preparer);
+    var sourceHash = new string('a', 64);
+    Guid reconciliationId, eclId, inventoryId;
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      reconciliationId = Guid.CreateVersion7();
+      db.AccountingReconciliations.Add(new AccountingReconciliation
+      {
+        Id = reconciliationId, FirmId = scope.FirmId, ClientId = scope.ClientA, EngagementId = scope.EngagementA,
+        PeriodId = fixture.PeriodId, BookId = fixture.BookId, Area = "RECEIVABLES", AccountSelection = "1000",
+        AsOfDate = new DateOnly(2026, 12, 31), SourceTotal = 100m, GlTotal = 100m, Residual = 0m,
+        SourceHash = sourceHash, Status = "RECONCILED", InputGeneration = 1,
+        CreatedByUserId = scope.Preparer.Id, CreatedAt = DateTimeOffset.UtcNow
+      });
+      await db.SaveChangesAsync();
+      eclId = (await AccountingAnalysisService.CreateEclAssessmentAsync(db, preparer,
+        new EclAssessmentRequest(reconciliationId, new DateOnly(2026, 12, 31), "PROVISION_MATRIX_V1", "ecl-v1", .1m, .5m, 2m, 7m, new string('c', 64)))).Value;
+      inventoryId = (await AccountingAnalysisService.CreateInventoryValuationAsync(db, preparer,
+        new InventoryValuationRequest(reconciliationId, new DateOnly(2026, 12, 31), 10m, 12m, 11m, 1m, 100m, "inventory-v1", new string('d', 64)))).Value;
+
+      var clientState = await db.ClientSafetyStates.SingleAsync(x => x.FirmId == scope.FirmId && x.Id == scope.ClientA);
+      clientState.InputGeneration++;
+      await db.SaveChangesAsync();
+
+      var eclReview = await AccountingAnalysisService.ReviewAccountingEvidenceAsync(db, reviewer,
+        new ReviewAccountingEvidenceRequest(AccountingEvidenceKinds.Ecl, eclId, AccountingEvidenceReviewDecisions.Approved));
+      Assert.False(eclReview.Succeeded);
+      Assert.Equal(ErrorCodes.GenerationStale, eclReview.ErrorCode);
+
+      var inventoryReview = await AccountingAnalysisService.ReviewAccountingEvidenceAsync(db, reviewer,
+        new ReviewAccountingEvidenceRequest(AccountingEvidenceKinds.Inventory, inventoryId, AccountingEvidenceReviewDecisions.Approved));
+      Assert.False(inventoryReview.Succeeded);
+      Assert.Equal(ErrorCodes.GenerationStale, inventoryReview.ErrorCode);
+    }
+  }
+
+  [Fact]
+  [Trait("Profile", "Database")]
   public async Task StreamingGlImport_IsIdempotentAndSealsOnlyCompleteBatch()
   {
     await using var pg = await PgTestSchema.CreateAsync();

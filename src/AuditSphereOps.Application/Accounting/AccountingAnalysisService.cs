@@ -246,6 +246,10 @@ public static class AccountingAnalysisService
       x.FirmId == actor.FirmId && x.ClientId == request.ClientId, ct);
     if (period is null)
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "The reporting period is outside the client scope.");
+    var clientState = await db.ClientSafetyStates.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.Id == request.ClientId && x.FirmId == actor.FirmId, ct);
+    if (clientState is null)
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Client accounting safety state is unavailable.");
     if (request.BookId is { } bookId && !await db.ClientReportingBooks.AsNoTracking().AnyAsync(x =>
       x.Id == bookId && x.FirmId == actor.FirmId && x.ClientId == request.ClientId && x.PeriodId == request.PeriodId, ct))
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "The selected reporting book is outside the client period scope.");
@@ -298,6 +302,7 @@ public static class AccountingAnalysisService
       AccountSelection = string.Join(',', codes), AsOfDate = request.AsOfDate, SourceTotal = sourceTotal, GlTotal = glTotal,
       Residual = MoneyPolicy.Normalize(glTotal - sourceTotal), SourceHash = sourceHash,
       Status = MoneyPolicy.Normalize(glTotal - sourceTotal) == 0m ? "RECONCILED" : "UNRECONCILED",
+      InputGeneration = clientState.InputGeneration,
       CreatedByUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
     };
     // The input digest is kept in the row; this local canonicalization prevents two
@@ -382,6 +387,7 @@ public static class AccountingAnalysisService
       Id = Guid.CreateVersion7(), FirmId = reconciliation.FirmId, ClientId = reconciliation.ClientId, EngagementId = reconciliation.EngagementId,
       ReconciliationId = reconciliation.Id, Version = (await db.EclAssessments.Where(x => x.FirmId == actor.FirmId && x.ReconciliationId == reconciliation.Id)
         .Select(x => (int?)x.Version).MaxAsync(ct) ?? 0) + 1, AsOfDate = request.AsOfDate,
+      ReconciliationSourceHash = reconciliation.SourceHash, InputGeneration = reconciliation.InputGeneration,
       Method = request.Method.Trim().ToUpperInvariant(), MethodologyVersion = request.MethodologyVersion.Trim(), EligibleExposure = exposure,
       ProbabilityOfDefault = request.ProbabilityOfDefault, LossGivenDefault = request.LossGivenDefault, ManagementOverlay = request.ManagementOverlay,
       CalculatedExpectedLoss = expected, ManagementExpectedLoss = MoneyPolicy.Normalize(request.ManagementExpectedLoss),
@@ -415,6 +421,7 @@ public static class AccountingAnalysisService
       Id = Guid.CreateVersion7(), FirmId = reconciliation.FirmId, ClientId = reconciliation.ClientId, EngagementId = reconciliation.EngagementId,
       ReconciliationId = reconciliation.Id, Version = (await db.InventoryValuationAssessments.Where(x => x.FirmId == actor.FirmId && x.ReconciliationId == reconciliation.Id)
         .Select(x => (int?)x.Version).MaxAsync(ct) ?? 0) + 1, AsOfDate = request.AsOfDate,
+      ReconciliationSourceHash = reconciliation.SourceHash, InputGeneration = reconciliation.InputGeneration,
       Quantity = request.Quantity, UnitCost = request.UnitCost, NrvPerUnit = request.NrvPerUnit, ObsolescenceReserve = request.ObsolescenceReserve,
       BookAmount = MoneyPolicy.Normalize(request.BookAmount), CalculatedAmount = calculated,
       Difference = MoneyPolicy.Normalize(calculated - request.BookAmount), MethodologyVersion = request.MethodologyVersion.Trim(),
@@ -534,6 +541,9 @@ public static class AccountingAnalysisService
     Guid clientId;
     Guid engagementId;
     Guid createdByUserId;
+    Guid? reconciliationId = null;
+    string? recordedSourceHash = null;
+    long? recordedInputGeneration = null;
     Action apply;
     switch (kind)
     {
@@ -544,6 +554,8 @@ public static class AccountingAnalysisService
         if (decision == AccountingEvidenceReviewDecisions.Approved && ecl.MethodologyVersion.Length == 0)
           return CommandResult.Fail(ErrorCodes.GateBlocked, "An ECL review needs a methodology version.");
         clientId = ecl.ClientId; engagementId = ecl.EngagementId; createdByUserId = ecl.CreatedByUserId;
+        reconciliationId = ecl.ReconciliationId; recordedSourceHash = ecl.ReconciliationSourceHash;
+        recordedInputGeneration = ecl.InputGeneration;
         apply = () => { ecl.Status = decision; ecl.ReviewedByUserId = actor.UserId; ecl.ReviewedAt = DateTimeOffset.UtcNow; };
         break;
       case AccountingEvidenceKinds.Inventory:
@@ -553,6 +565,8 @@ public static class AccountingAnalysisService
         if (decision == AccountingEvidenceReviewDecisions.Approved && inventory.MethodologyVersion.Length == 0)
           return CommandResult.Fail(ErrorCodes.GateBlocked, "An inventory review needs a methodology version.");
         clientId = inventory.ClientId; engagementId = inventory.EngagementId; createdByUserId = inventory.CreatedByUserId;
+        reconciliationId = inventory.ReconciliationId; recordedSourceHash = inventory.ReconciliationSourceHash;
+        recordedInputGeneration = inventory.InputGeneration;
         apply = () => { inventory.Status = decision; inventory.ReviewedByUserId = actor.UserId; inventory.ReviewedAt = DateTimeOffset.UtcNow; };
         break;
       case AccountingEvidenceKinds.Specialist:
@@ -588,6 +602,20 @@ public static class AccountingAnalysisService
           risk.ReviewedAt = DateTimeOffset.UtcNow;
         };
         break;
+    }
+
+    if (reconciliationId is { } sourceReconciliationId)
+    {
+      var reconciliation = await db.AccountingReconciliations.AsNoTracking().SingleOrDefaultAsync(x =>
+        x.Id == sourceReconciliationId && x.FirmId == actor.FirmId && x.ClientId == clientId &&
+        x.EngagementId == engagementId, ct);
+      var currentGeneration = await db.ClientSafetyStates.AsNoTracking().Where(x =>
+        x.Id == clientId && x.FirmId == actor.FirmId).Select(x => (long?)x.InputGeneration).SingleOrDefaultAsync(ct);
+      if (reconciliation is null || currentGeneration is null ||
+          reconciliation.Status is not ("RECONCILED" or "APPROVED") ||
+          !string.Equals(reconciliation.SourceHash, recordedSourceHash, StringComparison.OrdinalIgnoreCase) ||
+          currentGeneration.Value != recordedInputGeneration)
+        return CommandResult.Fail(ErrorCodes.GenerationStale, "The valuation source or client input generation changed; prepare a new assessment.");
     }
 
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
