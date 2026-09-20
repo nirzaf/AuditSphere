@@ -41,6 +41,35 @@ else
       </table>
     </div>
   </section>
+  <section class="card" aria-labelledby="period-control-heading">
+    <h2 id="period-control-heading">Period control and handoffs</h2>
+    @if (_periods.Count == 0)
+    {
+      <p class="muted">No reporting periods are available in the current scope.</p>
+    }
+    else
+    {
+      <div class="table-wrap">
+        <table>
+          <caption class="sr-only">Scoped client reporting periods</caption>
+          <thead><tr><th scope="col">Client</th><th scope="col">Period</th><th scope="col">Dates</th><th scope="col">Status</th><th scope="col">Revision</th><th scope="col">Handoffs</th></tr></thead>
+          <tbody>
+          @foreach (var period in _periods)
+          {
+            <tr>
+              <td>@period.ClientName</td>
+              <td>@period.PeriodCode · @period.Basis</td>
+              <td>@period.StartDate.ToString("yyyy-MM-dd") — @period.EndDate.ToString("yyyy-MM-dd")</td>
+              <td><span class="status">@period.Status</span></td>
+              <td>@period.Revision</td>
+              <td><a href="/app/accounting/rollforward">Roll forward</a> · <a href="/app/accounting/restatements">Restatements</a></td>
+            </tr>
+          }
+          </tbody>
+        </table>
+      </div>
+    }
+  </section>
   <section class="card" aria-labelledby="routes-heading">
     <h2 id="routes-heading">Accounting workbenches</h2>
     <div style="display:flex;gap:.75rem;flex-wrap:wrap">
@@ -56,6 +85,7 @@ else
 
 @code {
   private sealed record ClientRow(string Name, string Currency, int Periods, string ChartStatus, string ImportStatus);
+  private sealed record PeriodRow(string ClientName, string PeriodCode, string Basis, DateOnly StartDate, DateOnly EndDate, string Status, long Revision);
   private ActorContext? _actor;
   private bool _loading = true;
   private bool _authorized;
@@ -64,6 +94,7 @@ else
   private int _sealedImportCount;
   private int _blockedCount;
   private List<ClientRow> _clients = [];
+  private List<PeriodRow> _periods = [];
 
   protected override async Task OnInitializedAsync()
   {
@@ -93,6 +124,9 @@ else
       _sealedImportCount = await db.SourceImportBatches.AsNoTracking().CountAsync(x => x.FirmId == _actor.FirmId && x.Status == "SEALED" &&
         (clientIds.Length == 0 || clientIds.Contains(x.ClientId)));
       _blockedCount = periods.Count(x => x.Status is AccountingWorkflowStates.Stale or AccountingWorkflowStates.Rejected);
+      _periods = periods.OrderByDescending(x => x.EndDate).ThenBy(x => x.PeriodCode).Select(x => new PeriodRow(
+        clients.GetValueOrDefault(x.ClientId)?.LegalName ?? "Scoped client", x.PeriodCode, x.Basis,
+        x.StartDate, x.EndDate, x.Status, x.Revision)).ToList();
       _clients = profiles.Where(x => clients.ContainsKey(x.ClientId)).Select(x => new ClientRow(
         clients[x.ClientId].LegalName, x.FunctionalCurrency, periods.Count(p => p.ClientId == x.ClientId),
         charts.SingleOrDefault(c => c.ClientId == x.ClientId)?.Status ?? "NO_CHART",
