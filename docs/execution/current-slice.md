@@ -6,7 +6,7 @@ This file records observed repository state only. The authoritative build contra
 
 | Item | Observed value |
 |---|---|
-| Branch/head | `master@ab7c4fe001a1b342880aae6bbca1bbc157c9716a` |
+| Branch/head | `master@9b5e515` |
 | Remote | `origin/master` points to the same head after the latest push |
 | SDK | .NET 10; repository solution targets `net10.0` |
 | Database | PostgreSQL 18.6 on loopback port 5433 for development only |

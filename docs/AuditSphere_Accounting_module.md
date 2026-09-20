@@ -3,7 +3,7 @@
 
 **Repository:** `nirzaf/AuditSphere`
 **Branch inspected:** `master`
-**Pinned review commit:** `ab7c4fe001a1b342880aae6bbca1bbc157c9716a`
+**Pinned review commit:** `9b5e515` (package-review workflow UI slice)
 **Commit date / review date:** 20 September 2026
 **Deliverable status:** Active product and engineering backlog grounded in the current local implementation; not professional-methodology approval or production acceptance.
 
@@ -31,7 +31,7 @@ A relationship group is not the same as a consolidation perimeter. A group name 
 
 The local implementation now covers client accounting profiles, periods/books, chart-of-accounts mappings, versioned trial-balance profiles and multi-entity batches, typed GL imports, paged account-completeness bridges, reconciliations, specialist workbenches, entity-package projections, restatement lineage, bounded same-currency consolidation, journal lineage, close checks, and immutable financial-package review decisions. Package-review decisions are stage-bound, exact package revision/generation/hash-bound, and append-only.
 
-Local verification at `master@ab7c4fe` is **186/186 PostgreSQL-backed tests passing with 0 skipped**, **44 migrations applied**, a successful loopback restore rehearsal, and a zero-warning build. The remaining items in this document are implementation backlog or verification work unless the execution ledger explicitly marks them locally verified. Local evidence does not establish live Microsoft-provider behavior, professional approval, signing acceptance, production recovery, or independent human review.
+Local verification at `master@9b5e515` is **186/186 PostgreSQL-backed tests passing with 0 skipped**, **44 migrations applied**, a successful loopback restore rehearsal, and a zero-warning build. The remaining items in this document are implementation backlog or verification work unless the execution ledger explicitly marks them locally verified. Local evidence does not establish live Microsoft-provider behavior, professional approval, signing acceptance, production recovery, or independent human review.
 
 ---
 
@@ -900,7 +900,7 @@ The best architecture is a native audit-accounting workbench inside the existing
 
 Repository sources below were inspected at the pinned commit. File paths plus named methods in this report are the review locators; do not assume current branch line numbers will stay unchanged.
 
-- **R1:** GitHub `master` metadata and Domain/Application inventory at `ab7c4fe001a1b342880aae6bbca1bbc157c9716a`.
+- **R1:** GitHub `master` metadata and Domain/Application inventory at `9b5e515`.
 - **R2:** `docs/SPECIFICATION.md`, introduction and §§1.2–1.5: .NET adoption, service boundaries, single-entity initial scope and explicit group capability extension.
 - **R3:** `src/AuditSphereOps.Domain/Practice/FirmLedger.cs`: firm-only accounting boundary.
 - **R4:** `src/AuditSphereOps.Domain/Practice/Crm.cs`: canonical client and contact model.
@@ -920,7 +920,7 @@ Repository sources below were inspected at the pinned commit. File paths plus na
 
 ```text
 Repository at reviewed commit:
-https://github.com/nirzaf/AuditSphere/tree/ab7c4fe001a1b342880aae6bbca1bbc157c9716a
+https://github.com/nirzaf/AuditSphere/tree/9b5e515
 
 E1 — ERPNext Chart of Accounts
 https://docs.frappe.io/erpnext/chart-of-accounts

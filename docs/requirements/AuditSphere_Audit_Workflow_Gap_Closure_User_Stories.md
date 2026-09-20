@@ -10,7 +10,7 @@
 | Source checklist | `Audit working process - Audit Tool New.docx` |
 | Source scope | **20 audit sections; 165 individual procedures** |
 | Backlog | **28 issue-ready stories**, grouped into 5 proposed milestones |
-| Repository snapshot inspected | `master@ab7c4fe001a1b342880aae6bbca1bbc157c9716a` |
+| Repository snapshot inspected | `master@9b5e515` |
 | Status | Partially implemented; local evidence is summarized in the execution ledger; not professional or production acceptance |
 | Suggested repository location | `docs/requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md` |
 | Repository changes made by this document task | Requirements documentation only; implementation evidence is tracked separately |
@@ -93,7 +93,7 @@ The existing specification requires manual-first sampling, a confirmation regist
 
 ### 2.4 Current implementation evidence
 
-At `master@ab7c4fe`, the repository records **186/186 PostgreSQL-backed tests passing with 0 skipped**, **44 applied migrations**, a successful loopback restore rehearsal, and a zero-warning build. The accounting slice includes client accounting profiles, versioned trial-balance and GL ingestion, completeness bridges, reconciliations, specialist workbenches, package projections, restatement lineage, bounded same-currency consolidation, journal lineage, close checks, and immutable package-review decisions. Remaining stories are not implicitly complete: user-facing workflow depth, advanced accounting methods, and external acceptance must still be verified in the execution ledger.
+At `master@9b5e515`, the repository records **186/186 PostgreSQL-backed tests passing with 0 skipped**, **44 applied migrations**, a successful loopback restore rehearsal, and a zero-warning build. The accounting slice includes client accounting profiles, versioned trial-balance and GL ingestion, completeness bridges, reconciliations, specialist workbenches, package projections, restatement lineage, bounded same-currency consolidation, journal lineage, close checks, and an immutable package-review service plus scoped review UI. Remaining stories are not implicitly complete: user-facing workflow depth, advanced accounting methods, and external acceptance must still be verified in the execution ledger.
 
 ### 2.3 Reuse versus gap rule
 
