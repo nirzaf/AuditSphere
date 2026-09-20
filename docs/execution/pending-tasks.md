@@ -3,7 +3,7 @@
 **Repository:** `nirzaf/AuditSphere`
 **Authoritative specification:** [`docs/SPECIFICATION.md`](../SPECIFICATION.md) v5.0
 **Requirements backlog:** [`docs/requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md`](../requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md)
-**Source implementation checkpoint:** `master@0e60fe4`
+**Source implementation checkpoint:** `master@58042e6`
 
 This is a resume checklist, not an acceptance certificate. Tenant identifiers, credentials, tokens, secret values, and private-provider URLs are deliberately absent from the public repository.
 
@@ -37,9 +37,10 @@ This is a resume checklist, not an acceptance certificate. Tenant identifiers, c
 - [x] Link typed accounting evidence to reviewed audit procedure results, expose the scoped evidence queue and archive accounting lineage.
 - [x] Gate period close on current package reviews and persist immutable authorized reopen/amendment revisions.
 - [x] Add controlled entity-period roll-forward with draft book copies and explicit opening-balance evidence.
+- [x] Link accounting evidence to reviewed audit workpapers and expose accounting period handoffs from the dashboard.
 - [ ] Add approved-method fixtures for mixed currency, complex ownership, acquisition, NCI and advanced eliminations before implementing those methods.
-- [ ] Add deeper audit workpaper/evidence links and account-area UI around the typed specialist schedules.
-- [ ] Add the remaining dashboard and cross-workflow navigation around accounting, roll-forward and release workflows.
+- [x] Add deeper accounting evidence/workpaper links and account-area UI around the typed specialist schedules.
+- [x] Add the accounting dashboard and cross-workflow navigation around accounting, roll-forward and release workflows.
 - [x] Re-run focused tests, full tests, build, migration drift and restore drill for the current coherent slice; repeat for the next slice.
 
 ## External gates
