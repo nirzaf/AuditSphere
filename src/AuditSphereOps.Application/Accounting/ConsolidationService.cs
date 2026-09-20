@@ -187,6 +187,9 @@ public static class ConsolidationService
     if (packageHash is null || packageHash.CalculationHash != component.PackageHash || packageHash.Status != AccountingPackageStates.PackageValidated ||
         packageHash.Currency != component.Currency)
       return CommandResult.Fail(ErrorCodes.GenerationStale, "The component package changed; resubmit the current approved package.");
+    var packageReview = await FinancialPackageReviewService.RequireCurrentAsync(db, actor, component.PackageId, requirePartner: true, ct);
+    if (!packageReview.Succeeded)
+      return packageReview;
     component.Status = AccountingWorkflowStates.Approved;
     component.ApprovedByUserId = actor.UserId;
     component.ApprovedAt = DateTimeOffset.UtcNow;

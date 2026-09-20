@@ -954,6 +954,24 @@ public sealed class ClientAccountingTests
       Assert.True((await ConsolidationService.SubmitComponentAsync(db, preparer,
         new ConsolidationComponentRequest(consolidationScopeId, scope.ClientB, scope.EngagementB, packageB, 100m, "CONTROLLED", "STATUTORY", "tax-v1", "map-b"))).Succeeded);
       var components = await db.ConsolidationComponents.Where(x => x.ScopeVersionId == consolidationScopeId).Select(x => x.Id).ToListAsync();
+      var missingPackageReview = await ConsolidationService.ApproveComponentAsync(db, reviewer, components[0]);
+      Assert.False(missingPackageReview.Succeeded);
+      Assert.Equal(ErrorCodes.GateBlocked, missingPackageReview.ErrorCode);
+      foreach (var packageId in new[] { packageA, packageB })
+      {
+        Assert.True((await FinancialPackageReviewService.RecordAsync(db, reviewer,
+          new FinancialPackageReviewRequest(packageId, FinancialPackageReviewStages.ManagementApproval,
+            FinancialPackageReviewDecisions.Approved, FinancialPackageReviewEvidenceModes.Offline,
+            "management-review-fixture", "Management approval fixture."))).Succeeded);
+        Assert.True((await FinancialPackageReviewService.RecordAsync(db, reviewer,
+          new FinancialPackageReviewRequest(packageId, FinancialPackageReviewStages.AccountingReview,
+            FinancialPackageReviewDecisions.Approved, FinancialPackageReviewEvidenceModes.SignedIn,
+            "accounting-review-fixture", "Accounting review fixture."))).Succeeded);
+        Assert.True((await FinancialPackageReviewService.RecordAsync(db, reviewer,
+          new FinancialPackageReviewRequest(packageId, FinancialPackageReviewStages.PartnerApproval,
+            FinancialPackageReviewDecisions.Approved, FinancialPackageReviewEvidenceModes.SignedIn,
+            "partner-review-fixture", "Partner approval fixture."))).Succeeded);
+      }
       foreach (var componentId in components)
         Assert.True((await ConsolidationService.ApproveComponentAsync(db, reviewer, componentId)).Succeeded);
       var missingCapability = await ConsolidationService.ApproveScopeAsync(db, reviewer, consolidationScopeId);
