@@ -7,7 +7,7 @@ This file records observed repository state only. The authoritative build contra
 | Item | Observed value |
 |---|---|
 | Source implementation checkpoint | `master@0e60fe4` |
-| Remote | `origin/master` points to `0e60fe4` after the controlled roll-forward checkpoint push |
+| Remote | `origin/master` points to `77efffa` after the controlled roll-forward and documentation checkpoint pushes; code checkpoint is `0e60fe4` |
 | SDK | .NET 10; repository solution targets `net10.0` |
 | Database | PostgreSQL 18.6 on loopback port 5433 for development only |
 | Build | `dotnet build AuditSphereOps.slnx --no-restore --configuration Release` — passed, 0 warnings/errors |
