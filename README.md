@@ -177,7 +177,7 @@ The build advances through dependency-ordered work packages (P0–P10 per the [p
 
 | Phase | Gate | Status |
 |---|---|---|
-| P1 | Live Entra OIDC + runtime identity fixtures | BLOCKED_EXTERNAL |
+| P1 | Live Entra OIDC + runtime identity fixtures | IN_PROGRESS (developer app/redirect configured; credential and fixtures pending) |
 | P2 | Live bounded SharePoint/Graph document provider | BLOCKED_EXTERNAL |
 | P3 | External release checkpoint store + capability evidence | BLOCKED_EXTERNAL |
 | P4 | Purview records profile + reviewer fixtures + behavior evidence | IN_PROGRESS (developer configuration; propagation/readback pending) |

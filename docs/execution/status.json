@@ -19,7 +19,7 @@
     "headCommit": "052273a",
     "implementationStatus": "IN_PROGRESS",
     "acceptanceStatus": "BLOCKED_EXTERNAL",
-    "worktree": "P6 is complete at master@1184485 (165/165 tests, 31 migrations). PR #26 records live EasyGuide developer-tenant Purview evidence: a test-only retention label was created and a scoped publication policy was submitted successfully. GitHub master protection is now configured and verified; label application/protection readback, P1/P2/P3, professional sign-off, recovery, and independent human review remain open.",
+    "worktree": "P6 is complete at master@1184485 (165/165 tests, 31 migrations). PR #26 records live EasyGuide developer-tenant evidence: Entra app/redirect configuration, selected SharePoint grant, and a Purview test label/publication. GitHub master protection is now configured and verified; runtime credentials/identity fixtures, label application/protection readback, P2/P3, professional sign-off, recovery, and independent human review remain open.",
     "scope": "Evidence-ledger update for a synthetic EasyGuide developer-tenant Purview configuration. No production content, credentials, secrets, or application code changed.",
     "productionEnabled": false
   },
@@ -249,6 +249,11 @@
       "result": "EasyGuide tenant 4de3e6fd-51aa-4ba7-b2c5-82106d2e45f0 now contains the single-tenant AuditSphereOps Development app (client ID 29be1ee5-e90c-4ecc-b4f9-5bcce14774cc). Microsoft Graph application permission Sites.Selected is configured and shows Granted for easyguide. No client secret or certificate was created."
     },
     {
+      "observedAt": "2026-09-20T03:41:42Z",
+      "source": "Microsoft Entra app Authentication (Preview) browser UI, authenticated as qts@easyguide.onmicrosoft.com",
+      "result": "AuditSphereOps Development shows the web redirect URI http://localhost:5099/signin-oidc. This is developer configuration evidence only; no client secret/certificate, real identity fixtures, or live OIDC sign-in acceptance was observed."
+    },
+    {
       "observedAt": "2026-09-19T12:14:56Z",
       "source": "Microsoft Graph Explorer, tenant label easyguide",
       "result": "POST /v1.0/sites/easyguide.sharepoint.com,4668a3d6-8c1a-462d-accc-f95e7534aae5,b3c5cb09-7b20-4270-b352-aa4ca4db3722/permissions returned HTTP 201 Created for AuditSphereOps Development with roles [write]. Follow-up GET /permissions returned HTTP 200 and included the same application ID with roles [write]."
@@ -281,8 +286,8 @@
     {
       "classification": "external-tenant",
       "gate": "P1 — Live Entra OIDC / runtime identity",
-      "missing": "Production OIDC configuration, approved non-production credentials, redirect URIs, and live identity acceptance evidence with real tenant fixtures (authorized staff, Client A/B, disabled/revoked, changed-UPN, wrong-tenant).",
-      "ownerAction": "M365/operations owner supplies approved app configuration, credential reference in secret store, and completes P1 acceptance criteria before P2 work begins."
+      "missing": "Approved credential reference in a secret store, real identity fixtures (authorized staff, Client A/B, disabled/revoked, changed-UPN, wrong-tenant), and live OIDC sign-in acceptance. The developer app and localhost redirect URI are configured, but no secret/certificate was created.",
+      "ownerAction": "M365/operations owner supplies the approved credential reference and fixture identities; implementer completes live OIDC acceptance before P2 work begins."
     },
     {
       "classification": "external-tenant",

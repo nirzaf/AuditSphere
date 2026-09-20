@@ -130,7 +130,7 @@ P10 Full §47 real-tenant acceptance cycle
 
 ## P1 — Microsoft Entra OIDC and Runtime Identity
 
-**Status:** `BLOCKED_EXTERNAL`
+**Status:** `IN_PROGRESS` — developer app and redirect URI are configured; credential, fixtures, and live acceptance remain blocked
 **Milestone:** R1 — Tenant Integration  
 **GitHub Issue:** #2
 
@@ -150,6 +150,8 @@ P10 Full §47 real-tenant acceptance cycle
 **Required fixtures:** authorized staff, Client A, Client B, disabled/revoked, changed-UPN, wrong-tenant.
 
 **Owner prerequisites:** approved app configuration, redirect URIs, authentication flow, secret/certificate reference in approved secret store, tenant/environment authorization, approved fixture identities.
+
+**Observed EasyGuide developer configuration (2026-09-20):** single-tenant app `AuditSphereOps Development` has web redirect URI `http://localhost:5099/signin-oidc`. No client secret/certificate, live sign-in acceptance, or required identity fixtures have been recorded.
 
 **Acceptance criteria:**
 - Staff sign-in maps to expected (tenant, object) identity.
