@@ -324,3 +324,44 @@ restore rehearsal; `Healthy` readiness with 0 pending migrations; HTTP 200 on `/
 `tests/AuditSphereOps.Domain.Tests/xunit.runner.json` after the added constraints made the full parallel run
 intermittently exhaust the loopback cluster's default shared lock budget (`53200`); no server setting was changed and
 no test was skipped. Hosted CI, independent review and any merge remain outstanding.
+
+## Focused engineering hardening (locally verified, uncommitted; 2026-09-20)
+
+The attached hardening stories are implemented as the smallest coherent local slices. This is implementation evidence,
+not production acceptance or approval of the external tenant gates.
+
+1. **ASH-01 telemetry:** Web and Worker now compose OpenTelemetry resources, ASP.NET/HTTP/Npgsql/runtime instrumentations,
+   application activities, low-cardinality operation metrics, draft-save duration metrics, and optional OTLP export. No
+   request bodies, draft text, tokens, identifiers, or secret values are emitted by the new application diagnostics.
+2. **ASH-02 dataset sealing:** Trial-balance imports serialize on the engagement, persist `LOADING` before rows, seal
+   after rows in the same transaction, expose only `SEALED` datasets to discovery/validation, and install a PostgreSQL
+   row trigger that locks the parent and rejects post-seal insert/update/delete with SQLSTATE `55000`. The former table-wide
+   `SHARE` lock was removed. Migration `20260920102142_WorkpaperDraftsAndTrialBalanceSealing` owns the schema change.
+3. **ASH-03 financial calculation boundary:** Pure package-line/hash calculation is in
+   `FinancialStatementCalculator`; the service retains authorization, transaction, lock ordering, final generation checks,
+   and persistence. Financial statement tests pass.
+4. **ASH-04 error catalog:** Stable accounting, audit-planning, draft, and operations codes are centralized while existing
+   wire values remain unchanged. UI rendering uses a safe known-code mapping with an unknown-code fallback.
+5. **ASH-05 durable drafts:** `workpaper_drafts` stores scope, owner, base revision/generations, draft revision, content,
+   save id, timestamp, and lifecycle. Save idempotency/conflict, stale-target rejection, exact acknowledged submit, same-
+   transaction consumption, late-save refusal, server-side autosave/debounce, explicit save/discard, and refresh/circuit
+   recovery are implemented and covered by integration tests. No browser local storage is used.
+6. **ASH-06 connection decision:** A read-only, opt-in Windows baseline script and runbook preserve direct Npgsql pooling.
+   The observed local `auditsphere_tests` baseline returned `NOT JUSTIFIED - RETAIN NPGSQL POOLING`; no PgBouncer or other
+   pooler was deployed.
+
+Final local verification for this slice: PostgreSQL 18.6 suite `168/168` passed with `0` skipped; isolated Web and Worker
+builds passed with `0` warnings and `0` errors; EF reported no pending model changes; and `git diff --check` passed. The
+repository pins SDK `10.0.300`, which is unavailable on this Windows host, so compilation used installed SDK `10.0.401`
+from outside the repository without changing `global.json`. External exporter/collector, production secret custody,
+tenant acceptance, performance/load, recovery, and independent review remain unobserved or blocked.
+
+Follow-up local runtime verification (2026-09-20): the current Web project rebuilt cleanly, migration
+`20260920102142_WorkpaperDraftsAndTrialBalanceSealing` was applied to the local development database only, and the
+current hardened host ran on `http://127.0.0.1:5100`. Direct local probes returned `200 Healthy` for both health endpoints.
+Built-in Chrome rendered the current Portfolio shell and the protected shell truthfully showed `Sign-in required` because
+this clean process was not given the Infisical OIDC environment values. The local `auditsphere` database has zero
+workpapers, so the durable draft editor was not browser-exercised without inventing business data. The earlier 5099
+fake-workpaper route rendered the safe `Workpaper unavailable` state; the current unauthenticated 5100 route correctly
+renders `Sign in required`. Chrome itself blocked direct health navigation with `ERR_BLOCKED_BY_CLIENT`; the health result
+above is from the direct loopback HTTP probe.

@@ -2,18 +2,47 @@ using AuditSphereOps.Worker;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Application.Completion;
+using AuditSphereOps.Application.Diagnostics;
 using AuditSphereOps.Application.Documents;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
 
 var builder = Host.CreateApplicationBuilder(args);
+
+// Worker telemetry is independent from provider-effect enablement. The exporter is optional,
+// bounded by the OpenTelemetry SDK, and never owns a business transaction or lease decision.
+var telemetryEndpoint = builder.Configuration["Telemetry:Otlp:Endpoint"];
+builder.Services.AddOpenTelemetry()
+  .ConfigureResource(resource => resource.AddService("AuditSphereOps.Worker"))
+  .WithTracing(tracing =>
+  {
+    tracing.AddSource(AuditDiagnostics.ActivitySourceName)
+      .AddSource("Npgsql");
+    if (Uri.TryCreate(telemetryEndpoint, UriKind.Absolute, out var endpoint))
+      tracing.AddOtlpExporter(options => options.Endpoint = endpoint);
+  })
+  .WithMetrics(metrics =>
+  {
+    metrics.AddMeter(AuditDiagnostics.MeterName)
+      .AddMeter("Npgsql")
+      .AddRuntimeInstrumentation();
+    if (Uri.TryCreate(telemetryEndpoint, UriKind.Absolute, out var endpoint))
+      metrics.AddOtlpExporter(options => options.Endpoint = endpoint);
+  });
 if (!builder.Environment.IsDevelopment() && !builder.Environment.IsEnvironment("Test"))
   throw new InvalidOperationException("This validation worker is not approved for live environments.");
 var connection = builder.Configuration.GetConnectionString("AuditSphere");
 if (string.IsNullOrWhiteSpace(connection))
   throw new InvalidOperationException("ConnectionStrings:AuditSphere is required.");
-builder.Services.AddDbContextFactory<AuditSphereDbContext>(options => options.UseNpgsql(connection));
+var dataSourceBuilder = new NpgsqlDataSourceBuilder(connection) { Name = "AuditSphere.Worker" };
+var dataSource = dataSourceBuilder.Build();
+builder.Services.AddSingleton(dataSource);
+builder.Services.AddDbContextFactory<AuditSphereDbContext>(options => options.UseNpgsql(dataSource));
 if (!Guid.TryParse(builder.Configuration["Worker:FirmId"], out var firmId))
   throw new InvalidOperationException("Worker:FirmId is required.");
 if (!long.TryParse(builder.Configuration["Worker:DeploymentEpoch"], out var deploymentEpoch) || deploymentEpoch < 1)

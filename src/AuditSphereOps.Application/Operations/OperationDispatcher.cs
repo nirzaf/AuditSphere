@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using AuditSphereOps.Application.Diagnostics;
 using AuditSphereOps.Domain.Completion;
 using Microsoft.Extensions.Logging;
 
@@ -15,8 +17,22 @@ public sealed class OperationDispatcher(IOperationStore store, DurableOperationR
     var op = await store.ClaimAsync(options, registry.Definitions, owner, true, ct) ??
       await store.ClaimAsync(options, registry.Definitions, owner, false, ct);
     if (op is null) return false;
-    logger?.LogInformation("Claimed operation {OperationId}, token {AttemptToken}, correlation {CorrelationId}",
-      op.Id, op.AttemptToken, op.CorrelationId);
+    var started = Stopwatch.GetTimestamp();
+    var outcome = "claimed";
+    using var activity = AuditDiagnostics.ActivitySource.StartActivity("auditsphere.operation", ActivityKind.Internal);
+    activity?.SetTag("operation.kind", op.OperationKind);
+    activity?.SetTag("execution.mode", op.ExecutionMode.ToString());
+    activity?.SetTag("reconciliation", op.IsReconciliation);
+    AuditDiagnostics.RecordClaimed(op);
+    using var logScope = logger?.BeginScope(new Dictionary<string, object?>
+    {
+      ["OperationId"] = op.Id,
+      ["CorrelationId"] = op.CorrelationId,
+      ["TraceId"] = activity?.TraceId.ToString(),
+      ["SpanId"] = activity?.SpanId.ToString()
+    });
+    logger?.LogInformation("Claimed operation {OperationId}, correlation {CorrelationId}",
+      op.Id, op.CorrelationId);
     var handler = registry.Resolve(op.OperationKind);
     using var work = CancellationTokenSource.CreateLinkedTokenSource(ct);
     using var renewal = new CancellationTokenSource();
@@ -40,8 +56,10 @@ public sealed class OperationDispatcher(IOperationStore store, DurableOperationR
       }
       if (!await store.CompleteAsync(op, options, handler, remote, work.Token))
         throw new OperationOwnershipLostException();
+      AuditDiagnostics.RecordCompleted(op);
+      outcome = "completed";
     }
-    catch (OperationOwnershipLostException) { /* Recovery belongs to the current owner/reaper. */ }
+    catch (OperationOwnershipLostException) { outcome = "ownership-lost"; /* Recovery belongs to the current owner/reaper. */ }
     catch (SafeRetryException ex)
     {
       var next = op.IsReconciliation ? OperationState.PROVIDER_BLOCKED :
@@ -49,12 +67,14 @@ public sealed class OperationDispatcher(IOperationStore store, DurableOperationR
       var jittered = Math.Min(300, 5 * Math.Pow(2, Math.Min(op.AttemptCount - 1, 6)) * (1 + Random.Shared.NextDouble() * 0.2));
       var delay = TimeSpan.FromSeconds(Math.Max(jittered, ex.RetryAfter?.TotalSeconds ?? 0));
       await DispositionAsync(op, next, "safe-transient-failure", delay);
+      outcome = "safe-transient-failure";
     }
     catch (OperationBlockedException ex)
     {
       // Persist only allowlisted classifications, never provider exception messages.
       await DispositionAsync(op, ex.Authorization ? OperationState.AUTHORIZATION_BLOCKED : OperationState.PROVIDER_BLOCKED,
         ex.Authorization ? "authorization-blocked" : "provider-or-integrity-blocked", null);
+      outcome = ex.Authorization ? "authorization-blocked" : "provider-or-integrity-blocked";
     }
     catch (OperationCanceledException)
     {
@@ -62,6 +82,7 @@ public sealed class OperationDispatcher(IOperationStore store, DurableOperationR
         ? (op.AttemptCount >= options.MaxAttempts ? OperationState.DEAD_LETTER : OperationState.RETRY_WAIT)
         : OperationState.RESULT_UNCERTAIN;
       await DispositionAsync(op, next, "execution-interrupted", TimeSpan.FromSeconds(5));
+      outcome = "execution-interrupted";
     }
     catch (Exception)
     {
@@ -69,14 +90,17 @@ public sealed class OperationDispatcher(IOperationStore store, DurableOperationR
         ? (op.IsReconciliation ? OperationState.PROVIDER_BLOCKED : OperationState.RESULT_UNCERTAIN)
         : OperationState.PROVIDER_BLOCKED;
       await DispositionAsync(op, next, "execution-failed", TimeSpan.FromSeconds(5));
+      outcome = "execution-failed";
     }
     finally
     {
       await renewal.CancelAsync();
       await renewer;
+      AuditDiagnostics.RecordOperationDuration(op, Stopwatch.GetElapsedTime(started).TotalSeconds, outcome);
+      activity?.SetTag("outcome", outcome);
     }
-    logger?.LogInformation("Operation {OperationId}, token {AttemptToken}, last observed state {State}",
-      op.Id, op.AttemptToken, op.Status);
+    logger?.LogInformation("Operation {OperationId}, last observed state {State}",
+      op.Id, op.Status);
     return true; // Work was claimed, not necessarily completed successfully.
   }
 
@@ -84,11 +108,15 @@ public sealed class OperationDispatcher(IOperationStore store, DurableOperationR
   {
     using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(5));
     // If storage is unavailable, leave the durable active lease for the reaper.
-    try { await store.TransitionAsync(op, options, state, code, delay, cleanup.Token); }
+    try
+    {
+      if (await store.TransitionAsync(op, options, state, code, delay, cleanup.Token))
+        AuditDiagnostics.RecordDispositioned(op, code);
+    }
     catch (Exception)
     {
-      logger?.LogWarning("Disposition could not be recorded for operation {OperationId}, token {AttemptToken}; lease recovery required",
-        op.Id, op.AttemptToken);
+      logger?.LogWarning("Disposition could not be recorded for operation {OperationId}; lease recovery required",
+        op.Id);
     }
   }
 

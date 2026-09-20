@@ -1,7 +1,9 @@
 @page "/app/audit/workpapers/{Id:guid}"
 @rendermode InteractiveServer
+@implements IAsyncDisposable
 @using AuditSphereOps.Application.Audit
 @using AuditSphereOps.Domain.Audit
+@using AuditSphereOps.Domain.Shared
 @using FindingRecord = AuditSphereOps.Domain.Audit.Finding
 @using WorkpaperRecord = AuditSphereOps.Domain.Audit.Workpaper
 @using AuditSphereOps.Infrastructure.Persistence
@@ -101,19 +103,28 @@ else
                 <h2>Working Content</h2>
                 <div class="form-group">
                     <label for="wp-work">Work performed</label>
-                    <textarea id="wp-work" rows="5" @bind="_draftWork" />
+                    <textarea id="wp-work" rows="5" value="@_draftWork" @oninput="OnWorkInputAsync"
+                              disabled="@(_busy || _draftConflict)" />
                 </div>
                 <div class="form-group">
                     <label for="wp-conclusion">Conclusion</label>
-                    <textarea id="wp-conclusion" rows="3" @bind="_draftConclusion" />
+                    <textarea id="wp-conclusion" rows="3" value="@_draftConclusion" @oninput="OnConclusionInputAsync"
+                              disabled="@(_busy || _draftConflict)" />
                 </div>
                 <div class="action-bar">
-                    <button class="btn-primary" @onclick="SubmitAsync" disabled="@_busy">Submit for review</button>
+                    <button class="btn-secondary" @onclick="SaveDraftAsync" disabled="@(_busy || _draftConflict || _saving)">Save draft</button>
+                    <button class="btn-secondary" @onclick="DiscardDraftAsync" disabled="@(_busy || _draftConflict || _saving || _draftRevision < 1)">Discard draft</button>
+                    <button class="btn-primary" @onclick="SubmitAsync" disabled="@(_busy || _draftConflict)">Submit for review</button>
+                    @if (_draftConflict)
+                    {
+                        <button class="btn-secondary" @onclick="ReloadCurrentTargetAsync" disabled="@(_busy || _saving)">Reload current target</button>
+                    }
                 </div>
+                <p class="notice-text" role="status" aria-live="polite">@_draftStatus</p>
                 <p class="notice-text">
-                    Submitting records revision @(_workpaper.Revision + 1) as a frozen snapshot against the
-                    revision you loaded (@_workpaper.Revision). If the workpaper changed meanwhile the command
-                    is refused; nothing is overwritten automatically.
+                    Drafts are saved on the server and survive a browser refresh or circuit restart. Submission
+                    waits for the last acknowledged draft and freezes that exact content; a changed target is
+                    refused without overwriting anything.
                 </p>
             </section>
         }
@@ -133,7 +144,7 @@ else
         @if (_result is not null)
         {
             <p class="command-result @(_result.Succeeded ? "success-text" : "error-text")" role="status">
-                @(_result.Succeeded ? "The submission was recorded." : "Blocked: " + _result.ErrorCode + " — " + _result.Message)
+                @(_result.Succeeded ? "The submission was recorded." : ErrorCatalog.ForUi(_result.ErrorCode))
             </p>
         }
     </div>
@@ -149,8 +160,18 @@ else
     private CommandResult? _result;
     private bool _loading = true;
     private bool _busy;
+    private bool _saving;
+    private bool _hasUnsavedChanges;
+    private bool _draftConflict;
     private string _draftWork = "";
     private string _draftConclusion = "";
+    private string _draftStatus = "Unsaved changes";
+    private long _draftRevision;
+    private long _baseInputGeneration = 1;
+    private long _basePolicyGeneration = 1;
+    private Guid _lastSaveId;
+    private CancellationTokenSource? _autosaveCts;
+    private Task? _pendingAutosave;
 
     protected override async Task OnInitializedAsync()
     {
@@ -162,17 +183,44 @@ else
 
     private async Task RefreshAsync()
     {
+        var actor = _actor;
+        if (actor is null) return;
         await using var db = await DbFactory.CreateDbContextAsync();
         _workpaper = await db.Workpapers.AsNoTracking()
-            .FirstOrDefaultAsync(w => w.Id == Id && w.FirmId == _actor!.FirmId);
+            .FirstOrDefaultAsync(w => w.Id == Id && w.FirmId == actor.FirmId);
         if (_workpaper is null) return;
 
-        _draftWork = _workpaper.WorkPerformed ?? "";
-        _draftConclusion = _workpaper.Conclusion ?? "";
+        var draftResult = await AuditPlanningService.LoadWorkpaperDraftAsync(db, actor, _workpaper.Id);
+        if (draftResult.Succeeded && draftResult.Value is not null)
+        {
+            var draft = draftResult.Value;
+            _draftWork = draft.WorkPerformed;
+            _draftConclusion = draft.Conclusion;
+            _draftRevision = draft.DraftRevision;
+            _baseInputGeneration = draft.BaseInputGeneration;
+            _basePolicyGeneration = draft.BasePolicyGeneration;
+            _lastSaveId = draft.LastSaveId;
+            _draftConflict = draft.Lifecycle == "TARGET_CHANGED";
+            _draftStatus = _draftConflict ? "Target changed — reload before editing." :
+                draft.DraftRevision > 0 && draft.LastSavedAt is not null
+                    ? $"Saved at {draft.LastSavedAt.Value.ToUniversalTime():yyyy-MM-dd HH:mm:ss} UTC"
+                    : "Unsaved changes";
+        }
+        else
+        {
+            _draftWork = _workpaper.WorkPerformed ?? "";
+            _draftConclusion = _workpaper.Conclusion ?? "";
+            _draftRevision = 0;
+            _baseInputGeneration = 1;
+            _basePolicyGeneration = 1;
+            _lastSaveId = Guid.Empty;
+            _draftStatus = "Unsaved changes";
+        }
+        _hasUnsavedChanges = false;
 
         if (_workpaper.ProcedureId is { } procedureId)
             _procedure = await db.AuditProcedures.AsNoTracking()
-                .FirstOrDefaultAsync(p => p.Id == procedureId && p.FirmId == _actor!.FirmId);
+                .FirstOrDefaultAsync(p => p.Id == procedureId && p.FirmId == actor.FirmId);
 
         _submissions = await db.WorkpaperSubmissions.AsNoTracking()
             .Where(s => s.WorkpaperId == _workpaper.Id)
@@ -186,12 +234,156 @@ else
         _busy = true;
         try
         {
+            await FlushPendingSaveAsync();
+            if (_hasUnsavedChanges || _draftRevision < 1)
+            {
+                _result = CommandResult.Fail(ErrorCodes.Drafts.Conflict,
+                    "Save the current draft before submitting it.");
+                return;
+            }
             await using var db = await DbFactory.CreateDbContextAsync();
             var submitted = await AuditPlanningService.SubmitWorkpaperAsync(db, _actor,
-                new SubmitWorkpaperRequest(_workpaper.Id, _workpaper.Revision, _draftWork, _draftConclusion));
+                new SubmitWorkpaperRequest(_workpaper.Id, _workpaper.Revision, _draftWork, _draftConclusion,
+                    _draftRevision, _lastSaveId));
             _result = submitted.Succeeded ? CommandResult.Ok() : CommandResult.Fail(submitted.ErrorCode!, submitted.Message ?? "The command was refused.");
             if (_result.Succeeded) await RefreshAsync();
         }
         finally { _busy = false; }
+    }
+
+    private async Task OnWorkInputAsync(ChangeEventArgs args)
+    {
+        _draftWork = args.Value?.ToString() ?? string.Empty;
+        MarkDraftChanged();
+        await Task.CompletedTask;
+    }
+
+    private async Task OnConclusionInputAsync(ChangeEventArgs args)
+    {
+        _draftConclusion = args.Value?.ToString() ?? string.Empty;
+        MarkDraftChanged();
+        await Task.CompletedTask;
+    }
+
+    private void MarkDraftChanged()
+    {
+        _hasUnsavedChanges = true;
+        _draftStatus = "Unsaved changes";
+        _autosaveCts?.Cancel();
+        _autosaveCts?.Dispose();
+        _autosaveCts = new CancellationTokenSource();
+        _pendingAutosave = AutosaveAfterDelayAsync(_autosaveCts.Token);
+    }
+
+    private async Task AutosaveAfterDelayAsync(CancellationToken ct)
+    {
+        try
+        {
+            await Task.Delay(TimeSpan.FromMilliseconds(750), ct);
+            await InvokeAsync(SaveDraftAsync);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
+        catch (ObjectDisposedException) { }
+    }
+
+    private async Task FlushPendingSaveAsync()
+    {
+        if (_pendingAutosave is not null)
+        {
+            try { await _pendingAutosave; }
+            catch (OperationCanceledException) { }
+        }
+        if (_hasUnsavedChanges)
+            await SaveDraftAsync();
+    }
+
+    private async Task SaveDraftAsync()
+    {
+        if (_actor is null || _workpaper is null || _saving || _draftConflict) return;
+        _saving = true;
+        _draftStatus = "Saving…";
+        var savedWork = _draftWork;
+        var savedConclusion = _draftConclusion;
+        var saveId = Guid.CreateVersion7();
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var result = await AuditPlanningService.SaveWorkpaperDraftAsync(db, _actor,
+                new SaveWorkpaperDraftRequest(_workpaper.Id, _draftRevision, _workpaper.Revision,
+                    _baseInputGeneration, _basePolicyGeneration, saveId, savedWork, savedConclusion));
+            if (!result.Succeeded || result.Value is null)
+            {
+                _result = CommandResult.Fail(result.ErrorCode ?? ErrorCodes.Drafts.Conflict,
+                    result.Message ?? "The draft could not be saved.");
+                _draftConflict = result.ErrorCode is ErrorCodes.StaleRevision or ErrorCodes.GenerationStale or ErrorCodes.Drafts.TargetChanged;
+                _draftStatus = _draftConflict
+                    ? "Conflict — a newer draft or target exists. Reload the current workpaper."
+                    : "Disconnected — changes since the last save are not yet saved.";
+                return;
+            }
+
+            var draft = result.Value;
+            _draftRevision = draft.DraftRevision;
+            _baseInputGeneration = draft.BaseInputGeneration;
+            _basePolicyGeneration = draft.BasePolicyGeneration;
+            _lastSaveId = draft.LastSaveId;
+            _hasUnsavedChanges = !string.Equals(savedWork, _draftWork, StringComparison.Ordinal) ||
+                                  !string.Equals(savedConclusion, _draftConclusion, StringComparison.Ordinal);
+            _draftStatus = _hasUnsavedChanges
+                ? "Unsaved changes"
+                : $"Saved at {draft.LastSavedAt?.ToUniversalTime():yyyy-MM-dd HH:mm:ss} UTC";
+            _result = null;
+        }
+        catch (Exception)
+        {
+            // A lost circuit or database acknowledgement must never be presented as
+            // saved. Keep the current editor text in memory and let the user retry.
+            _result = CommandResult.Fail(ErrorCodes.Drafts.Conflict,
+                "The draft acknowledgement was not received.");
+            _draftStatus = "Disconnected — changes since the last save are not yet saved.";
+        }
+        finally
+        {
+            _saving = false;
+            if (_hasUnsavedChanges && !_draftConflict)
+                _pendingAutosave = Task.CompletedTask;
+        }
+    }
+
+    private async Task ReloadCurrentTargetAsync()
+    {
+        if (_busy || _saving) return;
+        _result = null;
+        _draftConflict = false;
+        await RefreshAsync();
+    }
+
+    private async Task DiscardDraftAsync()
+    {
+        if (_actor is null || _workpaper is null || _busy || _draftRevision < 1) return;
+        _busy = true;
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var result = await AuditPlanningService.DiscardWorkpaperDraftAsync(db, _actor,
+                _workpaper.Id, _draftRevision);
+            _result = result.Succeeded ? CommandResult.Ok() : CommandResult.Fail(result.ErrorCode!, result.Message ?? "The draft could not be discarded.");
+            if (result.Succeeded) await RefreshAsync();
+        }
+        finally { _busy = false; }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _autosaveCts?.Cancel();
+        _autosaveCts?.Dispose();
+        if (_pendingAutosave is not null)
+        {
+            try { await _pendingAutosave; }
+            catch (OperationCanceledException) { }
+        }
+        _draftWork = string.Empty;
+        _draftConclusion = string.Empty;
+        _lastSaveId = Guid.Empty;
     }
 }

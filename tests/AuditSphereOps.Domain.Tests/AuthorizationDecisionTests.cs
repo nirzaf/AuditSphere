@@ -42,7 +42,8 @@ public sealed class AuthorizationDecisionTests
     db.TrialBalanceDatasets.Add(new TrialBalanceDataset
     {
       Id = datasetId, FirmId = firmId, ClientId = clientId, EngagementId = engagementId,
-      Currency = "QAR", ImportedAt = DateTimeOffset.UtcNow
+      Currency = "QAR", ImportedAt = DateTimeOffset.UtcNow,
+      ImportState = TrialBalanceImportStates.Sealed
     });
     await db.SaveChangesAsync();
     return new Scope(firmId, clientId, engagementId, datasetId);
@@ -162,7 +163,8 @@ public sealed class AuthorizationDecisionTests
       db.TrialBalanceDatasets.Add(new TrialBalanceDataset
       {
         Id = b.DatasetId, FirmId = firmId, ClientId = a.ClientId, EngagementId = b.EngagementId,
-        Currency = "QAR", ImportedAt = DateTimeOffset.UtcNow
+        Currency = "QAR", ImportedAt = DateTimeOffset.UtcNow,
+        ImportState = TrialBalanceImportStates.Sealed
       });
       await db.SaveChangesAsync();
       user = await SeedUserAsync(db, firmId);
@@ -393,6 +395,7 @@ public sealed class AuthorizationDecisionTests
     public DbSet<AuditSphereOps.Domain.Documents.PbcUploadIntent> PbcUploadIntents => db.PbcUploadIntents;
     public DbSet<AuditSphereOps.Domain.Documents.PbcUploadChunk> PbcUploadChunks => db.PbcUploadChunks;
     public DbSet<AuditSphereOps.Domain.Audit.Workpaper> Workpapers => db.Workpapers;
+    public DbSet<AuditSphereOps.Domain.Audit.WorkpaperDraft> WorkpaperDrafts => db.WorkpaperDrafts;
     public DbSet<AuditSphereOps.Domain.Audit.WorkpaperSubmission> WorkpaperSubmissions => db.WorkpaperSubmissions;
     public DbSet<AuditSphereOps.Domain.Audit.MaterialityAssessment> MaterialityAssessments => db.MaterialityAssessments;
     public DbSet<AuditSphereOps.Domain.Audit.PopulationVersion> PopulationVersions => db.PopulationVersions;

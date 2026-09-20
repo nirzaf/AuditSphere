@@ -30,11 +30,24 @@ public sealed class OutboxMigrationTests
         VALUES ({client}, {firm}, {legacyName}, NULL, {legacyStatus}, NULL, statement_timestamp())
         """);
       db.Engagements.Add(new Engagement { Id = engagement, FirmId = firm, PracticeClientId = client });
-      db.TrialBalanceDatasets.Add(new TrialBalanceDataset { Id = dataset, FirmId = firm,
-        ClientId = client, EngagementId = engagement, Currency = "QAR" });
-      db.TrialBalanceRows.Add(new TrialBalanceRow { Id = Guid.NewGuid(), DatasetId = dataset,
-        AccountCode = "001", Amount = 123.456789m, Currency = "QAR" });
       await db.SaveChangesAsync();
+
+      // The current EF model contains the import-state column introduced after
+      // this fixture's target migration. Seed the legacy shape explicitly so
+      // the migration itself, rather than EF's current model, adds that column.
+      await db.Database.ExecuteSqlInterpolatedAsync($"""
+        INSERT INTO trial_balance_datasets
+          (id, firm_id, client_id, engagement_id, source_kind, revision, currency,
+           sha256_hex, balanced, control_total, imported_at, imported_by_user_id,
+           validation_status)
+        VALUES ({dataset}, {firm}, {client}, {engagement}, 'Legacy', 1, 'QAR',
+                'legacy-fixture', FALSE, 123.456789, statement_timestamp(), {Guid.Empty}, 'Pending')
+        """);
+      await db.Database.ExecuteSqlInterpolatedAsync($"""
+        INSERT INTO trial_balance_rows
+          (id, dataset_id, account_code, account_name, amount, currency, entity, mapping_code)
+        VALUES ({Guid.NewGuid()}, {dataset}, '001', 'Legacy account', 123.456789, 'QAR', 'Legacy', NULL)
+        """);
       await db.Database.MigrateAsync();
     }
     await using var verify = new AuditSphereDbContext(pg.Options);

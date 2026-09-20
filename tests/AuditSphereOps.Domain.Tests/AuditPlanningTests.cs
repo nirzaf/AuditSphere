@@ -281,6 +281,127 @@ public sealed class AuditPlanningTests
         Assert.Equal(1, await stale.WorkpaperSubmissions.CountAsync());
     }
 
+    [Fact(DisplayName = "ASH-05: Workpaper draft is durable, idempotent and consumed by submission")]
+    public async Task WorkpaperDraft_DurableIdempotentAndConsumed()
+    {
+        await using var pg = await PgTestSchema.CreateAsync();
+        var fixture = await PlanningSeed.CreateAsync(pg);
+        var scope = fixture.Primary;
+
+        WorkpaperResult created;
+        await using (var db = new AuditSphereDbContext(pg.Options))
+        {
+            var result = await AuditPlanningService.CreateWorkpaperAsync(db, scope.Actor,
+                new CreateWorkpaperRequest(scope.EngagementId, "DR-01", "Draft durability",
+                    "Exercise durable workpaper state", "T-1", null, "Document the work"));
+            Assert.True(result.Succeeded);
+            created = result.Value!;
+        }
+
+        var saveId = Guid.NewGuid();
+        WorkpaperDraftResult saved;
+        await using (var db = new AuditSphereDbContext(pg.Options))
+        {
+            var result = await AuditPlanningService.SaveWorkpaperDraftAsync(db, scope.Actor,
+                new SaveWorkpaperDraftRequest(created.WorkpaperId, 0, 1, 1, 1, saveId,
+                    "Performed step one", "Working conclusion"));
+            Assert.True(result.Succeeded);
+            saved = result.Value!;
+            Assert.Equal(1L, saved.DraftRevision);
+        }
+
+        await using (var reload = new AuditSphereDbContext(pg.Options))
+        {
+            var loaded = await AuditPlanningService.LoadWorkpaperDraftAsync(reload, scope.Actor, created.WorkpaperId);
+            Assert.True(loaded.Succeeded);
+            Assert.Equal("Performed step one", loaded.Value!.WorkPerformed);
+            Assert.Equal(saveId, loaded.Value.LastSaveId);
+        }
+
+        await using (var retry = new AuditSphereDbContext(pg.Options))
+        {
+            var same = await AuditPlanningService.SaveWorkpaperDraftAsync(retry, scope.Actor,
+                new SaveWorkpaperDraftRequest(created.WorkpaperId, 0, 1, 1, 1, saveId,
+                    "Performed step one", "Working conclusion"));
+            Assert.True(same.Succeeded);
+            Assert.Equal(saved.DraftRevision, same.Value!.DraftRevision);
+
+            var conflict = await AuditPlanningService.SaveWorkpaperDraftAsync(retry, scope.Actor,
+                new SaveWorkpaperDraftRequest(created.WorkpaperId, 0, 1, 1, 1, saveId,
+                    "Different content", "Working conclusion"));
+            Assert.False(conflict.Succeeded);
+            Assert.Equal(ErrorCodes.IdempotencyConflict, conflict.ErrorCode);
+        }
+
+        var secondSaveId = Guid.NewGuid();
+        await using (var update = new AuditSphereDbContext(pg.Options))
+        {
+            var next = await AuditPlanningService.SaveWorkpaperDraftAsync(update, scope.Actor,
+                new SaveWorkpaperDraftRequest(created.WorkpaperId, 1, 1, 1, 1, secondSaveId,
+                    "Performed step one and two", "Final conclusion"));
+            Assert.True(next.Succeeded);
+            Assert.Equal(2L, next.Value!.DraftRevision);
+        }
+
+        WorkpaperResult discardedTarget;
+        await using (var createDiscardTarget = new AuditSphereDbContext(pg.Options))
+        {
+            var result = await AuditPlanningService.CreateWorkpaperAsync(createDiscardTarget, scope.Actor,
+                new CreateWorkpaperRequest(scope.EngagementId, "DR-02", "Discard and restart",
+                    "Exercise discard lifecycle", "T-1", null, "Document the work"));
+            Assert.True(result.Succeeded);
+            discardedTarget = result.Value!;
+        }
+        var discardedSaveId = Guid.NewGuid();
+        await using (var saveDiscardTarget = new AuditSphereDbContext(pg.Options))
+        {
+            var result = await AuditPlanningService.SaveWorkpaperDraftAsync(saveDiscardTarget, scope.Actor,
+                new SaveWorkpaperDraftRequest(discardedTarget.WorkpaperId, 0, 1, 1, 1, discardedSaveId,
+                    "Old draft", "Old conclusion"));
+            Assert.True(result.Succeeded);
+        }
+        await using (var discard = new AuditSphereDbContext(pg.Options))
+        {
+            var result = await AuditPlanningService.DiscardWorkpaperDraftAsync(discard, scope.Actor,
+                discardedTarget.WorkpaperId, 1);
+            Assert.True(result.Succeeded);
+        }
+        await using (var restart = new AuditSphereDbContext(pg.Options))
+        {
+            var late = await AuditPlanningService.SaveWorkpaperDraftAsync(restart, scope.Actor,
+                new SaveWorkpaperDraftRequest(discardedTarget.WorkpaperId, 1, 1, 1, 1, Guid.NewGuid(),
+                    "Late old draft", "Late old conclusion"));
+            Assert.False(late.Succeeded);
+            Assert.Equal(ErrorCodes.StaleRevision, late.ErrorCode);
+
+            var fresh = await AuditPlanningService.SaveWorkpaperDraftAsync(restart, scope.Actor,
+                new SaveWorkpaperDraftRequest(discardedTarget.WorkpaperId, 0, 1, 1, 1, Guid.NewGuid(),
+                    "Fresh draft", "Fresh conclusion"));
+            Assert.True(fresh.Succeeded);
+            Assert.Equal(2L, fresh.Value!.DraftRevision);
+            Assert.Equal(WorkpaperDraftLifecycles.Active, fresh.Value.Lifecycle);
+        }
+
+        await using (var submit = new AuditSphereDbContext(pg.Options))
+        {
+            var result = await AuditPlanningService.SubmitWorkpaperAsync(submit, scope.Actor,
+                new SubmitWorkpaperRequest(created.WorkpaperId, 1,
+                    "Performed step one and two", "Final conclusion", 2, secondSaveId));
+            Assert.True(result.Succeeded);
+        }
+
+        await using (var verify = new AuditSphereDbContext(pg.Options))
+        {
+            var draft = await verify.WorkpaperDrafts.AsNoTracking().SingleAsync(x => x.WorkpaperId == created.WorkpaperId);
+            Assert.Equal(WorkpaperDraftLifecycles.Consumed, draft.Lifecycle);
+            var late = await AuditPlanningService.SaveWorkpaperDraftAsync(verify, scope.Actor,
+                new SaveWorkpaperDraftRequest(created.WorkpaperId, 2, 1, 1, 1, Guid.NewGuid(),
+                    "Late autosave", "Late conclusion"));
+            Assert.False(late.Succeeded);
+            Assert.Equal(ErrorCodes.ProtectedState, late.ErrorCode);
+        }
+    }
+
     // ── NT-21.7 ─────────────────────────────────────────────────────────────
 
     [Fact(DisplayName = "NT-21.7: Finding persisted with its own type, impact and corrected flag")]

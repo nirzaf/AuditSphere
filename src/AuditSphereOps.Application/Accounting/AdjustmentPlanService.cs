@@ -27,17 +27,17 @@ public static class SourceReconciliationService
     CancellationToken ct = default)
   {
     if (string.IsNullOrWhiteSpace(logicalJournalNumber) || logicalJournalNumber.Trim().Length > 32)
-      return CommandResult.Fail("reconciliation.rejected", "Logical journal number is required (max 32).");
+      return CommandResult.Fail(ErrorCodes.Accounting.ReconciliationRejected, "Logical journal number is required (max 32).");
     logicalJournalNumber = logicalJournalNumber.Trim();
     if (state is not (ReflectionStates.NotReflected or ReflectionStates.Reflected
         or ReflectionStates.PartiallyReflected or ReflectionStates.NotApplicable))
-      return CommandResult.Fail("reconciliation.rejected", "Unknown reflection state.");
+      return CommandResult.Fail(ErrorCodes.Accounting.ReconciliationRejected, "Unknown reflection state.");
     evidence = (evidence ?? string.Empty).Trim();
     if ((state is ReflectionStates.Reflected or ReflectionStates.PartiallyReflected) && evidence.Length == 0)
-      return CommandResult.Fail("reconciliation.rejected",
+      return CommandResult.Fail(ErrorCodes.Accounting.ReconciliationRejected,
         "Reflection needs source posting identifiers or a line-level bridge — never an equal total alone.");
     if (evidence.Length > 2000)
-      return CommandResult.Fail("reconciliation.rejected", "Evidence is bounded to 2000 characters.");
+      return CommandResult.Fail(ErrorCodes.Accounting.ReconciliationRejected, "Evidence is bounded to 2000 characters.");
 
     var dataset = await db.TrialBalanceDatasets.AsNoTracking()
       .SingleOrDefaultAsync(d => d.Id == baseDatasetId, ct);
@@ -103,18 +103,18 @@ public static class AdjustmentPlanService
     CancellationToken ct = default)
   {
     if (lines.Count == 0)
-      return CommandResult<Guid>.Fail("plan.rejected", "A plan needs at least one journal line.");
+      return CommandResult<Guid>.Fail(ErrorCodes.Accounting.PlanRejected, "A plan needs at least one journal line.");
     var seen = new HashSet<(string Logical, string Layer)>();
     foreach (var line in lines)
     {
       if (string.IsNullOrWhiteSpace(line.LogicalJournalNumber) || line.LogicalJournalNumber.Trim().Length > 32)
-        return CommandResult<Guid>.Fail("plan.rejected", "Logical journal number is required (max 32).");
+        return CommandResult<Guid>.Fail(ErrorCodes.Accounting.PlanRejected, "Logical journal number is required (max 32).");
       if (line.JournalRevision < 1)
-        return CommandResult<Guid>.Fail("plan.rejected", "Journal revision must be at least 1.");
+        return CommandResult<Guid>.Fail(ErrorCodes.Accounting.PlanRejected, "Journal revision must be at least 1.");
       if (string.IsNullOrWhiteSpace(line.Layer) || line.Layer.Trim().Length > 32)
-        return CommandResult<Guid>.Fail("plan.rejected", "Layer is required (max 32).");
+        return CommandResult<Guid>.Fail(ErrorCodes.Accounting.PlanRejected, "Layer is required (max 32).");
       if (!seen.Add((line.LogicalJournalNumber.Trim(), line.Layer.Trim().ToUpperInvariant())))
-        return CommandResult<Guid>.Fail("plan.rejected",
+        return CommandResult<Guid>.Fail(ErrorCodes.Accounting.PlanRejected,
           $"Logical journal {line.LogicalJournalNumber} appears twice: one operative revision per purpose/layer.");
     }
 
@@ -201,7 +201,7 @@ public static class AdjustmentPlanService
     var lines = await db.AdjustmentPlanLines.AsNoTracking()
       .Where(l => l.PlanId == plan.Id).ToListAsync(ct);
     if (lines.Count == 0)
-      return CommandResult<FinalizedPlan>.Fail("plan.rejected", "A plan needs at least one journal line.");
+      return CommandResult<FinalizedPlan>.Fail(ErrorCodes.Accounting.PlanRejected, "A plan needs at least one journal line.");
 
     // Stale-plan guard: the live decision must still match the snapshot.
     var live = await db.JournalSourceReconciliations.AsNoTracking()

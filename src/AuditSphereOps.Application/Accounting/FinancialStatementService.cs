@@ -66,7 +66,6 @@ public static class FinancialStatementService
 {
   private static readonly string[] PreparerRoles = ["AccountingPreparer", "AccountingReviewer", "Manager", "Partner", "Administrator"];
   private static readonly string[] ReviewerRoles = ["AccountingReviewer", "Manager", "Partner", "Administrator"];
-  private const string CalculationEngineVersion = "auditsphere.fs-engine.v1";
 
   public static async Task<CommandResult<Guid>> CreateMappingVersionAsync(
     IAuditSphereDbContext db,
@@ -76,7 +75,7 @@ public static class FinancialStatementService
   {
     var invalid = ValidateMappingRequest(request);
     if (invalid is not null)
-      return CommandResult<Guid>.Fail("mapping.invalid", invalid);
+      return CommandResult<Guid>.Fail(ErrorCodes.Accounting.MappingInvalid, invalid);
 
     var dataset = await db.TrialBalanceDatasets.AsNoTracking()
       .SingleOrDefaultAsync(x => x.Id == request.DatasetId, ct);
@@ -95,7 +94,7 @@ public static class FinancialStatementService
       .ToListAsync(ct);
     var mappingError = ValidateAllocations(rows, request.Allocations);
     if (mappingError is not null)
-      return CommandResult<Guid>.Fail("mapping.incomplete", mappingError);
+      return CommandResult<Guid>.Fail(ErrorCodes.Accounting.MappingIncomplete, mappingError);
 
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     if (await LockFirmAsync(db, actor.FirmId, ct) is null)
@@ -140,7 +139,7 @@ public static class FinancialStatementService
     CancellationToken ct = default)
   {
     if (mappingVersionId == Guid.Empty || expectedVersion < 1)
-      return CommandResult.Fail("mapping.invalid", "A mapping version and positive expected version are required.");
+      return CommandResult.Fail(ErrorCodes.Accounting.MappingInvalid, "A mapping version and positive expected version are required.");
 
     var snapshot = await db.MappingVersions.AsNoTracking().SingleOrDefaultAsync(x =>
       x.Id == mappingVersionId && x.FirmId == actor.FirmId, ct);
@@ -182,7 +181,7 @@ public static class FinancialStatementService
         x.StatementSection, x.Fraction, x.Rationale, x.AuditArea)).ToListAsync(ct);
     var mappingError = ValidateAllocations(rows, allocations);
     if (mappingError is not null)
-      return CommandResult.Fail("mapping.incomplete", mappingError);
+      return CommandResult.Fail(ErrorCodes.Accounting.MappingIncomplete, mappingError);
 
     client.InputGeneration++;
     mapping.Generation = client.InputGeneration;
@@ -202,7 +201,7 @@ public static class FinancialStatementService
   {
     var invalid = ValidatePackageRequest(request);
     if (invalid is not null)
-      return CommandResult<FinancialPackageBuildResult>.Fail("package.invalid", invalid);
+      return CommandResult<FinancialPackageBuildResult>.Fail(ErrorCodes.Accounting.PackageInvalid, invalid);
 
     var mapping = await db.MappingVersions.AsNoTracking().SingleOrDefaultAsync(x =>
       x.Id == request.MappingVersionId && x.FirmId == actor.FirmId, ct);
@@ -238,19 +237,20 @@ public static class FinancialStatementService
     var allocationError = ValidateAllocations(
       calculated.Value.Balances.Select(x => new SourceBalance(x.Key, x.Value)).ToList(), allocations);
     if (allocationError is not null)
-      return CommandResult<FinancialPackageBuildResult>.Fail("mapping.incomplete", allocationError);
+      return CommandResult<FinancialPackageBuildResult>.Fail(ErrorCodes.Accounting.MappingIncomplete, allocationError);
 
     var supplementaryError = ValidateSupplementaryInformation(request.SupplementaryInformation);
     if (supplementaryError is not null)
-      return CommandResult<FinancialPackageBuildResult>.Fail("package.supplementary.invalid", supplementaryError);
+      return CommandResult<FinancialPackageBuildResult>.Fail(ErrorCodes.Accounting.PackageSupplementaryInvalid, supplementaryError);
 
-    var packageLines = BuildPackageLines(calculated.Value.Balances, allocations, dataset.Currency);
+    var packageLines = FinancialStatementCalculator.BuildPackageLines(calculated.Value.Balances, allocations, dataset.Currency);
     var statementTotals = packageLines.GroupBy(x => x.StatementSection, StringComparer.Ordinal)
       .ToDictionary(x => x.Key, x => MoneyPolicy.Normalize(x.Sum(y => y.Amount)), StringComparer.Ordinal);
     var supplementaryHash = request.SupplementaryInformation is null
       ? null
-      : ComputeSupplementaryHash(request.SupplementaryInformation, dataset.Currency);
-    var packageHash = ComputePackageHash(request, mapping, plan, calculated.Value.ResultHash, packageLines, supplementaryHash);
+      : FinancialStatementCalculator.ComputeSupplementaryHash(request.SupplementaryInformation, dataset.Currency);
+    var packageHash = FinancialStatementCalculator.ComputePackageHash(request, mapping, plan,
+      calculated.Value.ResultHash, packageLines, supplementaryHash);
 
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     if (await LockFirmAsync(db, actor.FirmId, ct) is null)
@@ -258,6 +258,21 @@ public static class FinancialStatementService
     var client = await LockClientAsync(db, actor.FirmId, mapping.ClientId, ct);
     if (client is null)
       return CommandResult<FinancialPackageBuildResult>.Fail(ErrorCodes.GateBlocked, "Client safety state is unavailable.");
+
+    // Re-read mutable inputs after the lock order has been acquired. Calculation may have
+    // taken time, so an approval/generation change observed here must refuse publication
+    // instead of silently persisting a package from an obsolete snapshot.
+    var currentMapping = await db.MappingVersions.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.Id == mapping.Id && x.FirmId == mapping.FirmId, ct);
+    var currentPlan = await db.AdjustmentPlans.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.Id == plan.Id && x.FirmId == plan.FirmId, ct);
+    if (currentMapping is null || currentPlan is null ||
+        currentMapping.Version != mapping.Version ||
+        currentMapping.Generation != client.InputGeneration ||
+        currentMapping.Status != AccountingPackageStates.MappingApproved ||
+        currentPlan.Status != "Finalized" || currentPlan.ResultHash != plan.ResultHash)
+      return CommandResult<FinancialPackageBuildResult>.Fail(ErrorCodes.GenerationStale,
+        "Accounting inputs changed while the package was being calculated; reload and retry.");
 
     var existing = await db.FinancialPackages.AsNoTracking().SingleOrDefaultAsync(x =>
       x.FirmId == actor.FirmId && x.AdjustmentPlanId == plan.Id &&
@@ -305,7 +320,7 @@ public static class FinancialStatementService
       MappingVersionId = mapping.Id, AdjustmentPlanId = plan.Id,
       Framework = request.Framework.Trim(), PeriodStart = request.PeriodStart.Trim(),
       PeriodEnd = request.PeriodEnd.Trim(), TaxonomyVersion = mapping.TaxonomyVersion,
-      TemplateVersion = request.TemplateVersion.Trim(), CalculationEngineVersion = CalculationEngineVersion,
+      TemplateVersion = request.TemplateVersion.Trim(), CalculationEngineVersion = FinancialStatementCalculator.CalculationEngineVersion,
       CalculationHash = packageHash, Currency = dataset.Currency, Revision = 1,
       Generation = client.InputGeneration,
       Status = request.SupplementaryInformation is null
@@ -565,45 +580,6 @@ public static class FinancialStatementService
     return null;
   }
 
-  private static List<PackageLine> BuildPackageLines(
-    IReadOnlyDictionary<string, decimal> balances,
-    IReadOnlyCollection<MappingAllocationInput> allocations,
-    string currency)
-  {
-    var lines = new List<PackageLine>();
-    foreach (var balance in balances.OrderBy(x => x.Key, StringComparer.Ordinal))
-    {
-      foreach (var allocation in allocations.Where(x => x.SourceAccountCode == balance.Key)
-        .OrderBy(x => x.DestinationCode, StringComparer.Ordinal))
-      {
-        lines.Add(new PackageLine(balance.Key, allocation.DestinationCode, allocation.StatementSection,
-          MoneyPolicy.Normalize(balance.Value * allocation.Fraction), allocation.Fraction, currency));
-      }
-    }
-    return lines;
-  }
-
-  private static string ComputePackageHash(
-    BuildFinancialPackageRequest request,
-    MappingVersion mapping,
-    AdjustmentPlan plan,
-    string adjustedHash,
-    IReadOnlyCollection<PackageLine> lines,
-    string? supplementaryHash)
-  {
-    var canonical = string.Join('\n', new[]
-    {
-      "financial-statement-package.v1", mapping.Id.ToString("D"), mapping.Version.ToString(CultureInfo.InvariantCulture),
-      plan.Id.ToString("D"), plan.ResultHash ?? string.Empty, adjustedHash, request.Framework.Trim(),
-      request.PeriodStart.Trim(), request.PeriodEnd.Trim(), mapping.TaxonomyVersion,
-      request.TemplateVersion.Trim(), CalculationEngineVersion, supplementaryHash ?? string.Empty
-    }.Concat(lines.OrderBy(x => x.SourceAccountCode, StringComparer.Ordinal)
-      .ThenBy(x => x.DestinationCode, StringComparer.Ordinal)
-      .Select(x => string.Join('|', x.SourceAccountCode, x.DestinationCode, x.StatementSection,
-        x.Amount.ToString("0.000000", CultureInfo.InvariantCulture), x.Fraction.ToString("0.000000", CultureInfo.InvariantCulture), x.Currency))));
-    return Hashing.Sha256Hex(canonical);
-  }
-
   private static string? ValidateSupplementaryInformation(FinancialSupplementaryInformation? input)
   {
     if (input is null) return null;
@@ -628,22 +604,6 @@ public static class FinancialStatementService
     var expected = MoneyPolicy.Normalize(input.CashEnding - input.CashBeginning);
     var actual = MoneyPolicy.Normalize(input.CashFlowLines.Sum(x => x.Amount));
     return expected == actual ? null : $"Cash-flow lines total {actual} but the opening/closing bridge is {expected}.";
-  }
-
-  private static string ComputeSupplementaryHash(FinancialSupplementaryInformation input, string currency)
-  {
-    var canonical = string.Join('\n', new[]
-    {
-      "financial-supplementary-information.v1", currency,
-      input.CashBeginning.ToString("0.000000", CultureInfo.InvariantCulture),
-      input.CashEnding.ToString("0.000000", CultureInfo.InvariantCulture)
-    }.Concat(input.CashFlowLines.OrderBy(x => x.Section, StringComparer.OrdinalIgnoreCase)
-      .ThenBy(x => x.Description, StringComparer.Ordinal)
-      .Select(x => string.Join('|', x.Section.Trim().ToUpperInvariant(), x.Description.Trim(),
-        x.Amount.ToString("0.000000", CultureInfo.InvariantCulture))))
-     .Concat(input.Disclosures.OrderBy(x => x.Code, StringComparer.OrdinalIgnoreCase)
-       .Select(x => string.Join('|', x.Code.Trim().ToUpperInvariant(), x.NotApplicable ? "NA" : x.Response.Trim(), x.Rationale?.Trim() ?? string.Empty))));
-    return Hashing.Sha256Hex(canonical);
   }
 
   private static void AddValidation(
@@ -694,10 +654,6 @@ public static class FinancialStatementService
   private static bool ValidDate(string value) =>
     DateOnly.TryParseExact(value, "yyyy-MM-dd", CultureInfo.InvariantCulture,
       DateTimeStyles.None, out _);
-
-  private sealed record PackageLine(
-    string SourceAccountCode, string DestinationCode, string StatementSection,
-    decimal Amount, decimal Fraction, string Currency);
 
   private sealed record SourceBalance(string AccountCode, decimal Amount);
 

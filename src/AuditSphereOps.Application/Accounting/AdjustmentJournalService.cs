@@ -25,14 +25,14 @@ public static class AdjustmentJournalService
     CancellationToken ct = default)
   {
     if (string.IsNullOrWhiteSpace(journalNumber) || journalNumber.Length > 32)
-      return CommandResult<Guid>.Fail("journal.rejected", "Journal number is required (max 32 characters).");
+      return CommandResult<Guid>.Fail(ErrorCodes.Accounting.JournalRejected, "Journal number is required (max 32 characters).");
     journalNumber = journalNumber.Trim();
     if (lines.Count < 2)
-      return CommandResult<Guid>.Fail("journal.rejected", "A journal needs at least two lines.");
+      return CommandResult<Guid>.Fail(ErrorCodes.Accounting.JournalRejected, "A journal needs at least two lines.");
 
     var check = CheckLines(lines);
     if (check is not null)
-      return CommandResult<Guid>.Fail("journal.rejected", check);
+      return CommandResult<Guid>.Fail(ErrorCodes.Accounting.JournalRejected, check);
 
     var dataset = await db.TrialBalanceDatasets.AsNoTracking()
       .SingleOrDefaultAsync(d => d.Id == baseDatasetId, ct);
@@ -106,7 +106,7 @@ public static class AdjustmentJournalService
       .Where(l => l.JournalId == journal.Id).ToListAsync(ct);
     var check = CheckLines(lines.Select(l => (l.AccountCode, l.Debit, l.Credit)).ToList());
     if (check is not null)
-      return CommandResult.Fail("journal.rejected", check);
+      return CommandResult.Fail(ErrorCodes.Accounting.JournalRejected, check);
 
     journal.Status = "Posted";
     await db.SaveChangesAsync(ct);

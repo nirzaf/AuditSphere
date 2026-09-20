@@ -80,6 +80,7 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
   public DbSet<AuditProcedure> AuditProcedures => Set<AuditProcedure>();
   public DbSet<PopulationVersion> PopulationVersions => Set<PopulationVersion>();
   public DbSet<Workpaper> Workpapers => Set<Workpaper>();
+  public DbSet<WorkpaperDraft> WorkpaperDrafts => Set<WorkpaperDraft>();
   public DbSet<WorkpaperSubmission> WorkpaperSubmissions => Set<WorkpaperSubmission>();
   public DbSet<Finding> Findings => Set<Finding>();
   public DbSet<ReviewPoint> ReviewPoints => Set<ReviewPoint>();
@@ -846,9 +847,15 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
   private static void ConfigureAccounting(ModelBuilder b)
   {
     b.Entity<TrialBalanceDataset>().Property(x => x.ValidationStatus).HasMaxLength(16).HasDefaultValue("Pending");
+    b.Entity<TrialBalanceDataset>().Property(x => x.ImportState).HasMaxLength(16)
+      .HasDefaultValue(TrialBalanceImportStates.Sealed).ValueGeneratedNever();
     b.Entity<TrialBalanceDataset>().ToTable("trial_balance_datasets", table =>
+    {
       table.HasCheckConstraint("ck_tb_validation_status",
-        "validation_status IN ('Pending', 'Accepted', 'Rejected') AND (validation_status <> 'Accepted' OR (balanced AND control_total = 0))"));
+        "validation_status IN ('Pending', 'Accepted', 'Rejected') AND (validation_status <> 'Accepted' OR (balanced AND control_total = 0))");
+      table.HasCheckConstraint("ck_tb_import_state",
+        "import_state IN ('LOADING', 'SEALED')");
+    });
     b.Entity<TrialBalanceRow>().HasIndex(x => x.DatasetId);
     b.Entity<AdjustmentJournal>().HasIndex(x => new { x.FirmId, x.EngagementId, x.BaseDatasetId, x.JournalNumber }).IsUnique();
     // Duplicate-file guard: the same source bytes can never become two datasets for one
@@ -1247,6 +1254,29 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
       .OnDelete(DeleteBehavior.Restrict);
     submission.HasOne<AppUser>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.ActorId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var draft = b.Entity<WorkpaperDraft>();
+    draft.HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_workpaper_drafts_firm_id_id");
+    draft.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.WorkpaperId, x.OwnerUserId })
+      .HasName("AK_workpaper_drafts_scope_owner");
+    draft.Property(x => x.WorkPerformed).HasMaxLength(100000);
+    draft.Property(x => x.Conclusion).HasMaxLength(20000);
+    draft.Property(x => x.Lifecycle).HasMaxLength(16);
+    draft.HasIndex(x => new { x.FirmId, x.WorkpaperId, x.OwnerUserId })
+      .IsUnique().HasDatabaseName("ux_workpaper_drafts_owner");
+    draft.ToTable("workpaper_drafts", t => t.HasCheckConstraint("ck_workpaper_draft_values",
+      "base_workpaper_revision > 0 AND base_input_generation > 0 AND base_policy_generation > 0" +
+      " AND draft_revision > 0 AND length(work_performed) <= 100000 AND length(conclusion) <= 20000" +
+      " AND lifecycle IN ('ACTIVE','CONSUMED','DISCARDED')"));
+    ScopeToEngagement(draft, nameof(WorkpaperDraft.FirmId), nameof(WorkpaperDraft.ClientId),
+      nameof(WorkpaperDraft.EngagementId));
+    draft.HasOne<Workpaper>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.WorkpaperId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
+      .OnDelete(DeleteBehavior.Restrict);
+    draft.HasOne<AppUser>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.OwnerUserId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
 
     var procedure = b.Entity<AuditProcedure>();

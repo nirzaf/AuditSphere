@@ -27,6 +27,69 @@ public static class ErrorCodes
   public const string GateBlocked = "gate.blocked";
   public const string ManifestMismatch = "manifest.mismatch";
   public const string ExternalEffectsFenced = "external-effects.fenced";
+
+  // Stable catalogs. Existing wire values remain unchanged; new code should use
+  // the owning catalog instead of parsing or inventing message text.
+  public static class Accounting
+  {
+    public const string ImportRejected = "import.rejected";
+    public const string ImportDuplicate = "import.duplicate";
+    public const string MappingInvalid = "mapping.invalid";
+    public const string MappingIncomplete = "mapping.incomplete";
+    public const string PackageInvalid = "package.invalid";
+    public const string PackageSupplementaryInvalid = "package.supplementary.invalid";
+    public const string JournalRejected = "journal.rejected";
+    public const string ReconciliationRejected = "reconciliation.rejected";
+    public const string PlanRejected = "plan.rejected";
+  }
+
+  public static class AuditPlanning
+  {
+    public const string Invalid = "audit-planning.invalid";
+  }
+
+  public static class Drafts
+  {
+    public const string NotFound = "draft.not-found";
+    public const string Conflict = "draft.conflict";
+    public const string TargetChanged = "draft.target-changed";
+    public const string Consumed = "draft.consumed";
+  }
+
+  public static class Operations
+  {
+    public const string Invalid = "operations.invalid";
+    public const string State = "operations.state";
+    public const string Lease = "operations.lease";
+    public const string Conflict = "operations.conflict";
+    public const string RecoveryInvalid = "recovery.invalid";
+    public const string Quarantined = "operations.quarantined";
+  }
+}
+
+/// <summary>
+/// Safe presentation text for command failures. Machine-readable codes remain
+/// available to logs and API envelopes, while the UI never has to echo an
+/// unknown code or server message to an end user.
+/// </summary>
+public static class ErrorCatalog
+{
+  public const string UnknownUiMessage = "The operation could not be completed. Reload and try again.";
+
+  public static string ForUi(string? code) => code switch
+  {
+    ErrorCodes.ScopeDenied => "You do not have access to this item.",
+    ErrorCodes.ProtectedState => "This item is no longer editable.",
+    ErrorCodes.StaleRevision => "This item changed. Reload the current version and try again.",
+    ErrorCodes.GenerationStale => "The underlying inputs changed. Reload the current version and try again.",
+    ErrorCodes.GateBlocked => "This operation is currently blocked by a required prerequisite.",
+    ErrorCodes.IdempotencyConflict => "This retry conflicts with an earlier request.",
+    ErrorCodes.Drafts.NotFound => "No active draft is available.",
+    ErrorCodes.Drafts.Conflict => "The draft could not be saved because it changed.",
+    ErrorCodes.Drafts.TargetChanged => "The workpaper changed. Reload it before editing.",
+    ErrorCodes.Drafts.Consumed => "This draft was already submitted and is no longer editable.",
+    _ => UnknownUiMessage
+  };
 }
 
 /// <summary>Money policy: max 6dp storage (§42.1), single presentation currency per package (§1.5).</summary>

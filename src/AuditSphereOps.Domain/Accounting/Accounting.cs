@@ -13,9 +13,20 @@ public sealed class TrialBalanceDataset
   public string Sha256Hex { get; set; } = string.Empty;
   public bool Balanced { get; set; }
   public string ValidationStatus { get; set; } = "Pending";
+  /// <summary>
+  /// Source membership lifecycle. New datasets start LOADING; the guarded importer
+  /// promotes them to SEALED only after all source rows are present.
+  /// </summary>
+  public string ImportState { get; set; } = TrialBalanceImportStates.Loading;
   public decimal ControlTotal { get; set; }
   public DateTimeOffset ImportedAt { get; set; }
   public Guid ImportedByUserId { get; set; }
+}
+
+public static class TrialBalanceImportStates
+{
+  public const string Loading = "LOADING";
+  public const string Sealed = "SEALED";
 }
 
 public sealed class TrialBalanceRow

@@ -31,7 +31,7 @@ public static class TrialBalanceImportService
     }
     catch (InvalidOperationException ex)
     {
-      return CommandResult<Guid>.Fail("import.rejected", ex.Message);
+      return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ImportRejected, ex.Message);
     }
 
     // Resolve the engagement first so the firm scope comes from the stored record.
@@ -45,53 +45,75 @@ public static class TrialBalanceImportService
     if (!auth.Succeeded)
       return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
 
+    // Serialize imports for one engagement while retaining independence across
+    // clients/engagements. The parent is first persisted as LOADING, rows are
+    // inserted, and only then is the parent promoted to SEALED in this transaction.
+    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    var lockedEngagement = await db.Engagements.FromSqlInterpolated($"""
+      SELECT * FROM engagements WHERE id = {engagementId} AND firm_id = {engagement.FirmId} FOR UPDATE
+      """).AsNoTracking().SingleOrDefaultAsync(ct);
+    if (lockedEngagement is null || lockedEngagement.PracticeClientId != clientId)
+      return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+
     var duplicate = await db.TrialBalanceDatasets.AsNoTracking().AnyAsync(d =>
-      d.FirmId == engagement.FirmId && d.EngagementId == engagementId &&
+      d.FirmId == lockedEngagement.FirmId && d.EngagementId == engagementId &&
       d.Sha256Hex == parsed.SourceHash, ct);
     if (duplicate)
-      return CommandResult<Guid>.Fail("import.duplicate",
+      return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ImportDuplicate,
         "Identical source bytes were already imported for this engagement; reuse that dataset.");
 
     var revision = await db.TrialBalanceDatasets
-      .Where(d => d.FirmId == engagement.FirmId && d.EngagementId == engagementId)
+      .Where(d => d.FirmId == lockedEngagement.FirmId && d.EngagementId == engagementId)
       .Select(d => (long?)d.Revision).MaxAsync(ct) ?? 0;
     var dataset = new TrialBalanceDataset
     {
       Id = Guid.CreateVersion7(),
-      FirmId = engagement.FirmId,
+      FirmId = lockedEngagement.FirmId,
       ClientId = clientId,
       EngagementId = engagementId,
       SourceKind = "Raw",
       Revision = revision + 1,
       Currency = parsed.Currency,
       Sha256Hex = parsed.SourceHash,
+      ImportState = TrialBalanceImportStates.Loading,
+      ValidationStatus = "Pending",
       ImportedAt = DateTimeOffset.UtcNow,
       ImportedByUserId = actor.UserId
     };
     db.TrialBalanceDatasets.Add(dataset);
-    foreach (var row in parsed.Rows)
-    {
-      db.TrialBalanceRows.Add(new TrialBalanceRow
-      {
-        Id = Guid.CreateVersion7(),
-        DatasetId = dataset.Id,
-        AccountCode = row.AccountCode,
-        AccountName = row.AccountName,
-        Amount = row.Amount,
-        Currency = row.Currency,
-        Entity = row.Entity,
-        MappingCode = row.MappingCode
-      });
-    }
     try
     {
       await db.SaveChangesAsync(ct);
+      foreach (var row in parsed.Rows)
+      {
+        db.TrialBalanceRows.Add(new TrialBalanceRow
+        {
+          Id = Guid.CreateVersion7(),
+          DatasetId = dataset.Id,
+          AccountCode = row.AccountCode,
+          AccountName = row.AccountName,
+          Amount = row.Amount,
+          Currency = row.Currency,
+          Entity = row.Entity,
+          MappingCode = row.MappingCode
+        });
+      }
+      await db.SaveChangesAsync(ct);
+      dataset.ImportState = TrialBalanceImportStates.Sealed;
+      await db.SaveChangesAsync(ct);
+      await tx.CommitAsync(ct);
     }
-    catch (DbUpdateException)
+    catch (DbUpdateException ex) when (IsUniqueViolation(ex))
     {
-      return CommandResult<Guid>.Fail("import.duplicate",
+      return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ImportDuplicate,
         "Identical source bytes were already imported for this engagement; reuse that dataset.");
     }
     return CommandResult<Guid>.Ok(dataset.Id);
   }
+
+  private static bool IsUniqueViolation(DbUpdateException exception) =>
+    exception.GetBaseException() is { } baseException &&
+    string.Equals(baseException.GetType().Name, "PostgresException", StringComparison.Ordinal) &&
+    string.Equals(baseException.GetType().GetProperty("SqlState")?.GetValue(baseException)?.ToString(),
+      "23505", StringComparison.Ordinal);
 }

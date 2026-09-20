@@ -28,6 +28,7 @@ public sealed class TrialBalanceWorkerTests
         new TrialBalanceRow { Id = Guid.NewGuid(), DatasetId = id, AccountCode = "001", Amount = 100m, Currency = "QAR" },
         new TrialBalanceRow { Id = Guid.NewGuid(), DatasetId = id, AccountCode = "002", Amount = -90m, Currency = "QAR" });
       await seed.SaveChangesAsync();
+      await seed.Database.ExecuteSqlInterpolatedAsync($"UPDATE trial_balance_datasets SET import_state = {TrialBalanceImportStates.Sealed} WHERE id = {id}");
     }
 
     var worker = CreateWorker(pg, firmId);
@@ -68,6 +69,7 @@ public sealed class TrialBalanceWorkerTests
         new TrialBalanceRow { Id = Guid.NewGuid(), DatasetId = balanced, AccountCode = "002", Amount = -5m, Currency = "QAR" },
         new TrialBalanceRow { Id = Guid.NewGuid(), DatasetId = unbalanced, AccountCode = "001", Amount = 1m, Currency = "QAR" });
       await seed.SaveChangesAsync();
+      await seed.Database.ExecuteSqlInterpolatedAsync($"UPDATE trial_balance_datasets SET import_state = {TrialBalanceImportStates.Sealed} WHERE id IN ({balanced}, {unbalanced})");
     }
 
     var worker = CreateWorker(pg, firmId);

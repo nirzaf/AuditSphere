@@ -1,6 +1,7 @@
 using System.Text.Json;
 using AuditSphereOps.Application.Documents;
 using AuditSphereOps.Application.Operations;
+using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Shared;
 using Microsoft.EntityFrameworkCore;
@@ -32,14 +33,13 @@ public sealed class TrialBalanceValidationHandler : IOperationHandler
 
   public async Task LockTargetAsync(IAuditSphereDbContext db, DurableOperation op, CancellationToken ct)
   {
-    // Retain the existing bounded-slice row-writer interlock.
-    await db.Database.ExecuteSqlRawAsync("LOCK TABLE trial_balance_rows IN SHARE MODE", ct);
     var rows = await db.TrialBalanceDatasets.FromSqlInterpolated($"""
       SELECT * FROM trial_balance_datasets WHERE id = {op.TargetId} AND firm_id = {op.FirmId}
         AND client_id = {op.ClientId} AND engagement_id = {op.EngagementId} FOR UPDATE
       """).ToListAsync(ct);
     if (rows.Count != 1 || rows[0].Revision != op.ExpectedRevision || rows[0].SourceKind != "Raw" ||
-        rows[0].ValidationStatus != "Pending" || !await db.Engagements.AnyAsync(e => e.Id == op.EngagementId &&
+        rows[0].ImportState != TrialBalanceImportStates.Sealed || rows[0].ValidationStatus != "Pending" ||
+        !await db.Engagements.AnyAsync(e => e.Id == op.EngagementId &&
           e.FirmId == op.FirmId && e.PracticeClientId == op.ClientId, ct))
       throw new OperationBlockedException("validation-scope-or-revision-conflict", authorization: true);
   }
@@ -76,6 +76,7 @@ public sealed class TrialBalanceDiscovery(IAuditSphereDbContextFactory factory, 
     await using var read = await factory.CreateAsync(ct);
     var pending = await read.TrialBalanceDatasets.AsNoTracking()
       .Where(d => d.FirmId == options.FirmId && d.SourceKind == "Raw" && d.ValidationStatus == "Pending" &&
+        d.ImportState == TrialBalanceImportStates.Sealed &&
         !read.DurableOperations.Any(o => o.FirmId == d.FirmId && o.TargetId == d.Id &&
           o.ExpectedRevision == d.Revision && o.OperationKind == TrialBalanceValidationHandler.Kind))
       .OrderBy(d => d.ImportedAt).ThenBy(d => d.Id).Take(25).ToListAsync(ct);

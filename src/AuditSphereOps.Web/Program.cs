@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Application.Completion;
+using AuditSphereOps.Application.Diagnostics;
 using AuditSphereOps.Application.Documents;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Domain.Shared;
@@ -13,6 +14,9 @@ using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Npgsql;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
 using Serilog;
 using AuditSphereOps.Web.Authentication;
 using AuditSphereOps.Infrastructure.Persistence;
@@ -27,6 +31,30 @@ Log.Logger = new LoggerConfiguration()
   .CreateLogger();
 builder.Host.UseSerilog();
 
+// Telemetry is independently configurable from ExternalEffects. With no OTLP endpoint the
+// in-process ActivitySource/Meter remain inert; enabling an exporter never participates in a
+// business transaction and therefore cannot roll back durable state.
+var telemetryEndpoint = builder.Configuration["Telemetry:Otlp:Endpoint"];
+var telemetry = builder.Services.AddOpenTelemetry()
+  .ConfigureResource(resource => resource.AddService("AuditSphereOps.Web"))
+  .WithTracing(tracing =>
+  {
+    tracing.AddSource(AuditDiagnostics.ActivitySourceName)
+      .AddSource("Npgsql")
+      .AddAspNetCoreInstrumentation()
+      .AddHttpClientInstrumentation();
+    if (Uri.TryCreate(telemetryEndpoint, UriKind.Absolute, out var endpoint))
+      tracing.AddOtlpExporter(options => options.Endpoint = endpoint);
+  })
+  .WithMetrics(metrics =>
+  {
+    metrics.AddMeter(AuditDiagnostics.MeterName)
+      .AddMeter("Npgsql")
+      .AddRuntimeInstrumentation();
+    if (Uri.TryCreate(telemetryEndpoint, UriKind.Absolute, out var endpoint))
+      metrics.AddOtlpExporter(options => options.Endpoint = endpoint);
+  });
+
 // Razor components: Interactive Server, no prerender for auth-sensitive shells (§43.4 draft).
 builder.Services.AddRazorComponents()
   .AddInteractiveServerComponents();
@@ -34,9 +62,12 @@ builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddHttpContextAccessor();
 
 // PostgreSQL: single AuditSphere connection string; startup validates, never auto-applies destructive DDL (§45.6).
-var connectionString = builder.Configuration.GetConnectionString("AuditSphere");
-builder.Services.AddDbContextFactory<AuditSphereDbContext>(options =>
-  options.UseNpgsql(connectionString ?? "Host=127.0.0.1;Port=5433;Database=auditsphere;Username=postgres"));
+var connectionString = builder.Configuration.GetConnectionString("AuditSphere")
+  ?? "Host=127.0.0.1;Port=5433;Database=auditsphere;Username=postgres";
+var dataSourceBuilder = new NpgsqlDataSourceBuilder(connectionString) { Name = "AuditSphere.Web" };
+var dataSource = dataSourceBuilder.Build();
+builder.Services.AddSingleton(dataSource);
+builder.Services.AddDbContextFactory<AuditSphereDbContext>(options => options.UseNpgsql(dataSource));
 
 var identity = builder.Configuration.GetSection("Identity");
 var tenantId = identity["TenantId"];

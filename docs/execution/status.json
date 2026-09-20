@@ -244,6 +244,14 @@
     {
       "command": "Fresh SharePoint compliance reread and authenticated local shell (2026-09-20T09:23:29Z)",
       "result": "A fresh browser reread of SharePoint Compliance details returned the same negative protection state for AuditSphere-Dev-Test-Record.txt: no retention policy, not on hold, and not an in-place record. The authenticated local Portfolio shell remained rendered at http://localhost:5099/app with live PostgreSQL counts; no tenant data or permissions were changed."
+    },
+    {
+      "command": "Focused engineering hardening verification (2026-09-20T11:15:04Z)",
+      "result": "ASH-01 through ASH-06 implementation changes are present in the uncommitted worktree, including one-way SEALED enforcement and named Web/Worker Npgsql data sources. PostgreSQL 18.6 full suite passed 168/168 with 0 skipped; serial Web and Worker isolated builds passed with 0 warnings and 0 errors using installed SDK 10.0.401 from outside the repository because the pinned 10.0.300 SDK is unavailable; EF reported no pending model changes; status.json parsed successfully; and git diff --check passed. The read-only local connection baseline for auditsphere_tests returned NOT JUSTIFIED - RETAIN NPGSQL POOLING, so no pooler deployment was authorized or made."
+    },
+    {
+      "command": "Current hardening migration and built-in browser smoke (2026-09-20T11:26:28Z)",
+      "result": "The current Web project rebuilt with 0 warnings/errors, migration 20260920102142_WorkpaperDraftsAndTrialBalanceSealing was applied to the local development database only, and the current hardened host started on http://127.0.0.1:5100. Direct probes returned HTTP 200 Healthy for /health/live and /health/ready. Built-in Chrome rendered the current Portfolio shell at /app; the clean process had no OIDC environment values, so the protected shell truthfully rendered Sign-in required. The local auditsphere database contains 0 workpapers, so no real draft editor could be exercised in the browser without inventing business data. The earlier 5099 fake-workpaper route rendered the safe Workpaper unavailable state rather than an exception; the current unauthenticated 5100 route correctly rendered Sign in required. The browser blocked direct /health/ready navigation as ERR_BLOCKED_BY_CLIENT, so health evidence came from the direct local HTTP probe."
     }
   ],
   "tenantEvidence": [
@@ -409,5 +417,5 @@
     }
   ],
   "nextPermittedAction": "P0 is the active dependency-ready package and its remaining reconciliation items are verified; P6 is complete locally. The EasyGuide P4 developer-tenant observations are retained as historical evidence, but P4 stays BLOCKED_EXTERNAL on its P1/P2 predecessors, label propagation/protection observation, and compliance approval. Master merge protection is verified, but P9 still requires independent human review. P1 remains blocked on approved secret-store reference/rotation evidence, required identity fixtures, and live acceptance; P2–P3, P5, P7–P8, and P10 remain blocked until their required provider credentials, custodians, professional approvals, recovery measurements, and independent review exist.",
-  "lastVerifiedAt": "2026-09-20T09:23:29Z"
+  "lastVerifiedAt": "2026-09-20T11:26:28Z"
 }

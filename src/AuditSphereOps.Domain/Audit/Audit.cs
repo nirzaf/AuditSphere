@@ -139,6 +139,36 @@ public static class WorkpaperStatuses
   public const string SubmittedSnapshot = "SUBMITTED_SNAPSHOT";
 }
 
+/// <summary>
+/// Durable server-side working content for one owner and workpaper. Drafts are
+/// disposable working state; the immutable submission remains the official record.
+/// </summary>
+public sealed class WorkpaperDraft
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public Guid EngagementId { get; set; }
+  public Guid WorkpaperId { get; set; }
+  public Guid OwnerUserId { get; set; }
+  public long BaseWorkpaperRevision { get; set; } = 1;
+  public long BaseInputGeneration { get; set; } = 1;
+  public long BasePolicyGeneration { get; set; } = 1;
+  public long DraftRevision { get; set; } = 1;
+  public string WorkPerformed { get; set; } = string.Empty;
+  public string Conclusion { get; set; } = string.Empty;
+  public Guid LastSaveId { get; set; }
+  public DateTimeOffset LastSavedAt { get; set; }
+  public string Lifecycle { get; set; } = WorkpaperDraftLifecycles.Active;
+}
+
+public static class WorkpaperDraftLifecycles
+{
+  public const string Active = "ACTIVE";
+  public const string Consumed = "CONSUMED";
+  public const string Discarded = "DISCARDED";
+}
+
 /// <summary>Immutable submitted content; review and approval always target a frozen submission (§21.1, §22).</summary>
 public sealed class WorkpaperSubmission
 {

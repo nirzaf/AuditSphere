@@ -60,7 +60,7 @@ public static class OperationRecoveryService
     CancellationToken ct = default)
   {
     if (input.OperationId == Guid.Empty)
-      return CommandResult.Fail("operations.invalid", "An operation id is required.");
+      return CommandResult.Fail(ErrorCodes.Operations.Invalid, "An operation id is required.");
     var auth = await AuthorizeAsync(db, actor, ct);
     if (!auth.Succeeded)
       return auth;
@@ -74,7 +74,7 @@ public static class OperationRecoveryService
     if (safety.Count != 1 || safety[0].OperatingMode != "LOCAL_ONLY")
     {
       await tx.RollbackAsync(ct);
-      return CommandResult.Fail("operations.quarantined",
+      return CommandResult.Fail(ErrorCodes.Operations.Quarantined,
         "Recovery requires the firm to be in the local-only operating mode.");
     }
     var locked = await db.DurableOperations.FromSqlInterpolated($"""
@@ -84,10 +84,10 @@ public static class OperationRecoveryService
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var op = locked[0];
     if (!RetryableStates.Contains(op.Status))
-      return CommandResult.Fail("operations.state",
+      return CommandResult.Fail(ErrorCodes.Operations.State,
         "Only blocked, dead-lettered, authorization-blocked or uncertain operations can be re-armed.");
     if (op.LeaseOwner is not null)
-      return CommandResult.Fail("operations.lease", "The operation still holds an active lease.");
+      return CommandResult.Fail(ErrorCodes.Operations.Lease, "The operation still holds an active lease.");
 
     var count = await db.Database.ExecuteSqlInterpolatedAsync($"""
       UPDATE durable_operations SET status = 'RETRY_WAIT', error_code = NULL,
@@ -97,7 +97,7 @@ public static class OperationRecoveryService
         AND attempt_token = {op.AttemptToken} AND status = {op.Status.ToString()}
       """, ct);
     if (count != 1)
-      return CommandResult.Fail("operations.conflict", "The operation changed while the recovery command ran.");
+      return CommandResult.Fail(ErrorCodes.Operations.Conflict, "The operation changed while the recovery command ran.");
     db.OperationEvents.Add(new OperationEvent
     {
       Id = Guid.CreateVersion7(), OperationId = op.Id, Token = op.AttemptToken,
@@ -134,7 +134,7 @@ public static class OperationRecoveryService
   {
     if (string.IsNullOrWhiteSpace(input.RestorePoint) || input.ExternalEpoch < 1 ||
         string.IsNullOrWhiteSpace(input.ReconciliationScope) || string.IsNullOrWhiteSpace(input.Findings))
-      return CommandResult<Guid>.Fail("recovery.invalid", "Restore point, epoch, scope and findings are required.");
+      return CommandResult<Guid>.Fail(ErrorCodes.Operations.RecoveryInvalid, "Restore point, epoch, scope and findings are required.");
     var auth = await AuthorizeAsync(db, actor, ct);
     if (!auth.Succeeded)
       return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
@@ -170,7 +170,7 @@ public static class OperationRecoveryService
     CancellationToken ct = default)
   {
     if (input.SessionId == Guid.Empty || string.IsNullOrWhiteSpace(input.Findings))
-      return CommandResult.Fail("recovery.invalid", "Session and reconciliation findings are required.");
+      return CommandResult.Fail(ErrorCodes.Operations.RecoveryInvalid, "Session and reconciliation findings are required.");
     var auth = await AuthorizeAsync(db, actor, ct);
     if (!auth.Succeeded)
       return auth;
@@ -193,7 +193,7 @@ public static class OperationRecoveryService
       WHERE id = {actor.FirmId} AND operating_mode = 'RECOVERY_QUARANTINE'
       """, ct);
     if (count != 1)
-      return CommandResult.Fail("operations.conflict", "The firm is not awaiting recovery restart approval.");
+      return CommandResult.Fail(ErrorCodes.Operations.Conflict, "The firm is not awaiting recovery restart approval.");
     await db.SaveChangesAsync(ct);
     await tx.CommitAsync(ct);
     return CommandResult.Ok();
@@ -237,7 +237,7 @@ public static class OperationRecoveryService
     if (count != 1)
     {
       await tx.RollbackAsync(ct);
-      return CommandResult.Fail("operations.conflict", "Firm safety state changed while lifting quarantine.");
+      return CommandResult.Fail(ErrorCodes.Operations.Conflict, "Firm safety state changed while lifting quarantine.");
     }
 
     await tx.CommitAsync(ct);

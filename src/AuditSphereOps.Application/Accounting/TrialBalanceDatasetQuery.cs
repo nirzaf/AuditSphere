@@ -5,6 +5,7 @@
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Security;
+using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Shared;
 using Microsoft.EntityFrameworkCore;
 
@@ -23,7 +24,8 @@ public static class TrialBalanceDatasetQuery
     CancellationToken ct = default)
   {
     var dataset = await db.TrialBalanceDatasets.AsNoTracking()
-      .SingleOrDefaultAsync(d => d.Id == datasetId, ct);
+      .SingleOrDefaultAsync(d => d.Id == datasetId &&
+        d.ImportState == TrialBalanceImportStates.Sealed, ct);
     if (dataset is null)
       return CommandResult<TrialBalanceDatasetDto>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
 
