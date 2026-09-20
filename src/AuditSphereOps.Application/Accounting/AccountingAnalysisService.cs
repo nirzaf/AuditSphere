@@ -445,12 +445,17 @@ public static class AccountingAnalysisService
       return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
     if (!await db.ClientReportingPeriods.AnyAsync(x => x.FirmId == actor.FirmId && x.ClientId == request.ClientId && x.Id == request.PeriodId, ct))
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "The schedule period is outside the client scope.");
+    var clientState = await db.ClientSafetyStates.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.Id == request.ClientId && x.FirmId == actor.FirmId, ct);
+    if (clientState is null)
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Client accounting safety state is unavailable.");
     var calculated = request.OpeningAmount + request.AdditionsAmount - request.DisposalsAmount -
       request.DepreciationAmount - request.ImpairmentAmount;
     var schedule = new SpecialistAccountingSchedule
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = request.ClientId, EngagementId = request.EngagementId,
-      PeriodId = request.PeriodId, Area = request.Area.Trim().ToUpperInvariant(), MethodologyVersion = request.MethodologyVersion.Trim(),
+      PeriodId = request.PeriodId, InputGeneration = clientState.InputGeneration, Area = request.Area.Trim().ToUpperInvariant(),
+      MethodologyVersion = request.MethodologyVersion.Trim(),
       OpeningAmount = MoneyPolicy.Normalize(request.OpeningAmount), AdditionsAmount = MoneyPolicy.Normalize(request.AdditionsAmount),
       DisposalsAmount = MoneyPolicy.Normalize(request.DisposalsAmount), DepreciationAmount = MoneyPolicy.Normalize(request.DepreciationAmount),
       ImpairmentAmount = MoneyPolicy.Normalize(request.ImpairmentAmount), InterestAmount = MoneyPolicy.Normalize(request.InterestAmount),
@@ -477,6 +482,10 @@ public static class AccountingAnalysisService
       new AuthorizationRequest(actor.FirmId, request.ClientId, request.EngagementId, PreparerRoles, InternalOnly: true), ct);
     if (!auth.Succeeded)
       return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+    var clientState = await db.ClientSafetyStates.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.Id == request.ClientId && x.FirmId == actor.FirmId, ct);
+    if (clientState is null)
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Client accounting safety state is unavailable.");
     decimal? ratio = request.PriorAmount == 0m ? null : MoneyPolicy.Normalize((request.CurrentAmount - request.PriorAmount) / Math.Abs(request.PriorAmount));
     var canonical = string.Join('|', request.ClientId, request.EngagementId, request.PeriodId, request.Area.Trim().ToUpperInvariant(),
       request.Measure.Trim(), request.CurrentAmount.ToString("0.000000", CultureInfo.InvariantCulture),
@@ -484,7 +493,8 @@ public static class AccountingAnalysisService
     var review = new AnalyticalReview
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = request.ClientId, EngagementId = request.EngagementId,
-      PeriodId = request.PeriodId, ComparisonPeriodId = request.ComparisonPeriodId, Area = request.Area.Trim().ToUpperInvariant(),
+      PeriodId = request.PeriodId, InputGeneration = clientState.InputGeneration, ComparisonPeriodId = request.ComparisonPeriodId,
+      Area = request.Area.Trim().ToUpperInvariant(),
       Measure = request.Measure.Trim(), CurrentAmount = MoneyPolicy.Normalize(request.CurrentAmount), PriorAmount = MoneyPolicy.Normalize(request.PriorAmount),
       BudgetAmount = request.BudgetAmount.HasValue ? MoneyPolicy.Normalize(request.BudgetAmount.Value) : null, Ratio = ratio,
       DenominatorBasis = request.DenominatorBasis.Trim(), FormulaVersion = request.FormulaVersion.Trim(),
@@ -576,6 +586,7 @@ public static class AccountingAnalysisService
         if (decision == AccountingEvidenceReviewDecisions.Approved && specialist.EvidenceReference.Length == 0)
           return CommandResult.Fail(ErrorCodes.GateBlocked, "A specialist schedule review needs evidence.");
         clientId = specialist.ClientId; engagementId = specialist.EngagementId; createdByUserId = specialist.CreatedByUserId;
+        recordedInputGeneration = specialist.InputGeneration;
         apply = () => { specialist.Status = decision; specialist.ReviewedByUserId = actor.UserId; specialist.ReviewedAt = DateTimeOffset.UtcNow; };
         break;
       case AccountingEvidenceKinds.Analytical:
@@ -585,6 +596,7 @@ public static class AccountingAnalysisService
         if (decision == AccountingEvidenceReviewDecisions.Approved && analytical.Ratio is null)
           return CommandResult.Fail(ErrorCodes.GateBlocked, "Insufficient analytical data cannot be approved.");
         clientId = analytical.ClientId; engagementId = analytical.EngagementId; createdByUserId = analytical.CreatedByUserId;
+        recordedInputGeneration = analytical.InputGeneration;
         apply = () => { analytical.Status = decision; analytical.ReviewedByUserId = actor.UserId; analytical.ReviewedAt = DateTimeOffset.UtcNow; };
         break;
       default:
@@ -615,7 +627,14 @@ public static class AccountingAnalysisService
           reconciliation.Status is not ("RECONCILED" or "APPROVED") ||
           !string.Equals(reconciliation.SourceHash, recordedSourceHash, StringComparison.OrdinalIgnoreCase) ||
           currentGeneration.Value != recordedInputGeneration)
-        return CommandResult.Fail(ErrorCodes.GenerationStale, "The valuation source or client input generation changed; prepare a new assessment.");
+        return CommandResult.Fail(ErrorCodes.GenerationStale, "The accounting evidence source or client input generation changed; prepare new evidence.");
+    }
+    else if (recordedInputGeneration is { } recordedGeneration)
+    {
+      var currentGeneration = await db.ClientSafetyStates.AsNoTracking().Where(x =>
+        x.Id == clientId && x.FirmId == actor.FirmId).Select(x => (long?)x.InputGeneration).SingleOrDefaultAsync(ct);
+      if (currentGeneration is null || currentGeneration.Value != recordedGeneration)
+        return CommandResult.Fail(ErrorCodes.GenerationStale, "The client input generation changed; prepare new evidence.");
     }
 
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,

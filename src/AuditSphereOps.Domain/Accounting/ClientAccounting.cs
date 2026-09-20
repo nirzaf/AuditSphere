@@ -487,6 +487,7 @@ public sealed class SpecialistAccountingSchedule
   public Guid ClientId { get; set; }
   public Guid EngagementId { get; set; }
   public Guid PeriodId { get; set; }
+  public long InputGeneration { get; set; } = 1;
   public string Area { get; set; } = string.Empty; // ASSETS | PAYROLL | LOANS | EQUITY | TAX | FORECAST
   public string MethodologyVersion { get; set; } = string.Empty;
   public decimal OpeningAmount { get; set; }
@@ -519,6 +520,7 @@ public sealed class AnalyticalReview
   public Guid ClientId { get; set; }
   public Guid EngagementId { get; set; }
   public Guid PeriodId { get; set; }
+  public long InputGeneration { get; set; } = 1;
   public Guid? ComparisonPeriodId { get; set; }
   public string Area { get; set; } = string.Empty;
   public string Measure { get; set; } = string.Empty;

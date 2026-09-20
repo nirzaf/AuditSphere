@@ -201,6 +201,45 @@ public sealed class ClientAccountingTests
 
   [Fact]
   [Trait("Profile", "Database")]
+  public async Task SpecialistAndAnalyticalEvidence_BlocksWhenClientGenerationChanges()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var scope = await SeedAsync(pg);
+    var preparer = Actor(scope.Preparer, "AccountingPreparer");
+    var reviewer = Actor(scope.Reviewer, "AccountingReviewer");
+    var fixture = await CreateGlFixtureAsync(pg, scope, preparer);
+    Guid specialistId, analyticalId;
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      specialistId = (await AccountingAnalysisService.RecordSpecialistScheduleAsync(db, preparer,
+        new SpecialistScheduleRequest(scope.ClientA, scope.EngagementA, fixture.PeriodId, "ASSETS", "asset-v1",
+          OpeningAmount: 100m, AdditionsAmount: 20m, DisposalsAmount: 0m, DepreciationAmount: 10m,
+          ImpairmentAmount: 0m, InterestAmount: 0m, CurrentPortion: 0m, NonCurrentPortion: 0m,
+          CapitalMovement: 0m, Dividends: 0m, TaxPaid: 0m, ManagementAmount: 110m,
+          AssumptionsHash: new string('e', 64), EvidenceReference: "asset-register"))).Value;
+      analyticalId = (await AccountingAnalysisService.CreateAnalyticalReviewAsync(db, preparer,
+        new AnalyticalReviewRequest(scope.ClientA, scope.EngagementA, fixture.PeriodId, null, "REVENUE", "monthly",
+          120m, 100m, 110m, "prior-year-total", "analytics-v1", "Seasonal movement explained by signed contracts."))).Value;
+
+      var clientState = await db.ClientSafetyStates.SingleAsync(x => x.FirmId == scope.FirmId && x.Id == scope.ClientA);
+      clientState.InputGeneration++;
+      await db.SaveChangesAsync();
+
+      var specialistReview = await AccountingAnalysisService.ReviewAccountingEvidenceAsync(db, reviewer,
+        new ReviewAccountingEvidenceRequest(AccountingEvidenceKinds.Specialist, specialistId, AccountingEvidenceReviewDecisions.Approved));
+      Assert.False(specialistReview.Succeeded);
+      Assert.Equal(ErrorCodes.GenerationStale, specialistReview.ErrorCode);
+
+      var analyticalReview = await AccountingAnalysisService.ReviewAccountingEvidenceAsync(db, reviewer,
+        new ReviewAccountingEvidenceRequest(AccountingEvidenceKinds.Analytical, analyticalId, AccountingEvidenceReviewDecisions.Approved));
+      Assert.False(analyticalReview.Succeeded);
+      Assert.Equal(ErrorCodes.GenerationStale, analyticalReview.ErrorCode);
+    }
+  }
+
+  [Fact]
+  [Trait("Profile", "Database")]
   public async Task StreamingGlImport_IsIdempotentAndSealsOnlyCompleteBatch()
   {
     await using var pg = await PgTestSchema.CreateAsync();
