@@ -398,7 +398,7 @@ The requirements document remains the authoritative acceptance checklist and is 
 live Entra/Graph/SharePoint/Purview behavior, approved professional methodology/signing, independent human review and
 merge evidence, and production cross-store recovery/RPO/RTO remain external or human gates requiring their owners.
 
-## Accounting module implementation (locally verified, uncommitted; 2026-09-20)
+## Accounting module implementation (locally verified and pushed at `73b8805`; 2026-09-20)
 
 The accounting-module requirement slice is implemented for the bounded local profile. It now includes client-scoped
 periods/books and opening-balance bridges, versioned charts and source aliases, approved taxonomy and mapping gates,

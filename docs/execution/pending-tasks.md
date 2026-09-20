@@ -388,7 +388,7 @@ Lead → Opportunity → Proposal → Client conversion → Client acceptance �
 
 ## Accounting module — local slice and residual gates
 
-**Status:** `LOCAL_VERIFIED` for the bounded implementation profile; external and advanced capabilities remain gated.
+**Status:** `LOCAL_VERIFIED` for the bounded implementation profile at pushed head `73b8805`; external and advanced capabilities remain gated.
 
 Completed locally:
 
