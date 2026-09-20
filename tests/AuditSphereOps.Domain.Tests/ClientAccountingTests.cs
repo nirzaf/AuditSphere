@@ -401,6 +401,59 @@ public sealed class ClientAccountingTests
   }
 
   [Fact]
+  [Trait("Profile", "Database")]
+  public async Task ClientPackageView_IsScopedAndSupportsSignedInManagementDecision()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var scope = await SeedAsync(pg);
+    var clientUser = User(scope.FirmId, "ClientApprover");
+    clientUser.UserKind = "Client";
+    Guid packageA, packageB;
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      packageA = await AddPackageAsync(db, scope, scope.ClientA, scope.EngagementA, 100m, "CASH", "client-view-a");
+      packageB = await AddPackageAsync(db, scope, scope.ClientB, scope.EngagementB, 200m, "CASH", "client-view-b");
+      db.Users.Add(clientUser);
+      db.RoleGrants.Add(new RoleGrant
+      {
+        Id = Guid.CreateVersion7(), FirmId = scope.FirmId, UserId = clientUser.Id,
+        Role = "ClientUser", ClientId = scope.ClientA, EngagementId = scope.EngagementA,
+        GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = scope.Preparer.Id
+      });
+      await db.SaveChangesAsync();
+    }
+
+    var actor = Actor(clientUser, "ClientUser");
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var view = await FinancialPackageReviewService.GetClientViewAsync(db, actor, packageA);
+      Assert.True(view.Succeeded, view.Message);
+      Assert.Equal(packageA, view.Value!.PackageId);
+      Assert.Equal("PENDING", view.Value.ManagementDecision);
+      Assert.Contains(view.Value.StatementTotals, x => x.StatementSection == "STATEMENT" && x.Amount == 100m);
+
+      var decision = await FinancialPackageReviewService.RecordAsync(db, actor,
+        new FinancialPackageReviewRequest(packageA, FinancialPackageReviewStages.ManagementApproval,
+          FinancialPackageReviewDecisions.Approved, FinancialPackageReviewEvidenceModes.SignedIn,
+          "client-portal-ack-1", "Management reviewed the supplied package."));
+      Assert.True(decision.Succeeded, decision.Message);
+
+      var approved = await FinancialPackageReviewService.GetClientViewAsync(db, actor, packageA);
+      Assert.True(approved.Succeeded, approved.Message);
+      Assert.Equal(FinancialPackageReviewDecisions.Approved, approved.Value!.ManagementDecision);
+
+      var internalReviews = await FinancialPackageReviewService.GetAsync(db, actor, packageA);
+      Assert.False(internalReviews.Succeeded);
+      Assert.Equal(ErrorCodes.ScopeDenied, internalReviews.ErrorCode);
+
+      var otherClient = await FinancialPackageReviewService.GetClientViewAsync(db, actor, packageB);
+      Assert.False(otherClient.Succeeded);
+      Assert.Equal(ErrorCodes.ScopeDenied, otherClient.ErrorCode);
+    }
+  }
+
+  [Fact]
   [Trait("Profile", "Unit")]
   public void RestrictedConsolidation_IsDeterministicAndFailsClosed()
   {

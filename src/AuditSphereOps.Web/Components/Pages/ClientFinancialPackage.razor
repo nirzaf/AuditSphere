@@ -1,0 +1,131 @@
+@page "/portal/accounting/packages/{PackageId:guid}"
+@rendermode InteractiveServer
+@inject CurrentActorResolver ActorResolver
+@inject IDbContextFactory<AuditSphereDbContext> DbFactory
+
+<PageTitle>Financial package — management review</PageTitle>
+<a class="back-link" href="/portal">← Back to client portal</a>
+<h1>Financial package</h1>
+
+@if (_loading)
+{
+  <p role="status">Loading the package…</p>
+}
+else if (_actor is null || _view is null)
+{
+  <section class="notice" role="alert"><h2>Package unavailable</h2><p>@(_loadError ?? "This package is not available in the current client scope.")</p></section>
+}
+else
+{
+  <section class="card" aria-labelledby="package-heading">
+    <p class="eyebrow">@_view.ManagementDecision</p>
+    <h2 id="package-heading">Management review</h2>
+    <p class="scope-note">This is a management acknowledgement of the supplied reporting package. It is not an audit opinion, assurance conclusion or proof that an external ledger has been posted.</p>
+    <dl class="details">
+      <dt>Framework</dt><dd>@_view.Framework</dd>
+      <dt>Period</dt><dd>@_view.PeriodStart to @_view.PeriodEnd</dd>
+      <dt>Currency</dt><dd>@_view.Currency</dd>
+      <dt>Template</dt><dd>@_view.TemplateVersion</dd>
+      <dt>Package hash</dt><dd><code>@_view.PackageHash</code></dd>
+      <dt>Supporting information</dt><dd>@(_view.HasCashFlow && _view.HasDisclosures ? "Cash flow and disclosures supplied" : "Incomplete supporting information")</dd>
+    </dl>
+  </section>
+
+  <section class="card" aria-labelledby="totals-heading">
+    <h2 id="totals-heading">Statement totals</h2>
+    <div class="table-wrap"><table>
+      <caption class="sr-only">Client-safe financial package statement totals</caption>
+      <thead><tr><th scope="col">Section</th><th scope="col">Amount</th></tr></thead>
+      <tbody>
+      @foreach (var total in _view.StatementTotals)
+      {
+        <tr><td>@total.StatementSection</td><td>@total.Amount.ToString("N2") @_view.Currency</td></tr>
+      }
+      </tbody>
+    </table></div>
+  </section>
+
+  @if (_view.ManagementDecision == "PENDING" || _view.ManagementDecision == FinancialPackageReviewDecisions.ChangesRequired)
+  {
+    <section class="card" aria-labelledby="decision-heading">
+      <h2 id="decision-heading">Record management decision</h2>
+      <p class="muted">Your authenticated client identity records the management decision against this exact package version. A changed package requires a new decision.</p>
+      <div class="form-grid">
+        <label for="management-decision">Decision<select id="management-decision" @bind="_decision">
+          @foreach (var decision in FinancialPackageReviewDecisions.All)
+          {
+            <option value="@decision">@decision</option>
+          }
+        </select></label>
+        <label for="evidence-reference">Evidence reference<input id="evidence-reference" @bind="_evidenceReference" maxlength="2000" autocomplete="off" required /></label>
+      </div>
+      <label for="management-comment">Comment<textarea id="management-comment" @bind="_comment" maxlength="4000" rows="4"></textarea></label>
+      <button class="button" @onclick="RecordAsync" disabled="@_busy">@(_busy ? "Recording…" : "Record management decision")</button>
+      @if (_result is not null)
+      {
+        <p class="command-result @(_result.Succeeded ? "success-text" : "error-text")" role="status">
+          @(_result.Succeeded ? "Management decision recorded." : $"Blocked: {_result.ErrorCode}")
+        </p>
+      }
+    </section>
+  }
+  else if (_view.ManagementDecision == FinancialPackageReviewDecisions.Approved)
+  {
+    <section class="notice success" role="status"><h2>Management approval recorded</h2><p>@(_view.ManagementDecidedAt?.ToLocalTime().ToString("yyyy-MM-dd HH:mm") ?? "Current package version")</p></section>
+  }
+  else
+  {
+    <section class="notice" role="status"><h2>Management changes required</h2><p>Internal staff must issue a new package version before another management decision can be recorded.</p></section>
+  }
+}
+
+@code {
+  [Parameter] public Guid PackageId { get; set; }
+  private ActorContext? _actor;
+  private ClientFinancialPackageView? _view;
+  private CommandResult<Guid>? _result;
+  private string? _loadError;
+  private string _decision = FinancialPackageReviewDecisions.Approved;
+  private string _evidenceReference = string.Empty;
+  private string _comment = string.Empty;
+  private bool _loading = true;
+  private bool _busy;
+
+  protected override async Task OnInitializedAsync()
+  {
+    _actor = await ActorResolver.ResolveAsync();
+    await LoadAsync();
+    _loading = false;
+  }
+
+  private async Task LoadAsync()
+  {
+    if (_actor is null) return;
+    await using var db = await DbFactory.CreateDbContextAsync();
+    var view = await FinancialPackageReviewService.GetClientViewAsync(db, _actor, PackageId);
+    if (view.Succeeded)
+      _view = view.Value;
+    else if (_result is null)
+      _loadError = view.Message;
+  }
+
+  private async Task RecordAsync()
+  {
+    if (_actor is null || _view is null || _busy) return;
+    _busy = true;
+    try
+    {
+      await using var db = await DbFactory.CreateDbContextAsync();
+      _result = await FinancialPackageReviewService.RecordAsync(db, _actor,
+        new FinancialPackageReviewRequest(PackageId, FinancialPackageReviewStages.ManagementApproval,
+          _decision, FinancialPackageReviewEvidenceModes.SignedIn, _evidenceReference, _comment));
+      if (_result.Succeeded)
+      {
+        _evidenceReference = string.Empty;
+        _comment = string.Empty;
+        await LoadAsync();
+      }
+    }
+    finally { _busy = false; }
+  }
+}

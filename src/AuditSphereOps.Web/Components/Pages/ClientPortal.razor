@@ -1,5 +1,6 @@
 @page "/portal"
 @rendermode InteractiveServer
+@using AuditSphereOps.Domain.Accounting
 @inject CurrentActorResolver ActorResolver
 @inject IDbContextFactory<AuditSphereDbContext> DbFactory
 
@@ -45,12 +46,42 @@ else
       </div>
     }
   </section>
+
+  <section class="card" aria-labelledby="client-packages-heading">
+    <h2 id="client-packages-heading">Financial packages for management review</h2>
+    <p class="scope-note">These are validated packages explicitly shared with this client identity. This view does not expose internal audit workpapers or review decisions.</p>
+    @if (_packages.Count == 0)
+    {
+      <p class="muted">No validated financial packages are available for this identity.</p>
+    }
+    else
+    {
+      <div class="table-wrap">
+        <table>
+          <caption class="sr-only">Validated financial packages available for management review</caption>
+          <thead><tr><th scope="col">Framework</th><th scope="col">Period</th><th scope="col">Currency</th><th scope="col"><span class="sr-only">Action</span></th></tr></thead>
+          <tbody>
+          @foreach (var package in _packages)
+          {
+            <tr>
+              <td>@package.Framework</td>
+              <td>@package.PeriodStart to @package.PeriodEnd</td>
+              <td><code>@package.Currency</code></td>
+              <td><a href="/portal/accounting/packages/@package.Id">Open package</a></td>
+            </tr>
+          }
+          </tbody>
+        </table>
+      </div>
+    }
+  </section>
 }
 
 @code {
   private ActorContext? _actor;
   private List<Guid> _clientIds = [];
   private List<PbcRequest> _requests = [];
+  private List<ClientPackageRow> _packages = [];
   private bool _loading = true;
 
   protected override async Task OnInitializedAsync()
@@ -59,14 +90,30 @@ else
     if (_actor is not null)
     {
       await using var db = await DbFactory.CreateDbContextAsync();
-      _clientIds = await db.RoleGrants.AsNoTracking().Where(x =>
+      var grants = await db.RoleGrants.AsNoTracking().Where(x =>
         x.FirmId == _actor.FirmId && x.UserId == _actor.UserId && x.Role == "ClientUser" &&
-        x.ClientId.HasValue && x.RevokedAt == null).Select(x => x.ClientId!.Value).Distinct().ToListAsync();
+        x.ClientId.HasValue && x.RevokedAt == null)
+        .Select(x => new { x.ClientId, x.EngagementId }).ToListAsync();
+      _clientIds = grants.Select(x => x.ClientId!.Value).Distinct().ToList();
       if (_clientIds.Count > 0)
+      {
         _requests = await db.PbcRequests.AsNoTracking().Where(x =>
           x.FirmId == _actor.FirmId && _clientIds.Contains(x.ClientId) &&
           x.ClientOwnerUserId == _actor.UserId).OrderBy(x => x.DueDate).ThenBy(x => x.Area).ToListAsync();
+        var packages = await db.FinancialPackages.AsNoTracking().Where(x =>
+          x.FirmId == _actor.FirmId && _clientIds.Contains(x.ClientId) &&
+          x.Status == AccountingPackageStates.PackageValidated)
+          .OrderByDescending(x => x.CreatedAt).Take(100).ToListAsync();
+        _packages = packages
+          .Where(package => grants.Any(grant => grant.ClientId == package.ClientId &&
+            (!grant.EngagementId.HasValue || grant.EngagementId == package.EngagementId)))
+          .Select(package => new ClientPackageRow(package.Id, package.Framework, package.PeriodStart,
+            package.PeriodEnd, package.Currency))
+          .ToList();
+      }
     }
     _loading = false;
   }
+
+  private sealed record ClientPackageRow(Guid Id, string Framework, string PeriodStart, string PeriodEnd, string Currency);
 }
