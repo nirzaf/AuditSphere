@@ -194,18 +194,23 @@ else
             _packageId = latestPackage.Id;
             _packageStatus = latestPackage.Status;
 
-            var packageApproval = await db.Approvals.AsNoTracking()
-                .Where(a => a.EngagementId == _engagement.Id && a.TargetId == latestPackage.Id && a.Decision == "APPROVED")
-                .OrderByDescending(a => a.DecidedAt)
-                .FirstOrDefaultAsync();
-
-            _partnerApproved = packageApproval is not null;
-
-            _gates.Add(new("Final financial statements approved",
-                _partnerApproved ? "APPROVED" : "PENDING",
-                _partnerApproved ? "badge-green" : "badge-yellow",
-                _partnerApproved ? $"User {packageApproval!.DecidedByUserId.ToString()[..8]}" : null,
-                packageApproval?.DecidedAt));
+            var packageReviews = await db.FinancialPackageReviewDecisions.AsNoTracking()
+                .Where(x => x.FirmId == _actor.FirmId && x.ClientId == latestPackage.ClientId &&
+                    x.EngagementId == latestPackage.EngagementId && x.FinancialPackageId == latestPackage.Id &&
+                    x.PackageRevision == latestPackage.Revision && x.PackageGeneration == latestPackage.Generation &&
+                    x.PackageHash == latestPackage.CalculationHash)
+                .ToListAsync();
+            foreach (var stage in new[]
+                { FinancialPackageReviewStages.ManagementApproval, FinancialPackageReviewStages.AccountingReview, FinancialPackageReviewStages.PartnerApproval })
+            {
+                var review = packageReviews.Where(x => x.Stage == stage).OrderByDescending(x => x.DecidedAt).FirstOrDefault();
+                var status = review?.Decision ?? "PENDING";
+                var statusClass = status == FinancialPackageReviewDecisions.Approved ? "badge-green" :
+                    status is FinancialPackageReviewDecisions.ChangesRequired or FinancialPackageReviewDecisions.Rejected ? "badge-red" : "badge-yellow";
+                _gates.Add(new($"Package {stage}", status, statusClass, review?.EvidenceReference, review?.DecidedAt));
+                if (stage == FinancialPackageReviewStages.PartnerApproval)
+                    _partnerApproved = status == FinancialPackageReviewDecisions.Approved;
+            }
         }
         else
         {
