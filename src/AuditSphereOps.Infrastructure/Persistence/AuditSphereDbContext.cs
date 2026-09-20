@@ -61,6 +61,7 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
   public DbSet<PbcUploadIntent> PbcUploadIntents => Set<PbcUploadIntent>();
   public DbSet<PbcUploadChunk> PbcUploadChunks => Set<PbcUploadChunk>();
   public DbSet<TrialBalanceDataset> TrialBalanceDatasets => Set<TrialBalanceDataset>();
+  public DbSet<TrialBalanceImportBatch> TrialBalanceImportBatches => Set<TrialBalanceImportBatch>();
   public DbSet<TrialBalanceRow> TrialBalanceRows => Set<TrialBalanceRow>();
   public DbSet<MappingRule> MappingRules => Set<MappingRule>();
   public DbSet<MappingVersion> MappingVersions => Set<MappingVersion>();
@@ -906,9 +907,30 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
 
   private static void ConfigureAccounting(ModelBuilder b)
   {
+    var importBatch = b.Entity<TrialBalanceImportBatch>();
+    importBatch.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
+      .HasName("AK_trial_balance_import_batches_scope_id");
+    importBatch.Property(x => x.RawFileSha256Hex).HasMaxLength(64);
+    importBatch.Property(x => x.NormalizedDatasetDigest).HasMaxLength(64);
+    importBatch.Property(x => x.ImportProfileVersion).HasMaxLength(100);
+    importBatch.Property(x => x.SourceLayout).HasMaxLength(30);
+    importBatch.Property(x => x.Status).HasMaxLength(16);
+    importBatch.HasIndex(x => new { x.FirmId, x.EngagementId, x.RawFileSha256Hex }).IsUnique()
+      .HasDatabaseName("ux_tb_import_batch_raw_hash");
+    importBatch.ToTable("trial_balance_import_batches", table => table.HasCheckConstraint("ck_tb_import_batch_values",
+      "raw_file_sha256_hex ~ '^[0-9a-f]{64}$' AND normalized_dataset_digest ~ '^[0-9a-f]{64}$' AND source_layout IN ('SIGNED_NET','DEBIT_CREDIT') AND entity_count >= 2 AND status IN ('LOADING','SEALED')"));
+    importBatch.HasOne<Engagement>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId })
+      .HasPrincipalKey(x => new { x.FirmId, x.PracticeClientId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    importBatch.HasOne<AppUser>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.CreatedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
     b.Entity<TrialBalanceDataset>().Property(x => x.LegalEntityKey).HasMaxLength(200);
     b.Entity<TrialBalanceDataset>().Property(x => x.RawFileSha256Hex).HasMaxLength(64);
     b.Entity<TrialBalanceDataset>().Property(x => x.NormalizedDatasetDigest).HasMaxLength(64);
+    b.Entity<TrialBalanceDataset>().Property(x => x.ImportProfileVersion).HasMaxLength(100);
+    b.Entity<TrialBalanceDataset>().Property(x => x.SourceLayout).HasMaxLength(30);
     b.Entity<TrialBalanceDataset>().Property(x => x.ValidationStatus).HasMaxLength(16).HasDefaultValue("Pending");
     b.Entity<TrialBalanceDataset>().Property(x => x.ImportState).HasMaxLength(16)
       .HasDefaultValue(TrialBalanceImportStates.Sealed).ValueGeneratedNever();
@@ -918,8 +940,12 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
         "validation_status IN ('Pending', 'Accepted', 'Rejected') AND (validation_status <> 'Accepted' OR (balanced AND control_total = 0))");
       table.HasCheckConstraint("ck_tb_import_state",
         "import_state IN ('LOADING', 'SEALED')");
+      table.HasCheckConstraint("ck_tb_source_layout",
+        "source_layout IN ('SIGNED_NET','DEBIT_CREDIT') AND (import_profile_version IS NOT NULL AND length(trim(import_profile_version)) > 0)");
     });
     b.Entity<TrialBalanceRow>().HasIndex(x => x.DatasetId);
+    b.Entity<TrialBalanceRow>().ToTable("trial_balance_rows", table => table.HasCheckConstraint("ck_tb_row_source_amounts",
+      "(source_debit IS NULL OR source_debit >= 0) AND (source_credit IS NULL OR source_credit >= 0)"));
     var journal = b.Entity<AdjustmentJournal>();
     journal.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
       .HasName("AK_adjustment_journals_scope_id");
@@ -936,8 +962,8 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     // Duplicate-file guard: the same source bytes can never become two datasets for one
     // engagement. Partial so legacy/empty-hash fixtures stay migratable; the import
     // command always stamps a real hash.
-    b.Entity<TrialBalanceDataset>().HasIndex(x => new { x.FirmId, x.EngagementId, x.RawFileSha256Hex }).IsUnique()
-      .HasDatabaseName("ux_dataset_firm_engagement_raw_hash").HasFilter("length(raw_file_sha256_hex) > 0");
+    b.Entity<TrialBalanceDataset>().HasIndex(x => new { x.FirmId, x.EngagementId, x.RawFileSha256Hex, x.LegalEntityKey }).IsUnique()
+      .HasDatabaseName("ux_dataset_firm_engagement_raw_hash_entity").HasFilter("length(raw_file_sha256_hex) > 0");
     b.Entity<JournalSourceReconciliation>().HasIndex(x => new { x.FirmId, x.EngagementId, x.BaseDatasetId, x.LogicalJournalNumber }).IsUnique()
       .HasDatabaseName("ux_reconciliation_base_journal");
     b.Entity<AdjustmentPlanLine>().HasIndex(x => new { x.PlanId, x.LogicalJournalNumber, x.Layer }).IsUnique()
@@ -957,6 +983,11 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
       .HasOne<PracticeClient>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.ClientId })
       .HasPrincipalKey(c => new { c.FirmId, c.Id })
+      .OnDelete(DeleteBehavior.Restrict);
+    b.Entity<TrialBalanceDataset>()
+      .HasOne<TrialBalanceImportBatch>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.ImportBatchId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
       .OnDelete(DeleteBehavior.Restrict);
     b.Entity<TrialBalanceRow>()
       .HasOne<TrialBalanceDataset>().WithMany()

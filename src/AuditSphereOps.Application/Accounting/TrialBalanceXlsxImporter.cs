@@ -18,8 +18,12 @@ public static class TrialBalanceXlsxImporter
   private static readonly string[] RequiredColumns =
     ["AccountCode", "AccountName", "NetClosingBalance", "Currency", "Entity", "MappingCode"];
 
-  public static ParsedCsvFile Parse(byte[] xlsxBytes)
+  public static ParsedCsvFile Parse(byte[] xlsxBytes) => Parse(xlsxBytes, TrialBalanceImportProfile.SignedNetV1);
+
+  public static ParsedCsvFile Parse(byte[] xlsxBytes, TrialBalanceImportProfile profile)
   {
+    if (profile.Validate() is { } profileError)
+      throw new InvalidOperationException(profileError);
     if (xlsxBytes is null || xlsxBytes.Length == 0)
       throw new InvalidOperationException("Empty trial-balance workbook cannot be processed.");
     if (xlsxBytes.Length > MaxBytes)
@@ -81,7 +85,9 @@ public static class TrialBalanceXlsxImporter
     foreach (var pair in header)
       if (!string.IsNullOrWhiteSpace(pair.Value))
         index.TryAdd(pair.Value.Trim(), pair.Key);
-    foreach (var required in RequiredColumns)
+    foreach (var required in profile.IsDebitCredit
+      ? ["AccountCode", "AccountName", "Debit", "Credit", "Currency", "Entity", "MappingCode"]
+      : RequiredColumns)
       if (!index.ContainsKey(required))
         throw new InvalidOperationException($"Trial-balance workbook is missing column '{required}'.");
 
@@ -94,13 +100,16 @@ public static class TrialBalanceXlsxImporter
       string Get(string column) => values.GetValueOrDefault(index[column], string.Empty).Trim();
       var code = Get("AccountCode");
       var name = Get("AccountName");
-      var amountText = Get("NetClosingBalance");
+      var amountText = profile.IsDebitCredit ? string.Empty : Get("NetClosingBalance");
+      var debitText = profile.IsDebitCredit ? Get("Debit") : string.Empty;
+      var creditText = profile.IsDebitCredit ? Get("Credit") : string.Empty;
       var rowCurrency = Get("Currency");
       var entity = Get("Entity");
       var mapping = Get("MappingCode");
       if (code.Length == 0 || code.Length > 32 || entity.Length == 0 || entity.Length > 32)
         throw new InvalidOperationException($"Row {rowNumber + 1}: account code and entity are required within their limits.");
-      if (LooksLikeFormula(code) || LooksLikeFormula(name) || LooksLikeFormula(amountText) || LooksLikeFormula(rowCurrency) ||
+      if (LooksLikeFormula(code) || LooksLikeFormula(name) || LooksLikeFormula(amountText) ||
+          LooksLikeFormula(debitText) || LooksLikeFormula(creditText) || LooksLikeFormula(rowCurrency) ||
           LooksLikeFormula(entity) || LooksLikeFormula(mapping))
         throw new InvalidOperationException($"Row {rowNumber + 1}: formula-shaped cells are rejected.");
       if (rowCurrency.Length != 3 || !rowCurrency.All(char.IsLetter))
@@ -111,18 +120,26 @@ public static class TrialBalanceXlsxImporter
         throw new InvalidOperationException("Mixed currencies are never summed: one workbook, one currency.");
       if (!keys.Add((entity, code)))
         throw new InvalidOperationException($"Row {rowNumber + 1}: duplicate entity/account '{entity}/{code}'.");
-      if (!decimal.TryParse(amountText, System.Globalization.NumberStyles.Number,
-          System.Globalization.CultureInfo.InvariantCulture, out var amount))
-        throw new InvalidOperationException($"Row {rowNumber + 1}: amount '{amountText}' is not a valid invariant-culture decimal.");
-      if ((decimal.GetBits(amount)[3] >> 16) > MoneyPolicy.MaxScale)
-        throw new InvalidOperationException($"Row {rowNumber + 1}: amount exceeds 6 decimal places; no silent rounding.");
-      parsedRows.Add(new TbImportRow(code, name, MoneyPolicy.Normalize(amount), rowCurrency, entity,
-        string.IsNullOrEmpty(mapping) ? null : mapping));
+      decimal amount;
+      decimal? sourceDebit = null;
+      decimal? sourceCredit = null;
+      if (profile.IsDebitCredit)
+      {
+        var debit = TrialBalanceCsvImporter.ParseAmount(debitText, rowNumber + 1);
+        var credit = TrialBalanceCsvImporter.ParseAmount(creditText, rowNumber + 1);
+        sourceDebit = debit;
+        sourceCredit = credit;
+        amount = MoneyPolicy.Normalize(debit - credit);
+      }
+      else
+        amount = TrialBalanceCsvImporter.ParseAmount(amountText, rowNumber + 1);
+      parsedRows.Add(new TbImportRow(code, name, amount, rowCurrency, entity,
+        string.IsNullOrEmpty(mapping) ? null : mapping, sourceDebit, sourceCredit));
     }
 
     if (parsedRows.Count == 0)
       throw new InvalidOperationException("Trial-balance workbook has no data rows.");
-    return TrialBalanceCsvImporter.BuildParsed(parsedRows, currency!, Hashing.Sha256Hex(xlsxBytes));
+    return TrialBalanceCsvImporter.BuildParsed(parsedRows, currency!, Hashing.Sha256Hex(xlsxBytes), profile);
   }
 
   private static Dictionary<int, string> ReadRow(XElement row, IReadOnlyList<string> sharedStrings, int rowNumber)

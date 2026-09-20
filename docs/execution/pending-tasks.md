@@ -288,9 +288,9 @@ P10 Full §47 real-tenant acceptance cycle
 - [x] Superseded records-action tests.
 
 **Acceptance criteria:** re-archive creates new immutable version; old archive remains verifiable; disposition blocked under legal hold; historic profile version never silently changes; digest changes only when canonical content changes; downgrade refuses evidence loss.
-- 41 migrations applied (latest: `20260920185001_ClientPeriodRestatement`).
-- 182/182 PostgreSQL-backed tests green on the latest verified accounting slice.
-- Restore drill refreshed after the latest accounting migration: 41/41 migrations restored with matching checkpoint summaries.
+- 42 migrations applied (latest: `20260920191216_TrialBalanceProfilesAndBatches`).
+- 184/184 PostgreSQL-backed tests green on the latest verified accounting slice.
+- Restore drill refreshed after the latest accounting migration: 42/42 migrations restored with matching checkpoint summaries.
 
 ---
 
@@ -400,12 +400,12 @@ Completed locally:
 - [x] Restricted deterministic same-currency/full-ownership consolidation, intercompany lineage, FX policy records, and approval gates.
 - [x] Client-book journal management decisions, reversal drafts, typed audit-difference correction links, and archive lineage export.
 - [x] Period restatement lineage for closed periods: original/revised validated package hashes, revised basis/reason/evidence, independent approval, and PostgreSQL immutability trigger.
-- [x] PostgreSQL 18.6 verification: 182/182 tests, 41 migrations, and restore rehearsal passed; no warnings/errors or whitespace errors.
+- [x] Versioned signed-net/debit-credit TB profiles, retained source-side amounts/layout metadata, and atomic multi-entity per-entity batch ingestion with one raw receipt.
+- [x] PostgreSQL 18.6 verification: 184/184 tests, 42 migrations, and restore rehearsal passed; no warnings/errors or whitespace errors.
 
 Remaining local capability gaps to implement only when required by an approved scope:
 
 - [x] XLSX intake with bounded formula/macro/external-link rejection and the same raw/normalized identity rules as CSV.
-- [ ] Explicit debit/credit TB import profiles and controlled multi-entity per-entity batch ingestion with retained source layout metadata.
 - [ ] Streamed/paged GL intake and completeness bridges for materially large client ledgers.
 - [x] Typed review/disposition workflows for ECL, inventory, specialist schedules, analytics, and journal-risk flags; period close refuses unreviewed records.
 - [x] Comparative-package binding, immutable equity rollforwards, structured note cross-casts, deterministic hashes, artifact rendering, archive export, and database append-only protection.

@@ -402,7 +402,8 @@ merge evidence, and production cross-store recovery/RPO/RTO remain external or h
 
 The accounting-module requirement slice is implemented for the bounded local profile. It now includes client-scoped
 periods/books and opening-balance bridges, versioned charts and source aliases, approved taxonomy and mapping gates,
-raw-versus-normalized source identity, bounded CSV/XLSX intake, typed balanced GL imports, close/reopen controls,
+raw-versus-normalized source identity, versioned signed-net/debit-credit CSV/XLSX profiles, atomic multi-entity TB
+batches, typed balanced GL imports, close/reopen controls,
 source-bound reconciliations, ECL/inventory/specialist/analytical/journal-risk workbenches, bounded entity reporting
 packages with immutable equity lines, structured note cross-casts and comparative-package lineage, restricted
 same-currency/full-ownership consolidation, FX policy records, management-decision and reversal lineage for client-book
@@ -412,9 +413,9 @@ of the new lineage fields.
 Observed verification:
 
 - `dotnet build AuditSphereOps.slnx --no-restore`: passed with 0 warnings and 0 errors.
-- `dotnet test AuditSphereOps.slnx --no-build --no-restore --logger "console;verbosity=minimal"`: 182/182 passed, 0 skipped, PostgreSQL 18.6.
-- `dotnet ef migrations list`: 41 migrations through `20260920185001_ClientPeriodRestatement`; no pending migration reported and `has-pending-model-changes` returned no changes.
-- `scripts/db/restore-drill.sh`: passed; 41/41 migrations restored and checkpoint database summaries matched.
+- `dotnet test AuditSphereOps.slnx --no-build --no-restore --logger "console;verbosity=minimal"`: 184/184 passed, 0 skipped, PostgreSQL 18.6.
+- `dotnet ef migrations list`: 42 migrations through `20260920191216_TrialBalanceProfilesAndBatches`; no pending migration reported and `has-pending-model-changes` returned no changes.
+- `scripts/db/restore-drill.sh`: passed; 42/42 migrations restored and checkpoint database summaries matched.
 - `git diff --check`: passed.
 
 The bounded profile deliberately remains fail-closed for streamed/paged GL scale,

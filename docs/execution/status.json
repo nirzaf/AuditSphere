@@ -20,7 +20,7 @@
     "implementationStatus": "IN_PROGRESS",
     "acceptanceStatus": "LOCAL_VERIFIED",
     "worktree": "master@73b8805 is pushed to origin/master. The audit-workflow and accounting-module implementation is committed; unrelated Graphify artifacts, if present, remain excluded. The requirements documents remain user-owned and preserved.",
-    "scope": "Local implementation of the audit-workflow and accounting-module requirements: 20-section/165-procedure program catalog, scoped adoption and applicability, structured result/review lifecycle, fieldwork evidence primitives, client accounting periods/books/COA/aliases, typed GL imports, reconciliations, ECL/inventory/specialist/analytics workbenches, bounded entity-package projections including equity, notes and comparatives, closed-period restatement lineage, restricted same-currency consolidation, journal lineage, completion blockers, archive export, UI status surfaces, tests, migrations, and restore/runtime evidence. No production content, credentials, or secret values were changed.",
+    "scope": "Local implementation of the audit-workflow and accounting-module requirements: 20-section/165-procedure program catalog, scoped adoption and applicability, structured result/review lifecycle, fieldwork evidence primitives, client accounting periods/books/COA/aliases, versioned signed-net/debit-credit TB profiles, atomic multi-entity TB batches, typed GL imports, reconciliations, ECL/inventory/specialist/analytics workbenches, bounded entity-package projections including equity, notes and comparatives, closed-period restatement lineage, restricted same-currency consolidation, journal lineage, completion blockers, archive export, UI status surfaces, tests, migrations, and restore/runtime evidence. No production content, credentials, or secret values were changed.",
     "productionEnabled": false
   },
 
@@ -263,7 +263,11 @@
     },
     {
       "command": "Accounting period-restatement verification (2026-09-20T18:57:07Z)",
-      "result": "Closed-period restatement lineage now records distinct validated original/revised package hashes, revised basis, reason, evidence, preparer and independent reviewer approval; issued packages remain unchanged and an approved restatement rejects direct mutation with PostgreSQL SQLSTATE 55000. dotnet build AuditSphereOps.slnx --no-restore passed with 0 warnings/errors; focused and full PostgreSQL 18.6 suite passed 182/182 with 0 skipped; EF reported no pending model changes; 41 migrations are listed through 20260920185001_ClientPeriodRestatement; scripts/db/restore-drill.sh restored all 41 migrations with matching checkpoint summaries; git diff --check passed. Streamed/paged GL intake, advanced/mixed-currency consolidation, user-facing management/release/restatement surfaces, live provider behavior, professional approvals, independent review, and production recovery/RPO/RTO remain unverified or externally gated."
+      "result": "Closed-period restatement lineage now records distinct validated original/revised package hashes, revised basis, reason, evidence, preparer and independent reviewer approval; issued packages remain unchanged and an approved restatement rejects direct mutation with PostgreSQL SQLSTATE 55000."
+    },
+    {
+      "command": "Accounting import profiles and multi-entity batch verification (2026-09-20T19:15:40Z)",
+      "result": "Versioned signed-net and debit/credit profiles now preserve source-side debit/credit values and layout/profile metadata. Atomic multi-entity TB batches create one sealed raw receipt and independently scoped per-entity datasets; repeated raw bytes are rejected. dotnet build AuditSphereOps.slnx --no-restore passed with 0 warnings/errors; focused and full PostgreSQL 18.6 suite passed 184/184 with 0 skipped; EF reported no pending model changes; 42 migrations are listed through 20260920191216_TrialBalanceProfilesAndBatches; scripts/db/restore-drill.sh restored all 42 migrations with matching checkpoint summaries; git diff --check passed. Streamed/paged GL completeness bridges, advanced/mixed-currency consolidation, user-facing management/release/restatement surfaces, live provider behavior, professional approvals, independent review, and production recovery/RPO/RTO remain unverified or externally gated."
     }
   ],
   "tenantEvidence": [
@@ -454,5 +458,5 @@
     }
   ],
   "nextPermittedAction": "Review and commit the locally verified gap-closure slice if desired. Do not mark the requirements checklist complete until live Entra/Graph/SharePoint/Purview behavior, approved professional methodology/signing, independent human review and merge evidence, and production cross-store recovery/RPO/RTO are separately observed and recorded.",
-  "lastVerifiedAt": "2026-09-20T18:57:07Z"
+  "lastVerifiedAt": "2026-09-20T19:15:40Z"
 }

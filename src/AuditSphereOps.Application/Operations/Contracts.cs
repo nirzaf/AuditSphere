@@ -24,6 +24,7 @@ public interface IAuditSphereDbContext : IAsyncDisposable
   DbSet<RecoverySession> RecoverySessions { get; }
   DbSet<ClientSafetyState> ClientSafetyStates { get; }
   DbSet<TrialBalanceDataset> TrialBalanceDatasets { get; }
+  DbSet<TrialBalanceImportBatch> TrialBalanceImportBatches { get; }
   DbSet<TrialBalanceRow> TrialBalanceRows { get; }
   DbSet<MappingVersion> MappingVersions { get; }
   DbSet<MappingRule> MappingRules { get; }

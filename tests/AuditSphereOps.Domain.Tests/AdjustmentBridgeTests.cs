@@ -49,6 +49,23 @@ public sealed class TrialBalanceCsvParserTests
     Assert.NotEqual(original.NormalizedDatasetDigest, changed.NormalizedDatasetDigest);
   }
 
+  [Fact]
+  [Trait("Profile", "Unit")]
+  public void DebitCreditProfile_PreservesSourceSidesAndComputesSignedBalance()
+  {
+    var csv = "AccountCode,AccountName,Debit,Credit,Currency,Entity,MappingCode\n" +
+      "100101,Bank,125.50,0,QAR,DEMO,CA_CASH\n" +
+      "400100,Revenue,0,125.50,QAR,DEMO,PL_REVENUE\n";
+    var parsed = TrialBalanceCsvImporter.Parse(csv, TrialBalanceImportProfile.DebitCreditV1);
+
+    Assert.Equal(TrialBalanceLayouts.DebitCredit, parsed.SourceLayout);
+    Assert.Equal("tb-debit-credit.v1", parsed.ImportProfileVersion);
+    Assert.Equal(125.50m, parsed.Rows[0].Amount);
+    Assert.Equal(125.50m, parsed.Rows[0].SourceDebit);
+    Assert.Equal(0m, parsed.Rows[0].SourceCredit);
+    Assert.Equal(-125.50m, parsed.Rows[1].Amount);
+  }
+
   [Theory]
   [Trait("Profile", "Unit")]
   [InlineData("AccountCode,AccountName,NetClosingBalance,Currency,Entity,MappingCode\n")] // header only
@@ -232,6 +249,47 @@ public sealed class AdjustmentBridgeTests
     Assert.Equal(dataset.NormalizedDatasetDigest, dataset.Sha256Hex);
     Assert.NotEqual(dataset.RawFileSha256Hex, dataset.NormalizedDatasetDigest);
     Assert.Equal("DEMO", dataset.LegalEntityKey);
+  }
+
+  [Fact]
+  public async Task MultiEntityBatch_SealsIndependentDatasetsWithOneSourceReceipt()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var (scope, users) = await SeedFirmWithStaffAsync(pg);
+    var csv = "AccountCode,AccountName,NetClosingBalance,Currency,Entity,MappingCode\n" +
+      "100101,Bank,100,QAR,ENTITY-A,CA_CASH\n" +
+      "400100,Revenue,-100,QAR,ENTITY-A,PL_REVENUE\n" +
+      "100101,Bank,200,QAR,ENTITY-B,CA_CASH\n" +
+      "400100,Revenue,-200,QAR,ENTITY-B,PL_REVENUE\n";
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var result = await TrialBalanceImportService.ImportBatchAsync(db, Actor(users.Preparer, "AccountingPreparer"),
+        scope.ClientId, scope.EngagementId, csv, TrialBalanceImportProfile.SignedNetV1);
+      Assert.True(result.Succeeded, result.Message);
+      Assert.Equal(2, result.Value!.Count);
+    }
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var batch = await db.TrialBalanceImportBatches.SingleAsync();
+      Assert.Equal(TrialBalanceImportStates.Sealed, batch.Status);
+      Assert.Equal(2, batch.EntityCount);
+      var datasets = await db.TrialBalanceDatasets.OrderBy(x => x.LegalEntityKey).ToListAsync();
+      Assert.Equal(["ENTITY-A", "ENTITY-B"], datasets.Select(x => x.LegalEntityKey));
+      Assert.All(datasets, x =>
+      {
+        Assert.Equal(batch.Id, x.ImportBatchId);
+        Assert.Equal(TrialBalanceImportStates.Sealed, x.ImportState);
+        Assert.Equal(TrialBalanceLayouts.SignedNet, x.SourceLayout);
+      });
+      Assert.Equal(4, await db.TrialBalanceRows.CountAsync());
+
+      var duplicate = await TrialBalanceImportService.ImportBatchAsync(db, Actor(users.Preparer, "AccountingPreparer"),
+        scope.ClientId, scope.EngagementId, csv, TrialBalanceImportProfile.SignedNetV1);
+      Assert.False(duplicate.Succeeded);
+      Assert.Equal(ErrorCodes.Accounting.ImportDuplicate, duplicate.ErrorCode);
+    }
   }
 
   [Fact]

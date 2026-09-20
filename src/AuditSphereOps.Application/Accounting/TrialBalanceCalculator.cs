@@ -5,7 +5,9 @@ namespace AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Domain.Shared;
 
 /// <summary>Trial-balance import row (parsed, pre-persistence).</summary>
-public sealed record TbImportRow(string AccountCode, string AccountName, decimal Amount, string Currency, string Entity, string? MappingCode);
+public sealed record TbImportRow(
+  string AccountCode, string AccountName, decimal Amount, string Currency, string Entity, string? MappingCode,
+  decimal? SourceDebit = null, decimal? SourceCredit = null);
 
 /// <summary>Parsed TB file: balanced flag + control totals per Appendix D.2.</summary>
 public sealed record ParsedTrialBalance(IReadOnlyList<TbImportRow> Rows, bool Balanced, decimal SignedSum, decimal TotalDebits, decimal TotalCreditsAbs);

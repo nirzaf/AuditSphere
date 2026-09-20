@@ -7,6 +7,7 @@ public sealed class TrialBalanceDataset
   public Guid FirmId { get; set; }
   public Guid ClientId { get; set; }
   public Guid EngagementId { get; set; }
+  public Guid? ImportBatchId { get; set; }
   public string SourceKind { get; set; } = "Raw";     // Raw|Adjusted
   public long Revision { get; set; } = 1;
   /// <summary>One canonical legal-entity label per accepted dataset.</summary>
@@ -18,6 +19,8 @@ public sealed class TrialBalanceDataset
   public string NormalizedDatasetDigest { get; set; } = string.Empty;
   /// <summary>Legacy normalized digest retained for existing records and callers.</summary>
   public string Sha256Hex { get; set; } = string.Empty;
+  public string ImportProfileVersion { get; set; } = "tb-signed-net.v1";
+  public string SourceLayout { get; set; } = TrialBalanceLayouts.SignedNet;
   public bool Balanced { get; set; }
   public string ValidationStatus { get; set; } = "Pending";
   /// <summary>
@@ -28,6 +31,31 @@ public sealed class TrialBalanceDataset
   public decimal ControlTotal { get; set; }
   public DateTimeOffset ImportedAt { get; set; }
   public Guid ImportedByUserId { get; set; }
+}
+
+public static class TrialBalanceLayouts
+{
+  public const string SignedNet = "SIGNED_NET";
+  public const string DebitCredit = "DEBIT_CREDIT";
+
+  public static bool IsSupported(string value) => value is SignedNet or DebitCredit;
+}
+
+/// <summary>Immutable source receipt for one controlled multi-entity trial-balance upload.</summary>
+public sealed class TrialBalanceImportBatch
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public Guid EngagementId { get; set; }
+  public string RawFileSha256Hex { get; set; } = string.Empty;
+  public string NormalizedDatasetDigest { get; set; } = string.Empty;
+  public string ImportProfileVersion { get; set; } = string.Empty;
+  public string SourceLayout { get; set; } = TrialBalanceLayouts.SignedNet;
+  public int EntityCount { get; set; }
+  public string Status { get; set; } = TrialBalanceImportStates.Loading;
+  public Guid CreatedByUserId { get; set; }
+  public DateTimeOffset CreatedAt { get; set; }
 }
 
 public static class TrialBalanceImportStates
@@ -43,6 +71,8 @@ public sealed class TrialBalanceRow
   public string AccountCode { get; set; } = string.Empty;
   public string AccountName { get; set; } = string.Empty;
   public decimal Amount { get; set; }                 // signed, ≤6dp
+  public decimal? SourceDebit { get; set; }
+  public decimal? SourceCredit { get; set; }
   public string Currency { get; set; } = string.Empty;
   public string Entity { get; set; } = string.Empty;
   public string? MappingCode { get; set; }

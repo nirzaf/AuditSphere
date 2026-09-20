@@ -69,6 +69,149 @@ public static class TrialBalanceImportService
     return await ImportParsedAsync(db, actor, clientId, engagementId, parsed, authorizedEntity, ct);
   }
 
+  public static async Task<CommandResult<Guid>> ImportWithProfileAsync(
+    IAuditSphereDbContext db,
+    ActorContext actor,
+    Guid clientId,
+    Guid engagementId,
+    string csvText,
+    TrialBalanceImportProfile profile,
+    string? authorizedEntity = null,
+    CancellationToken ct = default)
+  {
+    ParsedCsvFile parsed;
+    try
+    {
+      parsed = TrialBalanceCsvImporter.Parse(csvText, profile);
+    }
+    catch (InvalidOperationException ex)
+    {
+      return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ImportRejected, ex.Message);
+    }
+    return await ImportParsedAsync(db, actor, clientId, engagementId, parsed, authorizedEntity, ct);
+  }
+
+  public static async Task<CommandResult<Guid>> ImportXlsxWithProfileAsync(
+    IAuditSphereDbContext db,
+    ActorContext actor,
+    Guid clientId,
+    Guid engagementId,
+    byte[] xlsxBytes,
+    TrialBalanceImportProfile profile,
+    string? authorizedEntity = null,
+    CancellationToken ct = default)
+  {
+    ParsedCsvFile parsed;
+    try
+    {
+      parsed = TrialBalanceXlsxImporter.Parse(xlsxBytes, profile);
+    }
+    catch (InvalidOperationException ex)
+    {
+      return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ImportRejected, ex.Message);
+    }
+    return await ImportParsedAsync(db, actor, clientId, engagementId, parsed, authorizedEntity, ct);
+  }
+
+  public static async Task<CommandResult<IReadOnlyList<Guid>>> ImportBatchAsync(
+    IAuditSphereDbContext db,
+    ActorContext actor,
+    Guid clientId,
+    Guid engagementId,
+    string csvText,
+    TrialBalanceImportProfile profile,
+    CancellationToken ct = default)
+  {
+    if (clientId == Guid.Empty || engagementId == Guid.Empty)
+      return CommandResult<IReadOnlyList<Guid>>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+
+    ParsedCsvFile parsed;
+    try
+    {
+      parsed = TrialBalanceCsvImporter.Parse(csvText, profile);
+    }
+    catch (InvalidOperationException ex)
+    {
+      return CommandResult<IReadOnlyList<Guid>>.Fail(ErrorCodes.Accounting.ImportRejected, ex.Message);
+    }
+
+    var entities = parsed.Rows.Select(x => x.Entity).Distinct(StringComparer.Ordinal).OrderBy(x => x, StringComparer.Ordinal).ToArray();
+    if (entities.Length < 2)
+      return CommandResult<IReadOnlyList<Guid>>.Fail(ErrorCodes.Accounting.ImportRejected,
+        "A controlled trial-balance batch must contain at least two legal entities.");
+    var engagement = await db.Engagements.AsNoTracking().SingleOrDefaultAsync(x => x.Id == engagementId, ct);
+    if (engagement is null || engagement.PracticeClientId != clientId)
+      return CommandResult<IReadOnlyList<Guid>>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(engagement.FirmId, clientId, engagementId), ct);
+    if (!auth.Succeeded)
+      return CommandResult<IReadOnlyList<Guid>>.Fail(auth.ErrorCode!, auth.Message!);
+
+    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    var lockedEngagement = await db.Engagements.FromSqlInterpolated($"""
+      SELECT * FROM engagements WHERE id = {engagementId} AND firm_id = {engagement.FirmId} FOR UPDATE
+      """).AsNoTracking().SingleOrDefaultAsync(ct);
+    if (lockedEngagement is null || lockedEngagement.PracticeClientId != clientId)
+      return CommandResult<IReadOnlyList<Guid>>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    if (await db.TrialBalanceImportBatches.AnyAsync(x => x.FirmId == engagement.FirmId &&
+        x.EngagementId == engagementId && x.RawFileSha256Hex == parsed.RawFileSha256Hex, ct) ||
+        await db.TrialBalanceDatasets.AnyAsync(x => x.FirmId == engagement.FirmId &&
+          x.EngagementId == engagementId && x.RawFileSha256Hex == parsed.RawFileSha256Hex, ct))
+      return CommandResult<IReadOnlyList<Guid>>.Fail(ErrorCodes.Accounting.ImportDuplicate,
+        "Identical source bytes were already imported for this engagement; reuse that batch or dataset.");
+
+    var batch = new TrialBalanceImportBatch
+    {
+      Id = Guid.CreateVersion7(), FirmId = engagement.FirmId, ClientId = clientId, EngagementId = engagementId,
+      RawFileSha256Hex = parsed.RawFileSha256Hex, NormalizedDatasetDigest = parsed.NormalizedDatasetDigest,
+      ImportProfileVersion = parsed.ImportProfileVersion, SourceLayout = parsed.SourceLayout,
+      EntityCount = entities.Length, Status = TrialBalanceImportStates.Loading,
+      CreatedByUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
+    };
+    db.TrialBalanceImportBatches.Add(batch);
+    var nextRevision = await db.TrialBalanceDatasets
+      .Where(x => x.FirmId == engagement.FirmId && x.EngagementId == engagementId)
+      .Select(x => (long?)x.Revision).MaxAsync(ct) ?? 0;
+    var datasetIds = new List<Guid>(entities.Length);
+    foreach (var entity in entities)
+    {
+      var datasetId = Guid.CreateVersion7();
+      datasetIds.Add(datasetId);
+      var dataset = new TrialBalanceDataset
+      {
+        Id = datasetId, FirmId = engagement.FirmId, ClientId = clientId, EngagementId = engagementId,
+        ImportBatchId = batch.Id, SourceKind = "Raw", Revision = ++nextRevision, LegalEntityKey = entity,
+        Currency = parsed.Currency, RawFileSha256Hex = parsed.RawFileSha256Hex,
+        NormalizedDatasetDigest = parsed.NormalizedDatasetDigest, Sha256Hex = parsed.NormalizedDatasetDigest,
+        ImportProfileVersion = parsed.ImportProfileVersion, SourceLayout = parsed.SourceLayout,
+        ImportState = TrialBalanceImportStates.Loading, ValidationStatus = "Pending",
+        ImportedAt = batch.CreatedAt, ImportedByUserId = actor.UserId
+      };
+      db.TrialBalanceDatasets.Add(dataset);
+      foreach (var row in parsed.Rows.Where(x => string.Equals(x.Entity, entity, StringComparison.Ordinal)))
+        db.TrialBalanceRows.Add(new TrialBalanceRow
+        {
+          Id = Guid.CreateVersion7(), DatasetId = datasetId, AccountCode = row.AccountCode,
+          AccountName = row.AccountName, Amount = row.Amount, SourceDebit = row.SourceDebit,
+          SourceCredit = row.SourceCredit, Currency = row.Currency, Entity = row.Entity, MappingCode = row.MappingCode
+        });
+    }
+    try
+    {
+      await db.SaveChangesAsync(ct);
+      await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE trial_balance_datasets SET import_state = 'SEALED' WHERE import_batch_id = {batch.Id}", ct);
+      batch.Status = TrialBalanceImportStates.Sealed;
+      await db.SaveChangesAsync(ct);
+      await tx.CommitAsync(ct);
+      return CommandResult<IReadOnlyList<Guid>>.Ok(datasetIds);
+    }
+    catch (DbUpdateException)
+    {
+      return CommandResult<IReadOnlyList<Guid>>.Fail(ErrorCodes.Accounting.ImportDuplicate,
+        "The batch identity changed; reload the current import preview.");
+    }
+  }
+
   private static async Task<CommandResult<Guid>> ImportParsedAsync(
     IAuditSphereDbContext db,
     ActorContext actor,
@@ -133,6 +276,8 @@ public static class TrialBalanceImportService
       RawFileSha256Hex = parsed.RawFileSha256Hex,
       NormalizedDatasetDigest = parsed.NormalizedDatasetDigest,
       Sha256Hex = parsed.NormalizedDatasetDigest,
+      ImportProfileVersion = parsed.ImportProfileVersion,
+      SourceLayout = parsed.SourceLayout,
       ImportState = TrialBalanceImportStates.Loading,
       ValidationStatus = "Pending",
       ImportedAt = DateTimeOffset.UtcNow,
@@ -151,6 +296,8 @@ public static class TrialBalanceImportService
           AccountCode = row.AccountCode,
           AccountName = row.AccountName,
           Amount = row.Amount,
+          SourceDebit = row.SourceDebit,
+          SourceCredit = row.SourceCredit,
           Currency = row.Currency,
           Entity = row.Entity,
           MappingCode = row.MappingCode
