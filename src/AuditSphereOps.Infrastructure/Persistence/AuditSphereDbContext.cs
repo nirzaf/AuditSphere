@@ -99,6 +99,7 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
   public DbSet<SourceImportBatch> SourceImportBatches => Set<SourceImportBatch>();
   public DbSet<GeneralLedgerTransaction> GeneralLedgerTransactions => Set<GeneralLedgerTransaction>();
   public DbSet<GeneralLedgerLine> GeneralLedgerLines => Set<GeneralLedgerLine>();
+  public DbSet<GeneralLedgerCompletenessBridge> GeneralLedgerCompletenessBridges => Set<GeneralLedgerCompletenessBridge>();
   public DbSet<AccountingReconciliation> AccountingReconciliations => Set<AccountingReconciliation>();
   public DbSet<AccountingReconciliationItem> AccountingReconciliationItems => Set<AccountingReconciliationItem>();
   public DbSet<EclAssessment> EclAssessments => Set<EclAssessment>();
@@ -1558,6 +1559,41 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     ScopeToEngagement(glLine, nameof(GeneralLedgerLine.FirmId), nameof(GeneralLedgerLine.ClientId), nameof(GeneralLedgerLine.EngagementId));
     glLine.HasOne<GeneralLedgerTransaction>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.TransactionId })
       .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var completeness = b.Entity<GeneralLedgerCompletenessBridge>();
+    completeness.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
+      .HasName("ak_gl_completeness_bridges_scope_id");
+    completeness.Property(x => x.TrialBalanceHash).HasMaxLength(64);
+    completeness.Property(x => x.GeneralLedgerHash).HasMaxLength(64);
+    completeness.Property(x => x.AccountResidualDigest).HasMaxLength(64);
+    completeness.Property(x => x.Status).HasMaxLength(30);
+    completeness.Property(x => x.EvidenceReference).HasMaxLength(2000);
+    completeness.HasIndex(x => new { x.FirmId, x.ClientId, x.EngagementId, x.TrialBalanceDatasetId, x.ImportBatchId })
+      .IsUnique().HasDatabaseName("ux_gl_completeness_bridge_input");
+    completeness.ToTable("general_ledger_completeness_bridges", t => t.HasCheckConstraint("ck_gl_completeness_bridge_values",
+      "trial_balance_hash ~ '^[0-9a-f]{64}$' AND general_ledger_hash ~ '^[0-9a-f]{64}$' AND account_residual_digest ~ '^[0-9a-f]{64}$'" +
+      " AND trial_balance_account_count > 0 AND general_ledger_account_count > 0 AND matched_account_count >= 0" +
+      " AND mismatched_account_count >= 0 AND absolute_residual >= 0 AND coverage_start <= coverage_end" +
+      " AND length(trim(evidence_reference)) > 0 AND status IN ('RECONCILED','UNRECONCILED','APPROVED','REJECTED')" +
+      " AND ((status IN ('APPROVED','REJECTED') AND reviewed_by_user_id IS NOT NULL AND reviewed_at IS NOT NULL)" +
+      " OR status IN ('RECONCILED','UNRECONCILED'))"));
+    ScopeToEngagement(completeness, nameof(GeneralLedgerCompletenessBridge.FirmId), nameof(GeneralLedgerCompletenessBridge.ClientId), nameof(GeneralLedgerCompletenessBridge.EngagementId));
+    completeness.HasOne<ClientReportingPeriod>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.PeriodId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    completeness.HasOne<ClientReportingBook>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.BookId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    completeness.HasOne<TrialBalanceDataset>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.TrialBalanceDatasetId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    completeness.HasOne<SourceImportBatch>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.ImportBatchId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    completeness.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.CreatedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    completeness.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.ReviewedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
 
     ConfigureClientAccountingSchedules(b);
     ConfigureConsolidation(b);

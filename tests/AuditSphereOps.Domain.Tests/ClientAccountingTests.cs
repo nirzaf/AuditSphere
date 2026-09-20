@@ -154,6 +154,84 @@ public sealed class ClientAccountingTests
 
   [Fact]
   [Trait("Profile", "Database")]
+  public async Task GlCompletenessBridge_IsAccountExactAndPagedWithinScope()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var scope = await SeedAsync(pg);
+    var preparer = Actor(scope.Preparer, "AccountingPreparer");
+    var reviewer = Actor(scope.Reviewer, "AccountingReviewer");
+    var digest = Hashing.Sha256Hex("completeness-fixture");
+    Guid periodId, bookId, datasetId, batchId;
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      periodId = (await ClientAccountingService.CreatePeriodAsync(db, preparer,
+        new ReportingPeriodRequest(scope.ClientA, "2026", new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31), "STATUTORY", "QAR"))).Value;
+      Assert.True((await ClientAccountingService.CreateBookAsync(db, preparer,
+        new ReportingBookRequest(scope.ClientA, periodId, "STAT", "STATUTORY", "STATUTORY_ONLY", "QAR"))).Succeeded);
+      bookId = await db.ClientReportingBooks.Where(x => x.ClientId == scope.ClientA && x.PeriodId == periodId).Select(x => x.Id).SingleAsync();
+      datasetId = Guid.CreateVersion7();
+      db.TrialBalanceDatasets.Add(new TrialBalanceDataset
+      {
+        Id = datasetId, FirmId = scope.FirmId, ClientId = scope.ClientA, EngagementId = scope.EngagementA,
+        SourceKind = "Raw", LegalEntityKey = "CLIENT-A", Currency = "QAR", RawFileSha256Hex = digest,
+        NormalizedDatasetDigest = digest, Sha256Hex = digest, Balanced = true, ValidationStatus = "Pending",
+        ImportState = TrialBalanceImportStates.Loading, ImportedAt = DateTimeOffset.UtcNow, ImportedByUserId = scope.Preparer.Id
+      });
+      db.TrialBalanceRows.AddRange(
+        new TrialBalanceRow { Id = Guid.CreateVersion7(), DatasetId = datasetId, AccountCode = "1000", AccountName = "Cash", Amount = 100m, Currency = "QAR", Entity = "CLIENT-A" },
+        new TrialBalanceRow { Id = Guid.CreateVersion7(), DatasetId = datasetId, AccountCode = "4000", AccountName = "Revenue", Amount = -100m, Currency = "QAR", Entity = "CLIENT-A" });
+      batchId = Guid.CreateVersion7();
+      db.SourceImportBatches.Add(new SourceImportBatch
+      {
+        Id = batchId, FirmId = scope.FirmId, ClientId = scope.ClientA, EngagementId = scope.EngagementA, PeriodId = periodId,
+        BookId = bookId, SourceKind = "GL", ProfileVersion = "gl-v1", ParserVersion = "parser-v1", RawFileSha256Hex = digest,
+        NormalizedDatasetDigest = digest, LegalEntityKey = "CLIENT-A", Currency = "QAR", RowCount = 1,
+        Status = "SEALED", ReceiptReference = "gl-receipt", CreatedByUserId = scope.Preparer.Id, CreatedAt = DateTimeOffset.UtcNow
+      });
+      var transactionId = Guid.CreateVersion7();
+      db.GeneralLedgerTransactions.Add(new GeneralLedgerTransaction
+      {
+        Id = transactionId, FirmId = scope.FirmId, ClientId = scope.ClientA, EngagementId = scope.EngagementA,
+        ImportBatchId = batchId, StableJournalId = "J-1", DocumentNumber = "DOC-1", PostingDate = new DateOnly(2026, 6, 30),
+        SourceUser = "user-a", SourceSystem = "LEDGER-A", Currency = "QAR", CreatedAt = DateTimeOffset.UtcNow
+      });
+      db.GeneralLedgerLines.AddRange(
+        new GeneralLedgerLine { Id = Guid.CreateVersion7(), FirmId = scope.FirmId, ClientId = scope.ClientA, EngagementId = scope.EngagementA, ImportBatchId = batchId, TransactionId = transactionId, StableLineId = "J-1-L1", AccountCode = "1000", Debit = 100m, OriginalCurrency = "QAR", OriginalAmount = 100m, FunctionalAmount = 100m, CreatedAt = DateTimeOffset.UtcNow },
+        new GeneralLedgerLine { Id = Guid.CreateVersion7(), FirmId = scope.FirmId, ClientId = scope.ClientA, EngagementId = scope.EngagementA, ImportBatchId = batchId, TransactionId = transactionId, StableLineId = "J-1-L2", AccountCode = "4000", Credit = 100m, OriginalCurrency = "QAR", OriginalAmount = -100m, FunctionalAmount = -100m, CreatedAt = DateTimeOffset.UtcNow });
+      await db.SaveChangesAsync();
+      var dataset = await db.TrialBalanceDatasets.SingleAsync(x => x.Id == datasetId);
+      dataset.ValidationStatus = "Accepted";
+      dataset.ImportState = TrialBalanceImportStates.Sealed;
+      await db.SaveChangesAsync();
+    }
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var created = await AccountingAnalysisService.CreateGeneralLedgerCompletenessBridgeAsync(db, preparer,
+        new GeneralLedgerCompletenessRequest(scope.ClientA, scope.EngagementA, periodId, bookId, datasetId, batchId, "tb-gl-completeness"));
+      Assert.True(created.Succeeded, created.Message);
+      var bridge = await db.GeneralLedgerCompletenessBridges.SingleAsync(x => x.Id == created.Value);
+      Assert.Equal("RECONCILED", bridge.Status);
+      Assert.Equal(2, bridge.MatchedAccountCount);
+      Assert.Equal(0m, bridge.AbsoluteResidual);
+
+      var firstPage = await AccountingAnalysisService.GetGeneralLedgerPageAsync(db, preparer, batchId, 1, 1);
+      Assert.True(firstPage.Succeeded, firstPage.Message);
+      Assert.Single(firstPage.Value!.Rows);
+      Assert.True(firstPage.Value.HasNextPage);
+      var secondPage = await AccountingAnalysisService.GetGeneralLedgerPageAsync(db, preparer, batchId, 2, 1);
+      Assert.True(secondPage.Succeeded, secondPage.Message);
+      Assert.Single(secondPage.Value!.Rows);
+      Assert.False(secondPage.Value.HasNextPage);
+
+      Assert.True((await AccountingAnalysisService.ReviewGeneralLedgerCompletenessAsync(db, reviewer, bridge.Id, approve: true)).Succeeded);
+      Assert.Equal(AccountingWorkflowStates.Approved, await db.GeneralLedgerCompletenessBridges.Where(x => x.Id == bridge.Id).Select(x => x.Status).SingleAsync());
+    }
+  }
+
+  [Fact]
+  [Trait("Profile", "Database")]
   public async Task ClosedPeriodRestatement_PreservesIssuedPackagesAndRequiresIndependentApproval()
   {
     await using var pg = await PgTestSchema.CreateAsync();

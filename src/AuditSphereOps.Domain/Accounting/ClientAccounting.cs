@@ -333,6 +333,34 @@ public sealed class GeneralLedgerLine
   public DateTimeOffset CreatedAt { get; set; }
 }
 
+public sealed class GeneralLedgerCompletenessBridge
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public Guid EngagementId { get; set; }
+  public Guid PeriodId { get; set; }
+  public Guid? BookId { get; set; }
+  public Guid TrialBalanceDatasetId { get; set; }
+  public Guid ImportBatchId { get; set; }
+  public string TrialBalanceHash { get; set; } = string.Empty;
+  public string GeneralLedgerHash { get; set; } = string.Empty;
+  public string AccountResidualDigest { get; set; } = string.Empty;
+  public int TrialBalanceAccountCount { get; set; }
+  public int GeneralLedgerAccountCount { get; set; }
+  public int MatchedAccountCount { get; set; }
+  public int MismatchedAccountCount { get; set; }
+  public decimal AbsoluteResidual { get; set; }
+  public DateOnly CoverageStart { get; set; }
+  public DateOnly CoverageEnd { get; set; }
+  public string Status { get; set; } = "UNRECONCILED";
+  public string EvidenceReference { get; set; } = string.Empty;
+  public Guid CreatedByUserId { get; set; }
+  public Guid? ReviewedByUserId { get; set; }
+  public DateTimeOffset CreatedAt { get; set; }
+  public DateTimeOffset? ReviewedAt { get; set; }
+}
+
 public sealed class AccountingReconciliation
 {
   public Guid Id { get; set; }
