@@ -32,6 +32,21 @@ public sealed class TrialBalanceCsvParserTests
     Assert.Equal(1820000m, calc.TotalCreditsAbs);
     // Leading zeros survive as strings, never as numbers.
     Assert.Contains(parsed.Rows, r => r.AccountCode == "100101");
+    Assert.NotEqual(parsed.RawFileSha256Hex, parsed.NormalizedDatasetDigest);
+    Assert.Equal(parsed.NormalizedDatasetDigest, parsed.SourceHash);
+  }
+
+  [Fact]
+  [Trait("Profile", "Unit")]
+  public void SourceIdentity_ChangesWhenRawEvidenceChanges()
+  {
+    var renamed = AdjustmentBridgeTests.TrialBalanceV1Csv.Replace("Bank,150000", "Operating Bank,150000");
+    var original = TrialBalanceCsvImporter.Parse(AdjustmentBridgeTests.TrialBalanceV1Csv);
+    var changed = TrialBalanceCsvImporter.Parse(renamed);
+
+    Assert.Equal(original.Rows.Select(x => x.Amount), changed.Rows.Select(x => x.Amount));
+    Assert.NotEqual(original.RawFileSha256Hex, changed.RawFileSha256Hex);
+    Assert.NotEqual(original.NormalizedDatasetDigest, changed.NormalizedDatasetDigest);
   }
 
   [Theory]
@@ -214,6 +229,25 @@ public sealed class AdjustmentBridgeTests
     Assert.Equal("Raw", dataset.SourceKind);
     Assert.Equal(1, dataset.Revision);
     Assert.NotEmpty(dataset.Sha256Hex);
+    Assert.Equal(dataset.NormalizedDatasetDigest, dataset.Sha256Hex);
+    Assert.NotEqual(dataset.RawFileSha256Hex, dataset.NormalizedDatasetDigest);
+    Assert.Equal("DEMO", dataset.LegalEntityKey);
+  }
+
+  [Fact]
+  public async Task Import_RejectsMixedLegalEntitiesBeforePromotion()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var (scope, users) = await SeedFirmWithStaffAsync(pg);
+    var mixed = TrialBalanceV1Csv.Replace("DEMO,CA_AR", "OTHER,CA_AR");
+
+    var result = await ImportAsync(pg, users, scope, mixed);
+
+    Assert.False(result.Succeeded);
+    Assert.Equal(ErrorCodes.Accounting.ImportRejected, result.ErrorCode);
+    await using var verify = new AuditSphereDbContext(pg.Options);
+    Assert.Empty(await verify.TrialBalanceDatasets.ToListAsync());
+    Assert.Empty(await verify.TrialBalanceRows.ToListAsync());
   }
 
   [Fact]
@@ -435,6 +469,67 @@ public sealed class AdjustmentBridgeTests
         State = ReflectionStates.NotReflected, CreatedAt = DateTimeOffset.UtcNow
       });
       await Assert.ThrowsAsync<DbUpdateException>(() => db.SaveChangesAsync());
+    }
+  }
+
+  [Fact]
+  public async Task ClientBookCorrection_RequiresManagementDecision_AndSupportsReversal()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var (scope, users) = await SeedFirmWithStaffAsync(pg);
+    var preparer = Actor(users.Preparer, "AccountingPreparer");
+    var reviewer = Actor(users.Reviewer, "AccountingReviewer");
+    AppUser clientUser;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      clientUser = await SeedUserAsync(db, scope.FirmId);
+      clientUser.UserKind = "Client";
+      db.Users.Update(clientUser);
+      await db.SaveChangesAsync();
+      await GrantAsync(db, scope, clientUser, "ClientUser");
+    }
+
+    Guid dataset;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+      dataset = (await TrialBalanceImportService.ImportAsync(db, preparer, scope.ClientId, scope.EngagementId, TrialBalanceV1Csv)).Value;
+    await ValidateAsync(pg, scope.FirmId);
+
+    Guid journal;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      journal = (await AdjustmentJournalService.CreateDraftAsync(db, preparer, dataset, "AJ-CB-001",
+        [("520100", 5000m, 0m), ("159100", 0m, 5000m)],
+        purpose: AdjustmentJournalPurposes.ClientBookCorrection,
+        origin: AdjustmentJournalOrigins.ClientRequested,
+        reason: "Client correction for depreciation",
+        evidenceReference: "client-email-001")).Value;
+      var blocked = await AdjustmentJournalService.PostAsync(db, reviewer, journal);
+      Assert.False(blocked.Succeeded);
+      Assert.Equal(ErrorCodes.GateBlocked, blocked.ErrorCode);
+    }
+
+    var clientActor = Actor(clientUser, "ClientUser");
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var decision = await AdjustmentJournalService.RecordManagementDecisionAsync(db, clientActor,
+        new AdjustmentJournalService.ManagementDecisionRequest(journal, ManagementDecisionStates.Accepted,
+          ManagementDecisionEvidenceModes.SignedIn, "management-session-decision-001"));
+      Assert.True(decision.Succeeded);
+    }
+    await using (var db = new AuditSphereDbContext(pg.Options))
+      Assert.True((await AdjustmentJournalService.PostAsync(db, reviewer, journal)).Succeeded);
+
+    Guid reversal;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      reversal = (await AdjustmentJournalService.CreateReversalDraftAsync(db, preparer, journal, "AJ-CB-002")).Value;
+      var saved = await db.AdjustmentJournals.SingleAsync(x => x.Id == reversal);
+      var lines = await db.AdjustmentLines.Where(x => x.JournalId == reversal).OrderBy(x => x.AccountCode).ToListAsync();
+      Assert.Equal(journal, saved.ReversalOfJournalId);
+      Assert.Equal(AdjustmentJournalPurposes.ClientBookCorrection, saved.Purpose);
+      Assert.Equal(2, lines.Count);
+      Assert.Equal(5000m, lines.Sum(x => x.Debit));
+      Assert.Equal(5000m, lines.Sum(x => x.Credit));
     }
   }
 }

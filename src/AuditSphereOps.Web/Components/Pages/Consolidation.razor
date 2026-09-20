@@ -1,0 +1,71 @@
+@page "/app/consolidation"
+@rendermode InteractiveServer
+@using AuditSphereOps.Domain.Accounting
+@inject CurrentActorResolver ActorResolver
+@inject IDbContextFactory<AuditSphereDbContext> DbFactory
+
+<PageTitle>Group consolidation</PageTitle>
+<a class="back-link" href="/app/accounting">← Back to accounting workspace</a>
+<h1>Group consolidation</h1>
+<p class="scope-note">Only explicitly granted group scopes appear here. The enabled first profile is same-currency, fully-owned consolidation; unsupported FX, NCI and equity-method cases remain blocked.</p>
+
+@if (_loading)
+{
+  <p role="status">Loading approved group scopes…</p>
+}
+else if (_groups.Count == 0)
+{
+  <section class="notice"><h2>No group access</h2><p>No explicit group access grant is available for the current identity.</p></section>
+}
+else
+{
+  @foreach (var group in _groups)
+  {
+    <section class="card" aria-labelledby="group-@group.Id">
+      <h2 id="group-@group.Id">@group.Name <code>@group.Code</code></h2>
+      @if (group.Scopes.Count == 0)
+      {
+        <p class="muted">No consolidation perimeter versions are available.</p>
+      }
+      else
+      {
+        <div class="table-wrap"><table>
+          <caption class="sr-only">Consolidation scopes for @group.Name</caption>
+          <thead><tr><th scope="col">Version</th><th scope="col">Method</th><th scope="col">Currency</th><th scope="col">Perimeter</th><th scope="col">Latest run</th></tr></thead>
+          <tbody>
+          @foreach (var scope in group.Scopes)
+          {
+            <tr><td>v@scope.Version</td><td><code>@scope.Method</code></td><td>@scope.Currency</td><td>@scope.Status</td><td>@scope.RunStatus</td></tr>
+          }
+          </tbody>
+        </table></div>
+      }
+    </section>
+  }
+}
+
+@code {
+  private sealed record ScopeRow(int Version, string Method, string Currency, string Status, string RunStatus);
+  private sealed record GroupRow(Guid Id, string Code, string Name, IReadOnlyList<ScopeRow> Scopes);
+  private List<GroupRow> _groups = [];
+  private bool _loading = true;
+
+  protected override async Task OnInitializedAsync()
+  {
+    var actor = await ActorResolver.ResolveAsync();
+    if (actor is not null)
+    {
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var groupIds = await db.GroupAccessGrants.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.UserId == actor.UserId && x.RevokedAt == null)
+        .Select(x => x.GroupId).Distinct().ToArrayAsync();
+      var groups = await db.ClientGroups.AsNoTracking().Where(x => x.FirmId == actor.FirmId && groupIds.Contains(x.Id)).OrderBy(x => x.Name).ToListAsync();
+      var scopes = await db.ConsolidationScopeVersions.AsNoTracking().Where(x => x.FirmId == actor.FirmId && groupIds.Contains(x.GroupId)).ToListAsync();
+      var runStatuses = await db.ConsolidationRuns.AsNoTracking().Where(x => x.FirmId == actor.FirmId && groupIds.Contains(x.GroupId))
+        .GroupBy(x => x.ScopeVersionId).Select(x => new { ScopeId = x.Key, Status = x.OrderByDescending(y => y.CreatedAt).Select(y => y.Status).First() }).ToDictionaryAsync(x => x.ScopeId, x => x.Status);
+      _groups = groups.Select(group => new GroupRow(group.Id, group.Code, group.Name, scopes.Where(x => x.GroupId == group.Id)
+        .OrderByDescending(x => x.Version).Select(x => new ScopeRow(x.Version, x.Method, x.ReportingCurrency, x.Status,
+          runStatuses.GetValueOrDefault(x.Id, "NO_RUN"))).ToArray())).ToList();
+    }
+    _loading = false;
+  }
+}

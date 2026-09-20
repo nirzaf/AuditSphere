@@ -15,7 +15,8 @@ public sealed record MappingAllocationInput(
   string StatementSection,
   decimal Fraction,
   string Rationale,
-  string? AuditArea = null);
+  string? AuditArea = null,
+  string ResidualPolicy = "LAST_DESTINATION");
 
 public sealed record CreateMappingVersionRequest(
   Guid DatasetId,
@@ -37,11 +38,29 @@ public sealed record FinancialSupplementaryInformation(
   decimal CashBeginning,
   decimal CashEnding,
   IReadOnlyList<CashFlowLineInput> CashFlowLines,
-  IReadOnlyList<DisclosureInput> Disclosures);
+  IReadOnlyList<DisclosureInput> Disclosures,
+  IReadOnlyList<EquityLineInput>? EquityLines = null,
+  FinancialComparativeInput? Comparative = null,
+  IReadOnlyList<NoteLineInput>? NoteLines = null);
 
 public sealed record CashFlowLineInput(string Section, string Description, decimal Amount);
 
 public sealed record DisclosureInput(string Code, string Response, bool NotApplicable = false, string? Rationale = null);
+
+public sealed record EquityLineInput(
+  string LineCode,
+  string Description,
+  decimal OpeningAmount,
+  decimal ProfitOrLossAmount,
+  decimal OciAmount,
+  decimal CapitalMovementAmount,
+  decimal DividendsAmount,
+  decimal ClosingAmount,
+  string EvidenceReference);
+
+public sealed record FinancialComparativeInput(Guid PackageId, string Basis, string EvidenceReference);
+
+public sealed record NoteLineInput(string NoteCode, string FaceDestinationCode, decimal Amount, string EvidenceReference);
 
 public sealed record FinancialPackageBuildResult(
   Guid PackageId,
@@ -87,6 +106,9 @@ public static class FinancialStatementService
     var auth = await AuthorizeAsync(db, actor, dataset.FirmId, dataset.ClientId, dataset.EngagementId, PreparerRoles.ToArray(), ct);
     if (!auth.Succeeded)
       return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+    var taxonomyError = await ValidateApprovedTaxonomyAsync(db, dataset.FirmId, request.TaxonomyVersion, request.Allocations, ct);
+    if (taxonomyError is not null)
+      return CommandResult<Guid>.Fail(ErrorCodes.Accounting.MappingInvalid, taxonomyError);
 
     var rows = await db.TrialBalanceRows.AsNoTracking()
       .Where(x => x.DatasetId == dataset.Id)
@@ -148,6 +170,9 @@ public static class FinancialStatementService
     var auth = await AuthorizeAsync(db, actor, snapshot.FirmId, snapshot.ClientId, snapshot.EngagementId, ReviewerRoles.ToArray(), ct);
     if (!auth.Succeeded)
       return auth;
+    if (snapshot.CreatedByUserId == actor.UserId)
+      return CommandResult.Fail(ErrorCodes.Accounting.MappingInvalid,
+        "The mapping preparer cannot approve the same mapping version.");
 
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     if (await LockFirmAsync(db, actor.FirmId, ct) is null)
@@ -182,6 +207,9 @@ public static class FinancialStatementService
     var mappingError = ValidateAllocations(rows, allocations);
     if (mappingError is not null)
       return CommandResult.Fail(ErrorCodes.Accounting.MappingIncomplete, mappingError);
+    var taxonomyError = await ValidateApprovedTaxonomyAsync(db, mapping.FirmId, mapping.TaxonomyVersion, allocations, ct);
+    if (taxonomyError is not null)
+      return CommandResult.Fail(ErrorCodes.Accounting.MappingInvalid, taxonomyError);
 
     client.InputGeneration++;
     mapping.Generation = client.InputGeneration;
@@ -242,6 +270,25 @@ public static class FinancialStatementService
     var supplementaryError = ValidateSupplementaryInformation(request.SupplementaryInformation);
     if (supplementaryError is not null)
       return CommandResult<FinancialPackageBuildResult>.Fail(ErrorCodes.Accounting.PackageSupplementaryInvalid, supplementaryError);
+    var typedAccounting = db as IClientAccountingDbContext;
+    if ((request.SupplementaryInformation?.EquityLines is not null || request.SupplementaryInformation?.NoteLines is not null) && typedAccounting is null)
+      return CommandResult<FinancialPackageBuildResult>.Fail(ErrorCodes.GateBlocked,
+        "Structured equity and note package outputs require the client-accounting persistence surface.");
+
+    FinancialPackage? comparative = null;
+    if (request.SupplementaryInformation?.Comparative is { } comparativeInput)
+    {
+      comparative = await db.FinancialPackages.AsNoTracking().SingleOrDefaultAsync(x =>
+        x.Id == comparativeInput.PackageId && x.FirmId == mapping.FirmId, ct);
+      if (comparative is null ||
+          comparative.ClientId != mapping.ClientId || comparative.EngagementId != mapping.EngagementId ||
+          comparative.Status != AccountingPackageStates.PackageValidated ||
+          !string.Equals(comparative.Framework, request.Framework.Trim(), StringComparison.Ordinal) ||
+          !string.Equals(comparative.Currency, dataset.Currency, StringComparison.Ordinal) ||
+          string.CompareOrdinal(comparative.PeriodEnd, request.PeriodStart.Trim()) >= 0)
+        return CommandResult<FinancialPackageBuildResult>.Fail(ErrorCodes.Accounting.PackageSupplementaryInvalid,
+          "The comparative must be an approved validated package for the same scope, framework and currency, from an earlier period.");
+    }
 
     var packageLines = FinancialStatementCalculator.BuildPackageLines(calculated.Value.Balances, allocations, dataset.Currency);
     var statementTotals = packageLines.GroupBy(x => x.StatementSection, StringComparer.Ordinal)
@@ -249,6 +296,16 @@ public static class FinancialStatementService
     var supplementaryHash = request.SupplementaryInformation is null
       ? null
       : FinancialStatementCalculator.ComputeSupplementaryHash(request.SupplementaryInformation, dataset.Currency);
+    var equityHash = request.SupplementaryInformation?.EquityLines is { Count: > 0 } equityLines
+      ? FinancialStatementCalculator.ComputeEquityHash(equityLines, dataset.Currency)
+      : null;
+    var noteTotals = (request.SupplementaryInformation?.NoteLines ?? [])
+      .GroupBy(x => x.FaceDestinationCode.Trim(), StringComparer.OrdinalIgnoreCase)
+      .ToDictionary(x => x.Key, x => MoneyPolicy.Normalize(x.Sum(y => y.Amount)), StringComparer.OrdinalIgnoreCase);
+    if (request.SupplementaryInformation?.NoteLines is { Count: > 0 } && noteTotals.Any(x =>
+        MoneyPolicy.Normalize(packageLines.Where(y => string.Equals(y.DestinationCode, x.Key, StringComparison.OrdinalIgnoreCase)).Sum(y => y.Amount)) != x.Value))
+      return CommandResult<FinancialPackageBuildResult>.Fail(ErrorCodes.Accounting.PackageSupplementaryInvalid,
+        "Structured note amounts must cross-cast to their mapped face destinations.");
     var packageHash = FinancialStatementCalculator.ComputePackageHash(request, mapping, plan,
       calculated.Value.ResultHash, packageLines, supplementaryHash);
 
@@ -328,6 +385,10 @@ public static class FinancialStatementService
       CashBeginning = request.SupplementaryInformation?.CashBeginning,
       CashEnding = request.SupplementaryInformation?.CashEnding,
       SupplementaryHash = supplementaryHash,
+      EquityHash = equityHash,
+      ComparativePackageId = comparative?.Id,
+      ComparativeBasis = request.SupplementaryInformation?.Comparative?.Basis.Trim(),
+      ComparativeEvidenceReference = request.SupplementaryInformation?.Comparative?.EvidenceReference.Trim(),
       CreatedAt = DateTimeOffset.UtcNow
     };
     db.FinancialPackages.Add(package);
@@ -337,7 +398,8 @@ public static class FinancialStatementService
         Id = Guid.CreateVersion7(), FirmId = package.FirmId, ClientId = package.ClientId,
         EngagementId = package.EngagementId, FinancialPackageId = package.Id,
         SourceAccountCode = line.SourceAccountCode, DestinationCode = line.DestinationCode,
-        StatementSection = line.StatementSection, Amount = line.Amount, Fraction = line.Fraction,
+        StatementSection = line.StatementSection, Amount = line.Amount,
+        RoundingResidual = line.RoundingResidual, Fraction = line.Fraction,
         Currency = package.Currency, AdjustedSnapshotId = adjusted.Id, CreatedAt = package.CreatedAt
       });
     AddValidation(db, package, "TB_BALANCED", calculated.Value.TotalSigned == 0m,
@@ -355,6 +417,39 @@ public static class FinancialStatementService
       hasSupplementary ? "Disclosure responses are present, including rationale for not-applicable items." : "Disclosure responses are not supplied.");
     AddValidation(db, package, "SUPPLEMENTARY_INFORMATION", hasSupplementary,
       hasSupplementary ? "Cash-flow workings and disclosure responses are persisted with the package." : "Cash-flow workings, disclosures and management information require separate approved inputs.");
+    if (request.SupplementaryInformation?.EquityLines is { Count: > 0 } requestedEquity)
+    {
+      AddValidation(db, package, "EQUITY_ROLLFORWARD", true,
+        "Statement-of-changes-in-equity lines reconcile opening, movements and closing balances.");
+      foreach (var line in requestedEquity)
+        typedAccounting!.FinancialPackageEquityLines.Add(new FinancialPackageEquityLine
+        {
+          Id = Guid.CreateVersion7(), FirmId = package.FirmId, ClientId = package.ClientId,
+          EngagementId = package.EngagementId, FinancialPackageId = package.Id,
+          LineCode = line.LineCode.Trim().ToUpperInvariant(), Description = line.Description.Trim(),
+          OpeningAmount = MoneyPolicy.Normalize(line.OpeningAmount), ProfitOrLossAmount = MoneyPolicy.Normalize(line.ProfitOrLossAmount),
+          OciAmount = MoneyPolicy.Normalize(line.OciAmount), CapitalMovementAmount = MoneyPolicy.Normalize(line.CapitalMovementAmount),
+          DividendsAmount = MoneyPolicy.Normalize(line.DividendsAmount), ClosingAmount = MoneyPolicy.Normalize(line.ClosingAmount),
+          Currency = package.Currency, EvidenceReference = line.EvidenceReference.Trim(), CreatedAt = package.CreatedAt
+        });
+    }
+    if (request.SupplementaryInformation?.Comparative is { } requestedComparative)
+      AddValidation(db, package, "COMPARATIVE_BOUND", true,
+        $"Comparative package {requestedComparative.PackageId:D} is bound by exact package identity and evidence.");
+    if (request.SupplementaryInformation?.NoteLines is { Count: > 0 } requestedNotes)
+    {
+      AddValidation(db, package, "NOTE_TO_FACE_TOTALS", true,
+        "Structured note amounts cross-cast to the mapped face destinations.");
+      foreach (var line in requestedNotes)
+        typedAccounting!.FinancialPackageNoteLines.Add(new FinancialPackageNoteLine
+        {
+          Id = Guid.CreateVersion7(), FirmId = package.FirmId, ClientId = package.ClientId,
+          EngagementId = package.EngagementId, FinancialPackageId = package.Id,
+          NoteCode = line.NoteCode.Trim().ToUpperInvariant(), FaceDestinationCode = line.FaceDestinationCode.Trim(),
+          Amount = MoneyPolicy.Normalize(line.Amount), Currency = package.Currency,
+          EvidenceReference = line.EvidenceReference.Trim(), CreatedAt = package.CreatedAt
+        });
+    }
     if (request.SupplementaryInformation is not null)
     {
       foreach (var line in request.SupplementaryInformation.CashFlowLines)
@@ -399,7 +494,9 @@ public static class FinancialStatementService
     IReadOnlyCollection<FinancialPackageLine> lines,
     IReadOnlyCollection<FinancialPackageCashFlowLine> cashFlowLines,
     IReadOnlyCollection<FinancialPackageDisclosure> disclosures,
-    IReadOnlyCollection<FinancialPackageValidation> validations)
+    IReadOnlyCollection<FinancialPackageValidation> validations,
+    IReadOnlyCollection<FinancialPackageEquityLine>? equityLines = null,
+    IReadOnlyCollection<FinancialPackageNoteLine>? noteLines = null)
   {
     var sb = new System.Text.StringBuilder();
     sb.AppendLine("=== AUDITSPHEREOPS FINANCIAL STATEMENT PACKAGE ===");
@@ -416,6 +513,10 @@ public static class FinancialStatementService
     sb.AppendLine($"Calculation Hash: {package.CalculationHash}");
     if (package.SupplementaryHash is not null)
       sb.AppendLine($"Supplementary Hash: {package.SupplementaryHash}");
+    if (package.EquityHash is not null)
+      sb.AppendLine($"Equity Hash: {package.EquityHash}");
+    if (package.ComparativePackageId is not null)
+      sb.AppendLine($"Comparative Package: {package.ComparativePackageId:D} | {package.ComparativeBasis} | {package.ComparativeEvidenceReference}");
     sb.AppendLine($"Status: {package.Status}");
     sb.AppendLine();
 
@@ -424,7 +525,7 @@ public static class FinancialStatementService
       .ThenBy(x => x.DestinationCode, StringComparer.Ordinal)
       .ThenBy(x => x.SourceAccountCode, StringComparer.Ordinal))
     {
-      sb.AppendLine($"{line.StatementSection} | {line.DestinationCode} | {line.SourceAccountCode} | {line.Amount.ToString("0.000000", CultureInfo.InvariantCulture)} {line.Currency} | {line.Fraction.ToString("0.000000", CultureInfo.InvariantCulture)}");
+      sb.AppendLine($"{line.StatementSection} | {line.DestinationCode} | {line.SourceAccountCode} | {line.Amount.ToString("0.000000", CultureInfo.InvariantCulture)} {line.Currency} | {line.Fraction.ToString("0.000000", CultureInfo.InvariantCulture)} | residual={line.RoundingResidual.ToString("0.000000", CultureInfo.InvariantCulture)}");
     }
     sb.AppendLine();
 
@@ -458,6 +559,22 @@ public static class FinancialStatementService
         var resp = disc.NotApplicable ? $"[NOT APPLICABLE: {disc.Rationale}]" : disc.Response;
         sb.AppendLine($"{disc.Code}: {resp}");
       }
+      sb.AppendLine();
+    }
+
+    if (equityLines is { Count: > 0 })
+    {
+      sb.AppendLine("--- STATEMENT OF CHANGES IN EQUITY ---");
+      foreach (var equity in equityLines.OrderBy(x => x.LineCode, StringComparer.OrdinalIgnoreCase))
+        sb.AppendLine($"{equity.LineCode} | {equity.Description} | opening={equity.OpeningAmount.ToString("0.000000", CultureInfo.InvariantCulture)} | profit/loss={equity.ProfitOrLossAmount.ToString("0.000000", CultureInfo.InvariantCulture)} | oci={equity.OciAmount.ToString("0.000000", CultureInfo.InvariantCulture)} | capital={equity.CapitalMovementAmount.ToString("0.000000", CultureInfo.InvariantCulture)} | dividends={equity.DividendsAmount.ToString("0.000000", CultureInfo.InvariantCulture)} | closing={equity.ClosingAmount.ToString("0.000000", CultureInfo.InvariantCulture)} | {equity.Currency} | evidence={equity.EvidenceReference}");
+      sb.AppendLine();
+    }
+
+    if (noteLines is { Count: > 0 })
+    {
+      sb.AppendLine("--- STRUCTURED NOTE CROSS-CASTS ---");
+      foreach (var note in noteLines.OrderBy(x => x.NoteCode, StringComparer.OrdinalIgnoreCase).ThenBy(x => x.FaceDestinationCode, StringComparer.OrdinalIgnoreCase))
+        sb.AppendLine($"{note.NoteCode} | {note.FaceDestinationCode} | {note.Amount.ToString("0.000000", CultureInfo.InvariantCulture)} {note.Currency} | evidence={note.EvidenceReference}");
       sb.AppendLine();
     }
 
@@ -500,11 +617,18 @@ public static class FinancialStatementService
     var disclosures = await db.FinancialPackageDisclosures.AsNoTracking()
       .Where(x => x.FinancialPackageId == package.Id && x.FirmId == actor.FirmId)
       .ToListAsync(ct);
+    var typed = db as IClientAccountingDbContext;
+    IReadOnlyCollection<FinancialPackageEquityLine> equityLines = typed is null ? [] : await typed.FinancialPackageEquityLines.AsNoTracking()
+      .Where(x => x.FinancialPackageId == package.Id && x.FirmId == actor.FirmId)
+      .ToListAsync(ct);
+    IReadOnlyCollection<FinancialPackageNoteLine> noteLines = typed is null ? [] : await typed.FinancialPackageNoteLines.AsNoTracking()
+      .Where(x => x.FinancialPackageId == package.Id && x.FirmId == actor.FirmId)
+      .ToListAsync(ct);
     var validations = await db.FinancialPackageValidations.AsNoTracking()
       .Where(x => x.FinancialPackageId == package.Id && x.FirmId == actor.FirmId)
       .ToListAsync(ct);
 
-    var artifact = RenderPackageArtifact(package, lines, cashFlowLines, disclosures, validations);
+    var artifact = RenderPackageArtifact(package, lines, cashFlowLines, disclosures, validations, equityLines, noteLines);
     return CommandResult<FinancialStatementPackageArtifact>.Ok(artifact);
   }
 
@@ -531,7 +655,9 @@ public static class FinancialStatementService
     SourceAccountCode = input.SourceAccountCode.Trim(), DestinationCode = input.DestinationCode.Trim(),
     StatementSection = input.StatementSection.Trim().ToUpperInvariant(),
     AuditArea = string.IsNullOrWhiteSpace(input.AuditArea) ? null : input.AuditArea.Trim(),
-    Fraction = MoneyPolicy.Normalize(input.Fraction), Rationale = input.Rationale.Trim(),
+    Fraction = MoneyPolicy.Normalize(input.Fraction),
+    ResidualPolicy = input.ResidualPolicy.Trim().ToUpperInvariant(),
+    Rationale = input.Rationale.Trim(),
     CreatedAt = mapping.CreatedAt
   };
 
@@ -555,6 +681,26 @@ public static class FinancialStatementService
     return null;
   }
 
+  private static async Task<string?> ValidateApprovedTaxonomyAsync(
+    IAuditSphereDbContext db,
+    Guid firmId,
+    string taxonomyCode,
+    IReadOnlyCollection<MappingAllocationInput> allocations,
+    CancellationToken ct)
+  {
+    if (db is not IClientAccountingDbContext typed)
+      return null; // Legacy command adapters without the client-accounting surface remain compatible.
+    var taxonomy = await typed.ReportingTaxonomyVersions.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.FirmId == firmId && x.Code == taxonomyCode.Trim() && x.Status == AccountingWorkflowStates.Approved, ct);
+    if (taxonomy is null)
+      return "An approved reporting taxonomy version is required.";
+    var destinations = allocations.Select(x => x.DestinationCode.Trim()).ToHashSet(StringComparer.OrdinalIgnoreCase);
+    var approvedNodes = await typed.ReportingTaxonomyNodes.AsNoTracking().Where(x => x.FirmId == firmId &&
+      x.TaxonomyVersionId == taxonomy.Id && x.IsPosting).Select(x => x.Code).ToListAsync(ct);
+    var unknown = destinations.Where(x => !approvedNodes.Contains(x, StringComparer.OrdinalIgnoreCase)).OrderBy(x => x, StringComparer.Ordinal).ToArray();
+    return unknown.Length == 0 ? null : $"Mapping destinations are not approved taxonomy nodes: {string.Join(", ", unknown)}.";
+  }
+
   private static string? ValidateAllocations(
     IReadOnlyCollection<SourceBalance> rows,
     IReadOnlyCollection<MappingAllocationInput> allocations)
@@ -567,6 +713,8 @@ public static class FinancialStatementService
     if (normalized.Any(x => x.SourceAccountCode.Length == 0 || x.DestinationCode.Length == 0 ||
         x.StatementSection.Length == 0 || x.Rationale.Length == 0 || x.Fraction <= 0m || x.Fraction > 1m))
       return "Each allocation needs a positive fraction, destination, statement section and rationale.";
+    if (normalized.Any(x => !string.Equals(x.ResidualPolicy, "LAST_DESTINATION", StringComparison.Ordinal)))
+      return "Only the deterministic LAST_DESTINATION residual policy is supported.";
     if (normalized.Any(x => !accountSet.Contains(x.SourceAccountCode)))
       return "A mapping allocation references an account outside the selected dataset.";
     if (normalized.GroupBy(x => (x.SourceAccountCode, x.DestinationCode)).Any(x => x.Count() > 1))
@@ -601,6 +749,29 @@ public static class FinancialStatementService
       return "Each disclosure needs a response or a not-applicable rationale.";
     if (input.Disclosures.GroupBy(x => x.Code.Trim(), StringComparer.OrdinalIgnoreCase).Any(x => x.Count() != 1))
       return "Disclosure codes must be unique in a package.";
+    if (input.EquityLines is { Count: > 0 } equity)
+    {
+      if (equity.Any(x => string.IsNullOrWhiteSpace(x.LineCode) || string.IsNullOrWhiteSpace(x.Description) ||
+          string.IsNullOrWhiteSpace(x.EvidenceReference) || new[] { x.OpeningAmount, x.ProfitOrLossAmount, x.OciAmount,
+            x.CapitalMovementAmount, x.DividendsAmount, x.ClosingAmount }.Any(y => MoneyPolicy.Normalize(y) != y)))
+        return "Each equity line needs descriptions, evidence and six-decimal amounts.";
+      if (equity.GroupBy(x => x.LineCode.Trim(), StringComparer.OrdinalIgnoreCase).Any(x => x.Count() != 1))
+        return "Equity line codes must be unique in a package.";
+      if (equity.Any(x => MoneyPolicy.Normalize(x.OpeningAmount + x.ProfitOrLossAmount + x.OciAmount +
+          x.CapitalMovementAmount - x.DividendsAmount) != MoneyPolicy.Normalize(x.ClosingAmount)))
+        return "Each equity line must reconcile opening balance, profit/loss, OCI, capital, dividends and closing balance.";
+    }
+    if (input.NoteLines is { Count: > 0 } notes)
+    {
+      if (notes.Any(x => string.IsNullOrWhiteSpace(x.NoteCode) || string.IsNullOrWhiteSpace(x.FaceDestinationCode) ||
+          string.IsNullOrWhiteSpace(x.EvidenceReference) || MoneyPolicy.Normalize(x.Amount) != x.Amount))
+        return "Each structured note line needs a destination, evidence and six-decimal amount.";
+      if (notes.GroupBy(x => $"{x.NoteCode.Trim().ToUpperInvariant()}\u001f{x.FaceDestinationCode.Trim().ToUpperInvariant()}", StringComparer.Ordinal).Any(x => x.Count() != 1))
+        return "Structured note line identities must be unique in a package.";
+    }
+    if (input.Comparative is { } comparative &&
+        (comparative.PackageId == Guid.Empty || string.IsNullOrWhiteSpace(comparative.Basis) || string.IsNullOrWhiteSpace(comparative.EvidenceReference)))
+      return "A comparative package needs an exact package identity, basis and evidence reference.";
     var expected = MoneyPolicy.Normalize(input.CashEnding - input.CashBeginning);
     var actual = MoneyPolicy.Normalize(input.CashFlowLines.Sum(x => x.Amount));
     return expected == actual ? null : $"Cash-flow lines total {actual} but the opening/closing bridge is {expected}.";
@@ -623,8 +794,6 @@ public static class FinancialStatementService
       return CommandResult<AdjustedCalculation>.Fail(ErrorCodes.GateBlocked, "The adjustment base has no rows.");
     var balances = rows.ToDictionary(x => x.AccountCode, x => x.Amount, StringComparer.Ordinal);
     var lines = await db.AdjustmentPlanLines.AsNoTracking().Where(x => x.PlanId == plan.Id).ToListAsync(ct);
-    if (lines.Count == 0)
-      return CommandResult<AdjustedCalculation>.Fail(ErrorCodes.GateBlocked, "The finalized plan has no journal selections.");
     foreach (var line in lines.Where(x => x.ReflectionState == ReflectionStates.NotReflected))
     {
       var journal = await db.AdjustmentJournals.AsNoTracking().SingleOrDefaultAsync(x =>

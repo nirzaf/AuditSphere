@@ -9,11 +9,20 @@ using AuditSphereOps.Domain.Shared;
 
 namespace AuditSphereOps.Application.Accounting;
 
-public sealed record ParsedCsvFile(IReadOnlyList<TbImportRow> Rows, string Currency, string SourceHash);
+public sealed record ParsedCsvFile(
+  IReadOnlyList<TbImportRow> Rows,
+  string Currency,
+  string RawFileSha256Hex,
+  string NormalizedDatasetDigest)
+{
+  // Compatibility alias for callers that used the old reconstructed-source hash.
+  public string SourceHash => NormalizedDatasetDigest;
+}
 
 public static class TrialBalanceCsvImporter
 {
   public const int MaxRows = 20000;
+  public const string NormalizedDigestVersion = "tb-csv-normalized.v2";
   private static readonly string[] RequiredColumns =
     ["AccountCode", "AccountName", "NetClosingBalance", "Currency", "Entity", "MappingCode"];
 
@@ -41,7 +50,7 @@ public static class TrialBalanceCsvImporter
     var rows = new List<TbImportRow>(lines.Length - 1);
     var keys = new HashSet<(string Entity, string AccountCode)>();
     string? currency = null;
-    var hash = new StringBuilder();
+    var rawFileSha256Hex = Hashing.Sha256Hex(Encoding.UTF8.GetBytes(csvText));
     for (var n = 1; n < lines.Length; n++)
     {
       var fields = SplitLine(lines[n]);
@@ -73,13 +82,26 @@ public static class TrialBalanceCsvImporter
       var amount = ParseAmount(amountText, n);
       rows.Add(new TbImportRow(code, name, amount, rowCurrency, entity,
         string.IsNullOrEmpty(mapping) ? null : mapping));
-      hash.Append(entity).Append('|').Append(code).Append('|')
-        .Append(amount.ToString("0.000000", CultureInfo.InvariantCulture)).Append('|')
-        .Append(rowCurrency).Append('\n');
     }
     if (rows.Count == 0)
       throw new InvalidOperationException("Trial-balance file has no data rows.");
-    return new ParsedCsvFile(rows, currency!, Hashing.Sha256Hex(hash.ToString()));
+    return BuildParsed(rows, currency!, rawFileSha256Hex);
+  }
+
+  internal static ParsedCsvFile BuildParsed(IReadOnlyList<TbImportRow> rows, string currency, string rawFileSha256Hex)
+  {
+    var normalized = new StringBuilder(NormalizedDigestVersion).Append('\n');
+    foreach (var row in rows.OrderBy(x => x.Entity, StringComparer.Ordinal)
+      .ThenBy(x => x.AccountCode, StringComparer.Ordinal)
+      .ThenBy(x => x.AccountName, StringComparer.Ordinal)
+      .ThenBy(x => x.MappingCode, StringComparer.Ordinal))
+    {
+      normalized.Append(row.Entity).Append('|').Append(row.AccountCode).Append('|')
+        .Append(row.AccountName).Append('|')
+        .Append(row.Amount.ToString("0.000000", CultureInfo.InvariantCulture)).Append('|')
+        .Append(row.Currency).Append('|').Append(row.MappingCode ?? string.Empty).Append('\n');
+    }
+    return new ParsedCsvFile(rows, currency, rawFileSha256Hex, Hashing.Sha256Hex(normalized.ToString()));
   }
 
   private static decimal ParseAmount(string text, int row)

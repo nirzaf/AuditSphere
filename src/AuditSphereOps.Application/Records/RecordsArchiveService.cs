@@ -453,7 +453,11 @@ public static class RecordsArchiveService
       .OrderBy(x => x.Id).Select(x => new { x.Id, x.PlanId, x.LogicalJournalNumber, x.JournalRevision, x.Layer, x.ReflectionState }).ToListAsync(ct);
     var adjustmentJournals = await db.AdjustmentJournals.AsNoTracking()
       .Where(x => x.FirmId == archive.FirmId && x.ClientId == archive.ClientId && x.EngagementId == archive.EngagementId)
-      .OrderBy(x => x.Id).Select(x => new { x.Id, x.BaseDatasetId, x.JournalNumber, x.Status, x.Revision, x.CreatedAt }).ToListAsync(ct);
+      .OrderBy(x => x.Id).Select(x => new
+      {
+        x.Id, x.BaseDatasetId, x.JournalNumber, x.Status, x.Revision, x.Purpose, x.BookId, x.Origin,
+        x.Reason, x.EvidenceReference, x.SupersedesJournalId, x.ReversalOfJournalId, x.CreatedAt
+      }).ToListAsync(ct);
     var adjustmentJournalIds = adjustmentJournals.Select(x => x.Id).ToArray();
     var adjustmentLines = await db.AdjustmentLines.AsNoTracking().Where(x => adjustmentJournalIds.Contains(x.JournalId))
       .OrderBy(x => x.Id).Select(x => new { x.Id, x.JournalId, x.AccountCode, x.Debit, x.Credit }).ToListAsync(ct);
@@ -463,7 +467,7 @@ public static class RecordsArchiveService
 
     var packages = await db.FinancialPackages.AsNoTracking()
       .Where(x => x.FirmId == archive.FirmId && x.ClientId == archive.ClientId && x.EngagementId == archive.EngagementId)
-      .OrderBy(x => x.Id).Select(x => new { x.Id, x.AdjustedDatasetId, x.MappingVersionId, x.AdjustmentPlanId, x.Framework, x.PeriodStart, x.PeriodEnd, x.TaxonomyVersion, x.TemplateVersion, x.CalculationEngineVersion, x.CalculationHash, x.Currency, x.Revision, x.Generation, x.Status, x.SupplementaryHash, x.CreatedAt }).ToListAsync(ct);
+      .OrderBy(x => x.Id).Select(x => new { x.Id, x.AdjustedDatasetId, x.MappingVersionId, x.AdjustmentPlanId, x.Framework, x.PeriodStart, x.PeriodEnd, x.TaxonomyVersion, x.TemplateVersion, x.CalculationEngineVersion, x.CalculationHash, x.Currency, x.Revision, x.Generation, x.Status, x.SupplementaryHash, x.EquityHash, x.ComparativePackageId, x.ComparativeBasis, x.ComparativeEvidenceReference, x.CreatedAt }).ToListAsync(ct);
     var packageIds = packages.Select(x => x.Id).ToArray();
     var packageLines = await db.FinancialPackageLines.AsNoTracking().Where(x => packageIds.Contains(x.FinancialPackageId))
       .OrderBy(x => x.Id).Select(x => new { x.Id, x.FinancialPackageId, x.SourceAccountCode, x.DestinationCode, x.StatementSection, x.Amount, x.Fraction, x.Currency, x.AdjustedSnapshotId, x.CreatedAt }).ToListAsync(ct);
@@ -473,6 +477,13 @@ public static class RecordsArchiveService
       .OrderBy(x => x.Id).Select(x => new { x.Id, x.FinancialPackageId, x.Section, x.Description, x.Amount, x.Currency, x.CreatedAt }).ToListAsync(ct);
     var disclosures = await db.FinancialPackageDisclosures.AsNoTracking().Where(x => packageIds.Contains(x.FinancialPackageId))
       .OrderBy(x => x.Id).Select(x => new { x.Id, x.FinancialPackageId, x.Code, x.Response, x.NotApplicable, x.Rationale, x.CreatedAt }).ToListAsync(ct);
+    var typedAccounting = db as IClientAccountingDbContext;
+    var equityLines = typedAccounting is null ? [] : await typedAccounting.FinancialPackageEquityLines.AsNoTracking()
+      .Where(x => packageIds.Contains(x.FinancialPackageId)).OrderBy(x => x.Id)
+      .Select(x => new { x.Id, x.FinancialPackageId, x.LineCode, x.Description, x.OpeningAmount, x.ProfitOrLossAmount, x.OciAmount, x.CapitalMovementAmount, x.DividendsAmount, x.ClosingAmount, x.Currency, x.EvidenceReference, x.CreatedAt }).ToListAsync(ct);
+    var noteLines = typedAccounting is null ? [] : await typedAccounting.FinancialPackageNoteLines.AsNoTracking()
+      .Where(x => packageIds.Contains(x.FinancialPackageId)).OrderBy(x => x.Id)
+      .Select(x => new { x.Id, x.FinancialPackageId, x.NoteCode, x.FaceDestinationCode, x.Amount, x.Currency, x.EvidenceReference, x.CreatedAt }).ToListAsync(ct);
 
     var materiality = await db.MaterialityAssessments.AsNoTracking()
       .Where(x => x.FirmId == archive.FirmId && x.ClientId == archive.ClientId && x.EngagementId == archive.EngagementId)
@@ -549,7 +560,14 @@ public static class RecordsArchiveService
       .OrderBy(x => x.Id).Select(x => new { x.Id, x.ProcedureId, x.AreaCode, x.AssessmentKind, x.MethodologyReference, x.InputSnapshotJson, x.BookedAmount, x.AuditedAmount, x.ResidualAmount, x.VariancePercent, x.Currency, x.PeriodStart, x.PeriodEnd, x.EvidenceReferencesJson, x.InputGeneration, x.Revision, x.Conclusion, x.Status, x.CreatedByUserId, x.ReviewedByUserId, x.CreatedAt, x.ReviewedAt }).ToListAsync(ct);
     var differences = await db.AuditDifferences.AsNoTracking().Where(x =>
       x.FirmId == archive.FirmId && x.ClientId == archive.ClientId && x.EngagementId == archive.EngagementId)
-      .OrderBy(x => x.Id).Select(x => new { x.Id, x.ProcedureId, x.AccountArea, x.DifferenceType, x.Description, x.Amount, x.Currency, x.Corrected, x.ManagementResponse, x.CorrectionReference, x.Evaluation, x.InputGeneration, x.Status, x.CreatedByUserId, x.EvaluatedByUserId, x.CreatedAt, x.EvaluatedAt }).ToListAsync(ct);
+      .OrderBy(x => x.Id).Select(x => new
+      {
+        x.Id, x.ProcedureId, x.AccountArea, x.DifferenceType, x.Description, x.Amount, x.Currency, x.Corrected,
+        x.ManagementResponse, x.CorrectionReference, x.ProposedJournalId, x.ProposedJournalRevision,
+        x.SourceReflectionReconciliationId, x.VerifiedAdjustedSnapshotId, x.CorrectionState, x.JournalImpactJson,
+        x.JournalImpactHash, x.Evaluation, x.InputGeneration, x.Status, x.CreatedByUserId, x.EvaluatedByUserId,
+        x.CreatedAt, x.EvaluatedAt
+      }).ToListAsync(ct);
     var reviewPoints = await db.ReviewPoints.AsNoTracking()
       .Where(x => x.FirmId == archive.FirmId && x.ClientId == archive.ClientId && x.EngagementId == archive.EngagementId)
       .OrderBy(x => x.Id).Select(x => new { x.Id, x.TargetId, x.TargetKind, x.TargetRevision, x.Comment, x.Significant, x.Cleared, x.RaisedAt }).ToListAsync(ct);
@@ -648,7 +666,9 @@ public static class RecordsArchiveService
         packageLines,
         packageValidations,
         cashFlowLines,
-        disclosures
+        disclosures,
+        equityLines,
+        noteLines
       },
       audit = new
       {

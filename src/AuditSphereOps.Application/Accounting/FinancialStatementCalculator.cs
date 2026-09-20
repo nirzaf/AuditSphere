@@ -19,7 +19,8 @@ public static class FinancialStatementCalculator
     string StatementSection,
     decimal Amount,
     decimal Fraction,
-    string Currency);
+    string Currency,
+    decimal RoundingResidual);
 
   public static IReadOnlyList<PackageLine> BuildPackageLines(
     IReadOnlyDictionary<string, decimal> balances,
@@ -29,11 +30,20 @@ public static class FinancialStatementCalculator
     var lines = new List<PackageLine>();
     foreach (var balance in balances.OrderBy(x => x.Key, StringComparer.Ordinal))
     {
-      foreach (var allocation in allocations.Where(x => x.SourceAccountCode == balance.Key)
-        .OrderBy(x => x.DestinationCode, StringComparer.Ordinal))
+      var accountAllocations = allocations.Where(x => x.SourceAccountCode == balance.Key)
+        .OrderBy(x => x.DestinationCode, StringComparer.Ordinal).ToArray();
+      var allocated = 0m;
+      for (var index = 0; index < accountAllocations.Length; index++)
       {
+        var allocation = accountAllocations[index];
+        var independentlyRounded = MoneyPolicy.Normalize(balance.Value * allocation.Fraction);
+        var amount = index == accountAllocations.Length - 1
+          ? MoneyPolicy.Normalize(balance.Value - allocated)
+          : independentlyRounded;
+        var residual = MoneyPolicy.Normalize(amount - independentlyRounded);
         lines.Add(new PackageLine(balance.Key, allocation.DestinationCode, allocation.StatementSection,
-          MoneyPolicy.Normalize(balance.Value * allocation.Fraction), allocation.Fraction, currency));
+          amount, allocation.Fraction, currency, residual));
+        allocated = MoneyPolicy.Normalize(allocated + amount);
       }
     }
     return lines;
@@ -57,7 +67,8 @@ public static class FinancialStatementCalculator
       .ThenBy(x => x.DestinationCode, StringComparer.Ordinal)
       .Select(x => string.Join('|', x.SourceAccountCode, x.DestinationCode, x.StatementSection,
         x.Amount.ToString("0.000000", CultureInfo.InvariantCulture),
-        x.Fraction.ToString("0.000000", CultureInfo.InvariantCulture), x.Currency))));
+        x.Fraction.ToString("0.000000", CultureInfo.InvariantCulture), x.Currency,
+        x.RoundingResidual.ToString("0.000000", CultureInfo.InvariantCulture)))));
     return Hashing.Sha256Hex(canonical);
   }
 
@@ -65,18 +76,53 @@ public static class FinancialStatementCalculator
     FinancialSupplementaryInformation input,
     string currency)
   {
-    var canonical = string.Join('\n', new[]
+    var parts = new List<string>
     {
       "financial-supplementary-information.v1", currency,
       input.CashBeginning.ToString("0.000000", CultureInfo.InvariantCulture),
       input.CashEnding.ToString("0.000000", CultureInfo.InvariantCulture)
-    }.Concat(input.CashFlowLines.OrderBy(x => x.Section, StringComparer.OrdinalIgnoreCase)
+    };
+    parts.AddRange(input.CashFlowLines.OrderBy(x => x.Section, StringComparer.OrdinalIgnoreCase)
       .ThenBy(x => x.Description, StringComparer.Ordinal)
       .Select(x => string.Join('|', x.Section.Trim().ToUpperInvariant(), x.Description.Trim(),
-        x.Amount.ToString("0.000000", CultureInfo.InvariantCulture))))
-     .Concat(input.Disclosures.OrderBy(x => x.Code, StringComparer.OrdinalIgnoreCase)
-       .Select(x => string.Join('|', x.Code.Trim().ToUpperInvariant(),
-         x.NotApplicable ? "NA" : x.Response.Trim(), x.Rationale?.Trim() ?? string.Empty))));
-    return Hashing.Sha256Hex(canonical);
+        x.Amount.ToString("0.000000", CultureInfo.InvariantCulture))));
+    parts.AddRange(input.Disclosures.OrderBy(x => x.Code, StringComparer.OrdinalIgnoreCase)
+      .Select(x => string.Join('|', x.Code.Trim().ToUpperInvariant(),
+        x.NotApplicable ? "NA" : x.Response.Trim(), x.Rationale?.Trim() ?? string.Empty)));
+    parts.AddRange((input.EquityLines ?? [])
+      .OrderBy(x => x.LineCode, StringComparer.OrdinalIgnoreCase)
+      .Select(x => string.Join('|', "EQUITY", x.LineCode.Trim().ToUpperInvariant(), x.Description.Trim(),
+        x.OpeningAmount.ToString("0.000000", CultureInfo.InvariantCulture),
+        x.ProfitOrLossAmount.ToString("0.000000", CultureInfo.InvariantCulture),
+        x.OciAmount.ToString("0.000000", CultureInfo.InvariantCulture),
+        x.CapitalMovementAmount.ToString("0.000000", CultureInfo.InvariantCulture),
+        x.DividendsAmount.ToString("0.000000", CultureInfo.InvariantCulture),
+        x.ClosingAmount.ToString("0.000000", CultureInfo.InvariantCulture), x.EvidenceReference.Trim())));
+    parts.AddRange((input.NoteLines ?? [])
+      .OrderBy(x => x.NoteCode, StringComparer.OrdinalIgnoreCase)
+      .ThenBy(x => x.FaceDestinationCode, StringComparer.OrdinalIgnoreCase)
+      .Select(x => string.Join('|', "NOTE", x.NoteCode.Trim().ToUpperInvariant(),
+        x.FaceDestinationCode.Trim().ToUpperInvariant(), x.Amount.ToString("0.000000", CultureInfo.InvariantCulture),
+        x.EvidenceReference.Trim())));
+    if (input.Comparative is { } comparative)
+      parts.Add(string.Join('|', "COMPARATIVE", comparative.PackageId.ToString("D"),
+        comparative.Basis.Trim(), comparative.EvidenceReference.Trim()));
+    return Hashing.Sha256Hex(string.Join('\n', parts));
+  }
+
+  public static string ComputeEquityHash(
+    IReadOnlyCollection<EquityLineInput> lines,
+    string currency)
+  {
+    var parts = new List<string> { "financial-equity-rollforward.v1", currency };
+    parts.AddRange(lines.OrderBy(x => x.LineCode, StringComparer.OrdinalIgnoreCase).Select(x => string.Join('|',
+      x.LineCode.Trim().ToUpperInvariant(), x.Description.Trim(),
+      x.OpeningAmount.ToString("0.000000", CultureInfo.InvariantCulture),
+      x.ProfitOrLossAmount.ToString("0.000000", CultureInfo.InvariantCulture),
+      x.OciAmount.ToString("0.000000", CultureInfo.InvariantCulture),
+      x.CapitalMovementAmount.ToString("0.000000", CultureInfo.InvariantCulture),
+      x.DividendsAmount.ToString("0.000000", CultureInfo.InvariantCulture),
+      x.ClosingAmount.ToString("0.000000", CultureInfo.InvariantCulture), x.EvidenceReference.Trim())));
+    return Hashing.Sha256Hex(string.Join('\n', parts));
   }
 }

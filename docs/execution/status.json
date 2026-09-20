@@ -16,11 +16,11 @@
     "issueNumber": null,
     "branch": "master",
     "pullRequestNumber": null,
-    "headCommit": "ffe4b5fea725eef5ae355e0b85039eb0885f38db",
+    "headCommit": "68450dea3a3f06dd805d2957b9250e87fa8e5a75",
     "implementationStatus": "IN_PROGRESS",
     "acceptanceStatus": "LOCAL_VERIFIED",
-    "worktree": "master@ffe4b5f remains the last committed head. The local audit-workflow gap-closure implementation is verified but uncommitted; unrelated .graphify_detect.json and graphify-out/ remain untracked and are excluded. The requirements document remains user-owned and preserved.",
-    "scope": "Local implementation of the audit-workflow gap-closure stories: 20-section/165-procedure program catalog, scoped adoption and applicability, structured result/review lifecycle, fieldwork evidence primitives, completion blockers, archive export, UI status surfaces, tests, migrations, and restore/runtime evidence. No production content, credentials, or secret values were changed.",
+    "worktree": "master@68450de remains the last committed head. The local audit-workflow and accounting-module implementation is verified but uncommitted; unrelated .graphify_detect.json and graphify-out/ remain untracked and are excluded. The requirements documents remain user-owned and preserved.",
+    "scope": "Local implementation of the audit-workflow and accounting-module requirements: 20-section/165-procedure program catalog, scoped adoption and applicability, structured result/review lifecycle, fieldwork evidence primitives, client accounting periods/books/COA/aliases, typed GL imports, reconciliations, ECL/inventory/specialist/analytics workbenches, bounded entity-package projections including equity, notes and comparatives, closed-period restatement lineage, restricted same-currency consolidation, journal lineage, completion blockers, archive export, UI status surfaces, tests, migrations, and restore/runtime evidence. No production content, credentials, or secret values were changed.",
     "productionEnabled": false
   },
 
@@ -252,6 +252,18 @@
     {
       "command": "Current hardening migration and built-in browser smoke (2026-09-20T11:26:28Z)",
       "result": "The current Web project rebuilt with 0 warnings/errors, migration 20260920102142_WorkpaperDraftsAndTrialBalanceSealing was applied to the local development database only, and the current hardened host started on http://127.0.0.1:5100. Direct probes returned HTTP 200 Healthy for /health/live and /health/ready. Built-in Chrome rendered the current Portfolio shell at /app; the clean process had no OIDC environment values, so the protected shell truthfully rendered Sign-in required. The local auditsphere database contains 0 workpapers, so no real draft editor could be exercised in the browser without inventing business data. The earlier 5099 fake-workpaper route rendered the safe Workpaper unavailable state rather than an exception; the current unauthenticated 5100 route correctly rendered Sign in required. The browser blocked direct /health/ready navigation as ERR_BLOCKED_BY_CLIENT, so health evidence came from the direct local HTTP probe."
+    },
+    {
+      "command": "Accounting module local implementation verification (2026-09-20T17:58:49Z)",
+      "result": "Client accounting and restricted consolidation slices are implemented with scoped profiles, periods/books, opening-balance bridges, versioned charts and aliases, approved taxonomy/mapping gates, raw-versus-normalized source identity, typed GL imports, period close/reopen, source-bound reconciliations and analysis workbenches, journal management-decision and reversal lineage, typed difference correction links, and archive export fields. dotnet build AuditSphereOps.slnx --no-restore passed with 0 warnings/errors; dotnet test AuditSphereOps.slnx --no-build passed 179/179 with 0 skipped; dotnet ef migrations list reported 38 migrations through 20260920173922_AccountingJournalLineage; scripts/db/restore-drill.sh passed with 38/38 migrations and matching checkpoint summaries; git diff --check passed. XLSX intake, streaming-scale import, advanced/mixed-currency consolidation, live provider behavior, professional approvals, independent review, and production recovery/RPO/RTO remain unverified or externally gated."
+    },
+    {
+      "command": "Accounting package comparative/equity verification (2026-09-20T18:39:56Z)",
+      "result": "Financial packages now persist immutable statement-of-changes-in-equity lines, structured note cross-casts, comparative-package identity/basis/evidence, and deterministic equity/supplementary hashes. Migration 20260920182812_FinancialPackageComparativeEquity is applied locally and protected by append-only database triggers. dotnet build AuditSphereOps.slnx --no-restore passed with 0 warnings/errors; PostgreSQL 18.6 full suite passed 181/181 with 0 skipped; EF reported no pending model changes; 40 migrations are listed through 20260920182812_FinancialPackageComparativeEquity; scripts/db/restore-drill.sh restored all 40 migrations with matching checkpoint summaries; git diff --check passed. Period restatement/rollforward, streamed/paged GL intake, advanced/mixed-currency consolidation, live provider behavior, professional approvals, independent review, and production recovery/RPO/RTO remain unverified or externally gated."
+    },
+    {
+      "command": "Accounting period-restatement verification (2026-09-20T18:57:07Z)",
+      "result": "Closed-period restatement lineage now records distinct validated original/revised package hashes, revised basis, reason, evidence, preparer and independent reviewer approval; issued packages remain unchanged and an approved restatement rejects direct mutation with PostgreSQL SQLSTATE 55000. dotnet build AuditSphereOps.slnx --no-restore passed with 0 warnings/errors; focused and full PostgreSQL 18.6 suite passed 182/182 with 0 skipped; EF reported no pending model changes; 41 migrations are listed through 20260920185001_ClientPeriodRestatement; scripts/db/restore-drill.sh restored all 41 migrations with matching checkpoint summaries; git diff --check passed. Streamed/paged GL intake, advanced/mixed-currency consolidation, user-facing management/release/restatement surfaces, live provider behavior, professional approvals, independent review, and production recovery/RPO/RTO remain unverified or externally gated."
     }
   ],
   "tenantEvidence": [
@@ -442,5 +454,5 @@
     }
   ],
   "nextPermittedAction": "Review and commit the locally verified gap-closure slice if desired. Do not mark the requirements checklist complete until live Entra/Graph/SharePoint/Purview behavior, approved professional methodology/signing, independent human review and merge evidence, and production cross-store recovery/RPO/RTO are separately observed and recorded.",
-  "lastVerifiedAt": "2026-09-20T15:04:30Z"
+  "lastVerifiedAt": "2026-09-20T18:57:07Z"
 }

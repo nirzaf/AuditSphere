@@ -1,7 +1,9 @@
 using System.Text.Json;
 using AuditSphereOps.Application.Abstractions;
+using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Security;
+using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Audit;
 using AuditSphereOps.Domain.Shared;
 using Microsoft.EntityFrameworkCore;
@@ -119,6 +121,13 @@ public sealed record RecordDifferenceRequest(
   string Currency);
 public sealed record DifferenceValue(Guid AuditDifferenceId, string Status);
 public sealed record EvaluateDifferenceRequest(Guid AuditDifferenceId, bool Corrected, string Evaluation, string? ManagementResponse, string? CorrectionReference);
+public sealed record LinkDifferenceToJournalRequest(
+  Guid AuditDifferenceId,
+  Guid JournalId,
+  long JournalRevision,
+  Guid SourceReflectionReconciliationId,
+  Guid VerifiedAdjustedSnapshotId,
+  string CorrectionState = AuditDifferenceCorrectionStates.Proposed);
 
 public sealed record AuditCompletionEvaluation(
   bool Ready,
@@ -668,8 +677,8 @@ public static class AuditFieldworkService
   public static async Task<CommandResult<DifferenceValue>> EvaluateDifferenceAsync(
     IAuditSphereDbContext db, ActorContext actor, EvaluateDifferenceRequest request, CancellationToken ct = default)
   {
-    if (string.IsNullOrWhiteSpace(request.Evaluation) || request.Corrected && string.IsNullOrWhiteSpace(request.CorrectionReference))
-      return Invalid<DifferenceValue>("Difference evaluation requires a conclusion and correction evidence when corrected.");
+    if (string.IsNullOrWhiteSpace(request.Evaluation))
+      return Invalid<DifferenceValue>("Difference evaluation requires a conclusion.");
     var existing = await db.AuditDifferences.AsNoTracking().SingleOrDefaultAsync(x => x.Id == request.AuditDifferenceId && x.FirmId == actor.FirmId, ct);
     var auth = await AuthorizeEntityAsync(db, actor, existing, ReviewRoles, ct);
     if (!auth.Succeeded)
@@ -678,18 +687,95 @@ public static class AuditFieldworkService
       return CommandResult<DifferenceValue>.Fail(ErrorCodes.GenerationStale, "The difference is based on stale inputs.");
     if (existing.CreatedByUserId == actor.UserId)
       return CommandResult<DifferenceValue>.Fail(ErrorCodes.ScopeDenied, "The preparer cannot evaluate the same difference.");
+    if (request.Corrected)
+    {
+      if (existing.ProposedJournalId is null || existing.ProposedJournalRevision is null ||
+          existing.SourceReflectionReconciliationId is null || existing.VerifiedAdjustedSnapshotId is null)
+        return CommandResult<DifferenceValue>.Fail(ErrorCodes.GateBlocked,
+          "A difference cannot be marked corrected without typed journal, source-reflection and adjusted-snapshot evidence.");
+      var journal = await db.AdjustmentJournals.AsNoTracking().SingleOrDefaultAsync(x => x.Id == existing.ProposedJournalId &&
+        x.FirmId == existing.FirmId && x.ClientId == existing.ClientId && x.EngagementId == existing.EngagementId &&
+        x.Revision == existing.ProposedJournalRevision && x.Status == "Posted", ct);
+      var reflection = await db.JournalSourceReconciliations.AsNoTracking().SingleOrDefaultAsync(x => x.Id == existing.SourceReflectionReconciliationId &&
+        x.FirmId == existing.FirmId && x.ClientId == existing.ClientId && x.EngagementId == existing.EngagementId &&
+        x.JournalRevision == existing.ProposedJournalRevision && x.State == ReflectionStates.Reflected, ct);
+      var snapshot = await db.AdjustedTrialBalanceSnapshots.AsNoTracking().SingleOrDefaultAsync(x => x.Id == existing.VerifiedAdjustedSnapshotId &&
+        x.FirmId == existing.FirmId && x.ClientId == existing.ClientId && x.EngagementId == existing.EngagementId, ct);
+      if (journal is null || reflection is null || snapshot is null || reflection.BaseDatasetId != journal.BaseDatasetId ||
+          snapshot.BaseDatasetId != journal.BaseDatasetId || !string.Equals(reflection.LogicalJournalNumber, journal.JournalNumber, StringComparison.Ordinal))
+        return CommandResult<DifferenceValue>.Fail(ErrorCodes.GateBlocked,
+          "The correction evidence is stale or does not match the exact posted journal revision.");
+    }
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     var live = await db.AuditDifferences.SingleAsync(x => x.Id == existing.Id && x.FirmId == actor.FirmId, ct);
     live.Corrected = request.Corrected;
     live.ManagementResponse = TrimOrNull(request.ManagementResponse);
     live.CorrectionReference = TrimOrNull(request.CorrectionReference);
     live.Evaluation = request.Evaluation.Trim();
-    live.Status = request.Corrected ? AuditDifferenceStatuses.Corrected : AuditDifferenceStatuses.Evaluated;
+    live.Status = request.Corrected ? AuditDifferenceStatuses.VerifiedReflected : AuditDifferenceStatuses.Evaluated;
+    if (request.Corrected)
+      live.CorrectionState = AuditDifferenceCorrectionStates.VerifiedReflected;
     live.EvaluatedByUserId = actor.UserId;
     live.EvaluatedAt = DateTimeOffset.UtcNow;
     await db.SaveChangesAsync(ct);
     await tx.CommitAsync(ct);
     return CommandResult<DifferenceValue>.Ok(new(live.Id, live.Status));
+  }
+
+  public static async Task<CommandResult> LinkDifferenceToJournalAsync(
+    IAuditSphereDbContext db, ActorContext actor, LinkDifferenceToJournalRequest request,
+    CancellationToken ct = default)
+  {
+    var state = request.CorrectionState.Trim().ToUpperInvariant();
+    if (request.JournalRevision < 1 || request.SourceReflectionReconciliationId == Guid.Empty ||
+        request.VerifiedAdjustedSnapshotId == Guid.Empty || state is not (
+          AuditDifferenceCorrectionStates.Proposed or AuditDifferenceCorrectionStates.Agreed or
+          AuditDifferenceCorrectionStates.AppliedInReporting or AuditDifferenceCorrectionStates.ReportedPostedExternally))
+      return CommandResult.Fail(ErrorCodes.AuditPlanning.Invalid, "A correction link needs an exact revision, source reflection, snapshot and supported state.");
+    var difference = await db.AuditDifferences.SingleOrDefaultAsync(x => x.Id == request.AuditDifferenceId &&
+      x.FirmId == actor.FirmId, ct);
+    var auth = await AuthorizeEntityAsync(db, actor, difference, ReviewRoles, ct);
+    if (!auth.Succeeded)
+      return auth;
+    if (difference is null)
+      return Denied();
+    var journal = await db.AdjustmentJournals.AsNoTracking().SingleOrDefaultAsync(x => x.Id == request.JournalId &&
+      x.FirmId == actor.FirmId && x.ClientId == difference!.ClientId && x.EngagementId == difference.EngagementId &&
+      x.Revision == request.JournalRevision && x.Status != "Void", ct);
+    var reflection = await db.JournalSourceReconciliations.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.Id == request.SourceReflectionReconciliationId && x.FirmId == actor.FirmId &&
+      x.ClientId == difference!.ClientId && x.EngagementId == difference.EngagementId &&
+      x.JournalRevision == request.JournalRevision, ct);
+    var snapshot = await db.AdjustedTrialBalanceSnapshots.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.Id == request.VerifiedAdjustedSnapshotId && x.FirmId == actor.FirmId &&
+      x.ClientId == difference!.ClientId && x.EngagementId == difference.EngagementId, ct);
+    if (journal is null || reflection is null || snapshot is null || reflection.BaseDatasetId != journal.BaseDatasetId ||
+        snapshot.BaseDatasetId != journal.BaseDatasetId ||
+        !string.Equals(reflection.LogicalJournalNumber, journal.JournalNumber, StringComparison.Ordinal))
+      return CommandResult.Fail(ErrorCodes.GateBlocked, "The journal, source reflection and adjusted snapshot are not the same exact source lineage.");
+    var rawLines = await db.AdjustmentLines.AsNoTracking().Where(x => x.JournalId == journal.Id)
+      .OrderBy(x => x.AccountCode).ThenBy(x => x.Id)
+      .Select(x => new { x.AccountCode, x.Debit, x.Credit })
+      .ToListAsync(ct);
+    var lines = rawLines.Select(x => new JournalImpactLine(x.AccountCode, x.Debit, x.Credit,
+      MoneyPolicy.Normalize(x.Debit - x.Credit))).ToList();
+    if (lines.Count == 0)
+      return CommandResult.Fail(ErrorCodes.GateBlocked, "The linked journal has no immutable lines.");
+    var impactJson = JsonSerializer.Serialize(new
+    {
+      journal.Id, journal.JournalNumber, journal.Revision, journal.Purpose,
+      Lines = lines.Select(x => new { x.AccountCode, x.Debit, x.Credit, x.SignedAmount })
+    });
+    difference.ProposedJournalId = journal.Id;
+    difference.ProposedJournalRevision = journal.Revision;
+    difference.SourceReflectionReconciliationId = reflection.Id;
+    difference.VerifiedAdjustedSnapshotId = snapshot.Id;
+    difference.CorrectionState = state;
+    difference.JournalImpactJson = impactJson;
+    difference.JournalImpactHash = Hashing.Sha256Hex(System.Text.Encoding.UTF8.GetBytes(impactJson));
+    difference.CorrectionReference = $"journal:{journal.Id:D}:revision:{journal.Revision}";
+    await db.SaveChangesAsync(ct);
+    return CommandResult.Ok();
   }
 
   public static async Task<CommandResult<AuditCompletionEvaluation>> EvaluateCompletionAsync(
@@ -832,4 +918,6 @@ public static class AuditFieldworkService
     }
     catch (JsonException) { return false; }
   }
+
+  private sealed record JournalImpactLine(string AccountCode, decimal Debit, decimal Credit, decimal SignedAmount);
 }

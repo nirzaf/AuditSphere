@@ -15,7 +15,9 @@ namespace AuditSphereOps.Infrastructure.Persistence;
 // DbContext: one owner, snake_case, composite (firm,client,engagement) FK discipline (§§27, 42).
 // Money decimal(19,6); IDs uuid v7-compatible; immutable TB rows have no update path.
 public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> options) : DbContext(options),
-  AuditSphereOps.Application.Operations.IAuditSphereDbContext
+  AuditSphereOps.Application.Operations.IAuditSphereDbContext,
+  AuditSphereOps.Application.Operations.IClientAccountingDbContext,
+  AuditSphereOps.Application.Operations.IAdjustmentJournalDbContext
 {
   public DbSet<AppUser> Users => Set<AppUser>();
   public DbSet<RoleGrant> RoleGrants => Set<RoleGrant>();
@@ -66,6 +68,7 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
   public DbSet<AdjustedTrialBalanceSnapshot> AdjustedTrialBalanceSnapshots => Set<AdjustedTrialBalanceSnapshot>();
   public DbSet<AdjustedTrialBalanceRow> AdjustedTrialBalanceRows => Set<AdjustedTrialBalanceRow>();
   public DbSet<AdjustmentJournal> AdjustmentJournals => Set<AdjustmentJournal>();
+  public DbSet<AdjustmentJournalManagementDecision> AdjustmentJournalManagementDecisions => Set<AdjustmentJournalManagementDecision>();
   public DbSet<AdjustmentLine> AdjustmentLines => Set<AdjustmentLine>();
   public DbSet<JournalSourceReconciliation> JournalSourceReconciliations => Set<JournalSourceReconciliation>();
   public DbSet<AdjustmentPlan> AdjustmentPlans => Set<AdjustmentPlan>();
@@ -75,6 +78,45 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
   public DbSet<FinancialPackageValidation> FinancialPackageValidations => Set<FinancialPackageValidation>();
   public DbSet<FinancialPackageCashFlowLine> FinancialPackageCashFlowLines => Set<FinancialPackageCashFlowLine>();
   public DbSet<FinancialPackageDisclosure> FinancialPackageDisclosures => Set<FinancialPackageDisclosure>();
+  public DbSet<FinancialPackageEquityLine> FinancialPackageEquityLines => Set<FinancialPackageEquityLine>();
+  public DbSet<FinancialPackageNoteLine> FinancialPackageNoteLines => Set<FinancialPackageNoteLine>();
+  public DbSet<AccountingCapabilityProfile> AccountingCapabilityProfiles => Set<AccountingCapabilityProfile>();
+  public DbSet<AccountingCapabilityAcceptance> AccountingCapabilityAcceptances => Set<AccountingCapabilityAcceptance>();
+  public DbSet<ClientAccountingProfile> ClientAccountingProfiles => Set<ClientAccountingProfile>();
+  public DbSet<ClientGroup> ClientGroups => Set<ClientGroup>();
+  public DbSet<ClientGroupMembership> ClientGroupMemberships => Set<ClientGroupMembership>();
+  public DbSet<GroupAccessGrant> GroupAccessGrants => Set<GroupAccessGrant>();
+  public DbSet<ClientReportingPeriod> ClientReportingPeriods => Set<ClientReportingPeriod>();
+  public DbSet<ClientReportingBook> ClientReportingBooks => Set<ClientReportingBook>();
+  public DbSet<OpeningBalanceBridge> OpeningBalanceBridges => Set<OpeningBalanceBridge>();
+  public DbSet<ClientPeriodRestatement> ClientPeriodRestatements => Set<ClientPeriodRestatement>();
+  public DbSet<ClientChartVersion> ClientChartVersions => Set<ClientChartVersion>();
+  public DbSet<ClientAccount> ClientAccounts => Set<ClientAccount>();
+  public DbSet<SourceAccountAlias> SourceAccountAliases => Set<SourceAccountAlias>();
+  public DbSet<ReportingTaxonomyVersion> ReportingTaxonomyVersions => Set<ReportingTaxonomyVersion>();
+  public DbSet<ReportingTaxonomyNode> ReportingTaxonomyNodes => Set<ReportingTaxonomyNode>();
+  public DbSet<SourceImportBatch> SourceImportBatches => Set<SourceImportBatch>();
+  public DbSet<GeneralLedgerTransaction> GeneralLedgerTransactions => Set<GeneralLedgerTransaction>();
+  public DbSet<GeneralLedgerLine> GeneralLedgerLines => Set<GeneralLedgerLine>();
+  public DbSet<AccountingReconciliation> AccountingReconciliations => Set<AccountingReconciliation>();
+  public DbSet<AccountingReconciliationItem> AccountingReconciliationItems => Set<AccountingReconciliationItem>();
+  public DbSet<EclAssessment> EclAssessments => Set<EclAssessment>();
+  public DbSet<InventoryValuationAssessment> InventoryValuationAssessments => Set<InventoryValuationAssessment>();
+  public DbSet<SpecialistAccountingSchedule> SpecialistAccountingSchedules => Set<SpecialistAccountingSchedule>();
+  public DbSet<AnalyticalReview> AnalyticalReviews => Set<AnalyticalReview>();
+  public DbSet<JournalRiskFlag> JournalRiskFlags => Set<JournalRiskFlag>();
+  public DbSet<ConsolidationScopeVersion> ConsolidationScopeVersions => Set<ConsolidationScopeVersion>();
+  public DbSet<ConsolidationComponent> ConsolidationComponents => Set<ConsolidationComponent>();
+  public DbSet<OwnershipInterestVersion> OwnershipInterestVersions => Set<OwnershipInterestVersion>();
+  public DbSet<IntercompanyMatch> IntercompanyMatches => Set<IntercompanyMatch>();
+  public DbSet<ConsolidationJournal> ConsolidationJournals => Set<ConsolidationJournal>();
+  public DbSet<ConsolidationJournalLine> ConsolidationJournalLines => Set<ConsolidationJournalLine>();
+  public DbSet<ConsolidationRun> ConsolidationRuns => Set<ConsolidationRun>();
+  public DbSet<ConsolidationRunLine> ConsolidationRunLines => Set<ConsolidationRunLine>();
+  public DbSet<ExchangeRateSetVersion> ExchangeRateSetVersions => Set<ExchangeRateSetVersion>();
+  public DbSet<ExchangeRate> ExchangeRates => Set<ExchangeRate>();
+  public DbSet<TranslationPolicyVersion> TranslationPolicyVersions => Set<TranslationPolicyVersion>();
+  public DbSet<TranslationResult> TranslationResults => Set<TranslationResult>();
   public DbSet<MaterialityAssessment> MaterialityAssessments => Set<MaterialityAssessment>();
   public DbSet<AuditRisk> AuditRisks => Set<AuditRisk>();
   public DbSet<AuditProcedure> AuditProcedures => Set<AuditProcedure>();
@@ -146,6 +188,7 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     ConfigureFieldwork(b);
     ConfigureScopedEvidence(b);
     ConfigureAccounting(b);
+    ConfigureClientAccounting(b);
     ConfigureDocuments(b);
     ConfigurePbc(b);
     ConfigureReviews(b);
@@ -863,6 +906,9 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
 
   private static void ConfigureAccounting(ModelBuilder b)
   {
+    b.Entity<TrialBalanceDataset>().Property(x => x.LegalEntityKey).HasMaxLength(200);
+    b.Entity<TrialBalanceDataset>().Property(x => x.RawFileSha256Hex).HasMaxLength(64);
+    b.Entity<TrialBalanceDataset>().Property(x => x.NormalizedDatasetDigest).HasMaxLength(64);
     b.Entity<TrialBalanceDataset>().Property(x => x.ValidationStatus).HasMaxLength(16).HasDefaultValue("Pending");
     b.Entity<TrialBalanceDataset>().Property(x => x.ImportState).HasMaxLength(16)
       .HasDefaultValue(TrialBalanceImportStates.Sealed).ValueGeneratedNever();
@@ -874,12 +920,24 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
         "import_state IN ('LOADING', 'SEALED')");
     });
     b.Entity<TrialBalanceRow>().HasIndex(x => x.DatasetId);
-    b.Entity<AdjustmentJournal>().HasIndex(x => new { x.FirmId, x.EngagementId, x.BaseDatasetId, x.JournalNumber }).IsUnique();
+    var journal = b.Entity<AdjustmentJournal>();
+    journal.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
+      .HasName("AK_adjustment_journals_scope_id");
+    journal.HasIndex(x => new { x.FirmId, x.EngagementId, x.BaseDatasetId, x.JournalNumber }).IsUnique();
+    journal.Property(x => x.Purpose).HasMaxLength(40);
+    journal.Property(x => x.Origin).HasMaxLength(40);
+    journal.Property(x => x.Reason).HasMaxLength(4000);
+    journal.Property(x => x.EvidenceReference).HasMaxLength(2000);
+    journal.ToTable("adjustment_journals", table => table.HasCheckConstraint("ck_adjustment_journal_values",
+      "purpose IN ('CLIENT_BOOK_CORRECTION','REPORTING_ADJUSTMENT','PRESENTATION_RECLASSIFICATION','GROUP_ONLY_ELIMINATION')" +
+      " AND origin IN ('AUDIT_PROPOSED','CLIENT_REQUESTED','MANAGEMENT_PROVIDED','IMPORTED')" +
+      " AND status IN ('Draft','Posted','ReflectedInSource','Void')" +
+      " AND revision >= 1 AND length(trim(journal_number)) > 0 AND length(trim(reason)) <= 4000 AND length(trim(evidence_reference)) <= 2000"));
     // Duplicate-file guard: the same source bytes can never become two datasets for one
     // engagement. Partial so legacy/empty-hash fixtures stay migratable; the import
     // command always stamps a real hash.
-    b.Entity<TrialBalanceDataset>().HasIndex(x => new { x.FirmId, x.EngagementId, x.Sha256Hex }).IsUnique()
-      .HasDatabaseName("ux_dataset_firm_engagement_hash").HasFilter("length(sha256_hex) > 0");
+    b.Entity<TrialBalanceDataset>().HasIndex(x => new { x.FirmId, x.EngagementId, x.RawFileSha256Hex }).IsUnique()
+      .HasDatabaseName("ux_dataset_firm_engagement_raw_hash").HasFilter("length(raw_file_sha256_hex) > 0");
     b.Entity<JournalSourceReconciliation>().HasIndex(x => new { x.FirmId, x.EngagementId, x.BaseDatasetId, x.LogicalJournalNumber }).IsUnique()
       .HasDatabaseName("ux_reconciliation_base_journal");
     b.Entity<AdjustmentPlanLine>().HasIndex(x => new { x.PlanId, x.LogicalJournalNumber, x.Layer }).IsUnique()
@@ -904,14 +962,18 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
       .HasOne<TrialBalanceDataset>().WithMany()
       .HasForeignKey(x => x.DatasetId)
       .OnDelete(DeleteBehavior.Restrict);
-    b.Entity<AdjustmentJournal>()
+    journal
       .HasOne<TrialBalanceDataset>().WithMany()
       .HasForeignKey(x => x.BaseDatasetId)
       .OnDelete(DeleteBehavior.Restrict);
-    b.Entity<AdjustmentJournal>()
+    journal
       .HasOne<Engagement>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.EngagementId })
       .HasPrincipalKey(e => new { e.FirmId, e.Id })
+      .OnDelete(DeleteBehavior.Restrict);
+    journal.HasOne<ClientReportingBook>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.BookId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.Id })
       .OnDelete(DeleteBehavior.Restrict);
     b.Entity<AdjustmentLine>()
       .HasOne<AdjustmentJournal>().WithMany()
@@ -925,7 +987,10 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
   // constraints supplement reviewer evidence; they do not prove reflection is correct.
   private static void ConfigureAdjustmentBridge(ModelBuilder b)
   {
-    b.Entity<JournalSourceReconciliation>().ToTable("journal_source_reconciliations", t =>
+    var sourceReconciliation = b.Entity<JournalSourceReconciliation>();
+    sourceReconciliation.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
+      .HasName("AK_journal_source_reconciliations_scope_id");
+    sourceReconciliation.ToTable("journal_source_reconciliations", t =>
     {
       t.HasCheckConstraint("ck_reconciliation_state",
         "state IN ('UNKNOWN','NOT_REFLECTED','REFLECTED','PARTIALLY_REFLECTED','NOT_APPLICABLE')");
@@ -935,15 +1000,32 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
         "(state NOT IN ('REFLECTED','PARTIALLY_REFLECTED') AND length(evidence) <= 2000)");
       t.HasCheckConstraint("ck_reconciliation_number", "length(logical_journal_number) > 0 AND length(logical_journal_number) <= 32");
     });
-    b.Entity<JournalSourceReconciliation>()
+    sourceReconciliation
       .HasOne<Engagement>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.EngagementId })
       .HasPrincipalKey(e => new { e.FirmId, e.Id })
       .OnDelete(DeleteBehavior.Restrict);
-    b.Entity<JournalSourceReconciliation>()
+    sourceReconciliation
       .HasOne<TrialBalanceDataset>().WithMany()
       .HasForeignKey(x => x.BaseDatasetId)
       .OnDelete(DeleteBehavior.Restrict);
+    var decision = b.Entity<AdjustmentJournalManagementDecision>();
+    decision.Property(x => x.Decision).HasMaxLength(20);
+    decision.Property(x => x.EvidenceMode).HasMaxLength(20);
+    decision.Property(x => x.EvidenceReference).HasMaxLength(2000);
+    decision.HasIndex(x => new { x.FirmId, x.ClientId, x.EngagementId, x.JournalId, x.JournalRevision })
+      .IsUnique().HasDatabaseName("ux_adjustment_journal_management_decision_revision");
+    decision.ToTable("adjustment_journal_management_decisions", t => t.HasCheckConstraint("ck_adjustment_journal_management_decision_values",
+      "decision IN ('ACCEPTED','REJECTED','PARTIAL') AND evidence_mode IN ('SIGNED_IN','OFFLINE')" +
+      " AND length(trim(evidence_reference)) > 0 AND length(trim(evidence_reference)) <= 2000 AND journal_revision >= 1"));
+    decision.HasOne<AdjustmentJournal>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.JournalId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
+      .OnDelete(DeleteBehavior.Restrict);
+      decision.HasOne<AppUser>().WithMany()
+        .HasForeignKey(x => new { x.FirmId, x.DecidedByUserId })
+        .HasPrincipalKey(x => new { x.FirmId, x.Id })
+        .OnDelete(DeleteBehavior.Restrict);
     b.Entity<AdjustmentPlan>().ToTable("adjustment_plans", t =>
     {
       t.HasCheckConstraint("ck_plan_status", "status IN ('Draft','Finalized')");
@@ -1016,10 +1098,11 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     allocation.Property(x => x.StatementSection).HasMaxLength(50);
     allocation.Property(x => x.AuditArea).HasMaxLength(100);
     allocation.Property(x => x.Rationale).HasMaxLength(2000);
+    allocation.Property(x => x.ResidualPolicy).HasMaxLength(40).HasDefaultValue("LAST_DESTINATION");
     allocation.HasIndex(x => new { x.FirmId, x.MappingVersionId, x.SourceAccountCode, x.DestinationCode })
       .IsUnique().HasDatabaseName("ux_mapping_allocation_identity");
     allocation.ToTable("mapping_allocations", t => t.HasCheckConstraint("ck_mapping_allocation_values",
-      "length(source_account_code) > 0 AND length(destination_code) > 0 AND length(statement_section) > 0 AND fraction > 0 AND fraction <= 1 AND length(rationale) > 0"));
+      "length(source_account_code) > 0 AND length(destination_code) > 0 AND length(statement_section) > 0 AND fraction > 0 AND fraction <= 1 AND length(rationale) > 0 AND residual_policy = 'LAST_DESTINATION'"));
     allocation.HasOne<MappingVersion>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.MappingVersionId })
       .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
@@ -1076,10 +1159,13 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     package.Property(x => x.Currency).HasMaxLength(3);
     package.Property(x => x.Status).HasMaxLength(20);
     package.Property(x => x.SupplementaryHash).HasMaxLength(64);
+    package.Property(x => x.EquityHash).HasMaxLength(64);
+    package.Property(x => x.ComparativeBasis).HasMaxLength(100);
+    package.Property(x => x.ComparativeEvidenceReference).HasMaxLength(2000);
     package.HasIndex(x => new { x.FirmId, x.AdjustmentPlanId, x.MappingVersionId, x.TemplateVersion })
       .IsUnique().HasDatabaseName("ux_financial_package_identity");
     package.ToTable("financial_packages", t => t.HasCheckConstraint("ck_financial_package_values",
-      "revision >= 1 AND generation >= 1 AND length(framework) > 0 AND length(period_start) = 10 AND length(period_end) = 10 AND period_start <= period_end AND length(taxonomy_version) > 0 AND length(template_version) > 0 AND length(calculation_engine_version) > 0 AND calculation_hash ~ '^[0-9a-f]{64}$' AND currency ~ '^[A-Z]{3}$' AND status IN ('REVIEW_REQUIRED','VALIDATED') AND ((cash_beginning IS NULL AND cash_ending IS NULL AND supplementary_hash IS NULL) OR (cash_beginning IS NOT NULL AND cash_ending IS NOT NULL AND supplementary_hash ~ '^[0-9a-f]{64}$'))"));
+      "revision >= 1 AND generation >= 1 AND length(framework) > 0 AND length(period_start) = 10 AND length(period_end) = 10 AND period_start <= period_end AND length(taxonomy_version) > 0 AND length(template_version) > 0 AND length(calculation_engine_version) > 0 AND calculation_hash ~ '^[0-9a-f]{64}$' AND currency ~ '^[A-Z]{3}$' AND status IN ('REVIEW_REQUIRED','VALIDATED') AND ((cash_beginning IS NULL AND cash_ending IS NULL AND supplementary_hash IS NULL AND equity_hash IS NULL) OR (cash_beginning IS NOT NULL AND cash_ending IS NOT NULL AND supplementary_hash ~ '^[0-9a-f]{64}$' AND (equity_hash IS NULL OR equity_hash ~ '^[0-9a-f]{64}$')))"));
     package.HasOne<PracticeClient>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.ClientId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
@@ -1095,12 +1181,16 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     package.HasOne<AdjustmentPlan>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.AdjustmentPlanId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    package.HasOne<FinancialPackage>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ComparativePackageId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
 
     var packageLine = b.Entity<FinancialPackageLine>();
     packageLine.Property(x => x.SourceAccountCode).HasMaxLength(100);
     packageLine.Property(x => x.DestinationCode).HasMaxLength(100);
     packageLine.Property(x => x.StatementSection).HasMaxLength(50);
     packageLine.Property(x => x.Currency).HasMaxLength(3);
+    packageLine.Property(x => x.RoundingResidual).HasPrecision(19, 6);
     packageLine.HasIndex(x => new { x.FirmId, x.FinancialPackageId, x.SourceAccountCode, x.DestinationCode })
       .IsUnique().HasDatabaseName("ux_financial_package_line_identity");
     packageLine.ToTable("financial_package_lines", t => t.HasCheckConstraint("ck_financial_package_line_values",
@@ -1147,6 +1237,32 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
       .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.FinancialPackageId })
       .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
 
+    var equity = b.Entity<FinancialPackageEquityLine>();
+    equity.Property(x => x.LineCode).HasMaxLength(100);
+    equity.Property(x => x.Description).HasMaxLength(2000);
+    equity.Property(x => x.Currency).HasMaxLength(3);
+    equity.Property(x => x.EvidenceReference).HasMaxLength(2000);
+    equity.HasIndex(x => new { x.FirmId, x.FinancialPackageId, x.LineCode })
+      .IsUnique().HasDatabaseName("ux_financial_package_equity_line_identity");
+    equity.ToTable("financial_package_equity_lines", t => t.HasCheckConstraint("ck_financial_package_equity_line_values",
+      "length(trim(line_code)) > 0 AND length(trim(description)) > 0 AND currency ~ '^[A-Z]{3}$' AND length(trim(evidence_reference)) > 0"));
+    equity.HasOne<FinancialPackage>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.FinancialPackageId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var noteLine = b.Entity<FinancialPackageNoteLine>();
+    noteLine.Property(x => x.NoteCode).HasMaxLength(100);
+    noteLine.Property(x => x.FaceDestinationCode).HasMaxLength(100);
+    noteLine.Property(x => x.Currency).HasMaxLength(3);
+    noteLine.Property(x => x.EvidenceReference).HasMaxLength(2000);
+    noteLine.HasIndex(x => new { x.FirmId, x.FinancialPackageId, x.NoteCode, x.FaceDestinationCode })
+      .IsUnique().HasDatabaseName("ux_financial_package_note_line_identity");
+    noteLine.ToTable("financial_package_note_lines", t => t.HasCheckConstraint("ck_financial_package_note_line_values",
+      "length(trim(note_code)) > 0 AND length(trim(face_destination_code)) > 0 AND currency ~ '^[A-Z]{3}$' AND length(trim(evidence_reference)) > 0"));
+    noteLine.HasOne<FinancialPackage>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.FinancialPackageId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
     b.Entity<QuestionnaireTemplate>(entity =>
     {
       entity.ToTable("questionnaire_templates");
@@ -1161,6 +1277,523 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
       entity.HasIndex(x => new { x.TemplateId, x.QuestionCode }).IsUnique();
       entity.HasOne<QuestionnaireTemplate>().WithMany().HasForeignKey(x => x.TemplateId).OnDelete(DeleteBehavior.Restrict);
     });
+  }
+
+  private static void ConfigureClientAccounting(ModelBuilder b)
+  {
+    var capability = b.Entity<AccountingCapabilityProfile>();
+    capability.HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("ak_accounting_capability_profiles_firm_id_id");
+    capability.Property(x => x.ServiceKind).HasMaxLength(40);
+    capability.Property(x => x.Framework).HasMaxLength(100);
+    capability.Property(x => x.Edition).HasMaxLength(100);
+    capability.Property(x => x.PeriodRule).HasMaxLength(100);
+    capability.Property(x => x.ReportingCurrency).HasMaxLength(3);
+    capability.Property(x => x.AccountingMethod).HasMaxLength(100);
+    capability.Property(x => x.ConsolidationMethod).HasMaxLength(100);
+    capability.Property(x => x.ReviewHierarchy).HasMaxLength(200);
+    capability.Property(x => x.TemplateFamily).HasMaxLength(100);
+    capability.Property(x => x.Status).HasMaxLength(30);
+    capability.Property(x => x.AcceptanceState).HasMaxLength(40);
+    capability.HasIndex(x => new { x.FirmId, x.ClientId, x.GroupId, x.Revision }).IsUnique()
+      .HasDatabaseName("ux_accounting_capability_profile_scope_revision");
+    capability.ToTable("accounting_capability_profiles", t => t.HasCheckConstraint("ck_accounting_capability_profile_scope",
+      "((client_id IS NOT NULL) <> (group_id IS NOT NULL)) AND length(trim(service_kind)) > 0 AND length(trim(framework)) > 0 AND reporting_currency ~ '^[A-Z]{3}$'"));
+    capability.HasOne<PracticeClient>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    capability.HasOne<ClientGroup>().WithMany().HasForeignKey(x => new { x.FirmId, x.GroupId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var acceptance = b.Entity<AccountingCapabilityAcceptance>();
+    acceptance.Property(x => x.Stage).HasMaxLength(40);
+    acceptance.Property(x => x.Status).HasMaxLength(30);
+    acceptance.Property(x => x.EvidenceReference).HasMaxLength(2000);
+    acceptance.HasIndex(x => new { x.FirmId, x.CapabilityProfileId, x.Stage }).IsUnique()
+      .HasDatabaseName("ux_accounting_capability_acceptance_stage");
+    acceptance.HasOne<AccountingCapabilityProfile>().WithMany().HasForeignKey(x => new { x.FirmId, x.CapabilityProfileId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var profile = b.Entity<ClientAccountingProfile>();
+    profile.Property(x => x.Jurisdiction).HasMaxLength(100);
+    profile.Property(x => x.FunctionalCurrency).HasMaxLength(3);
+    profile.Property(x => x.SourceSystem).HasMaxLength(100);
+    profile.Property(x => x.SourceSystemIdentifier).HasMaxLength(200);
+    profile.Property(x => x.Status).HasMaxLength(30);
+    profile.HasIndex(x => new { x.FirmId, x.ClientId }).IsUnique().HasDatabaseName("ux_client_accounting_profile_client");
+    profile.ToTable("client_accounting_profiles", t => t.HasCheckConstraint("ck_client_accounting_profile_values",
+      "length(trim(jurisdiction)) > 0 AND functional_currency ~ '^[A-Z]{3}$' AND fiscal_year_start_month BETWEEN 1 AND 12 AND fiscal_year_start_day BETWEEN 1 AND 31"));
+    profile.HasOne<PracticeClient>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var group = b.Entity<ClientGroup>();
+    group.Property(x => x.Code).HasMaxLength(100);
+    group.Property(x => x.Name).HasMaxLength(300);
+    group.Property(x => x.Status).HasMaxLength(30);
+    group.HasIndex(x => new { x.FirmId, x.Code }).IsUnique().HasDatabaseName("ux_client_group_code");
+    group.ToTable("client_groups", t => t.HasCheckConstraint("ck_client_group_values",
+      "length(trim(code)) > 0 AND length(trim(name)) > 0"));
+
+    var membership = b.Entity<ClientGroupMembership>();
+    membership.Property(x => x.ControlMethod).HasMaxLength(100);
+    membership.Property(x => x.EvidenceReference).HasMaxLength(2000);
+    membership.Property(x => x.Status).HasMaxLength(30);
+    membership.HasIndex(x => new { x.FirmId, x.GroupId, x.ClientId, x.EffectiveFrom }).IsUnique()
+      .HasDatabaseName("ux_client_group_membership_effective");
+    membership.ToTable("client_group_memberships", t => t.HasCheckConstraint("ck_client_group_membership_values",
+      "effective_to IS NULL OR effective_from <= effective_to" +
+      " AND ownership_percent >= 0 AND ownership_percent <= 100" +
+      " AND economic_interest_percent >= 0 AND economic_interest_percent <= 100"));
+    membership.HasOne<ClientGroup>().WithMany().HasForeignKey(x => new { x.FirmId, x.GroupId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    membership.HasOne<PracticeClient>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var groupAccess = b.Entity<GroupAccessGrant>();
+    groupAccess.Property(x => x.Role).HasMaxLength(50);
+    groupAccess.HasIndex(x => new { x.FirmId, x.GroupId, x.UserId, x.Role }).IsUnique()
+      .HasDatabaseName("ux_group_access_grant");
+    groupAccess.HasOne<ClientGroup>().WithMany().HasForeignKey(x => new { x.FirmId, x.GroupId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    groupAccess.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.UserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var period = b.Entity<ClientReportingPeriod>();
+    period.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.Id }).HasName("ak_client_reporting_periods_scope_id");
+    period.Property(x => x.PeriodCode).HasMaxLength(50);
+    period.Property(x => x.Basis).HasMaxLength(50);
+    period.Property(x => x.Currency).HasMaxLength(3);
+    period.Property(x => x.Status).HasMaxLength(30);
+    period.Property(x => x.CloseReason).HasMaxLength(2000);
+    period.HasIndex(x => new { x.FirmId, x.ClientId, x.PeriodCode, x.Basis }).IsUnique()
+      .HasDatabaseName("ux_client_reporting_period_identity");
+    period.ToTable("client_reporting_periods", t => t.HasCheckConstraint("ck_client_reporting_period_values",
+      "start_date <= end_date AND length(trim(period_code)) > 0 AND length(trim(basis)) > 0 AND currency ~ '^[A-Z]{3}$'"));
+    period.HasOne<PracticeClient>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    period.HasOne<ClientReportingPeriod>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.PriorPeriodId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var book = b.Entity<ClientReportingBook>();
+    book.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.Id }).HasName("ak_client_reporting_books_scope_id");
+    book.Property(x => x.Code).HasMaxLength(50);
+    book.Property(x => x.Basis).HasMaxLength(50);
+    book.Property(x => x.InclusionRule).HasMaxLength(100);
+    book.Property(x => x.Currency).HasMaxLength(3);
+    book.Property(x => x.Status).HasMaxLength(30);
+    book.HasIndex(x => new { x.FirmId, x.ClientId, x.PeriodId, x.Code }).IsUnique()
+      .HasDatabaseName("ux_client_reporting_book_identity");
+    book.ToTable("client_reporting_books", t => t.HasCheckConstraint("ck_client_reporting_book_values",
+      "length(trim(code)) > 0 AND length(trim(basis)) > 0 AND length(trim(inclusion_rule)) > 0 AND currency ~ '^[A-Z]{3}$'"));
+    book.HasOne<ClientReportingPeriod>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.PeriodId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var opening = b.Entity<OpeningBalanceBridge>();
+    opening.Property(x => x.SourceHash).HasMaxLength(64);
+    opening.Property(x => x.Status).HasMaxLength(30);
+    opening.Property(x => x.EvidenceReference).HasMaxLength(2000);
+    opening.HasIndex(x => new { x.FirmId, x.ClientId, x.CurrentPeriodId }).IsUnique()
+      .HasDatabaseName("ux_opening_balance_bridge_period");
+    opening.ToTable("opening_balance_bridges", t => t.HasCheckConstraint("ck_opening_balance_bridge_values",
+      "length(trim(status)) > 0"));
+    opening.HasOne<ClientReportingPeriod>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.CurrentPeriodId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var restatement = b.Entity<ClientPeriodRestatement>();
+    restatement.Property(x => x.OriginalPackageHash).HasMaxLength(64);
+    restatement.Property(x => x.RevisedPackageHash).HasMaxLength(64);
+    restatement.Property(x => x.RevisedBasis).HasMaxLength(100);
+    restatement.Property(x => x.Reason).HasMaxLength(4000);
+    restatement.Property(x => x.EvidenceReference).HasMaxLength(2000);
+    restatement.Property(x => x.Status).HasMaxLength(30);
+    restatement.HasIndex(x => new { x.FirmId, x.OriginalPackageId, x.RevisedPackageId }).IsUnique()
+      .HasDatabaseName("ux_client_period_restatement_packages");
+    restatement.ToTable("client_period_restatements", t => t.HasCheckConstraint("ck_client_period_restatement_values",
+      "original_package_id <> revised_package_id AND original_package_hash ~ '^[0-9a-f]{64}$' AND revised_package_hash ~ '^[0-9a-f]{64}$' AND length(trim(revised_basis)) > 0 AND length(trim(reason)) > 0 AND length(trim(evidence_reference)) > 0 AND status IN ('SUBMITTED','APPROVED','REJECTED') AND ((status = 'SUBMITTED' AND approved_by_user_id IS NULL AND approved_at IS NULL) OR (status = 'APPROVED' AND approved_by_user_id IS NOT NULL AND approved_at IS NOT NULL))"));
+    restatement.HasOne<ClientReportingPeriod>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.PeriodId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    restatement.HasOne<FinancialPackage>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.OriginalPackageId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    restatement.HasOne<FinancialPackage>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.RevisedPackageId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var chart = b.Entity<ClientChartVersion>();
+    chart.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.Id }).HasName("ak_client_chart_versions_scope_id");
+    chart.Property(x => x.SourceScope).HasMaxLength(100);
+    chart.Property(x => x.Status).HasMaxLength(30);
+    chart.HasIndex(x => new { x.FirmId, x.ClientId, x.Version }).IsUnique().HasDatabaseName("ux_client_chart_version_number");
+    chart.ToTable("client_chart_versions", t => t.HasCheckConstraint("ck_client_chart_version_values",
+      "effective_to IS NULL OR effective_from <= effective_to"));
+    chart.HasOne<PracticeClient>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var account = b.Entity<ClientAccount>();
+    account.Property(x => x.StableIdentity).HasMaxLength(100);
+    account.Property(x => x.AccountCode).HasMaxLength(100);
+    account.Property(x => x.AccountName).HasMaxLength(300);
+    account.Property(x => x.AccountType).HasMaxLength(50);
+    account.Property(x => x.NormalBalance).HasMaxLength(20);
+    account.Property(x => x.Status).HasMaxLength(30);
+    account.HasIndex(x => new { x.FirmId, x.ClientId, x.ChartVersionId, x.AccountCode }).IsUnique()
+      .HasDatabaseName("ux_client_account_chart_code");
+    account.HasIndex(x => new { x.FirmId, x.ClientId, x.StableIdentity }).IsUnique()
+      .HasDatabaseName("ux_client_account_stable_identity");
+    account.ToTable("client_accounts", t => t.HasCheckConstraint("ck_client_account_values",
+      "length(trim(stable_identity)) > 0 AND length(trim(account_code)) > 0 AND length(trim(account_name)) > 0 AND length(trim(account_type)) > 0"));
+    account.HasOne<ClientChartVersion>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.ChartVersionId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    account.HasOne<ClientAccount>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.ParentAccountId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var alias = b.Entity<SourceAccountAlias>();
+    alias.Property(x => x.SourceSystem).HasMaxLength(100);
+    alias.Property(x => x.AliasCode).HasMaxLength(100);
+    alias.Property(x => x.AliasName).HasMaxLength(300);
+    alias.HasIndex(x => new { x.FirmId, x.ClientId, x.ChartVersionId, x.SourceSystem, x.AliasCode }).IsUnique()
+      .HasDatabaseName("ux_source_account_alias");
+    alias.HasOne<ClientChartVersion>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.ChartVersionId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    alias.HasOne<ClientAccount>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.ClientAccountId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var taxonomy = b.Entity<ReportingTaxonomyVersion>();
+    taxonomy.HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("ak_reporting_taxonomy_versions_firm_id_id");
+    taxonomy.Property(x => x.Code).HasMaxLength(100);
+    taxonomy.Property(x => x.Framework).HasMaxLength(100);
+    taxonomy.Property(x => x.Name).HasMaxLength(300);
+    taxonomy.Property(x => x.Status).HasMaxLength(30);
+    taxonomy.HasIndex(x => new { x.FirmId, x.Code }).IsUnique().HasDatabaseName("ux_reporting_taxonomy_code");
+    taxonomy.ToTable("reporting_taxonomy_versions", t => t.HasCheckConstraint("ck_reporting_taxonomy_values",
+      "length(trim(code)) > 0 AND length(trim(framework)) > 0 AND length(trim(name)) > 0 AND (effective_to IS NULL OR effective_from <= effective_to)"));
+
+    var taxonomyNode = b.Entity<ReportingTaxonomyNode>();
+    taxonomyNode.Property(x => x.Code).HasMaxLength(100);
+    taxonomyNode.Property(x => x.Name).HasMaxLength(300);
+    taxonomyNode.Property(x => x.StatementSection).HasMaxLength(50);
+    taxonomyNode.Property(x => x.DisplaySign).HasMaxLength(20);
+    taxonomyNode.Property(x => x.NormalBalance).HasMaxLength(20);
+    taxonomyNode.Property(x => x.DisclosureArea).HasMaxLength(100);
+    taxonomyNode.Property(x => x.Applicability).HasMaxLength(100);
+    taxonomyNode.HasIndex(x => new { x.FirmId, x.TaxonomyVersionId, x.Code }).IsUnique()
+      .HasDatabaseName("ux_reporting_taxonomy_node_code");
+    taxonomyNode.HasOne<ReportingTaxonomyVersion>().WithMany().HasForeignKey(x => new { x.FirmId, x.TaxonomyVersionId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    taxonomyNode.HasOne<ReportingTaxonomyNode>().WithMany().HasForeignKey(x => new { x.FirmId, x.TaxonomyVersionId, x.ParentNodeId })
+      .HasPrincipalKey(x => new { x.FirmId, x.TaxonomyVersionId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    taxonomyNode.HasAlternateKey(x => new { x.FirmId, x.TaxonomyVersionId, x.Id }).HasName("ak_reporting_taxonomy_nodes_scope_id");
+
+    var import = b.Entity<SourceImportBatch>();
+    import.Property(x => x.SourceKind).HasMaxLength(30);
+    import.Property(x => x.ProfileVersion).HasMaxLength(100);
+    import.Property(x => x.ParserVersion).HasMaxLength(100);
+    import.Property(x => x.RawFileSha256Hex).HasMaxLength(64);
+    import.Property(x => x.NormalizedDatasetDigest).HasMaxLength(64);
+    import.Property(x => x.LegalEntityKey).HasMaxLength(200);
+    import.Property(x => x.Currency).HasMaxLength(3);
+    import.Property(x => x.Status).HasMaxLength(20);
+    import.Property(x => x.ReceiptReference).HasMaxLength(300);
+    import.HasIndex(x => new { x.FirmId, x.EngagementId, x.RawFileSha256Hex }).IsUnique()
+      .HasDatabaseName("ux_source_import_raw_hash").HasFilter("length(raw_file_sha256_hex) > 0");
+    import.ToTable("source_import_batches", t => t.HasCheckConstraint("ck_source_import_batch_values",
+      "length(trim(source_kind)) > 0 AND length(trim(profile_version)) > 0 AND length(trim(parser_version)) > 0 AND currency ~ '^[A-Z]{3}$' AND status IN ('LOADING','SEALED','REJECTED')"));
+    ScopeToEngagement(import, nameof(SourceImportBatch.FirmId), nameof(SourceImportBatch.ClientId), nameof(SourceImportBatch.EngagementId));
+
+    var glTransaction = b.Entity<GeneralLedgerTransaction>();
+    glTransaction.Property(x => x.StableJournalId).HasMaxLength(200);
+    glTransaction.Property(x => x.DocumentNumber).HasMaxLength(200);
+    glTransaction.Property(x => x.SourceUser).HasMaxLength(200);
+    glTransaction.Property(x => x.SourceSystem).HasMaxLength(100);
+    glTransaction.Property(x => x.ReversalReference).HasMaxLength(200);
+    glTransaction.Property(x => x.Currency).HasMaxLength(3);
+    glTransaction.HasIndex(x => new { x.FirmId, x.ImportBatchId, x.StableJournalId }).IsUnique()
+      .HasDatabaseName("ux_gl_transaction_stable_journal");
+    ScopeToEngagement(glTransaction, nameof(GeneralLedgerTransaction.FirmId), nameof(GeneralLedgerTransaction.ClientId), nameof(GeneralLedgerTransaction.EngagementId));
+    glTransaction.HasOne<SourceImportBatch>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.ImportBatchId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    glTransaction.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).HasName("ak_gl_transactions_scope_id");
+
+    var glLine = b.Entity<GeneralLedgerLine>();
+    glLine.Property(x => x.StableLineId).HasMaxLength(200);
+    glLine.Property(x => x.AccountCode).HasMaxLength(100);
+    glLine.Property(x => x.OriginalCurrency).HasMaxLength(3);
+    glLine.Property(x => x.PartyIdentifier).HasMaxLength(200);
+    glLine.Property(x => x.Branch).HasMaxLength(100);
+    glLine.Property(x => x.CostCentre).HasMaxLength(100);
+    glLine.Property(x => x.Department).HasMaxLength(100);
+    glLine.Property(x => x.Project).HasMaxLength(100);
+    glLine.Property(x => x.IntercompanyCounterparty).HasMaxLength(200);
+    glLine.HasIndex(x => new { x.FirmId, x.ImportBatchId, x.StableLineId }).IsUnique()
+      .HasDatabaseName("ux_gl_line_stable_line");
+    glLine.ToTable("general_ledger_lines", t => t.HasCheckConstraint("ck_gl_line_values",
+      "length(trim(account_code)) > 0 AND debit >= 0 AND credit >= 0 AND NOT (debit > 0 AND credit > 0) AND original_currency ~ '^[A-Z]{3}$'"));
+    ScopeToEngagement(glLine, nameof(GeneralLedgerLine.FirmId), nameof(GeneralLedgerLine.ClientId), nameof(GeneralLedgerLine.EngagementId));
+    glLine.HasOne<GeneralLedgerTransaction>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.TransactionId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    ConfigureClientAccountingSchedules(b);
+    ConfigureConsolidation(b);
+  }
+
+  private static void ConfigureClientAccountingSchedules(ModelBuilder b)
+  {
+    var reconciliation = b.Entity<AccountingReconciliation>();
+    reconciliation.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).HasName("ak_accounting_reconciliations_scope_id");
+    reconciliation.Property(x => x.Area).HasMaxLength(80);
+    reconciliation.Property(x => x.AccountSelection).HasMaxLength(2000);
+    reconciliation.Property(x => x.SourceHash).HasMaxLength(64);
+    reconciliation.Property(x => x.Status).HasMaxLength(30);
+    reconciliation.HasIndex(x => new { x.FirmId, x.EngagementId, x.PeriodId, x.Area }).HasDatabaseName("ix_accounting_reconciliation_area");
+    reconciliation.ToTable("accounting_reconciliations", t => t.HasCheckConstraint("ck_accounting_reconciliation_values",
+      "length(trim(area)) > 0 AND length(trim(account_selection)) > 0"));
+    ScopeToEngagement(reconciliation, nameof(AccountingReconciliation.FirmId), nameof(AccountingReconciliation.ClientId), nameof(AccountingReconciliation.EngagementId));
+
+    var reconItem = b.Entity<AccountingReconciliationItem>();
+    reconItem.Property(x => x.StableItemId).HasMaxLength(200);
+    reconItem.Property(x => x.Currency).HasMaxLength(3);
+    reconItem.Property(x => x.Reason).HasMaxLength(1000);
+    reconItem.Property(x => x.EvidenceReference).HasMaxLength(2000);
+    reconItem.Property(x => x.Disposition).HasMaxLength(100);
+    reconItem.HasIndex(x => new { x.FirmId, x.ReconciliationId, x.StableItemId }).IsUnique()
+      .HasDatabaseName("ux_accounting_reconciliation_item");
+    ScopeToEngagement(reconItem, nameof(AccountingReconciliationItem.FirmId), nameof(AccountingReconciliationItem.ClientId), nameof(AccountingReconciliationItem.EngagementId));
+    reconItem.HasOne<AccountingReconciliation>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.ReconciliationId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var ecl = b.Entity<EclAssessment>();
+    ecl.Property(x => x.Method).HasMaxLength(100);
+    ecl.Property(x => x.MethodologyVersion).HasMaxLength(100);
+    ecl.Property(x => x.AssumptionsHash).HasMaxLength(64);
+    ecl.Property(x => x.Status).HasMaxLength(30);
+    ecl.HasIndex(x => new { x.FirmId, x.ReconciliationId, x.Version }).IsUnique().HasDatabaseName("ux_ecl_assessment_version");
+    ecl.ToTable("ecl_assessments", t => t.HasCheckConstraint("ck_ecl_assessment_values",
+      "length(trim(method)) > 0 AND length(trim(methodology_version)) > 0 AND eligible_exposure >= 0 AND probability_of_default BETWEEN 0 AND 1 AND loss_given_default BETWEEN 0 AND 1"));
+    ScopeToEngagement(ecl, nameof(EclAssessment.FirmId), nameof(EclAssessment.ClientId), nameof(EclAssessment.EngagementId));
+    ecl.HasOne<AccountingReconciliation>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.ReconciliationId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var inventory = b.Entity<InventoryValuationAssessment>();
+    inventory.Property(x => x.MethodologyVersion).HasMaxLength(100);
+    inventory.Property(x => x.AssumptionsHash).HasMaxLength(64);
+    inventory.Property(x => x.Status).HasMaxLength(30);
+    inventory.HasIndex(x => new { x.FirmId, x.ReconciliationId, x.Version }).IsUnique().HasDatabaseName("ux_inventory_valuation_version");
+    inventory.ToTable("inventory_valuation_assessments", t => t.HasCheckConstraint("ck_inventory_valuation_values",
+      "quantity >= 0 AND unit_cost >= 0 AND nrv_per_unit >= 0 AND obsolescence_reserve >= 0 AND book_amount >= 0"));
+    ScopeToEngagement(inventory, nameof(InventoryValuationAssessment.FirmId), nameof(InventoryValuationAssessment.ClientId), nameof(InventoryValuationAssessment.EngagementId));
+    inventory.HasOne<AccountingReconciliation>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.ReconciliationId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var specialist = b.Entity<SpecialistAccountingSchedule>();
+    specialist.Property(x => x.Area).HasMaxLength(80);
+    specialist.Property(x => x.MethodologyVersion).HasMaxLength(100);
+    specialist.Property(x => x.AssumptionsHash).HasMaxLength(64);
+    specialist.Property(x => x.EvidenceReference).HasMaxLength(2000);
+    specialist.Property(x => x.Status).HasMaxLength(30);
+    specialist.HasIndex(x => new { x.FirmId, x.EngagementId, x.PeriodId, x.Area }).HasDatabaseName("ix_specialist_schedule_area");
+    specialist.ToTable("specialist_accounting_schedules", t => t.HasCheckConstraint("ck_specialist_schedule_values",
+      "length(trim(area)) > 0 AND length(trim(methodology_version)) > 0"));
+    ScopeToEngagement(specialist, nameof(SpecialistAccountingSchedule.FirmId), nameof(SpecialistAccountingSchedule.ClientId), nameof(SpecialistAccountingSchedule.EngagementId));
+
+    var analysis = b.Entity<AnalyticalReview>();
+    analysis.Property(x => x.Area).HasMaxLength(80);
+    analysis.Property(x => x.Measure).HasMaxLength(100);
+    analysis.Property(x => x.DenominatorBasis).HasMaxLength(200);
+    analysis.Property(x => x.FormulaVersion).HasMaxLength(100);
+    analysis.Property(x => x.InputHash).HasMaxLength(64);
+    analysis.Property(x => x.Explanation).HasMaxLength(4000);
+    analysis.Property(x => x.Status).HasMaxLength(30);
+    analysis.HasIndex(x => new { x.FirmId, x.EngagementId, x.PeriodId, x.Area, x.Measure }).HasDatabaseName("ix_analytical_review_measure");
+    analysis.ToTable("analytical_reviews", t => t.HasCheckConstraint("ck_analytical_review_values",
+      "length(trim(area)) > 0 AND length(trim(measure)) > 0 AND length(trim(denominator_basis)) > 0 AND length(trim(formula_version)) > 0"));
+    ScopeToEngagement(analysis, nameof(AnalyticalReview.FirmId), nameof(AnalyticalReview.ClientId), nameof(AnalyticalReview.EngagementId));
+
+    var flag = b.Entity<JournalRiskFlag>();
+    flag.Property(x => x.RuleCode).HasMaxLength(100);
+    flag.Property(x => x.Reason).HasMaxLength(2000);
+    flag.Property(x => x.Status).HasMaxLength(30);
+    flag.Property(x => x.Disposition).HasMaxLength(2000);
+    flag.Property(x => x.EvidenceReference).HasMaxLength(2000);
+    flag.HasIndex(x => new { x.FirmId, x.TransactionId, x.RuleCode }).IsUnique().HasDatabaseName("ux_journal_risk_flag_rule");
+    flag.ToTable("journal_risk_flags", t => t.HasCheckConstraint("ck_journal_risk_flag_values",
+      "length(trim(rule_code)) > 0 AND length(trim(reason)) > 0 AND score >= 0 AND score <= 100"));
+    ScopeToEngagement(flag, nameof(JournalRiskFlag.FirmId), nameof(JournalRiskFlag.ClientId), nameof(JournalRiskFlag.EngagementId));
+  }
+
+  private static void ConfigureConsolidation(ModelBuilder b)
+  {
+    var scope = b.Entity<ConsolidationScopeVersion>();
+    scope.HasAlternateKey(x => new { x.FirmId, x.GroupId, x.Id }).HasName("ak_consolidation_scopes_group_id");
+    scope.Property(x => x.ReportingCurrency).HasMaxLength(3);
+    scope.Property(x => x.Method).HasMaxLength(100);
+    scope.Property(x => x.Status).HasMaxLength(30);
+    scope.Property(x => x.OpeningBasis).HasMaxLength(100);
+    scope.HasIndex(x => new { x.FirmId, x.GroupId, x.PeriodId, x.Version }).IsUnique().HasDatabaseName("ux_consolidation_scope_version");
+    scope.ToTable("consolidation_scope_versions", t => t.HasCheckConstraint("ck_consolidation_scope_values",
+      "reporting_currency ~ '^[A-Z]{3}$' AND length(trim(method)) > 0 AND length(trim(opening_basis)) > 0"));
+    scope.HasOne<ClientGroup>().WithMany().HasForeignKey(x => new { x.FirmId, x.GroupId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var component = b.Entity<ConsolidationComponent>();
+    component.Property(x => x.PackageHash).HasMaxLength(64);
+    component.Property(x => x.PeriodBasis).HasMaxLength(100);
+    component.Property(x => x.TaxonomyVersion).HasMaxLength(100);
+    component.Property(x => x.MappingVersion).HasMaxLength(100);
+    component.Property(x => x.Currency).HasMaxLength(3);
+    component.Property(x => x.ControlMethod).HasMaxLength(100);
+    component.Property(x => x.Status).HasMaxLength(30);
+    component.HasIndex(x => new { x.FirmId, x.ScopeVersionId, x.ClientId }).IsUnique().HasDatabaseName("ux_consolidation_component_client");
+    component.ToTable("consolidation_components", t => t.HasCheckConstraint("ck_consolidation_component_values",
+      "package_hash ~ '^[0-9a-f]{64}$' AND currency ~ '^[A-Z]{3}$' AND ownership_percent >= 0 AND ownership_percent <= 100"));
+    component.HasOne<ClientGroup>().WithMany().HasForeignKey(x => new { x.FirmId, x.GroupId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    component.HasOne<ConsolidationScopeVersion>().WithMany().HasForeignKey(x => new { x.FirmId, x.GroupId, x.ScopeVersionId })
+      .HasPrincipalKey(x => new { x.FirmId, x.GroupId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    component.HasOne<PracticeClient>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    component.HasOne<FinancialPackage>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.PackageId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var ownership = b.Entity<OwnershipInterestVersion>();
+    ownership.Property(x => x.ControlAssessment).HasMaxLength(100);
+    ownership.Property(x => x.Method).HasMaxLength(100);
+    ownership.Property(x => x.EvidenceReference).HasMaxLength(2000);
+    ownership.Property(x => x.Status).HasMaxLength(30);
+    ownership.HasIndex(x => new { x.FirmId, x.ScopeVersionId, x.ParentClientId, x.ChildClientId }).IsUnique()
+      .HasDatabaseName("ux_ownership_interest_pair");
+    ownership.ToTable("ownership_interest_versions", t => t.HasCheckConstraint("ck_ownership_interest_values",
+      "effective_to IS NULL OR effective_from <= effective_to" +
+      " AND ownership_percent >= 0 AND ownership_percent <= 100 AND economic_interest_percent >= 0 AND economic_interest_percent <= 100"));
+    ownership.HasOne<ClientGroup>().WithMany().HasForeignKey(x => new { x.FirmId, x.GroupId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    ownership.HasOne<ConsolidationScopeVersion>().WithMany().HasForeignKey(x => new { x.FirmId, x.GroupId, x.ScopeVersionId })
+      .HasPrincipalKey(x => new { x.FirmId, x.GroupId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    ownership.HasOne<PracticeClient>().WithMany().HasForeignKey(x => new { x.FirmId, x.ParentClientId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    ownership.HasOne<PracticeClient>().WithMany().HasForeignKey(x => new { x.FirmId, x.ChildClientId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var match = b.Entity<IntercompanyMatch>();
+    match.Property(x => x.AccountNature).HasMaxLength(100);
+    match.Property(x => x.PeriodCode).HasMaxLength(50);
+    match.Property(x => x.Currency).HasMaxLength(3);
+    match.Property(x => x.TransactionReference).HasMaxLength(200);
+    match.Property(x => x.Status).HasMaxLength(30);
+    match.Property(x => x.DifferenceReason).HasMaxLength(2000);
+    match.Property(x => x.EvidenceReference).HasMaxLength(2000);
+    match.HasIndex(x => new { x.FirmId, x.ScopeVersionId, x.SellerClientId, x.BuyerClientId, x.TransactionReference }).IsUnique()
+      .HasDatabaseName("ux_intercompany_match_identity");
+    match.ToTable("intercompany_matches", t => t.HasCheckConstraint("ck_intercompany_match_values",
+      "length(trim(account_nature)) > 0 AND currency ~ '^[A-Z]{3}$'"));
+    match.HasOne<ClientGroup>().WithMany().HasForeignKey(x => new { x.FirmId, x.GroupId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    match.HasOne<ConsolidationScopeVersion>().WithMany().HasForeignKey(x => new { x.FirmId, x.GroupId, x.ScopeVersionId })
+      .HasPrincipalKey(x => new { x.FirmId, x.GroupId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    match.HasOne<PracticeClient>().WithMany().HasForeignKey(x => new { x.FirmId, x.SellerClientId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    match.HasOne<PracticeClient>().WithMany().HasForeignKey(x => new { x.FirmId, x.BuyerClientId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var journal = b.Entity<ConsolidationJournal>();
+    journal.Property(x => x.JournalNumber).HasMaxLength(100);
+    journal.Property(x => x.JournalType).HasMaxLength(100);
+    journal.Property(x => x.Currency).HasMaxLength(3);
+    journal.Property(x => x.EvidenceReference).HasMaxLength(2000);
+    journal.Property(x => x.Status).HasMaxLength(30);
+    journal.HasIndex(x => new { x.FirmId, x.ScopeVersionId, x.JournalNumber }).IsUnique().HasDatabaseName("ux_consolidation_journal_number");
+    journal.ToTable("consolidation_journals", t => t.HasCheckConstraint("ck_consolidation_journal_values",
+      "currency ~ '^[A-Z]{3}$' AND total_debits = total_credits_abs"));
+    journal.HasOne<ClientGroup>().WithMany().HasForeignKey(x => new { x.FirmId, x.GroupId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    journal.HasOne<ConsolidationScopeVersion>().WithMany().HasForeignKey(x => new { x.FirmId, x.GroupId, x.ScopeVersionId })
+      .HasPrincipalKey(x => new { x.FirmId, x.GroupId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var journalLine = b.Entity<ConsolidationJournalLine>();
+    journalLine.Property(x => x.TaxonomyCode).HasMaxLength(100);
+    journalLine.Property(x => x.Currency).HasMaxLength(3);
+    journalLine.Property(x => x.Description).HasMaxLength(1000);
+    journalLine.HasIndex(x => new { x.FirmId, x.ConsolidationJournalId, x.TaxonomyCode }).HasDatabaseName("ix_consolidation_journal_line");
+    journalLine.ToTable("consolidation_journal_lines", t => t.HasCheckConstraint("ck_consolidation_journal_line_values",
+      "length(trim(taxonomy_code)) > 0 AND debit >= 0 AND credit >= 0 AND NOT (debit > 0 AND credit > 0) AND currency ~ '^[A-Z]{3}$'"));
+    journalLine.HasOne<ConsolidationJournal>().WithMany().HasForeignKey(x => new { x.FirmId, x.GroupId, x.ScopeVersionId, x.ConsolidationJournalId })
+      .HasPrincipalKey(x => new { x.FirmId, x.GroupId, x.ScopeVersionId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    journalLine.HasOne<IntercompanyMatch>().WithMany().HasForeignKey(x => new { x.FirmId, x.GroupId, x.ScopeVersionId, x.IntercompanyMatchId })
+      .HasPrincipalKey(x => new { x.FirmId, x.GroupId, x.ScopeVersionId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    journal.HasAlternateKey(x => new { x.FirmId, x.GroupId, x.ScopeVersionId, x.Id }).HasName("ak_consolidation_journals_scope_id");
+    match.HasAlternateKey(x => new { x.FirmId, x.GroupId, x.ScopeVersionId, x.Id }).HasName("ak_intercompany_matches_scope_id");
+
+    var run = b.Entity<ConsolidationRun>();
+    run.Property(x => x.EngineVersion).HasMaxLength(100);
+    run.Property(x => x.InputManifest).HasMaxLength(20000);
+    run.Property(x => x.RunHash).HasMaxLength(64);
+    run.Property(x => x.ReportingCurrency).HasMaxLength(3);
+    run.Property(x => x.Status).HasMaxLength(30);
+    run.HasIndex(x => new { x.FirmId, x.ScopeVersionId, x.RunHash }).IsUnique().HasDatabaseName("ux_consolidation_run_hash");
+    run.ToTable("consolidation_runs", t => t.HasCheckConstraint("ck_consolidation_run_values",
+      "engine_version <> '' AND run_hash ~ '^[0-9a-f]{64}$' AND reporting_currency ~ '^[A-Z]{3}$'"));
+    run.HasOne<ClientGroup>().WithMany().HasForeignKey(x => new { x.FirmId, x.GroupId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    run.HasOne<ConsolidationScopeVersion>().WithMany().HasForeignKey(x => new { x.FirmId, x.GroupId, x.ScopeVersionId })
+      .HasPrincipalKey(x => new { x.FirmId, x.GroupId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var runLine = b.Entity<ConsolidationRunLine>();
+    runLine.Property(x => x.TaxonomyCode).HasMaxLength(100);
+    runLine.Property(x => x.Currency).HasMaxLength(3);
+    runLine.HasIndex(x => new { x.FirmId, x.RunId, x.TaxonomyCode, x.ComponentId, x.ConsolidationJournalId })
+      .HasDatabaseName("ix_consolidation_run_line");
+    runLine.ToTable("consolidation_run_lines", t => t.HasCheckConstraint("ck_consolidation_run_line_values",
+      "length(trim(taxonomy_code)) > 0 AND currency ~ '^[A-Z]{3}$'"));
+    runLine.HasOne<ConsolidationRun>().WithMany().HasForeignKey(x => new { x.FirmId, x.GroupId, x.ScopeVersionId, x.RunId })
+      .HasPrincipalKey(x => new { x.FirmId, x.GroupId, x.ScopeVersionId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    runLine.HasOne<ConsolidationComponent>().WithMany().HasForeignKey(x => new { x.FirmId, x.GroupId, x.ScopeVersionId, x.ComponentId })
+      .HasPrincipalKey(x => new { x.FirmId, x.GroupId, x.ScopeVersionId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    runLine.HasOne<ConsolidationJournal>().WithMany().HasForeignKey(x => new { x.FirmId, x.GroupId, x.ScopeVersionId, x.ConsolidationJournalId })
+      .HasPrincipalKey(x => new { x.FirmId, x.GroupId, x.ScopeVersionId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    run.HasAlternateKey(x => new { x.FirmId, x.GroupId, x.ScopeVersionId, x.Id }).HasName("ak_consolidation_runs_scope_id");
+    component.HasAlternateKey(x => new { x.FirmId, x.GroupId, x.ScopeVersionId, x.Id }).HasName("ak_consolidation_components_scope_id");
+
+    var rateSet = b.Entity<ExchangeRateSetVersion>();
+    rateSet.Property(x => x.Code).HasMaxLength(100);
+    rateSet.Property(x => x.Source).HasMaxLength(200);
+    rateSet.Property(x => x.Status).HasMaxLength(30);
+    rateSet.HasIndex(x => new { x.FirmId, x.Code }).IsUnique().HasDatabaseName("ux_exchange_rate_set_code");
+    rateSet.ToTable("exchange_rate_set_versions", t => t.HasCheckConstraint("ck_exchange_rate_set_values",
+      "length(trim(code)) > 0 AND length(trim(source)) > 0"));
+
+    var rate = b.Entity<ExchangeRate>();
+    rate.Property(x => x.FromCurrency).HasMaxLength(3);
+    rate.Property(x => x.ToCurrency).HasMaxLength(3);
+    rate.Property(x => x.RateType).HasMaxLength(30);
+    rate.Property(x => x.Direction).HasMaxLength(30);
+    rate.HasIndex(x => new { x.FirmId, x.RateSetVersionId, x.FromCurrency, x.ToCurrency, x.RateDate, x.RateType }).IsUnique()
+      .HasDatabaseName("ux_exchange_rate_identity");
+    rate.ToTable("exchange_rates", t => t.HasCheckConstraint("ck_exchange_rate_values",
+      "from_currency ~ '^[A-Z]{3}$' AND to_currency ~ '^[A-Z]{3}$' AND rate > 0 AND from_currency <> to_currency"));
+    rate.HasOne<ExchangeRateSetVersion>().WithMany().HasForeignKey(x => new { x.FirmId, x.RateSetVersionId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var policy = b.Entity<TranslationPolicyVersion>();
+    policy.Property(x => x.Code).HasMaxLength(100);
+    policy.Property(x => x.FunctionalCurrency).HasMaxLength(3);
+    policy.Property(x => x.PresentationCurrency).HasMaxLength(3);
+    policy.Property(x => x.ClosingRateRule).HasMaxLength(100);
+    policy.Property(x => x.AverageRateRule).HasMaxLength(100);
+    policy.Property(x => x.HistoricalRateRule).HasMaxLength(100);
+    policy.Property(x => x.Status).HasMaxLength(30);
+    policy.HasIndex(x => new { x.FirmId, x.Code }).IsUnique().HasDatabaseName("ux_translation_policy_code");
+    policy.ToTable("translation_policy_versions", t => t.HasCheckConstraint("ck_translation_policy_values",
+      "functional_currency ~ '^[A-Z]{3}$' AND presentation_currency ~ '^[A-Z]{3}$'"));
+
+    var translation = b.Entity<TranslationResult>();
+    translation.Property(x => x.FromCurrency).HasMaxLength(3);
+    translation.Property(x => x.ToCurrency).HasMaxLength(3);
+    translation.Property(x => x.Status).HasMaxLength(30);
+    translation.HasIndex(x => new { x.FirmId, x.ScopeVersionId, x.ComponentId, x.RateSetVersionId, x.TranslationPolicyVersionId }).IsUnique()
+      .HasDatabaseName("ux_translation_result_input");
+    translation.ToTable("translation_results", t => t.HasCheckConstraint("ck_translation_result_values",
+      "from_currency ~ '^[A-Z]{3}$' AND to_currency ~ '^[A-Z]{3}$'"));
+    translation.HasOne<ConsolidationComponent>().WithMany().HasForeignKey(x => new { x.FirmId, x.GroupId, x.ScopeVersionId, x.ComponentId })
+      .HasPrincipalKey(x => new { x.FirmId, x.GroupId, x.ScopeVersionId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    translation.HasOne<ExchangeRateSetVersion>().WithMany().HasForeignKey(x => new { x.FirmId, x.RateSetVersionId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    translation.HasOne<TranslationPolicyVersion>().WithMany().HasForeignKey(x => new { x.FirmId, x.TranslationPolicyVersionId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
   }
 
   // Audit planning and execution evidence (§§19–23, 27.2, 42.3–42.4). Every row carries the full
@@ -1670,13 +2303,17 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     difference.Property(x => x.Currency).HasMaxLength(3).IsFixedLength();
     difference.Property(x => x.ManagementResponse).HasMaxLength(4000);
     difference.Property(x => x.CorrectionReference).HasMaxLength(500);
+    difference.Property(x => x.CorrectionState).HasMaxLength(40);
+    difference.Property(x => x.JournalImpactJson).HasMaxLength(100000);
+    difference.Property(x => x.JournalImpactHash).HasMaxLength(64);
     difference.Property(x => x.Evaluation).HasMaxLength(4000);
     difference.Property(x => x.Status).HasMaxLength(30);
     difference.ToTable("audit_differences", t => t.HasCheckConstraint("ck_audit_difference_values",
       "length(trim(account_area)) > 0 AND length(trim(difference_type)) > 0 AND length(trim(description)) > 0" +
       " AND currency ~ '^[A-Z]{3}$' AND amount <> 0 AND input_generation > 0" +
-      " AND status IN ('OPEN','MANAGEMENT_RESPONDED','EVALUATED','CORRECTED')" +
-      " AND ((corrected AND correction_reference IS NOT NULL AND status = 'CORRECTED') OR NOT corrected)"));
+      " AND status IN ('OPEN','MANAGEMENT_RESPONDED','EVALUATED','CORRECTED','VERIFIED_REFLECTED')" +
+      " AND (correction_state IS NULL OR correction_state IN ('PROPOSED','AGREED','REJECTED','APPLIED_IN_REPORTING','REPORTED_POSTED_EXTERNALLY','VERIFIED_REFLECTED'))" +
+      " AND (NOT corrected OR correction_state IS NULL OR (correction_state = 'VERIFIED_REFLECTED' AND proposed_journal_id IS NOT NULL AND source_reflection_reconciliation_id IS NOT NULL AND verified_adjusted_snapshot_id IS NOT NULL))"));
     ScopeToEngagement(difference, nameof(AuditDifference.FirmId), nameof(AuditDifference.ClientId), nameof(AuditDifference.EngagementId));
     difference.HasOne<AuditProcedure>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.ProcedureId })
       .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
@@ -1684,6 +2321,18 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     difference.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.EvaluatedByUserId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    difference.HasOne<AdjustmentJournal>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.ProposedJournalId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
+      .OnDelete(DeleteBehavior.Restrict);
+    difference.HasOne<JournalSourceReconciliation>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.SourceReflectionReconciliationId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
+      .OnDelete(DeleteBehavior.Restrict);
+    difference.HasOne<AdjustedTrialBalanceSnapshot>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.VerifiedAdjustedSnapshotId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
+      .OnDelete(DeleteBehavior.Restrict);
   }
 
   /// <summary>

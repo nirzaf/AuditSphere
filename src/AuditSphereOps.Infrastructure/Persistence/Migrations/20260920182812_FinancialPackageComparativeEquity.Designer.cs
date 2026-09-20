@@ -3,6 +3,7 @@ using System;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AuditSphereDbContext))]
-    partial class AuditSphereDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260920182812_FinancialPackageComparativeEquity")]
+    partial class FinancialPackageComparativeEquity
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1546,108 +1549,6 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.ToTable("client_group_memberships", null, t =>
                         {
                             t.HasCheckConstraint("ck_client_group_membership_values", "effective_to IS NULL OR effective_from <= effective_to AND ownership_percent >= 0 AND ownership_percent <= 100 AND economic_interest_percent >= 0 AND economic_interest_percent <= 100");
-                        });
-                });
-
-            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ClientPeriodRestatement", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<DateTimeOffset?>("ApprovedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("approved_at");
-
-                    b.Property<Guid?>("ApprovedByUserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("approved_by_user_id");
-
-                    b.Property<Guid>("ClientId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("client_id");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<Guid>("CreatedByUserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("created_by_user_id");
-
-                    b.Property<Guid>("EngagementId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("engagement_id");
-
-                    b.Property<string>("EvidenceReference")
-                        .IsRequired()
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)")
-                        .HasColumnName("evidence_reference");
-
-                    b.Property<Guid>("FirmId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("firm_id");
-
-                    b.Property<string>("OriginalPackageHash")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)")
-                        .HasColumnName("original_package_hash");
-
-                    b.Property<Guid>("OriginalPackageId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("original_package_id");
-
-                    b.Property<Guid>("PeriodId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("period_id");
-
-                    b.Property<string>("Reason")
-                        .IsRequired()
-                        .HasMaxLength(4000)
-                        .HasColumnType("character varying(4000)")
-                        .HasColumnName("reason");
-
-                    b.Property<string>("RevisedBasis")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("revised_basis");
-
-                    b.Property<string>("RevisedPackageHash")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)")
-                        .HasColumnName("revised_package_hash");
-
-                    b.Property<Guid>("RevisedPackageId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("revised_package_id");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)")
-                        .HasColumnName("status");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("FirmId", "ClientId", "PeriodId");
-
-                    b.HasIndex("FirmId", "OriginalPackageId", "RevisedPackageId")
-                        .IsUnique()
-                        .HasDatabaseName("ux_client_period_restatement_packages");
-
-                    b.HasIndex("FirmId", "ClientId", "EngagementId", "OriginalPackageId");
-
-                    b.HasIndex("FirmId", "ClientId", "EngagementId", "RevisedPackageId")
-                        .HasDatabaseName("IX_client_period_restatements_firm_id_client_id_engagement_id~1");
-
-                    b.ToTable("client_period_restatements", null, t =>
-                        {
-                            t.HasCheckConstraint("ck_client_period_restatement_values", "original_package_id <> revised_package_id AND original_package_hash ~ '^[0-9a-f]{64}$' AND revised_package_hash ~ '^[0-9a-f]{64}$' AND length(trim(revised_basis)) > 0 AND length(trim(reason)) > 0 AND length(trim(evidence_reference)) > 0 AND status IN ('SUBMITTED','APPROVED','REJECTED') AND ((status = 'SUBMITTED' AND approved_by_user_id IS NULL AND approved_at IS NULL) OR (status = 'APPROVED' AND approved_by_user_id IS NOT NULL AND approved_at IS NOT NULL))");
                         });
                 });
 
@@ -12235,31 +12136,6 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasPrincipalKey("FirmId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
-                });
-
-            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ClientPeriodRestatement", b =>
-                {
-                    b.HasOne("AuditSphereOps.Domain.Accounting.ClientReportingPeriod", null)
-                        .WithMany()
-                        .HasForeignKey("FirmId", "ClientId", "PeriodId")
-                        .HasPrincipalKey("FirmId", "ClientId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("AuditSphereOps.Domain.Accounting.FinancialPackage", null)
-                        .WithMany()
-                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "OriginalPackageId")
-                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("AuditSphereOps.Domain.Accounting.FinancialPackage", null)
-                        .WithMany()
-                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "RevisedPackageId")
-                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("FK_client_period_restatements_financial_packages_firm_id_clie~1");
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ClientReportingBook", b =>

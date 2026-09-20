@@ -102,8 +102,6 @@ public static class AdjustmentPlanService
     IReadOnlyList<PlanLineInput> lines,
     CancellationToken ct = default)
   {
-    if (lines.Count == 0)
-      return CommandResult<Guid>.Fail(ErrorCodes.Accounting.PlanRejected, "A plan needs at least one journal line.");
     var seen = new HashSet<(string Logical, string Layer)>();
     foreach (var line in lines)
     {
@@ -200,9 +198,6 @@ public static class AdjustmentPlanService
 
     var lines = await db.AdjustmentPlanLines.AsNoTracking()
       .Where(l => l.PlanId == plan.Id).ToListAsync(ct);
-    if (lines.Count == 0)
-      return CommandResult<FinalizedPlan>.Fail(ErrorCodes.Accounting.PlanRejected, "A plan needs at least one journal line.");
-
     // Stale-plan guard: the live decision must still match the snapshot.
     var live = await db.JournalSourceReconciliations.AsNoTracking()
       .Where(r => r.FirmId == plan.FirmId && r.EngagementId == plan.EngagementId &&

@@ -40,7 +40,6 @@ public interface IAuditSphereDbContext : IAsyncDisposable
   DbSet<FinancialPackageValidation> FinancialPackageValidations { get; }
   DbSet<FinancialPackageCashFlowLine> FinancialPackageCashFlowLines { get; }
   DbSet<FinancialPackageDisclosure> FinancialPackageDisclosures { get; }
-
   DbSet<Engagement> Engagements { get; }
   DbSet<EngagementHold> EngagementHolds { get; }
   DbSet<RepositoryBinding> RepositoryBindings { get; }
@@ -132,6 +131,54 @@ public interface IAuditSphereDbContext : IAsyncDisposable
   DbSet<RoleGrant> RoleGrants { get; }
   DatabaseFacade Database { get; }
   Task<int> SaveChangesAsync(CancellationToken ct = default);
+}
+
+public interface IClientAccountingDbContext : IAuditSphereDbContext
+{
+  DbSet<AccountingCapabilityProfile> AccountingCapabilityProfiles { get; }
+  DbSet<AccountingCapabilityAcceptance> AccountingCapabilityAcceptances { get; }
+  DbSet<ClientAccountingProfile> ClientAccountingProfiles { get; }
+  DbSet<ClientGroup> ClientGroups { get; }
+  DbSet<ClientGroupMembership> ClientGroupMemberships { get; }
+  DbSet<GroupAccessGrant> GroupAccessGrants { get; }
+  DbSet<ClientReportingPeriod> ClientReportingPeriods { get; }
+  DbSet<ClientReportingBook> ClientReportingBooks { get; }
+  DbSet<OpeningBalanceBridge> OpeningBalanceBridges { get; }
+  DbSet<ClientPeriodRestatement> ClientPeriodRestatements { get; }
+  DbSet<ClientChartVersion> ClientChartVersions { get; }
+  DbSet<ClientAccount> ClientAccounts { get; }
+  DbSet<SourceAccountAlias> SourceAccountAliases { get; }
+  DbSet<ReportingTaxonomyVersion> ReportingTaxonomyVersions { get; }
+  DbSet<ReportingTaxonomyNode> ReportingTaxonomyNodes { get; }
+  DbSet<SourceImportBatch> SourceImportBatches { get; }
+  DbSet<GeneralLedgerTransaction> GeneralLedgerTransactions { get; }
+  DbSet<GeneralLedgerLine> GeneralLedgerLines { get; }
+  DbSet<AccountingReconciliation> AccountingReconciliations { get; }
+  DbSet<AccountingReconciliationItem> AccountingReconciliationItems { get; }
+  DbSet<EclAssessment> EclAssessments { get; }
+  DbSet<InventoryValuationAssessment> InventoryValuationAssessments { get; }
+  DbSet<SpecialistAccountingSchedule> SpecialistAccountingSchedules { get; }
+  DbSet<AnalyticalReview> AnalyticalReviews { get; }
+  DbSet<JournalRiskFlag> JournalRiskFlags { get; }
+  DbSet<ConsolidationScopeVersion> ConsolidationScopeVersions { get; }
+  DbSet<ConsolidationComponent> ConsolidationComponents { get; }
+  DbSet<OwnershipInterestVersion> OwnershipInterestVersions { get; }
+  DbSet<IntercompanyMatch> IntercompanyMatches { get; }
+  DbSet<ConsolidationJournal> ConsolidationJournals { get; }
+  DbSet<ConsolidationJournalLine> ConsolidationJournalLines { get; }
+  DbSet<ConsolidationRun> ConsolidationRuns { get; }
+  DbSet<ConsolidationRunLine> ConsolidationRunLines { get; }
+  DbSet<ExchangeRateSetVersion> ExchangeRateSetVersions { get; }
+  DbSet<ExchangeRate> ExchangeRates { get; }
+  DbSet<TranslationPolicyVersion> TranslationPolicyVersions { get; }
+  DbSet<TranslationResult> TranslationResults { get; }
+  DbSet<FinancialPackageEquityLine> FinancialPackageEquityLines { get; }
+  DbSet<FinancialPackageNoteLine> FinancialPackageNoteLines { get; }
+}
+
+public interface IAdjustmentJournalDbContext : IAuditSphereDbContext
+{
+  DbSet<AdjustmentJournalManagementDecision> AdjustmentJournalManagementDecisions { get; }
 }
 
 public interface IAuditSphereDbContextFactory

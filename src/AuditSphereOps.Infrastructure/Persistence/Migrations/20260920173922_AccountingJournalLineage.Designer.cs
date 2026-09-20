@@ -3,6 +3,7 @@ using System;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AuditSphereDbContext))]
-    partial class AuditSphereDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260920173922_AccountingJournalLineage")]
+    partial class AccountingJournalLineage
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1549,108 +1552,6 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         });
                 });
 
-            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ClientPeriodRestatement", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<DateTimeOffset?>("ApprovedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("approved_at");
-
-                    b.Property<Guid?>("ApprovedByUserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("approved_by_user_id");
-
-                    b.Property<Guid>("ClientId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("client_id");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<Guid>("CreatedByUserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("created_by_user_id");
-
-                    b.Property<Guid>("EngagementId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("engagement_id");
-
-                    b.Property<string>("EvidenceReference")
-                        .IsRequired()
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)")
-                        .HasColumnName("evidence_reference");
-
-                    b.Property<Guid>("FirmId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("firm_id");
-
-                    b.Property<string>("OriginalPackageHash")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)")
-                        .HasColumnName("original_package_hash");
-
-                    b.Property<Guid>("OriginalPackageId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("original_package_id");
-
-                    b.Property<Guid>("PeriodId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("period_id");
-
-                    b.Property<string>("Reason")
-                        .IsRequired()
-                        .HasMaxLength(4000)
-                        .HasColumnType("character varying(4000)")
-                        .HasColumnName("reason");
-
-                    b.Property<string>("RevisedBasis")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("revised_basis");
-
-                    b.Property<string>("RevisedPackageHash")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)")
-                        .HasColumnName("revised_package_hash");
-
-                    b.Property<Guid>("RevisedPackageId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("revised_package_id");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)")
-                        .HasColumnName("status");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("FirmId", "ClientId", "PeriodId");
-
-                    b.HasIndex("FirmId", "OriginalPackageId", "RevisedPackageId")
-                        .IsUnique()
-                        .HasDatabaseName("ux_client_period_restatement_packages");
-
-                    b.HasIndex("FirmId", "ClientId", "EngagementId", "OriginalPackageId");
-
-                    b.HasIndex("FirmId", "ClientId", "EngagementId", "RevisedPackageId")
-                        .HasDatabaseName("IX_client_period_restatements_firm_id_client_id_engagement_id~1");
-
-                    b.ToTable("client_period_restatements", null, t =>
-                        {
-                            t.HasCheckConstraint("ck_client_period_restatement_values", "original_package_id <> revised_package_id AND original_package_hash ~ '^[0-9a-f]{64}$' AND revised_package_hash ~ '^[0-9a-f]{64}$' AND length(trim(revised_basis)) > 0 AND length(trim(reason)) > 0 AND length(trim(evidence_reference)) > 0 AND status IN ('SUBMITTED','APPROVED','REJECTED') AND ((status = 'SUBMITTED' AND approved_by_user_id IS NULL AND approved_at IS NULL) OR (status = 'APPROVED' AND approved_by_user_id IS NOT NULL AND approved_at IS NOT NULL))");
-                        });
-                });
-
             modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ClientReportingBook", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2606,20 +2507,6 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("client_id");
 
-                    b.Property<string>("ComparativeBasis")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("comparative_basis");
-
-                    b.Property<string>("ComparativeEvidenceReference")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)")
-                        .HasColumnName("comparative_evidence_reference");
-
-                    b.Property<Guid?>("ComparativePackageId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("comparative_package_id");
-
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
@@ -2633,11 +2520,6 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("EngagementId")
                         .HasColumnType("uuid")
                         .HasColumnName("engagement_id");
-
-                    b.Property<string>("EquityHash")
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)")
-                        .HasColumnName("equity_hash");
 
                     b.Property<Guid>("FirmId")
                         .HasColumnType("uuid")
@@ -2704,8 +2586,6 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.HasAlternateKey("FirmId", "ClientId", "EngagementId", "Id")
                         .HasName("AK_financial_packages_scope_id");
 
-                    b.HasIndex("FirmId", "ComparativePackageId");
-
                     b.HasIndex("FirmId", "AdjustmentPlanId", "MappingVersionId", "TemplateVersion")
                         .IsUnique()
                         .HasDatabaseName("ux_financial_package_identity");
@@ -2716,7 +2596,7 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.ToTable("financial_packages", null, t =>
                         {
-                            t.HasCheckConstraint("ck_financial_package_values", "revision >= 1 AND generation >= 1 AND length(framework) > 0 AND length(period_start) = 10 AND length(period_end) = 10 AND period_start <= period_end AND length(taxonomy_version) > 0 AND length(template_version) > 0 AND length(calculation_engine_version) > 0 AND calculation_hash ~ '^[0-9a-f]{64}$' AND currency ~ '^[A-Z]{3}$' AND status IN ('REVIEW_REQUIRED','VALIDATED') AND ((cash_beginning IS NULL AND cash_ending IS NULL AND supplementary_hash IS NULL AND equity_hash IS NULL) OR (cash_beginning IS NOT NULL AND cash_ending IS NOT NULL AND supplementary_hash ~ '^[0-9a-f]{64}$' AND (equity_hash IS NULL OR equity_hash ~ '^[0-9a-f]{64}$')))");
+                            t.HasCheckConstraint("ck_financial_package_values", "revision >= 1 AND generation >= 1 AND length(framework) > 0 AND length(period_start) = 10 AND length(period_end) = 10 AND period_start <= period_end AND length(taxonomy_version) > 0 AND length(template_version) > 0 AND length(calculation_engine_version) > 0 AND calculation_hash ~ '^[0-9a-f]{64}$' AND currency ~ '^[A-Z]{3}$' AND status IN ('REVIEW_REQUIRED','VALIDATED') AND ((cash_beginning IS NULL AND cash_ending IS NULL AND supplementary_hash IS NULL) OR (cash_beginning IS NOT NULL AND cash_ending IS NOT NULL AND supplementary_hash ~ '^[0-9a-f]{64}$'))");
                         });
                 });
 
@@ -2845,95 +2725,6 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         });
                 });
 
-            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.FinancialPackageEquityLine", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<decimal>("CapitalMovementAmount")
-                        .HasColumnType("numeric(19,6)")
-                        .HasColumnName("capital_movement_amount");
-
-                    b.Property<Guid>("ClientId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("client_id");
-
-                    b.Property<decimal>("ClosingAmount")
-                        .HasColumnType("numeric(19,6)")
-                        .HasColumnName("closing_amount");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<string>("Currency")
-                        .IsRequired()
-                        .HasMaxLength(3)
-                        .HasColumnType("character varying(3)")
-                        .HasColumnName("currency");
-
-                    b.Property<string>("Description")
-                        .IsRequired()
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)")
-                        .HasColumnName("description");
-
-                    b.Property<decimal>("DividendsAmount")
-                        .HasColumnType("numeric(19,6)")
-                        .HasColumnName("dividends_amount");
-
-                    b.Property<Guid>("EngagementId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("engagement_id");
-
-                    b.Property<string>("EvidenceReference")
-                        .IsRequired()
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)")
-                        .HasColumnName("evidence_reference");
-
-                    b.Property<Guid>("FinancialPackageId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("financial_package_id");
-
-                    b.Property<Guid>("FirmId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("firm_id");
-
-                    b.Property<string>("LineCode")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("line_code");
-
-                    b.Property<decimal>("OciAmount")
-                        .HasColumnType("numeric(19,6)")
-                        .HasColumnName("oci_amount");
-
-                    b.Property<decimal>("OpeningAmount")
-                        .HasColumnType("numeric(19,6)")
-                        .HasColumnName("opening_amount");
-
-                    b.Property<decimal>("ProfitOrLossAmount")
-                        .HasColumnType("numeric(19,6)")
-                        .HasColumnName("profit_or_loss_amount");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("FirmId", "FinancialPackageId", "LineCode")
-                        .IsUnique()
-                        .HasDatabaseName("ux_financial_package_equity_line_identity");
-
-                    b.HasIndex("FirmId", "ClientId", "EngagementId", "FinancialPackageId");
-
-                    b.ToTable("financial_package_equity_lines", null, t =>
-                        {
-                            t.HasCheckConstraint("ck_financial_package_equity_line_values", "length(trim(line_code)) > 0 AND length(trim(description)) > 0 AND currency ~ '^[A-Z]{3}$' AND length(trim(evidence_reference)) > 0");
-                        });
-                });
-
             modelBuilder.Entity("AuditSphereOps.Domain.Accounting.FinancialPackageLine", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3015,75 +2806,6 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.ToTable("financial_package_lines", null, t =>
                         {
                             t.HasCheckConstraint("ck_financial_package_line_values", "length(source_account_code) > 0 AND length(destination_code) > 0 AND length(statement_section) > 0 AND fraction > 0 AND fraction <= 1 AND currency ~ '^[A-Z]{3}$'");
-                        });
-                });
-
-            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.FinancialPackageNoteLine", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<decimal>("Amount")
-                        .HasColumnType("numeric(19,6)")
-                        .HasColumnName("amount");
-
-                    b.Property<Guid>("ClientId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("client_id");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<string>("Currency")
-                        .IsRequired()
-                        .HasMaxLength(3)
-                        .HasColumnType("character varying(3)")
-                        .HasColumnName("currency");
-
-                    b.Property<Guid>("EngagementId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("engagement_id");
-
-                    b.Property<string>("EvidenceReference")
-                        .IsRequired()
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)")
-                        .HasColumnName("evidence_reference");
-
-                    b.Property<string>("FaceDestinationCode")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("face_destination_code");
-
-                    b.Property<Guid>("FinancialPackageId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("financial_package_id");
-
-                    b.Property<Guid>("FirmId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("firm_id");
-
-                    b.Property<string>("NoteCode")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("note_code");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("FirmId", "ClientId", "EngagementId", "FinancialPackageId");
-
-                    b.HasIndex("FirmId", "FinancialPackageId", "NoteCode", "FaceDestinationCode")
-                        .IsUnique()
-                        .HasDatabaseName("ux_financial_package_note_line_identity");
-
-                    b.ToTable("financial_package_note_lines", null, t =>
-                        {
-                            t.HasCheckConstraint("ck_financial_package_note_line_values", "length(trim(note_code)) > 0 AND length(trim(face_destination_code)) > 0 AND currency ~ '^[A-Z]{3}$' AND length(trim(evidence_reference)) > 0");
                         });
                 });
 
@@ -3642,10 +3364,6 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
-
-                    b.Property<Guid?>("CreatedByUserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("created_by_user_id");
 
                     b.Property<string>("Disposition")
                         .IsRequired()
@@ -12237,31 +11955,6 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ClientPeriodRestatement", b =>
-                {
-                    b.HasOne("AuditSphereOps.Domain.Accounting.ClientReportingPeriod", null)
-                        .WithMany()
-                        .HasForeignKey("FirmId", "ClientId", "PeriodId")
-                        .HasPrincipalKey("FirmId", "ClientId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("AuditSphereOps.Domain.Accounting.FinancialPackage", null)
-                        .WithMany()
-                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "OriginalPackageId")
-                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("AuditSphereOps.Domain.Accounting.FinancialPackage", null)
-                        .WithMany()
-                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "RevisedPackageId")
-                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("FK_client_period_restatements_financial_packages_firm_id_clie~1");
-                });
-
             modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ClientReportingBook", b =>
                 {
                     b.HasOne("AuditSphereOps.Domain.Accounting.ClientReportingPeriod", null)
@@ -12444,12 +12137,6 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("AuditSphereOps.Domain.Accounting.FinancialPackage", null)
-                        .WithMany()
-                        .HasForeignKey("FirmId", "ComparativePackageId")
-                        .HasPrincipalKey("FirmId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.HasOne("AuditSphereOps.Domain.Engagements.Engagement", null)
                         .WithMany()
                         .HasForeignKey("FirmId", "ClientId", "EngagementId")
@@ -12492,16 +12179,6 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.FinancialPackageEquityLine", b =>
-                {
-                    b.HasOne("AuditSphereOps.Domain.Accounting.FinancialPackage", null)
-                        .WithMany()
-                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "FinancialPackageId")
-                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-                });
-
             modelBuilder.Entity("AuditSphereOps.Domain.Accounting.FinancialPackageLine", b =>
                 {
                     b.HasOne("AuditSphereOps.Domain.Accounting.AdjustedTrialBalanceSnapshot", null)
@@ -12511,16 +12188,6 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("AuditSphereOps.Domain.Accounting.FinancialPackage", null)
-                        .WithMany()
-                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "FinancialPackageId")
-                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.FinancialPackageNoteLine", b =>
-                {
                     b.HasOne("AuditSphereOps.Domain.Accounting.FinancialPackage", null)
                         .WithMany()
                         .HasForeignKey("FirmId", "ClientId", "EngagementId", "FinancialPackageId")

@@ -9,7 +9,14 @@ public sealed class TrialBalanceDataset
   public Guid EngagementId { get; set; }
   public string SourceKind { get; set; } = "Raw";     // Raw|Adjusted
   public long Revision { get; set; } = 1;
+  /// <summary>One canonical legal-entity label per accepted dataset.</summary>
+  public string LegalEntityKey { get; set; } = string.Empty;
   public string Currency { get; set; } = string.Empty;
+  /// <summary>Digest of the exact received upload bytes.</summary>
+  public string RawFileSha256Hex { get; set; } = string.Empty;
+  /// <summary>Versioned digest of normalized accounting rows.</summary>
+  public string NormalizedDatasetDigest { get; set; } = string.Empty;
+  /// <summary>Legacy normalized digest retained for existing records and callers.</summary>
   public string Sha256Hex { get; set; } = string.Empty;
   public bool Balanced { get; set; }
   public string ValidationStatus { get; set; } = "Pending";
@@ -95,6 +102,7 @@ public sealed class MappingAllocation
   public string StatementSection { get; set; } = string.Empty;
   public string? AuditArea { get; set; }
   public decimal Fraction { get; set; }
+  public string ResidualPolicy { get; set; } = "LAST_DESTINATION";
   public string Rationale { get; set; } = string.Empty;
   public DateTimeOffset CreatedAt { get; set; }
 }
@@ -136,10 +144,77 @@ public sealed class AdjustmentJournal
   public Guid EngagementId { get; set; }
   public Guid BaseDatasetId { get; set; }
   public string JournalNumber { get; set; } = string.Empty; // AJ-001
+  public string Purpose { get; set; } = AdjustmentJournalPurposes.ReportingAdjustment;
+  public Guid? BookId { get; set; }
+  public string Origin { get; set; } = AdjustmentJournalOrigins.AuditProposed;
+  public string Reason { get; set; } = string.Empty;
+  public string EvidenceReference { get; set; } = string.Empty;
+  public Guid? SupersedesJournalId { get; set; }
+  public Guid? ReversalOfJournalId { get; set; }
   public string Status { get; set; } = "Draft";             // Draft|Posted|ReflectedInSource|Void
   public long Revision { get; set; } = 1;
   public Guid CreatedByUserId { get; set; }
   public DateTimeOffset CreatedAt { get; set; }
+}
+
+public static class AdjustmentJournalPurposes
+{
+  public const string ClientBookCorrection = "CLIENT_BOOK_CORRECTION";
+  public const string ReportingAdjustment = "REPORTING_ADJUSTMENT";
+  public const string PresentationReclassification = "PRESENTATION_RECLASSIFICATION";
+  public const string GroupOnlyElimination = "GROUP_ONLY_ELIMINATION";
+
+  public static readonly IReadOnlySet<string> All = new HashSet<string>(StringComparer.Ordinal)
+  {
+    ClientBookCorrection, ReportingAdjustment, PresentationReclassification, GroupOnlyElimination
+  };
+}
+
+public static class AdjustmentJournalOrigins
+{
+  public const string AuditProposed = "AUDIT_PROPOSED";
+  public const string ClientRequested = "CLIENT_REQUESTED";
+  public const string ManagementProvided = "MANAGEMENT_PROVIDED";
+  public const string Imported = "IMPORTED";
+
+  public static readonly IReadOnlySet<string> All = new HashSet<string>(StringComparer.Ordinal)
+  {
+    AuditProposed, ClientRequested, ManagementProvided, Imported
+  };
+}
+
+public static class ManagementDecisionStates
+{
+  public const string Accepted = "ACCEPTED";
+  public const string Rejected = "REJECTED";
+  public const string Partial = "PARTIAL";
+
+  public static readonly IReadOnlySet<string> All = new HashSet<string>(StringComparer.Ordinal)
+  {
+    Accepted, Rejected, Partial
+  };
+}
+
+public static class ManagementDecisionEvidenceModes
+{
+  public const string SignedIn = "SIGNED_IN";
+  public const string Offline = "OFFLINE";
+}
+
+/// <summary>Immutable management disposition for one exact journal revision.</summary>
+public sealed class AdjustmentJournalManagementDecision
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public Guid EngagementId { get; set; }
+  public Guid JournalId { get; set; }
+  public long JournalRevision { get; set; }
+  public string Decision { get; set; } = string.Empty;
+  public string EvidenceMode { get; set; } = string.Empty;
+  public string EvidenceReference { get; set; } = string.Empty;
+  public Guid? DecidedByUserId { get; set; }
+  public DateTimeOffset DecidedAt { get; set; }
 }
 
 public sealed class AdjustmentLine
@@ -174,6 +249,10 @@ public sealed class FinancialPackage
   public decimal? CashBeginning { get; set; }
   public decimal? CashEnding { get; set; }
   public string? SupplementaryHash { get; set; }
+  public string? EquityHash { get; set; }
+  public Guid? ComparativePackageId { get; set; }
+  public string? ComparativeBasis { get; set; }
+  public string? ComparativeEvidenceReference { get; set; }
   public DateTimeOffset CreatedAt { get; set; }
 }
 
@@ -188,6 +267,7 @@ public sealed class FinancialPackageLine
   public string DestinationCode { get; set; } = string.Empty;
   public string StatementSection { get; set; } = string.Empty;
   public decimal Amount { get; set; }
+  public decimal RoundingResidual { get; set; }
   public decimal Fraction { get; set; }
   public string Currency { get; set; } = string.Empty;
   public Guid AdjustedSnapshotId { get; set; }
@@ -230,5 +310,42 @@ public sealed class FinancialPackageDisclosure
   public string Response { get; set; } = string.Empty;
   public bool NotApplicable { get; set; }
   public string? Rationale { get; set; }
+  public DateTimeOffset CreatedAt { get; set; }
+}
+
+/// <summary>Typed statement-of-changes-in-equity line tied to one package.</summary>
+public sealed class FinancialPackageEquityLine
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public Guid EngagementId { get; set; }
+  public Guid FinancialPackageId { get; set; }
+  public string LineCode { get; set; } = string.Empty;
+  public string Description { get; set; } = string.Empty;
+  public decimal OpeningAmount { get; set; }
+  public decimal ProfitOrLossAmount { get; set; }
+  public decimal OciAmount { get; set; }
+  public decimal CapitalMovementAmount { get; set; }
+  public decimal DividendsAmount { get; set; }
+  public decimal ClosingAmount { get; set; }
+  public string Currency { get; set; } = string.Empty;
+  public string EvidenceReference { get; set; } = string.Empty;
+  public DateTimeOffset CreatedAt { get; set; }
+}
+
+/// <summary>Structured note amount used for note-to-face cross-casts.</summary>
+public sealed class FinancialPackageNoteLine
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public Guid EngagementId { get; set; }
+  public Guid FinancialPackageId { get; set; }
+  public string NoteCode { get; set; } = string.Empty;
+  public string FaceDestinationCode { get; set; } = string.Empty;
+  public decimal Amount { get; set; }
+  public string Currency { get; set; } = string.Empty;
+  public string EvidenceReference { get; set; } = string.Empty;
   public DateTimeOffset CreatedAt { get; set; }
 }

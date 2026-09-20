@@ -1,0 +1,99 @@
+@page "/app/accounting"
+@rendermode InteractiveServer
+@using AuditSphereOps.Domain.Accounting
+@using AuditSphereOps.Domain.Security
+@inject CurrentActorResolver ActorResolver
+@inject IDbContextFactory<AuditSphereDbContext> DbFactory
+
+<PageTitle>Client accounting workspace</PageTitle>
+<a class="back-link" href="/app">← Back to portfolio</a>
+<h1>Client accounting workspace</h1>
+
+@if (_loading)
+{
+  <p role="status">Loading accounting context…</p>
+}
+else if (!_authorized)
+{
+  <section class="notice" role="alert"><h2>Access unavailable</h2><p>This workspace requires an authorized accounting role.</p></section>
+}
+else
+{
+  <p class="scope-note">The workspace is scoped to the authenticated firm and client grants. Group navigation does not grant sibling-company access.</p>
+  <section class="metric-grid" aria-label="Accounting workspace counts">
+    <article class="metric card"><span class="metric-label">Client profiles</span><strong class="metric-value">@_profileCount</strong></article>
+    <article class="metric card"><span class="metric-label">Open periods</span><strong class="metric-value">@_openPeriodCount</strong></article>
+    <article class="metric card"><span class="metric-label">Sealed imports</span><strong class="metric-value">@_sealedImportCount</strong></article>
+    <article class="metric card"><span class="metric-label">Blocked/stale work</span><strong class="metric-value">@_blockedCount</strong></article>
+  </section>
+  <section class="card" aria-labelledby="context-heading">
+    <h2 id="context-heading">Current accounting context</h2>
+    <div class="table-wrap">
+      <table>
+        <caption class="sr-only">Accounting client context</caption>
+        <thead><tr><th scope="col">Legal entity</th><th scope="col">Currency</th><th scope="col">Periods</th><th scope="col">Latest chart</th><th scope="col">Latest import</th></tr></thead>
+        <tbody>
+        @foreach (var row in _clients)
+        {
+          <tr><td><strong>@row.Name</strong></td><td><code>@row.Currency</code></td><td>@row.Periods</td><td>@row.ChartStatus</td><td>@row.ImportStatus</td></tr>
+        }
+        </tbody>
+      </table>
+    </div>
+  </section>
+  <section class="card" aria-labelledby="routes-heading">
+    <h2 id="routes-heading">Accounting workbenches</h2>
+    <div style="display:flex;gap:.75rem;flex-wrap:wrap">
+      <a class="button" href="/app/consolidation">Group consolidation</a>
+      <a class="button" href="/app/journals">Adjustments and journals</a>
+    </div>
+  </section>
+}
+
+@code {
+  private sealed record ClientRow(string Name, string Currency, int Periods, string ChartStatus, string ImportStatus);
+  private ActorContext? _actor;
+  private bool _loading = true;
+  private bool _authorized;
+  private int _profileCount;
+  private int _openPeriodCount;
+  private int _sealedImportCount;
+  private int _blockedCount;
+  private List<ClientRow> _clients = [];
+
+  protected override async Task OnInitializedAsync()
+  {
+    _actor = await ActorResolver.ResolveAsync();
+    _authorized = _actor is not null && _actor.Roles.Any(x => x is "Administrator" or "Partner" or "Manager" or "AccountingPreparer" or "AccountingReviewer");
+    if (_authorized && _actor is not null)
+    {
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var clientIds = _actor.ClientId.HasValue
+        ? new[] { _actor.ClientId.Value }
+        : await db.RoleGrants.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && x.UserId == _actor.UserId && x.RevokedAt == null)
+          .Select(x => x.ClientId).Where(x => x.HasValue).Select(x => x!.Value).Distinct().ToArrayAsync();
+      var profiles = await db.ClientAccountingProfiles.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
+        (clientIds.Length == 0 || clientIds.Contains(x.ClientId))).ToListAsync();
+      var clients = await db.PracticeClients.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
+        (clientIds.Length == 0 || clientIds.Contains(x.Id))).ToDictionaryAsync(x => x.Id);
+      var periods = await db.ClientReportingPeriods.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
+        (clientIds.Length == 0 || clientIds.Contains(x.ClientId))).ToListAsync();
+      var charts = await db.ClientChartVersions.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
+        (clientIds.Length == 0 || clientIds.Contains(x.ClientId))).GroupBy(x => x.ClientId)
+        .Select(x => new { ClientId = x.Key, Status = x.OrderByDescending(y => y.Version).Select(y => y.Status).First() }).ToListAsync();
+      var imports = await db.SourceImportBatches.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
+        (clientIds.Length == 0 || clientIds.Contains(x.ClientId))).GroupBy(x => x.ClientId)
+        .Select(x => new { ClientId = x.Key, Status = x.OrderByDescending(y => y.CreatedAt).Select(y => y.Status).First() }).ToListAsync();
+      _profileCount = profiles.Count;
+      _openPeriodCount = periods.Count(x => x.Status != AccountingWorkflowStates.Closed);
+      _sealedImportCount = await db.SourceImportBatches.AsNoTracking().CountAsync(x => x.FirmId == _actor.FirmId && x.Status == "SEALED" &&
+        (clientIds.Length == 0 || clientIds.Contains(x.ClientId)));
+      _blockedCount = periods.Count(x => x.Status is AccountingWorkflowStates.Stale or AccountingWorkflowStates.Rejected);
+      _clients = profiles.Where(x => clients.ContainsKey(x.ClientId)).Select(x => new ClientRow(
+        clients[x.ClientId].LegalName, x.FunctionalCurrency, periods.Count(p => p.ClientId == x.ClientId),
+        charts.SingleOrDefault(c => c.ClientId == x.ClientId)?.Status ?? "NO_CHART",
+        imports.SingleOrDefault(i => i.ClientId == x.ClientId)?.Status ?? "NO_IMPORT")).OrderBy(x => x.Name).ToList();
+    }
+    _loading = false;
+  }
+}

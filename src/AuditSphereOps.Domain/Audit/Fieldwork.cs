@@ -322,6 +322,13 @@ public sealed class AuditDifference
   public bool Corrected { get; set; }
   public string? ManagementResponse { get; set; }
   public string? CorrectionReference { get; set; }
+  public Guid? ProposedJournalId { get; set; }
+  public long? ProposedJournalRevision { get; set; }
+  public Guid? SourceReflectionReconciliationId { get; set; }
+  public Guid? VerifiedAdjustedSnapshotId { get; set; }
+  public string? CorrectionState { get; set; }
+  public string? JournalImpactJson { get; set; }
+  public string? JournalImpactHash { get; set; }
   public string? Evaluation { get; set; }
   public long InputGeneration { get; set; } = 1;
   public string Status { get; set; } = AuditDifferenceStatuses.Open;
@@ -337,4 +344,15 @@ public static class AuditDifferenceStatuses
   public const string ManagementResponded = "MANAGEMENT_RESPONDED";
   public const string Evaluated = "EVALUATED";
   public const string Corrected = "CORRECTED";
+  public const string VerifiedReflected = "VERIFIED_REFLECTED";
+}
+
+public static class AuditDifferenceCorrectionStates
+{
+  public const string Proposed = "PROPOSED";
+  public const string Agreed = "AGREED";
+  public const string Rejected = "REJECTED";
+  public const string AppliedInReporting = "APPLIED_IN_REPORTING";
+  public const string ReportedPostedExternally = "REPORTED_POSTED_EXTERNALLY";
+  public const string VerifiedReflected = "VERIFIED_REFLECTED";
 }

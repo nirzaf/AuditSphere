@@ -47,6 +47,11 @@ public sealed class FinancialStatementTests
         ]));
       Assert.True(created.Succeeded);
       mappingId = created.Value;
+      db.RoleGrants.Add(Grant(fixture.FirmId, fixture.Preparer, "AccountingReviewer"));
+      await db.SaveChangesAsync();
+      var selfApproval = await FinancialStatementService.ApproveMappingAsync(db, preparer, mappingId, 1);
+      Assert.False(selfApproval.Succeeded);
+      Assert.Equal(ErrorCodes.Accounting.MappingInvalid, selfApproval.ErrorCode);
     }
 
     await using (var db = new AuditSphereDbContext(pg.Options))
@@ -96,7 +101,9 @@ public sealed class FinancialStatementTests
         0m, 100m,
         [new CashFlowLineInput("OPERATING", "Cash receipts", 100m)],
         [new DisclosureInput("CASH_POLICY", "Cash and cash equivalents are presented at face value."),
-         new DisclosureInput("COMMITMENTS", string.Empty, NotApplicable: true, Rationale: "No commitments were identified in the supplied management information.")])
+         new DisclosureInput("COMMITMENTS", string.Empty, NotApplicable: true, Rationale: "No commitments were identified in the supplied management information.")],
+        [new EquityLineInput("RETAINED_EARNINGS", "Retained earnings", 0m, 100m, 0m, 0m, 0m, 100m, "equity-schedule-1")],
+        NoteLines: [new NoteLineInput("CASH_NOTE", "CASH", 100m, "note-schedule-1")])
     };
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
@@ -106,13 +113,20 @@ public sealed class FinancialStatementTests
       Assert.NotEqual(first.CalculationHash, complete.Value.CalculationHash);
       Assert.Equal(1, await db.FinancialPackageCashFlowLines.CountAsync(x => x.FinancialPackageId == complete.Value.PackageId));
       Assert.Equal(2, await db.FinancialPackageDisclosures.CountAsync(x => x.FinancialPackageId == complete.Value.PackageId));
+      Assert.Equal(1, await db.FinancialPackageEquityLines.CountAsync(x => x.FinancialPackageId == complete.Value.PackageId));
+      Assert.Equal(1, await db.FinancialPackageNoteLines.CountAsync(x => x.FinancialPackageId == complete.Value.PackageId));
       var checks = await db.FinancialPackageValidations.AsNoTracking()
         .Where(x => x.FinancialPackageId == complete.Value.PackageId).ToListAsync();
       Assert.All(checks.Where(x => x.Code is "CASH_FLOW_RECONCILED" or "DISCLOSURES_COMPLETE" or "SUPPLEMENTARY_INFORMATION"), x => Assert.True(x.Passed));
+      Assert.Contains(checks, x => x.Code == "EQUITY_ROLLFORWARD" && x.Passed);
+      Assert.Contains(checks, x => x.Code == "NOTE_TO_FACE_TOTALS" && x.Passed);
 
       var cashFlowLineId = await db.FinancialPackageCashFlowLines.Where(x => x.FinancialPackageId == complete.Value.PackageId).Select(x => x.Id).SingleAsync();
       await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
         $"UPDATE financial_package_cash_flow_lines SET amount = amount + 1 WHERE id = {cashFlowLineId}"));
+      var equityLineId = await db.FinancialPackageEquityLines.Where(x => x.FinancialPackageId == complete.Value.PackageId).Select(x => x.Id).SingleAsync();
+      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+        $"UPDATE financial_package_equity_lines SET closing_amount = closing_amount + 1 WHERE id = {equityLineId}"));
     }
 
     await using (var db = new AuditSphereDbContext(pg.Options))
@@ -132,6 +146,60 @@ public sealed class FinancialStatementTests
   }
 
   [Fact]
+  public async Task ZeroAdjustmentPlan_ProducesSourceEquivalentPackage()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await SeedAsync(pg);
+    var preparer = Actor(fixture.Preparer, "AccountingPreparer");
+    var reviewer = Actor(fixture.Reviewer, "AccountingReviewer");
+
+    Guid mappingId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      mappingId = (await FinancialStatementService.CreateMappingVersionAsync(db, preparer,
+        new CreateMappingVersionRequest(fixture.DatasetId, "tax-v1", "2026-01-01", "2026-12-31", [
+          new("1000", "CASH", "ASSETS", 1m, "Cash mapping"),
+          new("4000", "REVENUE", "INCOME", 1m, "Revenue mapping")]))).Value;
+      Assert.True((await FinancialStatementService.ApproveMappingAsync(db, reviewer, mappingId, 1)).Succeeded);
+    }
+
+    Guid planId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+      planId = (await AdjustmentPlanService.CreatePlanAsync(db, preparer, fixture.DatasetId, [])).Value;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var finalized = await AdjustmentPlanService.FinalizeAsync(db, preparer, planId);
+      Assert.True(finalized.Succeeded);
+      Assert.Equal(0, finalized.Value!.AppliedJournalCount);
+      Assert.Equal(100m, finalized.Value.Balances["1000"]);
+      Assert.Equal(-100m, finalized.Value.Balances["4000"]);
+    }
+
+    await using var packageDb = new AuditSphereDbContext(pg.Options);
+    var package = await FinancialStatementService.BuildFinancialPackageAsync(packageDb, preparer,
+      new BuildFinancialPackageRequest(planId, mappingId, "IFRS", "2026-01-01", "2026-12-31", "template-v1"));
+    Assert.True(package.Succeeded);
+    Assert.Equal(100m, package.Value!.StatementTotals["ASSETS"]);
+    Assert.Equal(-100m, package.Value.StatementTotals["INCOME"]);
+    Assert.Equal(2, await packageDb.AdjustedTrialBalanceRows.CountAsync());
+  }
+
+  [Fact]
+  [Trait("Profile", "Unit")]
+  public void PackageRounding_ConservesEachSourceBalanceAndRecordsResidual()
+  {
+    var lines = FinancialStatementCalculator.BuildPackageLines(
+      new Dictionary<string, decimal> { ["1000"] = 0.01m },
+      [new("1000", "A", "ASSETS", 0.333333m, "split"),
+       new("1000", "B", "ASSETS", 0.333333m, "split"),
+       new("1000", "C", "ASSETS", 0.333334m, "split")], "QAR");
+
+    Assert.Equal(0.01m, lines.Sum(x => x.Amount));
+    Assert.Equal(0.003334m, lines.Single(x => x.DestinationCode == "C").Amount);
+    Assert.Equal(0.000001m, lines.Sum(x => x.RoundingResidual));
+  }
+
+  [Fact]
   public async Task FinancialPackage_RendersDeterministicArtifact_WithVerifiableSha256()
   {
     await using var pg = await PgTestSchema.CreateAsync();
@@ -144,7 +212,7 @@ public sealed class FinancialStatementTests
     {
       var created = await FinancialStatementService.CreateMappingVersionAsync(db, preparer,
         new CreateMappingVersionRequest(
-          fixture.DatasetId, "taxonomy-2026", "2026-01-01", "2026-12-31",
+          fixture.DatasetId, "tax-v1", "2026-01-01", "2026-12-31",
           [new("1000", "CASH", "ASSETS", 1m, "Cash mapping"),
            new("4000", "REVENUE", "INCOME", 1m, "Revenue mapping")]));
       mappingId = created.Value;
@@ -235,6 +303,27 @@ public sealed class FinancialStatementTests
     db.RoleGrants.AddRange(
       Grant(firmId, preparer, "AccountingPreparer"),
       Grant(firmId, reviewer, "AccountingReviewer"));
+    var taxonomyId = Guid.NewGuid();
+    db.ReportingTaxonomyVersions.Add(new ReportingTaxonomyVersion
+    {
+      Id = taxonomyId, FirmId = firmId, Code = "tax-v1", Framework = "IFRS", Name = "Test taxonomy",
+      Status = AccountingWorkflowStates.Approved, EffectiveFrom = new DateOnly(2026, 1, 1),
+      CreatedByUserId = preparer.Id, ApprovedByUserId = reviewer.Id, ApprovedAt = DateTimeOffset.UtcNow,
+      CreatedAt = DateTimeOffset.UtcNow
+    });
+    db.ReportingTaxonomyNodes.AddRange(
+      new ReportingTaxonomyNode
+      {
+        Id = Guid.NewGuid(), FirmId = firmId, TaxonomyVersionId = taxonomyId, Code = "CASH", Name = "Cash",
+        StatementSection = "ASSETS", DisplaySign = "SIGNED", NormalBalance = "DEBIT", IsPosting = true,
+        Applicability = "ALL", CreatedAt = DateTimeOffset.UtcNow
+      },
+      new ReportingTaxonomyNode
+      {
+        Id = Guid.NewGuid(), FirmId = firmId, TaxonomyVersionId = taxonomyId, Code = "REVENUE", Name = "Revenue",
+        StatementSection = "INCOME", DisplaySign = "SIGNED", NormalBalance = "CREDIT", IsPosting = true,
+        Applicability = "ALL", CreatedAt = DateTimeOffset.UtcNow
+      });
     db.TrialBalanceDatasets.Add(new TrialBalanceDataset
     {
       Id = datasetId, FirmId = firmId, ClientId = clientId, EngagementId = engagementId,

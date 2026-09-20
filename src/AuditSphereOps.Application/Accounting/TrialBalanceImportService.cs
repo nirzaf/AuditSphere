@@ -13,12 +13,22 @@ namespace AuditSphereOps.Application.Accounting;
 
 public static class TrialBalanceImportService
 {
+  public static Task<CommandResult<Guid>> ImportAsync(
+    IAuditSphereDbContext db,
+    ActorContext actor,
+    Guid clientId,
+    Guid engagementId,
+    string csvText,
+    CancellationToken ct = default) =>
+    ImportAsync(db, actor, clientId, engagementId, csvText, authorizedEntity: null, ct);
+
   public static async Task<CommandResult<Guid>> ImportAsync(
     IAuditSphereDbContext db,
     ActorContext actor,
     Guid clientId,
     Guid engagementId,
     string csvText,
+    string? authorizedEntity,
     CancellationToken ct = default)
   {
     if (clientId == Guid.Empty || engagementId == Guid.Empty)
@@ -33,6 +43,51 @@ public static class TrialBalanceImportService
     {
       return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ImportRejected, ex.Message);
     }
+
+    return await ImportParsedAsync(db, actor, clientId, engagementId, parsed, authorizedEntity, ct);
+  }
+
+  public static async Task<CommandResult<Guid>> ImportXlsxAsync(
+    IAuditSphereDbContext db,
+    ActorContext actor,
+    Guid clientId,
+    Guid engagementId,
+    byte[] xlsxBytes,
+    string? authorizedEntity = null,
+    CancellationToken ct = default)
+  {
+    ParsedCsvFile parsed;
+    try
+    {
+      parsed = TrialBalanceXlsxImporter.Parse(xlsxBytes);
+    }
+    catch (InvalidOperationException ex)
+    {
+      return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ImportRejected, ex.Message);
+    }
+
+    return await ImportParsedAsync(db, actor, clientId, engagementId, parsed, authorizedEntity, ct);
+  }
+
+  private static async Task<CommandResult<Guid>> ImportParsedAsync(
+    IAuditSphereDbContext db,
+    ActorContext actor,
+    Guid clientId,
+    Guid engagementId,
+    ParsedCsvFile parsed,
+    string? authorizedEntity,
+    CancellationToken ct)
+  {
+
+    var entities = parsed.Rows.Select(x => x.Entity).Distinct(StringComparer.Ordinal).ToArray();
+    if (entities.Length != 1)
+      return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ImportRejected,
+        "A trial-balance dataset must contain exactly one legal entity; submit a controlled per-entity batch instead.");
+    var entityKey = entities[0];
+    if (!string.IsNullOrWhiteSpace(authorizedEntity) &&
+        !string.Equals(entityKey, authorizedEntity.Trim(), StringComparison.Ordinal))
+      return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ImportRejected,
+        "The uploaded legal entity does not match the authorized accounting context.");
 
     // Resolve the engagement first so the firm scope comes from the stored record.
     var engagement = await db.Engagements.AsNoTracking()
@@ -57,7 +112,7 @@ public static class TrialBalanceImportService
 
     var duplicate = await db.TrialBalanceDatasets.AsNoTracking().AnyAsync(d =>
       d.FirmId == lockedEngagement.FirmId && d.EngagementId == engagementId &&
-      d.Sha256Hex == parsed.SourceHash, ct);
+      d.RawFileSha256Hex == parsed.RawFileSha256Hex, ct);
     if (duplicate)
       return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ImportDuplicate,
         "Identical source bytes were already imported for this engagement; reuse that dataset.");
@@ -73,8 +128,11 @@ public static class TrialBalanceImportService
       EngagementId = engagementId,
       SourceKind = "Raw",
       Revision = revision + 1,
+      LegalEntityKey = entityKey,
       Currency = parsed.Currency,
-      Sha256Hex = parsed.SourceHash,
+      RawFileSha256Hex = parsed.RawFileSha256Hex,
+      NormalizedDatasetDigest = parsed.NormalizedDatasetDigest,
+      Sha256Hex = parsed.NormalizedDatasetDigest,
       ImportState = TrialBalanceImportStates.Loading,
       ValidationStatus = "Pending",
       ImportedAt = DateTimeOffset.UtcNow,

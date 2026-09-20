@@ -2,6 +2,7 @@ using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Audit;
 using AuditSphereOps.Domain.Audit;
 using AuditSphereOps.Domain.Security;
+using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -109,6 +110,10 @@ public sealed class AuditFieldworkWorkflowTests
     var difference = await AuditFieldworkService.RecordDifferenceAsync(db, scope.Actor,
       new RecordDifferenceRequest(scope.EngagementId, procedure.Id, "Cash", "KNOWN", "Unpresented cheque timing difference.", -25m, "QAR"));
     Assert.True(difference.Succeeded);
+    var unlinkedCorrection = await AuditFieldworkService.EvaluateDifferenceAsync(db, reviewer,
+      new EvaluateDifferenceRequest(difference.Value!.AuditDifferenceId, true, "Correction claimed.", null, null));
+    Assert.False(unlinkedCorrection.Succeeded);
+    Assert.Equal(ErrorCodes.GateBlocked, unlinkedCorrection.ErrorCode);
     Assert.True((await AuditFieldworkService.EvaluateDifferenceAsync(db, reviewer,
       new EvaluateDifferenceRequest(difference.Value!.AuditDifferenceId, false, "Evaluated against the final unadjusted differences schedule.", "Management will not post; assessed in aggregate.", null))).Succeeded);
 
