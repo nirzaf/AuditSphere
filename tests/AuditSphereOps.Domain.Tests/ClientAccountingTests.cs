@@ -931,6 +931,11 @@ public sealed class ClientAccountingTests
         Id = Guid.NewGuid(), FirmId = scope.FirmId, GroupId = groupId, UserId = scope.Preparer.Id,
         Role = "AccountingPreparer", GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = scope.Reviewer.Id
       });
+      db.GroupAccessGrants.Add(new GroupAccessGrant
+      {
+        Id = Guid.NewGuid(), FirmId = scope.FirmId, GroupId = groupId, UserId = scope.Preparer.Id,
+        Role = "Partner", GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = scope.Reviewer.Id
+      });
       await db.SaveChangesAsync();
       consolidationScopeId = (await ConsolidationService.CreateScopeAsync(db, reviewer,
         new ConsolidationScopeRequest(groupId, Guid.NewGuid(), "QAR", ConsolidationCalculator.RestrictedMethod, "OPENING-2026"))).Value;
@@ -951,6 +956,20 @@ public sealed class ClientAccountingTests
       var components = await db.ConsolidationComponents.Where(x => x.ScopeVersionId == consolidationScopeId).Select(x => x.Id).ToListAsync();
       foreach (var componentId in components)
         Assert.True((await ConsolidationService.ApproveComponentAsync(db, reviewer, componentId)).Succeeded);
+      var missingCapability = await ConsolidationService.ApproveScopeAsync(db, reviewer, consolidationScopeId);
+      Assert.False(missingCapability.Succeeded);
+      Assert.Equal(ErrorCodes.GateBlocked, missingCapability.ErrorCode);
+      var capabilityId = (await ClientAccountingService.CreateCapabilityProfileAsync(db, reviewer,
+        new CapabilityProfileRequest(null, groupId, "GROUP_REPORTING", "IFRS", "2026", "ANNUAL", "QAR",
+          "STATUTORY", ConsolidationCalculator.RestrictedMethod, "PARTNER", "GROUP"))).Value;
+      Assert.True((await ClientAccountingService.RecordCapabilityAcceptanceAsync(db, reviewer, capabilityId,
+        AccountingCapabilityAcceptanceStages.LocalConstruction, "local-consolidation-profile")).Succeeded);
+      var selfApproval = await ClientAccountingService.RecordCapabilityAcceptanceAsync(db, reviewer, capabilityId,
+        AccountingCapabilityAcceptanceStages.MethodOwnerApproval, "self-approval-must-fail");
+      Assert.False(selfApproval.Succeeded);
+      Assert.Equal(ErrorCodes.Accounting.MappingInvalid, selfApproval.ErrorCode);
+      Assert.True((await ClientAccountingService.RecordCapabilityAcceptanceAsync(db, Actor(scope.Preparer, "Partner"), capabilityId,
+        AccountingCapabilityAcceptanceStages.MethodOwnerApproval, "method-owner-approval-fixture")).Succeeded);
       Assert.True((await ConsolidationService.ApproveScopeAsync(db, reviewer, consolidationScopeId)).Succeeded);
     }
 

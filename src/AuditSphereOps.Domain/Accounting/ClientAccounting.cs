@@ -14,6 +14,14 @@ public static class AccountingWorkflowStates
   public const string Rejected = "REJECTED";
 }
 
+public static class AccountingCapabilityAcceptanceStages
+{
+  public const string LocalConstruction = "LOCAL_CONSTRUCTION";
+  public const string MethodOwnerApproval = "METHOD_OWNER_APPROVAL";
+  public const string LiveEvidence = "LIVE_EVIDENCE";
+  public const string Released = "RELEASED";
+}
+
 public sealed class AccountingCapabilityProfile
 {
   public Guid Id { get; set; }

@@ -206,6 +206,9 @@ public static class ConsolidationService
       return auth;
     if (scope.Status != AccountingWorkflowStates.Draft)
       return CommandResult.Fail(ErrorCodes.ProtectedState, "Only a draft perimeter can be approved.");
+    if (!await HasMethodOwnerAcceptanceAsync(db, actor.FirmId, scope.GroupId, scope.Method, ct))
+      return CommandResult.Fail(ErrorCodes.GateBlocked,
+        "An independently accepted group capability profile is required before perimeter approval.");
     var memberships = await db.ClientGroupMemberships.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.GroupId == scope.GroupId &&
       x.Status == AccountingWorkflowStates.Approved && x.EffectiveTo == null).Select(x => x.ClientId).ToListAsync(ct);
     var components = await db.ConsolidationComponents.Where(x => x.FirmId == actor.FirmId && x.ScopeVersionId == scope.Id).ToListAsync(ct);
@@ -453,4 +456,17 @@ public static class ConsolidationService
       x.UserId == actor.UserId && x.RevokedAt == null && roles.Contains(x.Role), ct);
     return allowed ? CommandResult.Ok() : CommandResult.Fail(ErrorCodes.ScopeDenied, "Explicit group access is required.");
   }
+
+  private static Task<bool> HasMethodOwnerAcceptanceAsync(
+    IClientAccountingDbContext db, Guid firmId, Guid groupId, string method, CancellationToken ct) =>
+    (from profile in db.AccountingCapabilityProfiles.AsNoTracking()
+     join acceptance in db.AccountingCapabilityAcceptances.AsNoTracking()
+       on new { profile.FirmId, CapabilityProfileId = profile.Id }
+       equals new { acceptance.FirmId, acceptance.CapabilityProfileId }
+     where profile.FirmId == firmId && profile.GroupId == groupId &&
+       profile.ServiceKind == "GROUP_REPORTING" && profile.Status != AccountingWorkflowStates.Retired &&
+       profile.ConsolidationMethod == method.Trim().ToUpperInvariant() &&
+       acceptance.Stage == AccountingCapabilityAcceptanceStages.MethodOwnerApproval &&
+       acceptance.Status == AccountingWorkflowStates.Approved
+     select acceptance.Id).AnyAsync(ct);
 }

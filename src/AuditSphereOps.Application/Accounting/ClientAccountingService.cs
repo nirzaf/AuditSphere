@@ -689,7 +689,8 @@ public static class ClientAccountingService
     string evidenceReference, CancellationToken ct = default)
   {
     stage = stage.Trim().ToUpperInvariant();
-    if (stage is not ("LOCAL_CONSTRUCTION" or "METHOD_OWNER_APPROVAL" or "LIVE_EVIDENCE" or "RELEASED") ||
+    if (stage is not (AccountingCapabilityAcceptanceStages.LocalConstruction or AccountingCapabilityAcceptanceStages.MethodOwnerApproval or
+      AccountingCapabilityAcceptanceStages.LiveEvidence or AccountingCapabilityAcceptanceStages.Released) ||
         string.IsNullOrWhiteSpace(evidenceReference))
       return CommandResult.Fail(ErrorCodes.Accounting.MappingInvalid, "Capability acceptance needs a known stage and evidence.");
     var profile = await db.AccountingCapabilityProfiles.AsNoTracking().SingleOrDefaultAsync(x => x.Id == profileId && x.FirmId == actor.FirmId, ct);
@@ -700,7 +701,8 @@ public static class ClientAccountingService
       : await AuthorizeGroupAsync(db, actor, profile.GroupId!.Value, ReviewerRoles, ct);
     if (!auth.Succeeded)
       return auth;
-    if (stage is "METHOD_OWNER_APPROVAL" or "RELEASED" && profile.CreatedByUserId == actor.UserId)
+    if (stage is AccountingCapabilityAcceptanceStages.MethodOwnerApproval or AccountingCapabilityAcceptanceStages.Released &&
+        profile.CreatedByUserId == actor.UserId)
       return CommandResult.Fail(ErrorCodes.Accounting.MappingInvalid, "The capability preparer cannot provide independent acceptance.");
     if (await db.AccountingCapabilityAcceptances.AnyAsync(x => x.FirmId == actor.FirmId && x.CapabilityProfileId == profileId && x.Stage == stage, ct))
       return CommandResult.Fail(ErrorCodes.IdempotencyConflict, "This capability stage already has an acceptance record.");
