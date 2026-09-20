@@ -1,9 +1,9 @@
 {
   "status": "PASS",
-  "recordedAt": "2026-09-20T23:15:38Z",
+  "recordedAt": "2026-09-20T23:52:48Z",
   "databaseHost": "127.0.0.1",
   "sourceDatabase": "auditsphere",
-  "restoredDatabase": "auditsphere_restore_1789946137_13768",
+  "restoredDatabase": "auditsphere_restore_1789948367_20861",
   "expectedMigrationCount": 52,
   "restoredMigrationCount": 52,
   "expectedLatestMigration": "20260920230951_ClientPeriodAmendmentLineage",

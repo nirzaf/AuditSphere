@@ -3,7 +3,7 @@
 **Repository:** `nirzaf/AuditSphere`
 **Authoritative specification:** [`docs/SPECIFICATION.md`](../SPECIFICATION.md) v5.0
 **Requirements backlog:** [`docs/requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md`](../requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md)
-**Source implementation checkpoint:** `master@58042e6`
+**Source implementation checkpoint:** `master@4316318`
 
 This is a resume checklist, not an acceptance certificate. Tenant identifiers, credentials, tokens, secret values, and private-provider URLs are deliberately absent from the public repository.
 
@@ -25,6 +25,8 @@ This is a resume checklist, not an acceptance certificate. Tenant identifiers, c
 - [x] Reconciliation, ECL, inventory, specialist, analytical and journal-risk workbenches.
 - [x] Entity package projections, equity, notes, comparatives, restatement lineage and bounded same-currency consolidation.
 - [x] Journal lineage, close checks and immutable management/accounting/partner package-review decisions.
+- [x] Require an independently accepted group capability profile before approving a consolidation perimeter.
+- [x] Require current management, accounting and partner package reviews before approving a consolidation component.
 - [x] Add bounded, resumable GL chunk intake with canonical digest, idempotent retry and contiguous finalization.
 - [x] Add a client-safe validated-package view and signed-in management acknowledgement route with cross-client denial coverage.
 - [x] Add an authorized staff package-review queue with exact-version stage status and direct package handoff.
