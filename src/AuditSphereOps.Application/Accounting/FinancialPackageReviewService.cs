@@ -23,6 +23,11 @@ public sealed record ClientFinancialPackageView(
   string ManagementDecision, DateTimeOffset? ManagementDecidedAt,
   IReadOnlyList<ClientFinancialPackageLineSummary> StatementTotals);
 
+public sealed record FinancialPackageReviewQueueItem(
+  Guid PackageId, string Framework, string PeriodStart, string PeriodEnd, string Currency,
+  string PackageHash, string ManagementDecision, string AccountingDecision,
+  string PartnerDecision, string NextAction);
+
 public static class FinancialPackageReviewService
 {
   private static readonly string[] AccountingRoles = ["AccountingReviewer", "Manager", "Partner", "Administrator"];
@@ -170,6 +175,66 @@ public static class FinancialPackageReviewService
       package.Id, package.Framework, package.PeriodStart, package.PeriodEnd, package.Currency,
       package.TemplateVersion, package.CalculationHash, hasCashFlow, hasDisclosures,
       management?.Decision ?? "PENDING", management?.DecidedAt, statementTotals));
+  }
+
+  /// <summary>
+  /// Lists only current, validated packages that still need an internal review
+  /// stage. Each package is re-authorized at its client/engagement scope before
+  /// entering the queue; a firm-wide count is never used as an access shortcut.
+  /// </summary>
+  public static async Task<CommandResult<IReadOnlyList<FinancialPackageReviewQueueItem>>> GetStaffQueueAsync(
+    IClientAccountingDbContext db, ActorContext actor, CancellationToken ct = default)
+  {
+    var firmAuth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, RequiredRoles: AccountingRoles, InternalOnly: true), ct);
+    if (!firmAuth.Succeeded)
+      return CommandResult<IReadOnlyList<FinancialPackageReviewQueueItem>>.Fail(firmAuth.ErrorCode!, firmAuth.Message!);
+
+    var packages = await db.FinancialPackages.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && x.Status == AccountingPackageStates.PackageValidated)
+      .OrderByDescending(x => x.CreatedAt).Take(100).ToListAsync(ct);
+    if (packages.Count == 0)
+      return CommandResult<IReadOnlyList<FinancialPackageReviewQueueItem>>.Ok([]);
+
+    var packageIds = packages.Select(x => x.Id).ToArray();
+    var decisions = await db.FinancialPackageReviewDecisions.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && packageIds.Contains(x.FinancialPackageId))
+      .ToListAsync(ct);
+    var canPartnerReview = actor.Roles.Any(x => x is "Partner" or "Administrator");
+    var queue = new List<FinancialPackageReviewQueueItem>();
+
+    foreach (var package in packages)
+    {
+      var packageAuth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+        new AuthorizationRequest(package.FirmId, package.ClientId, package.EngagementId,
+          AccountingRoles, InternalOnly: true), ct);
+      if (!packageAuth.Succeeded)
+        continue;
+
+      var current = decisions.Where(x => x.FinancialPackageId == package.Id &&
+          x.PackageHash == package.CalculationHash && x.PackageRevision == package.Revision &&
+          x.PackageGeneration == package.Generation)
+        .GroupBy(x => x.Stage, StringComparer.Ordinal)
+        .ToDictionary(x => x.Key, x => x.OrderByDescending(y => y.DecidedAt).First().Decision,
+          StringComparer.Ordinal);
+      var management = current.GetValueOrDefault(FinancialPackageReviewStages.ManagementApproval, "PENDING");
+      var accounting = current.GetValueOrDefault(FinancialPackageReviewStages.AccountingReview, "PENDING");
+      var partner = current.GetValueOrDefault(FinancialPackageReviewStages.PartnerApproval, "PENDING");
+      var next = management != FinancialPackageReviewDecisions.Approved
+        ? FinancialPackageReviewStages.ManagementApproval
+        : accounting != FinancialPackageReviewDecisions.Approved
+          ? FinancialPackageReviewStages.AccountingReview
+          : partner != FinancialPackageReviewDecisions.Approved
+            ? FinancialPackageReviewStages.PartnerApproval
+            : "COMPLETE";
+      if (next == FinancialPackageReviewStages.PartnerApproval && !canPartnerReview)
+        next = "PARTNER_APPROVAL_REQUIRED";
+      if (next != "COMPLETE")
+        queue.Add(new FinancialPackageReviewQueueItem(package.Id, package.Framework, package.PeriodStart,
+          package.PeriodEnd, package.Currency, package.CalculationHash, management, accounting, partner, next));
+    }
+
+    return CommandResult<IReadOnlyList<FinancialPackageReviewQueueItem>>.Ok(queue);
   }
 
   public static async Task<CommandResult> RequireCurrentAsync(

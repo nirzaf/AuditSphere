@@ -374,6 +374,12 @@ public sealed class ClientAccountingTests
       Assert.False(missingPartner.Succeeded);
       Assert.Equal(ErrorCodes.GateBlocked, missingPartner.ErrorCode);
 
+      var queue = await FinancialPackageReviewService.GetStaffQueueAsync(db, partner);
+      Assert.True(queue.Succeeded, queue.Message);
+      var queuedPackage = Assert.Single(queue.Value!);
+      Assert.Equal(packageId, queuedPackage.PackageId);
+      Assert.Equal(FinancialPackageReviewStages.PartnerApproval, queuedPackage.NextAction);
+
       var duplicate = await FinancialPackageReviewService.RecordAsync(db, preparer,
         new FinancialPackageReviewRequest(packageId, FinancialPackageReviewStages.ManagementApproval,
           FinancialPackageReviewDecisions.Approved, FinancialPackageReviewEvidenceModes.Offline,
@@ -388,6 +394,9 @@ public sealed class ClientAccountingTests
       Assert.True(partnerApproval.Succeeded, partnerApproval.Message);
       var complete = await FinancialPackageReviewService.RequireCurrentAsync(db, partner, packageId, requirePartner: true);
       Assert.True(complete.Succeeded, complete.Message);
+      var emptyQueue = await FinancialPackageReviewService.GetStaffQueueAsync(db, partner);
+      Assert.True(emptyQueue.Succeeded, emptyQueue.Message);
+      Assert.Empty(emptyQueue.Value!);
 
       var reviews = await FinancialPackageReviewService.GetAsync(db, partner, packageId);
       Assert.True(reviews.Succeeded, reviews.Message);

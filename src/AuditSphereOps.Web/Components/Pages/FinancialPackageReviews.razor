@@ -1,0 +1,76 @@
+@page "/app/accounting/reviews"
+@rendermode InteractiveServer
+@inject CurrentActorResolver ActorResolver
+@inject IDbContextFactory<AuditSphereDbContext> DbFactory
+
+<PageTitle>Financial package reviews</PageTitle>
+<a class="back-link" href="/app/accounting">← Back to accounting workspace</a>
+<h1>Financial package reviews</h1>
+
+@if (_loading)
+{
+  <p role="status">Loading the review queue…</p>
+}
+else if (_actor is null || !IsStaff)
+{
+  <section class="notice" role="alert"><h2>Access unavailable</h2><p>This queue requires an authorized internal accounting role.</p></section>
+}
+else if (_error is not null)
+{
+  <section class="notice" role="alert"><h2>Review queue unavailable</h2><p>@_error</p></section>
+}
+else
+{
+  <p class="scope-note">Only validated packages in the current client and engagement grants are listed. Every stage is bound to the package's exact revision, generation and hash.</p>
+  <section class="card" aria-labelledby="queue-heading">
+    <h2 id="queue-heading">Action required</h2>
+    @if (_queue.Count == 0)
+    {
+      <p class="muted">No current package review stage is waiting in your authorized scope.</p>
+    }
+    else
+    {
+      <div class="table-wrap"><table>
+        <caption class="sr-only">Financial package review queue</caption>
+        <thead><tr><th scope="col">Package</th><th scope="col">Period</th><th scope="col">Management</th><th scope="col">Accounting</th><th scope="col">Partner</th><th scope="col">Next action</th><th scope="col"><span class="sr-only">Action</span></th></tr></thead>
+        <tbody>
+        @foreach (var item in _queue)
+        {
+          <tr>
+            <td><code>@item.PackageId</code><br /><span class="muted">@item.Framework · @item.Currency</span></td>
+            <td>@item.PeriodStart to @item.PeriodEnd</td>
+            <td><span class="status">@item.ManagementDecision</span></td>
+            <td><span class="status">@item.AccountingDecision</span></td>
+            <td><span class="status">@item.PartnerDecision</span></td>
+            <td><strong>@item.NextAction</strong></td>
+            <td><a href="/app/accounting/packages/@item.PackageId">Open package</a></td>
+          </tr>
+        }
+        </tbody>
+      </table></div>
+    }
+  </section>
+}
+
+@code {
+  private ActorContext? _actor;
+  private List<FinancialPackageReviewQueueItem> _queue = [];
+  private string? _error;
+  private bool _loading = true;
+  private bool IsStaff => _actor is not null && _actor.Roles.Any(x => x is "Administrator" or "Partner" or "Manager" or "AccountingReviewer" or "AccountingPreparer");
+
+  protected override async Task OnInitializedAsync()
+  {
+    _actor = await ActorResolver.ResolveAsync();
+    if (_actor is not null && IsStaff)
+    {
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var result = await FinancialPackageReviewService.GetStaffQueueAsync(db, _actor);
+      if (result.Succeeded)
+        _queue = result.Value?.ToList() ?? [];
+      else
+        _error = result.Message;
+    }
+    _loading = false;
+  }
+}
