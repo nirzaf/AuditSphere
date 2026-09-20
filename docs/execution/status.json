@@ -16,7 +16,7 @@
     "issueNumber": 6,
     "branch": "codex/easyguide-external-evidence",
     "pullRequestNumber": 26,
-    "headCommit": "c3caa95",
+    "headCommit": "052273a",
     "implementationStatus": "IN_PROGRESS",
     "acceptanceStatus": "BLOCKED_EXTERNAL",
     "worktree": "P6 is complete at master@1184485 (165/165 tests, 31 migrations). PR #26 records live EasyGuide developer-tenant Purview evidence: a test-only retention label was created and a scoped publication policy was submitted successfully. GitHub master protection is now configured and verified; label application/protection readback, P1/P2/P3, professional sign-off, recovery, and independent human review remain open.",
