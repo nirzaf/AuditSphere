@@ -1,0 +1,203 @@
+@page "/app/accounting/rollforward"
+@rendermode InteractiveServer
+@using System.Globalization
+@using AuditSphereOps.Application.Accounting
+@using AuditSphereOps.Domain.Accounting
+@using AuditSphereOps.Domain.Shared
+@inject CurrentActorResolver ActorResolver
+@inject IDbContextFactory<AuditSphereDbContext> DbFactory
+
+<PageTitle>Period roll-forward</PageTitle>
+<a class="back-link" href="/app/accounting">← Back to accounting workspace</a>
+<h1>Period roll-forward</h1>
+
+@if (_loading)
+{
+  <p role="status">Loading scoped periods…</p>
+}
+else if (_actor is null || !_isStaff)
+{
+  <section class="notice" role="alert"><h2>Access unavailable</h2><p>Sign in with an authorized accounting identity to roll a client period forward.</p></section>
+}
+else
+{
+  <p class="scope-note">Roll-forward creates a new draft period and draft books. Prior approvals are not copied; opening balances require explicit source evidence and remain separately reviewable.</p>
+
+  <section class="card" aria-labelledby="rollforward-heading">
+    <h2 id="rollforward-heading">Create next period</h2>
+    <div class="form-grid">
+      <label>Client<select @bind="_selectedClientId"><option value="">Select a client</option>@foreach (var client in _clients) { <option value="@client.Id">@client.Name</option> }</select></label>
+      <label>Closed prior period<select @bind="_selectedPriorPeriodId"><option value="">Select a period</option>@foreach (var period in _closedPeriods) { <option value="@period.Id">@period.Label</option> }</select></label>
+      <label>New period code<input @bind="_periodCode" maxlength="50" /></label>
+      <label>Start date (yyyy-MM-dd)<input @bind="_startDate" inputmode="numeric" maxlength="10" /></label>
+      <label>End date (yyyy-MM-dd)<input @bind="_endDate" inputmode="numeric" maxlength="10" /></label>
+      <label>Basis<input @bind="_basis" maxlength="50" /></label>
+      <label>Currency<input @bind="_currency" maxlength="3" /></label>
+      <label>Validated source package (optional)<select @bind="_selectedSourcePackageId"><option value="">Use external source evidence</option>@foreach (var package in _sourcePackages) { <option value="@package.Id">@package.Label</option> }</select></label>
+      <label>Prior closing amount<input @bind="_priorClosingAmount" inputmode="decimal" /></label>
+      <label>Current opening amount<input @bind="_currentOpeningAmount" inputmode="decimal" /></label>
+      <label>Source SHA-256<input @bind="_sourceHash" maxlength="64" /></label>
+      <label>Evidence reference<input @bind="_evidenceReference" maxlength="2000" /></label>
+    </div>
+    <div style="display:flex;gap:.75rem;align-items:center;margin-top:1rem;flex-wrap:wrap">
+      <button class="button" @onclick="LoadClientAsync" disabled="@_busy">Load closed periods</button>
+      <button class="button" @onclick="RollForwardAsync" disabled="@_busy">@(_busy ? "Saving…" : "Create draft period")</button>
+    </div>
+  </section>
+
+  @if (_result is not null)
+  {
+    <p class="command-result @(_result.Succeeded ? "success-text" : "error-text")" role="status">
+      @(_result.Succeeded ? (_successMessage ?? "Action completed successfully.") : "Blocked: " + _result.ErrorCode + " — " + _result.Message)
+    </p>
+  }
+
+  <section class="card" aria-labelledby="history-heading">
+    <h2 id="history-heading">Scoped period history</h2>
+    @if (_history.Count == 0)
+    {
+      <p class="muted">No reporting periods are available in the current scope.</p>
+    }
+    else
+    {
+      <div class="table-wrap"><table>
+        <caption class="sr-only">Scoped reporting periods</caption>
+        <thead><tr><th scope="col">Client</th><th scope="col">Period</th><th scope="col">Dates</th><th scope="col">Status</th><th scope="col">Revision</th><th scope="col">Prior period</th></tr></thead>
+        <tbody>
+        @foreach (var period in _history)
+        {
+          <tr><td>@period.ClientName</td><td>@period.PeriodCode</td><td>@period.StartDate.ToString("yyyy-MM-dd") — @period.EndDate.ToString("yyyy-MM-dd")</td><td><span class="status">@period.Status</span></td><td>@period.Revision</td><td>@period.PriorPeriodCode</td></tr>
+        }
+        </tbody>
+      </table></div>
+    }
+  </section>
+}
+
+@code {
+  private sealed record ClientOption(Guid Id, string Name);
+  private sealed record PeriodOption(Guid Id, string Label);
+  private sealed record PackageOption(Guid Id, string Label);
+  private sealed record PeriodRow(Guid Id, string ClientName, string PeriodCode, DateOnly StartDate, DateOnly EndDate, string Status, long Revision, string PriorPeriodCode);
+
+  private ActorContext? _actor;
+  private bool _loading = true;
+  private bool _busy;
+  private bool _isStaff;
+  private List<ClientOption> _clients = [];
+  private List<PeriodOption> _closedPeriods = [];
+  private List<PackageOption> _sourcePackages = [];
+  private List<PeriodRow> _history = [];
+  private string _selectedClientId = string.Empty;
+  private string _selectedPriorPeriodId = string.Empty;
+  private string _selectedSourcePackageId = string.Empty;
+  private string _periodCode = string.Empty;
+  private string _startDate = string.Empty;
+  private string _endDate = string.Empty;
+  private string _basis = "STATUTORY";
+  private string _currency = string.Empty;
+  private string _priorClosingAmount = "0";
+  private string _currentOpeningAmount = "0";
+  private string _sourceHash = string.Empty;
+  private string _evidenceReference = string.Empty;
+  private CommandResult? _result;
+  private string? _successMessage;
+
+  protected override async Task OnInitializedAsync()
+  {
+    _actor = await ActorResolver.ResolveAsync();
+    _isStaff = _actor is not null && _actor.Roles.Any(x => x is "Administrator" or "Partner" or "Manager" or "AccountingPreparer" or "AccountingReviewer");
+    if (_isStaff && _actor is not null)
+    {
+      await LoadDataAsync();
+      if (_clients.Count > 0)
+      {
+        _selectedClientId = _clients[0].Id.ToString();
+        await LoadClientAsync();
+      }
+    }
+    _loading = false;
+  }
+
+  private async Task LoadDataAsync()
+  {
+    if (_actor is null) return;
+    await using var db = await DbFactory.CreateDbContextAsync();
+    var clientIds = await ScopedClientIdsAsync(db, _actor);
+    var clients = await db.PracticeClients.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
+      (clientIds.Length == 0 || clientIds.Contains(x.Id))).OrderBy(x => x.LegalName).ToListAsync();
+    var periods = await db.ClientReportingPeriods.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
+      (clientIds.Length == 0 || clientIds.Contains(x.ClientId))).OrderByDescending(x => x.EndDate).ToListAsync();
+    var byId = periods.ToDictionary(x => x.Id);
+    _clients = clients.Select(x => new ClientOption(x.Id, x.LegalName)).ToList();
+    _history = periods.Select(x => new PeriodRow(x.Id, clients.FirstOrDefault(c => c.Id == x.ClientId)?.LegalName ?? "Scoped client",
+      x.PeriodCode, x.StartDate, x.EndDate, x.Status, x.Revision,
+      x.PriorPeriodId is { } priorId && byId.TryGetValue(priorId, out var prior) ? prior.PeriodCode : "—")).ToList();
+  }
+
+  private async Task LoadClientAsync()
+  {
+    if (_actor is null || !Guid.TryParse(_selectedClientId, out var clientId)) return;
+    await using var db = await DbFactory.CreateDbContextAsync();
+    var periods = await db.ClientReportingPeriods.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
+      x.ClientId == clientId && x.Status == AccountingWorkflowStates.Closed).OrderByDescending(x => x.EndDate).ToListAsync();
+    _closedPeriods = periods.Select(x => new PeriodOption(x.Id, $"{x.PeriodCode} ({x.StartDate:yyyy-MM-dd} to {x.EndDate:yyyy-MM-dd})")).ToList();
+    _selectedPriorPeriodId = _closedPeriods.FirstOrDefault()?.Id.ToString() ?? string.Empty;
+    _sourcePackages = [];
+    _selectedSourcePackageId = string.Empty;
+    if (periods.FirstOrDefault() is { } prior)
+    {
+      _currency = prior.Currency;
+      _basis = prior.Basis;
+      _periodCode = (int.TryParse(prior.PeriodCode, out var year) ? (year + 1).ToString(CultureInfo.InvariantCulture) : prior.PeriodCode + "-NEXT");
+      _startDate = prior.EndDate.AddDays(1).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+      _endDate = new DateOnly(prior.EndDate.AddDays(1).Year, 12, 31).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+      await LoadPackagesAsync(db, clientId, prior);
+    }
+  }
+
+  private async Task LoadPackagesAsync(AuditSphereDbContext db, Guid clientId, ClientReportingPeriod period)
+  {
+    var start = period.StartDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+    var end = period.EndDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+    var packages = await db.FinancialPackages.AsNoTracking().Where(x => x.FirmId == _actor!.FirmId && x.ClientId == clientId &&
+      x.Status == AccountingPackageStates.PackageValidated && x.PeriodStart == start && x.PeriodEnd == end).OrderBy(x => x.CreatedAt).ToListAsync();
+    _sourcePackages = packages.Select(x => new PackageOption(x.Id,
+      $"{x.Id} · {x.Currency} · {x.CalculationHash[..Math.Min(12, x.CalculationHash.Length)]}")).ToList();
+  }
+
+  private async Task RollForwardAsync()
+  {
+    if (_actor is null || _busy || !Guid.TryParse(_selectedClientId, out var clientId) || !Guid.TryParse(_selectedPriorPeriodId, out var priorPeriodId) ||
+        !DateOnly.TryParseExact(_startDate, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var startDate) ||
+        !DateOnly.TryParseExact(_endDate, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var endDate) ||
+        !decimal.TryParse(_priorClosingAmount, NumberStyles.Number, CultureInfo.InvariantCulture, out var priorClosing) ||
+        !decimal.TryParse(_currentOpeningAmount, NumberStyles.Number, CultureInfo.InvariantCulture, out var currentOpening))
+    {
+      _result = CommandResult.Fail(ErrorCodes.Accounting.ReconciliationRejected, "Select a closed period and enter valid ISO dates and decimal opening amounts.");
+      return;
+    }
+    _busy = true;
+    try
+    {
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var sourcePackageId = Guid.TryParse(_selectedSourcePackageId, out var parsedPackageId) ? parsedPackageId : (Guid?)null;
+      var created = await ClientAccountingService.RollForwardPeriodAsync(db, _actor,
+        new RollForwardPeriodRequest(clientId, priorPeriodId, _periodCode, startDate, endDate, _basis, _currency,
+          _sourceHash, priorClosing, currentOpening, _evidenceReference, sourcePackageId));
+      _result = created.Succeeded ? CommandResult.Ok() : CommandResult.Fail(created.ErrorCode ?? ErrorCodes.Accounting.ReconciliationRejected, created.Message ?? "Roll-forward was blocked.");
+      if (created.Succeeded)
+      {
+        _successMessage = "Draft period and opening bridge created; a reviewer must approve the opening bridge separately.";
+        await LoadDataAsync();
+        await LoadClientAsync();
+      }
+    }
+    finally { _busy = false; }
+  }
+
+  private static async Task<Guid[]> ScopedClientIdsAsync(AuditSphereDbContext db, ActorContext actor) => actor.ClientId is { } clientId
+    ? [clientId]
+    : await db.RoleGrants.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.UserId == actor.UserId && x.RevokedAt == null)
+      .Select(x => x.ClientId).Where(x => x.HasValue).Select(x => x!.Value).Distinct().ToArrayAsync();
+}
