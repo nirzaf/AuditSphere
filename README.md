@@ -7,7 +7,7 @@
 
 **AuditSphereOps** is a professional audit, accounting & assurance operations platform — a .NET 10 modular monolith covering the complete engagement lifecycle: client acceptance, practice management, trial-balance intake, financial-statement production, audit execution, review, controlled signing/release, and records retention.
 
-> **Status: implementation in progress.** This repository is a specification-driven build. Core domain modules, practice management, trial-balance and bounded resumable GL intake, audit planning, package production, archive lineage, provider safety fences, recovery quarantine, governed financial-package review decisions, package-bound release candidates, source-bound ECL/inventory review freshness, the client-safe management package view, and the authorized staff review queue are implemented and verified locally (**190/190 tests passing on PostgreSQL 18.6 across 47 migrations**). Live provider behavior, compliance approval, signing methodology, production recovery, and independent review remain explicitly blocked and are never fake-passed.
+> **Status: implementation in progress.** This repository is a specification-driven build. Core domain modules, practice management, trial-balance and bounded resumable GL intake, audit planning, package production, archive lineage, provider safety fences, recovery quarantine, governed financial-package review decisions, package-bound release candidates, source-bound accounting-evidence freshness, the client-safe management package view, and the authorized staff review queue are implemented and verified locally (**191/191 tests passing on PostgreSQL 18.6 across 48 migrations**). Live provider behavior, compliance approval, signing methodology, production recovery, and independent review remain explicitly blocked and are never fake-passed.
 
 ## Table of contents
 
@@ -150,13 +150,13 @@ The integration test requires PostgreSQL at `127.0.0.1:5433` and the `auditspher
 - **`docs/execution/current-slice.md`** — the verified local state and concise serialization of what was actually executed.
 - **Using the spec:** read `docs/SPECIFICATION.md` (§§1–12, 22, 24, 27–33, 41–47) plus only the sections for the active issue.
 
-As of the last verification pass: **190/190 tests passed** on PostgreSQL 18.6 with 0 skipped, 47 migrations applied (latest: `20260920220712_BindValuationEvidenceToSource`), local restore and build completed with zero warnings, the loopback restore rehearsal passed with 47 migrations, and the EF model has no pending changes. A redacted non-production evidence note is retained only to document the evidence boundary; tenant identifiers and credentials are not committed. Runtime identity fixtures, live provider behavior, compliance approval, signing, recovery, and independent-review gates remain **recorded blockers**.
+As of the last verification pass: **191/191 tests passed** on PostgreSQL 18.6 with 0 skipped, 48 migrations applied (latest: `20260920221642_BindSpecialistEvidenceToGeneration`), local restore and build completed with zero warnings, the loopback restore rehearsal passed with 48 migrations, and the EF model has no pending changes. A redacted non-production evidence note is retained only to document the evidence boundary; tenant identifiers and credentials are not committed. Runtime identity fixtures, live provider behavior, compliance approval, signing, recovery, and independent-review gates remain **recorded blockers**.
 
 ## Implementation roadmap
 
 The build advances through dependency-ordered work packages (P0–P10 per the [pending-work story](docs/execution/pending-tasks.md)), each landing as a reviewed PR with executed test evidence. Slices may not weaken controls, and a slice is accepted only with independent review evidence.
 
-**Delivered (locally verified — 190/190 tests, 47 migrations):**
+**Delivered (locally verified — 191/191 tests, 48 migrations):**
 
 - **Security & authorization integrity:** `ActorContext`, scope/role matrix, firm→client→engagement guards, finance-role separation, in-command authorization for all planning and operational commands.
 - **Trial-balance intake & validation engine:** Appendix D fixture, database-level `ck_tb_validation_status` control, source reflection bridges.
@@ -172,7 +172,7 @@ The build advances through dependency-ordered work packages (P0–P10 per the [p
 - **Repository binding (§27.2, PR #11):** Tenant/site/drive/root binding records, document references tied to approved bindings, capability records, sync cursor model.
 - **Provider safety fences (§43.8, PR #11):** Live Graph provider boundaries fail closed (`live-provider-not-approved`); production startup rejects simulation configuration; external effects remain disabled by default.
 - **Recovery controls (§24.4/§45, PR #11):** Recovery sessions, recovery epoch, `RECOVERY_QUARANTINE`, authorized restart, stale-worker fencing, machine-readable restore evidence.
-- **Client accounting and package governance:** Client accounting profiles, periods/books, chart-of-accounts mappings, versioned trial-balance profiles and multi-entity batches, typed GL imports, bounded resumable GL chunks with canonical digests and idempotent finalization, paged completeness bridges, source-bound reconciliations, ECL/inventory review freshness, specialist workbenches, entity-package projections, restatement lineage, bounded same-currency consolidation, journal lineage, close checks, immutable management/accounting/partner package-review decisions bound to exact package revision, generation and hash, completion-screen preparation of package-bound release candidates through the existing guarded release path, a client-safe validated-package management acknowledgement flow, and an authorized staff review queue.
+- **Client accounting and package governance:** Client accounting profiles, periods/books, chart-of-accounts mappings, versioned trial-balance profiles and multi-entity batches, typed GL imports, bounded resumable GL chunks with canonical digests and idempotent finalization, paged completeness bridges, source-bound reconciliations, generation-bound ECL/inventory/specialist/analytical evidence reviews, entity-package projections, restatement lineage, bounded same-currency consolidation, journal lineage, close checks, immutable management/accounting/partner package-review decisions bound to exact package revision, generation and hash, completion-screen preparation of package-bound release candidates through the existing guarded release path, a client-safe validated-package management acknowledgement flow, and an authorized staff review queue.
 
 **Remaining work — dependency-ordered (P1–P10):**
 
