@@ -152,6 +152,7 @@ public interface IClientAccountingDbContext : IAuditSphereDbContext
   DbSet<ReportingTaxonomyVersion> ReportingTaxonomyVersions { get; }
   DbSet<ReportingTaxonomyNode> ReportingTaxonomyNodes { get; }
   DbSet<SourceImportBatch> SourceImportBatches { get; }
+  DbSet<GeneralLedgerImportChunk> GeneralLedgerImportChunks { get; }
   DbSet<GeneralLedgerTransaction> GeneralLedgerTransactions { get; }
   DbSet<GeneralLedgerLine> GeneralLedgerLines { get; }
   DbSet<GeneralLedgerCompletenessBridge> GeneralLedgerCompletenessBridges { get; }

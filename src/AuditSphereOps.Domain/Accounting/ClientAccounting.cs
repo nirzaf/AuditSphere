@@ -280,9 +280,30 @@ public sealed class SourceImportBatch
   public string LegalEntityKey { get; set; } = string.Empty;
   public string Currency { get; set; } = string.Empty;
   public int RowCount { get; set; }
+  public int ExpectedChunkCount { get; set; }
+  public int ExpectedTransactionCount { get; set; }
+  public int ExpectedLineCount { get; set; }
+  public int AcceptedChunkCount { get; set; }
+  public int AcceptedTransactionCount { get; set; }
+  public int AcceptedLineCount { get; set; }
   public string Status { get; set; } = "LOADING";
   public string ReceiptReference { get; set; } = string.Empty;
   public Guid CreatedByUserId { get; set; }
+  public DateTimeOffset CreatedAt { get; set; }
+}
+
+/// <summary>Idempotency receipt for one bounded GL chunk in a loading source batch.</summary>
+public sealed class GeneralLedgerImportChunk
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public Guid EngagementId { get; set; }
+  public Guid ImportBatchId { get; set; }
+  public int ChunkNumber { get; set; }
+  public string ChunkDigest { get; set; } = string.Empty;
+  public int TransactionCount { get; set; }
+  public int LineCount { get; set; }
   public DateTimeOffset CreatedAt { get; set; }
 }
 

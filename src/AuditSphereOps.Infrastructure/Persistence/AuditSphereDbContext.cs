@@ -98,6 +98,7 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
   public DbSet<ReportingTaxonomyVersion> ReportingTaxonomyVersions => Set<ReportingTaxonomyVersion>();
   public DbSet<ReportingTaxonomyNode> ReportingTaxonomyNodes => Set<ReportingTaxonomyNode>();
   public DbSet<SourceImportBatch> SourceImportBatches => Set<SourceImportBatch>();
+  public DbSet<GeneralLedgerImportChunk> GeneralLedgerImportChunks => Set<GeneralLedgerImportChunk>();
   public DbSet<GeneralLedgerTransaction> GeneralLedgerTransactions => Set<GeneralLedgerTransaction>();
   public DbSet<GeneralLedgerLine> GeneralLedgerLines => Set<GeneralLedgerLine>();
   public DbSet<GeneralLedgerCompletenessBridge> GeneralLedgerCompletenessBridges => Set<GeneralLedgerCompletenessBridge>();
@@ -1551,8 +1552,25 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     import.HasIndex(x => new { x.FirmId, x.EngagementId, x.RawFileSha256Hex }).IsUnique()
       .HasDatabaseName("ux_source_import_raw_hash").HasFilter("length(raw_file_sha256_hex) > 0");
     import.ToTable("source_import_batches", t => t.HasCheckConstraint("ck_source_import_batch_values",
-      "length(trim(source_kind)) > 0 AND length(trim(profile_version)) > 0 AND length(trim(parser_version)) > 0 AND currency ~ '^[A-Z]{3}$' AND status IN ('LOADING','SEALED','REJECTED')"));
+      "length(trim(source_kind)) > 0 AND length(trim(profile_version)) > 0 AND length(trim(parser_version)) > 0 AND currency ~ '^[A-Z]{3}$'" +
+      " AND expected_chunk_count >= 0 AND expected_transaction_count >= 0 AND expected_line_count >= 0" +
+      " AND accepted_chunk_count >= 0 AND accepted_transaction_count >= 0 AND accepted_line_count >= 0" +
+      " AND accepted_chunk_count <= expected_chunk_count AND accepted_transaction_count <= expected_transaction_count" +
+      " AND accepted_line_count <= expected_line_count AND status IN ('LOADING','SEALED','REJECTED')"));
     ScopeToEngagement(import, nameof(SourceImportBatch.FirmId), nameof(SourceImportBatch.ClientId), nameof(SourceImportBatch.EngagementId));
+
+    var glChunk = b.Entity<GeneralLedgerImportChunk>();
+    glChunk.Property(x => x.ChunkDigest).HasMaxLength(64);
+    glChunk.HasIndex(x => new { x.FirmId, x.ImportBatchId, x.ChunkNumber }).IsUnique()
+      .HasDatabaseName("ux_gl_import_chunk_number");
+    glChunk.HasIndex(x => new { x.FirmId, x.ImportBatchId, x.ChunkDigest }).IsUnique()
+      .HasDatabaseName("ux_gl_import_chunk_digest");
+    glChunk.ToTable("general_ledger_import_chunks", t => t.HasCheckConstraint("ck_gl_import_chunk_values",
+      "chunk_number >= 0 AND chunk_digest ~ '^[0-9a-f]{64}$' AND transaction_count > 0 AND line_count > 0"));
+    ScopeToEngagement(glChunk, nameof(GeneralLedgerImportChunk.FirmId), nameof(GeneralLedgerImportChunk.ClientId), nameof(GeneralLedgerImportChunk.EngagementId));
+    glChunk.HasOne<SourceImportBatch>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.ImportBatchId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
 
     var glTransaction = b.Entity<GeneralLedgerTransaction>();
     glTransaction.Property(x => x.StableJournalId).HasMaxLength(200);

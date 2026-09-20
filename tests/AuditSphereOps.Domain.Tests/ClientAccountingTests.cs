@@ -154,6 +154,67 @@ public sealed class ClientAccountingTests
 
   [Fact]
   [Trait("Profile", "Database")]
+  public async Task StreamingGlImport_IsIdempotentAndSealsOnlyCompleteBatch()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var scope = await SeedAsync(pg);
+    var preparer = Actor(scope.Preparer, "AccountingPreparer");
+    var (periodId, bookId) = await CreateGlFixtureAsync(pg, scope, preparer);
+    var chunkOne = new[]
+    {
+      new GeneralLedgerTransactionInput("J-1", "INV-1", new DateOnly(2026, 6, 30), null, "user-a", "LEDGER-A", null, false, false,
+        [new("J-1-L1", "1000", 100m, 0m, "QAR", 100m, 100m), new("J-1-L2", "4000", 0m, 100m, "QAR", -100m, -100m)])
+    };
+    var chunkTwo = new[]
+    {
+      new GeneralLedgerTransactionInput("J-2", "INV-2", new DateOnly(2026, 7, 1), null, "user-a", "LEDGER-A", null, false, false,
+        [new("J-2-L1", "1000", 25m, 0m, "QAR", 25m, 25m), new("J-2-L2", "4000", 0m, 25m, "QAR", -25m, -25m)])
+    };
+    var digestOne = ClientAccountingService.ComputeGeneralLedgerChunkDigest("QAR", chunkOne);
+    var digestTwo = ClientAccountingService.ComputeGeneralLedgerChunkDigest("QAR", chunkTwo);
+    Guid batchId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var started = await ClientAccountingService.BeginGeneralLedgerImportAsync(db, preparer,
+        new GeneralLedgerImportStartRequest(scope.ClientA, scope.EngagementA, periodId, bookId, "stream-v1", "gl-v1",
+          new string('9', 64), "CLIENT-A", "QAR", "stream-receipt", 2, 2, 4));
+      Assert.True(started.Succeeded, started.Message);
+      batchId = started.Value;
+
+      var first = await ClientAccountingService.AppendGeneralLedgerChunkAsync(db, preparer,
+        new GeneralLedgerImportChunkRequest(batchId, 0, digestOne, chunkOne, Finalize: false));
+      Assert.True(first.Succeeded, first.Message);
+      Assert.Equal("LOADING", first.Value!.Status);
+      Assert.Equal(1, first.Value.AcceptedChunkCount);
+
+      var retry = await ClientAccountingService.AppendGeneralLedgerChunkAsync(db, preparer,
+        new GeneralLedgerImportChunkRequest(batchId, 0, digestOne, chunkOne, Finalize: false));
+      Assert.True(retry.Succeeded, retry.Message);
+      Assert.Equal(1, retry.Value!.AcceptedChunkCount);
+
+      var premature = await ClientAccountingService.AppendGeneralLedgerChunkAsync(db, preparer,
+        new GeneralLedgerImportChunkRequest(batchId, 0, digestOne, chunkOne, Finalize: true));
+      Assert.False(premature.Succeeded);
+      Assert.Equal(ErrorCodes.GateBlocked, premature.ErrorCode);
+
+      var final = await ClientAccountingService.AppendGeneralLedgerChunkAsync(db, preparer,
+        new GeneralLedgerImportChunkRequest(batchId, 1, digestTwo, chunkTwo, Finalize: true));
+      Assert.True(final.Succeeded, final.Message);
+      Assert.Equal("SEALED", final.Value!.Status);
+      Assert.Equal(2, final.Value.AcceptedChunkCount);
+      Assert.Equal(2, final.Value.AcceptedTransactionCount);
+      Assert.Equal(4, final.Value.AcceptedLineCount);
+      Assert.NotNull(final.Value.NormalizedDatasetDigest);
+    }
+    await using var verify = new AuditSphereDbContext(pg.Options);
+    Assert.Equal("SEALED", await verify.SourceImportBatches.Where(x => x.Id == batchId).Select(x => x.Status).SingleAsync());
+    Assert.Equal(2, await verify.GeneralLedgerImportChunks.CountAsync(x => x.ImportBatchId == batchId));
+    Assert.Equal(2, await verify.GeneralLedgerTransactions.CountAsync(x => x.ImportBatchId == batchId));
+    Assert.Equal(4, await verify.GeneralLedgerLines.CountAsync(x => x.ImportBatchId == batchId));
+  }
+
+  [Fact]
+  [Trait("Profile", "Database")]
   public async Task GlCompletenessBridge_IsAccountExactAndPagedWithinScope()
   {
     await using var pg = await PgTestSchema.CreateAsync();
@@ -454,6 +515,33 @@ public sealed class ClientAccountingTests
       Grant(firmId, reviewer, "Partner"));
     await db.SaveChangesAsync();
     return new Scope(firmId, clientA, clientB, engagementA, engagementB, preparer, reviewer);
+  }
+
+  private static async Task<(Guid PeriodId, Guid BookId)> CreateGlFixtureAsync(
+    PgTestSchema pg, Scope scope, ActorContext preparer)
+  {
+    Guid periodId, chartId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      Assert.True((await ClientAccountingService.CreateProfileAsync(db, preparer,
+        new ClientAccountingProfileRequest(scope.ClientA, "QA", "QAR", 1, 1, "LEDGER-A", "A-1"))).Succeeded);
+      periodId = (await ClientAccountingService.CreatePeriodAsync(db, preparer,
+        new ReportingPeriodRequest(scope.ClientA, "2026", new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31), "STATUTORY", "QAR"))).Value;
+      var book = await ClientAccountingService.CreateBookAsync(db, preparer,
+        new ReportingBookRequest(scope.ClientA, periodId, "STAT", "STATUTORY", "STATUTORY_ONLY", "QAR"));
+      Assert.True(book.Succeeded, book.Message);
+      chartId = (await ClientAccountingService.CreateChartVersionAsync(db, preparer, scope.ClientA, "LEDGER-A", new DateOnly(2026, 1, 1))).Value;
+      Assert.True((await ClientAccountingService.AddAccountsAsync(db, preparer, chartId, [
+        new("cash", "1000", "Cash", "ASSET", "DEBIT", true),
+        new("revenue", "4000", "Revenue", "INCOME", "CREDIT", true)
+      ])).Succeeded);
+    }
+    await using (var db = new AuditSphereDbContext(pg.Options))
+      Assert.True((await ClientAccountingService.PublishChartVersionAsync(db, Actor(scope.Reviewer, "AccountingReviewer"), chartId)).Succeeded);
+    await using var verify = new AuditSphereDbContext(pg.Options);
+    var bookId = await verify.ClientReportingBooks.Where(x => x.ClientId == scope.ClientA && x.PeriodId == periodId)
+      .Select(x => x.Id).SingleAsync();
+    return (periodId, bookId);
   }
 
   private static async Task<Guid> AddPackageAsync(AuditSphereDbContext db, Scope scope, Guid clientId, Guid engagementId, decimal amount, string destination, string? suffix = null)
