@@ -61,6 +61,68 @@ else
     </table></div>
   </section>
 
+  @if (_canReview)
+  {
+    <section class="card" aria-labelledby="review-heading">
+      <h2 id="review-heading">Package review decisions</h2>
+      <p class="scope-note">Every decision is recorded against this package's exact revision, generation and calculation hash. Decisions are append-only; a changed package must be reviewed again.</p>
+      @if (_package.Status == AccountingPackageStates.PackageValidated)
+      {
+        <div class="form-grid">
+          <label>Stage<select @bind="_reviewStage">
+            @foreach (var stage in ReviewStages)
+            {
+              <option value="@stage">@stage</option>
+            }
+          </select></label>
+          <label>Decision<select @bind="_reviewDecision">
+            @foreach (var decision in FinancialPackageReviewDecisions.All)
+            {
+              <option value="@decision">@decision</option>
+            }
+          </select></label>
+          <label>Evidence mode<select @bind="_reviewEvidenceMode">
+            <option value="@FinancialPackageReviewEvidenceModes.SignedIn">SIGNED_IN</option>
+            <option value="@FinancialPackageReviewEvidenceModes.Offline">OFFLINE</option>
+          </select></label>
+          <label>Evidence reference<input @bind="_reviewEvidenceReference" maxlength="2000" /></label>
+        </div>
+        <label>Comment<textarea @bind="_reviewComment" maxlength="4000" rows="3"></textarea></label>
+        <div style="display:flex;gap:.75rem;align-items:center;margin-top:1rem;flex-wrap:wrap">
+          <button class="button" @onclick="RecordReviewAsync" disabled="@_reviewBusy">@(_reviewBusy ? "Recording…" : "Record decision")</button>
+          <span class="muted">Management approval uses offline evidence on this staff surface; signed-in management approval must be completed by the authorized client-user surface.</span>
+        </div>
+      }
+      else
+      {
+        <p class="muted">Review decisions are available only after the package reaches <code>@AccountingPackageStates.PackageValidated</code>.</p>
+      }
+      @if (_reviewResult is not null)
+      {
+        <p class="command-result @(_reviewResult.Succeeded ? "success-text" : "error-text")" role="status">
+          @(_reviewResult.Succeeded ? (_reviewSuccessMessage ?? "Decision recorded.") : "Blocked: " + _reviewResult.ErrorCode)
+        </p>
+      }
+      <div class="table-wrap" style="margin-top:1rem"><table>
+        <caption class="sr-only">Immutable package review decisions</caption>
+        <thead><tr><th scope="col">Stage</th><th scope="col">Decision</th><th scope="col">Evidence</th><th scope="col">Package hash</th><th scope="col">Decided at</th></tr></thead>
+        <tbody>
+        @if (_reviews.Count == 0)
+        {
+          <tr><td colspan="5" class="muted">No decisions recorded for this package version.</td></tr>
+        }
+        else
+        {
+          @foreach (var review in _reviews)
+          {
+            <tr><td>@review.Stage</td><td><span class="status">@review.Decision</span></td><td>@review.EvidenceMode: @review.EvidenceReference</td><td><code>@review.PackageHash[..Math.Min(12, review.PackageHash.Length)]</code></td><td>@review.DecidedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</td></tr>
+          }
+        }
+        </tbody>
+      </table></div>
+    </section>
+  }
+
   <section class="card" aria-labelledby="statement-heading">
     <h2 id="statement-heading">Mapped statement totals</h2>
     <div class="table-wrap"><table>
@@ -125,8 +187,21 @@ else
   private List<FinancialPackageLine> _lines = [];
   private List<FinancialPackageCashFlowLine> _cashFlowLines = [];
   private List<FinancialPackageDisclosure> _disclosures = [];
+  private List<FinancialPackageReviewSummary> _reviews = [];
   private bool _loading = true;
+  private bool _reviewBusy;
+  private CommandResult<Guid>? _reviewResult;
+  private string? _reviewSuccessMessage;
+  private string _reviewStage = FinancialPackageReviewStages.AccountingReview;
+  private string _reviewDecision = FinancialPackageReviewDecisions.Approved;
+  private string _reviewEvidenceMode = FinancialPackageReviewEvidenceModes.SignedIn;
+  private string _reviewEvidenceReference = string.Empty;
+  private string _reviewComment = string.Empty;
   private bool IsStaff => _actor is not null && _actor.Roles.Any(x => x is "Administrator" or "Partner" or "Manager" or "Reviewer" or "Staff" or "AccountingPreparer" or "AccountingReviewer");
+  private bool _canReview => _actor is not null && _actor.Roles.Any(x => x is "Administrator" or "Partner" or "Manager" or "AccountingReviewer" or "AccountingPreparer");
+  private IReadOnlyList<string> ReviewStages => _actor?.Roles.Any(x => x is "Partner" or "Administrator") == true
+    ? [FinancialPackageReviewStages.ManagementApproval, FinancialPackageReviewStages.AccountingReview, FinancialPackageReviewStages.PartnerApproval]
+    : [FinancialPackageReviewStages.ManagementApproval, FinancialPackageReviewStages.AccountingReview];
   private IEnumerable<KeyValuePair<string, decimal>> _statementTotals => _lines
     .GroupBy(x => x.StatementSection, StringComparer.Ordinal)
     .OrderBy(x => x.Key, StringComparer.Ordinal)
@@ -155,8 +230,34 @@ else
           .Where(x => x.FirmId == _actor.FirmId && x.ClientId == _package.ClientId && x.EngagementId == _package.EngagementId && x.FinancialPackageId == _package.Id)
           .OrderBy(x => x.Code).ToListAsync();
         _artifact = FinancialStatementService.RenderPackageArtifact(_package, _lines, _cashFlowLines, _disclosures, _validations);
+        var reviews = await FinancialPackageReviewService.GetAsync(db, _actor, _package.Id);
+        if (reviews.Succeeded)
+          _reviews = reviews.Value?.ToList() ?? [];
       }
     }
     _loading = false;
+  }
+
+  private async Task RecordReviewAsync()
+  {
+    if (_actor is null || _package is null || _reviewBusy) return;
+    _reviewBusy = true;
+    try
+    {
+      await using var db = await DbFactory.CreateDbContextAsync();
+      _reviewResult = await FinancialPackageReviewService.RecordAsync(db, _actor,
+        new FinancialPackageReviewRequest(_package.Id, _reviewStage, _reviewDecision, _reviewEvidenceMode,
+          _reviewEvidenceReference, _reviewComment));
+      if (_reviewResult.Succeeded)
+      {
+        _reviewSuccessMessage = "Decision recorded against the current package version.";
+        _reviewEvidenceReference = string.Empty;
+        _reviewComment = string.Empty;
+        var reviews = await FinancialPackageReviewService.GetAsync(db, _actor, _package.Id);
+        if (reviews.Succeeded)
+          _reviews = reviews.Value?.ToList() ?? [];
+      }
+    }
+    finally { _reviewBusy = false; }
   }
 }
