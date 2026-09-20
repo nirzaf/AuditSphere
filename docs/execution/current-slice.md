@@ -6,15 +6,15 @@ This file records observed repository state only. The authoritative build contra
 
 | Item | Observed value |
 |---|---|
-| Source implementation checkpoint | `master@3a97f86` |
-| Remote | `origin/master` points to `3a97f86` after the UI checkpoint push |
+| Source implementation checkpoint | `master@d869652` |
+| Remote | `origin/master` points to `d869652` after the valuation evidence checkpoint push |
 | SDK | .NET 10; repository solution targets `net10.0` |
 | Database | PostgreSQL 18.6 on loopback port 5433 for development only |
 | Build | `dotnet build AuditSphereOps.slnx --no-restore --configuration Release` — passed, 0 warnings/errors |
-| Tests | 189/189 passed, 0 skipped against PostgreSQL 18.6 |
-| Migrations | 46 applied; latest `20260920213841_FinancialPackageReleaseTarget` |
+| Tests | 190/190 passed, 0 skipped against PostgreSQL 18.6 |
+| Migrations | 47 applied; latest `20260920220712_BindValuationEvidenceToSource` |
 | Model drift | `dotnet ef migrations has-pending-model-changes` — no changes |
-| Restore drill | `scripts/db/restore-drill.sh` — passed; 46 migrations reconciled |
+| Restore drill | `scripts/db/restore-drill.sh` — passed; 47 migrations reconciled |
 | Production effects | Disabled locally; no production acceptance claimed |
 
 ## Implemented local capability
@@ -28,6 +28,7 @@ This file records observed repository state only. The authoritative build contra
 - An internal package-review queue lists only current validated packages in the actor's authorized client/engagement scopes and routes reviewers to the exact-version package surface.
 - A validated financial package can now become a release candidate only through the existing guarded approval/release path; the candidate records `FINANCIAL_PACKAGE`, exact package revision/generation/hash, current management/accounting/partner decisions, and the normal checkpoint gate.
 - The completion screen exposes package-candidate preparation only to partner/administrator actors after all three current package reviews are approved; repeated preparation reuses the exact candidate.
+- ECL and inventory evidence records capture the reconciliation source hash and client input generation; review blocks when either source lineage or generation is stale.
 - Bounded GL chunk intake with canonical content digests, transactional batch locking, idempotent retries, contiguous finalization and persisted accepted-count reconciliation.
 - Blazor status surfaces for the implemented workflows, including period restatement and truthful release/package gate state.
 
@@ -36,6 +37,7 @@ This file records observed repository state only. The authoritative build contra
 These are product gaps, not claims of production readiness:
 
 - [x] Complete the service-level release handoff from exact package-review decisions to a package-bound release candidate; client management acknowledgement and the staff review queue remain available.
+- [x] Bind ECL and inventory review applicability to the exact reconciliation source and client generation.
 - [ ] Extend advanced accounting methods only where an approved method and test fixtures exist: mixed currency, complex ownership, acquisition, NCI, and advanced eliminations.
 - [ ] Deepen specialist schedules and account-area workpapers where the workflow stories still require more than the current bounded workbench.
 - [ ] Add the remaining dashboard, roll-forward, and cross-workflow navigation around the implemented accounting and release workflows.
@@ -68,7 +70,7 @@ dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infr
 scripts/db/restore-drill.sh
 ```
 
-The restore evidence is written to [`docs/evidence/restore-drill-latest.json`](../evidence/restore-drill-latest.json). The latest rehearsal restored 46 migrations through `20260920213841_FinancialPackageReleaseTarget`; it is loopback-only and explicitly reports that external checkpoint custody and production RPO/RTO were not run.
+The restore evidence is written to [`docs/evidence/restore-drill-latest.json`](../evidence/restore-drill-latest.json). The latest rehearsal restored 47 migrations through `20260920220712_BindValuationEvidenceToSource`; it is loopback-only and explicitly reports that external checkpoint custody and production RPO/RTO were not run.
 
 ## Resume rule
 

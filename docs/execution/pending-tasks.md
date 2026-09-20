@@ -3,7 +3,7 @@
 **Repository:** `nirzaf/AuditSphere`
 **Authoritative specification:** [`docs/SPECIFICATION.md`](../SPECIFICATION.md) v5.0
 **Requirements backlog:** [`docs/requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md`](../requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md)
-**Source implementation checkpoint:** `master@3a97f86`
+**Source implementation checkpoint:** `master@d869652`
 
 This is a resume checklist, not an acceptance certificate. Tenant identifiers, credentials, tokens, secret values, and private-provider URLs are deliberately absent from the public repository.
 
@@ -11,8 +11,8 @@ This is a resume checklist, not an acceptance certificate. Tenant identifiers, c
 
 - [x] .NET 10 solution builds with zero warnings/errors.
 - [x] PostgreSQL 18.6 development profile is used on loopback port 5433.
-- [x] 189/189 PostgreSQL-backed tests pass with 0 skipped.
-- [x] 46 migrations are applied; latest is `20260920213841_FinancialPackageReleaseTarget`.
+- [x] 190/190 PostgreSQL-backed tests pass with 0 skipped.
+- [x] 47 migrations are applied; latest is `20260920220712_BindValuationEvidenceToSource`.
 - [x] EF model has no pending migration changes.
 - [x] Loopback restore drill passes and writes secret-free evidence to `docs/evidence/restore-drill-latest.json`.
 - [x] Generated Graphify output and local agent state are ignored and removed from Git tracking.
@@ -30,6 +30,7 @@ This is a resume checklist, not an acceptance certificate. Tenant identifiers, c
 - [x] Add an authorized staff package-review queue with exact-version stage status and direct package handoff.
 - [x] Bind validated financial-package release candidates to current management, accounting and partner decisions through the existing guarded approval/release path.
 - [x] Add the completion-screen action that prepares a package-bound release candidate only after current package reviews are approved.
+- [x] Bind ECL and inventory review decisions to the exact reconciliation source hash and client input generation.
 - [ ] Add approved-method fixtures for mixed currency, complex ownership, acquisition, NCI and advanced eliminations before implementing those methods.
 - [ ] Deepen specialist schedules and account-area workpapers where the 28-story backlog still identifies a real workflow gap.
 - [ ] Add the remaining dashboard, roll-forward and cross-workflow navigation.

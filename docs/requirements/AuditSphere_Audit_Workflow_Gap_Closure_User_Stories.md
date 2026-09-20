@@ -10,7 +10,7 @@
 | Source checklist | `Audit working process - Audit Tool New.docx` |
 | Source scope | **20 audit sections; 165 individual procedures** |
 | Backlog | **28 issue-ready stories**, grouped into 5 proposed milestones |
-| Repository snapshot inspected | `master@3a97f86` |
+| Repository snapshot inspected | `master@d869652` |
 | Status | Partially implemented; local evidence is summarized in the execution ledger; not professional or production acceptance |
 | Suggested repository location | `docs/requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md` |
 | Repository changes made by this document task | Requirements documentation only; implementation evidence is tracked separately |
@@ -93,7 +93,7 @@ The existing specification requires manual-first sampling, a confirmation regist
 
 ### 2.4 Current implementation evidence
 
-At `master@3a97f86`, the repository records **189/189 PostgreSQL-backed tests passing with 0 skipped**, **46 applied migrations**, a successful loopback restore rehearsal, and a zero-warning build. The accounting slice includes client accounting profiles, versioned trial-balance and GL ingestion, bounded resumable GL chunks, completeness bridges, reconciliations, specialist workbenches, package projections, restatement lineage, bounded same-currency consolidation, journal lineage, close checks, an immutable package-review service, scoped staff review UI and queue, a client-safe validated-package management acknowledgement route, completion-screen package-bound release-candidate preparation, and completion-gate integration. Remaining stories are not implicitly complete: advanced accounting methods, deeper specialist/UI coverage, and external acceptance must still be verified in the execution ledger.
+At `master@d869652`, the repository records **190/190 PostgreSQL-backed tests passing with 0 skipped**, **47 applied migrations**, a successful loopback restore rehearsal, and a zero-warning build. The accounting slice includes client accounting profiles, versioned trial-balance and GL ingestion, bounded resumable GL chunks, source-bound reconciliations, ECL/inventory review freshness, specialist workbenches, package projections, restatement lineage, bounded same-currency consolidation, journal lineage, close checks, an immutable package-review service, scoped staff review UI and queue, a client-safe validated-package management acknowledgement route, completion-screen package-bound release-candidate preparation, and completion-gate integration. Remaining stories are not implicitly complete: advanced accounting methods, deeper specialist/UI coverage, and external acceptance must still be verified in the execution ledger.
 
 ### 2.3 Reuse versus gap rule
 
