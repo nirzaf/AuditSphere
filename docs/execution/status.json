@@ -19,7 +19,7 @@
     "headCommit": "1184485797f359c89b5f9f82c264d05845dfe0ff",
     "implementationStatus": "IN_PROGRESS",
     "acceptanceStatus": "LOCAL_VERIFIED",
-    "worktree": "Current master is 1184485 (P6 records/archive hardening: 165/165 tests, 31 migrations). The working tree contains the uncommitted claim-mapping fix and observed local/browser verification updates; no production database or external provider effect was performed.",
+    "worktree": "Current master is 1184485 (P6 records/archive hardening: 165/165 tests, 31 migrations). The working tree contains the uncommitted claim-mapping fix and observed local/browser verification updates; the application performed no automated external provider effect (ExternalEffects.Enabled=false), while the recorded browser-verified tenant evidence captures the separate manual non-production mutations that actually occurred (Entra client secret creation, a reversible Client X fixture disable/enable, the Purview publishing policy, and the SharePoint test file).",
     "scope": "Local OIDC startup/runtime verification and execution-ledger alignment. External provider effects remain fail-closed.",
     "productionEnabled": false
   },
