@@ -6,7 +6,7 @@ This file records observed repository state only. The authoritative build contra
 
 | Item | Observed value |
 |---|---|
-| Source implementation checkpoint | `master@df8a211` |
+| Source implementation checkpoint | `master@d28f364` |
 | Remote | `origin/master` includes source checkpoint `df8a211` |
 | SDK | .NET 10; repository solution targets `net10.0` |
 | Database | PostgreSQL 18.6 on loopback port 5433 for development only |
@@ -75,7 +75,7 @@ This file records observed repository state only. The authoritative build contra
 - Financial-package mappings now require the approved taxonomy statement section; package validation records separate statement cross-cast, accounting-equation, equity/profit, comparative-consistency and note-to-face outcomes, and rendered artifacts include adjusted-snapshot, mapping-version and adjustment-plan lineage identifiers. Exact UTF-8 artifact bytes are persisted with framework/template versions and SHA-256 lineage, and package-review decisions reference that artifact; PostgreSQL financial-statement regressions pass.
 - The PostgreSQL-backed accounting benchmark exercises four clients, 2,000 transactions, 8,000 GL lines, parallel enqueueing, two concurrent durable workers, a 32-line group calculation, six-decimal/high-magnitude amounts and paged reads; one observed run measured enqueue 147.8 ms, worker processing 134.4 ms, first page 43.8 ms and group calculation 3.2 ms.
 - Blazor status surfaces for the implemented workflows, including period restatement and truthful release/package gate state.
-- Shared Blazor form UX covers contextual action/field tooltips, required and optional markers, accessible guidance, non-disruptive invalid-field status, and localStorage draft autosave/restore across card and standalone forms. Server-backed workpaper drafts remain authoritative; browser file bytes and release keys are intentionally excluded from local storage.
+- Shared Blazor form UX covers contextual action/field tooltips, required and optional markers, accessible guidance, non-disruptive invalid-field status, and localStorage draft autosave/restore across card and standalone forms. Restored values raise both native input and Blazor binding change events, and autosave includes controls disabled during an in-flight action. Server-backed workpaper drafts remain authoritative; browser file bytes and release keys are intentionally excluded from local storage.
 - The mapping workbench shows immutable current-vs-prior allocation changes and an exact-dataset/taxonomy applicability cue; automatic suggestions remain review-only and never mutate allocations.
 
 ## Remaining local implementation work
