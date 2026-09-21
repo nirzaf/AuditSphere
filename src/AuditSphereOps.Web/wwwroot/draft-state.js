@@ -12,6 +12,8 @@ window.auditSphereExports.downloadText = (filename, text, contentType = 'text/pl
 (() => {
   const root = window.auditSphereDrafts = window.auditSphereDrafts || {};
   const wired = new WeakSet();
+  const boundaries = new Set();
+  const memoryDrafts = new Map();
   const timers = new WeakMap();
   const restoring = new WeakSet();
   const dirtyControls = new WeakSet();
@@ -76,11 +78,14 @@ window.auditSphereExports.downloadText = (filename, text, contentType = 'text/pl
   }
 
   function save(boundary) {
+    const draft = collect(boundary);
     try {
-      localStorage.setItem(keyFor(boundary), JSON.stringify(collect(boundary)));
+      localStorage.setItem(keyFor(boundary), JSON.stringify(draft));
+      memoryDrafts.delete(keyFor(boundary));
       setStatus(boundary, 'Draft saved locally.', 'saved');
     } catch {
-      setStatus(boundary, 'Local draft saving is unavailable; keep this page open until the action completes.', 'unavailable');
+      memoryDrafts.set(keyFor(boundary), draft);
+      setStatus(boundary, 'Draft saved for this page session; browser storage is unavailable.', 'session-only');
     }
   }
 
@@ -91,17 +96,25 @@ window.auditSphereExports.downloadText = (filename, text, contentType = 'text/pl
 
   function restore(boundary, attempt = 0) {
     let raw;
-    try { raw = localStorage.getItem(keyFor(boundary)); } catch {
-      setStatus(boundary, 'Local draft saving is unavailable; keep this page open until the action completes.', 'unavailable');
-      return;
+    let draft;
+    try {
+      raw = localStorage.getItem(keyFor(boundary));
+      if (raw) draft = JSON.parse(raw);
+    } catch {
+      draft = memoryDrafts.get(keyFor(boundary));
+      if (!draft) {
+        setStatus(boundary, 'Drafts are unavailable in this browser; keep this page open until the action completes.', 'unavailable');
+        return;
+      }
     }
-    if (!raw) {
+    if (!raw && !draft) {
       setStatus(boundary, 'Draft autosave is ready.', 'ready');
       return;
     }
 
-    let draft;
-    try { draft = JSON.parse(raw); } catch { return; }
+    if (!draft) {
+      try { draft = JSON.parse(raw); } catch { return; }
+    }
     restoring.add(boundary);
     let unresolved = false;
     for (const control of controlsFor(boundary, true)) {
@@ -120,13 +133,15 @@ window.auditSphereExports.downloadText = (filename, text, contentType = 'text/pl
     const savedAt = draft.savedAt ? new Date(draft.savedAt) : null;
     const savedLabel = savedAt && !Number.isNaN(savedAt.valueOf())
       ? ` (${savedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})` : '';
-    setStatus(boundary, `Unsaved draft restored locally${savedLabel}.`, 'restored');
+    const storageLabel = raw ? 'locally' : 'for this page session';
+    setStatus(boundary, `Unsaved draft restored ${storageLabel}${savedLabel}.`, 'restored');
     if (unresolved && attempt < 5) setTimeout(() => restore(boundary, attempt + 1), 250);
   }
 
   function wire(boundary) {
     if (wired.has(boundary) || !boundary.dataset.draftScope) return;
     wired.add(boundary);
+    boundaries.add(boundary);
     restore(boundary);
     setTimeout(() => restore(boundary, 1), 250);
     const listen = event => {
@@ -145,18 +160,12 @@ window.auditSphereExports.downloadText = (filename, text, contentType = 'text/pl
       const control = event.target?.closest?.('input, select, textarea');
       if (control?.validity?.valid) control.removeAttribute('aria-invalid');
     });
-    const flush = () => {
-      clearTimeout(timers.get(boundary));
-      save(boundary);
-    };
-    window.addEventListener('beforeunload', flush);
-    window.addEventListener('pagehide', flush);
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'hidden') flush();
-    });
   }
 
   function init(container = document) {
+    for (const boundary of boundaries) {
+      if (!document.contains(boundary)) boundaries.delete(boundary);
+    }
     discover(container);
     addTooltips(container);
     if (container.matches?.('[data-draft-scope]')) wire(container);
@@ -266,8 +275,20 @@ window.auditSphereExports.downloadText = (filename, text, contentType = 'text/pl
   }
 
   root.init = init;
+  root.saveAll = () => {
+    for (const boundary of [...boundaries]) {
+      if (!document.contains(boundary)) {
+        boundaries.delete(boundary);
+        continue;
+      }
+      clearTimeout(timers.get(boundary));
+      save(boundary);
+    }
+  };
   root.clear = scope => {
-    try { localStorage.removeItem(`auditsphere:draft:v1:${encodeURIComponent(scope)}`); } catch { return; }
+    const key = `auditsphere:draft:v1:${encodeURIComponent(scope)}`;
+    memoryDrafts.delete(key);
+    try { localStorage.removeItem(key); } catch { /* session fallback is already cleared */ }
     const escapedScope = window.CSS?.escape ? CSS.escape(scope) : scope.replace(/(["\\])/g, '\\$1');
     document.querySelectorAll(`[data-draft-scope="${escapedScope}"]`).forEach(boundary => {
       setStatus(boundary, 'Saved draft cleared after successful submission.', 'ready');
@@ -281,6 +302,11 @@ window.auditSphereExports.downloadText = (filename, text, contentType = 'text/pl
   document.addEventListener('enhancedload', () => {
     init();
     setTimeout(init, 250);
+  });
+  window.addEventListener('beforeunload', () => root.saveAll());
+  window.addEventListener('pagehide', () => root.saveAll());
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') root.saveAll();
   });
   new MutationObserver(() => init()).observe(document.body, { childList: true, subtree: true });
 })();

@@ -60,6 +60,7 @@ input:focus:invalid, select:focus:invalid, textarea:focus:invalid { border-color
 button[title], a[title] { cursor: pointer; }
 .draft-status { color: #5b6b7a; font-size: .85rem; margin: .75rem 0 0; min-height: 1.25rem; }
 .draft-status[data-draft-state="saved"], .draft-status[data-draft-state="restored"] { color: #166534; }
+.draft-status[data-draft-state="session-only"] { color: #b45309; }
 .draft-status[data-draft-state="unavailable"], .draft-status[data-draft-state="invalid"] { color: #991b1b; }
 .check { display: flex; gap: .6rem; align-items: flex-start; margin: 1rem 0; }
 .command-result { margin-top: 1rem; font-weight: 700; }
