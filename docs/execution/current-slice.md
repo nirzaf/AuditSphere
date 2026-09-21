@@ -6,12 +6,12 @@ This file records observed repository state only. The authoritative build contra
 
 | Item | Observed value |
 |---|---|
-| Source implementation checkpoint | `master@ff3f371` |
-| Remote | `origin/master` includes source checkpoint `ff3f371` |
+| Source implementation checkpoint | `master@cf51b35` |
+| Remote | `origin/master` includes source checkpoint `cf51b35` |
 | SDK | .NET 10; repository solution targets `net10.0` |
 | Database | PostgreSQL 18.6 on loopback port 5433 for development only |
-| Build | `dotnet build src/AuditSphereOps.Web/AuditSphereOps.Web.csproj --no-restore --configuration Release` at `ff3f371` — passed, 0 warnings/errors; solution Release baseline passed at `4010963` |
-| Tests | 214/214 passed, 0 skipped against PostgreSQL 18.6 at `ff3f371` |
+| Build | `dotnet build src/AuditSphereOps.Web/AuditSphereOps.Web.csproj --no-restore --configuration Release` at `cf51b35` — passed, 0 warnings/errors; solution Release baseline passed at `4010963` |
+| Tests | 215/215 passed, 0 skipped against PostgreSQL 18.6 at `cf51b35` |
 | Migrations | 75 applied; latest `20260921150321_BindMappingsToClientCharts` |
 | Model drift | `dotnet ef migrations has-pending-model-changes` — no changes |
 | Restore drill | `scripts/db/restore-drill.sh` — passed; 75 migrations reconciled |
@@ -88,6 +88,7 @@ This file records observed repository state only. The authoritative build contra
 - The staff financial-package page rechecks exact client/engagement authorization and displays/downloads only the persisted artifact bound to the current package revision, generation, hash and template; release and delivery remain separate controls.
 - Period roll-forward and restatement selection loads use a generation guard and a visible loading state, lock dependent selectors during the request, and prevent older async responses from replacing a newer client/period selection; the existing draft autosave remains the source of unsaved form resilience.
 - The mapping workbench shows immutable current-vs-prior allocation changes, exact-dataset/chart/taxonomy applicability, and bounded token suggestions for unmapped accounts; candidates remain review-only, ambiguous matches are labeled, and no suggestion mutates allocations.
+- Consolidation automatic matches now require an explicit enabled elimination nature (receivable/payable, revenue/expense, dividend or investment/equity); outside-perimeter reviews remain review-only, approved group-only journals remain distinct, and the selected nature participates in the deterministic run manifest. Unsupported legacy natures fail closed.
 
 ## Remaining local implementation work
 
