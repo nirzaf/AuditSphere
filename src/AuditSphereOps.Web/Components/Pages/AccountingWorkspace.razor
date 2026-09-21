@@ -329,7 +329,7 @@ else
     var href = pbc is not null && pbc.State is not (PbcStates.Accepted or PbcStates.Closed) && row.PackageId is null && row.MappingId is null
       ? $"/app/engagements/{pbc.EngagementId}/pbc"
       : row.PackageId is { } packageId ? $"/app/accounting/packages/{packageId}"
-      : row.MappingId is { } mappingId ? $"/app/accounting/mappings/{mappingId}" : "#period-control";
+      : row.MappingId is { } mappingId ? $"/app/accounting/mappings/{mappingId}" : $"/app/accounting/periods/{row.Id}";
     var action = pbc is not null && pbc.State is not (PbcStates.Accepted or PbcStates.Closed) && row.PackageId is null && row.MappingId is null
       ? "Open PBC request" : row.PackageId is not null ? "Open package" : row.MappingId is not null ? "Open mapping" : "Open period";
     return new(row.Id, row.ClientName, row.PeriodCode, state, owner, pbc?.DueDate ?? "Not recorded", href, action);

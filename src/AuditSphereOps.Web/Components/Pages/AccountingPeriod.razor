@@ -1,0 +1,139 @@
+@page "/app/accounting/periods/{PeriodId:guid}"
+@rendermode InteractiveServer
+@using AuditSphereOps.Domain.Accounting
+@using AuditSphereOps.Domain.Documents
+@using AuditSphereOps.Domain.Security
+@inject CurrentActorResolver ActorResolver
+@inject IDbContextFactory<AuditSphereDbContext> DbFactory
+
+<PageTitle>Accounting period</PageTitle>
+<a class="back-link" href="/app/accounting">← Back to accounting workspace</a>
+<h1>Accounting period</h1>
+
+@if (_loading)
+{
+  <p role="status">Loading scoped period…</p>
+}
+else if (_actor is null || !_authorized)
+{
+  <section class="notice" role="alert"><h2>Access unavailable</h2><p>This period is not visible under the current accounting grant.</p></section>
+}
+else if (_period is null)
+{
+  <section class="notice" role="alert"><h2>Period not found</h2><p>The requested period is not available in the current firm scope.</p></section>
+}
+else
+{
+  <p class="scope-note">This page is a read-only exact-record view. Opening a period does not broaden client or engagement authorization.</p>
+
+  <section class="card" aria-labelledby="period-heading">
+    <h2 id="period-heading">@_period.ClientName · @_period.PeriodCode</h2>
+    <dl class="details">
+      <dt>Legal entity</dt><dd>@_period.ClientName</dd>
+      <dt>Engagement</dt><dd>@_period.Engagement</dd>
+      <dt>Period</dt><dd>@_period.StartDate — @_period.EndDate</dd>
+      <dt>Basis</dt><dd>@_period.Basis</dd>
+      <dt>Book</dt><dd>@_period.Book</dd>
+      <dt>Currency</dt><dd><code>@_period.Currency</code></dd>
+      <dt>Status</dt><dd><span class="status">@_period.Status</span></dd>
+      <dt>Revision</dt><dd>@_period.Revision</dd>
+      <dt>Prior period</dt><dd>@(_period.PriorPeriodId?.ToString() ?? "Not recorded")</dd>
+      <dt>Latest package</dt><dd>@(_period.PackageLabel ?? "Not recorded")</dd>
+      <dt>Latest mapping</dt><dd>@(_period.MappingLabel ?? "Not recorded")</dd>
+    </dl>
+  </section>
+
+  <section class="card" aria-labelledby="workflow-heading">
+    <h2 id="workflow-heading">Workflow handoffs</h2>
+    @if (_pbc is not null)
+    {
+      <p><strong>PBC owner:</strong> @_pbc.Owner · <strong>Due:</strong> @_pbc.DueDate · <strong>State:</strong> @_pbc.State</p>
+    }
+    else
+    {
+      <p class="muted">No open PBC request is linked to this period. No task owner or due date is invented.</p>
+    }
+    <div class="action-bar">
+      @if (_period.PackageId is { } packageId)
+      {
+        <a class="button" href="@($"/app/accounting/packages/{packageId}")" title="Open the exact financial package for this period">Open package</a>
+      }
+      @if (_period.MappingId is { } mappingId)
+      {
+        <a class="button" href="@($"/app/accounting/mappings/{mappingId}")" title="Open the exact mapping version for this period">Open mapping</a>
+      }
+      @if (_pbc is not null)
+      {
+        <a class="button" href="@($"/app/engagements/{_pbc.EngagementId}/pbc")" title="Open the persisted PBC request and its evidence handoff">Open PBC request</a>
+      }
+      <a class="button" href="/app/accounting/evidence" title="Open scoped TB, GL and account-area evidence for this accounting workspace">Open evidence</a>
+      <a class="button" href="/app/accounting/rollforward" title="Create a new draft period with explicit opening-balance evidence">Roll forward</a>
+      <a class="button" href="/app/accounting/restatements" title="Review authorized amendments without rewriting this period's history">Restatements</a>
+    </div>
+  </section>
+}
+
+@code {
+  [Parameter] public Guid PeriodId { get; set; }
+
+  private sealed record PeriodView(Guid Id, Guid ClientId, string ClientName, string Engagement, string PeriodCode,
+    DateOnly StartDate, DateOnly EndDate, string Basis, string Book, string Currency, string Status, long Revision,
+    Guid? PriorPeriodId, Guid? PackageId, string? PackageLabel, Guid? MappingId, string? MappingLabel);
+  private sealed record PbcView(Guid EngagementId, string Owner, string DueDate, string State);
+
+  private ActorContext? _actor;
+  private PeriodView? _period;
+  private PbcView? _pbc;
+  private bool _loading = true;
+  private bool _authorized;
+
+  protected override async Task OnInitializedAsync()
+  {
+    _actor = await ActorResolver.ResolveAsync();
+    _authorized = _actor is not null && _actor.Roles.Any(x => x is "Administrator" or "Partner" or "Manager" or "AccountingPreparer" or "AccountingReviewer");
+    if (_authorized && _actor is not null) await LoadAsync();
+    _loading = false;
+  }
+
+  private async Task LoadAsync()
+  {
+    if (_actor is null) return;
+    await using var db = await DbFactory.CreateDbContextAsync();
+    var grants = await db.RoleGrants.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && x.UserId == _actor.UserId && x.RevokedAt == null)
+      .Select(x => new { x.ClientId, x.EngagementId }).ToListAsync();
+    var period = await db.ClientReportingPeriods.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == _actor.FirmId && x.Id == PeriodId);
+    if (period is null) return;
+    var firmWide = grants.Any(x => x.ClientId is null && x.EngagementId is null);
+    var directClient = grants.Any(x => x.ClientId == period.ClientId);
+    var engagementIds = grants.Where(x => x.EngagementId.HasValue).Select(x => x.EngagementId!.Value).ToArray();
+    var engagementGrant = engagementIds.Length > 0 && await db.Engagements.AsNoTracking().AnyAsync(x => x.FirmId == _actor.FirmId &&
+      engagementIds.Contains(x.Id) && x.PracticeClientId == period.ClientId);
+    if (!firmWide && !directClient && !engagementGrant)
+    {
+      _authorized = false;
+      return;
+    }
+
+    var client = await db.PracticeClients.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == _actor.FirmId && x.Id == period.ClientId);
+    var book = await db.ClientReportingBooks.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && x.ClientId == period.ClientId && x.PeriodId == period.Id)
+      .OrderBy(x => x.Code).Select(x => x.Code).FirstOrDefaultAsync();
+    var package = await db.FinancialPackages.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && x.ClientId == period.ClientId && x.PeriodId == period.Id)
+      .OrderByDescending(x => x.CreatedAt).Select(x => new { x.Id, x.MappingVersionId, x.Status, x.Revision, x.Currency }).FirstOrDefaultAsync();
+    var mapping = package?.MappingVersionId is { } mappingId
+      ? await db.MappingVersions.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && x.Id == mappingId)
+        .Select(x => new { x.Id, x.Version, x.Status }).SingleOrDefaultAsync()
+      : null;
+    var pbc = await db.PbcRequests.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && x.ClientId == period.ClientId &&
+      x.PeriodStart == period.StartDate.ToString("yyyy-MM-dd") && x.PeriodEnd == period.EndDate.ToString("yyyy-MM-dd") && x.State != PbcStates.Closed)
+      .OrderBy(x => x.DueDate).FirstOrDefaultAsync();
+    var owner = pbc is null ? null : await db.Users.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && x.Id == pbc.FirmOwnerUserId)
+      .Select(x => string.IsNullOrWhiteSpace(x.DisplayName) ? x.Email : x.DisplayName).SingleOrDefaultAsync();
+    var engagement = pbc is null ? null : await db.Engagements.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && x.Id == pbc.EngagementId)
+      .Select(x => x.ServiceRoute).SingleOrDefaultAsync();
+    _period = new(period.Id, period.ClientId, client?.LegalName ?? "Scoped client", engagement ?? "No linked engagement", period.PeriodCode,
+      period.StartDate, period.EndDate, period.Basis, book ?? "No book", period.Currency, period.Status, period.Revision, period.PriorPeriodId,
+      package?.Id, package is null ? null : $"{package.Status} · v{package.Revision} · {package.Currency}", mapping?.Id, mapping is null ? null : $"{mapping.Status} · v{mapping.Version}");
+    if (pbc is not null)
+      _pbc = new(pbc.EngagementId, owner ?? "Assigned firm owner", string.IsNullOrWhiteSpace(pbc.DueDate) ? "Not recorded" : pbc.DueDate, pbc.State);
+  }
+}
