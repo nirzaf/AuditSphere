@@ -6,15 +6,15 @@ This file records observed repository state only. The authoritative build contra
 
 | Item | Observed value |
 |---|---|
-| Source implementation checkpoint | `master@c180d9a` |
-| Remote | `origin/master` includes source checkpoint `c180d9a` |
+| Source implementation checkpoint | `master@8301a08` |
+| Remote | `origin/master` includes source checkpoint `8301a08` |
 | SDK | .NET 10; repository solution targets `net10.0` |
 | Database | PostgreSQL 18.6 on loopback port 5433 for development only |
 | Build | `dotnet build AuditSphereOps.slnx --no-restore --configuration Release` — passed, 0 warnings/errors |
 | Tests | 206/206 passed, 0 skipped against PostgreSQL 18.6 |
-| Migrations | 62 applied; latest `20260921072319_ReconcileGeneralLedgerOpeningMovement` |
+| Migrations | 63 applied; latest `20260921082006_AnalyticalReviewLineage` |
 | Model drift | `dotnet ef migrations has-pending-model-changes` — no changes |
-| Restore drill | `scripts/db/restore-drill.sh` — passed; 62 migrations reconciled |
+| Restore drill | `scripts/db/restore-drill.sh` — passed; 63 migrations reconciled |
 | Production effects | Disabled locally; no production acceptance claimed |
 
 ## Implemented local capability
@@ -23,6 +23,7 @@ This file records observed repository state only. The authoritative build contra
 - Client accounting profiles, periods, books, chart-of-accounts mappings, versioned trial-balance profiles, signed-net/debit-credit normalization, and atomic multi-entity batches.
 - Capability profiles accept only ENTITY_REPORTING/AUDIT_ONLY client scopes or GROUP_REPORTING group scopes; mismatched or unknown service kinds are rejected.
 - Client accounting setup/reporting objects default blank currency input to QAR; raw source/import currencies and FX policy currencies remain explicit.
+- Analytical reviews default blank reporting currency to QAR only within the selected client reporting period, retain a deterministic input snapshot and replay hash, disclose negative/seasonal movement flags, and retain journal-risk sample selection, management explanation and corroboration fields.
 - Direct and streaming GL imports preserve optional service dates through canonical digests and archive lineage.
 - GL completeness bridges optionally bind the approved prior-period TB, persist per-account opening-plus-movement residuals and disclose missing opening or malformed journal evidence.
 - Zero-adjustment plans preserve the validated source exactly; posted journals apply only when NOT_REFLECTED, REFLECTED applies zero, and UNKNOWN/PARTIALLY_REFLECTED or changed source decisions block finalization.
@@ -121,7 +122,7 @@ dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infr
 scripts/db/restore-drill.sh
 ```
 
-The restore evidence is written to [`docs/evidence/restore-drill-latest.json`](../evidence/restore-drill-latest.json). The latest rehearsal restored 62 migrations through `20260921072319_ReconcileGeneralLedgerOpeningMovement`; it is loopback-only and explicitly reports that external checkpoint custody and production RPO/RTO were not run.
+The restore evidence is written to [`docs/evidence/restore-drill-latest.json`](../evidence/restore-drill-latest.json). The latest rehearsal restored 63 migrations through `20260921082006_AnalyticalReviewLineage`; it is loopback-only and explicitly reports that external checkpoint custody and production RPO/RTO were not run.
 
 ## Resume rule
 
