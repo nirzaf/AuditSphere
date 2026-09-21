@@ -212,6 +212,14 @@ public sealed class FinancialStatementTests
       Assert.Equal(2, await db.FinancialPackageDisclosures.CountAsync(x => x.FinancialPackageId == complete.Value.PackageId));
       Assert.Equal(1, await db.FinancialPackageEquityLines.CountAsync(x => x.FinancialPackageId == complete.Value.PackageId));
       Assert.Equal(1, await db.FinancialPackageNoteLines.CountAsync(x => x.FinancialPackageId == complete.Value.PackageId));
+      var historicalPackage = await db.FinancialPackages.AsNoTracking().SingleAsync(x => x.Id == first.PackageId);
+      Assert.Equal(request.TemplateVersion, historicalPackage.TemplateVersion);
+      Assert.Equal(FinancialStatementCalculator.CalculationEngineVersion, historicalPackage.CalculationEngineVersion);
+      Assert.Equal(first.CalculationHash, historicalPackage.CalculationHash);
+      var currentPackage = await db.FinancialPackages.AsNoTracking().SingleAsync(x => x.Id == complete.Value.PackageId);
+      Assert.Equal(completeRequest.TemplateVersion, currentPackage.TemplateVersion);
+      Assert.Equal(FinancialStatementCalculator.CalculationEngineVersion, currentPackage.CalculationEngineVersion);
+      Assert.NotEqual(historicalPackage.Id, complete.Value.PackageId);
       var checks = await db.FinancialPackageValidations.AsNoTracking()
         .Where(x => x.FinancialPackageId == complete.Value.PackageId).ToListAsync();
       Assert.All(checks.Where(x => x.Code is "CASH_FLOW_RECONCILED" or "DISCLOSURES_COMPLETE" or "SUPPLEMENTARY_INFORMATION"), x => Assert.True(x.Passed));
@@ -346,13 +354,43 @@ public sealed class FinancialStatementTests
     Guid planId;
     await using (var db = new AuditSphereDbContext(pg.Options))
       planId = (await AdjustmentPlanService.CreatePlanAsync(db, preparer, fixture.DatasetId, [])).Value;
+    FinalizedPlan finalizedPlan;
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       var finalized = await AdjustmentPlanService.FinalizeAsync(db, preparer, planId);
       Assert.True(finalized.Succeeded);
-      Assert.Equal(0, finalized.Value!.AppliedJournalCount);
-      Assert.Equal(100m, finalized.Value.Balances["1000"]);
-      Assert.Equal(-100m, finalized.Value.Balances["4000"]);
+      finalizedPlan = finalized.Value!;
+      Assert.Equal(0, finalizedPlan.AppliedJournalCount);
+      Assert.Equal(100m, finalizedPlan.Balances["1000"]);
+      Assert.Equal(-100m, finalizedPlan.Balances["4000"]);
+    }
+
+    var legacyPackageId = Guid.CreateVersion7();
+    var legacyPackageHash = Hashing.Sha256Hex("legacy-package-v0");
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var snapshotId = Guid.CreateVersion7();
+      db.AdjustedTrialBalanceSnapshots.Add(new AdjustedTrialBalanceSnapshot
+      {
+        Id = snapshotId, FirmId = fixture.FirmId, ClientId = fixture.ClientId, EngagementId = fixture.EngagementId,
+        BaseDatasetId = fixture.DatasetId, AdjustmentPlanId = planId, Currency = "QAR",
+        ResultHash = finalizedPlan.ResultHash, CreatedByUserId = fixture.Preparer.Id, CreatedAt = DateTimeOffset.UtcNow
+      });
+      db.AdjustedTrialBalanceRows.AddRange(finalizedPlan.Balances.Select(x => new AdjustedTrialBalanceRow
+      {
+        Id = Guid.CreateVersion7(), SnapshotId = snapshotId, AccountCode = x.Key, Amount = x.Value, Currency = "QAR"
+      }));
+      db.FinancialPackages.Add(new FinancialPackage
+      {
+        Id = legacyPackageId, FirmId = fixture.FirmId, ClientId = fixture.ClientId, EngagementId = fixture.EngagementId,
+        AdjustedDatasetId = snapshotId, MappingVersionId = mappingId, AdjustmentPlanId = planId,
+        PeriodId = fixture.PeriodId, BookId = fixture.BookId, Basis = "STATUTORY", Framework = "IFRS",
+        PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31", TaxonomyVersion = "tax-v1",
+        TemplateVersion = "legacy-template-v0", CalculationEngineVersion = "legacy-engine-v0", CalculationHash = legacyPackageHash,
+        Currency = "QAR", Revision = 4, Generation = 9, Status = AccountingPackageStates.PackageReviewRequired,
+        CreatedAt = DateTimeOffset.UtcNow
+      });
+      await db.SaveChangesAsync();
     }
 
     await using var packageDb = new AuditSphereDbContext(pg.Options);
@@ -362,6 +400,13 @@ public sealed class FinancialStatementTests
     Assert.Equal(100m, package.Value!.StatementTotals["ASSETS"]);
     Assert.Equal(-100m, package.Value.StatementTotals["INCOME"]);
     Assert.Equal(2, await packageDb.AdjustedTrialBalanceRows.CountAsync());
+    var legacy = await packageDb.FinancialPackages.AsNoTracking().SingleAsync(x => x.Id == legacyPackageId);
+    Assert.Equal("legacy-template-v0", legacy.TemplateVersion);
+    Assert.Equal("legacy-engine-v0", legacy.CalculationEngineVersion);
+    Assert.Equal(legacyPackageHash, legacy.CalculationHash);
+    var canonical = await packageDb.FinancialPackages.AsNoTracking().SingleAsync(x => x.Id == package.Value.PackageId);
+    Assert.Equal("template-v1", canonical.TemplateVersion);
+    Assert.Equal(FinancialStatementCalculator.CalculationEngineVersion, canonical.CalculationEngineVersion);
   }
 
   [Fact]
