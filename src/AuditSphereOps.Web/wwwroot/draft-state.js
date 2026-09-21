@@ -20,6 +20,10 @@ window.auditSphereExports.downloadText = (filename, text, contentType = 'text/pl
   let guidanceSequence = 0;
 
   const keyFor = boundary => `auditsphere:draft:v1:${encodeURIComponent(boundary.dataset.draftScope)}`;
+  const stores = [
+    { name: 'localStorage', label: 'locally', state: 'saved' },
+    { name: 'sessionStorage', label: 'for this browser session', state: 'session-only' }
+  ];
   const controlsFor = (boundary, includeDisabled = false) => [...boundary.querySelectorAll('input, select, textarea')]
     .filter(control =>
       control.dataset.draftField &&
@@ -77,16 +81,34 @@ window.auditSphereExports.downloadText = (filename, text, contentType = 'text/pl
     return { fields, savedAt: new Date().toISOString() };
   }
 
+  function writeStored(store, key, draft) {
+    try {
+      window[store.name].setItem(key, JSON.stringify(draft));
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  function readStored(store, key) {
+    try {
+      return { available: true, raw: window[store.name].getItem(key) };
+    } catch {
+      return { available: false, raw: null };
+    }
+  }
+
   function save(boundary) {
     const draft = collect(boundary);
-    try {
-      localStorage.setItem(keyFor(boundary), JSON.stringify(draft));
-      memoryDrafts.delete(keyFor(boundary));
-      setStatus(boundary, 'Draft saved locally.', 'saved');
-    } catch {
-      memoryDrafts.set(keyFor(boundary), draft);
-      setStatus(boundary, 'Draft saved for this page session; browser storage is unavailable.', 'session-only');
+    const key = keyFor(boundary);
+    memoryDrafts.set(key, draft);
+    for (const store of stores) {
+      if (writeStored(store, key, draft)) {
+        setStatus(boundary, `Draft saved ${store.label}.`, store.state);
+        return;
+      }
     }
+    setStatus(boundary, 'Draft saved for this page session; browser storage is unavailable.', 'session-only');
   }
 
   function scheduleSave(boundary) {
@@ -95,25 +117,27 @@ window.auditSphereExports.downloadText = (filename, text, contentType = 'text/pl
   }
 
   function restore(boundary, attempt = 0) {
-    let raw;
+    const key = keyFor(boundary);
     let draft;
-    try {
-      raw = localStorage.getItem(keyFor(boundary));
-      if (raw) draft = JSON.parse(raw);
-    } catch {
-      draft = memoryDrafts.get(keyFor(boundary));
-      if (!draft) {
-        setStatus(boundary, 'Drafts are unavailable in this browser; keep this page open until the action completes.', 'unavailable');
-        return;
+    let storageLabel;
+    for (const store of stores) {
+      const result = readStored(store, key);
+      if (!result.raw) continue;
+      try {
+        draft = JSON.parse(result.raw);
+        storageLabel = store.label;
+        break;
+      } catch {
+        try { window[store.name].removeItem(key); } catch { /* try the next store */ }
       }
     }
-    if (!raw && !draft) {
+    if (!draft) {
+      draft = memoryDrafts.get(key);
+      storageLabel = 'for this page session';
+    }
+    if (!draft) {
       setStatus(boundary, 'Draft autosave is ready.', 'ready');
       return;
-    }
-
-    if (!draft) {
-      try { draft = JSON.parse(raw); } catch { return; }
     }
     restoring.add(boundary);
     let unresolved = false;
@@ -133,7 +157,6 @@ window.auditSphereExports.downloadText = (filename, text, contentType = 'text/pl
     const savedAt = draft.savedAt ? new Date(draft.savedAt) : null;
     const savedLabel = savedAt && !Number.isNaN(savedAt.valueOf())
       ? ` (${savedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})` : '';
-    const storageLabel = raw ? 'locally' : 'for this page session';
     setStatus(boundary, `Unsaved draft restored ${storageLabel}${savedLabel}.`, 'restored');
     if (unresolved && attempt < 5) setTimeout(() => restore(boundary, attempt + 1), 250);
   }
@@ -288,7 +311,9 @@ window.auditSphereExports.downloadText = (filename, text, contentType = 'text/pl
   root.clear = scope => {
     const key = `auditsphere:draft:v1:${encodeURIComponent(scope)}`;
     memoryDrafts.delete(key);
-    try { localStorage.removeItem(key); } catch { /* session fallback is already cleared */ }
+    for (const store of stores) {
+      try { window[store.name].removeItem(key); } catch { /* storage may be unavailable */ }
+    }
     const escapedScope = window.CSS?.escape ? CSS.escape(scope) : scope.replace(/(["\\])/g, '\\$1');
     document.querySelectorAll(`[data-draft-scope="${escapedScope}"]`).forEach(boundary => {
       setStatus(boundary, 'Saved draft cleared after successful submission.', 'ready');
