@@ -1086,7 +1086,7 @@ public sealed class ClientAccountingTests
     var scope = await SeedAsync(pg);
     var preparer = Actor(scope.Preparer, "AccountingPreparer");
     var reviewer = Actor(scope.Reviewer, "Partner");
-    Guid groupId, consolidationScopeId;
+    Guid groupId, consolidationScopeId, matchId;
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       groupId = (await ConsolidationService.CreateGroupAsync(db, reviewer, new ClientGroupRequest("GROUP-A", "Group A"))).Value;
@@ -1164,6 +1164,17 @@ public sealed class ClientAccountingTests
       Assert.True((await ClientAccountingService.RecordCapabilityAcceptanceAsync(db, Actor(scope.Preparer, "Partner"), capabilityId,
         AccountingCapabilityAcceptanceStages.MethodOwnerApproval, "method-owner-approval-fixture")).Succeeded);
       Assert.True((await ConsolidationService.ApproveScopeAsync(db, reviewer, consolidationScopeId)).Succeeded);
+
+      var missingDifferenceReason = await ConsolidationService.AddIntercompanyMatchAsync(db, preparer,
+        new IntercompanyMatchRequest(consolidationScopeId, scope.ClientA, scope.ClientB,
+          "INTERCOMPANY", "2026", "QAR", "IC-001", 100m, -90m, 90m, "ic-evidence"));
+      Assert.False(missingDifferenceReason.Succeeded);
+      Assert.Equal(ErrorCodes.Accounting.MappingInvalid, missingDifferenceReason.ErrorCode);
+      matchId = (await ConsolidationService.AddIntercompanyMatchAsync(db, preparer,
+        new IntercompanyMatchRequest(consolidationScopeId, scope.ClientA, scope.ClientB,
+          "INTERCOMPANY", "2026", "QAR", "IC-001", 100m, -100m, 100m, "ic-evidence",
+            "CASH", "REVENUE"))).Value;
+      Assert.True((await ConsolidationService.ApproveIntercompanyMatchAsync(db, reviewer, matchId)).Succeeded);
     }
 
     Guid journalId, runId;
@@ -1186,10 +1197,12 @@ public sealed class ClientAccountingTests
       var rebuiltRunId = (await ConsolidationService.RunAsync(db, preparer, consolidationScopeId)).Value;
       Assert.NotEqual(runId, rebuiltRunId);
       Assert.True((await ConsolidationService.ApproveRunAsync(db, reviewer, rebuiltRunId)).Succeeded);
-      Assert.Equal(4, await db.ConsolidationRunLines.CountAsync(x => x.RunId == runId));
+      Assert.Equal(6, await db.ConsolidationRunLines.CountAsync(x => x.RunId == runId));
       Assert.Equal(2, await db.ConsolidationRunLines.CountAsync(x => x.RunId == runId && x.ConsolidationJournalId == journalId));
-      Assert.Equal(6, await db.ConsolidationRunLines.CountAsync(x => x.RunId == rebuiltRunId));
+      Assert.Equal(2, await db.ConsolidationRunLines.CountAsync(x => x.RunId == runId && x.IntercompanyMatchId == matchId));
+      Assert.Equal(8, await db.ConsolidationRunLines.CountAsync(x => x.RunId == rebuiltRunId));
       Assert.Equal(2, await db.ConsolidationRunLines.CountAsync(x => x.RunId == rebuiltRunId && x.ConsolidationJournalId == changedJournalId));
+      Assert.Equal(2, await db.ConsolidationRunLines.CountAsync(x => x.RunId == rebuiltRunId && x.IntercompanyMatchId == matchId));
       Assert.All(await db.ConsolidationComponents.Where(x => x.ScopeVersionId == consolidationScopeId).ToListAsync(), x => Assert.Equal(AccountingWorkflowStates.Approved, x.Status));
 
       var newClientId = Guid.NewGuid();

@@ -28,7 +28,9 @@ public sealed record ConsolidationElimination(
   Guid MatchId,
   string TaxonomyCode,
   decimal Amount,
-  string Currency);
+  string Currency,
+  string Side = "",
+  Guid? IntercompanyMatchId = null);
 
 public sealed record ConsolidatedLine(
   Guid? ComponentId,
@@ -38,7 +40,8 @@ public sealed record ConsolidatedLine(
   decimal EliminationAmount,
   decimal ConsolidatedAmount,
   string Currency,
-  Guid? SourceLineId = null);
+  Guid? SourceLineId = null,
+  string EliminationSide = "");
 
 public sealed record ConsolidationCalculation(
   IReadOnlyList<ConsolidatedLine> Lines,
@@ -102,8 +105,8 @@ public static class ConsolidationCalculator
       throw new InvalidOperationException("Every component balance needs an approved taxonomy code.");
     if (eliminations.Any(x => x.Currency != reportingCurrency || string.IsNullOrWhiteSpace(x.TaxonomyCode)))
       throw new InvalidOperationException("Eliminations must use the scope currency and an approved taxonomy code.");
-    if (eliminations.GroupBy(x => x.MatchId).Any(x => x.Count() > 1))
-      throw new InvalidOperationException("An intercompany match may be applied only once in a run.");
+    if (eliminations.GroupBy(x => x.MatchId).Any(x => x.Count() > 2 || x.Select(y => y.Side).Distinct(StringComparer.Ordinal).Count() != x.Count()))
+      throw new InvalidOperationException("An intercompany match may have at most one seller and one buyer elimination in a run.");
 
     var lines = components
       .OrderBy(x => x.TaxonomyCode, StringComparer.Ordinal)
@@ -115,7 +118,7 @@ public static class ConsolidationCalculator
       .OrderBy(x => x.TaxonomyCode, StringComparer.Ordinal)
       .ThenBy(x => x.MatchId)
       .Select(x => new ConsolidatedLine(null, x.MatchId, x.TaxonomyCode, 0m,
-        MoneyPolicy.Normalize(x.Amount), MoneyPolicy.Normalize(x.Amount), reportingCurrency)));
+        MoneyPolicy.Normalize(x.Amount), MoneyPolicy.Normalize(x.Amount), reportingCurrency, null, x.Side)));
 
     var totals = lines.GroupBy(x => x.TaxonomyCode, StringComparer.Ordinal)
       .Select(group =>
@@ -145,6 +148,7 @@ public static class ConsolidationCalculator
           x.SourceLineId?.ToString("D") ?? string.Empty,
           x.ComponentAmount.ToString("0.000000", CultureInfo.InvariantCulture),
           x.EliminationAmount.ToString("0.000000", CultureInfo.InvariantCulture), x.Currency,
+          x.MatchId?.ToString("D") ?? string.Empty, x.EliminationSide,
           component?.PackageHash ?? string.Empty, component?.PeriodBasis ?? string.Empty,
           component?.TaxonomyVersion ?? string.Empty, component?.MappingVersion ?? string.Empty,
           component?.OriginalCurrency ?? string.Empty, component?.TranslationResultId.ToString("D") ?? string.Empty,

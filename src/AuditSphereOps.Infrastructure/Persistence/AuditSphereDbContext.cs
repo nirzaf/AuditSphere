@@ -1837,6 +1837,8 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
 
     var match = b.Entity<IntercompanyMatch>();
     match.Property(x => x.AccountNature).HasMaxLength(100);
+    match.Property(x => x.SellerTaxonomyCode).HasMaxLength(100);
+    match.Property(x => x.BuyerTaxonomyCode).HasMaxLength(100);
     match.Property(x => x.PeriodCode).HasMaxLength(50);
     match.Property(x => x.Currency).HasMaxLength(3);
     match.Property(x => x.TransactionReference).HasMaxLength(200);
@@ -1846,7 +1848,7 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     match.HasIndex(x => new { x.FirmId, x.ScopeVersionId, x.SellerClientId, x.BuyerClientId, x.TransactionReference }).IsUnique()
       .HasDatabaseName("ux_intercompany_match_identity");
     match.ToTable("intercompany_matches", t => t.HasCheckConstraint("ck_intercompany_match_values",
-      "length(trim(account_nature)) > 0 AND currency ~ '^[A-Z]{3}$'"));
+      "length(trim(account_nature)) > 0 AND length(trim(seller_taxonomy_code)) > 0 AND length(trim(buyer_taxonomy_code)) > 0 AND currency ~ '^[A-Z]{3}$'"));
     match.HasOne<ClientGroup>().WithMany().HasForeignKey(x => new { x.FirmId, x.GroupId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     match.HasOne<ConsolidationScopeVersion>().WithMany().HasForeignKey(x => new { x.FirmId, x.GroupId, x.ScopeVersionId })
@@ -1910,6 +1912,8 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     runLine.HasOne<ConsolidationComponent>().WithMany().HasForeignKey(x => new { x.FirmId, x.GroupId, x.ScopeVersionId, x.ComponentId })
       .HasPrincipalKey(x => new { x.FirmId, x.GroupId, x.ScopeVersionId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     runLine.HasOne<ConsolidationJournal>().WithMany().HasForeignKey(x => new { x.FirmId, x.GroupId, x.ScopeVersionId, x.ConsolidationJournalId })
+      .HasPrincipalKey(x => new { x.FirmId, x.GroupId, x.ScopeVersionId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    runLine.HasOne<IntercompanyMatch>().WithMany().HasForeignKey(x => new { x.FirmId, x.GroupId, x.ScopeVersionId, x.IntercompanyMatchId })
       .HasPrincipalKey(x => new { x.FirmId, x.GroupId, x.ScopeVersionId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     run.HasAlternateKey(x => new { x.FirmId, x.GroupId, x.ScopeVersionId, x.Id }).HasName("ak_consolidation_runs_scope_id");
     component.HasAlternateKey(x => new { x.FirmId, x.GroupId, x.ScopeVersionId, x.Id }).HasName("ak_consolidation_components_scope_id");

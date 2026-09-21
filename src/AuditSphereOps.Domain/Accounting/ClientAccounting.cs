@@ -701,6 +701,8 @@ public sealed class IntercompanyMatch
   public Guid SellerClientId { get; set; }
   public Guid BuyerClientId { get; set; }
   public string AccountNature { get; set; } = string.Empty;
+  public string SellerTaxonomyCode { get; set; } = string.Empty;
+  public string BuyerTaxonomyCode { get; set; } = string.Empty;
   public string PeriodCode { get; set; } = string.Empty;
   public string Currency { get; set; } = string.Empty;
   public string TransactionReference { get; set; } = string.Empty;
@@ -779,6 +781,7 @@ public sealed class ConsolidationRunLine
   public Guid RunId { get; set; }
   public Guid? ComponentId { get; set; }
   public Guid? SourceLineId { get; set; }
+  public Guid? IntercompanyMatchId { get; set; }
   public Guid? ConsolidationJournalId { get; set; }
   public string TaxonomyCode { get; set; } = string.Empty;
   public decimal ComponentAmount { get; set; }
