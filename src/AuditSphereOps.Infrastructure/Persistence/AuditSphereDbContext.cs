@@ -115,6 +115,8 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
   public DbSet<AccountingEvidenceAuditLink> AccountingEvidenceAuditLinks => Set<AccountingEvidenceAuditLink>();
   public DbSet<ConsolidationScopeVersion> ConsolidationScopeVersions => Set<ConsolidationScopeVersion>();
   public DbSet<ConsolidationComponent> ConsolidationComponents => Set<ConsolidationComponent>();
+  public DbSet<ExternalComponentPack> ExternalComponentPacks => Set<ExternalComponentPack>();
+  public DbSet<ExternalComponentPackLine> ExternalComponentPackLines => Set<ExternalComponentPackLine>();
   public DbSet<OwnershipInterestVersion> OwnershipInterestVersions => Set<OwnershipInterestVersion>();
   public DbSet<IntercompanyMatch> IntercompanyMatches => Set<IntercompanyMatch>();
   public DbSet<ConsolidationJournal> ConsolidationJournals => Set<ConsolidationJournal>();
@@ -1899,6 +1901,7 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
 
     var component = b.Entity<ConsolidationComponent>();
     component.Property(x => x.PackageHash).HasMaxLength(64);
+    component.Property(x => x.SourceType).HasMaxLength(30);
     component.Property(x => x.PeriodBasis).HasMaxLength(100);
     component.Property(x => x.TaxonomyVersion).HasMaxLength(100);
     component.Property(x => x.MappingVersion).HasMaxLength(100);
@@ -1907,7 +1910,7 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     component.Property(x => x.Status).HasMaxLength(30);
     component.HasIndex(x => new { x.FirmId, x.ScopeVersionId, x.ClientId }).IsUnique().HasDatabaseName("ux_consolidation_component_client");
     component.ToTable("consolidation_components", t => t.HasCheckConstraint("ck_consolidation_component_values",
-      "package_hash ~ '^[0-9a-f]{64}$' AND currency ~ '^[A-Z]{3}$' AND ownership_percent >= 0 AND ownership_percent <= 100"));
+      "package_hash ~ '^[0-9a-f]{64}$' AND source_type IN ('INTERNAL_PACKAGE','EXTERNAL_PACK') AND ((source_type = 'INTERNAL_PACKAGE' AND package_id IS NOT NULL AND external_component_pack_id IS NULL) OR (source_type = 'EXTERNAL_PACK' AND package_id IS NULL AND external_component_pack_id IS NOT NULL)) AND currency ~ '^[A-Z]{3}$' AND ownership_percent >= 0 AND ownership_percent <= 100"));
     component.HasOne<ClientGroup>().WithMany().HasForeignKey(x => new { x.FirmId, x.GroupId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     component.HasOne<ConsolidationScopeVersion>().WithMany().HasForeignKey(x => new { x.FirmId, x.GroupId, x.ScopeVersionId })
@@ -1916,6 +1919,51 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     component.HasOne<FinancialPackage>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.PackageId })
       .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    component.HasOne<ExternalComponentPack>().WithMany().HasForeignKey(x => new { x.FirmId, x.GroupId, x.ScopeVersionId, x.ExternalComponentPackId })
+      .HasPrincipalKey(x => new { x.FirmId, x.GroupId, x.ScopeVersionId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var externalPack = b.Entity<ExternalComponentPack>();
+    externalPack.HasAlternateKey(x => new { x.FirmId, x.GroupId, x.ScopeVersionId, x.Id }).HasName("ak_external_component_packs_scope_id");
+    externalPack.Property(x => x.PeriodStart).HasMaxLength(10);
+    externalPack.Property(x => x.PeriodEnd).HasMaxLength(10);
+    externalPack.Property(x => x.Framework).HasMaxLength(100);
+    externalPack.Property(x => x.ReportingCurrency).HasMaxLength(3);
+    externalPack.Property(x => x.PeriodBasis).HasMaxLength(100);
+    externalPack.Property(x => x.TaxonomyVersion).HasMaxLength(100);
+    externalPack.Property(x => x.MappingVersion).HasMaxLength(100);
+    externalPack.Property(x => x.SourceReference).HasMaxLength(2000);
+    externalPack.Property(x => x.RawSourceHash).HasMaxLength(64);
+    externalPack.Property(x => x.NormalizedSourceDigest).HasMaxLength(64);
+    externalPack.Property(x => x.PackDigest).HasMaxLength(64);
+    externalPack.Property(x => x.ReconciliationStatus).HasMaxLength(30);
+    externalPack.Property(x => x.ReconciliationReference).HasMaxLength(2000);
+    externalPack.Property(x => x.CompatibilityBridgeStatus).HasMaxLength(30);
+    externalPack.Property(x => x.CompatibilityBridgeReference).HasMaxLength(2000);
+    externalPack.Property(x => x.ReturnReason).HasMaxLength(2000);
+    externalPack.Property(x => x.Status).HasMaxLength(30);
+    externalPack.HasIndex(x => new { x.FirmId, x.ScopeVersionId, x.ClientId, x.Version }).IsUnique()
+      .HasDatabaseName("ux_external_component_pack_version");
+    externalPack.ToTable("external_component_packs", t => t.HasCheckConstraint("ck_external_component_pack_values",
+      "period_start ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' AND period_end ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' AND period_start <= period_end AND framework <> '' AND reporting_currency ~ '^[A-Z]{3}$' AND length(trim(period_basis)) > 0 AND length(trim(taxonomy_version)) > 0 AND length(trim(mapping_version)) > 0 AND length(trim(source_reference)) > 0 AND raw_source_hash ~ '^[0-9a-f]{64}$' AND normalized_source_digest ~ '^[0-9a-f]{64}$' AND pack_digest ~ '^[0-9a-f]{64}$' AND status IN ('SUBMITTED','RESUBMITTED','RETURNED','APPROVED') AND reconciliation_status IN ('PENDING','RECONCILED') AND compatibility_bridge_status IN ('NONE','PENDING','APPROVED') AND (compatibility_bridge_status = 'NONE' OR length(trim(compatibility_bridge_reference)) > 0)"));
+    externalPack.HasOne<ClientGroup>().WithMany().HasForeignKey(x => new { x.FirmId, x.GroupId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    externalPack.HasOne<ConsolidationScopeVersion>().WithMany().HasForeignKey(x => new { x.FirmId, x.GroupId, x.ScopeVersionId })
+      .HasPrincipalKey(x => new { x.FirmId, x.GroupId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    externalPack.HasOne<PracticeClient>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    externalPack.HasOne<ExternalComponentPack>().WithMany().HasForeignKey(x => new { x.FirmId, x.GroupId, x.ScopeVersionId, x.PriorPackId })
+      .HasPrincipalKey(x => new { x.FirmId, x.GroupId, x.ScopeVersionId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var externalPackLine = b.Entity<ExternalComponentPackLine>();
+    externalPackLine.HasAlternateKey(x => new { x.FirmId, x.GroupId, x.ScopeVersionId, x.Id }).HasName("ak_external_component_pack_lines_scope_id");
+    externalPackLine.Property(x => x.TaxonomyCode).HasMaxLength(100);
+    externalPackLine.Property(x => x.Currency).HasMaxLength(3);
+    externalPackLine.Property(x => x.SourceLineReference).HasMaxLength(200);
+    externalPackLine.HasIndex(x => new { x.FirmId, x.ExternalComponentPackId, x.TaxonomyCode }).HasDatabaseName("ix_external_component_pack_line");
+    externalPackLine.ToTable("external_component_pack_lines", t => t.HasCheckConstraint("ck_external_component_pack_line_values",
+      "length(trim(taxonomy_code)) > 0 AND currency ~ '^[A-Z]{3}$' AND length(trim(source_line_reference)) > 0"));
+    externalPackLine.HasOne<ExternalComponentPack>().WithMany().HasForeignKey(x => new { x.FirmId, x.GroupId, x.ScopeVersionId, x.ExternalComponentPackId })
+      .HasPrincipalKey(x => new { x.FirmId, x.GroupId, x.ScopeVersionId, x.Id }).OnDelete(DeleteBehavior.Restrict);
 
     var ownership = b.Entity<OwnershipInterestVersion>();
     ownership.Property(x => x.ControlAssessment).HasMaxLength(100);

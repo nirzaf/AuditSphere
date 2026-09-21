@@ -3,6 +3,7 @@ using System;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AuditSphereDbContext))]
-    partial class AuditSphereDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260921144026_ExternalComponentPackWorkflow")]
+    partial class ExternalComponentPackWorkflow
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -2944,26 +2947,6 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("client_id");
 
-                    b.Property<DateTimeOffset?>("CompatibilityBridgeApprovedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("compatibility_bridge_approved_at");
-
-                    b.Property<Guid?>("CompatibilityBridgeApprovedByUserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("compatibility_bridge_approved_by_user_id");
-
-                    b.Property<string>("CompatibilityBridgeReference")
-                        .IsRequired()
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)")
-                        .HasColumnName("compatibility_bridge_reference");
-
-                    b.Property<string>("CompatibilityBridgeStatus")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)")
-                        .HasColumnName("compatibility_bridge_status");
-
                     b.Property<decimal>("DeclaredSignedTotal")
                         .HasColumnType("numeric(19,6)")
                         .HasColumnName("declared_signed_total");
@@ -3125,7 +3108,7 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.ToTable("external_component_packs", null, t =>
                         {
-                            t.HasCheckConstraint("ck_external_component_pack_values", "period_start ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' AND period_end ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' AND period_start <= period_end AND framework <> '' AND reporting_currency ~ '^[A-Z]{3}$' AND length(trim(period_basis)) > 0 AND length(trim(taxonomy_version)) > 0 AND length(trim(mapping_version)) > 0 AND length(trim(source_reference)) > 0 AND raw_source_hash ~ '^[0-9a-f]{64}$' AND normalized_source_digest ~ '^[0-9a-f]{64}$' AND pack_digest ~ '^[0-9a-f]{64}$' AND status IN ('SUBMITTED','RESUBMITTED','RETURNED','APPROVED') AND reconciliation_status IN ('PENDING','RECONCILED') AND compatibility_bridge_status IN ('NONE','PENDING','APPROVED') AND (compatibility_bridge_status = 'NONE' OR length(trim(compatibility_bridge_reference)) > 0)");
+                            t.HasCheckConstraint("ck_external_component_pack_values", "period_start ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' AND period_end ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' AND period_start <= period_end AND framework <> '' AND reporting_currency ~ '^[A-Z]{3}$' AND length(trim(period_basis)) > 0 AND length(trim(taxonomy_version)) > 0 AND length(trim(mapping_version)) > 0 AND length(trim(source_reference)) > 0 AND raw_source_hash ~ '^[0-9a-f]{64}$' AND normalized_source_digest ~ '^[0-9a-f]{64}$' AND pack_digest ~ '^[0-9a-f]{64}$' AND status IN ('SUBMITTED','RESUBMITTED','RETURNED','APPROVED') AND reconciliation_status IN ('PENDING','RECONCILED')");
                         });
                 });
 

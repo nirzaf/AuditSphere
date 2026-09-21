@@ -566,7 +566,14 @@ public static class RecordsArchiveService
     var scopeIds = scopeVersions.Select(x => x.Id).ToArray();
     var consolidationComponents = typedAccounting is null ? [] : await typedAccounting.ConsolidationComponents.AsNoTracking()
       .Where(x => x.FirmId == archive.FirmId && scopeIds.Contains(x.ScopeVersionId) && x.ClientId == archive.ClientId && x.EngagementId == archive.EngagementId).OrderBy(x => x.Id)
-      .Select(x => new { x.Id, x.GroupId, x.ScopeVersionId, x.ClientId, x.EngagementId, x.PackageId, x.PackageHash, x.PeriodBasis, x.TaxonomyVersion, x.MappingVersion, x.Currency, x.OwnershipPercent, x.ControlMethod, x.Status, x.SubmittedByUserId, x.ApprovedByUserId, x.SubmittedAt, x.ApprovedAt }).ToListAsync(ct);
+      .Select(x => new { x.Id, x.GroupId, x.ScopeVersionId, x.ClientId, x.EngagementId, x.PackageId, x.ExternalComponentPackId, x.SourceType, x.PackageHash, x.PeriodBasis, x.TaxonomyVersion, x.MappingVersion, x.Currency, x.OwnershipPercent, x.ControlMethod, x.Status, x.SubmittedByUserId, x.ApprovedByUserId, x.SubmittedAt, x.ApprovedAt }).ToListAsync(ct);
+    var externalComponentPacks = typedAccounting is null ? [] : await typedAccounting.ExternalComponentPacks.AsNoTracking()
+      .Where(x => x.FirmId == archive.FirmId && scopeIds.Contains(x.ScopeVersionId) && x.ClientId == archive.ClientId && x.EngagementId == archive.EngagementId).OrderBy(x => x.Id)
+      .Select(x => new { x.Id, x.GroupId, x.ScopeVersionId, x.ClientId, x.EngagementId, x.PriorPackId, x.Version, x.PeriodStart, x.PeriodEnd, x.Framework, x.ReportingCurrency, x.PeriodBasis, x.TaxonomyVersion, x.MappingVersion, x.SourceReference, x.RawSourceHash, x.NormalizedSourceDigest, x.PackDigest, x.DeclaredSignedTotal, x.ReconciledSignedTotal, x.ReconciliationStatus, x.ReconciliationReference, x.CompatibilityBridgeStatus, x.CompatibilityBridgeReference, x.CompatibilityBridgeApprovedByUserId, x.CompatibilityBridgeApprovedAt, x.ReturnReason, x.Status, x.SubmittedByUserId, x.ReconciledByUserId, x.ReturnedByUserId, x.ApprovedByUserId, x.SubmittedAt, x.ReconciledAt, x.ReturnedAt, x.ApprovedAt }).ToListAsync(ct);
+    var externalComponentPackIds = externalComponentPacks.Select(x => x.Id).ToArray();
+    var externalComponentPackLines = typedAccounting is null ? [] : await typedAccounting.ExternalComponentPackLines.AsNoTracking()
+      .Where(x => x.FirmId == archive.FirmId && externalComponentPackIds.Contains(x.ExternalComponentPackId)).OrderBy(x => x.Id)
+      .Select(x => new { x.Id, x.GroupId, x.ScopeVersionId, x.ExternalComponentPackId, x.TaxonomyCode, x.Amount, x.Currency, x.SourceLineReference }).ToListAsync(ct);
     var componentIds = consolidationComponents.Select(x => x.Id).ToArray();
     var ownershipInterests = typedAccounting is null ? [] : await typedAccounting.OwnershipInterestVersions.AsNoTracking()
       .Where(x => x.FirmId == archive.FirmId && scopeIds.Contains(x.ScopeVersionId) && (x.ParentClientId == archive.ClientId || x.ChildClientId == archive.ClientId)).OrderBy(x => x.Id)
@@ -818,6 +825,8 @@ public static class RecordsArchiveService
         groupMemberships,
         scopeVersions,
         consolidationComponents,
+        externalComponentPacks,
+        externalComponentPackLines,
         ownershipInterests,
         intercompanyMatches,
         consolidationJournals,

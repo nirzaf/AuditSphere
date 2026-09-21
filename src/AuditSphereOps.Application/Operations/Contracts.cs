@@ -171,6 +171,8 @@ public interface IClientAccountingDbContext : IAuditSphereDbContext
   DbSet<AccountingEvidenceAuditLink> AccountingEvidenceAuditLinks { get; }
   DbSet<ConsolidationScopeVersion> ConsolidationScopeVersions { get; }
   DbSet<ConsolidationComponent> ConsolidationComponents { get; }
+  DbSet<ExternalComponentPack> ExternalComponentPacks { get; }
+  DbSet<ExternalComponentPackLine> ExternalComponentPackLines { get; }
   DbSet<OwnershipInterestVersion> OwnershipInterestVersions { get; }
   DbSet<IntercompanyMatch> IntercompanyMatches { get; }
   DbSet<ConsolidationJournal> ConsolidationJournals { get; }

@@ -47,6 +47,33 @@ public static class IntercompanyMatchModes
   public const string Grouped = "GROUPED";
 }
 
+public static class ConsolidationComponentSources
+{
+  public const string InternalPackage = "INTERNAL_PACKAGE";
+  public const string ExternalPack = "EXTERNAL_PACK";
+}
+
+public static class ExternalComponentPackStates
+{
+  public const string Submitted = "SUBMITTED";
+  public const string Resubmitted = "RESUBMITTED";
+  public const string Returned = "RETURNED";
+  public const string Approved = "APPROVED";
+}
+
+public static class ExternalComponentReconciliationStates
+{
+  public const string Pending = "PENDING";
+  public const string Reconciled = "RECONCILED";
+}
+
+public static class ExternalComponentBridgeStates
+{
+  public const string None = "NONE";
+  public const string Pending = "PENDING";
+  public const string Approved = "APPROVED";
+}
+
 public static class AccountingCapabilityAcceptanceStages
 {
   public const string LocalConstruction = "LOCAL_CONSTRUCTION";
@@ -758,7 +785,9 @@ public sealed class ConsolidationComponent
   public Guid ScopeVersionId { get; set; }
   public Guid ClientId { get; set; }
   public Guid EngagementId { get; set; }
-  public Guid PackageId { get; set; }
+  public Guid? PackageId { get; set; }
+  public Guid? ExternalComponentPackId { get; set; }
+  public string SourceType { get; set; } = ConsolidationComponentSources.InternalPackage;
   public string PackageHash { get; set; } = string.Empty;
   public string PeriodBasis { get; set; } = string.Empty;
   public string TaxonomyVersion { get; set; } = string.Empty;
@@ -771,6 +800,64 @@ public sealed class ConsolidationComponent
   public Guid? ApprovedByUserId { get; set; }
   public DateTimeOffset SubmittedAt { get; set; }
   public DateTimeOffset? ApprovedAt { get; set; }
+}
+
+/// <summary>
+/// Immutable receipt for a component reporting pack prepared outside AuditSphere.
+/// Each resubmission creates a new row linked to the returned predecessor.
+/// </summary>
+public sealed class ExternalComponentPack
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid GroupId { get; set; }
+  public Guid ScopeVersionId { get; set; }
+  public Guid ClientId { get; set; }
+  public Guid EngagementId { get; set; }
+  public Guid? PriorPackId { get; set; }
+  public int Version { get; set; } = 1;
+  public string PeriodStart { get; set; } = string.Empty;
+  public string PeriodEnd { get; set; } = string.Empty;
+  public string Framework { get; set; } = string.Empty;
+  public string ReportingCurrency { get; set; } = AccountingDefaults.DefaultCurrency;
+  public string PeriodBasis { get; set; } = string.Empty;
+  public string TaxonomyVersion { get; set; } = string.Empty;
+  public string MappingVersion { get; set; } = string.Empty;
+  public string SourceReference { get; set; } = string.Empty;
+  public string RawSourceHash { get; set; } = string.Empty;
+  public string NormalizedSourceDigest { get; set; } = string.Empty;
+  public string PackDigest { get; set; } = string.Empty;
+  public decimal DeclaredSignedTotal { get; set; }
+  public decimal ReconciledSignedTotal { get; set; }
+  public string ReconciliationStatus { get; set; } = ExternalComponentReconciliationStates.Pending;
+  public string ReconciliationReference { get; set; } = string.Empty;
+  public string CompatibilityBridgeStatus { get; set; } = ExternalComponentBridgeStates.None;
+  public string CompatibilityBridgeReference { get; set; } = string.Empty;
+  public Guid? CompatibilityBridgeApprovedByUserId { get; set; }
+  public DateTimeOffset? CompatibilityBridgeApprovedAt { get; set; }
+  public string ReturnReason { get; set; } = string.Empty;
+  public string Status { get; set; } = ExternalComponentPackStates.Submitted;
+  public Guid SubmittedByUserId { get; set; }
+  public Guid? ReconciledByUserId { get; set; }
+  public Guid? ReturnedByUserId { get; set; }
+  public Guid? ApprovedByUserId { get; set; }
+  public DateTimeOffset SubmittedAt { get; set; }
+  public DateTimeOffset? ReconciledAt { get; set; }
+  public DateTimeOffset? ReturnedAt { get; set; }
+  public DateTimeOffset? ApprovedAt { get; set; }
+}
+
+public sealed class ExternalComponentPackLine
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid GroupId { get; set; }
+  public Guid ScopeVersionId { get; set; }
+  public Guid ExternalComponentPackId { get; set; }
+  public string TaxonomyCode { get; set; } = string.Empty;
+  public decimal Amount { get; set; }
+  public string Currency { get; set; } = string.Empty;
+  public string SourceLineReference { get; set; } = string.Empty;
 }
 
 public sealed class OwnershipInterestVersion

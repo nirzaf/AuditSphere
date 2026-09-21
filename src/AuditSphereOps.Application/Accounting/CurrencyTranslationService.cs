@@ -177,27 +177,43 @@ public static class CurrencyTranslationService
       .Select(x => (decimal?)x.Rate).SingleOrDefaultAsync(ct) ?? 0m;
     if (rate <= 0m)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "No approved rate exists for the requested date and type.");
-    var package = await db.FinancialPackages.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == component.PackageId &&
-      x.ClientId == component.ClientId && x.EngagementId == component.EngagementId && x.Status == AccountingPackageStates.PackageValidated, ct);
-    if (package is null || package.Currency != component.Currency || package.CalculationHash != component.PackageHash)
-      return CommandResult<Guid>.Fail(ErrorCodes.GenerationStale, "The component package changed; rebuild the translation input.");
+    var package = component.SourceType == ConsolidationComponentSources.InternalPackage && component.PackageId is { } packageId
+      ? await db.FinancialPackages.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == packageId &&
+          x.ClientId == component.ClientId && x.EngagementId == component.EngagementId && x.Status == AccountingPackageStates.PackageValidated, ct)
+      : null;
+    var externalPack = component.SourceType == ConsolidationComponentSources.ExternalPack && component.ExternalComponentPackId is { } externalPackId
+      ? await db.ExternalComponentPacks.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == externalPackId &&
+          x.GroupId == component.GroupId && x.ScopeVersionId == component.ScopeVersionId && x.Status == ExternalComponentPackStates.Approved &&
+          x.ReconciliationStatus == ExternalComponentReconciliationStates.Reconciled, ct)
+      : null;
+    var externalLines = externalPack is null ? new List<ExternalComponentPackLine>() : await db.ExternalComponentPackLines.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&
+      x.GroupId == component.GroupId && x.ScopeVersionId == component.ScopeVersionId && x.ExternalComponentPackId == externalPack.Id).ToListAsync(ct);
+    if ((component.SourceType == ConsolidationComponentSources.InternalPackage &&
+         (package is null || package.Currency != component.Currency || package.CalculationHash != component.PackageHash)) ||
+        (component.SourceType == ConsolidationComponentSources.ExternalPack &&
+         (externalPack is null || externalPack.ReportingCurrency != component.Currency || externalPack.PackDigest != component.PackageHash ||
+          !ConsolidationService.ExternalPackLinesMatch(externalPack, externalLines))))
+      return CommandResult<Guid>.Fail(ErrorCodes.GenerationStale, "The component source changed; rebuild the translation input.");
+    var sourceHash = component.PackageHash;
     var existing = await db.TranslationResults.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId &&
       x.ComponentId == component.Id && x.RateSetVersionId == set.Id && x.TranslationPolicyVersionId == policy.Id, ct);
     if (existing is not null)
     {
-      if (existing.SourcePackageHash == package.CalculationHash && existing.RateDate == rateDate && existing.RateType == normalizedRateType &&
+      if (existing.SourcePackageHash == sourceHash && existing.RateDate == rateDate && existing.RateType == normalizedRateType &&
           existing.AppliedRate == rate)
         return CommandResult<Guid>.Ok(existing.Id);
       return CommandResult<Guid>.Fail(ErrorCodes.GenerationStale, "A different translation input already exists for this component and policy version.");
     }
-    var componentAmount = await db.FinancialPackageLines.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.FinancialPackageId == component.PackageId)
-      .SumAsync(x => x.Amount, ct);
+    var componentAmount = package is not null
+      ? await db.FinancialPackageLines.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.FinancialPackageId == package.Id)
+        .SumAsync(x => x.Amount, ct)
+      : externalLines.Sum(x => x.Amount);
     var translated = CurrencyTranslationCalculator.Translate(componentAmount, component.Currency, scope.ReportingCurrency, rate);
     var result = new TranslationResult
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, GroupId = component.GroupId, ScopeVersionId = component.ScopeVersionId,
       ComponentId = component.Id, RateSetVersionId = set.Id, TranslationPolicyVersionId = policy.Id,
-      SourcePackageHash = package.CalculationHash, RateDate = rateDate, RateType = normalizedRateType, AppliedRate = rate,
+      SourcePackageHash = sourceHash, RateDate = rateDate, RateType = normalizedRateType, AppliedRate = rate,
       FromCurrency = component.Currency, ToCurrency = scope.ReportingCurrency, TranslatedAmount = translated,
       TranslationReserve = 0m, Status = AccountingWorkflowStates.Submitted, CreatedByUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
     };
@@ -225,15 +241,30 @@ public static class CurrencyTranslationService
       x.Id == result.ScopeVersionId && x.GroupId == result.GroupId, ct);
     if (scope is not null && !await ConsolidationScopeGuards.IsCurrentAsync(db, actor.FirmId, scope.GroupId, scope.GroupRevision, ct))
       return CommandResult.Fail(ErrorCodes.GenerationStale, "The group perimeter changed; create a new scope version.");
-    var package = component is null ? null : await db.FinancialPackages.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId &&
-      x.Id == component.PackageId && x.ClientId == component.ClientId && x.EngagementId == component.EngagementId, ct);
+    var package = component is { SourceType: ConsolidationComponentSources.InternalPackage, PackageId: { } packageId }
+      ? await db.FinancialPackages.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId &&
+          x.Id == packageId && x.ClientId == component.ClientId && x.EngagementId == component.EngagementId, ct)
+      : null;
+    var externalPack = component is { SourceType: ConsolidationComponentSources.ExternalPack, ExternalComponentPackId: { } externalPackId }
+      ? await db.ExternalComponentPacks.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId &&
+          x.Id == externalPackId && x.GroupId == result.GroupId && x.ScopeVersionId == result.ScopeVersionId, ct)
+      : null;
+    var externalLines = externalPack is null ? new List<ExternalComponentPackLine>() : await db.ExternalComponentPackLines.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&
+      x.GroupId == result.GroupId && x.ScopeVersionId == result.ScopeVersionId && x.ExternalComponentPackId == externalPack.Id).ToListAsync(ct);
     var set = await db.ExchangeRateSetVersions.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId &&
       x.Id == result.RateSetVersionId && x.Status == AccountingWorkflowStates.Approved, ct);
     var policy = await db.TranslationPolicyVersions.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId &&
       x.Id == result.TranslationPolicyVersionId && x.Status == AccountingWorkflowStates.Approved, ct);
-    if (component is null || scope is null || package is null || set is null || policy is null || scope.Status != AccountingWorkflowStates.Draft ||
-        component.Status != AccountingWorkflowStates.Approved || package.Status != AccountingPackageStates.PackageValidated ||
-        package.CalculationHash != result.SourcePackageHash || package.Currency != result.FromCurrency ||
+    var sourceIsCurrent = component is not null &&
+      ((component.SourceType == ConsolidationComponentSources.InternalPackage && package is not null &&
+        package.Status == AccountingPackageStates.PackageValidated && package.CalculationHash == result.SourcePackageHash &&
+        package.Currency == result.FromCurrency) ||
+       (component.SourceType == ConsolidationComponentSources.ExternalPack && externalPack is not null &&
+        externalPack.Status == ExternalComponentPackStates.Approved && externalPack.ReconciliationStatus == ExternalComponentReconciliationStates.Reconciled &&
+        externalPack.PackDigest == result.SourcePackageHash && externalPack.ReportingCurrency == result.FromCurrency &&
+        ConsolidationService.ExternalPackLinesMatch(externalPack, externalLines)));
+    if (component is null || scope is null || !sourceIsCurrent || set is null || policy is null || scope.Status != AccountingWorkflowStates.Draft ||
+        component.Status != AccountingWorkflowStates.Approved ||
         scope.Method != ConsolidationCalculator.ForeignOperationMethod || scope.ExchangeRateSetVersionId != result.RateSetVersionId ||
         scope.TranslationPolicyVersionId != result.TranslationPolicyVersionId || scope.TranslationRateDate != result.RateDate ||
         scope.TranslationRateType != result.RateType || policy.FunctionalCurrency != result.FromCurrency ||
@@ -245,8 +276,10 @@ public static class CurrencyTranslationService
       .Select(x => (decimal?)x.Rate).SingleOrDefaultAsync(ct);
     if (rate is null || rate.Value != result.AppliedRate.Value)
       return CommandResult.Fail(ErrorCodes.GenerationStale, "The approved rate set no longer contains the recorded rate.");
-    var total = await db.FinancialPackageLines.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.FinancialPackageId == package.Id)
-      .SumAsync(x => x.Amount, ct);
+    var total = package is not null
+      ? await db.FinancialPackageLines.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.FinancialPackageId == package.Id)
+        .SumAsync(x => x.Amount, ct)
+      : externalLines.Sum(x => x.Amount);
     if (CurrencyTranslationCalculator.Translate(total, result.FromCurrency, result.ToCurrency, result.AppliedRate.Value) != result.TranslatedAmount)
       return CommandResult.Fail(ErrorCodes.GenerationStale, "The translation result no longer matches the package lines.");
     result.Status = AccountingWorkflowStates.Approved;
