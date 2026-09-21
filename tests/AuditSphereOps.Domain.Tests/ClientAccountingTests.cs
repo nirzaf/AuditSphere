@@ -332,6 +332,49 @@ public sealed class ClientAccountingTests
 
   [Fact]
   [Trait("Profile", "Database")]
+  public async Task OwnershipInterest_RejectsDuplicateAndCircularHierarchy()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var scope = await SeedAsync(pg);
+    var reviewer = Actor(scope.Reviewer, "Partner");
+    Guid scopeVersionId;
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var groupId = (await ConsolidationService.CreateGroupAsync(db, reviewer,
+        new ClientGroupRequest("OWNERSHIP-1", "Ownership test group"))).Value;
+      Assert.True((await ConsolidationService.AddMembershipAsync(db, reviewer,
+        new GroupMembershipRequest(groupId, scope.ClientA, new DateOnly(2026, 1, 1), null,
+          "CONTROLLED", 100m, 100m, "ownership-a"))).Succeeded);
+      Assert.True((await ConsolidationService.AddMembershipAsync(db, reviewer,
+        new GroupMembershipRequest(groupId, scope.ClientB, new DateOnly(2026, 1, 1), null,
+          "CONTROLLED", 100m, 100m, "ownership-b"))).Succeeded);
+      scopeVersionId = (await ConsolidationService.CreateScopeAsync(db, reviewer,
+        new ConsolidationScopeRequest(groupId, Guid.NewGuid(), "QAR", ConsolidationCalculator.RestrictedMethod,
+          "OPENING-OWNERSHIP-2026"))).Value;
+
+      var first = await ConsolidationService.AddOwnershipInterestAsync(db, reviewer,
+        new OwnershipInterestRequest(scopeVersionId, scope.ClientA, scope.ClientB,
+          new DateOnly(2026, 1, 1), null, 100m, 100m, "CONTROLLED", "DIRECT", "ownership-edge-a-b"));
+      Assert.True(first.Succeeded, first.Message);
+
+      var duplicate = await ConsolidationService.AddOwnershipInterestAsync(db, reviewer,
+        new OwnershipInterestRequest(scopeVersionId, scope.ClientA, scope.ClientB,
+          new DateOnly(2026, 1, 1), null, 100m, 100m, "CONTROLLED", "DIRECT", "ownership-edge-duplicate"));
+      Assert.False(duplicate.Succeeded);
+      Assert.Equal(ErrorCodes.IdempotencyConflict, duplicate.ErrorCode);
+
+      var cycle = await ConsolidationService.AddOwnershipInterestAsync(db, reviewer,
+        new OwnershipInterestRequest(scopeVersionId, scope.ClientB, scope.ClientA,
+          new DateOnly(2026, 1, 1), null, 100m, 100m, "CONTROLLED", "DIRECT", "ownership-edge-b-a"));
+      Assert.False(cycle.Succeeded);
+      Assert.Equal(ErrorCodes.Accounting.MappingInvalid, cycle.ErrorCode);
+      Assert.Equal(1, await db.OwnershipInterestVersions.CountAsync(x => x.ScopeVersionId == scopeVersionId));
+    }
+  }
+
+  [Fact]
+  [Trait("Profile", "Database")]
   public async Task GlImport_RejectsUndefinedClientDimensionValue()
   {
     await using var pg = await PgTestSchema.CreateAsync();
