@@ -150,16 +150,16 @@ else
       var grants = await db.RoleGrants.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
         x.UserId == _actor.UserId && x.RevokedAt == null).Select(x => new { x.ClientId, x.EngagementId }).ToListAsync();
       var firmWide = grants.Any(x => x.ClientId is null && x.EngagementId is null);
-      var grantedClientIds = grants.Where(x => x.ClientId.HasValue).Select(x => x.ClientId!.Value).ToArray();
+      var directClientIds = grants.Where(x => x.ClientId.HasValue && x.EngagementId is null).Select(x => x.ClientId!.Value).ToArray();
       var grantedEngagementIds = grants.Where(x => x.EngagementId.HasValue).Select(x => x.EngagementId!.Value).ToArray();
       var engagementClientIds = grantedEngagementIds.Length == 0 ? [] : await db.Engagements.AsNoTracking()
         .Where(x => x.FirmId == _actor.FirmId && grantedEngagementIds.Contains(x.Id))
         .Select(x => x.PracticeClientId).ToArrayAsync();
-      var clientIds = grantedClientIds.Concat(engagementClientIds).Distinct().ToArray();
-      var scopedEngagementIds = firmWide ? [] : await db.Engagements.AsNoTracking()
-        .Where(x => x.FirmId == _actor.FirmId && (clientIds.Contains(x.PracticeClientId) || grantedEngagementIds.Contains(x.Id)))
+      var clientIds = directClientIds.Concat(engagementClientIds).Distinct().ToArray();
+      var scopedEngagementIds = firmWide ? Array.Empty<Guid>() : await db.Engagements.AsNoTracking()
+        .Where(x => x.FirmId == _actor.FirmId && (directClientIds.Contains(x.PracticeClientId) || grantedEngagementIds.Contains(x.Id)))
         .Select(x => x.Id).ToArrayAsync();
-      _hasScope = firmWide || clientIds.Length > 0;
+      _hasScope = firmWide || directClientIds.Length > 0 || grantedEngagementIds.Length > 0;
       if (!_hasScope) return;
       _metrics = new PortfolioMetrics(
         await db.PracticeClients.CountAsync(x => x.FirmId == _actor.FirmId && (firmWide || clientIds.Contains(x.Id))),
@@ -167,17 +167,19 @@ else
         await db.EngagementHolds.CountAsync(x => x.FirmId == _actor.FirmId && !x.Released && (firmWide || scopedEngagementIds.Contains(x.EngagementId))),
         await db.DurableOperations.CountAsync(x => x.FirmId == _actor.FirmId &&
           (firmWide || (x.ClientId == null && x.EngagementId == null) ||
-           (x.ClientId.HasValue && clientIds.Contains(x.ClientId.Value)) ||
+           (x.ClientId.HasValue && directClientIds.Contains(x.ClientId.Value)) ||
            (x.EngagementId.HasValue && scopedEngagementIds.Contains(x.EngagementId.Value))) &&
           x.Status != Domain.Completion.OperationState.COMPLETED && x.Status != Domain.Completion.OperationState.CANCELLED_WITH_DISPOSITION),
-        await db.ReleaseCandidates.CountAsync(x => x.FirmId == _actor.FirmId && (firmWide || clientIds.Contains(x.ClientId)) && x.Status == ReleaseStates.Ready),
-        await db.Releases.CountAsync(x => x.FirmId == _actor.FirmId && (firmWide || clientIds.Contains(x.ClientId))));
+        await db.ReleaseCandidates.CountAsync(x => x.FirmId == _actor.FirmId &&
+          (firmWide || directClientIds.Contains(x.ClientId) || scopedEngagementIds.Contains(x.EngagementId)) && x.Status == ReleaseStates.Ready),
+        await db.Releases.CountAsync(x => x.FirmId == _actor.FirmId &&
+          (firmWide || directClientIds.Contains(x.ClientId) || scopedEngagementIds.Contains(x.EngagementId))));
       _candidates = await db.ReleaseCandidates.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
-        (firmWide || clientIds.Contains(x.ClientId)))
+        (firmWide || directClientIds.Contains(x.ClientId) || scopedEngagementIds.Contains(x.EngagementId)))
         .OrderByDescending(x => x.CreatedAt).Take(25)
         .Select(x => new CandidateRow(x.Id, x.TargetRevision, x.Status, x.CreatedAt)).ToListAsync();
       _packages = await db.FinancialPackages.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
-        (firmWide || clientIds.Contains(x.ClientId)))
+        (firmWide || directClientIds.Contains(x.ClientId) || scopedEngagementIds.Contains(x.EngagementId)))
         .OrderByDescending(x => x.CreatedAt).Take(25)
         .Select(x => new PackageRow(x.Id, x.Framework, x.PeriodStart, x.PeriodEnd, x.Status)).ToListAsync();
     }
