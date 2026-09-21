@@ -1043,6 +1043,8 @@ public sealed class TranslationResult
   public string FromCurrency { get; set; } = string.Empty;
   public string ToCurrency { get; set; } = string.Empty;
   public decimal TranslatedAmount { get; set; }
+  public decimal ForeignExchangeAdjustment { get; set; }
+  public decimal RoundingAdjustment { get; set; }
   public decimal TranslationReserve { get; set; }
   public string Status { get; set; } = AccountingWorkflowStates.Draft;
   public Guid CreatedByUserId { get; set; }

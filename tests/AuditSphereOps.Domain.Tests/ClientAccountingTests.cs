@@ -1526,6 +1526,32 @@ public sealed class ClientAccountingTests
 
   [Fact]
   [Trait("Profile", "Unit")]
+  public void CurrencyOperations_KeepRemeasurementTranslationAndDisplaySeparate()
+  {
+    var monetary = CurrencyRemeasurementCalculator.Remeasure(100m, "USD", "QAR", true, 3.7m, 3.6m);
+    var nonMonetary = CurrencyRemeasurementCalculator.Remeasure(100m, "USD", "QAR", false, 3.7m, 3.6m);
+    Assert.Equal("CLOSING", monetary.RateBasis);
+    Assert.Equal(370m, monetary.RemeasuredAmount);
+    Assert.Equal("HISTORICAL", nonMonetary.RateBasis);
+    Assert.Equal(360m, nonMonetary.RemeasuredAmount);
+    Assert.Equal(270m, monetary.ForeignExchangeAdjustment);
+
+    var translation = ForeignOperationTranslationCalculator.Translate(
+      openingNetAssets: 100m, closingNetAssets: 130m, currentProfit: 20m,
+      openingRate: 3.6m, closingRate: 3.7m, averageRate: 3.65m,
+      openingTranslationReserve: 5m, functionalCurrency: "USD", presentationCurrency: "QAR");
+    Assert.Equal(360m, translation.OpeningNetAssetsTranslated);
+    Assert.Equal(73m, translation.CurrentProfitTranslated);
+    Assert.Equal(481m, translation.ClosingNetAssetsTranslated);
+    Assert.Equal(48m, translation.TranslationReserveMovement);
+    Assert.Equal(53m, translation.ClosingTranslationReserve);
+    Assert.Equal(0m, translation.RoundingAdjustment);
+
+    Assert.Equal(370m, DisplayCurrencyConversionCalculator.Convert(100m, "USD", "QAR", 3.7m));
+  }
+
+  [Fact]
+  [Trait("Profile", "Unit")]
   public void ConsolidationEliminationKinds_RequireAnEnabledAccountingNature()
   {
     Assert.All(new[]

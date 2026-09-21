@@ -215,12 +215,15 @@ public static class CurrencyTranslationService
         .SumAsync(x => x.Amount, ct)
       : externalLines.Sum(x => x.Amount);
     var translated = CurrencyTranslationCalculator.Translate(componentAmount, component.Currency, scope.ReportingCurrency, rate);
+    var roundingAdjustment = MoneyPolicy.Normalize(translated - componentAmount * rate);
+    var foreignExchangeAdjustment = MoneyPolicy.Normalize(translated - componentAmount - roundingAdjustment);
     var result = new TranslationResult
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, GroupId = component.GroupId, ScopeVersionId = component.ScopeVersionId,
       ComponentId = component.Id, RateSetVersionId = set.Id, TranslationPolicyVersionId = policy.Id,
       SourcePackageHash = sourceHash, RateDate = rateDate, RateType = normalizedRateType, AppliedRate = rate,
       FromCurrency = component.Currency, ToCurrency = scope.ReportingCurrency, TranslatedAmount = translated,
+      ForeignExchangeAdjustment = foreignExchangeAdjustment, RoundingAdjustment = roundingAdjustment,
       TranslationReserve = 0m, Status = AccountingWorkflowStates.Submitted, CreatedByUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
     };
     db.TranslationResults.Add(result);
@@ -286,7 +289,11 @@ public static class CurrencyTranslationService
       ? await db.FinancialPackageLines.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.FinancialPackageId == package.Id)
         .SumAsync(x => x.Amount, ct)
       : externalLines.Sum(x => x.Amount);
-    if (CurrencyTranslationCalculator.Translate(total, result.FromCurrency, result.ToCurrency, result.AppliedRate.Value) != result.TranslatedAmount)
+    var expectedTranslated = CurrencyTranslationCalculator.Translate(total, result.FromCurrency, result.ToCurrency, result.AppliedRate.Value);
+    var expectedRounding = MoneyPolicy.Normalize(expectedTranslated - total * result.AppliedRate.Value);
+    var expectedForeignExchange = MoneyPolicy.Normalize(expectedTranslated - total - expectedRounding);
+    if (expectedTranslated != result.TranslatedAmount || expectedRounding != result.RoundingAdjustment ||
+        expectedForeignExchange != result.ForeignExchangeAdjustment)
       return CommandResult.Fail(ErrorCodes.GenerationStale, "The translation result no longer matches the package lines.");
     result.Status = AccountingWorkflowStates.Approved;
     result.ApprovedByUserId = actor.UserId;

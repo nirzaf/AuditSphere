@@ -608,7 +608,7 @@ public static class RecordsArchiveService
       .Select(x => new { x.Id, x.Code, x.FunctionalCurrency, x.PresentationCurrency, x.ClosingRateRule, x.AverageRateRule, x.HistoricalRateRule, x.Status, x.CreatedByUserId, x.ApprovedByUserId, x.CreatedAt, x.ApprovedAt }).ToListAsync(ct);
     var translationResults = typedAccounting is null ? [] : await typedAccounting.TranslationResults.AsNoTracking()
       .Where(x => x.FirmId == archive.FirmId && scopeIds.Contains(x.ScopeVersionId) && componentIds.Contains(x.ComponentId)).OrderBy(x => x.Id)
-      .Select(x => new { x.Id, x.GroupId, x.ScopeVersionId, x.ComponentId, x.RateSetVersionId, x.TranslationPolicyVersionId, x.SourcePackageHash, x.RateDate, x.RateType, x.AppliedRate, x.FromCurrency, x.ToCurrency, x.TranslatedAmount, x.TranslationReserve, x.Status, x.CreatedByUserId, x.ApprovedByUserId, x.ApprovedAt, x.CreatedAt }).ToListAsync(ct);
+      .Select(x => new { x.Id, x.GroupId, x.ScopeVersionId, x.ComponentId, x.RateSetVersionId, x.TranslationPolicyVersionId, x.SourcePackageHash, x.RateDate, x.RateType, x.AppliedRate, x.FromCurrency, x.ToCurrency, x.TranslatedAmount, x.ForeignExchangeAdjustment, x.RoundingAdjustment, x.TranslationReserve, x.Status, x.CreatedByUserId, x.ApprovedByUserId, x.ApprovedAt, x.CreatedAt }).ToListAsync(ct);
 
     var materiality = await db.MaterialityAssessments.AsNoTracking()
       .Where(x => x.FirmId == archive.FirmId && x.ClientId == archive.ClientId && x.EngagementId == archive.EngagementId)
