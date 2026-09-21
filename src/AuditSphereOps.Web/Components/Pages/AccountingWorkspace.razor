@@ -1,6 +1,7 @@
 @page "/app/accounting"
 @rendermode InteractiveServer
 @using AuditSphereOps.Domain.Accounting
+@using AuditSphereOps.Domain.Documents
 @using AuditSphereOps.Domain.Security
 @inject CurrentActorResolver ActorResolver
 @inject IDbContextFactory<AuditSphereDbContext> DbFactory
@@ -201,10 +202,11 @@ else
 
 @code {
   private sealed record ClientRow(string Name, string Currency, int Periods, string ChartStatus, string ImportStatus);
-  private sealed record PeriodRow(Guid Id, string ClientName, string Engagement, string PeriodCode, string Basis, DateOnly StartDate, DateOnly EndDate,
+  private sealed record PeriodRow(Guid Id, Guid ClientId, string ClientName, string Engagement, string PeriodCode, string Basis, DateOnly StartDate, DateOnly EndDate,
     string Book, string Currency, string Package, Guid? PackageId, Guid? MappingId, string Status, long Revision);
   private sealed record DashboardRow(Guid PeriodId, string ClientName, string PeriodCode, string State, string NextOwner,
     string DueDate, string Href, string Action);
+  private sealed record PbcTask(Guid EngagementId, string OwnerName, string DueDate, string State);
   private ActorContext? _actor;
   private bool _loading = true;
   private bool _authorized;
@@ -265,6 +267,18 @@ else
       var imports = await db.SourceImportBatches.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
         (firmWide || grantedClientIds.Contains(x.ClientId) || scopedEngagementIds.Contains(x.EngagementId))).GroupBy(x => x.ClientId)
         .Select(x => new { ClientId = x.Key, Status = x.OrderByDescending(y => y.CreatedAt).Select(y => y.Status).First() }).ToListAsync();
+      var pbcRequests = await db.PbcRequests.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && x.State != PbcStates.Closed &&
+        (firmWide || grantedClientIds.Contains(x.ClientId) || scopedEngagementIds.Contains(x.EngagementId))).OrderBy(x => x.DueDate).ToListAsync();
+      var pbcOwnerIds = pbcRequests.Select(x => x.FirmOwnerUserId).Distinct().ToArray();
+      var pbcOwners = await db.Users.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && pbcOwnerIds.Contains(x.Id))
+        .ToDictionaryAsync(x => x.Id, x => string.IsNullOrWhiteSpace(x.DisplayName) ? x.Email : x.DisplayName);
+      var pbcByPeriod = pbcRequests.GroupBy(x => PeriodKey(x.ClientId, x.PeriodStart, x.PeriodEnd))
+        .ToDictionary(x => x.Key, x =>
+        {
+          var request = x.First();
+          return new PbcTask(request.EngagementId, pbcOwners.GetValueOrDefault(request.FirmOwnerUserId, "Assigned firm owner"),
+            string.IsNullOrWhiteSpace(request.DueDate) ? "Not recorded" : request.DueDate, request.State);
+        });
       _profileCount = profiles.Count;
       _openPeriodCount = periods.Count(x => x.Status != AccountingWorkflowStates.Closed);
       _sealedImportCount = await db.SourceImportBatches.AsNoTracking().CountAsync(x => x.FirmId == _actor.FirmId && x.Status == "SEALED" &&
@@ -275,7 +289,7 @@ else
         var package = packages.Where(p => p.ClientId == x.ClientId && p.PeriodId == x.Id)
           .OrderByDescending(p => p.CreatedAt).FirstOrDefault();
         return new PeriodRow(
-          x.Id, clients.GetValueOrDefault(x.ClientId)?.LegalName ?? "Scoped client",
+          x.Id, x.ClientId, clients.GetValueOrDefault(x.ClientId)?.LegalName ?? "Scoped client",
           engagements.Where(e => e.PracticeClientId == x.ClientId).OrderByDescending(e => e.CreatedAt).Select(e => e.ServiceRoute).FirstOrDefault() ?? "No engagement",
           x.PeriodCode, x.Basis, x.StartDate, x.EndDate,
           books.FirstOrDefault(b => b.ClientId == x.ClientId && b.PeriodId == x.Id)?.Code ?? "No book",
@@ -283,7 +297,7 @@ else
           package is null ? "NO_PACKAGE" : $"{package.Status} · v{package.Revision}", package?.Id, package?.MappingVersionId,
           x.Status, x.Revision);
       }).ToList();
-      _dashboardRows = _periods.Select(ToDashboardRow).ToList();
+      _dashboardRows = _periods.Select(x => ToDashboardRow(x, pbcByPeriod)).ToList();
       _requiredCount = _dashboardRows.Count(x => x.State == "REQUIRED");
       _completeCount = _dashboardRows.Count(x => x.State == "COMPLETE");
       _staleCount = _dashboardRows.Count(x => x.State == "STALE");
@@ -297,22 +311,29 @@ else
     _loading = false;
   }
 
-  private static DashboardRow ToDashboardRow(PeriodRow row)
+  private static DashboardRow ToDashboardRow(PeriodRow row, IReadOnlyDictionary<string, PbcTask> pbcByPeriod)
   {
+    var pbc = pbcByPeriod.GetValueOrDefault(PeriodKey(row.ClientId, row.StartDate.ToString("yyyy-MM-dd"), row.EndDate.ToString("yyyy-MM-dd")));
     var state = row.Status == AccountingWorkflowStates.Stale ? "STALE"
       : row.Status == AccountingWorkflowStates.Rejected || row.Package.Contains(AccountingWorkflowStates.Rejected, StringComparison.OrdinalIgnoreCase) ? "BLOCKED"
+      : pbc is not null && pbc.State is not (PbcStates.Accepted or PbcStates.Closed) ? "REQUIRED"
       : row.Package.StartsWith(AccountingPackageStates.PackageValidated, StringComparison.Ordinal) ? "COMPLETE"
       : "REQUIRED";
-    var owner = state switch
+    var owner = pbc is not null && pbc.State is not (PbcStates.Accepted or PbcStates.Closed) ? pbc.OwnerName : state switch
     {
       "STALE" or "BLOCKED" => "Engagement manager",
       "COMPLETE" => "No action",
       _ when row.PackageId is null => "Accounting preparer",
       _ => "Accounting reviewer"
     };
-    var href = row.PackageId is { } packageId ? $"/app/accounting/packages/{packageId}"
+    var href = pbc is not null && pbc.State is not (PbcStates.Accepted or PbcStates.Closed) && row.PackageId is null && row.MappingId is null
+      ? $"/app/engagements/{pbc.EngagementId}/pbc"
+      : row.PackageId is { } packageId ? $"/app/accounting/packages/{packageId}"
       : row.MappingId is { } mappingId ? $"/app/accounting/mappings/{mappingId}" : "#period-control";
-    var action = row.PackageId is not null ? "Open package" : row.MappingId is not null ? "Open mapping" : "Open period";
-    return new(row.Id, row.ClientName, row.PeriodCode, state, owner, "Not recorded", href, action);
+    var action = pbc is not null && pbc.State is not (PbcStates.Accepted or PbcStates.Closed) && row.PackageId is null && row.MappingId is null
+      ? "Open PBC request" : row.PackageId is not null ? "Open package" : row.MappingId is not null ? "Open mapping" : "Open period";
+    return new(row.Id, row.ClientName, row.PeriodCode, state, owner, pbc?.DueDate ?? "Not recorded", href, action);
   }
+
+  private static string PeriodKey(Guid clientId, string start, string end) => string.Concat(clientId.ToString("D"), "|", start, "|", end);
 }
