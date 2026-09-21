@@ -6,15 +6,15 @@ This file records observed repository state only. The authoritative build contra
 
 | Item | Observed value |
 |---|---|
-| Source implementation checkpoint | `master@bb891d2` |
-| Remote | `origin/master` includes source checkpoint `bb891d2` |
+| Source implementation checkpoint | `master@9f777e2` |
+| Remote | `origin/master` includes source checkpoint `9f777e2` |
 | SDK | .NET 10; repository solution targets `net10.0` |
 | Database | PostgreSQL 18.6 on loopback port 5433 for development only |
-| Build | `dotnet build src/AuditSphereOps.Web/AuditSphereOps.Web.csproj --no-restore --configuration Release` at `bb891d2` — passed, 0 warnings/errors |
-| Tests | 218/218 passed, 0 skipped against PostgreSQL 18.6 at `bb891d2` |
-| Migrations | 79 applied; latest `20260921204723_AddExchangeRateSetEffectiveRange` |
+| Build | `dotnet build src/AuditSphereOps.Web/AuditSphereOps.Web.csproj --no-restore --configuration Release` at `9f777e2` — passed, 0 warnings/errors |
+| Tests | 218/218 passed, 0 skipped against PostgreSQL 18.6 at `9f777e2` |
+| Migrations | 80 applied; latest `20260921212202_ResolveScheduleControlSource` |
 | Model drift | `dotnet ef migrations has-pending-model-changes` — no changes |
-| Restore drill | `scripts/db/restore-drill.sh` — passed; 79 migrations, accounting/group manifests and release-delivery identities reconciled |
+| Restore drill | `scripts/db/restore-drill.sh` — passed; 80 migrations, accounting/group manifests and release-delivery identities reconciled |
 | Production effects | Disabled locally; no production acceptance claimed |
 
 ## Implemented local capability
@@ -77,6 +77,7 @@ This file records observed repository state only. The authoritative build contra
 - The enabled ECL and inventory valuation profiles have PostgreSQL golden fixtures and boundary coverage: expected loss, NRV/cost valuation, zero-input behavior, unsupported ECL methods and negative inventory inputs are verified without enabling unapproved methods.
 - Bounded GL chunk intake with canonical content digests, transactional batch locking, idempotent retries, contiguous finalization and persisted accepted-count reconciliation.
 - Source-bound GL reconciliations reject a sealed batch whose reporting period or currency differs from the selected period; PostgreSQL regression coverage passes.
+- GL-backed bank-ledger schedules require a sealed, scoped, hash-matching GL import batch with complete selected-account coverage; the persisted GL control total is derived from source lines and caller mismatches fail closed. PostgreSQL regression coverage and migration `20260921212202_ResolveScheduleControlSource` pass.
 - Reconciliation items are bound to the exact source currency, reject future item dates and missing dispositions, normalize accepted currency codes, and retain explicit receivable/payable ageing basis, rule version, bucket, credit treatment and paired settlement evidence; PostgreSQL regression coverage passes.
 - Scoped audit-difference summaries preserve gross absolute totals and signed/net totals by currency, with corrected and unadjusted subtotals so offsetting differences remain visible; PostgreSQL regression coverage passes.
 - Bounded journal-risk analysis returns deterministic, criteria-versioned review indicators for manual, year-end, high-value, reversal and missing-source-origin journals, with scoped source-origin and debit-amount evidence; it does not make an automatic fraud finding.
@@ -90,9 +91,9 @@ This file records observed repository state only. The authoritative build contra
 - Financial-package rendering can be enqueued as a local durable calculation, fenced to the exact package revision, and records the deterministic artifact digest for later byte verification; PostgreSQL regression coverage passes.
 - Financial-package mappings now require the approved taxonomy statement section; package validation records separate statement cross-cast, accounting-equation, equity/profit, comparative-consistency and note-to-face outcomes, and rendered artifacts include adjusted-snapshot, mapping-version and adjustment-plan lineage identifiers. Exact UTF-8 artifact bytes are persisted with framework/template versions and SHA-256 lineage, and package-review decisions reference that artifact; PostgreSQL financial-statement regressions pass.
 - Legacy financial packages retain their original template, calculation-engine version and calculation hash beside newly versioned canonical packages; the zero-adjustment compatibility regression verifies both identities remain readable without mutation.
-- The accounting workspace exposes scoped COA/mapping, adjustment-journal and difference queues with exact-record links, removes the invalid unscoped journal route, and shows a period workflow dashboard with required/complete/stale/blocked counts, role-based next-owner guidance, persisted period-linked work-task or PBC owner/due-date values when available, an existing-PBC handoff link, and an explicit `Not recorded` due-date state when no persisted task/PBC due date exists. Its no-package/no-mapping fallback opens a grant-checked read-only period detail with exact task/PBC handoffs. Release build and the 218-test PostgreSQL suite pass at `bb891d2`.
-- Group consolidation exposes perimeter, component-pack, FX, intercompany and elimination tabs with persisted scope counts/statuses; same-currency and unsupported-method boundaries remain explicit. Release build and the 218-test PostgreSQL suite pass at `bb891d2`.
-- Package-review selection is draft-retained through the shared storage fallback layer and offers a non-mutating preview that separates eligible stages from partner-role blockers; it never records a partial approval. Release build and the 218-test PostgreSQL suite pass at `bb891d2`.
+- The accounting workspace exposes scoped COA/mapping, adjustment-journal and difference queues with exact-record links, removes the invalid unscoped journal route, and shows a period workflow dashboard with required/complete/stale/blocked counts, role-based next-owner guidance, persisted period-linked work-task or PBC owner/due-date values when available, an existing-PBC handoff link, and an explicit `Not recorded` due-date state when no persisted task/PBC due date exists. Its no-package/no-mapping fallback opens a grant-checked read-only period detail with exact task/PBC handoffs. Release build and the 218-test PostgreSQL suite pass at `9f777e2`.
+- Group consolidation exposes perimeter, component-pack, FX, intercompany and elimination tabs with persisted scope counts/statuses; same-currency and unsupported-method boundaries remain explicit. Release build and the 218-test PostgreSQL suite pass at `9f777e2`.
+- Package-review selection is draft-retained through the shared storage fallback layer and offers a non-mutating preview that separates eligible stages from partner-role blockers; it never records a partial approval. Release build and the 218-test PostgreSQL suite pass at `9f777e2`.
 - The PostgreSQL-backed accounting benchmark exercises four clients, 2,000 transactions, 8,000 GL lines, parallel enqueueing, two concurrent durable workers, a 32-line group calculation, six-decimal/high-magnitude amounts and paged reads; one observed run measured enqueue 147.8 ms, worker processing 134.4 ms, first page 43.8 ms and group calculation 3.2 ms.
 - Blazor status surfaces for the implemented workflows, including period restatement and truthful release/package gate state.
 - Shared Blazor form UX covers contextual action/field tooltips derived from labels/placeholders/IDs, required and optional markers, accessible guidance, stable form names/autocomplete metadata, a keyboard skip link, visible focus-visible states, non-disruptive invalid-field status, and localStorage draft autosave/restore across card and standalone forms. Drafts flush on input/change, tab backgrounding, pagehide and beforeunload through one lifecycle handler; generated scopes avoid repeated-heading collisions, including dynamically added cards; checkbox/radio values restore correctly; restored values raise both native input and Blazor binding change events; and autosave includes controls disabled during an in-flight action. When localStorage is blocked or full, sessionStorage is tried before the in-memory page-session fallback, and reduced durability is reported without interrupting the workflow. Server-backed workpaper drafts remain authoritative; browser file bytes and release keys are intentionally excluded from local storage.
@@ -101,7 +102,7 @@ This file records observed repository state only. The authoritative build contra
 - Period roll-forward and restatement selection loads use a generation guard and a visible loading state, lock dependent selectors during the request, and prevent older async responses from replacing a newer client/period selection; the existing draft autosave remains the source of unsaved form resilience.
 - The mapping workbench shows immutable current-vs-prior allocation changes, exact-dataset/chart/taxonomy applicability, and bounded token suggestions for unmapped accounts; candidates remain review-only, ambiguous matches are labeled, and no suggestion mutates allocations.
 - Consolidation automatic matches now require an explicit enabled elimination nature (receivable/payable, revenue/expense, dividend or investment/equity); outside-perimeter reviews remain review-only, approved group-only journals remain distinct, and the selected nature participates in the deterministic run manifest. Unsupported legacy natures fail closed.
-- The loopback restore drill now reconciles accounting package/artifact, consolidation scope/run/line and external component-pack manifests, and fails closed on duplicate release-delivery identities; the current rehearsal restored 79 migrations through `20260921204723_AddExchangeRateSetEffectiveRange`; external checkpoint custody and production RPO/RTO remain separate gates.
+- The loopback restore drill now reconciles accounting package/artifact, consolidation scope/run/line and external component-pack manifests, and fails closed on duplicate release-delivery identities; the current rehearsal restored 80 migrations through `20260921212202_ResolveScheduleControlSource`; external checkpoint custody and production RPO/RTO remain separate gates.
 
 ## Remaining local implementation work
 
@@ -162,7 +163,7 @@ dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infr
 scripts/db/restore-drill.sh
 ```
 
-The restore evidence is written to [`docs/evidence/restore-drill-latest.json`](../evidence/restore-drill-latest.json). The latest rehearsal restored 79 migrations through `20260921204723_AddExchangeRateSetEffectiveRange`, reconciled accounting/group manifests and found zero duplicate release-delivery keys; it is loopback-only and explicitly reports that external checkpoint custody and production RPO/RTO were not run.
+The restore evidence is written to [`docs/evidence/restore-drill-latest.json`](../evidence/restore-drill-latest.json). The latest rehearsal restored 80 migrations through `20260921212202_ResolveScheduleControlSource`, reconciled accounting/group manifests and found zero duplicate release-delivery keys; it is loopback-only and explicitly reports that external checkpoint custody and production RPO/RTO were not run.
 
 ## Resume rule
 
