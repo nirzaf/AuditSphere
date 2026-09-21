@@ -69,13 +69,17 @@ public static class CurrencyTranslationService
     var from = request.FromCurrency.Trim().ToUpperInvariant();
     var to = request.ToCurrency.Trim().ToUpperInvariant();
     var direction = request.Direction.Trim().ToUpperInvariant();
+    var rateType = request.RateType.Trim().ToUpperInvariant();
     if (set.Status != AccountingWorkflowStates.Draft || from.Length != 3 || to.Length != 3 || from == to || request.Rate <= 0m ||
-        string.IsNullOrWhiteSpace(request.RateType) || direction != ExchangeRateDirections.Direct)
+        string.IsNullOrWhiteSpace(rateType) || direction != ExchangeRateDirections.Direct)
       return CommandResult.Fail(ErrorCodes.GateBlocked, "Only positive DIRECT rate-set entries are supported by this profile.");
+    if (await db.ExchangeRates.AnyAsync(x => x.FirmId == actor.FirmId && x.RateSetVersionId == set.Id &&
+        x.FromCurrency == from && x.ToCurrency == to && x.RateDate == request.RateDate && x.RateType == rateType, ct))
+      return CommandResult.Fail(ErrorCodes.IdempotencyConflict, "This rate observation already exists in the rate set.");
     db.ExchangeRates.Add(new ExchangeRate
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, RateSetVersionId = set.Id, FromCurrency = from, ToCurrency = to,
-      RateDate = request.RateDate, RateType = request.RateType.Trim().ToUpperInvariant(), Rate = request.Rate,
+      RateDate = request.RateDate, RateType = rateType, Rate = request.Rate,
       Direction = direction, CreatedAt = DateTimeOffset.UtcNow
     });
     await db.SaveChangesAsync(ct);
@@ -115,6 +119,8 @@ public static class CurrencyTranslationService
     var auth = await FirmAuthAsync(db, actor, ReviewerRoles, ct);
     if (!auth.Succeeded)
       return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+    if (await db.TranslationPolicyVersions.AnyAsync(x => x.FirmId == actor.FirmId && x.Code == request.Code.Trim(), ct))
+      return CommandResult<Guid>.Fail(ErrorCodes.IdempotencyConflict, "The translation policy code already exists.");
     var policy = new TranslationPolicyVersion
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, Code = request.Code.Trim(), FunctionalCurrency = functional,

@@ -1591,9 +1591,17 @@ public sealed class ClientAccountingTests
       Assert.Equal(ErrorCodes.GateBlocked, unsupportedDirection.ErrorCode);
       Assert.True((await CurrencyTranslationService.AddRateAsync(db, reviewer, rateSetId,
         new ExchangeRateInput("USD", "QAR", rateDate, "CLOSING", 3.64m, "DIRECT"))).Succeeded);
+      var duplicateRate = await CurrencyTranslationService.AddRateAsync(db, reviewer, rateSetId,
+        new ExchangeRateInput("USD", "QAR", rateDate, "CLOSING", 3.65m, "DIRECT"));
+      Assert.False(duplicateRate.Succeeded);
+      Assert.Equal(ErrorCodes.IdempotencyConflict, duplicateRate.ErrorCode);
       Assert.True((await CurrencyTranslationService.ApproveRateSetAsync(db, methodOwner, rateSetId)).Succeeded);
       policyId = (await CurrencyTranslationService.CreatePolicyAsync(db, reviewer,
         new TranslationPolicyRequest("FX-POLICY-2026", "USD", "QAR", "CLOSING", "AVERAGE", "HISTORICAL"))).Value;
+      var duplicatePolicy = await CurrencyTranslationService.CreatePolicyAsync(db, reviewer,
+        new TranslationPolicyRequest("FX-POLICY-2026", "USD", "QAR", "CLOSING", "AVERAGE", "HISTORICAL"));
+      Assert.False(duplicatePolicy.Succeeded);
+      Assert.Equal(ErrorCodes.IdempotencyConflict, duplicatePolicy.ErrorCode);
       Assert.True((await CurrencyTranslationService.ApprovePolicyAsync(db, methodOwner, policyId)).Succeeded);
 
       consolidationScopeId = (await ConsolidationService.CreateScopeAsync(db, reviewer,
