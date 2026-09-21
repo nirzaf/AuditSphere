@@ -6,8 +6,8 @@ This file records observed repository state only. The authoritative build contra
 
 | Item | Observed value |
 |---|---|
-| Source implementation checkpoint | `master@d82e65b` |
-| Remote | `origin/master` includes source checkpoint `d82e65b` and the current documentation checkpoint |
+| Source implementation checkpoint | `master@0c6025c` |
+| Remote | `origin/master` includes source checkpoint `0c6025c` and the current documentation checkpoint |
 | SDK | .NET 10; repository solution targets `net10.0` |
 | Database | PostgreSQL 18.6 on loopback port 5433 for development only |
 | Build | `dotnet build AuditSphereOps.slnx --no-restore --configuration Release` — passed, 0 warnings/errors |
@@ -46,6 +46,7 @@ This file records observed repository state only. The authoritative build contra
 - Source-bound GL reconciliations reject a sealed batch whose reporting period or currency differs from the selected period; PostgreSQL regression coverage passes.
 - Reconciliation items are bound to the exact source currency, reject future item dates and missing dispositions, normalize accepted currency codes, and preserve as-of ageing; PostgreSQL regression coverage passes.
 - GL completeness calculation can be enqueued as a local durable operation, with sealed-source revision fencing, operation completion lineage and repeat-enqueue idempotency; PostgreSQL regression coverage passes.
+- Financial-package builds can be enqueued as local durable calculations, fenced to the approved mapping revision and finalized plan, committed atomically with operation completion, and re-enqueued idempotently; PostgreSQL regression coverage passes.
 - Blazor status surfaces for the implemented workflows, including period restatement and truthful release/package gate state.
 
 ## Remaining local implementation work
@@ -69,7 +70,8 @@ These are product gaps, not claims of production readiness:
 - [x] Bind GL reconciliation sources to the selected reporting period and currency; reject cross-period or cross-currency batches.
 - [x] Bind reconciliation items to the selected source currency; reject future dates and missing dispositions while preserving as-of ageing.
 - [x] Route GL completeness calculation through the existing durable operation infrastructure with source revision fencing and idempotent retries.
-- [ ] Route remaining long-running accounting calculations/rendering through the existing durable operation infrastructure and benchmark representative workloads before production acceptance.
+- [x] Route financial-package builds through the existing durable operation infrastructure with mapping/plan fencing and idempotent retries.
+- [ ] Route remaining long-running accounting rendering through the existing durable operation infrastructure and benchmark representative workloads before production acceptance.
 - [x] Re-run focused tests, full tests, build, migration drift and restore drill for the current coherent slice; repeat this checklist for the next slice.
 
 ## External acceptance gates
