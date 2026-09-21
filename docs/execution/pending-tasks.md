@@ -3,7 +3,7 @@
 **Repository:** `nirzaf/AuditSphere`
 **Authoritative specification:** [`docs/SPECIFICATION.md`](../SPECIFICATION.md) v5.0
 **Requirements backlog:** [`docs/requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md`](../requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md)
-**Source implementation checkpoint:** `master@aef442f`
+**Source implementation checkpoint:** `master@7f533b6`
 
 This is a resume checklist, not an acceptance certificate. Tenant identifiers, credentials, tokens, secret values, and private-provider URLs are deliberately absent from the public repository.
 
@@ -21,6 +21,7 @@ This is a resume checklist, not an acceptance certificate. Tenant identifiers, c
 ## Local accounting and workflow follow-up
 
 - [x] Client accounting profiles, periods, books, COA mappings and versioned TB profiles.
+- [x] Capability profiles enforce supported service kinds and matching client/group scopes.
 - [x] Atomic multi-entity TB batches, typed GL imports and bounded completeness bridges.
 - [x] TB CSV/XLSX imports persist the selected reporting period, optional book and basis and reject mismatched context at import, completeness and reconciliation boundaries.
 - [x] Reconciliation, ECL, inventory, specialist, analytical and journal-risk workbenches.
