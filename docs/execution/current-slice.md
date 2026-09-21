@@ -6,8 +6,8 @@ This file records observed repository state only. The authoritative build contra
 
 | Item | Observed value |
 |---|---|
-| Source implementation checkpoint | `master@f43f653` |
-| Remote | `origin/master` includes source checkpoint `f43f653` and the current documentation checkpoint |
+| Source implementation checkpoint | `master@91ce96b` |
+| Remote | `origin/master` includes source checkpoint `91ce96b` and the current documentation checkpoint |
 | SDK | .NET 10; repository solution targets `net10.0` |
 | Database | PostgreSQL 18.6 on loopback port 5433 for development only |
 | Build | `dotnet build AuditSphereOps.slnx --no-restore --configuration Release` — passed, 0 warnings/errors |
@@ -29,6 +29,7 @@ This file records observed repository state only. The authoritative build contra
 - Consolidation run manifests include component package hashes; approval recomputes current package, intercompany and group-journal inputs and blocks stale runs until a new run is built.
 - The bounded foreign-operation profile pins an approved rate set and translation policy to the scope, requires maker/checker approval for each foreign component translation, preserves per-line source/FX lineage in the deterministic manifest, and blocks missing or stale rates/packages. Full FX remeasurement/reserve, NCI, acquisition, ownership-change, nested-group and complex-elimination methods remain disabled pending approved method-specific fixtures.
 - Group membership changes advance a durable group revision; consolidation scopes pin that revision and reject approval/calculation after a perimeter change while preserving historical memberships, scopes and runs.
+- Component, translation, intercompany-match and group-journal commands recheck the pinned group revision and fail closed instead of writing stale-scope evidence after a perimeter change.
 - Structured records exports preserve the related group perimeter, membership, scope, component, ownership/intercompany, consolidation journal/run, exchange-rate and translation lineage without copying unrelated client workpapers.
 - Approved-prior-scope group roll-forward preserves the exact prior run hash, approved FX lineage hash/reserve and recurring-elimination manifest; prior journals are lineage only and are not auto-applied.
 - Accounting evidence links are typed, scope-checked and bound to reviewed audit procedure results; the staff evidence queue exposes only the actor's explicit client scope, and records export preserves typed accounting lineage.
@@ -60,6 +61,7 @@ These are product gaps, not claims of production readiness:
 - [x] Add the accounting dashboard and cross-workflow navigation for accounting, roll-forward and release handoffs.
 - [x] Include accounting/group dependencies in structured records exports while retaining the existing records-profile and legal-hold gates.
 - [x] Carry approved group opening consolidation lineage across scope versions without duplicating prior journals.
+- [x] Reject component, translation, intercompany-match and group-journal writes against a changed group revision.
 - [x] Re-run focused tests, full tests, build, migration drift and restore drill for the current coherent slice; repeat this checklist for the next slice.
 
 ## External acceptance gates
