@@ -3,7 +3,7 @@
 **Repository:** `nirzaf/AuditSphere`
 **Authoritative specification:** [`docs/SPECIFICATION.md`](../SPECIFICATION.md) v5.0
 **Requirements backlog:** [`docs/requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md`](../requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md)
-**Source implementation checkpoint:** `master@91ce96b`
+**Source implementation checkpoint:** `master@9156b00`
 
 This is a resume checklist, not an acceptance certificate. Tenant identifiers, credentials, tokens, secret values, and private-provider URLs are deliberately absent from the public repository.
 
@@ -34,6 +34,7 @@ This is a resume checklist, not an acceptance certificate. Tenant identifiers, c
 - [x] Preserve group perimeter, consolidation, exchange-rate and translation dependencies in structured records exports.
 - [x] Carry approved group opening run, FX and recurring-elimination lineage to a new scope without auto-applying prior journals.
 - [x] Add the bounded approved foreign-operation translation profile with pinned rate/policy inputs, maker/checker review, source/FX lineage and stale-input blocking.
+- [x] Reject unsupported FX rate directions in the enabled bounded translation profile.
 - [x] Add bounded, resumable GL chunk intake with canonical digest, idempotent retry and contiguous finalization.
 - [x] Add a client-safe validated-package view and signed-in management acknowledgement route with cross-client denial coverage.
 - [x] Add an authorized staff package-review queue with exact-version stage status and direct package handoff.
