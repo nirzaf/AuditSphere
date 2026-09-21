@@ -45,15 +45,18 @@ label, .form-group { display: grid; gap: .35rem; }
 fieldset { border: 1px solid #d8e0e7; border-radius: .45rem; padding: 1rem; }
 legend { padding: 0 .35rem; font-weight: 700; }
 .field-label { font-weight: 650; }
+.required-label { font-weight: 650; }
 .required-label::after { content: " *"; color: #b91c1c; }
 .optional-label::after { content: " (optional)"; color: #5b6b7a; font-weight: 400; }
 .field-help { margin: 0; color: #5b6b7a; font-size: .88rem; line-height: 1.4; }
 input:focus, select:focus, textarea:focus, button:focus-visible, a:focus-visible { outline: 3px solid #f59e0b; outline-offset: 2px; }
 input:focus:invalid, select:focus:invalid, textarea:focus:invalid { border-color: #b91c1c; }
-[data-tooltip], button[title], a[title] { cursor: help; }
+[aria-invalid="true"] { border-color: #b91c1c; }
+[data-tooltip] { cursor: help; }
+button[title], a[title] { cursor: pointer; }
 .draft-status { color: #5b6b7a; font-size: .85rem; margin: .75rem 0 0; min-height: 1.25rem; }
 .draft-status[data-draft-state="saved"], .draft-status[data-draft-state="restored"] { color: #166534; }
-.draft-status[data-draft-state="unavailable"] { color: #991b1b; }
+.draft-status[data-draft-state="unavailable"], .draft-status[data-draft-state="invalid"] { color: #991b1b; }
 .check { display: flex; gap: .6rem; align-items: flex-start; margin: 1rem 0; }
 .command-result { margin-top: 1rem; font-weight: 700; }
 .notice-text, .info-text, .empty-state { color: #44515d; line-height: 1.5; }

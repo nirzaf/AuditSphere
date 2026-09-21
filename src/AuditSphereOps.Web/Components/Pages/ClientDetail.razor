@@ -122,7 +122,7 @@ else
     @if (_canManageContacts)
     {
       <h3 style="margin-top: 1.5rem;">Add client contact</h3>
-      <form @onsubmit="CreateContactAsync" style="display: grid; gap: 0.75rem; max-width: 28rem;">
+      <form @onsubmit="CreateContactAsync" @onsubmit:preventDefault="true" style="display: grid; gap: 0.75rem; max-width: 28rem;">
         <label>
           Full name
           <input class="input" @bind="_contactName" placeholder="e.g. Alex Morgan" required disabled="@_busy" />

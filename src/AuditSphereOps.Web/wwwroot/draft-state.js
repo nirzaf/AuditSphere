@@ -3,10 +3,17 @@
   const wired = new WeakSet();
   const timers = new WeakMap();
   const restoring = new WeakSet();
+  const dirtyControls = new WeakSet();
+  let guidanceSequence = 0;
 
   const keyFor = boundary => `auditsphere:draft:v1:${encodeURIComponent(boundary.dataset.draftScope)}`;
-  const controlsFor = boundary => [...boundary.querySelectorAll('[data-draft-field]')]
-    .filter(control => !control.disabled && control.type !== 'file' && control.type !== 'password' && !control.dataset.draftSkip);
+  const controlsFor = (boundary, includeDisabled = false) => [...boundary.querySelectorAll('input, select, textarea')]
+    .filter(control =>
+      control.dataset.draftField &&
+      (includeDisabled || !control.disabled) &&
+      control.type !== 'file' &&
+      control.type !== 'password' &&
+      !control.dataset.draftSkip);
 
   function statusFor(boundary) {
     let status = boundary.querySelector('[data-draft-status]');
@@ -75,7 +82,8 @@
     try { draft = JSON.parse(raw); } catch { return; }
     restoring.add(boundary);
     let unresolved = false;
-    for (const control of controlsFor(boundary)) {
+    for (const control of controlsFor(boundary, true)) {
+      if (dirtyControls.has(control)) continue;
       const field = control.dataset.draftField;
       if (!(field in (draft.fields || {}))) continue;
       const value = draft.fields[field];
@@ -92,11 +100,22 @@
     if (wired.has(boundary) || !boundary.dataset.draftScope) return;
     wired.add(boundary);
     restore(boundary);
-    const listen = () => {
+    const listen = event => {
+      const control = event.target?.closest?.('input, select, textarea');
+      if (control && !restoring.has(boundary)) dirtyControls.add(control);
       if (!restoring.has(boundary)) scheduleSave(boundary);
     };
     boundary.addEventListener('input', listen);
     boundary.addEventListener('change', listen);
+    boundary.addEventListener('invalid', event => {
+      const control = event.target?.closest?.('input, select, textarea');
+      if (control) control.setAttribute('aria-invalid', 'true');
+      setStatus(boundary, 'Complete the required fields before continuing.', 'invalid');
+    }, true);
+    boundary.addEventListener('input', event => {
+      const control = event.target?.closest?.('input, select, textarea');
+      if (control?.validity?.valid) control.removeAttribute('aria-invalid');
+    });
     window.addEventListener('beforeunload', () => {
       clearTimeout(timers.get(boundary));
       save(boundary);
@@ -112,13 +131,26 @@
 
   function addTooltips(container) {
     container.querySelectorAll?.('button:not([title]), a.button:not([title]), a[class*="btn-"]:not([title])').forEach(button => {
-      const text = button.textContent.replace(/\s+/g, ' ').trim();
+      const text = (button.dataset.tooltip || button.getAttribute('aria-label') || button.textContent || '').replace(/\s+/g, ' ').trim();
       if (text) button.title = `Activate to ${text.toLowerCase()}.`;
     });
   }
 
   function discover(container) {
-    const boundaries = [...(container.matches?.('.card') ? [container] : []), ...(container.querySelectorAll?.('.card') || [])];
+    const candidates = [
+      ...(container.matches?.('[data-draft-scope], .card') ? [container] : []),
+      ...(container.querySelectorAll?.('[data-draft-scope], .card') || []),
+      ...(container.querySelectorAll?.('form:not(.card)') || [])
+    ];
+    const candidateSet = new Set(candidates);
+    const boundaries = [...new Set(candidates)].filter(boundary => {
+      let parent = boundary.parentElement;
+      while (parent) {
+        if (candidateSet.has(parent)) return false;
+        parent = parent.parentElement;
+      }
+      return true;
+    });
     boundaries.forEach((boundary, boundaryIndex) => {
       const controls = [...boundary.querySelectorAll('input, select, textarea')];
       if (!controls.length) return;
@@ -127,28 +159,45 @@
           boundary.querySelector('h2, h3, legend')?.textContent?.trim() || `card-${boundaryIndex}`;
         boundary.dataset.draftScope = `${location.pathname}:${identifier}`;
       }
-      controls.forEach((control, index) => {
-        if (!control.dataset.draftField && control.type !== 'file') {
-          control.dataset.draftField = control.name || control.id || `${control.tagName.toLowerCase()}-${index}`;
-        }
-        const label = control.closest('label') || (control.id && boundary.querySelector(`label[for="${CSS.escape(control.id)}"]`));
-        if (label) {
-          const text = label.textContent.replace(/\s+/g, ' ').trim();
-          if (!control.title) control.title = text;
-          if (control.required || control.dataset.required === 'true') label.classList.add('required-label');
-          if (control.dataset.optional === 'true' && !/\(optional\)/i.test(text)) label.classList.add('optional-label');
-        }
-      });
-      if (!boundary.querySelector('[data-draft-guidance]')) {
-        const guidance = document.createElement('p');
+      let guidance = boundary.querySelector('[data-draft-guidance]');
+      if (!guidance) {
+        guidance = document.createElement('p');
         guidance.className = 'field-help';
         guidance.dataset.draftGuidance = '';
+        guidance.id = `draft-guidance-${++guidanceSequence}`;
         guidance.textContent = 'Fields marked * are required. Fields marked optional can be left blank.';
-        const firstControl = boundary.querySelector('input, select, textarea');
+        const firstControl = controls[0];
         const firstField = firstControl?.closest('.field, .form-group, label');
         if (firstField) firstField.before(guidance);
         else boundary.prepend(guidance);
       }
+      controls.forEach((control, index) => {
+        if (!control.dataset.draftField && control.type !== 'file') {
+          control.dataset.draftField = control.name || control.id || `${control.tagName.toLowerCase()}-${index}`;
+        }
+        const label = control.labels?.[0] || control.closest('label');
+        if (label) {
+          const text = label.textContent.replace(/\s+/g, ' ').replace(/\(optional\)/ig, '').replace(/\*/g, '').trim();
+          if (!control.title && text) {
+            const action = control.tagName === 'SELECT' ? 'Choose' :
+              control.type === 'checkbox' || control.type === 'radio' ? 'Set' :
+              control.readOnly ? 'View' : 'Enter';
+            control.title = `${action} ${text.replace(/:$/, '')}.`;
+          }
+          if (control.required || control.dataset.required === 'true') {
+            label.classList.add('required-label');
+            control.setAttribute('aria-required', 'true');
+          }
+          if (control.dataset.optional === 'true' || /\boptional\b/i.test(label.textContent)) {
+            label.classList.add('optional-label');
+          }
+        }
+        if (guidance.id) {
+          const describedBy = new Set((control.getAttribute('aria-describedby') || '').split(/\s+/).filter(Boolean));
+          describedBy.add(guidance.id);
+          control.setAttribute('aria-describedby', [...describedBy].join(' '));
+        }
+      });
     });
   }
 
