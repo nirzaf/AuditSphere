@@ -6,12 +6,12 @@ This file records observed repository state only. The authoritative build contra
 
 | Item | Observed value |
 |---|---|
-| Source implementation checkpoint | `master@ea2a685` |
-| Remote | `origin/master` includes source checkpoint `ea2a685` |
+| Source implementation checkpoint | `master@ad6addb` |
+| Remote | `origin/master` includes source checkpoint `ad6addb` |
 | SDK | .NET 10; repository solution targets `net10.0` |
 | Database | PostgreSQL 18.6 on loopback port 5433 for development only |
-| Build | `dotnet build src/AuditSphereOps.Web/AuditSphereOps.Web.csproj --no-restore --configuration Release` at `ea2a685` — passed, 0 warnings/errors |
-| Tests | 215/215 passed, 0 skipped against PostgreSQL 18.6 at `ea2a685` |
+| Build | `dotnet build src/AuditSphereOps.Web/AuditSphereOps.Web.csproj --no-restore --configuration Release` at `ad6addb` — passed, 0 warnings/errors |
+| Tests | 215/215 passed, 0 skipped against PostgreSQL 18.6 at `ad6addb` |
 | Migrations | 75 applied; latest `20260921150321_BindMappingsToClientCharts` |
 | Model drift | `dotnet ef migrations has-pending-model-changes` — no changes |
 | Restore drill | `scripts/db/restore-drill.sh` — passed; 75 migrations, accounting/group manifests and release-delivery identities reconciled |
@@ -84,6 +84,7 @@ This file records observed repository state only. The authoritative build contra
 - Context-bound adjustment journals inherit and persist the validated source dataset's period, book, basis and currency, reject a book from another period, and preserve that reporting context through management decisions, posting, reversal and source-reflection lineage; PostgreSQL regression coverage passes.
 - Financial-package rendering can be enqueued as a local durable calculation, fenced to the exact package revision, and records the deterministic artifact digest for later byte verification; PostgreSQL regression coverage passes.
 - Financial-package mappings now require the approved taxonomy statement section; package validation records separate statement cross-cast, accounting-equation, equity/profit, comparative-consistency and note-to-face outcomes, and rendered artifacts include adjusted-snapshot, mapping-version and adjustment-plan lineage identifiers. Exact UTF-8 artifact bytes are persisted with framework/template versions and SHA-256 lineage, and package-review decisions reference that artifact; PostgreSQL financial-statement regressions pass.
+- Legacy financial packages retain their original template, calculation-engine version and calculation hash beside newly versioned canonical packages; the zero-adjustment compatibility regression verifies both identities remain readable without mutation.
 - The PostgreSQL-backed accounting benchmark exercises four clients, 2,000 transactions, 8,000 GL lines, parallel enqueueing, two concurrent durable workers, a 32-line group calculation, six-decimal/high-magnitude amounts and paged reads; one observed run measured enqueue 147.8 ms, worker processing 134.4 ms, first page 43.8 ms and group calculation 3.2 ms.
 - Blazor status surfaces for the implemented workflows, including period restatement and truthful release/package gate state.
 - Shared Blazor form UX covers contextual action/field tooltips derived from labels/placeholders/IDs, required and optional markers, accessible guidance, non-disruptive invalid-field status, and localStorage draft autosave/restore across card and standalone forms. Drafts flush on input/change, tab backgrounding, pagehide and beforeunload through one lifecycle handler; generated scopes avoid repeated-heading collisions, including dynamically added cards; checkbox/radio values restore correctly; restored values raise both native input and Blazor binding change events; and autosave includes controls disabled during an in-flight action. When localStorage is blocked or full, sessionStorage is tried before the in-memory page-session fallback, and reduced durability is reported without interrupting the workflow. Server-backed workpaper drafts remain authoritative; browser file bytes and release keys are intentionally excluded from local storage.
