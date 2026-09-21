@@ -27,6 +27,9 @@ h2 { margin-top: 0; }
 .button:hover, .button:focus { background: #0c4a6e; }
 button:disabled { opacity: .55; cursor: not-allowed; }
 .scope-note, .muted { color: #5b6b7a; }
+.accounting-tabs { display: flex; flex-wrap: wrap; gap: .35rem; margin: -0.5rem 0 1.25rem; padding-bottom: .75rem; border-bottom: 1px solid #d8e0e7; }
+.accounting-tabs a { padding: .45rem .65rem; border-radius: .3rem; color: #123047; text-decoration: none; font-weight: 650; }
+.accounting-tabs a:hover, .accounting-tabs a:focus, .accounting-tabs a.active { background: #d1e4ef; color: #075985; }
 .table-wrap { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; }
 th, td { text-align: left; padding: .7rem; border-bottom: 1px solid #e1e7eb; vertical-align: top; }
