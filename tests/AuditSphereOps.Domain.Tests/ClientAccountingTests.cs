@@ -475,6 +475,10 @@ public sealed class ClientAccountingTests
     Assert.True((await ClientAccountingService.PublishTaxonomyVersionAsync(db, preparerReviewer, taxonomyId)).Succeeded);
     var overlayId = (await ClientAccountingService.CreateTaxonomyOverlayAsync(db, reviewer,
       new TaxonomyOverlayRequest(taxonomyId, "TAX-2026-RETAIL", "Retail overlay", "INDUSTRY:RETAIL", new DateOnly(2026, 1, 1)))).Value;
+    var clientScopedOverlay = await ClientAccountingService.CreateTaxonomyOverlayAsync(db, reviewer,
+      new TaxonomyOverlayRequest(taxonomyId, "TAX-2026-CLIENT", "Client overlay", $"CLIENT:{scope.ClientA}", new DateOnly(2026, 1, 1)));
+    Assert.False(clientScopedOverlay.Succeeded);
+    Assert.Equal(ErrorCodes.Accounting.MappingInvalid, clientScopedOverlay.ErrorCode);
     Assert.True((await ClientAccountingService.AddTaxonomyNodesAsync(db, reviewer, overlayId,
       [new("RETAIL_REVENUE", "Retail revenue", "SPL", "+", "CREDIT", "REVENUE", true, "INDUSTRY:RETAIL")])).Succeeded);
     var impact = await ClientAccountingService.GetTaxonomyPublishImpactAsync(db, reviewer, overlayId);
