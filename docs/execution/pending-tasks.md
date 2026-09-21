@@ -3,7 +3,7 @@
 **Repository:** `nirzaf/AuditSphere`
 **Authoritative specification:** [`docs/SPECIFICATION.md`](../SPECIFICATION.md) v5.0
 **Requirements backlog:** [`docs/requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md`](../requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md)
-**Source implementation checkpoint:** `master@413b831`
+**Source implementation checkpoint:** `master@f43f653`
 
 This is a resume checklist, not an acceptance certificate. Tenant identifiers, credentials, tokens, secret values, and private-provider URLs are deliberately absent from the public repository.
 
@@ -12,7 +12,7 @@ This is a resume checklist, not an acceptance certificate. Tenant identifiers, c
 - [x] .NET 10 solution builds with zero warnings/errors.
 - [x] PostgreSQL 18.6 development profile is used on loopback port 5433.
 - [x] 198/198 PostgreSQL-backed tests pass with 0 skipped.
-- [x] 54 migrations are applied; latest is `20260921004233_PinGroupRevisionToConsolidationScope`.
+- [x] 55 migrations are applied; latest is `20260921011913_AddConsolidationRollForwardLineage`.
 - [x] EF model has no pending migration changes.
 - [x] Loopback restore drill passes and writes secret-free evidence to `docs/evidence/restore-drill-latest.json`.
 - [x] Generated Graphify output and local agent state are ignored and removed from Git tracking.
@@ -31,6 +31,7 @@ This is a resume checklist, not an acceptance certificate. Tenant identifiers, c
 - [x] Recompute consolidation inputs at run approval and require a new run when a component, match or group journal changes.
 - [x] Pin each consolidation scope to the group-membership revision and reject approval/calculation after a perimeter change without rewriting historical scopes or runs.
 - [x] Preserve group perimeter, consolidation, exchange-rate and translation dependencies in structured records exports.
+- [x] Carry approved group opening run, FX and recurring-elimination lineage to a new scope without auto-applying prior journals.
 - [x] Add the bounded approved foreign-operation translation profile with pinned rate/policy inputs, maker/checker review, source/FX lineage and stale-input blocking.
 - [x] Add bounded, resumable GL chunk intake with canonical digest, idempotent retry and contiguous finalization.
 - [x] Add a client-safe validated-package view and signed-in management acknowledgement route with cross-client denial coverage.

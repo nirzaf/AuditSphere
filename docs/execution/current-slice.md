@@ -6,15 +6,15 @@ This file records observed repository state only. The authoritative build contra
 
 | Item | Observed value |
 |---|---|
-| Source implementation checkpoint | `master@413b831` |
-| Remote | `origin/master` includes source checkpoint `413b831` and the current documentation checkpoint |
+| Source implementation checkpoint | `master@f43f653` |
+| Remote | `origin/master` includes source checkpoint `f43f653` and the current documentation checkpoint |
 | SDK | .NET 10; repository solution targets `net10.0` |
 | Database | PostgreSQL 18.6 on loopback port 5433 for development only |
 | Build | `dotnet build AuditSphereOps.slnx --no-restore --configuration Release` — passed, 0 warnings/errors |
 | Tests | 198/198 passed, 0 skipped against PostgreSQL 18.6 |
-| Migrations | 54 applied; latest `20260921004233_PinGroupRevisionToConsolidationScope` |
+| Migrations | 55 applied; latest `20260921011913_AddConsolidationRollForwardLineage` |
 | Model drift | `dotnet ef migrations has-pending-model-changes` — no changes |
-| Restore drill | `scripts/db/restore-drill.sh` — passed; 54 migrations reconciled |
+| Restore drill | `scripts/db/restore-drill.sh` — passed; 55 migrations reconciled |
 | Production effects | Disabled locally; no production acceptance claimed |
 
 ## Implemented local capability
@@ -30,6 +30,7 @@ This file records observed repository state only. The authoritative build contra
 - The bounded foreign-operation profile pins an approved rate set and translation policy to the scope, requires maker/checker approval for each foreign component translation, preserves per-line source/FX lineage in the deterministic manifest, and blocks missing or stale rates/packages. Full FX remeasurement/reserve, NCI, acquisition, ownership-change, nested-group and complex-elimination methods remain disabled pending approved method-specific fixtures.
 - Group membership changes advance a durable group revision; consolidation scopes pin that revision and reject approval/calculation after a perimeter change while preserving historical memberships, scopes and runs.
 - Structured records exports preserve the related group perimeter, membership, scope, component, ownership/intercompany, consolidation journal/run, exchange-rate and translation lineage without copying unrelated client workpapers.
+- Approved-prior-scope group roll-forward preserves the exact prior run hash, approved FX lineage hash/reserve and recurring-elimination manifest; prior journals are lineage only and are not auto-applied.
 - Accounting evidence links are typed, scope-checked and bound to reviewed audit procedure results; the staff evidence queue exposes only the actor's explicit client scope, and records export preserves typed accounting lineage.
 - Period close runs under a row lock, blocks matching financial packages without current management/accounting/partner approval, and authorized reopen creates an immutable append-only amendment record with the new working revision.
 - Controlled roll-forward creates a new draft period, copies prior reporting books as drafts, and creates a hash/evidence-bound opening bridge without copying prior approvals.
@@ -58,6 +59,7 @@ These are product gaps, not claims of production readiness:
 - [x] Link accounting evidence to reviewed audit workpapers and expose account-area UI for the typed specialist schedules.
 - [x] Add the accounting dashboard and cross-workflow navigation for accounting, roll-forward and release handoffs.
 - [x] Include accounting/group dependencies in structured records exports while retaining the existing records-profile and legal-hold gates.
+- [x] Carry approved group opening consolidation lineage across scope versions without duplicating prior journals.
 - [x] Re-run focused tests, full tests, build, migration drift and restore drill for the current coherent slice; repeat this checklist for the next slice.
 
 ## External acceptance gates
@@ -87,7 +89,7 @@ dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infr
 scripts/db/restore-drill.sh
 ```
 
-The restore evidence is written to [`docs/evidence/restore-drill-latest.json`](../evidence/restore-drill-latest.json). The latest rehearsal restored 54 migrations through `20260921004233_PinGroupRevisionToConsolidationScope`; it is loopback-only and explicitly reports that external checkpoint custody and production RPO/RTO were not run.
+The restore evidence is written to [`docs/evidence/restore-drill-latest.json`](../evidence/restore-drill-latest.json). The latest rehearsal restored 55 migrations through `20260921011913_AddConsolidationRollForwardLineage`; it is loopback-only and explicitly reports that external checkpoint custody and production RPO/RTO were not run.
 
 ## Resume rule
 
