@@ -1725,6 +1725,10 @@ public sealed class ClientAccountingTests
       Assert.False(selfApproval.Succeeded);
       Assert.Equal(ErrorCodes.GateBlocked, selfApproval.ErrorCode);
       Assert.True((await CurrencyTranslationService.ApproveTranslationAsync(db, reviewer, translationId)).Succeeded);
+      var translation = await db.TranslationResults.SingleAsync(x => x.Id == translationId);
+      Assert.Equal(364m, translation.TranslatedAmount);
+      Assert.Equal(264m, translation.ForeignExchangeAdjustment);
+      Assert.Equal(0m, translation.RoundingAdjustment);
 
       var capabilityId = (await ClientAccountingService.CreateCapabilityProfileAsync(db, reviewer,
         new CapabilityProfileRequest(null, groupId, "GROUP_REPORTING", "IFRS", "2026", "ANNUAL", "QAR",
