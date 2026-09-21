@@ -60,6 +60,18 @@ public sealed record ConsolidationJournalRequest(
   Guid ScopeVersionId, string JournalNumber, string JournalType, string Currency,
   string EvidenceReference, IReadOnlyList<ConsolidationJournalLineInput> Lines);
 
+public static class ConsolidationEliminationKinds
+{
+  public const string ReceivablePayable = "RECEIVABLE_PAYABLE";
+  public const string RevenueExpense = "REVENUE_EXPENSE";
+  public const string Dividend = "DIVIDEND";
+  public const string InvestmentEquity = "INVESTMENT_EQUITY";
+  public const string GroupJournal = "GROUP_JOURNAL";
+
+  public static bool IsIntercompany(string value) => value is ReceivablePayable or RevenueExpense or Dividend or InvestmentEquity;
+  public static bool IsRunKind(string value) => string.IsNullOrEmpty(value) || value == GroupJournal || IsIntercompany(value);
+}
+
 public static class ConsolidationService
 {
   private sealed record OwnershipEdge(Guid ParentClientId, Guid ChildClientId, DateOnly EffectiveFrom, DateOnly? EffectiveTo);
@@ -710,8 +722,9 @@ public static class ConsolidationService
     var sellerAmount = MoneyPolicy.Normalize(request.SellerAmount);
     var buyerAmount = MoneyPolicy.Normalize(request.BuyerAmount);
     var matchedAmount = MoneyPolicy.Normalize(request.MatchedAmount);
-    var sellerTaxonomy = string.IsNullOrWhiteSpace(request.SellerTaxonomyCode) ? request.AccountNature : request.SellerTaxonomyCode;
-    var buyerTaxonomy = string.IsNullOrWhiteSpace(request.BuyerTaxonomyCode) ? request.AccountNature : request.BuyerTaxonomyCode;
+    var accountNature = request.AccountNature.Trim().ToUpperInvariant();
+    var sellerTaxonomy = string.IsNullOrWhiteSpace(request.SellerTaxonomyCode) ? accountNature : request.SellerTaxonomyCode;
+    var buyerTaxonomy = string.IsNullOrWhiteSpace(request.BuyerTaxonomyCode) ? accountNature : request.BuyerTaxonomyCode;
     var matchMode = request.MatchMode.Trim().ToUpperInvariant();
     var matchGroupReference = request.MatchGroupReference.Trim();
     var difference = MoneyPolicy.Normalize(sellerAmount + buyerAmount);
@@ -724,6 +737,9 @@ public static class ConsolidationService
         (difference != 0m && string.IsNullOrWhiteSpace(request.DifferenceReason)))
       return CommandResult<Guid>.Fail(ErrorCodes.Accounting.MappingInvalid,
         "An intercompany match needs precise signed amounts, both taxonomy sides, evidence and a difference reason when unmatched.");
+    if (!request.OutsidePerimeterReview && !ConsolidationEliminationKinds.IsIntercompany(accountNature))
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
+        "An automatic intercompany elimination needs an approved receivable/payable, revenue/expense, dividend or investment/equity nature.");
     var scope = await db.ConsolidationScopeVersions.AsNoTracking().SingleOrDefaultAsync(x => x.Id == request.ScopeVersionId && x.FirmId == actor.FirmId, ct);
     if (scope is null)
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
@@ -756,7 +772,7 @@ public static class ConsolidationService
     var match = new IntercompanyMatch
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, GroupId = scope.GroupId, ScopeVersionId = scope.Id,
-      SellerClientId = request.SellerClientId, BuyerClientId = request.BuyerClientId, AccountNature = request.AccountNature.Trim(),
+      SellerClientId = request.SellerClientId, BuyerClientId = request.BuyerClientId, AccountNature = accountNature,
       MatchMode = matchMode, MatchGroupReference = matchGroupReference, OutsidePerimeterReview = request.OutsidePerimeterReview,
       SellerTaxonomyCode = sellerTaxonomy.Trim().ToUpperInvariant(), BuyerTaxonomyCode = buyerTaxonomy.Trim().ToUpperInvariant(),
       PeriodCode = request.PeriodCode.Trim(), Currency = currency, TransactionReference = request.TransactionReference.Trim(),
@@ -1102,10 +1118,10 @@ public static class ConsolidationService
     var eliminationSources = matches.Where(x => !linkedMatches.Contains(x.Id))
       .SelectMany(x => new[]
       {
-        (new ConsolidationElimination(x.Id, x.SellerTaxonomyCode, Math.Sign(x.SellerAmount) * x.MatchedAmount * -1m, x.Currency, "SELLER", x.Id), (Guid?)null),
-        (new ConsolidationElimination(x.Id, x.BuyerTaxonomyCode, Math.Sign(x.BuyerAmount) * x.MatchedAmount * -1m, x.Currency, "BUYER", x.Id), (Guid?)null)
+        (new ConsolidationElimination(x.Id, x.SellerTaxonomyCode, Math.Sign(x.SellerAmount) * x.MatchedAmount * -1m, x.Currency, "SELLER", x.Id, x.AccountNature), (Guid?)null),
+        (new ConsolidationElimination(x.Id, x.BuyerTaxonomyCode, Math.Sign(x.BuyerAmount) * x.MatchedAmount * -1m, x.Currency, "BUYER", x.Id, x.AccountNature), (Guid?)null)
       })
-      .Concat(journalLines.Select(x => (new ConsolidationElimination(x.Id, x.TaxonomyCode, x.Debit - x.Credit, x.Currency, "", x.IntercompanyMatchId), (Guid?)x.ConsolidationJournalId)))
+      .Concat(journalLines.Select(x => (new ConsolidationElimination(x.Id, x.TaxonomyCode, x.Debit - x.Credit, x.Currency, "", x.IntercompanyMatchId, ConsolidationEliminationKinds.GroupJournal), (Guid?)x.ConsolidationJournalId)))
       .ToList();
     try
     {

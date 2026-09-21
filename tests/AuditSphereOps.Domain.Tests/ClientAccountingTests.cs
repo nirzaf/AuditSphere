@@ -1495,6 +1495,31 @@ public sealed class ClientAccountingTests
     Assert.Throws<InvalidOperationException>(() => ConsolidationCalculator.Compute(
       "QAR", ConsolidationCalculator.RestrictedMethod, "OPENING-2026",
       [components[0], components[1]], [new ConsolidationElimination(Guid.NewGuid(), "CASH", 1m, "USD")]));
+    var receivableEliminations = new[]
+    {
+      new ConsolidationElimination(Guid.NewGuid(), "CASH", -10m, "QAR", "SELLER", EliminationKind: ConsolidationEliminationKinds.ReceivablePayable),
+      new ConsolidationElimination(Guid.NewGuid(), "REVENUE", 10m, "QAR", "BUYER", EliminationKind: ConsolidationEliminationKinds.ReceivablePayable)
+    };
+    var revenueEliminations = receivableEliminations.Select(x => x with { EliminationKind = ConsolidationEliminationKinds.RevenueExpense }).ToArray();
+    var receivableRun = ConsolidationCalculator.Compute("QAR", ConsolidationCalculator.RestrictedMethod, "OPENING-2026", components, receivableEliminations);
+    var revenueRun = ConsolidationCalculator.Compute("QAR", ConsolidationCalculator.RestrictedMethod, "OPENING-2026", components, revenueEliminations);
+    Assert.NotEqual(receivableRun.RunHash, revenueRun.RunHash);
+  }
+
+  [Fact]
+  [Trait("Profile", "Unit")]
+  public void ConsolidationEliminationKinds_RequireAnEnabledAccountingNature()
+  {
+    Assert.All(new[]
+    {
+      ConsolidationEliminationKinds.ReceivablePayable,
+      ConsolidationEliminationKinds.RevenueExpense,
+      ConsolidationEliminationKinds.Dividend,
+      ConsolidationEliminationKinds.InvestmentEquity
+    }, kind => Assert.True(ConsolidationEliminationKinds.IsIntercompany(kind)));
+    Assert.False(ConsolidationEliminationKinds.IsIntercompany("INTERCOMPANY"));
+    Assert.True(ConsolidationEliminationKinds.IsRunKind(ConsolidationEliminationKinds.GroupJournal));
+    Assert.False(ConsolidationEliminationKinds.IsRunKind("UNCLASSIFIED"));
   }
 
   [Fact]
@@ -1773,25 +1798,31 @@ public sealed class ClientAccountingTests
 
       var missingDifferenceReason = await ConsolidationService.AddIntercompanyMatchAsync(db, preparer,
         new IntercompanyMatchRequest(consolidationScopeId, scope.ClientA, scope.ClientB,
-          "INTERCOMPANY", "2026", "QAR", "IC-001", 100m, -90m, 90m, "ic-evidence"));
+          ConsolidationEliminationKinds.ReceivablePayable, "2026", "QAR", "IC-001", 100m, -90m, 90m, "ic-evidence"));
       Assert.False(missingDifferenceReason.Succeeded);
       Assert.Equal(ErrorCodes.Accounting.MappingInvalid, missingDifferenceReason.ErrorCode);
+      var unsupportedNature = await ConsolidationService.AddIntercompanyMatchAsync(db, preparer,
+        new IntercompanyMatchRequest(consolidationScopeId, scope.ClientA, scope.ClientB,
+          "UNCLASSIFIED", "2026", "QAR", "IC-UNSUPPORTED", 100m, -100m, 100m, "ic-evidence",
+          "CASH", "REVENUE"));
+      Assert.False(unsupportedNature.Succeeded);
+      Assert.Equal(ErrorCodes.GateBlocked, unsupportedNature.ErrorCode);
       matchId = (await ConsolidationService.AddIntercompanyMatchAsync(db, preparer,
         new IntercompanyMatchRequest(consolidationScopeId, scope.ClientA, scope.ClientB,
-          "INTERCOMPANY", "2026", "QAR", "IC-001", 100m, -100m, 100m, "ic-evidence",
+          ConsolidationEliminationKinds.ReceivablePayable, "2026", "QAR", "IC-001", 100m, -100m, 100m, "ic-evidence",
             "CASH", "REVENUE"))).Value;
       Assert.True((await ConsolidationService.ApproveIntercompanyMatchAsync(db, reviewer, matchId)).Succeeded);
 
       var groupedFirst = (await ConsolidationService.AddIntercompanyMatchAsync(db, preparer,
         new IntercompanyMatchRequest(consolidationScopeId, scope.ClientA, scope.ClientB,
-          "INTERCOMPANY", "2026", "QAR", "IC-G-001", 10m, -10m, 10m, "ic-grouped-a",
+          ConsolidationEliminationKinds.ReceivablePayable, "2026", "QAR", "IC-G-001", 10m, -10m, 10m, "ic-grouped-a",
             "CASH", "REVENUE", "", IntercompanyMatchModes.Grouped, "IC-GROUP-001"))).Value;
       var incompleteGroupedApproval = await ConsolidationService.ApproveIntercompanyMatchAsync(db, reviewer, groupedFirst);
       Assert.False(incompleteGroupedApproval.Succeeded);
       Assert.Equal(ErrorCodes.Accounting.ReconciliationRejected, incompleteGroupedApproval.ErrorCode);
       var groupedSecond = (await ConsolidationService.AddIntercompanyMatchAsync(db, preparer,
         new IntercompanyMatchRequest(consolidationScopeId, scope.ClientA, scope.ClientB,
-          "INTERCOMPANY", "2026", "QAR", "IC-G-002", 20m, -20m, 20m, "ic-grouped-b",
+          ConsolidationEliminationKinds.ReceivablePayable, "2026", "QAR", "IC-G-002", 20m, -20m, 20m, "ic-grouped-b",
             "CASH", "REVENUE", "", IntercompanyMatchModes.Grouped, "IC-GROUP-001"))).Value;
       Assert.True((await ConsolidationService.ApproveIntercompanyMatchAsync(db, reviewer, groupedFirst)).Succeeded);
       Assert.True((await ConsolidationService.ApproveIntercompanyMatchAsync(db, reviewer, groupedSecond)).Succeeded);
