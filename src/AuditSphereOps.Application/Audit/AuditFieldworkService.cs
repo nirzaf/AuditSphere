@@ -120,6 +120,10 @@ public sealed record RecordDifferenceRequest(
   decimal Amount,
   string Currency);
 public sealed record DifferenceValue(Guid AuditDifferenceId, string Status);
+public sealed record AuditDifferenceSummary(
+  string Currency, int DifferenceCount, decimal GrossAmount, decimal SignedNetAmount,
+  decimal UnadjustedGrossAmount, decimal UnadjustedSignedNetAmount,
+  decimal CorrectedGrossAmount, decimal CorrectedSignedNetAmount);
 public sealed record EvaluateDifferenceRequest(Guid AuditDifferenceId, bool Corrected, string Evaluation, string? ManagementResponse, string? CorrectionReference);
 public sealed record LinkDifferenceToJournalRequest(
   Guid AuditDifferenceId,
@@ -720,6 +724,32 @@ public static class AuditFieldworkService
     await db.SaveChangesAsync(ct);
     await tx.CommitAsync(ct);
     return CommandResult<DifferenceValue>.Ok(new(live.Id, live.Status));
+  }
+
+  public static async Task<CommandResult<IReadOnlyList<AuditDifferenceSummary>>> GetDifferenceSummariesAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct = default)
+  {
+    var auth = await AuthorizeEngagementAsync(db, actor, engagementId, ReviewRoles, ct);
+    if (!auth.Succeeded)
+      return CommandResult<IReadOnlyList<AuditDifferenceSummary>>.Fail(auth.ErrorCode!, auth.Message!);
+    var differences = await db.AuditDifferences.AsNoTracking().Where(x =>
+      x.FirmId == actor.FirmId && x.ClientId == auth.ClientId && x.EngagementId == engagementId).ToListAsync(ct);
+    var summaries = differences.GroupBy(x => x.Currency, StringComparer.OrdinalIgnoreCase)
+      .OrderBy(x => x.Key, StringComparer.OrdinalIgnoreCase)
+      .Select(group =>
+      {
+        var unadjusted = group.Where(x => !x.Corrected);
+        var corrected = group.Where(x => x.Corrected);
+        return new AuditDifferenceSummary(
+          group.Key.ToUpperInvariant(), group.Count(),
+          MoneyPolicy.Normalize(group.Sum(x => Math.Abs(x.Amount))),
+          MoneyPolicy.Normalize(group.Sum(x => x.Amount)),
+          MoneyPolicy.Normalize(unadjusted.Sum(x => Math.Abs(x.Amount))),
+          MoneyPolicy.Normalize(unadjusted.Sum(x => x.Amount)),
+          MoneyPolicy.Normalize(corrected.Sum(x => Math.Abs(x.Amount))),
+          MoneyPolicy.Normalize(corrected.Sum(x => x.Amount)));
+      }).ToArray();
+    return CommandResult<IReadOnlyList<AuditDifferenceSummary>>.Ok(summaries);
   }
 
   public static async Task<CommandResult> LinkDifferenceToJournalAsync(

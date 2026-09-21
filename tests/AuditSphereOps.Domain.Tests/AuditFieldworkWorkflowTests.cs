@@ -116,12 +116,25 @@ public sealed class AuditFieldworkWorkflowTests
     Assert.Equal(ErrorCodes.GateBlocked, unlinkedCorrection.ErrorCode);
     Assert.True((await AuditFieldworkService.EvaluateDifferenceAsync(db, reviewer,
       new EvaluateDifferenceRequest(difference.Value!.AuditDifferenceId, false, "Evaluated against the final unadjusted differences schedule.", "Management will not post; assessed in aggregate.", null))).Succeeded);
+    var offsettingDifference = await AuditFieldworkService.RecordDifferenceAsync(db, scope.Actor,
+      new RecordDifferenceRequest(scope.EngagementId, procedure.Id, "Cash", "KNOWN", "Offsetting bank timing difference.", 25m, "QAR"));
+    Assert.True(offsettingDifference.Succeeded);
+    var summaries = await AuditFieldworkService.GetDifferenceSummariesAsync(db, reviewer, scope.EngagementId);
+    Assert.True(summaries.Succeeded);
+    var qar = Assert.Single(summaries.Value!);
+    Assert.Equal("QAR", qar.Currency);
+    Assert.Equal(2, qar.DifferenceCount);
+    Assert.Equal(50m, qar.GrossAmount);
+    Assert.Equal(0m, qar.SignedNetAmount);
+    Assert.Equal(50m, qar.UnadjustedGrossAmount);
+    Assert.Equal(0m, qar.UnadjustedSignedNetAmount);
+    Assert.Equal(0m, qar.CorrectedGrossAmount);
 
     var completion = await AuditFieldworkService.EvaluateCompletionAsync(db, reviewer, scope.EngagementId);
     Assert.True(completion.Succeeded);
     Assert.False(completion.Value!.Ready);
     Assert.Contains(completion.Value.Blockers, x => x.StartsWith("procedure:", StringComparison.Ordinal));
     Assert.Equal(2, await db.AuditScheduleRows.CountAsync(x => x.ScheduleId == schedule.Value.ScheduleId));
-    Assert.Equal(1, await db.AuditDifferences.CountAsync());
+    Assert.Equal(2, await db.AuditDifferences.CountAsync());
   }
 }
