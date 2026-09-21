@@ -33,8 +33,8 @@ else
     </div>
     <label>Reason<textarea @bind="_reason" maxlength="4000" rows="3" required></textarea></label>
     <div style="display:flex;gap:.75rem;align-items:center;margin-top:1rem;flex-wrap:wrap">
-      <button class="button" @onclick="LoadSelectionAsync" disabled="@_busy">Load closed-period packages</button>
-      <button class="button" @onclick="CreateAsync" disabled="@_busy">@(_busy ? "Saving…" : "Create restatement request")</button>
+      <button class="button" title="Load only validated package versions for the selected closed period." @onclick="LoadSelectionAsync" disabled="@(_busy || _selectionBusy)">Load closed-period packages</button>
+      <button class="button" title="Create an immutable restatement request linking two distinct validated package versions." @onclick="CreateAsync" disabled="@(_busy || _selectionBusy)">@(_busy ? "Saving…" : "Create restatement request")</button>
     </div>
   </section>
 
@@ -65,7 +65,7 @@ else
             <td>@restatement.RevisedBasis</td>
             <td><span class="status">@restatement.Status</span></td>
             <td><code>@restatement.EvidenceReference</code></td>
-            <td>@if (restatement.Status == AccountingWorkflowStates.Submitted && _canReview) { <button class="button" @onclick="() => ApproveAsync(restatement.Id)" disabled="@_busy">Approve independently</button> } else { <span class="muted">—</span> }</td>
+            <td>@if (restatement.Status == AccountingWorkflowStates.Submitted && _canReview) { <button class="button" title="Approve this restatement independently after rechecking its exact package lineage." @onclick="() => ApproveAsync(restatement.Id)" disabled="@(_busy || _selectionBusy)">Approve independently</button> } else { <span class="muted">—</span> }</td>
           </tr>
         }
         </tbody>
@@ -83,8 +83,10 @@ else
   private ActorContext? _actor;
   private bool _loading = true;
   private bool _busy;
+  private bool _selectionBusy;
   private bool _isStaff;
   private bool _canReview;
+  private long _selectionGeneration;
   private List<ClientOption> _clients = [];
   private List<PeriodOption> _periods = [];
   private List<PackageOption> _packages = [];
@@ -137,22 +139,33 @@ else
 
   private async Task LoadSelectionAsync()
   {
-    if (_actor is null || !Guid.TryParse(_selectedClientId, out var clientId)) return;
-    await using var db = await DbFactory.CreateDbContextAsync();
-    var periods = await db.ClientReportingPeriods.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && x.ClientId == clientId && x.Status == AccountingWorkflowStates.Closed)
-      .OrderByDescending(x => x.EndDate).ToListAsync();
-    _periods = periods.Select(x => new PeriodOption(x.Id, $"{x.PeriodCode} ({x.StartDate:yyyy-MM-dd} to {x.EndDate:yyyy-MM-dd})")).ToList();
-    _selectedPeriodId = _periods.FirstOrDefault()?.Id.ToString() ?? string.Empty;
-    _selectedOriginalPackageId = string.Empty;
-    _selectedRevisedPackageId = string.Empty;
-    _packages = [];
-    if (Guid.TryParse(_selectedPeriodId, out var periodId))
+    if (_actor is null || _selectionBusy || !Guid.TryParse(_selectedClientId, out var clientId)) return;
+    var generation = ++_selectionGeneration;
+    _selectionBusy = true;
+    try
     {
-      var period = periods.Single(x => x.Id == periodId);
-      var packages = await db.FinancialPackages.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && x.ClientId == clientId &&
-        x.Status == AccountingPackageStates.PackageValidated && x.PeriodStart == period.StartDate.ToString("yyyy-MM-dd") && x.PeriodEnd == period.EndDate.ToString("yyyy-MM-dd"))
-        .OrderBy(x => x.CreatedAt).ToListAsync();
-      _packages = packages.Select(x => new PackageOption(x.Id, $"{x.Id} · {x.Currency} · {x.CalculationHash[..Math.Min(12, x.CalculationHash.Length)]}")).ToList();
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var periods = await db.ClientReportingPeriods.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && x.ClientId == clientId && x.Status == AccountingWorkflowStates.Closed)
+        .OrderByDescending(x => x.EndDate).ToListAsync();
+      if (generation != _selectionGeneration) return;
+      _periods = periods.Select(x => new PeriodOption(x.Id, $"{x.PeriodCode} ({x.StartDate:yyyy-MM-dd} to {x.EndDate:yyyy-MM-dd})")).ToList();
+      _selectedPeriodId = _periods.FirstOrDefault()?.Id.ToString() ?? string.Empty;
+      _selectedOriginalPackageId = string.Empty;
+      _selectedRevisedPackageId = string.Empty;
+      _packages = [];
+      if (Guid.TryParse(_selectedPeriodId, out var periodId))
+      {
+        var period = periods.Single(x => x.Id == periodId);
+        var packages = await db.FinancialPackages.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && x.ClientId == clientId &&
+          x.Status == AccountingPackageStates.PackageValidated && x.PeriodStart == period.StartDate.ToString("yyyy-MM-dd") && x.PeriodEnd == period.EndDate.ToString("yyyy-MM-dd"))
+          .OrderBy(x => x.CreatedAt).ToListAsync();
+        if (generation != _selectionGeneration) return;
+        _packages = packages.Select(x => new PackageOption(x.Id, $"{x.Id} · {x.Currency} · {x.CalculationHash[..Math.Min(12, x.CalculationHash.Length)]}")).ToList();
+      }
+    }
+    finally
+    {
+      _selectionBusy = false;
     }
   }
 

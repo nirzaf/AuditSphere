@@ -40,8 +40,8 @@ else
       <label>Evidence reference<input @bind="_evidenceReference" maxlength="2000" required /></label>
     </div>
     <div style="display:flex;gap:.75rem;align-items:center;margin-top:1rem;flex-wrap:wrap">
-      <button class="button" @onclick="LoadClientAsync" disabled="@_busy">Load closed periods</button>
-      <button class="button" @onclick="RollForwardAsync" disabled="@_busy">@(_busy ? "Saving…" : "Create draft period")</button>
+      <button class="button" title="Load only the closed periods and validated packages in the selected client scope." @onclick="LoadClientAsync" disabled="@(_busy || _selectionBusy)">Load closed periods</button>
+      <button class="button" title="Create a new draft period and opening-balance bridge from the selected closed period." @onclick="RollForwardAsync" disabled="@(_busy || _selectionBusy)">@(_busy ? "Saving…" : "Create draft period")</button>
     </div>
   </section>
 
@@ -83,7 +83,9 @@ else
   private ActorContext? _actor;
   private bool _loading = true;
   private bool _busy;
+  private bool _selectionBusy;
   private bool _isStaff;
+  private long _selectionGeneration;
   private List<ClientOption> _clients = [];
   private List<PeriodOption> _closedPeriods = [];
   private List<PackageOption> _sourcePackages = [];
@@ -139,31 +141,42 @@ else
 
   private async Task LoadClientAsync()
   {
-    if (_actor is null || !Guid.TryParse(_selectedClientId, out var clientId)) return;
-    await using var db = await DbFactory.CreateDbContextAsync();
-    var periods = await db.ClientReportingPeriods.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
-      x.ClientId == clientId && x.Status == AccountingWorkflowStates.Closed).OrderByDescending(x => x.EndDate).ToListAsync();
-    _closedPeriods = periods.Select(x => new PeriodOption(x.Id, $"{x.PeriodCode} ({x.StartDate:yyyy-MM-dd} to {x.EndDate:yyyy-MM-dd})")).ToList();
-    _selectedPriorPeriodId = _closedPeriods.FirstOrDefault()?.Id.ToString() ?? string.Empty;
-    _sourcePackages = [];
-    _selectedSourcePackageId = string.Empty;
-    if (periods.FirstOrDefault() is { } prior)
+    if (_actor is null || _selectionBusy || !Guid.TryParse(_selectedClientId, out var clientId)) return;
+    var generation = ++_selectionGeneration;
+    _selectionBusy = true;
+    try
     {
-      _currency = prior.Currency;
-      _basis = prior.Basis;
-      _periodCode = (int.TryParse(prior.PeriodCode, out var year) ? (year + 1).ToString(CultureInfo.InvariantCulture) : prior.PeriodCode + "-NEXT");
-      _startDate = prior.EndDate.AddDays(1).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
-      _endDate = new DateOnly(prior.EndDate.AddDays(1).Year, 12, 31).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
-      await LoadPackagesAsync(db, clientId, prior);
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var periods = await db.ClientReportingPeriods.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
+        x.ClientId == clientId && x.Status == AccountingWorkflowStates.Closed).OrderByDescending(x => x.EndDate).ToListAsync();
+      if (generation != _selectionGeneration) return;
+      _closedPeriods = periods.Select(x => new PeriodOption(x.Id, $"{x.PeriodCode} ({x.StartDate:yyyy-MM-dd} to {x.EndDate:yyyy-MM-dd})")).ToList();
+      _selectedPriorPeriodId = _closedPeriods.FirstOrDefault()?.Id.ToString() ?? string.Empty;
+      _sourcePackages = [];
+      _selectedSourcePackageId = string.Empty;
+      if (periods.FirstOrDefault() is { } prior)
+      {
+        _currency = prior.Currency;
+        _basis = prior.Basis;
+        _periodCode = (int.TryParse(prior.PeriodCode, out var year) ? (year + 1).ToString(CultureInfo.InvariantCulture) : prior.PeriodCode + "-NEXT");
+        _startDate = prior.EndDate.AddDays(1).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        _endDate = new DateOnly(prior.EndDate.AddDays(1).Year, 12, 31).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        await LoadPackagesAsync(db, clientId, prior, generation);
+      }
+    }
+    finally
+    {
+      _selectionBusy = false;
     }
   }
 
-  private async Task LoadPackagesAsync(AuditSphereDbContext db, Guid clientId, ClientReportingPeriod period)
+  private async Task LoadPackagesAsync(AuditSphereDbContext db, Guid clientId, ClientReportingPeriod period, long generation)
   {
     var start = period.StartDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
     var end = period.EndDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
     var packages = await db.FinancialPackages.AsNoTracking().Where(x => x.FirmId == _actor!.FirmId && x.ClientId == clientId &&
       x.Status == AccountingPackageStates.PackageValidated && x.PeriodStart == start && x.PeriodEnd == end).OrderBy(x => x.CreatedAt).ToListAsync();
+    if (generation != _selectionGeneration) return;
     _sourcePackages = packages.Select(x => new PackageOption(x.Id,
       $"{x.Id} · {x.Currency} · {x.CalculationHash[..Math.Min(12, x.CalculationHash.Length)]}")).ToList();
   }
