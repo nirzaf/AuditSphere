@@ -3,7 +3,7 @@
 **Repository:** `nirzaf/AuditSphere`
 **Authoritative specification:** [`docs/SPECIFICATION.md`](../SPECIFICATION.md) v5.0
 **Requirements backlog:** [`docs/requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md`](../requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md)
-**Source implementation checkpoint:** `master@7f533b6`
+**Source implementation checkpoint:** `master@ec4ca80`
 
 This is a resume checklist, not an acceptance certificate. Tenant identifiers, credentials, tokens, secret values, and private-provider URLs are deliberately absent from the public repository.
 
@@ -12,7 +12,7 @@ This is a resume checklist, not an acceptance certificate. Tenant identifiers, c
 - [x] .NET 10 solution builds with zero warnings/errors.
 - [x] PostgreSQL 18.6 development profile is used on loopback port 5433.
 - [x] 205/205 PostgreSQL-backed tests pass with 0 skipped.
-- [x] 60 migrations are applied; latest is `20260921052800_ClientAccountingDimensionDefinitions`.
+- [x] 61 migrations are applied; latest is `20260921064940_PreserveGeneralLedgerServiceDate`.
 - [x] EF model has no pending migration changes.
 - [x] Loopback restore drill passes and writes secret-free evidence to `docs/evidence/restore-drill-latest.json`.
 - [x] Generated Graphify output and local agent state are ignored and removed from Git tracking.
@@ -58,6 +58,7 @@ This is a resume checklist, not an acceptance certificate. Tenant identifiers, c
 - [x] Gate period close on current package reviews and persist immutable authorized reopen/amendment revisions.
 - [x] Add controlled entity-period roll-forward with draft book copies and explicit opening-balance evidence.
 - [x] Client-scoped GL dimension definitions validate nonblank branch/cost-centre/department/project/intercompany values; blank accounting setup/reporting currency defaults to QAR while source/import currency remains explicit.
+- [x] Direct and streaming GL imports preserve optional service dates through canonical digests and archive lineage.
 - [x] Chart hierarchy parent lookups are scoped to the target chart version and reject cross-version and posting-account parents.
 - [x] Draft taxonomy nodes support incremental same-version parents and reject cross-version parents/cycles.
 - [x] Link accounting evidence to reviewed audit workpapers and expose accounting period handoffs from the dashboard.

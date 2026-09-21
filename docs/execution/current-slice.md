@@ -6,15 +6,15 @@ This file records observed repository state only. The authoritative build contra
 
 | Item | Observed value |
 |---|---|
-| Source implementation checkpoint | `master@7f533b6` |
-| Remote | `origin/master` includes source checkpoint `7f533b6` |
+| Source implementation checkpoint | `master@ec4ca80` |
+| Remote | `origin/master` includes source checkpoint `ec4ca80` |
 | SDK | .NET 10; repository solution targets `net10.0` |
 | Database | PostgreSQL 18.6 on loopback port 5433 for development only |
 | Build | `dotnet build AuditSphereOps.slnx --no-restore --configuration Release` — passed, 0 warnings/errors |
 | Tests | 205/205 passed, 0 skipped against PostgreSQL 18.6 |
-| Migrations | 60 applied; latest `20260921052800_ClientAccountingDimensionDefinitions` |
+| Migrations | 61 applied; latest `20260921064940_PreserveGeneralLedgerServiceDate` |
 | Model drift | `dotnet ef migrations has-pending-model-changes` — no changes |
-| Restore drill | `scripts/db/restore-drill.sh` — passed; 60 migrations reconciled |
+| Restore drill | `scripts/db/restore-drill.sh` — passed; 61 migrations reconciled |
 | Production effects | Disabled locally; no production acceptance claimed |
 
 ## Implemented local capability
@@ -23,6 +23,7 @@ This file records observed repository state only. The authoritative build contra
 - Client accounting profiles, periods, books, chart-of-accounts mappings, versioned trial-balance profiles, signed-net/debit-credit normalization, and atomic multi-entity batches.
 - Capability profiles accept only ENTITY_REPORTING/AUDIT_ONLY client scopes or GROUP_REPORTING group scopes; mismatched or unknown service kinds are rejected.
 - Client accounting setup/reporting objects default blank currency input to QAR; raw source/import currencies and FX policy currencies remain explicit.
+- Direct and streaming GL imports preserve optional service dates through canonical digests and archive lineage.
 - Client-scoped accounting dimension definitions cover branch, cost centre, department, project and intercompany counterparty codes; nonblank GL dimension values are rejected unless defined for the client, including bounded streaming imports.
 - Client chart hierarchy parent lookups are restricted to the target chart version; cross-version parent references and posting-account parents are rejected.
 - Draft taxonomy nodes can be added incrementally with parents from the same taxonomy version; cross-version parents and cycles are rejected.
@@ -116,7 +117,7 @@ dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infr
 scripts/db/restore-drill.sh
 ```
 
-The restore evidence is written to [`docs/evidence/restore-drill-latest.json`](../evidence/restore-drill-latest.json). The latest rehearsal restored 60 migrations through `20260921052800_ClientAccountingDimensionDefinitions`; it is loopback-only and explicitly reports that external checkpoint custody and production RPO/RTO were not run.
+The restore evidence is written to [`docs/evidence/restore-drill-latest.json`](../evidence/restore-drill-latest.json). The latest rehearsal restored 61 migrations through `20260921064940_PreserveGeneralLedgerServiceDate`; it is loopback-only and explicitly reports that external checkpoint custody and production RPO/RTO were not run.
 
 ## Resume rule
 
