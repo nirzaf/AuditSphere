@@ -54,6 +54,40 @@ else
     <article class="metric card"><span class="metric-label">Issued releases</span><strong class="metric-value">@_metrics.IssuedReleases</strong></article>
   </section>
 
+  @if (_hasScope)
+  {
+    <section class="card" aria-labelledby="scope-search-heading">
+      <h2 id="scope-search-heading">Scoped client search and export</h2>
+      <p class="field-help">Search is limited to the current explicit grant scope. The download contains only the filtered client, release-candidate and package rows visible below.</p>
+      <div class="action-bar">
+        <label class="field">
+          Search current scope (optional)
+          <input class="input" @bind="_search" @bind:event="oninput" placeholder="Client name, ID or status" data-optional="true" title="Filter the currently authorized portfolio rows without changing their scope." />
+        </label>
+        <a class="button" href="@PortfolioCsvHref" download="auditsphere-portfolio.csv" title="Download the currently filtered, scope-bound portfolio rows as CSV">Download scoped CSV</a>
+      </div>
+      @if (!VisibleClients.Any())
+      {
+        <p class="muted">No clients match the current search.</p>
+      }
+      else
+      {
+        <div class="table-wrap">
+          <table>
+            <caption class="sr-only">Clients in the current explicit scope</caption>
+            <thead><tr><th scope="col">Client</th><th scope="col">Client ID</th><th scope="col">Visible engagements</th></tr></thead>
+            <tbody>
+            @foreach (var client in VisibleClients)
+            {
+              <tr><td><strong>@client.Name</strong></td><td><code>@client.Id</code></td><td>@client.Engagements</td></tr>
+            }
+            </tbody>
+          </table>
+        </div>
+      }
+    </section>
+  }
+
   <section class="card" aria-labelledby="quick-routes-heading">
     <h2 id="quick-routes-heading">Practice & operational surfaces</h2>
     <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
@@ -69,20 +103,21 @@ else
 
   <section class="card" aria-labelledby="candidate-title">
     <h2 id="candidate-title">Release candidates</h2>
-    @if (_candidates.Count == 0)
+    @if (!VisibleCandidates.Any())
     {
-      <p class="muted">No release candidates are available in this firm scope.</p>
+      <p class="muted">No release candidates match the current scope and search.</p>
     }
     else
     {
       <div class="table-wrap">
         <table>
           <caption class="sr-only">Release candidates in the current firm scope</caption>
-          <thead><tr><th scope="col">Candidate</th><th scope="col">Revision</th><th scope="col">Status</th><th scope="col">Created</th><th scope="col"><span class="sr-only">Action</span></th></tr></thead>
+          <thead><tr><th scope="col">Client</th><th scope="col">Candidate</th><th scope="col">Revision</th><th scope="col">Status</th><th scope="col">Created</th><th scope="col"><span class="sr-only">Action</span></th></tr></thead>
           <tbody>
-          @foreach (var candidate in _candidates)
+          @foreach (var candidate in VisibleCandidates)
           {
             <tr>
+              <td>@candidate.ClientName</td>
               <td><code>@candidate.Id</code></td>
               <td>@candidate.TargetRevision</td>
               <td><span class="status">@candidate.Status</span></td>
@@ -98,20 +133,21 @@ else
 
   <section class="card" aria-labelledby="package-title">
     <h2 id="package-title">Financial-statement packages</h2>
-    @if (_packages.Count == 0)
+    @if (!VisiblePackages.Any())
     {
-      <p class="muted">No financial-statement packages are available in this firm scope.</p>
+      <p class="muted">No financial-statement packages match the current scope and search.</p>
     }
     else
     {
       <div class="table-wrap">
         <table>
           <caption class="sr-only">Financial-statement packages in the current firm scope</caption>
-          <thead><tr><th scope="col">Package</th><th scope="col">Framework</th><th scope="col">Period</th><th scope="col">Status</th><th scope="col"><span class="sr-only">Action</span></th></tr></thead>
+          <thead><tr><th scope="col">Client</th><th scope="col">Package</th><th scope="col">Framework</th><th scope="col">Period</th><th scope="col">Status</th><th scope="col"><span class="sr-only">Action</span></th></tr></thead>
           <tbody>
-          @foreach (var package in _packages)
+          @foreach (var package in VisiblePackages)
           {
             <tr>
+              <td>@package.ClientName</td>
               <td><code>@package.Id</code></td>
               <td>@package.Framework</td>
               <td>@package.PeriodStart to @package.PeriodEnd</td>
@@ -131,9 +167,16 @@ else
   private PortfolioMetrics _metrics;
   private List<CandidateRow> _candidates = [];
   private List<PackageRow> _packages = [];
+  private List<ClientRow> _clients = [];
   private bool _loading = true;
   private bool _hasScope;
+  private string _search = string.Empty;
   private string? _error;
+
+  private IEnumerable<ClientRow> VisibleClients => Filter(_clients, x => $"{x.Name} {x.Id}");
+  private IEnumerable<CandidateRow> VisibleCandidates => Filter(_candidates, x => $"{x.ClientName} {x.Id} {x.Status}");
+  private IEnumerable<PackageRow> VisiblePackages => Filter(_packages, x => $"{x.ClientName} {x.Id} {x.Framework} {x.Status} {x.PeriodStart} {x.PeriodEnd}");
+  private string PortfolioCsvHref => "data:text/csv;charset=utf-8," + Uri.EscapeDataString(BuildPortfolioCsv());
 
   private bool OidcConfigured => !string.IsNullOrWhiteSpace(Configuration["Identity:TenantId"]) &&
                                  !string.IsNullOrWhiteSpace(Configuration["Identity:ClientId"]);
@@ -161,6 +204,14 @@ else
         .Select(x => x.Id).ToArrayAsync();
       _hasScope = firmWide || directClientIds.Length > 0 || grantedEngagementIds.Length > 0;
       if (!_hasScope) return;
+      var clients = await db.PracticeClients.AsNoTracking()
+        .Where(x => x.FirmId == _actor.FirmId && (firmWide || clientIds.Contains(x.Id)))
+        .Select(x => new { x.Id, x.LegalName }).ToDictionaryAsync(x => x.Id, x => x.LegalName);
+      var engagementCounts = await db.Engagements.AsNoTracking()
+        .Where(x => x.FirmId == _actor.FirmId && (firmWide || scopedEngagementIds.Contains(x.Id)))
+        .GroupBy(x => x.PracticeClientId).ToDictionaryAsync(x => x.Key, x => x.Count());
+      _clients = clients.OrderBy(x => x.Value)
+        .Select(x => new ClientRow(x.Key, x.Value, engagementCounts.GetValueOrDefault(x.Key))).ToList();
       _metrics = new PortfolioMetrics(
         await db.PracticeClients.CountAsync(x => x.FirmId == _actor.FirmId && (firmWide || clientIds.Contains(x.Id))),
         await db.Engagements.CountAsync(x => x.FirmId == _actor.FirmId && (firmWide || scopedEngagementIds.Contains(x.Id))),
@@ -177,11 +228,13 @@ else
       _candidates = await db.ReleaseCandidates.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
         (firmWide || directClientIds.Contains(x.ClientId) || scopedEngagementIds.Contains(x.EngagementId)))
         .OrderByDescending(x => x.CreatedAt).Take(25)
-        .Select(x => new CandidateRow(x.Id, x.TargetRevision, x.Status, x.CreatedAt)).ToListAsync();
+        .Select(x => new CandidateRow(x.Id, x.ClientId, x.TargetRevision, x.Status, x.CreatedAt)).ToListAsync();
       _packages = await db.FinancialPackages.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
         (firmWide || directClientIds.Contains(x.ClientId) || scopedEngagementIds.Contains(x.EngagementId)))
         .OrderByDescending(x => x.CreatedAt).Take(25)
-        .Select(x => new PackageRow(x.Id, x.Framework, x.PeriodStart, x.PeriodEnd, x.Status)).ToListAsync();
+        .Select(x => new PackageRow(x.Id, x.ClientId, x.Framework, x.PeriodStart, x.PeriodEnd, x.Status)).ToListAsync();
+      _candidates = _candidates.Select(x => x with { ClientName = clients.GetValueOrDefault(x.ClientId, "Scoped client") }).ToList();
+      _packages = _packages.Select(x => x with { ClientName = clients.GetValueOrDefault(x.ClientId, "Scoped client") }).ToList();
     }
     catch (Exception ex)
     {
@@ -192,6 +245,30 @@ else
   }
 
   private readonly record struct PortfolioMetrics(int Clients, int Engagements, int OpenHolds, int PendingOperations, int ReadyCandidates, int IssuedReleases);
-  private sealed record CandidateRow(Guid Id, long TargetRevision, string Status, DateTimeOffset CreatedAt);
-  private sealed record PackageRow(Guid Id, string Framework, string PeriodStart, string PeriodEnd, string Status);
+  private sealed record ClientRow(Guid Id, string Name, int Engagements);
+  private sealed record CandidateRow(Guid Id, Guid ClientId, long TargetRevision, string Status, DateTimeOffset CreatedAt)
+  {
+    public string ClientName { get; init; } = "Scoped client";
+  }
+  private sealed record PackageRow(Guid Id, Guid ClientId, string Framework, string PeriodStart, string PeriodEnd, string Status)
+  {
+    public string ClientName { get; init; } = "Scoped client";
+  }
+
+  private IEnumerable<T> Filter<T>(IEnumerable<T> rows, Func<T, string> searchable)
+  {
+    var term = _search.Trim();
+    return string.IsNullOrEmpty(term) ? rows : rows.Where(row => searchable(row).Contains(term, StringComparison.OrdinalIgnoreCase));
+  }
+
+  private string BuildPortfolioCsv()
+  {
+    var lines = new List<string> { "record_type,client,identifier,status,period,details" };
+    lines.AddRange(VisibleClients.Select(x => string.Join(',', Csv("CLIENT"), Csv(x.Name), Csv(x.Id.ToString("D")), Csv("SCOPED"), Csv(string.Empty), Csv($"Visible engagements: {x.Engagements}"))));
+    lines.AddRange(VisibleCandidates.Select(x => string.Join(',', Csv("RELEASE_CANDIDATE"), Csv(x.ClientName), Csv(x.Id.ToString("D")), Csv(x.Status), Csv(string.Empty), Csv($"Target revision: {x.TargetRevision}"))));
+    lines.AddRange(VisiblePackages.Select(x => string.Join(',', Csv("FINANCIAL_PACKAGE"), Csv(x.ClientName), Csv(x.Id.ToString("D")), Csv(x.Status), Csv($"{x.PeriodStart} to {x.PeriodEnd}"), Csv(x.Framework))));
+    return string.Join('\n', lines);
+  }
+
+  private static string Csv(string value) => $"\"{value.Replace("\"", "\"\"")}\"";
 }
