@@ -210,7 +210,11 @@ window.auditSphereExports.downloadText = (filename, text, contentType = 'text/pl
         const identifier = boundary.id || boundary.getAttribute('aria-labelledby') || boundary.querySelector('h2[id], h3[id], legend')?.id ||
           boundary.querySelector('h2, h3, legend')?.textContent?.trim() || `card-${boundaryIndex}`;
         const baseScope = `${location.pathname}:${identifier}`;
-        const duplicateIndex = generatedScopes.get(baseScope) || 0;
+        const existingScopes = new Set([...document.querySelectorAll('[data-draft-scope]')]
+          .filter(node => node !== boundary && (node.dataset.draftScope === baseScope || node.dataset.draftScope.startsWith(`${baseScope}:`)))
+          .map(node => node.dataset.draftScope));
+        let duplicateIndex = generatedScopes.get(baseScope) || 0;
+        while (existingScopes.has(duplicateIndex === 0 ? baseScope : `${baseScope}:${duplicateIndex}`)) duplicateIndex++;
         generatedScopes.set(baseScope, duplicateIndex + 1);
         boundary.dataset.draftScope = duplicateIndex === 0 ? baseScope : `${baseScope}:${duplicateIndex}`;
       }
