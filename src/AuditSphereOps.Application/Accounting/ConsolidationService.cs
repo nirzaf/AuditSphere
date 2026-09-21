@@ -18,7 +18,7 @@ public sealed record GroupMembershipRequest(
 public sealed record ConsolidationScopeRequest(
   Guid GroupId, Guid PeriodId, string ReportingCurrency, string Method, string OpeningBasis,
   Guid? ExchangeRateSetVersionId = null, Guid? TranslationPolicyVersionId = null,
-  DateOnly? TranslationRateDate = null, string TranslationRateType = "");
+  DateOnly? TranslationRateDate = null, string TranslationRateType = "", Guid? PriorScopeVersionId = null);
 
 public sealed record ConsolidationComponentRequest(
   Guid ScopeVersionId, Guid ClientId, Guid EngagementId, Guid PackageId,
@@ -142,12 +142,58 @@ public static class ConsolidationService
       if (rateSet is null || policy is null || policy.PresentationCurrency != currency)
         return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The selected approved translation policy and rate set do not match the reporting currency.");
     }
+    var openingRunHash = string.Empty;
+    var openingTranslationManifestHash = string.Empty;
+    var openingTranslationReserve = 0m;
+    var recurringEliminationManifest = string.Empty;
+    if (request.PriorScopeVersionId is { } priorScopeId)
+    {
+      var priorScope = await db.ConsolidationScopeVersions.AsNoTracking().SingleOrDefaultAsync(x =>
+        x.FirmId == actor.FirmId && x.Id == priorScopeId && x.GroupId == request.GroupId, ct);
+      if (priorScope is null || priorScope.Status != AccountingWorkflowStates.Approved)
+        return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "A group roll-forward requires an approved prior consolidation scope.");
+      var priorRun = await db.ConsolidationRuns.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&
+        x.GroupId == request.GroupId && x.ScopeVersionId == priorScope.Id && x.Status == AccountingWorkflowStates.Approved)
+        .OrderByDescending(x => x.CreatedAt).FirstOrDefaultAsync(ct);
+      if (priorRun is null)
+        return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "A group roll-forward requires an approved prior consolidation run.");
+      openingRunHash = priorRun.RunHash;
+
+      var priorTranslations = await db.TranslationResults.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&
+        x.GroupId == request.GroupId && x.ScopeVersionId == priorScope.Id && x.Status == AccountingWorkflowStates.Approved)
+        .OrderBy(x => x.Id).ToListAsync(ct);
+      openingTranslationReserve = MoneyPolicy.Normalize(priorTranslations.Sum(x => x.TranslationReserve));
+      openingTranslationManifestHash = Hashing.Sha256Hex(string.Join('\n', priorTranslations.Select(x => string.Join('|',
+        x.ComponentId.ToString("D"), x.RateSetVersionId.ToString("D"), x.TranslationPolicyVersionId.ToString("D"),
+        x.SourcePackageHash ?? string.Empty, x.RateDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? string.Empty,
+        x.RateType, x.AppliedRate?.ToString("0.000000", CultureInfo.InvariantCulture) ?? string.Empty,
+        x.FromCurrency, x.ToCurrency, x.TranslatedAmount.ToString("0.000000", CultureInfo.InvariantCulture),
+        x.TranslationReserve.ToString("0.000000", CultureInfo.InvariantCulture)))));
+
+      var priorJournals = await db.ConsolidationJournals.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&
+        x.GroupId == request.GroupId && x.ScopeVersionId == priorScope.Id && x.Status == AccountingWorkflowStates.Approved)
+        .OrderBy(x => x.Id).ToListAsync(ct);
+      var priorJournalIds = priorJournals.Select(x => x.Id).ToArray();
+      var priorJournalLines = await db.ConsolidationJournalLines.AsNoTracking().Where(x =>
+        x.FirmId == actor.FirmId && priorJournalIds.Contains(x.ConsolidationJournalId)).OrderBy(x => x.Id).ToListAsync(ct);
+      recurringEliminationManifest = Hashing.Sha256Hex(string.Join('\n',
+        priorJournals.Select(x => string.Join('|', x.Id.ToString("D"), x.JournalNumber, x.JournalType,
+          x.Currency, x.TotalDebits.ToString("0.000000", CultureInfo.InvariantCulture),
+          x.TotalCreditsAbs.ToString("0.000000", CultureInfo.InvariantCulture), x.EvidenceReference))
+        .Concat(priorJournalLines.Select(x => string.Join('|', x.Id.ToString("D"), x.ConsolidationJournalId.ToString("D"),
+          x.IntercompanyMatchId?.ToString("D") ?? string.Empty, x.TaxonomyCode,
+          x.Debit.ToString("0.000000", CultureInfo.InvariantCulture), x.Credit.ToString("0.000000", CultureInfo.InvariantCulture),
+          x.Currency, x.Description)))));
+    }
     var version = (await db.ConsolidationScopeVersions.Where(x => x.FirmId == actor.FirmId && x.GroupId == request.GroupId && x.PeriodId == request.PeriodId)
       .Select(x => (int?)x.Version).MaxAsync(ct) ?? 0) + 1;
     var scope = new ConsolidationScopeVersion
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, GroupId = request.GroupId, PeriodId = request.PeriodId,
       GroupRevision = group.Revision,
+      PriorScopeVersionId = request.PriorScopeVersionId, OpeningRunHash = openingRunHash,
+      OpeningTranslationManifestHash = openingTranslationManifestHash, OpeningTranslationReserve = openingTranslationReserve,
+      RecurringEliminationManifest = recurringEliminationManifest,
       Version = version, ReportingCurrency = currency, Method = method,
       OpeningBasis = request.OpeningBasis.Trim(), ExchangeRateSetVersionId = request.ExchangeRateSetVersionId,
       TranslationPolicyVersionId = request.TranslationPolicyVersionId, TranslationRateDate = request.TranslationRateDate,

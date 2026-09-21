@@ -1044,6 +1044,17 @@ public sealed class ClientAccountingTests
         .Select(x => x.ConsolidatedAmount).SingleAsync());
       Assert.Equal(100m, await db.FinancialPackageLines.Where(x => x.FinancialPackageId == packageUsd).Select(x => x.Amount).SingleAsync());
       Assert.Equal("USD", await db.FinancialPackageLines.Where(x => x.FinancialPackageId == packageUsd).Select(x => x.Currency).SingleAsync());
+
+      var nextScopeId = (await ConsolidationService.CreateScopeAsync(db, reviewer,
+        new ConsolidationScopeRequest(groupId, Guid.NewGuid(), "QAR", ConsolidationCalculator.ForeignOperationMethod,
+          "OPENING-FX-2027", rateSetId, policyId, rateDate.AddYears(1), "CLOSING", consolidationScopeId))).Value;
+      var nextScope = await db.ConsolidationScopeVersions.AsNoTracking().SingleAsync(x => x.Id == nextScopeId);
+      var priorRunHash = await db.ConsolidationRuns.Where(x => x.Id == runId).Select(x => x.RunHash).SingleAsync();
+      Assert.Equal(consolidationScopeId, nextScope.PriorScopeVersionId);
+      Assert.Equal(priorRunHash, nextScope.OpeningRunHash);
+      Assert.NotEqual(string.Empty, nextScope.OpeningTranslationManifestHash);
+      Assert.Equal(0m, nextScope.OpeningTranslationReserve);
+      Assert.NotEqual(string.Empty, nextScope.RecurringEliminationManifest);
     }
   }
 

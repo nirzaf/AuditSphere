@@ -560,7 +560,7 @@ public static class RecordsArchiveService
       .Select(x => new { x.Id, x.GroupId, x.ClientId, x.EffectiveFrom, x.EffectiveTo, x.ControlMethod, x.OwnershipPercent, x.EconomicInterestPercent, x.EvidenceReference, x.Status, x.Revision, x.CreatedByUserId, x.CreatedAt }).ToListAsync(ct);
     var scopeVersions = typedAccounting is null ? [] : await typedAccounting.ConsolidationScopeVersions.AsNoTracking()
       .Where(x => x.FirmId == archive.FirmId && groupIds.Contains(x.GroupId)).OrderBy(x => x.Id)
-      .Select(x => new { x.Id, x.GroupId, x.GroupRevision, x.PeriodId, x.Version, x.ReportingCurrency, x.Method, x.Status, x.OpeningBasis, x.ExchangeRateSetVersionId, x.TranslationPolicyVersionId, x.TranslationRateDate, x.TranslationRateType, x.CreatedByUserId, x.ApprovedByUserId, x.ApprovedAt, x.CreatedAt }).ToListAsync(ct);
+      .Select(x => new { x.Id, x.GroupId, x.GroupRevision, x.PeriodId, x.PriorScopeVersionId, x.OpeningRunHash, x.OpeningTranslationManifestHash, x.OpeningTranslationReserve, x.RecurringEliminationManifest, x.Version, x.ReportingCurrency, x.Method, x.Status, x.OpeningBasis, x.ExchangeRateSetVersionId, x.TranslationPolicyVersionId, x.TranslationRateDate, x.TranslationRateType, x.CreatedByUserId, x.ApprovedByUserId, x.ApprovedAt, x.CreatedAt }).ToListAsync(ct);
     var scopeIds = scopeVersions.Select(x => x.Id).ToArray();
     var consolidationComponents = typedAccounting is null ? [] : await typedAccounting.ConsolidationComponents.AsNoTracking()
       .Where(x => x.FirmId == archive.FirmId && scopeIds.Contains(x.ScopeVersionId) && x.ClientId == archive.ClientId && x.EngagementId == archive.EngagementId).OrderBy(x => x.Id)

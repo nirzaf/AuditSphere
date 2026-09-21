@@ -630,6 +630,11 @@ public sealed class ConsolidationScopeVersion
   public Guid GroupId { get; set; }
   public long GroupRevision { get; set; } = 1;
   public Guid PeriodId { get; set; }
+  public Guid? PriorScopeVersionId { get; set; }
+  public string OpeningRunHash { get; set; } = string.Empty;
+  public string OpeningTranslationManifestHash { get; set; } = string.Empty;
+  public decimal OpeningTranslationReserve { get; set; }
+  public string RecurringEliminationManifest { get; set; } = string.Empty;
   public int Version { get; set; } = 1;
   public string ReportingCurrency { get; set; } = string.Empty;
   public string Method { get; set; } = string.Empty;
