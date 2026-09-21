@@ -247,6 +247,49 @@ public sealed class FinancialStatementTests
   }
 
   [Fact]
+  public async Task AdjustmentInstructions_RequireEvidenceAndCarryExactSourceLineage()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await SeedAsync(pg);
+    var preparer = Actor(fixture.Preparer, "AccountingPreparer");
+    var reviewer = Actor(fixture.Reviewer, "AccountingReviewer");
+    Guid journalId;
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var dataset = await db.TrialBalanceDatasets.SingleAsync(x => x.Id == fixture.DatasetId);
+      dataset.RawFileSha256Hex = new string('a', 64);
+      dataset.NormalizedDatasetDigest = new string('b', 64);
+      dataset.ImportProfileVersion = "trial-balance.v1";
+      dataset.LegalEntityKey = "TEST-ENTITY";
+      await db.SaveChangesAsync();
+
+      var created = await AdjustmentJournalService.CreateDraftAsync(db, preparer, fixture.DatasetId,
+        "AJ-EXPORT-001", [("=1000", 10m, 0m), ("4000", 0m, 10m)]);
+      Assert.True(created.Succeeded, created.Message);
+      journalId = created.Value;
+
+      var blocked = await AdjustmentJournalService.BuildInstructionExportAsync(db, reviewer, journalId);
+      Assert.False(blocked.Succeeded);
+      Assert.Equal(ErrorCodes.GateBlocked, blocked.ErrorCode);
+
+      var decision = await AdjustmentJournalService.RecordManagementDecisionAsync(db, reviewer,
+        new AdjustmentJournalService.ManagementDecisionRequest(journalId, ManagementDecisionStates.Accepted,
+          ManagementDecisionEvidenceModes.Offline, "review-note-1"));
+      Assert.True(decision.Succeeded, decision.Message);
+
+      var exported = await AdjustmentJournalService.BuildInstructionExportAsync(db, reviewer, journalId);
+      Assert.True(exported.Succeeded, exported.Message);
+      Assert.Equal("auditsphere-adjustment-AJ-EXPORT-001-r1.csv", exported.Value!.FileName);
+      Assert.Contains("NOT_PROOF_OF_EXTERNAL_POSTING", exported.Value.Csv);
+      Assert.Contains("source_raw_sha256", exported.Value.Csv);
+      Assert.Contains("FY2026", exported.Value.Csv);
+      Assert.Contains("\"'=1000\"", exported.Value.Csv);
+      Assert.Contains("review-note-1", exported.Value.Csv);
+    }
+  }
+
+  [Fact]
   public async Task MappingApplicability_BindsApprovedClientChartVersion()
   {
     await using var pg = await PgTestSchema.CreateAsync();

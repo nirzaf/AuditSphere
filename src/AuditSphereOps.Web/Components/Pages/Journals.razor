@@ -4,6 +4,7 @@
 @using AuditSphereOps.Domain.Accounting
 @inject CurrentActorResolver ActorResolver
 @inject IDbContextFactory<AuditSphereDbContext> DbFactory
+@inject IJSRuntime JS
 
 <PageTitle>Adjustment journal</PageTitle>
 <a class="back-link" href="/app">← Back to portfolio</a>
@@ -79,11 +80,37 @@ else
       <p class="scope-note">Posting freezes the journal lines immutably. Separation of duties is enforced: a preparer cannot post their own journal.</p>
       @if (_canPost)
       {
-        <button class="button" @onclick="PostJournalAsync" disabled="@_busy">Post adjustment journal</button>
+        <button class="button" title="Post this reviewed journal and freeze its lines immutably." @onclick="PostJournalAsync" disabled="@_busy">Post adjustment journal</button>
       }
       else
       {
         <p class="muted">You must have the AccountingReviewer, Partner or Manager role (and be a different user from the preparer) to post this journal.</p>
+      }
+    </section>
+  }
+
+  @if (_journal.Status is not ("Void" or "ReflectedInSource"))
+  {
+    <section class="card" aria-labelledby="export-heading">
+      <h2 id="export-heading">Controlled adjustment instructions</h2>
+      <p class="scope-note">The export rechecks the exact source receipt, reporting context, journal revision and management evidence. It is an instruction file only and is not proof of external posting.</p>
+      @if (_managementDecision is not null)
+      {
+        <p class="muted">Management evidence: @_managementDecision.Decision (@_managementDecision.EvidenceMode), revision @_managementDecision.JournalRevision.</p>
+      }
+      @if (_canExport)
+      {
+        <button class="button" title="Download the exact approved adjustment instructions as a safe CSV; this does not post anything externally." @onclick="ExportInstructionsAsync" disabled="@(_busy || _exportBusy)">
+          @(_exportBusy ? "Preparing export…" : "Download adjustment instructions")
+        </button>
+      }
+      else
+      {
+        <p class="muted">Export is unavailable until accepted or partial management evidence is recorded for this journal revision.</p>
+      }
+      @if (!string.IsNullOrWhiteSpace(_exportStatus))
+      {
+        <p class="notice-text" role="status" aria-live="polite">@_exportStatus</p>
       }
     </section>
   }
@@ -94,12 +121,16 @@ else
   private ActorContext? _actor;
   private bool _isStaff;
   private bool _canPost;
+  private bool _canExport;
   private AdjustmentJournal? _journal;
+  private AdjustmentJournalManagementDecision? _managementDecision;
   private List<AdjustmentLine> _lines = [];
   private CommandResult? _result;
   private string? _successMessage;
   private bool _loading = true;
   private bool _busy;
+  private bool _exportBusy;
+  private string? _exportStatus;
 
   protected override async Task OnInitializedAsync()
   {
@@ -119,18 +150,27 @@ else
   {
     if (_actor is null) return;
     await using var db = await DbFactory.CreateDbContextAsync();
-    _journal = await db.AdjustmentJournals.AsNoTracking()
+    var candidate = await db.AdjustmentJournals.AsNoTracking()
       .SingleOrDefaultAsync(x => x.Id == JournalId && x.FirmId == _actor.FirmId);
-    if (_journal is not null)
-    {
-      _lines = await db.AdjustmentLines.AsNoTracking()
-        .Where(x => x.JournalId == _journal.Id)
+    if (candidate is null) return;
+    var auth = await AuthorizationDecision.AuthorizeAsync(db, _actor,
+      new AuthorizationRequest(candidate.FirmId, candidate.ClientId, candidate.EngagementId,
+        ["Administrator", "Partner", "Manager", "Staff", "AccountingPreparer", "AccountingReviewer"], InternalOnly: true));
+    if (!auth.Succeeded) return;
+
+    _journal = candidate;
+    _lines = await db.AdjustmentLines.AsNoTracking()
+        .Where(x => x.JournalId == candidate.Id)
         .OrderBy(x => x.AccountCode)
         .ToListAsync();
-
-      _canPost = _actor.UserId != _journal.CreatedByUserId &&
-                 _actor.Roles.Any(x => x is "AccountingReviewer" or "Partner" or "Manager");
-    }
+    _managementDecision = await db.AdjustmentJournalManagementDecisions.AsNoTracking()
+      .SingleOrDefaultAsync(x => x.FirmId == candidate.FirmId && x.ClientId == candidate.ClientId &&
+        x.EngagementId == candidate.EngagementId && x.JournalId == candidate.Id &&
+        x.JournalRevision == candidate.Revision);
+    _canPost = _actor.UserId != candidate.CreatedByUserId &&
+               _actor.Roles.Any(x => x is "AccountingReviewer" or "Partner" or "Manager");
+    _canExport = (_managementDecision?.Decision is ManagementDecisionStates.Accepted or ManagementDecisionStates.Partial) &&
+                 _actor.Roles.Any(x => x is "Administrator" or "Partner" or "Manager" or "AccountingPreparer" or "AccountingReviewer");
   }
 
   private async Task PostJournalAsync()
@@ -149,5 +189,33 @@ else
       }
     }
     finally { _busy = false; }
+  }
+
+  private async Task ExportInstructionsAsync()
+  {
+    if (_actor is null || _journal is null || _exportBusy) return;
+    _exportBusy = true;
+    _exportStatus = "Rechecking source, scope and management evidence…";
+    try
+    {
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var export = await AdjustmentJournalService.BuildInstructionExportAsync(db, _actor, _journal.Id);
+      if (!export.Succeeded || export.Value is null)
+      {
+        _exportStatus = $"Export blocked: {export.Message ?? export.ErrorCode}";
+        return;
+      }
+      await JS.InvokeVoidAsync("auditSphereExports.downloadText", export.Value.FileName, export.Value.Csv, "text/csv;charset=utf-8");
+      _exportStatus = $"Downloaded revision {export.Value.JournalRevision}. This file is instruction-only; external posting evidence must be returned separately.";
+    }
+    catch (JSDisconnectedException)
+    {
+      _exportStatus = "The download acknowledgement was interrupted; reopen the page and retry.";
+    }
+    catch (JSException ex)
+    {
+      _exportStatus = $"Download failed without changing the journal: {ex.Message}";
+    }
+    finally { _exportBusy = false; }
   }
 }

@@ -1,3 +1,14 @@
+window.auditSphereExports = window.auditSphereExports || {};
+window.auditSphereExports.downloadText = (filename, text, contentType = 'text/plain;charset=utf-8') => {
+  const blob = new Blob([text], { type: contentType });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+};
+
 (() => {
   const root = window.auditSphereDrafts = window.auditSphereDrafts || {};
   const wired = new WeakSet();

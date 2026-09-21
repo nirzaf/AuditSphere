@@ -2,6 +2,7 @@
 // authorization, application, and posting stay distinct decisions. The preparer drafts;
 // a different reviewer posts. Posted lines freeze via the database trigger, and a
 // correction is a new linked journal — never an edit.
+using System.Globalization;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Security;
@@ -18,6 +19,8 @@ public static class AdjustmentJournalService
 
   public sealed record ManagementDecisionRequest(
     Guid JournalId, string Decision, string EvidenceMode, string EvidenceReference);
+
+  public sealed record AdjustmentInstructionExport(string FileName, string Csv, long JournalRevision);
 
   public static async Task<CommandResult<Guid>> CreateDraftAsync(
     IAuditSphereDbContext db,
@@ -196,6 +199,105 @@ public static class AdjustmentJournalService
     return CommandResult.Ok();
   }
 
+  public static async Task<CommandResult<AdjustmentInstructionExport>> BuildInstructionExportAsync(
+    IAdjustmentJournalDbContext db, ActorContext actor, Guid journalId, CancellationToken ct = default)
+  {
+    var journal = await db.AdjustmentJournals.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.Id == journalId && x.FirmId == actor.FirmId, ct);
+    if (journal is null)
+      return CommandResult<AdjustmentInstructionExport>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+
+    var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(journal.FirmId, journal.ClientId, journal.EngagementId,
+        ["Administrator", "Partner", "Manager", "AccountingPreparer", "AccountingReviewer"], InternalOnly: true), ct);
+    if (!auth.Succeeded)
+      return CommandResult<AdjustmentInstructionExport>.Fail(auth.ErrorCode!, auth.Message!);
+
+    if (journal.Status is "Void" or "ReflectedInSource")
+      return CommandResult<AdjustmentInstructionExport>.Fail(ErrorCodes.ProtectedState,
+        "Only an active draft or posted journal can be exported as instructions.");
+    if (journal.PeriodId is not { } periodId)
+      return CommandResult<AdjustmentInstructionExport>.Fail(ErrorCodes.GateBlocked,
+        "The journal is not bound to a client reporting period.");
+
+    var dataset = await db.TrialBalanceDatasets.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.Id == journal.BaseDatasetId && x.FirmId == journal.FirmId && x.ClientId == journal.ClientId &&
+      x.EngagementId == journal.EngagementId, ct);
+    if (dataset is null || dataset.ValidationStatus != "Accepted" ||
+        string.IsNullOrWhiteSpace(dataset.RawFileSha256Hex) ||
+        string.IsNullOrWhiteSpace(dataset.NormalizedDatasetDigest))
+      return CommandResult<AdjustmentInstructionExport>.Fail(ErrorCodes.GateBlocked,
+        "The validated source receipt and both source digests are required before export.");
+
+    if (db is not IClientAccountingDbContext clientDb)
+      return CommandResult<AdjustmentInstructionExport>.Fail(ErrorCodes.GateBlocked,
+        "Client reporting context is unavailable for this export.");
+    var period = await clientDb.ClientReportingPeriods.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.Id == periodId && x.FirmId == journal.FirmId && x.ClientId == journal.ClientId, ct);
+    if (period is null || !string.Equals(period.Currency, dataset.Currency, StringComparison.Ordinal) ||
+        !string.Equals(period.Basis, dataset.Basis, StringComparison.OrdinalIgnoreCase))
+      return CommandResult<AdjustmentInstructionExport>.Fail(ErrorCodes.GateBlocked,
+        "The journal, source and client reporting period do not share the same basis and currency.");
+
+    ClientReportingBook? book = null;
+    if (journal.BookId is { } bookId)
+    {
+      book = await clientDb.ClientReportingBooks.AsNoTracking().SingleOrDefaultAsync(x =>
+        x.Id == bookId && x.FirmId == journal.FirmId && x.ClientId == journal.ClientId && x.PeriodId == period.Id, ct);
+      if (book is null || !string.Equals(book.Basis, dataset.Basis, StringComparison.OrdinalIgnoreCase) ||
+          !string.Equals(book.Currency, dataset.Currency, StringComparison.Ordinal))
+        return CommandResult<AdjustmentInstructionExport>.Fail(ErrorCodes.ScopeDenied,
+          "The journal book is outside the selected reporting period.");
+    }
+
+    var decision = await db.AdjustmentJournalManagementDecisions.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.FirmId == journal.FirmId && x.ClientId == journal.ClientId && x.EngagementId == journal.EngagementId &&
+      x.JournalId == journal.Id && x.JournalRevision == journal.Revision, ct);
+    if (decision is null || decision.Decision is not (ManagementDecisionStates.Accepted or ManagementDecisionStates.Partial))
+      return CommandResult<AdjustmentInstructionExport>.Fail(ErrorCodes.GateBlocked,
+        "Accepted or partial management approval evidence is required before export.");
+
+    var lines = await db.AdjustmentLines.AsNoTracking().Where(x => x.JournalId == journal.Id)
+      .OrderBy(x => x.Id).ToListAsync(ct);
+    if (lines.Count < 2)
+      return CommandResult<AdjustmentInstructionExport>.Fail(ErrorCodes.Accounting.JournalRejected,
+        "A journal needs at least two lines before export.");
+
+    var headers = new[]
+    {
+      "export_type", "external_posting_status", "journal_id", "journal_number", "journal_revision", "journal_status",
+      "base_dataset_id", "source_revision", "source_kind", "source_raw_sha256", "source_normalized_digest",
+      "source_profile_version", "legal_entity", "period_id", "period_code", "period_start", "period_end",
+      "book_id", "book_code", "basis", "currency", "purpose", "origin", "reason", "journal_evidence_reference",
+      "management_decision", "management_evidence_mode", "management_evidence_reference", "management_decided_at",
+      "account_code", "debit", "credit"
+    };
+    var rows = new List<string> { string.Join(',', headers.Select(CsvCell)) };
+    foreach (var line in lines)
+    {
+      var values = new[]
+      {
+        CsvCell("ADJUSTMENT_INSTRUCTION"), CsvCell("NOT_PROOF_OF_EXTERNAL_POSTING"), CsvCell(journal.Id.ToString("D")),
+        CsvCell(journal.JournalNumber), journal.Revision.ToString(CultureInfo.InvariantCulture), CsvCell(journal.Status),
+        CsvCell(dataset.Id.ToString("D")), dataset.Revision.ToString(CultureInfo.InvariantCulture), CsvCell(dataset.SourceKind),
+        CsvCell(dataset.RawFileSha256Hex), CsvCell(dataset.NormalizedDatasetDigest), CsvCell(dataset.ImportProfileVersion),
+        CsvCell(dataset.LegalEntityKey), CsvCell(period.Id.ToString("D")), CsvCell(period.PeriodCode),
+        CsvCell(period.StartDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)), CsvCell(period.EndDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)),
+        CsvCell(journal.BookId?.ToString("D")), CsvCell(book?.Code), CsvCell(journal.Basis ?? dataset.Basis), CsvCell(journal.Currency ?? dataset.Currency),
+        CsvCell(journal.Purpose), CsvCell(journal.Origin), CsvCell(journal.Reason), CsvCell(journal.EvidenceReference),
+        CsvCell(decision.Decision), CsvCell(decision.EvidenceMode), CsvCell(decision.EvidenceReference),
+        CsvCell(decision.DecidedAt.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture)), CsvCell(line.AccountCode),
+        line.Debit.ToString("0.######", CultureInfo.InvariantCulture), line.Credit.ToString("0.######", CultureInfo.InvariantCulture)
+      };
+      rows.Add(string.Join(',', values));
+    }
+
+    var safeNumber = new string(journal.JournalNumber.Select(ch => char.IsLetterOrDigit(ch) ? ch : '-').ToArray()).Trim('-');
+    if (string.IsNullOrWhiteSpace(safeNumber)) safeNumber = "journal";
+    return CommandResult<AdjustmentInstructionExport>.Ok(new AdjustmentInstructionExport(
+      $"auditsphere-adjustment-{safeNumber}-r{journal.Revision}.csv", string.Join('\n', rows) + '\n', journal.Revision));
+  }
+
   public static async Task<CommandResult> PostAsync(
     IAuditSphereDbContext db,
     ActorContext actor,
@@ -272,5 +374,12 @@ public static class AdjustmentJournalService
     if (MoneyPolicy.Normalize(debits) == 0)
       return "A journal cannot total zero.";
     return null;
+  }
+
+  private static string CsvCell(string? value)
+  {
+    var text = value ?? string.Empty;
+    if (text.Length > 0 && text[0] is '=' or '+' or '-' or '@') text = "'" + text;
+    return $"\"{text.Replace("\"", "\"\"", StringComparison.Ordinal)}\"";
   }
 }
