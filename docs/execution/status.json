@@ -4,10 +4,10 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "ef750bd",
+  "headCommit": "5508ea3",
   "remoteHeadVerified": true,
   "productionEnabled": false,
-  "verifiedAt": "2026-09-21T12:16:36Z",
+  "verifiedAt": "2026-09-21T12:44:32Z",
   "toolchain": {
     "sdk": ".NET 10",
     "efCore": "10.0.12",
@@ -17,10 +17,10 @@
   },
   "verification": {
     "build": "PASS: dotnet build AuditSphereOps.slnx --no-restore --configuration Release; 0 warnings/errors",
-    "tests": "PASS: 208/208 PostgreSQL-backed tests; 0 skipped",
-    "migrations": "PASS: 69 applied; latest 20260921120505_AddAuditBankReconciliationWorkbench",
+    "tests": "PASS: 209/209 PostgreSQL-backed tests; 0 skipped",
+    "migrations": "PASS: 70 applied; latest 20260921123852_CancelDurableOperationDisposition",
     "pendingModelChanges": "PASS: no changes",
-    "restoreDrill": "PASS: loopback restore reconciled 69 migrations; latest 20260921120505_AddAuditBankReconciliationWorkbench; external custody and production RPO/RTO not run",
+    "restoreDrill": "PASS: loopback restore reconciled 70 migrations; latest 20260921123852_CancelDurableOperationDisposition; external custody and production RPO/RTO not run",
     "database": "127.0.0.1:5433 development only"
   },
   "active": {
@@ -54,7 +54,7 @@
     {
       "item": "GL opening/movement completeness",
       "status": "LOCAL_VERIFIED",
-      "details": "Completeness bridges optionally bind an approved prior-period sealed TB for the same entity, book, basis and currency, persist per-account opening-plus-movement residuals and the opening digest, count malformed journal groups, and disclose missing opening data or incomplete batch counts. Focused opening-rollforward and source-only disclosure coverage, the 208-test suite, Release build, EF drift check and loopback restore evidence pass. Migration 20260921072319_ReconcileGeneralLedgerOpeningMovement."
+      "details": "Completeness bridges optionally bind an approved prior-period sealed TB for the same entity, book, basis and currency, persist per-account opening-plus-movement residuals and the opening digest, count malformed journal groups, and disclose missing opening data or incomplete batch counts. Focused opening-rollforward and source-only disclosure coverage, the 209-test suite, Release build, EF drift check and loopback restore evidence pass. Migration 20260921072319_ReconcileGeneralLedgerOpeningMovement."
     },
     {
       "item": "Adjustment source reflection",
@@ -99,12 +99,17 @@
     {
       "item": "Audit difference summaries",
       "status": "LOCAL_VERIFIED",
-      "details": "A scoped fieldwork query returns gross absolute, signed/net, corrected and unadjusted difference totals by currency, so offsetting differences remain visible. Linked differences now persist a journal-impact.v2 payload from the exact journal revision and approved mapping lineage, including account/statement effects, profit/equity totals, disclosure buckets, explicit unmapped status and a payload hash. Difference records retain optional materiality and qualitative concerns, and reviewer-governed proposed/agreed/rejected/applied/reported states reject stale or unsupported impact evidence before verified-reflected status. PostgreSQL regression coverage, the 208-test suite, Release build, EF drift check and 69-migration restore drill pass; professional aggregate evaluation remains a separate control."
+      "details": "A scoped fieldwork query returns gross absolute, signed/net, corrected and unadjusted difference totals by currency, so offsetting differences remain visible. Linked differences now persist a journal-impact.v2 payload from the exact journal revision and approved mapping lineage, including account/statement effects, profit/equity totals, disclosure buckets, explicit unmapped status and a payload hash. Difference records retain optional materiality and qualitative concerns, and reviewer-governed proposed/agreed/rejected/applied/reported states reject stale or unsupported impact evidence before verified-reflected status. PostgreSQL regression coverage, the 209-test suite, Release build, EF drift check and 70-migration restore drill pass; professional aggregate evaluation remains a separate control."
     },
     {
       "item": "Bank reconciliation workbench",
       "status": "LOCAL_VERIFIED",
-      "details": "Bank reconciliations bind independently approved ledger and statement schedules, retain typed ledger/statement/timing/proposed-correction items with source and evidence references, calculate the unexplained residual without netting proposed corrections, require same-engagement draft-journal lineage for proposed items, and block approval and completion while unreconciled. PostgreSQL regression coverage, the 208-test suite, Release build, EF drift check and 69-migration loopback restore pass. Migration 20260921120505_AddAuditBankReconciliationWorkbench."
+      "details": "Bank reconciliations bind independently approved ledger and statement schedules, retain typed ledger/statement/timing/proposed-correction items with source and evidence references, calculate the unexplained residual without netting proposed corrections, require same-engagement draft-journal lineage for proposed items, and block approval and completion while unreconciled. PostgreSQL regression coverage, the 209-test suite, Release build, EF drift check and 70-migration loopback restore pass. Migration 20260921120505_AddAuditBankReconciliationWorkbench."
+    },
+    {
+      "item": "Queued durable-operation cancellation",
+      "status": "LOCAL_VERIFIED",
+      "details": "Authorized administrators can cancel only queued durable work without an active lease, with a bounded persisted disposition and append-only event. Cancelled operations are excluded from worker claims and cannot publish a partial local result; active or already-started work remains subject to lease expiry and reconciliation. PostgreSQL recovery coverage, the 209-test suite, Release build, EF drift check and 70-migration loopback restore pass. Migration 20260921123852_CancelDurableOperationDisposition."
     },
     {
       "item": "Durable financial-package calculation",
@@ -129,12 +134,12 @@
     {
       "item": "Financial-package consistency validation",
       "status": "LOCAL_VERIFIED",
-      "details": "Approved mapping destinations must match the taxonomy statement section. Financial-package validation persists separate statement cross-cast, accounting-equation, equity/profit, comparative-consistency and note-to-face outcomes, and deterministic artifacts render adjusted-snapshot, mapping-version and adjustment-plan lineage identifiers. Exact framework/template-bound artifact bytes and SHA-256 lineage are persisted, and package-review decisions reference the artifact. Financial-statement PostgreSQL regressions, the 208-test suite and Release build pass."
+      "details": "Approved mapping destinations must match the taxonomy statement section. Financial-package validation persists separate statement cross-cast, accounting-equation, equity/profit, comparative-consistency and note-to-face outcomes, and deterministic artifacts render adjusted-snapshot, mapping-version and adjustment-plan lineage identifiers. Exact framework/template-bound artifact bytes and SHA-256 lineage are persisted, and package-review decisions reference the artifact. Financial-statement PostgreSQL regressions, the 209-test suite and Release build pass."
     },
     {
       "item": "Analytical review and journal-risk lineage",
       "status": "LOCAL_VERIFIED",
-      "details": "Analytical reviews default blank reporting currency to QAR within the selected client reporting period, validate period currency, persist deterministic input snapshots and replay hashes, disclose negative/seasonal movement flags, and require a persisted reviewer conclusion for approval. Secured aggregate summaries enforce client/engagement or explicit group scope, honor effective membership dates, and omit client/component identifiers. Journal-risk evidence preserves sample-selection, management-explanation and corroboration fields; bounded analysis returns criteria-versioned manual/year-end/high-value/reversal/missing-origin review indicators with source-origin and debit-amount evidence, without making automatic fraud findings. Focused aggregate and journal-risk coverage passes; the full 208-test suite, Release build, EF drift check and 69-migration loopback restore pass. Migration 20260921082006_AnalyticalReviewLineage remains the analytical-lineage migration; the current head also includes 20260921090305_PreserveAnalyticalReviewConclusion, 20260921092708_PersistFinancialPackageArtifacts, 20260921102055_AddReconciliationAgingEvidence, 20260921113403_AddAuditDifferenceEvaluationMetadata and 20260921120505_AddAuditBankReconciliationWorkbench."
+      "details": "Analytical reviews default blank reporting currency to QAR within the selected client reporting period, validate period currency, persist deterministic input snapshots and replay hashes, disclose negative/seasonal movement flags, and require a persisted reviewer conclusion for approval. Secured aggregate summaries enforce client/engagement or explicit group scope, honor effective membership dates, and omit client/component identifiers. Journal-risk evidence preserves sample-selection, management-explanation and corroboration fields; bounded analysis returns criteria-versioned manual/year-end/high-value/reversal/missing-origin review indicators with source-origin and debit-amount evidence, without making automatic fraud findings. Focused aggregate and journal-risk coverage passes; the full 209-test suite, Release build, EF drift check and 70-migration loopback restore pass. Migration 20260921082006_AnalyticalReviewLineage remains the analytical-lineage migration; the current head also includes 20260921090305_PreserveAnalyticalReviewConclusion, 20260921092708_PersistFinancialPackageArtifacts, 20260921102055_AddReconciliationAgingEvidence, 20260921113403_AddAuditDifferenceEvaluationMetadata, 20260921120505_AddAuditBankReconciliationWorkbench and 20260921123852_CancelDurableOperationDisposition."
     },
     {
       "item": "Representative accounting workload benchmark",
@@ -169,7 +174,7 @@
     {
       "item": "Valuation difference and proposed-adjustment lineage",
       "status": "LOCAL_VERIFIED",
-      "details": "ECL persists an explicit booked amount and calculates the difference against it; ECL and inventory assessments can retain a same-engagement, non-void proposed-journal link, with base-dataset matching when the reconciliation is dataset-bound. Legacy ECL booked amounts are backfilled from management amounts. PostgreSQL valuation regression, the 208-test suite, Release build, EF drift check and 69-migration loopback restore pass. Migration 20260921085029_LinkValuationDifferencesToAdjustments."
+      "details": "ECL persists an explicit booked amount and calculates the difference against it; ECL and inventory assessments can retain a same-engagement, non-void proposed-journal link, with base-dataset matching when the reconciliation is dataset-bound. Legacy ECL booked amounts are backfilled from management amounts. PostgreSQL valuation regression, the 209-test suite, Release build, EF drift check and 70-migration loopback restore pass. Migration 20260921085029_LinkValuationDifferencesToAdjustments."
     },
     {
       "item": "Accounting evidence linkage and period governance",

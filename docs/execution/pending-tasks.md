@@ -3,7 +3,7 @@
 **Repository:** `nirzaf/AuditSphere`
 **Authoritative specification:** [`docs/SPECIFICATION.md`](../SPECIFICATION.md) v5.0
 **Requirements backlog:** [`docs/requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md`](../requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md)
-**Source implementation checkpoint:** `master@ef750bd`
+**Source implementation checkpoint:** `master@5508ea3`
 
 This is a resume checklist, not an acceptance certificate. Tenant identifiers, credentials, tokens, secret values, and private-provider URLs are deliberately absent from the public repository.
 
@@ -11,8 +11,8 @@ This is a resume checklist, not an acceptance certificate. Tenant identifiers, c
 
 - [x] .NET 10 solution builds with zero warnings/errors.
 - [x] PostgreSQL 18.6 development profile is used on loopback port 5433.
-- [x] 208/208 PostgreSQL-backed tests pass with 0 skipped.
-- [x] 69 migrations are applied; latest is `20260921120505_AddAuditBankReconciliationWorkbench`.
+- [x] 209/209 PostgreSQL-backed tests pass with 0 skipped.
+- [x] 70 migrations are applied; latest is `20260921123852_CancelDurableOperationDisposition`.
 - [x] EF model has no pending migration changes.
 - [x] Loopback restore drill passes and writes secret-free evidence to `docs/evidence/restore-drill-latest.json`.
 - [x] Generated Graphify output and local agent state are ignored and removed from Git tracking.
@@ -33,6 +33,7 @@ This is a resume checklist, not an acceptance certificate. Tenant identifiers, c
 - [x] ECL differences are calculated against an explicit booked amount; ECL and inventory assessments retain same-engagement proposed-journal lineage. Approved golden fixtures and boundary cases remain pending.
 - [x] Analytical-review approvals require a persisted reviewer conclusion linked to the exact replay snapshot/hash; missing conclusions are rejected after freshness checks.
 - [x] Entity package projections, equity, notes, comparatives, restatement lineage and bounded same-currency consolidation.
+- [x] Queued durable operations support an explicit administrator cancellation disposition; cancelled work is excluded from claims and cannot publish a partial local result, while active work remains subject to lease/reconciliation handling.
 - [x] Journal lineage, close checks and immutable management/accounting/partner package-review decisions.
 - [x] Persist exact rendered package bytes with framework/template versions and SHA-256 lineage; require the matching artifact before recording management, accounting or partner package review.
 - [x] Require an independently accepted group capability profile before approving a consolidation perimeter.

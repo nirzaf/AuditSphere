@@ -6,20 +6,21 @@ This file records observed repository state only. The authoritative build contra
 
 | Item | Observed value |
 |---|---|
-| Source implementation checkpoint | `master@ef750bd` |
-| Remote | `origin/master` includes source checkpoint `ef750bd` |
+| Source implementation checkpoint | `master@5508ea3` |
+| Remote | `origin/master` includes source checkpoint `5508ea3` |
 | SDK | .NET 10; repository solution targets `net10.0` |
 | Database | PostgreSQL 18.6 on loopback port 5433 for development only |
 | Build | `dotnet build AuditSphereOps.slnx --no-restore --configuration Release` — passed, 0 warnings/errors |
-| Tests | 208/208 passed, 0 skipped against PostgreSQL 18.6 |
-| Migrations | 69 applied; latest `20260921120505_AddAuditBankReconciliationWorkbench` |
+| Tests | 209/209 passed, 0 skipped against PostgreSQL 18.6 |
+| Migrations | 70 applied; latest `20260921123852_CancelDurableOperationDisposition` |
 | Model drift | `dotnet ef migrations has-pending-model-changes` — no changes |
-| Restore drill | `scripts/db/restore-drill.sh` — passed; 69 migrations reconciled |
+| Restore drill | `scripts/db/restore-drill.sh` — passed; 70 migrations reconciled |
 | Production effects | Disabled locally; no production acceptance claimed |
 
 ## Implemented local capability
 
 - Firm/client/engagement scope authorization, durable operations, trial-balance intake, audit planning, evidence submissions, package generation, records/archive lineage, recovery quarantine, and provider safety fences.
+- Durable operations expose redacted administrator recovery state and explicit cancellation dispositions; queued work without a lease can be cancelled atomically, is excluded from worker claims, and cannot publish a partial result. Active work remains subject to lease expiry and reconciliation because cancellation cannot prove an already-started effect did not occur.
 - Client accounting profiles, periods, books, chart-of-accounts mappings, versioned trial-balance profiles, signed-net/debit-credit normalization, and atomic multi-entity batches.
 - Capability profiles accept only ENTITY_REPORTING/AUDIT_ONLY client scopes or GROUP_REPORTING group scopes; mismatched or unknown service kinds are rejected.
 - Client accounting setup/reporting objects default blank currency input to QAR; raw source/import currencies and FX policy currencies remain explicit.
@@ -130,7 +131,7 @@ dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infr
 scripts/db/restore-drill.sh
 ```
 
-The restore evidence is written to [`docs/evidence/restore-drill-latest.json`](../evidence/restore-drill-latest.json). The latest rehearsal restored 69 migrations through `20260921120505_AddAuditBankReconciliationWorkbench`; it is loopback-only and explicitly reports that external checkpoint custody and production RPO/RTO were not run.
+The restore evidence is written to [`docs/evidence/restore-drill-latest.json`](../evidence/restore-drill-latest.json). The latest rehearsal restored 70 migrations through `20260921123852_CancelDurableOperationDisposition`; it is loopback-only and explicitly reports that external checkpoint custody and production RPO/RTO were not run.
 
 ## Resume rule
 
