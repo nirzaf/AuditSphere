@@ -6,12 +6,12 @@ This file records observed repository state only. The authoritative build contra
 
 | Item | Observed value |
 |---|---|
-| Source implementation checkpoint | `master@14e18a7` |
-| Remote | `origin/master` includes source checkpoint `14e18a7` |
+| Source implementation checkpoint | `master@087730c` |
+| Remote | `origin/master` includes source checkpoint `087730c` |
 | SDK | .NET 10; repository solution targets `net10.0` |
 | Database | PostgreSQL 18.6 on loopback port 5433 for development only |
 | Build | `dotnet build AuditSphereOps.slnx --no-restore --configuration Release` — passed, 0 warnings/errors |
-| Tests | 205/205 passed, 0 skipped against PostgreSQL 18.6 |
+| Tests | 206/206 passed, 0 skipped against PostgreSQL 18.6 |
 | Migrations | 62 applied; latest `20260921072319_ReconcileGeneralLedgerOpeningMovement` |
 | Model drift | `dotnet ef migrations has-pending-model-changes` — no changes |
 | Restore drill | `scripts/db/restore-drill.sh` — passed; 62 migrations reconciled |
@@ -26,6 +26,7 @@ This file records observed repository state only. The authoritative build contra
 - Direct and streaming GL imports preserve optional service dates through canonical digests and archive lineage.
 - GL completeness bridges optionally bind the approved prior-period TB, persist per-account opening-plus-movement residuals and disclose missing opening or malformed journal evidence.
 - Zero-adjustment plans preserve the validated source exactly; posted journals apply only when NOT_REFLECTED, REFLECTED applies zero, and UNKNOWN/PARTIALLY_REFLECTED or changed source decisions block finalization.
+- Source-bound reconciliation approvals re-check the exact dataset/batch digest and client input generation, marking changed reconciliations STALE before approval.
 - Client-scoped accounting dimension definitions cover branch, cost centre, department, project and intercompany counterparty codes; nonblank GL dimension values are rejected unless defined for the client, including bounded streaming imports.
 - Client chart hierarchy parent lookups are restricted to the target chart version; cross-version parent references and posting-account parents are rejected.
 - Draft taxonomy nodes can be added incrementally with parents from the same taxonomy version; cross-version parents and cycles are rejected.

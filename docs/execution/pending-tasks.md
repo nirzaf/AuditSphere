@@ -3,7 +3,7 @@
 **Repository:** `nirzaf/AuditSphere`
 **Authoritative specification:** [`docs/SPECIFICATION.md`](../SPECIFICATION.md) v5.0
 **Requirements backlog:** [`docs/requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md`](../requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md)
-**Source implementation checkpoint:** `master@14e18a7`
+**Source implementation checkpoint:** `master@087730c`
 
 This is a resume checklist, not an acceptance certificate. Tenant identifiers, credentials, tokens, secret values, and private-provider URLs are deliberately absent from the public repository.
 
@@ -11,7 +11,7 @@ This is a resume checklist, not an acceptance certificate. Tenant identifiers, c
 
 - [x] .NET 10 solution builds with zero warnings/errors.
 - [x] PostgreSQL 18.6 development profile is used on loopback port 5433.
-- [x] 205/205 PostgreSQL-backed tests pass with 0 skipped.
+- [x] 206/206 PostgreSQL-backed tests pass with 0 skipped.
 - [x] 62 migrations are applied; latest is `20260921072319_ReconcileGeneralLedgerOpeningMovement`.
 - [x] EF model has no pending migration changes.
 - [x] Loopback restore drill passes and writes secret-free evidence to `docs/evidence/restore-drill-latest.json`.
@@ -61,6 +61,7 @@ This is a resume checklist, not an acceptance certificate. Tenant identifiers, c
 - [x] Direct and streaming GL imports preserve optional service dates through canonical digests and archive lineage.
 - [x] GL completeness bridges optionally bind the approved prior-period TB, persist per-account opening-plus-movement residuals and disclose missing opening or malformed journal evidence.
 - [x] Zero-adjustment/source-reflection plans preserve source balances, apply posted journals exactly once by reflection state, and stale when a source decision changes.
+- [x] Source-bound reconciliation approval re-checks source digest and client generation and marks changed inputs stale.
 - [x] Chart hierarchy parent lookups are scoped to the target chart version and reject cross-version and posting-account parents.
 - [x] Draft taxonomy nodes support incremental same-version parents and reject cross-version parents/cycles.
 - [x] Link accounting evidence to reviewed audit workpapers and expose accounting period handoffs from the dashboard.
