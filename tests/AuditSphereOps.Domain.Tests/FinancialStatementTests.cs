@@ -1,8 +1,10 @@
 using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Application.Abstractions;
+using AuditSphereOps.Application.Audit;
 using AuditSphereOps.Application.Documents;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Domain.Accounting;
+using AuditSphereOps.Domain.Audit;
 using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Engagements;
 using AuditSphereOps.Domain.Practice;
@@ -103,6 +105,38 @@ public sealed class FinancialStatementTests
       Assert.Equal(fixture.PeriodId, package.PeriodId);
       Assert.Equal(fixture.BookId, package.BookId);
       Assert.Equal("STATUTORY", package.Basis);
+    }
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      db.RoleGrants.Add(Grant(fixture.FirmId, fixture.Reviewer, "Reviewer"));
+      var snapshotId = await db.AdjustedTrialBalanceSnapshots.Where(x => x.AdjustmentPlanId == planId).Select(x => x.Id).SingleAsync();
+      var journal = await db.AdjustmentJournals.SingleAsync(x => x.JournalNumber == "AJ-001" && x.Revision == 1);
+      var reflectionId = await db.JournalSourceReconciliations.Where(x => x.BaseDatasetId == fixture.DatasetId && x.LogicalJournalNumber == "AJ-001")
+        .Select(x => x.Id).SingleAsync();
+      var differenceId = Guid.NewGuid();
+      db.AuditDifferences.Add(new AuditDifference
+      {
+        Id = differenceId, FirmId = fixture.FirmId, ClientId = fixture.ClientId, EngagementId = fixture.EngagementId,
+        AccountArea = "Revenue", DifferenceType = "KNOWN", Description = "Journal impact classification", Amount = -10m,
+        Currency = "QAR", CreatedByUserId = fixture.Preparer.Id, CreatedAt = DateTimeOffset.UtcNow
+      });
+      await db.SaveChangesAsync();
+      var linked = await AuditFieldworkService.LinkDifferenceToJournalAsync(db,
+        new ActorContext(fixture.Reviewer.Id, fixture.FirmId, fixture.Reviewer.SessionEpoch, ["Reviewer"]),
+        new LinkDifferenceToJournalRequest(differenceId, journal.Id, journal.Revision, reflectionId, snapshotId,
+          AuditDifferenceCorrectionStates.Agreed));
+      Assert.True(linked.Succeeded, linked.Message);
+      var saved = await db.AuditDifferences.SingleAsync(x => x.Id == differenceId);
+      using var impact = System.Text.Json.JsonDocument.Parse(saved.JournalImpactJson!);
+      var classification = impact.RootElement.GetProperty("Classification");
+      Assert.Equal("journal-impact.v2", impact.RootElement.GetProperty("Schema").GetString());
+      Assert.Equal("MAPPED", classification.GetProperty("Status").GetString());
+      Assert.Equal(-10m, classification.GetProperty("ProfitEffect").GetDecimal());
+      Assert.Equal(0m, classification.GetProperty("EquityEffect").GetDecimal());
+      Assert.Equal("INCOME", classification.GetProperty("StatementEffects")[1].GetProperty("StatementSection").GetString());
+      Assert.Equal("UNSPECIFIED", classification.GetProperty("DisclosureEffects")[0].GetProperty("DisclosureArea").GetString());
+      Assert.Equal(Hashing.Sha256Hex(System.Text.Encoding.UTF8.GetBytes(saved.JournalImpactJson!)), saved.JournalImpactHash);
     }
 
     await using (var db = new AuditSphereDbContext(pg.Options))

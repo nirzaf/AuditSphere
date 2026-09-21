@@ -788,13 +788,74 @@ public static class AuditFieldworkService
       .Select(x => new { x.AccountCode, x.Debit, x.Credit })
       .ToListAsync(ct);
     var lines = rawLines.Select(x => new JournalImpactLine(x.AccountCode, x.Debit, x.Credit,
-      MoneyPolicy.Normalize(x.Debit - x.Credit))).ToList();
+      MoneyPolicy.Normalize(x.Debit - x.Credit), [])).ToList();
     if (lines.Count == 0)
       return CommandResult.Fail(ErrorCodes.GateBlocked, "The linked journal has no immutable lines.");
+
+    MappingVersion? mapping = null;
+    var mappingAllocations = new List<MappingAllocation>();
+    var disclosureByDestination = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+    if (db is IClientAccountingDbContext accountingDb)
+    {
+      mapping = await accountingDb.MappingVersions.AsNoTracking().Where(x =>
+        x.FirmId == actor.FirmId && x.ClientId == difference.ClientId && x.EngagementId == difference.EngagementId &&
+        x.DatasetId == journal.BaseDatasetId && x.Status == AccountingPackageStates.MappingApproved)
+        .OrderByDescending(x => x.Version).FirstOrDefaultAsync(ct);
+      if (mapping is not null)
+      {
+        mappingAllocations = await accountingDb.MappingAllocations.AsNoTracking().Where(x =>
+          x.FirmId == actor.FirmId && x.ClientId == difference.ClientId && x.EngagementId == difference.EngagementId &&
+          x.MappingVersionId == mapping.Id).OrderBy(x => x.SourceAccountCode).ThenBy(x => x.DestinationCode).ToListAsync(ct);
+        if (!string.IsNullOrWhiteSpace(mapping.TaxonomyVersion))
+        {
+          var taxonomyId = await accountingDb.ReportingTaxonomyVersions.AsNoTracking().Where(x =>
+            x.FirmId == actor.FirmId && x.Code == mapping.TaxonomyVersion && x.Status == AccountingWorkflowStates.Approved)
+            .Select(x => (Guid?)x.Id).SingleOrDefaultAsync(ct);
+          if (taxonomyId is not null)
+            disclosureByDestination = await accountingDb.ReportingTaxonomyNodes.AsNoTracking().Where(x =>
+              x.FirmId == actor.FirmId && x.TaxonomyVersionId == taxonomyId.Value)
+              .ToDictionaryAsync(x => x.Code, x => x.DisclosureArea, StringComparer.OrdinalIgnoreCase);
+        }
+      }
+    }
+
+    var classifiedLines = lines.Select(line =>
+    {
+      var signedAmount = line.SignedAmount;
+      var allocations = mappingAllocations.Where(x => string.Equals(x.SourceAccountCode.Trim(), line.AccountCode.Trim(), StringComparison.OrdinalIgnoreCase))
+        .Select(x =>
+        {
+          var section = x.StatementSection.Trim().ToUpperInvariant();
+          var disclosure = disclosureByDestination.GetValueOrDefault(x.DestinationCode.Trim())?.Trim().ToUpperInvariant();
+          var allocatedAmount = MoneyPolicy.Normalize(signedAmount * x.Fraction);
+          return new JournalImpactAllocation(x.DestinationCode.Trim(), section, (x.AuditArea ?? string.Empty).Trim(),
+            string.IsNullOrWhiteSpace(disclosure) ? "UNSPECIFIED" : disclosure, MoneyPolicy.Normalize(x.Fraction), allocatedAmount,
+            IsProfitSection(section) ? allocatedAmount : 0m, IsEquitySection(section) ? allocatedAmount : 0m, true);
+        }).ToArray();
+      return allocations.Length == 0
+        ? line with { Allocations = [new JournalImpactAllocation("UNMAPPED", "UNMAPPED", string.Empty, "UNMAPPED", 1m, signedAmount, 0m, 0m, false)] }
+        : line with { Allocations = allocations };
+    }).ToArray();
+    var effects = classifiedLines.SelectMany(x => x.Allocations).ToArray();
+    var classificationStatus = classifiedLines.All(x => x.Allocations.All(a => a.Mapped)) ? "MAPPED" : "PARTIAL_OR_UNMAPPED";
     var impactJson = JsonSerializer.Serialize(new
     {
-      journal.Id, journal.JournalNumber, journal.Revision, journal.Purpose,
-      Lines = lines.Select(x => new { x.AccountCode, x.Debit, x.Credit, x.SignedAmount })
+      Schema = "journal-impact.v2", journal.Id, journal.JournalNumber, journal.Revision, journal.Purpose, journal.Currency,
+      Mapping = mapping is null ? null : new { mapping.Id, mapping.Version, mapping.Generation, mapping.TaxonomyVersion },
+      Classification = new
+      {
+        Status = classificationStatus,
+        AccountEffects = classifiedLines.Select(x => new { x.AccountCode, Amount = x.SignedAmount }),
+        StatementEffects = effects.GroupBy(x => x.StatementSection, StringComparer.OrdinalIgnoreCase)
+          .OrderBy(x => x.Key, StringComparer.OrdinalIgnoreCase)
+          .Select(x => new { StatementSection = x.Key, Amount = MoneyPolicy.Normalize(x.Sum(y => y.SignedAmount)) }),
+        ProfitEffect = MoneyPolicy.Normalize(effects.Sum(x => x.ProfitEffect)),
+        EquityEffect = MoneyPolicy.Normalize(effects.Sum(x => x.EquityEffect)),
+        DisclosureEffects = effects.GroupBy(x => x.DisclosureArea, StringComparer.OrdinalIgnoreCase)
+          .OrderBy(x => x.Key, StringComparer.OrdinalIgnoreCase)
+          .Select(x => new { DisclosureArea = x.Key, Amount = MoneyPolicy.Normalize(x.Sum(y => y.SignedAmount)) })
+      },
+      Lines = classifiedLines
     });
     difference.ProposedJournalId = journal.Id;
     difference.ProposedJournalRevision = journal.Revision;
@@ -938,6 +999,8 @@ public static class AuditFieldworkService
   private static CommandResult Denied() => CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
   private static string? TrimOrNull(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
   private static bool IsCurrency(string value) => value.Length == 3 && value.All(c => c is >= 'A' and <= 'Z' or >= 'a' and <= 'z');
+  private static bool IsProfitSection(string section) => section is "INCOME" or "P&L" or "PROFIT_LOSS" or "P_AND_L";
+  private static bool IsEquitySection(string section) => section is "EQUITY" or "OCI" or "CHANGES_IN_EQUITY";
   private static bool IsHash(string value) => value.Length == 64 && value.All(c => c is >= '0' and <= '9' or >= 'a' and <= 'f' or >= 'A' and <= 'F');
   private static bool JsonObject(string value)
   {
@@ -949,5 +1012,8 @@ public static class AuditFieldworkService
     catch (JsonException) { return false; }
   }
 
-  private sealed record JournalImpactLine(string AccountCode, decimal Debit, decimal Credit, decimal SignedAmount);
+  private sealed record JournalImpactLine(string AccountCode, decimal Debit, decimal Credit, decimal SignedAmount,
+    IReadOnlyList<JournalImpactAllocation> Allocations);
+  private sealed record JournalImpactAllocation(string DestinationCode, string StatementSection, string AuditArea,
+    string DisclosureArea, decimal Fraction, decimal SignedAmount, decimal ProfitEffect, decimal EquityEffect, bool Mapped);
 }
