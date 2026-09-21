@@ -3,7 +3,7 @@
 **Repository:** `nirzaf/AuditSphere`
 **Authoritative specification:** [`docs/SPECIFICATION.md`](../SPECIFICATION.md) v5.0
 **Requirements backlog:** [`docs/requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md`](../requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md)
-**Source implementation checkpoint:** `master@2c2a1d5`
+**Source implementation checkpoint:** `master@2aaf776`
 
 This is a resume checklist, not an acceptance certificate. Tenant identifiers, credentials, tokens, secret values, and private-provider URLs are deliberately absent from the public repository.
 
@@ -68,6 +68,7 @@ This is a resume checklist, not an acceptance certificate. Tenant identifiers, c
 - [x] GL completeness bridges optionally bind the approved prior-period TB, persist per-account opening-plus-movement residuals and disclose missing opening or malformed journal evidence.
 - [x] Zero-adjustment/source-reflection plans preserve source balances, apply posted journals exactly once by reflection state, and stale when a source decision changes.
 - [x] Source-bound reconciliation approval re-checks source digest and client generation and marks changed inputs stale.
+- [x] Expose scoped audit-difference summaries with gross, signed/net, corrected and unadjusted totals by currency; offsetting differences remain visible.
 - [x] Chart hierarchy parent lookups are scoped to the target chart version and reject cross-version and posting-account parents.
 - [x] Draft taxonomy nodes support incremental same-version parents and reject cross-version parents/cycles.
 - [x] Link accounting evidence to reviewed audit workpapers and expose accounting period handoffs from the dashboard.
