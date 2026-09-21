@@ -57,10 +57,31 @@ public static class AdjustmentJournalService
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     if (dataset.ValidationStatus != "Accepted")
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Journals require a validated base dataset.");
-    if (bookId.HasValue && db is IClientAccountingDbContext clientDb &&
-        !await clientDb.ClientReportingBooks.AnyAsync(x => x.Id == bookId.Value && x.FirmId == dataset.FirmId &&
-          x.ClientId == dataset.ClientId, ct))
-      return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "The reporting book is outside the client scope.");
+    var effectiveBookId = bookId ?? dataset.BookId;
+    if (db is IClientAccountingDbContext clientDb)
+    {
+      if (dataset.PeriodId is { } periodId)
+      {
+        var period = await clientDb.ClientReportingPeriods.AsNoTracking().SingleOrDefaultAsync(x =>
+          x.Id == periodId && x.FirmId == dataset.FirmId && x.ClientId == dataset.ClientId, ct);
+        if (period is null || string.IsNullOrWhiteSpace(dataset.Basis) ||
+            !string.Equals(period.Basis, dataset.Basis.Trim(), StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(period.Currency, dataset.Currency, StringComparison.Ordinal))
+          return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The journal source reporting context is unavailable or inconsistent.");
+        if (effectiveBookId is { } selectedBookId)
+        {
+          var selectedBook = await clientDb.ClientReportingBooks.AsNoTracking().SingleOrDefaultAsync(x =>
+            x.Id == selectedBookId && x.FirmId == dataset.FirmId && x.ClientId == dataset.ClientId &&
+            x.PeriodId == period.Id, ct);
+          if (selectedBook is null || !string.Equals(selectedBook.Basis, dataset.Basis.Trim(), StringComparison.OrdinalIgnoreCase) ||
+              !string.Equals(selectedBook.Currency, dataset.Currency, StringComparison.Ordinal))
+            return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "The reporting book is outside the selected client period.");
+        }
+      }
+      else if (effectiveBookId is { } legacyBookId && !await clientDb.ClientReportingBooks.AnyAsync(x =>
+          x.Id == legacyBookId && x.FirmId == dataset.FirmId && x.ClientId == dataset.ClientId, ct))
+        return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "The reporting book is outside the client scope.");
+    }
     if (supersedesJournalId.HasValue && !await db.AdjustmentJournals.AnyAsync(x => x.Id == supersedesJournalId.Value &&
         x.FirmId == dataset.FirmId && x.ClientId == dataset.ClientId && x.EngagementId == dataset.EngagementId, ct))
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "The superseded journal is outside the engagement scope.");
@@ -83,7 +104,10 @@ public static class AdjustmentJournalService
       BaseDatasetId = dataset.Id,
       JournalNumber = journalNumber,
       Purpose = purpose,
-      BookId = bookId,
+      PeriodId = dataset.PeriodId,
+      BookId = effectiveBookId,
+      Basis = dataset.Basis?.Trim().ToUpperInvariant(),
+      Currency = dataset.Currency,
       Origin = origin,
       Reason = reason.Trim(),
       EvidenceReference = evidenceReference.Trim(),

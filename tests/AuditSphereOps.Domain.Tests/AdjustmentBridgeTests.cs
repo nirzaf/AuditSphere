@@ -368,6 +368,14 @@ public sealed class AdjustmentBridgeTests
     await using (var db = new AuditSphereDbContext(pg.Options))
       journal = (await AdjustmentJournalService.CreateDraftAsync(
         db, preparer, base1, "AJ-001", lines)).Value;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var saved = await db.AdjustmentJournals.SingleAsync(x => x.Id == journal);
+      Assert.Equal(scope.PeriodId, saved.PeriodId);
+      Assert.Equal(scope.BookId, saved.BookId);
+      Assert.Equal("STATUTORY", saved.Basis);
+      Assert.Equal("QAR", saved.Currency);
+    }
     // A reviewer posts; the preparer can never post their own journal.
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
@@ -441,6 +449,46 @@ public sealed class AdjustmentBridgeTests
     Assert.Equal("Rejected", result.ValidationStatus);
     Assert.False(result.Balanced);
     Assert.Equal(14, await verify.TrialBalanceRows.CountAsync(r => r.DatasetId == dataset));
+  }
+
+  [Fact]
+  public async Task ContextBoundJournal_RejectsBookFromAnotherPeriod()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var (scope, users) = await SeedFirmWithStaffAsync(pg);
+    var preparer = Actor(users.Preparer, "AccountingPreparer");
+    Guid otherBookId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var otherPeriodId = Guid.NewGuid();
+      otherBookId = Guid.NewGuid();
+      db.ClientReportingPeriods.Add(new ClientReportingPeriod
+      {
+        Id = otherPeriodId, FirmId = scope.FirmId, ClientId = scope.ClientId, PeriodCode = "2027",
+        StartDate = new DateOnly(2027, 1, 1), EndDate = new DateOnly(2027, 12, 31),
+        Basis = "STATUTORY", Currency = "QAR", Status = AccountingWorkflowStates.Active,
+        CreatedAt = DateTimeOffset.UtcNow
+      });
+      db.ClientReportingBooks.Add(new ClientReportingBook
+      {
+        Id = otherBookId, FirmId = scope.FirmId, ClientId = scope.ClientId, PeriodId = otherPeriodId,
+        Code = "STAT", Basis = "STATUTORY", InclusionRule = "STATUTORY_ONLY", Currency = "QAR",
+        Status = AccountingWorkflowStates.Active, CreatedAt = DateTimeOffset.UtcNow
+      });
+      await db.SaveChangesAsync();
+    }
+
+    Guid dataset;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+      dataset = (await TrialBalanceImportService.ImportAsync(db, preparer, scope.ClientId, scope.EngagementId,
+        TrialBalanceV1Csv, new TrialBalanceImportContext(scope.PeriodId, scope.BookId, "STATUTORY"))).Value;
+    await ValidateAsync(pg, scope.FirmId);
+
+    await using var commandDb = new AuditSphereDbContext(pg.Options);
+    var denied = await AdjustmentJournalService.CreateDraftAsync(commandDb, preparer, dataset, "AJ-CONTEXT-001",
+      [("520100", 5000m, 0m), ("159100", 0m, 5000m)], bookId: otherBookId);
+    Assert.False(denied.Succeeded);
+    Assert.Equal(ErrorCodes.ScopeDenied, denied.ErrorCode);
   }
 
   [Fact]

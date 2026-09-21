@@ -964,6 +964,8 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
       .HasName("AK_adjustment_journals_scope_id");
     journal.HasIndex(x => new { x.FirmId, x.EngagementId, x.BaseDatasetId, x.JournalNumber }).IsUnique();
     journal.Property(x => x.Purpose).HasMaxLength(40);
+    journal.Property(x => x.Basis).HasMaxLength(50);
+    journal.Property(x => x.Currency).HasMaxLength(3);
     journal.Property(x => x.Origin).HasMaxLength(40);
     journal.Property(x => x.Reason).HasMaxLength(4000);
     journal.Property(x => x.EvidenceReference).HasMaxLength(2000);
@@ -971,7 +973,8 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
       "purpose IN ('CLIENT_BOOK_CORRECTION','REPORTING_ADJUSTMENT','PRESENTATION_RECLASSIFICATION','GROUP_ONLY_ELIMINATION')" +
       " AND origin IN ('AUDIT_PROPOSED','CLIENT_REQUESTED','MANAGEMENT_PROVIDED','IMPORTED')" +
       " AND status IN ('Draft','Posted','ReflectedInSource','Void')" +
-      " AND revision >= 1 AND length(trim(journal_number)) > 0 AND length(trim(reason)) <= 4000 AND length(trim(evidence_reference)) <= 2000"));
+      " AND revision >= 1 AND length(trim(journal_number)) > 0 AND length(trim(reason)) <= 4000 AND length(trim(evidence_reference)) <= 2000" +
+      " AND (period_id IS NULL OR (length(trim(basis)) > 0 AND currency ~ '^[A-Z]{3}$')) AND (book_id IS NULL OR period_id IS NOT NULL)"));
     // Duplicate-file guard: the same source bytes can never become two datasets for one
     // engagement. Partial so legacy/empty-hash fixtures stay migratable; the import
     // command always stamps a real hash.
@@ -1027,6 +1030,10 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
       .OnDelete(DeleteBehavior.Restrict);
     journal.HasOne<ClientReportingBook>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.ClientId, x.BookId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.Id })
+      .OnDelete(DeleteBehavior.Restrict);
+    journal.HasOne<ClientReportingPeriod>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.PeriodId })
       .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.Id })
       .OnDelete(DeleteBehavior.Restrict);
     b.Entity<AdjustmentLine>()

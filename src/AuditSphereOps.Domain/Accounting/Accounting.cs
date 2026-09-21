@@ -181,7 +181,10 @@ public sealed class AdjustmentJournal
   public Guid BaseDatasetId { get; set; }
   public string JournalNumber { get; set; } = string.Empty; // AJ-001
   public string Purpose { get; set; } = AdjustmentJournalPurposes.ReportingAdjustment;
+  public Guid? PeriodId { get; set; }
   public Guid? BookId { get; set; }
+  public string? Basis { get; set; }
+  public string? Currency { get; set; }
   public string Origin { get; set; } = AdjustmentJournalOrigins.AuditProposed;
   public string Reason { get; set; } = string.Empty;
   public string EvidenceReference { get; set; } = string.Empty;
