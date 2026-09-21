@@ -6,12 +6,12 @@ This file records observed repository state only. The authoritative build contra
 
 | Item | Observed value |
 |---|---|
-| Source implementation checkpoint | `master@15ecc76` |
-| Remote | `origin/master` includes source checkpoint `15ecc76` |
+| Source implementation checkpoint | `master@33416bb` |
+| Remote | `origin/master` includes source checkpoint `33416bb` |
 | SDK | .NET 10; repository solution targets `net10.0` |
 | Database | PostgreSQL 18.6 on loopback port 5433 for development only |
-| Build | `dotnet build src/AuditSphereOps.Web/AuditSphereOps.Web.csproj --no-restore --configuration Release` at `15ecc76` — passed, 0 warnings/errors; solution Release baseline passed at `4010963` |
-| Tests | 213/213 passed, 0 skipped against PostgreSQL 18.6 at `15ecc76` |
+| Build | `dotnet build src/AuditSphereOps.Web/AuditSphereOps.Web.csproj --no-restore --configuration Release` at `33416bb` — passed, 0 warnings/errors; solution Release baseline passed at `4010963` |
+| Tests | 213/213 passed, 0 skipped against PostgreSQL 18.6 at `33416bb` |
 | Migrations | 75 applied; latest `20260921150321_BindMappingsToClientCharts` |
 | Model drift | `dotnet ef migrations has-pending-model-changes` — no changes |
 | Restore drill | `scripts/db/restore-drill.sh` — passed; 75 migrations reconciled |
@@ -56,6 +56,7 @@ This file records observed repository state only. The authoritative build contra
 - Controlled roll-forward creates a new draft period, copies prior reporting books as drafts, and creates a hash/evidence-bound opening bridge without copying prior approvals.
 - The accounting evidence queue links reviewed accounting evidence to the exact associated audit workpaper, and the accounting dashboard exposes scoped period status plus roll-forward/restatement handoffs.
 - The accounting evidence queue treats firm-wide, direct-client and exact-engagement grants distinctly, filters every listed evidence source accordingly, and shows the engagement context beside the client and period; engagement-only access cannot widen to sibling engagements.
+- The accounting workspace applies the same direct-client versus exact-engagement boundary to engagement labels, package summaries, imports and sealed-import counts, so a selected context cannot silently widen to sibling engagements.
 - Portfolio projections apply the same active firm-wide, direct-client or exact-engagement grant boundary to counters, holds, durable operations, release candidates and financial-package lists; the client index adds scope-bound search and CSV export, engagement-only grants cannot expand to sibling engagements, and actors without an explicit scope see no firm data and receive actionable guidance.
 - The shared layout exposes current-route navigation for the implemented accounting, evidence, package-review, roll-forward, restatement, consolidation and journal workbenches; unsupported workbenches are not presented as links.
 - The accounting workspace pins a selected visible period's firm, group, legal entity, engagement, period, book, currency and package version in a draft-restored context header; the selection is display-only and does not broaden authorization.
