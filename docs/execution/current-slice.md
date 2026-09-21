@@ -6,12 +6,12 @@ This file records observed repository state only. The authoritative build contra
 
 | Item | Observed value |
 |---|---|
-| Source implementation checkpoint | `master@b2351c1` |
-| Remote | `origin/master` includes source checkpoint `b2351c1` |
+| Source implementation checkpoint | `master@4aee311` |
+| Remote | `origin/master` includes source checkpoint `4aee311` |
 | SDK | .NET 10; repository solution targets `net10.0` |
 | Database | PostgreSQL 18.6 on loopback port 5433 for development only |
 | Build | `dotnet build AuditSphereOps.slnx --no-restore --configuration Release` — passed, 0 warnings/errors |
-| Tests | 206/206 passed, 0 skipped against PostgreSQL 18.6 |
+| Tests | 207/207 passed, 0 skipped against PostgreSQL 18.6 |
 | Migrations | 66 applied; latest `20260921092708_PersistFinancialPackageArtifacts` |
 | Model drift | `dotnet ef migrations has-pending-model-changes` — no changes |
 | Restore drill | `scripts/db/restore-drill.sh` — passed; 66 migrations reconciled |
@@ -24,6 +24,7 @@ This file records observed repository state only. The authoritative build contra
 - Capability profiles accept only ENTITY_REPORTING/AUDIT_ONLY client scopes or GROUP_REPORTING group scopes; mismatched or unknown service kinds are rejected.
 - Client accounting setup/reporting objects default blank currency input to QAR; raw source/import currencies and FX policy currencies remain explicit.
 - Analytical reviews default blank reporting currency to QAR only within the selected client reporting period, retain a deterministic input snapshot and replay hash, disclose negative/seasonal movement flags, and retain journal-risk sample selection, management explanation and corroboration fields.
+- Secured analytical-review aggregate summaries enforce client/engagement or explicit group scope, honor effective group membership dates, and return only period/currency totals and counts without client or component identifiers.
 - ECL persists an explicit booked amount and calculates the difference against it; ECL and inventory assessments can link only to a non-void proposed adjustment in the same scoped engagement, with legacy ECL booked amounts backfilled from management amounts.
 - Analytical-review approval requires and persists a reviewer conclusion alongside the exact replay snapshot/hash; missing conclusions fail closed after source/generation freshness checks.
 - Direct and streaming GL imports preserve optional service dates through canonical digests and archive lineage.
