@@ -536,6 +536,47 @@ public static class FinancialStatementService
     return enqueued;
   }
 
+  public static async Task<CommandResult<Guid>> EnqueueFinancialPackageRenderAsync(
+    IAuditSphereDbContext db,
+    ActorContext actor,
+    Guid packageId,
+    IOperationStore operationStore,
+    FinancialPackageRenderHandler handler,
+    CancellationToken ct = default)
+  {
+    if (packageId == Guid.Empty)
+      return CommandResult<Guid>.Fail(ErrorCodes.Accounting.PackageInvalid, "A financial package is required.");
+    var package = await db.FinancialPackages.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.Id == packageId && x.FirmId == actor.FirmId, ct);
+    if (package is null)
+      return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var auth = await AuthorizeAsync(db, actor, package.FirmId, package.ClientId, package.EngagementId,
+      PreparerRoles.ToArray(), ct);
+    if (!auth.Succeeded)
+      return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+    var payload = FinancialPackageRenderHandler.SerializePayload(package.ClientId, package.EngagementId, package.Id);
+    var payloadDigest = Hashing.Sha256Hex(payload);
+    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    CommandResult<Guid> enqueued;
+    try
+    {
+      enqueued = await operationStore.EnqueueAsync(db, new OperationRequest(
+        actor.FirmId, package.ClientId, package.EngagementId, FinancialPackageRenderHandler.Kind,
+        package.Id, package.Revision,
+        $"financial-package-render:{package.Id:D}:{package.Revision}:{payloadDigest}",
+        payload, actor.UserId), handler, ct);
+    }
+    catch (OperationBlockedException)
+    {
+      enqueued = CommandResult<Guid>.Fail(ErrorCodes.Accounting.PackageInvalid,
+        "The financial-package render operation request was refused.");
+    }
+    if (!enqueued.Succeeded)
+      return CommandResult<Guid>.Fail(enqueued.ErrorCode!, enqueued.Message!);
+    await tx.CommitAsync(ct);
+    return enqueued;
+  }
+
   /// <summary>
   /// Deterministically renders the complete financial-statement package artifact to canonical UTF-8 bytes
   /// and computes its SHA-256 digest.

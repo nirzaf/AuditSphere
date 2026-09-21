@@ -111,6 +111,7 @@ builder.Services.AddSingleton<IAuditSphereDbContextFactory, OperationContextFact
 builder.Services.AddSingleton<IOperationStore, PostgresOperationStore>();
 builder.Services.AddSingleton<GeneralLedgerCompletenessHandler>();
 builder.Services.AddSingleton<FinancialPackageBuildHandler>();
+builder.Services.AddSingleton<FinancialPackageRenderHandler>();
 var externalEffectsEnabled = builder.Configuration.GetValue<bool>("ExternalEffects:Enabled");
 if (externalEffectsEnabled)
 {

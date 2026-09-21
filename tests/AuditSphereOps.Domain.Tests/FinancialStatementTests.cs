@@ -290,11 +290,13 @@ public sealed class FinancialStatementTests
       packageId = built.Value!.PackageId;
     }
 
+    var expectedArtifactSha = string.Empty;
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       var artifact1 = await FinancialStatementService.RenderPackageArtifactAsync(db, preparer, packageId);
       Assert.True(artifact1.Succeeded);
       Assert.NotNull(artifact1.Value);
+      expectedArtifactSha = artifact1.Value.ArtifactSha256Hex;
       Assert.NotEmpty(artifact1.Value.ArtifactBytes);
       Assert.Equal(artifact1.Value.ArtifactSha256Hex, Hashing.Sha256Hex(artifact1.Value.ArtifactBytes));
       Assert.Contains("=== AUDITSPHEREOPS FINANCIAL STATEMENT PACKAGE ===", artifact1.Value.RenderedText);
@@ -317,6 +319,37 @@ public sealed class FinancialStatementTests
       var denied = await FinancialStatementService.RenderPackageArtifactAsync(db, clientActor, packageId);
       Assert.False(denied.Succeeded);
       Assert.Equal(ErrorCodes.ScopeDenied, denied.ErrorCode);
+    }
+
+    var renderFactory = new OperationContextFactory(new TestDbContextFactory(pg.Options));
+    var renderStore = new PostgresOperationStore(renderFactory);
+    var renderHandler = new FinancialPackageRenderHandler();
+    var renderOptions = new WorkerOptions(fixture.FirmId, "Test");
+    Guid renderOperationId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var queued = await FinancialStatementService.EnqueueFinancialPackageRenderAsync(
+        db, preparer, packageId, renderStore, renderHandler);
+      Assert.True(queued.Succeeded, queued.Message);
+      renderOperationId = queued.Value;
+    }
+    var renderWorker = new WorkerHost(
+      new OperationDispatcher(renderStore, new DurableOperationRegistry([renderHandler], renderOptions), renderOptions),
+      Array.Empty<IPendingOperationDiscovery>(), NullLogger<WorkerHost>.Instance);
+    Assert.True(await renderWorker.ProcessNextAsync());
+    Assert.False(await renderWorker.ProcessNextAsync());
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var operation = await db.DurableOperations.SingleAsync(x => x.Id == renderOperationId);
+      Assert.Equal(OperationState.COMPLETED, operation.Status);
+      Assert.Equal(packageId.ToString("D"), operation.ResultIdentity);
+      Assert.Equal(expectedArtifactSha, operation.ResultDigest);
+      Assert.True(await db.OperationEvents.AnyAsync(x => x.OperationId == renderOperationId && x.Kind == "financial.package-rendered.v1"));
+
+      var retry = await FinancialStatementService.EnqueueFinancialPackageRenderAsync(
+        db, preparer, packageId, renderStore, renderHandler);
+      Assert.True(retry.Succeeded, retry.Message);
+      Assert.Equal(renderOperationId, retry.Value);
     }
   }
 
