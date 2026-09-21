@@ -4,10 +4,10 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "342e111",
+  "headCommit": "816a418",
   "remoteHeadVerified": true,
   "productionEnabled": false,
-  "verifiedAt": "2026-09-21T11:07:53Z",
+  "verifiedAt": "2026-09-21T11:25:52Z",
   "toolchain": {
     "sdk": ".NET 10",
     "efCore": "10.0.12",
@@ -99,7 +99,7 @@
     {
       "item": "Audit difference summaries",
       "status": "LOCAL_VERIFIED",
-      "details": "A scoped fieldwork query returns gross absolute, signed/net, corrected and unadjusted difference totals by currency, so offsetting differences remain visible. PostgreSQL regression coverage and the 208-test suite pass; journal-effect classification and professional evaluation remain separate controls."
+      "details": "A scoped fieldwork query returns gross absolute, signed/net, corrected and unadjusted difference totals by currency, so offsetting differences remain visible. Linked differences now persist a journal-impact.v2 payload from the exact journal revision and approved mapping lineage, including account/statement effects, profit/equity totals, disclosure buckets, explicit unmapped status and a payload hash. PostgreSQL regression coverage and the 208-test suite pass; correction-state transitions and professional evaluation remain separate controls."
     },
     {
       "item": "Durable financial-package calculation",
