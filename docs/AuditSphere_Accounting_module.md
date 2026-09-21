@@ -3,7 +3,7 @@
 
 **Repository:** `nirzaf/AuditSphere`
 **Branch inspected:** `master`
-**Pinned review commit:** `315772c` (method-acceptance, approved-component, stale-run, exact component-lineage, bounded foreign-operation translation, explicit FX direction, group-revision, stale-scope-write, archive-lineage, group-roll-forward, source-bound reconciliation, typed receivable/payable ageing evidence, reconciliation-item source binding, typed gross/net difference summaries, deterministic journal-risk analysis, exact-journal difference-impact classification, governed difference correction states and evaluation metadata, typed bank reconciliation, queued-operation cancellation, trial-balance, financial-package and adjustment-journal reporting-context binding, client-scoped GL dimensions, chart/taxonomy hierarchy scope, posting-parent rejection, capability scope validation, QAR setup defaults, GL service-date lineage, opening/movement completeness, durable GL completeness, taxonomy statement-section validation, financial-package consistency validations, lineage-aware artifact rendering, exact-byte package-artifact persistence, artifact-bound package-review gates, secured analytical-review aggregate reporting, controlled external component-pack reconciliation/approval, and client-chart-bound mapping applicability)
+**Pinned review commit:** `9f8b2a7` (method-acceptance, approved-component, stale-run, exact component-lineage, bounded foreign-operation translation, explicit FX direction, group-revision, stale-scope-write, archive-lineage, group-roll-forward, source-bound reconciliation, typed receivable/payable ageing evidence, reconciliation-item source binding, typed gross/net difference summaries, deterministic journal-risk analysis, exact-journal difference-impact classification, governed difference correction states and evaluation metadata, typed bank reconciliation, queued-operation cancellation, trial-balance, financial-package and adjustment-journal reporting-context binding, client-scoped GL dimensions, chart/taxonomy hierarchy scope, posting-parent rejection, capability scope validation, QAR setup defaults, GL service-date lineage, opening/movement completeness, durable GL completeness, taxonomy statement-section validation, financial-package consistency validations, lineage-aware artifact rendering, exact-byte package-artifact persistence, artifact-bound package-review gates, secured analytical-review aggregate reporting, controlled external component-pack reconciliation/approval, client-chart-bound mapping applicability, and review-only mapping suggestions)
 **Commit date / review date:** 21 September 2026
 **Deliverable status:** Active product and engineering backlog grounded in the current local implementation; not professional-methodology approval or production acceptance.
 
@@ -78,6 +78,8 @@ The baseline is an **import-first preparation and audit workspace**, not client 
 ERPNext's documentation describes a company-specific account tree, accounting dimensions, journal entries, multi-currency and consolidated reporting. These are useful reference concepts, not a claim that ERPNext's documented consolidated report supplies every ownership, acquisition or elimination control required here. [E1–E6]
 
 ---
+
+The subsequent `9f8b2a7` web slice adds bounded review-only mapping candidates for unmapped accounts, labels ambiguous matches, and never auto-assigns an allocation.
 
 ## 4. Current-code gap analysis
 
@@ -379,7 +381,7 @@ Story criteria remain proposed unless marked locally verified in the execution l
 **Priority / dependencies:** P0/P1; AC-04–05. **Reuse:** `MappingVersion`, `MappingAllocation`, existing create/approve services.
 
 **Acceptance criteria**
-- [ ] Show current/prior map, unmapped rows, ambiguous suggestions, split allocations and impact on reports.
+- [x] Show current/prior map, unmapped rows, ambiguous suggestions, split allocations and impact on reports.
 - [x] Suggestions require review; mappings use approved destination identities, not arbitrary strings.
 - [x] Every required source balance is allocated exactly once in total; splits sum to 100%.
 - [x] Deterministic residual allocation preserves the exact source amount at accounting precision and records any display-rounding difference separately.
