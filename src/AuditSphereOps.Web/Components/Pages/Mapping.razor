@@ -103,6 +103,32 @@ else
     }
   </section>
 
+  <section class="card" aria-labelledby="suggestions-heading">
+    <h2 id="suggestions-heading">Review-only mapping suggestions</h2>
+    <p class="muted">Suggestions use account-name tokens only. They are not allocations and must be independently reviewed before anyone creates a new mapping version.</p>
+    @if (_suggestions.Count == 0)
+    {
+      <p>No review-only candidates are available for the unresolved accounts.</p>
+    }
+    else
+    {
+      <div class="table-wrap"><table>
+        <caption class="sr-only">Review-only suggestions for unmapped accounts</caption>
+        <thead><tr><th scope="col">Account</th><th scope="col">Candidate destinations</th><th scope="col">Review state</th></tr></thead>
+        <tbody>
+        @foreach (var suggestion in _suggestions)
+        {
+          <tr>
+            <td><code>@suggestion.AccountCode</code><br /><span class="muted">@suggestion.AccountName</span></td>
+            <td>@string.Join(", ", suggestion.Candidates.Select(x => $"{x.Code} ({x.Name})"))</td>
+            <td><span class="status" title="A suggestion never changes the immutable mapping">@suggestion.State</span></td>
+          </tr>
+        }
+        </tbody>
+      </table></div>
+    }
+  </section>
+
   <section class="card" aria-labelledby="split-heading">
     <h2 id="split-heading">Split and ambiguous allocations</h2>
     @if (_splitAccounts.Count == 0)
@@ -191,6 +217,7 @@ else
   private List<SourceRow> _sourceAccounts = [];
   private List<SourceRow> _unmappedAccounts = [];
   private List<SplitRow> _splitAccounts = [];
+  private List<SuggestionRow> _suggestions = [];
   private List<ImpactRow> _reportImpacts = [];
   private List<ComparisonRow> _comparison = [];
   private int _priorAllocationCount;
@@ -234,6 +261,24 @@ else
           .Select(x => new SourceRow(x.Key, x.First().AccountName, x.Sum(y => y.Amount), x.First().Currency)).ToList();
         var mappedCodes = _allocations.Select(x => x.SourceAccountCode).ToHashSet(StringComparer.Ordinal);
         _unmappedAccounts = _sourceAccounts.Where(x => x.Amount != 0m && !mappedCodes.Contains(x.AccountCode)).ToList();
+        // ponytail: token heuristic keeps suggestions review-only; add governed aliases/rules when candidate precision matters.
+        var taxonomyNodes = _taxonomy is null ? [] : await db.ReportingTaxonomyNodes.AsNoTracking()
+          .Where(x => x.FirmId == _actor.FirmId && x.TaxonomyVersionId == _taxonomy.Id && x.IsPosting)
+          .Select(x => new TaxonomyCandidate(x.Code, x.Name)).ToListAsync();
+        _suggestions = _unmappedAccounts.Select(account =>
+          {
+            var accountTokens = Tokens(account.AccountName);
+            var ranked = taxonomyNodes.Select(node => new
+              {
+                Node = node,
+                Score = accountTokens.Intersect(Tokens(node.Name), StringComparer.OrdinalIgnoreCase).Count()
+              }).Where(x => x.Score > 0).OrderByDescending(x => x.Score).ThenBy(x => x.Node.Code, StringComparer.Ordinal)
+              .ToArray();
+            var best = ranked.FirstOrDefault()?.Score ?? 0;
+            var candidates = ranked.Where(x => x.Score == best).Select(x => x.Node).Take(5).ToArray();
+            return new SuggestionRow(account.AccountCode, account.AccountName, candidates,
+              candidates.Length > 1 ? "AMBIGUOUS · REVIEW" : candidates.Length == 1 ? "CANDIDATE · REVIEW" : "NO CANDIDATE");
+          }).Where(x => x.Candidates.Count > 0).ToList();
         _splitAccounts = _allocations.GroupBy(x => x.SourceAccountCode, StringComparer.Ordinal).Where(x => x.Count() > 1)
           .Select(x => new SplitRow(x.Key, x.Select(y => y.DestinationCode).Distinct(StringComparer.OrdinalIgnoreCase).Count(), x.Sum(y => y.Fraction))).ToList();
         var sourceAmounts = _sourceAccounts.ToDictionary(x => x.AccountCode, x => x.Amount, StringComparer.Ordinal);
@@ -268,9 +313,15 @@ else
   }
 
   private sealed record SourceRow(string AccountCode, string AccountName, decimal Amount, string Currency);
+  private sealed record TaxonomyCandidate(string Code, string Name);
+  private sealed record SuggestionRow(string AccountCode, string AccountName, IReadOnlyList<TaxonomyCandidate> Candidates, string State);
   private sealed record SplitRow(string AccountCode, int DestinationCount, decimal TotalFraction);
   private sealed record ImpactRow(string DestinationCode, string StatementSection, decimal Amount, int SourceCount);
   private sealed record ComparisonRow(string SourceAccountCode, string Prior, string Current, string Status);
+
+  private static HashSet<string> Tokens(string value) => value.Split(
+    [' ', '/', '-', '_', '.', ',', ':', ';', '(', ')'], StringSplitOptions.RemoveEmptyEntries)
+    .Where(x => x.Length >= 3).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
   private static string AllocationSummary(IEnumerable<MappingAllocation> rows) =>
     string.Join("; ", rows.OrderBy(x => x.DestinationCode, StringComparer.Ordinal)
