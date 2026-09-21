@@ -267,6 +267,25 @@ public sealed class AdjustmentBridgeTests
   }
 
   [Fact]
+  public async Task Import_EquivalentNormalizedContent_IsExplainedAsDuplicate()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var (scope, users) = await SeedFirmWithStaffAsync(pg);
+    Assert.True((await ImportAsync(pg, users, scope, TrialBalanceV1Csv)).Succeeded);
+
+    var formattingVariant = TrialBalanceV1Csv.Replace("Bank,150000", " Bank ,150000", StringComparison.Ordinal);
+    var original = TrialBalanceCsvImporter.Parse(TrialBalanceV1Csv);
+    var variant = TrialBalanceCsvImporter.Parse(formattingVariant);
+    Assert.NotEqual(original.RawFileSha256Hex, variant.RawFileSha256Hex);
+    Assert.Equal(original.NormalizedDatasetDigest, variant.NormalizedDatasetDigest);
+
+    var duplicate = await ImportAsync(pg, users, scope, formattingVariant);
+    Assert.False(duplicate.Succeeded);
+    Assert.Equal(ErrorCodes.Accounting.ImportDuplicate, duplicate.ErrorCode);
+    Assert.Contains("normalized", duplicate.Message!, StringComparison.OrdinalIgnoreCase);
+  }
+
+  [Fact]
   public async Task Import_RejectsContextOutsidePeriodBasis()
   {
     await using var pg = await PgTestSchema.CreateAsync();

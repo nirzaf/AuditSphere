@@ -170,6 +170,12 @@ public static class TrialBalanceImportService
           x.EngagementId == engagementId && x.RawFileSha256Hex == parsed.RawFileSha256Hex, ct))
       return CommandResult<IReadOnlyList<Guid>>.Fail(ErrorCodes.Accounting.ImportDuplicate,
         "Identical source bytes were already imported for this engagement; reuse that batch or dataset.");
+    if (await db.TrialBalanceImportBatches.AnyAsync(x => x.FirmId == engagement.FirmId &&
+        x.EngagementId == engagementId && x.NormalizedDatasetDigest == parsed.NormalizedDatasetDigest, ct) ||
+        await db.TrialBalanceDatasets.AnyAsync(x => x.FirmId == engagement.FirmId &&
+          x.EngagementId == engagementId && x.NormalizedDatasetDigest == parsed.NormalizedDatasetDigest, ct))
+      return CommandResult<IReadOnlyList<Guid>>.Fail(ErrorCodes.Accounting.ImportDuplicate,
+        "Equivalent normalized trial-balance content was already imported for this engagement; review the existing source before reusing it.");
 
     var batch = new TrialBalanceImportBatch
     {
@@ -276,6 +282,12 @@ public static class TrialBalanceImportService
     if (duplicate)
       return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ImportDuplicate,
         "Identical source bytes were already imported for this engagement; reuse that dataset.");
+    var normalizedDuplicate = await db.TrialBalanceDatasets.AsNoTracking().AnyAsync(d =>
+      d.FirmId == lockedEngagement.FirmId && d.EngagementId == engagementId &&
+      d.NormalizedDatasetDigest == parsed.NormalizedDatasetDigest, ct);
+    if (normalizedDuplicate)
+      return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ImportDuplicate,
+        "Equivalent normalized trial-balance content was already imported for this engagement; review the existing source before reusing it.");
 
     var revision = await db.TrialBalanceDatasets
       .Where(d => d.FirmId == lockedEngagement.FirmId && d.EngagementId == engagementId)
