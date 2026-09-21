@@ -197,6 +197,17 @@ public sealed class ClientAccountingTests
       Assert.True((await ClientAccountingService.AddAccountsAsync(db, preparer, otherChart, [
         new("cash-b", "1000", "Cash B", "ASSET", "DEBIT", true)
       ])).Succeeded);
+
+      var nextClientChart = (await ClientAccountingService.CreateChartVersionAsync(db, preparer, scope.ClientA, "LEDGER-A-NEXT", new DateOnly(2027, 1, 1))).Value;
+      var crossChartParent = await ClientAccountingService.AddAccountsAsync(db, preparer, nextClientChart, [
+        new("child-next", "1100", "Child", "ASSET", "DEBIT", true, "cash")
+      ]);
+      Assert.False(crossChartParent.Succeeded);
+      Assert.Equal(ErrorCodes.Accounting.MappingInvalid, crossChartParent.ErrorCode);
+      Assert.True((await ClientAccountingService.AddAccountsAsync(db, preparer, nextClientChart, [
+        new("root-next", "1200", "Root", "ASSET", "DEBIT", false),
+        new("child-next", "1300", "Child", "ASSET", "DEBIT", true, "root-next")
+      ])).Succeeded);
     }
     await using var verify = new AuditSphereDbContext(pg.Options);
     Assert.Equal(2, await verify.ClientAccounts.CountAsync(x => x.AccountCode == "1000"));

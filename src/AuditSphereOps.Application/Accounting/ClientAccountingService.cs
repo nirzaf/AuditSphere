@@ -463,7 +463,8 @@ public static class ClientAccountingService
       return CommandResult.Fail(ErrorCodes.Accounting.MappingInvalid, "Account identities and codes must be unique within a chart version.");
     var stable = inputs.ToDictionary(x => x.StableIdentity.Trim(), StringComparer.OrdinalIgnoreCase);
     if (inputs.Any(x => x.ParentStableIdentity is not null && !stable.ContainsKey(x.ParentStableIdentity.Trim()) &&
-        !db.ClientAccounts.Any(a => a.FirmId == chart.FirmId && a.ClientId == chart.ClientId && a.StableIdentity == x.ParentStableIdentity.Trim())))
+        !db.ClientAccounts.Any(a => a.FirmId == chart.FirmId && a.ClientId == chart.ClientId && a.ChartVersionId == chart.Id &&
+          a.StableIdentity == x.ParentStableIdentity.Trim())))
       return CommandResult.Fail(ErrorCodes.Accounting.MappingInvalid, "Every parent account must exist in the same client scope.");
     if (HasParentCycle(inputs, stable))
       return CommandResult.Fail(ErrorCodes.Accounting.MappingInvalid, "The client chart contains a parent cycle.");
@@ -471,7 +472,7 @@ public static class ClientAccountingService
       .Select(x => x.AccountCode).ToListAsync(ct);
     if (inputs.Any(x => existingCodes.Contains(x.AccountCode.Trim(), StringComparer.OrdinalIgnoreCase)))
       return CommandResult.Fail(ErrorCodes.IdempotencyConflict, "An account code already exists in this chart version.");
-    var byStable = await db.ClientAccounts.Where(x => x.FirmId == chart.FirmId && x.ClientId == chart.ClientId)
+    var byStable = await db.ClientAccounts.Where(x => x.FirmId == chart.FirmId && x.ClientId == chart.ClientId && x.ChartVersionId == chart.Id)
       .ToDictionaryAsync(x => x.StableIdentity, StringComparer.OrdinalIgnoreCase, ct);
     foreach (var input in inputs)
     {
