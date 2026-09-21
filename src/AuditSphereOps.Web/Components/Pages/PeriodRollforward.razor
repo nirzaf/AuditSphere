@@ -26,18 +26,18 @@ else
   <section class="card" aria-labelledby="rollforward-heading">
     <h2 id="rollforward-heading">Create next period</h2>
     <div class="form-grid">
-      <label>Client<select @bind="_selectedClientId"><option value="">Select a client</option>@foreach (var client in _clients) { <option value="@client.Id">@client.Name</option> }</select></label>
-      <label>Closed prior period<select @bind="_selectedPriorPeriodId"><option value="">Select a period</option>@foreach (var period in _closedPeriods) { <option value="@period.Id">@period.Label</option> }</select></label>
-      <label>New period code<input @bind="_periodCode" maxlength="50" /></label>
-      <label>Start date (yyyy-MM-dd)<input @bind="_startDate" inputmode="numeric" maxlength="10" /></label>
-      <label>End date (yyyy-MM-dd)<input @bind="_endDate" inputmode="numeric" maxlength="10" /></label>
-      <label>Basis<input @bind="_basis" maxlength="50" /></label>
-      <label>Currency<input @bind="_currency" maxlength="3" /></label>
-      <label>Validated source package (optional)<select @bind="_selectedSourcePackageId"><option value="">Use external source evidence</option>@foreach (var package in _sourcePackages) { <option value="@package.Id">@package.Label</option> }</select></label>
-      <label>Prior closing amount<input @bind="_priorClosingAmount" inputmode="decimal" /></label>
-      <label>Current opening amount<input @bind="_currentOpeningAmount" inputmode="decimal" /></label>
-      <label>Source SHA-256<input @bind="_sourceHash" maxlength="64" /></label>
-      <label>Evidence reference<input @bind="_evidenceReference" maxlength="2000" /></label>
+      <label>Client<select @bind="_selectedClientId" required title="Choose the client whose closed period is being carried forward."><option value="">Select a client</option>@foreach (var client in _clients) { <option value="@client.Id">@client.Name</option> }</select></label>
+      <label>Closed prior period<select @bind="_selectedPriorPeriodId" required title="Choose a closed period; the new period must follow it."><option value="">Select a period</option>@foreach (var period in _closedPeriods) { <option value="@period.Id">@period.Label</option> }</select></label>
+      <label>New period code<input @bind="_periodCode" maxlength="50" required /></label>
+      <label>Start date (yyyy-MM-dd)<input @bind="_startDate" inputmode="numeric" maxlength="10" required /></label>
+      <label>End date (yyyy-MM-dd)<input @bind="_endDate" inputmode="numeric" maxlength="10" required /></label>
+      <label>Basis<input @bind="_basis" maxlength="50" required /></label>
+      <label>Currency<input @bind="_currency" maxlength="3" required /></label>
+      <label>Validated source package (optional)<select @bind="_selectedSourcePackageId" data-optional="true"><option value="">Use external source evidence</option>@foreach (var package in _sourcePackages) { <option value="@package.Id">@package.Label</option> }</select></label>
+      <label>Prior closing amount<input @bind="_priorClosingAmount" inputmode="decimal" required /></label>
+      <label>Current opening amount<input @bind="_currentOpeningAmount" inputmode="decimal" required /></label>
+      <label>Source SHA-256<input @bind="_sourceHash" maxlength="64" required /></label>
+      <label>Evidence reference<input @bind="_evidenceReference" maxlength="2000" required /></label>
     </div>
     <div style="display:flex;gap:.75rem;align-items:center;margin-top:1rem;flex-wrap:wrap">
       <button class="button" @onclick="LoadClientAsync" disabled="@_busy">Load closed periods</button>

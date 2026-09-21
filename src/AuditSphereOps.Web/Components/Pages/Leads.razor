@@ -40,12 +40,12 @@ else
         <input class="input" @bind="_newSource" placeholder="e.g. Referral, Website" required disabled="@_busy" />
       </label>
       <label>
-        Primary contact name
-        <input class="input" @bind="_newContactName" placeholder="e.g. Jane Doe" disabled="@_busy" />
+        Primary contact name (optional)
+        <input class="input" @bind="_newContactName" placeholder="e.g. Jane Doe" disabled="@_busy" data-optional="true" />
       </label>
       <label>
-        Primary contact email
-        <input class="input" type="email" @bind="_newContactEmail" placeholder="e.g. jane@example.com" disabled="@_busy" />
+        Primary contact email (optional)
+        <input class="input" type="email" @bind="_newContactEmail" placeholder="e.g. jane@example.com" disabled="@_busy" data-optional="true" />
       </label>
       <button class="button" type="submit" disabled="@_busy">Create lead</button>
     </form>

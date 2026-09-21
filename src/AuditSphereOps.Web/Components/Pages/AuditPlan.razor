@@ -83,35 +83,35 @@ else
                 <legend>Record a materiality assessment</legend>
                 <div class="form-group">
                     <label for="mat-benchmark">Benchmark source</label>
-                    <input id="mat-benchmark" @bind="_matBenchmark" maxlength="200" />
+                    <input id="mat-benchmark" @bind="_matBenchmark" maxlength="200" required />
                 </div>
                 <div class="form-group">
                     <label for="mat-version">Benchmark version</label>
-                    <input id="mat-version" @bind="_matVersion" maxlength="100" />
+                    <input id="mat-version" @bind="_matVersion" maxlength="100" required />
                 </div>
                 <div class="form-group">
                     <label for="mat-amount">Benchmark amount</label>
-                    <input id="mat-amount" type="number" step="0.000001" @bind="_matAmount" />
+                    <input id="mat-amount" type="number" step="0.000001" @bind="_matAmount" required />
                 </div>
                 <div class="form-group">
                     <label for="mat-rate">Applied rate (0–1)</label>
-                    <input id="mat-rate" type="number" step="0.0001" @bind="_matRate" />
+                    <input id="mat-rate" type="number" step="0.0001" @bind="_matRate" required />
                 </div>
                 <div class="form-group">
                     <label for="mat-overall">Overall materiality</label>
-                    <input id="mat-overall" type="number" step="0.000001" @bind="_matOverall" />
+                    <input id="mat-overall" type="number" step="0.000001" @bind="_matOverall" required />
                 </div>
                 <div class="form-group">
                     <label for="mat-performance">Performance materiality</label>
-                    <input id="mat-performance" type="number" step="0.000001" @bind="_matPerformance" />
+                    <input id="mat-performance" type="number" step="0.000001" @bind="_matPerformance" required />
                 </div>
                 <div class="form-group">
                     <label for="mat-trivial">Clearly trivial threshold</label>
-                    <input id="mat-trivial" type="number" step="0.000001" @bind="_matTrivial" />
+                    <input id="mat-trivial" type="number" step="0.000001" @bind="_matTrivial" required />
                 </div>
                 <div class="form-group">
                     <label for="mat-rationale">Rationale</label>
-                    <textarea id="mat-rationale" rows="2" @bind="_matRationale"></textarea>
+                    <textarea id="mat-rationale" rows="2" @bind="_matRationale" required></textarea>
                 </div>
                 <button class="btn-small" @onclick="CreateMaterialityAsync" disabled="@(_busy || _engagement.ProfessionalWorkBlocked)">Record assessment</button>
             </fieldset>
@@ -150,30 +150,30 @@ else
                 <legend>Record an identified risk</legend>
                 <div class="form-group">
                     <label for="risk-area">Account or disclosure area</label>
-                    <input id="risk-area" @bind="_riskArea" maxlength="200" />
+                    <input id="risk-area" @bind="_riskArea" maxlength="200" required />
                 </div>
                 <div class="form-group">
                     <label for="risk-assertion">Assertion</label>
-                    <input id="risk-assertion" @bind="_riskAssertion" maxlength="100" />
+                    <input id="risk-assertion" @bind="_riskAssertion" maxlength="100" required />
                 </div>
                 <div class="form-group">
                     <label for="risk-description">Risk description</label>
-                    <textarea id="risk-description" rows="2" @bind="_riskDescription"></textarea>
+                    <textarea id="risk-description" rows="2" @bind="_riskDescription" required></textarea>
                 </div>
                 <div class="form-group">
                     <label for="risk-drivers">Drivers</label>
-                    <textarea id="risk-drivers" rows="2" @bind="_riskDrivers"></textarea>
+                    <textarea id="risk-drivers" rows="2" @bind="_riskDrivers" required></textarea>
                 </div>
                 <div class="form-group">
                     <label for="risk-significance">Significance decision</label>
-                    <select id="risk-significance" @bind="_riskSignificance">
+                    <select id="risk-significance" @bind="_riskSignificance" required>
                         <option value="@SignificanceDecisions.Normal">@SignificanceDecisions.Normal</option>
                         <option value="@SignificanceDecisions.Significant">@SignificanceDecisions.Significant</option>
                     </select>
                 </div>
                 <div class="form-group">
                     <label for="risk-response">Planned response</label>
-                    <textarea id="risk-response" rows="2" @bind="_riskResponse"></textarea>
+                    <textarea id="risk-response" rows="2" @bind="_riskResponse" required></textarea>
                 </div>
                 <button class="btn-small" @onclick="CreateRiskAsync" disabled="@(_busy || _engagement.ProfessionalWorkBlocked)">Record risk</button>
             </fieldset>
@@ -212,31 +212,31 @@ else
                 <legend>Record a population version</legend>
                 <div class="form-group">
                     <label for="pop-purpose">Purpose</label>
-                    <input id="pop-purpose" @bind="_popPurpose" maxlength="300" />
+                    <input id="pop-purpose" @bind="_popPurpose" maxlength="300" required />
                 </div>
                 <div class="form-group">
                     <label for="pop-assertion">Assertion</label>
-                    <input id="pop-assertion" @bind="_popAssertion" maxlength="100" />
+                    <input id="pop-assertion" @bind="_popAssertion" maxlength="100" required />
                 </div>
                 <div class="form-group">
                     <label for="pop-receipt">Source receipt reference</label>
-                    <input id="pop-receipt" @bind="_popReceiptRef" maxlength="200" />
+                    <input id="pop-receipt" @bind="_popReceiptRef" maxlength="200" required />
                 </div>
                 <div class="form-group">
                     <label for="pop-extraction">Extraction parameters</label>
-                    <textarea id="pop-extraction" rows="2" @bind="_popExtraction"></textarea>
+                    <textarea id="pop-extraction" rows="2" @bind="_popExtraction" required></textarea>
                 </div>
                 <div class="form-group">
                     <label for="pop-rows">Row count</label>
-                    <input id="pop-rows" type="number" min="0" @bind="_popRows" />
+                    <input id="pop-rows" type="number" min="0" @bind="_popRows" required />
                 </div>
                 <div class="form-group">
                     <label for="pop-total">Monetary control total</label>
-                    <input id="pop-total" type="number" step="0.000001" min="0" @bind="_popTotal" />
+                    <input id="pop-total" type="number" step="0.000001" min="0" @bind="_popTotal" required />
                 </div>
                 <div class="form-group">
                     <label for="pop-currency">Currency (ISO 4217)</label>
-                    <input id="pop-currency" @bind="_popCurrency" maxlength="3" />
+                    <input id="pop-currency" @bind="_popCurrency" maxlength="3" required />
                 </div>
                 <button class="btn-small" @onclick="CreatePopulationAsync" disabled="@(_busy || _engagement.ProfessionalWorkBlocked)">Record population</button>
             </fieldset>
@@ -267,15 +267,15 @@ else
                 <legend>Record a finding</legend>
                 <div class="form-group">
                     <label for="find-type">Finding type</label>
-                    <input id="find-type" @bind="_findingType" maxlength="100" />
+                    <input id="find-type" @bind="_findingType" maxlength="100" required />
                 </div>
                 <div class="form-group">
                     <label for="find-impact">Impact description</label>
-                    <textarea id="find-impact" rows="2" @bind="_findingImpact"></textarea>
+                    <textarea id="find-impact" rows="2" @bind="_findingImpact" required></textarea>
                 </div>
                 <div class="form-group">
                     <label for="find-amount">Monetary amount (optional)</label>
-                    <input id="find-amount" type="number" step="0.000001" min="0" @bind="_findingAmount" />
+                    <input id="find-amount" type="number" step="0.000001" min="0" @bind="_findingAmount" data-optional="true" />
                 </div>
                 <button class="btn-small" @onclick="CreateFindingAsync" disabled="@(_busy || _engagement.ProfessionalWorkBlocked)">Record finding</button>
             </fieldset>

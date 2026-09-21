@@ -85,9 +85,9 @@ else
             <option value="@FinancialPackageReviewEvidenceModes.SignedIn">SIGNED_IN</option>
             <option value="@FinancialPackageReviewEvidenceModes.Offline">OFFLINE</option>
           </select></label>
-          <label>Evidence reference<input @bind="_reviewEvidenceReference" maxlength="2000" /></label>
+          <label>Evidence reference<input @bind="_reviewEvidenceReference" maxlength="2000" required /></label>
         </div>
-        <label>Comment<textarea @bind="_reviewComment" maxlength="4000" rows="3"></textarea></label>
+        <label>Comment<textarea @bind="_reviewComment" maxlength="4000" rows="3" data-optional="true"></textarea></label>
         <div style="display:flex;gap:.75rem;align-items:center;margin-top:1rem;flex-wrap:wrap">
           <button class="button" @onclick="RecordReviewAsync" disabled="@_reviewBusy">@(_reviewBusy ? "Recording…" : "Record decision")</button>
           <span class="muted">Management approval uses offline evidence on this staff surface; signed-in management approval must be completed by the authorized client-user surface.</span>

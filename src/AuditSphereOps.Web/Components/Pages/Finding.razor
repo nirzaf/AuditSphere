@@ -71,11 +71,11 @@ else
             <h2>Record Management Response</h2>
             <div class="form-group">
                 <label for="mgmt-response">Management response</label>
-                <textarea id="mgmt-response" rows="4" @bind="_draftResponse" />
+                <textarea id="mgmt-response" rows="4" @bind="_draftResponse" required />
             </div>
             <label class="check">
-                <input type="checkbox" @bind="_draftCorrected" />
-                Management corrected the matter within the period under audit
+                <input type="checkbox" @bind="_draftCorrected" data-optional="true" />
+                Management corrected the matter within the period under audit (optional)
             </label>
             <button class="btn-primary" @onclick="RecordResponseAsync" disabled="@(_busy || _engagement?.ProfessionalWorkBlocked == true)">
                 Record response

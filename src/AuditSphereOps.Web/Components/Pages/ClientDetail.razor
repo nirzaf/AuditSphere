@@ -136,8 +136,8 @@ else
           <input class="input" @bind="_contactRole" placeholder="e.g. CFO, Finance Director" required disabled="@_busy" />
         </label>
         <label style="display: flex; align-items: center; gap: 0.5rem;">
-          <input type="checkbox" @bind="_contactPrimary" disabled="@_busy" />
-          Set as primary contact
+          <input type="checkbox" @bind="_contactPrimary" disabled="@_busy" data-optional="true" />
+          Set as primary contact (optional)
         </label>
         <button class="button" type="submit" disabled="@_busy">Save contact</button>
       </form>

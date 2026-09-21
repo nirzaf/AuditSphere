@@ -43,7 +43,7 @@ else
     <section class="card" aria-labelledby="operations-heading">
       <h2 id="operations-heading">Latest 50 durable operations</h2>
       <label for="cancel-disposition">Cancellation disposition</label>
-      <input id="cancel-disposition" @bind="_cancelDisposition" maxlength="2000" placeholder="Why is the queued operation being cancelled?" />
+      <input id="cancel-disposition" @bind="_cancelDisposition" maxlength="2000" placeholder="Why is the queued operation being cancelled?" required title="Explain why this queued operation is being cancelled; the disposition is stored with the operation event." />
       <div class="table-wrap"><table>
         <caption class="sr-only">Durable operations in the current firm scope</caption>
         <thead><tr><th scope="col">Kind</th><th scope="col">Status</th><th scope="col">Attempts</th><th scope="col">Next attempt</th><th scope="col">Code</th><th scope="col">Disposition</th><th scope="col">Action</th></tr></thead>

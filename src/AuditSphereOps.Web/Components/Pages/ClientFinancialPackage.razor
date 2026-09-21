@@ -51,7 +51,7 @@ else
       <h2 id="decision-heading">Record management decision</h2>
       <p class="muted">Your authenticated client identity records the management decision against this exact package version. A changed package requires a new decision.</p>
       <div class="form-grid">
-        <label for="management-decision">Decision<select id="management-decision" @bind="_decision">
+        <label for="management-decision">Decision<select id="management-decision" @bind="_decision" required>
           @foreach (var decision in FinancialPackageReviewDecisions.All)
           {
             <option value="@decision">@decision</option>
@@ -59,7 +59,7 @@ else
         </select></label>
         <label for="evidence-reference">Evidence reference<input id="evidence-reference" @bind="_evidenceReference" maxlength="2000" autocomplete="off" required /></label>
       </div>
-      <label for="management-comment">Comment<textarea id="management-comment" @bind="_comment" maxlength="4000" rows="4"></textarea></label>
+      <label for="management-comment">Comment<textarea id="management-comment" @bind="_comment" maxlength="4000" rows="4" data-optional="true"></textarea></label>
       <button class="button" @onclick="RecordAsync" disabled="@_busy">@(_busy ? "Recording…" : "Record management decision")</button>
       @if (_result is not null)
       {

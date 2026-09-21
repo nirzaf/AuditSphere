@@ -22,7 +22,7 @@
 
     <div class="form-group">
         <label for="decision-outcome">Decision Outcome</label>
-        <select id="decision-outcome" @bind="_outcome">
+        <select id="decision-outcome" @bind="_outcome" required>
             <option value="">— select —</option>
             <option value="ACCEPTED">Accepted</option>
             <option value="ACCEPTED_WITH_CONDITIONS">Accepted with Conditions</option>
@@ -33,12 +33,12 @@
 
     <div class="form-group">
         <label for="decision-rationale">Rationale / Scope</label>
-        <textarea id="decision-rationale" rows="5" @bind="_rationale" placeholder="Describe scope, factors considered and professional basis." />
+        <textarea id="decision-rationale" rows="5" @bind="_rationale" placeholder="Describe scope, factors considered and professional basis." required />
     </div>
 
     <div class="form-group">
         <label for="decision-conditions">Conditions (if applicable)</label>
-        <textarea id="decision-conditions" rows="3" @bind="_conditions" placeholder="Leave blank if unconditional." />
+        <textarea id="decision-conditions" rows="3" @bind="_conditions" placeholder="Leave blank if unconditional." data-optional="true" />
     </div>
 
     @if (!string.IsNullOrEmpty(_errorMessage))

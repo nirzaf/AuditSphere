@@ -72,8 +72,8 @@ else
           Billable to client
         </label>
         <label>
-          Narrative
-          <textarea class="input" @bind="_narrative" rows="2" placeholder="Summary of work performed" disabled="@_busy"></textarea>
+          Narrative (optional)
+          <textarea class="input" @bind="_narrative" rows="2" placeholder="Summary of work performed" disabled="@_busy" data-optional="true"></textarea>
         </label>
         <button class="button" type="submit" disabled="@_busy">Save time draft</button>
       </form>

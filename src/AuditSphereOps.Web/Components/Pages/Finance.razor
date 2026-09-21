@@ -77,7 +77,7 @@ else
         <p class="scope-note">Closing a fiscal period freezes it. All journals within the period must be posted prior to close.</p>
         <label>
           Close reason
-          <input class="input" @bind="_closeReason" placeholder="e.g. Year-end financial close" disabled="@_busy" />
+          <input class="input" @bind="_closeReason" placeholder="e.g. Year-end financial close" disabled="@_busy" required />
         </label>
         <div style="margin-top: 0.5rem; display: flex; gap: 0.5rem;">
           <button class="button" @onclick="ExecuteClosePeriodAsync" disabled="@_busy">Confirm close</button>
