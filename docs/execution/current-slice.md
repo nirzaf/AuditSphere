@@ -6,12 +6,12 @@ This file records observed repository state only. The authoritative build contra
 
 | Item | Observed value |
 |---|---|
-| Source implementation checkpoint | `master@ee1d765` |
-| Remote | `origin/master` includes source checkpoint `ee1d765` |
+| Source implementation checkpoint | `master@d056eb9` |
+| Remote | `origin/master` includes source checkpoint `d056eb9` |
 | SDK | .NET 10; repository solution targets `net10.0` |
 | Database | PostgreSQL 18.6 on loopback port 5433 for development only |
 | Build | `dotnet build src/AuditSphereOps.Web/AuditSphereOps.Web.csproj --no-restore --configuration Release` at `ee1d765` — passed, 0 warnings/errors; solution Release baseline passed at `4010963` |
-| Tests | 215/215 passed, 0 skipped against PostgreSQL 18.6 at `ee1d765` |
+| Tests | 215/215 passed, 0 skipped against PostgreSQL 18.6 at `4017ee0` |
 | Migrations | 75 applied; latest `20260921150321_BindMappingsToClientCharts` |
 | Model drift | `dotnet ef migrations has-pending-model-changes` — no changes |
 | Restore drill | `scripts/db/restore-drill.sh` — passed; 75 migrations, accounting/group manifests and release-delivery identities reconciled |
@@ -47,6 +47,7 @@ This file records observed repository state only. The authoritative build contra
 - The bounded foreign-operation profile pins an approved rate set and translation policy to the scope, requires maker/checker approval for each foreign component translation, preserves per-line source/FX lineage in the deterministic manifest, and blocks missing or stale rates/packages. Full FX remeasurement/reserve, NCI, acquisition, ownership-change, nested-group and complex-elimination methods remain disabled pending approved method-specific fixtures.
 - The enabled FX profile accepts only explicit `DIRECT` rates; unsupported inverse semantics are rejected rather than silently multiplied with the wrong direction.
 - FX rate observations and translation-policy codes return controlled idempotency conflicts when repeated, rather than relying on raw database exceptions.
+- Shared reporting taxonomy overlays accept only generic industry/group scopes; a client-scoped overlay is rejected so client-specific context cannot enter a firm master template.
 - Group membership changes advance a durable group revision; consolidation scopes pin that revision and reject approval/calculation after a perimeter change while preserving historical memberships, scopes and runs.
 - Component, translation, intercompany-match and group-journal commands recheck the pinned group revision and fail closed instead of writing stale-scope evidence after a perimeter change.
 - Approved ownership edges are retained as evidence, but consolidation scope approval rejects intermediate/nested hierarchies for the enabled calculators until a method-specific calculation and fixture exist; this prevents double counting by construction.
