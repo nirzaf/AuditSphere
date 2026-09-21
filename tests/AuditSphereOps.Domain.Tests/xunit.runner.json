@@ -3,5 +3,5 @@
   "diagnosticMessages": false,
   "parallelizeAssembly": false,
   "parallelizeTestCollections": true,
-  "maxParallelThreads": 3
+  "maxParallelThreads": 1
 }
