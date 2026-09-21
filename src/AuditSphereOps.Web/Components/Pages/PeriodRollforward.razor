@@ -26,7 +26,7 @@ else
   <section class="card" aria-labelledby="rollforward-heading">
     <h2 id="rollforward-heading">Create next period</h2>
     <div class="form-grid">
-      <label>Client<select @bind="_selectedClientId" required title="Choose the client whose closed period is being carried forward."><option value="">Select a client</option>@foreach (var client in _clients) { <option value="@client.Id">@client.Name</option> }</select></label>
+      <label>Client<select @bind="_selectedClientId" required disabled="@(_busy || _selectionBusy)" title="Choose the client whose closed period is being carried forward."><option value="">Select a client</option>@foreach (var client in _clients) { <option value="@client.Id">@client.Name</option> }</select></label>
       <label>Closed prior period<select @bind="_selectedPriorPeriodId" required title="Choose a closed period; the new period must follow it."><option value="">Select a period</option>@foreach (var period in _closedPeriods) { <option value="@period.Id">@period.Label</option> }</select></label>
       <label>New period code<input @bind="_periodCode" maxlength="50" required /></label>
       <label>Start date (yyyy-MM-dd)<input @bind="_startDate" inputmode="numeric" maxlength="10" required /></label>
@@ -40,7 +40,7 @@ else
       <label>Evidence reference<input @bind="_evidenceReference" maxlength="2000" required /></label>
     </div>
     <div style="display:flex;gap:.75rem;align-items:center;margin-top:1rem;flex-wrap:wrap">
-      <button class="button" title="Load only the closed periods and validated packages in the selected client scope." @onclick="LoadClientAsync" disabled="@(_busy || _selectionBusy)">Load closed periods</button>
+      <button class="button" title="Load only the closed periods and validated packages in the selected client scope." @onclick="LoadClientAsync" disabled="@(_busy || _selectionBusy)">@(_selectionBusy ? "Loading…" : "Load closed periods")</button>
       <button class="button" title="Create a new draft period and opening-balance bridge from the selected closed period." @onclick="RollForwardAsync" disabled="@(_busy || _selectionBusy)">@(_busy ? "Saving…" : "Create draft period")</button>
     </div>
   </section>

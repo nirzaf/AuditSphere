@@ -24,7 +24,7 @@ else
   <section class="card" aria-labelledby="create-heading">
     <h2 id="create-heading">Request a restatement</h2>
     <div class="form-grid">
-      <label>Client<select @bind="_selectedClientId" required title="Choose the client whose closed reporting period is being restated."><option value="">Select a client</option>@foreach (var client in _clients) { <option value="@client.Id">@client.Name</option> }</select></label>
+      <label>Client<select @bind="_selectedClientId" required disabled="@(_busy || _selectionBusy)" title="Choose the client whose closed reporting period is being restated."><option value="">Select a client</option>@foreach (var client in _clients) { <option value="@client.Id">@client.Name</option> }</select></label>
       <label>Closed period<select @bind="_selectedPeriodId" required title="Choose the closed period that both immutable packages belong to."><option value="">Select a period</option>@foreach (var period in _periods) { <option value="@period.Id">@period.Label</option> }</select></label>
       <label>Original package<select @bind="_selectedOriginalPackageId" required title="Choose the original validated package version."><option value="">Select package</option>@foreach (var package in _packages) { <option value="@package.Id">@package.Label</option> }</select></label>
       <label>Revised package<select @bind="_selectedRevisedPackageId" required title="Choose the revised validated package version; it must differ from the original."><option value="">Select package</option>@foreach (var package in _packages) { <option value="@package.Id">@package.Label</option> }</select></label>
@@ -33,7 +33,7 @@ else
     </div>
     <label>Reason<textarea @bind="_reason" maxlength="4000" rows="3" required></textarea></label>
     <div style="display:flex;gap:.75rem;align-items:center;margin-top:1rem;flex-wrap:wrap">
-      <button class="button" title="Load only validated package versions for the selected closed period." @onclick="LoadSelectionAsync" disabled="@(_busy || _selectionBusy)">Load closed-period packages</button>
+      <button class="button" title="Load only validated package versions for the selected closed period." @onclick="LoadSelectionAsync" disabled="@(_busy || _selectionBusy)">@(_selectionBusy ? "Loading…" : "Load closed-period packages")</button>
       <button class="button" title="Create an immutable restatement request linking two distinct validated package versions." @onclick="CreateAsync" disabled="@(_busy || _selectionBusy)">@(_busy ? "Saving…" : "Create restatement request")</button>
     </div>
   </section>
