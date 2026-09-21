@@ -65,7 +65,8 @@ public sealed record LinkAccountingEvidenceRequest(
 
 public sealed record GeneralLedgerLineProjection(
   Guid LineId, string JournalId, DateOnly PostingDate, string AccountCode,
-  decimal Debit, decimal Credit, decimal FunctionalAmount, string Currency);
+  decimal Debit, decimal Credit, decimal FunctionalAmount, string Currency,
+  DateOnly? DocumentDate = null, DateOnly? ServiceDate = null, string ReceiptReference = "");
 
 public sealed record GeneralLedgerPage(
   IReadOnlyList<GeneralLedgerLineProjection> Rows, bool HasNextPage);
@@ -124,7 +125,8 @@ public static class AccountingAnalysisService
                             line.EngagementId == batch.EngagementId && line.ImportBatchId == batch.Id
                       orderby transaction.PostingDate, transaction.StableJournalId, line.StableLineId, line.Id
                       select new GeneralLedgerLineProjection(line.Id, transaction.StableJournalId, transaction.PostingDate,
-                        line.AccountCode, line.Debit, line.Credit, line.FunctionalAmount, line.OriginalCurrency))
+                        line.AccountCode, line.Debit, line.Credit, line.FunctionalAmount, line.OriginalCurrency,
+                        transaction.DocumentDate, transaction.ServiceDate, batch.ReceiptReference))
       .Skip(skip).Take(pageSize + 1).ToListAsync(ct);
     return CommandResult<GeneralLedgerPage>.Ok(new GeneralLedgerPage(rows.Take(pageSize).ToArray(), rows.Count > pageSize));
   }

@@ -505,7 +505,7 @@ public static class RecordsArchiveService
       .Select(x => new { x.Id, x.ImportBatchId, x.ChunkNumber, x.ChunkDigest, x.TransactionCount, x.LineCount, x.CreatedAt }).ToListAsync(ct);
     var glTransactions = typedAccounting is null ? [] : await typedAccounting.GeneralLedgerTransactions.AsNoTracking()
       .Where(x => x.FirmId == archive.FirmId && x.ClientId == archive.ClientId && x.EngagementId == archive.EngagementId).OrderBy(x => x.Id)
-      .Select(x => new { x.Id, x.ImportBatchId, x.StableJournalId, x.DocumentNumber, x.PostingDate, x.DocumentDate, x.SourceUser, x.SourceSystem, x.ReversalReference, x.Currency, x.IsManual, x.IsYearEnd, x.CreatedAt }).ToListAsync(ct);
+      .Select(x => new { x.Id, x.ImportBatchId, x.StableJournalId, x.DocumentNumber, x.PostingDate, x.DocumentDate, x.ServiceDate, x.SourceUser, x.SourceSystem, x.ReversalReference, x.Currency, x.IsManual, x.IsYearEnd, x.CreatedAt }).ToListAsync(ct);
     var glTransactionIds = glTransactions.Select(x => x.Id).ToArray();
     var glLines = typedAccounting is null ? [] : await typedAccounting.GeneralLedgerLines.AsNoTracking()
       .Where(x => glTransactionIds.Contains(x.TransactionId)).OrderBy(x => x.Id)

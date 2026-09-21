@@ -380,6 +380,7 @@ public sealed class GeneralLedgerTransaction
   public string DocumentNumber { get; set; } = string.Empty;
   public DateOnly PostingDate { get; set; }
   public DateOnly? DocumentDate { get; set; }
+  public DateOnly? ServiceDate { get; set; }
   public string SourceUser { get; set; } = string.Empty;
   public string SourceSystem { get; set; } = string.Empty;
   public string? ReversalReference { get; set; }

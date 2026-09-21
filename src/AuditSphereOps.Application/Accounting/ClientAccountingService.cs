@@ -67,7 +67,7 @@ public sealed record GeneralLedgerTransactionInput(
   string StableJournalId, string DocumentNumber, DateOnly PostingDate,
   DateOnly? DocumentDate, string SourceUser, string SourceSystem,
   string? ReversalReference, bool IsManual, bool IsYearEnd,
-  IReadOnlyList<GeneralLedgerLineInput> Lines);
+  IReadOnlyList<GeneralLedgerLineInput> Lines, DateOnly? ServiceDate = null);
 
 public sealed record GeneralLedgerImportRequest(
   Guid ClientId, Guid EngagementId, Guid PeriodId, Guid? BookId,
@@ -823,9 +823,10 @@ public static class ClientAccountingService
       return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ImportRejected, dimensionError);
     var normalized = string.Join('\n', request.Transactions.OrderBy(x => x.StableJournalId, StringComparer.Ordinal)
       .SelectMany(x => x.Lines.OrderBy(y => y.StableLineId, StringComparer.Ordinal).Select(y => string.Join('|',
-        x.StableJournalId.Trim(), y.StableLineId.Trim(), y.AccountCode.Trim(),
+        x.StableJournalId.Trim(), x.ServiceDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? string.Empty,
+        y.StableLineId.Trim(), y.AccountCode.Trim(),
         y.Debit.ToString("0.000000", CultureInfo.InvariantCulture), y.Credit.ToString("0.000000", CultureInfo.InvariantCulture), currency))));
-    var normalizedHash = Hashing.Sha256Hex(Encoding.UTF8.GetBytes("gl-import.v1\n" + normalized));
+    var normalizedHash = Hashing.Sha256Hex(Encoding.UTF8.GetBytes("gl-import.v2\n" + normalized));
     if (await db.SourceImportBatches.AnyAsync(x => x.FirmId == actor.FirmId && x.EngagementId == request.EngagementId &&
         x.RawFileSha256Hex == request.RawFileSha256Hex.Trim().ToLowerInvariant(), ct))
       return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ImportDuplicate, "The source file was already imported for this engagement.");
@@ -848,7 +849,8 @@ public static class ClientAccountingService
       {
         Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = request.ClientId, EngagementId = request.EngagementId,
         ImportBatchId = batch.Id, StableJournalId = input.StableJournalId.Trim(), DocumentNumber = input.DocumentNumber.Trim(),
-        PostingDate = input.PostingDate, DocumentDate = input.DocumentDate, SourceUser = input.SourceUser.Trim(),
+        PostingDate = input.PostingDate, DocumentDate = input.DocumentDate, ServiceDate = input.ServiceDate,
+        SourceUser = input.SourceUser.Trim(),
         SourceSystem = input.SourceSystem.Trim(), ReversalReference = input.ReversalReference?.Trim(), Currency = currency,
         IsManual = input.IsManual, IsYearEnd = input.IsYearEnd, CreatedAt = batch.CreatedAt
       };
@@ -1021,7 +1023,8 @@ public static class ClientAccountingService
         {
           Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = batch.ClientId, EngagementId = batch.EngagementId,
           ImportBatchId = batch.Id, StableJournalId = input.StableJournalId.Trim(), DocumentNumber = input.DocumentNumber.Trim(),
-          PostingDate = input.PostingDate, DocumentDate = input.DocumentDate, SourceUser = input.SourceUser.Trim(),
+          PostingDate = input.PostingDate, DocumentDate = input.DocumentDate, ServiceDate = input.ServiceDate,
+          SourceUser = input.SourceUser.Trim(),
           SourceSystem = input.SourceSystem.Trim(), ReversalReference = input.ReversalReference?.Trim(), Currency = currency,
           IsManual = input.IsManual, IsYearEnd = input.IsYearEnd, CreatedAt = batch.CreatedAt
         };
@@ -1072,7 +1075,7 @@ public static class ClientAccountingService
       Currency = currency.Trim().ToUpperInvariant(),
       Transactions = transactions.OrderBy(x => x.StableJournalId, StringComparer.Ordinal).Select(x => new
       {
-        x.StableJournalId, x.DocumentNumber, x.PostingDate, x.DocumentDate, x.SourceUser, x.SourceSystem,
+        x.StableJournalId, x.DocumentNumber, x.PostingDate, x.DocumentDate, x.ServiceDate, x.SourceUser, x.SourceSystem,
         x.ReversalReference, x.IsManual, x.IsYearEnd,
         Lines = x.Lines.OrderBy(y => y.StableLineId, StringComparer.Ordinal).Select(y => new
         {

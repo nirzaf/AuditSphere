@@ -538,7 +538,8 @@ public sealed class ClientAccountingTests
     var chunkOne = new[]
     {
       new GeneralLedgerTransactionInput("J-1", "INV-1", new DateOnly(2026, 6, 30), null, "user-a", "LEDGER-A", null, false, false,
-        [new("J-1-L1", "1000", 100m, 0m, "QAR", 100m, 100m), new("J-1-L2", "4000", 0m, 100m, "QAR", -100m, -100m)])
+        [new("J-1-L1", "1000", 100m, 0m, "QAR", 100m, 100m), new("J-1-L2", "4000", 0m, 100m, "QAR", -100m, -100m)],
+        new DateOnly(2026, 6, 29))
     };
     var chunkTwo = new[]
     {
@@ -547,6 +548,8 @@ public sealed class ClientAccountingTests
     };
     var digestOne = ClientAccountingService.ComputeGeneralLedgerChunkDigest("QAR", chunkOne);
     var digestTwo = ClientAccountingService.ComputeGeneralLedgerChunkDigest("QAR", chunkTwo);
+    var noServiceDateChunk = chunkOne.Select(x => x with { ServiceDate = null }).ToArray();
+    Assert.NotEqual(digestOne, ClientAccountingService.ComputeGeneralLedgerChunkDigest("QAR", noServiceDateChunk));
     Guid batchId;
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
@@ -586,6 +589,7 @@ public sealed class ClientAccountingTests
     Assert.Equal(2, await verify.GeneralLedgerImportChunks.CountAsync(x => x.ImportBatchId == batchId));
     Assert.Equal(2, await verify.GeneralLedgerTransactions.CountAsync(x => x.ImportBatchId == batchId));
     Assert.Equal(4, await verify.GeneralLedgerLines.CountAsync(x => x.ImportBatchId == batchId));
+    Assert.Equal(new DateOnly(2026, 6, 29), await verify.GeneralLedgerTransactions.Where(x => x.ImportBatchId == batchId && x.StableJournalId == "J-1").Select(x => x.ServiceDate).SingleAsync());
   }
 
   [Fact]
