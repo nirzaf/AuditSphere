@@ -7,7 +7,7 @@
 
 **AuditSphereOps** is a professional audit, accounting & assurance operations platform — a .NET 10 modular monolith covering the complete engagement lifecycle: client acceptance, practice management, trial-balance intake, financial-statement production, audit execution, review, controlled signing/release, and records retention.
 
-> **Status: implementation in progress.** This repository is a specification-driven build. Core domain modules, practice management, trial-balance and bounded resumable GL intake, audit planning, package production, archive lineage, provider safety fences, recovery quarantine, governed financial-package review decisions, package-bound release candidates, source-bound accounting-evidence freshness, typed specialist schedules, explicit asset-schedule methodology, the client-safe management package view, and the authorized staff review queue are implemented and verified locally (**192/192 tests passing on PostgreSQL 18.6 across 50 migrations**). Live provider behavior, compliance approval, signing methodology, production recovery, and independent review remain explicitly blocked and are never fake-passed.
+> **Status: implementation in progress.** This repository is a specification-driven build. Core domain modules, practice management, trial-balance and bounded resumable GL intake, audit planning, package production, archive lineage, provider safety fences, recovery quarantine, governed financial-package review decisions, package-bound release candidates, source-bound accounting-evidence freshness, typed specialist schedules, explicit asset-schedule methodology, the client-safe management package view, the authorized staff review queue, source-bound reconciliation-item validation and durable GL completeness processing are implemented and verified locally (**198/198 tests passing on PostgreSQL 18.6 across 56 migrations**). Live provider behavior, compliance approval, signing methodology, production recovery, and independent review remain explicitly blocked and are never fake-passed.
 
 ## Table of contents
 
@@ -150,13 +150,13 @@ The integration test requires PostgreSQL at `127.0.0.1:5433` and the `auditspher
 - **`docs/execution/current-slice.md`** — the verified local state and concise serialization of what was actually executed.
 - **Using the spec:** read `docs/SPECIFICATION.md` (§§1–12, 22, 24, 27–33, 41–47) plus only the sections for the active issue.
 
-As of the last verification pass: **192/192 tests passed** on PostgreSQL 18.6 with 0 skipped, 50 migrations applied (latest: `20260920223757_AddTypedSpecialistAreaInputs`), local restore and build completed with zero warnings, the loopback restore rehearsal passed with 50 migrations, and the EF model has no pending changes. A redacted non-production evidence note is retained only to document the evidence boundary; tenant identifiers and credentials are not committed. Runtime identity fixtures, live provider behavior, compliance approval, signing, recovery, and independent-review gates remain **recorded blockers**.
+As of the last verification pass: **198/198 tests passed** on PostgreSQL 18.6 with 0 skipped, 56 migrations applied (latest: `20260921020828_AddIntercompanyEliminationLineage`), local restore and build completed with zero warnings, the loopback restore rehearsal passed with 56 migrations, and the EF model has no pending changes. A redacted non-production evidence note is retained only to document the evidence boundary; tenant identifiers and credentials are not committed. Runtime identity fixtures, live provider behavior, compliance approval, signing, recovery, and independent-review gates remain **recorded blockers**.
 
 ## Implementation roadmap
 
 The build advances through dependency-ordered work packages (P0–P10 per the [pending-work story](docs/execution/pending-tasks.md)), each landing as a reviewed PR with executed test evidence. Slices may not weaken controls, and a slice is accepted only with independent review evidence.
 
-**Delivered (locally verified — 192/192 tests, 50 migrations):**
+**Delivered (locally verified — 198/198 tests, 56 migrations):**
 
 - **Security & authorization integrity:** `ActorContext`, scope/role matrix, firm→client→engagement guards, finance-role separation, in-command authorization for all planning and operational commands.
 - **Trial-balance intake & validation engine:** Appendix D fixture, database-level `ck_tb_validation_status` control, source reflection bridges.

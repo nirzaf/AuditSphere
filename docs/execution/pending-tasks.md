@@ -3,7 +3,7 @@
 **Repository:** `nirzaf/AuditSphere`
 **Authoritative specification:** [`docs/SPECIFICATION.md`](../SPECIFICATION.md) v5.0
 **Requirements backlog:** [`docs/requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md`](../requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md)
-**Source implementation checkpoint:** `master@05c7ea6`
+**Source implementation checkpoint:** `master@d82e65b`
 
 This is a resume checklist, not an acceptance certificate. Tenant identifiers, credentials, tokens, secret values, and private-provider URLs are deliberately absent from the public repository.
 
@@ -37,6 +37,7 @@ This is a resume checklist, not an acceptance certificate. Tenant identifiers, c
 - [x] Reject unsupported FX rate directions in the enabled bounded translation profile.
 - [x] Add bounded, resumable GL chunk intake with canonical digest, idempotent retry and contiguous finalization.
 - [x] Bind source-bound GL reconciliations to the selected reporting period and currency; reject cross-period or cross-currency batches.
+- [x] Bind reconciliation items to the selected source currency; reject future dates and missing dispositions while preserving as-of ageing.
 - [x] Route GL completeness calculation through the existing durable operation infrastructure with source revision fencing and idempotent retries.
 - [ ] Route remaining long-running accounting calculations/rendering through the existing durable operation infrastructure and benchmark representative workloads before production acceptance.
 - [x] Add a client-safe validated-package view and signed-in management acknowledgement route with cross-client denial coverage.
