@@ -49,7 +49,7 @@
 
   function collect(boundary) {
     const fields = {};
-    for (const control of controlsFor(boundary)) fields[control.dataset.draftField] = read(control);
+    for (const control of controlsFor(boundary, true)) fields[control.dataset.draftField] = read(control);
     return { fields, savedAt: new Date().toISOString() };
   }
 
@@ -89,7 +89,8 @@
       const value = draft.fields[field];
       write(control, value);
       if (control.tagName === 'SELECT' && control.value !== String(value)) unresolved = true;
-      control.dispatchEvent(new Event(control.tagName === 'SELECT' ? 'change' : 'input', { bubbles: true }));
+      control.dispatchEvent(new Event('change', { bubbles: true }));
+      if (control.tagName !== 'SELECT') control.dispatchEvent(new Event('input', { bubbles: true }));
     }
     restoring.delete(boundary);
     setStatus(boundary, 'Unsaved draft restored locally.', 'restored');
@@ -189,7 +190,9 @@
             label.classList.add('required-label');
             control.setAttribute('aria-required', 'true');
           }
-          if (control.dataset.optional === 'true' || /\boptional\b/i.test(label.textContent)) {
+          const optional = control.dataset.optional === 'true' || /\boptional\b/i.test(label.textContent) ||
+            (!control.required && control.dataset.required !== 'true' && control.type !== 'file' && !control.readOnly && !control.disabled);
+          if (optional) {
             label.classList.add('optional-label');
           }
         }
