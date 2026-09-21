@@ -178,8 +178,15 @@ public sealed class ClientAccountingTests
         new ReviewAccountingEvidenceRequest(AccountingEvidenceKinds.Inventory, inventoryId, AccountingEvidenceReviewDecisions.Approved))).Succeeded);
       Assert.True((await AccountingAnalysisService.ReviewAccountingEvidenceAsync(db, reviewer,
         new ReviewAccountingEvidenceRequest(AccountingEvidenceKinds.Specialist, specialistId, AccountingEvidenceReviewDecisions.Approved))).Succeeded);
+      var missingAnalyticalConclusion = await AccountingAnalysisService.ReviewAccountingEvidenceAsync(db, reviewer,
+        new ReviewAccountingEvidenceRequest(AccountingEvidenceKinds.Analytical, analyticalId, AccountingEvidenceReviewDecisions.Approved));
+      Assert.False(missingAnalyticalConclusion.Succeeded);
+      Assert.Equal(ErrorCodes.GateBlocked, missingAnalyticalConclusion.ErrorCode);
       Assert.True((await AccountingAnalysisService.ReviewAccountingEvidenceAsync(db, reviewer,
-        new ReviewAccountingEvidenceRequest(AccountingEvidenceKinds.Analytical, analyticalId, AccountingEvidenceReviewDecisions.Approved))).Succeeded);
+        new ReviewAccountingEvidenceRequest(AccountingEvidenceKinds.Analytical, analyticalId, AccountingEvidenceReviewDecisions.Approved,
+          Conclusion: "The seasonal revenue movement is supported by the retained query inputs and source evidence."))).Succeeded);
+      Assert.Equal("The seasonal revenue movement is supported by the retained query inputs and source evidence.",
+        await db.AnalyticalReviews.Where(x => x.Id == analyticalId).Select(x => x.ReviewConclusion).SingleAsync());
       Assert.True((await AccountingAnalysisService.ReviewAccountingEvidenceAsync(db, reviewer,
         new ReviewAccountingEvidenceRequest(AccountingEvidenceKinds.JournalRisk, riskId, AccountingEvidenceReviewDecisions.Cleared, "Reviewed against the selected rule and source journal.", "Management response corroborated.", "bank-reconciliation-1"))).Succeeded);
     }

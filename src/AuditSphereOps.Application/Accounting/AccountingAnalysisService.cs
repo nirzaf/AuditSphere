@@ -974,7 +974,14 @@ public static class AccountingAnalysisService
           return CommandResult.Fail(ErrorCodes.GateBlocked, "Insufficient analytical data cannot be approved.");
         clientId = analytical.ClientId; engagementId = analytical.EngagementId; createdByUserId = analytical.CreatedByUserId;
         recordedInputGeneration = analytical.InputGeneration;
-        apply = () => { analytical.Status = decision; analytical.ReviewedByUserId = actor.UserId; analytical.ReviewedAt = DateTimeOffset.UtcNow; };
+        apply = () =>
+        {
+          analytical.Status = decision;
+          analytical.ReviewedByUserId = actor.UserId;
+          analytical.ReviewedAt = DateTimeOffset.UtcNow;
+          if (!string.IsNullOrWhiteSpace(request.Conclusion))
+            analytical.ReviewConclusion = request.Conclusion.Trim();
+        };
         break;
       default:
         var risk = await db.JournalRiskFlags.SingleOrDefaultAsync(x => x.Id == request.EvidenceId && x.FirmId == actor.FirmId, ct);
@@ -1017,6 +1024,10 @@ public static class AccountingAnalysisService
       if (currentGeneration is null || currentGeneration.Value != recordedGeneration)
         return CommandResult.Fail(ErrorCodes.GenerationStale, "The client input generation changed; prepare new evidence.");
     }
+
+    if (decision == AccountingEvidenceReviewDecisions.Approved && kind == AccountingEvidenceKinds.Analytical &&
+        string.IsNullOrWhiteSpace(request.Conclusion))
+      return CommandResult.Fail(ErrorCodes.GateBlocked, "An analytical review approval needs a conclusion tied to its replay snapshot.");
 
     if (decision == AccountingEvidenceReviewDecisions.Approved && kind != AccountingEvidenceKinds.JournalRisk)
     {

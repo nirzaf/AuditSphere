@@ -641,6 +641,7 @@ public sealed class AnalyticalReview
   public string InputSnapshotJson { get; set; } = string.Empty;
   public string InputHash { get; set; } = string.Empty;
   public string Explanation { get; set; } = string.Empty;
+  public string ReviewConclusion { get; set; } = string.Empty;
   public string Status { get; set; } = AccountingWorkflowStates.Draft;
   public Guid CreatedByUserId { get; set; }
   public Guid? ReviewedByUserId { get; set; }

@@ -1797,6 +1797,7 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     analysis.Property(x => x.InputSnapshotJson).HasMaxLength(8000);
     analysis.Property(x => x.InputHash).HasMaxLength(64);
     analysis.Property(x => x.Explanation).HasMaxLength(4000);
+    analysis.Property(x => x.ReviewConclusion).HasMaxLength(4000);
     analysis.Property(x => x.Status).HasMaxLength(30);
     analysis.HasIndex(x => new { x.FirmId, x.EngagementId, x.PeriodId, x.Area, x.Measure }).HasDatabaseName("ix_analytical_review_measure");
     analysis.ToTable("analytical_reviews", t => t.HasCheckConstraint("ck_analytical_review_values",
