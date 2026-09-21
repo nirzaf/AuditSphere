@@ -4,10 +4,10 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "63d2ab5",
+  "headCommit": "05c7ea6",
   "remoteHeadVerified": true,
   "productionEnabled": false,
-  "verifiedAt": "2026-09-21T02:29:42Z",
+  "verifiedAt": "2026-09-21T02:54:39Z",
   "toolchain": {
     "sdk": ".NET 10",
     "efCore": "10.0.12",
@@ -28,7 +28,7 @@
     "implementationStatus": "IN_PROGRESS",
     "acceptanceStatus": "LOCAL_VERIFIED",
     "scope": "Local audit workflow, client accounting, GL intake, completeness, package, restatement, consolidation, journal-lineage, close-check and package-review slices.",
-    "nextAction": "Obtain approved method-specific fixtures before implementing full FX remeasurement/reserves, NCI, acquisition, ownership-change, nested-group and complex-elimination methods; broader audit stories and live provider, signing, recovery and independent-review gates remain external."
+    "nextAction": "Route remaining long-running accounting calculations/rendering through the existing durable operation infrastructure and benchmark representative workloads; advanced methods still require approved fixtures and broader audit/provider/signing/recovery/independent-review gates remain external."
   },
   "localEvidence": [
     {
@@ -40,6 +40,11 @@
       "item": "GL completeness and specialist workbenches",
       "status": "LOCAL_VERIFIED",
       "details": "Typed GL imports, bounded resumable GL chunks with canonical digest/idempotent finalization, bounded paged reads, account-by-account completeness bridges, source-bound reconciliations that reject mismatched period/currency batches, and bounded specialist/analytical/journal-risk workflows."
+    },
+    {
+      "item": "Durable GL completeness calculation",
+      "status": "LOCAL_VERIFIED",
+      "details": "GL completeness bridge calculation is enqueued through the existing local durable operation infrastructure, fenced to the sealed TB revision and exact scoped GL sources, published with operation/result lineage, and safely re-enqueued by the same idempotency key; PostgreSQL acceptance passes. Remaining long-running accounting calculations/rendering and workload benchmarks are not yet complete."
     },
     {
       "item": "Package and close governance",
@@ -103,6 +108,7 @@
     }
   ],
   "remainingLocalWork": [
+    "Route remaining long-running accounting calculations/rendering through the existing durable operation infrastructure and benchmark representative workloads",
     "Approved method-specific fixtures for full FX remeasurement/reserves, NCI, acquisition, ownership change, nested groups and complex eliminations"
   ],
   "externalGates": [
