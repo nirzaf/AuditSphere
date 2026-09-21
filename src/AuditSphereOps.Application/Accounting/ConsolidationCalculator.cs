@@ -63,7 +63,8 @@ public static class ConsolidationCalculator
     string method,
     string openingBasis,
     IReadOnlyCollection<ConsolidationComponentBalance> components,
-    IReadOnlyCollection<ConsolidationElimination> eliminations)
+    IReadOnlyCollection<ConsolidationElimination> eliminations,
+    long scopeGroupRevision = 0)
   {
     reportingCurrency = reportingCurrency.Trim().ToUpperInvariant();
     method = method.Trim().ToUpperInvariant();
@@ -132,7 +133,7 @@ public static class ConsolidationCalculator
 
     var manifest = string.Join('\n', new[]
     {
-      EngineVersion, method, openingBasis, reportingCurrency
+      EngineVersion, method, openingBasis, reportingCurrency, scopeGroupRevision.ToString(CultureInfo.InvariantCulture)
     }.Concat(lines.OrderBy(x => x.TaxonomyCode, StringComparer.Ordinal)
       .ThenBy(x => x.ComponentId)
       .ThenBy(x => x.MatchId)

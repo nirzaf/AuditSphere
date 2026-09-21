@@ -86,6 +86,11 @@ public static class ConsolidationService
       return auth;
     if (!await db.PracticeClients.AnyAsync(x => x.FirmId == actor.FirmId && x.Id == request.ClientId, ct))
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "The legal entity is outside the firm scope.");
+    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    var group = await db.ClientGroups.FromSqlInterpolated($"SELECT * FROM client_groups WHERE id = {request.GroupId} AND firm_id = {actor.FirmId} FOR UPDATE")
+      .SingleOrDefaultAsync(ct);
+    if (group is null)
+      return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var overlaps = await db.ClientGroupMemberships.AnyAsync(x => x.FirmId == actor.FirmId && x.GroupId == request.GroupId &&
       x.ClientId == request.ClientId && x.EffectiveFrom <= (request.EffectiveTo ?? DateOnly.MaxValue) &&
       request.EffectiveFrom <= (x.EffectiveTo ?? DateOnly.MaxValue), ct);
@@ -99,7 +104,9 @@ public static class ConsolidationService
       EvidenceReference = request.EvidenceReference.Trim(), Status = AccountingWorkflowStates.Approved,
       CreatedByUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
     });
+    group.Revision++;
     await db.SaveChangesAsync(ct);
+    await tx.CommitAsync(ct);
     return CommandResult.Ok();
   }
 
@@ -116,7 +123,8 @@ public static class ConsolidationService
     var auth = await GroupAuthAsync(db, actor, request.GroupId, PreparerRoles, ct);
     if (!auth.Succeeded)
       return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
-    if (!await db.ClientGroups.AnyAsync(x => x.FirmId == actor.FirmId && x.Id == request.GroupId, ct))
+    var group = await db.ClientGroups.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == request.GroupId, ct);
+    if (group is null)
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var members = await db.ClientGroupMemberships.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.GroupId == request.GroupId &&
       x.Status == AccountingWorkflowStates.Approved && x.EffectiveTo == null).ToListAsync(ct);
@@ -139,6 +147,7 @@ public static class ConsolidationService
     var scope = new ConsolidationScopeVersion
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, GroupId = request.GroupId, PeriodId = request.PeriodId,
+      GroupRevision = group.Revision,
       Version = version, ReportingCurrency = currency, Method = method,
       OpeningBasis = request.OpeningBasis.Trim(), ExchangeRateSetVersionId = request.ExchangeRateSetVersionId,
       TranslationPolicyVersionId = request.TranslationPolicyVersionId, TranslationRateDate = request.TranslationRateDate,
@@ -250,6 +259,10 @@ public static class ConsolidationService
       return auth;
     if (scope.Status != AccountingWorkflowStates.Draft)
       return CommandResult.Fail(ErrorCodes.ProtectedState, "Only a draft perimeter can be approved.");
+    var currentGroupRevision = await db.ClientGroups.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.Id == scope.GroupId)
+      .Select(x => (long?)x.Revision).SingleOrDefaultAsync(ct);
+    if (currentGroupRevision is null || currentGroupRevision.Value != scope.GroupRevision)
+      return CommandResult.Fail(ErrorCodes.GenerationStale, "The group perimeter changed; create a new scope version.");
     if (!await HasMethodOwnerAcceptanceAsync(db, actor.FirmId, scope.GroupId, scope.Method, ct))
       return CommandResult.Fail(ErrorCodes.GateBlocked,
         "An independently accepted group capability profile is required before perimeter approval.");
@@ -490,6 +503,11 @@ public static class ConsolidationService
   private static async Task<CommandResult<ConsolidationBuild>> BuildCalculationAsync(
     IClientAccountingDbContext db, Guid firmId, ConsolidationScopeVersion scope, CancellationToken ct)
   {
+    var currentGroupRevision = await db.ClientGroups.AsNoTracking().Where(x => x.FirmId == firmId && x.Id == scope.GroupId)
+      .Select(x => (long?)x.Revision).SingleOrDefaultAsync(ct);
+    if (currentGroupRevision is null || currentGroupRevision.Value != scope.GroupRevision)
+      return CommandResult<ConsolidationBuild>.Fail(ErrorCodes.GenerationStale,
+        "The group perimeter changed; rebuild the consolidation scope before calculating.");
     var components = await db.ConsolidationComponents.AsNoTracking().Where(x => x.FirmId == firmId && x.ScopeVersionId == scope.Id &&
       x.Status == AccountingWorkflowStates.Approved).OrderBy(x => x.Id).ToListAsync(ct);
     if (components.Count == 0)
@@ -569,7 +587,7 @@ public static class ConsolidationService
     try
     {
       var calculation = ConsolidationCalculator.Compute(scope.ReportingCurrency, scope.Method, scope.OpeningBasis, balances,
-        eliminationSources.Select(x => x.Item1).ToList());
+        eliminationSources.Select(x => x.Item1).ToList(), scope.GroupRevision);
       return CommandResult<ConsolidationBuild>.Ok(new ConsolidationBuild(calculation, eliminationSources));
     }
     catch (InvalidOperationException ex)

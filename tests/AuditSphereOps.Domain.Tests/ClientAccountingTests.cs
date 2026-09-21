@@ -1160,6 +1160,16 @@ public sealed class ClientAccountingTests
       Assert.Equal(6, await db.ConsolidationRunLines.CountAsync(x => x.RunId == rebuiltRunId));
       Assert.Equal(2, await db.ConsolidationRunLines.CountAsync(x => x.RunId == rebuiltRunId && x.ConsolidationJournalId == changedJournalId));
       Assert.All(await db.ConsolidationComponents.Where(x => x.ScopeVersionId == consolidationScopeId).ToListAsync(), x => Assert.Equal(AccountingWorkflowStates.Approved, x.Status));
+
+      var newClientId = Guid.NewGuid();
+      db.PracticeClients.Add(new PracticeClient { Id = newClientId, FirmId = scope.FirmId, LegalName = "CLIENT C", CreatedAt = DateTimeOffset.UtcNow });
+      await db.SaveChangesAsync();
+      Assert.True((await ConsolidationService.AddMembershipAsync(db, reviewer,
+        new GroupMembershipRequest(groupId, newClientId, new DateOnly(2026, 1, 1), null, "CONTROLLED", 100m, 100m,
+          "ownership-c-added-after-scope"))).Succeeded);
+      var changedPerimeter = await ConsolidationService.RunAsync(db, preparer, consolidationScopeId);
+      Assert.False(changedPerimeter.Succeeded);
+      Assert.Equal(ErrorCodes.GenerationStale, changedPerimeter.ErrorCode);
     }
   }
 

@@ -628,6 +628,7 @@ public sealed class ConsolidationScopeVersion
   public Guid Id { get; set; }
   public Guid FirmId { get; set; }
   public Guid GroupId { get; set; }
+  public long GroupRevision { get; set; } = 1;
   public Guid PeriodId { get; set; }
   public int Version { get; set; } = 1;
   public string ReportingCurrency { get; set; } = string.Empty;

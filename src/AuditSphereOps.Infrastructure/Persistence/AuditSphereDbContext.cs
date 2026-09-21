@@ -1776,6 +1776,7 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
   {
     var scope = b.Entity<ConsolidationScopeVersion>();
     scope.HasAlternateKey(x => new { x.FirmId, x.GroupId, x.Id }).HasName("ak_consolidation_scopes_group_id");
+    scope.Property(x => x.GroupRevision);
     scope.Property(x => x.ReportingCurrency).HasMaxLength(3);
     scope.Property(x => x.Method).HasMaxLength(100);
     scope.Property(x => x.Status).HasMaxLength(30);
