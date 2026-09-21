@@ -6,15 +6,15 @@ This file records observed repository state only. The authoritative build contra
 
 | Item | Observed value |
 |---|---|
-| Source implementation checkpoint | `master@8085b2c` |
-| Remote | `origin/master` includes source checkpoint `8085b2c` |
+| Source implementation checkpoint | `master@dde8313` |
+| Remote | `origin/master` includes source checkpoint `dde8313` |
 | SDK | .NET 10; repository solution targets `net10.0` |
 | Database | PostgreSQL 18.6 on loopback port 5433 for development only |
-| Build | `dotnet build src/AuditSphereOps.Web/AuditSphereOps.Web.csproj --no-restore --configuration Release` at `8085b2c` — passed, 0 warnings/errors |
-| Tests | 215/215 passed, 0 skipped against PostgreSQL 18.6 at `8085b2c` |
-| Migrations | 75 applied; latest `20260921150321_BindMappingsToClientCharts` |
+| Build | `dotnet build src/AuditSphereOps.Web/AuditSphereOps.Web.csproj --no-restore --configuration Release` at `dde8313` — passed, 0 warnings/errors |
+| Tests | 216/216 passed, 0 skipped against PostgreSQL 18.6 at `dde8313` |
+| Migrations | 76 applied; latest `20260921200850_WorkflowTaskPeriodDeadline` |
 | Model drift | `dotnet ef migrations has-pending-model-changes` — no changes |
-| Restore drill | `scripts/db/restore-drill.sh` — passed; 75 migrations, accounting/group manifests and release-delivery identities reconciled |
+| Restore drill | `scripts/db/restore-drill.sh` — passed; 76 migrations, accounting/group manifests and release-delivery identities reconciled |
 | Production effects | Disabled locally; no production acceptance claimed |
 
 ## Implemented local capability
@@ -63,7 +63,8 @@ This file records observed repository state only. The authoritative build contra
 - The shared layout exposes current-route navigation for the implemented accounting, evidence, package-review, roll-forward, restatement, consolidation and journal workbenches; unsupported workbenches are not presented as links.
 - The accounting workspace pins a selected visible period's firm, group, legal entity, engagement, period, book, currency and package version in a draft-restored context header; the selection is display-only and does not broaden authorization.
 - The accounting workspace exposes exact links to the selected package and mapping version when those records exist, alongside scoped TB/GL evidence and package-review routes; missing records remain non-clickable rather than becoming guessed links.
-- Accounting dashboard, period roll-forward and restatement data loaders fail closed on an empty grant set and include only clients covered by an explicit firm-wide, client or engagement grant; the dashboard surfaces the active scope description and missing-scope guidance.
+- Work tasks can persist an optional exact client reporting-period link and optional `DueDate`; the practice-time page creates these tasks with the same explicit grant boundary, and the accounting dashboard/period detail show the persisted owner, status and deadline before falling back to PBC values. Cross-client period links are rejected by the service and covered by PostgreSQL regression tests.
+- Accounting dashboard, period roll-forward and restatement data loaders fail closed on an empty grant set and include only clients covered by an explicit firm-wide, client or engagement grant; the dashboard surfaces the active scope description and missing-scope guidance. Period-linked workflow tasks use the same exact period scope and do not broaden authorization.
 - Client-safe validated-package view and signed-in management acknowledgement are available at the restricted client portal route. The portal exposes statement totals and package metadata only; internal review history and workpapers remain staff-only.
 - An internal package-review queue lists only current validated packages in the actor's authorized client/engagement scopes and routes reviewers to the exact-version package surface.
 - A validated financial package can now become a release candidate only through the existing guarded approval/release path; the candidate records `FINANCIAL_PACKAGE`, exact package revision/generation/hash, current management/accounting/partner decisions, and the normal checkpoint gate.
@@ -85,9 +86,9 @@ This file records observed repository state only. The authoritative build contra
 - Financial-package rendering can be enqueued as a local durable calculation, fenced to the exact package revision, and records the deterministic artifact digest for later byte verification; PostgreSQL regression coverage passes.
 - Financial-package mappings now require the approved taxonomy statement section; package validation records separate statement cross-cast, accounting-equation, equity/profit, comparative-consistency and note-to-face outcomes, and rendered artifacts include adjusted-snapshot, mapping-version and adjustment-plan lineage identifiers. Exact UTF-8 artifact bytes are persisted with framework/template versions and SHA-256 lineage, and package-review decisions reference that artifact; PostgreSQL financial-statement regressions pass.
 - Legacy financial packages retain their original template, calculation-engine version and calculation hash beside newly versioned canonical packages; the zero-adjustment compatibility regression verifies both identities remain readable without mutation.
-- The accounting workspace exposes scoped COA/mapping, adjustment-journal and difference queues with exact-record links, removes the invalid unscoped journal route, and shows a period workflow dashboard with required/complete/stale/blocked counts, role-based next-owner guidance, persisted in-scope PBC owner/due-date values when available, an existing-PBC handoff link, and an explicit `Not recorded` due-date state when no persisted task/PBC due date exists. Its no-package/no-mapping fallback opens a grant-checked read-only period detail with exact handoffs. Release build, full PostgreSQL suite and local route smoke pass at `8085b2c`.
-- Group consolidation exposes perimeter, component-pack, FX, intercompany and elimination tabs with persisted scope counts/statuses; same-currency and unsupported-method boundaries remain explicit. Release build, full PostgreSQL suite and local HTTP smoke for `/app/consolidation` pass at `8085b2c`.
-- Package-review selection is draft-retained through the shared storage fallback layer and offers a non-mutating preview that separates eligible stages from partner-role blockers; it never records a partial approval. Release build and the 215-test PostgreSQL suite pass at `8085b2c`.
+- The accounting workspace exposes scoped COA/mapping, adjustment-journal and difference queues with exact-record links, removes the invalid unscoped journal route, and shows a period workflow dashboard with required/complete/stale/blocked counts, role-based next-owner guidance, persisted period-linked work-task or PBC owner/due-date values when available, an existing-PBC handoff link, and an explicit `Not recorded` due-date state when no persisted task/PBC due date exists. Its no-package/no-mapping fallback opens a grant-checked read-only period detail with exact task/PBC handoffs. Release build and the 216-test PostgreSQL suite pass at `dde8313`.
+- Group consolidation exposes perimeter, component-pack, FX, intercompany and elimination tabs with persisted scope counts/statuses; same-currency and unsupported-method boundaries remain explicit. Release build and the 216-test PostgreSQL suite pass at `dde8313`.
+- Package-review selection is draft-retained through the shared storage fallback layer and offers a non-mutating preview that separates eligible stages from partner-role blockers; it never records a partial approval. Release build and the 216-test PostgreSQL suite pass at `dde8313`.
 - The PostgreSQL-backed accounting benchmark exercises four clients, 2,000 transactions, 8,000 GL lines, parallel enqueueing, two concurrent durable workers, a 32-line group calculation, six-decimal/high-magnitude amounts and paged reads; one observed run measured enqueue 147.8 ms, worker processing 134.4 ms, first page 43.8 ms and group calculation 3.2 ms.
 - Blazor status surfaces for the implemented workflows, including period restatement and truthful release/package gate state.
 - Shared Blazor form UX covers contextual action/field tooltips derived from labels/placeholders/IDs, required and optional markers, accessible guidance, stable form names/autocomplete metadata, a keyboard skip link, visible focus-visible states, non-disruptive invalid-field status, and localStorage draft autosave/restore across card and standalone forms. Drafts flush on input/change, tab backgrounding, pagehide and beforeunload through one lifecycle handler; generated scopes avoid repeated-heading collisions, including dynamically added cards; checkbox/radio values restore correctly; restored values raise both native input and Blazor binding change events; and autosave includes controls disabled during an in-flight action. When localStorage is blocked or full, sessionStorage is tried before the in-memory page-session fallback, and reduced durability is reported without interrupting the workflow. Server-backed workpaper drafts remain authoritative; browser file bytes and release keys are intentionally excluded from local storage.
@@ -156,7 +157,7 @@ dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infr
 scripts/db/restore-drill.sh
 ```
 
-The restore evidence is written to [`docs/evidence/restore-drill-latest.json`](../evidence/restore-drill-latest.json). The latest rehearsal restored 75 migrations through `20260921150321_BindMappingsToClientCharts`, reconciled accounting/group manifests and found zero duplicate release-delivery keys; it is loopback-only and explicitly reports that external checkpoint custody and production RPO/RTO were not run.
+The restore evidence is written to [`docs/evidence/restore-drill-latest.json`](../evidence/restore-drill-latest.json). The latest rehearsal restored 76 migrations through `20260921200850_WorkflowTaskPeriodDeadline`, reconciled accounting/group manifests and found zero duplicate release-delivery keys; it is loopback-only and explicitly reports that external checkpoint custody and production RPO/RTO were not run.
 
 ## Resume rule
 
