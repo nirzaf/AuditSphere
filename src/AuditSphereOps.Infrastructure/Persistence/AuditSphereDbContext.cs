@@ -2448,6 +2448,9 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     ScopeToEngagement(schedule, nameof(AuditSchedule.FirmId), nameof(AuditSchedule.ClientId), nameof(AuditSchedule.EngagementId));
     schedule.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.CreatedByUserId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    schedule.HasOne<SourceImportBatch>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.SourceImportBatchId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
 
     var bankReconciliation = b.Entity<AuditBankReconciliation>();
     bankReconciliation.HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_audit_bank_reconciliations_firm_id_id");

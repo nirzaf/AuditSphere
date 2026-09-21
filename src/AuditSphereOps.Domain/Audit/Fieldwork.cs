@@ -16,6 +16,7 @@ public sealed class AuditSchedule
   public string Currency { get; set; } = string.Empty;
   public string SignConvention { get; set; } = string.Empty;
   public string SourceHash { get; set; } = string.Empty;
+  public Guid? SourceImportBatchId { get; set; }
   public int RowCount { get; set; }
   public decimal SignedControlTotal { get; set; }
   public decimal GlControlTotal { get; set; }

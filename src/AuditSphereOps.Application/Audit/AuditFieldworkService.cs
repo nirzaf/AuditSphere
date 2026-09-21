@@ -35,7 +35,8 @@ public sealed record CreateScheduleRequest(
   string SignConvention,
   string SourceHash,
   decimal GlControlTotal,
-  IReadOnlyList<ScheduleRowInput> Rows);
+  IReadOnlyList<ScheduleRowInput> Rows,
+  Guid? SourceImportBatchId = null);
 
 public sealed record ScheduleValue(Guid ScheduleId, string Status, int RowCount, decimal SignedControlTotal, decimal Residual);
 public sealed record ReviewScheduleRequest(Guid ScheduleId, string CompletenessDecision, bool Approve);
@@ -165,7 +166,7 @@ public static class AuditFieldworkService
   private static readonly string[] ReviewRoles = ["Reviewer", "Manager", "Partner", "Administrator"];
 
   public static async Task<CommandResult<ScheduleValue>> CreateScheduleAsync(
-    IAuditSphereDbContext db, ActorContext actor, CreateScheduleRequest request, CancellationToken ct = default)
+    IClientAccountingDbContext db, ActorContext actor, CreateScheduleRequest request, CancellationToken ct = default)
   {
     if (request.Rows is null || request.Rows.Count == 0 || string.IsNullOrWhiteSpace(request.ScheduleType) ||
         string.IsNullOrWhiteSpace(request.EntityIdentifier) || string.IsNullOrWhiteSpace(request.SourceReceiptReference) ||
@@ -178,6 +179,10 @@ public static class AuditFieldworkService
       return Invalid<ScheduleValue>("Schedule rows must have stable identities, signed values, one currency and an object snapshot.");
     if (request.Rows.Select(x => x.StableRowId).Distinct(StringComparer.Ordinal).Count() != request.Rows.Count)
       return Invalid<ScheduleValue>("Duplicate stable source-row identities are not accepted.");
+    var scheduleType = request.ScheduleType.Trim().ToUpperInvariant();
+    if (scheduleType == "BANK_LEDGER" && request.SourceImportBatchId is null)
+      return CommandResult<ScheduleValue>.Fail(ErrorCodes.GateBlocked,
+        "A bank-ledger schedule must reference a sealed GL import batch.");
 
     var auth = await AuthorizeEngagementAsync(db, actor, request.EngagementId, PlanningRoles, ct);
     if (!auth.Succeeded)
@@ -185,6 +190,30 @@ public static class AuditFieldworkService
     await using var tx = await db.Database.BeginTransactionAsync(ct);
 
     var sourceHash = request.SourceHash.ToLowerInvariant();
+    var resolvedGlControlTotal = request.GlControlTotal;
+    if (request.SourceImportBatchId is { } sourceImportBatchId)
+    {
+      var sourceBatch = await db.SourceImportBatches.AsNoTracking().SingleOrDefaultAsync(x =>
+        x.Id == sourceImportBatchId && x.FirmId == actor.FirmId && x.ClientId == auth.ClientId &&
+        x.EngagementId == request.EngagementId && x.SourceKind == "GL" && x.Status == "SEALED" &&
+        x.Currency == request.Currency.Trim().ToUpperInvariant() &&
+        (x.RawFileSha256Hex == sourceHash || x.NormalizedDatasetDigest == sourceHash), ct);
+      if (sourceBatch is null)
+        return CommandResult<ScheduleValue>.Fail(ErrorCodes.GenerationStale,
+          "The referenced GL import batch is not a sealed, scoped and hash-matching source.");
+
+      var accountCodes = request.Rows.Select(x => x.AccountCode.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+      var sourceLines = await db.GeneralLedgerLines.AsNoTracking().Where(x =>
+        x.FirmId == actor.FirmId && x.ClientId == auth.ClientId && x.EngagementId == request.EngagementId &&
+        x.ImportBatchId == sourceBatch.Id && accountCodes.Contains(x.AccountCode)).ToListAsync(ct);
+      if (sourceLines.Count == 0 || accountCodes.Any(code => sourceLines.All(x => !string.Equals(x.AccountCode, code, StringComparison.OrdinalIgnoreCase))))
+        return CommandResult<ScheduleValue>.Fail(ErrorCodes.GenerationStale,
+          "The referenced GL import batch has no complete source coverage for the schedule accounts.");
+      resolvedGlControlTotal = MoneyPolicy.Normalize(sourceLines.Sum(x => x.Debit - x.Credit));
+      if (request.GlControlTotal != resolvedGlControlTotal)
+        return CommandResult<ScheduleValue>.Fail(ErrorCodes.ManifestMismatch,
+          "The supplied GL control total does not match the persisted source batch.");
+    }
     var existing = await db.AuditSchedules.AsNoTracking().SingleOrDefaultAsync(x =>
       x.FirmId == actor.FirmId && x.EngagementId == request.EngagementId &&
       x.SourceReceiptReference == request.SourceReceiptReference.Trim() && x.SourceHash == sourceHash, ct);
@@ -202,10 +231,11 @@ public static class AuditFieldworkService
       ScheduleType = request.ScheduleType.Trim(), EntityIdentifier = request.EntityIdentifier.Trim(),
       SourceReceiptReference = request.SourceReceiptReference.Trim(), AsOfDate = request.AsOfDate,
       PeriodStart = request.PeriodStart, PeriodEnd = request.PeriodEnd, Currency = request.Currency.ToUpperInvariant(),
-      SignConvention = request.SignConvention.Trim(), SourceHash = sourceHash, RowCount = request.Rows.Count,
-      SignedControlTotal = total, GlControlTotal = request.GlControlTotal, Residual = total - request.GlControlTotal,
+      SignConvention = request.SignConvention.Trim(), SourceHash = sourceHash, SourceImportBatchId = request.SourceImportBatchId,
+      RowCount = request.Rows.Count, SignedControlTotal = total, GlControlTotal = resolvedGlControlTotal,
+      Residual = MoneyPolicy.Normalize(total - resolvedGlControlTotal),
       InputGeneration = await CurrentGenerationAsync(db, auth.ClientId, actor.FirmId, ct),
-      Status = total == request.GlControlTotal ? AuditScheduleStatuses.Reconciled : AuditScheduleStatuses.Unreconciled,
+      Status = total == resolvedGlControlTotal ? AuditScheduleStatuses.Reconciled : AuditScheduleStatuses.Unreconciled,
       CreatedByUserId = actor.UserId, CreatedAt = now
     };
     db.AuditSchedules.Add(schedule);

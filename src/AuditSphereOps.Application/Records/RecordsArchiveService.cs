@@ -650,7 +650,7 @@ public static class RecordsArchiveService
       .OrderBy(x => x.Id).Select(x => new { x.Id, x.FindingType, x.ImpactDescription, x.Corrected, x.MonetaryAmount, x.ManagementResponse, x.Status, x.CreatedAt }).ToListAsync(ct);
     var schedules = await db.AuditSchedules.AsNoTracking().Where(x =>
       x.FirmId == archive.FirmId && x.ClientId == archive.ClientId && x.EngagementId == archive.EngagementId)
-      .OrderBy(x => x.Id).Select(x => new { x.Id, x.ScheduleType, x.EntityIdentifier, x.SourceReceiptReference, x.AsOfDate, x.PeriodStart, x.PeriodEnd, x.Currency, x.SignConvention, x.SourceHash, x.RowCount, x.SignedControlTotal, x.GlControlTotal, x.Residual, x.InputGeneration, x.CompletenessDecision, x.Status, x.CreatedByUserId, x.CreatedAt }).ToListAsync(ct);
+      .OrderBy(x => x.Id).Select(x => new { x.Id, x.ScheduleType, x.EntityIdentifier, x.SourceReceiptReference, x.AsOfDate, x.PeriodStart, x.PeriodEnd, x.Currency, x.SignConvention, x.SourceHash, x.SourceImportBatchId, x.RowCount, x.SignedControlTotal, x.GlControlTotal, x.Residual, x.InputGeneration, x.CompletenessDecision, x.Status, x.CreatedByUserId, x.CreatedAt }).ToListAsync(ct);
     var scheduleIds = schedules.Select(x => x.Id).ToArray();
     var scheduleRows = await db.AuditScheduleRows.AsNoTracking().Where(x =>
       x.FirmId == archive.FirmId && x.ClientId == archive.ClientId && x.EngagementId == archive.EngagementId && scheduleIds.Contains(x.ScheduleId))

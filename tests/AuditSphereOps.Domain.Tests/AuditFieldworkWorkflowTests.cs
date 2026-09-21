@@ -1,5 +1,6 @@
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Audit;
+using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Audit;
 using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Shared;
@@ -58,15 +59,56 @@ public sealed class AuditFieldworkWorkflowTests
       new ReviewScheduleRequest(schedule.Value.ScheduleId, "Complete source listing; no unexplained residual.", true));
     Assert.True(scheduleReview.Succeeded, scheduleReview.ErrorCode + ": " + scheduleReview.Message);
 
+    var glBatchId = Guid.NewGuid();
+    var glTransactionId = Guid.NewGuid();
+    var glHash = new string('b', 64);
+    db.SourceImportBatches.Add(new SourceImportBatch
+    {
+      Id = glBatchId, FirmId = scope.FirmId, ClientId = scope.ClientId, EngagementId = scope.EngagementId,
+      PeriodId = Guid.NewGuid(), SourceKind = "GL", ProfileVersion = "gl-v1", ParserVersion = "parser-v1",
+      RawFileSha256Hex = glHash, NormalizedDatasetDigest = glHash, LegalEntityKey = "CLIENT-A", Currency = "QAR",
+      RowCount = 1, ExpectedChunkCount = 1, ExpectedTransactionCount = 1, ExpectedLineCount = 1,
+      AcceptedChunkCount = 1, AcceptedTransactionCount = 1, AcceptedLineCount = 1, Status = "SEALED",
+      ReceiptReference = "receipt-bank-ledger-001", CreatedByUserId = scope.Actor.UserId, CreatedAt = DateTimeOffset.UtcNow
+    });
+    db.GeneralLedgerTransactions.Add(new GeneralLedgerTransaction
+    {
+      Id = glTransactionId, FirmId = scope.FirmId, ClientId = scope.ClientId, EngagementId = scope.EngagementId,
+      ImportBatchId = glBatchId, StableJournalId = "GL-001", DocumentNumber = "GL-001",
+      PostingDate = new DateOnly(2026, 9, 19), SourceUser = "client", SourceSystem = "LEDGER",
+      Currency = "QAR", CreatedAt = DateTimeOffset.UtcNow
+    });
+    db.GeneralLedgerLines.Add(new GeneralLedgerLine
+    {
+      Id = Guid.NewGuid(), FirmId = scope.FirmId, ClientId = scope.ClientId, EngagementId = scope.EngagementId,
+      ImportBatchId = glBatchId, TransactionId = glTransactionId, StableLineId = "GL-001-L1", AccountCode = "1100",
+      Debit = 100m, Credit = 0m, OriginalCurrency = "QAR", OriginalAmount = 100m, FunctionalAmount = 100m,
+      CreatedAt = DateTimeOffset.UtcNow
+    });
+    await db.SaveChangesAsync();
+
     var ledgerSchedule = await AuditFieldworkService.CreateScheduleAsync(db, scope.Actor, new CreateScheduleRequest(
       scope.EngagementId, "BANK_LEDGER", "bank-001", "receipt-bank-ledger-001", new DateTimeOffset(2026, 9, 19, 0, 0, 0, TimeSpan.Zero),
-      new DateOnly(2026, 1, 1), new DateOnly(2026, 9, 19), "QAR", "debits positive; credits negative", new string('b', 64), 100m,
-      [new("ledger-001", 1, "1100", "Operating account ledger", 100m, "QAR", null, new DateOnly(2026, 9, 19), null, null, "{\"source\":\"ledger\"}")]));
+      new DateOnly(2026, 1, 1), new DateOnly(2026, 9, 19), "QAR", "debits positive; credits negative", glHash, 100m,
+      [new("ledger-001", 1, "1100", "Operating account ledger", 100m, "QAR", null, new DateOnly(2026, 9, 19), null, null, "{\"source\":\"ledger\"}")],
+      glBatchId));
     var statementSchedule = await AuditFieldworkService.CreateScheduleAsync(db, scope.Actor, new CreateScheduleRequest(
       scope.EngagementId, "BANK_STATEMENT", "bank-001", "receipt-bank-statement-001", new DateTimeOffset(2026, 9, 19, 0, 0, 0, TimeSpan.Zero),
       new DateOnly(2026, 1, 1), new DateOnly(2026, 9, 19), "QAR", "debits positive; credits negative", new string('c', 64), 90m,
       [new("statement-001", 1, "1100", "Operating account statement", 90m, "QAR", null, new DateOnly(2026, 9, 19), null, null, "{\"source\":\"statement\"}")]));
     Assert.True(ledgerSchedule.Succeeded);
+    Assert.Equal(0m, ledgerSchedule.Value!.Residual);
+    Assert.Equal(glBatchId, await db.AuditSchedules.Where(x => x.Id == ledgerSchedule.Value.ScheduleId)
+      .Select(x => x.SourceImportBatchId).SingleAsync());
+    Assert.Equal(100m, await db.AuditSchedules.Where(x => x.Id == ledgerSchedule.Value.ScheduleId)
+      .Select(x => x.GlControlTotal).SingleAsync());
+    var mismatchedLedgerSource = await AuditFieldworkService.CreateScheduleAsync(db, scope.Actor, new CreateScheduleRequest(
+      scope.EngagementId, "BANK_LEDGER", "bank-001", "receipt-bank-ledger-mismatch", new DateTimeOffset(2026, 9, 19, 0, 0, 0, TimeSpan.Zero),
+      new DateOnly(2026, 1, 1), new DateOnly(2026, 9, 19), "QAR", "debits positive; credits negative", glHash, 99m,
+      [new("ledger-mismatch-001", 1, "1100", "Operating account ledger", 99m, "QAR", null, new DateOnly(2026, 9, 19), null, null, "{\"source\":\"ledger\"}")],
+      glBatchId));
+    Assert.False(mismatchedLedgerSource.Succeeded);
+    Assert.Equal(ErrorCodes.ManifestMismatch, mismatchedLedgerSource.ErrorCode);
     Assert.True(statementSchedule.Succeeded);
     Assert.True((await AuditFieldworkService.ReviewScheduleAsync(db, reviewer,
       new ReviewScheduleRequest(ledgerSchedule.Value!.ScheduleId, "Ledger source reviewed.", true))).Succeeded);
