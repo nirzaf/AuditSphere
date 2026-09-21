@@ -1667,9 +1667,12 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
       .HasName("ak_gl_completeness_bridges_scope_id");
     completeness.Property(x => x.TrialBalanceHash).HasMaxLength(64);
     completeness.Property(x => x.GeneralLedgerHash).HasMaxLength(64);
+    completeness.Property(x => x.OpeningTrialBalanceHash).HasMaxLength(64);
     completeness.Property(x => x.AccountResidualDigest).HasMaxLength(64);
+    completeness.Property(x => x.OpeningMovementResidualDigest).HasMaxLength(64);
     completeness.Property(x => x.Status).HasMaxLength(30);
     completeness.Property(x => x.EvidenceReference).HasMaxLength(2000);
+    completeness.Property(x => x.CompletenessDisclosure).HasMaxLength(2000);
     completeness.HasIndex(x => new { x.FirmId, x.ClientId, x.EngagementId, x.TrialBalanceDatasetId, x.ImportBatchId })
       .IsUnique().HasDatabaseName("ux_gl_completeness_bridge_input");
     completeness.ToTable("general_ledger_completeness_bridges", t => t.HasCheckConstraint("ck_gl_completeness_bridge_values",
@@ -1688,6 +1691,9 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
       .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     completeness.HasOne<TrialBalanceDataset>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.TrialBalanceDatasetId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    completeness.HasOne<TrialBalanceDataset>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.OpeningTrialBalanceDatasetId })
       .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     completeness.HasOne<SourceImportBatch>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.ImportBatchId })

@@ -601,16 +601,34 @@ public sealed class ClientAccountingTests
     var preparer = Actor(scope.Preparer, "AccountingPreparer");
     var reviewer = Actor(scope.Reviewer, "AccountingReviewer");
     var digest = Hashing.Sha256Hex("completeness-fixture");
-    Guid periodId, bookId, datasetId, batchId;
+    Guid priorPeriodId, periodId, priorBookId, bookId, datasetId, openingDatasetId, batchId;
 
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
+      priorPeriodId = (await ClientAccountingService.CreatePeriodAsync(db, preparer,
+        new ReportingPeriodRequest(scope.ClientA, "2025", new DateOnly(2025, 1, 1), new DateOnly(2025, 12, 31), "STATUTORY", "QAR"))).Value;
+      Assert.True((await ClientAccountingService.CreateBookAsync(db, preparer,
+        new ReportingBookRequest(scope.ClientA, priorPeriodId, "STAT", "STATUTORY", "STATUTORY_ONLY", "QAR"))).Succeeded);
+      priorBookId = await db.ClientReportingBooks.Where(x => x.ClientId == scope.ClientA && x.PeriodId == priorPeriodId).Select(x => x.Id).SingleAsync();
       periodId = (await ClientAccountingService.CreatePeriodAsync(db, preparer,
-        new ReportingPeriodRequest(scope.ClientA, "2026", new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31), "STATUTORY", "QAR"))).Value;
+        new ReportingPeriodRequest(scope.ClientA, "2026", new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31), "STATUTORY", "QAR", priorPeriodId))).Value;
       Assert.True((await ClientAccountingService.CreateBookAsync(db, preparer,
         new ReportingBookRequest(scope.ClientA, periodId, "STAT", "STATUTORY", "STATUTORY_ONLY", "QAR"))).Succeeded);
       bookId = await db.ClientReportingBooks.Where(x => x.ClientId == scope.ClientA && x.PeriodId == periodId).Select(x => x.Id).SingleAsync();
       datasetId = Guid.CreateVersion7();
+      openingDatasetId = Guid.CreateVersion7();
+      var openingDigest = Hashing.Sha256Hex("completeness-opening-fixture");
+      db.TrialBalanceDatasets.Add(new TrialBalanceDataset
+      {
+        Id = openingDatasetId, FirmId = scope.FirmId, ClientId = scope.ClientA, EngagementId = scope.EngagementA,
+        PeriodId = priorPeriodId, BookId = priorBookId, Basis = "STATUTORY",
+        SourceKind = "Raw", LegalEntityKey = "CLIENT-A", Currency = "QAR", RawFileSha256Hex = openingDigest,
+        NormalizedDatasetDigest = openingDigest, Sha256Hex = openingDigest, Balanced = true, ValidationStatus = "Pending",
+        ImportState = TrialBalanceImportStates.Loading, ImportedAt = DateTimeOffset.UtcNow, ImportedByUserId = scope.Preparer.Id
+      });
+      db.TrialBalanceRows.AddRange(
+        new TrialBalanceRow { Id = Guid.CreateVersion7(), DatasetId = openingDatasetId, AccountCode = "1000", AccountName = "Cash", Amount = 0m, Currency = "QAR", Entity = "CLIENT-A" },
+        new TrialBalanceRow { Id = Guid.CreateVersion7(), DatasetId = openingDatasetId, AccountCode = "4000", AccountName = "Revenue", Amount = 0m, Currency = "QAR", Entity = "CLIENT-A" });
       db.TrialBalanceDatasets.Add(new TrialBalanceDataset
       {
         Id = datasetId, FirmId = scope.FirmId, ClientId = scope.ClientA, EngagementId = scope.EngagementA,
@@ -641,6 +659,9 @@ public sealed class ClientAccountingTests
         new GeneralLedgerLine { Id = Guid.CreateVersion7(), FirmId = scope.FirmId, ClientId = scope.ClientA, EngagementId = scope.EngagementA, ImportBatchId = batchId, TransactionId = transactionId, StableLineId = "J-1-L1", AccountCode = "1000", Debit = 100m, OriginalCurrency = "QAR", OriginalAmount = 100m, FunctionalAmount = 100m, CreatedAt = DateTimeOffset.UtcNow },
         new GeneralLedgerLine { Id = Guid.CreateVersion7(), FirmId = scope.FirmId, ClientId = scope.ClientA, EngagementId = scope.EngagementA, ImportBatchId = batchId, TransactionId = transactionId, StableLineId = "J-1-L2", AccountCode = "4000", Credit = 100m, OriginalCurrency = "QAR", OriginalAmount = -100m, FunctionalAmount = -100m, CreatedAt = DateTimeOffset.UtcNow });
       await db.SaveChangesAsync();
+      var openingDataset = await db.TrialBalanceDatasets.SingleAsync(x => x.Id == openingDatasetId);
+      openingDataset.ValidationStatus = "Accepted";
+      openingDataset.ImportState = TrialBalanceImportStates.Sealed;
       var dataset = await db.TrialBalanceDatasets.SingleAsync(x => x.Id == datasetId);
       dataset.ValidationStatus = "Accepted";
       dataset.ImportState = TrialBalanceImportStates.Sealed;
@@ -655,7 +676,7 @@ public sealed class ClientAccountingTests
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       var queued = await AccountingAnalysisService.EnqueueGeneralLedgerCompletenessBridgeAsync(db, preparer,
-        new GeneralLedgerCompletenessRequest(scope.ClientA, scope.EngagementA, periodId, bookId, datasetId, batchId, "tb-gl-completeness"),
+        new GeneralLedgerCompletenessRequest(scope.ClientA, scope.EngagementA, periodId, bookId, datasetId, batchId, "tb-gl-completeness", openingDatasetId),
         operationStore, operationHandler);
       Assert.True(queued.Succeeded, queued.Message);
       operationId = queued.Value;
@@ -669,7 +690,7 @@ public sealed class ClientAccountingTests
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       var retry = await AccountingAnalysisService.EnqueueGeneralLedgerCompletenessBridgeAsync(db, preparer,
-        new GeneralLedgerCompletenessRequest(scope.ClientA, scope.EngagementA, periodId, bookId, datasetId, batchId, "tb-gl-completeness"),
+        new GeneralLedgerCompletenessRequest(scope.ClientA, scope.EngagementA, periodId, bookId, datasetId, batchId, "tb-gl-completeness", openingDatasetId),
         operationStore, operationHandler);
       Assert.True(retry.Succeeded, retry.Message);
       Assert.Equal(operationId, retry.Value);
@@ -677,6 +698,11 @@ public sealed class ClientAccountingTests
       Assert.Equal("RECONCILED", bridge.Status);
       Assert.Equal(2, bridge.MatchedAccountCount);
       Assert.Equal(0m, bridge.AbsoluteResidual);
+      Assert.Equal(openingDatasetId, bridge.OpeningTrialBalanceDatasetId);
+      Assert.Equal(0m, bridge.OpeningMovementResidual);
+      Assert.Equal(0, bridge.OpeningMovementMismatchedAccountCount);
+      Assert.Equal(0, bridge.JournalExceptionCount);
+      Assert.False(bridge.IncompleteExtract);
       var operation = await db.DurableOperations.SingleAsync(x => x.Id == operationId);
       Assert.Equal(OperationState.COMPLETED, operation.Status);
       Assert.Equal(bridge.Id.ToString("D"), operation.ResultIdentity);

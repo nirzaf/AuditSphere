@@ -27,7 +27,8 @@ public sealed class GeneralLedgerCompletenessHandler : IOperationHandler
         clientId = payload.ClientId.ToString("D"), engagementId = payload.EngagementId.ToString("D"),
         periodId = payload.PeriodId.ToString("D"), bookId = payload.BookId?.ToString("D"),
         trialBalanceDatasetId = payload.TrialBalanceDatasetId.ToString("D"), importBatchId = payload.ImportBatchId.ToString("D"),
-        evidenceReference = payload.EvidenceReference
+        evidenceReference = payload.EvidenceReference,
+        openingTrialBalanceDatasetId = payload.OpeningTrialBalanceDatasetId?.ToString("D")
       });
     }
     catch (Exception ex) when (ex is JsonException or FormatException or InvalidOperationException or KeyNotFoundException)
@@ -51,8 +52,14 @@ public sealed class GeneralLedgerCompletenessHandler : IOperationHandler
       x.EngagementId == engagementId && x.Status == "SEALED", ct);
     var period = await accountingDb.ClientReportingPeriods.AsNoTracking().SingleOrDefaultAsync(x =>
       x.Id == payload.PeriodId && x.FirmId == op.FirmId && x.ClientId == clientId, ct);
+    var openingDataset = payload.OpeningTrialBalanceDatasetId is { } openingDatasetId
+      ? await accountingDb.TrialBalanceDatasets.AsNoTracking().SingleOrDefaultAsync(x =>
+        x.Id == openingDatasetId && x.FirmId == op.FirmId && x.ClientId == clientId && x.EngagementId == engagementId &&
+        x.ValidationStatus == "Accepted" && x.ImportState == TrialBalanceImportStates.Sealed, ct)
+      : null;
     if (dataset is null || dataset.Revision != op.ExpectedRevision || dataset.ValidationStatus != "Accepted" ||
         dataset.ImportState != TrialBalanceImportStates.Sealed || batch is null || period is null ||
+        (payload.OpeningTrialBalanceDatasetId.HasValue && openingDataset is null) ||
         batch.PeriodId != payload.PeriodId || batch.BookId != payload.BookId ||
         !string.Equals(dataset.Currency, batch.Currency, StringComparison.OrdinalIgnoreCase) ||
         !string.Equals(dataset.LegalEntityKey, batch.LegalEntityKey, StringComparison.Ordinal) ||
@@ -73,7 +80,8 @@ public sealed class GeneralLedgerCompletenessHandler : IOperationHandler
       x.TrialBalanceDatasetId == payload.TrialBalanceDatasetId && x.ImportBatchId == payload.ImportBatchId, ct);
     if (existing is not null)
     {
-      if (!string.Equals(existing.EvidenceReference, payload.EvidenceReference, StringComparison.Ordinal))
+      if (!string.Equals(existing.EvidenceReference, payload.EvidenceReference, StringComparison.Ordinal) ||
+          existing.OpeningTrialBalanceDatasetId != payload.OpeningTrialBalanceDatasetId)
         throw new OperationBlockedException("completeness-duplicate");
       return new(existing.Id.ToString("D"), existing.AccountResidualDigest);
     }
@@ -85,7 +93,7 @@ public sealed class GeneralLedgerCompletenessHandler : IOperationHandler
     var result = await AccountingAnalysisService.CreateGeneralLedgerCompletenessBridgeAsync(
       accountingDb, new ActorContext(user.Id, user.FirmId, user.SessionEpoch, ["AccountingPreparer"]),
       new GeneralLedgerCompletenessRequest(clientId, engagementId, payload.PeriodId, payload.BookId,
-        payload.TrialBalanceDatasetId, payload.ImportBatchId, payload.EvidenceReference), ct);
+        payload.TrialBalanceDatasetId, payload.ImportBatchId, payload.EvidenceReference, payload.OpeningTrialBalanceDatasetId), ct);
     if (!result.Succeeded)
       throw new OperationBlockedException(result.ErrorCode ?? "completeness-calculation-blocked",
         authorization: result.ErrorCode == ErrorCodes.ScopeDenied);
@@ -112,7 +120,7 @@ public sealed class GeneralLedgerCompletenessHandler : IOperationHandler
   {
     using var document = JsonDocument.Parse(json);
     var fields = document.RootElement.EnumerateObject().ToArray();
-    var names = new[] { "clientId", "engagementId", "periodId", "bookId", "trialBalanceDatasetId", "importBatchId", "evidenceReference" };
+    var names = new[] { "clientId", "engagementId", "periodId", "bookId", "trialBalanceDatasetId", "importBatchId", "evidenceReference", "openingTrialBalanceDatasetId" };
     if (fields.Length != names.Length || fields.Select(x => x.Name).Distinct(StringComparer.Ordinal).Count() != names.Length ||
         fields.Any(x => !names.Contains(x.Name, StringComparer.Ordinal)))
       throw new InvalidOperationException("invalid completeness fields");
@@ -121,7 +129,9 @@ public sealed class GeneralLedgerCompletenessHandler : IOperationHandler
       root.GetProperty("clientId").GetGuid(), root.GetProperty("engagementId").GetGuid(),
       root.GetProperty("periodId").GetGuid(), root.GetProperty("bookId").ValueKind == JsonValueKind.Null
         ? null : root.GetProperty("bookId").GetGuid(), root.GetProperty("trialBalanceDatasetId").GetGuid(),
-      root.GetProperty("importBatchId").GetGuid(), root.GetProperty("evidenceReference").GetString() ?? string.Empty);
+      root.GetProperty("importBatchId").GetGuid(), root.GetProperty("evidenceReference").GetString() ?? string.Empty,
+      root.GetProperty("openingTrialBalanceDatasetId").ValueKind == JsonValueKind.Null
+        ? null : root.GetProperty("openingTrialBalanceDatasetId").GetGuid());
     if (payload.TrialBalanceDatasetId != targetId || payload.ClientId == Guid.Empty || payload.EngagementId == Guid.Empty ||
         payload.PeriodId == Guid.Empty || payload.ImportBatchId == Guid.Empty || string.IsNullOrWhiteSpace(payload.EvidenceReference) ||
         payload.EvidenceReference.Trim().Length > 2000)
@@ -130,5 +140,5 @@ public sealed class GeneralLedgerCompletenessHandler : IOperationHandler
   }
 
   private sealed record CompletenessPayload(Guid ClientId, Guid EngagementId, Guid PeriodId, Guid? BookId,
-    Guid TrialBalanceDatasetId, Guid ImportBatchId, string EvidenceReference);
+    Guid TrialBalanceDatasetId, Guid ImportBatchId, string EvidenceReference, Guid? OpeningTrialBalanceDatasetId);
 }

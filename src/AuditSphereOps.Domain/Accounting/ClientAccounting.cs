@@ -427,17 +427,28 @@ public sealed class GeneralLedgerCompletenessBridge
   public Guid? BookId { get; set; }
   public Guid TrialBalanceDatasetId { get; set; }
   public Guid ImportBatchId { get; set; }
+  public Guid? OpeningTrialBalanceDatasetId { get; set; }
   public string TrialBalanceHash { get; set; } = string.Empty;
   public string GeneralLedgerHash { get; set; } = string.Empty;
+  public string OpeningTrialBalanceHash { get; set; } = string.Empty;
   public string AccountResidualDigest { get; set; } = string.Empty;
+  public string OpeningMovementResidualDigest { get; set; } = string.Empty;
   public int TrialBalanceAccountCount { get; set; }
   public int GeneralLedgerAccountCount { get; set; }
   public int MatchedAccountCount { get; set; }
   public int MismatchedAccountCount { get; set; }
+  public int OpeningMovementMismatchedAccountCount { get; set; }
+  public int JournalExceptionCount { get; set; }
+  public decimal OpeningAmount { get; set; }
+  public decimal MovementAmount { get; set; }
+  public decimal ClosingAmount { get; set; }
+  public decimal OpeningMovementResidual { get; set; }
   public decimal AbsoluteResidual { get; set; }
   public DateOnly CoverageStart { get; set; }
   public DateOnly CoverageEnd { get; set; }
   public string Status { get; set; } = "UNRECONCILED";
+  public bool IncompleteExtract { get; set; }
+  public string CompletenessDisclosure { get; set; } = string.Empty;
   public string EvidenceReference { get; set; } = string.Empty;
   public Guid CreatedByUserId { get; set; }
   public Guid? ReviewedByUserId { get; set; }

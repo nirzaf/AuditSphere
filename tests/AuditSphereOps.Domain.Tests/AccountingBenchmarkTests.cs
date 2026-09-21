@@ -102,6 +102,9 @@ public sealed class AccountingBenchmarkTests
     Assert.Equal(ClientCount, operations.Count);
     Assert.All(operations, operation => Assert.Equal(OperationState.COMPLETED, operation.Status));
     Assert.Equal(ClientCount, await verify.GeneralLedgerCompletenessBridges.CountAsync(x => x.Status == "RECONCILED"));
+    Assert.Equal(ClientCount, await verify.GeneralLedgerCompletenessBridges.CountAsync(x => x.IncompleteExtract));
+    Assert.All(await verify.GeneralLedgerCompletenessBridges.Select(x => x.CompletenessDisclosure).ToListAsync(),
+      disclosure => Assert.Contains("OPENING_DATASET_NOT_PROVIDED", disclosure, StringComparison.Ordinal));
     Assert.Equal(ClientCount * TransactionsPerClient, await verify.GeneralLedgerTransactions.CountAsync());
     Assert.Equal(ClientCount * TransactionsPerClient * LinesPerTransaction, await verify.GeneralLedgerLines.CountAsync());
 
