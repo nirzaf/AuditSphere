@@ -55,6 +55,10 @@ public sealed record AnalyticalReviewRequest(
   string Explanation, string Currency = AccountingDefaults.DefaultCurrency,
   string SeasonalityExplanation = "");
 
+public sealed record AnalyticalReviewAggregateSummary(
+  Guid? GroupId, Guid? PeriodId, string Currency, int ReviewCount, int ClientCount,
+  decimal CurrentTotal, decimal PriorTotal);
+
 public sealed record JournalRiskFlagRequest(
   Guid ClientId, Guid EngagementId, Guid ImportBatchId, Guid TransactionId,
   string RuleCode, string Reason, decimal Score, string EvidenceReference,
@@ -783,6 +787,125 @@ public static class AccountingAnalysisService
     db.AnalyticalReviews.Add(review);
     await db.SaveChangesAsync(ct);
     return CommandResult<Guid>.Ok(review.Id);
+  }
+
+  public static async Task<CommandResult<IReadOnlyList<AnalyticalReviewAggregateSummary>>> GetAnalyticalReviewAggregateAsync(
+    IClientAccountingDbContext db, ActorContext actor, Guid? groupId = null, Guid? periodId = null,
+    CancellationToken ct = default)
+  {
+    if (groupId == Guid.Empty || periodId == Guid.Empty)
+      return CommandResult<IReadOnlyList<AnalyticalReviewAggregateSummary>>.Fail(ErrorCodes.Accounting.ReconciliationRejected, "The aggregate scope is invalid.");
+
+    if (groupId is { } requestedGroupId)
+    {
+      var user = await db.Users.AsNoTracking().SingleOrDefaultAsync(x =>
+        x.Id == actor.UserId && x.FirmId == actor.FirmId && !x.Disabled, ct);
+      if (user is null || user.SessionEpoch != actor.SessionEpoch ||
+          user.UserKind.Equals("Client", StringComparison.OrdinalIgnoreCase) ||
+          actor.Roles.Contains("ClientUser", StringComparer.OrdinalIgnoreCase))
+        return CommandResult<IReadOnlyList<AnalyticalReviewAggregateSummary>>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+      if (!await db.ClientGroups.AsNoTracking().AnyAsync(x =>
+          x.Id == requestedGroupId && x.FirmId == actor.FirmId && x.Status == AccountingWorkflowStates.Active, ct))
+        return CommandResult<IReadOnlyList<AnalyticalReviewAggregateSummary>>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+      if (!await db.GroupAccessGrants.AsNoTracking().AnyAsync(x =>
+          x.FirmId == actor.FirmId && x.GroupId == requestedGroupId && x.UserId == actor.UserId &&
+          x.RevokedAt == null && PreparerRoles.Contains(x.Role), ct))
+        return CommandResult<IReadOnlyList<AnalyticalReviewAggregateSummary>>.Fail(ErrorCodes.ScopeDenied, "Explicit group access is required.");
+    }
+    else
+    {
+      var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+        new AuthorizationRequest(actor.FirmId, actor.ClientId, actor.EngagementId, PreparerRoles, InternalOnly: true), ct);
+      if (!auth.Succeeded)
+        return CommandResult<IReadOnlyList<AnalyticalReviewAggregateSummary>>.Fail(auth.ErrorCode!, auth.Message!);
+    }
+
+    var requestedPeriod = periodId is { } requestedPeriodId
+      ? await db.ClientReportingPeriods.AsNoTracking().SingleOrDefaultAsync(x =>
+        x.Id == requestedPeriodId && x.FirmId == actor.FirmId, ct)
+      : null;
+    if (periodId.HasValue && requestedPeriod is null)
+      return CommandResult<IReadOnlyList<AnalyticalReviewAggregateSummary>>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+
+    Guid? engagementClientId = null;
+    if (actor.EngagementId is { } engagementId)
+    {
+      var engagement = await db.Engagements.AsNoTracking().SingleOrDefaultAsync(x =>
+        x.Id == engagementId && x.FirmId == actor.FirmId, ct);
+      if (engagement is null)
+        return CommandResult<IReadOnlyList<AnalyticalReviewAggregateSummary>>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+      engagementClientId = engagement.PracticeClientId;
+    }
+    if (requestedPeriod is not null &&
+        ((actor.ClientId.HasValue && requestedPeriod.ClientId != actor.ClientId) ||
+         (engagementClientId.HasValue && requestedPeriod.ClientId != engagementClientId)))
+      return CommandResult<IReadOnlyList<AnalyticalReviewAggregateSummary>>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+
+    IQueryable<AnalyticalReview> reviews = db.AnalyticalReviews.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId);
+    if (periodId is { } filteredPeriodId)
+      reviews = reviews.Where(x => x.PeriodId == filteredPeriodId);
+    if (actor.EngagementId is { } filteredEngagementId)
+      reviews = reviews.Where(x => x.EngagementId == filteredEngagementId);
+
+    if (groupId is { } filteredGroupId)
+    {
+      reviews = (from review in reviews
+                 join membership in db.ClientGroupMemberships.AsNoTracking()
+                   on new { review.FirmId, review.ClientId } equals new { membership.FirmId, membership.ClientId }
+                 join period in db.ClientReportingPeriods.AsNoTracking()
+                   on new { review.FirmId, review.ClientId, review.PeriodId }
+                   equals new { period.FirmId, period.ClientId, PeriodId = period.Id }
+                 where membership.GroupId == filteredGroupId && membership.Status == AccountingWorkflowStates.Approved &&
+                   membership.EffectiveFrom <= period.EndDate &&
+                   (membership.EffectiveTo == null || membership.EffectiveTo >= period.StartDate) &&
+                   (!actor.ClientId.HasValue || membership.ClientId == actor.ClientId)
+                 select review).Distinct();
+    }
+    else
+    {
+      Guid[]? clientIds = null;
+      if (actor.ClientId is { } actorClientId)
+        clientIds = [actorClientId];
+      else if (engagementClientId is { } scopedEngagementClientId)
+        clientIds = [scopedEngagementClientId];
+      else
+      {
+        var grants = await db.RoleGrants.AsNoTracking().Where(x =>
+          x.FirmId == actor.FirmId && x.UserId == actor.UserId && x.RevokedAt == null && PreparerRoles.Contains(x.Role))
+          .Select(x => new { x.ClientId, x.EngagementId }).ToListAsync(ct);
+        if (!grants.Any(x => x.ClientId is null && x.EngagementId is null))
+        {
+          var engagementIds = grants.Where(x => x.EngagementId.HasValue).Select(x => x.EngagementId!.Value).ToArray();
+          var engagementClients = engagementIds.Length == 0
+            ? []
+            : await db.Engagements.AsNoTracking().Where(x => x.FirmId == actor.FirmId && engagementIds.Contains(x.Id))
+              .Select(x => x.PracticeClientId).ToArrayAsync(ct);
+          clientIds = grants.Where(x => x.ClientId.HasValue).Select(x => x.ClientId!.Value)
+            .Concat(engagementClients).Distinct().ToArray();
+          if (clientIds.Length == 0)
+            return CommandResult<IReadOnlyList<AnalyticalReviewAggregateSummary>>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+        }
+      }
+      if (clientIds is not null)
+        reviews = reviews.Where(x => clientIds.Contains(x.ClientId));
+    }
+
+    var rows = await reviews.GroupBy(x => new { x.PeriodId, x.Currency })
+      .Select(x => new
+      {
+        x.Key.PeriodId,
+        x.Key.Currency,
+        ReviewCount = x.Count(),
+        ClientCount = x.Select(row => row.ClientId).Distinct().Count(),
+        CurrentTotal = x.Sum(row => row.CurrentAmount),
+        PriorTotal = x.Sum(row => row.PriorAmount)
+      })
+      .OrderBy(x => x.PeriodId).ThenBy(x => x.Currency)
+      .ToListAsync(ct);
+    return CommandResult<IReadOnlyList<AnalyticalReviewAggregateSummary>>.Ok(rows.Select(x =>
+      new AnalyticalReviewAggregateSummary(groupId, x.PeriodId, x.Currency, x.ReviewCount, x.ClientCount,
+        MoneyPolicy.Normalize(x.CurrentTotal), MoneyPolicy.Normalize(x.PriorTotal))).ToArray());
   }
 
   public static async Task<CommandResult<Guid>> AddJournalRiskFlagAsync(

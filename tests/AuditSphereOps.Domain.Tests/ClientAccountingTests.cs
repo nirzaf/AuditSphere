@@ -236,6 +236,90 @@ public sealed class ClientAccountingTests
 
   [Fact]
   [Trait("Profile", "Database")]
+  public async Task AnalyticalAggregate_RequiresClientOrGroupScopeAndOmitsComponentIds()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var scope = await SeedAsync(pg);
+    var preparer = Actor(scope.Preparer, "AccountingPreparer");
+    var reviewer = Actor(scope.Reviewer, "Partner");
+    var periodA = Guid.CreateVersion7();
+    var periodB = Guid.CreateVersion7();
+    Guid groupId;
+    var limited = User(scope.FirmId, "limited");
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      db.ClientReportingPeriods.AddRange(
+        new ClientReportingPeriod
+        {
+          Id = periodA, FirmId = scope.FirmId, ClientId = scope.ClientA, PeriodCode = "2026-A",
+          StartDate = new DateOnly(2026, 1, 1), EndDate = new DateOnly(2026, 12, 31), Basis = "STATUTORY", Currency = "QAR",
+          CreatedByUserId = scope.Preparer.Id, CreatedAt = DateTimeOffset.UtcNow
+        },
+        new ClientReportingPeriod
+        {
+          Id = periodB, FirmId = scope.FirmId, ClientId = scope.ClientB, PeriodCode = "2026-B",
+          StartDate = new DateOnly(2026, 1, 1), EndDate = new DateOnly(2026, 12, 31), Basis = "STATUTORY", Currency = "QAR",
+          CreatedByUserId = scope.Preparer.Id, CreatedAt = DateTimeOffset.UtcNow
+        });
+      db.Users.Add(limited);
+      var limitedGrant = Grant(scope.FirmId, limited, "AccountingPreparer");
+      limitedGrant.ClientId = scope.ClientA;
+      db.RoleGrants.Add(limitedGrant);
+      await db.SaveChangesAsync();
+
+      Assert.True((await AccountingAnalysisService.CreateAnalyticalReviewAsync(db, preparer,
+        new AnalyticalReviewRequest(scope.ClientA, scope.EngagementA, periodA, null, "REVENUE", "monthly",
+          120m, 100m, null, "prior-year-total", "analytics-v1", "Client A movement explained."))).Succeeded);
+      Assert.True((await AccountingAnalysisService.CreateAnalyticalReviewAsync(db, preparer,
+        new AnalyticalReviewRequest(scope.ClientB, scope.EngagementB, periodB, null, "REVENUE", "monthly",
+          180m, 150m, null, "prior-year-total", "analytics-v1", "Client B movement explained."))).Succeeded);
+
+      var all = await AccountingAnalysisService.GetAnalyticalReviewAggregateAsync(db, preparer);
+      Assert.True(all.Succeeded, all.Message);
+      var allRows = all.Value!;
+      Assert.Equal(300m, allRows.Sum(x => x.CurrentTotal));
+      Assert.Equal(2, allRows.Sum(x => x.ClientCount));
+
+      var clientOnly = await AccountingAnalysisService.GetAnalyticalReviewAggregateAsync(db,
+        new ActorContext(scope.Preparer.Id, scope.FirmId, scope.Preparer.SessionEpoch, ["AccountingPreparer"], scope.ClientA));
+      Assert.True(clientOnly.Succeeded, clientOnly.Message);
+      var clientRows = clientOnly.Value!;
+      Assert.Single(clientRows);
+      Assert.Equal(120m, clientRows[0].CurrentTotal);
+
+      var denied = await AccountingAnalysisService.GetAnalyticalReviewAggregateAsync(db,
+        new ActorContext(limited.Id, scope.FirmId, limited.SessionEpoch, ["AccountingPreparer"], scope.ClientB));
+      Assert.False(denied.Succeeded);
+      Assert.Equal(ErrorCodes.ScopeDenied, denied.ErrorCode);
+
+      groupId = (await ConsolidationService.CreateGroupAsync(db, reviewer,
+        new ClientGroupRequest("AGG-1", "Aggregate test group"))).Value;
+      Assert.True((await ConsolidationService.AddMembershipAsync(db, reviewer,
+        new GroupMembershipRequest(groupId, scope.ClientA, new DateOnly(2026, 1, 1), null, "CONTROLLED", 100m, 100m, "group-a"))).Succeeded);
+      Assert.True((await ConsolidationService.AddMembershipAsync(db, reviewer,
+        new GroupMembershipRequest(groupId, scope.ClientB, new DateOnly(2026, 1, 1), null, "CONTROLLED", 100m, 100m, "group-b"))).Succeeded);
+    }
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var groupAggregate = await AccountingAnalysisService.GetAnalyticalReviewAggregateAsync(db, reviewer, groupId);
+      Assert.True(groupAggregate.Succeeded, groupAggregate.Message);
+      var groupRows = groupAggregate.Value!;
+      Assert.Equal(300m, groupRows.Sum(x => x.CurrentTotal));
+      Assert.All(groupRows, x => Assert.Equal(groupId, x.GroupId));
+      var serialized = System.Text.Json.JsonSerializer.Serialize(groupRows);
+      Assert.DoesNotContain(scope.ClientA.ToString("D"), serialized, StringComparison.OrdinalIgnoreCase);
+      Assert.DoesNotContain(scope.ClientB.ToString("D"), serialized, StringComparison.OrdinalIgnoreCase);
+
+      var noGroupGrant = await AccountingAnalysisService.GetAnalyticalReviewAggregateAsync(db, preparer, groupId);
+      Assert.False(noGroupGrant.Succeeded);
+      Assert.Equal(ErrorCodes.ScopeDenied, noGroupGrant.ErrorCode);
+    }
+  }
+
+  [Fact]
+  [Trait("Profile", "Database")]
   public async Task GlImport_RejectsUndefinedClientDimensionValue()
   {
     await using var pg = await PgTestSchema.CreateAsync();
