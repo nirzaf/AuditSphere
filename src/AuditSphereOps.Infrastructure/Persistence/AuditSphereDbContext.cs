@@ -1418,6 +1418,7 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     var capability = b.Entity<AccountingCapabilityProfile>();
     capability.HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("ak_accounting_capability_profiles_firm_id_id");
     capability.Property(x => x.ServiceKind).HasMaxLength(40);
+    capability.Property(x => x.ServiceRoute).HasMaxLength(50);
     capability.Property(x => x.Framework).HasMaxLength(100);
     capability.Property(x => x.Edition).HasMaxLength(100);
     capability.Property(x => x.PeriodRule).HasMaxLength(100);

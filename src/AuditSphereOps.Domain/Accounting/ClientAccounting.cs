@@ -96,6 +96,7 @@ public sealed class AccountingCapabilityProfile
   public Guid? ClientId { get; set; }
   public Guid? GroupId { get; set; }
   public string ServiceKind { get; set; } = string.Empty; // ENTITY_REPORTING | GROUP_REPORTING | AUDIT_ONLY
+  public string ServiceRoute { get; set; } = string.Empty;
   public string Framework { get; set; } = string.Empty;
   public string Edition { get; set; } = string.Empty;
   public string PeriodRule { get; set; } = string.Empty;

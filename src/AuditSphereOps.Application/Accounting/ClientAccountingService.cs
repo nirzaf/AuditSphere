@@ -60,7 +60,7 @@ public sealed record CapabilityProfileRequest(
   Guid? ClientId, Guid? GroupId, string ServiceKind, string Framework,
   string Edition, string PeriodRule, string ReportingCurrency,
   string AccountingMethod, string ConsolidationMethod, string ReviewHierarchy,
-  string TemplateFamily);
+  string TemplateFamily, string ServiceRoute = "");
 
 public sealed record GeneralLedgerLineInput(
   string StableLineId, string AccountCode, decimal Debit, decimal Credit,
@@ -760,6 +760,7 @@ public static class ClientAccountingService
     CancellationToken ct = default)
   {
     var serviceKind = (request.ServiceKind ?? string.Empty).Trim().ToUpperInvariant();
+    var serviceRoute = (request.ServiceRoute ?? string.Empty).Trim();
     var validScope = serviceKind switch
     {
       AccountingCapabilityServiceKinds.GroupReporting => request.GroupId.HasValue && !request.ClientId.HasValue,
@@ -775,6 +776,17 @@ public static class ClientAccountingService
         (!string.IsNullOrWhiteSpace(request.ConsolidationMethod) &&
          request.ConsolidationMethod.Trim().ToUpperInvariant() is not (ConsolidationCalculator.RestrictedMethod or ConsolidationCalculator.ForeignOperationMethod)))
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The requested accounting or consolidation method is not enabled.");
+    if (serviceKind is AccountingCapabilityServiceKinds.EntityReporting or AccountingCapabilityServiceKinds.AuditOnly)
+    {
+      if (serviceRoute.Length == 0)
+        return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "A client capability must identify its approved service route.");
+      var permitted = await db.AcceptanceDecisions.AsNoTracking().AnyAsync(x =>
+        x.FirmId == actor.FirmId && x.PracticeClientId == request.ClientId && x.EngagementId == null &&
+        x.ServiceRoute == serviceRoute && (x.Decision == "Accepted" || x.Decision == "AcceptedWithConditions"), ct);
+      if (!permitted)
+        return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
+          "An affirmative service-permissibility decision is required before enabling client reporting.");
+    }
     var auth = request.ClientId.HasValue
       ? await AuthorizeClientAsync(db, actor, request.ClientId.Value, ReviewerRoles, ct)
       : await AuthorizeGroupAsync(db, actor, request.GroupId!.Value, ReviewerRoles, ct);
@@ -783,7 +795,7 @@ public static class ClientAccountingService
     var profile = new AccountingCapabilityProfile
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = request.ClientId, GroupId = request.GroupId,
-      ServiceKind = serviceKind, Framework = request.Framework.Trim(), Edition = request.Edition.Trim(),
+      ServiceKind = serviceKind, ServiceRoute = serviceRoute, Framework = request.Framework.Trim(), Edition = request.Edition.Trim(),
       PeriodRule = request.PeriodRule.Trim(), ReportingCurrency = currency, AccountingMethod = request.AccountingMethod.Trim(),
       ConsolidationMethod = request.ConsolidationMethod.Trim().ToUpperInvariant(), ReviewHierarchy = request.ReviewHierarchy.Trim(),
       TemplateFamily = request.TemplateFamily.Trim(), CreatedByUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow

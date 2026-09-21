@@ -4,6 +4,7 @@ using AuditSphereOps.Application.Completion;
 using AuditSphereOps.Application.Documents;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Reviews;
+using AuditSphereOps.Domain.Acceptance;
 using AuditSphereOps.Domain.Audit;
 using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Completion;
@@ -424,11 +425,24 @@ public sealed class ClientAccountingTests
     var book = await db.ClientReportingBooks.SingleAsync(x => x.Id == bookId);
     Assert.Equal(AccountingDefaults.DefaultCurrency, book.Currency);
 
+    db.AcceptanceDecisions.Add(new AcceptanceDecision
+    {
+      Id = Guid.CreateVersion7(), FirmId = scope.FirmId, PracticeClientId = scope.ClientA,
+      ServiceRoute = "AccountingOnly", Decision = "Accepted", Generation = 1,
+      DecidedByUserId = scope.Reviewer.Id, DecidedAt = DateTimeOffset.UtcNow
+    });
+    await db.SaveChangesAsync();
+    var missingPermissibility = await ClientAccountingService.CreateCapabilityProfileAsync(db, reviewer,
+      new CapabilityProfileRequest(scope.ClientA, null, "AUDIT_ONLY", "IFRS", "2026", "ANNUAL", "",
+        "STATUTORY", "", "PARTNER", "AUDIT", "FinancialStatementAudit"));
+    Assert.False(missingPermissibility.Succeeded);
+    Assert.Equal(ErrorCodes.GateBlocked, missingPermissibility.ErrorCode);
     var capabilityId = (await ClientAccountingService.CreateCapabilityProfileAsync(db, reviewer,
       new CapabilityProfileRequest(scope.ClientA, null, "ENTITY_REPORTING", "IFRS", "2026", "ANNUAL", "",
-        "STATUTORY", "", "PARTNER", "ENTITY"))).Value;
+        "STATUTORY", "", "PARTNER", "ENTITY", "AccountingOnly"))).Value;
     var capability = await db.AccountingCapabilityProfiles.SingleAsync(x => x.Id == capabilityId);
     Assert.Equal(AccountingDefaults.DefaultCurrency, capability.ReportingCurrency);
+    Assert.Equal("AccountingOnly", capability.ServiceRoute);
 
     var invalidKind = await ClientAccountingService.CreateCapabilityProfileAsync(db, reviewer,
       new CapabilityProfileRequest(scope.ClientA, null, "GROUP_REPORTING", "IFRS", "2026", "ANNUAL", "",
