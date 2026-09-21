@@ -121,13 +121,15 @@ else
     if (_actor is null) return;
     await using var db = await DbFactory.CreateDbContextAsync();
     var clientIds = await ScopedClientIdsAsync(db, _actor);
+    var firmWide = clientIds is null;
+    var scopedClientIds = clientIds ?? [];
     var clients = await db.PracticeClients.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
-      (clientIds.Length == 0 || clientIds.Contains(x.Id))).OrderBy(x => x.LegalName).ToListAsync();
+      (firmWide || scopedClientIds.Contains(x.Id))).OrderBy(x => x.LegalName).ToListAsync();
     var periods = await db.ClientReportingPeriods.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
-      (clientIds.Length == 0 || clientIds.Contains(x.ClientId))).ToDictionaryAsync(x => x.Id);
+      (firmWide || scopedClientIds.Contains(x.ClientId))).ToDictionaryAsync(x => x.Id);
     _clients = clients.Select(x => new ClientOption(x.Id, x.LegalName)).ToList();
     var restatements = await db.ClientPeriodRestatements.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
-      (clientIds.Length == 0 || clientIds.Contains(x.ClientId))).OrderByDescending(x => x.CreatedAt).ToListAsync();
+      (firmWide || scopedClientIds.Contains(x.ClientId))).OrderByDescending(x => x.CreatedAt).ToListAsync();
     _restatements = restatements.Select(x => new RestatementRow(x.Id,
       clients.FirstOrDefault(c => c.Id == x.ClientId)?.LegalName ?? "Scoped client",
       periods.GetValueOrDefault(x.PeriodId)?.PeriodCode ?? "Unknown period", x.RevisedBasis, x.Status, x.EvidenceReference)).ToList();
@@ -197,8 +199,11 @@ else
     finally { _busy = false; }
   }
 
-  private static async Task<Guid[]> ScopedClientIdsAsync(AuditSphereDbContext db, ActorContext actor) => actor.ClientId is { } clientId
-    ? [clientId]
-    : await db.RoleGrants.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.UserId == actor.UserId && x.RevokedAt == null)
-      .Select(x => x.ClientId).Where(x => x.HasValue).Select(x => x!.Value).Distinct().ToArrayAsync();
+  private static async Task<Guid[]?> ScopedClientIdsAsync(AuditSphereDbContext db, ActorContext actor)
+  {
+    var grants = await db.RoleGrants.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.UserId == actor.UserId && x.RevokedAt == null)
+      .Select(x => new { x.ClientId, x.EngagementId }).ToListAsync();
+    if (grants.Any(x => x.ClientId is null && x.EngagementId is null)) return null;
+    return grants.Where(x => x.ClientId.HasValue).Select(x => x.ClientId!.Value).Distinct().ToArray();
+  }
 }

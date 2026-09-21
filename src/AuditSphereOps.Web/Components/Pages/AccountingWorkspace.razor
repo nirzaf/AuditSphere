@@ -21,7 +21,7 @@ else
 {
   <section class="card" aria-labelledby="workspace-context-heading">
     <h2 id="workspace-context-heading">Active accounting context</h2>
-    <p class="scope-note">Firm <code>@_actor!.FirmId</code> · Group <strong>none</strong> · @_clients.Count legal entities in the current grant scope. Group navigation does not grant sibling-company access.</p>
+    <p class="scope-note">Firm <code>@_actor!.FirmId</code> · Group <strong>none</strong> · @_scopeDescription · @_clients.Count legal entities in the current grant scope. Group navigation does not grant sibling-company access.</p>
     <p class="muted">Each row below pins the legal entity, engagement, period, book, currency and latest package version. Select a handoff only after confirming this context.</p>
   </section>
   <section class="metric-grid" aria-label="Accounting workspace counts">
@@ -30,6 +30,10 @@ else
     <article class="metric card"><span class="metric-label">Sealed imports</span><strong class="metric-value">@_sealedImportCount</strong></article>
     <article class="metric card"><span class="metric-label">Blocked/stale work</span><strong class="metric-value">@_blockedCount</strong></article>
   </section>
+  @if (!_hasClientScope)
+  {
+    <section class="notice" role="status"><h2>No client scope assigned</h2><p>Ask a firm administrator for an active client or engagement grant before using this workspace. No firm data is shown without an explicit scope.</p></section>
+  }
   <section class="card" aria-labelledby="context-heading">
     <h2 id="context-heading">Current accounting context</h2>
     <div class="table-wrap">
@@ -100,6 +104,8 @@ else
   private int _openPeriodCount;
   private int _sealedImportCount;
   private int _blockedCount;
+  private bool _hasClientScope;
+  private string _scopeDescription = "No active client or engagement grant";
   private List<ClientRow> _clients = [];
   private List<PeriodRow> _periods = [];
 
@@ -110,32 +116,40 @@ else
     if (_authorized && _actor is not null)
     {
       await using var db = await DbFactory.CreateDbContextAsync();
-      var clientIds = _actor.ClientId.HasValue
-        ? new[] { _actor.ClientId.Value }
-        : await db.RoleGrants.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && x.UserId == _actor.UserId && x.RevokedAt == null)
-          .Select(x => x.ClientId).Where(x => x.HasValue).Select(x => x!.Value).Distinct().ToArrayAsync();
+      var grants = await db.RoleGrants.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && x.UserId == _actor.UserId && x.RevokedAt == null)
+        .Select(x => new { x.ClientId, x.EngagementId }).ToListAsync();
+      var firmWide = grants.Any(x => x.ClientId is null && x.EngagementId is null);
+      var grantedClientIds = grants.Where(x => x.ClientId.HasValue).Select(x => x.ClientId!.Value).ToArray();
+      var engagementIds = grants.Where(x => x.EngagementId.HasValue).Select(x => x.EngagementId!.Value).ToArray();
+      var engagementClientIds = engagementIds.Length == 0
+        ? []
+        : await db.Engagements.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && engagementIds.Contains(x.Id))
+          .Select(x => x.PracticeClientId).ToArrayAsync();
+      var clientIds = grantedClientIds.Concat(engagementClientIds).Distinct().ToArray();
+      _hasClientScope = firmWide || clientIds.Length > 0;
+      _scopeDescription = firmWide ? "Firm-wide grant" : $"{clientIds.Length} explicitly granted legal entit{(clientIds.Length == 1 ? "y" : "ies")}";
       var profiles = await db.ClientAccountingProfiles.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
-        (clientIds.Length == 0 || clientIds.Contains(x.ClientId))).ToListAsync();
+        (firmWide || clientIds.Contains(x.ClientId))).ToListAsync();
       var clients = await db.PracticeClients.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
-        (clientIds.Length == 0 || clientIds.Contains(x.Id))).ToDictionaryAsync(x => x.Id);
+        (firmWide || clientIds.Contains(x.Id))).ToDictionaryAsync(x => x.Id);
       var periods = await db.ClientReportingPeriods.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
-        (clientIds.Length == 0 || clientIds.Contains(x.ClientId))).ToListAsync();
+        (firmWide || clientIds.Contains(x.ClientId))).ToListAsync();
       var books = await db.ClientReportingBooks.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
-        (clientIds.Length == 0 || clientIds.Contains(x.ClientId))).ToListAsync();
+        (firmWide || clientIds.Contains(x.ClientId))).ToListAsync();
       var engagements = await db.Engagements.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
-        (clientIds.Length == 0 || clientIds.Contains(x.PracticeClientId))).ToListAsync();
+        (firmWide || clientIds.Contains(x.PracticeClientId))).ToListAsync();
       var packages = await db.FinancialPackages.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
-        (clientIds.Length == 0 || clientIds.Contains(x.ClientId))).ToListAsync();
+        (firmWide || clientIds.Contains(x.ClientId))).ToListAsync();
       var charts = await db.ClientChartVersions.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
-        (clientIds.Length == 0 || clientIds.Contains(x.ClientId))).GroupBy(x => x.ClientId)
+        (firmWide || clientIds.Contains(x.ClientId))).GroupBy(x => x.ClientId)
         .Select(x => new { ClientId = x.Key, Status = x.OrderByDescending(y => y.Version).Select(y => y.Status).First() }).ToListAsync();
       var imports = await db.SourceImportBatches.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
-        (clientIds.Length == 0 || clientIds.Contains(x.ClientId))).GroupBy(x => x.ClientId)
+        (firmWide || clientIds.Contains(x.ClientId))).GroupBy(x => x.ClientId)
         .Select(x => new { ClientId = x.Key, Status = x.OrderByDescending(y => y.CreatedAt).Select(y => y.Status).First() }).ToListAsync();
       _profileCount = profiles.Count;
       _openPeriodCount = periods.Count(x => x.Status != AccountingWorkflowStates.Closed);
       _sealedImportCount = await db.SourceImportBatches.AsNoTracking().CountAsync(x => x.FirmId == _actor.FirmId && x.Status == "SEALED" &&
-        (clientIds.Length == 0 || clientIds.Contains(x.ClientId)));
+        (firmWide || clientIds.Contains(x.ClientId)));
       _blockedCount = periods.Count(x => x.Status is AccountingWorkflowStates.Stale or AccountingWorkflowStates.Rejected);
       _periods = periods.OrderByDescending(x => x.EndDate).ThenBy(x => x.PeriodCode).Select(x => new PeriodRow(
         clients.GetValueOrDefault(x.ClientId)?.LegalName ?? "Scoped client",
