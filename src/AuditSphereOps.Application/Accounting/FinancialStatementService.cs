@@ -309,7 +309,8 @@ public static class FinancialStatementService
     var packageHash = FinancialStatementCalculator.ComputePackageHash(request, mapping, plan,
       calculated.Value.ResultHash, packageLines, supplementaryHash);
 
-    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    var ownsTransaction = db.Database.CurrentTransaction is null;
+    await using var tx = ownsTransaction ? await db.Database.BeginTransactionAsync(ct) : null;
     if (await LockFirmAsync(db, actor.FirmId, ct) is null)
       return CommandResult<FinancialPackageBuildResult>.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
     var client = await LockClientAsync(db, actor.FirmId, mapping.ClientId, ct);
@@ -339,7 +340,8 @@ public static class FinancialStatementService
       if (existing.CalculationHash != packageHash)
         return CommandResult<FinancialPackageBuildResult>.Fail(ErrorCodes.IdempotencyConflict,
           "The package identity is already bound to different calculation inputs.");
-      await tx.CommitAsync(ct);
+      if (ownsTransaction)
+        await tx!.CommitAsync(ct);
       return CommandResult<FinancialPackageBuildResult>.Ok(new FinancialPackageBuildResult(
         existing.Id, existing.AdjustedDatasetId, existing.Status, existing.CalculationHash, statementTotals));
     }
@@ -474,7 +476,8 @@ public static class FinancialStatementService
     try
     {
       await db.SaveChangesAsync(ct);
-      await tx.CommitAsync(ct);
+      if (ownsTransaction)
+        await tx!.CommitAsync(ct);
       return CommandResult<FinancialPackageBuildResult>.Ok(new FinancialPackageBuildResult(
         package.Id, adjusted.Id, package.Status, package.CalculationHash, statementTotals));
     }
@@ -483,6 +486,54 @@ public static class FinancialStatementService
       return CommandResult<FinancialPackageBuildResult>.Fail(ErrorCodes.IdempotencyConflict,
         "The package identity changed; retry from the current mapping and plan.");
     }
+  }
+
+  public static async Task<CommandResult<Guid>> EnqueueFinancialPackageBuildAsync(
+    IAuditSphereDbContext db,
+    ActorContext actor,
+    BuildFinancialPackageRequest request,
+    IOperationStore operationStore,
+    FinancialPackageBuildHandler handler,
+    CancellationToken ct = default)
+  {
+    var invalid = ValidatePackageRequest(request);
+    if (invalid is not null)
+      return CommandResult<Guid>.Fail(ErrorCodes.Accounting.PackageInvalid, invalid);
+    var mapping = await db.MappingVersions.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.Id == request.MappingVersionId && x.FirmId == actor.FirmId, ct);
+    var plan = await db.AdjustmentPlans.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.Id == request.AdjustmentPlanId && x.FirmId == actor.FirmId, ct);
+    if (mapping is null || plan is null || mapping.ClientId != plan.ClientId ||
+        mapping.EngagementId != plan.EngagementId || mapping.DatasetId != plan.BaseDatasetId)
+      return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var auth = await AuthorizeAsync(db, actor, mapping.FirmId, mapping.ClientId, mapping.EngagementId,
+      PreparerRoles.ToArray(), ct);
+    if (!auth.Succeeded)
+      return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+    if (mapping.Status != AccountingPackageStates.MappingApproved || plan.Status != "Finalized")
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "An approved mapping and finalized adjustment plan are required.");
+
+    var payload = FinancialPackageBuildHandler.SerializePayload(mapping.ClientId, mapping.EngagementId, request);
+    var payloadDigest = Hashing.Sha256Hex(payload);
+    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    CommandResult<Guid> enqueued;
+    try
+    {
+      enqueued = await operationStore.EnqueueAsync(db, new OperationRequest(
+        actor.FirmId, mapping.ClientId, mapping.EngagementId, FinancialPackageBuildHandler.Kind,
+        mapping.Id, mapping.Version,
+        $"financial-package-build:{mapping.Id:D}:{plan.Id:D}:{mapping.Version}:{payloadDigest}",
+        payload, actor.UserId), handler, ct);
+    }
+    catch (OperationBlockedException)
+    {
+      enqueued = CommandResult<Guid>.Fail(ErrorCodes.Accounting.PackageInvalid,
+        "The financial-package operation request was refused.");
+    }
+    if (!enqueued.Succeeded)
+      return CommandResult<Guid>.Fail(enqueued.ErrorCode!, enqueued.Message!);
+    await tx.CommitAsync(ct);
+    return enqueued;
   }
 
   /// <summary>

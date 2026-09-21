@@ -72,6 +72,7 @@ builder.Services.AddSingleton<TrialBalanceValidationHandler>();
 builder.Services.AddSingleton<IAuditSphereDbContextFactory, OperationContextFactory>();
 builder.Services.AddSingleton<IOperationStore, PostgresOperationStore>();
 builder.Services.AddSingleton<GeneralLedgerCompletenessHandler>();
+builder.Services.AddSingleton<FinancialPackageBuildHandler>();
 
 // Simulation adapters compose only in a Test environment with the explicit enablement flag.
 // In Development the PBC transfer operations remain queued pending an approved provider
@@ -104,8 +105,9 @@ static IOperationHandler[] ResolveHandlers(IServiceProvider sp, bool simulationA
 {
   var validation = sp.GetRequiredService<TrialBalanceValidationHandler>();
   var completeness = sp.GetRequiredService<GeneralLedgerCompletenessHandler>();
+  var packageBuild = sp.GetRequiredService<FinancialPackageBuildHandler>();
   var checkpoint = sp.GetRequiredService<ReleaseCheckpointHandler>();
   return simulationAllowed
-    ? [validation, completeness, checkpoint, sp.GetRequiredService<PbcDocumentTransferHandler>()]
-    : [validation, completeness, checkpoint];
+    ? [validation, completeness, packageBuild, checkpoint, sp.GetRequiredService<PbcDocumentTransferHandler>()]
+    : [validation, completeness, packageBuild, checkpoint];
 }

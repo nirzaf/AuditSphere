@@ -1,5 +1,7 @@
 using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Application.Abstractions;
+using AuditSphereOps.Application.Documents;
+using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Engagements;
@@ -8,7 +10,9 @@ using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
+using WorkerHost = AuditSphereOps.Worker.Worker;
 
 namespace AuditSphereOps.Domain.Tests;
 
@@ -18,6 +22,12 @@ public sealed class FinancialStatementTests
   private sealed record Fixture(
     Guid FirmId, Guid ClientId, Guid EngagementId, Guid DatasetId,
     AppUser Preparer, AppUser Reviewer);
+
+  private sealed class TestDbContextFactory(DbContextOptions<AuditSphereDbContext> options)
+    : IDbContextFactory<AuditSphereDbContext>
+  {
+    public AuditSphereDbContext CreateDbContext() => new(options);
+  }
 
   [Fact]
   public async Task MappingPlanAndPackage_AreScopedDeterministicAndReviewGated()
@@ -92,6 +102,38 @@ public sealed class FinancialStatementTests
       var checks = await db.FinancialPackageValidations.AsNoTracking()
         .Where(x => x.FinancialPackageId == first.PackageId).ToListAsync();
       Assert.Contains(checks, x => x.Code == "SUPPLEMENTARY_INFORMATION" && !x.Passed);
+    }
+
+    var durableRequest = request with { TemplateVersion = "template-durable-v1" };
+    var operationFactory = new OperationContextFactory(new TestDbContextFactory(pg.Options));
+    var operationStore = new PostgresOperationStore(operationFactory);
+    var operationHandler = new FinancialPackageBuildHandler();
+    var workerOptions = new WorkerOptions(fixture.FirmId, "Test");
+    Guid operationId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var queued = await FinancialStatementService.EnqueueFinancialPackageBuildAsync(
+        db, preparer, durableRequest, operationStore, operationHandler);
+      Assert.True(queued.Succeeded, queued.Message);
+      operationId = queued.Value;
+    }
+    var worker = new WorkerHost(
+      new OperationDispatcher(operationStore, new DurableOperationRegistry([operationHandler], workerOptions), workerOptions),
+      Array.Empty<IPendingOperationDiscovery>(), NullLogger<WorkerHost>.Instance);
+    Assert.True(await worker.ProcessNextAsync());
+    Assert.False(await worker.ProcessNextAsync());
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var operation = await db.DurableOperations.SingleAsync(x => x.Id == operationId);
+      Assert.Equal(OperationState.COMPLETED, operation.Status);
+      var durablePackage = await db.FinancialPackages.SingleAsync(x => x.TemplateVersion == "template-durable-v1");
+      Assert.Equal(durablePackage.Id.ToString("D"), operation.ResultIdentity);
+      Assert.True(await db.OperationEvents.AnyAsync(x => x.OperationId == operationId && x.Kind == "financial.package-built.v1"));
+
+      var retry = await FinancialStatementService.EnqueueFinancialPackageBuildAsync(
+        db, preparer, durableRequest, operationStore, operationHandler);
+      Assert.True(retry.Succeeded, retry.Message);
+      Assert.Equal(operationId, retry.Value);
     }
 
     var completeRequest = request with

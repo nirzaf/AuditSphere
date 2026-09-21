@@ -110,6 +110,7 @@ builder.Services.AddScoped<TrustedActorResolver>();
 builder.Services.AddSingleton<IAuditSphereDbContextFactory, OperationContextFactory>();
 builder.Services.AddSingleton<IOperationStore, PostgresOperationStore>();
 builder.Services.AddSingleton<GeneralLedgerCompletenessHandler>();
+builder.Services.AddSingleton<FinancialPackageBuildHandler>();
 var externalEffectsEnabled = builder.Configuration.GetValue<bool>("ExternalEffects:Enabled");
 if (externalEffectsEnabled)
 {
