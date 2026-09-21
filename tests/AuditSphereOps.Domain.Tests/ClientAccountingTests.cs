@@ -1055,6 +1055,22 @@ public sealed class ClientAccountingTests
       Assert.NotEqual(string.Empty, nextScope.OpeningTranslationManifestHash);
       Assert.Equal(0m, nextScope.OpeningTranslationReserve);
       Assert.NotEqual(string.Empty, nextScope.RecurringEliminationManifest);
+
+      var nextMapping = await db.FinancialPackages.Where(x => x.Id == packageUsd).Select(x => x.MappingVersionId).SingleAsync();
+      var nextComponentId = (await ConsolidationService.SubmitComponentAsync(db, preparer,
+        new ConsolidationComponentRequest(nextScopeId, scope.ClientA, scope.EngagementA, packageUsd, 100m,
+          "CONTROLLED", "STATUTORY", "tax-v1", nextMapping.ToString("D")))).Value;
+      Assert.True((await ConsolidationService.ApproveComponentAsync(db, reviewer, nextComponentId)).Succeeded);
+      var changedClientId = Guid.NewGuid();
+      db.PracticeClients.Add(new PracticeClient { Id = changedClientId, FirmId = scope.FirmId, LegalName = "CLIENT C", CreatedAt = DateTimeOffset.UtcNow });
+      await db.SaveChangesAsync();
+      Assert.True((await ConsolidationService.AddMembershipAsync(db, reviewer,
+        new GroupMembershipRequest(groupId, changedClientId, new DateOnly(2027, 1, 1), null, "CONTROLLED", 100m, 100m,
+          "ownership-c-added-after-next-scope"))).Succeeded);
+      var staleTranslation = await CurrencyTranslationService.TranslateComponentAsync(db, preparer, nextComponentId,
+        rateSetId, policyId, rateDate.AddYears(1), "CLOSING");
+      Assert.False(staleTranslation.Succeeded);
+      Assert.Equal(ErrorCodes.GenerationStale, staleTranslation.ErrorCode);
     }
   }
 
@@ -1178,6 +1194,12 @@ public sealed class ClientAccountingTests
       Assert.True((await ConsolidationService.AddMembershipAsync(db, reviewer,
         new GroupMembershipRequest(groupId, newClientId, new DateOnly(2026, 1, 1), null, "CONTROLLED", 100m, 100m,
           "ownership-c-added-after-scope"))).Succeeded);
+      var staleJournal = await ConsolidationService.CreateConsolidationJournalAsync(db, preparer,
+        new ConsolidationJournalRequest(consolidationScopeId, "GC-STALE", "GROUP_RECLASSIFICATION", "QAR", "stale-group-adjustment",
+        [new(null, "CASH", 10m, 0m, "Must not write against a changed group perimeter"),
+         new(null, "REVENUE", 0m, 10m, "Must not write against a changed group perimeter")]));
+      Assert.False(staleJournal.Succeeded);
+      Assert.Equal(ErrorCodes.GenerationStale, staleJournal.ErrorCode);
       var changedPerimeter = await ConsolidationService.RunAsync(db, preparer, consolidationScopeId);
       Assert.False(changedPerimeter.Succeeded);
       Assert.Equal(ErrorCodes.GenerationStale, changedPerimeter.ErrorCode);

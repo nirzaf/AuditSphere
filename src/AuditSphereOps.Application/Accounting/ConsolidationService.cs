@@ -216,6 +216,8 @@ public static class ConsolidationService
       return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
     if (scope.Status != AccountingWorkflowStates.Draft)
       return CommandResult<Guid>.Fail(ErrorCodes.ProtectedState, "The perimeter is no longer collecting components.");
+    if (!await ConsolidationScopeGuards.IsCurrentAsync(db, actor.FirmId, scope.GroupId, scope.GroupRevision, ct))
+      return CommandResult<Guid>.Fail(ErrorCodes.GenerationStale, "The group perimeter changed; create a new scope version.");
     if (request.OwnershipPercent != 100m || !request.ControlMethod.Equals("CONTROLLED", StringComparison.OrdinalIgnoreCase))
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The restricted profile requires a fully-owned controlled component.");
     var membership = await db.ClientGroupMemberships.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId && x.GroupId == scope.GroupId &&
@@ -273,6 +275,12 @@ public static class ConsolidationService
     var auth = await GroupAuthAsync(db, actor, component.GroupId, ReviewerRoles, ct);
     if (!auth.Succeeded)
       return auth;
+    var componentScope = await db.ConsolidationScopeVersions.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.FirmId == actor.FirmId && x.Id == component.ScopeVersionId && x.GroupId == component.GroupId, ct);
+    if (componentScope is null)
+      return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    if (!await ConsolidationScopeGuards.IsCurrentAsync(db, actor.FirmId, componentScope.GroupId, componentScope.GroupRevision, ct))
+      return CommandResult.Fail(ErrorCodes.GenerationStale, "The group perimeter changed; create a new scope version.");
     if (component.Status != AccountingWorkflowStates.Submitted)
       return CommandResult.Fail(ErrorCodes.ProtectedState, "Only a submitted component can be approved.");
     if (component.SubmittedByUserId == actor.UserId)
@@ -357,6 +365,8 @@ public static class ConsolidationService
     var auth = await GroupAuthAsync(db, actor, scope.GroupId, PreparerRoles, ct);
     if (!auth.Succeeded)
       return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+    if (!await ConsolidationScopeGuards.IsCurrentAsync(db, actor.FirmId, scope.GroupId, scope.GroupRevision, ct))
+      return CommandResult<Guid>.Fail(ErrorCodes.GenerationStale, "The group perimeter changed; create a new scope version.");
     var currency = request.Currency.Trim().ToUpperInvariant();
     if (currency != scope.ReportingCurrency || request.MatchedAmount > Math.Min(Math.Abs(request.SellerAmount), Math.Abs(request.BuyerAmount)))
       return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ReconciliationRejected, "The match must fit both signed counterparty balances in the scope currency.");
@@ -391,6 +401,8 @@ public static class ConsolidationService
     var auth = await GroupAuthAsync(db, actor, scope.GroupId, PreparerRoles, ct);
     if (!auth.Succeeded)
       return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+    if (!await ConsolidationScopeGuards.IsCurrentAsync(db, actor.FirmId, scope.GroupId, scope.GroupRevision, ct))
+      return CommandResult<Guid>.Fail(ErrorCodes.GenerationStale, "The group perimeter changed; create a new scope version.");
     if (scope.Status != AccountingWorkflowStates.Approved)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "An approved consolidation perimeter is required before a group-only journal.");
     var currency = request.Currency.Trim().ToUpperInvariant();
@@ -436,6 +448,12 @@ public static class ConsolidationService
     var auth = await GroupAuthAsync(db, actor, journal.GroupId, ReviewerRoles, ct);
     if (!auth.Succeeded)
       return auth;
+    var journalScope = await db.ConsolidationScopeVersions.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.FirmId == actor.FirmId && x.Id == journal.ScopeVersionId && x.GroupId == journal.GroupId, ct);
+    if (journalScope is null)
+      return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    if (!await ConsolidationScopeGuards.IsCurrentAsync(db, actor.FirmId, journalScope.GroupId, journalScope.GroupRevision, ct))
+      return CommandResult.Fail(ErrorCodes.GenerationStale, "The group perimeter changed; create a new scope version.");
     if (journal.Status != AccountingWorkflowStates.Submitted || journal.CreatedByUserId == actor.UserId)
       return CommandResult.Fail(ErrorCodes.Accounting.MappingInvalid, "Only a separate reviewer can approve a submitted consolidation journal.");
     var lines = await db.ConsolidationJournalLines.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ConsolidationJournalId == journal.Id).ToListAsync(ct);
@@ -463,6 +481,12 @@ public static class ConsolidationService
     var auth = await GroupAuthAsync(db, actor, match.GroupId, ReviewerRoles, ct);
     if (!auth.Succeeded)
       return auth;
+    var matchScope = await db.ConsolidationScopeVersions.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.FirmId == actor.FirmId && x.Id == match.ScopeVersionId && x.GroupId == match.GroupId, ct);
+    if (matchScope is null)
+      return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    if (!await ConsolidationScopeGuards.IsCurrentAsync(db, actor.FirmId, matchScope.GroupId, matchScope.GroupRevision, ct))
+      return CommandResult.Fail(ErrorCodes.GenerationStale, "The group perimeter changed; create a new scope version.");
     if (match.CreatedByUserId == actor.UserId)
       return CommandResult.Fail(ErrorCodes.Accounting.ReconciliationRejected, "The match preparer cannot independently approve it.");
     match.Status = AccountingWorkflowStates.Approved;
@@ -670,4 +694,11 @@ public static class ConsolidationService
        acceptance.Stage == AccountingCapabilityAcceptanceStages.MethodOwnerApproval &&
        acceptance.Status == AccountingWorkflowStates.Approved
      select acceptance.Id).AnyAsync(ct);
+}
+
+internal static class ConsolidationScopeGuards
+{
+  public static Task<bool> IsCurrentAsync(
+    IClientAccountingDbContext db, Guid firmId, Guid groupId, long pinnedRevision, CancellationToken ct) =>
+    db.ClientGroups.AsNoTracking().AnyAsync(x => x.FirmId == firmId && x.Id == groupId && x.Revision == pinnedRevision, ct);
 }

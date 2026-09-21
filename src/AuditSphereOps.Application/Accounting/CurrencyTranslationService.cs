@@ -153,6 +153,8 @@ public static class CurrencyTranslationService
       x.UserId == actor.UserId && x.RevokedAt == null && PreparerRoles.Contains(x.Role), ct);
     if (!groupGrant)
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Explicit group access is required.");
+    if (!await ConsolidationScopeGuards.IsCurrentAsync(db, actor.FirmId, scope.GroupId, scope.GroupRevision, ct))
+      return CommandResult<Guid>.Fail(ErrorCodes.GenerationStale, "The group perimeter changed; create a new scope version.");
     if (scope.Method != ConsolidationCalculator.ForeignOperationMethod || scope.Status != AccountingWorkflowStates.Draft ||
         component.Status != AccountingWorkflowStates.Approved || scope.ExchangeRateSetVersionId != rateSetId ||
         scope.TranslationPolicyVersionId != policyId || scope.TranslationRateDate != rateDate ||
@@ -214,6 +216,8 @@ public static class CurrencyTranslationService
       x.Id == result.ComponentId && x.GroupId == result.GroupId && x.ScopeVersionId == result.ScopeVersionId, ct);
     var scope = await db.ConsolidationScopeVersions.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId &&
       x.Id == result.ScopeVersionId && x.GroupId == result.GroupId, ct);
+    if (scope is not null && !await ConsolidationScopeGuards.IsCurrentAsync(db, actor.FirmId, scope.GroupId, scope.GroupRevision, ct))
+      return CommandResult.Fail(ErrorCodes.GenerationStale, "The group perimeter changed; create a new scope version.");
     var package = component is null ? null : await db.FinancialPackages.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId &&
       x.Id == component.PackageId && x.ClientId == component.ClientId && x.EngagementId == component.EngagementId, ct);
     var set = await db.ExchangeRateSetVersions.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId &&
