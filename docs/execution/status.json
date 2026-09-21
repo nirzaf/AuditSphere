@@ -4,10 +4,10 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "54651db",
+  "headCommit": "7b6bc08",
   "remoteHeadVerified": true,
   "productionEnabled": false,
-  "verifiedAt": "2026-09-21T05:12:10Z",
+  "verifiedAt": "2026-09-21T05:42:49Z",
   "toolchain": {
     "sdk": ".NET 10",
     "efCore": "10.0.12",
@@ -17,10 +17,10 @@
   },
   "verification": {
     "build": "PASS: dotnet build AuditSphereOps.slnx --no-restore --configuration Release; 0 warnings/errors",
-    "tests": "PASS: 201/201 PostgreSQL-backed tests; 0 skipped",
-    "migrations": "PASS: 59 applied; latest 20260921050545_BindAdjustmentJournalsToReportingContext",
+    "tests": "PASS: 204/204 PostgreSQL-backed tests; 0 skipped",
+    "migrations": "PASS: 60 applied; latest 20260921052800_ClientAccountingDimensionDefinitions",
     "pendingModelChanges": "PASS: no changes",
-    "restoreDrill": "PASS: loopback restore reconciled 59 migrations; latest 20260921050545_BindAdjustmentJournalsToReportingContext; external custody and production RPO/RTO not run",
+    "restoreDrill": "PASS: loopback restore reconciled 60 migrations; latest 20260921052800_ClientAccountingDimensionDefinitions; external custody and production RPO/RTO not run",
     "database": "127.0.0.1:5433 development only"
   },
   "active": {
@@ -35,6 +35,11 @@
       "item": "Client accounting foundation",
       "status": "LOCAL_VERIFIED",
       "details": "Profiles, periods, books, COA mappings, versioned TB profiles, signed-net/debit-credit normalization and multi-entity batches."
+    },
+    {
+      "item": "Client GL dimensions and currency defaults",
+      "status": "LOCAL_VERIFIED",
+      "details": "Client-scoped branch, cost-centre, department, project and intercompany-counterparty definitions reject undefined nonblank GL values, including streaming chunks. Blank accounting setup/reporting currency defaults to QAR; source/import and FX-policy currencies remain explicit. Migration 20260921052800_ClientAccountingDimensionDefinitions and PostgreSQL regression coverage pass."
     },
     {
       "item": "Trial-balance reporting-context binding",

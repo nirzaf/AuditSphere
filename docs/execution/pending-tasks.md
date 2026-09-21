@@ -3,7 +3,7 @@
 **Repository:** `nirzaf/AuditSphere`
 **Authoritative specification:** [`docs/SPECIFICATION.md`](../SPECIFICATION.md) v5.0
 **Requirements backlog:** [`docs/requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md`](../requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md)
-**Source implementation checkpoint:** `master@54651db`
+**Source implementation checkpoint:** `master@7b6bc08`
 
 This is a resume checklist, not an acceptance certificate. Tenant identifiers, credentials, tokens, secret values, and private-provider URLs are deliberately absent from the public repository.
 
@@ -11,8 +11,8 @@ This is a resume checklist, not an acceptance certificate. Tenant identifiers, c
 
 - [x] .NET 10 solution builds with zero warnings/errors.
 - [x] PostgreSQL 18.6 development profile is used on loopback port 5433.
-- [x] 201/201 PostgreSQL-backed tests pass with 0 skipped.
-- [x] 59 migrations are applied; latest is `20260921050545_BindAdjustmentJournalsToReportingContext`.
+- [x] 204/204 PostgreSQL-backed tests pass with 0 skipped.
+- [x] 60 migrations are applied; latest is `20260921052800_ClientAccountingDimensionDefinitions`.
 - [x] EF model has no pending migration changes.
 - [x] Loopback restore drill passes and writes secret-free evidence to `docs/evidence/restore-drill-latest.json`.
 - [x] Generated Graphify output and local agent state are ignored and removed from Git tracking.
@@ -56,6 +56,7 @@ This is a resume checklist, not an acceptance certificate. Tenant identifiers, c
 - [x] Link typed accounting evidence to reviewed audit procedure results, expose the scoped evidence queue and archive accounting lineage.
 - [x] Gate period close on current package reviews and persist immutable authorized reopen/amendment revisions.
 - [x] Add controlled entity-period roll-forward with draft book copies and explicit opening-balance evidence.
+- [x] Client-scoped GL dimension definitions validate nonblank branch/cost-centre/department/project/intercompany values; blank accounting setup/reporting currency defaults to QAR while source/import currency remains explicit.
 - [x] Link accounting evidence to reviewed audit workpapers and expose accounting period handoffs from the dashboard.
 - [ ] Add approved-method fixtures for full FX remeasurement/reserve, complex ownership, acquisition, NCI, nested groups and advanced eliminations before implementing those methods.
 - [x] Add deeper accounting evidence/workpaper links and account-area UI around the typed specialist schedules.
