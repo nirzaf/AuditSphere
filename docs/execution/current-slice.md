@@ -6,12 +6,12 @@ This file records observed repository state only. The authoritative build contra
 
 | Item | Observed value |
 |---|---|
-| Source implementation checkpoint | `master@d056eb9` |
-| Remote | `origin/master` includes source checkpoint `d056eb9` |
+| Source implementation checkpoint | `master@fe17efc` |
+| Remote | `origin/master` includes source checkpoint `fe17efc` |
 | SDK | .NET 10; repository solution targets `net10.0` |
 | Database | PostgreSQL 18.6 on loopback port 5433 for development only |
-| Build | `dotnet build src/AuditSphereOps.Web/AuditSphereOps.Web.csproj --no-restore --configuration Release` at `ee1d765` — passed, 0 warnings/errors; solution Release baseline passed at `4010963` |
-| Tests | 215/215 passed, 0 skipped against PostgreSQL 18.6 at `4017ee0` |
+| Build | `dotnet build src/AuditSphereOps.Web/AuditSphereOps.Web.csproj --no-restore --configuration Release` at `fe17efc` — passed, 0 warnings/errors |
+| Tests | 215/215 passed, 0 skipped against PostgreSQL 18.6 at `fe17efc` |
 | Migrations | 75 applied; latest `20260921150321_BindMappingsToClientCharts` |
 | Model drift | `dotnet ef migrations has-pending-model-changes` — no changes |
 | Restore drill | `scripts/db/restore-drill.sh` — passed; 75 migrations, accounting/group manifests and release-delivery identities reconciled |
@@ -86,7 +86,7 @@ This file records observed repository state only. The authoritative build contra
 - Financial-package mappings now require the approved taxonomy statement section; package validation records separate statement cross-cast, accounting-equation, equity/profit, comparative-consistency and note-to-face outcomes, and rendered artifacts include adjusted-snapshot, mapping-version and adjustment-plan lineage identifiers. Exact UTF-8 artifact bytes are persisted with framework/template versions and SHA-256 lineage, and package-review decisions reference that artifact; PostgreSQL financial-statement regressions pass.
 - The PostgreSQL-backed accounting benchmark exercises four clients, 2,000 transactions, 8,000 GL lines, parallel enqueueing, two concurrent durable workers, a 32-line group calculation, six-decimal/high-magnitude amounts and paged reads; one observed run measured enqueue 147.8 ms, worker processing 134.4 ms, first page 43.8 ms and group calculation 3.2 ms.
 - Blazor status surfaces for the implemented workflows, including period restatement and truthful release/package gate state.
-- Shared Blazor form UX covers contextual action/field tooltips derived from labels/placeholders/IDs, required and optional markers, accessible guidance, non-disruptive invalid-field status, and localStorage draft autosave/restore across card and standalone forms. Drafts flush on input/change, tab backgrounding, pagehide and beforeunload; generated scopes avoid repeated-heading collisions, including dynamically added cards; checkbox/radio values restore correctly; restored values raise both native input and Blazor binding change events; and autosave includes controls disabled during an in-flight action. Server-backed workpaper drafts remain authoritative; browser file bytes and release keys are intentionally excluded from local storage.
+- Shared Blazor form UX covers contextual action/field tooltips derived from labels/placeholders/IDs, required and optional markers, accessible guidance, non-disruptive invalid-field status, and localStorage draft autosave/restore across card and standalone forms. Drafts flush on input/change, tab backgrounding, pagehide and beforeunload through one lifecycle handler; generated scopes avoid repeated-heading collisions, including dynamically added cards; checkbox/radio values restore correctly; restored values raise both native input and Blazor binding change events; and autosave includes controls disabled during an in-flight action. When browser storage is blocked or full, the same draft falls back to an in-memory page-session copy and reports that reduced durability without interrupting the workflow. Server-backed workpaper drafts remain authoritative; browser file bytes and release keys are intentionally excluded from local storage.
 - Adjustment-journal instructions are exported only after exact client/engagement authorization, an accepted source with raw and normalized digests, matching period/book basis and currency, the exact journal revision, and accepted or partial management evidence are re-read. The controlled CSV is formula-neutralized and explicitly marked as not proof of external posting; the journal page exposes tooltip-guided download and non-disruptive status/error handling.
 - The staff financial-package page rechecks exact client/engagement authorization and displays/downloads only the persisted artifact bound to the current package revision, generation, hash and template; release and delivery remain separate controls.
 - Period roll-forward and restatement selection loads use a generation guard and a visible loading state, lock dependent selectors during the request, and prevent older async responses from replacing a newer client/period selection; the existing draft autosave remains the source of unsaved form resilience.
