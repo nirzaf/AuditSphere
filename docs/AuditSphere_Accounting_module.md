@@ -316,7 +316,7 @@ Story criteria remain proposed unless marked locally verified in the execution l
 - [ ] Audit-only work can consume management/external-accountant packs without requiring client bookkeeping migration.
 - [ ] Same-firm preparation and audit require the existing affirmative service-permissibility decision; staffing separation alone cannot override a prohibition.
 - [x] Unknown consolidation, valuation or tax methods are visibly unsupported and cannot authorize final reporting.
-- [ ] Operational ERP features remain excluded unless separately authorized.
+- [x] Operational ERP features remain excluded unless separately authorized.
 - [x] Acceptance records distinguish local construction, method-owner approval, live evidence and released capability.
 
 ### AC-02 — Maintain independent legal entities and optional relationship groups
@@ -374,7 +374,7 @@ Story criteria remain proposed unless marked locally verified in the execution l
 - [x] Firm defaults may have approved industry/group overlays without overwriting base taxonomy history.
 - [x] Publishing a version lists impacted mappings/packages; it does not rewrite historical accounts or approvals.
 - [ ] Client-confidential amounts, names and rationale cannot leak into shared master templates.
-- [ ] Accounting presentation taxonomy and jurisdiction-specific tax rules are separate concepts.
+- [x] Accounting presentation taxonomy and jurisdiction-specific tax rules are separate concepts.
 
 ### AC-06 — Build the mapping workbench and enforce exact allocations
 
@@ -537,11 +537,11 @@ Story criteria remain proposed unless marked locally verified in the execution l
 **Priority / dependencies:** P4; AC-03, AC-08, AC-16; required before any foreign-currency group release.
 
 **Acceptance criteria**
-- [ ] Distinguish transaction, entity functional and group presentation currency.
+- [x] Distinguish transaction, entity functional and group presentation currency.
 - [ ] Rate sets retain source, direction, date/range, rate type, approval and immutable version.
 - [ ] Monetary remeasurement, foreign-operation translation and display-only conversion are separate operations.
 - [ ] Closing, average and historical rates follow the approved method; translation reserve and opening-equity rollforwards remain explainable.
-- [ ] Missing/invalid rates, nonexchangeable currencies and unsupported hyperinflation methods block that capability rather than use rate 1.
+- [x] Missing/invalid rates, nonexchangeable currencies and unsupported hyperinflation methods block that capability rather than use rate 1.
 - [ ] FX/rounding adjustments are separately identified and never silently eliminate genuine intercompany differences.
 
 ### AC-18 — Define a versioned consolidation perimeter
@@ -640,7 +640,7 @@ Story criteria remain proposed unless marked locally verified in the execution l
 - [ ] Tabs expose TB/GL, COA, mapping, reconciliations, adjustments, differences, statements and approval history; group tabs expose perimeter, packs, FX, intercompany and eliminations.
 - [ ] Dashboard shows required/complete/stale/blocked counts, named next owner, due dates and exact-record navigation.
 - [ ] Bulk actions preview scope and outcomes; one invalid item cannot cause silent partial approval.
-- [ ] Client pages reveal only approved requests, decisions and published documents; internal judgment and sibling data stay restricted.
+- [x] Client pages reveal only approved requests, decisions and published documents; internal judgment and sibling data stay restricted.
 
 ### AC-25 — Provide controlled data exchange and report artifacts
 
@@ -682,7 +682,7 @@ Story criteria remain proposed unless marked locally verified in the execution l
 - [x] Cancelled/failed local durable work never publishes a partial accepted dataset or group package; queued cancellation requires an explicit administrator disposition before worker claim. Active work remains subject to lease expiry and reconciliation because cancellation cannot prove an already-started effect did not occur.
 - [x] Retry is idempotent; timeout-after-effect preserves uncertainty and reconciliation semantics.
 - [x] Benchmark representative client counts, GL volume, bounded group size, concurrency, six-decimal/high-magnitude precision and the concurrent database enqueue/worker locking path; the current benchmark is a local capacity observation, not production RPO/RTO evidence.
-- [ ] Restore/recovery tests preserve accounting/group manifests and prevent duplicate external delivery; production RPO/RTO remains an externally observed acceptance gate.
+- [x] Restore/recovery tests preserve accounting/group manifests and prevent duplicate external delivery; production RPO/RTO remains an externally observed acceptance gate.
 
 ### AC-28 — Migrate safely and prove the full accounting scope
 
@@ -691,12 +691,12 @@ Story criteria remain proposed unless marked locally verified in the execution l
 **Priority / dependencies:** P0 test setup; final acceptance after applicable AC stories.
 
 **Acceptance criteria**
-- [ ] Inventory actual current schema, tests and instructions before creating issues; do not rely on historical test counts or migration numbers.
+- [x] Inventory actual current schema, tests and instructions before creating issues; do not rely on historical test counts or migration numbers.
 - [ ] Backfill client charts/periods only from unambiguous source identity; quarantine ambiguous history rather than invent metadata.
 - [ ] Legacy packages keep original hashes/calculation-engine versions; new canonical formats are versioned.
-- [ ] Test PostgreSQL foreign keys, immutability, access denial, concurrent approval/input replacement and recovery on changed behavior.
+- [x] Test PostgreSQL foreign keys, immutability, access denial, concurrent approval/input replacement and recovery on changed behavior.
 - [ ] Run browser journeys for an SME, unrelated clients with colliding codes, a basic group and the enabled advanced-group profiles.
-- [ ] Record exact commits, methods, fixtures, tests, reviews and actual live-service limitations. A new profile cannot be declared complete because another profile passed.
+- [x] Record exact commits, methods, fixtures, tests, reviews and actual live-service limitations. A new profile cannot be declared complete because another profile passed.
 
 ---
 
