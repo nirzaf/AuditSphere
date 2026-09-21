@@ -6,12 +6,12 @@ This file records observed repository state only. The authoritative build contra
 
 | Item | Observed value |
 |---|---|
-| Source implementation checkpoint | `master@61521fa` |
-| Remote | `origin/master` includes source checkpoint `61521fa` |
+| Source implementation checkpoint | `master@ff3f371` |
+| Remote | `origin/master` includes source checkpoint `ff3f371` |
 | SDK | .NET 10; repository solution targets `net10.0` |
 | Database | PostgreSQL 18.6 on loopback port 5433 for development only |
-| Build | `dotnet build src/AuditSphereOps.Web/AuditSphereOps.Web.csproj --no-restore --configuration Release` at `61521fa` — passed, 0 warnings/errors; solution Release baseline passed at `4010963` |
-| Tests | 213/213 passed, 0 skipped against PostgreSQL 18.6 at `61521fa` |
+| Build | `dotnet build src/AuditSphereOps.Web/AuditSphereOps.Web.csproj --no-restore --configuration Release` at `ff3f371` — passed, 0 warnings/errors; solution Release baseline passed at `4010963` |
+| Tests | 214/214 passed, 0 skipped against PostgreSQL 18.6 at `ff3f371` |
 | Migrations | 75 applied; latest `20260921150321_BindMappingsToClientCharts` |
 | Model drift | `dotnet ef migrations has-pending-model-changes` — no changes |
 | Restore drill | `scripts/db/restore-drill.sh` — passed; 75 migrations reconciled |
@@ -66,6 +66,7 @@ This file records observed repository state only. The authoritative build contra
 - A validated financial package can now become a release candidate only through the existing guarded approval/release path; the candidate records `FINANCIAL_PACKAGE`, exact package revision/generation/hash, current management/accounting/partner decisions, and the normal checkpoint gate.
 - The completion screen exposes package-candidate preparation only to partner/administrator actors after all three current package reviews are approved; repeated preparation reuses the exact candidate.
 - ECL and inventory evidence records capture the reconciliation source hash and client input generation; review blocks when either source lineage or generation is stale.
+- The enabled ECL and inventory valuation profiles have PostgreSQL golden fixtures and boundary coverage: expected loss, NRV/cost valuation, zero-input behavior, unsupported ECL methods and negative inventory inputs are verified without enabling unapproved methods.
 - Bounded GL chunk intake with canonical content digests, transactional batch locking, idempotent retries, contiguous finalization and persisted accepted-count reconciliation.
 - Source-bound GL reconciliations reject a sealed batch whose reporting period or currency differs from the selected period; PostgreSQL regression coverage passes.
 - Reconciliation items are bound to the exact source currency, reject future item dates and missing dispositions, normalize accepted currency codes, and retain explicit receivable/payable ageing basis, rule version, bucket, credit treatment and paired settlement evidence; PostgreSQL regression coverage passes.

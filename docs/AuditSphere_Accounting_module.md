@@ -486,7 +486,7 @@ Story criteria remain proposed unless marked locally verified in the execution l
 - [x] Calculated differences reconcile to the booked amount and link to same-engagement proposed adjustments.
 - [x] Input changes create a new calculation version and stale the previous review.
 - [x] Missing assumptions or unsupported methods block a calculated conclusion; no universal default percentages.
-- [ ] Approved golden fixtures and boundary cases verify each enabled calculation method.
+- [x] Approved golden fixtures and boundary cases verify each enabled calculation method.
 
 ### AC-14 — Add rollforward and specialist accounting schedules
 
