@@ -40,7 +40,11 @@ else if (_error is not null)
 }
 else
 {
-  <p class="scope-note">Live projections for firm <code>@_actor.FirmId</code>. Counts are read from PostgreSQL and are not synthetic.</p>
+  <p class="scope-note">Live projections for the current explicit scope in firm <code>@_actor.FirmId</code>. Counts are read from PostgreSQL and are not synthetic.</p>
+  @if (!_hasScope)
+  {
+    <section class="notice" role="status"><h2>No firm, client or engagement scope</h2><p>Ask a firm administrator for an active grant before using the portfolio. No firm data is shown without an explicit scope.</p></section>
+  }
   <section class="metric-grid" aria-label="Portfolio metrics">
     <article class="metric card"><span class="metric-label">Clients</span><strong class="metric-value">@_metrics.Clients</strong></article>
     <article class="metric card"><span class="metric-label">Engagements</span><strong class="metric-value">@_metrics.Engagements</strong></article>
@@ -128,6 +132,7 @@ else
   private List<CandidateRow> _candidates = [];
   private List<PackageRow> _packages = [];
   private bool _loading = true;
+  private bool _hasScope;
   private string? _error;
 
   private bool OidcConfigured => !string.IsNullOrWhiteSpace(Configuration["Identity:TenantId"]) &&
@@ -142,17 +147,37 @@ else
       _actor = await ActorResolver.ResolveAsync();
       if (_actor is null || !IsStaff) return;
       await using var db = await DbFactory.CreateDbContextAsync();
+      var grants = await db.RoleGrants.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
+        x.UserId == _actor.UserId && x.RevokedAt == null).Select(x => new { x.ClientId, x.EngagementId }).ToListAsync();
+      var firmWide = grants.Any(x => x.ClientId is null && x.EngagementId is null);
+      var grantedClientIds = grants.Where(x => x.ClientId.HasValue).Select(x => x.ClientId!.Value).ToArray();
+      var grantedEngagementIds = grants.Where(x => x.EngagementId.HasValue).Select(x => x.EngagementId!.Value).ToArray();
+      var engagementClientIds = grantedEngagementIds.Length == 0 ? [] : await db.Engagements.AsNoTracking()
+        .Where(x => x.FirmId == _actor.FirmId && grantedEngagementIds.Contains(x.Id))
+        .Select(x => x.PracticeClientId).ToArrayAsync();
+      var clientIds = grantedClientIds.Concat(engagementClientIds).Distinct().ToArray();
+      var scopedEngagementIds = firmWide ? [] : await db.Engagements.AsNoTracking()
+        .Where(x => x.FirmId == _actor.FirmId && (clientIds.Contains(x.PracticeClientId) || grantedEngagementIds.Contains(x.Id)))
+        .Select(x => x.Id).ToArrayAsync();
+      _hasScope = firmWide || clientIds.Length > 0;
+      if (!_hasScope) return;
       _metrics = new PortfolioMetrics(
-        await db.PracticeClients.CountAsync(x => x.FirmId == _actor.FirmId),
-        await db.Engagements.CountAsync(x => x.FirmId == _actor.FirmId),
-        await db.EngagementHolds.CountAsync(x => x.FirmId == _actor.FirmId && !x.Released),
-        await db.DurableOperations.CountAsync(x => x.FirmId == _actor.FirmId && x.Status != Domain.Completion.OperationState.COMPLETED && x.Status != Domain.Completion.OperationState.CANCELLED_WITH_DISPOSITION),
-        await db.ReleaseCandidates.CountAsync(x => x.FirmId == _actor.FirmId && x.Status == ReleaseStates.Ready),
-        await db.Releases.CountAsync(x => x.FirmId == _actor.FirmId));
-      _candidates = await db.ReleaseCandidates.AsNoTracking().Where(x => x.FirmId == _actor.FirmId)
+        await db.PracticeClients.CountAsync(x => x.FirmId == _actor.FirmId && (firmWide || clientIds.Contains(x.Id))),
+        await db.Engagements.CountAsync(x => x.FirmId == _actor.FirmId && (firmWide || scopedEngagementIds.Contains(x.Id))),
+        await db.EngagementHolds.CountAsync(x => x.FirmId == _actor.FirmId && !x.Released && (firmWide || scopedEngagementIds.Contains(x.EngagementId))),
+        await db.DurableOperations.CountAsync(x => x.FirmId == _actor.FirmId &&
+          (firmWide || (x.ClientId == null && x.EngagementId == null) ||
+           (x.ClientId.HasValue && clientIds.Contains(x.ClientId.Value)) ||
+           (x.EngagementId.HasValue && scopedEngagementIds.Contains(x.EngagementId.Value))) &&
+          x.Status != Domain.Completion.OperationState.COMPLETED && x.Status != Domain.Completion.OperationState.CANCELLED_WITH_DISPOSITION),
+        await db.ReleaseCandidates.CountAsync(x => x.FirmId == _actor.FirmId && (firmWide || clientIds.Contains(x.ClientId)) && x.Status == ReleaseStates.Ready),
+        await db.Releases.CountAsync(x => x.FirmId == _actor.FirmId && (firmWide || clientIds.Contains(x.ClientId))));
+      _candidates = await db.ReleaseCandidates.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
+        (firmWide || clientIds.Contains(x.ClientId)))
         .OrderByDescending(x => x.CreatedAt).Take(25)
         .Select(x => new CandidateRow(x.Id, x.TargetRevision, x.Status, x.CreatedAt)).ToListAsync();
-      _packages = await db.FinancialPackages.AsNoTracking().Where(x => x.FirmId == _actor.FirmId)
+      _packages = await db.FinancialPackages.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
+        (firmWide || clientIds.Contains(x.ClientId)))
         .OrderByDescending(x => x.CreatedAt).Take(25)
         .Select(x => new PackageRow(x.Id, x.Framework, x.PeriodStart, x.PeriodEnd, x.Status)).ToListAsync();
     }
