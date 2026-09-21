@@ -3,6 +3,7 @@
 @using AuditSphereOps.Application.Accounting
 @inject CurrentActorResolver ActorResolver
 @inject IDbContextFactory<AuditSphereDbContext> DbFactory
+@inject IJSRuntime JS
 
 <PageTitle>Financial statement package</PageTitle>
 <a class="back-link" href="/app">← Back to portfolio</a>
@@ -89,7 +90,7 @@ else
         </div>
         <label>Comment<textarea @bind="_reviewComment" maxlength="4000" rows="3" data-optional="true"></textarea></label>
         <div style="display:flex;gap:.75rem;align-items:center;margin-top:1rem;flex-wrap:wrap">
-          <button class="button" @onclick="RecordReviewAsync" disabled="@_reviewBusy">@(_reviewBusy ? "Recording…" : "Record decision")</button>
+          <button class="button" title="Record this decision against the exact package revision, generation and hash." @onclick="RecordReviewAsync" disabled="@_reviewBusy">@(_reviewBusy ? "Recording…" : "Record decision")</button>
           <span class="muted">Management approval uses offline evidence on this staff surface; signed-in management approval must be completed by the authorized client-user surface.</span>
         </div>
       }
@@ -166,10 +167,16 @@ else
   {
     <section class="card" aria-labelledby="artifact-heading">
       <h2 id="artifact-heading">Deterministic package artifact</h2>
+      <p class="scope-note">This is the persisted artifact for the exact package revision and template. Downloading it does not release or deliver the package.</p>
       <dl class="details">
         <dt>Artifact SHA-256</dt><dd><code>@_artifact.ArtifactSha256Hex</code></dd>
         <dt>Artifact size</dt><dd>@_artifact.ArtifactBytes.Length bytes</dd>
       </dl>
+      <button class="button" title="Download the persisted exact package artifact as text; this does not release or deliver the package." @onclick="DownloadArtifactAsync" disabled="@_artifactBusy">@(_artifactBusy ? "Preparing…" : "Download artifact")</button>
+      @if (!string.IsNullOrWhiteSpace(_artifactStatus))
+      {
+        <p class="notice-text" role="status" aria-live="polite">@_artifactStatus</p>
+      }
       <details style="margin-top: 1rem;">
         <summary>View canonical artifact text</summary>
         <pre class="code-block" style="white-space: pre-wrap; font-family: monospace; background: var(--bg-surface-secondary, #f4f4f5); padding: 1rem; border-radius: 4px; overflow-x: auto;"><code>@_artifact.RenderedText</code></pre>
@@ -190,6 +197,8 @@ else
   private List<FinancialPackageReviewSummary> _reviews = [];
   private bool _loading = true;
   private bool _reviewBusy;
+  private bool _artifactBusy;
+  private string? _artifactStatus;
   private CommandResult<Guid>? _reviewResult;
   private string? _reviewSuccessMessage;
   private string _reviewStage = FinancialPackageReviewStages.AccountingReview;
@@ -209,14 +218,23 @@ else
 
   protected override async Task OnInitializedAsync()
   {
-    _actor = await ActorResolver.ResolveAsync();
+        _actor = await ActorResolver.ResolveAsync();
     if (_actor is not null && IsStaff)
     {
       await using var db = await DbFactory.CreateDbContextAsync();
-      _package = await db.FinancialPackages.AsNoTracking()
+      var candidate = await db.FinancialPackages.AsNoTracking()
         .SingleOrDefaultAsync(x => x.Id == PackageId && x.FirmId == _actor.FirmId);
-      if (_package is not null)
+      if (candidate is not null)
       {
+        var authorization = await AuthorizationDecision.AuthorizeAsync(db, _actor,
+          new AuthorizationRequest(candidate.FirmId, candidate.ClientId, candidate.EngagementId,
+            ["Administrator", "Partner", "Manager", "Reviewer", "Staff", "AccountingPreparer", "AccountingReviewer"], InternalOnly: true));
+        if (!authorization.Succeeded)
+        {
+          _loading = false;
+          return;
+        }
+        _package = candidate;
         _validations = await db.FinancialPackageValidations.AsNoTracking()
           .Where(x => x.FirmId == _actor.FirmId && x.FinancialPackageId == _package.Id)
           .OrderBy(x => x.Code).ToListAsync();
@@ -229,7 +247,15 @@ else
         _disclosures = await db.FinancialPackageDisclosures.AsNoTracking()
           .Where(x => x.FirmId == _actor.FirmId && x.ClientId == _package.ClientId && x.EngagementId == _package.EngagementId && x.FinancialPackageId == _package.Id)
           .OrderBy(x => x.Code).ToListAsync();
-        _artifact = FinancialStatementService.RenderPackageArtifact(_package, _lines, _cashFlowLines, _disclosures, _validations);
+        var storedArtifact = await db.FinancialPackageArtifacts.AsNoTracking().SingleOrDefaultAsync(x =>
+          x.FirmId == _package.FirmId && x.ClientId == _package.ClientId && x.EngagementId == _package.EngagementId &&
+          x.FinancialPackageId == _package.Id && x.PackageRevision == _package.Revision &&
+          x.PackageGeneration == _package.Generation && x.PackageHash == _package.CalculationHash &&
+          x.ArtifactVersion == FinancialPackageArtifactVersions.Text && x.ArtifactBytes.Length > 0);
+        if (storedArtifact is not null)
+          _artifact = new FinancialStatementPackageArtifact(storedArtifact.FinancialPackageId,
+            storedArtifact.PackageHash, storedArtifact.ArtifactSha256Hex, storedArtifact.ArtifactBytes,
+            System.Text.Encoding.UTF8.GetString(storedArtifact.ArtifactBytes), storedArtifact.Id);
         var reviews = await FinancialPackageReviewService.GetAsync(db, _actor, _package.Id);
         if (reviews.Succeeded)
           _reviews = reviews.Value?.ToList() ?? [];
@@ -259,5 +285,27 @@ else
       }
     }
     finally { _reviewBusy = false; }
+  }
+
+  private async Task DownloadArtifactAsync()
+  {
+    if (_package is null || _artifact is null || _artifactBusy) return;
+    _artifactBusy = true;
+    _artifactStatus = "Preparing the persisted exact artifact…";
+    try
+    {
+      await JS.InvokeVoidAsync("auditSphereExports.downloadText",
+        $"auditsphere-financial-package-{_package.Id:D}-r{_package.Revision}.txt", _artifact.RenderedText, "text/plain;charset=utf-8");
+      _artifactStatus = "Artifact download started. Release and delivery remain separate controls.";
+    }
+    catch (JSDisconnectedException)
+    {
+      _artifactStatus = "The download acknowledgement was interrupted; reopen the page and retry.";
+    }
+    catch (JSException ex)
+    {
+      _artifactStatus = $"Download failed without changing the package: {ex.Message}";
+    }
+    finally { _artifactBusy = false; }
   }
 }
