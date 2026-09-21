@@ -6,8 +6,8 @@ This file records observed repository state only. The authoritative build contra
 
 | Item | Observed value |
 |---|---|
-| Source implementation checkpoint | `master@61c93ad` |
-| Remote | `origin/master` includes source checkpoint `61c93ad` |
+| Source implementation checkpoint | `master@4010963` |
+| Remote | `origin/master` includes source checkpoint `4010963` |
 | SDK | .NET 10; repository solution targets `net10.0` |
 | Database | PostgreSQL 18.6 on loopback port 5433 for development only |
 | Build | `dotnet build AuditSphereOps.slnx --no-restore --configuration Release` — passed, 0 warnings/errors |
@@ -57,6 +57,7 @@ This file records observed repository state only. The authoritative build contra
 - The accounting evidence queue links reviewed accounting evidence to the exact associated audit workpaper, and the accounting dashboard exposes scoped period status plus roll-forward/restatement handoffs.
 - Portfolio projections apply the same active firm-wide, direct-client or exact-engagement grant boundary to counters, holds, durable operations, release candidates and financial-package lists; the client index adds scope-bound search and CSV export, engagement-only grants cannot expand to sibling engagements, and actors without an explicit scope see no firm data and receive actionable guidance.
 - The shared layout exposes current-route navigation for the implemented accounting, evidence, package-review, roll-forward, restatement, consolidation and journal workbenches; unsupported workbenches are not presented as links.
+- The accounting workspace pins a selected visible period's firm, group, legal entity, engagement, period, book, currency and package version in a draft-restored context header; the selection is display-only and does not broaden authorization.
 - Accounting dashboard, period roll-forward and restatement data loaders fail closed on an empty grant set and include only clients covered by an explicit firm-wide, client or engagement grant; the dashboard surfaces the active scope description and missing-scope guidance.
 - Client-safe validated-package view and signed-in management acknowledgement are available at the restricted client portal route. The portal exposes statement totals and package metadata only; internal review history and workpapers remain staff-only.
 - An internal package-review queue lists only current validated packages in the actor's authorized client/engagement scopes and routes reviewers to the exact-version package surface.
