@@ -132,7 +132,7 @@
   }
 
   function addTooltips(container) {
-    container.querySelectorAll?.('button:not([title]), a.button:not([title]), a[class*="btn-"]:not([title])').forEach(button => {
+    container.querySelectorAll?.('button:not([title]), a.button:not([title]), a[class*="btn-"]:not([title]), .table-wrap a[href]:not([title])').forEach(button => {
       const text = (button.dataset.tooltip || button.getAttribute('aria-label') || button.textContent || '').replace(/\s+/g, ' ').trim();
       if (text) button.title = `Activate to ${text.toLowerCase()}.`;
     });
