@@ -6,15 +6,15 @@ This file records observed repository state only. The authoritative build contra
 
 | Item | Observed value |
 |---|---|
-| Source implementation checkpoint | `master@d28f364` |
-| Remote | `origin/master` includes source checkpoint `df8a211` |
+| Source implementation checkpoint | `master@6e7b3a7` |
+| Remote | `origin/master` includes source checkpoint `6e7b3a7` |
 | SDK | .NET 10; repository solution targets `net10.0` |
 | Database | PostgreSQL 18.6 on loopback port 5433 for development only |
 | Build | `dotnet build AuditSphereOps.slnx --no-restore --configuration Release` — passed, 0 warnings/errors |
-| Tests | 210/210 passed, 0 skipped against PostgreSQL 18.6 |
-| Migrations | 72 applied; latest `20260921134648_ReportingTaxonomyOverlays` |
+| Tests | 211/211 passed, 0 skipped against PostgreSQL 18.6 |
+| Migrations | 74 applied; latest `20260921144550_ExternalComponentPackCompatibilityBridge` |
 | Model drift | `dotnet ef migrations has-pending-model-changes` — no changes |
-| Restore drill | `scripts/db/restore-drill.sh` — passed; 72 migrations reconciled |
+| Restore drill | `scripts/db/restore-drill.sh` — passed; 74 migrations reconciled |
 | Production effects | Disabled locally; no production acceptance claimed |
 
 ## Implemented local capability
@@ -41,6 +41,7 @@ This file records observed repository state only. The authoritative build contra
 - Immutable package-review decisions for management, accounting, and partner stages. Decisions are bound to the exact package revision, generation, package hash and persisted rendered-artifact hash/version; evidence modes remain separated; append-only database protection is enforced. Review fails closed when the exact framework/template artifact has not been rendered.
 - Consolidation perimeter approval requires an independently accepted group capability profile for the selected method; capability-preparer self-approval is rejected. Component approval requires current management, accounting and partner decisions for the exact package.
 - Consolidation component submissions must also match the package's period basis, taxonomy version and mapping-version ID; the deterministic run manifest preserves that exact component lineage.
+- Externally prepared component packs use typed raw/normalized digests, line-level reconciliation, independent approval, immutable submitted/returned/resubmitted/approved history, and an explicit approved compatibility bridge when dates or bases differ. Only approved, reconciled packs can enter consolidation, and records exports preserve pack provenance/history.
 - Consolidation run manifests include component package hashes; approval recomputes current package, intercompany and group-journal inputs and blocks stale runs until a new run is built.
 - The bounded foreign-operation profile pins an approved rate set and translation policy to the scope, requires maker/checker approval for each foreign component translation, preserves per-line source/FX lineage in the deterministic manifest, and blocks missing or stale rates/packages. Full FX remeasurement/reserve, NCI, acquisition, ownership-change, nested-group and complex-elimination methods remain disabled pending approved method-specific fixtures.
 - The enabled FX profile accepts only explicit `DIRECT` rates; unsupported inverse semantics are rejected rather than silently multiplied with the wrong direction.
@@ -135,7 +136,7 @@ dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infr
 scripts/db/restore-drill.sh
 ```
 
-The restore evidence is written to [`docs/evidence/restore-drill-latest.json`](../evidence/restore-drill-latest.json). The latest rehearsal restored 72 migrations through `20260921134648_ReportingTaxonomyOverlays`; it is loopback-only and explicitly reports that external checkpoint custody and production RPO/RTO were not run.
+The restore evidence is written to [`docs/evidence/restore-drill-latest.json`](../evidence/restore-drill-latest.json). The latest rehearsal restored 74 migrations through `20260921144550_ExternalComponentPackCompatibilityBridge`; it is loopback-only and explicitly reports that external checkpoint custody and production RPO/RTO were not run.
 
 ## Resume rule
 

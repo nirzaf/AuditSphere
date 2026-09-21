@@ -562,9 +562,9 @@ Story criteria remain proposed unless marked locally verified in the execution l
 
 **Acceptance criteria**
 - [x] Each input references the exact entity package, period, framework/basis, currency, taxonomy/mapping and hash.
-- [ ] Externally prepared components use controlled import, reconciliation and approval, not hidden default acceptance.
-- [ ] Incompatible dates/bases require a documented bridge and approval; missing components are not zero balances.
-- [ ] Submitted, returned, resubmitted and approved component versions remain historical records.
+- [x] Externally prepared components use controlled import, reconciliation and approval, not hidden default acceptance.
+- [x] Incompatible dates/bases require a documented bridge and approval; missing components are not zero balances.
+- [x] Submitted, returned, resubmitted and approved component versions remain historical records.
 - [x] Group access consumes explicitly approved packs without automatically exposing underlying client workpapers.
 - [x] Updating any component makes downstream group runs stale until rebuilt/reviewed.
 
