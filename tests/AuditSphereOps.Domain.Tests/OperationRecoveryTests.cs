@@ -12,6 +12,40 @@ namespace AuditSphereOps.Domain.Tests;
 public sealed class OperationRecoveryTests
 {
   [Fact]
+  public async Task QueuedOperation_CanBeCancelledWithoutPublishing()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var harness = await PbcSeed.CreateTransferHarnessAsync(pg);
+    var admin = PbcSeed.Actor(harness.Fixture.Admin, "Administrator");
+    var operationId = await SingleOperationIdAsync(pg);
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var cancelled = await OperationRecoveryService.CancelAsync(db, admin,
+        new OperationCancellationRequest(operationId, "Operator stopped the queued transfer before worker claim."));
+      Assert.True(cancelled.Succeeded, cancelled.ErrorCode);
+      var operation = await db.DurableOperations.AsNoTracking().SingleAsync(x => x.Id == operationId);
+      Assert.Equal(OperationState.CANCELLED_WITH_DISPOSITION, operation.Status);
+      Assert.Equal("operator-cancelled", operation.ErrorCode);
+      Assert.Equal("Operator stopped the queued transfer before worker claim.", operation.CancellationDisposition);
+      Assert.True(await db.OperationEvents.AsNoTracking().AnyAsync(x =>
+        x.OperationId == operationId && x.Kind == "operation.cancelled.v1"));
+    }
+
+    Assert.False(await harness.Worker.ProcessNextAsync());
+    await using (var verify = new AuditSphereDbContext(pg.Options))
+    {
+      var intent = await verify.PbcUploadIntents.AsNoTracking().SingleAsync(x => x.Id == harness.Staged.UploadIntentId);
+      Assert.Equal(PbcUploadStates.Staged, intent.State);
+      var refused = await OperationRecoveryService.RetryAsync(verify, admin,
+        new OperationRecoveryRequest(operationId));
+      Assert.False(refused.Succeeded);
+      Assert.Equal(ErrorCodes.Operations.State, refused.ErrorCode);
+    }
+    PbcSeed.DeleteDirectory(harness.Staged.StagingRoot);
+  }
+
+  [Fact]
   public async Task BlockedTransfer_RecoveredByAdministrator_CompletesOnRetry()
   {
     await using var pg = await PgTestSchema.CreateAsync();

@@ -156,6 +156,7 @@ public sealed class DurableOperation
   public string? ResultIdentity { get; set; }
   public string? ResultDigest { get; set; }
   public string? ErrorCode { get; set; }
+  public string? CancellationDisposition { get; set; }
   public DateTimeOffset? CompletedAt { get; set; }
   public DateTimeOffset CreatedAt { get; set; }
 }

@@ -19,7 +19,7 @@ else if (_actor is null || !_isAdmin)
 }
 else
 {
-    <p class="scope-note">Redacted operational evidence for the current firm only: classification codes and durable state, never payloads, request bytes or lease owner identities. A re-armed operation re-runs through the same guarded validation as a first attempt.</p>
+    <p class="scope-note">Redacted operational evidence for the current firm only: classification codes and durable state, never payloads, request bytes or lease owner identities. A re-armed operation re-runs through the same guarded validation as a first attempt. Only queued work without a worker lease can be cancelled safely.</p>
     @if (_operatingMode == "RECOVERY_QUARANTINE")
     {
       <section class="notice warning" role="alert">
@@ -42,9 +42,11 @@ else
   {
     <section class="card" aria-labelledby="operations-heading">
       <h2 id="operations-heading">Latest 50 durable operations</h2>
+      <label for="cancel-disposition">Cancellation disposition</label>
+      <input id="cancel-disposition" @bind="_cancelDisposition" maxlength="2000" placeholder="Why is the queued operation being cancelled?" />
       <div class="table-wrap"><table>
         <caption class="sr-only">Durable operations in the current firm scope</caption>
-        <thead><tr><th scope="col">Kind</th><th scope="col">Status</th><th scope="col">Attempts</th><th scope="col">Next attempt</th><th scope="col">Code</th><th scope="col">Action</th></tr></thead>
+        <thead><tr><th scope="col">Kind</th><th scope="col">Status</th><th scope="col">Attempts</th><th scope="col">Next attempt</th><th scope="col">Code</th><th scope="col">Disposition</th><th scope="col">Action</th></tr></thead>
         <tbody>
         @foreach (var op in _operations)
         {
@@ -54,7 +56,12 @@ else
             <td>@op.AttemptCount</td>
             <td>@(op.NextAttemptAt == null ? "—" : op.NextAttemptAt.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm"))</td>
             <td>@(op.ErrorCode ?? "—")</td>
+            <td>@(op.CancellationDisposition ?? "—")</td>
             <td>
+              @if (op.Status is "PENDING" or "RETRY_WAIT")
+              {
+                <button class="button" @onclick="() => CancelAsync(op)" disabled="@_busy">Cancel queued work</button>
+              }
               @if (OperationRecoveryService.RetryableStates.Contains(Enum.Parse<OperationState>(op.Status)))
               {
                 <button class="button" @onclick="() => RetryAsync(op)" disabled="@_busy">Re-arm for retry</button>
@@ -75,6 +82,7 @@ else
   private List<OperationProjection> _operations = [];
   private CommandResult? _result;
   private string? _successMessage;
+  private string _cancelDisposition = string.Empty;
   private bool _loading = true;
   private bool _busy;
 
@@ -125,6 +133,27 @@ else
       _result = await OperationRecoveryService.RetryAsync(db, _actor, new OperationRecoveryRequest(op.Id));
       if (_result.Succeeded)
         _successMessage = "The operation was re-armed for retry; the worker picks it up on its next attempt window.";
+      var listed = await OperationRecoveryService.ListAsync(db, _actor);
+      if (listed.Succeeded)
+        _operations = listed.Value!.ToList();
+    }
+    finally { _busy = false; }
+  }
+
+  private async Task CancelAsync(OperationProjection op)
+  {
+    if (_actor is null || _busy) return;
+    _busy = true;
+    try
+    {
+      await using var db = await DbFactory.CreateDbContextAsync();
+      _result = await OperationRecoveryService.CancelAsync(db, _actor,
+        new OperationCancellationRequest(op.Id, _cancelDisposition));
+      if (_result.Succeeded)
+      {
+        _successMessage = "The queued operation was cancelled and cannot be claimed by a worker.";
+        _cancelDisposition = string.Empty;
+      }
       var listed = await OperationRecoveryService.ListAsync(db, _actor);
       if (listed.Succeeded)
         _operations = listed.Value!.ToList();

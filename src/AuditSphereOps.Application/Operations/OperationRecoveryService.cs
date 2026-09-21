@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 namespace AuditSphereOps.Application.Operations;
 
 public sealed record OperationRecoveryRequest(Guid OperationId);
+public sealed record OperationCancellationRequest(Guid OperationId, string Disposition);
 public sealed record RecoverySessionRequest(string RestorePoint, long ExternalEpoch,
   string ReconciliationScope, string Findings);
 public sealed record RecoveryRestartRequest(Guid SessionId, string Findings);
@@ -16,7 +17,7 @@ public sealed record RecoveryRestartRequest(Guid SessionId, string Findings);
 public sealed record OperationProjection(
   Guid Id, string Kind, string Status, Guid TargetId, long ExpectedRevision, int AttemptCount,
   DateTimeOffset? NextAttemptAt, DateTimeOffset? LeaseExpiresAt, string? ErrorCode,
-  DateTimeOffset CreatedAt, DateTimeOffset? CompletedAt, bool HasResultEvidence);
+  string? CancellationDisposition, DateTimeOffset CreatedAt, DateTimeOffset? CompletedAt, bool HasResultEvidence);
 
 /// <summary>
 /// Authorized operator recovery (spec 43.2 operations route). It re-arms retryable terminal
@@ -44,7 +45,7 @@ public static class OperationRecoveryService
       .Take(50)
       .Select(o => new OperationProjection(
         o.Id, o.OperationKind, o.Status.ToString(), o.TargetId, o.ExpectedRevision, o.AttemptCount,
-        o.NextAttemptAt, o.LeaseExpiresAt, o.ErrorCode, o.CreatedAt, o.CompletedAt,
+        o.NextAttemptAt, o.LeaseExpiresAt, o.ErrorCode, o.CancellationDisposition, o.CreatedAt, o.CompletedAt,
         o.ResultIdentity != null && o.ResultDigest != null))
       .ToListAsync(ct);
     return CommandResult<IReadOnlyList<OperationProjection>>.Ok(operations);
@@ -102,6 +103,56 @@ public static class OperationRecoveryService
     {
       Id = Guid.CreateVersion7(), OperationId = op.Id, Token = op.AttemptToken,
       Kind = "operation.recovery-retry.v1", Executor = actor.UserId.ToString("D"),
+      OccurredAt = DateTimeOffset.UtcNow
+    });
+    await db.SaveChangesAsync(ct);
+    await tx.CommitAsync(ct);
+    return CommandResult.Ok();
+  }
+
+  /// <summary>
+  /// Cancels only queued work that has not acquired a worker lease. Active work is
+  /// deliberately left to lease/reconciliation handling because its effect boundary
+  /// cannot be proven safe from an operator request alone.
+  /// </summary>
+  public static async Task<CommandResult> CancelAsync(
+    IAuditSphereDbContext db, ActorContext actor, OperationCancellationRequest input,
+    CancellationToken ct = default)
+  {
+    if (input.OperationId == Guid.Empty || string.IsNullOrWhiteSpace(input.Disposition) || input.Disposition.Trim().Length > 2000)
+      return CommandResult.Fail(ErrorCodes.Operations.Invalid, "An operation id and bounded cancellation disposition are required.");
+    var auth = await AuthorizeAsync(db, actor, ct);
+    if (!auth.Succeeded)
+      return auth;
+
+    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    await db.Database.ExecuteSqlRawAsync(
+      "SET LOCAL lock_timeout = '5s'; SET LOCAL statement_timeout = '15s'", ct);
+    var locked = await db.DurableOperations.FromSqlInterpolated($"""
+      SELECT * FROM durable_operations WHERE id = {input.OperationId} AND firm_id = {actor.FirmId} FOR UPDATE
+      """).ToListAsync(ct);
+    if (locked.Count == 0)
+      return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var op = locked[0];
+    if (op.Status == OperationState.CANCELLED_WITH_DISPOSITION)
+      return CommandResult.Ok();
+    if (op.Status is not (OperationState.PENDING or OperationState.RETRY_WAIT) || op.LeaseOwner is not null)
+      return CommandResult.Fail(ErrorCodes.Operations.State,
+        "Only queued work without an active lease can be cancelled safely.");
+
+    var disposition = input.Disposition.Trim();
+    var count = await db.Database.ExecuteSqlInterpolatedAsync($"""
+      UPDATE durable_operations SET status = 'CANCELLED_WITH_DISPOSITION', error_code = 'operator-cancelled',
+        cancellation_disposition = {disposition}, next_attempt_at = statement_timestamp()
+      WHERE id = {op.Id} AND firm_id = {actor.FirmId} AND attempt_token = {op.AttemptToken}
+        AND status = {op.Status.ToString()} AND lease_owner IS NULL AND lease_expires_at IS NULL
+      """, ct);
+    if (count != 1)
+      return CommandResult.Fail(ErrorCodes.Operations.Conflict, "The operation changed while cancellation was requested.");
+    db.OperationEvents.Add(new OperationEvent
+    {
+      Id = Guid.CreateVersion7(), OperationId = op.Id, Token = op.AttemptToken,
+      Kind = "operation.cancelled.v1", Executor = actor.UserId.ToString("D"),
       OccurredAt = DateTimeOffset.UtcNow
     });
     await db.SaveChangesAsync(ct);

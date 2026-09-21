@@ -570,6 +570,7 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     op.Property(x => x.AuthorityMode).HasConversion<string>();
     op.Property(x => x.IdempotencyKey).HasMaxLength(200);
     op.Property(x => x.RequestDigest).HasMaxLength(64);
+    op.Property(x => x.CancellationDisposition).HasMaxLength(2000);
     op.HasIndex(x => new { x.FirmId, x.IdempotencyKey }).IsUnique().HasDatabaseName("ux_operation_firm_key");
     op.HasIndex(x => new { x.FirmId, x.ExecutionGroup, x.Status, x.NextAttemptAt, x.CreatedAt });
     op.ToTable("durable_operations", t =>
@@ -581,6 +582,7 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
       t.HasCheckConstraint("ck_operation_lease", "(status IN ('CLAIMED','REMOTE_STARTED','VERIFYING','CANCEL_REQUESTED') AND lease_owner IS NOT NULL AND lease_expires_at IS NOT NULL AND attempt_token > 0) OR (status NOT IN ('CLAIMED','REMOTE_STARTED','VERIFYING','CANCEL_REQUESTED') AND lease_owner IS NULL AND lease_expires_at IS NULL)");
       t.HasCheckConstraint("ck_operation_scope", "engagement_id IS NULL OR client_id IS NOT NULL");
       t.HasCheckConstraint("ck_operation_result", "status <> 'COMPLETED' OR (completed_at IS NOT NULL AND result_identity IS NOT NULL AND length(result_identity) > 0 AND result_digest IS NOT NULL AND result_digest ~ '^[0-9a-f]{64}$')");
+      t.HasCheckConstraint("ck_operation_cancellation", "status <> 'CANCELLED_WITH_DISPOSITION' OR length(trim(cancellation_disposition)) > 0");
     });
     op.HasOne<FirmSafetyState>().WithMany().HasForeignKey(x => x.FirmId).OnDelete(DeleteBehavior.Restrict);
     op.HasOne<PracticeClient>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId })
