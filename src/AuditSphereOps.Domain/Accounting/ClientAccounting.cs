@@ -27,6 +27,13 @@ public static class AccountingCapabilityAcceptanceStages
   public const string Released = "RELEASED";
 }
 
+public static class AccountingCapabilityServiceKinds
+{
+  public const string EntityReporting = "ENTITY_REPORTING";
+  public const string GroupReporting = "GROUP_REPORTING";
+  public const string AuditOnly = "AUDIT_ONLY";
+}
+
 public sealed class AccountingCapabilityProfile
 {
   public Guid Id { get; set; }

@@ -274,6 +274,18 @@ public sealed class ClientAccountingTests
         "STATUTORY", "", "PARTNER", "ENTITY"))).Value;
     var capability = await db.AccountingCapabilityProfiles.SingleAsync(x => x.Id == capabilityId);
     Assert.Equal(AccountingDefaults.DefaultCurrency, capability.ReportingCurrency);
+
+    var invalidKind = await ClientAccountingService.CreateCapabilityProfileAsync(db, reviewer,
+      new CapabilityProfileRequest(scope.ClientA, null, "GROUP_REPORTING", "IFRS", "2026", "ANNUAL", "",
+        "STATUTORY", "", "PARTNER", "ENTITY"));
+    Assert.False(invalidKind.Succeeded);
+    Assert.Equal(ErrorCodes.Accounting.MappingInvalid, invalidKind.ErrorCode);
+
+    var unsupportedKind = await ClientAccountingService.CreateCapabilityProfileAsync(db, reviewer,
+      new CapabilityProfileRequest(scope.ClientA, null, "BOOKKEEPING", "IFRS", "2026", "ANNUAL", "",
+        "STATUTORY", "", "PARTNER", "ENTITY"));
+    Assert.False(unsupportedKind.Succeeded);
+    Assert.Equal(ErrorCodes.Accounting.MappingInvalid, unsupportedKind.ErrorCode);
   }
 
   [Fact]

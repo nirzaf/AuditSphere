@@ -699,9 +699,17 @@ public static class ClientAccountingService
     IClientAccountingDbContext db, ActorContext actor, CapabilityProfileRequest request,
     CancellationToken ct = default)
   {
-    if ((request.ClientId.HasValue == request.GroupId.HasValue) || string.IsNullOrWhiteSpace(request.ServiceKind) ||
-        string.IsNullOrWhiteSpace(request.Framework))
-      return CommandResult<Guid>.Fail(ErrorCodes.Accounting.MappingInvalid, "A capability must target exactly one reporting scope.");
+    var serviceKind = request.ServiceKind.Trim().ToUpperInvariant();
+    var validScope = serviceKind switch
+    {
+      AccountingCapabilityServiceKinds.GroupReporting => request.GroupId.HasValue && !request.ClientId.HasValue,
+      AccountingCapabilityServiceKinds.EntityReporting or AccountingCapabilityServiceKinds.AuditOnly =>
+        request.ClientId.HasValue && !request.GroupId.HasValue,
+      _ => false
+    };
+    if (!validScope || string.IsNullOrWhiteSpace(request.Framework))
+      return CommandResult<Guid>.Fail(ErrorCodes.Accounting.MappingInvalid,
+        "A capability needs a supported service kind and its matching client or group scope.");
     var currency = (string.IsNullOrWhiteSpace(request.ReportingCurrency) ? AccountingDefaults.DefaultCurrency : request.ReportingCurrency).Trim().ToUpperInvariant();
     if (currency.Length != 3 || currency.Any(c => c is < 'A' or > 'Z') ||
         (!string.IsNullOrWhiteSpace(request.ConsolidationMethod) &&
@@ -715,7 +723,7 @@ public static class ClientAccountingService
     var profile = new AccountingCapabilityProfile
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = request.ClientId, GroupId = request.GroupId,
-      ServiceKind = request.ServiceKind.Trim().ToUpperInvariant(), Framework = request.Framework.Trim(), Edition = request.Edition.Trim(),
+      ServiceKind = serviceKind, Framework = request.Framework.Trim(), Edition = request.Edition.Trim(),
       PeriodRule = request.PeriodRule.Trim(), ReportingCurrency = currency, AccountingMethod = request.AccountingMethod.Trim(),
       ConsolidationMethod = request.ConsolidationMethod.Trim().ToUpperInvariant(), ReviewHierarchy = request.ReviewHierarchy.Trim(),
       TemplateFamily = request.TemplateFamily.Trim(), CreatedByUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
