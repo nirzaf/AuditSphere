@@ -634,6 +634,10 @@ public sealed class ConsolidationScopeVersion
   public string Method { get; set; } = string.Empty;
   public string Status { get; set; } = AccountingWorkflowStates.Draft;
   public string OpeningBasis { get; set; } = string.Empty;
+  public Guid? ExchangeRateSetVersionId { get; set; }
+  public Guid? TranslationPolicyVersionId { get; set; }
+  public DateOnly? TranslationRateDate { get; set; }
+  public string TranslationRateType { get; set; } = string.Empty;
   public Guid CreatedByUserId { get; set; }
   public Guid? ApprovedByUserId { get; set; }
   public DateTimeOffset? ApprovedAt { get; set; }
@@ -768,6 +772,7 @@ public sealed class ConsolidationRunLine
   public Guid ScopeVersionId { get; set; }
   public Guid RunId { get; set; }
   public Guid? ComponentId { get; set; }
+  public Guid? SourceLineId { get; set; }
   public Guid? ConsolidationJournalId { get; set; }
   public string TaxonomyCode { get; set; } = string.Empty;
   public decimal ComponentAmount { get; set; }
@@ -831,10 +836,17 @@ public sealed class TranslationResult
   public Guid ComponentId { get; set; }
   public Guid RateSetVersionId { get; set; }
   public Guid TranslationPolicyVersionId { get; set; }
+  public string? SourcePackageHash { get; set; }
+  public DateOnly? RateDate { get; set; }
+  public string RateType { get; set; } = string.Empty;
+  public decimal? AppliedRate { get; set; }
   public string FromCurrency { get; set; } = string.Empty;
   public string ToCurrency { get; set; } = string.Empty;
   public decimal TranslatedAmount { get; set; }
   public decimal TranslationReserve { get; set; }
   public string Status { get; set; } = AccountingWorkflowStates.Draft;
+  public Guid CreatedByUserId { get; set; }
+  public Guid? ApprovedByUserId { get; set; }
+  public DateTimeOffset? ApprovedAt { get; set; }
   public DateTimeOffset CreatedAt { get; set; }
 }

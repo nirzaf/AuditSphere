@@ -664,7 +664,7 @@ public static class ClientAccountingService
     var currency = request.ReportingCurrency.Trim().ToUpperInvariant();
     if (currency.Length != 3 || currency.Any(c => c is < 'A' or > 'Z') ||
         (!string.IsNullOrWhiteSpace(request.ConsolidationMethod) &&
-         !request.ConsolidationMethod.Equals(ConsolidationCalculator.RestrictedMethod, StringComparison.OrdinalIgnoreCase)))
+         request.ConsolidationMethod.Trim().ToUpperInvariant() is not (ConsolidationCalculator.RestrictedMethod or ConsolidationCalculator.ForeignOperationMethod)))
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The requested accounting or consolidation method is not enabled.");
     var auth = request.ClientId.HasValue
       ? await AuthorizeClientAsync(db, actor, request.ClientId.Value, ReviewerRoles, ct)

@@ -885,8 +885,8 @@ public sealed class ClientAccountingTests
   {
     var components = new[]
     {
-      new ConsolidationComponentBalance(Guid.Parse("00000000-0000-0000-0000-000000000001"), Guid.NewGuid(), "CASH", 100m, "QAR", 100m, "CONTROLLED", Hashing.Sha256Hex("component-a"), "STATUTORY", "tax-v1", "mapping-a"),
-      new ConsolidationComponentBalance(Guid.Parse("00000000-0000-0000-0000-000000000002"), Guid.NewGuid(), "REVENUE", -100m, "QAR", 100m, "CONTROLLED", Hashing.Sha256Hex("component-b"), "STATUTORY", "tax-v1", "mapping-b")
+      new ConsolidationComponentBalance(Guid.Parse("00000000-0000-0000-0000-000000000001"), Guid.NewGuid(), "CASH", 100m, "QAR", 100m, "CONTROLLED", Hashing.Sha256Hex("component-a"), "STATUTORY", "tax-v1", "mapping-a", Guid.Parse("00000000-0000-0000-0000-000000000011")),
+      new ConsolidationComponentBalance(Guid.Parse("00000000-0000-0000-0000-000000000002"), Guid.NewGuid(), "REVENUE", -100m, "QAR", 100m, "CONTROLLED", Hashing.Sha256Hex("component-b"), "STATUTORY", "tax-v1", "mapping-b", Guid.Parse("00000000-0000-0000-0000-000000000012"))
     };
     var first = ConsolidationCalculator.Compute("QAR", ConsolidationCalculator.RestrictedMethod, "OPENING-2026", components, []);
     var second = ConsolidationCalculator.Compute("QAR", ConsolidationCalculator.RestrictedMethod, "OPENING-2026", components, []);
@@ -908,6 +908,143 @@ public sealed class ClientAccountingTests
     Assert.Equal(125m, CurrencyTranslationCalculator.Translate(100m, "USD", "QAR", 1.25m));
     Assert.Throws<InvalidOperationException>(() => CurrencyTranslationCalculator.Translate(100m, "USD", "QAR", 0m));
     Assert.Throws<InvalidOperationException>(() => CurrencyTranslationCalculator.Translate(100m, "QAR", "QAR", 1.25m));
+  }
+
+  [Fact]
+  [Trait("Profile", "Unit")]
+  public void ForeignOperationTranslation_PreservesLineageAndSupportsMultipleLines()
+  {
+    var componentId = Guid.Parse("00000000-0000-0000-0000-000000000021");
+    var rateSetId = Guid.Parse("00000000-0000-0000-0000-000000000022");
+    var policyId = Guid.Parse("00000000-0000-0000-0000-000000000023");
+    var translationId = Guid.Parse("00000000-0000-0000-0000-000000000024");
+    var lines = new[]
+    {
+      new ConsolidationComponentBalance(componentId, Guid.NewGuid(), "CASH", 125m, "QAR", 100m, "CONTROLLED",
+        Hashing.Sha256Hex("foreign-component"), "STATUTORY", "tax-v1", "mapping-v1", Guid.Parse("00000000-0000-0000-0000-000000000025"),
+        "USD", translationId, rateSetId, policyId, new DateOnly(2026, 12, 31), "CLOSING", 1.25m),
+      new ConsolidationComponentBalance(componentId, Guid.NewGuid(), "REVENUE", -125m, "QAR", 100m, "CONTROLLED",
+        Hashing.Sha256Hex("foreign-component"), "STATUTORY", "tax-v1", "mapping-v1", Guid.Parse("00000000-0000-0000-0000-000000000026"),
+        "USD", translationId, rateSetId, policyId, new DateOnly(2026, 12, 31), "CLOSING", 1.25m)
+    };
+    var calculation = ConsolidationCalculator.Compute("QAR", ConsolidationCalculator.ForeignOperationMethod, "OPENING-2026", lines, []);
+    Assert.Equal(0m, calculation.SignedTotal);
+    Assert.Equal(new[] { 125m, -125m }, calculation.Lines.Select(x => x.ConsolidatedAmount));
+    Assert.Contains("USD", calculation.InputManifest);
+    Assert.Throws<InvalidOperationException>(() => ConsolidationCalculator.Compute("QAR", ConsolidationCalculator.ForeignOperationMethod,
+      "OPENING-2026", [lines[0] with { TranslationRate = 0m }, lines[1]], []));
+  }
+
+  [Fact]
+  [Trait("Profile", "Database")]
+  public async Task ForeignOperationGroup_RequiresPinnedApprovedTranslation()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var scope = await SeedAsync(pg);
+    var preparer = Actor(scope.Preparer, "AccountingPreparer");
+    var reviewer = Actor(scope.Reviewer, "Partner");
+    var methodOwner = Actor(scope.Preparer, "Partner");
+    var rateDate = new DateOnly(2026, 12, 31);
+    Guid groupId, rateSetId, policyId, consolidationScopeId, packageUsd, packageQar;
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      groupId = (await ConsolidationService.CreateGroupAsync(db, reviewer, new ClientGroupRequest("GROUP-FX", "Foreign Group"))).Value;
+      Assert.True((await ConsolidationService.AddMembershipAsync(db, reviewer,
+        new GroupMembershipRequest(groupId, scope.ClientA, new DateOnly(2026, 1, 1), null, "CONTROLLED", 100m, 100m, "ownership-usd"))).Succeeded);
+      Assert.True((await ConsolidationService.AddMembershipAsync(db, reviewer,
+        new GroupMembershipRequest(groupId, scope.ClientB, new DateOnly(2026, 1, 1), null, "CONTROLLED", 100m, 100m, "ownership-qar"))).Succeeded);
+      db.GroupAccessGrants.AddRange(
+        new GroupAccessGrant { Id = Guid.NewGuid(), FirmId = scope.FirmId, GroupId = groupId, UserId = scope.Preparer.Id,
+          Role = "AccountingPreparer", GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = scope.Reviewer.Id },
+        new GroupAccessGrant { Id = Guid.NewGuid(), FirmId = scope.FirmId, GroupId = groupId, UserId = scope.Preparer.Id,
+          Role = "Partner", GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = scope.Reviewer.Id });
+      db.RoleGrants.Add(Grant(scope.FirmId, scope.Preparer, "Partner"));
+      await db.SaveChangesAsync();
+
+      rateSetId = (await CurrencyTranslationService.CreateRateSetAsync(db, reviewer,
+        new ExchangeRateSetRequest("FX-2026", "approved-method-fixture"))).Value;
+      Assert.True((await CurrencyTranslationService.AddRateAsync(db, reviewer, rateSetId,
+        new ExchangeRateInput("USD", "QAR", rateDate, "CLOSING", 3.64m, "DIRECT"))).Succeeded);
+      Assert.True((await CurrencyTranslationService.ApproveRateSetAsync(db, methodOwner, rateSetId)).Succeeded);
+      policyId = (await CurrencyTranslationService.CreatePolicyAsync(db, reviewer,
+        new TranslationPolicyRequest("FX-POLICY-2026", "USD", "QAR", "CLOSING", "AVERAGE", "HISTORICAL"))).Value;
+      Assert.True((await CurrencyTranslationService.ApprovePolicyAsync(db, methodOwner, policyId)).Succeeded);
+
+      consolidationScopeId = (await ConsolidationService.CreateScopeAsync(db, reviewer,
+        new ConsolidationScopeRequest(groupId, Guid.NewGuid(), "QAR", ConsolidationCalculator.ForeignOperationMethod, "OPENING-FX-2026",
+          rateSetId, policyId, rateDate, "CLOSING"))).Value;
+      packageUsd = await AddPackageAsync(db, scope, scope.ClientA, scope.EngagementA, 100m, "CASH", "foreign-usd", "USD");
+      packageQar = await AddPackageAsync(db, scope, scope.ClientB, scope.EngagementB, -364m, "REVENUE", "foreign-qar", "QAR");
+      await db.SaveChangesAsync();
+    }
+
+    Guid componentUsd, componentQar, translationId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var mappings = await db.FinancialPackages.Where(x => x.Id == packageUsd || x.Id == packageQar)
+        .ToDictionaryAsync(x => x.Id, x => x.MappingVersionId);
+      componentUsd = (await ConsolidationService.SubmitComponentAsync(db, preparer,
+        new ConsolidationComponentRequest(consolidationScopeId, scope.ClientA, scope.EngagementA, packageUsd, 100m,
+          "CONTROLLED", "STATUTORY", "tax-v1", mappings[packageUsd].ToString("D")))).Value;
+      componentQar = (await ConsolidationService.SubmitComponentAsync(db, preparer,
+        new ConsolidationComponentRequest(consolidationScopeId, scope.ClientB, scope.EngagementB, packageQar, 100m,
+          "CONTROLLED", "STATUTORY", "tax-v1", mappings[packageQar].ToString("D")))).Value;
+      foreach (var packageId in new[] { packageUsd, packageQar })
+      {
+        Assert.True((await FinancialPackageReviewService.RecordAsync(db, reviewer,
+          new FinancialPackageReviewRequest(packageId, FinancialPackageReviewStages.ManagementApproval,
+            FinancialPackageReviewDecisions.Approved, FinancialPackageReviewEvidenceModes.Offline,
+            "fx-management", "Management approved the exact component package."))).Succeeded);
+        Assert.True((await FinancialPackageReviewService.RecordAsync(db, reviewer,
+          new FinancialPackageReviewRequest(packageId, FinancialPackageReviewStages.AccountingReview,
+            FinancialPackageReviewDecisions.Approved, FinancialPackageReviewEvidenceModes.SignedIn,
+            "fx-accounting", "Accounting reviewed the exact component package."))).Succeeded);
+        Assert.True((await FinancialPackageReviewService.RecordAsync(db, reviewer,
+          new FinancialPackageReviewRequest(packageId, FinancialPackageReviewStages.PartnerApproval,
+            FinancialPackageReviewDecisions.Approved, FinancialPackageReviewEvidenceModes.SignedIn,
+            "fx-partner", "Partner approved the exact component package."))).Succeeded);
+      }
+      Assert.True((await ConsolidationService.ApproveComponentAsync(db, reviewer, componentUsd)).Succeeded);
+      Assert.True((await ConsolidationService.ApproveComponentAsync(db, reviewer, componentQar)).Succeeded);
+
+      var pinnedInputRejected = await CurrencyTranslationService.TranslateComponentAsync(db, preparer, componentUsd,
+        rateSetId, policyId, rateDate, "AVERAGE");
+      Assert.False(pinnedInputRejected.Succeeded);
+      Assert.Equal(ErrorCodes.GateBlocked, pinnedInputRejected.ErrorCode);
+
+      translationId = (await CurrencyTranslationService.TranslateComponentAsync(db, preparer, componentUsd,
+        rateSetId, policyId, rateDate, "CLOSING")).Value;
+      var selfApproval = await CurrencyTranslationService.ApproveTranslationAsync(db, preparer, translationId);
+      Assert.False(selfApproval.Succeeded);
+      Assert.Equal(ErrorCodes.GateBlocked, selfApproval.ErrorCode);
+      Assert.True((await CurrencyTranslationService.ApproveTranslationAsync(db, reviewer, translationId)).Succeeded);
+
+      var capabilityId = (await ClientAccountingService.CreateCapabilityProfileAsync(db, reviewer,
+        new CapabilityProfileRequest(null, groupId, "GROUP_REPORTING", "IFRS", "2026", "ANNUAL", "QAR",
+          "STATUTORY", ConsolidationCalculator.ForeignOperationMethod, "PARTNER", "GROUP"))).Value;
+      Assert.True((await ClientAccountingService.RecordCapabilityAcceptanceAsync(db, reviewer, capabilityId,
+        AccountingCapabilityAcceptanceStages.LocalConstruction, "fx-local-fixture")).Succeeded);
+      Assert.True((await ClientAccountingService.RecordCapabilityAcceptanceAsync(db, methodOwner, capabilityId,
+        AccountingCapabilityAcceptanceStages.MethodOwnerApproval, "fx-method-owner-fixture")).Succeeded);
+      Assert.True((await ConsolidationService.ApproveScopeAsync(db, reviewer, consolidationScopeId)).Succeeded);
+    }
+
+    Guid runId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      runId = (await ConsolidationService.RunAsync(db, preparer, consolidationScopeId)).Value;
+      var run = await db.ConsolidationRuns.SingleAsync(x => x.Id == runId);
+      Assert.Equal(0m, run.SignedTotal);
+      Assert.Contains("USD", run.InputManifest);
+      Assert.True((await ConsolidationService.ApproveRunAsync(db, reviewer, runId)).Succeeded);
+      Assert.Equal(364m, await db.ConsolidationRunLines.Where(x => x.RunId == runId && x.ComponentId == componentUsd)
+        .Select(x => x.ConsolidatedAmount).SingleAsync());
+      Assert.Equal(-364m, await db.ConsolidationRunLines.Where(x => x.RunId == runId && x.ComponentId == componentQar)
+        .Select(x => x.ConsolidatedAmount).SingleAsync());
+      Assert.Equal(100m, await db.FinancialPackageLines.Where(x => x.FinancialPackageId == packageUsd).Select(x => x.Amount).SingleAsync());
+      Assert.Equal("USD", await db.FinancialPackageLines.Where(x => x.FinancialPackageId == packageUsd).Select(x => x.Currency).SingleAsync());
+    }
   }
 
   [Fact]
@@ -1079,7 +1216,8 @@ public sealed class ClientAccountingTests
     return (periodId, bookId);
   }
 
-  private static async Task<Guid> AddPackageAsync(AuditSphereDbContext db, Scope scope, Guid clientId, Guid engagementId, decimal amount, string destination, string? suffix = null)
+  private static async Task<Guid> AddPackageAsync(AuditSphereDbContext db, Scope scope, Guid clientId, Guid engagementId, decimal amount,
+    string destination, string? suffix = null, string currency = "QAR")
   {
     var now = DateTimeOffset.UtcNow;
     var datasetId = Guid.CreateVersion7();
@@ -1091,7 +1229,7 @@ public sealed class ClientAccountingTests
     db.TrialBalanceDatasets.Add(new TrialBalanceDataset
     {
       Id = datasetId, FirmId = scope.FirmId, ClientId = clientId, EngagementId = engagementId, SourceKind = "Raw",
-      Revision = 1, LegalEntityKey = clientId.ToString("D"), Currency = "QAR", RawFileSha256Hex = digest,
+      Revision = 1, LegalEntityKey = clientId.ToString("D"), Currency = currency, RawFileSha256Hex = digest,
       NormalizedDatasetDigest = digest, Sha256Hex = digest, Balanced = true, ValidationStatus = "Accepted",
       ImportState = TrialBalanceImportStates.Sealed, ControlTotal = 0m, ImportedAt = now, ImportedByUserId = scope.Preparer.Id
     });
@@ -1110,20 +1248,20 @@ public sealed class ClientAccountingTests
     db.AdjustedTrialBalanceSnapshots.Add(new AdjustedTrialBalanceSnapshot
     {
       Id = adjustedId, FirmId = scope.FirmId, ClientId = clientId, EngagementId = engagementId, BaseDatasetId = datasetId,
-      AdjustmentPlanId = planId, Currency = "QAR", ResultHash = digest, CreatedByUserId = scope.Preparer.Id, CreatedAt = now
+      AdjustmentPlanId = planId, Currency = currency, ResultHash = digest, CreatedByUserId = scope.Preparer.Id, CreatedAt = now
     });
     db.FinancialPackages.Add(new FinancialPackage
     {
       Id = packageId, FirmId = scope.FirmId, ClientId = clientId, EngagementId = engagementId, AdjustedDatasetId = adjustedId,
       MappingVersionId = mappingId, AdjustmentPlanId = planId, Framework = "IFRS", PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31",
       TaxonomyVersion = "tax-v1", TemplateVersion = "template-v1", CalculationEngineVersion = "test-engine",
-      CalculationHash = digest, Currency = "QAR", Status = AccountingPackageStates.PackageValidated, CreatedAt = now
+      CalculationHash = digest, Currency = currency, Status = AccountingPackageStates.PackageValidated, CreatedAt = now
     });
     db.FinancialPackageLines.Add(new FinancialPackageLine
     {
       Id = Guid.CreateVersion7(), FirmId = scope.FirmId, ClientId = clientId, EngagementId = engagementId, FinancialPackageId = packageId,
       SourceAccountCode = destination == "CASH" ? "1000" : "4000", DestinationCode = destination, StatementSection = "STATEMENT",
-      Amount = amount, Fraction = 1m, Currency = "QAR", AdjustedSnapshotId = adjustedId, CreatedAt = now
+      Amount = amount, Fraction = 1m, Currency = currency, AdjustedSnapshotId = adjustedId, CreatedAt = now
     });
     return packageId;
   }

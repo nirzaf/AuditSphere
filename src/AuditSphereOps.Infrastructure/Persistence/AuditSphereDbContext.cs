@@ -1780,10 +1780,15 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     scope.Property(x => x.Method).HasMaxLength(100);
     scope.Property(x => x.Status).HasMaxLength(30);
     scope.Property(x => x.OpeningBasis).HasMaxLength(100);
+    scope.Property(x => x.TranslationRateType).HasMaxLength(30);
     scope.HasIndex(x => new { x.FirmId, x.GroupId, x.PeriodId, x.Version }).IsUnique().HasDatabaseName("ux_consolidation_scope_version");
     scope.ToTable("consolidation_scope_versions", t => t.HasCheckConstraint("ck_consolidation_scope_values",
       "reporting_currency ~ '^[A-Z]{3}$' AND length(trim(method)) > 0 AND length(trim(opening_basis)) > 0"));
     scope.HasOne<ClientGroup>().WithMany().HasForeignKey(x => new { x.FirmId, x.GroupId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    scope.HasOne<ExchangeRateSetVersion>().WithMany().HasForeignKey(x => new { x.FirmId, x.ExchangeRateSetVersionId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    scope.HasOne<TranslationPolicyVersion>().WithMany().HasForeignKey(x => new { x.FirmId, x.TranslationPolicyVersionId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
 
     var component = b.Entity<ConsolidationComponent>();
@@ -1937,6 +1942,8 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
       "functional_currency ~ '^[A-Z]{3}$' AND presentation_currency ~ '^[A-Z]{3}$'"));
 
     var translation = b.Entity<TranslationResult>();
+    translation.Property(x => x.SourcePackageHash).HasMaxLength(64);
+    translation.Property(x => x.RateType).HasMaxLength(30);
     translation.Property(x => x.FromCurrency).HasMaxLength(3);
     translation.Property(x => x.ToCurrency).HasMaxLength(3);
     translation.Property(x => x.Status).HasMaxLength(30);

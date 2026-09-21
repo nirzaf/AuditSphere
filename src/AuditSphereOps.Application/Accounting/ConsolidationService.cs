@@ -16,7 +16,9 @@ public sealed record GroupMembershipRequest(
   string EvidenceReference);
 
 public sealed record ConsolidationScopeRequest(
-  Guid GroupId, Guid PeriodId, string ReportingCurrency, string Method, string OpeningBasis);
+  Guid GroupId, Guid PeriodId, string ReportingCurrency, string Method, string OpeningBasis,
+  Guid? ExchangeRateSetVersionId = null, Guid? TranslationPolicyVersionId = null,
+  DateOnly? TranslationRateDate = null, string TranslationRateType = "");
 
 public sealed record ConsolidationComponentRequest(
   Guid ScopeVersionId, Guid ClientId, Guid EngagementId, Guid PackageId,
@@ -106,10 +108,11 @@ public static class ConsolidationService
     CancellationToken ct = default)
   {
     var currency = request.ReportingCurrency.Trim().ToUpperInvariant();
+    var method = request.Method.Trim().ToUpperInvariant();
     if (request.GroupId == Guid.Empty || request.PeriodId == Guid.Empty || currency.Length != 3 ||
-        currency.Any(c => c is < 'A' or > 'Z') || request.Method.Trim().ToUpperInvariant() != ConsolidationCalculator.RestrictedMethod ||
+        currency.Any(c => c is < 'A' or > 'Z') || method is not (ConsolidationCalculator.RestrictedMethod or ConsolidationCalculator.ForeignOperationMethod) ||
         string.IsNullOrWhiteSpace(request.OpeningBasis))
-      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Only the approved same-currency, fully-owned first consolidation profile is enabled.");
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Only the approved bounded consolidation profiles are enabled.");
     var auth = await GroupAuthAsync(db, actor, request.GroupId, PreparerRoles, ct);
     if (!auth.Succeeded)
       return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
@@ -119,13 +122,27 @@ public static class ConsolidationService
       x.Status == AccountingWorkflowStates.Approved && x.EffectiveTo == null).ToListAsync(ct);
     if (members.Count == 0)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "An approved group membership is required before a perimeter can be created.");
+    if (method == ConsolidationCalculator.ForeignOperationMethod)
+    {
+      if (request.ExchangeRateSetVersionId is null || request.TranslationPolicyVersionId is null || request.TranslationRateDate is null ||
+          string.IsNullOrWhiteSpace(request.TranslationRateType))
+        return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Foreign-operation translation requires an approved rate set, policy, date and rate type.");
+      var rateSet = await db.ExchangeRateSetVersions.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId &&
+        x.Id == request.ExchangeRateSetVersionId && x.Status == AccountingWorkflowStates.Approved, ct);
+      var policy = await db.TranslationPolicyVersions.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId &&
+        x.Id == request.TranslationPolicyVersionId && x.Status == AccountingWorkflowStates.Approved, ct);
+      if (rateSet is null || policy is null || policy.PresentationCurrency != currency)
+        return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The selected approved translation policy and rate set do not match the reporting currency.");
+    }
     var version = (await db.ConsolidationScopeVersions.Where(x => x.FirmId == actor.FirmId && x.GroupId == request.GroupId && x.PeriodId == request.PeriodId)
       .Select(x => (int?)x.Version).MaxAsync(ct) ?? 0) + 1;
     var scope = new ConsolidationScopeVersion
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, GroupId = request.GroupId, PeriodId = request.PeriodId,
-      Version = version, ReportingCurrency = currency, Method = request.Method.Trim().ToUpperInvariant(),
-      OpeningBasis = request.OpeningBasis.Trim(), CreatedByUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
+      Version = version, ReportingCurrency = currency, Method = method,
+      OpeningBasis = request.OpeningBasis.Trim(), ExchangeRateSetVersionId = request.ExchangeRateSetVersionId,
+      TranslationPolicyVersionId = request.TranslationPolicyVersionId, TranslationRateDate = request.TranslationRateDate,
+      TranslationRateType = request.TranslationRateType.Trim().ToUpperInvariant(), CreatedByUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
     };
     db.ConsolidationScopeVersions.Add(scope);
     await db.SaveChangesAsync(ct);
@@ -158,8 +175,19 @@ public static class ConsolidationService
         string.IsNullOrWhiteSpace(request.MappingVersion))
       return CommandResult<Guid>.Fail(ErrorCodes.Accounting.MappingInvalid,
         "A component submission must identify its period basis, taxonomy version and mapping version.");
-    if (package.Status != AccountingPackageStates.PackageValidated || package.Currency != scope.ReportingCurrency)
-      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Only an approved same-currency component package can enter consolidation.");
+    if (package.Status != AccountingPackageStates.PackageValidated)
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Only an approved component package can enter consolidation.");
+    if (scope.Method == ConsolidationCalculator.RestrictedMethod && package.Currency != scope.ReportingCurrency)
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The restricted profile accepts only same-currency component packages.");
+    if (scope.Method == ConsolidationCalculator.ForeignOperationMethod)
+    {
+      var policy = scope.TranslationPolicyVersionId is { } policyId
+        ? await db.TranslationPolicyVersions.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == policyId &&
+            x.Status == AccountingWorkflowStates.Approved, ct)
+        : null;
+      if (policy is null || (package.Currency != policy.FunctionalCurrency && package.Currency != scope.ReportingCurrency))
+        return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The component currency is outside the approved translation policy.");
+    }
     if (!string.Equals(request.TaxonomyVersion.Trim(), package.TaxonomyVersion, StringComparison.Ordinal) ||
         !Guid.TryParse(request.MappingVersion.Trim(), out var mappingVersionId) || mappingVersionId != package.MappingVersionId)
       return CommandResult<Guid>.Fail(ErrorCodes.Accounting.MappingInvalid,
@@ -230,8 +258,26 @@ public static class ConsolidationService
     var components = await db.ConsolidationComponents.Where(x => x.FirmId == actor.FirmId && x.ScopeVersionId == scope.Id).ToListAsync(ct);
     if (memberships.Count == 0 || components.Count != memberships.Distinct().Count() ||
         memberships.Any(x => components.All(c => c.ClientId != x)) || components.Any(x => x.Status != AccountingWorkflowStates.Approved ||
-          x.Currency != scope.ReportingCurrency || x.OwnershipPercent != 100m || x.ControlMethod != "CONTROLLED"))
+          x.OwnershipPercent != 100m || x.ControlMethod != "CONTROLLED"))
       return CommandResult.Fail(ErrorCodes.GateBlocked, "Every approved perimeter member needs one approved compatible component package.");
+    if (scope.Method == ConsolidationCalculator.RestrictedMethod && components.Any(x => x.Currency != scope.ReportingCurrency))
+      return CommandResult.Fail(ErrorCodes.GateBlocked, "The restricted profile requires same-currency component packages.");
+    if (scope.Method == ConsolidationCalculator.ForeignOperationMethod)
+    {
+      if (scope.ExchangeRateSetVersionId is null || scope.TranslationPolicyVersionId is null || scope.TranslationRateDate is null ||
+          string.IsNullOrWhiteSpace(scope.TranslationRateType))
+        return CommandResult.Fail(ErrorCodes.GateBlocked, "The foreign-operation scope is missing its pinned translation inputs.");
+      var policy = await db.TranslationPolicyVersions.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId &&
+        x.Id == scope.TranslationPolicyVersionId && x.Status == AccountingWorkflowStates.Approved, ct);
+      var translations = await db.TranslationResults.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.GroupId == scope.GroupId &&
+        x.ScopeVersionId == scope.Id && x.RateSetVersionId == scope.ExchangeRateSetVersionId &&
+        x.TranslationPolicyVersionId == scope.TranslationPolicyVersionId && x.RateDate == scope.TranslationRateDate &&
+        x.RateType == scope.TranslationRateType && x.Status == AccountingWorkflowStates.Approved).ToListAsync(ct);
+      if (policy is null || components.Any(x => (x.Currency != scope.ReportingCurrency &&
+          (x.Currency != policy.FunctionalCurrency || translations.All(t => t.ComponentId != x.Id || t.SourcePackageHash != x.PackageHash))) ||
+        (x.Currency == scope.ReportingCurrency && x.Currency != policy.PresentationCurrency)))
+        return CommandResult.Fail(ErrorCodes.GateBlocked, "Every foreign component needs the pinned approved translation result.");
+    }
     scope.Status = AccountingWorkflowStates.Approved;
     scope.ApprovedByUserId = actor.UserId;
     scope.ApprovedAt = DateTimeOffset.UtcNow;
@@ -400,7 +446,7 @@ public static class ConsolidationService
       db.ConsolidationRunLines.Add(new ConsolidationRunLine
       {
         Id = Guid.CreateVersion7(), FirmId = actor.FirmId, GroupId = scope.GroupId, ScopeVersionId = scope.Id,
-        RunId = run.Id, ComponentId = line.ComponentId,
+        RunId = run.Id, ComponentId = line.ComponentId, SourceLineId = line.SourceLineId,
         ConsolidationJournalId = line.MatchId is { } matchId
           ? eliminationSources.FirstOrDefault(x => x.Item1.MatchId == matchId).Item2
           : null,
@@ -452,15 +498,62 @@ public static class ConsolidationService
     var packages = await db.FinancialPackages.AsNoTracking().Where(x => x.FirmId == firmId && packageIds.Contains(x.Id)).ToListAsync(ct);
     if (packages.Count != components.Count || components.Any(component =>
         packages.All(package => package.Id != component.PackageId || package.CalculationHash != component.PackageHash ||
-          package.Status != AccountingPackageStates.PackageValidated || package.Currency != scope.ReportingCurrency)))
+          package.Status != AccountingPackageStates.PackageValidated || package.Currency != component.Currency)))
       return CommandResult<ConsolidationBuild>.Fail(ErrorCodes.GenerationStale,
         "A component package changed; rebuild the group run from current approved packages.");
+    if (scope.Method == ConsolidationCalculator.RestrictedMethod && components.Any(x => x.Currency != scope.ReportingCurrency))
+      return CommandResult<ConsolidationBuild>.Fail(ErrorCodes.GateBlocked,
+        "The restricted profile requires same-currency component packages.");
+    var translationResults = new List<TranslationResult>();
+    TranslationPolicyVersion? translationPolicy = null;
+    if (scope.Method == ConsolidationCalculator.ForeignOperationMethod)
+    {
+      if (scope.ExchangeRateSetVersionId is null || scope.TranslationPolicyVersionId is null || scope.TranslationRateDate is null ||
+          string.IsNullOrWhiteSpace(scope.TranslationRateType))
+        return CommandResult<ConsolidationBuild>.Fail(ErrorCodes.GateBlocked,
+          "The foreign-operation scope is missing its pinned translation inputs.");
+      var rateSet = await db.ExchangeRateSetVersions.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == firmId &&
+        x.Id == scope.ExchangeRateSetVersionId && x.Status == AccountingWorkflowStates.Approved, ct);
+      translationPolicy = await db.TranslationPolicyVersions.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == firmId &&
+        x.Id == scope.TranslationPolicyVersionId && x.Status == AccountingWorkflowStates.Approved, ct);
+      if (rateSet is null || translationPolicy is null || translationPolicy.PresentationCurrency != scope.ReportingCurrency)
+        return CommandResult<ConsolidationBuild>.Fail(ErrorCodes.GateBlocked,
+          "The pinned translation policy and rate set are not approved for this group scope.");
+      translationResults = await db.TranslationResults.AsNoTracking().Where(x => x.FirmId == firmId && x.GroupId == scope.GroupId &&
+        x.ScopeVersionId == scope.Id && x.RateSetVersionId == scope.ExchangeRateSetVersionId &&
+        x.TranslationPolicyVersionId == scope.TranslationPolicyVersionId && x.RateDate == scope.TranslationRateDate &&
+        x.RateType == scope.TranslationRateType && x.Status == AccountingWorkflowStates.Approved).ToListAsync(ct);
+    }
     var packageLines = await db.FinancialPackageLines.AsNoTracking().Where(x => x.FirmId == firmId &&
       packageIds.Contains(x.FinancialPackageId)).ToListAsync(ct);
-    var balances = packageLines.Join(components, line => line.FinancialPackageId, component => component.PackageId,
-      (line, component) => new ConsolidationComponentBalance(component.Id, component.ClientId, line.DestinationCode,
-        line.Amount, line.Currency, component.OwnershipPercent, component.ControlMethod, component.PackageHash,
-        component.PeriodBasis, component.TaxonomyVersion, component.MappingVersion)).ToList();
+    var componentByPackage = components.ToDictionary(x => x.PackageId);
+    var balances = new List<ConsolidationComponentBalance>(packageLines.Count);
+    foreach (var line in packageLines)
+    {
+      if (!componentByPackage.TryGetValue(line.FinancialPackageId, out var component) || line.Currency != component.Currency)
+        return CommandResult<ConsolidationBuild>.Fail(ErrorCodes.GenerationStale,
+          "A component package line changed currency or no longer belongs to the selected component.");
+      if (component.Currency == scope.ReportingCurrency)
+      {
+        balances.Add(new ConsolidationComponentBalance(component.Id, component.ClientId, line.DestinationCode,
+          line.Amount, scope.ReportingCurrency, component.OwnershipPercent, component.ControlMethod, component.PackageHash,
+          component.PeriodBasis, component.TaxonomyVersion, component.MappingVersion, line.Id, component.Currency));
+        continue;
+      }
+      var translation = translationResults.SingleOrDefault(x => x.ComponentId == component.Id &&
+        x.SourcePackageHash == component.PackageHash && x.FromCurrency == component.Currency &&
+        x.ToCurrency == scope.ReportingCurrency && x.AppliedRate is > 0m);
+      if (translation is null || translationPolicy is null || translationPolicy.FunctionalCurrency != component.Currency)
+        return CommandResult<ConsolidationBuild>.Fail(ErrorCodes.GenerationStale,
+          "A foreign component is missing its current approved translation result.");
+      var translated = CurrencyTranslationCalculator.Translate(line.Amount, component.Currency, scope.ReportingCurrency,
+        translation.AppliedRate!.Value);
+      balances.Add(new ConsolidationComponentBalance(component.Id, component.ClientId, line.DestinationCode,
+        translated, scope.ReportingCurrency, component.OwnershipPercent, component.ControlMethod, component.PackageHash,
+        component.PeriodBasis, component.TaxonomyVersion, component.MappingVersion, line.Id, component.Currency,
+        translation.Id, translation.RateSetVersionId, translation.TranslationPolicyVersionId, translation.RateDate,
+        translation.RateType, translation.AppliedRate.Value));
+    }
     var matches = await db.IntercompanyMatches.AsNoTracking().Where(x => x.FirmId == firmId && x.ScopeVersionId == scope.Id &&
       x.Status == AccountingWorkflowStates.Approved).ToListAsync(ct);
     var approvedJournals = await db.ConsolidationJournals.AsNoTracking().Where(x => x.FirmId == firmId &&

@@ -27,6 +27,7 @@ public static class CurrencyTranslationCalculator
 
 public static class CurrencyTranslationService
 {
+  private static readonly string[] PreparerRoles = ["AccountingPreparer", "AccountingReviewer", "Manager", "Partner", "Administrator"];
   private static readonly string[] ReviewerRoles = ["AccountingReviewer", "Manager", "Partner", "Administrator"];
 
   public static async Task<CommandResult<Guid>> CreateRateSetAsync(
@@ -145,22 +146,41 @@ public static class CurrencyTranslationService
     var component = await db.ConsolidationComponents.AsNoTracking().SingleOrDefaultAsync(x => x.Id == componentId && x.FirmId == actor.FirmId, ct);
     if (component is null)
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    var scope = await db.ConsolidationScopeVersions.AsNoTracking().SingleAsync(x => x.Id == component.ScopeVersionId && x.FirmId == actor.FirmId, ct);
+    var scope = await db.ConsolidationScopeVersions.AsNoTracking().SingleOrDefaultAsync(x => x.Id == component.ScopeVersionId && x.FirmId == actor.FirmId, ct);
+    if (scope is null)
+      return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var groupGrant = await db.GroupAccessGrants.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId && x.GroupId == scope.GroupId &&
-      x.UserId == actor.UserId && x.RevokedAt == null && ReviewerRoles.Contains(x.Role), ct);
+      x.UserId == actor.UserId && x.RevokedAt == null && PreparerRoles.Contains(x.Role), ct);
     if (!groupGrant)
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Explicit group access is required.");
+    if (scope.Method != ConsolidationCalculator.ForeignOperationMethod || scope.Status != AccountingWorkflowStates.Draft ||
+        component.Status != AccountingWorkflowStates.Approved || scope.ExchangeRateSetVersionId != rateSetId ||
+        scope.TranslationPolicyVersionId != policyId || scope.TranslationRateDate != rateDate ||
+        !string.Equals(scope.TranslationRateType, rateType.Trim().ToUpperInvariant(), StringComparison.Ordinal))
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The component is not ready for the pinned foreign-operation translation profile.");
     var set = await db.ExchangeRateSetVersions.AsNoTracking().SingleOrDefaultAsync(x => x.Id == rateSetId && x.FirmId == actor.FirmId && x.Status == AccountingWorkflowStates.Approved, ct);
     var policy = await db.TranslationPolicyVersions.AsNoTracking().SingleOrDefaultAsync(x => x.Id == policyId && x.FirmId == actor.FirmId && x.Status == AccountingWorkflowStates.Approved, ct);
     if (set is null || policy is null || component.Currency != policy.FunctionalCurrency || scope.ReportingCurrency != policy.PresentationCurrency)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Approved policy, rate set and component/reporting currencies must agree.");
-    var rate = component.Currency == scope.ReportingCurrency
-      ? 1m
-      : await db.ExchangeRates.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.RateSetVersionId == set.Id &&
-          x.FromCurrency == component.Currency && x.ToCurrency == scope.ReportingCurrency && x.RateDate == rateDate && x.RateType == rateType.Trim().ToUpperInvariant())
-        .Select(x => (decimal?)x.Rate).SingleOrDefaultAsync(ct) ?? 0m;
+    var normalizedRateType = rateType.Trim().ToUpperInvariant();
+    var rate = await db.ExchangeRates.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.RateSetVersionId == set.Id &&
+        x.FromCurrency == component.Currency && x.ToCurrency == scope.ReportingCurrency && x.RateDate == rateDate && x.RateType == normalizedRateType)
+      .Select(x => (decimal?)x.Rate).SingleOrDefaultAsync(ct) ?? 0m;
     if (rate <= 0m)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "No approved rate exists for the requested date and type.");
+    var package = await db.FinancialPackages.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == component.PackageId &&
+      x.ClientId == component.ClientId && x.EngagementId == component.EngagementId && x.Status == AccountingPackageStates.PackageValidated, ct);
+    if (package is null || package.Currency != component.Currency || package.CalculationHash != component.PackageHash)
+      return CommandResult<Guid>.Fail(ErrorCodes.GenerationStale, "The component package changed; rebuild the translation input.");
+    var existing = await db.TranslationResults.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId &&
+      x.ComponentId == component.Id && x.RateSetVersionId == set.Id && x.TranslationPolicyVersionId == policy.Id, ct);
+    if (existing is not null)
+    {
+      if (existing.SourcePackageHash == package.CalculationHash && existing.RateDate == rateDate && existing.RateType == normalizedRateType &&
+          existing.AppliedRate == rate)
+        return CommandResult<Guid>.Ok(existing.Id);
+      return CommandResult<Guid>.Fail(ErrorCodes.GenerationStale, "A different translation input already exists for this component and policy version.");
+    }
     var componentAmount = await db.FinancialPackageLines.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.FinancialPackageId == component.PackageId)
       .SumAsync(x => x.Amount, ct);
     var translated = CurrencyTranslationCalculator.Translate(componentAmount, component.Currency, scope.ReportingCurrency, rate);
@@ -168,12 +188,60 @@ public static class CurrencyTranslationService
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, GroupId = component.GroupId, ScopeVersionId = component.ScopeVersionId,
       ComponentId = component.Id, RateSetVersionId = set.Id, TranslationPolicyVersionId = policy.Id,
+      SourcePackageHash = package.CalculationHash, RateDate = rateDate, RateType = normalizedRateType, AppliedRate = rate,
       FromCurrency = component.Currency, ToCurrency = scope.ReportingCurrency, TranslatedAmount = translated,
-      TranslationReserve = 0m, Status = AccountingWorkflowStates.Approved, CreatedAt = DateTimeOffset.UtcNow
+      TranslationReserve = 0m, Status = AccountingWorkflowStates.Submitted, CreatedByUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
     };
     db.TranslationResults.Add(result);
     await db.SaveChangesAsync(ct);
     return CommandResult<Guid>.Ok(result.Id);
+  }
+
+  public static async Task<CommandResult> ApproveTranslationAsync(
+    IClientAccountingDbContext db, ActorContext actor, Guid translationResultId, CancellationToken ct = default)
+  {
+    var result = await db.TranslationResults.SingleOrDefaultAsync(x => x.Id == translationResultId && x.FirmId == actor.FirmId, ct);
+    if (result is null)
+      return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, RequiredRoles: ReviewerRoles, InternalOnly: true), ct);
+    if (!auth.Succeeded)
+      return auth;
+    if (result.Status != AccountingWorkflowStates.Submitted || result.CreatedByUserId == actor.UserId || result.RateDate is null ||
+        result.AppliedRate is not > 0m || string.IsNullOrWhiteSpace(result.SourcePackageHash) || string.IsNullOrWhiteSpace(result.RateType))
+      return CommandResult.Fail(ErrorCodes.GateBlocked, "Only a complete translation prepared by another user can be approved.");
+    var component = await db.ConsolidationComponents.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId &&
+      x.Id == result.ComponentId && x.GroupId == result.GroupId && x.ScopeVersionId == result.ScopeVersionId, ct);
+    var scope = await db.ConsolidationScopeVersions.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId &&
+      x.Id == result.ScopeVersionId && x.GroupId == result.GroupId, ct);
+    var package = component is null ? null : await db.FinancialPackages.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId &&
+      x.Id == component.PackageId && x.ClientId == component.ClientId && x.EngagementId == component.EngagementId, ct);
+    var set = await db.ExchangeRateSetVersions.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId &&
+      x.Id == result.RateSetVersionId && x.Status == AccountingWorkflowStates.Approved, ct);
+    var policy = await db.TranslationPolicyVersions.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId &&
+      x.Id == result.TranslationPolicyVersionId && x.Status == AccountingWorkflowStates.Approved, ct);
+    if (component is null || scope is null || package is null || set is null || policy is null || scope.Status != AccountingWorkflowStates.Draft ||
+        component.Status != AccountingWorkflowStates.Approved || package.Status != AccountingPackageStates.PackageValidated ||
+        package.CalculationHash != result.SourcePackageHash || package.Currency != result.FromCurrency ||
+        scope.Method != ConsolidationCalculator.ForeignOperationMethod || scope.ExchangeRateSetVersionId != result.RateSetVersionId ||
+        scope.TranslationPolicyVersionId != result.TranslationPolicyVersionId || scope.TranslationRateDate != result.RateDate ||
+        scope.TranslationRateType != result.RateType || policy.FunctionalCurrency != result.FromCurrency ||
+        policy.PresentationCurrency != result.ToCurrency)
+      return CommandResult.Fail(ErrorCodes.GenerationStale, "The translation input is no longer the current approved scope input.");
+    var rate = await db.ExchangeRates.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.RateSetVersionId == set.Id &&
+      x.FromCurrency == result.FromCurrency && x.ToCurrency == result.ToCurrency && x.RateDate == result.RateDate && x.RateType == result.RateType)
+      .Select(x => (decimal?)x.Rate).SingleOrDefaultAsync(ct);
+    if (rate is null || rate.Value != result.AppliedRate.Value)
+      return CommandResult.Fail(ErrorCodes.GenerationStale, "The approved rate set no longer contains the recorded rate.");
+    var total = await db.FinancialPackageLines.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.FinancialPackageId == package.Id)
+      .SumAsync(x => x.Amount, ct);
+    if (CurrencyTranslationCalculator.Translate(total, result.FromCurrency, result.ToCurrency, result.AppliedRate.Value) != result.TranslatedAmount)
+      return CommandResult.Fail(ErrorCodes.GenerationStale, "The translation result no longer matches the package lines.");
+    result.Status = AccountingWorkflowStates.Approved;
+    result.ApprovedByUserId = actor.UserId;
+    result.ApprovedAt = DateTimeOffset.UtcNow;
+    await db.SaveChangesAsync(ct);
+    return CommandResult.Ok();
   }
 
   private static async Task<CommandResult> FirmAuthAsync(
