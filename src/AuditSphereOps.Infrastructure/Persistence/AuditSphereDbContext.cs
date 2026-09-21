@@ -1740,6 +1740,8 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     reconciliation.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).HasName("ak_accounting_reconciliations_scope_id");
     reconciliation.Property(x => x.Area).HasMaxLength(80);
     reconciliation.Property(x => x.AccountSelection).HasMaxLength(2000);
+    reconciliation.Property(x => x.AgingBasis).HasMaxLength(30);
+    reconciliation.Property(x => x.AgingBucketRuleVersion).HasMaxLength(60);
     reconciliation.Property(x => x.SourceHash).HasMaxLength(64);
     reconciliation.Property(x => x.Status).HasMaxLength(30);
     reconciliation.HasIndex(x => new { x.FirmId, x.EngagementId, x.PeriodId, x.Area }).HasDatabaseName("ix_accounting_reconciliation_area");
@@ -1750,6 +1752,9 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     var reconItem = b.Entity<AccountingReconciliationItem>();
     reconItem.Property(x => x.StableItemId).HasMaxLength(200);
     reconItem.Property(x => x.Currency).HasMaxLength(3);
+    reconItem.Property(x => x.DateBasis).HasMaxLength(30);
+    reconItem.Property(x => x.AgingBucket).HasMaxLength(30);
+    reconItem.Property(x => x.SettlementReference).HasMaxLength(2000);
     reconItem.Property(x => x.Reason).HasMaxLength(1000);
     reconItem.Property(x => x.EvidenceReference).HasMaxLength(2000);
     reconItem.Property(x => x.Disposition).HasMaxLength(100);

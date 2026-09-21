@@ -438,7 +438,7 @@ public sealed class ClientAccountingTests
         PeriodId = fixture.PeriodId, BookId = fixture.BookId, Basis = "STATUTORY", SourceKind = "Raw",
         LegalEntityKey = "CLIENT-A", Currency = "QAR", RawFileSha256Hex = sourceHash,
         NormalizedDatasetDigest = sourceHash, Sha256Hex = sourceHash, Balanced = true,
-        ValidationStatus = "Accepted", ImportState = TrialBalanceImportStates.Sealed,
+        ValidationStatus = "Pending", ImportState = TrialBalanceImportStates.Loading,
         ImportedAt = DateTimeOffset.UtcNow, ImportedByUserId = scope.Preparer.Id
       });
       db.AdjustmentJournals.Add(new AdjustmentJournal
@@ -585,6 +585,80 @@ public sealed class ClientAccountingTests
       Assert.Equal(AccountingWorkflowStates.Stale,
         await db.AccountingReconciliations.Where(x => x.Id == reconciliation.Value).Select(x => x.Status).SingleAsync());
     }
+  }
+
+  [Fact]
+  [Trait("Profile", "Database")]
+  public async Task ReceivableAging_RetainsBasisBucketsCreditTreatmentAndSettlementLinks()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var scope = await SeedAsync(pg);
+    var preparer = Actor(scope.Preparer, "AccountingPreparer");
+    var fixture = await CreateGlFixtureAsync(pg, scope, preparer);
+    var sourceHash = Hashing.Sha256Hex("aging-source");
+    Guid datasetId;
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      datasetId = Guid.CreateVersion7();
+      db.TrialBalanceDatasets.Add(new TrialBalanceDataset
+      {
+        Id = datasetId, FirmId = scope.FirmId, ClientId = scope.ClientA, EngagementId = scope.EngagementA,
+        PeriodId = fixture.PeriodId, BookId = fixture.BookId, Basis = "STATUTORY", SourceKind = "Raw",
+        LegalEntityKey = "CLIENT-A", Currency = "QAR", RawFileSha256Hex = sourceHash,
+        NormalizedDatasetDigest = sourceHash, Sha256Hex = sourceHash, Balanced = true,
+        ValidationStatus = "Pending", ImportState = TrialBalanceImportStates.Loading,
+        ImportedAt = DateTimeOffset.UtcNow, ImportedByUserId = scope.Preparer.Id
+      });
+      db.TrialBalanceRows.Add(new TrialBalanceRow
+      {
+        Id = Guid.CreateVersion7(), DatasetId = datasetId, AccountCode = "1000", AccountName = "Receivables",
+        Amount = 100m, Currency = "QAR", Entity = "CLIENT-A"
+      });
+      await db.SaveChangesAsync();
+      var dataset = await db.TrialBalanceDatasets.SingleAsync(x => x.Id == datasetId);
+      dataset.ValidationStatus = "Accepted";
+      dataset.ImportState = TrialBalanceImportStates.Sealed;
+      await db.SaveChangesAsync();
+
+      var missingPolicy = await AccountingAnalysisService.CreateReconciliationAsync(db, preparer,
+        new AccountingReconciliationRequest(scope.ClientA, scope.EngagementA, fixture.PeriodId, fixture.BookId,
+          "RECEIVABLES", datasetId, null, ["1000"], new DateOnly(2026, 12, 31)));
+      Assert.False(missingPolicy.Succeeded);
+      Assert.Equal(ErrorCodes.Accounting.ReconciliationRejected, missingPolicy.ErrorCode);
+
+      var created = await AccountingAnalysisService.CreateReconciliationAsync(db, preparer,
+        new AccountingReconciliationRequest(scope.ClientA, scope.EngagementA, fixture.PeriodId, fixture.BookId,
+          "RECEIVABLES", datasetId, null, ["1000"], new DateOnly(2026, 12, 31),
+          AccountingAgingRules.DueDateBasis, AccountingAgingRules.StandardRuleVersion));
+      Assert.True(created.Succeeded, created.Message);
+
+      var wrongBucket = await AccountingAnalysisService.AddReconciliationItemsAsync(db, preparer, created.Value,
+        [new ReconciliationItemInput("AR-001", 100m, "QAR", new DateOnly(2026, 11, 30), "open invoice", "invoice-001", "OPEN",
+          DateBasis: AccountingAgingRules.DueDateBasis, AgingBucket: "CURRENT", IsCredit: false)]);
+      Assert.False(wrongBucket.Succeeded);
+      Assert.Equal(ErrorCodes.Accounting.ReconciliationRejected, wrongBucket.ErrorCode);
+
+      var added = await AccountingAnalysisService.AddReconciliationItemsAsync(db, preparer, created.Value,
+        [new ReconciliationItemInput("AR-001", 100m, "QAR", new DateOnly(2026, 11, 30), "open invoice", "invoice-001", "OPEN",
+            DateBasis: AccountingAgingRules.DueDateBasis, AgingBucket: "31_60", IsCredit: false,
+            SettlementDate: new DateOnly(2027, 1, 5), SettlementReference: "receipt-001"),
+         new ReconciliationItemInput("AR-002", -25m, "QAR", new DateOnly(2026, 12, 31), "credit balance", "credit-001", "OPEN",
+            DateBasis: AccountingAgingRules.DueDateBasis, AgingBucket: "CURRENT", IsCredit: true)]);
+      Assert.True(added.Succeeded, added.Message);
+    }
+
+    await using var verify = new AuditSphereDbContext(pg.Options);
+    var items = await verify.AccountingReconciliationItems.OrderBy(x => x.StableItemId).ToListAsync();
+    Assert.Equal(2, items.Count);
+    Assert.Equal(31, items[0].AgeDays);
+    Assert.Equal("DUE_DATE", items[0].DateBasis);
+    Assert.Equal("31_60", items[0].AgingBucket);
+    Assert.False(items[0].IsCredit);
+    Assert.Equal(new DateOnly(2027, 1, 5), items[0].SettlementDate);
+    Assert.Equal("receipt-001", items[0].SettlementReference);
+    Assert.True(items[1].IsCredit);
+    Assert.Equal("CURRENT", items[1].AgingBucket);
   }
 
   [Fact]

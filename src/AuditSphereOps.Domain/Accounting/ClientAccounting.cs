@@ -19,6 +19,28 @@ public static class AccountingWorkflowStates
   public const string Rejected = "REJECTED";
 }
 
+public static class AccountingAgingRules
+{
+  public const string StandardRuleVersion = "STANDARD_30_60_90_V1";
+  public const string DueDateBasis = "DUE_DATE";
+  public const string InvoiceDateBasis = "INVOICE_DATE";
+  public const string StatementDateBasis = "STATEMENT_DATE";
+
+  public static bool IsSupportedBasis(string value) => value.Trim().ToUpperInvariant() is
+    DueDateBasis or InvoiceDateBasis or StatementDateBasis;
+
+  public static string BucketFor(int ageDays) => ageDays switch
+  {
+    < 0 => throw new ArgumentOutOfRangeException(nameof(ageDays)),
+    0 => "CURRENT",
+    <= 30 => "1_30",
+    <= 60 => "31_60",
+    <= 90 => "61_90",
+    <= 120 => "91_120",
+    _ => "121_PLUS"
+  };
+}
+
 public static class AccountingCapabilityAcceptanceStages
 {
   public const string LocalConstruction = "LOCAL_CONSTRUCTION";
@@ -469,6 +491,8 @@ public sealed class AccountingReconciliation
   public Guid? ImportBatchId { get; set; }
   public string AccountSelection { get; set; } = string.Empty;
   public DateOnly AsOfDate { get; set; }
+  public string AgingBasis { get; set; } = string.Empty;
+  public string AgingBucketRuleVersion { get; set; } = string.Empty;
   public decimal SourceTotal { get; set; }
   public decimal GlTotal { get; set; }
   public decimal Residual { get; set; }
@@ -493,6 +517,11 @@ public sealed class AccountingReconciliationItem
   public string Currency { get; set; } = string.Empty;
   public DateOnly? ItemDate { get; set; }
   public int? AgeDays { get; set; }
+  public string DateBasis { get; set; } = string.Empty;
+  public string AgingBucket { get; set; } = string.Empty;
+  public bool IsCredit { get; set; }
+  public DateOnly? SettlementDate { get; set; }
+  public string SettlementReference { get; set; } = string.Empty;
   public string Reason { get; set; } = string.Empty;
   public string EvidenceReference { get; set; } = string.Empty;
   public string Disposition { get; set; } = string.Empty;

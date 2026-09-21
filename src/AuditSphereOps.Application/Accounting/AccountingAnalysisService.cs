@@ -14,11 +14,13 @@ namespace AuditSphereOps.Application.Accounting;
 public sealed record AccountingReconciliationRequest(
   Guid ClientId, Guid EngagementId, Guid PeriodId, Guid? BookId, string Area,
   Guid? TrialBalanceDatasetId, Guid? ImportBatchId, IReadOnlyList<string> AccountCodes,
-  DateOnly AsOfDate);
+  DateOnly AsOfDate, string AgingBasis = "", string AgingBucketRuleVersion = "");
 
 public sealed record ReconciliationItemInput(
   string StableItemId, decimal SignedAmount, string Currency, DateOnly? ItemDate,
-  string Reason, string EvidenceReference, string Disposition);
+  string Reason, string EvidenceReference, string Disposition, string DateBasis = "",
+  string AgingBucket = "", bool? IsCredit = null, DateOnly? SettlementDate = null,
+  string SettlementReference = "");
 
 public sealed record EclAssessmentRequest(
   Guid ReconciliationId, DateOnly AsOfDate, string Method, string MethodologyVersion,
@@ -426,6 +428,18 @@ public static class AccountingAnalysisService
       .Distinct(StringComparer.Ordinal).OrderBy(x => x, StringComparer.Ordinal).ToArray();
     if (codes.Length == 0 || codes.Length != request.AccountCodes.Count(x => !string.IsNullOrWhiteSpace(x)))
       return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ReconciliationRejected, "Account selection must be unique and non-empty.");
+    var area = request.Area.Trim().ToUpperInvariant();
+    var agingBasis = request.AgingBasis.Trim().ToUpperInvariant();
+    var agingRuleVersion = request.AgingBucketRuleVersion.Trim().ToUpperInvariant();
+    var agingArea = area.Contains("RECEIVABLE", StringComparison.Ordinal) || area.Contains("PAYABLE", StringComparison.Ordinal);
+    if (agingArea && (!AccountingAgingRules.IsSupportedBasis(agingBasis) ||
+        !string.Equals(agingRuleVersion, AccountingAgingRules.StandardRuleVersion, StringComparison.Ordinal)))
+      return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ReconciliationRejected,
+        "Receivable and payable ageing needs an explicit supported date basis and bucket-rule version.");
+    if (!string.IsNullOrEmpty(agingBasis) && !AccountingAgingRules.IsSupportedBasis(agingBasis))
+      return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ReconciliationRejected, "The ageing date basis is unsupported.");
+    if (!string.IsNullOrEmpty(agingRuleVersion) && !string.Equals(agingRuleVersion, AccountingAgingRules.StandardRuleVersion, StringComparison.Ordinal))
+      return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ReconciliationRejected, "The ageing bucket-rule version is unsupported.");
 
     decimal sourceTotal;
     decimal glTotal;
@@ -472,9 +486,10 @@ public static class AccountingAnalysisService
     var reconciliation = new AccountingReconciliation
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = request.ClientId, EngagementId = request.EngagementId,
-      PeriodId = request.PeriodId, BookId = request.BookId, Area = request.Area.Trim().ToUpperInvariant(),
+      PeriodId = request.PeriodId, BookId = request.BookId, Area = area,
       TrialBalanceDatasetId = request.TrialBalanceDatasetId, ImportBatchId = request.ImportBatchId,
       AccountSelection = string.Join(',', codes), AsOfDate = request.AsOfDate, SourceTotal = sourceTotal, GlTotal = glTotal,
+      AgingBasis = agingBasis, AgingBucketRuleVersion = agingRuleVersion,
       Residual = MoneyPolicy.Normalize(glTotal - sourceTotal), SourceHash = sourceHash,
       Status = MoneyPolicy.Normalize(glTotal - sourceTotal) == 0m ? "RECONCILED" : "UNRECONCILED",
       InputGeneration = clientState.InputGeneration,
@@ -514,27 +529,41 @@ public static class AccountingAnalysisService
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "The reconciliation source is unavailable.");
     sourceCurrency = sourceCurrency.Trim().ToUpperInvariant();
 
-    var invalidItems = items.Count == 0 ||
-      items.Any(x => string.IsNullOrWhiteSpace(x.StableItemId) || string.IsNullOrWhiteSpace(x.Currency) ||
-                     !string.Equals(x.Currency.Trim(), sourceCurrency, StringComparison.OrdinalIgnoreCase) ||
-                     string.IsNullOrWhiteSpace(x.Reason) || string.IsNullOrWhiteSpace(x.EvidenceReference) ||
-                     string.IsNullOrWhiteSpace(x.Disposition) ||
-                     x.ItemDate is { } itemDate && itemDate > reconciliation.AsOfDate) ||
-      items.Where(x => !string.IsNullOrWhiteSpace(x.StableItemId))
-        .GroupBy(x => x.StableItemId.Trim(), StringComparer.Ordinal).Any(x => x.Count() > 1);
-    if (invalidItems)
-      return CommandResult.Fail(ErrorCodes.Accounting.ReconciliationRejected,
-        "Reconciling items need unique identities, source currency, valid dates, reasons, evidence and dispositions.");
+    var agingEnabled = !string.IsNullOrWhiteSpace(reconciliation.AgingBasis);
+    if (items.Count == 0 || items.Where(x => !string.IsNullOrWhiteSpace(x.StableItemId))
+        .GroupBy(x => x.StableItemId.Trim(), StringComparer.Ordinal).Any(x => x.Count() > 1))
+      return CommandResult.Fail(ErrorCodes.Accounting.ReconciliationRejected, "Reconciling items need unique identities.");
     foreach (var item in items)
+    {
+      if (string.IsNullOrWhiteSpace(item.StableItemId) || string.IsNullOrWhiteSpace(item.Currency) ||
+          !string.Equals(item.Currency.Trim(), sourceCurrency, StringComparison.OrdinalIgnoreCase) ||
+          string.IsNullOrWhiteSpace(item.Reason) || string.IsNullOrWhiteSpace(item.EvidenceReference) ||
+          string.IsNullOrWhiteSpace(item.Disposition) || item.ItemDate is { } itemDate && itemDate > reconciliation.AsOfDate ||
+          item.SettlementDate.HasValue != !string.IsNullOrWhiteSpace(item.SettlementReference) ||
+          item.SettlementDate is { } settlementDate && item.ItemDate is { } itemDateForSettlement && settlementDate < itemDateForSettlement)
+        return CommandResult.Fail(ErrorCodes.Accounting.ReconciliationRejected,
+          "Reconciling items need source currency, valid dates, reasons, evidence, dispositions and paired settlement links.");
+      if (!string.IsNullOrWhiteSpace(item.DateBasis) && !AccountingAgingRules.IsSupportedBasis(item.DateBasis))
+        return CommandResult.Fail(ErrorCodes.Accounting.ReconciliationRejected, "The reconciling item date basis is unsupported.");
+      var ageDays = item.ItemDate.HasValue ? Math.Max(0, reconciliation.AsOfDate.DayNumber - item.ItemDate.Value.DayNumber) : (int?)null;
+      if (agingEnabled && (item.ItemDate is null || item.IsCredit is null ||
+          !string.Equals(item.DateBasis.Trim(), reconciliation.AgingBasis, StringComparison.Ordinal) ||
+          !string.Equals(item.AgingBucket.Trim(), AccountingAgingRules.BucketFor(ageDays!.Value), StringComparison.Ordinal)))
+        return CommandResult.Fail(ErrorCodes.Accounting.ReconciliationRejected,
+          "Receivable and payable items need the reconciliation date basis, explicit credit treatment and the correct bucket for the retained ageing rule.");
+      var isCredit = item.IsCredit ?? item.SignedAmount < 0m;
       db.AccountingReconciliationItems.Add(new AccountingReconciliationItem
       {
         Id = Guid.CreateVersion7(), FirmId = reconciliation.FirmId, ClientId = reconciliation.ClientId,
         EngagementId = reconciliation.EngagementId, ReconciliationId = reconciliation.Id, StableItemId = item.StableItemId.Trim(),
         SignedAmount = MoneyPolicy.Normalize(item.SignedAmount), Currency = item.Currency.Trim().ToUpperInvariant(),
-        ItemDate = item.ItemDate, AgeDays = item.ItemDate.HasValue ? Math.Max(0, reconciliation.AsOfDate.DayNumber - item.ItemDate.Value.DayNumber) : null,
+        ItemDate = item.ItemDate, AgeDays = ageDays, DateBasis = item.DateBasis.Trim().ToUpperInvariant(),
+        AgingBucket = item.AgingBucket.Trim().ToUpperInvariant(), IsCredit = isCredit,
+        SettlementDate = item.SettlementDate, SettlementReference = item.SettlementReference.Trim(),
         Reason = item.Reason.Trim(), EvidenceReference = item.EvidenceReference.Trim(), Disposition = item.Disposition.Trim(),
         CreatedAt = DateTimeOffset.UtcNow
       });
+    }
     await db.SaveChangesAsync(ct);
     return CommandResult.Ok();
   }
