@@ -22,8 +22,16 @@ else if (_error is not null)
 else
 {
   <p class="scope-note">Only validated packages in the current client and engagement grants are listed. Every stage is bound to the package's exact revision, generation and hash.</p>
-  <section class="card" aria-labelledby="queue-heading">
+  <section class="card" aria-labelledby="queue-heading" data-draft-scope="package-review-selection">
     <h2 id="queue-heading">Action required</h2>
+    <p class="muted">Selection is optional and is retained as a browser draft. Preview only; no package decision is recorded from this screen.</p>
+    <div class="action-bar">
+      <button class="button" title="Preview the selected review stages and identify any item blocked for the current role." @onclick="PreviewSelection" disabled="@(_selectedPackageIds.Count == 0)">Preview selected</button>
+      @if (!string.IsNullOrWhiteSpace(_selectionPreview))
+      {
+        <p class="notice-text" role="status" aria-live="polite">@_selectionPreview</p>
+      }
+    </div>
     @if (_queue.Count == 0)
     {
       <p class="muted">No current package review stage is waiting in your authorized scope.</p>
@@ -32,11 +40,12 @@ else
     {
       <div class="table-wrap"><table>
         <caption class="sr-only">Financial package review queue</caption>
-        <thead><tr><th scope="col">Package</th><th scope="col">Period</th><th scope="col">Management</th><th scope="col">Accounting</th><th scope="col">Partner</th><th scope="col">Next action</th><th scope="col"><span class="sr-only">Action</span></th></tr></thead>
+        <thead><tr><th scope="col"><label title="Select all visible package stages for a preview."><input id="select-all-packages" type="checkbox" data-draft-field="select-all-packages" checked="@AllSelected" @onchange="ToggleAll" /> <span class="sr-only">Select all visible packages</span></label></th><th scope="col">Package</th><th scope="col">Period</th><th scope="col">Management</th><th scope="col">Accounting</th><th scope="col">Partner</th><th scope="col">Next action</th><th scope="col"><span class="sr-only">Action</span></th></tr></thead>
         <tbody>
         @foreach (var item in _queue)
         {
           <tr>
+            <td><input id="select-package-@item.PackageId" type="checkbox" data-draft-field="package-@item.PackageId" checked="@IsSelected(item.PackageId)" @onchange="eventArgs => TogglePackage(item.PackageId, eventArgs)" title="Select this exact package review stage for a preview." /></td>
             <td><code>@item.PackageId</code><br /><span class="muted">@item.Framework · @item.Currency</span></td>
             <td>@item.PeriodStart to @item.PeriodEnd</td>
             <td><span class="status">@item.ManagementDecision</span></td>
@@ -56,8 +65,11 @@ else
   private ActorContext? _actor;
   private List<FinancialPackageReviewQueueItem> _queue = [];
   private string? _error;
+  private string? _selectionPreview;
   private bool _loading = true;
+  private HashSet<Guid> _selectedPackageIds = [];
   private bool IsStaff => _actor is not null && _actor.Roles.Any(x => x is "Administrator" or "Partner" or "Manager" or "AccountingReviewer" or "AccountingPreparer");
+  private bool AllSelected => _queue.Count > 0 && _queue.All(x => _selectedPackageIds.Contains(x.PackageId));
 
   protected override async Task OnInitializedAsync()
   {
@@ -72,5 +84,35 @@ else
         _error = result.Message;
     }
     _loading = false;
+  }
+
+  private bool IsSelected(Guid packageId) => _selectedPackageIds.Contains(packageId);
+
+  private void ToggleAll(ChangeEventArgs args)
+  {
+    if (args.Value is true or "true")
+      _selectedPackageIds = _queue.Select(x => x.PackageId).ToHashSet();
+    else
+      _selectedPackageIds.Clear();
+    _selectionPreview = null;
+  }
+
+  private void TogglePackage(Guid packageId, ChangeEventArgs args)
+  {
+    if (args.Value is true or "true")
+      _selectedPackageIds.Add(packageId);
+    else
+      _selectedPackageIds.Remove(packageId);
+    _selectionPreview = null;
+  }
+
+  private void PreviewSelection()
+  {
+    var selected = _queue.Where(x => _selectedPackageIds.Contains(x.PackageId)).ToList();
+    var blocked = selected.Where(x => x.NextAction == "PARTNER_APPROVAL_REQUIRED").ToList();
+    var eligible = selected.Count - blocked.Count;
+    _selectionPreview = blocked.Count == 0
+      ? $"Preview: {eligible} selected stage{(eligible == 1 ? "" : "s")} are eligible for this role. No decision was recorded."
+      : $"Preview: {eligible} eligible, {blocked.Count} blocked because partner approval requires a Partner or Administrator. No decision was recorded.";
   }
 }
