@@ -560,6 +560,70 @@ public sealed class ClientAccountingTests
 
   [Fact]
   [Trait("Profile", "Database")]
+  public async Task EnabledValuationProfiles_MatchGoldenFixturesAndRejectUnsupportedBoundaries()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var scope = await SeedAsync(pg);
+    var preparer = Actor(scope.Preparer, "AccountingPreparer");
+    var fixture = await CreateGlFixtureAsync(pg, scope, preparer);
+    var sourceHash = new string('g', 64);
+    var reconciliationId = Guid.CreateVersion7();
+
+    await using var db = new AuditSphereDbContext(pg.Options);
+    db.AccountingReconciliations.Add(new AccountingReconciliation
+    {
+      Id = reconciliationId, FirmId = scope.FirmId, ClientId = scope.ClientA, EngagementId = scope.EngagementA,
+      PeriodId = fixture.PeriodId, BookId = fixture.BookId, Area = "RECEIVABLES", AccountSelection = "1100",
+      AsOfDate = new DateOnly(2026, 12, 31), SourceTotal = 100m, GlTotal = 100m, Residual = 0m,
+      SourceHash = sourceHash, Status = "RECONCILED", InputGeneration = 1,
+      CreatedByUserId = scope.Preparer.Id, CreatedAt = DateTimeOffset.UtcNow
+    });
+    await db.SaveChangesAsync();
+
+    var ecl = await AccountingAnalysisService.CreateEclAssessmentAsync(db, preparer,
+      new EclAssessmentRequest(reconciliationId, new DateOnly(2026, 12, 31), "PROVISION_MATRIX_V1", "ecl-golden-v1",
+        .1m, .5m, 2m, 7m, new string('a', 64), BookedAmount: 8m));
+    Assert.True(ecl.Succeeded, ecl.Message);
+    var savedEcl = await db.EclAssessments.SingleAsync(x => x.Id == ecl.Value);
+    Assert.Equal(100m, savedEcl.EligibleExposure);
+    Assert.Equal(7m, savedEcl.CalculatedExpectedLoss);
+    Assert.Equal(-1m, savedEcl.Difference);
+
+    var zeroEcl = await AccountingAnalysisService.CreateEclAssessmentAsync(db, preparer,
+      new EclAssessmentRequest(reconciliationId, new DateOnly(2026, 12, 31), "PROVISION_MATRIX_V1", "ecl-boundary-v1",
+        0m, 1m, 0m, 0m, new string('b', 64), BookedAmount: 0m));
+    Assert.True(zeroEcl.Succeeded, zeroEcl.Message);
+    Assert.Equal(0m, await db.EclAssessments.Where(x => x.Id == zeroEcl.Value).Select(x => x.CalculatedExpectedLoss).SingleAsync());
+
+    var unsupportedEcl = await AccountingAnalysisService.CreateEclAssessmentAsync(db, preparer,
+      new EclAssessmentRequest(reconciliationId, new DateOnly(2026, 12, 31), "DEFAULT_PERCENTAGE", "ecl-unsupported-v1",
+        .1m, .5m, 0m, 0m, new string('c', 64)));
+    Assert.False(unsupportedEcl.Succeeded);
+    Assert.Equal(ErrorCodes.GateBlocked, unsupportedEcl.ErrorCode);
+
+    var inventory = await AccountingAnalysisService.CreateInventoryValuationAsync(db, preparer,
+      new InventoryValuationRequest(reconciliationId, new DateOnly(2026, 12, 31), 10m, 12m, 11m, 1m, 100m,
+        "inventory-golden-v1", new string('d', 64)));
+    Assert.True(inventory.Succeeded, inventory.Message);
+    var savedInventory = await db.InventoryValuationAssessments.SingleAsync(x => x.Id == inventory.Value);
+    Assert.Equal(109m, savedInventory.CalculatedAmount);
+    Assert.Equal(9m, savedInventory.Difference);
+
+    var zeroInventory = await AccountingAnalysisService.CreateInventoryValuationAsync(db, preparer,
+      new InventoryValuationRequest(reconciliationId, new DateOnly(2026, 12, 31), 0m, 12m, 11m, 0m, 0m,
+        "inventory-boundary-v1", new string('e', 64)));
+    Assert.True(zeroInventory.Succeeded, zeroInventory.Message);
+    Assert.Equal(0m, await db.InventoryValuationAssessments.Where(x => x.Id == zeroInventory.Value).Select(x => x.CalculatedAmount).SingleAsync());
+
+    var negativeInventory = await AccountingAnalysisService.CreateInventoryValuationAsync(db, preparer,
+      new InventoryValuationRequest(reconciliationId, new DateOnly(2026, 12, 31), -1m, 12m, 11m, 0m, 0m,
+        "inventory-negative-v1", new string('f', 64)));
+    Assert.False(negativeInventory.Succeeded);
+    Assert.Equal(ErrorCodes.GateBlocked, negativeInventory.ErrorCode);
+  }
+
+  [Fact]
+  [Trait("Profile", "Database")]
   public async Task SpecialistAndAnalyticalEvidence_BlocksWhenClientGenerationChanges()
   {
     await using var pg = await PgTestSchema.CreateAsync();
