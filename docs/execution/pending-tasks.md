@@ -3,7 +3,7 @@
 **Repository:** `nirzaf/AuditSphere`
 **Authoritative specification:** [`docs/SPECIFICATION.md`](../SPECIFICATION.md) v5.0
 **Requirements backlog:** [`docs/requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md`](../requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md)
-**Source implementation checkpoint:** `master@7b6bc08`
+**Source implementation checkpoint:** `master@74dfcda`
 
 This is a resume checklist, not an acceptance certificate. Tenant identifiers, credentials, tokens, secret values, and private-provider URLs are deliberately absent from the public repository.
 
@@ -57,6 +57,7 @@ This is a resume checklist, not an acceptance certificate. Tenant identifiers, c
 - [x] Gate period close on current package reviews and persist immutable authorized reopen/amendment revisions.
 - [x] Add controlled entity-period roll-forward with draft book copies and explicit opening-balance evidence.
 - [x] Client-scoped GL dimension definitions validate nonblank branch/cost-centre/department/project/intercompany values; blank accounting setup/reporting currency defaults to QAR while source/import currency remains explicit.
+- [x] Chart hierarchy parent lookups are scoped to the target chart version and reject cross-version parents.
 - [x] Link accounting evidence to reviewed audit workpapers and expose accounting period handoffs from the dashboard.
 - [ ] Add approved-method fixtures for full FX remeasurement/reserve, complex ownership, acquisition, NCI, nested groups and advanced eliminations before implementing those methods.
 - [x] Add deeper accounting evidence/workpaper links and account-area UI around the typed specialist schedules.
