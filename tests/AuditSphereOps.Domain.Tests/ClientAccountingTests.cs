@@ -1552,6 +1552,35 @@ public sealed class ClientAccountingTests
 
   [Fact]
   [Trait("Profile", "Unit")]
+  public void AdvancedConsolidationMethods_RequireExplicitInputsAndConserveRollforwards()
+  {
+    var acquisition = AdvancedConsolidationCalculator.CalculateAcquisition(new AcquisitionAccountingInput(
+      new DateOnly(2026, 1, 1), new DateOnly(2026, 1, 15), 120m, 20m, 100m, 8m));
+    Assert.Equal(40m, acquisition.Goodwill);
+    Assert.Equal(0m, acquisition.BargainPurchase);
+    Assert.Equal(AdvancedConsolidationCalculator.AcquisitionNciMethod, acquisition.Method);
+
+    var nci = AdvancedConsolidationCalculator.RollForwardNci(20m, 5m, 2m, 3m);
+    Assert.Equal(24m, nci.ClosingNci);
+
+    var ownership = AdvancedConsolidationCalculator.CalculateOwnershipChange(new OwnershipChangeInput(
+      new DateOnly(2026, 6, 30), 80m, 60m, 10m, 0m, 100m, 20m, false));
+    Assert.True(ownership.ControlRetained);
+    Assert.Equal(20m, ownership.NciMovement);
+    Assert.Equal(0m, ownership.DisposalGainOrLoss);
+
+    Assert.Throws<InvalidOperationException>(() => AdvancedConsolidationCalculator.EnsureNoNestedDoubleCount([
+      new("ENTITY-A", Guid.NewGuid(), false), new("entity-a", Guid.NewGuid(), true)
+    ]));
+    var elimination = AdvancedConsolidationCalculator.CalculateAssetTransferElimination(30m, 6m, 0.25m);
+    Assert.Equal(30m, elimination.UnrealizedProfitElimination);
+    Assert.Equal(6m, elimination.DepreciationAdjustment);
+    Assert.Equal(6m, elimination.RelatedTaxEffect);
+    Assert.Equal(-18m, elimination.NetElimination);
+  }
+
+  [Fact]
+  [Trait("Profile", "Unit")]
   public void ConsolidationEliminationKinds_RequireAnEnabledAccountingNature()
   {
     Assert.All(new[]
