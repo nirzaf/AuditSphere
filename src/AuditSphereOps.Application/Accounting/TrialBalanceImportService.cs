@@ -11,23 +11,27 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AuditSphereOps.Application.Accounting;
 
+public sealed record TrialBalanceImportContext(Guid PeriodId, Guid? BookId, string Basis);
+
 public static class TrialBalanceImportService
 {
   public static Task<CommandResult<Guid>> ImportAsync(
-    IAuditSphereDbContext db,
+    IClientAccountingDbContext db,
     ActorContext actor,
     Guid clientId,
     Guid engagementId,
     string csvText,
+    TrialBalanceImportContext sourceContext,
     CancellationToken ct = default) =>
-    ImportAsync(db, actor, clientId, engagementId, csvText, authorizedEntity: null, ct);
+    ImportAsync(db, actor, clientId, engagementId, csvText, sourceContext, authorizedEntity: null, ct);
 
   public static async Task<CommandResult<Guid>> ImportAsync(
-    IAuditSphereDbContext db,
+    IClientAccountingDbContext db,
     ActorContext actor,
     Guid clientId,
     Guid engagementId,
     string csvText,
+    TrialBalanceImportContext sourceContext,
     string? authorizedEntity,
     CancellationToken ct = default)
   {
@@ -44,15 +48,16 @@ public static class TrialBalanceImportService
       return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ImportRejected, ex.Message);
     }
 
-    return await ImportParsedAsync(db, actor, clientId, engagementId, parsed, authorizedEntity, ct);
+    return await ImportParsedAsync(db, actor, clientId, engagementId, parsed, sourceContext, authorizedEntity, ct);
   }
 
   public static async Task<CommandResult<Guid>> ImportXlsxAsync(
-    IAuditSphereDbContext db,
+    IClientAccountingDbContext db,
     ActorContext actor,
     Guid clientId,
     Guid engagementId,
     byte[] xlsxBytes,
+    TrialBalanceImportContext sourceContext,
     string? authorizedEntity = null,
     CancellationToken ct = default)
   {
@@ -66,16 +71,17 @@ public static class TrialBalanceImportService
       return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ImportRejected, ex.Message);
     }
 
-    return await ImportParsedAsync(db, actor, clientId, engagementId, parsed, authorizedEntity, ct);
+    return await ImportParsedAsync(db, actor, clientId, engagementId, parsed, sourceContext, authorizedEntity, ct);
   }
 
   public static async Task<CommandResult<Guid>> ImportWithProfileAsync(
-    IAuditSphereDbContext db,
+    IClientAccountingDbContext db,
     ActorContext actor,
     Guid clientId,
     Guid engagementId,
     string csvText,
     TrialBalanceImportProfile profile,
+    TrialBalanceImportContext sourceContext,
     string? authorizedEntity = null,
     CancellationToken ct = default)
   {
@@ -88,16 +94,17 @@ public static class TrialBalanceImportService
     {
       return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ImportRejected, ex.Message);
     }
-    return await ImportParsedAsync(db, actor, clientId, engagementId, parsed, authorizedEntity, ct);
+    return await ImportParsedAsync(db, actor, clientId, engagementId, parsed, sourceContext, authorizedEntity, ct);
   }
 
   public static async Task<CommandResult<Guid>> ImportXlsxWithProfileAsync(
-    IAuditSphereDbContext db,
+    IClientAccountingDbContext db,
     ActorContext actor,
     Guid clientId,
     Guid engagementId,
     byte[] xlsxBytes,
     TrialBalanceImportProfile profile,
+    TrialBalanceImportContext sourceContext,
     string? authorizedEntity = null,
     CancellationToken ct = default)
   {
@@ -110,16 +117,17 @@ public static class TrialBalanceImportService
     {
       return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ImportRejected, ex.Message);
     }
-    return await ImportParsedAsync(db, actor, clientId, engagementId, parsed, authorizedEntity, ct);
+    return await ImportParsedAsync(db, actor, clientId, engagementId, parsed, sourceContext, authorizedEntity, ct);
   }
 
   public static async Task<CommandResult<IReadOnlyList<Guid>>> ImportBatchAsync(
-    IAuditSphereDbContext db,
+    IClientAccountingDbContext db,
     ActorContext actor,
     Guid clientId,
     Guid engagementId,
     string csvText,
     TrialBalanceImportProfile profile,
+    TrialBalanceImportContext sourceContext,
     CancellationToken ct = default)
   {
     if (clientId == Guid.Empty || engagementId == Guid.Empty)
@@ -146,6 +154,9 @@ public static class TrialBalanceImportService
       new AuthorizationRequest(engagement.FirmId, clientId, engagementId), ct);
     if (!auth.Succeeded)
       return CommandResult<IReadOnlyList<Guid>>.Fail(auth.ErrorCode!, auth.Message!);
+    var source = await ResolveSourceContextAsync(db, actor, clientId, sourceContext, parsed.Currency, ct);
+    if (!source.Succeeded)
+      return CommandResult<IReadOnlyList<Guid>>.Fail(source.ErrorCode!, source.Message!);
 
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     var lockedEngagement = await db.Engagements.FromSqlInterpolated($"""
@@ -163,6 +174,7 @@ public static class TrialBalanceImportService
     var batch = new TrialBalanceImportBatch
     {
       Id = Guid.CreateVersion7(), FirmId = engagement.FirmId, ClientId = clientId, EngagementId = engagementId,
+      PeriodId = source.Value!.PeriodId, BookId = source.Value.BookId, Basis = source.Value.Basis,
       RawFileSha256Hex = parsed.RawFileSha256Hex, NormalizedDatasetDigest = parsed.NormalizedDatasetDigest,
       ImportProfileVersion = parsed.ImportProfileVersion, SourceLayout = parsed.SourceLayout,
       EntityCount = entities.Length, Status = TrialBalanceImportStates.Loading,
@@ -180,6 +192,7 @@ public static class TrialBalanceImportService
       var dataset = new TrialBalanceDataset
       {
         Id = datasetId, FirmId = engagement.FirmId, ClientId = clientId, EngagementId = engagementId,
+        PeriodId = source.Value.PeriodId, BookId = source.Value.BookId, Basis = source.Value.Basis,
         ImportBatchId = batch.Id, SourceKind = "Raw", Revision = ++nextRevision, LegalEntityKey = entity,
         Currency = parsed.Currency, RawFileSha256Hex = parsed.RawFileSha256Hex,
         NormalizedDatasetDigest = parsed.NormalizedDatasetDigest, Sha256Hex = parsed.NormalizedDatasetDigest,
@@ -213,11 +226,12 @@ public static class TrialBalanceImportService
   }
 
   private static async Task<CommandResult<Guid>> ImportParsedAsync(
-    IAuditSphereDbContext db,
+    IClientAccountingDbContext db,
     ActorContext actor,
     Guid clientId,
     Guid engagementId,
     ParsedCsvFile parsed,
+    TrialBalanceImportContext sourceContext,
     string? authorizedEntity,
     CancellationToken ct)
   {
@@ -242,6 +256,9 @@ public static class TrialBalanceImportService
       new AuthorizationRequest(engagement.FirmId, clientId, engagementId), ct);
     if (!auth.Succeeded)
       return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+    var source = await ResolveSourceContextAsync(db, actor, clientId, sourceContext, parsed.Currency, ct);
+    if (!source.Succeeded)
+      return CommandResult<Guid>.Fail(source.ErrorCode!, source.Message!);
 
     // Serialize imports for one engagement while retaining independence across
     // clients/engagements. The parent is first persisted as LOADING, rows are
@@ -269,6 +286,9 @@ public static class TrialBalanceImportService
       FirmId = lockedEngagement.FirmId,
       ClientId = clientId,
       EngagementId = engagementId,
+      PeriodId = source.Value!.PeriodId,
+      BookId = source.Value.BookId,
+      Basis = source.Value.Basis,
       SourceKind = "Raw",
       Revision = revision + 1,
       LegalEntityKey = entityKey,
@@ -321,4 +341,45 @@ public static class TrialBalanceImportService
     string.Equals(baseException.GetType().Name, "PostgresException", StringComparison.Ordinal) &&
     string.Equals(baseException.GetType().GetProperty("SqlState")?.GetValue(baseException)?.ToString(),
       "23505", StringComparison.Ordinal);
+
+  private static async Task<CommandResult<ResolvedTrialBalanceContext>> ResolveSourceContextAsync(
+    IClientAccountingDbContext db,
+    ActorContext actor,
+    Guid clientId,
+    TrialBalanceImportContext? sourceContext,
+    string currency,
+    CancellationToken ct)
+  {
+    var basis = sourceContext?.Basis.Trim().ToUpperInvariant() ?? string.Empty;
+    if (sourceContext is null || sourceContext.PeriodId == Guid.Empty || basis.Length == 0)
+      return CommandResult<ResolvedTrialBalanceContext>.Fail(ErrorCodes.Accounting.ImportRejected,
+        "A trial-balance import must identify a reporting period and basis.");
+    var period = await db.ClientReportingPeriods.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.Id == sourceContext.PeriodId && x.FirmId == actor.FirmId && x.ClientId == clientId, ct);
+    if (period is null)
+      return CommandResult<ResolvedTrialBalanceContext>.Fail(ErrorCodes.ScopeDenied,
+        "The reporting period is outside the client scope.");
+    if (period.Status == AccountingWorkflowStates.Closed)
+      return CommandResult<ResolvedTrialBalanceContext>.Fail(ErrorCodes.ProtectedState,
+        "A closed reporting period cannot receive a trial-balance import.");
+    if (!string.Equals(period.Currency, currency, StringComparison.OrdinalIgnoreCase) ||
+        !string.Equals(period.Basis, basis, StringComparison.OrdinalIgnoreCase))
+      return CommandResult<ResolvedTrialBalanceContext>.Fail(ErrorCodes.Accounting.ImportRejected,
+        "The trial-balance currency and basis must match the selected reporting period.");
+    if (sourceContext.BookId is { } bookId)
+    {
+      var book = await db.ClientReportingBooks.AsNoTracking().SingleOrDefaultAsync(x =>
+        x.Id == bookId && x.FirmId == actor.FirmId && x.ClientId == clientId && x.PeriodId == period.Id, ct);
+      if (book is null)
+        return CommandResult<ResolvedTrialBalanceContext>.Fail(ErrorCodes.ScopeDenied,
+          "The reporting book is outside the selected period.");
+      if (!string.Equals(book.Currency, currency, StringComparison.OrdinalIgnoreCase) ||
+          !string.Equals(book.Basis, basis, StringComparison.OrdinalIgnoreCase))
+        return CommandResult<ResolvedTrialBalanceContext>.Fail(ErrorCodes.Accounting.ImportRejected,
+          "The trial-balance currency and basis must match the selected reporting book.");
+    }
+    return CommandResult<ResolvedTrialBalanceContext>.Ok(new(period.Id, sourceContext.BookId, basis));
+  }
+
+  private sealed record ResolvedTrialBalanceContext(Guid PeriodId, Guid? BookId, string Basis);
 }

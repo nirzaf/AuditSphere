@@ -497,6 +497,7 @@ public sealed class ClientAccountingTests
       db.TrialBalanceDatasets.Add(new TrialBalanceDataset
       {
         Id = datasetId, FirmId = scope.FirmId, ClientId = scope.ClientA, EngagementId = scope.EngagementA,
+        PeriodId = periodId, BookId = bookId, Basis = "STATUTORY",
         SourceKind = "Raw", LegalEntityKey = "CLIENT-A", Currency = "QAR", RawFileSha256Hex = digest,
         NormalizedDatasetDigest = digest, Sha256Hex = digest, Balanced = true, ValidationStatus = "Pending",
         ImportState = TrialBalanceImportStates.Loading, ImportedAt = DateTimeOffset.UtcNow, ImportedByUserId = scope.Preparer.Id

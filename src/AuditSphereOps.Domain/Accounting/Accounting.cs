@@ -7,6 +7,9 @@ public sealed class TrialBalanceDataset
   public Guid FirmId { get; set; }
   public Guid ClientId { get; set; }
   public Guid EngagementId { get; set; }
+  public Guid? PeriodId { get; set; }
+  public Guid? BookId { get; set; }
+  public string? Basis { get; set; }
   public Guid? ImportBatchId { get; set; }
   public string SourceKind { get; set; } = "Raw";     // Raw|Adjusted
   public long Revision { get; set; } = 1;
@@ -48,6 +51,9 @@ public sealed class TrialBalanceImportBatch
   public Guid FirmId { get; set; }
   public Guid ClientId { get; set; }
   public Guid EngagementId { get; set; }
+  public Guid? PeriodId { get; set; }
+  public Guid? BookId { get; set; }
+  public string? Basis { get; set; }
   public string RawFileSha256Hex { get; set; } = string.Empty;
   public string NormalizedDatasetDigest { get; set; } = string.Empty;
   public string ImportProfileVersion { get; set; } = string.Empty;

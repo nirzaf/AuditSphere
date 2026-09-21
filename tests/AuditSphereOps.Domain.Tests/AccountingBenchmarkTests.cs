@@ -165,6 +165,7 @@ public sealed class AccountingBenchmarkTests
       db.TrialBalanceDatasets.Add(new TrialBalanceDataset
       {
         Id = datasetId, FirmId = firmId, ClientId = clientId, EngagementId = engagementId,
+        PeriodId = periodId, BookId = bookId, Basis = "STATUTORY",
         SourceKind = "Raw", Revision = 1, LegalEntityKey = entity,
         Currency = "QAR", RawFileSha256Hex = digest, NormalizedDatasetDigest = digest, Sha256Hex = digest,
         ImportProfileVersion = "benchmark-v1", SourceLayout = TrialBalanceLayouts.SignedNet, Balanced = true,

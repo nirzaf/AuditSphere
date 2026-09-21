@@ -136,7 +136,7 @@ public sealed class AdjustmentBridgeTests
     530100,Finance Costs,10000,QAR,DEMO,PL_FINANCE
     """;
 
-  private sealed record Scope(Guid FirmId, Guid ClientId, Guid EngagementId);
+  private sealed record Scope(Guid FirmId, Guid ClientId, Guid EngagementId, Guid PeriodId, Guid BookId);
   private sealed record Users(AppUser Preparer, AppUser Reviewer);
 
   private static async Task<Scope> SeedScopeAsync(AuditSphereDbContext db, string name)
@@ -144,15 +144,26 @@ public sealed class AdjustmentBridgeTests
     var firmId = Guid.NewGuid();
     var clientId = Guid.NewGuid();
     var engagementId = Guid.NewGuid();
+    var periodId = Guid.NewGuid();
+    var bookId = Guid.NewGuid();
     db.PracticeClients.Add(new PracticeClient
       { Id = clientId, FirmId = firmId, LegalName = name, CreatedAt = DateTimeOffset.UtcNow });
     db.Engagements.Add(new Engagement
       { Id = engagementId, FirmId = firmId, PracticeClientId = clientId,
         ProfessionalWorkBlocked = false, CreatedAt = DateTimeOffset.UtcNow });
+    db.ClientReportingPeriods.Add(new ClientReportingPeriod
+      { Id = periodId, FirmId = firmId, ClientId = clientId, PeriodCode = "2026",
+        StartDate = new DateOnly(2026, 1, 1), EndDate = new DateOnly(2026, 12, 31),
+        Basis = "STATUTORY", Currency = "QAR", Status = AccountingWorkflowStates.Active,
+        CreatedAt = DateTimeOffset.UtcNow });
+    db.ClientReportingBooks.Add(new ClientReportingBook
+      { Id = bookId, FirmId = firmId, ClientId = clientId, PeriodId = periodId, Code = "STAT",
+        Basis = "STATUTORY", InclusionRule = "STATUTORY_ONLY", Currency = "QAR",
+        Status = AccountingWorkflowStates.Active, CreatedAt = DateTimeOffset.UtcNow });
     db.FirmSafetyStates.Add(new() { Id = firmId });
     db.ClientSafetyStates.Add(new() { Id = clientId, FirmId = firmId });
     await db.SaveChangesAsync();
-    return new Scope(firmId, clientId, engagementId);
+    return new Scope(firmId, clientId, engagementId, periodId, bookId);
   }
 
   private static async Task<AppUser> SeedUserAsync(AuditSphereDbContext db, Guid firmId)
@@ -225,7 +236,8 @@ public sealed class AdjustmentBridgeTests
     var actor = Actor(asPreparer ? users.Preparer : users.Reviewer,
       asPreparer ? "AccountingPreparer" : "AccountingReviewer");
     return TrialBalanceImportService.ImportAsync(
-      new AuditSphereDbContext(pg.Options), actor, scope.ClientId, scope.EngagementId, csv);
+      new AuditSphereDbContext(pg.Options), actor, scope.ClientId, scope.EngagementId, csv,
+      new TrialBalanceImportContext(scope.PeriodId, scope.BookId, "STATUTORY"));
   }
 
   [Fact]
@@ -249,6 +261,25 @@ public sealed class AdjustmentBridgeTests
     Assert.Equal(dataset.NormalizedDatasetDigest, dataset.Sha256Hex);
     Assert.NotEqual(dataset.RawFileSha256Hex, dataset.NormalizedDatasetDigest);
     Assert.Equal("DEMO", dataset.LegalEntityKey);
+    Assert.Equal(scope.PeriodId, dataset.PeriodId);
+    Assert.Equal(scope.BookId, dataset.BookId);
+    Assert.Equal("STATUTORY", dataset.Basis);
+  }
+
+  [Fact]
+  public async Task Import_RejectsContextOutsidePeriodBasis()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var (scope, users) = await SeedFirmWithStaffAsync(pg);
+
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var result = await TrialBalanceImportService.ImportAsync(db,
+      Actor(users.Preparer, "AccountingPreparer"), scope.ClientId, scope.EngagementId,
+      TrialBalanceV1Csv, new TrialBalanceImportContext(scope.PeriodId, scope.BookId, "TAX"));
+
+    Assert.False(result.Succeeded);
+    Assert.Equal(ErrorCodes.Accounting.ImportRejected, result.ErrorCode);
+    Assert.Empty(await db.TrialBalanceDatasets.ToListAsync());
   }
 
   [Fact]
@@ -265,7 +296,8 @@ public sealed class AdjustmentBridgeTests
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       var result = await TrialBalanceImportService.ImportBatchAsync(db, Actor(users.Preparer, "AccountingPreparer"),
-        scope.ClientId, scope.EngagementId, csv, TrialBalanceImportProfile.SignedNetV1);
+        scope.ClientId, scope.EngagementId, csv, TrialBalanceImportProfile.SignedNetV1,
+        new TrialBalanceImportContext(scope.PeriodId, scope.BookId, "STATUTORY"));
       Assert.True(result.Succeeded, result.Message);
       Assert.Equal(2, result.Value!.Count);
     }
@@ -275,6 +307,9 @@ public sealed class AdjustmentBridgeTests
       var batch = await db.TrialBalanceImportBatches.SingleAsync();
       Assert.Equal(TrialBalanceImportStates.Sealed, batch.Status);
       Assert.Equal(2, batch.EntityCount);
+      Assert.Equal(scope.PeriodId, batch.PeriodId);
+      Assert.Equal(scope.BookId, batch.BookId);
+      Assert.Equal("STATUTORY", batch.Basis);
       var datasets = await db.TrialBalanceDatasets.OrderBy(x => x.LegalEntityKey).ToListAsync();
       Assert.Equal(["ENTITY-A", "ENTITY-B"], datasets.Select(x => x.LegalEntityKey));
       Assert.All(datasets, x =>
@@ -286,7 +321,8 @@ public sealed class AdjustmentBridgeTests
       Assert.Equal(4, await db.TrialBalanceRows.CountAsync());
 
       var duplicate = await TrialBalanceImportService.ImportBatchAsync(db, Actor(users.Preparer, "AccountingPreparer"),
-        scope.ClientId, scope.EngagementId, csv, TrialBalanceImportProfile.SignedNetV1);
+        scope.ClientId, scope.EngagementId, csv, TrialBalanceImportProfile.SignedNetV1,
+        new TrialBalanceImportContext(scope.PeriodId, scope.BookId, "STATUTORY"));
       Assert.False(duplicate.Succeeded);
       Assert.Equal(ErrorCodes.Accounting.ImportDuplicate, duplicate.ErrorCode);
     }
@@ -320,7 +356,8 @@ public sealed class AdjustmentBridgeTests
     Guid base1;
     await using (var db = new AuditSphereDbContext(pg.Options))
       base1 = (await TrialBalanceImportService.ImportAsync(
-        db, preparer, scope.ClientId, scope.EngagementId, TrialBalanceV1Csv)).Value;
+        db, preparer, scope.ClientId, scope.EngagementId, TrialBalanceV1Csv,
+        new TrialBalanceImportContext(scope.PeriodId, scope.BookId, "STATUTORY"))).Value;
     await ValidateAsync(pg, scope.FirmId);
     await using (var db = new AuditSphereDbContext(pg.Options))
       Assert.Equal("Accepted", (await db.TrialBalanceDatasets.SingleAsync(d => d.Id == base1)).ValidationStatus);
@@ -369,7 +406,8 @@ public sealed class AdjustmentBridgeTests
     Guid base2;
     await using (var db = new AuditSphereDbContext(pg.Options))
       base2 = (await TrialBalanceImportService.ImportAsync(
-        db, preparer, scope.ClientId, scope.EngagementId, TrialBalanceV2Csv)).Value;
+        db, preparer, scope.ClientId, scope.EngagementId, TrialBalanceV2Csv,
+        new TrialBalanceImportContext(scope.PeriodId, scope.BookId, "STATUTORY"))).Value;
     await ValidateAsync(pg, scope.FirmId);
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
@@ -395,7 +433,8 @@ public sealed class AdjustmentBridgeTests
     await using (var db = new AuditSphereDbContext(pg.Options))
       dataset = (await TrialBalanceImportService.ImportAsync(
         db, Actor(users.Preparer, "AccountingPreparer"),
-        scope.ClientId, scope.EngagementId, bad)).Value;
+        scope.ClientId, scope.EngagementId, bad,
+        new TrialBalanceImportContext(scope.PeriodId, scope.BookId, "STATUTORY"))).Value;
     await ValidateAsync(pg, scope.FirmId);
     await using var verify = new AuditSphereDbContext(pg.Options);
     var result = await verify.TrialBalanceDatasets.SingleAsync(d => d.Id == dataset);
@@ -415,7 +454,8 @@ public sealed class AdjustmentBridgeTests
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       base1 = (await TrialBalanceImportService.ImportAsync(
-        db, preparer, scope.ClientId, scope.EngagementId, TrialBalanceV1Csv)).Value;
+        db, preparer, scope.ClientId, scope.EngagementId, TrialBalanceV1Csv,
+        new TrialBalanceImportContext(scope.PeriodId, scope.BookId, "STATUTORY"))).Value;
     }
     await ValidateAsync(pg, scope.FirmId);
     var lines = new List<(string, decimal, decimal)> { ("520100", 5000m, 0m), ("159100", 0m, 5000m) };
@@ -453,7 +493,8 @@ public sealed class AdjustmentBridgeTests
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       var denied = await TrialBalanceImportService.ImportAsync(db,
-        Actor(users.Preparer, "AccountingPreparer"), other.ClientId, other.EngagementId, TrialBalanceV1Csv);
+        Actor(users.Preparer, "AccountingPreparer"), other.ClientId, other.EngagementId, TrialBalanceV1Csv,
+        new TrialBalanceImportContext(other.PeriodId, other.BookId, "STATUTORY"));
       Assert.False(denied.Succeeded);
       Assert.Equal(ErrorCodes.ScopeDenied, denied.ErrorCode);
     }
@@ -470,7 +511,8 @@ public sealed class AdjustmentBridgeTests
       await db.SaveChangesAsync();
       var denied = await TrialBalanceImportService.ImportAsync(db,
         new ActorContext(foreign.Id, foreign.FirmId, foreign.SessionEpoch, ["AccountingPreparer"]),
-        scope.ClientId, scope.EngagementId, TrialBalanceV1Csv);
+        scope.ClientId, scope.EngagementId, TrialBalanceV1Csv,
+        new TrialBalanceImportContext(scope.PeriodId, scope.BookId, "STATUTORY"));
       Assert.False(denied.Succeeded);
     }
   }
@@ -485,7 +527,8 @@ public sealed class AdjustmentBridgeTests
     Guid base1;
     await using (var db = new AuditSphereDbContext(pg.Options))
       base1 = (await TrialBalanceImportService.ImportAsync(
-        db, preparer, scope.ClientId, scope.EngagementId, TrialBalanceV1Csv)).Value;
+        db, preparer, scope.ClientId, scope.EngagementId, TrialBalanceV1Csv,
+        new TrialBalanceImportContext(scope.PeriodId, scope.BookId, "STATUTORY"))).Value;
     await ValidateAsync(pg, scope.FirmId);
     // One fresh context per command (§28.3): a failed command never poisons the next.
     async Task<CommandResult<Guid>> DraftAsync(string number, List<(string, decimal, decimal)> journalLines)
@@ -549,7 +592,8 @@ public sealed class AdjustmentBridgeTests
 
     Guid dataset;
     await using (var db = new AuditSphereDbContext(pg.Options))
-      dataset = (await TrialBalanceImportService.ImportAsync(db, preparer, scope.ClientId, scope.EngagementId, TrialBalanceV1Csv)).Value;
+      dataset = (await TrialBalanceImportService.ImportAsync(db, preparer, scope.ClientId, scope.EngagementId, TrialBalanceV1Csv,
+        new TrialBalanceImportContext(scope.PeriodId, scope.BookId, "STATUTORY"))).Value;
     await ValidateAsync(pg, scope.FirmId);
 
     Guid journal;

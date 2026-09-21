@@ -919,23 +919,31 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     importBatch.Property(x => x.NormalizedDatasetDigest).HasMaxLength(64);
     importBatch.Property(x => x.ImportProfileVersion).HasMaxLength(100);
     importBatch.Property(x => x.SourceLayout).HasMaxLength(30);
+    importBatch.Property(x => x.Basis).HasMaxLength(50);
     importBatch.Property(x => x.Status).HasMaxLength(16);
     importBatch.HasIndex(x => new { x.FirmId, x.EngagementId, x.RawFileSha256Hex }).IsUnique()
       .HasDatabaseName("ux_tb_import_batch_raw_hash");
     importBatch.ToTable("trial_balance_import_batches", table => table.HasCheckConstraint("ck_tb_import_batch_values",
-      "raw_file_sha256_hex ~ '^[0-9a-f]{64}$' AND normalized_dataset_digest ~ '^[0-9a-f]{64}$' AND source_layout IN ('SIGNED_NET','DEBIT_CREDIT') AND entity_count >= 2 AND status IN ('LOADING','SEALED')"));
+      "raw_file_sha256_hex ~ '^[0-9a-f]{64}$' AND normalized_dataset_digest ~ '^[0-9a-f]{64}$' AND source_layout IN ('SIGNED_NET','DEBIT_CREDIT') AND entity_count >= 2 AND status IN ('LOADING','SEALED') AND (basis IS NULL OR length(trim(basis)) > 0)"));
     importBatch.HasOne<Engagement>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId })
       .HasPrincipalKey(x => new { x.FirmId, x.PracticeClientId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     importBatch.HasOne<AppUser>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.CreatedByUserId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    importBatch.HasOne<ClientReportingPeriod>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.PeriodId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    importBatch.HasOne<ClientReportingBook>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.BookId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.Id }).OnDelete(DeleteBehavior.Restrict);
 
     b.Entity<TrialBalanceDataset>().Property(x => x.LegalEntityKey).HasMaxLength(200);
     b.Entity<TrialBalanceDataset>().Property(x => x.RawFileSha256Hex).HasMaxLength(64);
     b.Entity<TrialBalanceDataset>().Property(x => x.NormalizedDatasetDigest).HasMaxLength(64);
     b.Entity<TrialBalanceDataset>().Property(x => x.ImportProfileVersion).HasMaxLength(100);
     b.Entity<TrialBalanceDataset>().Property(x => x.SourceLayout).HasMaxLength(30);
+    b.Entity<TrialBalanceDataset>().Property(x => x.Basis).HasMaxLength(50);
     b.Entity<TrialBalanceDataset>().Property(x => x.ValidationStatus).HasMaxLength(16).HasDefaultValue("Pending");
     b.Entity<TrialBalanceDataset>().Property(x => x.ImportState).HasMaxLength(16)
       .HasDefaultValue(TrialBalanceImportStates.Sealed).ValueGeneratedNever();
@@ -946,7 +954,7 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
       table.HasCheckConstraint("ck_tb_import_state",
         "import_state IN ('LOADING', 'SEALED')");
       table.HasCheckConstraint("ck_tb_source_layout",
-        "source_layout IN ('SIGNED_NET','DEBIT_CREDIT') AND (import_profile_version IS NOT NULL AND length(trim(import_profile_version)) > 0)");
+        "source_layout IN ('SIGNED_NET','DEBIT_CREDIT') AND (import_profile_version IS NOT NULL AND length(trim(import_profile_version)) > 0) AND (basis IS NULL OR length(trim(basis)) > 0)");
     });
     b.Entity<TrialBalanceRow>().HasIndex(x => x.DatasetId);
     b.Entity<TrialBalanceRow>().ToTable("trial_balance_rows", table => table.HasCheckConstraint("ck_tb_row_source_amounts",
@@ -988,6 +996,16 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
       .HasOne<PracticeClient>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.ClientId })
       .HasPrincipalKey(c => new { c.FirmId, c.Id })
+      .OnDelete(DeleteBehavior.Restrict);
+    b.Entity<TrialBalanceDataset>()
+      .HasOne<ClientReportingPeriod>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.PeriodId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.Id })
+      .OnDelete(DeleteBehavior.Restrict);
+    b.Entity<TrialBalanceDataset>()
+      .HasOne<ClientReportingBook>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.BookId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.Id })
       .OnDelete(DeleteBehavior.Restrict);
     b.Entity<TrialBalanceDataset>()
       .HasOne<TrialBalanceImportBatch>().WithMany()

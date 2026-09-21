@@ -159,6 +159,8 @@ public static class AccountingAnalysisService
     if (dataset is null || batch is null)
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "The selected TB dataset or GL batch is outside the sealed engagement scope.");
     if (batch.PeriodId != request.PeriodId || batch.BookId != request.BookId ||
+        dataset.PeriodId != request.PeriodId || dataset.BookId != request.BookId ||
+        !string.Equals(dataset.Basis, period.Basis, StringComparison.OrdinalIgnoreCase) ||
         !string.Equals(dataset.Currency, batch.Currency, StringComparison.OrdinalIgnoreCase) ||
         !string.Equals(dataset.LegalEntityKey, batch.LegalEntityKey, StringComparison.Ordinal))
       return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ReconciliationRejected, "The TB and GL sources do not describe the same period, book, entity or currency.");
@@ -225,6 +227,10 @@ public static class AccountingAnalysisService
       new AuthorizationRequest(actor.FirmId, request.ClientId, request.EngagementId, PreparerRoles, InternalOnly: true), ct);
     if (!auth.Succeeded)
       return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+    var period = await db.ClientReportingPeriods.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.Id == request.PeriodId && x.FirmId == actor.FirmId && x.ClientId == request.ClientId, ct);
+    if (period is null)
+      return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "The reporting period is outside the client scope.");
     var dataset = await db.TrialBalanceDatasets.AsNoTracking().SingleOrDefaultAsync(x =>
       x.Id == request.TrialBalanceDatasetId && x.FirmId == actor.FirmId && x.ClientId == request.ClientId &&
       x.EngagementId == request.EngagementId && x.ValidationStatus == "Accepted" &&
@@ -235,6 +241,8 @@ public static class AccountingAnalysisService
     if (dataset is null || batch is null)
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "The selected TB dataset or GL batch is outside the sealed engagement scope.");
     if (batch.PeriodId != request.PeriodId || batch.BookId != request.BookId ||
+        dataset.PeriodId != request.PeriodId || dataset.BookId != request.BookId ||
+        !string.Equals(dataset.Basis, period.Basis, StringComparison.OrdinalIgnoreCase) ||
         !string.Equals(dataset.Currency, batch.Currency, StringComparison.OrdinalIgnoreCase) ||
         !string.Equals(dataset.LegalEntityKey, batch.LegalEntityKey, StringComparison.Ordinal))
       return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ReconciliationRejected, "The TB and GL sources do not describe the same period, book, entity or currency.");
@@ -336,9 +344,14 @@ public static class AccountingAnalysisService
     {
       var dataset = await db.TrialBalanceDatasets.AsNoTracking().SingleOrDefaultAsync(x => x.Id == datasetId &&
         x.FirmId == actor.FirmId && x.ClientId == request.ClientId && x.EngagementId == request.EngagementId &&
-        x.ValidationStatus == "Accepted", ct);
+        x.ValidationStatus == "Accepted" && x.ImportState == TrialBalanceImportStates.Sealed, ct);
       if (dataset is null)
         return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "The selected TB dataset is outside the engagement or not accepted.");
+      if (dataset.PeriodId != request.PeriodId || dataset.BookId != request.BookId ||
+          !string.Equals(dataset.Basis, period.Basis, StringComparison.OrdinalIgnoreCase) ||
+          !string.Equals(dataset.Currency, period.Currency, StringComparison.OrdinalIgnoreCase))
+        return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ReconciliationRejected,
+          "The selected TB dataset does not belong to the requested reporting period, book, basis or currency.");
       var rows = await db.TrialBalanceRows.AsNoTracking().Where(x => x.DatasetId == dataset.Id && codes.Contains(x.AccountCode)).ToListAsync(ct);
       if (rows.Select(x => x.AccountCode).Distinct(StringComparer.Ordinal).Count() != codes.Length)
         return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ReconciliationRejected, "The selected source does not contain every requested account code.");
