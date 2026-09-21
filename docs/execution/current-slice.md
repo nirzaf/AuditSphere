@@ -6,15 +6,15 @@ This file records observed repository state only. The authoritative build contra
 
 | Item | Observed value |
 |---|---|
-| Source implementation checkpoint | `master@9156b00` |
-| Remote | `origin/master` includes source checkpoint `9156b00` and the current documentation checkpoint |
+| Source implementation checkpoint | `master@63d2ab5` |
+| Remote | `origin/master` includes source checkpoint `63d2ab5` and the current documentation checkpoint |
 | SDK | .NET 10; repository solution targets `net10.0` |
 | Database | PostgreSQL 18.6 on loopback port 5433 for development only |
 | Build | `dotnet build AuditSphereOps.slnx --no-restore --configuration Release` — passed, 0 warnings/errors |
 | Tests | 198/198 passed, 0 skipped against PostgreSQL 18.6 |
-| Migrations | 55 applied; latest `20260921011913_AddConsolidationRollForwardLineage` |
+| Migrations | 56 applied; latest `20260921020828_AddIntercompanyEliminationLineage` |
 | Model drift | `dotnet ef migrations has-pending-model-changes` — no changes |
-| Restore drill | `scripts/db/restore-drill.sh` — passed; 55 migrations reconciled |
+| Restore drill | `scripts/db/restore-drill.sh` — passed; 56 migrations reconciled |
 | Production effects | Disabled locally; no production acceptance claimed |
 
 ## Implemented local capability
@@ -43,6 +43,7 @@ This file records observed repository state only. The authoritative build contra
 - The completion screen exposes package-candidate preparation only to partner/administrator actors after all three current package reviews are approved; repeated preparation reuses the exact candidate.
 - ECL and inventory evidence records capture the reconciliation source hash and client input generation; review blocks when either source lineage or generation is stale.
 - Bounded GL chunk intake with canonical content digests, transactional batch locking, idempotent retries, contiguous finalization and persisted accepted-count reconciliation.
+- Source-bound GL reconciliations reject a sealed batch whose reporting period or currency differs from the selected period; PostgreSQL regression coverage passes.
 - Blazor status surfaces for the implemented workflows, including period restatement and truthful release/package gate state.
 
 ## Remaining local implementation work
@@ -63,6 +64,7 @@ These are product gaps, not claims of production readiness:
 - [x] Include accounting/group dependencies in structured records exports while retaining the existing records-profile and legal-hold gates.
 - [x] Carry approved group opening consolidation lineage across scope versions without duplicating prior journals.
 - [x] Reject component, translation, intercompany-match and group-journal writes against a changed group revision.
+- [x] Bind GL reconciliation sources to the selected reporting period and currency; reject cross-period or cross-currency batches.
 - [x] Re-run focused tests, full tests, build, migration drift and restore drill for the current coherent slice; repeat this checklist for the next slice.
 
 ## External acceptance gates
@@ -92,7 +94,7 @@ dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infr
 scripts/db/restore-drill.sh
 ```
 
-The restore evidence is written to [`docs/evidence/restore-drill-latest.json`](../evidence/restore-drill-latest.json). The latest rehearsal restored 55 migrations through `20260921011913_AddConsolidationRollForwardLineage`; it is loopback-only and explicitly reports that external checkpoint custody and production RPO/RTO were not run.
+The restore evidence is written to [`docs/evidence/restore-drill-latest.json`](../evidence/restore-drill-latest.json). The latest rehearsal restored 56 migrations through `20260921020828_AddIntercompanyEliminationLineage`; it is loopback-only and explicitly reports that external checkpoint custody and production RPO/RTO were not run.
 
 ## Resume rule
 
