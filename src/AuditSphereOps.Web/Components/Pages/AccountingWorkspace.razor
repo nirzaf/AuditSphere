@@ -34,6 +34,36 @@ else
   {
     <section class="notice" role="status"><h2>No client scope assigned</h2><p>Ask a firm administrator for an active client or engagement grant before using this workspace. No firm data is shown without an explicit scope.</p></section>
   }
+  <section class="card context-bar" aria-labelledby="selected-context-heading" data-draft-scope="accounting-context">
+    <h2 id="selected-context-heading">Selected accounting context</h2>
+    <label class="field">
+      Context (optional)
+      <select id="accounting-context-selector" @bind="_selectedContextKey" data-optional="true" title="Choose a visible client period to keep its legal entity, engagement, book, currency and package context together.">
+        <option value="">No period selected</option>
+        @foreach (var periodContext in _periods)
+        {
+          <option value="@periodContext.Id">@periodContext.ClientName · @periodContext.PeriodCode · @periodContext.Book · @periodContext.Currency</option>
+        }
+      </select>
+    </label>
+    @if (SelectedContext is { } selected)
+    {
+      <dl class="details">
+        <dt>Firm</dt><dd><code>@_actor!.FirmId</code></dd>
+        <dt>Group</dt><dd>None — client accounting scope</dd>
+        <dt>Legal entity</dt><dd>@selected.ClientName</dd>
+        <dt>Engagement</dt><dd>@selected.Engagement</dd>
+        <dt>Period</dt><dd>@selected.PeriodCode · @selected.Basis · @selected.StartDate.ToString("yyyy-MM-dd") — @selected.EndDate.ToString("yyyy-MM-dd")</dd>
+        <dt>Book</dt><dd>@selected.Book</dd>
+        <dt>Currency</dt><dd><code>@selected.Currency</code></dd>
+        <dt>Package version</dt><dd>@selected.Package</dd>
+      </dl>
+    }
+    else
+    {
+      <p class="muted">Choose a visible period to pin its reporting context here. This selection does not broaden access.</p>
+    }
+  </section>
   <section class="card" aria-labelledby="context-heading">
     <h2 id="context-heading">Current accounting context</h2>
     <div class="table-wrap">
@@ -95,7 +125,7 @@ else
 
 @code {
   private sealed record ClientRow(string Name, string Currency, int Periods, string ChartStatus, string ImportStatus);
-  private sealed record PeriodRow(string ClientName, string Engagement, string PeriodCode, string Basis, DateOnly StartDate, DateOnly EndDate,
+  private sealed record PeriodRow(Guid Id, string ClientName, string Engagement, string PeriodCode, string Basis, DateOnly StartDate, DateOnly EndDate,
     string Book, string Currency, string Package, string Status, long Revision);
   private ActorContext? _actor;
   private bool _loading = true;
@@ -106,8 +136,12 @@ else
   private int _blockedCount;
   private bool _hasClientScope;
   private string _scopeDescription = "No active client or engagement grant";
+  private string _selectedContextKey = string.Empty;
   private List<ClientRow> _clients = [];
   private List<PeriodRow> _periods = [];
+  private PeriodRow? SelectedContext => Guid.TryParse(_selectedContextKey, out var id)
+    ? _periods.FirstOrDefault(x => x.Id == id)
+    : null;
 
   protected override async Task OnInitializedAsync()
   {
@@ -152,7 +186,7 @@ else
         (firmWide || clientIds.Contains(x.ClientId)));
       _blockedCount = periods.Count(x => x.Status is AccountingWorkflowStates.Stale or AccountingWorkflowStates.Rejected);
       _periods = periods.OrderByDescending(x => x.EndDate).ThenBy(x => x.PeriodCode).Select(x => new PeriodRow(
-        clients.GetValueOrDefault(x.ClientId)?.LegalName ?? "Scoped client",
+        x.Id, clients.GetValueOrDefault(x.ClientId)?.LegalName ?? "Scoped client",
         engagements.Where(e => e.PracticeClientId == x.ClientId).OrderByDescending(e => e.CreatedAt).Select(e => e.ServiceRoute).FirstOrDefault() ?? "No engagement",
         x.PeriodCode, x.Basis, x.StartDate, x.EndDate,
         books.FirstOrDefault(b => b.ClientId == x.ClientId && b.PeriodId == x.Id)?.Code ?? "No book",
@@ -160,6 +194,7 @@ else
         packages.Where(p => p.ClientId == x.ClientId && p.PeriodId == x.Id).OrderByDescending(p => p.CreatedAt)
           .Select(p => $"{p.Status} · v{p.Revision}").FirstOrDefault() ?? "NO_PACKAGE",
         x.Status, x.Revision)).ToList();
+      _selectedContextKey = _periods.FirstOrDefault()?.Id.ToString("D") ?? string.Empty;
       _clients = profiles.Where(x => clients.ContainsKey(x.ClientId)).Select(x => new ClientRow(
         clients[x.ClientId].LegalName, x.FunctionalCurrency, periods.Count(p => p.ClientId == x.ClientId),
         charts.SingleOrDefault(c => c.ClientId == x.ClientId)?.Status ?? "NO_CHART",
