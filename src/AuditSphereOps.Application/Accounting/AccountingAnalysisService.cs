@@ -546,6 +546,27 @@ public static class AccountingAnalysisService
       return CommandResult.Fail(ErrorCodes.GateBlocked, "Only an exactly reconciled source can be approved.");
     if (reconciliation.CreatedByUserId == actor.UserId)
       return CommandResult.Fail(ErrorCodes.Accounting.ReconciliationRejected, "The reconciliation preparer cannot approve the same reconciliation.");
+    var currentSourceHash = reconciliation.TrialBalanceDatasetId is { } datasetId
+      ? await db.TrialBalanceDatasets.AsNoTracking().Where(x => x.Id == datasetId && x.FirmId == actor.FirmId)
+        .Select(x => x.NormalizedDatasetDigest.Length == 64 ? x.NormalizedDatasetDigest : x.Sha256Hex).SingleOrDefaultAsync(ct)
+      : reconciliation.ImportBatchId is { } batchId
+        ? await db.SourceImportBatches.AsNoTracking().Where(x => x.Id == batchId && x.FirmId == actor.FirmId)
+          .Select(x => x.NormalizedDatasetDigest).SingleOrDefaultAsync(ct)
+        : null;
+    var currentGeneration = await db.ClientSafetyStates.AsNoTracking().Where(x => x.Id == reconciliation.ClientId && x.FirmId == actor.FirmId)
+      .Select(x => (long?)x.InputGeneration).SingleOrDefaultAsync(ct);
+    if (!string.Equals(currentSourceHash, reconciliation.SourceHash, StringComparison.OrdinalIgnoreCase))
+    {
+      reconciliation.Status = AccountingWorkflowStates.Stale;
+      await db.SaveChangesAsync(ct);
+      return CommandResult.Fail(ErrorCodes.ManifestMismatch, "The reconciliation source changed; prepare a new source-bound review.");
+    }
+    if (currentGeneration != reconciliation.InputGeneration)
+    {
+      reconciliation.Status = AccountingWorkflowStates.Stale;
+      await db.SaveChangesAsync(ct);
+      return CommandResult.Fail(ErrorCodes.GenerationStale, "The client accounting inputs changed; prepare a new source-bound review.");
+    }
     reconciliation.Status = AccountingWorkflowStates.Approved;
     reconciliation.ReviewedByUserId = actor.UserId;
     reconciliation.ReviewedAt = DateTimeOffset.UtcNow;

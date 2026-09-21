@@ -415,6 +415,53 @@ public sealed class ClientAccountingTests
 
   [Fact]
   [Trait("Profile", "Database")]
+  public async Task ReconciliationApproval_StalesWhenSourceDigestChanges()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var scope = await SeedAsync(pg);
+    var preparer = Actor(scope.Preparer, "AccountingPreparer");
+    var reviewer = Actor(scope.Reviewer, "AccountingReviewer");
+    var (periodId, bookId) = await CreateGlFixtureAsync(pg, scope, preparer);
+    var sourceHash = Hashing.Sha256Hex("reconciliation-source");
+    var datasetId = Guid.CreateVersion7();
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      db.TrialBalanceDatasets.Add(new TrialBalanceDataset
+      {
+        Id = datasetId, FirmId = scope.FirmId, ClientId = scope.ClientA, EngagementId = scope.EngagementA,
+        PeriodId = periodId, BookId = bookId, Basis = "STATUTORY", SourceKind = "Raw", LegalEntityKey = "CLIENT-A",
+        Currency = "QAR", RawFileSha256Hex = sourceHash, NormalizedDatasetDigest = sourceHash, Sha256Hex = sourceHash,
+        Balanced = true, ValidationStatus = "Pending", ImportState = TrialBalanceImportStates.Loading,
+        ImportedAt = DateTimeOffset.UtcNow, ImportedByUserId = scope.Preparer.Id
+      });
+      db.TrialBalanceRows.Add(new TrialBalanceRow
+      {
+        Id = Guid.CreateVersion7(), DatasetId = datasetId, AccountCode = "1000", AccountName = "Cash",
+        Amount = 100m, Currency = "QAR", Entity = "CLIENT-A"
+      });
+      await db.SaveChangesAsync();
+      var sealedDataset = await db.TrialBalanceDatasets.SingleAsync(x => x.Id == datasetId);
+      sealedDataset.ValidationStatus = "Accepted";
+      sealedDataset.ImportState = TrialBalanceImportStates.Sealed;
+      await db.SaveChangesAsync();
+      var reconciliation = await AccountingAnalysisService.CreateReconciliationAsync(db, preparer,
+        new AccountingReconciliationRequest(scope.ClientA, scope.EngagementA, periodId, bookId, "CASH",
+          datasetId, null, ["1000"], new DateOnly(2026, 12, 31)));
+      Assert.True(reconciliation.Succeeded, reconciliation.Message);
+      var dataset = await db.TrialBalanceDatasets.SingleAsync(x => x.Id == datasetId);
+      dataset.NormalizedDatasetDigest = Hashing.Sha256Hex("reconciliation-source-replaced");
+      await db.SaveChangesAsync();
+      var approval = await AccountingAnalysisService.ApproveReconciliationAsync(db, reviewer, reconciliation.Value);
+      Assert.False(approval.Succeeded);
+      Assert.Equal(ErrorCodes.ManifestMismatch, approval.ErrorCode);
+      Assert.Equal(AccountingWorkflowStates.Stale,
+        await db.AccountingReconciliations.Where(x => x.Id == reconciliation.Value).Select(x => x.Status).SingleAsync());
+    }
+  }
+
+  [Fact]
+  [Trait("Profile", "Database")]
   public async Task SpecialistAreaSchedules_RetainTypedInputsAndRequireReviewEvidence()
   {
     await using var pg = await PgTestSchema.CreateAsync();
