@@ -57,6 +57,11 @@
       "details": "Completeness bridges optionally bind an approved prior-period sealed TB for the same entity, book, basis and currency, persist per-account opening-plus-movement residuals and the opening digest, count malformed journal groups, and disclose missing opening data or incomplete batch counts. Focused opening-rollforward and source-only disclosure coverage, the 205-test suite, Release build, EF drift check and loopback restore evidence pass. Migration 20260921072319_ReconcileGeneralLedgerOpeningMovement."
     },
     {
+      "item": "Adjustment source reflection",
+      "status": "LOCAL_VERIFIED",
+      "details": "Zero-journal plans preserve the accepted source; posted journals apply only for NOT_REFLECTED decisions, REFLECTED contributes zero, UNKNOWN/PARTIALLY_REFLECTED blocks finalization, replacement datasets create new plans, layer identity prevents duplicate purpose application, and changed reflection decisions stale the plan. PostgreSQL adjustment-bridge and financial-statement regressions pass."
+    },
+    {
       "item": "Chart hierarchy scope",
       "status": "LOCAL_VERIFIED",
       "details": "Client chart parent lookups are restricted to the target chart version; cross-version parent references and posting-account parents are rejected, while same-chart non-posting parent insertion remains supported. PostgreSQL regression coverage passes."

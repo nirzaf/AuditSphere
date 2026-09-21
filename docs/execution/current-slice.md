@@ -25,6 +25,7 @@ This file records observed repository state only. The authoritative build contra
 - Client accounting setup/reporting objects default blank currency input to QAR; raw source/import currencies and FX policy currencies remain explicit.
 - Direct and streaming GL imports preserve optional service dates through canonical digests and archive lineage.
 - GL completeness bridges optionally bind the approved prior-period TB, persist per-account opening-plus-movement residuals and disclose missing opening or malformed journal evidence.
+- Zero-adjustment plans preserve the validated source exactly; posted journals apply only when NOT_REFLECTED, REFLECTED applies zero, and UNKNOWN/PARTIALLY_REFLECTED or changed source decisions block finalization.
 - Client-scoped accounting dimension definitions cover branch, cost centre, department, project and intercompany counterparty codes; nonblank GL dimension values are rejected unless defined for the client, including bounded streaming imports.
 - Client chart hierarchy parent lookups are restricted to the target chart version; cross-version parent references and posting-account parents are rejected.
 - Draft taxonomy nodes can be added incrementally with parents from the same taxonomy version; cross-version parents and cycles are rejected.

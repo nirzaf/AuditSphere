@@ -421,12 +421,12 @@ Story criteria remain proposed unless marked locally verified in the execution l
 **Priority / dependencies:** P0/P1; AC-03, AC-07. **Reuse:** AJ source reconciliations and adjustment plans.
 
 **Acceptance criteria**
-- [ ] A zero-journal plan finalizes and produces an adjusted snapshot exactly equal to the validated source.
-- [ ] REFLECTED journals contribute zero; NOT_REFLECTED journals contribute once.
-- [ ] UNKNOWN/PARTIALLY_REFLECTED remains blocked until resolved with evidence; equal grand totals alone are insufficient.
-- [ ] A replacement source creates a new dataset/plan and preserves prior calculations and decisions.
-- [ ] Plan input identity includes applicable basis/layer; the same logical entry cannot be double-applied through multiple purposes.
-- [ ] Source-reflection changes invalidate affected package applicability under the commit safety rules.
+- [x] A zero-journal plan finalizes and produces an adjusted snapshot exactly equal to the validated source.
+- [x] REFLECTED journals contribute zero; NOT_REFLECTED journals contribute once.
+- [x] UNKNOWN/PARTIALLY_REFLECTED remains blocked until resolved with evidence; equal grand totals alone are insufficient.
+- [x] A replacement source creates a new dataset/plan and preserves prior calculations and decisions.
+- [x] Plan input identity includes applicable basis/layer; the same logical entry cannot be double-applied through multiple purposes.
+- [x] Source-reflection changes invalidate affected package applicability under the commit safety rules.
 
 ### AC-10 — Implement the audit-focused journal lifecycle
 

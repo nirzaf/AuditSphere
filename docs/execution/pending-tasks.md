@@ -60,6 +60,7 @@ This is a resume checklist, not an acceptance certificate. Tenant identifiers, c
 - [x] Client-scoped GL dimension definitions validate nonblank branch/cost-centre/department/project/intercompany values; blank accounting setup/reporting currency defaults to QAR while source/import currency remains explicit.
 - [x] Direct and streaming GL imports preserve optional service dates through canonical digests and archive lineage.
 - [x] GL completeness bridges optionally bind the approved prior-period TB, persist per-account opening-plus-movement residuals and disclose missing opening or malformed journal evidence.
+- [x] Zero-adjustment/source-reflection plans preserve source balances, apply posted journals exactly once by reflection state, and stale when a source decision changes.
 - [x] Chart hierarchy parent lookups are scoped to the target chart version and reject cross-version and posting-account parents.
 - [x] Draft taxonomy nodes support incremental same-version parents and reject cross-version parents/cycles.
 - [x] Link accounting evidence to reviewed audit workpapers and expose accounting period handoffs from the dashboard.
