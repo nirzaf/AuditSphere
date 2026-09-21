@@ -308,12 +308,12 @@ Story criteria remain proposed unless marked locally verified in the execution l
 **Priority / dependencies:** P0; none. **Implementation:** extend existing service-profile/adoption controls; reference v5 scope and the new consolidation decision.
 
 **Acceptance criteria**
-- [ ] A service selects entity or group reporting, framework/edition, period rules, currencies, accounting methods, review hierarchy and template family.
+- [x] A service selects entity or group reporting, framework/edition, period rules, currencies, accounting methods, review hierarchy and template family.
 - [ ] Audit-only work can consume management/external-accountant packs without requiring client bookkeeping migration.
 - [ ] Same-firm preparation and audit require the existing affirmative service-permissibility decision; staffing separation alone cannot override a prohibition.
-- [ ] Unknown consolidation, valuation or tax methods are visibly unsupported and cannot authorize final reporting.
+- [x] Unknown consolidation, valuation or tax methods are visibly unsupported and cannot authorize final reporting.
 - [ ] Operational ERP features remain excluded unless separately authorized.
-- [ ] Acceptance records distinguish local construction, method-owner approval, live evidence and released capability.
+- [x] Acceptance records distinguish local construction, method-owner approval, live evidence and released capability.
 
 ### AC-02 — Maintain independent legal entities and optional relationship groups
 
@@ -322,11 +322,11 @@ Story criteria remain proposed unless marked locally verified in the execution l
 **Priority / dependencies:** P1; AC-01. **Implementation:** reuse `PracticeClient`; add accounting profile and optional effective-dated group membership.
 
 **Acceptance criteria**
-- [ ] Registration identity, jurisdiction, functional currency, fiscal calendar and source-system identifiers belong to a legal entity.
-- [ ] Two clients may use the same account code without collision.
-- [ ] A standalone SME needs no group record.
-- [ ] Group membership never grants sibling-company access or creates a consolidation automatically.
-- [ ] Group changes preserve historical memberships and do not rewrite previous reporting perimeters.
+- [x] Registration identity, jurisdiction, functional currency, fiscal calendar and source-system identifiers belong to a legal entity.
+- [x] Two clients may use the same account code without collision.
+- [x] A standalone SME needs no group record.
+- [x] Group membership never grants sibling-company access or creates a consolidation automatically.
+- [x] Group changes preserve historical memberships and do not rewrite previous reporting perimeters.
 - [ ] Firm-wide search, export, counters and group summaries respect the caller's scope.
 
 ### AC-03 — Manage client reporting periods, books and opening balances
@@ -338,11 +338,11 @@ Story criteria remain proposed unless marked locally verified in the execution l
 **Acceptance criteria**
 - [x] Every context-bound import/package identifies client, period, basis/book and currency; legacy direct fixtures remain nullable for additive migration compatibility.
 - [x] Trial-balance imports persist the selected reporting period, optional book and basis and reject a currency/basis mismatch; financial packages inherit the context, validate period dates and book/basis/currency lineage, and include it in the deterministic calculation hash.
-- [ ] Prior-year signed/issued closing balances link to the current opening bridge, with unexplained differences visible.
-- [ ] Short periods, different year-ends and post-year-end evidence dates are distinguishable.
-- [ ] Management/statutory/reporting/consolidation adjustments have explicit inclusion rules; no ambiguous blank “all books” default.
+- [x] Prior-year signed/issued closing balances link to the current opening bridge, with unexplained differences visible.
+- [x] Short periods, different year-ends and post-year-end evidence dates are distinguishable.
+- [x] Management/statutory/reporting/consolidation adjustments have explicit inclusion rules; no ambiguous blank “all books” default.
 - [x] Close prevents unauthorized changes; reopen requires a recorded decision and creates an immutable amendment record with a new working revision.
-- [ ] Restatements preserve originally issued comparative values and identify the revised basis.
+- [x] Restatements preserve originally issued comparative values and identify the revised basis.
 
 ### AC-04 — Introduce versioned client charts of accounts
 
@@ -351,12 +351,12 @@ Story criteria remain proposed unless marked locally verified in the execution l
 **Priority / dependencies:** P1; AC-02–03.
 
 **Acceptance criteria**
-- [ ] Import/create group and posting accounts with code, name, type, normal balance and source-system aliases.
-- [ ] Detect cycles, orphan parents, duplicate identifiers in scope and unsupported posting to group nodes.
-- [ ] Published chart versions cannot be edited in place; code/name changes retain historical identity.
-- [ ] An account absent from the current chart is unresolved rather than automatically classified from its number prefix.
-- [ ] Source history remains unchanged when presentation categories change.
-- [ ] A chart rename does not silently cause an upload to be discarded as byte-identical.
+- [x] Import/create group and posting accounts with code, name, type, normal balance and source-system aliases.
+- [x] Detect cycles, orphan parents, duplicate identifiers in scope and unsupported posting to group nodes.
+- [x] Published chart versions cannot be edited in place; code/name changes retain historical identity.
+- [x] An account absent from the current chart is unresolved rather than automatically classified from its number prefix.
+- [x] Source history remains unchanged when presentation categories change.
+- [x] A chart rename does not silently cause an upload to be discarded as byte-identical.
 
 ### AC-05 — Govern a firm-wide reporting taxonomy
 
@@ -365,8 +365,8 @@ Story criteria remain proposed unless marked locally verified in the execution l
 **Priority / dependencies:** P1; AC-01, AC-04.
 
 **Acceptance criteria**
-- [ ] Taxonomy nodes define hierarchy, statement location, display sign, normal balance, disclosure/audit area and applicability metadata.
-- [ ] Draft, approved, retired and effective versions are explicit; only approved applicable versions can support final reporting.
+- [x] Taxonomy nodes define hierarchy, statement location, display sign, normal balance, disclosure/audit area and applicability metadata.
+- [x] Draft, approved, retired and effective versions are explicit; only approved applicable versions can support final reporting.
 - [ ] Firm defaults may have approved industry/group overlays without overwriting base taxonomy history.
 - [ ] Publishing a version lists impacted mappings/packages; it does not rewrite historical accounts or approvals.
 - [ ] Client-confidential amounts, names and rationale cannot leak into shared master templates.
@@ -380,10 +380,10 @@ Story criteria remain proposed unless marked locally verified in the execution l
 
 **Acceptance criteria**
 - [ ] Show current/prior map, unmapped rows, ambiguous suggestions, split allocations and impact on reports.
-- [ ] Suggestions require review; mappings use approved destination identities, not arbitrary strings.
-- [ ] Every required source balance is allocated exactly once in total; splits sum to 100%.
-- [ ] Deterministic residual allocation preserves the exact source amount at accounting precision and records any display-rounding difference separately.
-- [ ] The preparer cannot approve their own mapping, even when they hold a reviewer role.
+- [x] Suggestions require review; mappings use approved destination identities, not arbitrary strings.
+- [x] Every required source balance is allocated exactly once in total; splits sum to 100%.
+- [x] Deterministic residual allocation preserves the exact source amount at accounting precision and records any display-rounding difference separately.
+- [x] The preparer cannot approve their own mapping, even when they hold a reviewer role.
 - [ ] New source/chart/taxonomy versions require a new applicability decision; reusable rule packs do not bypass this.
 
 ### AC-07 — Import client TBs through governed CSV/XLSX profiles
@@ -410,7 +410,7 @@ Story criteria remain proposed unless marked locally verified in the execution l
 - [x] Preserve stable journal/line identity, account, posting/document/service dates, debit/credit, original and functional currency values, party, user/source and reversal references when provided.
 - [x] Map branch, cost centre, department, project and intercompany counterparty using client-specific dimension definitions.
 - [x] Reconcile opening plus movement to closing TB by account, entity, period and basis; disclose incomplete extracts.
-- [ ] Flag missing/malformed journal groups, duplicates and out-of-period data rather than inventing counterpart lines.
+- [x] Flag missing/malformed journal groups, duplicates and out-of-period data rather than inventing counterpart lines.
 - [x] Search/drill-down remains paged, scoped and linked to the raw receipt.
 - [x] Bounded journal-risk analysis returns criteria-versioned, explainable manual/year-end/high-value/reversal/missing-origin indicators for review; it never creates an automatic fraud finding.
 
@@ -547,12 +547,12 @@ Story criteria remain proposed unless marked locally verified in the execution l
 **Priority / dependencies:** P3; AC-01–03.
 
 **Acceptance criteria**
-- [ ] A relationship group can have different approved consolidation scopes for different reporting exercises.
-- [ ] Membership records specify effective dates, control/method assessment, ownership/economic interests and evidence.
+- [x] A relationship group can have different approved consolidation scopes for different reporting exercises.
+- [x] Membership records specify effective dates, control/method assessment, ownership/economic interests and evidence.
 - [ ] Prevent duplicate or circular hierarchy treatment and incompatible/overlapping inclusion decisions.
 - [ ] Parent/intermediate subgroup structures cannot cause a subsidiary to be counted twice.
-- [ ] Percentage ownership does not automatically determine the professional control assessment.
-- [ ] Scope changes create a new version and invalidate relevant group-package applicability, not historical issued packs.
+- [x] Percentage ownership does not automatically determine the professional control assessment.
+- [x] Scope changes create a new version and invalidate relevant group-package applicability, not historical issued packs.
 
 ### AC-19 — Collect and approve component reporting packs
 
@@ -561,12 +561,12 @@ Story criteria remain proposed unless marked locally verified in the execution l
 **Priority / dependencies:** P3; AC-16, AC-18.
 
 **Acceptance criteria**
-- [ ] Each input references the exact entity package, period, framework/basis, currency, taxonomy/mapping and hash.
+- [x] Each input references the exact entity package, period, framework/basis, currency, taxonomy/mapping and hash.
 - [ ] Externally prepared components use controlled import, reconciliation and approval, not hidden default acceptance.
 - [ ] Incompatible dates/bases require a documented bridge and approval; missing components are not zero balances.
 - [ ] Submitted, returned, resubmitted and approved component versions remain historical records.
-- [ ] Group access consumes explicitly approved packs without automatically exposing underlying client workpapers.
-- [ ] Updating any component makes downstream group runs stale until rebuilt/reviewed.
+- [x] Group access consumes explicitly approved packs without automatically exposing underlying client workpapers.
+- [x] Updating any component makes downstream group runs stale until rebuilt/reviewed.
 
 ### AC-20 — Match intercompany balances and transactions
 
@@ -575,11 +575,11 @@ Story criteria remain proposed unless marked locally verified in the execution l
 **Priority / dependencies:** P3; AC-08, AC-18–19.
 
 **Acceptance criteria**
-- [ ] Match by legal-entity pair, counterparty, account nature, period, currency and transaction/reference where available.
+- [x] Match by legal-entity pair, counterparty, account nature, period, currency and transaction/reference where available.
 - [ ] Support reviewed one-to-one and grouped matches; retain unmatched items and reasons.
-- [ ] Timing, currency, classification and genuine accounting differences remain distinct.
-- [ ] Proposed eliminations carry source references and cannot be independently duplicated in another run layer.
-- [ ] No automated adjustment is posted to the entities' source books.
+- [x] Timing, currency, classification and genuine accounting differences remain distinct.
+- [x] Proposed eliminations carry source references and cannot be independently duplicated in another run layer.
+- [x] No automated adjustment is posted to the entities' source books.
 - [ ] The same related party outside the perimeter is disclosed/reviewed but not automatically eliminated.
 
 ### AC-21 — Run auditable consolidation and eliminations
@@ -589,12 +589,12 @@ Story criteria remain proposed unless marked locally verified in the execution l
 **Priority / dependencies:** P3; AC-18–20; AC-17 before mixed-currency use.
 
 **Acceptance criteria**
-- [ ] Show columns for each component, approved alignment adjustments, translated totals, eliminations and consolidated result.
-- [ ] Consolidation journals balance at group reporting precision and use valid group taxonomy accounts.
+- [x] Show columns for each component, approved alignment adjustments, translated totals, eliminations and consolidated result.
+- [x] Consolidation journals balance at group reporting precision and use valid group taxonomy accounts.
 - [ ] Receivable/payable, revenue/expense, dividend and investment/equity eliminations follow the enabled method and approved evidence.
-- [ ] The restricted first profile explicitly requires same-currency, fully owned components and an approved opening consolidation basis; it is not labeled advanced-group complete.
-- [ ] Repeated calculation from identical pinned inputs produces identical financial content/hash, independently of database IDs and execution time where those are not semantic inputs.
-- [ ] Publication rechecks input versions, permissions and approvals in a short transaction; changed input prevents stale publication.
+- [x] The restricted first profile explicitly requires same-currency, fully owned components and an approved opening consolidation basis; it is not labeled advanced-group complete.
+- [x] Repeated calculation from identical pinned inputs produces identical financial content/hash, independently of database IDs and execution time where those are not semantic inputs.
+- [x] Publication rechecks input versions, permissions and approvals in a short transaction; changed input prevents stale publication.
 
 ### AC-22 — Support complex group accounting through explicit methods
 
@@ -617,11 +617,11 @@ Story criteria remain proposed unless marked locally verified in the execution l
 **Priority / dependencies:** P2/P3; AC-09–16 and AC-18–22 where applicable.
 
 **Acceptance criteria**
-- [ ] Reuse immutable approval history and separate current applicability rather than copying approval Booleans.
-- [ ] Review stages distinguish preparation, accounting review, management response, senior review, manager completion, partner approval and EQR where applicable.
-- [ ] Required unsubmitted work is a blocker; limiting a denominator to submitted work must not falsely show 100% complete.
-- [ ] Group manifests bind every component plus rates, mappings, ownership, eliminations, comparative and template versions.
-- [ ] A changed dependency blocks current approval/release without erasing historical evidence.
+- [x] Reuse immutable approval history and separate current applicability rather than copying approval Booleans.
+- [x] Review stages distinguish preparation, accounting review, management response, senior review, manager completion, partner approval and EQR where applicable.
+- [x] Required unsubmitted work is a blocker; limiting a denominator to submitted work must not falsely show 100% complete.
+- [x] Group manifests bind every component plus rates, mappings, ownership, eliminations, comparative and template versions.
+- [x] A changed dependency blocks current approval/release without erasing historical evidence.
 - [ ] Signing, release authorization, external checkpoint, client delivery and records protection remain separately verified outcomes.
 
 ### AC-24 — Deliver a cohesive multi-client accounting workspace
@@ -662,7 +662,7 @@ Story criteria remain proposed unless marked locally verified in the execution l
 - [x] Close checks outstanding reconciliations, typed accounting evidence, journal-risk state and current package approvals.
 - [x] A post-close change opens an authorized immutable amendment version; issued package history remains preserved through package/restatement lineage.
 - [x] Rollforward creates a new draft period, copies eligible reporting books as drafts, and links opening balances to explicit prior-period source evidence; prior approvals are not copied.
-- [ ] Do not copy prior-year acceptance, materiality, audit conclusions or approval applicability as current.
+- [x] Do not copy prior-year acceptance, materiality, audit conclusions or approval applicability as current.
 - [x] Group rollforward carries approved opening consolidation reserves, historical FX and recurring elimination lineage without duplicate application.
 - [x] Archive exports include new accounting/group dependencies; legal hold/disposal behavior follows the existing approved records policy.
 
@@ -676,7 +676,7 @@ Story criteria remain proposed unless marked locally verified in the execution l
 - [x] Use bounded chunked imports, resumable retries and paged queries; chunk and batch limits are explicit and covered by PostgreSQL acceptance tests.
 - [x] Use the existing durable operation infrastructure for GL completeness and financial-package calculations, with source/mapping-plan revision fencing and idempotent retries; remaining long imports and rendering must reuse the same infrastructure rather than add a separate job engine.
 - [x] Cancelled/failed local durable work never publishes a partial accepted dataset or group package; queued cancellation requires an explicit administrator disposition before worker claim. Active work remains subject to lease expiry and reconciliation because cancellation cannot prove an already-started effect did not occur.
-- [ ] Retry is idempotent; timeout-after-effect preserves uncertainty and reconciliation semantics.
+- [x] Retry is idempotent; timeout-after-effect preserves uncertainty and reconciliation semantics.
 - [x] Benchmark representative client counts, GL volume, bounded group size, concurrency, six-decimal/high-magnitude precision and the concurrent database enqueue/worker locking path; the current benchmark is a local capacity observation, not production RPO/RTO evidence.
 - [ ] Restore/recovery tests preserve accounting/group manifests and prevent duplicate external delivery; production RPO/RTO remains an externally observed acceptance gate.
 
