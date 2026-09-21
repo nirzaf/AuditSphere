@@ -58,6 +58,18 @@ else
         <dt>Currency</dt><dd><code>@selected.Currency</code></dd>
         <dt>Package version</dt><dd>@selected.Package</dd>
       </dl>
+      <p class="context-actions" aria-label="Selected accounting record links">
+        @if (selected.PackageId is { } packageId)
+        {
+          <a href="@($"/app/accounting/packages/{packageId}")" title="Open the exact validated package for the selected client period">Open package</a>
+        }
+        @if (selected.MappingId is { } mappingId)
+        {
+          <a href="@($"/app/accounting/mappings/{mappingId}")" title="Open the exact mapping version used by the selected package">Open mapping</a>
+        }
+        <a href="/app/accounting/evidence" title="Open the scoped TB, GL and account-area evidence queue">TB/GL and evidence</a>
+        <a href="/app/accounting/reviews" title="Open approval history for current validated packages in scope">Approval history</a>
+      </p>
     }
     else
     {
@@ -100,9 +112,24 @@ else
               <td>@period.PeriodCode · @period.Basis<br /><span class="muted">@period.StartDate.ToString("yyyy-MM-dd") — @period.EndDate.ToString("yyyy-MM-dd")</span></td>
               <td>@period.Book</td>
               <td><code>@period.Currency</code></td>
-              <td>@period.Package</td>
+              <td>
+                @if (period.PackageId is { } packageId)
+                {
+                  <a href="@($"/app/accounting/packages/{packageId}")" title="Open the exact package version for this period">@period.Package</a>
+                }
+                else
+                {
+                  @period.Package
+                }
+              </td>
               <td><span class="status">@period.Status</span></td>
-              <td><a href="/app/accounting/rollforward" title="Create a new draft period from this scoped period">Roll forward</a> · <a href="/app/accounting/restatements" title="Review an authorized amendment without rewriting the issued package">Restatements</a></td>
+              <td>
+                @if (period.MappingId is { } mappingId)
+                {
+                  <a href="@($"/app/accounting/mappings/{mappingId}")" title="Open the exact mapping version used by this package">Mapping</a><span aria-hidden="true"> · </span>
+                }
+                <a href="/app/accounting/rollforward" title="Create a new draft period from this scoped period">Roll forward</a><span aria-hidden="true"> · </span><a href="/app/accounting/restatements" title="Review an authorized amendment without rewriting the issued package">Restatements</a>
+              </td>
             </tr>
           }
           </tbody>
@@ -126,7 +153,7 @@ else
 @code {
   private sealed record ClientRow(string Name, string Currency, int Periods, string ChartStatus, string ImportStatus);
   private sealed record PeriodRow(Guid Id, string ClientName, string Engagement, string PeriodCode, string Basis, DateOnly StartDate, DateOnly EndDate,
-    string Book, string Currency, string Package, string Status, long Revision);
+    string Book, string Currency, string Package, Guid? PackageId, Guid? MappingId, string Status, long Revision);
   private ActorContext? _actor;
   private bool _loading = true;
   private bool _authorized;
@@ -188,15 +215,19 @@ else
       _sealedImportCount = await db.SourceImportBatches.AsNoTracking().CountAsync(x => x.FirmId == _actor.FirmId && x.Status == "SEALED" &&
         (firmWide || grantedClientIds.Contains(x.ClientId) || scopedEngagementIds.Contains(x.EngagementId)));
       _blockedCount = periods.Count(x => x.Status is AccountingWorkflowStates.Stale or AccountingWorkflowStates.Rejected);
-      _periods = periods.OrderByDescending(x => x.EndDate).ThenBy(x => x.PeriodCode).Select(x => new PeriodRow(
-        x.Id, clients.GetValueOrDefault(x.ClientId)?.LegalName ?? "Scoped client",
-        engagements.Where(e => e.PracticeClientId == x.ClientId).OrderByDescending(e => e.CreatedAt).Select(e => e.ServiceRoute).FirstOrDefault() ?? "No engagement",
-        x.PeriodCode, x.Basis, x.StartDate, x.EndDate,
-        books.FirstOrDefault(b => b.ClientId == x.ClientId && b.PeriodId == x.Id)?.Code ?? "No book",
-        x.Currency,
-        packages.Where(p => p.ClientId == x.ClientId && p.PeriodId == x.Id).OrderByDescending(p => p.CreatedAt)
-          .Select(p => $"{p.Status} · v{p.Revision}").FirstOrDefault() ?? "NO_PACKAGE",
-        x.Status, x.Revision)).ToList();
+      _periods = periods.OrderByDescending(x => x.EndDate).ThenBy(x => x.PeriodCode).Select(x =>
+      {
+        var package = packages.Where(p => p.ClientId == x.ClientId && p.PeriodId == x.Id)
+          .OrderByDescending(p => p.CreatedAt).FirstOrDefault();
+        return new PeriodRow(
+          x.Id, clients.GetValueOrDefault(x.ClientId)?.LegalName ?? "Scoped client",
+          engagements.Where(e => e.PracticeClientId == x.ClientId).OrderByDescending(e => e.CreatedAt).Select(e => e.ServiceRoute).FirstOrDefault() ?? "No engagement",
+          x.PeriodCode, x.Basis, x.StartDate, x.EndDate,
+          books.FirstOrDefault(b => b.ClientId == x.ClientId && b.PeriodId == x.Id)?.Code ?? "No book",
+          x.Currency,
+          package is null ? "NO_PACKAGE" : $"{package.Status} · v{package.Revision}", package?.Id, package?.MappingVersionId,
+          x.Status, x.Revision);
+      }).ToList();
       _selectedContextKey = _periods.FirstOrDefault()?.Id.ToString("D") ?? string.Empty;
       _clients = profiles.Where(x => clients.ContainsKey(x.ClientId)).Select(x => new ClientRow(
         clients[x.ClientId].LegalName, x.FunctionalCurrency, periods.Count(p => p.ClientId == x.ClientId),
