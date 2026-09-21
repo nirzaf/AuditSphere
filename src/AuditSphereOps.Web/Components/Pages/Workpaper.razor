@@ -103,21 +103,21 @@ else
                 <h2>Working Content</h2>
                 <div class="form-group">
                     <label for="wp-work">Work performed</label>
-                    <textarea id="wp-work" rows="5" value="@_draftWork" @oninput="OnWorkInputAsync" data-draft-skip="true" required
+                    <textarea id="wp-work" rows="5" value="@_draftWork" @oninput="OnWorkInputAsync" data-draft-skip="true" required title="Describe the procedures performed and evidence obtained; this working draft is autosaved on the server."
                               disabled="@(_busy || _draftConflict)" />
                 </div>
                 <div class="form-group">
                     <label for="wp-conclusion">Conclusion</label>
-                    <textarea id="wp-conclusion" rows="3" value="@_draftConclusion" @oninput="OnConclusionInputAsync" data-draft-skip="true" required
+                    <textarea id="wp-conclusion" rows="3" value="@_draftConclusion" @oninput="OnConclusionInputAsync" data-draft-skip="true" required title="State the evidence-based conclusion for this workpaper; this working draft is autosaved on the server."
                               disabled="@(_busy || _draftConflict)" />
                 </div>
                 <div class="action-bar">
-                    <button class="btn-secondary" @onclick="SaveDraftAsync" disabled="@(_busy || _draftConflict || _saving)">Save draft</button>
-                    <button class="btn-secondary" @onclick="DiscardDraftAsync" disabled="@(_busy || _draftConflict || _saving || _draftRevision < 1)">Discard draft</button>
-                    <button class="btn-primary" @onclick="SubmitAsync" disabled="@(_busy || _draftConflict)">Submit for review</button>
+                    <button class="btn-secondary" title="Persist the current workpaper draft without submitting it." @onclick="SaveDraftAsync" disabled="@(_busy || _draftConflict || _saving)">Save draft</button>
+                    <button class="btn-secondary" title="Discard the server-backed draft and restore the last acknowledged target." @onclick="DiscardDraftAsync" disabled="@(_busy || _draftConflict || _saving || _draftRevision < 1)">Discard draft</button>
+                    <button class="btn-primary" title="Submit the last acknowledged draft as an immutable review snapshot." @onclick="SubmitAsync" disabled="@(_busy || _draftConflict)">Submit for review</button>
                     @if (_draftConflict)
                     {
-                        <button class="btn-secondary" @onclick="ReloadCurrentTargetAsync" disabled="@(_busy || _saving)">Reload current target</button>
+                        <button class="btn-secondary" title="Reload the current target after a stale-draft conflict; unsaved local text will be replaced." @onclick="ReloadCurrentTargetAsync" disabled="@(_busy || _saving)">Reload current target</button>
                     }
                 </div>
                 <p class="notice-text" role="status" aria-live="polite">@_draftStatus</p>

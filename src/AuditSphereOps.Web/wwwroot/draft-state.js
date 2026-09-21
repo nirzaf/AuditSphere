@@ -35,13 +35,16 @@
   }
 
   function read(control) {
-    if (control.type === 'checkbox' || control.type === 'radio') return control.checked;
+    if (control.type === 'checkbox') return control.checked;
+    if (control.type === 'radio') return control.checked ? control.value : null;
     return control.value;
   }
 
   function write(control, value) {
-    if (control.type === 'checkbox' || control.type === 'radio') {
-      control.checked = Boolean(value);
+    if (control.type === 'checkbox') {
+      control.checked = value === true || value === 'true';
+    } else if (control.type === 'radio') {
+      control.checked = value !== null && value !== undefined && String(control.value) === String(value);
     } else if (value !== undefined && value !== null) {
       control.value = String(value);
     }
@@ -49,7 +52,15 @@
 
   function collect(boundary) {
     const fields = {};
-    for (const control of controlsFor(boundary, true)) fields[control.dataset.draftField] = read(control);
+    for (const control of controlsFor(boundary, true)) {
+      const field = control.dataset.draftField;
+      if (control.type === 'radio') {
+        if (!(field in fields)) fields[field] = null;
+        if (control.checked) fields[field] = control.value;
+      } else {
+        fields[field] = read(control);
+      }
+    }
     return { fields, savedAt: new Date().toISOString() };
   }
 
@@ -88,12 +99,17 @@
       if (!(field in (draft.fields || {}))) continue;
       const value = draft.fields[field];
       write(control, value);
-      if (control.tagName === 'SELECT' && control.value !== String(value)) unresolved = true;
-      control.dispatchEvent(new Event('change', { bubbles: true }));
-      if (control.tagName !== 'SELECT') control.dispatchEvent(new Event('input', { bubbles: true }));
+      if (control.tagName === 'SELECT' && control.value !== String(value ?? '')) unresolved = true;
+      if (control.type !== 'radio' || control.checked) {
+        control.dispatchEvent(new Event('change', { bubbles: true }));
+        if (control.tagName !== 'SELECT') control.dispatchEvent(new Event('input', { bubbles: true }));
+      }
     }
     restoring.delete(boundary);
-    setStatus(boundary, 'Unsaved draft restored locally.', 'restored');
+    const savedAt = draft.savedAt ? new Date(draft.savedAt) : null;
+    const savedLabel = savedAt && !Number.isNaN(savedAt.valueOf())
+      ? ` (${savedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})` : '';
+    setStatus(boundary, `Unsaved draft restored locally${savedLabel}.`, 'restored');
     if (unresolved && attempt < 5) setTimeout(() => restore(boundary, attempt + 1), 250);
   }
 
@@ -118,9 +134,14 @@
       const control = event.target?.closest?.('input, select, textarea');
       if (control?.validity?.valid) control.removeAttribute('aria-invalid');
     });
-    window.addEventListener('beforeunload', () => {
+    const flush = () => {
       clearTimeout(timers.get(boundary));
       save(boundary);
+    };
+    window.addEventListener('beforeunload', flush);
+    window.addEventListener('pagehide', flush);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') flush();
     });
   }
 
@@ -138,6 +159,23 @@
     });
   }
 
+  function labelTextFor(control) {
+    const label = control.labels?.[0] || control.closest('label');
+    if (!label) return '';
+    const copy = label.cloneNode(true);
+    copy.querySelectorAll('input, select, textarea, option').forEach(node => node.remove());
+    return copy.textContent.replace(/\s+/g, ' ').replace(/\(optional\)/ig, '').replace(/\*/g, '').trim();
+  }
+
+  function fieldHintFor(control) {
+    return labelTextFor(control) || control.getAttribute('aria-label') ||
+      control.getAttribute('placeholder') || control.name || control.id || '';
+  }
+
+  function readableHint(value) {
+    return value.replace(/[-_]+/g, ' ').replace(/\s+/g, ' ').trim().replace(/\b\w/g, letter => letter.toUpperCase());
+  }
+
   function discover(container) {
     const candidates = [
       ...(container.matches?.('[data-draft-scope], .card') ? [container] : []),
@@ -153,13 +191,17 @@
       }
       return true;
     });
+    const generatedScopes = new Map();
     boundaries.forEach((boundary, boundaryIndex) => {
       const controls = [...boundary.querySelectorAll('input, select, textarea')];
       if (!controls.length) return;
       if (!boundary.dataset.draftScope) {
-        const identifier = boundary.getAttribute('aria-labelledby') || boundary.querySelector('h2[id], h3[id], legend')?.id ||
+        const identifier = boundary.id || boundary.getAttribute('aria-labelledby') || boundary.querySelector('h2[id], h3[id], legend')?.id ||
           boundary.querySelector('h2, h3, legend')?.textContent?.trim() || `card-${boundaryIndex}`;
-        boundary.dataset.draftScope = `${location.pathname}:${identifier}`;
+        const baseScope = `${location.pathname}:${identifier}`;
+        const duplicateIndex = generatedScopes.get(baseScope) || 0;
+        generatedScopes.set(baseScope, duplicateIndex + 1);
+        boundary.dataset.draftScope = duplicateIndex === 0 ? baseScope : `${baseScope}:${duplicateIndex}`;
       }
       let guidance = boundary.querySelector('[data-draft-guidance]');
       if (!guidance) {
@@ -178,23 +220,26 @@
           control.dataset.draftField = control.name || control.id || `${control.tagName.toLowerCase()}-${index}`;
         }
         const label = control.labels?.[0] || control.closest('label');
-        if (label) {
-          const text = label.textContent.replace(/\s+/g, ' ').replace(/\(optional\)/ig, '').replace(/\*/g, '').trim();
-          if (!control.title && text) {
-            const action = control.tagName === 'SELECT' ? 'Choose' :
-              control.type === 'checkbox' || control.type === 'radio' ? 'Set' :
-              control.readOnly ? 'View' : 'Enter';
-            control.title = `${action} ${text.replace(/:$/, '')}.`;
-          }
-          if (control.required || control.dataset.required === 'true') {
-            label.classList.add('required-label');
-            control.setAttribute('aria-required', 'true');
-          }
-          const optional = control.dataset.optional === 'true' || /\boptional\b/i.test(label.textContent) ||
-            (!control.required && control.dataset.required !== 'true' && control.type !== 'file' && !control.readOnly && !control.disabled);
-          if (optional) {
-            label.classList.add('optional-label');
-          }
+        const text = fieldHintFor(control);
+        if (!control.title && text) {
+          const action = control.tagName === 'SELECT' ? 'Choose' :
+            control.type === 'checkbox' || control.type === 'radio' ? 'Set' :
+            control.readOnly ? 'View' : 'Enter';
+          control.title = `${action} ${readableHint(text).replace(/:$/, '')}.`;
+        }
+        const required = control.required || control.dataset.required === 'true';
+        const optional = !required && (control.dataset.optional === 'true' ||
+          /\boptional\b/i.test(label?.textContent || '') ||
+          (control.type !== 'file' && !control.readOnly && !control.disabled));
+        if (required) {
+          label?.classList.add('required-label');
+          control.closest('.field, .form-group')?.classList.add('required-field');
+          control.setAttribute('aria-required', 'true');
+          control.dataset.fieldState = 'required';
+        } else if (optional) {
+          label?.classList.add('optional-label');
+          control.closest('.field, .form-group')?.classList.add('optional-field');
+          control.dataset.fieldState = 'optional';
         }
         if (guidance.id) {
           const describedBy = new Set((control.getAttribute('aria-describedby') || '').split(/\s+/).filter(Boolean));
@@ -208,7 +253,8 @@
   root.init = init;
   root.clear = scope => {
     try { localStorage.removeItem(`auditsphere:draft:v1:${encodeURIComponent(scope)}`); } catch { return; }
-    document.querySelectorAll(`[data-draft-scope="${CSS.escape(scope)}"]`).forEach(boundary => {
+    const escapedScope = window.CSS?.escape ? CSS.escape(scope) : scope.replace(/(["\\])/g, '\\$1');
+    document.querySelectorAll(`[data-draft-scope="${escapedScope}"]`).forEach(boundary => {
       setStatus(boundary, 'Saved draft cleared after successful submission.', 'ready');
     });
   };
