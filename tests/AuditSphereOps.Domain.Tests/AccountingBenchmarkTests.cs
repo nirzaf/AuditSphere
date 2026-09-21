@@ -79,6 +79,25 @@ public sealed class AccountingBenchmarkTests
     Assert.Equal(500, page.Value!.Rows.Count);
     Assert.True(page.Value.HasNextPage);
 
+    var groupComponents = Enumerable.Range(0, ClientCount * 4).SelectMany(index =>
+    {
+      var componentId = Guid.CreateVersion7();
+      var clientId = fixtures[index % fixtures.Count].ClientId;
+      return new[]
+      {
+        new ConsolidationComponentBalance(componentId, clientId, "CASH", 100m, "QAR", 100m, "CONTROLLED",
+          Hashing.Sha256Hex($"benchmark-package:{index}"), "STATUTORY", "tax-v1", $"mapping-{index}", Guid.CreateVersion7()),
+        new ConsolidationComponentBalance(componentId, clientId, "REVENUE", -100m, "QAR", 100m, "CONTROLLED",
+          Hashing.Sha256Hex($"benchmark-package:{index}"), "STATUTORY", "tax-v1", $"mapping-{index}", Guid.CreateVersion7())
+      };
+    }).ToArray();
+    var groupStarted = Stopwatch.GetTimestamp();
+    var group = ConsolidationCalculator.Compute("QAR", ConsolidationCalculator.RestrictedMethod,
+      "OPENING-2026", groupComponents, []);
+    var groupElapsed = Stopwatch.GetElapsedTime(groupStarted);
+    Assert.Equal(0m, group.SignedTotal);
+    Assert.Equal(groupComponents.Length, group.DetailLines.Count);
+
     var operations = await verify.DurableOperations.AsNoTracking().ToListAsync();
     Assert.Equal(ClientCount, operations.Count);
     Assert.All(operations, operation => Assert.Equal(OperationState.COMPLETED, operation.Status));
@@ -88,7 +107,8 @@ public sealed class AccountingBenchmarkTests
 
     Console.WriteLine($"ACCOUNTING_BENCHMARK clients={ClientCount} transactions={ClientCount * TransactionsPerClient} " +
       $"lines={ClientCount * TransactionsPerClient * LinesPerTransaction} enqueue_ms={enqueueElapsed.TotalMilliseconds:F1} " +
-      $"worker_ms={processElapsed.TotalMilliseconds:F1} first_page_ms={pageElapsed.TotalMilliseconds:F1}");
+      $"worker_ms={processElapsed.TotalMilliseconds:F1} first_page_ms={pageElapsed.TotalMilliseconds:F1} " +
+      $"group_lines={groupComponents.Length} group_ms={groupElapsed.TotalMilliseconds:F1}");
   }
 
   private static async Task<(Guid FirmId, IReadOnlyList<Fixture> Fixtures)> SeedAsync(PgTestSchema pg)
@@ -117,7 +137,7 @@ public sealed class AccountingBenchmarkTests
       var importBatchId = Guid.NewGuid();
       var entity = $"ENTITY-{clientIndex + 1}";
       var digest = Hashing.Sha256Hex($"accounting-benchmark:{entity}");
-      var total = Enumerable.Range(0, TransactionsPerClient).Sum(i => 100m + i % 37);
+      var total = Enumerable.Range(0, TransactionsPerClient).Sum(AmountFor);
 
       db.PracticeClients.Add(new PracticeClient
       {
@@ -175,7 +195,7 @@ public sealed class AccountingBenchmarkTests
       });
       for (var transactionIndex = 0; transactionIndex < TransactionsPerClient; transactionIndex++)
       {
-        var amount = 100m + transactionIndex % 37;
+        var amount = AmountFor(transactionIndex);
         var transactionId = Guid.CreateVersion7();
         db.GeneralLedgerTransactions.Add(new GeneralLedgerTransaction
         {
@@ -219,4 +239,8 @@ public sealed class AccountingBenchmarkTests
     Id = Guid.NewGuid(), FirmId = firmId, Subject = name + "-" + Guid.NewGuid().ToString("N"),
     TenantId = "tenant-test", Email = name + "@example.test", DisplayName = name, CreatedAt = DateTimeOffset.UtcNow
   };
+
+  private static decimal AmountFor(int transactionIndex) => transactionIndex == 0
+    ? 999_999_999_999.123456m
+    : 100m + transactionIndex % 37 + 0.123456m;
 }
