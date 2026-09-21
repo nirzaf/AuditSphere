@@ -554,7 +554,7 @@ Story criteria remain proposed unless marked locally verified in the execution l
 - [x] A relationship group can have different approved consolidation scopes for different reporting exercises.
 - [x] Membership records specify effective dates, control/method assessment, ownership/economic interests and evidence.
 - [x] Prevent duplicate or circular hierarchy treatment and incompatible/overlapping inclusion decisions for versioned ownership edges; overlapping memberships remain rejected and unsupported nested profiles stay fail-closed.
-- [ ] Parent/intermediate subgroup structures cannot cause a subsidiary to be counted twice.
+- [x] Parent/intermediate subgroup structures cannot cause a subsidiary to be counted twice.
 - [x] Percentage ownership does not automatically determine the professional control assessment.
 - [x] Scope changes create a new version and invalidate relevant group-package applicability, not historical issued packs.
 
@@ -636,7 +636,7 @@ Story criteria remain proposed unless marked locally verified in the execution l
 
 **Acceptance criteria**
 - [x] Persistent header shows firm, optional group, legal entity, engagement, period, book, currency and package version for a selected visible client period.
-- [ ] Preserve unsaved work safely when switching; late responses from an old context cannot replace the new context.
+- [x] Preserve unsaved work safely when switching; late responses from an old context cannot replace the new context.
 - [ ] Tabs expose TB/GL, COA, mapping, reconciliations, adjustments, differences, statements and approval history; group tabs expose perimeter, packs, FX, intercompany and eliminations.
 - [ ] Dashboard shows required/complete/stale/blocked counts, named next owner, due dates and exact-record navigation.
 - [ ] Bulk actions preview scope and outcomes; one invalid item cannot cause silent partial approval.
