@@ -208,6 +208,11 @@ public sealed class ClientAccountingTests
         new("root-next", "1200", "Root", "ASSET", "DEBIT", false),
         new("child-next", "1300", "Child", "ASSET", "DEBIT", true, "root-next")
       ])).Succeeded);
+      var postingParent = await ClientAccountingService.AddAccountsAsync(db, preparer, nextClientChart, [
+        new("grandchild-next", "1400", "Grandchild", "ASSET", "DEBIT", true, "child-next")
+      ]);
+      Assert.False(postingParent.Succeeded);
+      Assert.Equal(ErrorCodes.Accounting.MappingInvalid, postingParent.ErrorCode);
     }
     await using var verify = new AuditSphereDbContext(pg.Options);
     Assert.Equal(2, await verify.ClientAccounts.CountAsync(x => x.AccountCode == "1000"));

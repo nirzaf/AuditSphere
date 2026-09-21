@@ -474,6 +474,9 @@ public static class ClientAccountingService
       return CommandResult.Fail(ErrorCodes.IdempotencyConflict, "An account code already exists in this chart version.");
     var byStable = await db.ClientAccounts.Where(x => x.FirmId == chart.FirmId && x.ClientId == chart.ClientId && x.ChartVersionId == chart.Id)
       .ToDictionaryAsync(x => x.StableIdentity, StringComparer.OrdinalIgnoreCase, ct);
+    if (inputs.Any(x => x.ParentStableIdentity is { } parent &&
+        (stable.TryGetValue(parent.Trim(), out var declaredParent) ? declaredParent.IsPosting : byStable[parent.Trim()].IsPosting)))
+      return CommandResult.Fail(ErrorCodes.Accounting.MappingInvalid, "A posting account cannot be a chart parent.");
     foreach (var input in inputs)
     {
       if (input.ParentStableIdentity is null || stable.ContainsKey(input.ParentStableIdentity.Trim()))
