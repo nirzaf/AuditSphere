@@ -6,15 +6,15 @@ This file records observed repository state only. The authoritative build contra
 
 | Item | Observed value |
 |---|---|
-| Source implementation checkpoint | `master@c06277c` |
-| Remote | `origin/master` points to `c06277c` after the method-acceptance, approved-component package, stale-run publication and exact component-lineage gate pushes |
+| Source implementation checkpoint | `master@a07272f` |
+| Remote | `origin/master` points to `a07272f` after the bounded foreign-operation translation gate push |
 | SDK | .NET 10; repository solution targets `net10.0` |
 | Database | PostgreSQL 18.6 on loopback port 5433 for development only |
 | Build | `dotnet build AuditSphereOps.slnx --no-restore --configuration Release` — passed, 0 warnings/errors |
-| Tests | 196/196 passed, 0 skipped against PostgreSQL 18.6 |
-| Migrations | 52 applied; latest `20260920230951_ClientPeriodAmendmentLineage` |
+| Tests | 198/198 passed, 0 skipped against PostgreSQL 18.6 |
+| Migrations | 53 applied; latest `20260921002125_EnableForeignOperationTranslation` |
 | Model drift | `dotnet ef migrations has-pending-model-changes` — no changes |
-| Restore drill | `scripts/db/restore-drill.sh` — passed; 52 migrations reconciled |
+| Restore drill | `scripts/db/restore-drill.sh` — passed; 53 migrations reconciled |
 | Production effects | Disabled locally; no production acceptance claimed |
 
 ## Implemented local capability
@@ -27,6 +27,7 @@ This file records observed repository state only. The authoritative build contra
 - Consolidation perimeter approval requires an independently accepted group capability profile for the selected method; capability-preparer self-approval is rejected. Component approval requires current management, accounting and partner decisions for the exact package.
 - Consolidation component submissions must also match the package's period basis, taxonomy version and mapping-version ID; the deterministic run manifest preserves that exact component lineage.
 - Consolidation run manifests include component package hashes; approval recomputes current package, intercompany and group-journal inputs and blocks stale runs until a new run is built.
+- The bounded foreign-operation profile pins an approved rate set and translation policy to the scope, requires maker/checker approval for each foreign component translation, preserves per-line source/FX lineage in the deterministic manifest, and blocks missing or stale rates/packages. Full FX remeasurement/reserve, NCI, acquisition, ownership-change, nested-group and complex-elimination methods remain disabled pending approved method-specific fixtures.
 - Accounting evidence links are typed, scope-checked and bound to reviewed audit procedure results; the staff evidence queue exposes only the actor's explicit client scope, and records export preserves typed accounting lineage.
 - Period close runs under a row lock, blocks matching financial packages without current management/accounting/partner approval, and authorized reopen creates an immutable append-only amendment record with the new working revision.
 - Controlled roll-forward creates a new draft period, copies prior reporting books as drafts, and creates a hash/evidence-bound opening bridge without copying prior approvals.
@@ -50,7 +51,8 @@ These are product gaps, not claims of production readiness:
 - [x] Link typed accounting evidence to reviewed audit procedure results and expose a scoped evidence queue; preserve the links in records exports.
 - [x] Govern package-aware period close and immutable authorized reopen/amendment lineage.
 - [x] Add controlled entity-period roll-forward with draft book copies and explicit opening-balance evidence.
-- [ ] Extend advanced accounting methods only where an approved method and test fixtures exist: mixed currency, complex ownership, acquisition, NCI, and advanced eliminations. The enabled first profile remains deliberately fail-closed.
+- [x] Add the bounded approved foreign-operation translation profile with pinned rate/policy inputs, maker/checker review, source/FX lineage and stale-input blocking.
+- [ ] Extend advanced accounting methods only where an approved method and test fixtures exist: full FX remeasurement/reserve, complex ownership, acquisition, NCI, nested groups, and advanced eliminations. The enabled first profile remains deliberately fail-closed.
 - [x] Link accounting evidence to reviewed audit workpapers and expose account-area UI for the typed specialist schedules.
 - [x] Add the accounting dashboard and cross-workflow navigation for accounting, roll-forward and release handoffs.
 - [x] Re-run focused tests, full tests, build, migration drift and restore drill for the current coherent slice; repeat this checklist for the next slice.
@@ -82,7 +84,7 @@ dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infr
 scripts/db/restore-drill.sh
 ```
 
-The restore evidence is written to [`docs/evidence/restore-drill-latest.json`](../evidence/restore-drill-latest.json). The latest rehearsal restored 52 migrations through `20260920230951_ClientPeriodAmendmentLineage`; it is loopback-only and explicitly reports that external checkpoint custody and production RPO/RTO were not run.
+The restore evidence is written to [`docs/evidence/restore-drill-latest.json`](../evidence/restore-drill-latest.json). The latest rehearsal restored 53 migrations through `20260921002125_EnableForeignOperationTranslation`; it is loopback-only and explicitly reports that external checkpoint custody and production RPO/RTO were not run.
 
 ## Resume rule
 
