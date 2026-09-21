@@ -12,6 +12,11 @@ public sealed record ExchangeRateInput(string FromCurrency, string ToCurrency, D
 public sealed record TranslationPolicyRequest(string Code, string FunctionalCurrency, string PresentationCurrency,
   string ClosingRateRule, string AverageRateRule, string HistoricalRateRule);
 
+public static class ExchangeRateDirections
+{
+  public const string Direct = "DIRECT";
+}
+
 public static class CurrencyTranslationCalculator
 {
   public static decimal Translate(decimal amount, string fromCurrency, string toCurrency, decimal rate)
@@ -63,14 +68,15 @@ public static class CurrencyTranslationService
       return auth;
     var from = request.FromCurrency.Trim().ToUpperInvariant();
     var to = request.ToCurrency.Trim().ToUpperInvariant();
+    var direction = request.Direction.Trim().ToUpperInvariant();
     if (set.Status != AccountingWorkflowStates.Draft || from.Length != 3 || to.Length != 3 || from == to || request.Rate <= 0m ||
-        string.IsNullOrWhiteSpace(request.RateType) || string.IsNullOrWhiteSpace(request.Direction))
-      return CommandResult.Fail(ErrorCodes.GateBlocked, "Only valid draft rate-set entries can be added.");
+        string.IsNullOrWhiteSpace(request.RateType) || direction != ExchangeRateDirections.Direct)
+      return CommandResult.Fail(ErrorCodes.GateBlocked, "Only positive DIRECT rate-set entries are supported by this profile.");
     db.ExchangeRates.Add(new ExchangeRate
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, RateSetVersionId = set.Id, FromCurrency = from, ToCurrency = to,
       RateDate = request.RateDate, RateType = request.RateType.Trim().ToUpperInvariant(), Rate = request.Rate,
-      Direction = request.Direction.Trim().ToUpperInvariant(), CreatedAt = DateTimeOffset.UtcNow
+      Direction = direction, CreatedAt = DateTimeOffset.UtcNow
     });
     await db.SaveChangesAsync(ct);
     return CommandResult.Ok();
@@ -166,7 +172,8 @@ public static class CurrencyTranslationService
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Approved policy, rate set and component/reporting currencies must agree.");
     var normalizedRateType = rateType.Trim().ToUpperInvariant();
     var rate = await db.ExchangeRates.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.RateSetVersionId == set.Id &&
-        x.FromCurrency == component.Currency && x.ToCurrency == scope.ReportingCurrency && x.RateDate == rateDate && x.RateType == normalizedRateType)
+        x.FromCurrency == component.Currency && x.ToCurrency == scope.ReportingCurrency && x.RateDate == rateDate && x.RateType == normalizedRateType &&
+        x.Direction == ExchangeRateDirections.Direct)
       .Select(x => (decimal?)x.Rate).SingleOrDefaultAsync(ct) ?? 0m;
     if (rate <= 0m)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "No approved rate exists for the requested date and type.");
@@ -233,7 +240,8 @@ public static class CurrencyTranslationService
         policy.PresentationCurrency != result.ToCurrency)
       return CommandResult.Fail(ErrorCodes.GenerationStale, "The translation input is no longer the current approved scope input.");
     var rate = await db.ExchangeRates.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.RateSetVersionId == set.Id &&
-      x.FromCurrency == result.FromCurrency && x.ToCurrency == result.ToCurrency && x.RateDate == result.RateDate && x.RateType == result.RateType)
+      x.FromCurrency == result.FromCurrency && x.ToCurrency == result.ToCurrency && x.RateDate == result.RateDate && x.RateType == result.RateType &&
+      x.Direction == ExchangeRateDirections.Direct)
       .Select(x => (decimal?)x.Rate).SingleOrDefaultAsync(ct);
     if (rate is null || rate.Value != result.AppliedRate.Value)
       return CommandResult.Fail(ErrorCodes.GenerationStale, "The approved rate set no longer contains the recorded rate.");

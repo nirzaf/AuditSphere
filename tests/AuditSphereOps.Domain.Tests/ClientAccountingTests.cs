@@ -964,6 +964,10 @@ public sealed class ClientAccountingTests
 
       rateSetId = (await CurrencyTranslationService.CreateRateSetAsync(db, reviewer,
         new ExchangeRateSetRequest("FX-2026", "approved-method-fixture"))).Value;
+      var unsupportedDirection = await CurrencyTranslationService.AddRateAsync(db, reviewer, rateSetId,
+        new ExchangeRateInput("USD", "QAR", rateDate, "CLOSING", 3.64m, "INVERSE"));
+      Assert.False(unsupportedDirection.Succeeded);
+      Assert.Equal(ErrorCodes.GateBlocked, unsupportedDirection.ErrorCode);
       Assert.True((await CurrencyTranslationService.AddRateAsync(db, reviewer, rateSetId,
         new ExchangeRateInput("USD", "QAR", rateDate, "CLOSING", 3.64m, "DIRECT"))).Succeeded);
       Assert.True((await CurrencyTranslationService.ApproveRateSetAsync(db, methodOwner, rateSetId)).Succeeded);
