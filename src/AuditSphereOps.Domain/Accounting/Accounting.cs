@@ -271,6 +271,9 @@ public sealed class FinancialPackage
   public Guid AdjustedDatasetId { get; set; }
   public Guid MappingVersionId { get; set; }
   public Guid AdjustmentPlanId { get; set; }
+  public Guid? PeriodId { get; set; }
+  public Guid? BookId { get; set; }
+  public string? Basis { get; set; }
   public string Framework { get; set; } = string.Empty;
   public string PeriodStart { get; set; } = string.Empty;
   public string PeriodEnd { get; set; } = string.Empty;

@@ -258,6 +258,34 @@ public static class FinancialStatementService
     var dataset = await db.TrialBalanceDatasets.AsNoTracking().SingleOrDefaultAsync(x => x.Id == plan.BaseDatasetId, ct);
     if (dataset is null || dataset.Currency.Length != 3 || dataset.Currency != dataset.Currency.ToUpperInvariant())
       return CommandResult<FinancialPackageBuildResult>.Fail(ErrorCodes.GateBlocked, "The source dataset is unavailable.");
+    var typedAccounting = db as IClientAccountingDbContext;
+    var datasetBasis = dataset.Basis?.Trim().ToUpperInvariant();
+    var hasReportingContext = dataset.PeriodId is not null || dataset.BookId is not null || !string.IsNullOrWhiteSpace(datasetBasis);
+    if (hasReportingContext)
+    {
+      if (typedAccounting is null || dataset.PeriodId is null || string.IsNullOrWhiteSpace(datasetBasis))
+        return CommandResult<FinancialPackageBuildResult>.Fail(ErrorCodes.GateBlocked,
+          "The source dataset has incomplete reporting context.");
+      var period = await typedAccounting.ClientReportingPeriods.AsNoTracking().SingleOrDefaultAsync(x =>
+        x.Id == dataset.PeriodId && x.FirmId == mapping.FirmId && x.ClientId == mapping.ClientId, ct);
+      if (period is null || !string.Equals(period.Basis, datasetBasis, StringComparison.OrdinalIgnoreCase) ||
+          !string.Equals(period.Currency, dataset.Currency, StringComparison.Ordinal))
+        return CommandResult<FinancialPackageBuildResult>.Fail(ErrorCodes.GateBlocked,
+          "The source dataset reporting context is unavailable or inconsistent.");
+      if (!string.Equals(request.PeriodStart.Trim(), period.StartDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), StringComparison.Ordinal) ||
+          !string.Equals(request.PeriodEnd.Trim(), period.EndDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), StringComparison.Ordinal))
+        return CommandResult<FinancialPackageBuildResult>.Fail(ErrorCodes.GateBlocked,
+          "The package period must match the selected client reporting period.");
+      if (dataset.BookId is { } bookId)
+      {
+        var book = await typedAccounting.ClientReportingBooks.AsNoTracking().SingleOrDefaultAsync(x =>
+          x.Id == bookId && x.FirmId == mapping.FirmId && x.ClientId == mapping.ClientId && x.PeriodId == period.Id, ct);
+        if (book is null || !string.Equals(book.Basis, datasetBasis, StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(book.Currency, dataset.Currency, StringComparison.Ordinal))
+          return CommandResult<FinancialPackageBuildResult>.Fail(ErrorCodes.GateBlocked,
+            "The source dataset reporting book is unavailable or inconsistent.");
+      }
+    }
     var allocations = await db.MappingAllocations.AsNoTracking()
       .Where(x => x.FirmId == mapping.FirmId && x.MappingVersionId == mapping.Id)
       .Select(x => new MappingAllocationInput(x.SourceAccountCode, x.DestinationCode,
@@ -270,7 +298,6 @@ public static class FinancialStatementService
     var supplementaryError = ValidateSupplementaryInformation(request.SupplementaryInformation);
     if (supplementaryError is not null)
       return CommandResult<FinancialPackageBuildResult>.Fail(ErrorCodes.Accounting.PackageSupplementaryInvalid, supplementaryError);
-    var typedAccounting = db as IClientAccountingDbContext;
     if ((request.SupplementaryInformation?.EquityLines is not null || request.SupplementaryInformation?.NoteLines is not null) && typedAccounting is null)
       return CommandResult<FinancialPackageBuildResult>.Fail(ErrorCodes.GateBlocked,
         "Structured equity and note package outputs require the client-accounting persistence surface.");
@@ -307,7 +334,7 @@ public static class FinancialStatementService
       return CommandResult<FinancialPackageBuildResult>.Fail(ErrorCodes.Accounting.PackageSupplementaryInvalid,
         "Structured note amounts must cross-cast to their mapped face destinations.");
     var packageHash = FinancialStatementCalculator.ComputePackageHash(request, mapping, plan,
-      calculated.Value.ResultHash, packageLines, supplementaryHash);
+      calculated.Value.ResultHash, packageLines, supplementaryHash, dataset.PeriodId, dataset.BookId, datasetBasis);
 
     var ownsTransaction = db.Database.CurrentTransaction is null;
     await using var tx = ownsTransaction ? await db.Database.BeginTransactionAsync(ct) : null;
@@ -377,6 +404,7 @@ public static class FinancialStatementService
       Id = Guid.CreateVersion7(), FirmId = mapping.FirmId, ClientId = mapping.ClientId,
       EngagementId = mapping.EngagementId, AdjustedDatasetId = adjusted.Id,
       MappingVersionId = mapping.Id, AdjustmentPlanId = plan.Id,
+      PeriodId = dataset.PeriodId, BookId = dataset.BookId, Basis = datasetBasis,
       Framework = request.Framework.Trim(), PeriodStart = request.PeriodStart.Trim(),
       PeriodEnd = request.PeriodEnd.Trim(), TaxonomyVersion = mapping.TaxonomyVersion,
       TemplateVersion = request.TemplateVersion.Trim(), CalculationEngineVersion = FinancialStatementCalculator.CalculationEngineVersion,

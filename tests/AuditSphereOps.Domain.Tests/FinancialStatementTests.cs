@@ -20,7 +20,7 @@ namespace AuditSphereOps.Domain.Tests;
 public sealed class FinancialStatementTests
 {
   private sealed record Fixture(
-    Guid FirmId, Guid ClientId, Guid EngagementId, Guid DatasetId,
+    Guid FirmId, Guid ClientId, Guid EngagementId, Guid DatasetId, Guid PeriodId, Guid BookId,
     AppUser Preparer, AppUser Reviewer);
 
   private sealed class TestDbContextFactory(DbContextOptions<AuditSphereDbContext> options)
@@ -90,6 +90,18 @@ public sealed class FinancialStatementTests
       Assert.Equal(AccountingPackageStates.PackageReviewRequired, first.Status);
       Assert.Equal(100m, first.StatementTotals["ASSETS"]);
       Assert.Equal(-100m, first.StatementTotals["INCOME"]);
+      var package = await db.FinancialPackages.SingleAsync(x => x.Id == first.PackageId);
+      Assert.Equal(fixture.PeriodId, package.PeriodId);
+      Assert.Equal(fixture.BookId, package.BookId);
+      Assert.Equal("STATUTORY", package.Basis);
+    }
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var periodMismatch = await FinancialStatementService.BuildFinancialPackageAsync(db, preparer,
+        request with { TemplateVersion = "template-period-mismatch", PeriodStart = "2026-02-01" });
+      Assert.False(periodMismatch.Succeeded);
+      Assert.Equal(ErrorCodes.GateBlocked, periodMismatch.ErrorCode);
     }
 
     await using (var db = new AuditSphereDbContext(pg.Options))
@@ -359,6 +371,8 @@ public sealed class FinancialStatementTests
     var clientId = Guid.NewGuid();
     var engagementId = Guid.NewGuid();
     var datasetId = Guid.NewGuid();
+    var periodId = Guid.NewGuid();
+    var bookId = Guid.NewGuid();
     var preparer = User(firmId);
     var reviewer = User(firmId);
     await using var db = new AuditSphereDbContext(pg.Options);
@@ -378,6 +392,19 @@ public sealed class FinancialStatementTests
     db.RoleGrants.AddRange(
       Grant(firmId, preparer, "AccountingPreparer"),
       Grant(firmId, reviewer, "AccountingReviewer"));
+    db.ClientReportingPeriods.Add(new ClientReportingPeriod
+    {
+      Id = periodId, FirmId = firmId, ClientId = clientId, PeriodCode = "FY2026",
+      StartDate = new DateOnly(2026, 1, 1), EndDate = new DateOnly(2026, 12, 31),
+      Basis = "STATUTORY", Currency = "QAR", Status = AccountingWorkflowStates.Active,
+      CreatedByUserId = preparer.Id, CreatedAt = DateTimeOffset.UtcNow
+    });
+    db.ClientReportingBooks.Add(new ClientReportingBook
+    {
+      Id = bookId, FirmId = firmId, ClientId = clientId, PeriodId = periodId,
+      Code = "STATUTORY", Basis = "STATUTORY", InclusionRule = "ALL_ENTITIES", Currency = "QAR",
+      Status = AccountingWorkflowStates.Active, CreatedByUserId = preparer.Id, CreatedAt = DateTimeOffset.UtcNow
+    });
     var taxonomyId = Guid.NewGuid();
     db.ReportingTaxonomyVersions.Add(new ReportingTaxonomyVersion
     {
@@ -402,6 +429,7 @@ public sealed class FinancialStatementTests
     db.TrialBalanceDatasets.Add(new TrialBalanceDataset
     {
       Id = datasetId, FirmId = firmId, ClientId = clientId, EngagementId = engagementId,
+      PeriodId = periodId, BookId = bookId, Basis = "STATUTORY",
       SourceKind = "Raw", Revision = 1, Currency = "QAR", Balanced = true,
       ValidationStatus = "Accepted", ControlTotal = 0m, ImportedAt = DateTimeOffset.UtcNow,
       ImportedByUserId = preparer.Id
@@ -418,7 +446,7 @@ public sealed class FinancialStatementTests
         AccountName = "Revenue", Amount = -100m, Currency = "QAR", Entity = "TEST"
       });
     await db.SaveChangesAsync();
-    return new Fixture(firmId, clientId, engagementId, datasetId, preparer, reviewer);
+    return new Fixture(firmId, clientId, engagementId, datasetId, periodId, bookId, preparer, reviewer);
   }
 
   private static AppUser User(Guid firmId) => new()

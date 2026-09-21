@@ -1203,6 +1203,7 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
       .HasName("AK_financial_packages_firm_id_id");
     package.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
       .HasName("AK_financial_packages_scope_id");
+    package.Property(x => x.Basis).HasMaxLength(50);
     package.Property(x => x.Framework).HasMaxLength(100);
     package.Property(x => x.PeriodStart).HasMaxLength(10);
     package.Property(x => x.PeriodEnd).HasMaxLength(10);
@@ -1219,7 +1220,7 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     package.HasIndex(x => new { x.FirmId, x.AdjustmentPlanId, x.MappingVersionId, x.TemplateVersion })
       .IsUnique().HasDatabaseName("ux_financial_package_identity");
     package.ToTable("financial_packages", t => t.HasCheckConstraint("ck_financial_package_values",
-      "revision >= 1 AND generation >= 1 AND length(framework) > 0 AND length(period_start) = 10 AND length(period_end) = 10 AND period_start <= period_end AND length(taxonomy_version) > 0 AND length(template_version) > 0 AND length(calculation_engine_version) > 0 AND calculation_hash ~ '^[0-9a-f]{64}$' AND currency ~ '^[A-Z]{3}$' AND status IN ('REVIEW_REQUIRED','VALIDATED') AND ((cash_beginning IS NULL AND cash_ending IS NULL AND supplementary_hash IS NULL AND equity_hash IS NULL) OR (cash_beginning IS NOT NULL AND cash_ending IS NOT NULL AND supplementary_hash ~ '^[0-9a-f]{64}$' AND (equity_hash IS NULL OR equity_hash ~ '^[0-9a-f]{64}$')))"));
+      "revision >= 1 AND generation >= 1 AND length(framework) > 0 AND length(period_start) = 10 AND length(period_end) = 10 AND period_start <= period_end AND length(taxonomy_version) > 0 AND length(template_version) > 0 AND length(calculation_engine_version) > 0 AND calculation_hash ~ '^[0-9a-f]{64}$' AND currency ~ '^[A-Z]{3}$' AND status IN ('REVIEW_REQUIRED','VALIDATED') AND (period_id IS NULL OR length(trim(basis)) > 0) AND (book_id IS NULL OR period_id IS NOT NULL) AND ((cash_beginning IS NULL AND cash_ending IS NULL AND supplementary_hash IS NULL AND equity_hash IS NULL) OR (cash_beginning IS NOT NULL AND cash_ending IS NOT NULL AND supplementary_hash ~ '^[0-9a-f]{64}$' AND (equity_hash IS NULL OR equity_hash ~ '^[0-9a-f]{64}$')))"));
     package.HasOne<PracticeClient>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.ClientId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
@@ -1235,6 +1236,12 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     package.HasOne<AdjustmentPlan>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.AdjustmentPlanId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    package.HasOne<ClientReportingPeriod>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.PeriodId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    package.HasOne<ClientReportingBook>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.BookId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     package.HasOne<FinancialPackage>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.ComparativePackageId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);

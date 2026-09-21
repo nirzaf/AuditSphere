@@ -55,15 +55,24 @@ public static class FinancialStatementCalculator
     AdjustmentPlan plan,
     string adjustedHash,
     IReadOnlyCollection<PackageLine> lines,
-    string? supplementaryHash)
+    string? supplementaryHash,
+    Guid? periodId = null,
+    Guid? bookId = null,
+    string? basis = null)
   {
-    var canonical = string.Join('\n', new[]
+    var hasReportingContext = periodId is not null || bookId is not null || !string.IsNullOrWhiteSpace(basis);
+    var parts = new List<string>
     {
-      "financial-statement-package.v1", mapping.Id.ToString("D"), mapping.Version.ToString(CultureInfo.InvariantCulture),
+      hasReportingContext ? "financial-statement-package.v2" : "financial-statement-package.v1",
+      mapping.Id.ToString("D"), mapping.Version.ToString(CultureInfo.InvariantCulture),
       plan.Id.ToString("D"), plan.ResultHash ?? string.Empty, adjustedHash, request.Framework.Trim(),
       request.PeriodStart.Trim(), request.PeriodEnd.Trim(), mapping.TaxonomyVersion,
       request.TemplateVersion.Trim(), CalculationEngineVersion, supplementaryHash ?? string.Empty
-    }.Concat(lines.OrderBy(x => x.SourceAccountCode, StringComparer.Ordinal)
+    };
+    if (hasReportingContext)
+      parts.AddRange([periodId?.ToString("D") ?? string.Empty, bookId?.ToString("D") ?? string.Empty,
+        basis?.Trim().ToUpperInvariant() ?? string.Empty]);
+    var canonical = string.Join('\n', parts.Concat(lines.OrderBy(x => x.SourceAccountCode, StringComparer.Ordinal)
       .ThenBy(x => x.DestinationCode, StringComparer.Ordinal)
       .Select(x => string.Join('|', x.SourceAccountCode, x.DestinationCode, x.StatementSection,
         x.Amount.ToString("0.000000", CultureInfo.InvariantCulture),
