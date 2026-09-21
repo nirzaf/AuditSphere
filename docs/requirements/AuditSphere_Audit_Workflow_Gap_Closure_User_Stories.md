@@ -10,7 +10,7 @@
 | Source checklist | `Audit working process - Audit Tool New.docx` |
 | Source scope | **20 audit sections; 165 individual procedures** |
 | Backlog | **28 issue-ready stories**, grouped into 5 proposed milestones |
-| Repository snapshot inspected | `master@816a418` |
+| Repository snapshot inspected | `master@ae9827e` |
 | Status | Partially implemented; local evidence is summarized in the execution ledger; not professional or production acceptance |
 | Suggested repository location | `docs/requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md` |
 | Repository changes made by this document task | Requirements documentation only; implementation evidence is tracked separately |
@@ -93,7 +93,7 @@ The existing specification requires manual-first sampling, a confirmation regist
 
 ### 2.4 Current implementation evidence
 
-At `master@816a418`, the repository records **208/208 PostgreSQL-backed tests passing with 0 skipped**, **67 applied migrations**, a successful loopback restore rehearsal through `20260921102055_AddReconciliationAgingEvidence`, a zero-warning Release build and no pending EF model changes. The locally verified accounting slice includes QAR defaults for blank client accounting/reporting inputs, deterministic criteria-versioned journal-risk review indicators that do not make automatic fraud findings, exact-journal difference-impact classification with approved mapping lineage, and typed receivable/payable ageing evidence: explicit as-of date, date basis, bucket rule/bucket, credit treatment and paired settlement links; scoped audit-difference summaries preserve gross and signed/net corrected/unadjusted totals by currency. The complete current evidence is maintained in `docs/execution/current-slice.md` and `docs/execution/status.json`; the broader audit-workflow stories and external acceptance gates remain individually unaccepted.
+At `master@ae9827e`, the repository records **208/208 PostgreSQL-backed tests passing with 0 skipped**, **68 applied migrations**, a successful loopback restore rehearsal through `20260921113403_AddAuditDifferenceEvaluationMetadata`, a zero-warning Release build and no pending EF model changes. The locally verified accounting slice includes QAR defaults for blank client accounting/reporting inputs, deterministic criteria-versioned journal-risk review indicators that do not make automatic fraud findings, exact-journal difference-impact classification with approved mapping lineage, reviewer-governed correction states with materiality/qualitative metadata and stale-impact rejection, and typed receivable/payable ageing evidence: explicit as-of date, date basis, bucket rule/bucket, credit treatment and paired settlement links; scoped audit-difference summaries preserve gross and signed/net corrected/unadjusted totals by currency. The complete current evidence is maintained in `docs/execution/current-slice.md` and `docs/execution/status.json`; the broader audit-workflow stories and external acceptance gates remain individually unaccepted.
 
 ### 2.3 Reuse versus gap rule
 
@@ -2048,12 +2048,12 @@ The following are commit-pinned repository references inspected to ground reuse 
 
 No outside accounting/tax/legal standard was researched or incorporated as an additional source. Professional policy choices not specified by S1 must be supplied through approved methodology as listed in Section 7.
 
-[R1]: https://github.com/nirzaf/AuditSphere/blob/816a418/AGENTS.md
-[R2]: https://github.com/nirzaf/AuditSphere/blob/816a418/docs/SPECIFICATION.md
-[R3]: https://github.com/nirzaf/AuditSphere/blob/816a418/src/AuditSphereOps.Domain/Audit/Audit.cs
-[R4]: https://github.com/nirzaf/AuditSphere/blob/816a418/docs/SPECIFICATION.md#s20
-[R5]: https://github.com/nirzaf/AuditSphere/blob/816a418/docs/SPECIFICATION.md#s23
-[R6]: https://github.com/nirzaf/AuditSphere/blob/816a418/src/AuditSphereOps.Application/Accounting/FinancialStatementCalculator.cs
+[R1]: https://github.com/nirzaf/AuditSphere/blob/ae9827e/AGENTS.md
+[R2]: https://github.com/nirzaf/AuditSphere/blob/ae9827e/docs/SPECIFICATION.md
+[R3]: https://github.com/nirzaf/AuditSphere/blob/ae9827e/src/AuditSphereOps.Domain/Audit/Audit.cs
+[R4]: https://github.com/nirzaf/AuditSphere/blob/ae9827e/docs/SPECIFICATION.md#s20
+[R5]: https://github.com/nirzaf/AuditSphere/blob/ae9827e/docs/SPECIFICATION.md#s23
+[R6]: https://github.com/nirzaf/AuditSphere/blob/ae9827e/src/AuditSphereOps.Application/Accounting/FinancialStatementCalculator.cs
 
 ---
 

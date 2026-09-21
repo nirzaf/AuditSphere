@@ -6,15 +6,15 @@ This file records observed repository state only. The authoritative build contra
 
 | Item | Observed value |
 |---|---|
-| Source implementation checkpoint | `master@816a418` |
-| Remote | `origin/master` includes source checkpoint `816a418` |
+| Source implementation checkpoint | `master@ae9827e` |
+| Remote | `origin/master` includes source checkpoint `ae9827e` |
 | SDK | .NET 10; repository solution targets `net10.0` |
 | Database | PostgreSQL 18.6 on loopback port 5433 for development only |
 | Build | `dotnet build AuditSphereOps.slnx --no-restore --configuration Release` — passed, 0 warnings/errors |
 | Tests | 208/208 passed, 0 skipped against PostgreSQL 18.6 |
-| Migrations | 67 applied; latest `20260921102055_AddReconciliationAgingEvidence` |
+| Migrations | 68 applied; latest `20260921113403_AddAuditDifferenceEvaluationMetadata` |
 | Model drift | `dotnet ef migrations has-pending-model-changes` — no changes |
-| Restore drill | `scripts/db/restore-drill.sh` — passed; 67 migrations reconciled |
+| Restore drill | `scripts/db/restore-drill.sh` — passed; 68 migrations reconciled |
 | Production effects | Disabled locally; no production acceptance claimed |
 
 ## Implemented local capability
@@ -62,6 +62,7 @@ This file records observed repository state only. The authoritative build contra
 - Scoped audit-difference summaries preserve gross absolute totals and signed/net totals by currency, with corrected and unadjusted subtotals so offsetting differences remain visible; PostgreSQL regression coverage passes.
 - Bounded journal-risk analysis returns deterministic, criteria-versioned review indicators for manual, year-end, high-value, reversal and missing-source-origin journals, with scoped source-origin and debit-amount evidence; it does not make an automatic fraud finding.
 - Linked audit differences now retain a `journal-impact.v2` payload from the exact journal revision and approved mapping lineage, including account/statement effects, profit and equity totals, disclosure buckets, explicit unmapped status and a payload hash; PostgreSQL regression coverage passes.
+- Difference correction governance now retains optional materiality and qualitative concerns, supports proposed/agreed/rejected/applied-in-reporting/reported-posted-external states with reviewer reasons, and rejects stale, unsupported or hash-mismatched `journal-impact.v2` evidence before verified-reflected status; PostgreSQL regression coverage passes.
 - GL completeness calculation can be enqueued as a local durable operation, with sealed-source revision fencing, operation completion lineage and repeat-enqueue idempotency; PostgreSQL regression coverage passes.
 - Financial-package builds can be enqueued as local durable calculations, fenced to the approved mapping revision and finalized plan, committed atomically with operation completion, and re-enqueued idempotently; PostgreSQL regression coverage passes.
 - Financial-package records inherit the source dataset's selected reporting period, optional book and normalized basis, validate period dates and book/basis/currency lineage, persist the context with scope FKs, and include it in the deterministic package hash; legacy direct fixtures remain nullable for additive compatibility.
@@ -128,7 +129,7 @@ dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infr
 scripts/db/restore-drill.sh
 ```
 
-The restore evidence is written to [`docs/evidence/restore-drill-latest.json`](../evidence/restore-drill-latest.json). The latest rehearsal restored 67 migrations through `20260921102055_AddReconciliationAgingEvidence`; it is loopback-only and explicitly reports that external checkpoint custody and production RPO/RTO were not run.
+The restore evidence is written to [`docs/evidence/restore-drill-latest.json`](../evidence/restore-drill-latest.json). The latest rehearsal restored 68 migrations through `20260921113403_AddAuditDifferenceEvaluationMetadata`; it is loopback-only and explicitly reports that external checkpoint custody and production RPO/RTO were not run.
 
 ## Resume rule
 
