@@ -105,8 +105,16 @@
 
   function init(container = document) {
     discover(container);
+    addTooltips(container);
     if (container.matches?.('[data-draft-scope]')) wire(container);
     container.querySelectorAll?.('[data-draft-scope]').forEach(wire);
+  }
+
+  function addTooltips(container) {
+    container.querySelectorAll?.('button:not([title]), a.button:not([title]), a[class*="btn-"]:not([title])').forEach(button => {
+      const text = button.textContent.replace(/\s+/g, ' ').trim();
+      if (text) button.title = `Activate to ${text.toLowerCase()}.`;
+    });
   }
 
   function discover(container) {
@@ -128,12 +136,8 @@
           const text = label.textContent.replace(/\s+/g, ' ').trim();
           if (!control.title) control.title = text;
           if (control.required || control.dataset.required === 'true') label.classList.add('required-label');
-          if (/\(optional\)/i.test(text) || control.dataset.optional === 'true') label.classList.add('optional-label');
+          if (control.dataset.optional === 'true' && !/\(optional\)/i.test(text)) label.classList.add('optional-label');
         }
-      });
-      boundary.querySelectorAll('button:not([title]), a.button:not([title])').forEach(button => {
-        const text = button.textContent.replace(/\s+/g, ' ').trim();
-        if (text) button.title = `Activate to ${text.toLowerCase()}.`;
       });
       if (!boundary.querySelector('[data-draft-guidance]')) {
         const guidance = document.createElement('p');
