@@ -100,6 +100,7 @@
     if (wired.has(boundary) || !boundary.dataset.draftScope) return;
     wired.add(boundary);
     restore(boundary);
+    setTimeout(() => restore(boundary, 1), 250);
     const listen = event => {
       const control = event.target?.closest?.('input, select, textarea');
       if (control && !restoring.has(boundary)) dirtyControls.add(control);
