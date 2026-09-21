@@ -19,7 +19,11 @@ else if (!_authorized)
 }
 else
 {
-  <p class="scope-note">The workspace is scoped to the authenticated firm and client grants. Group navigation does not grant sibling-company access.</p>
+  <section class="card" aria-labelledby="workspace-context-heading">
+    <h2 id="workspace-context-heading">Active accounting context</h2>
+    <p class="scope-note">Firm <code>@_actor!.FirmId</code> · Group <strong>none</strong> · @_clients.Count legal entities in the current grant scope. Group navigation does not grant sibling-company access.</p>
+    <p class="muted">Each row below pins the legal entity, engagement, period, book, currency and latest package version. Select a handoff only after confirming this context.</p>
+  </section>
   <section class="metric-grid" aria-label="Accounting workspace counts">
     <article class="metric card"><span class="metric-label">Client profiles</span><strong class="metric-value">@_profileCount</strong></article>
     <article class="metric card"><span class="metric-label">Open periods</span><strong class="metric-value">@_openPeriodCount</strong></article>
@@ -52,17 +56,19 @@ else
       <div class="table-wrap">
         <table>
           <caption class="sr-only">Scoped client reporting periods</caption>
-          <thead><tr><th scope="col">Client</th><th scope="col">Period</th><th scope="col">Dates</th><th scope="col">Status</th><th scope="col">Revision</th><th scope="col">Handoffs</th></tr></thead>
+        <thead><tr><th scope="col">Legal entity</th><th scope="col">Engagement</th><th scope="col">Period</th><th scope="col">Book</th><th scope="col">Currency</th><th scope="col">Package</th><th scope="col">Status</th><th scope="col">Handoffs</th></tr></thead>
           <tbody>
           @foreach (var period in _periods)
           {
             <tr>
-              <td>@period.ClientName</td>
-              <td>@period.PeriodCode · @period.Basis</td>
-              <td>@period.StartDate.ToString("yyyy-MM-dd") — @period.EndDate.ToString("yyyy-MM-dd")</td>
+              <td><strong>@period.ClientName</strong></td>
+              <td>@period.Engagement</td>
+              <td>@period.PeriodCode · @period.Basis<br /><span class="muted">@period.StartDate.ToString("yyyy-MM-dd") — @period.EndDate.ToString("yyyy-MM-dd")</span></td>
+              <td>@period.Book</td>
+              <td><code>@period.Currency</code></td>
+              <td>@period.Package</td>
               <td><span class="status">@period.Status</span></td>
-              <td>@period.Revision</td>
-              <td><a href="/app/accounting/rollforward">Roll forward</a> · <a href="/app/accounting/restatements">Restatements</a></td>
+              <td><a href="/app/accounting/rollforward" title="Create a new draft period from this scoped period">Roll forward</a> · <a href="/app/accounting/restatements" title="Review an authorized amendment without rewriting the issued package">Restatements</a></td>
             </tr>
           }
           </tbody>
@@ -73,19 +79,20 @@ else
   <section class="card" aria-labelledby="routes-heading">
     <h2 id="routes-heading">Accounting workbenches</h2>
     <div style="display:flex;gap:.75rem;flex-wrap:wrap">
-      <a class="button" href="/app/consolidation">Group consolidation</a>
-      <a class="button" href="/app/accounting/evidence">Account-area evidence</a>
-      <a class="button" href="/app/accounting/rollforward">Period roll-forward</a>
-      <a class="button" href="/app/journals">Adjustments and journals</a>
-      <a class="button" href="/app/accounting/reviews">Package review queue</a>
-      <a class="button" href="/app/accounting/restatements">Period restatements</a>
+      <a class="button" href="/app/consolidation" title="Review explicitly granted group perimeters and approved consolidation scopes">Group consolidation</a>
+      <a class="button" href="/app/accounting/evidence" title="Review scoped ECL, inventory, specialist, analytical and journal-risk evidence">Account-area evidence</a>
+      <a class="button" href="/app/accounting/rollforward" title="Create a draft reporting period with explicit opening-balance evidence">Period roll-forward</a>
+      <a class="button" href="/app/journals" title="Review proposed accounting and reporting adjustments">Adjustments and journals</a>
+      <a class="button" href="/app/accounting/reviews" title="Review package stages and current applicability">Package review queue</a>
+      <a class="button" href="/app/accounting/restatements" title="Record an authorized post-close amendment with immutable lineage">Period restatements</a>
     </div>
   </section>
 }
 
 @code {
   private sealed record ClientRow(string Name, string Currency, int Periods, string ChartStatus, string ImportStatus);
-  private sealed record PeriodRow(string ClientName, string PeriodCode, string Basis, DateOnly StartDate, DateOnly EndDate, string Status, long Revision);
+  private sealed record PeriodRow(string ClientName, string Engagement, string PeriodCode, string Basis, DateOnly StartDate, DateOnly EndDate,
+    string Book, string Currency, string Package, string Status, long Revision);
   private ActorContext? _actor;
   private bool _loading = true;
   private bool _authorized;
@@ -113,6 +120,12 @@ else
         (clientIds.Length == 0 || clientIds.Contains(x.Id))).ToDictionaryAsync(x => x.Id);
       var periods = await db.ClientReportingPeriods.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
         (clientIds.Length == 0 || clientIds.Contains(x.ClientId))).ToListAsync();
+      var books = await db.ClientReportingBooks.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
+        (clientIds.Length == 0 || clientIds.Contains(x.ClientId))).ToListAsync();
+      var engagements = await db.Engagements.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
+        (clientIds.Length == 0 || clientIds.Contains(x.PracticeClientId))).ToListAsync();
+      var packages = await db.FinancialPackages.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
+        (clientIds.Length == 0 || clientIds.Contains(x.ClientId))).ToListAsync();
       var charts = await db.ClientChartVersions.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
         (clientIds.Length == 0 || clientIds.Contains(x.ClientId))).GroupBy(x => x.ClientId)
         .Select(x => new { ClientId = x.Key, Status = x.OrderByDescending(y => y.Version).Select(y => y.Status).First() }).ToListAsync();
@@ -125,8 +138,14 @@ else
         (clientIds.Length == 0 || clientIds.Contains(x.ClientId)));
       _blockedCount = periods.Count(x => x.Status is AccountingWorkflowStates.Stale or AccountingWorkflowStates.Rejected);
       _periods = periods.OrderByDescending(x => x.EndDate).ThenBy(x => x.PeriodCode).Select(x => new PeriodRow(
-        clients.GetValueOrDefault(x.ClientId)?.LegalName ?? "Scoped client", x.PeriodCode, x.Basis,
-        x.StartDate, x.EndDate, x.Status, x.Revision)).ToList();
+        clients.GetValueOrDefault(x.ClientId)?.LegalName ?? "Scoped client",
+        engagements.Where(e => e.PracticeClientId == x.ClientId).OrderByDescending(e => e.CreatedAt).Select(e => e.ServiceRoute).FirstOrDefault() ?? "No engagement",
+        x.PeriodCode, x.Basis, x.StartDate, x.EndDate,
+        books.FirstOrDefault(b => b.ClientId == x.ClientId && b.PeriodId == x.Id)?.Code ?? "No book",
+        x.Currency,
+        packages.Where(p => p.ClientId == x.ClientId && p.PeriodId == x.Id).OrderByDescending(p => p.CreatedAt)
+          .Select(p => $"{p.Status} · v{p.Revision}").FirstOrDefault() ?? "NO_PACKAGE",
+        x.Status, x.Revision)).ToList();
       _clients = profiles.Where(x => clients.ContainsKey(x.ClientId)).Select(x => new ClientRow(
         clients[x.ClientId].LegalName, x.FunctionalCurrency, periods.Count(p => p.ClientId == x.ClientId),
         charts.SingleOrDefault(c => c.ClientId == x.ClientId)?.Status ?? "NO_CHART",
