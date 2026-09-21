@@ -66,6 +66,14 @@ public sealed record JournalRiskFlagRequest(
   string RuleCode, string Reason, decimal Score, string EvidenceReference,
   bool SelectedForTesting = false, string ManagementExplanation = "", string CorroborationReference = "");
 
+public sealed record JournalRiskAnalysisRequest(
+  Guid ClientId, Guid EngagementId, Guid ImportBatchId, DateOnly YearEnd,
+  decimal HighValueThreshold, int YearEndWindowDays = 5);
+
+public sealed record JournalRiskCandidate(
+  string CriteriaVersion, Guid TransactionId, string StableJournalId, DateOnly PostingDate,
+  string RuleCode, string Reason, decimal Score, bool SourceOriginAvailable, decimal AbsoluteAmount);
+
 public sealed record ReviewAccountingEvidenceRequest(
   string Kind, Guid EvidenceId, string Decision, string? Disposition = null, string? Conclusion = null,
   string? CorroborationReference = null);
@@ -109,6 +117,8 @@ public static class AccountingAnalysisService
 {
   private static readonly string[] PreparerRoles = ["AccountingPreparer", "AccountingReviewer", "Manager", "Partner", "Administrator"];
   private static readonly string[] ReviewerRoles = ["AccountingReviewer", "Manager", "Partner", "Administrator"];
+  private const string JournalRiskCriteriaVersion = "journal-risk.v1";
+  private const int MaxJournalRiskTransactions = 5_000;
 
   public static async Task<CommandResult<GeneralLedgerPage>> GetGeneralLedgerPageAsync(
     IClientAccountingDbContext db, ActorContext actor, Guid importBatchId, int page = 1, int pageSize = 100,
@@ -963,6 +973,74 @@ public static class AccountingAnalysisService
     db.JournalRiskFlags.Add(flag);
     await db.SaveChangesAsync(ct);
     return CommandResult<Guid>.Ok(flag.Id);
+  }
+
+  public static async Task<CommandResult<IReadOnlyList<JournalRiskCandidate>>> AnalyzeJournalRiskAsync(
+    IClientAccountingDbContext db, ActorContext actor, JournalRiskAnalysisRequest request,
+    CancellationToken ct = default)
+  {
+    if (request.ClientId == Guid.Empty || request.EngagementId == Guid.Empty || request.ImportBatchId == Guid.Empty ||
+        request.HighValueThreshold <= 0m || request.HighValueThreshold != MoneyPolicy.Normalize(request.HighValueThreshold) ||
+        request.YearEndWindowDays is < 0 or > 90)
+      return CommandResult<IReadOnlyList<JournalRiskCandidate>>.Fail(
+        ErrorCodes.Accounting.ReconciliationRejected, "The journal risk analysis parameters are invalid.");
+
+    var batch = await db.SourceImportBatches.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.Id == request.ImportBatchId && x.FirmId == actor.FirmId && x.ClientId == request.ClientId &&
+      x.EngagementId == request.EngagementId && x.SourceKind == "GL" && x.Status == "SEALED", ct);
+    if (batch is null)
+      return CommandResult<IReadOnlyList<JournalRiskCandidate>>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, request.ClientId, request.EngagementId, PreparerRoles, InternalOnly: true), ct);
+    if (!auth.Succeeded)
+      return CommandResult<IReadOnlyList<JournalRiskCandidate>>.Fail(auth.ErrorCode!, auth.Message!);
+    var period = await db.ClientReportingPeriods.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.Id == batch.PeriodId && x.FirmId == actor.FirmId && x.ClientId == request.ClientId, ct);
+    if (period is null || request.YearEnd < period.StartDate || request.YearEnd > period.EndDate)
+      return CommandResult<IReadOnlyList<JournalRiskCandidate>>.Fail(
+        ErrorCodes.Accounting.ReconciliationRejected, "The analysis year-end is outside the imported reporting period.");
+
+    var transactions = await db.GeneralLedgerTransactions.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && x.ClientId == request.ClientId &&
+        x.EngagementId == request.EngagementId && x.ImportBatchId == batch.Id)
+      .OrderBy(x => x.PostingDate).ThenBy(x => x.StableJournalId).ThenBy(x => x.Id)
+      .Take(MaxJournalRiskTransactions + 1).ToListAsync(ct);
+    if (transactions.Count > MaxJournalRiskTransactions)
+      return CommandResult<IReadOnlyList<JournalRiskCandidate>>.Fail(
+        ErrorCodes.Accounting.ImportRejected, "Journal risk analysis is bounded; select a smaller sealed batch.");
+
+    var transactionIds = transactions.Select(x => x.Id).ToArray();
+    var amounts = transactionIds.Length == 0
+      ? new Dictionary<Guid, decimal>()
+      : await db.GeneralLedgerLines.AsNoTracking().Where(x =>
+          x.FirmId == actor.FirmId && x.ClientId == request.ClientId && x.EngagementId == request.EngagementId &&
+          x.ImportBatchId == batch.Id && transactionIds.Contains(x.TransactionId))
+        .GroupBy(x => x.TransactionId).Select(x => new { x.Key, Amount = x.Sum(line => line.Debit) })
+        .ToDictionaryAsync(x => x.Key, x => MoneyPolicy.Normalize(x.Amount), ct);
+
+    var candidates = new List<JournalRiskCandidate>();
+    foreach (var transaction in transactions)
+    {
+      var amount = amounts.GetValueOrDefault(transaction.Id);
+      var sourceOriginAvailable = !string.IsNullOrWhiteSpace(transaction.SourceUser) &&
+        !string.IsNullOrWhiteSpace(transaction.SourceSystem);
+      var daysFromYearEnd = Math.Abs(transaction.PostingDate.DayNumber - request.YearEnd.DayNumber);
+      void Add(string ruleCode, string reason, decimal score) => candidates.Add(new JournalRiskCandidate(
+        JournalRiskCriteriaVersion, transaction.Id, transaction.StableJournalId, transaction.PostingDate,
+        ruleCode, reason, score, sourceOriginAvailable, amount));
+
+      if (transaction.IsManual)
+        Add("MANUAL_ENTRY", "Review indicator: manual journal requires corroboration; it is not a fraud conclusion.", 70m);
+      if (transaction.IsYearEnd || daysFromYearEnd <= request.YearEndWindowDays)
+        Add("YEAR_END_ENTRY", "Review indicator: posting is within the configured year-end window; it is not a fraud conclusion.", 60m);
+      if (amount >= request.HighValueThreshold)
+        Add("HIGH_VALUE_ENTRY", $"Review indicator: debit amount {amount.ToString("0.00", CultureInfo.InvariantCulture)} meets the configured threshold; it is not a fraud conclusion.", 80m);
+      if (!string.IsNullOrWhiteSpace(transaction.ReversalReference))
+        Add("REVERSAL_ENTRY", "Review indicator: journal has a reversal reference and requires linkage review; it is not a fraud conclusion.", 50m);
+      if (!sourceOriginAvailable)
+        Add("MISSING_SOURCE_ORIGIN", "Review indicator: source user or source system is unavailable; origin could not be corroborated.", 90m);
+    }
+    return CommandResult<IReadOnlyList<JournalRiskCandidate>>.Ok(candidates);
   }
 
   public static async Task<CommandResult<Guid>> LinkAccountingEvidenceToProcedureAsync(

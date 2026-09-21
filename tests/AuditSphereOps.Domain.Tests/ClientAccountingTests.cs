@@ -149,6 +149,18 @@ public sealed class ClientAccountingTests
       Assert.Equal("SEASONAL_MOVEMENT", analytical.MovementFlags);
       Assert.NotEmpty(analytical.InputSnapshotJson);
       Assert.Equal(Hashing.Sha256Hex(System.Text.Encoding.UTF8.GetBytes(analytical.InputSnapshotJson)), analytical.InputHash);
+      var journalRiskCandidates = await AccountingAnalysisService.AnalyzeJournalRiskAsync(db, preparer,
+        new JournalRiskAnalysisRequest(scope.ClientA, scope.EngagementA, batchId, new DateOnly(2026, 6, 30), 50m, 3));
+      Assert.True(journalRiskCandidates.Succeeded, journalRiskCandidates.Message);
+      Assert.Equal(2, journalRiskCandidates.Value!.Count);
+      Assert.All(journalRiskCandidates.Value, candidate =>
+      {
+        Assert.Equal("journal-risk.v1", candidate.CriteriaVersion);
+        Assert.True(candidate.SourceOriginAvailable);
+        Assert.Equal(100m, candidate.AbsoluteAmount);
+      });
+      Assert.Contains(journalRiskCandidates.Value, candidate => candidate.RuleCode == "YEAR_END_ENTRY");
+      Assert.Contains(journalRiskCandidates.Value, candidate => candidate.RuleCode == "HIGH_VALUE_ENTRY");
       riskId = (await AccountingAnalysisService.AddJournalRiskFlagAsync(db, preparer,
         new JournalRiskFlagRequest(scope.ClientA, scope.EngagementA, batchId, transactionId, "YEAR_END_MANUAL", "Manual year-end journal requires corroboration.", 75m, "journal-selection", SelectedForTesting: true, ManagementExplanation: "Management explained the year-end entry.", CorroborationReference: "bank-reconciliation-1"))).Value;
       var risk = await db.JournalRiskFlags.SingleAsync(x => x.Id == riskId);
