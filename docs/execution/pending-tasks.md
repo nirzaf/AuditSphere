@@ -3,7 +3,7 @@
 **Repository:** `nirzaf/AuditSphere`
 **Authoritative specification:** [`docs/SPECIFICATION.md`](../SPECIFICATION.md) v5.0
 **Requirements backlog:** [`docs/requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md`](../requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md)
-**Source implementation checkpoint:** `master@5508ea3`
+**Source implementation checkpoint:** `master@1b62c38`
 
 This is a resume checklist, not an acceptance certificate. Tenant identifiers, credentials, tokens, secret values, and private-provider URLs are deliberately absent from the public repository.
 
@@ -11,8 +11,8 @@ This is a resume checklist, not an acceptance certificate. Tenant identifiers, c
 
 - [x] .NET 10 solution builds with zero warnings/errors.
 - [x] PostgreSQL 18.6 development profile is used on loopback port 5433.
-- [x] 209/209 PostgreSQL-backed tests pass with 0 skipped.
-- [x] 70 migrations are applied; latest is `20260921123852_CancelDurableOperationDisposition`.
+- [x] 218/218 PostgreSQL-backed tests pass with 0 skipped.
+- [x] 79 migrations are applied; latest is `20260921204723_AddExchangeRateSetEffectiveRange`.
 - [x] EF model has no pending migration changes.
 - [x] Loopback restore drill passes and writes secret-free evidence to `docs/evidence/restore-drill-latest.json`.
 - [x] Generated Graphify output and local agent state are ignored and removed from Git tracking.
@@ -46,6 +46,9 @@ This is a resume checklist, not an acceptance certificate. Tenant identifiers, c
 - [x] Carry approved group opening run, FX and recurring-elimination lineage to a new scope without auto-applying prior journals.
 - [x] Add the bounded approved foreign-operation translation profile with pinned rate/policy inputs, maker/checker review, source/FX lineage and stale-input blocking.
 - [x] Reject unsupported FX rate directions in the enabled bounded translation profile.
+- [x] Persist exchange-rate-set version/source/approval/effective-range metadata, reject observations outside the declared range, and require scope/translation rate types to be declared by the approved policy.
+- [x] Persist separate foreign-exchange and rounding adjustments and recompute them during translation approval.
+- [x] Add deterministic calculation cores for currency remeasurement/translation separation, acquisition/NCI, ownership changes, nested double-count rejection and asset-transfer/tax elimination; approved method-specific fixtures remain pending before enabling those profiles.
 - [x] Add bounded, resumable GL chunk intake with canonical digest, idempotent retry and contiguous finalization.
 - [x] Bind source-bound GL reconciliations to the selected reporting period and currency; reject cross-period or cross-currency batches.
 - [x] Bind reconciliation items to the selected source currency; reject future dates and missing dispositions while preserving explicit as-of date, date basis, bucket rule/bucket, credit treatment and paired settlement links for receivable/payable ageing.
