@@ -45,6 +45,15 @@ public sealed class FinancialStatementTests
         ]));
       Assert.False(incomplete.Succeeded);
       Assert.Equal("mapping.incomplete", incomplete.ErrorCode);
+
+      var sectionMismatch = await FinancialStatementService.CreateMappingVersionAsync(db, preparer,
+        new CreateMappingVersionRequest(fixture.DatasetId, "tax-v1", "2026-01-01", "2026-12-31", [
+          new("1000", "CASH", "LIABILITIES", 1m, "Cash mapping"),
+          new("4000", "REVENUE", "INCOME", 1m, "Revenue mapping")
+        ]));
+      Assert.False(sectionMismatch.Succeeded);
+      Assert.Equal(ErrorCodes.Accounting.MappingInvalid, sectionMismatch.ErrorCode);
+      Assert.Contains("statement sections", sectionMismatch.Message!, StringComparison.OrdinalIgnoreCase);
     }
 
     Guid mappingId;
@@ -172,7 +181,11 @@ public sealed class FinancialStatementTests
       var checks = await db.FinancialPackageValidations.AsNoTracking()
         .Where(x => x.FinancialPackageId == complete.Value.PackageId).ToListAsync();
       Assert.All(checks.Where(x => x.Code is "CASH_FLOW_RECONCILED" or "DISCLOSURES_COMPLETE" or "SUPPLEMENTARY_INFORMATION"), x => Assert.True(x.Passed));
+      Assert.Contains(checks, x => x.Code == "STATEMENT_CROSS_CAST" && x.Passed);
+      Assert.Contains(checks, x => x.Code == "ACCOUNTING_EQUATION" && x.Passed);
       Assert.Contains(checks, x => x.Code == "EQUITY_ROLLFORWARD" && x.Passed);
+      Assert.Contains(checks, x => x.Code == "EQUITY_PROFIT" && x.Passed);
+      Assert.Contains(checks, x => x.Code == "COMPARATIVE_CONSISTENCY" && x.Passed);
       Assert.Contains(checks, x => x.Code == "NOTE_TO_FACE_TOTALS" && x.Passed);
 
       var cashFlowLineId = await db.FinancialPackageCashFlowLines.Where(x => x.FinancialPackageId == complete.Value.PackageId).Select(x => x.Id).SingleAsync();
@@ -312,6 +325,7 @@ public sealed class FinancialStatementTests
       Assert.NotEmpty(artifact1.Value.ArtifactBytes);
       Assert.Equal(artifact1.Value.ArtifactSha256Hex, Hashing.Sha256Hex(artifact1.Value.ArtifactBytes));
       Assert.Contains("=== AUDITSPHEREOPS FINANCIAL STATEMENT PACKAGE ===", artifact1.Value.RenderedText);
+      Assert.Contains("Mapping Version ID:", artifact1.Value.RenderedText);
       Assert.Contains("NOTE_1: Summary of significant accounting policies.", artifact1.Value.RenderedText);
       Assert.Contains("[NOT APPLICABLE: No discontinued operations.]", artifact1.Value.RenderedText);
 

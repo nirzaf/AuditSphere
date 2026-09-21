@@ -440,6 +440,19 @@ public static class FinancialStatementService
       "The adjusted snapshot hash matches the finalized adjustment plan.");
     AddValidation(db, package, "PACKAGE_BALANCED", MoneyPolicy.Normalize(packageLines.Sum(x => x.Amount)) == 0m,
       "Mapped presentation lines retain a zero signed total.");
+    var sectionTotals = packageLines.GroupBy(x => x.StatementSection, StringComparer.Ordinal)
+      .ToDictionary(x => x.Key, x => MoneyPolicy.Normalize(x.Sum(y => y.Amount)), StringComparer.Ordinal);
+    var crossCastTotal = MoneyPolicy.Normalize(sectionTotals.Values.Sum());
+    var lineTotal = MoneyPolicy.Normalize(packageLines.Sum(x => x.Amount));
+    AddValidation(db, package, "STATEMENT_CROSS_CAST", crossCastTotal == lineTotal,
+      $"Statement-section totals cross-cast to the mapped line total ({crossCastTotal.ToString("0.000000", CultureInfo.InvariantCulture)} {package.Currency}).");
+    var equationSections = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+      { "ASSETS", "LIABILITIES", "EQUITY", "INCOME", "EXPENSE", "OCI", "SFP", "BALANCE_SHEET", "P&L", "P_AND_L", "PROFIT_LOSS" };
+    var unclassifiedSections = sectionTotals.Keys.Where(x => !equationSections.Contains(x)).OrderBy(x => x, StringComparer.Ordinal).ToArray();
+    AddValidation(db, package, "ACCOUNTING_EQUATION", lineTotal == 0m && unclassifiedSections.Length == 0,
+      unclassifiedSections.Length == 0
+        ? "Assets, liabilities, equity, income, expense and OCI signed totals satisfy the accounting equation."
+        : $"The accounting equation has unclassified statement sections: {string.Join(", ", unclassifiedSections)}.");
     var hasSupplementary = request.SupplementaryInformation is not null;
     AddValidation(db, package, "CASH_FLOW_RECONCILED", hasSupplementary,
       hasSupplementary ? "Cash-flow lines reconcile to the supplied opening and closing cash." : "Cash-flow workings are not supplied.");
@@ -451,6 +464,19 @@ public static class FinancialStatementService
     {
       AddValidation(db, package, "EQUITY_ROLLFORWARD", true,
         "Statement-of-changes-in-equity lines reconcile opening, movements and closing balances.");
+      var incomeTotal = MoneyPolicy.Normalize(packageLines.Where(x => x.StatementSection.Equals("INCOME", StringComparison.OrdinalIgnoreCase) ||
+          x.StatementSection.Equals("P&L", StringComparison.OrdinalIgnoreCase) ||
+          x.StatementSection.Equals("PROFIT_LOSS", StringComparison.OrdinalIgnoreCase) ||
+          x.StatementSection.Equals("P_AND_L", StringComparison.OrdinalIgnoreCase))
+        .Sum(x => x.Amount));
+      var ociTotal = MoneyPolicy.Normalize(packageLines.Where(x => x.StatementSection.Equals("OCI", StringComparison.OrdinalIgnoreCase))
+        .Sum(x => x.Amount));
+      var equityProfit = MoneyPolicy.Normalize(requestedEquity.Sum(x => x.ProfitOrLossAmount) + incomeTotal) == 0m;
+      var equityOci = MoneyPolicy.Normalize(requestedEquity.Sum(x => x.OciAmount) + ociTotal) == 0m;
+      AddValidation(db, package, "EQUITY_PROFIT", equityProfit && equityOci,
+        equityProfit && equityOci
+          ? "Equity profit/loss and OCI movements agree to the mapped income and OCI totals."
+          : "Equity profit/loss or OCI movements do not agree to the mapped statement totals.");
       foreach (var line in requestedEquity)
         typedAccounting!.FinancialPackageEquityLines.Add(new FinancialPackageEquityLine
         {
@@ -463,9 +489,23 @@ public static class FinancialStatementService
           Currency = package.Currency, EvidenceReference = line.EvidenceReference.Trim(), CreatedAt = package.CreatedAt
         });
     }
+    else
+      AddValidation(db, package, "EQUITY_PROFIT", false,
+        "A typed equity rollforward was not supplied for equity/profit validation.");
     if (request.SupplementaryInformation?.Comparative is { } requestedComparative)
+    {
       AddValidation(db, package, "COMPARATIVE_BOUND", true,
         $"Comparative package {requestedComparative.PackageId:D} is bound by exact package identity and evidence.");
+      var comparativeLineCount = await db.FinancialPackageLines.AsNoTracking()
+        .CountAsync(x => x.FinancialPackageId == comparative!.Id && x.FirmId == package.FirmId, ct);
+      AddValidation(db, package, "COMPARATIVE_CONSISTENCY", comparativeLineCount > 0,
+        comparativeLineCount > 0
+          ? "The validated comparative contains mapped statement lines for the same scope, framework and currency."
+          : "The bound comparative contains no mapped statement lines.");
+    }
+    else
+      AddValidation(db, package, "COMPARATIVE_CONSISTENCY", true,
+        "No comparative was required for this package input.");
     if (request.SupplementaryInformation?.NoteLines is { Count: > 0 } requestedNotes)
     {
       AddValidation(db, package, "NOTE_TO_FACE_TOTALS", true,
@@ -480,6 +520,9 @@ public static class FinancialStatementService
           EvidenceReference = line.EvidenceReference.Trim(), CreatedAt = package.CreatedAt
         });
     }
+    else
+      AddValidation(db, package, "NOTE_TO_FACE_TOTALS", true,
+        "No structured note lines were supplied; note-to-face cross-casts are not applicable.");
     if (request.SupplementaryInformation is not null)
     {
       foreach (var line in request.SupplementaryInformation.CashFlowLines)
@@ -624,6 +667,9 @@ public static class FinancialStatementService
     sb.AppendLine($"Firm ID: {package.FirmId:D}");
     sb.AppendLine($"Client ID: {package.ClientId:D}");
     sb.AppendLine($"Engagement ID: {package.EngagementId:D}");
+    sb.AppendLine($"Adjusted Snapshot ID: {package.AdjustedDatasetId:D}");
+    sb.AppendLine($"Mapping Version ID: {package.MappingVersionId:D}");
+    sb.AppendLine($"Adjustment Plan ID: {package.AdjustmentPlanId:D}");
     sb.AppendLine($"Framework: {package.Framework}");
     sb.AppendLine($"Reporting Period: {package.PeriodStart} to {package.PeriodEnd}");
     sb.AppendLine($"Currency: {package.Currency}");
@@ -816,9 +862,22 @@ public static class FinancialStatementService
       return "An approved reporting taxonomy version is required.";
     var destinations = allocations.Select(x => x.DestinationCode.Trim()).ToHashSet(StringComparer.OrdinalIgnoreCase);
     var approvedNodes = await typed.ReportingTaxonomyNodes.AsNoTracking().Where(x => x.FirmId == firmId &&
-      x.TaxonomyVersionId == taxonomy.Id && x.IsPosting).Select(x => x.Code).ToListAsync(ct);
-    var unknown = destinations.Where(x => !approvedNodes.Contains(x, StringComparer.OrdinalIgnoreCase)).OrderBy(x => x, StringComparer.Ordinal).ToArray();
-    return unknown.Length == 0 ? null : $"Mapping destinations are not approved taxonomy nodes: {string.Join(", ", unknown)}.";
+      x.TaxonomyVersionId == taxonomy.Id && x.IsPosting)
+      .Select(x => new { x.Code, x.StatementSection }).ToListAsync(ct);
+    var approvedByCode = approvedNodes.ToDictionary(x => x.Code, x => x.StatementSection, StringComparer.OrdinalIgnoreCase);
+    var unknown = destinations.Where(x => !approvedByCode.ContainsKey(x)).OrderBy(x => x, StringComparer.Ordinal).ToArray();
+    if (unknown.Length > 0)
+      return $"Mapping destinations are not approved taxonomy nodes: {string.Join(", ", unknown)}.";
+    var mismatchedSections = allocations
+      .Where(x => approvedByCode.TryGetValue(x.DestinationCode.Trim(), out var section) &&
+        !string.Equals(section.Trim(), x.StatementSection.Trim(), StringComparison.OrdinalIgnoreCase))
+      .Select(x => $"{x.DestinationCode.Trim()} expected {approvedByCode[x.DestinationCode.Trim()]}, received {x.StatementSection.Trim()}")
+      .Distinct(StringComparer.OrdinalIgnoreCase)
+      .OrderBy(x => x, StringComparer.Ordinal)
+      .ToArray();
+    return mismatchedSections.Length == 0
+      ? null
+      : $"Mapping statement sections do not match the approved taxonomy: {string.Join("; ", mismatchedSections)}.";
   }
 
   private static string? ValidateAllocations(
