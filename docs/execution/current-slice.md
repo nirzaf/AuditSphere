@@ -6,15 +6,15 @@ This file records observed repository state only. The authoritative build contra
 
 | Item | Observed value |
 |---|---|
-| Source implementation checkpoint | `master@133676b` |
-| Remote | `origin/master` includes source checkpoint `133676b` |
+| Source implementation checkpoint | `master@74cf48e` |
+| Remote | `origin/master` includes source checkpoint `74cf48e` |
 | SDK | .NET 10; repository solution targets `net10.0` |
 | Database | PostgreSQL 18.6 on loopback port 5433 for development only |
 | Build | `dotnet build AuditSphereOps.slnx --no-restore --configuration Release` — passed, 0 warnings/errors |
 | Tests | 206/206 passed, 0 skipped against PostgreSQL 18.6 |
-| Migrations | 64 applied; latest `20260921085029_LinkValuationDifferencesToAdjustments` |
+| Migrations | 65 applied; latest `20260921090305_PreserveAnalyticalReviewConclusion` |
 | Model drift | `dotnet ef migrations has-pending-model-changes` — no changes |
-| Restore drill | `scripts/db/restore-drill.sh` — passed; 64 migrations reconciled |
+| Restore drill | `scripts/db/restore-drill.sh` — passed; 65 migrations reconciled |
 | Production effects | Disabled locally; no production acceptance claimed |
 
 ## Implemented local capability
@@ -25,6 +25,7 @@ This file records observed repository state only. The authoritative build contra
 - Client accounting setup/reporting objects default blank currency input to QAR; raw source/import currencies and FX policy currencies remain explicit.
 - Analytical reviews default blank reporting currency to QAR only within the selected client reporting period, retain a deterministic input snapshot and replay hash, disclose negative/seasonal movement flags, and retain journal-risk sample selection, management explanation and corroboration fields.
 - ECL persists an explicit booked amount and calculates the difference against it; ECL and inventory assessments can link only to a non-void proposed adjustment in the same scoped engagement, with legacy ECL booked amounts backfilled from management amounts.
+- Analytical-review approval requires and persists a reviewer conclusion alongside the exact replay snapshot/hash; missing conclusions fail closed after source/generation freshness checks.
 - Direct and streaming GL imports preserve optional service dates through canonical digests and archive lineage.
 - GL completeness bridges optionally bind the approved prior-period TB, persist per-account opening-plus-movement residuals and disclose missing opening or malformed journal evidence.
 - Zero-adjustment plans preserve the validated source exactly; posted journals apply only when NOT_REFLECTED, REFLECTED applies zero, and UNKNOWN/PARTIALLY_REFLECTED or changed source decisions block finalization.
@@ -123,7 +124,7 @@ dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infr
 scripts/db/restore-drill.sh
 ```
 
-The restore evidence is written to [`docs/evidence/restore-drill-latest.json`](../evidence/restore-drill-latest.json). The latest rehearsal restored 64 migrations through `20260921085029_LinkValuationDifferencesToAdjustments`; it is loopback-only and explicitly reports that external checkpoint custody and production RPO/RTO were not run.
+The restore evidence is written to [`docs/evidence/restore-drill-latest.json`](../evidence/restore-drill-latest.json). The latest rehearsal restored 65 migrations through `20260921090305_PreserveAnalyticalReviewConclusion`; it is loopback-only and explicitly reports that external checkpoint custody and production RPO/RTO were not run.
 
 ## Resume rule
 
