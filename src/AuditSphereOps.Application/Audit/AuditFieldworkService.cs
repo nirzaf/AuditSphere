@@ -118,7 +118,9 @@ public sealed record RecordDifferenceRequest(
   string DifferenceType,
   string Description,
   decimal Amount,
-  string Currency);
+  string Currency,
+  string MaterialityReference = "",
+  string QualitativeConcerns = "");
 public sealed record DifferenceValue(Guid AuditDifferenceId, string Status);
 public sealed record AuditDifferenceSummary(
   string Currency, int DifferenceCount, decimal GrossAmount, decimal SignedNetAmount,
@@ -132,6 +134,8 @@ public sealed record LinkDifferenceToJournalRequest(
   Guid SourceReflectionReconciliationId,
   Guid VerifiedAdjustedSnapshotId,
   string CorrectionState = AuditDifferenceCorrectionStates.Proposed);
+public sealed record SetDifferenceCorrectionStateRequest(
+  Guid AuditDifferenceId, string CorrectionState, string? Reason = null);
 
 public sealed record AuditCompletionEvaluation(
   bool Ready,
@@ -657,7 +661,8 @@ public static class AuditFieldworkService
     IAuditSphereDbContext db, ActorContext actor, RecordDifferenceRequest request, CancellationToken ct = default)
   {
     if (string.IsNullOrWhiteSpace(request.AccountArea) || string.IsNullOrWhiteSpace(request.DifferenceType) ||
-        string.IsNullOrWhiteSpace(request.Description) || request.Amount == 0 || !IsCurrency(request.Currency))
+        string.IsNullOrWhiteSpace(request.Description) || request.Amount == 0 || !IsCurrency(request.Currency) ||
+        request.MaterialityReference.Trim().Length > 1000 || request.QualitativeConcerns.Trim().Length > 4000)
       return Invalid<DifferenceValue>("An audit difference requires a signed non-zero amount, area, type, description and currency.");
     var auth = await AuthorizeEngagementAsync(db, actor, request.EngagementId, PlanningRoles, ct);
     if (!auth.Succeeded)
@@ -669,7 +674,8 @@ public static class AuditFieldworkService
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = auth.ClientId, EngagementId = request.EngagementId,
       ProcedureId = request.ProcedureId, AccountArea = request.AccountArea.Trim(), DifferenceType = request.DifferenceType.Trim(),
-      Description = request.Description.Trim(), Amount = request.Amount, Currency = request.Currency.ToUpperInvariant(),
+      Description = request.Description.Trim(), MaterialityReference = TrimOrNull(request.MaterialityReference),
+      QualitativeConcerns = TrimOrNull(request.QualitativeConcerns), Amount = request.Amount, Currency = request.Currency.ToUpperInvariant(),
       InputGeneration = await CurrentGenerationAsync(db, auth.ClientId, actor.FirmId, ct), CreatedByUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
     };
     db.AuditDifferences.Add(difference);
@@ -697,6 +703,10 @@ public static class AuditFieldworkService
           existing.SourceReflectionReconciliationId is null || existing.VerifiedAdjustedSnapshotId is null)
         return CommandResult<DifferenceValue>.Fail(ErrorCodes.GateBlocked,
           "A difference cannot be marked corrected without typed journal, source-reflection and adjusted-snapshot evidence.");
+      if (existing.CorrectionState == AuditDifferenceCorrectionStates.Rejected)
+        return CommandResult<DifferenceValue>.Fail(ErrorCodes.GateBlocked, "A rejected correction cannot become verified reflected without a new reviewed difference.");
+      if (!HasCurrentJournalImpact(existing))
+        return CommandResult<DifferenceValue>.Fail(ErrorCodes.GateBlocked, "The exact journal impact evidence is missing, stale or unsupported.");
       var journal = await db.AdjustmentJournals.AsNoTracking().SingleOrDefaultAsync(x => x.Id == existing.ProposedJournalId &&
         x.FirmId == existing.FirmId && x.ClientId == existing.ClientId && x.EngagementId == existing.EngagementId &&
         x.Revision == existing.ProposedJournalRevision && x.Status == "Posted", ct);
@@ -752,6 +762,49 @@ public static class AuditFieldworkService
     return CommandResult<IReadOnlyList<AuditDifferenceSummary>>.Ok(summaries);
   }
 
+  public static async Task<CommandResult<DifferenceValue>> SetDifferenceCorrectionStateAsync(
+    IAuditSphereDbContext db, ActorContext actor, SetDifferenceCorrectionStateRequest request,
+    CancellationToken ct = default)
+  {
+    var state = request.CorrectionState.Trim().ToUpperInvariant();
+    if (state is not (AuditDifferenceCorrectionStates.Proposed or AuditDifferenceCorrectionStates.Agreed or
+        AuditDifferenceCorrectionStates.Rejected or AuditDifferenceCorrectionStates.AppliedInReporting or
+        AuditDifferenceCorrectionStates.ReportedPostedExternally))
+      return Invalid<DifferenceValue>("The correction state is unsupported.");
+    if (state == AuditDifferenceCorrectionStates.Rejected && string.IsNullOrWhiteSpace(request.Reason))
+      return Invalid<DifferenceValue>("Rejecting a correction requires a professional reason.");
+    var existing = await db.AuditDifferences.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.Id == request.AuditDifferenceId && x.FirmId == actor.FirmId, ct);
+    var auth = await AuthorizeEntityAsync(db, actor, existing, ReviewRoles, ct);
+    if (!auth.Succeeded)
+      return CommandResult<DifferenceValue>.Fail(auth.ErrorCode!, auth.Message!);
+    if (existing is null)
+      return Denied<DifferenceValue>();
+    if (existing.CreatedByUserId == actor.UserId)
+      return CommandResult<DifferenceValue>.Fail(ErrorCodes.ScopeDenied, "The preparer cannot set the correction state.");
+    if (existing.InputGeneration != await CurrentGenerationAsync(db, existing.ClientId, existing.FirmId, ct))
+      return CommandResult<DifferenceValue>.Fail(ErrorCodes.GenerationStale, "The difference is based on stale inputs.");
+    if (existing.Corrected || existing.CorrectionState == AuditDifferenceCorrectionStates.VerifiedReflected ||
+        !CanTransitionCorrectionState(existing.CorrectionState, state))
+      return CommandResult<DifferenceValue>.Fail(ErrorCodes.ProtectedState, "The correction state cannot move from its current reviewed state.");
+
+    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    var live = await db.AuditDifferences.SingleAsync(x => x.Id == existing.Id && x.FirmId == actor.FirmId, ct);
+    live.CorrectionState = state;
+    if (!string.IsNullOrWhiteSpace(request.Reason))
+      live.Evaluation = request.Reason.Trim();
+    if (state == AuditDifferenceCorrectionStates.Rejected)
+    {
+      live.Corrected = false;
+      live.Status = AuditDifferenceStatuses.Evaluated;
+    }
+    live.EvaluatedByUserId = actor.UserId;
+    live.EvaluatedAt = DateTimeOffset.UtcNow;
+    await db.SaveChangesAsync(ct);
+    await tx.CommitAsync(ct);
+    return CommandResult<DifferenceValue>.Ok(new(live.Id, live.Status));
+  }
+
   public static async Task<CommandResult> LinkDifferenceToJournalAsync(
     IAuditSphereDbContext db, ActorContext actor, LinkDifferenceToJournalRequest request,
     CancellationToken ct = default)
@@ -769,6 +822,8 @@ public static class AuditFieldworkService
       return auth;
     if (difference is null)
       return Denied();
+    if (!CanTransitionCorrectionState(difference.CorrectionState, state))
+      return CommandResult.Fail(ErrorCodes.ProtectedState, "The correction state cannot move from its current reviewed state.");
     var journal = await db.AdjustmentJournals.AsNoTracking().SingleOrDefaultAsync(x => x.Id == request.JournalId &&
       x.FirmId == actor.FirmId && x.ClientId == difference!.ClientId && x.EngagementId == difference.EngagementId &&
       x.Revision == request.JournalRevision && x.Status != "Void", ct);
@@ -1001,6 +1056,38 @@ public static class AuditFieldworkService
   private static bool IsCurrency(string value) => value.Length == 3 && value.All(c => c is >= 'A' and <= 'Z' or >= 'a' and <= 'z');
   private static bool IsProfitSection(string section) => section is "INCOME" or "P&L" or "PROFIT_LOSS" or "P_AND_L";
   private static bool IsEquitySection(string section) => section is "EQUITY" or "OCI" or "CHANGES_IN_EQUITY";
+  private static bool CanTransitionCorrectionState(string? current, string requested)
+  {
+    var prior = current?.Trim().ToUpperInvariant();
+    if (string.IsNullOrWhiteSpace(prior))
+      return requested is not AuditDifferenceCorrectionStates.VerifiedReflected;
+    if (prior == requested)
+      return true;
+    return prior switch
+    {
+      AuditDifferenceCorrectionStates.Proposed => requested is AuditDifferenceCorrectionStates.Agreed or AuditDifferenceCorrectionStates.Rejected,
+      AuditDifferenceCorrectionStates.Agreed => requested is AuditDifferenceCorrectionStates.AppliedInReporting or AuditDifferenceCorrectionStates.Rejected,
+      AuditDifferenceCorrectionStates.AppliedInReporting => requested is AuditDifferenceCorrectionStates.ReportedPostedExternally or AuditDifferenceCorrectionStates.Rejected,
+      _ => false
+    };
+  }
+  private static bool HasCurrentJournalImpact(AuditDifference difference)
+  {
+    if (string.IsNullOrWhiteSpace(difference.JournalImpactJson) || string.IsNullOrWhiteSpace(difference.JournalImpactHash))
+      return false;
+    try
+    {
+      using var document = JsonDocument.Parse(difference.JournalImpactJson);
+      return document.RootElement.TryGetProperty("Schema", out var schema) &&
+        schema.GetString() == "journal-impact.v2" &&
+        string.Equals(Hashing.Sha256Hex(System.Text.Encoding.UTF8.GetBytes(difference.JournalImpactJson)),
+          difference.JournalImpactHash, StringComparison.OrdinalIgnoreCase);
+    }
+    catch (JsonException)
+    {
+      return false;
+    }
+  }
   private static bool IsHash(string value) => value.Length == 64 && value.All(c => c is >= '0' and <= '9' or >= 'a' and <= 'f' or >= 'A' and <= 'F');
   private static bool JsonObject(string value)
   {

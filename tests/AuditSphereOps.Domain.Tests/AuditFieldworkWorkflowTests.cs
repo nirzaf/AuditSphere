@@ -108,14 +108,24 @@ public sealed class AuditFieldworkWorkflowTests
       new ReviewAreaAssessmentRequest(assessment.Value!.AuditAreaAssessmentId, AuditAreaAssessmentStatuses.Reviewed, null))).Succeeded);
 
     var difference = await AuditFieldworkService.RecordDifferenceAsync(db, scope.Actor,
-      new RecordDifferenceRequest(scope.EngagementId, procedure.Id, "Cash", "KNOWN", "Unpresented cheque timing difference.", -25m, "QAR"));
+      new RecordDifferenceRequest(scope.EngagementId, procedure.Id, "Cash", "KNOWN", "Unpresented cheque timing difference.", -25m, "QAR",
+        "materiality-2026", "No qualitative concern identified."));
     Assert.True(difference.Succeeded);
+    var differenceMetadata = await db.AuditDifferences.SingleAsync(x => x.Id == difference.Value!.AuditDifferenceId);
+    Assert.Equal("materiality-2026", differenceMetadata.MaterialityReference);
+    Assert.Equal("No qualitative concern identified.", differenceMetadata.QualitativeConcerns);
     var unlinkedCorrection = await AuditFieldworkService.EvaluateDifferenceAsync(db, reviewer,
       new EvaluateDifferenceRequest(difference.Value!.AuditDifferenceId, true, "Correction claimed.", null, null));
     Assert.False(unlinkedCorrection.Succeeded);
     Assert.Equal(ErrorCodes.GateBlocked, unlinkedCorrection.ErrorCode);
     Assert.True((await AuditFieldworkService.EvaluateDifferenceAsync(db, reviewer,
       new EvaluateDifferenceRequest(difference.Value!.AuditDifferenceId, false, "Evaluated against the final unadjusted differences schedule.", "Management will not post; assessed in aggregate.", null))).Succeeded);
+    var rejected = await AuditFieldworkService.SetDifferenceCorrectionStateAsync(db, reviewer,
+      new SetDifferenceCorrectionStateRequest(difference.Value.AuditDifferenceId, AuditDifferenceCorrectionStates.Rejected,
+        "Management rejected the proposed correction; the difference remains unadjusted."));
+    Assert.True(rejected.Succeeded, rejected.Message);
+    Assert.Equal(AuditDifferenceCorrectionStates.Rejected,
+      await db.AuditDifferences.Where(x => x.Id == difference.Value.AuditDifferenceId).Select(x => x.CorrectionState).SingleAsync());
     var offsettingDifference = await AuditFieldworkService.RecordDifferenceAsync(db, scope.Actor,
       new RecordDifferenceRequest(scope.EngagementId, procedure.Id, "Cash", "KNOWN", "Offsetting bank timing difference.", 25m, "QAR"));
     Assert.True(offsettingDifference.Succeeded);

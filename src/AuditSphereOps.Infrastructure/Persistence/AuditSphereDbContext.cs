@@ -2566,6 +2566,8 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     difference.Property(x => x.AccountArea).HasMaxLength(200);
     difference.Property(x => x.DifferenceType).HasMaxLength(60);
     difference.Property(x => x.Description).HasMaxLength(4000);
+    difference.Property(x => x.MaterialityReference).HasMaxLength(1000);
+    difference.Property(x => x.QualitativeConcerns).HasMaxLength(4000);
     difference.Property(x => x.Currency).HasMaxLength(3).IsFixedLength();
     difference.Property(x => x.ManagementResponse).HasMaxLength(4000);
     difference.Property(x => x.CorrectionReference).HasMaxLength(500);

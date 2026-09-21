@@ -317,6 +317,8 @@ public sealed class AuditDifference
   public string AccountArea { get; set; } = string.Empty;
   public string DifferenceType { get; set; } = string.Empty;
   public string Description { get; set; } = string.Empty;
+  public string? MaterialityReference { get; set; }
+  public string? QualitativeConcerns { get; set; }
   public decimal Amount { get; set; }
   public string Currency { get; set; } = string.Empty;
   public bool Corrected { get; set; }
