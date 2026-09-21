@@ -1685,6 +1685,11 @@ public sealed class ClientAccountingTests
       Assert.False(duplicatePolicy.Succeeded);
       Assert.Equal(ErrorCodes.IdempotencyConflict, duplicatePolicy.ErrorCode);
       Assert.True((await CurrencyTranslationService.ApprovePolicyAsync(db, methodOwner, policyId)).Succeeded);
+      var unsupportedPolicyRateScope = await ConsolidationService.CreateScopeAsync(db, reviewer,
+        new ConsolidationScopeRequest(groupId, Guid.NewGuid(), "QAR", ConsolidationCalculator.ForeignOperationMethod, "OPENING-FX-2026",
+          rateSetId, policyId, rateDate, "SPOT"));
+      Assert.False(unsupportedPolicyRateScope.Succeeded);
+      Assert.Equal(ErrorCodes.GateBlocked, unsupportedPolicyRateScope.ErrorCode);
 
       consolidationScopeId = (await ConsolidationService.CreateScopeAsync(db, reviewer,
         new ConsolidationScopeRequest(groupId, Guid.NewGuid(), "QAR", ConsolidationCalculator.ForeignOperationMethod, "OPENING-FX-2026",

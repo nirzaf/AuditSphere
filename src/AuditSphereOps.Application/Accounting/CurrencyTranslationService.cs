@@ -18,6 +18,16 @@ public static class ExchangeRateDirections
   public const string Direct = "DIRECT";
 }
 
+public static class TranslationPolicyRules
+{
+  public static bool AllowsRateType(TranslationPolicyVersion policy, string rateType)
+  {
+    var normalized = rateType.Trim().ToUpperInvariant();
+    return normalized.Length > 0 && new[] { policy.ClosingRateRule, policy.AverageRateRule, policy.HistoricalRateRule }
+      .Select(x => x.Trim().ToUpperInvariant()).Contains(normalized, StringComparer.Ordinal);
+  }
+}
+
 public static class CurrencyTranslationCalculator
 {
   public static decimal Translate(decimal amount, string fromCurrency, string toCurrency, decimal rate)
@@ -187,6 +197,8 @@ public static class CurrencyTranslationService
     if (set is null || policy is null || component.Currency != policy.FunctionalCurrency || scope.ReportingCurrency != policy.PresentationCurrency)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Approved policy, rate set and component/reporting currencies must agree.");
     var normalizedRateType = rateType.Trim().ToUpperInvariant();
+    if (!TranslationPolicyRules.AllowsRateType(policy, normalizedRateType))
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The requested rate type is not part of the approved translation policy.");
     var rate = await db.ExchangeRates.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.RateSetVersionId == set.Id &&
         x.FromCurrency == component.Currency && x.ToCurrency == scope.ReportingCurrency && x.RateDate == rateDate && x.RateType == normalizedRateType &&
         x.Direction == ExchangeRateDirections.Direct)
@@ -287,7 +299,7 @@ public static class CurrencyTranslationService
         scope.Method != ConsolidationCalculator.ForeignOperationMethod || scope.ExchangeRateSetVersionId != result.RateSetVersionId ||
         scope.TranslationPolicyVersionId != result.TranslationPolicyVersionId || scope.TranslationRateDate != result.RateDate ||
         scope.TranslationRateType != result.RateType || policy.FunctionalCurrency != result.FromCurrency ||
-        policy.PresentationCurrency != result.ToCurrency)
+        policy.PresentationCurrency != result.ToCurrency || !TranslationPolicyRules.AllowsRateType(policy, result.RateType))
       return CommandResult.Fail(ErrorCodes.GenerationStale, "The translation input is no longer the current approved scope input.");
     var rate = await db.ExchangeRates.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.RateSetVersionId == set.Id &&
       x.FromCurrency == result.FromCurrency && x.ToCurrency == result.ToCurrency && x.RateDate == result.RateDate && x.RateType == result.RateType &&

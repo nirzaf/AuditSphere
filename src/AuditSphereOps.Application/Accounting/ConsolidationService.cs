@@ -231,7 +231,8 @@ public static class ConsolidationService
         x.Id == request.ExchangeRateSetVersionId && x.Status == AccountingWorkflowStates.Approved, ct);
       var policy = await db.TranslationPolicyVersions.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId &&
         x.Id == request.TranslationPolicyVersionId && x.Status == AccountingWorkflowStates.Approved, ct);
-      if (rateSet is null || policy is null || policy.PresentationCurrency != currency)
+      if (rateSet is null || policy is null || policy.PresentationCurrency != currency ||
+          !TranslationPolicyRules.AllowsRateType(policy, request.TranslationRateType))
         return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The selected approved translation policy and rate set do not match the reporting currency.");
     }
     var openingRunHash = string.Empty;
