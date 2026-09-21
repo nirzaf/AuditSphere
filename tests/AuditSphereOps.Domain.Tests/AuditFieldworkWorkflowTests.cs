@@ -66,7 +66,7 @@ public sealed class AuditFieldworkWorkflowTests
     {
       Id = glBatchId, FirmId = scope.FirmId, ClientId = scope.ClientId, EngagementId = scope.EngagementId,
       PeriodId = Guid.NewGuid(), SourceKind = "GL", ProfileVersion = "gl-v1", ParserVersion = "parser-v1",
-      RawFileSha256Hex = glHash, NormalizedDatasetDigest = glHash, LegalEntityKey = "CLIENT-A", Currency = "QAR",
+      RawFileSha256Hex = glHash, NormalizedDatasetDigest = glHash, LegalEntityKey = "bank-001", Currency = "QAR",
       RowCount = 1, ExpectedChunkCount = 1, ExpectedTransactionCount = 1, ExpectedLineCount = 1,
       AcceptedChunkCount = 1, AcceptedTransactionCount = 1, AcceptedLineCount = 1, Status = "SEALED",
       ReceiptReference = "receipt-bank-ledger-001", CreatedByUserId = scope.Actor.UserId, CreatedAt = DateTimeOffset.UtcNow
@@ -102,6 +102,13 @@ public sealed class AuditFieldworkWorkflowTests
       .Select(x => x.SourceImportBatchId).SingleAsync());
     Assert.Equal(100m, await db.AuditSchedules.Where(x => x.Id == ledgerSchedule.Value.ScheduleId)
       .Select(x => x.GlControlTotal).SingleAsync());
+    var wrongEntitySource = await AuditFieldworkService.CreateScheduleAsync(db, scope.Actor, new CreateScheduleRequest(
+      scope.EngagementId, "BANK_LEDGER", "other-bank", "receipt-bank-ledger-wrong-entity", new DateTimeOffset(2026, 9, 19, 0, 0, 0, TimeSpan.Zero),
+      new DateOnly(2026, 1, 1), new DateOnly(2026, 9, 19), "QAR", "debits positive; credits negative", glHash, 100m,
+      [new("ledger-wrong-entity-001", 1, "1100", "Other entity ledger", 100m, "QAR", null, new DateOnly(2026, 9, 19), null, null, "{\"source\":\"ledger\"}")],
+      glBatchId));
+    Assert.False(wrongEntitySource.Succeeded);
+    Assert.Equal(ErrorCodes.GenerationStale, wrongEntitySource.ErrorCode);
     var mismatchedLedgerSource = await AuditFieldworkService.CreateScheduleAsync(db, scope.Actor, new CreateScheduleRequest(
       scope.EngagementId, "BANK_LEDGER", "bank-001", "receipt-bank-ledger-mismatch", new DateTimeOffset(2026, 9, 19, 0, 0, 0, TimeSpan.Zero),
       new DateOnly(2026, 1, 1), new DateOnly(2026, 9, 19), "QAR", "debits positive; credits negative", glHash, 99m,

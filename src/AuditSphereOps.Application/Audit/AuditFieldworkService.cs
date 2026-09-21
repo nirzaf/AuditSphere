@@ -196,17 +196,18 @@ public static class AuditFieldworkService
       var sourceBatch = await db.SourceImportBatches.AsNoTracking().SingleOrDefaultAsync(x =>
         x.Id == sourceImportBatchId && x.FirmId == actor.FirmId && x.ClientId == auth.ClientId &&
         x.EngagementId == request.EngagementId && x.SourceKind == "GL" && x.Status == "SEALED" &&
+        x.LegalEntityKey == request.EntityIdentifier.Trim() &&
         x.Currency == request.Currency.Trim().ToUpperInvariant() &&
         (x.RawFileSha256Hex == sourceHash || x.NormalizedDatasetDigest == sourceHash), ct);
       if (sourceBatch is null)
         return CommandResult<ScheduleValue>.Fail(ErrorCodes.GenerationStale,
           "The referenced GL import batch is not a sealed, scoped and hash-matching source.");
 
-      var accountCodes = request.Rows.Select(x => x.AccountCode.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+      var accountCodes = request.Rows.Select(x => x.AccountCode.Trim().ToUpperInvariant()).Distinct(StringComparer.Ordinal).ToArray();
       var sourceLines = await db.GeneralLedgerLines.AsNoTracking().Where(x =>
         x.FirmId == actor.FirmId && x.ClientId == auth.ClientId && x.EngagementId == request.EngagementId &&
-        x.ImportBatchId == sourceBatch.Id && accountCodes.Contains(x.AccountCode)).ToListAsync(ct);
-      if (sourceLines.Count == 0 || accountCodes.Any(code => sourceLines.All(x => !string.Equals(x.AccountCode, code, StringComparison.OrdinalIgnoreCase))))
+        x.ImportBatchId == sourceBatch.Id && accountCodes.Contains(x.AccountCode.ToUpper())).ToListAsync(ct);
+      if (sourceLines.Count == 0 || accountCodes.Any(code => sourceLines.All(x => x.AccountCode.Trim().ToUpperInvariant() != code)))
         return CommandResult<ScheduleValue>.Fail(ErrorCodes.GenerationStale,
           "The referenced GL import batch has no complete source coverage for the schedule accounts.");
       resolvedGlControlTotal = MoneyPolicy.Normalize(sourceLines.Sum(x => x.Debit - x.Credit));
