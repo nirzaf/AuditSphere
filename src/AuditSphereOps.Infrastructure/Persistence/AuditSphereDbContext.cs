@@ -75,6 +75,7 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
   public DbSet<AdjustmentPlan> AdjustmentPlans => Set<AdjustmentPlan>();
   public DbSet<AdjustmentPlanLine> AdjustmentPlanLines => Set<AdjustmentPlanLine>();
   public DbSet<FinancialPackage> FinancialPackages => Set<FinancialPackage>();
+  public DbSet<FinancialPackageArtifact> FinancialPackageArtifacts => Set<FinancialPackageArtifact>();
   public DbSet<FinancialPackageLine> FinancialPackageLines => Set<FinancialPackageLine>();
   public DbSet<FinancialPackageValidation> FinancialPackageValidations => Set<FinancialPackageValidation>();
   public DbSet<FinancialPackageCashFlowLine> FinancialPackageCashFlowLines => Set<FinancialPackageCashFlowLine>();
@@ -1254,6 +1255,26 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
       .HasForeignKey(x => new { x.FirmId, x.ComparativePackageId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
 
+    var packageArtifact = b.Entity<FinancialPackageArtifact>();
+    packageArtifact.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
+      .HasName("AK_financial_package_artifacts_scope_id");
+    packageArtifact.Property(x => x.PackageHash).HasMaxLength(64);
+    packageArtifact.Property(x => x.ArtifactVersion).HasMaxLength(100);
+    packageArtifact.Property(x => x.FrameworkVersion).HasMaxLength(100);
+    packageArtifact.Property(x => x.TemplateVersion).HasMaxLength(100);
+    packageArtifact.Property(x => x.ArtifactSha256Hex).HasMaxLength(64);
+    packageArtifact.Property(x => x.ArtifactBytes).HasColumnType("bytea");
+    packageArtifact.HasIndex(x => new { x.FirmId, x.FinancialPackageId, x.PackageRevision, x.PackageGeneration, x.ArtifactVersion })
+      .IsUnique().HasDatabaseName("ux_financial_package_artifact_version");
+    packageArtifact.ToTable("financial_package_artifacts", t => t.HasCheckConstraint("ck_financial_package_artifact_values",
+      "package_revision >= 1 AND package_generation >= 1 AND package_hash ~ '^[0-9a-f]{64}$' AND length(trim(artifact_version)) > 0 AND length(trim(framework_version)) > 0 AND length(trim(template_version)) > 0 AND artifact_sha256_hex ~ '^[0-9a-f]{64}$' AND octet_length(artifact_bytes) > 0"));
+    packageArtifact.HasOne<FinancialPackage>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.FinancialPackageId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    packageArtifact.HasOne<AppUser>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.CreatedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
     var packageLine = b.Entity<FinancialPackageLine>();
     packageLine.Property(x => x.SourceAccountCode).HasMaxLength(100);
     packageLine.Property(x => x.DestinationCode).HasMaxLength(100);
@@ -1336,6 +1357,8 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     packageReview.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
       .HasName("AK_financial_package_review_decisions_scope_id");
     packageReview.Property(x => x.PackageHash).HasMaxLength(64);
+    packageReview.Property(x => x.ArtifactVersion).HasMaxLength(100);
+    packageReview.Property(x => x.ArtifactSha256Hex).HasMaxLength(64);
     packageReview.Property(x => x.Stage).HasMaxLength(40);
     packageReview.Property(x => x.Decision).HasMaxLength(30);
     packageReview.Property(x => x.EvidenceMode).HasMaxLength(20);
@@ -1345,6 +1368,7 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
       .HasDatabaseName("ix_financial_package_review_stage");
     packageReview.ToTable("financial_package_review_decisions", t => t.HasCheckConstraint("ck_financial_package_review_values",
       "package_revision >= 1 AND package_generation >= 1 AND package_hash ~ '^[0-9a-f]{64}$'" +
+      " AND artifact_sha256_hex ~ '^[0-9a-f]{64}$' AND length(trim(artifact_version)) > 0" +
       " AND stage IN ('MANAGEMENT_APPROVAL','ACCOUNTING_REVIEW','PARTNER_APPROVAL')" +
       " AND decision IN ('APPROVED','CHANGES_REQUIRED','REJECTED')" +
       " AND evidence_mode IN ('SIGNED_IN','OFFLINE') AND length(trim(evidence_reference)) > 0" +
@@ -1352,6 +1376,9 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     ScopeToEngagement(packageReview, nameof(FinancialPackageReviewDecision.FirmId), nameof(FinancialPackageReviewDecision.ClientId), nameof(FinancialPackageReviewDecision.EngagementId));
     packageReview.HasOne<FinancialPackage>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.FinancialPackageId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    packageReview.HasOne<FinancialPackageArtifact>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.FinancialPackageArtifactId })
       .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     packageReview.HasOne<AppUser>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.DecidedByUserId })

@@ -13,7 +13,7 @@ namespace AuditSphereOps.Application.Accounting;
 public sealed class FinancialPackageRenderHandler : IOperationHandler
 {
   public const string Kind = "RenderFinancialPackage.v1";
-  public const string ArtifactVersion = "financial-package-text.v1";
+  public const string ArtifactVersion = FinancialPackageArtifactVersions.Text;
   public OperationDefinition Definition { get; } =
     new(Kind, OperationMode.LOCAL, OperationAuthority.LOCAL_VALIDATION);
 

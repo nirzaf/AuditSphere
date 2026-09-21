@@ -323,6 +323,10 @@ public sealed class FinancialStatementTests
       Assert.NotNull(artifact1.Value);
       expectedArtifactSha = artifact1.Value.ArtifactSha256Hex;
       Assert.NotEmpty(artifact1.Value.ArtifactBytes);
+      var storedArtifact = await db.FinancialPackageArtifacts.SingleAsync(x => x.FinancialPackageId == packageId);
+      Assert.Equal(storedArtifact.Id, artifact1.Value.ArtifactId);
+      Assert.Equal(expectedArtifactSha, storedArtifact.ArtifactSha256Hex);
+      Assert.Equal(artifact1.Value.ArtifactBytes, storedArtifact.ArtifactBytes);
       Assert.Equal(artifact1.Value.ArtifactSha256Hex, Hashing.Sha256Hex(artifact1.Value.ArtifactBytes));
       Assert.Contains("=== AUDITSPHEREOPS FINANCIAL STATEMENT PACKAGE ===", artifact1.Value.RenderedText);
       Assert.Contains("Mapping Version ID:", artifact1.Value.RenderedText);

@@ -1018,6 +1018,10 @@ public sealed class ClientAccountingTests
           "signed-management-approval", "Management approval received offline."));
       Assert.True(management.Succeeded, management.Message);
       managementDecisionId = management.Value;
+      var managementRecord = await db.FinancialPackageReviewDecisions.SingleAsync(x => x.Id == management.Value);
+      var renderedArtifact = await db.FinancialPackageArtifacts.SingleAsync(x => x.Id == managementRecord.FinancialPackageArtifactId);
+      Assert.Equal(renderedArtifact.ArtifactSha256Hex, managementRecord.ArtifactSha256Hex);
+      Assert.Equal(FinancialPackageArtifactVersions.Text, managementRecord.ArtifactVersion);
 
       var accounting = await FinancialPackageReviewService.RecordAsync(db, reviewer,
         new FinancialPackageReviewRequest(packageId, FinancialPackageReviewStages.AccountingReview,
@@ -1623,6 +1627,15 @@ public sealed class ClientAccountingTests
       Id = Guid.CreateVersion7(), FirmId = scope.FirmId, ClientId = clientId, EngagementId = engagementId, FinancialPackageId = packageId,
       SourceAccountCode = destination == "CASH" ? "1000" : "4000", DestinationCode = destination, StatementSection = "STATEMENT",
       Amount = amount, Fraction = 1m, Currency = currency, AdjustedSnapshotId = adjustedId, CreatedAt = now
+    });
+    var artifactBytes = System.Text.Encoding.UTF8.GetBytes($"package-artifact|{packageId:D}|{digest}");
+    db.FinancialPackageArtifacts.Add(new FinancialPackageArtifact
+    {
+      Id = Guid.CreateVersion7(), FirmId = scope.FirmId, ClientId = clientId, EngagementId = engagementId,
+      FinancialPackageId = packageId, PackageRevision = 1, PackageGeneration = 1, PackageHash = digest,
+      ArtifactVersion = FinancialPackageArtifactVersions.Text, FrameworkVersion = "IFRS", TemplateVersion = "template-v1",
+      ArtifactSha256Hex = Hashing.Sha256Hex(artifactBytes), ArtifactBytes = artifactBytes,
+      CreatedByUserId = scope.Preparer.Id, CreatedAt = now
     });
     return packageId;
   }

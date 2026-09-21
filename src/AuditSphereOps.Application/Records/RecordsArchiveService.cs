@@ -469,6 +469,8 @@ public static class RecordsArchiveService
       .Where(x => x.FirmId == archive.FirmId && x.ClientId == archive.ClientId && x.EngagementId == archive.EngagementId)
       .OrderBy(x => x.Id).Select(x => new { x.Id, x.AdjustedDatasetId, x.MappingVersionId, x.AdjustmentPlanId, x.Framework, x.PeriodStart, x.PeriodEnd, x.TaxonomyVersion, x.TemplateVersion, x.CalculationEngineVersion, x.CalculationHash, x.Currency, x.Revision, x.Generation, x.Status, x.SupplementaryHash, x.EquityHash, x.ComparativePackageId, x.ComparativeBasis, x.ComparativeEvidenceReference, x.CreatedAt }).ToListAsync(ct);
     var packageIds = packages.Select(x => x.Id).ToArray();
+    var packageArtifacts = await db.FinancialPackageArtifacts.AsNoTracking().Where(x => packageIds.Contains(x.FinancialPackageId))
+      .OrderBy(x => x.Id).Select(x => new { x.Id, x.FinancialPackageId, x.PackageRevision, x.PackageGeneration, x.PackageHash, x.ArtifactVersion, x.FrameworkVersion, x.TemplateVersion, x.ArtifactSha256Hex, x.CreatedByUserId, x.CreatedAt }).ToListAsync(ct);
     var packageLines = await db.FinancialPackageLines.AsNoTracking().Where(x => packageIds.Contains(x.FinancialPackageId))
       .OrderBy(x => x.Id).Select(x => new { x.Id, x.FinancialPackageId, x.SourceAccountCode, x.DestinationCode, x.StatementSection, x.Amount, x.Fraction, x.Currency, x.AdjustedSnapshotId, x.CreatedAt }).ToListAsync(ct);
     var packageValidations = await db.FinancialPackageValidations.AsNoTracking().Where(x => packageIds.Contains(x.FinancialPackageId))
@@ -537,7 +539,7 @@ public static class RecordsArchiveService
       .Select(x => new { x.Id, x.EvidenceKind, x.EvidenceId, x.AuditProcedureResultId, x.LinkedByUserId, x.CreatedAt }).ToListAsync(ct);
     var packageReviewDecisions = typedAccounting is null ? [] : await typedAccounting.FinancialPackageReviewDecisions.AsNoTracking()
       .Where(x => x.FirmId == archive.FirmId && x.ClientId == archive.ClientId && x.EngagementId == archive.EngagementId).OrderBy(x => x.Id)
-      .Select(x => new { x.Id, x.FinancialPackageId, x.PackageRevision, x.PackageGeneration, x.PackageHash, x.Stage, x.Decision, x.EvidenceMode, x.EvidenceReference, x.Comment, x.DecidedByUserId, x.DecidedAt }).ToListAsync(ct);
+      .Select(x => new { x.Id, x.FinancialPackageId, x.PackageRevision, x.PackageGeneration, x.PackageHash, x.FinancialPackageArtifactId, x.ArtifactVersion, x.ArtifactSha256Hex, x.Stage, x.Decision, x.EvidenceMode, x.EvidenceReference, x.Comment, x.DecidedByUserId, x.DecidedAt }).ToListAsync(ct);
     var equityLines = typedAccounting is null ? [] : await typedAccounting.FinancialPackageEquityLines.AsNoTracking()
       .Where(x => packageIds.Contains(x.FinancialPackageId)).OrderBy(x => x.Id)
       .Select(x => new { x.Id, x.FinancialPackageId, x.LineCode, x.Description, x.OpeningAmount, x.ProfitOrLossAmount, x.OciAmount, x.CapitalMovementAmount, x.DividendsAmount, x.ClosingAmount, x.Currency, x.EvidenceReference, x.CreatedAt }).ToListAsync(ct);
@@ -798,6 +800,7 @@ public static class RecordsArchiveService
         adjustmentLines,
         journalReconciliations,
         packages,
+        packageArtifacts,
         packageLines,
         packageValidations,
         cashFlowLines,

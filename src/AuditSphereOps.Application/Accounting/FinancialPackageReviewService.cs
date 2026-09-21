@@ -13,6 +13,7 @@ public sealed record FinancialPackageReviewRequest(
 
 public sealed record FinancialPackageReviewSummary(
   Guid Id, string Stage, string Decision, string EvidenceMode, string PackageHash,
+  Guid ArtifactId, string ArtifactVersion, string ArtifactSha256Hex,
   string EvidenceReference, string Comment, Guid? DecidedByUserId, DateTimeOffset DecidedAt);
 
 public sealed record ClientFinancialPackageLineSummary(string StatementSection, decimal Amount);
@@ -59,6 +60,16 @@ public static class FinancialPackageReviewService
     if (package.Status != AccountingPackageStates.PackageValidated)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The financial package must be validated before review.");
 
+    var artifact = await db.FinancialPackageArtifacts.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.FirmId == package.FirmId && x.ClientId == package.ClientId && x.EngagementId == package.EngagementId &&
+      x.FinancialPackageId == package.Id && x.PackageRevision == package.Revision &&
+      x.PackageGeneration == package.Generation && x.PackageHash == package.CalculationHash &&
+      x.ArtifactVersion == FinancialPackageArtifactVersions.Text, ct);
+    if (artifact is null || artifact.ArtifactBytes.Length == 0 ||
+        artifact.FrameworkVersion != package.Framework || artifact.TemplateVersion != package.TemplateVersion)
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
+        "A deterministic rendered artifact for the exact package framework/template version is required before review.");
+
     var (roles, internalOnly) = stage switch
     {
       FinancialPackageReviewStages.ManagementApproval when evidenceMode == FinancialPackageReviewEvidenceModes.SignedIn
@@ -86,6 +97,8 @@ public static class FinancialPackageReviewService
       EngagementId = package.EngagementId, FinancialPackageId = package.Id,
       PackageRevision = package.Revision, PackageGeneration = package.Generation,
       PackageHash = package.CalculationHash, Stage = stage, Decision = decision,
+      FinancialPackageArtifactId = artifact.Id, ArtifactVersion = artifact.ArtifactVersion,
+      ArtifactSha256Hex = artifact.ArtifactSha256Hex,
       EvidenceMode = evidenceMode, EvidenceReference = evidenceReference, Comment = comment,
       DecidedByUserId = evidenceMode == FinancialPackageReviewEvidenceModes.SignedIn ? actor.UserId : null,
       DecidedAt = DateTimeOffset.UtcNow
@@ -113,7 +126,8 @@ public static class FinancialPackageReviewService
         x.FinancialPackageId == package.Id)
       .OrderBy(x => x.DecidedAt)
       .Select(x => new FinancialPackageReviewSummary(x.Id, x.Stage, x.Decision, x.EvidenceMode,
-        x.PackageHash, x.EvidenceReference, x.Comment, x.DecidedByUserId, x.DecidedAt))
+        x.PackageHash, x.FinancialPackageArtifactId, x.ArtifactVersion, x.ArtifactSha256Hex,
+        x.EvidenceReference, x.Comment, x.DecidedByUserId, x.DecidedAt))
       .ToListAsync(ct);
     return CommandResult<IReadOnlyList<FinancialPackageReviewSummary>>.Ok(reviews);
   }

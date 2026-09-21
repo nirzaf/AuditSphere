@@ -74,7 +74,8 @@ public sealed record FinancialStatementPackageArtifact(
   string CalculationHash,
   string ArtifactSha256Hex,
   byte[] ArtifactBytes,
-  string RenderedText);
+  string RenderedText,
+  Guid ArtifactId = default);
 
 /// <summary>
 /// Versioned mapping and deterministic financial-statement calculation over the
@@ -795,7 +796,44 @@ public static class FinancialStatementService
       .ToListAsync(ct);
 
     var artifact = RenderPackageArtifact(package, lines, cashFlowLines, disclosures, validations, equityLines, noteLines);
-    return CommandResult<FinancialStatementPackageArtifact>.Ok(artifact);
+    var stored = await db.FinancialPackageArtifacts.SingleOrDefaultAsync(x =>
+      x.FirmId == package.FirmId && x.ClientId == package.ClientId && x.EngagementId == package.EngagementId &&
+      x.FinancialPackageId == package.Id && x.PackageRevision == package.Revision &&
+      x.PackageGeneration == package.Generation && x.PackageHash == package.CalculationHash &&
+      x.ArtifactVersion == FinancialPackageArtifactVersions.Text, ct);
+    if (stored is null)
+    {
+      stored = new FinancialPackageArtifact
+      {
+        Id = Guid.CreateVersion7(), FirmId = package.FirmId, ClientId = package.ClientId,
+        EngagementId = package.EngagementId, FinancialPackageId = package.Id,
+        PackageRevision = package.Revision, PackageGeneration = package.Generation,
+        PackageHash = package.CalculationHash, ArtifactVersion = FinancialPackageArtifactVersions.Text,
+        FrameworkVersion = package.Framework, TemplateVersion = package.TemplateVersion,
+        ArtifactSha256Hex = artifact.ArtifactSha256Hex, ArtifactBytes = artifact.ArtifactBytes,
+        CreatedByUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
+      };
+      db.FinancialPackageArtifacts.Add(stored);
+      try
+      {
+        await db.SaveChangesAsync(ct);
+      }
+      catch (DbUpdateException)
+      {
+        return CommandResult<FinancialStatementPackageArtifact>.Fail(ErrorCodes.IdempotencyConflict,
+          "The exact package artifact was rendered concurrently; reload and retry.");
+      }
+    }
+    else if (stored.ArtifactSha256Hex != artifact.ArtifactSha256Hex ||
+             !stored.ArtifactBytes.SequenceEqual(artifact.ArtifactBytes) ||
+             !string.Equals(stored.FrameworkVersion, package.Framework, StringComparison.Ordinal) ||
+             !string.Equals(stored.TemplateVersion, package.TemplateVersion, StringComparison.Ordinal))
+    {
+      return CommandResult<FinancialStatementPackageArtifact>.Fail(ErrorCodes.StaleRevision,
+        "The stored package artifact does not match the current deterministic export.");
+    }
+
+    return CommandResult<FinancialStatementPackageArtifact>.Ok(artifact with { ArtifactId = stored.Id });
   }
 
   private static async Task<CommandResult> AuthorizeAsync(

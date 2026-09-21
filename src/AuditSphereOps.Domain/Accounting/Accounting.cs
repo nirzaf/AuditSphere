@@ -298,6 +298,31 @@ public sealed class FinancialPackage
   public DateTimeOffset CreatedAt { get; set; }
 }
 
+/// <summary>Immutable exact-byte export for one financial-package revision.</summary>
+public sealed class FinancialPackageArtifact
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public Guid EngagementId { get; set; }
+  public Guid FinancialPackageId { get; set; }
+  public long PackageRevision { get; set; }
+  public long PackageGeneration { get; set; }
+  public string PackageHash { get; set; } = string.Empty;
+  public string ArtifactVersion { get; set; } = string.Empty;
+  public string FrameworkVersion { get; set; } = string.Empty;
+  public string TemplateVersion { get; set; } = string.Empty;
+  public string ArtifactSha256Hex { get; set; } = string.Empty;
+  public byte[] ArtifactBytes { get; set; } = [];
+  public Guid CreatedByUserId { get; set; }
+  public DateTimeOffset CreatedAt { get; set; }
+}
+
+public static class FinancialPackageArtifactVersions
+{
+  public const string Text = "financial-package-text.v1";
+}
+
 public static class FinancialPackageReviewStages
 {
   public const string ManagementApproval = "MANAGEMENT_APPROVAL";
@@ -339,6 +364,9 @@ public sealed class FinancialPackageReviewDecision
   public long PackageRevision { get; set; }
   public long PackageGeneration { get; set; }
   public string PackageHash { get; set; } = string.Empty;
+  public Guid FinancialPackageArtifactId { get; set; }
+  public string ArtifactVersion { get; set; } = string.Empty;
+  public string ArtifactSha256Hex { get; set; } = string.Empty;
   public string Stage { get; set; } = string.Empty;
   public string Decision { get; set; } = string.Empty;
   public string EvidenceMode { get; set; } = string.Empty;
