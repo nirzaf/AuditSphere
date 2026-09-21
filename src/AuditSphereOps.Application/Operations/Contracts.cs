@@ -65,6 +65,8 @@ public interface IAuditSphereDbContext : IAsyncDisposable
   DbSet<AuditProcedureResult> AuditProcedureResults { get; }
   DbSet<AuditProcedureReview> AuditProcedureReviews { get; }
   DbSet<AuditSchedule> AuditSchedules { get; }
+  DbSet<AuditBankReconciliation> AuditBankReconciliations { get; }
+  DbSet<AuditBankReconciliationItem> AuditBankReconciliationItems { get; }
   DbSet<AuditScheduleRow> AuditScheduleRows { get; }
   DbSet<AuditSelection> AuditSelections { get; }
   DbSet<AuditSelectionItem> AuditSelectionItems { get; }

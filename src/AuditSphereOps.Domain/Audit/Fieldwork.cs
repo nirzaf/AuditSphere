@@ -36,6 +36,71 @@ public static class AuditScheduleStatuses
   public const string Superseded = "SUPERSEDED";
 }
 
+public static class AuditBankReconciliationItemTypes
+{
+  public const string Ledger = "LEDGER";
+  public const string Statement = "STATEMENT";
+  public const string Timing = "TIMING";
+  public const string ProposedCorrection = "PROPOSED_CORRECTION";
+
+  public static readonly IReadOnlySet<string> All = new HashSet<string>(StringComparer.Ordinal)
+  {
+    Ledger, Statement, Timing, ProposedCorrection
+  };
+}
+
+public static class AuditBankReconciliationStatuses
+{
+  public const string Reconciled = "RECONCILED";
+  public const string Unreconciled = "UNRECONCILED";
+  public const string Approved = "APPROVED";
+  public const string ChangesRequired = "CHANGES_REQUIRED";
+}
+
+public sealed class AuditBankReconciliation
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public Guid EngagementId { get; set; }
+  public Guid? ProcedureId { get; set; }
+  public Guid LedgerScheduleId { get; set; }
+  public Guid StatementScheduleId { get; set; }
+  public DateOnly AsOfDate { get; set; }
+  public string Currency { get; set; } = string.Empty;
+  public decimal LedgerBalance { get; set; }
+  public decimal StatementBalance { get; set; }
+  public decimal TimingItemTotal { get; set; }
+  public decimal ProposedCorrectionTotal { get; set; }
+  public decimal Residual { get; set; }
+  public long InputGeneration { get; set; } = 1;
+  public string Status { get; set; } = AuditBankReconciliationStatuses.Unreconciled;
+  public string? Conclusion { get; set; }
+  public Guid CreatedByUserId { get; set; }
+  public Guid? ReviewedByUserId { get; set; }
+  public DateTimeOffset CreatedAt { get; set; }
+  public DateTimeOffset? ReviewedAt { get; set; }
+}
+
+public sealed class AuditBankReconciliationItem
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public Guid EngagementId { get; set; }
+  public Guid BankReconciliationId { get; set; }
+  public Guid? SourceScheduleId { get; set; }
+  public Guid? ProposedJournalId { get; set; }
+  public string StableItemId { get; set; } = string.Empty;
+  public string ItemType { get; set; } = string.Empty;
+  public decimal SignedAmount { get; set; }
+  public string Currency { get; set; } = string.Empty;
+  public string Description { get; set; } = string.Empty;
+  public string SourceReference { get; set; } = string.Empty;
+  public string EvidenceReference { get; set; } = string.Empty;
+  public DateTimeOffset CreatedAt { get; set; }
+}
+
 public sealed class AuditScheduleRow
 {
   public Guid Id { get; set; }

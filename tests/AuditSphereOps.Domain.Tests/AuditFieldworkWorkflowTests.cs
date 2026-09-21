@@ -58,6 +58,43 @@ public sealed class AuditFieldworkWorkflowTests
       new ReviewScheduleRequest(schedule.Value.ScheduleId, "Complete source listing; no unexplained residual.", true));
     Assert.True(scheduleReview.Succeeded, scheduleReview.ErrorCode + ": " + scheduleReview.Message);
 
+    var ledgerSchedule = await AuditFieldworkService.CreateScheduleAsync(db, scope.Actor, new CreateScheduleRequest(
+      scope.EngagementId, "BANK_LEDGER", "bank-001", "receipt-bank-ledger-001", new DateTimeOffset(2026, 9, 19, 0, 0, 0, TimeSpan.Zero),
+      new DateOnly(2026, 1, 1), new DateOnly(2026, 9, 19), "QAR", "debits positive; credits negative", new string('b', 64), 100m,
+      [new("ledger-001", 1, "1100", "Operating account ledger", 100m, "QAR", null, new DateOnly(2026, 9, 19), null, null, "{\"source\":\"ledger\"}")]));
+    var statementSchedule = await AuditFieldworkService.CreateScheduleAsync(db, scope.Actor, new CreateScheduleRequest(
+      scope.EngagementId, "BANK_STATEMENT", "bank-001", "receipt-bank-statement-001", new DateTimeOffset(2026, 9, 19, 0, 0, 0, TimeSpan.Zero),
+      new DateOnly(2026, 1, 1), new DateOnly(2026, 9, 19), "QAR", "debits positive; credits negative", new string('c', 64), 90m,
+      [new("statement-001", 1, "1100", "Operating account statement", 90m, "QAR", null, new DateOnly(2026, 9, 19), null, null, "{\"source\":\"statement\"}")]));
+    Assert.True(ledgerSchedule.Succeeded);
+    Assert.True(statementSchedule.Succeeded);
+    Assert.True((await AuditFieldworkService.ReviewScheduleAsync(db, reviewer,
+      new ReviewScheduleRequest(ledgerSchedule.Value!.ScheduleId, "Ledger source reviewed.", true))).Succeeded);
+    Assert.True((await AuditFieldworkService.ReviewScheduleAsync(db, reviewer,
+      new ReviewScheduleRequest(statementSchedule.Value!.ScheduleId, "Statement source reviewed.", true))).Succeeded);
+    var bankReconciliation = await AuditFieldworkService.CreateBankReconciliationAsync(db, scope.Actor,
+      new CreateBankReconciliationRequest(scope.EngagementId, procedure.Id, ledgerSchedule.Value.ScheduleId,
+        statementSchedule.Value.ScheduleId, new DateOnly(2026, 9, 19),
+        [
+          new("ledger-balance", AuditBankReconciliationItemTypes.Ledger, 100m, "Ledger balance", "receipt-bank-ledger-001", "ledger-source-001", ledgerSchedule.Value.ScheduleId),
+          new("statement-balance", AuditBankReconciliationItemTypes.Statement, 90m, "Statement balance", "receipt-bank-statement-001", "statement-source-001", statementSchedule.Value.ScheduleId),
+          new("timing-001", AuditBankReconciliationItemTypes.Timing, -10m, "Outstanding cheque", "receipt-bank-statement-001#timing-001", "timing-evidence-001", statementSchedule.Value.ScheduleId)
+        ]));
+    Assert.True(bankReconciliation.Succeeded, bankReconciliation.ErrorCode + ": " + bankReconciliation.Message);
+    Assert.Equal(AuditBankReconciliationStatuses.Reconciled, bankReconciliation.Value!.Status);
+    Assert.Equal(0m, bankReconciliation.Value.Residual);
+    Assert.Equal(-10m, bankReconciliation.Value.TimingItemTotal);
+    Assert.True((await AuditFieldworkService.ReviewBankReconciliationAsync(db, reviewer,
+      new ReviewBankReconciliationRequest(bankReconciliation.Value.BankReconciliationId,
+        AuditBankReconciliationStatuses.Approved, "Ledger, statement and timing items reconcile at 19 September 2026."))).Succeeded);
+    Assert.Equal(AuditBankReconciliationStatuses.Approved,
+      await db.AuditBankReconciliations.Where(x => x.Id == bankReconciliation.Value.BankReconciliationId).Select(x => x.Status).SingleAsync());
+    var missingProposedJournal = await AuditFieldworkService.CreateBankReconciliationAsync(db, scope.Actor,
+      new CreateBankReconciliationRequest(scope.EngagementId, procedure.Id, ledgerSchedule.Value.ScheduleId,
+        statementSchedule.Value.ScheduleId, new DateOnly(2026, 9, 19),
+        [new("proposed-001", AuditBankReconciliationItemTypes.ProposedCorrection, 5m, "Proposed correction", "bank-workpaper-001", "correction-evidence-001")]));
+    Assert.False(missingProposedJournal.Succeeded);
+
     var selection = await AuditFieldworkService.CreateSelectionAsync(db, scope.Actor, new CreateSelectionRequest(
       scope.EngagementId, procedure.Id, schedule.Value.ScheduleId, null, "100 percent of bank accounts", "Both signed rows selected for reconciliation.",
       [new("row-001", 75m, "QAR", "All rows in the identified bank account", null), new("row-002", -25m, "QAR", "All rows in the identified bank account", null)]));

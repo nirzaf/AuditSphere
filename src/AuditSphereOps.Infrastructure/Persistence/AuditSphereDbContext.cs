@@ -138,6 +138,8 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
   public DbSet<AuditProcedureResult> AuditProcedureResults => Set<AuditProcedureResult>();
   public DbSet<AuditProcedureReview> AuditProcedureReviews => Set<AuditProcedureReview>();
   public DbSet<AuditSchedule> AuditSchedules => Set<AuditSchedule>();
+  public DbSet<AuditBankReconciliation> AuditBankReconciliations => Set<AuditBankReconciliation>();
+  public DbSet<AuditBankReconciliationItem> AuditBankReconciliationItems => Set<AuditBankReconciliationItem>();
   public DbSet<AuditScheduleRow> AuditScheduleRows => Set<AuditScheduleRow>();
   public DbSet<AuditSelection> AuditSelections => Set<AuditSelection>();
   public DbSet<AuditSelectionItem> AuditSelectionItems => Set<AuditSelectionItem>();
@@ -2382,6 +2384,47 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     ScopeToEngagement(schedule, nameof(AuditSchedule.FirmId), nameof(AuditSchedule.ClientId), nameof(AuditSchedule.EngagementId));
     schedule.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.CreatedByUserId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var bankReconciliation = b.Entity<AuditBankReconciliation>();
+    bankReconciliation.HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_audit_bank_reconciliations_firm_id_id");
+    bankReconciliation.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
+      .HasName("AK_audit_bank_reconciliations_scope_id");
+    bankReconciliation.Property(x => x.Currency).HasMaxLength(3).IsFixedLength();
+    bankReconciliation.Property(x => x.Status).HasMaxLength(30);
+    bankReconciliation.Property(x => x.Conclusion).HasMaxLength(4000);
+    bankReconciliation.ToTable("audit_bank_reconciliations", t => t.HasCheckConstraint("ck_audit_bank_reconciliation_values",
+      "currency ~ '^[A-Z]{3}$' AND input_generation > 0 AND status IN ('RECONCILED','UNRECONCILED','APPROVED','CHANGES_REQUIRED')"));
+    ScopeToEngagement(bankReconciliation, nameof(AuditBankReconciliation.FirmId), nameof(AuditBankReconciliation.ClientId), nameof(AuditBankReconciliation.EngagementId));
+    bankReconciliation.HasOne<AuditSchedule>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.LedgerScheduleId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    bankReconciliation.HasOne<AuditSchedule>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.StatementScheduleId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    bankReconciliation.HasOne<AuditProcedure>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.ProcedureId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    bankReconciliation.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.CreatedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    bankReconciliation.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.ReviewedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var bankReconciliationItem = b.Entity<AuditBankReconciliationItem>();
+    bankReconciliationItem.HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_audit_bank_reconciliation_items_firm_id_id");
+    bankReconciliationItem.HasAlternateKey(x => new { x.FirmId, x.BankReconciliationId, x.StableItemId })
+      .HasName("AK_audit_bank_reconciliation_items_reconciliation_stable");
+    bankReconciliationItem.Property(x => x.StableItemId).HasMaxLength(200);
+    bankReconciliationItem.Property(x => x.ItemType).HasMaxLength(30);
+    bankReconciliationItem.Property(x => x.Currency).HasMaxLength(3).IsFixedLength();
+    bankReconciliationItem.Property(x => x.Description).HasMaxLength(1000);
+    bankReconciliationItem.Property(x => x.SourceReference).HasMaxLength(500);
+    bankReconciliationItem.Property(x => x.EvidenceReference).HasMaxLength(2000);
+    bankReconciliationItem.ToTable("audit_bank_reconciliation_items", t => t.HasCheckConstraint("ck_audit_bank_reconciliation_item_values",
+      "length(trim(stable_item_id)) > 0 AND item_type IN ('LEDGER','STATEMENT','TIMING','PROPOSED_CORRECTION')"));
+    ScopeToEngagement(bankReconciliationItem, nameof(AuditBankReconciliationItem.FirmId), nameof(AuditBankReconciliationItem.ClientId), nameof(AuditBankReconciliationItem.EngagementId));
+    bankReconciliationItem.HasOne<AuditBankReconciliation>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.BankReconciliationId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    bankReconciliationItem.HasOne<AuditSchedule>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.SourceScheduleId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    bankReconciliationItem.HasOne<AdjustmentJournal>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.ProposedJournalId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
 
     var scheduleRow = b.Entity<AuditScheduleRow>();
     scheduleRow.HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_audit_schedule_rows_firm_id_id");

@@ -648,6 +648,13 @@ public static class RecordsArchiveService
     var scheduleRows = await db.AuditScheduleRows.AsNoTracking().Where(x =>
       x.FirmId == archive.FirmId && x.ClientId == archive.ClientId && x.EngagementId == archive.EngagementId && scheduleIds.Contains(x.ScheduleId))
       .OrderBy(x => x.Id).Select(x => new { x.Id, x.ScheduleId, x.StableRowId, x.SourceLineNumber, x.AccountCode, x.Description, x.SignedAmount, x.Currency, x.TransactionDate, x.PostingDate, x.DeliveryDate, x.ServiceDate, x.OriginalValuesJson, x.CreatedAt }).ToListAsync(ct);
+    var bankReconciliations = await db.AuditBankReconciliations.AsNoTracking().Where(x =>
+      x.FirmId == archive.FirmId && x.ClientId == archive.ClientId && x.EngagementId == archive.EngagementId)
+      .OrderBy(x => x.Id).Select(x => new { x.Id, x.ProcedureId, x.LedgerScheduleId, x.StatementScheduleId, x.AsOfDate, x.Currency, x.LedgerBalance, x.StatementBalance, x.TimingItemTotal, x.ProposedCorrectionTotal, x.Residual, x.InputGeneration, x.Status, x.Conclusion, x.CreatedByUserId, x.ReviewedByUserId, x.CreatedAt, x.ReviewedAt }).ToListAsync(ct);
+    var bankReconciliationIds = bankReconciliations.Select(x => x.Id).ToArray();
+    var bankReconciliationItems = await db.AuditBankReconciliationItems.AsNoTracking().Where(x =>
+      x.FirmId == archive.FirmId && x.ClientId == archive.ClientId && x.EngagementId == archive.EngagementId && bankReconciliationIds.Contains(x.BankReconciliationId))
+      .OrderBy(x => x.Id).Select(x => new { x.Id, x.BankReconciliationId, x.SourceScheduleId, x.ProposedJournalId, x.StableItemId, x.ItemType, x.SignedAmount, x.Currency, x.Description, x.SourceReference, x.EvidenceReference, x.CreatedAt }).ToListAsync(ct);
     var selections = await db.AuditSelections.AsNoTracking().Where(x =>
       x.FirmId == archive.FirmId && x.ClientId == archive.ClientId && x.EngagementId == archive.EngagementId)
       .OrderBy(x => x.Id).Select(x => new { x.Id, x.ScheduleId, x.PopulationVersionId, x.ProcedureId, x.Method, x.Rationale, x.SelectedCount, x.SelectedSignedTotal, x.Status, x.InputGeneration, x.CreatedByUserId, x.ReviewedByUserId, x.CreatedAt, x.ReviewedAt }).ToListAsync(ct);
@@ -837,6 +844,8 @@ public static class RecordsArchiveService
         findings,
         schedules,
         scheduleRows,
+        bankReconciliations,
+        bankReconciliationItems,
         selections,
         selectionItems,
         itemTests,
