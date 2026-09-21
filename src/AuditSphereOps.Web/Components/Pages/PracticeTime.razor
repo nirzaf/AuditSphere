@@ -68,8 +68,8 @@ else
           </label>
         </div>
         <label style="display: flex; align-items: center; gap: 0.5rem;">
-          <input type="checkbox" @bind="_isBillable" disabled="@_busy" />
-          Billable to client
+          <input type="checkbox" @bind="_isBillable" disabled="@_busy" data-optional="true" />
+          Billable to client (optional)
         </label>
         <label>
           Narrative (optional)

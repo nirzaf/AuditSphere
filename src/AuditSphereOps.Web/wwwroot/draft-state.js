@@ -145,7 +145,9 @@
         guidance.dataset.draftGuidance = '';
         guidance.textContent = 'Fields marked * are required. Fields marked optional can be left blank.';
         const firstControl = boundary.querySelector('input, select, textarea');
-        if (firstControl) firstControl.closest('.field, .form-group, label')?.before(guidance) || boundary.prepend(guidance);
+        const firstField = firstControl?.closest('.field, .form-group, label');
+        if (firstField) firstField.before(guidance);
+        else boundary.prepend(guidance);
       }
     });
   }
