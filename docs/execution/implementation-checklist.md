@@ -2,7 +2,7 @@
 
 Dependency-ordered checklist for the [v5.0 specification](../SPECIFICATION.md) and the [workflow-gap backlog](../requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md).
 
-**Current source checkpoint:** `master@eb502eb`; PostgreSQL 18.6; 60 migrations; 205/205 tests passed; 0 skipped. Trial-balance imports, client-scoped GL dimensions and chart/taxonomy hierarchy, QAR-defaulted accounting setup, context-bound financial packages and adjustment journals are bound to the validated reporting period, optional book and basis/currency context.
+**Current source checkpoint:** `master@aef442f`; PostgreSQL 18.6; 60 migrations; 205/205 tests passed; 0 skipped. Trial-balance imports, client-scoped GL dimensions and chart/taxonomy hierarchy (including posting-parent rejection), QAR-defaulted accounting setup, context-bound financial packages and adjustment journals are bound to the validated reporting period, optional book and basis/currency context.
 **Status meanings:** ✅ locally verified · 🟡 partial/local follow-up · ⬜ not started · 🚫 external gate
 
 | # | Work package | Status |
