@@ -153,13 +153,16 @@ else
       var grants = await db.RoleGrants.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && x.UserId == _actor.UserId && x.RevokedAt == null)
         .Select(x => new { x.ClientId, x.EngagementId }).ToListAsync();
       var firmWide = grants.Any(x => x.ClientId is null && x.EngagementId is null);
-      var grantedClientIds = grants.Where(x => x.ClientId.HasValue).Select(x => x.ClientId!.Value).ToArray();
+      var grantedClientIds = grants.Where(x => x.ClientId.HasValue && x.EngagementId is null).Select(x => x.ClientId!.Value).ToArray();
       var engagementIds = grants.Where(x => x.EngagementId.HasValue).Select(x => x.EngagementId!.Value).ToArray();
       var engagementClientIds = engagementIds.Length == 0
         ? []
         : await db.Engagements.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && engagementIds.Contains(x.Id))
           .Select(x => x.PracticeClientId).ToArrayAsync();
       var clientIds = grantedClientIds.Concat(engagementClientIds).Distinct().ToArray();
+      var scopedEngagementIds = firmWide ? [] : await db.Engagements.AsNoTracking()
+        .Where(x => x.FirmId == _actor.FirmId && (grantedClientIds.Contains(x.PracticeClientId) || engagementIds.Contains(x.Id)))
+        .Select(x => x.Id).ToArrayAsync();
       _hasClientScope = firmWide || clientIds.Length > 0;
       _scopeDescription = firmWide ? "Firm-wide grant" : $"{clientIds.Length} explicitly granted legal entit{(clientIds.Length == 1 ? "y" : "ies")}";
       var profiles = await db.ClientAccountingProfiles.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
@@ -171,19 +174,19 @@ else
       var books = await db.ClientReportingBooks.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
         (firmWide || clientIds.Contains(x.ClientId))).ToListAsync();
       var engagements = await db.Engagements.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
-        (firmWide || clientIds.Contains(x.PracticeClientId))).ToListAsync();
+        (firmWide || scopedEngagementIds.Contains(x.Id))).ToListAsync();
       var packages = await db.FinancialPackages.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
-        (firmWide || clientIds.Contains(x.ClientId))).ToListAsync();
+        (firmWide || grantedClientIds.Contains(x.ClientId) || scopedEngagementIds.Contains(x.EngagementId))).ToListAsync();
       var charts = await db.ClientChartVersions.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
         (firmWide || clientIds.Contains(x.ClientId))).GroupBy(x => x.ClientId)
         .Select(x => new { ClientId = x.Key, Status = x.OrderByDescending(y => y.Version).Select(y => y.Status).First() }).ToListAsync();
       var imports = await db.SourceImportBatches.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
-        (firmWide || clientIds.Contains(x.ClientId))).GroupBy(x => x.ClientId)
+        (firmWide || grantedClientIds.Contains(x.ClientId) || scopedEngagementIds.Contains(x.EngagementId))).GroupBy(x => x.ClientId)
         .Select(x => new { ClientId = x.Key, Status = x.OrderByDescending(y => y.CreatedAt).Select(y => y.Status).First() }).ToListAsync();
       _profileCount = profiles.Count;
       _openPeriodCount = periods.Count(x => x.Status != AccountingWorkflowStates.Closed);
       _sealedImportCount = await db.SourceImportBatches.AsNoTracking().CountAsync(x => x.FirmId == _actor.FirmId && x.Status == "SEALED" &&
-        (firmWide || clientIds.Contains(x.ClientId)));
+        (firmWide || grantedClientIds.Contains(x.ClientId) || scopedEngagementIds.Contains(x.EngagementId)));
       _blockedCount = periods.Count(x => x.Status is AccountingWorkflowStates.Stale or AccountingWorkflowStates.Rejected);
       _periods = periods.OrderByDescending(x => x.EndDate).ThenBy(x => x.PeriodCode).Select(x => new PeriodRow(
         x.Id, clients.GetValueOrDefault(x.ClientId)?.LegalName ?? "Scoped client",
