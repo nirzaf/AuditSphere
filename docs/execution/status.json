@@ -4,10 +4,10 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "dde8313",
+  "headCommit": "a01c090",
   "remoteHeadVerified": true,
   "productionEnabled": false,
-  "verifiedAt": "2026-09-21T20:17:48Z",
+  "verifiedAt": "2026-09-21T20:40:33Z",
   "toolchain": {
     "sdk": ".NET 10",
     "efCore": "10.0.12",
@@ -16,11 +16,11 @@
     "postgres": "18.6 loopback development profile"
   },
   "verification": {
-    "build": "PASS: dotnet build src/AuditSphereOps.Web/AuditSphereOps.Web.csproj --no-restore --configuration Release at dde8313; 0 warnings/errors",
-    "tests": "PASS: 216/216 PostgreSQL-backed tests; 0 skipped at dde8313",
-    "migrations": "PASS: 76 applied; latest 20260921200850_WorkflowTaskPeriodDeadline",
+    "build": "PASS: dotnet build src/AuditSphereOps.Web/AuditSphereOps.Web.csproj --no-restore --configuration Release at a01c090; 0 warnings/errors",
+    "tests": "PASS: 218/218 PostgreSQL-backed tests; 0 skipped at a01c090",
+    "migrations": "PASS: 78 applied; latest 20260921203135_TranslationAdjustmentLineage",
     "pendingModelChanges": "PASS: no changes",
-    "restoreDrill": "PASS: loopback restore reconciled 76 migrations, accounting/group manifests and release-delivery identities; latest 20260921200850_WorkflowTaskPeriodDeadline; duplicate release-delivery keys=0; external custody and production RPO/RTO not run",
+    "restoreDrill": "PASS: loopback restore reconciled 78 migrations, accounting/group manifests and release-delivery identities; latest 20260921203135_TranslationAdjustmentLineage; duplicate release-delivery keys=0; external custody and production RPO/RTO not run",
     "database": "127.0.0.1:5433 development only"
   },
   "active": {
@@ -28,7 +28,7 @@
     "implementationStatus": "IN_PROGRESS",
     "acceptanceStatus": "LOCAL_VERIFIED",
     "scope": "Local audit workflow, client accounting, GL intake, completeness, package, restatement, consolidation, journal-lineage, close-check and package-review slices.",
-    "nextAction": "Extend approved method-specific fixtures for full FX remeasurement/reserves, NCI, acquisition, ownership change, nested groups and complex eliminations; broader audit/provider/signing/recovery/independent-review gates remain external."
+    "nextAction": "Obtain approved golden fixtures before enabling the method-specific FX reserve, NCI, acquisition, ownership-change, nested-group and complex-elimination profiles; broader provider/signing/recovery/independent-review gates remain external."
   },
   "localEvidence": [
     {
@@ -304,7 +304,22 @@
     {
       "item": "Scoped accounting record queues and workflow dashboard",
       "status": "LOCAL_VERIFIED",
-      "details": "Blazor queues expose only exact client/engagement-scoped mapping, adjustment-journal and audit-difference records with detail links. The accounting workspace classifies visible periods as required, complete, stale or blocked, names the next role, uses persisted period-linked work-task or PBC owner/due-date values when available, links unprepared periods to the PBC request or exact period workflow, and retains an explicit Not recorded fallback when no persisted task/PBC date exists. The exact period fallback opens a grant-checked read-only period record with package, mapping, task/PBC, evidence and amendment handoffs. Group consolidation exposes perimeter, component-pack, FX, intercompany and elimination status tabs without enabling unsupported methods. Package-review selection is draft-retained and previews eligible versus partner-role-blocked stages without recording decisions. Release build and the 216-test PostgreSQL suite pass at dde8313; the loopback restore drill passes through the new task migration."
+      "details": "Blazor queues expose only exact client/engagement-scoped mapping, adjustment-journal and audit-difference records with detail links. The accounting workspace classifies visible periods as required, complete, stale or blocked, names the next role, uses persisted period-linked work-task or PBC owner/due-date values when available, links unprepared periods to the PBC request or exact period workflow, and retains an explicit Not recorded fallback when no persisted task/PBC date exists. The exact period fallback opens a grant-checked read-only period record with package, mapping, task/PBC, evidence and amendment handoffs. Group consolidation exposes perimeter, component-pack, FX, intercompany and elimination status tabs without enabling unsupported methods. Package-review selection is draft-retained and previews eligible versus partner-role-blocked stages without recording decisions. Release build and the 218-test PostgreSQL suite pass at a01c090; the loopback restore drill passes through 20260921203135_TranslationAdjustmentLineage."
+    },
+    {
+      "item": "Service-permissibility capability gate",
+      "status": "LOCAL_VERIFIED",
+      "details": "Client ENTITY_REPORTING and AUDIT_ONLY capability profiles persist an explicit service route and require an affirmative accepted or accepted-with-conditions AcceptanceDecision. Missing decisions fail closed; the capability-preparer's staffing role does not substitute for the decision. External component packs remain a separate audit-only input path and do not require client bookkeeping migration. PostgreSQL regression coverage passes."
+    },
+    {
+      "item": "Currency operation and adjustment lineage",
+      "status": "LOCAL_VERIFIED",
+      "details": "Currency remeasurement, foreign-operation translation and display-only conversion use distinct deterministic calculation paths. Foreign-operation TranslationResult rows persist separate foreign-exchange and rounding adjustments, archive exports retain those values, and approval recomputes them from the exact source amount and approved rate. Migrations 20260921202738_AccountingCapabilityServiceRoute and 20260921203135_TranslationAdjustmentLineage are applied; focused FX tests, the 218-test suite, Release build, model-drift check and 78-migration restore drill pass."
+    },
+    {
+      "item": "Advanced consolidation calculation safety core",
+      "status": "LOCAL_VERIFIED",
+      "details": "Deterministic local calculators cover acquisition goodwill/bargain purchase, NCI rollforward, ownership changes/disposals, nested double-count rejection and asset-transfer/tax elimination math. These helpers are tested but advanced production profiles remain disabled until method-owner golden fixtures verify complete statements and comparative rollforwards."
     }
   ],
   "remainingLocalWork": [
