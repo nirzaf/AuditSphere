@@ -3,7 +3,7 @@
 **Repository:** `nirzaf/AuditSphere`
 **Authoritative specification:** [`docs/SPECIFICATION.md`](../SPECIFICATION.md) v5.0
 **Requirements backlog:** [`docs/requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md`](../requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md)
-**Source implementation checkpoint:** `master@4aee311`
+**Source implementation checkpoint:** `master@2c2a1d5`
 
 This is a resume checklist, not an acceptance certificate. Tenant identifiers, credentials, tokens, secret values, and private-provider URLs are deliberately absent from the public repository.
 
@@ -11,8 +11,8 @@ This is a resume checklist, not an acceptance certificate. Tenant identifiers, c
 
 - [x] .NET 10 solution builds with zero warnings/errors.
 - [x] PostgreSQL 18.6 development profile is used on loopback port 5433.
-- [x] 207/207 PostgreSQL-backed tests pass with 0 skipped.
-- [x] 66 migrations are applied; latest is `20260921092708_PersistFinancialPackageArtifacts`.
+- [x] 208/208 PostgreSQL-backed tests pass with 0 skipped.
+- [x] 67 migrations are applied; latest is `20260921102055_AddReconciliationAgingEvidence`.
 - [x] EF model has no pending migration changes.
 - [x] Loopback restore drill passes and writes secret-free evidence to `docs/evidence/restore-drill-latest.json`.
 - [x] Generated Graphify output and local agent state are ignored and removed from Git tracking.
@@ -44,7 +44,7 @@ This is a resume checklist, not an acceptance certificate. Tenant identifiers, c
 - [x] Reject unsupported FX rate directions in the enabled bounded translation profile.
 - [x] Add bounded, resumable GL chunk intake with canonical digest, idempotent retry and contiguous finalization.
 - [x] Bind source-bound GL reconciliations to the selected reporting period and currency; reject cross-period or cross-currency batches.
-- [x] Bind reconciliation items to the selected source currency; reject future dates and missing dispositions while preserving as-of ageing.
+- [x] Bind reconciliation items to the selected source currency; reject future dates and missing dispositions while preserving explicit as-of date, date basis, bucket rule/bucket, credit treatment and paired settlement links for receivable/payable ageing.
 - [x] Route GL completeness calculation through the existing durable operation infrastructure with source revision fencing and idempotent retries.
 - [x] Route financial-package builds through the existing durable operation infrastructure with mapping/plan fencing and idempotent retries.
 - [x] Bind context-bound financial packages to the selected client reporting period, optional book, basis and currency, including period-date validation and deterministic hash lineage.

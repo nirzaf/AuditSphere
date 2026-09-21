@@ -6,15 +6,15 @@ This file records observed repository state only. The authoritative build contra
 
 | Item | Observed value |
 |---|---|
-| Source implementation checkpoint | `master@4aee311` |
-| Remote | `origin/master` includes source checkpoint `4aee311` |
+| Source implementation checkpoint | `master@2c2a1d5` |
+| Remote | `origin/master` includes source checkpoint `2c2a1d5` |
 | SDK | .NET 10; repository solution targets `net10.0` |
 | Database | PostgreSQL 18.6 on loopback port 5433 for development only |
 | Build | `dotnet build AuditSphereOps.slnx --no-restore --configuration Release` — passed, 0 warnings/errors |
-| Tests | 207/207 passed, 0 skipped against PostgreSQL 18.6 |
-| Migrations | 66 applied; latest `20260921092708_PersistFinancialPackageArtifacts` |
+| Tests | 208/208 passed, 0 skipped against PostgreSQL 18.6 |
+| Migrations | 67 applied; latest `20260921102055_AddReconciliationAgingEvidence` |
 | Model drift | `dotnet ef migrations has-pending-model-changes` — no changes |
-| Restore drill | `scripts/db/restore-drill.sh` — passed; 66 migrations reconciled |
+| Restore drill | `scripts/db/restore-drill.sh` — passed; 67 migrations reconciled |
 | Production effects | Disabled locally; no production acceptance claimed |
 
 ## Implemented local capability
@@ -58,7 +58,7 @@ This file records observed repository state only. The authoritative build contra
 - ECL and inventory evidence records capture the reconciliation source hash and client input generation; review blocks when either source lineage or generation is stale.
 - Bounded GL chunk intake with canonical content digests, transactional batch locking, idempotent retries, contiguous finalization and persisted accepted-count reconciliation.
 - Source-bound GL reconciliations reject a sealed batch whose reporting period or currency differs from the selected period; PostgreSQL regression coverage passes.
-- Reconciliation items are bound to the exact source currency, reject future item dates and missing dispositions, normalize accepted currency codes, and preserve as-of ageing; PostgreSQL regression coverage passes.
+- Reconciliation items are bound to the exact source currency, reject future item dates and missing dispositions, normalize accepted currency codes, and retain explicit receivable/payable ageing basis, rule version, bucket, credit treatment and paired settlement evidence; PostgreSQL regression coverage passes.
 - GL completeness calculation can be enqueued as a local durable operation, with sealed-source revision fencing, operation completion lineage and repeat-enqueue idempotency; PostgreSQL regression coverage passes.
 - Financial-package builds can be enqueued as local durable calculations, fenced to the approved mapping revision and finalized plan, committed atomically with operation completion, and re-enqueued idempotently; PostgreSQL regression coverage passes.
 - Financial-package records inherit the source dataset's selected reporting period, optional book and normalized basis, validate period dates and book/basis/currency lineage, persist the context with scope FKs, and include it in the deterministic package hash; legacy direct fixtures remain nullable for additive compatibility.
@@ -87,7 +87,7 @@ These are product gaps, not claims of production readiness:
 - [x] Carry approved group opening consolidation lineage across scope versions without duplicating prior journals.
 - [x] Reject component, translation, intercompany-match and group-journal writes against a changed group revision.
 - [x] Bind GL reconciliation sources to the selected reporting period and currency; reject cross-period or cross-currency batches.
-- [x] Bind reconciliation items to the selected source currency; reject future dates and missing dispositions while preserving as-of ageing.
+- [x] Bind reconciliation items to the selected source currency; reject future dates and missing dispositions while preserving explicit as-of date, date basis, bucket rule/bucket, credit treatment and paired settlement links for receivable/payable ageing.
 - [x] Route GL completeness calculation through the existing durable operation infrastructure with source revision fencing and idempotent retries.
 - [x] Route financial-package builds through the existing durable operation infrastructure with mapping/plan fencing and idempotent retries.
 - [x] Bind context-bound financial packages to the selected client reporting period, optional book, basis and currency, including the package hash and period-date validation.
@@ -125,7 +125,7 @@ dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infr
 scripts/db/restore-drill.sh
 ```
 
-The restore evidence is written to [`docs/evidence/restore-drill-latest.json`](../evidence/restore-drill-latest.json). The latest rehearsal restored 66 migrations through `20260921092708_PersistFinancialPackageArtifacts`; it is loopback-only and explicitly reports that external checkpoint custody and production RPO/RTO were not run.
+The restore evidence is written to [`docs/evidence/restore-drill-latest.json`](../evidence/restore-drill-latest.json). The latest rehearsal restored 67 migrations through `20260921102055_AddReconciliationAgingEvidence`; it is loopback-only and explicitly reports that external checkpoint custody and production RPO/RTO were not run.
 
 ## Resume rule
 
