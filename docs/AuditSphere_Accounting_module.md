@@ -650,7 +650,7 @@ Story criteria remain proposed unless marked locally verified in the execution l
 
 **Acceptance criteria**
 - [ ] Begin with reviewed file profiles; optional ERPNext or other connectors must be read-only by default and separately approved.
-- [ ] Export adjustment instructions with source, period, account, revision and management approval evidence; export is not proof of external posting.
+- [x] Export adjustment instructions with source, period, account, revision and management approval evidence; export is not proof of external posting.
 - [ ] Produce client-safe workbook/PDF/Word artifacts only through approved renderer/template versions and existing document-storage boundaries.
 - [ ] Preserve formulas safely in controlled templates and neutralize spreadsheet injection in untrusted values; never execute client macros.
 - [ ] Artifact hashes and delivery receipts bind to the released package; regenerate by version, not by mutable “latest.”

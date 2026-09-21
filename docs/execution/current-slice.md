@@ -6,12 +6,12 @@ This file records observed repository state only. The authoritative build contra
 
 | Item | Observed value |
 |---|---|
-| Source implementation checkpoint | `master@fae9371` |
-| Remote | `origin/master` includes source checkpoint `fae9371` |
+| Source implementation checkpoint | `master@cac843b` |
+| Remote | `origin/master` includes source checkpoint `cac843b` |
 | SDK | .NET 10; repository solution targets `net10.0` |
 | Database | PostgreSQL 18.6 on loopback port 5433 for development only |
-| Build | `dotnet build src/AuditSphereOps.Web/AuditSphereOps.Web.csproj --no-restore --configuration Release` at `fae9371` — passed, 0 warnings/errors; solution Release baseline passed at `4010963` |
-| Tests | 212/212 passed, 0 skipped against PostgreSQL 18.6 at `fae9371` |
+| Build | `dotnet build src/AuditSphereOps.Web/AuditSphereOps.Web.csproj --no-restore --configuration Release` at `cac843b` — passed, 0 warnings/errors; solution Release baseline passed at `4010963` |
+| Tests | 213/213 passed, 0 skipped against PostgreSQL 18.6 at `cac843b` |
 | Migrations | 75 applied; latest `20260921150321_BindMappingsToClientCharts` |
 | Model drift | `dotnet ef migrations has-pending-model-changes` — no changes |
 | Restore drill | `scripts/db/restore-drill.sh` — passed; 75 migrations reconciled |
@@ -81,6 +81,7 @@ This file records observed repository state only. The authoritative build contra
 - The PostgreSQL-backed accounting benchmark exercises four clients, 2,000 transactions, 8,000 GL lines, parallel enqueueing, two concurrent durable workers, a 32-line group calculation, six-decimal/high-magnitude amounts and paged reads; one observed run measured enqueue 147.8 ms, worker processing 134.4 ms, first page 43.8 ms and group calculation 3.2 ms.
 - Blazor status surfaces for the implemented workflows, including period restatement and truthful release/package gate state.
 - Shared Blazor form UX covers contextual action/field tooltips derived from labels/placeholders/IDs, required and optional markers, accessible guidance, non-disruptive invalid-field status, and localStorage draft autosave/restore across card and standalone forms. Drafts flush on input/change, tab backgrounding, pagehide and beforeunload; generated scopes avoid repeated-heading collisions; checkbox/radio values restore correctly; restored values raise both native input and Blazor binding change events; and autosave includes controls disabled during an in-flight action. Server-backed workpaper drafts remain authoritative; browser file bytes and release keys are intentionally excluded from local storage.
+- Adjustment-journal instructions are exported only after exact client/engagement authorization, an accepted source with raw and normalized digests, matching period/book basis and currency, the exact journal revision, and accepted or partial management evidence are re-read. The controlled CSV is formula-neutralized and explicitly marked as not proof of external posting; the journal page exposes tooltip-guided download and non-disruptive status/error handling.
 - The mapping workbench shows immutable current-vs-prior allocation changes, exact-dataset/chart/taxonomy applicability, and bounded token suggestions for unmapped accounts; candidates remain review-only, ambiguous matches are labeled, and no suggestion mutates allocations.
 
 ## Remaining local implementation work
@@ -109,6 +110,7 @@ These are product gaps, not claims of production readiness:
 - [x] Bind context-bound adjustment journals to the validated client reporting period, optional book, basis and currency; reject cross-period books and preserve the context through journal lineage.
 - [x] Validate nonblank GL dimension values against client-scoped definitions and default accounting setup/reporting currency to QAR without defaulting source evidence.
 - [x] Route financial-package rendering through the existing durable operation infrastructure with exact package-revision fencing and deterministic artifact-digest verification.
+- [x] Export controlled adjustment instructions with exact source, period/book, account, journal revision and management-evidence lineage; keep external posting and final artifact gates independent.
 - [x] Benchmark representative accounting workloads before production acceptance; the current local workload evidence is recorded above and does not establish production capacity or RPO/RTO.
 - [x] Re-run focused tests, full tests, build, migration drift and restore drill for the current coherent slice; repeat this checklist for the next slice.
 

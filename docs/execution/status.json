@@ -4,10 +4,10 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "fae9371",
+  "headCommit": "cac843b",
   "remoteHeadVerified": true,
   "productionEnabled": false,
-  "verifiedAt": "2026-09-21T16:01:37Z",
+  "verifiedAt": "2026-09-21T16:14:44Z",
   "toolchain": {
     "sdk": ".NET 10",
     "efCore": "10.0.12",
@@ -16,8 +16,8 @@
     "postgres": "18.6 loopback development profile"
   },
   "verification": {
-    "build": "PASS: dotnet build src/AuditSphereOps.Web/AuditSphereOps.Web.csproj --no-restore --configuration Release at fae9371; 0 warnings/errors; solution Release baseline passed at 4010963",
-    "tests": "PASS: 212/212 PostgreSQL-backed tests; 0 skipped at fae9371",
+    "build": "PASS: dotnet build src/AuditSphereOps.Web/AuditSphereOps.Web.csproj --no-restore --configuration Release at cac843b; 0 warnings/errors; solution Release baseline passed at 4010963",
+    "tests": "PASS: 213/213 PostgreSQL-backed tests; 0 skipped at cac843b",
     "migrations": "PASS: 75 applied; latest 20260921150321_BindMappingsToClientCharts",
     "pendingModelChanges": "PASS: no changes",
     "restoreDrill": "PASS: loopback restore reconciled 75 migrations; latest 20260921150321_BindMappingsToClientCharts; external custody and production RPO/RTO not run",
@@ -229,7 +229,12 @@
     {
       "item": "Blazor form UX resilience",
       "status": "LOCAL_VERIFIED",
-      "details": "Shared form behavior adds contextual action and field tooltips derived from labels, placeholders and IDs, required/optional guidance, accessible invalid-state status, and localStorage autosave/restore for card and standalone forms. Drafts flush on input/change, tab backgrounding, pagehide and beforeunload; generated scopes avoid repeated-heading collisions; checkbox and radio values restore with their correct types; restored values raise native input and Blazor binding change events. Autosave includes controls disabled during an in-flight action. Server-backed workpaper drafts remain authoritative; browser file bytes and release keys are intentionally excluded from local storage. Web build, JavaScript syntax check, 212-test suite, EF drift check and 75-migration loopback restore pass."
+      "details": "Shared form behavior adds contextual action and field tooltips derived from labels, placeholders and IDs, required/optional guidance, accessible invalid-state status, and localStorage autosave/restore for card and standalone forms. Drafts flush on input/change, tab backgrounding, pagehide and beforeunload; generated scopes avoid repeated-heading collisions; checkbox and radio values restore with their correct types; restored values raise native input and Blazor binding change events. Autosave includes controls disabled during an in-flight action. Server-backed workpaper drafts remain authoritative; browser file bytes and release keys are intentionally excluded from local storage. Web build, JavaScript syntax check, 213-test suite, EF drift check and 75-migration loopback restore pass."
+    },
+    {
+      "item": "Controlled adjustment instruction export",
+      "status": "LOCAL_VERIFIED",
+      "details": "The journal page rechecks exact client/engagement authorization before display. The export service re-reads the accepted source dataset, raw and normalized digests, reporting period/book basis and currency, exact journal revision and accepted or partial management evidence, then emits a formula-neutralized CSV explicitly marked as not proof of external posting. The UI provides tooltip-guided download and non-disruptive status/error handling. Focused and full PostgreSQL coverage pass at cac843b; approved renderers, artifact hashes/receipts, external posting/provider, signing and records gates remain independent."
     },
     {
       "item": "External component pack workflow",
