@@ -373,7 +373,7 @@ Story criteria remain proposed unless marked locally verified in the execution l
 - [x] Draft, approved, retired and effective versions are explicit; only approved applicable versions can support final reporting.
 - [x] Firm defaults may have approved industry/group overlays without overwriting base taxonomy history.
 - [x] Publishing a version lists impacted mappings/packages; it does not rewrite historical accounts or approvals.
-- [ ] Client-confidential amounts, names and rationale cannot leak into shared master templates.
+- [x] Client-confidential amounts, names and rationale cannot leak into shared master templates.
 - [x] Accounting presentation taxonomy and jurisdiction-specific tax rules are separate concepts.
 
 ### AC-06 — Build the mapping workbench and enforce exact allocations
@@ -610,7 +610,7 @@ Story criteria remain proposed unless marked locally verified in the execution l
 - [ ] Record acquisition/control dates, consideration, fair-value adjustments, opening reserves and goodwill/bargain-purchase treatment under the approved framework.
 - [ ] Calculate and roll forward NCI under the approved method, including profit/OCI and distributions.
 - [ ] Handle changes in ownership, disposals and loss of control as explicit cases—not editable historical percentages.
-- [ ] Associate/joint-arrangement/equity-method and common-control cases are separately enabled or blocked; they cannot accidentally follow full-consolidation logic.
+- [x] Associate/joint-arrangement/equity-method and common-control cases are separately enabled or blocked; they cannot accidentally follow full-consolidation logic.
 - [ ] Unrealized intercompany profit, asset-transfer depreciation and related tax consequences have source-bound schedules and reviewed journals.
 - [ ] Foreign-currency and nested-group golden fixtures verify the complete group statements and comparative rollforwards before enabling that profile.
 
