@@ -549,7 +549,7 @@ Story criteria remain proposed unless marked locally verified in the execution l
 **Acceptance criteria**
 - [x] A relationship group can have different approved consolidation scopes for different reporting exercises.
 - [x] Membership records specify effective dates, control/method assessment, ownership/economic interests and evidence.
-- [ ] Prevent duplicate or circular hierarchy treatment and incompatible/overlapping inclusion decisions.
+- [x] Prevent duplicate or circular hierarchy treatment and incompatible/overlapping inclusion decisions for versioned ownership edges; overlapping memberships remain rejected and unsupported nested profiles stay fail-closed.
 - [ ] Parent/intermediate subgroup structures cannot cause a subsidiary to be counted twice.
 - [x] Percentage ownership does not automatically determine the professional control assessment.
 - [x] Scope changes create a new version and invalidate relevant group-package applicability, not historical issued packs.
@@ -576,11 +576,11 @@ Story criteria remain proposed unless marked locally verified in the execution l
 
 **Acceptance criteria**
 - [x] Match by legal-entity pair, counterparty, account nature, period, currency and transaction/reference where available.
-- [ ] Support reviewed one-to-one and grouped matches; retain unmatched items and reasons.
+- [x] Support reviewed one-to-one and grouped matches; grouped rows require a complete reviewed set, and unmatched items retain their reasons.
 - [x] Timing, currency, classification and genuine accounting differences remain distinct.
 - [x] Proposed eliminations carry source references and cannot be independently duplicated in another run layer.
 - [x] No automated adjustment is posted to the entities' source books.
-- [ ] The same related party outside the perimeter is disclosed/reviewed but not automatically eliminated.
+- [x] The same related party outside the perimeter is disclosed/reviewed but not automatically eliminated.
 
 ### AC-21 — Run auditable consolidation and eliminations
 

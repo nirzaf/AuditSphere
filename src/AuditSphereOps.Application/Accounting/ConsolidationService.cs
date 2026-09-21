@@ -35,7 +35,8 @@ public sealed record IntercompanyMatchRequest(
   Guid ScopeVersionId, Guid SellerClientId, Guid BuyerClientId,
   string AccountNature, string PeriodCode, string Currency, string TransactionReference,
   decimal SellerAmount, decimal BuyerAmount, decimal MatchedAmount, string EvidenceReference,
-  string SellerTaxonomyCode = "", string BuyerTaxonomyCode = "", string DifferenceReason = "");
+  string SellerTaxonomyCode = "", string BuyerTaxonomyCode = "", string DifferenceReason = "",
+  string MatchMode = IntercompanyMatchModes.OneToOne, string MatchGroupReference = "", bool OutsidePerimeterReview = false);
 
 public sealed record ConsolidationJournalLineInput(
   Guid? IntercompanyMatchId, string TaxonomyCode, decimal Debit, decimal Credit, string Description);
@@ -434,10 +435,14 @@ public static class ConsolidationService
     var matchedAmount = MoneyPolicy.Normalize(request.MatchedAmount);
     var sellerTaxonomy = string.IsNullOrWhiteSpace(request.SellerTaxonomyCode) ? request.AccountNature : request.SellerTaxonomyCode;
     var buyerTaxonomy = string.IsNullOrWhiteSpace(request.BuyerTaxonomyCode) ? request.AccountNature : request.BuyerTaxonomyCode;
+    var matchMode = request.MatchMode.Trim().ToUpperInvariant();
+    var matchGroupReference = request.MatchGroupReference.Trim();
     var difference = MoneyPolicy.Normalize(sellerAmount + buyerAmount);
     if (request.SellerClientId == request.BuyerClientId || string.IsNullOrWhiteSpace(request.AccountNature) ||
         string.IsNullOrWhiteSpace(sellerTaxonomy) || string.IsNullOrWhiteSpace(buyerTaxonomy) ||
         string.IsNullOrWhiteSpace(request.EvidenceReference) || request.MatchedAmount < 0m ||
+        matchMode is not (IntercompanyMatchModes.OneToOne or IntercompanyMatchModes.Grouped) ||
+        (matchMode == IntercompanyMatchModes.Grouped && string.IsNullOrWhiteSpace(matchGroupReference)) ||
         request.SellerAmount != sellerAmount || request.BuyerAmount != buyerAmount || request.MatchedAmount != matchedAmount ||
         (difference != 0m && string.IsNullOrWhiteSpace(request.DifferenceReason)))
       return CommandResult<Guid>.Fail(ErrorCodes.Accounting.MappingInvalid,
@@ -453,15 +458,29 @@ public static class ConsolidationService
     var currency = request.Currency.Trim().ToUpperInvariant();
     if (currency != scope.ReportingCurrency || matchedAmount > Math.Min(Math.Abs(sellerAmount), Math.Abs(buyerAmount)))
       return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ReconciliationRejected, "The match must fit both signed counterparty balances in the scope currency.");
-    var components = await db.ConsolidationComponents.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ScopeVersionId == scope.Id &&
-      (x.ClientId == request.SellerClientId || x.ClientId == request.BuyerClientId)).ToListAsync(ct);
-    if (components.Count != 2 || components.Select(x => x.ClientId).Distinct().Count() != 2 ||
-        components.Any(x => x.Status != AccountingWorkflowStates.Approved))
-      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Both counterparties must have approved component packages before matching.");
+    if (!await db.PracticeClients.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId && x.Id == request.SellerClientId, ct) ||
+        !await db.PracticeClients.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId && x.Id == request.BuyerClientId, ct))
+      return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Both counterparties must be legal entities in the firm scope.");
+    var memberIds = await db.ClientGroupMemberships.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.GroupId == scope.GroupId &&
+      x.Status == AccountingWorkflowStates.Approved && x.EffectiveTo == null).Select(x => x.ClientId).ToHashSetAsync(ct);
+    if (request.OutsidePerimeterReview)
+    {
+      if (memberIds.Contains(request.SellerClientId) == memberIds.Contains(request.BuyerClientId))
+        return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "An outside-perimeter review must pair one in-perimeter entity with one related party outside the perimeter.");
+    }
+    else
+    {
+      var components = await db.ConsolidationComponents.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ScopeVersionId == scope.Id &&
+        (x.ClientId == request.SellerClientId || x.ClientId == request.BuyerClientId)).ToListAsync(ct);
+      if (components.Count != 2 || components.Select(x => x.ClientId).Distinct().Count() != 2 ||
+          components.Any(x => x.Status != AccountingWorkflowStates.Approved))
+        return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Both counterparties must have approved component packages before matching.");
+    }
     var match = new IntercompanyMatch
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, GroupId = scope.GroupId, ScopeVersionId = scope.Id,
       SellerClientId = request.SellerClientId, BuyerClientId = request.BuyerClientId, AccountNature = request.AccountNature.Trim(),
+      MatchMode = matchMode, MatchGroupReference = matchGroupReference, OutsidePerimeterReview = request.OutsidePerimeterReview,
       SellerTaxonomyCode = sellerTaxonomy.Trim().ToUpperInvariant(), BuyerTaxonomyCode = buyerTaxonomy.Trim().ToUpperInvariant(),
       PeriodCode = request.PeriodCode.Trim(), Currency = currency, TransactionReference = request.TransactionReference.Trim(),
       SellerAmount = sellerAmount, BuyerAmount = buyerAmount, MatchedAmount = matchedAmount, Difference = difference,
@@ -502,9 +521,16 @@ public static class ConsolidationService
         x.JournalNumber == request.JournalNumber.Trim(), ct))
       return CommandResult<Guid>.Fail(ErrorCodes.IdempotencyConflict, "The consolidation journal number already exists in this perimeter.");
     var matchIds = request.Lines.Where(x => x.IntercompanyMatchId.HasValue).Select(x => x.IntercompanyMatchId!.Value).Distinct().ToArray();
+    if (request.Lines.Where(x => x.IntercompanyMatchId.HasValue).GroupBy(x => x.IntercompanyMatchId!.Value).Any(x => x.Count() > 1))
+      return CommandResult<Guid>.Fail(ErrorCodes.Accounting.MappingInvalid, "A consolidation journal may link an intercompany match only once.");
     if (matchIds.Length > 0 && await db.IntercompanyMatches.CountAsync(x => x.FirmId == actor.FirmId && x.ScopeVersionId == scope.Id &&
-        matchIds.Contains(x.Id) && x.Status == AccountingWorkflowStates.Approved, ct) != matchIds.Length)
+        matchIds.Contains(x.Id) && x.Status == AccountingWorkflowStates.Approved && !x.OutsidePerimeterReview, ct) != matchIds.Length)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Every linked intercompany match must be approved in the same perimeter.");
+    if (matchIds.Length > 0 && await db.ConsolidationJournalLines.AnyAsync(x => x.FirmId == actor.FirmId &&
+        x.ScopeVersionId == scope.Id && x.IntercompanyMatchId.HasValue && matchIds.Contains(x.IntercompanyMatchId.Value) &&
+        db.ConsolidationJournals.Any(j => j.FirmId == actor.FirmId && j.Id == x.ConsolidationJournalId &&
+          j.Status == AccountingWorkflowStates.Approved), ct))
+      return CommandResult<Guid>.Fail(ErrorCodes.IdempotencyConflict, "An approved consolidation journal already uses one of the linked intercompany matches.");
     var journal = new ConsolidationJournal
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, GroupId = scope.GroupId, ScopeVersionId = scope.Id,
@@ -548,7 +574,7 @@ public static class ConsolidationService
       return CommandResult.Fail(ErrorCodes.GateBlocked, "The consolidation journal is no longer balanced.");
     var matchIds = lines.Where(x => x.IntercompanyMatchId.HasValue).Select(x => x.IntercompanyMatchId!.Value).Distinct().ToArray();
     if (matchIds.Length > 0 && await db.IntercompanyMatches.CountAsync(x => x.FirmId == actor.FirmId && x.ScopeVersionId == journal.ScopeVersionId &&
-        matchIds.Contains(x.Id) && x.Status == AccountingWorkflowStates.Approved, ct) != matchIds.Length)
+        matchIds.Contains(x.Id) && x.Status == AccountingWorkflowStates.Approved && !x.OutsidePerimeterReview, ct) != matchIds.Length)
       return CommandResult.Fail(ErrorCodes.GenerationStale, "A linked intercompany match changed; rebuild the group journal.");
     journal.Status = AccountingWorkflowStates.Approved;
     journal.ApprovedByUserId = actor.UserId;
@@ -575,6 +601,20 @@ public static class ConsolidationService
       return CommandResult.Fail(ErrorCodes.GenerationStale, "The group perimeter changed; create a new scope version.");
     if (match.Status != AccountingWorkflowStates.Submitted || match.CreatedByUserId == actor.UserId)
       return CommandResult.Fail(ErrorCodes.Accounting.ReconciliationRejected, "Only a submitted match prepared by another user can be approved.");
+    if (match.MatchMode == IntercompanyMatchModes.Grouped)
+    {
+      var group = await db.IntercompanyMatches.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&
+        x.ScopeVersionId == match.ScopeVersionId && x.MatchMode == IntercompanyMatchModes.Grouped &&
+        x.MatchGroupReference == match.MatchGroupReference && x.AccountNature == match.AccountNature &&
+        x.PeriodCode == match.PeriodCode && x.Currency == match.Currency).ToListAsync(ct);
+      if (group.Count < 2)
+        return CommandResult.Fail(ErrorCodes.Accounting.ReconciliationRejected, "A grouped match needs at least two reviewed source rows.");
+      var sellerTotal = MoneyPolicy.Normalize(group.Sum(x => Math.Abs(x.SellerAmount)));
+      var buyerTotal = MoneyPolicy.Normalize(group.Sum(x => Math.Abs(x.BuyerAmount)));
+      var matchedTotal = MoneyPolicy.Normalize(group.Sum(x => x.MatchedAmount));
+      if (matchedTotal > Math.Min(sellerTotal, buyerTotal))
+        return CommandResult.Fail(ErrorCodes.Accounting.ReconciliationRejected, "Grouped matched amounts exceed the reviewed counterparty totals.");
+    }
     match.Status = AccountingWorkflowStates.Approved;
     match.ReviewedByUserId = actor.UserId;
     match.ReviewedAt = DateTimeOffset.UtcNow;
@@ -736,8 +776,14 @@ public static class ConsolidationService
         translation.Id, translation.RateSetVersionId, translation.TranslationPolicyVersionId, translation.RateDate,
         translation.RateType, translation.AppliedRate.Value));
     }
+    var pendingGrouped = await db.IntercompanyMatches.AsNoTracking().AnyAsync(x => x.FirmId == firmId &&
+      x.ScopeVersionId == scope.Id && x.MatchMode == IntercompanyMatchModes.Grouped &&
+      x.Status != AccountingWorkflowStates.Approved && x.Status != AccountingWorkflowStates.Rejected, ct);
+    if (pendingGrouped)
+      return CommandResult<ConsolidationBuild>.Fail(ErrorCodes.GateBlocked,
+        "Every row in a grouped intercompany match must be reviewed before the group run.");
     var matches = await db.IntercompanyMatches.AsNoTracking().Where(x => x.FirmId == firmId && x.ScopeVersionId == scope.Id &&
-      x.Status == AccountingWorkflowStates.Approved).ToListAsync(ct);
+      x.Status == AccountingWorkflowStates.Approved && !x.OutsidePerimeterReview).ToListAsync(ct);
     var approvedJournals = await db.ConsolidationJournals.AsNoTracking().Where(x => x.FirmId == firmId &&
       x.ScopeVersionId == scope.Id && x.Status == AccountingWorkflowStates.Approved).ToListAsync(ct);
     var journalIds = approvedJournals.Select(x => x.Id).ToArray();

@@ -1935,6 +1935,8 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
 
     var match = b.Entity<IntercompanyMatch>();
     match.Property(x => x.AccountNature).HasMaxLength(100);
+    match.Property(x => x.MatchMode).HasMaxLength(20);
+    match.Property(x => x.MatchGroupReference).HasMaxLength(200);
     match.Property(x => x.SellerTaxonomyCode).HasMaxLength(100);
     match.Property(x => x.BuyerTaxonomyCode).HasMaxLength(100);
     match.Property(x => x.PeriodCode).HasMaxLength(50);
@@ -1946,7 +1948,7 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     match.HasIndex(x => new { x.FirmId, x.ScopeVersionId, x.SellerClientId, x.BuyerClientId, x.TransactionReference }).IsUnique()
       .HasDatabaseName("ux_intercompany_match_identity");
     match.ToTable("intercompany_matches", t => t.HasCheckConstraint("ck_intercompany_match_values",
-      "length(trim(account_nature)) > 0 AND length(trim(seller_taxonomy_code)) > 0 AND length(trim(buyer_taxonomy_code)) > 0 AND currency ~ '^[A-Z]{3}$'"));
+      "length(trim(account_nature)) > 0 AND match_mode IN ('ONE_TO_ONE','GROUPED') AND (match_mode <> 'GROUPED' OR length(trim(match_group_reference)) > 0) AND length(trim(seller_taxonomy_code)) > 0 AND length(trim(buyer_taxonomy_code)) > 0 AND currency ~ '^[A-Z]{3}$'"));
     match.HasOne<ClientGroup>().WithMany().HasForeignKey(x => new { x.FirmId, x.GroupId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     match.HasOne<ConsolidationScopeVersion>().WithMany().HasForeignKey(x => new { x.FirmId, x.GroupId, x.ScopeVersionId })

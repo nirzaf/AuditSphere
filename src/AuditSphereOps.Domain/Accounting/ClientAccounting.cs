@@ -41,6 +41,12 @@ public static class AccountingAgingRules
   };
 }
 
+public static class IntercompanyMatchModes
+{
+  public const string OneToOne = "ONE_TO_ONE";
+  public const string Grouped = "GROUPED";
+}
+
 public static class AccountingCapabilityAcceptanceStages
 {
   public const string LocalConstruction = "LOCAL_CONSTRUCTION";
@@ -793,6 +799,9 @@ public sealed class IntercompanyMatch
   public Guid SellerClientId { get; set; }
   public Guid BuyerClientId { get; set; }
   public string AccountNature { get; set; } = string.Empty;
+  public string MatchMode { get; set; } = IntercompanyMatchModes.OneToOne;
+  public string MatchGroupReference { get; set; } = string.Empty;
+  public bool OutsidePerimeterReview { get; set; }
   public string SellerTaxonomyCode { get; set; } = string.Empty;
   public string BuyerTaxonomyCode { get; set; } = string.Empty;
   public string PeriodCode { get; set; } = string.Empty;

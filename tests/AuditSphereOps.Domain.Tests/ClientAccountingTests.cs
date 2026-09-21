@@ -1602,7 +1602,7 @@ public sealed class ClientAccountingTests
     var scope = await SeedAsync(pg);
     var preparer = Actor(scope.Preparer, "AccountingPreparer");
     var reviewer = Actor(scope.Reviewer, "Partner");
-    Guid groupId, consolidationScopeId, matchId;
+    Guid groupId, consolidationScopeId, matchId, outsideMatchId;
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       groupId = (await ConsolidationService.CreateGroupAsync(db, reviewer, new ClientGroupRequest("GROUP-A", "Group A"))).Value;
@@ -1693,6 +1693,29 @@ public sealed class ClientAccountingTests
           "INTERCOMPANY", "2026", "QAR", "IC-001", 100m, -100m, 100m, "ic-evidence",
             "CASH", "REVENUE"))).Value;
       Assert.True((await ConsolidationService.ApproveIntercompanyMatchAsync(db, reviewer, matchId)).Succeeded);
+
+      var groupedFirst = (await ConsolidationService.AddIntercompanyMatchAsync(db, preparer,
+        new IntercompanyMatchRequest(consolidationScopeId, scope.ClientA, scope.ClientB,
+          "INTERCOMPANY", "2026", "QAR", "IC-G-001", 10m, -10m, 10m, "ic-grouped-a",
+            "CASH", "REVENUE", "", IntercompanyMatchModes.Grouped, "IC-GROUP-001"))).Value;
+      var incompleteGroupedApproval = await ConsolidationService.ApproveIntercompanyMatchAsync(db, reviewer, groupedFirst);
+      Assert.False(incompleteGroupedApproval.Succeeded);
+      Assert.Equal(ErrorCodes.Accounting.ReconciliationRejected, incompleteGroupedApproval.ErrorCode);
+      var groupedSecond = (await ConsolidationService.AddIntercompanyMatchAsync(db, preparer,
+        new IntercompanyMatchRequest(consolidationScopeId, scope.ClientA, scope.ClientB,
+          "INTERCOMPANY", "2026", "QAR", "IC-G-002", 20m, -20m, 20m, "ic-grouped-b",
+            "CASH", "REVENUE", "", IntercompanyMatchModes.Grouped, "IC-GROUP-001"))).Value;
+      Assert.True((await ConsolidationService.ApproveIntercompanyMatchAsync(db, reviewer, groupedFirst)).Succeeded);
+      Assert.True((await ConsolidationService.ApproveIntercompanyMatchAsync(db, reviewer, groupedSecond)).Succeeded);
+
+      var outsideClientId = Guid.NewGuid();
+      db.PracticeClients.Add(new PracticeClient { Id = outsideClientId, FirmId = scope.FirmId, LegalName = "RELATED PARTY OUTSIDE GROUP", CreatedAt = DateTimeOffset.UtcNow });
+      await db.SaveChangesAsync();
+      outsideMatchId = (await ConsolidationService.AddIntercompanyMatchAsync(db, preparer,
+        new IntercompanyMatchRequest(consolidationScopeId, scope.ClientA, outsideClientId,
+          "RELATED_PARTY", "2026", "QAR", "IC-OUTSIDE-001", 15m, -15m, 15m, "outside-related-party-review",
+            "CASH", "REVENUE", "Outside the approved consolidation perimeter", IntercompanyMatchModes.OneToOne, "", true))).Value;
+      Assert.True((await ConsolidationService.ApproveIntercompanyMatchAsync(db, reviewer, outsideMatchId)).Succeeded);
     }
 
     Guid journalId, runId;
@@ -1704,6 +1727,17 @@ public sealed class ClientAccountingTests
          new(null, "REVENUE", 0m, 100m, "Group-only revenue reclassification")]))).Value;
       Assert.True((await ConsolidationService.ApproveConsolidationJournalAsync(db, reviewer, journalId)).Succeeded);
       runId = (await ConsolidationService.RunAsync(db, preparer, consolidationScopeId)).Value;
+      var linkedJournalId = (await ConsolidationService.CreateConsolidationJournalAsync(db, preparer,
+        new ConsolidationJournalRequest(consolidationScopeId, "GC-LINKED", "GROUP_RECLASSIFICATION", "QAR", "linked-match-adjustment",
+        [new(matchId, "CASH", 100m, 0m, "Reviewed linked elimination"),
+         new(null, "REVENUE", 0m, 100m, "Reviewed linked elimination")]))).Value;
+      Assert.True((await ConsolidationService.ApproveConsolidationJournalAsync(db, reviewer, linkedJournalId)).Succeeded);
+      var duplicateLinkedJournal = await ConsolidationService.CreateConsolidationJournalAsync(db, preparer,
+        new ConsolidationJournalRequest(consolidationScopeId, "GC-DUPLICATE-LINK", "GROUP_RECLASSIFICATION", "QAR", "duplicate-linked-match",
+        [new(matchId, "CASH", 100m, 0m, "Must not duplicate a reviewed match"),
+         new(null, "REVENUE", 0m, 100m, "Must not duplicate a reviewed match")]));
+      Assert.False(duplicateLinkedJournal.Succeeded);
+      Assert.Equal(ErrorCodes.IdempotencyConflict, duplicateLinkedJournal.ErrorCode);
       var changedJournalId = (await ConsolidationService.CreateConsolidationJournalAsync(db, preparer,
         new ConsolidationJournalRequest(consolidationScopeId, "GC-002", "GROUP_RECLASSIFICATION", "QAR", "group-adjustment-002",
         [new(null, "CASH", 50m, 0m, "Post-run group-only cash reclassification"),
@@ -1715,12 +1749,13 @@ public sealed class ClientAccountingTests
       var rebuiltRunId = (await ConsolidationService.RunAsync(db, preparer, consolidationScopeId)).Value;
       Assert.NotEqual(runId, rebuiltRunId);
       Assert.True((await ConsolidationService.ApproveRunAsync(db, reviewer, rebuiltRunId)).Succeeded);
-      Assert.Equal(6, await db.ConsolidationRunLines.CountAsync(x => x.RunId == runId));
+      Assert.Equal(10, await db.ConsolidationRunLines.CountAsync(x => x.RunId == runId));
       Assert.Equal(2, await db.ConsolidationRunLines.CountAsync(x => x.RunId == runId && x.ConsolidationJournalId == journalId));
       Assert.Equal(2, await db.ConsolidationRunLines.CountAsync(x => x.RunId == runId && x.IntercompanyMatchId == matchId));
-      Assert.Equal(8, await db.ConsolidationRunLines.CountAsync(x => x.RunId == rebuiltRunId));
+      Assert.Equal(12, await db.ConsolidationRunLines.CountAsync(x => x.RunId == rebuiltRunId));
       Assert.Equal(2, await db.ConsolidationRunLines.CountAsync(x => x.RunId == rebuiltRunId && x.ConsolidationJournalId == changedJournalId));
-      Assert.Equal(2, await db.ConsolidationRunLines.CountAsync(x => x.RunId == rebuiltRunId && x.IntercompanyMatchId == matchId));
+      Assert.Equal(1, await db.ConsolidationRunLines.CountAsync(x => x.RunId == rebuiltRunId && x.IntercompanyMatchId == matchId));
+      Assert.Empty(await db.ConsolidationRunLines.Where(x => x.RunId == rebuiltRunId && x.IntercompanyMatchId == outsideMatchId).ToListAsync());
       Assert.All(await db.ConsolidationComponents.Where(x => x.ScopeVersionId == consolidationScopeId).ToListAsync(), x => Assert.Equal(AccountingWorkflowStates.Approved, x.Status));
 
       var newClientId = Guid.NewGuid();
