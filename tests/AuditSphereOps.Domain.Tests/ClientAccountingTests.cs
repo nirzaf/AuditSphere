@@ -112,6 +112,24 @@ public sealed class ClientAccountingTests
       reconciliationId = (await AccountingAnalysisService.CreateReconciliationAsync(db, preparer,
         new AccountingReconciliationRequest(scope.ClientA, scope.EngagementA, periodId, bookId, "CASH", null, batchId, ["1000"],
           new DateOnly(2026, 12, 31)))).Value;
+      var wrongCurrencyItem = await AccountingAnalysisService.AddReconciliationItemsAsync(db, preparer, reconciliationId,
+        [new("ITEM-USD", 10m, "USD", new DateOnly(2026, 12, 30), "timing", "receipt-usd", "OPEN")]);
+      Assert.False(wrongCurrencyItem.Succeeded);
+      Assert.Equal(ErrorCodes.Accounting.ReconciliationRejected, wrongCurrencyItem.ErrorCode);
+      var futureItem = await AccountingAnalysisService.AddReconciliationItemsAsync(db, preparer, reconciliationId,
+        [new("ITEM-FUTURE", 10m, "QAR", new DateOnly(2027, 1, 1), "timing", "receipt-future", "OPEN")]);
+      Assert.False(futureItem.Succeeded);
+      Assert.Equal(ErrorCodes.Accounting.ReconciliationRejected, futureItem.ErrorCode);
+      var missingDisposition = await AccountingAnalysisService.AddReconciliationItemsAsync(db, preparer, reconciliationId,
+        [new("ITEM-NO-DISPOSITION", 10m, "QAR", new DateOnly(2026, 12, 30), "timing", "receipt-open", " ")]);
+      Assert.False(missingDisposition.Succeeded);
+      Assert.Equal(ErrorCodes.Accounting.ReconciliationRejected, missingDisposition.ErrorCode);
+      var validItem = await AccountingAnalysisService.AddReconciliationItemsAsync(db, preparer, reconciliationId,
+        [new("ITEM-QAR", 10m, "qar", new DateOnly(2026, 12, 30), "timing", "receipt-qar", "OPEN")]);
+      Assert.True(validItem.Succeeded, validItem.Message);
+      var savedItem = await db.AccountingReconciliationItems.SingleAsync(x => x.ReconciliationId == reconciliationId);
+      Assert.Equal("QAR", savedItem.Currency);
+      Assert.Equal(1, savedItem.AgeDays);
       transactionId = await db.GeneralLedgerTransactions.Where(x => x.ImportBatchId == batchId).Select(x => x.Id).SingleAsync();
       eclId = (await AccountingAnalysisService.CreateEclAssessmentAsync(db, preparer,
         new EclAssessmentRequest(reconciliationId, new DateOnly(2026, 12, 31), "PROVISION_MATRIX_V1", "ecl-v1", .1m, .5m, 2m, 7m, new string('c', 64)))).Value;

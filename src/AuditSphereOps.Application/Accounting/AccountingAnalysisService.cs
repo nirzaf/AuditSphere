@@ -396,9 +396,32 @@ public static class AccountingAnalysisService
       new AuthorizationRequest(actor.FirmId, reconciliation.ClientId, reconciliation.EngagementId, PreparerRoles, InternalOnly: true), ct);
     if (!auth.Succeeded)
       return auth;
-    if (items.Count == 0 || items.GroupBy(x => x.StableItemId.Trim(), StringComparer.Ordinal).Any(x => x.Count() > 1) ||
-        items.Any(x => string.IsNullOrWhiteSpace(x.StableItemId) || string.IsNullOrWhiteSpace(x.Reason) || string.IsNullOrWhiteSpace(x.EvidenceReference)))
-      return CommandResult.Fail(ErrorCodes.Accounting.ReconciliationRejected, "Reconciling items need unique identities, reasons and evidence.");
+    string? sourceCurrency = null;
+    if (reconciliation.TrialBalanceDatasetId is { } datasetId)
+      sourceCurrency = await db.TrialBalanceDatasets.AsNoTracking()
+        .Where(x => x.Id == datasetId && x.FirmId == actor.FirmId && x.ClientId == reconciliation.ClientId &&
+                    x.EngagementId == reconciliation.EngagementId && x.ValidationStatus == "Accepted")
+        .Select(x => x.Currency).SingleOrDefaultAsync(ct);
+    else if (reconciliation.ImportBatchId is { } batchId)
+      sourceCurrency = await db.SourceImportBatches.AsNoTracking()
+        .Where(x => x.Id == batchId && x.FirmId == actor.FirmId && x.ClientId == reconciliation.ClientId &&
+                    x.EngagementId == reconciliation.EngagementId && x.Status == "SEALED")
+        .Select(x => x.Currency).SingleOrDefaultAsync(ct);
+    if (string.IsNullOrWhiteSpace(sourceCurrency))
+      return CommandResult.Fail(ErrorCodes.ScopeDenied, "The reconciliation source is unavailable.");
+    sourceCurrency = sourceCurrency.Trim().ToUpperInvariant();
+
+    var invalidItems = items.Count == 0 ||
+      items.Any(x => string.IsNullOrWhiteSpace(x.StableItemId) || string.IsNullOrWhiteSpace(x.Currency) ||
+                     !string.Equals(x.Currency.Trim(), sourceCurrency, StringComparison.OrdinalIgnoreCase) ||
+                     string.IsNullOrWhiteSpace(x.Reason) || string.IsNullOrWhiteSpace(x.EvidenceReference) ||
+                     string.IsNullOrWhiteSpace(x.Disposition) ||
+                     x.ItemDate is { } itemDate && itemDate > reconciliation.AsOfDate) ||
+      items.Where(x => !string.IsNullOrWhiteSpace(x.StableItemId))
+        .GroupBy(x => x.StableItemId.Trim(), StringComparer.Ordinal).Any(x => x.Count() > 1);
+    if (invalidItems)
+      return CommandResult.Fail(ErrorCodes.Accounting.ReconciliationRejected,
+        "Reconciling items need unique identities, source currency, valid dates, reasons, evidence and dispositions.");
     foreach (var item in items)
       db.AccountingReconciliationItems.Add(new AccountingReconciliationItem
       {
