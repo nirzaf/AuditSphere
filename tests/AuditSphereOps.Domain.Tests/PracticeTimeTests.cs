@@ -1,5 +1,6 @@
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Practice;
+using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Engagements;
 using AuditSphereOps.Domain.Practice;
@@ -17,6 +18,7 @@ public sealed class PracticeTimeTests
     Guid FirmId,
     Guid ClientId,
     Guid EngagementId,
+    Guid ReportingPeriodId,
     AppUser Preparer,
     AppUser Manager,
     AppUser Partner,
@@ -29,6 +31,7 @@ public sealed class PracticeTimeTests
     var firmId = Guid.NewGuid();
     var clientId = Guid.NewGuid();
     var engagementId = Guid.NewGuid();
+    var reportingPeriodId = Guid.NewGuid();
     await using var db = new AuditSphereDbContext(pg.Options);
     db.PracticeClients.Add(new PracticeClient
     {
@@ -46,14 +49,55 @@ public sealed class PracticeTimeTests
     var manager = User(firmId, "Manager");
     var partner = User(firmId, "Partner");
     db.Users.AddRange(preparer, manager, partner);
+    db.ClientReportingPeriods.Add(new ClientReportingPeriod
+    {
+      Id = reportingPeriodId, FirmId = firmId, ClientId = clientId, PeriodCode = "2026-12",
+      StartDate = new DateOnly(2026, 1, 1), EndDate = new DateOnly(2026, 12, 31), Basis = "IFRS",
+      Currency = "QAR", CreatedByUserId = preparer.Id, CreatedAt = DateTimeOffset.UtcNow
+    });
     await db.SaveChangesAsync();
     db.RoleGrants.AddRange(
       Grant(firmId, preparer, "Staff", clientId, engagementId),
       Grant(firmId, manager, "Manager", clientId, engagementId),
       Grant(firmId, partner, "Partner"));
     await db.SaveChangesAsync();
-    return new Fixture(firmId, clientId, engagementId, preparer, manager, partner,
+    return new Fixture(firmId, clientId, engagementId, reportingPeriodId, preparer, manager, partner,
       Actor(preparer, "Staff"), Actor(manager, "Manager"), Actor(partner, "Partner"));
+  }
+
+  [Fact]
+  public async Task TaskDeadlineAndReportingPeriod_ArePersisted_AndCrossClientLinkIsDenied()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await SeedAsync(pg);
+    var foreign = await SeedAsync(pg);
+    Guid taskId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var created = await PracticeTimeService.CreateTaskAsync(db, fixture.PreparerActor,
+        new CreateTaskRequest("Prepare reporting pack", ClientId: fixture.ClientId,
+          EngagementId: fixture.EngagementId, ReportingPeriodId: fixture.ReportingPeriodId,
+          DueDate: new DateOnly(2026, 11, 30)));
+      Assert.True(created.Succeeded);
+      taskId = created.Value;
+
+      var mismatched = await PracticeTimeService.CreateTaskAsync(db, fixture.PreparerActor,
+        new CreateTaskRequest("Foreign period", ClientId: fixture.ClientId, ReportingPeriodId: foreign.ReportingPeriodId));
+      Assert.False(mismatched.Succeeded);
+      Assert.Equal(ErrorCodes.ScopeDenied, mismatched.ErrorCode);
+
+      var missingClient = await PracticeTimeService.CreateTaskAsync(db, fixture.PreparerActor,
+        new CreateTaskRequest("Unscoped period", ReportingPeriodId: fixture.ReportingPeriodId));
+      Assert.False(missingClient.Succeeded);
+      Assert.Equal("time.invalid", missingClient.ErrorCode);
+    }
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var task = await db.WorkTasks.SingleAsync(x => x.Id == taskId);
+      Assert.Equal(fixture.ReportingPeriodId, task.ReportingPeriodId);
+      Assert.Equal(new DateOnly(2026, 11, 30), task.DueDate);
+    }
   }
 
   [Fact]

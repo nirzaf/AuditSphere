@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @using AuditSphereOps.Domain.Accounting
 @using AuditSphereOps.Domain.Documents
+@using AuditSphereOps.Domain.Practice
 @using AuditSphereOps.Domain.Security
 @inject CurrentActorResolver ActorResolver
 @inject IDbContextFactory<AuditSphereDbContext> DbFactory
@@ -207,6 +208,7 @@ else
   private sealed record DashboardRow(Guid PeriodId, string ClientName, string PeriodCode, string State, string NextOwner,
     string DueDate, string Href, string Action);
   private sealed record PbcTask(Guid EngagementId, string OwnerName, string DueDate, string State);
+  private sealed record WorkTaskSummary(string OwnerName, string DueDate, string State);
   private ActorContext? _actor;
   private bool _loading = true;
   private bool _authorized;
@@ -255,6 +257,11 @@ else
         (firmWide || clientIds.Contains(x.Id))).ToDictionaryAsync(x => x.Id);
       var periods = await db.ClientReportingPeriods.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
         (firmWide || clientIds.Contains(x.ClientId))).ToListAsync();
+      var periodIds = periods.Select(x => x.Id).ToArray();
+      var workflowTasks = periodIds.Length == 0 ? [] : await db.WorkTasks.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
+        x.ReportingPeriodId.HasValue && periodIds.Contains(x.ReportingPeriodId.Value) &&
+        (x.Status == PracticeTimeStates.TaskOpen || x.Status == PracticeTimeStates.TaskInProgress))
+        .OrderBy(x => x.DueDate).ThenBy(x => x.CreatedAt).ToListAsync();
       var books = await db.ClientReportingBooks.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
         (firmWide || clientIds.Contains(x.ClientId))).ToListAsync();
       var engagements = await db.Engagements.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
@@ -279,6 +286,16 @@ else
           return new PbcTask(request.EngagementId, pbcOwners.GetValueOrDefault(request.FirmOwnerUserId, "Assigned firm owner"),
             string.IsNullOrWhiteSpace(request.DueDate) ? "Not recorded" : request.DueDate, request.State);
         });
+      var taskOwnerIds = workflowTasks.Where(x => x.AssigneeUserId.HasValue).Select(x => x.AssigneeUserId!.Value).Distinct().ToArray();
+      var taskOwners = await db.Users.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && taskOwnerIds.Contains(x.Id))
+        .ToDictionaryAsync(x => x.Id, x => string.IsNullOrWhiteSpace(x.DisplayName) ? x.Email : x.DisplayName);
+      var taskByPeriod = workflowTasks.Where(x => x.ReportingPeriodId.HasValue).GroupBy(x => x.ReportingPeriodId!.Value)
+        .ToDictionary(x => x.Key, x =>
+        {
+          var task = x.First();
+          return new WorkTaskSummary(taskOwners.GetValueOrDefault(task.AssigneeUserId ?? Guid.Empty, "Assigned staff"),
+            task.DueDate?.ToString("yyyy-MM-dd") ?? "Not recorded", task.Status);
+        });
       _profileCount = profiles.Count;
       _openPeriodCount = periods.Count(x => x.Status != AccountingWorkflowStates.Closed);
       _sealedImportCount = await db.SourceImportBatches.AsNoTracking().CountAsync(x => x.FirmId == _actor.FirmId && x.Status == "SEALED" &&
@@ -297,7 +314,7 @@ else
           package is null ? "NO_PACKAGE" : $"{package.Status} · v{package.Revision}", package?.Id, package?.MappingVersionId,
           x.Status, x.Revision);
       }).ToList();
-      _dashboardRows = _periods.Select(x => ToDashboardRow(x, pbcByPeriod)).ToList();
+      _dashboardRows = _periods.Select(x => ToDashboardRow(x, pbcByPeriod, taskByPeriod)).ToList();
       _requiredCount = _dashboardRows.Count(x => x.State == "REQUIRED");
       _completeCount = _dashboardRows.Count(x => x.State == "COMPLETE");
       _staleCount = _dashboardRows.Count(x => x.State == "STALE");
@@ -311,28 +328,32 @@ else
     _loading = false;
   }
 
-  private static DashboardRow ToDashboardRow(PeriodRow row, IReadOnlyDictionary<string, PbcTask> pbcByPeriod)
+  private static DashboardRow ToDashboardRow(PeriodRow row, IReadOnlyDictionary<string, PbcTask> pbcByPeriod,
+    IReadOnlyDictionary<Guid, WorkTaskSummary> taskByPeriod)
   {
     var pbc = pbcByPeriod.GetValueOrDefault(PeriodKey(row.ClientId, row.StartDate.ToString("yyyy-MM-dd"), row.EndDate.ToString("yyyy-MM-dd")));
+    var task = taskByPeriod.GetValueOrDefault(row.Id);
     var state = row.Status == AccountingWorkflowStates.Stale ? "STALE"
       : row.Status == AccountingWorkflowStates.Rejected || row.Package.Contains(AccountingWorkflowStates.Rejected, StringComparison.OrdinalIgnoreCase) ? "BLOCKED"
-      : pbc is not null && pbc.State is not (PbcStates.Accepted or PbcStates.Closed) ? "REQUIRED"
+      : task is not null || pbc is not null && pbc.State is not (PbcStates.Accepted or PbcStates.Closed) ? "REQUIRED"
       : row.Package.StartsWith(AccountingPackageStates.PackageValidated, StringComparison.Ordinal) ? "COMPLETE"
       : "REQUIRED";
-    var owner = pbc is not null && pbc.State is not (PbcStates.Accepted or PbcStates.Closed) ? pbc.OwnerName : state switch
+    var owner = task?.OwnerName ?? (pbc is not null && pbc.State is not (PbcStates.Accepted or PbcStates.Closed) ? pbc.OwnerName : state switch
     {
       "STALE" or "BLOCKED" => "Engagement manager",
       "COMPLETE" => "No action",
       _ when row.PackageId is null => "Accounting preparer",
       _ => "Accounting reviewer"
-    };
-    var href = pbc is not null && pbc.State is not (PbcStates.Accepted or PbcStates.Closed) && row.PackageId is null && row.MappingId is null
+    });
+    var href = task is not null ? $"/app/accounting/periods/{row.Id}"
+      : pbc is not null && pbc.State is not (PbcStates.Accepted or PbcStates.Closed) && row.PackageId is null && row.MappingId is null
       ? $"/app/engagements/{pbc.EngagementId}/pbc"
       : row.PackageId is { } packageId ? $"/app/accounting/packages/{packageId}"
       : row.MappingId is { } mappingId ? $"/app/accounting/mappings/{mappingId}" : $"/app/accounting/periods/{row.Id}";
-    var action = pbc is not null && pbc.State is not (PbcStates.Accepted or PbcStates.Closed) && row.PackageId is null && row.MappingId is null
+    var action = task is not null ? "Open period workflow"
+      : pbc is not null && pbc.State is not (PbcStates.Accepted or PbcStates.Closed) && row.PackageId is null && row.MappingId is null
       ? "Open PBC request" : row.PackageId is not null ? "Open package" : row.MappingId is not null ? "Open mapping" : "Open period";
-    return new(row.Id, row.ClientName, row.PeriodCode, state, owner, pbc?.DueDate ?? "Not recorded", href, action);
+    return new(row.Id, row.ClientName, row.PeriodCode, state, owner, task?.DueDate ?? pbc?.DueDate ?? "Not recorded", href, action);
   }
 
   private static string PeriodKey(Guid clientId, string start, string end) => string.Concat(clientId.ToString("D"), "|", start, "|", end);

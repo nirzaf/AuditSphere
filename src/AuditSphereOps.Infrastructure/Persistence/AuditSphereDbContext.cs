@@ -658,6 +658,7 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     b.Entity<Opportunity>().HasIndex(x => new { x.FirmId, x.LeadId, x.Stage });
     b.Entity<Proposal>().HasIndex(x => new { x.FirmId, x.OpportunityId, x.Revision }).IsUnique();
     b.Entity<WorkTask>().HasIndex(x => new { x.FirmId, x.Status, x.CreatedAt });
+    b.Entity<WorkTask>().HasIndex(x => new { x.FirmId, x.ClientId, x.ReportingPeriodId, x.Status, x.DueDate });
     b.Entity<TimeEntry>().HasIndex(x => new { x.FirmId, x.UserId, x.WorkDate, x.Status });
     b.Entity<RateCardVersion>().HasIndex(x => new { x.FirmId, x.Role, x.Activity, x.Currency, x.Version }).IsUnique();
     b.Entity<EngagementBudget>().HasIndex(x => new { x.FirmId, x.EngagementId, x.Version }).IsUnique();
@@ -696,7 +697,7 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     b.Entity<ClientContact>().ToTable("client_contacts", t => t.HasCheckConstraint("ck_client_contact",
       "length(full_name) > 0 AND length(email) > 0 AND length(role) > 0 AND (valid_to IS NULL OR valid_from IS NULL OR valid_to >= valid_from)"));
     b.Entity<WorkTask>().ToTable("work_tasks", t => t.HasCheckConstraint("ck_work_task_state",
-      "status IN ('OPEN','IN_PROGRESS','COMPLETED','CANCELLED') AND length(title) > 0 AND (engagement_id IS NULL OR client_id IS NOT NULL)"));
+      "status IN ('OPEN','IN_PROGRESS','COMPLETED','CANCELLED') AND length(title) > 0 AND (engagement_id IS NULL OR client_id IS NOT NULL) AND (reporting_period_id IS NULL OR client_id IS NOT NULL)"));
     b.Entity<TimeEntry>().ToTable("time_entries", t =>
     {
       t.HasCheckConstraint("ck_time_entry_state",
@@ -784,6 +785,9 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     b.Entity<WorkTask>().HasOne<Engagement>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId })
       .HasPrincipalKey(x => new { x.FirmId, x.PracticeClientId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    b.Entity<WorkTask>().HasOne<ClientReportingPeriod>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.ReportingPeriodId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     b.Entity<WorkTask>().HasOne<AppUser>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.AssigneeUserId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);

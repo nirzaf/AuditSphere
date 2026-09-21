@@ -30,9 +30,11 @@ public sealed class WorkTask
   public Guid FirmId { get; set; }
   public Guid? ClientId { get; set; }
   public Guid? EngagementId { get; set; }
+  public Guid? ReportingPeriodId { get; set; }
   public string Title { get; set; } = string.Empty;
   public string Status { get; set; } = PracticeTimeStates.TaskOpen;
   public Guid? AssigneeUserId { get; set; }
+  public DateOnly? DueDate { get; set; }
   public DateTimeOffset CreatedAt { get; set; }
   public DateTimeOffset? CompletedAt { get; set; }
 }

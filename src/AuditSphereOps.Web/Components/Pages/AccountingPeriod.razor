@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @using AuditSphereOps.Domain.Accounting
 @using AuditSphereOps.Domain.Documents
+@using AuditSphereOps.Domain.Practice
 @using AuditSphereOps.Domain.Security
 @inject CurrentActorResolver ActorResolver
 @inject IDbContextFactory<AuditSphereDbContext> DbFactory
@@ -45,11 +46,15 @@ else
 
   <section class="card" aria-labelledby="workflow-heading">
     <h2 id="workflow-heading">Workflow handoffs</h2>
+    @if (_task is not null)
+    {
+      <p><strong>Work task:</strong> @_task.Title · <strong>Owner:</strong> @_task.Owner · <strong>Due:</strong> @_task.DueDate · <strong>State:</strong> @_task.State</p>
+    }
     @if (_pbc is not null)
     {
       <p><strong>PBC owner:</strong> @_pbc.Owner · <strong>Due:</strong> @_pbc.DueDate · <strong>State:</strong> @_pbc.State</p>
     }
-    else
+    else if (_task is null)
     {
       <p class="muted">No open PBC request is linked to this period. No task owner or due date is invented.</p>
     }
@@ -80,10 +85,12 @@ else
     DateOnly StartDate, DateOnly EndDate, string Basis, string Book, string Currency, string Status, long Revision,
     Guid? PriorPeriodId, Guid? PackageId, string? PackageLabel, Guid? MappingId, string? MappingLabel);
   private sealed record PbcView(Guid EngagementId, string Owner, string DueDate, string State);
+  private sealed record TaskView(string Title, string Owner, string DueDate, string State);
 
   private ActorContext? _actor;
   private PeriodView? _period;
   private PbcView? _pbc;
+  private TaskView? _task;
   private bool _loading = true;
   private bool _authorized;
 
@@ -126,6 +133,9 @@ else
     var pbc = await db.PbcRequests.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && x.ClientId == period.ClientId &&
       x.PeriodStart == period.StartDate.ToString("yyyy-MM-dd") && x.PeriodEnd == period.EndDate.ToString("yyyy-MM-dd") && x.State != PbcStates.Closed)
       .OrderBy(x => x.DueDate).FirstOrDefaultAsync();
+    var task = await db.WorkTasks.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && x.ClientId == period.ClientId &&
+      x.ReportingPeriodId == period.Id && (x.Status == PracticeTimeStates.TaskOpen || x.Status == PracticeTimeStates.TaskInProgress))
+      .OrderBy(x => x.DueDate).ThenBy(x => x.CreatedAt).FirstOrDefaultAsync();
     var owner = pbc is null ? null : await db.Users.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && x.Id == pbc.FirmOwnerUserId)
       .Select(x => string.IsNullOrWhiteSpace(x.DisplayName) ? x.Email : x.DisplayName).SingleOrDefaultAsync();
     var engagement = pbc is null ? null : await db.Engagements.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && x.Id == pbc.EngagementId)
@@ -135,5 +145,12 @@ else
       package?.Id, package is null ? null : $"{package.Status} · v{package.Revision} · {package.Currency}", mapping?.Id, mapping is null ? null : $"{mapping.Status} · v{mapping.Version}");
     if (pbc is not null)
       _pbc = new(pbc.EngagementId, owner ?? "Assigned firm owner", string.IsNullOrWhiteSpace(pbc.DueDate) ? "Not recorded" : pbc.DueDate, pbc.State);
+    if (task is not null)
+    {
+      var taskOwner = task.AssigneeUserId is null ? null : await db.Users.AsNoTracking()
+        .Where(x => x.FirmId == _actor.FirmId && x.Id == task.AssigneeUserId)
+        .Select(x => string.IsNullOrWhiteSpace(x.DisplayName) ? x.Email : x.DisplayName).SingleOrDefaultAsync();
+      _task = new(task.Title, taskOwner ?? "Assigned staff", task.DueDate?.ToString("yyyy-MM-dd") ?? "Not recorded", task.Status);
+    }
   }
 }

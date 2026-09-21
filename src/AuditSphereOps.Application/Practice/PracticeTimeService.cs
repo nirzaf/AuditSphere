@@ -13,7 +13,9 @@ public sealed record CreateTaskRequest(
   string Title,
   Guid? ClientId = null,
   Guid? EngagementId = null,
-  Guid? AssigneeUserId = null);
+  Guid? AssigneeUserId = null,
+  Guid? ReportingPeriodId = null,
+  DateOnly? DueDate = null);
 
 public sealed record SaveTimeDraftRequest(
   Guid TaskId,
@@ -76,6 +78,11 @@ public static class PracticeTimeService
       return CommandResult<Guid>.Fail("time.invalid", "Task title is required.");
     if (request.EngagementId.HasValue && !request.ClientId.HasValue)
       return CommandResult<Guid>.Fail("time.invalid", "An engagement task requires its client scope.");
+    if (request.ReportingPeriodId.HasValue && !request.ClientId.HasValue)
+      return CommandResult<Guid>.Fail("time.invalid", "A reporting-period task requires its client scope.");
+    var accountingDb = request.ReportingPeriodId.HasValue ? db as IClientAccountingDbContext : null;
+    if (request.ReportingPeriodId.HasValue && accountingDb is null)
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Accounting period data is unavailable.");
 
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
       new AuthorizationRequest(actor.FirmId, request.ClientId, request.EngagementId, WorkRoles), ct);
@@ -88,8 +95,15 @@ public static class PracticeTimeService
       ? await db.Engagements.AsNoTracking().SingleOrDefaultAsync(
         x => x.Id == request.EngagementId && x.FirmId == actor.FirmId, ct)
       : null;
+    var period = request.ReportingPeriodId.HasValue
+      ? await accountingDb!.ClientReportingPeriods.AsNoTracking().SingleOrDefaultAsync(
+        x => x.Id == request.ReportingPeriodId && x.FirmId == actor.FirmId, ct)
+      : null;
     if (request.EngagementId.HasValue &&
         (engagement is null || engagement.PracticeClientId != request.ClientId))
+      return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    if (request.ReportingPeriodId.HasValue &&
+        (period is null || period.ClientId != request.ClientId))
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var guard = await LockClientAsync(db, actor.FirmId, request.ClientId, ct);
     if (!guard.Succeeded) return CommandResult<Guid>.Fail(guard.ErrorCode!, guard.Message!);
@@ -104,7 +118,9 @@ public static class PracticeTimeService
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId,
       ClientId = request.ClientId, EngagementId = request.EngagementId,
+      ReportingPeriodId = request.ReportingPeriodId,
       Title = request.Title.Trim(), AssigneeUserId = request.AssigneeUserId,
+      DueDate = request.DueDate,
       CreatedAt = DateTimeOffset.UtcNow,
       Status = request.AssigneeUserId.HasValue
         ? PracticeTimeStates.TaskInProgress : PracticeTimeStates.TaskOpen

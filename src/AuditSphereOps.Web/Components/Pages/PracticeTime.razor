@@ -1,5 +1,6 @@
 @page "/app/practice/time"
 @rendermode InteractiveServer
+@using AuditSphereOps.Domain.Accounting
 @using AuditSphereOps.Application.Practice
 @using AuditSphereOps.Domain.Practice
 @using AuditSphereOps.Domain.Security
@@ -28,6 +29,32 @@ else
       @(_result.Succeeded ? (_successMessage ?? "Action completed successfully.") : "Blocked: " + _result.ErrorCode)
     </p>
   }
+
+  <section class="card" aria-labelledby="task-heading" data-draft-scope="practice-task">
+    <h2 id="task-heading">Create work task</h2>
+    <p class="scope-note">Link an optional accounting period when the task belongs to a client reporting workflow. Due dates are optional and are never inferred.</p>
+    <form @onsubmit="CreateTaskAsync" @onsubmit:preventDefault="true" style="display: grid; gap: 0.75rem; max-width: 32rem;">
+      <label>
+        Task title <span class="required-marker" aria-hidden="true">*</span>
+        <input class="input" @bind="_taskTitle" required disabled="@_busy" title="Short description of the work to be completed." autocomplete="off" />
+      </label>
+      <label>
+        Reporting period <span class="optional-label">(optional)</span>
+        <select class="input" @bind="_taskPeriodKey" data-optional="true" disabled="@_busy" title="Link this task to the exact client reporting period shown on the accounting dashboard.">
+          <option value="">No period link</option>
+          @foreach (var period in _periodOptions)
+          {
+            <option value="@period.Id">@period.Label</option>
+          }
+        </select>
+      </label>
+      <label>
+        Due date <span class="optional-label">(optional)</span>
+        <input class="input" type="date" @bind="_taskDueDate" data-optional="true" disabled="@_busy" title="Persist the agreed deadline; leave blank when no deadline has been recorded." />
+      </label>
+      <button class="button" type="submit" disabled="@_busy">Create task</button>
+    </form>
+  </section>
 
   <section class="card" aria-labelledby="log-heading">
     <h2 id="log-heading">Record time draft</h2>
@@ -179,10 +206,12 @@ else
 }
 
 @code {
+  private sealed record PeriodOption(Guid Id, Guid ClientId, Guid? EngagementId, string Label);
   private ActorContext? _actor;
   private bool _isStaff;
   private bool _isApprover;
   private List<WorkTask> _availableTasks = [];
+  private List<PeriodOption> _periodOptions = [];
   private Dictionary<Guid, string> _taskMap = [];
   private List<TimeEntry> _myEntries = [];
   private List<TimeEntry> _submittedEntries = [];
@@ -198,6 +227,9 @@ else
   private string _activity = "Fieldwork";
   private bool _isBillable = true;
   private string _narrative = string.Empty;
+  private string _taskTitle = string.Empty;
+  private string _taskPeriodKey = string.Empty;
+  private DateOnly? _taskDueDate;
 
   protected override async Task OnInitializedAsync()
   {
@@ -219,8 +251,26 @@ else
   {
     if (_actor is null) return;
     await using var db = await DbFactory.CreateDbContextAsync();
+    var grants = await db.RoleGrants.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && x.UserId == _actor.UserId && x.RevokedAt == null)
+      .Select(x => new { x.ClientId, x.EngagementId }).ToListAsync();
+    var firmWide = grants.Any(x => x.ClientId is null && x.EngagementId is null);
+    var directClientIds = grants.Where(x => x.ClientId.HasValue && x.EngagementId is null).Select(x => x.ClientId!.Value).ToArray();
+    var engagementIds = grants.Where(x => x.EngagementId.HasValue).Select(x => x.EngagementId!.Value).ToArray();
+    var engagementClientIds = engagementIds.Length == 0 ? [] : await db.Engagements.AsNoTracking()
+      .Where(x => x.FirmId == _actor.FirmId && engagementIds.Contains(x.Id)).Select(x => x.PracticeClientId).ToArrayAsync();
+    var clientIds = directClientIds.Concat(engagementClientIds).Distinct().ToArray();
+    var scopedEngagements = await db.Engagements.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
+      (firmWide || clientIds.Contains(x.PracticeClientId))).OrderByDescending(x => x.CreatedAt).ToListAsync();
+    var periods = await db.ClientReportingPeriods.AsNoTracking()
+      .Where(x => x.FirmId == _actor.FirmId && (firmWide || clientIds.Contains(x.ClientId)))
+      .OrderByDescending(x => x.EndDate).ThenBy(x => x.PeriodCode)
+      .ToListAsync();
+    _periodOptions = periods.Select(x => new PeriodOption(x.Id, x.ClientId,
+      scopedEngagements.FirstOrDefault(e => e.PracticeClientId == x.ClientId)?.Id,
+      x.PeriodCode + " · " + x.Currency)).ToList();
     _availableTasks = await db.WorkTasks.AsNoTracking()
-      .Where(x => x.FirmId == _actor.FirmId && x.Status != PracticeTimeStates.TaskCancelled && x.Status != PracticeTimeStates.TaskCompleted)
+      .Where(x => x.FirmId == _actor.FirmId && (firmWide || (x.ClientId.HasValue && clientIds.Contains(x.ClientId.Value))) &&
+        x.Status != PracticeTimeStates.TaskCancelled && x.Status != PracticeTimeStates.TaskCompleted)
       .OrderBy(x => x.Title)
       .ToListAsync();
 
@@ -230,7 +280,7 @@ else
     }
 
     var allTasks = await db.WorkTasks.AsNoTracking()
-      .Where(x => x.FirmId == _actor.FirmId)
+      .Where(x => x.FirmId == _actor.FirmId && (firmWide || (x.ClientId.HasValue && clientIds.Contains(x.ClientId.Value))))
       .Select(x => new { x.Id, x.Title })
       .ToListAsync();
     _taskMap = allTasks.ToDictionary(x => x.Id, x => x.Title);
@@ -244,7 +294,8 @@ else
     if (_isApprover)
     {
       _submittedEntries = await db.TimeEntries.AsNoTracking()
-        .Where(x => x.FirmId == _actor.FirmId && x.Status == PracticeTimeStates.TimeSubmitted && x.UserId != _actor.UserId)
+        .Where(x => x.FirmId == _actor.FirmId && (firmWide || (x.ClientId.HasValue && clientIds.Contains(x.ClientId.Value))) &&
+          x.Status == PracticeTimeStates.TimeSubmitted && x.UserId != _actor.UserId)
         .OrderBy(x => x.WorkDate)
         .ToListAsync();
     }
@@ -276,6 +327,32 @@ else
       {
         _successMessage = $"Time draft recorded ({_durationMinutes}m).";
         _narrative = string.Empty;
+        await LoadDataAsync();
+      }
+    }
+    finally { _busy = false; }
+  }
+
+  private async Task CreateTaskAsync()
+  {
+    if (_actor is null || _busy) return;
+    _busy = true;
+    _result = null;
+    try
+    {
+      var period = Guid.TryParse(_taskPeriodKey, out var periodId)
+        ? _periodOptions.FirstOrDefault(x => x.Id == periodId) : null;
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var res = await PracticeTimeService.CreateTaskAsync(db, _actor,
+        new CreateTaskRequest(_taskTitle, ClientId: period?.ClientId, EngagementId: period?.EngagementId,
+          ReportingPeriodId: period?.Id, DueDate: _taskDueDate));
+      _result = res.Succeeded ? CommandResult.Ok() : CommandResult.Fail(res.ErrorCode!, res.Message!);
+      if (res.Succeeded)
+      {
+        _successMessage = "Work task created.";
+        _taskTitle = string.Empty;
+        _taskPeriodKey = string.Empty;
+        _taskDueDate = null;
         await LoadDataAsync();
       }
     }
