@@ -16,11 +16,13 @@
   [
     new("/app/accounting", "Accounting home", "Review scoped client context and handoffs."),
     new("/app/accounting/evidence", "Account-area evidence", "Review scoped specialist and analytical evidence."),
+    new("/app/accounting/mappings", "COA and mappings", "Review immutable client-chart and reporting-mapping versions."),
+    new("/app/accounting/journals", "Adjustments", "Review scoped adjustment journals and posting state."),
+    new("/app/accounting/differences", "Differences", "Review scoped audit differences and correction lineage."),
     new("/app/accounting/reviews", "Package reviews", "Review current package approval stages."),
     new("/app/accounting/rollforward", "Period roll-forward", "Create a draft period with opening-balance evidence."),
     new("/app/accounting/restatements", "Restatements", "Review authorized post-close amendments."),
-    new("/app/consolidation", "Consolidation", "Review explicitly granted group scopes."),
-    new("/app/journals", "Journals", "Review proposed accounting adjustments.")
+    new("/app/consolidation", "Consolidation", "Review explicitly granted group scopes.")
   ];
 
   private bool IsAccountingArea
@@ -29,7 +31,7 @@
     {
       var path = Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', 2)[0].TrimEnd('/');
       return path.StartsWith("app/accounting", StringComparison.OrdinalIgnoreCase)
-        || path is "app/consolidation" or "app/journals";
+        || path is "app/consolidation";
     }
   }
 
@@ -37,7 +39,8 @@
   {
     var current = Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', 2)[0].TrimEnd('/');
     var target = href.TrimStart('/').TrimEnd('/');
-    return current.Equals(target, StringComparison.OrdinalIgnoreCase);
+    return current.Equals(target, StringComparison.OrdinalIgnoreCase)
+        || current.StartsWith(target + "/", StringComparison.OrdinalIgnoreCase);
   }
 
   private sealed record NavigationItem(string Href, string Label, string Title);

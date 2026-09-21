@@ -30,6 +30,10 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 .accounting-tabs { display: flex; flex-wrap: wrap; gap: .35rem; margin: -0.5rem 0 1.25rem; padding-bottom: .75rem; border-bottom: 1px solid #d8e0e7; }
 .accounting-tabs a { padding: .45rem .65rem; border-radius: .3rem; color: #123047; text-decoration: none; font-weight: 650; }
 .accounting-tabs a:hover, .accounting-tabs a:focus, .accounting-tabs a.active { background: #d1e4ef; color: #075985; }
+.workspace-tab-grid { display: grid; gap: .75rem; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); }
+.workspace-tab-grid article { border: 1px solid #d8e0e7; border-radius: .45rem; padding: 1rem; background: #fbfcfd; }
+.workspace-tab-grid h3 { margin: 0 0 .4rem; }
+.workspace-tab-grid p { color: #5b6b7a; min-height: 2.8rem; margin: 0 0 .75rem; }
 .context-bar { position: sticky; top: .5rem; z-index: 1; }
 .table-wrap { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; }

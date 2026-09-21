@@ -24,7 +24,40 @@ else
     <p class="scope-note">Firm <code>@_actor!.FirmId</code> · Group <strong>none</strong> · @_scopeDescription · @_clients.Count legal entities in the current grant scope. Group navigation does not grant sibling-company access.</p>
     <p class="muted">Each row below pins the legal entity, engagement, period, book, currency and latest package version. Select a handoff only after confirming this context.</p>
   </section>
-  <section class="metric-grid" aria-label="Accounting workspace counts">
+  <section class="card" id="dashboard" aria-labelledby="dashboard-heading">
+    <h2 id="dashboard-heading">Workflow dashboard</h2>
+    <p class="muted">Counts are derived from the visible period and package records. No due date is invented: until a task or PBC due date is linked, the dashboard shows <strong>Not recorded</strong>.</p>
+    <div class="metric-grid" aria-label="Accounting workflow counts">
+      <article class="metric card"><span class="metric-label">Required</span><strong class="metric-value">@_requiredCount</strong></article>
+      <article class="metric card"><span class="metric-label">Complete</span><strong class="metric-value">@_completeCount</strong></article>
+      <article class="metric card"><span class="metric-label">Stale</span><strong class="metric-value">@_staleCount</strong></article>
+      <article class="metric card"><span class="metric-label">Blocked</span><strong class="metric-value">@_blockedCount</strong></article>
+    </div>
+    @if (_dashboardRows.Count == 0)
+    {
+      <p class="muted">No period workflow items are available in the current scope.</p>
+    }
+    else
+    {
+      <div class="table-wrap"><table>
+        <caption class="sr-only">Accounting workflow dashboard</caption>
+        <thead><tr><th scope="col">Client / period</th><th scope="col">State</th><th scope="col">Next owner</th><th scope="col">Due date</th><th scope="col"><span class="sr-only">Action</span></th></tr></thead>
+        <tbody>
+        @foreach (var item in _dashboardRows)
+        {
+          <tr>
+            <td><strong>@item.ClientName</strong><br /><span class="muted">@item.PeriodCode</span></td>
+            <td><span class="status">@item.State</span></td>
+            <td>@item.NextOwner</td>
+            <td><span title="A due date is shown only when a persisted accounting task or PBC request supplies one.">@item.DueDate</span></td>
+            <td><a href="@item.Href" title="@item.Action">@item.Action</a></td>
+          </tr>
+        }
+        </tbody>
+      </table></div>
+    }
+  </section>
+  <section class="metric-grid" aria-label="Accounting workspace source counts">
     <article class="metric card"><span class="metric-label">Client profiles</span><strong class="metric-value">@_profileCount</strong></article>
     <article class="metric card"><span class="metric-label">Open periods</span><strong class="metric-value">@_openPeriodCount</strong></article>
     <article class="metric card"><span class="metric-label">Sealed imports</span><strong class="metric-value">@_sealedImportCount</strong></article>
@@ -75,6 +108,20 @@ else
     {
       <p class="muted">Choose a visible period to pin its reporting context here. This selection does not broaden access.</p>
     }
+  </section>
+  <section class="card" aria-labelledby="workspaces-heading">
+    <h2 id="workspaces-heading">Client accounting tabs</h2>
+    <p class="muted">Each tab keeps the current client scope. Detail pages are available only when an exact persisted record exists.</p>
+    <div class="workspace-tab-grid">
+      <article id="tb-gl"><h3>TB / GL</h3><p>Source imports, completeness and account-area evidence.</p><a href="/app/accounting/evidence" title="Open the scoped TB, GL and account-area evidence queue">Open evidence</a></article>
+      <article id="coa"><h3>COA</h3><p>Client chart applicability is shown through each exact mapping version.</p><a href="/app/accounting/mappings" title="Review scoped client-chart and mapping versions">Open COA and mappings</a></article>
+      <article id="mapping"><h3>Mapping</h3><p>Review immutable allocations, lineage and review-only suggestions.</p><a href="/app/accounting/mappings" title="Review immutable mapping versions">Open mappings</a></article>
+      <article id="reconciliations"><h3>Reconciliations</h3><p>Review source-bound accounting evidence and freshness.</p><a href="/app/accounting/evidence#reconciliations" title="Open scoped reconciliation and evidence records">Open reconciliations</a></article>
+      <article id="adjustments"><h3>Adjustments</h3><p>Review adjustment journals without changing the client source ledger.</p><a href="/app/accounting/journals" title="Review scoped adjustment journals">Open adjustments</a></article>
+      <article id="differences"><h3>Differences</h3><p>Review gross/net differences, correction state and journal lineage.</p><a href="/app/accounting/differences" title="Review scoped audit differences">Open differences</a></article>
+      <article id="statements"><h3>Statements</h3><p>Open the exact package when the selected period has one.</p>@if (SelectedContext?.PackageId is { } selectedPackageId) { <a href="@($"/app/accounting/packages/{selectedPackageId}")" title="Open the exact selected financial statement package">Open selected package</a> } else { <a href="/app/accounting/reviews" title="Open the package review queue when no package is selected">Open package queue</a> }</article>
+      <article id="approval-history"><h3>Approval history</h3><p>Review exact package-stage decisions and current applicability.</p><a href="/app/accounting/reviews" title="Open package approval history">Open approvals</a></article>
+    </div>
   </section>
   <section class="card" aria-labelledby="context-heading">
     <h2 id="context-heading">Current accounting context</h2>
@@ -143,7 +190,9 @@ else
       <a class="button" href="/app/consolidation" title="Review explicitly granted group perimeters and approved consolidation scopes">Group consolidation</a>
       <a class="button" href="/app/accounting/evidence" title="Review scoped ECL, inventory, specialist, analytical and journal-risk evidence">Account-area evidence</a>
       <a class="button" href="/app/accounting/rollforward" title="Create a draft reporting period with explicit opening-balance evidence">Period roll-forward</a>
-      <a class="button" href="/app/journals" title="Review proposed accounting and reporting adjustments">Adjustments and journals</a>
+      <a class="button" href="/app/accounting/mappings" title="Review immutable client-chart and reporting-mapping versions">COA and mappings</a>
+      <a class="button" href="/app/accounting/journals" title="Review proposed accounting and reporting adjustments">Adjustments and journals</a>
+      <a class="button" href="/app/accounting/differences" title="Review scoped audit differences and correction lineage">Differences</a>
       <a class="button" href="/app/accounting/reviews" title="Review package stages and current applicability">Package review queue</a>
       <a class="button" href="/app/accounting/restatements" title="Record an authorized post-close amendment with immutable lineage">Period restatements</a>
     </div>
@@ -154,18 +203,24 @@ else
   private sealed record ClientRow(string Name, string Currency, int Periods, string ChartStatus, string ImportStatus);
   private sealed record PeriodRow(Guid Id, string ClientName, string Engagement, string PeriodCode, string Basis, DateOnly StartDate, DateOnly EndDate,
     string Book, string Currency, string Package, Guid? PackageId, Guid? MappingId, string Status, long Revision);
+  private sealed record DashboardRow(Guid PeriodId, string ClientName, string PeriodCode, string State, string NextOwner,
+    string DueDate, string Href, string Action);
   private ActorContext? _actor;
   private bool _loading = true;
   private bool _authorized;
   private int _profileCount;
   private int _openPeriodCount;
   private int _sealedImportCount;
+  private int _requiredCount;
+  private int _completeCount;
+  private int _staleCount;
   private int _blockedCount;
   private bool _hasClientScope;
   private string _scopeDescription = "No active client or engagement grant";
   private string _selectedContextKey = string.Empty;
   private List<ClientRow> _clients = [];
   private List<PeriodRow> _periods = [];
+  private List<DashboardRow> _dashboardRows = [];
   private PeriodRow? SelectedContext => Guid.TryParse(_selectedContextKey, out var id)
     ? _periods.FirstOrDefault(x => x.Id == id)
     : null;
@@ -228,6 +283,11 @@ else
           package is null ? "NO_PACKAGE" : $"{package.Status} · v{package.Revision}", package?.Id, package?.MappingVersionId,
           x.Status, x.Revision);
       }).ToList();
+      _dashboardRows = _periods.Select(ToDashboardRow).ToList();
+      _requiredCount = _dashboardRows.Count(x => x.State == "REQUIRED");
+      _completeCount = _dashboardRows.Count(x => x.State == "COMPLETE");
+      _staleCount = _dashboardRows.Count(x => x.State == "STALE");
+      _blockedCount = _dashboardRows.Count(x => x.State == "BLOCKED");
       _selectedContextKey = _periods.FirstOrDefault()?.Id.ToString("D") ?? string.Empty;
       _clients = profiles.Where(x => clients.ContainsKey(x.ClientId)).Select(x => new ClientRow(
         clients[x.ClientId].LegalName, x.FunctionalCurrency, periods.Count(p => p.ClientId == x.ClientId),
@@ -235,5 +295,24 @@ else
         imports.SingleOrDefault(i => i.ClientId == x.ClientId)?.Status ?? "NO_IMPORT")).OrderBy(x => x.Name).ToList();
     }
     _loading = false;
+  }
+
+  private static DashboardRow ToDashboardRow(PeriodRow row)
+  {
+    var state = row.Status == AccountingWorkflowStates.Stale ? "STALE"
+      : row.Status == AccountingWorkflowStates.Rejected || row.Package.Contains(AccountingWorkflowStates.Rejected, StringComparison.OrdinalIgnoreCase) ? "BLOCKED"
+      : row.Package.StartsWith(AccountingPackageStates.PackageValidated, StringComparison.Ordinal) ? "COMPLETE"
+      : "REQUIRED";
+    var owner = state switch
+    {
+      "STALE" or "BLOCKED" => "Engagement manager",
+      "COMPLETE" => "No action",
+      _ when row.PackageId is null => "Accounting preparer",
+      _ => "Accounting reviewer"
+    };
+    var href = row.PackageId is { } packageId ? $"/app/accounting/packages/{packageId}"
+      : row.MappingId is { } mappingId ? $"/app/accounting/mappings/{mappingId}" : "#period-control";
+    var action = row.PackageId is not null ? "Open package" : row.MappingId is not null ? "Open mapping" : "Open period";
+    return new(row.Id, row.ClientName, row.PeriodCode, state, owner, "Not recorded", href, action);
   }
 }

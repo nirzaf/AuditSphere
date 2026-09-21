@@ -1,0 +1,246 @@
+@page "/app/accounting/mappings"
+@page "/app/accounting/journals"
+@page "/app/accounting/differences"
+@rendermode InteractiveServer
+@using AuditSphereOps.Domain.Accounting
+@using AuditSphereOps.Domain.Audit
+@inject CurrentActorResolver ActorResolver
+@inject IDbContextFactory<AuditSphereDbContext> DbFactory
+@inject NavigationManager Navigation
+
+<PageTitle>@Title</PageTitle>
+<a class="back-link" href="/app/accounting">← Back to accounting workspace</a>
+<h1>@Title</h1>
+
+@if (_loading)
+{
+  <p role="status">Loading scoped accounting records…</p>
+}
+else if (!_authorized)
+{
+  <section class="notice" role="alert"><h2>Access unavailable</h2><p>This queue requires an authorized internal accounting role and an explicit client scope.</p></section>
+}
+else
+{
+  <p class="scope-note">Only records in the authenticated client or exact engagement scope are shown. Detail links re-check authorization before displaying the record.</p>
+  <nav class="accounting-tabs" aria-label="Accounting record queues">
+    <a href="/app/accounting/mappings" class="@(Mode == RecordMode.Mappings ? "active" : null)" aria-current="@(Mode == RecordMode.Mappings ? "page" : null)" title="Review immutable client chart and reporting mappings.">COA and mappings</a>
+    <a href="/app/accounting/journals" class="@(Mode == RecordMode.Journals ? "active" : null)" aria-current="@(Mode == RecordMode.Journals ? "page" : null)" title="Review scoped adjustment journals and their posting state.">Adjustments</a>
+    <a href="/app/accounting/differences" class="@(Mode == RecordMode.Differences ? "active" : null)" aria-current="@(Mode == RecordMode.Differences ? "page" : null)" title="Review scoped audit differences and correction lineage.">Differences</a>
+  </nav>
+
+  @if (Mode == RecordMode.Mappings)
+  {
+    <section class="card" aria-labelledby="mappings-heading">
+      <h2 id="mappings-heading">Mapping versions</h2>
+      @if (_mappings.Count == 0)
+      {
+        <p class="muted">No mapping versions are available in the current scope.</p>
+      }
+      else
+      {
+        <div class="table-wrap"><table>
+          <caption class="sr-only">Scoped accounting mapping versions</caption>
+          <thead><tr><th scope="col">Client</th><th scope="col">Engagement</th><th scope="col">Period</th><th scope="col">Version</th><th scope="col">Chart</th><th scope="col">Status</th><th scope="col"><span class="sr-only">Action</span></th></tr></thead>
+          <tbody>
+          @foreach (var mapping in _mappings)
+          {
+            <tr>
+              <td>@mapping.ClientName</td>
+              <td>@mapping.EngagementName</td>
+              <td>@mapping.PeriodStart to @mapping.PeriodEnd</td>
+              <td>v@mapping.Version · gen @mapping.Generation</td>
+              <td>@(mapping.HasChart ? "Bound" : "Legacy/unbound")</td>
+              <td><span class="status">@mapping.Status</span></td>
+              <td><a href="@($"/app/accounting/mappings/{mapping.Id}")" title="Open this immutable mapping version and its allocation lineage">Open mapping</a></td>
+            </tr>
+          }
+          </tbody>
+        </table></div>
+      }
+    </section>
+  }
+  else if (Mode == RecordMode.Journals)
+  {
+    <section class="card" aria-labelledby="journals-heading">
+      <h2 id="journals-heading">Adjustment journals</h2>
+      @if (_journals.Count == 0)
+      {
+        <p class="muted">No adjustment journals are available in the current scope.</p>
+      }
+      else
+      {
+        <div class="table-wrap"><table>
+          <caption class="sr-only">Scoped adjustment journals</caption>
+          <thead><tr><th scope="col">Journal</th><th scope="col">Client</th><th scope="col">Engagement</th><th scope="col">Purpose</th><th scope="col">Context</th><th scope="col">Status</th><th scope="col"><span class="sr-only">Action</span></th></tr></thead>
+          <tbody>
+          @foreach (var journal in _journals)
+          {
+            <tr>
+              <td><strong>@journal.JournalNumber</strong><br /><span class="muted">rev @journal.Revision</span></td>
+              <td>@journal.ClientName</td>
+              <td>@journal.EngagementName</td>
+              <td>@journal.Purpose</td>
+              <td>@journal.PeriodCode · @(journal.Currency ?? "Currency not recorded")</td>
+              <td><span class="status">@journal.Status</span></td>
+              <td><a href="@($"/app/accounting/journals/{journal.Id}")" title="Open this exact journal revision, posting controls and export gate">Open journal</a></td>
+            </tr>
+          }
+          </tbody>
+        </table></div>
+      }
+    </section>
+  }
+  else
+  {
+    <section class="card" aria-labelledby="differences-heading">
+      <h2 id="differences-heading">Audit differences</h2>
+      <p class="muted">Differences remain separate from journal posting. A proposed journal link is shown only when one is persisted for the exact difference.</p>
+      @if (_differences.Count == 0)
+      {
+        <p class="muted">No audit differences are available in the current scope.</p>
+      }
+      else
+      {
+        <div class="table-wrap"><table>
+          <caption class="sr-only">Scoped audit differences</caption>
+          <thead><tr><th scope="col">Area</th><th scope="col">Client</th><th scope="col">Engagement</th><th scope="col">Amount</th><th scope="col">Status</th><th scope="col">Correction</th><th scope="col"><span class="sr-only">Action</span></th></tr></thead>
+          <tbody>
+          @foreach (var difference in _differences)
+          {
+            <tr>
+              <td><strong>@difference.AccountArea</strong><br /><span class="muted">@difference.DifferenceType</span></td>
+              <td>@difference.ClientName</td>
+              <td>@difference.EngagementName</td>
+              <td>@difference.Amount.ToString("N2") @difference.Currency</td>
+              <td><span class="status">@difference.Status</span></td>
+              <td>@(difference.CorrectionState ?? "Not recorded")</td>
+              <td>
+                @if (difference.ProposedJournalId is { } journalId)
+                {
+                  <a href="@($"/app/accounting/journals/{journalId}")" title="Open the proposed journal linked to this exact difference">Open linked journal</a>
+                }
+                else
+                {
+                  <span class="muted">No journal linked</span>
+                }
+              </td>
+            </tr>
+          }
+          </tbody>
+        </table></div>
+      }
+    </section>
+  }
+}
+
+@code {
+  private enum RecordMode { Mappings, Journals, Differences }
+
+  private sealed record MappingRow(Guid Id, string ClientName, string EngagementName, string PeriodStart, string PeriodEnd,
+    long Version, long Generation, bool HasChart, string Status);
+  private sealed record JournalRow(Guid Id, string JournalNumber, string ClientName, string EngagementName, string Purpose,
+    string PeriodCode, string? Currency, string Status, long Revision);
+  private sealed record DifferenceRow(Guid Id, string AccountArea, string DifferenceType, string ClientName, string EngagementName,
+    decimal Amount, string Currency, string Status, string? CorrectionState, Guid? ProposedJournalId);
+
+  private ActorContext? _actor;
+  private bool _loading = true;
+  private bool _authorized;
+  private List<MappingRow> _mappings = [];
+  private List<JournalRow> _journals = [];
+  private List<DifferenceRow> _differences = [];
+
+  private RecordMode Mode => Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0].TrimEnd('/') switch
+  {
+    "app/accounting/journals" => RecordMode.Journals,
+    "app/accounting/differences" => RecordMode.Differences,
+    _ => RecordMode.Mappings
+  };
+
+  private string Title => Mode switch
+  {
+    RecordMode.Journals => "Adjustment journals",
+    RecordMode.Differences => "Audit differences",
+    _ => "COA and accounting mappings"
+  };
+
+  protected override async Task OnInitializedAsync()
+  {
+    _actor = await ActorResolver.ResolveAsync();
+    _authorized = _actor is not null && _actor.Roles.Any(x => x is "Administrator" or "Partner" or "Manager" or "AccountingPreparer" or "AccountingReviewer");
+    if (!_authorized || _actor is null)
+    {
+      _loading = false;
+      return;
+    }
+
+    await using var db = await DbFactory.CreateDbContextAsync();
+    var grants = await db.RoleGrants.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && x.UserId == _actor.UserId && x.RevokedAt == null)
+      .Select(x => new { x.ClientId, x.EngagementId }).ToListAsync();
+    var firmWide = grants.Any(x => x.ClientId is null && x.EngagementId is null);
+    var directClientIds = grants.Where(x => x.ClientId.HasValue && x.EngagementId is null).Select(x => x.ClientId!.Value).Distinct().ToArray();
+    var grantedEngagementIds = grants.Where(x => x.EngagementId.HasValue).Select(x => x.EngagementId!.Value).Distinct().ToArray();
+    var scopedEngagementIds = firmWide ? [] : await db.Engagements.AsNoTracking()
+      .Where(x => x.FirmId == _actor.FirmId && (directClientIds.Contains(x.PracticeClientId) || grantedEngagementIds.Contains(x.Id)))
+      .Select(x => x.Id).ToArrayAsync();
+    var scope = (Expression: firmWide, DirectClients: directClientIds, Engagements: scopedEngagementIds);
+
+    if (Mode == RecordMode.Mappings)
+    {
+      var mappings = await db.MappingVersions.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
+        (scope.Expression || scope.DirectClients.Contains(x.ClientId) || scope.Engagements.Contains(x.EngagementId)))
+        .OrderByDescending(x => x.CreatedAt).ToListAsync();
+      _mappings = await MapMappingsAsync(db, mappings);
+    }
+    else if (Mode == RecordMode.Journals)
+    {
+      var journals = await db.AdjustmentJournals.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
+        (scope.Expression || scope.DirectClients.Contains(x.ClientId) || scope.Engagements.Contains(x.EngagementId)))
+        .OrderByDescending(x => x.CreatedAt).ToListAsync();
+      _journals = await MapJournalsAsync(db, journals);
+    }
+    else
+    {
+      var differences = await db.AuditDifferences.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
+        (scope.Expression || scope.DirectClients.Contains(x.ClientId) || scope.Engagements.Contains(x.EngagementId)))
+        .OrderByDescending(x => x.CreatedAt).ToListAsync();
+      _differences = await MapDifferencesAsync(db, differences);
+    }
+    _loading = false;
+  }
+
+  private static async Task<List<MappingRow>> MapMappingsAsync(AuditSphereDbContext db, List<MappingVersion> mappings)
+  {
+    var clientNames = await db.PracticeClients.AsNoTracking().Where(x => mappings.Select(y => y.ClientId).Contains(x.Id))
+      .ToDictionaryAsync(x => x.Id, x => x.LegalName);
+    var engagementNames = await db.Engagements.AsNoTracking().Where(x => mappings.Select(y => y.EngagementId).Contains(x.Id))
+      .ToDictionaryAsync(x => x.Id, x => x.ServiceRoute);
+    return mappings.Select(x => new MappingRow(x.Id, clientNames.GetValueOrDefault(x.ClientId, "Scoped client"),
+      engagementNames.GetValueOrDefault(x.EngagementId, "Scoped engagement"), x.PeriodStart, x.PeriodEnd, x.Version, x.Generation,
+      x.ClientChartVersionId is not null, x.Status)).ToList();
+  }
+
+  private static async Task<List<JournalRow>> MapJournalsAsync(AuditSphereDbContext db, List<AdjustmentJournal> journals)
+  {
+    var clientNames = await db.PracticeClients.AsNoTracking().Where(x => journals.Select(y => y.ClientId).Contains(x.Id))
+      .ToDictionaryAsync(x => x.Id, x => x.LegalName);
+    var engagementNames = await db.Engagements.AsNoTracking().Where(x => journals.Select(y => y.EngagementId).Contains(x.Id))
+      .ToDictionaryAsync(x => x.Id, x => x.ServiceRoute);
+    var periods = await db.ClientReportingPeriods.AsNoTracking().Where(x => journals.Where(y => y.PeriodId.HasValue).Select(y => y.PeriodId!.Value).Contains(x.Id))
+      .ToDictionaryAsync(x => x.Id, x => x.PeriodCode);
+    return journals.Select(x => new JournalRow(x.Id, x.JournalNumber, clientNames.GetValueOrDefault(x.ClientId, "Scoped client"),
+      engagementNames.GetValueOrDefault(x.EngagementId, "Scoped engagement"), x.Purpose,
+      x.PeriodId is { } periodId ? periods.GetValueOrDefault(periodId, "Unknown period") : "No period", x.Currency, x.Status, x.Revision)).ToList();
+  }
+
+  private static async Task<List<DifferenceRow>> MapDifferencesAsync(AuditSphereDbContext db, List<AuditDifference> differences)
+  {
+    var clientNames = await db.PracticeClients.AsNoTracking().Where(x => differences.Select(y => y.ClientId).Contains(x.Id))
+      .ToDictionaryAsync(x => x.Id, x => x.LegalName);
+    var engagementNames = await db.Engagements.AsNoTracking().Where(x => differences.Select(y => y.EngagementId).Contains(x.Id))
+      .ToDictionaryAsync(x => x.Id, x => x.ServiceRoute);
+    return differences.Select(x => new DifferenceRow(x.Id, x.AccountArea, x.DifferenceType, clientNames.GetValueOrDefault(x.ClientId, "Scoped client"),
+      engagementNames.GetValueOrDefault(x.EngagementId, "Scoped engagement"), x.Amount, x.Currency, x.Status, x.CorrectionState, x.ProposedJournalId)).ToList();
+  }
+}
