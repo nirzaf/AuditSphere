@@ -7,7 +7,8 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AuditSphereOps.Application.Accounting;
 
-public sealed record ExchangeRateSetRequest(string Code, string Source);
+public sealed record ExchangeRateSetRequest(string Code, string Source, DateOnly? EffectiveFrom = null,
+  DateOnly? EffectiveTo = null, int Version = 1);
 public sealed record ExchangeRateInput(string FromCurrency, string ToCurrency, DateOnly RateDate, string RateType, decimal Rate, string Direction);
 public sealed record TranslationPolicyRequest(string Code, string FunctionalCurrency, string PresentationCurrency,
   string ClosingRateRule, string AverageRateRule, string HistoricalRateRule);
@@ -39,8 +40,9 @@ public static class CurrencyTranslationService
     IClientAccountingDbContext db, ActorContext actor, ExchangeRateSetRequest request,
     CancellationToken ct = default)
   {
-    if (string.IsNullOrWhiteSpace(request.Code) || string.IsNullOrWhiteSpace(request.Source))
-      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "An exchange-rate set needs a source and version code.");
+    if (string.IsNullOrWhiteSpace(request.Code) || string.IsNullOrWhiteSpace(request.Source) || request.Version < 1 ||
+        request.EffectiveFrom is { } from && request.EffectiveTo is { } to && from > to)
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "An exchange-rate set needs a source, positive version and ordered effective range.");
     var auth = await FirmAuthAsync(db, actor, ReviewerRoles, ct);
     if (!auth.Succeeded)
       return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
@@ -48,7 +50,8 @@ public static class CurrencyTranslationService
       return CommandResult<Guid>.Fail(ErrorCodes.IdempotencyConflict, "The exchange-rate set code already exists.");
     var set = new ExchangeRateSetVersion
     {
-      Id = Guid.CreateVersion7(), FirmId = actor.FirmId, Code = request.Code.Trim(), Source = request.Source.Trim(),
+      Id = Guid.CreateVersion7(), FirmId = actor.FirmId, Code = request.Code.Trim(), Version = request.Version, Source = request.Source.Trim(),
+      EffectiveFrom = request.EffectiveFrom, EffectiveTo = request.EffectiveTo,
       CreatedByUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
     };
     db.ExchangeRateSetVersions.Add(set);
@@ -71,7 +74,9 @@ public static class CurrencyTranslationService
     var direction = request.Direction.Trim().ToUpperInvariant();
     var rateType = request.RateType.Trim().ToUpperInvariant();
     if (set.Status != AccountingWorkflowStates.Draft || from.Length != 3 || to.Length != 3 || from == to || request.Rate <= 0m ||
-        string.IsNullOrWhiteSpace(rateType) || direction != ExchangeRateDirections.Direct)
+        string.IsNullOrWhiteSpace(rateType) || direction != ExchangeRateDirections.Direct ||
+        set.EffectiveFrom is { } effectiveFrom && request.RateDate < effectiveFrom ||
+        set.EffectiveTo is { } effectiveTo && request.RateDate > effectiveTo)
       return CommandResult.Fail(ErrorCodes.GateBlocked, "Only positive DIRECT rate-set entries are supported by this profile.");
     if (await db.ExchangeRates.AnyAsync(x => x.FirmId == actor.FirmId && x.RateSetVersionId == set.Id &&
         x.FromCurrency == from && x.ToCurrency == to && x.RateDate == request.RateDate && x.RateType == rateType, ct))
@@ -82,6 +87,10 @@ public static class CurrencyTranslationService
       RateDate = request.RateDate, RateType = rateType, Rate = request.Rate,
       Direction = direction, CreatedAt = DateTimeOffset.UtcNow
     });
+    if (set.EffectiveFrom is null || request.RateDate < set.EffectiveFrom)
+      set.EffectiveFrom = request.RateDate;
+    if (set.EffectiveTo is null || request.RateDate > set.EffectiveTo)
+      set.EffectiveTo = request.RateDate;
     await db.SaveChangesAsync(ct);
     return CommandResult.Ok();
   }
@@ -97,7 +106,8 @@ public static class CurrencyTranslationService
     if (!auth.Succeeded)
       return auth;
     if (set.Status != AccountingWorkflowStates.Draft || set.CreatedByUserId == actor.UserId ||
-        !await db.ExchangeRates.AnyAsync(x => x.FirmId == actor.FirmId && x.RateSetVersionId == set.Id, ct))
+        !await db.ExchangeRates.AnyAsync(x => x.FirmId == actor.FirmId && x.RateSetVersionId == set.Id, ct) ||
+        set.EffectiveFrom is null || set.EffectiveTo is null)
       return CommandResult.Fail(ErrorCodes.GateBlocked, "A separate reviewer can approve only a populated draft rate set.");
     set.Status = AccountingWorkflowStates.Approved;
     set.ApprovedByUserId = actor.UserId;

@@ -988,7 +988,10 @@ public sealed class ExchangeRateSetVersion
   public Guid Id { get; set; }
   public Guid FirmId { get; set; }
   public string Code { get; set; } = string.Empty;
+  public int Version { get; set; } = 1;
   public string Source { get; set; } = string.Empty;
+  public DateOnly? EffectiveFrom { get; set; }
+  public DateOnly? EffectiveTo { get; set; }
   public string Status { get; set; } = AccountingWorkflowStates.Draft;
   public Guid CreatedByUserId { get; set; }
   public Guid? ApprovedByUserId { get; set; }

@@ -2079,11 +2079,12 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
 
     var rateSet = b.Entity<ExchangeRateSetVersion>();
     rateSet.Property(x => x.Code).HasMaxLength(100);
+    rateSet.Property(x => x.Version);
     rateSet.Property(x => x.Source).HasMaxLength(200);
     rateSet.Property(x => x.Status).HasMaxLength(30);
     rateSet.HasIndex(x => new { x.FirmId, x.Code }).IsUnique().HasDatabaseName("ux_exchange_rate_set_code");
     rateSet.ToTable("exchange_rate_set_versions", t => t.HasCheckConstraint("ck_exchange_rate_set_values",
-      "length(trim(code)) > 0 AND length(trim(source)) > 0"));
+      "length(trim(code)) > 0 AND length(trim(source)) > 0 AND version > 0 AND (effective_from IS NULL OR effective_to IS NULL OR effective_from <= effective_to)"));
 
     var rate = b.Entity<ExchangeRate>();
     rate.Property(x => x.FromCurrency).HasMaxLength(3);

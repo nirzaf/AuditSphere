@@ -1657,7 +1657,12 @@ public sealed class ClientAccountingTests
       await db.SaveChangesAsync();
 
       rateSetId = (await CurrencyTranslationService.CreateRateSetAsync(db, reviewer,
-        new ExchangeRateSetRequest("FX-2026", "approved-method-fixture"))).Value;
+        new ExchangeRateSetRequest("FX-2026", "approved-method-fixture",
+          new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31), 2))).Value;
+      var outOfRange = await CurrencyTranslationService.AddRateAsync(db, reviewer, rateSetId,
+        new ExchangeRateInput("USD", "QAR", new DateOnly(2027, 1, 1), "CLOSING", 3.64m, "DIRECT"));
+      Assert.False(outOfRange.Succeeded);
+      Assert.Equal(ErrorCodes.GateBlocked, outOfRange.ErrorCode);
       var unsupportedDirection = await CurrencyTranslationService.AddRateAsync(db, reviewer, rateSetId,
         new ExchangeRateInput("USD", "QAR", rateDate, "CLOSING", 3.64m, "INVERSE"));
       Assert.False(unsupportedDirection.Succeeded);
@@ -1668,6 +1673,10 @@ public sealed class ClientAccountingTests
         new ExchangeRateInput("USD", "QAR", rateDate, "CLOSING", 3.65m, "DIRECT"));
       Assert.False(duplicateRate.Succeeded);
       Assert.Equal(ErrorCodes.IdempotencyConflict, duplicateRate.ErrorCode);
+      var rateSet = await db.ExchangeRateSetVersions.SingleAsync(x => x.Id == rateSetId);
+      Assert.Equal(2, rateSet.Version);
+      Assert.Equal(new DateOnly(2026, 1, 1), rateSet.EffectiveFrom);
+      Assert.Equal(new DateOnly(2026, 12, 31), rateSet.EffectiveTo);
       Assert.True((await CurrencyTranslationService.ApproveRateSetAsync(db, methodOwner, rateSetId)).Succeeded);
       policyId = (await CurrencyTranslationService.CreatePolicyAsync(db, reviewer,
         new TranslationPolicyRequest("FX-POLICY-2026", "USD", "QAR", "CLOSING", "AVERAGE", "HISTORICAL"))).Value;
