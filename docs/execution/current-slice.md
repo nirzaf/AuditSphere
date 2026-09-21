@@ -6,15 +6,15 @@ This file records observed repository state only. The authoritative build contra
 
 | Item | Observed value |
 |---|---|
-| Source implementation checkpoint | `master@5508ea3` |
-| Remote | `origin/master` includes source checkpoint `5508ea3` |
+| Source implementation checkpoint | `master@ad1f377` |
+| Remote | `origin/master` includes source checkpoint `ad1f377` |
 | SDK | .NET 10; repository solution targets `net10.0` |
 | Database | PostgreSQL 18.6 on loopback port 5433 for development only |
 | Build | `dotnet build AuditSphereOps.slnx --no-restore --configuration Release` — passed, 0 warnings/errors |
-| Tests | 209/209 passed, 0 skipped against PostgreSQL 18.6 |
-| Migrations | 70 applied; latest `20260921123852_CancelDurableOperationDisposition` |
+| Tests | 210/210 passed, 0 skipped against PostgreSQL 18.6 |
+| Migrations | 72 applied; latest `20260921134648_ReportingTaxonomyOverlays` |
 | Model drift | `dotnet ef migrations has-pending-model-changes` — no changes |
-| Restore drill | `scripts/db/restore-drill.sh` — passed; 70 migrations reconciled |
+| Restore drill | `scripts/db/restore-drill.sh` — passed; 72 migrations reconciled |
 | Production effects | Disabled locally; no production acceptance claimed |
 
 ## Implemented local capability
@@ -73,6 +73,7 @@ This file records observed repository state only. The authoritative build contra
 - Financial-package mappings now require the approved taxonomy statement section; package validation records separate statement cross-cast, accounting-equation, equity/profit, comparative-consistency and note-to-face outcomes, and rendered artifacts include adjusted-snapshot, mapping-version and adjustment-plan lineage identifiers. Exact UTF-8 artifact bytes are persisted with framework/template versions and SHA-256 lineage, and package-review decisions reference that artifact; PostgreSQL financial-statement regressions pass.
 - The PostgreSQL-backed accounting benchmark exercises four clients, 2,000 transactions, 8,000 GL lines, parallel enqueueing, two concurrent durable workers, a 32-line group calculation, six-decimal/high-magnitude amounts and paged reads; one observed run measured enqueue 147.8 ms, worker processing 134.4 ms, first page 43.8 ms and group calculation 3.2 ms.
 - Blazor status surfaces for the implemented workflows, including period restatement and truthful release/package gate state.
+- Shared Blazor form UX covers contextual action/field tooltips, required and optional markers, accessible guidance, non-disruptive invalid-field status, and localStorage draft autosave/restore across card and standalone forms. Server-backed workpaper drafts remain authoritative; browser file bytes and release keys are intentionally excluded from local storage.
 
 ## Remaining local implementation work
 
@@ -131,7 +132,7 @@ dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infr
 scripts/db/restore-drill.sh
 ```
 
-The restore evidence is written to [`docs/evidence/restore-drill-latest.json`](../evidence/restore-drill-latest.json). The latest rehearsal restored 70 migrations through `20260921123852_CancelDurableOperationDisposition`; it is loopback-only and explicitly reports that external checkpoint custody and production RPO/RTO were not run.
+The restore evidence is written to [`docs/evidence/restore-drill-latest.json`](../evidence/restore-drill-latest.json). The latest rehearsal restored 72 migrations through `20260921134648_ReportingTaxonomyOverlays`; it is loopback-only and explicitly reports that external checkpoint custody and production RPO/RTO were not run.
 
 ## Resume rule
 
