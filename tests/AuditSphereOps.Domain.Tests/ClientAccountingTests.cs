@@ -339,19 +339,46 @@ public sealed class ClientAccountingTests
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       reconciliationId = Guid.CreateVersion7();
+      var datasetId = Guid.CreateVersion7();
+      var proposedJournalId = Guid.CreateVersion7();
+      db.TrialBalanceDatasets.Add(new TrialBalanceDataset
+      {
+        Id = datasetId, FirmId = scope.FirmId, ClientId = scope.ClientA, EngagementId = scope.EngagementA,
+        PeriodId = fixture.PeriodId, BookId = fixture.BookId, Basis = "STATUTORY", SourceKind = "Raw",
+        LegalEntityKey = "CLIENT-A", Currency = "QAR", RawFileSha256Hex = sourceHash,
+        NormalizedDatasetDigest = sourceHash, Sha256Hex = sourceHash, Balanced = true,
+        ValidationStatus = "Accepted", ImportState = TrialBalanceImportStates.Sealed,
+        ImportedAt = DateTimeOffset.UtcNow, ImportedByUserId = scope.Preparer.Id
+      });
+      db.AdjustmentJournals.Add(new AdjustmentJournal
+      {
+        Id = proposedJournalId, FirmId = scope.FirmId, ClientId = scope.ClientA, EngagementId = scope.EngagementA,
+        BaseDatasetId = datasetId, JournalNumber = "AJ-EVIDENCE-001", Purpose = AdjustmentJournalPurposes.ReportingAdjustment,
+        PeriodId = fixture.PeriodId, BookId = fixture.BookId, Basis = "STATUTORY", Currency = "QAR",
+        Origin = AdjustmentJournalOrigins.AuditProposed, Reason = "Valuation difference", EvidenceReference = "valuation-test",
+        Status = "Draft", CreatedByUserId = scope.Preparer.Id, CreatedAt = DateTimeOffset.UtcNow
+      });
       db.AccountingReconciliations.Add(new AccountingReconciliation
       {
         Id = reconciliationId, FirmId = scope.FirmId, ClientId = scope.ClientA, EngagementId = scope.EngagementA,
-        PeriodId = fixture.PeriodId, BookId = fixture.BookId, Area = "RECEIVABLES", AccountSelection = "1000",
+        PeriodId = fixture.PeriodId, BookId = fixture.BookId, TrialBalanceDatasetId = datasetId, Area = "RECEIVABLES", AccountSelection = "1000",
         AsOfDate = new DateOnly(2026, 12, 31), SourceTotal = 100m, GlTotal = 100m, Residual = 0m,
         SourceHash = sourceHash, Status = "RECONCILED", InputGeneration = 1,
         CreatedByUserId = scope.Preparer.Id, CreatedAt = DateTimeOffset.UtcNow
       });
       await db.SaveChangesAsync();
       eclId = (await AccountingAnalysisService.CreateEclAssessmentAsync(db, preparer,
-        new EclAssessmentRequest(reconciliationId, new DateOnly(2026, 12, 31), "PROVISION_MATRIX_V1", "ecl-v1", .1m, .5m, 2m, 7m, new string('c', 64)))).Value;
+        new EclAssessmentRequest(reconciliationId, new DateOnly(2026, 12, 31), "PROVISION_MATRIX_V1", "ecl-v1", .1m, .5m, 2m, 7m, new string('c', 64), BookedAmount: 8m, ProposedJournalId: proposedJournalId))).Value;
       inventoryId = (await AccountingAnalysisService.CreateInventoryValuationAsync(db, preparer,
-        new InventoryValuationRequest(reconciliationId, new DateOnly(2026, 12, 31), 10m, 12m, 11m, 1m, 100m, "inventory-v1", new string('d', 64)))).Value;
+        new InventoryValuationRequest(reconciliationId, new DateOnly(2026, 12, 31), 10m, 12m, 11m, 1m, 100m, "inventory-v1", new string('d', 64), proposedJournalId))).Value;
+
+      var ecl = await db.EclAssessments.SingleAsync(x => x.Id == eclId);
+      Assert.Equal(8m, ecl.BookedAmount);
+      Assert.Equal(-1m, ecl.Difference);
+      Assert.Equal(proposedJournalId, ecl.ProposedJournalId);
+      var inventory = await db.InventoryValuationAssessments.SingleAsync(x => x.Id == inventoryId);
+      Assert.Equal(9m, inventory.Difference);
+      Assert.Equal(proposedJournalId, inventory.ProposedJournalId);
 
       var clientState = await db.ClientSafetyStates.SingleAsync(x => x.FirmId == scope.FirmId && x.Id == scope.ClientA);
       clientState.InputGeneration++;

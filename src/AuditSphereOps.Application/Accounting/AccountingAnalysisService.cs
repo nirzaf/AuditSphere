@@ -23,12 +23,13 @@ public sealed record ReconciliationItemInput(
 public sealed record EclAssessmentRequest(
   Guid ReconciliationId, DateOnly AsOfDate, string Method, string MethodologyVersion,
   decimal ProbabilityOfDefault, decimal LossGivenDefault, decimal ManagementOverlay,
-  decimal ManagementExpectedLoss, string AssumptionsHash);
+  decimal ManagementExpectedLoss, string AssumptionsHash, decimal? BookedAmount = null,
+  Guid? ProposedJournalId = null);
 
 public sealed record InventoryValuationRequest(
   Guid ReconciliationId, DateOnly AsOfDate, decimal Quantity, decimal UnitCost,
   decimal NrvPerUnit, decimal ObsolescenceReserve, decimal BookAmount,
-  string MethodologyVersion, string AssumptionsHash);
+  string MethodologyVersion, string AssumptionsHash, Guid? ProposedJournalId = null);
 
 public sealed record SpecialistScheduleRequest(
   Guid ClientId, Guid EngagementId, Guid PeriodId, string Area, string MethodologyVersion,
@@ -583,7 +584,8 @@ public static class AccountingAnalysisService
   {
     if (request.Method.Trim().ToUpperInvariant() != "PROVISION_MATRIX_V1" || string.IsNullOrWhiteSpace(request.MethodologyVersion) ||
         request.ProbabilityOfDefault is < 0 or > 1 || request.LossGivenDefault is < 0 or > 1 ||
-        request.ManagementOverlay < 0m || !IsSha256(request.AssumptionsHash))
+        request.ManagementOverlay < 0m || request.ManagementExpectedLoss < 0m || request.BookedAmount is < 0m ||
+        !IsSha256(request.AssumptionsHash))
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Only the approved ECL method with explicit assumptions is enabled.");
     var reconciliation = await db.AccountingReconciliations.AsNoTracking().SingleOrDefaultAsync(x => x.Id == request.ReconciliationId && x.FirmId == actor.FirmId, ct);
     if (reconciliation is null)
@@ -594,8 +596,11 @@ public static class AccountingAnalysisService
       return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
     if (reconciliation.Status != "RECONCILED")
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "ECL requires a reconciled source-bound schedule.");
+    if (!await HasProposedAdjustmentAsync(db, reconciliation, request.ProposedJournalId, ct))
+      return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "The proposed ECL adjustment is outside the reconciliation scope.");
     var exposure = Math.Max(0m, reconciliation.SourceTotal);
     var expected = MoneyPolicy.Normalize(exposure * request.ProbabilityOfDefault * request.LossGivenDefault + request.ManagementOverlay);
+    var bookedAmount = MoneyPolicy.Normalize(request.BookedAmount ?? request.ManagementExpectedLoss);
     var assessment = new EclAssessment
     {
       Id = Guid.CreateVersion7(), FirmId = reconciliation.FirmId, ClientId = reconciliation.ClientId, EngagementId = reconciliation.EngagementId,
@@ -605,7 +610,8 @@ public static class AccountingAnalysisService
       Method = request.Method.Trim().ToUpperInvariant(), MethodologyVersion = request.MethodologyVersion.Trim(), EligibleExposure = exposure,
       ProbabilityOfDefault = request.ProbabilityOfDefault, LossGivenDefault = request.LossGivenDefault, ManagementOverlay = request.ManagementOverlay,
       CalculatedExpectedLoss = expected, ManagementExpectedLoss = MoneyPolicy.Normalize(request.ManagementExpectedLoss),
-      Difference = MoneyPolicy.Normalize(expected - request.ManagementExpectedLoss), AssumptionsHash = request.AssumptionsHash.Trim().ToLowerInvariant(),
+      BookedAmount = bookedAmount, Difference = MoneyPolicy.Normalize(expected - bookedAmount),
+      ProposedJournalId = request.ProposedJournalId, AssumptionsHash = request.AssumptionsHash.Trim().ToLowerInvariant(),
       CreatedByUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
     };
     db.EclAssessments.Add(assessment);
@@ -629,6 +635,8 @@ public static class AccountingAnalysisService
       return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
     if (reconciliation.Status != "RECONCILED")
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Inventory valuation requires a reconciled count/cost source.");
+    if (!await HasProposedAdjustmentAsync(db, reconciliation, request.ProposedJournalId, ct))
+      return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "The proposed inventory adjustment is outside the reconciliation scope.");
     var calculated = MoneyPolicy.Normalize(request.Quantity * Math.Min(request.UnitCost, request.NrvPerUnit) - request.ObsolescenceReserve);
     var assessment = new InventoryValuationAssessment
     {
@@ -638,7 +646,8 @@ public static class AccountingAnalysisService
       ReconciliationSourceHash = reconciliation.SourceHash, InputGeneration = reconciliation.InputGeneration,
       Quantity = request.Quantity, UnitCost = request.UnitCost, NrvPerUnit = request.NrvPerUnit, ObsolescenceReserve = request.ObsolescenceReserve,
       BookAmount = MoneyPolicy.Normalize(request.BookAmount), CalculatedAmount = calculated,
-      Difference = MoneyPolicy.Normalize(calculated - request.BookAmount), MethodologyVersion = request.MethodologyVersion.Trim(),
+      Difference = MoneyPolicy.Normalize(calculated - request.BookAmount), ProposedJournalId = request.ProposedJournalId,
+      MethodologyVersion = request.MethodologyVersion.Trim(),
       AssumptionsHash = request.AssumptionsHash.Trim().ToLowerInvariant(), CreatedByUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
     };
     db.InventoryValuationAssessments.Add(assessment);
@@ -1030,6 +1039,17 @@ public static class AccountingAnalysisService
     apply();
     await db.SaveChangesAsync(ct);
     return CommandResult.Ok();
+  }
+
+  private static Task<bool> HasProposedAdjustmentAsync(
+    IClientAccountingDbContext db, AccountingReconciliation reconciliation, Guid? proposedJournalId, CancellationToken ct)
+  {
+    if (proposedJournalId is null)
+      return Task.FromResult(true);
+    return db.AdjustmentJournals.AsNoTracking().AnyAsync(x =>
+      x.Id == proposedJournalId.Value && x.FirmId == reconciliation.FirmId &&
+      x.ClientId == reconciliation.ClientId && x.EngagementId == reconciliation.EngagementId &&
+      x.Status != "Void" && (reconciliation.TrialBalanceDatasetId == null || x.BaseDatasetId == reconciliation.TrialBalanceDatasetId), ct);
   }
 
   private static bool IsSha256(string value) => value.Trim().Length == 64 && value.Trim().All(c =>

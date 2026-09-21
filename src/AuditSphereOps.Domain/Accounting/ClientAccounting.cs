@@ -518,7 +518,9 @@ public sealed class EclAssessment
   public decimal ManagementOverlay { get; set; }
   public decimal CalculatedExpectedLoss { get; set; }
   public decimal ManagementExpectedLoss { get; set; }
+  public decimal BookedAmount { get; set; }
   public decimal Difference { get; set; }
+  public Guid? ProposedJournalId { get; set; }
   public string AssumptionsHash { get; set; } = string.Empty;
   public string Status { get; set; } = AccountingWorkflowStates.Draft;
   public Guid CreatedByUserId { get; set; }
@@ -545,6 +547,7 @@ public sealed class InventoryValuationAssessment
   public decimal BookAmount { get; set; }
   public decimal CalculatedAmount { get; set; }
   public decimal Difference { get; set; }
+  public Guid? ProposedJournalId { get; set; }
   public string MethodologyVersion { get; set; } = string.Empty;
   public string AssumptionsHash { get; set; } = string.Empty;
   public string Status { get; set; } = AccountingWorkflowStates.Draft;

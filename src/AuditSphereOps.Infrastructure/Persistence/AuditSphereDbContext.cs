@@ -1740,9 +1740,11 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     ecl.Property(x => x.Status).HasMaxLength(30);
     ecl.HasIndex(x => new { x.FirmId, x.ReconciliationId, x.Version }).IsUnique().HasDatabaseName("ux_ecl_assessment_version");
     ecl.ToTable("ecl_assessments", t => t.HasCheckConstraint("ck_ecl_assessment_values",
-      "length(trim(method)) > 0 AND length(trim(methodology_version)) > 0 AND eligible_exposure >= 0 AND probability_of_default BETWEEN 0 AND 1 AND loss_given_default BETWEEN 0 AND 1"));
+      "length(trim(method)) > 0 AND length(trim(methodology_version)) > 0 AND eligible_exposure >= 0 AND probability_of_default BETWEEN 0 AND 1 AND loss_given_default BETWEEN 0 AND 1 AND booked_amount >= 0"));
     ScopeToEngagement(ecl, nameof(EclAssessment.FirmId), nameof(EclAssessment.ClientId), nameof(EclAssessment.EngagementId));
     ecl.HasOne<AccountingReconciliation>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.ReconciliationId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    ecl.HasOne<AdjustmentJournal>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.ProposedJournalId })
       .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
 
     var inventory = b.Entity<InventoryValuationAssessment>();
@@ -1755,6 +1757,8 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
       "quantity >= 0 AND unit_cost >= 0 AND nrv_per_unit >= 0 AND obsolescence_reserve >= 0 AND book_amount >= 0"));
     ScopeToEngagement(inventory, nameof(InventoryValuationAssessment.FirmId), nameof(InventoryValuationAssessment.ClientId), nameof(InventoryValuationAssessment.EngagementId));
     inventory.HasOne<AccountingReconciliation>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.ReconciliationId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    inventory.HasOne<AdjustmentJournal>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.ProposedJournalId })
       .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
 
     var specialist = b.Entity<SpecialistAccountingSchedule>();
