@@ -1785,19 +1785,25 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     var analysis = b.Entity<AnalyticalReview>();
     analysis.Property(x => x.Area).HasMaxLength(80);
     analysis.Property(x => x.Measure).HasMaxLength(100);
+    analysis.Property(x => x.Currency).HasMaxLength(3);
     analysis.Property(x => x.DenominatorBasis).HasMaxLength(200);
     analysis.Property(x => x.FormulaVersion).HasMaxLength(100);
+    analysis.Property(x => x.MovementFlags).HasMaxLength(200);
+    analysis.Property(x => x.SeasonalityExplanation).HasMaxLength(2000);
+    analysis.Property(x => x.InputSnapshotJson).HasMaxLength(8000);
     analysis.Property(x => x.InputHash).HasMaxLength(64);
     analysis.Property(x => x.Explanation).HasMaxLength(4000);
     analysis.Property(x => x.Status).HasMaxLength(30);
     analysis.HasIndex(x => new { x.FirmId, x.EngagementId, x.PeriodId, x.Area, x.Measure }).HasDatabaseName("ix_analytical_review_measure");
     analysis.ToTable("analytical_reviews", t => t.HasCheckConstraint("ck_analytical_review_values",
-      "length(trim(area)) > 0 AND length(trim(measure)) > 0 AND length(trim(denominator_basis)) > 0 AND length(trim(formula_version)) > 0"));
+      "length(trim(area)) > 0 AND length(trim(measure)) > 0 AND length(trim(currency)) = 3 AND length(trim(denominator_basis)) > 0 AND length(trim(formula_version)) > 0"));
     ScopeToEngagement(analysis, nameof(AnalyticalReview.FirmId), nameof(AnalyticalReview.ClientId), nameof(AnalyticalReview.EngagementId));
 
     var flag = b.Entity<JournalRiskFlag>();
     flag.Property(x => x.RuleCode).HasMaxLength(100);
     flag.Property(x => x.Reason).HasMaxLength(2000);
+    flag.Property(x => x.ManagementExplanation).HasMaxLength(4000);
+    flag.Property(x => x.CorroborationReference).HasMaxLength(2000);
     flag.Property(x => x.Status).HasMaxLength(30);
     flag.Property(x => x.Disposition).HasMaxLength(2000);
     flag.Property(x => x.EvidenceReference).HasMaxLength(2000);

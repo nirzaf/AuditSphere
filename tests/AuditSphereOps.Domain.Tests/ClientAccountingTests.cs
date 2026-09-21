@@ -143,9 +143,18 @@ public sealed class ClientAccountingTests
           AssumptionsHash: new string('e', 64), EvidenceReference: "asset-register",
           DepreciationMethod: "STRAIGHT_LINE", UsefulLifeMonths: 120))).Value;
       analyticalId = (await AccountingAnalysisService.CreateAnalyticalReviewAsync(db, preparer,
-        new AnalyticalReviewRequest(scope.ClientA, scope.EngagementA, periodId, null, "REVENUE", "monthly", 120m, 100m, 110m, "prior-year-total", "analytics-v1", "Seasonal movement explained by signed contracts."))).Value;
+        new AnalyticalReviewRequest(scope.ClientA, scope.EngagementA, periodId, null, "REVENUE", "monthly", 120m, 100m, 110m, "prior-year-total", "analytics-v1", "Seasonal movement explained by signed contracts.", Currency: "", SeasonalityExplanation: "Signed contracts drive the seasonal movement."))).Value;
+      var analytical = await db.AnalyticalReviews.SingleAsync(x => x.Id == analyticalId);
+      Assert.Equal("QAR", analytical.Currency);
+      Assert.Equal("SEASONAL_MOVEMENT", analytical.MovementFlags);
+      Assert.NotEmpty(analytical.InputSnapshotJson);
+      Assert.Equal(Hashing.Sha256Hex(System.Text.Encoding.UTF8.GetBytes(analytical.InputSnapshotJson)), analytical.InputHash);
       riskId = (await AccountingAnalysisService.AddJournalRiskFlagAsync(db, preparer,
-        new JournalRiskFlagRequest(scope.ClientA, scope.EngagementA, batchId, transactionId, "YEAR_END_MANUAL", "Manual year-end journal requires corroboration.", 75m, "journal-selection"))).Value;
+        new JournalRiskFlagRequest(scope.ClientA, scope.EngagementA, batchId, transactionId, "YEAR_END_MANUAL", "Manual year-end journal requires corroboration.", 75m, "journal-selection", SelectedForTesting: true, ManagementExplanation: "Management explained the year-end entry.", CorroborationReference: "bank-reconciliation-1"))).Value;
+      var risk = await db.JournalRiskFlags.SingleAsync(x => x.Id == riskId);
+      Assert.True(risk.SelectedForTesting);
+      Assert.Equal("Management explained the year-end entry.", risk.ManagementExplanation);
+      Assert.Equal("bank-reconciliation-1", risk.CorroborationReference);
       var auditResultId = await AddReviewedAccountingProcedureResultAsync(db, scope, "MAIN", scope.Preparer.Id, scope.Reviewer.Id);
       foreach (var link in new[]
       {
@@ -172,7 +181,7 @@ public sealed class ClientAccountingTests
       Assert.True((await AccountingAnalysisService.ReviewAccountingEvidenceAsync(db, reviewer,
         new ReviewAccountingEvidenceRequest(AccountingEvidenceKinds.Analytical, analyticalId, AccountingEvidenceReviewDecisions.Approved))).Succeeded);
       Assert.True((await AccountingAnalysisService.ReviewAccountingEvidenceAsync(db, reviewer,
-        new ReviewAccountingEvidenceRequest(AccountingEvidenceKinds.JournalRisk, riskId, AccountingEvidenceReviewDecisions.Cleared, "Reviewed against the selected rule and source journal."))).Succeeded);
+        new ReviewAccountingEvidenceRequest(AccountingEvidenceKinds.JournalRisk, riskId, AccountingEvidenceReviewDecisions.Cleared, "Reviewed against the selected rule and source journal.", "Management response corroborated.", "bank-reconciliation-1"))).Succeeded);
     }
 
     await using (var db = new AuditSphereDbContext(pg.Options))

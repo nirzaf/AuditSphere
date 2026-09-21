@@ -51,14 +51,17 @@ public sealed record AnalyticalReviewRequest(
   Guid ClientId, Guid EngagementId, Guid PeriodId, Guid? ComparisonPeriodId,
   string Area, string Measure, decimal CurrentAmount, decimal PriorAmount,
   decimal? BudgetAmount, string DenominatorBasis, string FormulaVersion,
-  string Explanation);
+  string Explanation, string Currency = AccountingDefaults.DefaultCurrency,
+  string SeasonalityExplanation = "");
 
 public sealed record JournalRiskFlagRequest(
   Guid ClientId, Guid EngagementId, Guid ImportBatchId, Guid TransactionId,
-  string RuleCode, string Reason, decimal Score, string EvidenceReference);
+  string RuleCode, string Reason, decimal Score, string EvidenceReference,
+  bool SelectedForTesting = false, string ManagementExplanation = "", string CorroborationReference = "");
 
 public sealed record ReviewAccountingEvidenceRequest(
-  string Kind, Guid EvidenceId, string Decision, string? Disposition = null, string? Conclusion = null);
+  string Kind, Guid EvidenceId, string Decision, string? Disposition = null, string? Conclusion = null,
+  string? CorroborationReference = null);
 
 public sealed record LinkAccountingEvidenceRequest(
   string Kind, Guid EvidenceId, Guid AuditProcedureResultId);
@@ -718,18 +721,44 @@ public static class AccountingAnalysisService
     if (string.IsNullOrWhiteSpace(request.Area) || string.IsNullOrWhiteSpace(request.Measure) ||
         string.IsNullOrWhiteSpace(request.DenominatorBasis) || string.IsNullOrWhiteSpace(request.FormulaVersion))
       return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ReconciliationRejected, "Analytical review needs an explicit measure, denominator and formula version.");
+    var currency = (string.IsNullOrWhiteSpace(request.Currency) ? AccountingDefaults.DefaultCurrency : request.Currency).Trim().ToUpperInvariant();
+    if (currency.Length != 3 || !currency.All(char.IsLetter) ||
+        MoneyPolicy.Normalize(request.CurrentAmount) != request.CurrentAmount ||
+        MoneyPolicy.Normalize(request.PriorAmount) != request.PriorAmount ||
+        (request.BudgetAmount.HasValue && MoneyPolicy.Normalize(request.BudgetAmount.Value) != request.BudgetAmount.Value))
+      return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ReconciliationRejected, "Analytical review currency and amounts must use the reporting currency and six-decimal precision.");
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
       new AuthorizationRequest(actor.FirmId, request.ClientId, request.EngagementId, PreparerRoles, InternalOnly: true), ct);
     if (!auth.Succeeded)
       return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+    var period = await db.ClientReportingPeriods.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.FirmId == actor.FirmId && x.ClientId == request.ClientId && x.Id == request.PeriodId, ct);
+    if (period is null || !string.Equals(period.Currency, currency, StringComparison.Ordinal))
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Analytical review currency must match the selected client reporting period.");
+    if (request.ComparisonPeriodId is { } comparisonPeriodId &&
+        !await db.ClientReportingPeriods.AnyAsync(x => x.FirmId == actor.FirmId && x.ClientId == request.ClientId && x.Id == comparisonPeriodId, ct))
+      return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "The analytical comparison period is outside the client scope.");
     var clientState = await db.ClientSafetyStates.AsNoTracking().SingleOrDefaultAsync(x =>
       x.Id == request.ClientId && x.FirmId == actor.FirmId, ct);
     if (clientState is null)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Client accounting safety state is unavailable.");
     decimal? ratio = request.PriorAmount == 0m ? null : MoneyPolicy.Normalize((request.CurrentAmount - request.PriorAmount) / Math.Abs(request.PriorAmount));
-    var canonical = string.Join('|', request.ClientId, request.EngagementId, request.PeriodId, request.Area.Trim().ToUpperInvariant(),
-      request.Measure.Trim(), request.CurrentAmount.ToString("0.000000", CultureInfo.InvariantCulture),
-      request.PriorAmount.ToString("0.000000", CultureInfo.InvariantCulture), request.FormulaVersion.Trim());
+    var movementFlags = new List<string>();
+    if (request.CurrentAmount < 0m || request.PriorAmount < 0m)
+      movementFlags.Add("NEGATIVE_BALANCE");
+    if (!string.IsNullOrWhiteSpace(request.SeasonalityExplanation))
+      movementFlags.Add("SEASONAL_MOVEMENT");
+    if (movementFlags.Count == 0)
+      movementFlags.Add("NONE");
+    var inputSnapshot = JsonSerializer.Serialize(new
+    {
+      request.ClientId, request.EngagementId, request.PeriodId, request.ComparisonPeriodId,
+      Area = request.Area.Trim().ToUpperInvariant(), Measure = request.Measure.Trim(),
+      CurrentAmount = MoneyPolicy.Normalize(request.CurrentAmount), PriorAmount = MoneyPolicy.Normalize(request.PriorAmount),
+      BudgetAmount = request.BudgetAmount.HasValue ? MoneyPolicy.Normalize(request.BudgetAmount.Value) : (decimal?)null,
+      Currency = currency, DenominatorBasis = request.DenominatorBasis.Trim(), FormulaVersion = request.FormulaVersion.Trim(),
+      MovementFlags = movementFlags, SeasonalityExplanation = request.SeasonalityExplanation.Trim(), Explanation = request.Explanation.Trim()
+    });
     var review = new AnalyticalReview
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = request.ClientId, EngagementId = request.EngagementId,
@@ -737,8 +766,9 @@ public static class AccountingAnalysisService
       Area = request.Area.Trim().ToUpperInvariant(),
       Measure = request.Measure.Trim(), CurrentAmount = MoneyPolicy.Normalize(request.CurrentAmount), PriorAmount = MoneyPolicy.Normalize(request.PriorAmount),
       BudgetAmount = request.BudgetAmount.HasValue ? MoneyPolicy.Normalize(request.BudgetAmount.Value) : null, Ratio = ratio,
-      DenominatorBasis = request.DenominatorBasis.Trim(), FormulaVersion = request.FormulaVersion.Trim(),
-      InputHash = Hashing.Sha256Hex(Encoding.UTF8.GetBytes(canonical)), Explanation = request.Explanation.Trim(),
+      Currency = currency, DenominatorBasis = request.DenominatorBasis.Trim(), FormulaVersion = request.FormulaVersion.Trim(),
+      MovementFlags = string.Join(',', movementFlags), SeasonalityExplanation = request.SeasonalityExplanation.Trim(),
+      InputSnapshotJson = inputSnapshot, InputHash = Hashing.Sha256Hex(Encoding.UTF8.GetBytes(inputSnapshot)), Explanation = request.Explanation.Trim(),
       Status = ratio.HasValue ? AccountingWorkflowStates.Draft : "INSUFFICIENT_DATA", CreatedByUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
     };
     db.AnalyticalReviews.Add(review);
@@ -765,6 +795,8 @@ public static class AccountingAnalysisService
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = request.ClientId, EngagementId = request.EngagementId,
       ImportBatchId = request.ImportBatchId, TransactionId = request.TransactionId, RuleCode = request.RuleCode.Trim().ToUpperInvariant(),
       Reason = request.Reason.Trim(), Score = request.Score, EvidenceReference = request.EvidenceReference.Trim(),
+      SelectedForTesting = request.SelectedForTesting, ManagementExplanation = request.ManagementExplanation.Trim(),
+      CorroborationReference = request.CorroborationReference.Trim(),
       CreatedByUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
     };
     db.JournalRiskFlags.Add(flag);
@@ -865,6 +897,7 @@ public static class AccountingAnalysisService
     var riskDecision = decision is AccountingEvidenceReviewDecisions.Cleared or
       AccountingEvidenceReviewDecisions.Escalated or AccountingEvidenceReviewDecisions.NotAnIssue;
     if (request.EvidenceId == Guid.Empty || (request.Conclusion?.Trim().Length ?? 0) > 4000 ||
+        (request.CorroborationReference?.Trim().Length ?? 0) > 2000 ||
         (kind is not (AccountingEvidenceKinds.Ecl or AccountingEvidenceKinds.Inventory or AccountingEvidenceKinds.Specialist or
           AccountingEvidenceKinds.Analytical or AccountingEvidenceKinds.JournalRisk)) ||
         (kind == AccountingEvidenceKinds.JournalRisk ? !riskDecision : !reviewerDecision))
@@ -945,6 +978,10 @@ public static class AccountingAnalysisService
         {
           risk.Status = decision;
           risk.Disposition = request.Disposition.Trim();
+          if (!string.IsNullOrWhiteSpace(request.Conclusion))
+            risk.ManagementExplanation = request.Conclusion.Trim();
+          if (!string.IsNullOrWhiteSpace(request.CorroborationReference))
+            risk.CorroborationReference = request.CorroborationReference.Trim();
           risk.ReviewedByUserId = actor.UserId;
           risk.ReviewedAt = DateTimeOffset.UtcNow;
         };

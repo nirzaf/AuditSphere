@@ -630,8 +630,12 @@ public sealed class AnalyticalReview
   public decimal PriorAmount { get; set; }
   public decimal? BudgetAmount { get; set; }
   public decimal? Ratio { get; set; }
+  public string Currency { get; set; } = AccountingDefaults.DefaultCurrency;
   public string DenominatorBasis { get; set; } = string.Empty;
   public string FormulaVersion { get; set; } = string.Empty;
+  public string MovementFlags { get; set; } = string.Empty;
+  public string SeasonalityExplanation { get; set; } = string.Empty;
+  public string InputSnapshotJson { get; set; } = string.Empty;
   public string InputHash { get; set; } = string.Empty;
   public string Explanation { get; set; } = string.Empty;
   public string Status { get; set; } = AccountingWorkflowStates.Draft;
@@ -652,6 +656,9 @@ public sealed class JournalRiskFlag
   public string RuleCode { get; set; } = string.Empty;
   public string Reason { get; set; } = string.Empty;
   public decimal Score { get; set; }
+  public bool SelectedForTesting { get; set; }
+  public string ManagementExplanation { get; set; } = string.Empty;
+  public string CorroborationReference { get; set; } = string.Empty;
   public string Status { get; set; } = "OPEN";
   public string Disposition { get; set; } = string.Empty;
   public string EvidenceReference { get; set; } = string.Empty;
