@@ -3,7 +3,7 @@
 **Repository:** `nirzaf/AuditSphere`
 **Authoritative specification:** [`docs/SPECIFICATION.md`](../SPECIFICATION.md) v5.0
 **Requirements backlog:** [`docs/requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md`](../requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md)
-**Source implementation checkpoint:** `master@86de635`
+**Source implementation checkpoint:** `master@413b831`
 
 This is a resume checklist, not an acceptance certificate. Tenant identifiers, credentials, tokens, secret values, and private-provider URLs are deliberately absent from the public repository.
 
@@ -30,6 +30,7 @@ This is a resume checklist, not an acceptance certificate. Tenant identifiers, c
 - [x] Bind each consolidation component to the exact package period basis, taxonomy version and mapping-version lineage and include it in the deterministic run manifest.
 - [x] Recompute consolidation inputs at run approval and require a new run when a component, match or group journal changes.
 - [x] Pin each consolidation scope to the group-membership revision and reject approval/calculation after a perimeter change without rewriting historical scopes or runs.
+- [x] Preserve group perimeter, consolidation, exchange-rate and translation dependencies in structured records exports.
 - [x] Add the bounded approved foreign-operation translation profile with pinned rate/policy inputs, maker/checker review, source/FX lineage and stale-input blocking.
 - [x] Add bounded, resumable GL chunk intake with canonical digest, idempotent retry and contiguous finalization.
 - [x] Add a client-safe validated-package view and signed-in management acknowledgement route with cross-client denial coverage.

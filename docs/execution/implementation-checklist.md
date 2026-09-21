@@ -2,7 +2,7 @@
 
 Dependency-ordered checklist for the [v5.0 specification](../SPECIFICATION.md) and the [workflow-gap backlog](../requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md).
 
-**Current source checkpoint:** `master@86de635`; PostgreSQL 18.6; 54 migrations; 198/198 tests passed; 0 skipped.
+**Current source checkpoint:** `master@413b831`; PostgreSQL 18.6; 54 migrations; 198/198 tests passed; 0 skipped.
 **Status meanings:** ✅ locally verified · 🟡 partial/local follow-up · ⬜ not started · 🚫 external gate
 
 | # | Work package | Status |
