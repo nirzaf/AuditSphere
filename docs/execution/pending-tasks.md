@@ -3,7 +3,7 @@
 **Repository:** `nirzaf/AuditSphere`
 **Authoritative specification:** [`docs/SPECIFICATION.md`](../SPECIFICATION.md) v5.0
 **Requirements backlog:** [`docs/requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md`](../requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md)
-**Source implementation checkpoint:** `master@56e76e2`
+**Source implementation checkpoint:** `master@d368901`
 
 This is a resume checklist, not an acceptance certificate. Tenant identifiers, credentials, tokens, secret values, and private-provider URLs are deliberately absent from the public repository.
 
@@ -11,7 +11,7 @@ This is a resume checklist, not an acceptance certificate. Tenant identifiers, c
 
 - [x] .NET 10 solution builds with zero warnings/errors.
 - [x] PostgreSQL 18.6 development profile is used on loopback port 5433.
-- [x] 198/198 PostgreSQL-backed tests pass with 0 skipped.
+- [x] 199/199 PostgreSQL-backed tests pass with 0 skipped.
 - [x] 56 migrations are applied; latest is `20260921020828_AddIntercompanyEliminationLineage`.
 - [x] EF model has no pending migration changes.
 - [x] Loopback restore drill passes and writes secret-free evidence to `docs/evidence/restore-drill-latest.json`.
@@ -41,7 +41,7 @@ This is a resume checklist, not an acceptance certificate. Tenant identifiers, c
 - [x] Route GL completeness calculation through the existing durable operation infrastructure with source revision fencing and idempotent retries.
 - [x] Route financial-package builds through the existing durable operation infrastructure with mapping/plan fencing and idempotent retries.
 - [x] Route financial-package rendering through the existing durable operation infrastructure with exact package-revision fencing and deterministic artifact-digest verification.
-- [ ] Benchmark representative accounting workloads before production acceptance.
+- [x] Benchmark representative accounting workloads before production acceptance; the current test covers four clients, 2,000 transactions, 8,000 GL lines, two concurrent workers, a 32-line group calculation, six-decimal/high-magnitude amounts and paged reads. Observed timings are local capacity evidence only.
 - [x] Add a client-safe validated-package view and signed-in management acknowledgement route with cross-client denial coverage.
 - [x] Add an authorized staff package-review queue with exact-version stage status and direct package handoff.
 - [x] Bind validated financial-package release candidates to current management, accounting and partner decisions through the existing guarded approval/release path.

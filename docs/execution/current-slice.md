@@ -6,12 +6,12 @@ This file records observed repository state only. The authoritative build contra
 
 | Item | Observed value |
 |---|---|
-| Source implementation checkpoint | `master@56e76e2` |
-| Remote | `origin/master` includes source checkpoint `56e76e2` and the current documentation checkpoint |
+| Source implementation checkpoint | `master@d368901` |
+| Remote | `origin/master` includes source checkpoint `d368901` and the current documentation checkpoint |
 | SDK | .NET 10; repository solution targets `net10.0` |
 | Database | PostgreSQL 18.6 on loopback port 5433 for development only |
 | Build | `dotnet build AuditSphereOps.slnx --no-restore --configuration Release` — passed, 0 warnings/errors |
-| Tests | 198/198 passed, 0 skipped against PostgreSQL 18.6 |
+| Tests | 199/199 passed, 0 skipped against PostgreSQL 18.6 |
 | Migrations | 56 applied; latest `20260921020828_AddIntercompanyEliminationLineage` |
 | Model drift | `dotnet ef migrations has-pending-model-changes` — no changes |
 | Restore drill | `scripts/db/restore-drill.sh` — passed; 56 migrations reconciled |
@@ -48,6 +48,7 @@ This file records observed repository state only. The authoritative build contra
 - GL completeness calculation can be enqueued as a local durable operation, with sealed-source revision fencing, operation completion lineage and repeat-enqueue idempotency; PostgreSQL regression coverage passes.
 - Financial-package builds can be enqueued as local durable calculations, fenced to the approved mapping revision and finalized plan, committed atomically with operation completion, and re-enqueued idempotently; PostgreSQL regression coverage passes.
 - Financial-package rendering can be enqueued as a local durable calculation, fenced to the exact package revision, and records the deterministic artifact digest for later byte verification; PostgreSQL regression coverage passes.
+- The PostgreSQL-backed accounting benchmark exercises four clients, 2,000 transactions, 8,000 GL lines, parallel enqueueing, two concurrent durable workers, a 32-line group calculation, six-decimal/high-magnitude amounts and paged reads; one observed run measured enqueue 147.8 ms, worker processing 134.4 ms, first page 43.8 ms and group calculation 3.2 ms.
 - Blazor status surfaces for the implemented workflows, including period restatement and truthful release/package gate state.
 
 ## Remaining local implementation work
@@ -73,7 +74,7 @@ These are product gaps, not claims of production readiness:
 - [x] Route GL completeness calculation through the existing durable operation infrastructure with source revision fencing and idempotent retries.
 - [x] Route financial-package builds through the existing durable operation infrastructure with mapping/plan fencing and idempotent retries.
 - [x] Route financial-package rendering through the existing durable operation infrastructure with exact package-revision fencing and deterministic artifact-digest verification.
-- [ ] Benchmark representative accounting workloads before production acceptance.
+- [x] Benchmark representative accounting workloads before production acceptance; the current local workload evidence is recorded above and does not establish production capacity or RPO/RTO.
 - [x] Re-run focused tests, full tests, build, migration drift and restore drill for the current coherent slice; repeat this checklist for the next slice.
 
 ## External acceptance gates
@@ -99,6 +100,7 @@ No fixture, local adapter, documentation statement, or browser login is treated 
 ```text
 dotnet build AuditSphereOps.slnx --no-restore
 dotnet test AuditSphereOps.slnx --no-build
+dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-restore --filter 'FullyQualifiedName~AccountingBenchmarkTests'
 dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Web
 scripts/db/restore-drill.sh
 ```
