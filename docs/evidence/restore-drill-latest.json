@@ -1,9 +1,9 @@
 {
   "status": "PASS",
-  "recordedAt": "2026-09-21T15:07:43Z",
+  "recordedAt": "2026-09-21T17:20:09Z",
   "databaseHost": "127.0.0.1",
   "sourceDatabase": "auditsphere",
-  "restoredDatabase": "auditsphere_restore_1790003262_5933",
+  "restoredDatabase": "auditsphere_restore_1790011208_23620",
   "expectedMigrationCount": 75,
   "restoredMigrationCount": 75,
   "expectedLatestMigration": "20260921150321_BindMappingsToClientCharts",
@@ -11,6 +11,9 @@
   "releaseCheckpointDatabaseSummary": "0|",
   "restoredReleaseCheckpointDatabaseSummary": "0|",
   "checkpointDatabaseReconciliation": "PASS",
+  "accountingGroupManifestReconciliation": "PASS",
+  "releaseDeliveryDuplicateKeys": 0,
+  "releaseDeliveryDuplicateCheck": "PASS",
   "externalCheckpointStoreVerification": "NOT_RUN",
   "custodiallySeparateStorage": false,
   "productionRpoRto": "NOT_RUN"
