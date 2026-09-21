@@ -1,5 +1,7 @@
 @page "/app/accounting/mappings/{MappingId:guid}"
 @rendermode InteractiveServer
+@using AuditSphereOps.Application.Security
+@using AuditSphereOps.Domain.Accounting
 @inject CurrentActorResolver ActorResolver
 @inject IDbContextFactory<AuditSphereDbContext> DbFactory
 
@@ -25,11 +27,92 @@ else
     <p class="eyebrow">@_mapping.Status</p>
     <h2 id="mapping-heading"><code>@_mapping.Id</code></h2>
     <dl class="details">
+      <dt>Dataset</dt><dd><code>@_mapping.DatasetId</code></dd>
       <dt>Taxonomy</dt><dd>@_mapping.TaxonomyVersion</dd>
       <dt>Period</dt><dd>@_mapping.PeriodStart to @_mapping.PeriodEnd</dd>
       <dt>Version</dt><dd>@_mapping.Version</dd>
       <dt>Generation</dt><dd>@_mapping.Generation</dd>
     </dl>
+  </section>
+
+  <section class="metric-grid" aria-label="Mapping workbench counts">
+    <article class="metric card"><span class="metric-label">Source accounts</span><strong class="metric-value">@_sourceAccounts.Count</strong></article>
+    <article class="metric card"><span class="metric-label">Unmapped</span><strong class="metric-value">@_unmappedAccounts.Count</strong></article>
+    <article class="metric card"><span class="metric-label">Split accounts</span><strong class="metric-value">@_splitAccounts.Count</strong></article>
+    <article class="metric card"><span class="metric-label">Report destinations</span><strong class="metric-value">@_reportImpacts.Count</strong></article>
+  </section>
+
+  <section class="card" aria-labelledby="lineage-heading">
+    <h2 id="lineage-heading">Mapping lineage</h2>
+    <p class="muted">Mappings are immutable versions. A new source dataset, chart or taxonomy requires a new applicability decision.</p>
+    @if (_priorMapping is null)
+    {
+      <p>This is the first mapping version in the current engagement.</p>
+    }
+    else
+    {
+      <p>Prior version: <a href="/app/accounting/mappings/@_priorMapping.Id" title="Open the previous immutable mapping version">v@_priorMapping.Version</a>
+        <span class="muted">(@_priorMapping.Status, @_priorAllocationCount allocations)</span></p>
+    }
+  </section>
+
+  <section class="card" aria-labelledby="unmapped-heading">
+    <h2 id="unmapped-heading">Unmapped source accounts</h2>
+    @if (_unmappedAccounts.Count == 0)
+    {
+      <p class="notice success" role="status">Every non-zero source account has an allocation.</p>
+    }
+    else
+    {
+      <p class="muted">These accounts must be resolved in a new mapping version before the package can be built.</p>
+      <div class="table-wrap"><table>
+        <caption class="sr-only">Unmapped source accounts</caption>
+        <thead><tr><th scope="col">Account</th><th scope="col">Name</th><th scope="col">Balance</th><th scope="col">Currency</th></tr></thead>
+        <tbody>
+        @foreach (var row in _unmappedAccounts)
+        {
+          <tr><td><code>@row.AccountCode</code></td><td>@row.AccountName</td><td>@row.Amount.ToString("N2")</td><td>@row.Currency</td></tr>
+        }
+        </tbody>
+      </table></div>
+    }
+  </section>
+
+  <section class="card" aria-labelledby="split-heading">
+    <h2 id="split-heading">Split and ambiguous allocations</h2>
+    @if (_splitAccounts.Count == 0)
+    {
+      <p>No source account is split across multiple destinations.</p>
+    }
+    else
+    {
+      <p class="muted">Splits are deliberate allocations and must total 100%; review the rationale before approval.</p>
+      <div class="table-wrap"><table>
+        <caption class="sr-only">Split source allocations</caption>
+        <thead><tr><th scope="col">Account</th><th scope="col">Destinations</th><th scope="col">Total fraction</th></tr></thead>
+        <tbody>
+        @foreach (var row in _splitAccounts)
+        {
+          <tr><td><code>@row.AccountCode</code></td><td>@row.DestinationCount</td><td>@row.TotalFraction.ToString("P2")</td></tr>
+        }
+        </tbody>
+      </table></div>
+    }
+    <p class="muted">Automatic suggestions are not treated as approved mappings; unresolved suggestions remain visible as unmapped accounts.</p>
+  </section>
+
+  <section class="card" aria-labelledby="impact-heading">
+    <h2 id="impact-heading">Report impact</h2>
+    <div class="table-wrap"><table>
+      <caption class="sr-only">Mapped report destination impact</caption>
+      <thead><tr><th scope="col">Destination</th><th scope="col">Statement section</th><th scope="col">Source accounts</th><th scope="col">Amount</th></tr></thead>
+      <tbody>
+      @foreach (var row in _reportImpacts)
+      {
+        <tr><td>@row.DestinationCode</td><td>@row.StatementSection</td><td>@row.SourceCount</td><td>@row.Amount.ToString("N2")</td></tr>
+      }
+      </tbody>
+    </table></div>
   </section>
 
   <section class="card" aria-labelledby="allocation-heading">
@@ -59,7 +142,7 @@ else
     <section class="card" aria-labelledby="approve-heading">
       <h2 id="approve-heading">Approve mapping</h2>
       <p class="muted">Approval rechecks the accepted dataset, full allocation and current firm/client generation.</p>
-      <button class="button" @onclick="ApproveAsync" disabled="@_busy">@(_busy ? "Approving…" : "Approve mapping")</button>
+      <button class="button" title="Recheck the exact dataset, allocations and current client generation before approval" @onclick="ApproveAsync" disabled="@_busy">@(_busy ? "Approving…" : "Approve mapping")</button>
       @if (_result is not null)
       {
         <p class="command-result @(_result.Succeeded ? "success-text" : "error-text")" role="status">@(_result.Succeeded ? "Mapping approved." : $"Blocked: {_result.ErrorCode}")</p>
@@ -76,7 +159,13 @@ else
   [Parameter] public Guid MappingId { get; set; }
   private ActorContext? _actor;
   private MappingVersion? _mapping;
+  private MappingVersion? _priorMapping;
   private List<MappingAllocation> _allocations = [];
+  private List<SourceRow> _sourceAccounts = [];
+  private List<SourceRow> _unmappedAccounts = [];
+  private List<SplitRow> _splitAccounts = [];
+  private List<ImpactRow> _reportImpacts = [];
+  private int _priorAllocationCount;
   private CommandResult? _result;
   private bool _loading = true;
   private bool _busy;
@@ -88,16 +177,49 @@ else
     if (_actor is not null && IsStaff)
     {
       await using var db = await DbFactory.CreateDbContextAsync();
-      _mapping = await db.MappingVersions.AsNoTracking()
+      var candidate = await db.MappingVersions.AsNoTracking()
         .SingleOrDefaultAsync(x => x.Id == MappingId && x.FirmId == _actor.FirmId);
-      if (_mapping is not null)
+      if (candidate is not null)
+      {
+        var authorization = await AuthorizationDecision.AuthorizeAsync(db, _actor,
+          new AuthorizationRequest(_actor.FirmId, candidate.ClientId, candidate.EngagementId,
+            ["Administrator", "Partner", "Manager", "AccountingPreparer", "AccountingReviewer"], InternalOnly: true));
+        if (!authorization.Succeeded)
+        {
+          _loading = false;
+          return;
+        }
+        _mapping = candidate;
         _allocations = await db.MappingAllocations.AsNoTracking()
           .Where(x => x.FirmId == _actor.FirmId && x.ClientId == _mapping.ClientId &&
                       x.EngagementId == _mapping.EngagementId && x.MappingVersionId == _mapping.Id)
           .OrderBy(x => x.SourceAccountCode).ThenBy(x => x.DestinationCode).ToListAsync();
+        var rows = await db.TrialBalanceRows.AsNoTracking().Where(x => x.DatasetId == _mapping.DatasetId)
+          .OrderBy(x => x.AccountCode).Select(x => new SourceRow(x.AccountCode, x.AccountName, x.Amount, x.Currency)).ToListAsync();
+        _sourceAccounts = rows.GroupBy(x => x.AccountCode, StringComparer.Ordinal)
+          .Select(x => new SourceRow(x.Key, x.First().AccountName, x.Sum(y => y.Amount), x.First().Currency)).ToList();
+        var mappedCodes = _allocations.Select(x => x.SourceAccountCode).ToHashSet(StringComparer.Ordinal);
+        _unmappedAccounts = _sourceAccounts.Where(x => x.Amount != 0m && !mappedCodes.Contains(x.AccountCode)).ToList();
+        _splitAccounts = _allocations.GroupBy(x => x.SourceAccountCode, StringComparer.Ordinal).Where(x => x.Count() > 1)
+          .Select(x => new SplitRow(x.Key, x.Select(y => y.DestinationCode).Distinct(StringComparer.OrdinalIgnoreCase).Count(), x.Sum(y => y.Fraction))).ToList();
+        var sourceAmounts = _sourceAccounts.ToDictionary(x => x.AccountCode, x => x.Amount, StringComparer.Ordinal);
+        _reportImpacts = _allocations.GroupBy(x => new { x.DestinationCode, x.StatementSection })
+          .Select(x => new ImpactRow(x.Key.DestinationCode, x.Key.StatementSection,
+            MoneyPolicy.Normalize(x.Sum(y => sourceAmounts.GetValueOrDefault(y.SourceAccountCode) * y.Fraction)),
+            x.Select(y => y.SourceAccountCode).Distinct(StringComparer.Ordinal).Count())).OrderBy(x => x.DestinationCode).ToList();
+        _priorMapping = await db.MappingVersions.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
+          x.ClientId == _mapping.ClientId && x.EngagementId == _mapping.EngagementId && x.Version < _mapping.Version)
+          .OrderByDescending(x => x.Version).FirstOrDefaultAsync();
+        if (_priorMapping is not null)
+          _priorAllocationCount = await db.MappingAllocations.AsNoTracking().CountAsync(x => x.FirmId == _actor.FirmId && x.MappingVersionId == _priorMapping.Id);
+      }
     }
     _loading = false;
   }
+
+  private sealed record SourceRow(string AccountCode, string AccountName, decimal Amount, string Currency);
+  private sealed record SplitRow(string AccountCode, int DestinationCount, decimal TotalFraction);
+  private sealed record ImpactRow(string DestinationCode, string StatementSection, decimal Amount, int SourceCount);
 
   private async Task ApproveAsync()
   {
