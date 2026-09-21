@@ -19,10 +19,19 @@ else if (_groups.Count == 0)
 }
 else
 {
-  @foreach (var group in _groups)
-  {
-    <section class="card" aria-labelledby="group-@group.Id">
-      <h2 id="group-@group.Id">@group.Name <code>@group.Code</code></h2>
+  <nav class="accounting-tabs" aria-label="Group consolidation tabs">
+    <a href="#perimeter" title="Review versioned group membership, method and reporting currency.">Perimeter</a>
+    <a href="#packs" title="Review internal and external component-pack counts and approval readiness.">Component packs</a>
+    <a href="#fx" title="Review explicitly pinned rate-set and translation-policy state; unsupported methods remain blocked.">FX</a>
+    <a href="#intercompany" title="Review grouped matches, outside-perimeter reviews and unresolved differences.">Intercompany</a>
+    <a href="#eliminations" title="Review persisted group-only elimination journals and their approval state.">Eliminations</a>
+  </nav>
+
+  <section class="card" id="perimeter" aria-labelledby="perimeter-heading">
+    <h2 id="perimeter-heading">Perimeter</h2>
+    @foreach (var group in _groups)
+    {
+      <h3 id="group-@group.Id">@group.Name <code>@group.Code</code></h3>
       @if (group.Scopes.Count == 0)
       {
         <p class="muted">No consolidation perimeter versions are available.</p>
@@ -35,21 +44,82 @@ else
           <tbody>
           @foreach (var scope in group.Scopes)
           {
-            <tr><td>v@scope.Version</td><td><code>@scope.Method</code></td><td>@scope.Currency</td><td>@scope.OwnershipEdges</td><td>@scope.GroupedMatches</td><td>@scope.OutsideReviews</td><td>@scope.Status</td><td>@scope.RunStatus</td></tr>
+            <tr><td>v@scope.Version</td><td><code>@scope.Method</code></td><td>@scope.Currency</td><td>@scope.OwnershipEdges</td><td>@scope.GroupedMatches</td><td>@scope.OutsideReviews</td><td><span class="status">@scope.Status</span></td><td><span class="status">@scope.RunStatus</span></td></tr>
           }
           </tbody>
         </table></div>
       }
-    </section>
-  }
+    }
+  </section>
+
+  <section class="card" id="packs" aria-labelledby="packs-heading">
+    <h2 id="packs-heading">Component packs</h2>
+    <p class="muted">Counts show what is persisted for each approved scope. Consolidation consumes only approved compatible packs; missing packs are not treated as zero.</p>
+    <div class="table-wrap"><table>
+      <caption class="sr-only">Group component-pack readiness</caption>
+      <thead><tr><th scope="col">Group / scope</th><th scope="col">Components</th><th scope="col">Approved components</th><th scope="col">External packs</th><th scope="col">Approved packs</th></tr></thead>
+      <tbody>@foreach (var scope in AllScopes) { <tr><td>@scope.GroupName · v@scope.Version</td><td>@scope.ComponentCount</td><td>@scope.ApprovedComponentCount</td><td>@scope.ExternalPackCount</td><td>@scope.ApprovedExternalPackCount</td></tr> }</tbody>
+    </table></div>
+  </section>
+
+  <section class="card" id="fx" aria-labelledby="fx-heading">
+    <h2 id="fx-heading">FX</h2>
+    <p class="muted">The enabled first profile is same-currency. Foreign-operation translation is shown only when the scope pins both a rate set and a translation policy; no rate of 1 is inferred.</p>
+    <div class="table-wrap"><table>
+      <caption class="sr-only">Group FX configuration</caption>
+      <thead><tr><th scope="col">Group / scope</th><th scope="col">Reporting currency</th><th scope="col">Rate set</th><th scope="col">Translation policy</th></tr></thead>
+      <tbody>@foreach (var scope in AllScopes) { <tr><td>@scope.GroupName · v@scope.Version</td><td><code>@scope.Currency</code></td><td><span class="status">@scope.RateSetStatus</span></td><td><span class="status">@scope.TranslationPolicyStatus</span></td></tr> }</tbody>
+    </table></div>
+  </section>
+
+  <section class="card" id="intercompany" aria-labelledby="intercompany-heading">
+    <h2 id="intercompany-heading">Intercompany</h2>
+    <p class="muted">Grouped matches, outside-perimeter reviews and unresolved match rows remain visible before any automatic elimination.</p>
+    <div class="table-wrap"><table>
+      <caption class="sr-only">Group intercompany review counts</caption>
+      <thead><tr><th scope="col">Group / scope</th><th scope="col">Grouped matches</th><th scope="col">Outside reviews</th><th scope="col">Open matches</th></tr></thead>
+      <tbody>@foreach (var scope in AllScopes) { <tr><td>@scope.GroupName · v@scope.Version</td><td>@scope.GroupedMatches</td><td>@scope.OutsideReviews</td><td><span class="status">@scope.OpenMatchCount</span></td></tr> }</tbody>
+    </table></div>
+  </section>
+
+  <section class="card" id="eliminations" aria-labelledby="eliminations-heading">
+    <h2 id="eliminations-heading">Eliminations</h2>
+    <p class="muted">Persisted consolidation journals are separate from component books. Unsupported elimination natures fail closed in the calculation service.</p>
+    <div class="table-wrap"><table>
+      <caption class="sr-only">Group elimination journal counts</caption>
+      <thead><tr><th scope="col">Group / scope</th><th scope="col">Journals</th><th scope="col">Approved journals</th><th scope="col">Latest run</th></tr></thead>
+      <tbody>@foreach (var scope in AllScopes) { <tr><td>@scope.GroupName · v@scope.Version</td><td>@scope.EliminationJournalCount</td><td>@scope.ApprovedEliminationJournalCount</td><td><span class="status">@scope.RunStatus</span></td></tr> }</tbody>
+    </table></div>
+  </section>
 }
 
 @code {
-  private sealed record ScopeRow(int Version, string Method, string Currency, int OwnershipEdges, int GroupedMatches,
-    int OutsideReviews, string Status, string RunStatus);
+  private sealed record ScopeRow
+  {
+    public Guid Id { get; init; }
+    public string GroupName { get; init; } = string.Empty;
+    public int Version { get; init; }
+    public string Method { get; init; } = string.Empty;
+    public string Currency { get; init; } = string.Empty;
+    public int OwnershipEdges { get; init; }
+    public int GroupedMatches { get; init; }
+    public int OutsideReviews { get; init; }
+    public int OpenMatchCount { get; init; }
+    public int ComponentCount { get; init; }
+    public int ApprovedComponentCount { get; init; }
+    public int ExternalPackCount { get; init; }
+    public int ApprovedExternalPackCount { get; init; }
+    public string RateSetStatus { get; init; } = string.Empty;
+    public string TranslationPolicyStatus { get; init; } = string.Empty;
+    public int EliminationJournalCount { get; init; }
+    public int ApprovedEliminationJournalCount { get; init; }
+    public string Status { get; init; } = string.Empty;
+    public string RunStatus { get; init; } = string.Empty;
+  }
   private sealed record GroupRow(Guid Id, string Code, string Name, IReadOnlyList<ScopeRow> Scopes);
   private List<GroupRow> _groups = [];
   private bool _loading = true;
+  private IEnumerable<ScopeRow> AllScopes => _groups.SelectMany(x => x.Scopes);
 
   protected override async Task OnInitializedAsync()
   {
@@ -69,15 +139,54 @@ else
         {
           ScopeId = x.Key,
           Grouped = x.Count(y => y.MatchMode == IntercompanyMatchModes.Grouped),
-          Outside = x.Count(y => y.OutsidePerimeterReview)
+          Outside = x.Count(y => y.OutsidePerimeterReview),
+          Open = x.Count(y => y.Status != AccountingWorkflowStates.Approved)
         }).ToDictionaryAsync(x => x.ScopeId);
+      var componentCounts = await db.ConsolidationComponents.AsNoTracking().Where(x => x.FirmId == actor.FirmId && groupIds.Contains(x.GroupId))
+        .GroupBy(x => x.ScopeVersionId).Select(x => new { ScopeId = x.Key, Count = x.Count(), Approved = x.Count(y => y.Status == AccountingWorkflowStates.Approved) })
+        .ToDictionaryAsync(x => x.ScopeId);
+      var packCounts = await db.ExternalComponentPacks.AsNoTracking().Where(x => x.FirmId == actor.FirmId && groupIds.Contains(x.GroupId))
+        .GroupBy(x => x.ScopeVersionId).Select(x => new { ScopeId = x.Key, Count = x.Count(), Approved = x.Count(y => y.Status == ExternalComponentPackStates.Approved) })
+        .ToDictionaryAsync(x => x.ScopeId);
+      var journalCounts = await db.ConsolidationJournals.AsNoTracking().Where(x => x.FirmId == actor.FirmId && groupIds.Contains(x.GroupId))
+        .GroupBy(x => x.ScopeVersionId).Select(x => new { ScopeId = x.Key, Count = x.Count(), Approved = x.Count(y => y.Status == AccountingWorkflowStates.Approved) })
+        .ToDictionaryAsync(x => x.ScopeId);
       var runStatuses = await db.ConsolidationRuns.AsNoTracking().Where(x => x.FirmId == actor.FirmId && groupIds.Contains(x.GroupId))
         .GroupBy(x => x.ScopeVersionId).Select(x => new { ScopeId = x.Key, Status = x.OrderByDescending(y => y.CreatedAt).Select(y => y.Status).First() }).ToDictionaryAsync(x => x.ScopeId, x => x.Status);
+      var rateSets = await db.ExchangeRateSetVersions.AsNoTracking().Where(x => x.FirmId == actor.FirmId)
+        .ToDictionaryAsync(x => x.Id, x => x.Status);
+      var translationPolicies = await db.TranslationPolicyVersions.AsNoTracking().Where(x => x.FirmId == actor.FirmId)
+        .ToDictionaryAsync(x => x.Id, x => x.Status);
       _groups = groups.Select(group => new GroupRow(group.Id, group.Code, group.Name, scopes.Where(x => x.GroupId == group.Id)
-        .OrderByDescending(x => x.Version).Select(x => new ScopeRow(x.Version, x.Method, x.ReportingCurrency,
-          ownershipCounts.GetValueOrDefault(x.Id), matchCounts.GetValueOrDefault(x.Id)?.Grouped ?? 0,
-          matchCounts.GetValueOrDefault(x.Id)?.Outside ?? 0, x.Status,
-          runStatuses.GetValueOrDefault(x.Id, "NO_RUN"))).ToArray())).ToList();
+        .OrderByDescending(x => x.Version).Select(x =>
+        {
+          var matches = matchCounts.GetValueOrDefault(x.Id);
+          var components = componentCounts.GetValueOrDefault(x.Id);
+          var packs = packCounts.GetValueOrDefault(x.Id);
+          var journals = journalCounts.GetValueOrDefault(x.Id);
+          return new ScopeRow
+          {
+            Id = x.Id,
+            GroupName = group.Name,
+            Version = x.Version,
+            Method = x.Method,
+            Currency = x.ReportingCurrency,
+            OwnershipEdges = ownershipCounts.GetValueOrDefault(x.Id),
+            GroupedMatches = matches?.Grouped ?? 0,
+            OutsideReviews = matches?.Outside ?? 0,
+            OpenMatchCount = matches?.Open ?? 0,
+            ComponentCount = components?.Count ?? 0,
+            ApprovedComponentCount = components?.Approved ?? 0,
+            ExternalPackCount = packs?.Count ?? 0,
+            ApprovedExternalPackCount = packs?.Approved ?? 0,
+            RateSetStatus = x.ExchangeRateSetVersionId is { } rateSetId ? rateSets.GetValueOrDefault(rateSetId, "MISSING") : "SAME_CURRENCY_PROFILE",
+            TranslationPolicyStatus = x.TranslationPolicyVersionId is { } policyId ? translationPolicies.GetValueOrDefault(policyId, "MISSING") : "NOT_CONFIGURED",
+            EliminationJournalCount = journals?.Count ?? 0,
+            ApprovedEliminationJournalCount = journals?.Approved ?? 0,
+            Status = x.Status,
+            RunStatus = runStatuses.GetValueOrDefault(x.Id, "NO_RUN")
+          };
+        }).ToArray())).ToList();
     }
     _loading = false;
   }
