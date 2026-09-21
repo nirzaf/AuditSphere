@@ -3,7 +3,7 @@
 **Repository:** `nirzaf/AuditSphere`
 **Authoritative specification:** [`docs/SPECIFICATION.md`](../SPECIFICATION.md) v5.0
 **Requirements backlog:** [`docs/requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md`](../requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md)
-**Source implementation checkpoint:** `master@d368901`
+**Source implementation checkpoint:** `master@10d0a34`
 
 This is a resume checklist, not an acceptance certificate. Tenant identifiers, credentials, tokens, secret values, and private-provider URLs are deliberately absent from the public repository.
 
@@ -11,8 +11,8 @@ This is a resume checklist, not an acceptance certificate. Tenant identifiers, c
 
 - [x] .NET 10 solution builds with zero warnings/errors.
 - [x] PostgreSQL 18.6 development profile is used on loopback port 5433.
-- [x] 199/199 PostgreSQL-backed tests pass with 0 skipped.
-- [x] 56 migrations are applied; latest is `20260921020828_AddIntercompanyEliminationLineage`.
+- [x] 200/200 PostgreSQL-backed tests pass with 0 skipped.
+- [x] 57 migrations are applied; latest is `20260921042350_BindTrialBalanceToReportingContext`.
 - [x] EF model has no pending migration changes.
 - [x] Loopback restore drill passes and writes secret-free evidence to `docs/evidence/restore-drill-latest.json`.
 - [x] Generated Graphify output and local agent state are ignored and removed from Git tracking.
@@ -22,6 +22,7 @@ This is a resume checklist, not an acceptance certificate. Tenant identifiers, c
 
 - [x] Client accounting profiles, periods, books, COA mappings and versioned TB profiles.
 - [x] Atomic multi-entity TB batches, typed GL imports and bounded completeness bridges.
+- [x] TB CSV/XLSX imports persist the selected reporting period, optional book and basis and reject mismatched context at import, completeness and reconciliation boundaries.
 - [x] Reconciliation, ECL, inventory, specialist, analytical and journal-risk workbenches.
 - [x] Entity package projections, equity, notes, comparatives, restatement lineage and bounded same-currency consolidation.
 - [x] Journal lineage, close checks and immutable management/accounting/partner package-review decisions.

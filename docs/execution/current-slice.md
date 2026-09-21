@@ -6,21 +6,22 @@ This file records observed repository state only. The authoritative build contra
 
 | Item | Observed value |
 |---|---|
-| Source implementation checkpoint | `master@d368901` |
-| Remote | `origin/master` includes source checkpoint `d368901` and the current documentation checkpoint |
+| Source implementation checkpoint | `master@10d0a34` |
+| Remote | `origin/master` includes source checkpoint `10d0a34` and the current documentation checkpoint |
 | SDK | .NET 10; repository solution targets `net10.0` |
 | Database | PostgreSQL 18.6 on loopback port 5433 for development only |
 | Build | `dotnet build AuditSphereOps.slnx --no-restore --configuration Release` — passed, 0 warnings/errors |
-| Tests | 199/199 passed, 0 skipped against PostgreSQL 18.6 |
-| Migrations | 56 applied; latest `20260921020828_AddIntercompanyEliminationLineage` |
+| Tests | 200/200 passed, 0 skipped against PostgreSQL 18.6 |
+| Migrations | 57 applied; latest `20260921042350_BindTrialBalanceToReportingContext` |
 | Model drift | `dotnet ef migrations has-pending-model-changes` — no changes |
-| Restore drill | `scripts/db/restore-drill.sh` — passed; 56 migrations reconciled |
+| Restore drill | `scripts/db/restore-drill.sh` — passed; 57 migrations reconciled |
 | Production effects | Disabled locally; no production acceptance claimed |
 
 ## Implemented local capability
 
 - Firm/client/engagement scope authorization, durable operations, trial-balance intake, audit planning, evidence submissions, package generation, records/archive lineage, recovery quarantine, and provider safety fences.
 - Client accounting profiles, periods, books, chart-of-accounts mappings, versioned trial-balance profiles, signed-net/debit-credit normalization, and atomic multi-entity batches.
+- Trial-balance CSV/XLSX imports require and persist the selected reporting period, optional reporting book and normalized basis; import validation checks period currency/basis/book scope, and completeness/TB reconciliation rejects sources with mismatched stored context. Legacy direct fixtures remain nullable for additive migration compatibility.
 - Typed GL import, bounded paged reads, account-by-account trial-balance-to-GL completeness bridges, reconciliation workbenches, generation-bound ECL/inventory/specialist/analytical/journal-risk workbenches, and typed asset/payroll/loan/equity/related-party/tax/going-concern forecast schedules.
 - Equity, notes, comparatives, closed-period restatement lineage, restricted same-currency consolidation, journal lineage, and close checks.
 - Immutable package-review decisions for management, accounting, and partner stages. Decisions are bound to the exact package revision, generation and hash; evidence modes remain separated; append-only database protection is enforced.
@@ -105,7 +106,7 @@ dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infr
 scripts/db/restore-drill.sh
 ```
 
-The restore evidence is written to [`docs/evidence/restore-drill-latest.json`](../evidence/restore-drill-latest.json). The latest rehearsal restored 56 migrations through `20260921020828_AddIntercompanyEliminationLineage`; it is loopback-only and explicitly reports that external checkpoint custody and production RPO/RTO were not run.
+The restore evidence is written to [`docs/evidence/restore-drill-latest.json`](../evidence/restore-drill-latest.json). The latest rehearsal restored 57 migrations through `20260921042350_BindTrialBalanceToReportingContext`; it is loopback-only and explicitly reports that external checkpoint custody and production RPO/RTO were not run.
 
 ## Resume rule
 
