@@ -273,6 +273,33 @@ public sealed class ClientAccountingTests
 
   [Fact]
   [Trait("Profile", "Database")]
+  public async Task TaxonomyNodes_AllowIncrementalParentsOnlyWithinVersion()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var scope = await SeedAsync(pg);
+    var reviewer = Actor(scope.Reviewer, "AccountingReviewer");
+
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var taxonomyId = (await ClientAccountingService.CreateTaxonomyVersionAsync(db, reviewer,
+      "TAX-2026", "IFRS", "Reporting taxonomy", new DateOnly(2026, 1, 1))).Value;
+    Assert.True((await ClientAccountingService.AddTaxonomyNodesAsync(db, reviewer, taxonomyId,
+      [new("ASSETS", "Assets", "SFP", "+", "DEBIT", "BALANCE_SHEET", true, "ALL")])).Succeeded);
+
+    Assert.True((await ClientAccountingService.AddTaxonomyNodesAsync(db, reviewer, taxonomyId,
+      [new("CASH", "Cash", "SFP", "+", "DEBIT", "CASH", true, "ALL", "ASSETS")])).Succeeded);
+    var parentId = await db.ReportingTaxonomyNodes.Where(x => x.TaxonomyVersionId == taxonomyId && x.Code == "ASSETS").Select(x => x.Id).SingleAsync();
+    Assert.Equal(parentId, await db.ReportingTaxonomyNodes.Where(x => x.TaxonomyVersionId == taxonomyId && x.Code == "CASH").Select(x => x.ParentNodeId).SingleAsync());
+
+    var otherTaxonomyId = (await ClientAccountingService.CreateTaxonomyVersionAsync(db, reviewer,
+      "TAX-2027", "IFRS", "Other taxonomy", new DateOnly(2027, 1, 1))).Value;
+    var wrongVersion = await ClientAccountingService.AddTaxonomyNodesAsync(db, reviewer, otherTaxonomyId,
+      [new("CASH", "Cash", "SFP", "+", "DEBIT", "CASH", true, "ALL", "ASSETS")]);
+    Assert.False(wrongVersion.Succeeded);
+    Assert.Equal(ErrorCodes.Accounting.MappingInvalid, wrongVersion.ErrorCode);
+  }
+
+  [Fact]
+  [Trait("Profile", "Database")]
   public async Task ValuationEvidence_BlocksWhenClientGenerationChanges()
   {
     await using var pg = await PgTestSchema.CreateAsync();

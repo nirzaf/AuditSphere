@@ -643,13 +643,14 @@ public static class ClientAccountingService
     if (taxonomy.Status != AccountingWorkflowStates.Draft)
       return CommandResult.Fail(ErrorCodes.ProtectedState, "Approved taxonomy versions are immutable.");
     var map = inputs.ToDictionary(x => x.Code.Trim(), StringComparer.OrdinalIgnoreCase);
-    if (map.Count != inputs.Count || inputs.Any(x => x.ParentCode is not null && !map.ContainsKey(x.ParentCode.Trim())))
-      return CommandResult.Fail(ErrorCodes.Accounting.MappingInvalid, "Taxonomy parent codes must be present in the same draft batch.");
+    var existing = await db.ReportingTaxonomyNodes.Where(x => x.FirmId == actor.FirmId && x.TaxonomyVersionId == taxonomy.Id).ToListAsync(ct);
+    var existingByCode = existing.ToDictionary(x => x.Code, StringComparer.OrdinalIgnoreCase);
+    if (map.Count != inputs.Count || inputs.Any(x => x.ParentCode is not null && !map.ContainsKey(x.ParentCode.Trim()) &&
+        !existingByCode.ContainsKey(x.ParentCode.Trim())))
+      return CommandResult.Fail(ErrorCodes.Accounting.MappingInvalid, "Taxonomy parent codes must exist in the same taxonomy version.");
     if (HasTaxonomyCycle(inputs, map))
       return CommandResult.Fail(ErrorCodes.Accounting.MappingInvalid, "The taxonomy contains a parent cycle.");
-    var existing = await db.ReportingTaxonomyNodes.Where(x => x.FirmId == actor.FirmId && x.TaxonomyVersionId == taxonomy.Id)
-      .Select(x => x.Code).ToListAsync(ct);
-    if (inputs.Any(x => existing.Contains(x.Code.Trim(), StringComparer.OrdinalIgnoreCase)))
+    if (inputs.Any(x => existingByCode.ContainsKey(x.Code.Trim())))
       return CommandResult.Fail(ErrorCodes.IdempotencyConflict, "A taxonomy node code already exists.");
     var nodes = inputs.Select(x => new ReportingTaxonomyNode
     {
@@ -661,7 +662,8 @@ public static class ClientAccountingService
     var byCode = nodes.ToDictionary(x => x.Code, StringComparer.OrdinalIgnoreCase);
     foreach (var node in nodes)
       if (map[node.Code].ParentCode is { } parent)
-        node.ParentNodeId = byCode[parent.Trim()].Id;
+        node.ParentNodeId = byCode.TryGetValue(parent.Trim(), out var newParent)
+          ? newParent.Id : existingByCode[parent.Trim()].Id;
     db.ReportingTaxonomyNodes.AddRange(nodes);
     await db.SaveChangesAsync(ct);
     return CommandResult.Ok();
@@ -1315,7 +1317,7 @@ public static class ClientAccountingService
       if (state.GetValueOrDefault(code) == 1) return true;
       if (state.GetValueOrDefault(code) == 2) return false;
       state[code] = 1;
-      if (map[code].ParentCode is { } parent && Visit(parent.Trim())) return true;
+      if (map[code].ParentCode is { } parent && map.ContainsKey(parent.Trim()) && Visit(parent.Trim())) return true;
       state[code] = 2;
       return false;
     }
