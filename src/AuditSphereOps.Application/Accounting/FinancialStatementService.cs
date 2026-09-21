@@ -23,7 +23,8 @@ public sealed record CreateMappingVersionRequest(
   string TaxonomyVersion,
   string PeriodStart,
   string PeriodEnd,
-  IReadOnlyList<MappingAllocationInput> Allocations);
+  IReadOnlyList<MappingAllocationInput> Allocations,
+  Guid? ClientChartVersionId = null);
 
 public sealed record BuildFinancialPackageRequest(
   Guid AdjustmentPlanId,
@@ -107,6 +108,27 @@ public static class FinancialStatementService
     var auth = await AuthorizeAsync(db, actor, dataset.FirmId, dataset.ClientId, dataset.EngagementId, PreparerRoles.ToArray(), ct);
     if (!auth.Succeeded)
       return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+    Guid? chartVersionId = request.ClientChartVersionId;
+    if (db is IClientAccountingDbContext typed)
+    {
+      var approvedCharts = await typed.ClientChartVersions.AsNoTracking().Where(x =>
+        x.FirmId == dataset.FirmId && x.ClientId == dataset.ClientId && x.Status == AccountingWorkflowStates.Approved).ToListAsync(ct);
+      if (chartVersionId is null && approvedCharts.Count > 0)
+        return CommandResult<Guid>.Fail(ErrorCodes.Accounting.MappingInvalid,
+          "An approved client chart version is required for mapping applicability.");
+      if (chartVersionId is { } requestedChartId)
+      {
+        var chart = approvedCharts.SingleOrDefault(x => x.Id == requestedChartId);
+        if (chart is null)
+          return CommandResult<Guid>.Fail(ErrorCodes.Accounting.MappingInvalid,
+            "The mapping chart must be an approved version in the same client scope.");
+        if (!DateOnly.TryParse(request.PeriodStart, CultureInfo.InvariantCulture, DateTimeStyles.None, out var periodStart) ||
+            !DateOnly.TryParse(request.PeriodEnd, CultureInfo.InvariantCulture, DateTimeStyles.None, out var periodEnd) ||
+            chart.EffectiveFrom > periodStart || chart.EffectiveTo is { } chartEnd && chartEnd < periodEnd)
+          return CommandResult<Guid>.Fail(ErrorCodes.Accounting.MappingInvalid,
+            "The approved client chart is not effective for the mapping period.");
+      }
+    }
     var taxonomyError = await ValidateApprovedTaxonomyAsync(db, dataset.FirmId, request.TaxonomyVersion, request.Allocations, ct);
     if (taxonomyError is not null)
       return CommandResult<Guid>.Fail(ErrorCodes.Accounting.MappingInvalid, taxonomyError);
@@ -132,7 +154,7 @@ public static class FinancialStatementService
     var mapping = new MappingVersion
     {
       Id = Guid.CreateVersion7(), FirmId = dataset.FirmId, ClientId = dataset.ClientId,
-      EngagementId = dataset.EngagementId, DatasetId = dataset.Id, Version = version,
+      EngagementId = dataset.EngagementId, DatasetId = dataset.Id, ClientChartVersionId = chartVersionId, Version = version,
       Generation = client.InputGeneration, TaxonomyVersion = request.TaxonomyVersion.Trim(),
       PeriodStart = request.PeriodStart.Trim(), PeriodEnd = request.PeriodEnd.Trim(),
       CreatedByUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
@@ -198,6 +220,17 @@ public static class FinancialStatementService
     if (dataset is null || dataset.ClientId != mapping.ClientId || dataset.EngagementId != mapping.EngagementId ||
         dataset.ValidationStatus != "Accepted" || !dataset.Balanced || dataset.ControlTotal != 0m)
       return CommandResult.Fail(ErrorCodes.GateBlocked, "The mapping dataset is no longer eligible.");
+    if (mapping.ClientChartVersionId is { } chartVersionId && db is IClientAccountingDbContext typedCharts)
+    {
+      var chart = await typedCharts.ClientChartVersions.AsNoTracking().SingleOrDefaultAsync(x =>
+        x.FirmId == mapping.FirmId && x.ClientId == mapping.ClientId && x.Id == chartVersionId &&
+        x.Status == AccountingWorkflowStates.Approved, ct);
+      if (chart is null || !DateOnly.TryParse(mapping.PeriodStart, CultureInfo.InvariantCulture, DateTimeStyles.None, out var periodStart) ||
+          !DateOnly.TryParse(mapping.PeriodEnd, CultureInfo.InvariantCulture, DateTimeStyles.None, out var periodEnd) ||
+          chart.EffectiveFrom > periodStart || chart.EffectiveTo is { } chartEnd && chartEnd < periodEnd)
+        return CommandResult.Fail(ErrorCodes.Accounting.MappingInvalid,
+          "The approved client chart applicability changed; create a new mapping version.");
+    }
     var rows = await db.TrialBalanceRows.AsNoTracking()
       .Where(x => x.DatasetId == mapping.DatasetId)
       .Select(x => new SourceBalance(x.AccountCode, x.Amount)).ToListAsync(ct);

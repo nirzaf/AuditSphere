@@ -434,7 +434,7 @@ public static class RecordsArchiveService
       .OrderBy(x => x.Id).Select(x => new { x.Id, x.MappingCode, x.SourcePattern, x.Revision, x.CreatedAt }).ToListAsync(ct);
     var mappingVersions = await db.MappingVersions.AsNoTracking()
       .Where(x => x.FirmId == archive.FirmId && x.ClientId == archive.ClientId && x.EngagementId == archive.EngagementId)
-      .OrderBy(x => x.Id).Select(x => new { x.Id, x.DatasetId, x.Version, x.Generation, x.TaxonomyVersion, x.PeriodStart, x.PeriodEnd, x.Status, x.CreatedAt, x.ApprovedAt }).ToListAsync(ct);
+      .OrderBy(x => x.Id).Select(x => new { x.Id, x.DatasetId, x.ClientChartVersionId, x.Version, x.Generation, x.TaxonomyVersion, x.PeriodStart, x.PeriodEnd, x.Status, x.CreatedAt, x.ApprovedAt }).ToListAsync(ct);
     var mappingVersionIds = mappingVersions.Select(x => x.Id).ToArray();
     var mappingAllocations = await db.MappingAllocations.AsNoTracking().Where(x => mappingVersionIds.Contains(x.MappingVersionId))
       .OrderBy(x => x.Id).Select(x => new { x.Id, x.MappingVersionId, x.SourceAccountCode, x.DestinationCode, x.StatementSection, x.AuditArea, x.Fraction, x.Rationale, x.CreatedAt }).ToListAsync(ct);

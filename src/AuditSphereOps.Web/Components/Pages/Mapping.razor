@@ -28,6 +28,7 @@ else
     <h2 id="mapping-heading"><code>@_mapping.Id</code></h2>
     <dl class="details">
       <dt>Dataset</dt><dd><code>@_mapping.DatasetId</code></dd>
+      <dt>Client chart</dt><dd>@(_chart is null ? "Legacy/unbound" : $"v{_chart.Version} · {_chart.SourceScope} · {_chart.Status}")</dd>
       <dt>Taxonomy</dt><dd>@_mapping.TaxonomyVersion</dd>
       <dt>Taxonomy scope</dt><dd>@(_taxonomy is null ? "Unavailable" : $"{_taxonomy.OverlayScope} · base {_taxonomy.BaseTaxonomyVersionId?.ToString("D") ?? "none"}")</dd>
       <dt>Period</dt><dd>@_mapping.PeriodStart to @_mapping.PeriodEnd</dd>
@@ -185,6 +186,7 @@ else
   private MappingVersion? _mapping;
   private MappingVersion? _priorMapping;
   private ReportingTaxonomyVersion? _taxonomy;
+  private ClientChartVersion? _chart;
   private List<MappingAllocation> _allocations = [];
   private List<SourceRow> _sourceAccounts = [];
   private List<SourceRow> _unmappedAccounts = [];
@@ -218,6 +220,10 @@ else
         _mapping = candidate;
         _taxonomy = await db.ReportingTaxonomyVersions.AsNoTracking().SingleOrDefaultAsync(x =>
           x.FirmId == _actor.FirmId && x.Code == _mapping.TaxonomyVersion);
+        _chart = _mapping.ClientChartVersionId is { } chartId
+          ? await db.ClientChartVersions.AsNoTracking().SingleOrDefaultAsync(x =>
+            x.FirmId == _actor.FirmId && x.ClientId == _mapping.ClientId && x.Id == chartId)
+          : null;
         _allocations = await db.MappingAllocations.AsNoTracking()
           .Where(x => x.FirmId == _actor.FirmId && x.ClientId == _mapping.ClientId &&
                       x.EngagementId == _mapping.EngagementId && x.MappingVersionId == _mapping.Id)

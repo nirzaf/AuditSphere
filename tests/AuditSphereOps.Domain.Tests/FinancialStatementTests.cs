@@ -247,6 +247,42 @@ public sealed class FinancialStatementTests
   }
 
   [Fact]
+  public async Task MappingApplicability_BindsApprovedClientChartVersion()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await SeedAsync(pg);
+    var preparer = Actor(fixture.Preparer, "AccountingPreparer");
+    var allocations = new[]
+    {
+      new MappingAllocationInput("1000", "CASH", "ASSETS", 1m, "Cash mapping"),
+      new MappingAllocationInput("4000", "REVENUE", "INCOME", 1m, "Revenue mapping")
+    };
+    var chartId = Guid.CreateVersion7();
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      db.ClientChartVersions.Add(new ClientChartVersion
+      {
+        Id = chartId, FirmId = fixture.FirmId, ClientId = fixture.ClientId, Version = 1,
+        SourceScope = "LEDGER-2026", Status = AccountingWorkflowStates.Approved,
+        EffectiveFrom = new DateOnly(2026, 1, 1), EffectiveTo = new DateOnly(2026, 12, 31),
+        CreatedByUserId = fixture.Preparer.Id, PublishedByUserId = fixture.Reviewer.Id,
+        PublishedAt = DateTimeOffset.UtcNow, CreatedAt = DateTimeOffset.UtcNow
+      });
+      await db.SaveChangesAsync();
+
+      var missingApplicability = await FinancialStatementService.CreateMappingVersionAsync(db, preparer,
+        new CreateMappingVersionRequest(fixture.DatasetId, "tax-v1", "2026-01-01", "2026-12-31", allocations));
+      Assert.False(missingApplicability.Succeeded);
+      Assert.Equal(ErrorCodes.Accounting.MappingInvalid, missingApplicability.ErrorCode);
+
+      var created = await FinancialStatementService.CreateMappingVersionAsync(db, preparer,
+        new CreateMappingVersionRequest(fixture.DatasetId, "tax-v1", "2026-01-01", "2026-12-31", allocations, chartId));
+      Assert.True(created.Succeeded, created.Message);
+      Assert.Equal(chartId, await db.MappingVersions.Where(x => x.Id == created.Value).Select(x => x.ClientChartVersionId).SingleAsync());
+    }
+  }
+
+  [Fact]
   public async Task ZeroAdjustmentPlan_ProducesSourceEquivalentPackage()
   {
     await using var pg = await PgTestSchema.CreateAsync();

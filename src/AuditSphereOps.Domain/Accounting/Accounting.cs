@@ -113,6 +113,8 @@ public sealed class MappingVersion
   public Guid ClientId { get; set; }
   public Guid EngagementId { get; set; }
   public Guid DatasetId { get; set; }
+  /// <summary>Approved client chart version used for this mapping; nullable for legacy mappings.</summary>
+  public Guid? ClientChartVersionId { get; set; }
   public long Version { get; set; } = 1;
   public long Generation { get; set; } = 1;
   public string TaxonomyVersion { get; set; } = string.Empty;

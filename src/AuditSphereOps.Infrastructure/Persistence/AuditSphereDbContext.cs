@@ -1154,6 +1154,9 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     mapping.HasOne<TrialBalanceDataset>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.DatasetId })
       .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    mapping.HasOne<ClientChartVersion>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.ClientChartVersionId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     mapping.HasOne<AppUser>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.CreatedByUserId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
