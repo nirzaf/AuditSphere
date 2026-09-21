@@ -388,9 +388,9 @@ public static class ConsolidationService
         x.EffectiveFrom, x.EffectiveTo)).ToListAsync(ct);
     if (HasOwnershipCycle(ownershipEdges))
       return CommandResult.Fail(ErrorCodes.GateBlocked, "The consolidation perimeter contains a circular ownership hierarchy.");
-    if (scope.Method == ConsolidationCalculator.RestrictedMethod && ownershipEdges.Count > 0)
+    if (ownershipEdges.Count > 0)
       return CommandResult.Fail(ErrorCodes.GateBlocked,
-        "Ownership hierarchy data requires an approved advanced consolidation method; the restricted profile is direct-membership only.");
+        "Ownership hierarchy data is recorded but intermediate and nested consolidation is not enabled for this calculation profile.");
     if (!await HasMethodOwnerAcceptanceAsync(db, actor.FirmId, scope.GroupId, scope.Method, ct))
       return CommandResult.Fail(ErrorCodes.GateBlocked,
         "An independently accepted group capability profile is required before perimeter approval.");

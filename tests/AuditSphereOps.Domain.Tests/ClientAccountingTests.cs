@@ -1592,6 +1592,14 @@ public sealed class ClientAccountingTests
       Assert.Equal(0m, nextScope.OpeningTranslationReserve);
       Assert.NotEqual(string.Empty, nextScope.RecurringEliminationManifest);
 
+      Assert.True((await ConsolidationService.AddOwnershipInterestAsync(db, reviewer,
+        new OwnershipInterestRequest(nextScopeId, scope.ClientA, scope.ClientB,
+          new DateOnly(2027, 1, 1), null, 100m, 100m, "CONTROLLED", "DIRECT",
+          "nested-hierarchy-awaits-approved-method"))).Succeeded);
+      var nestedScope = await ConsolidationService.ApproveScopeAsync(db, reviewer, nextScopeId);
+      Assert.False(nestedScope.Succeeded);
+      Assert.Equal(ErrorCodes.GateBlocked, nestedScope.ErrorCode);
+
       var nextMapping = await db.FinancialPackages.Where(x => x.Id == packageUsd).Select(x => x.MappingVersionId).SingleAsync();
       var nextComponentId = (await ConsolidationService.SubmitComponentAsync(db, preparer,
         new ConsolidationComponentRequest(nextScopeId, scope.ClientA, scope.EngagementA, packageUsd, 100m,
