@@ -31,11 +31,11 @@ else
       {
         <div class="table-wrap"><table>
           <caption class="sr-only">Consolidation scopes for @group.Name</caption>
-          <thead><tr><th scope="col">Version</th><th scope="col">Method</th><th scope="col">Currency</th><th scope="col">Perimeter</th><th scope="col">Latest run</th></tr></thead>
+          <thead><tr><th scope="col">Version</th><th scope="col">Method</th><th scope="col">Currency</th><th scope="col" title="Approved ownership relationships pinned to this scope">Ownership edges</th><th scope="col" title="Grouped intercompany rows needing a complete review">Grouped matches</th><th scope="col" title="Related-party reviews retained outside automatic elimination">Outside reviews</th><th scope="col">Perimeter</th><th scope="col">Latest run</th></tr></thead>
           <tbody>
           @foreach (var scope in group.Scopes)
           {
-            <tr><td>v@scope.Version</td><td><code>@scope.Method</code></td><td>@scope.Currency</td><td>@scope.Status</td><td>@scope.RunStatus</td></tr>
+            <tr><td>v@scope.Version</td><td><code>@scope.Method</code></td><td>@scope.Currency</td><td>@scope.OwnershipEdges</td><td>@scope.GroupedMatches</td><td>@scope.OutsideReviews</td><td>@scope.Status</td><td>@scope.RunStatus</td></tr>
           }
           </tbody>
         </table></div>
@@ -45,7 +45,8 @@ else
 }
 
 @code {
-  private sealed record ScopeRow(int Version, string Method, string Currency, string Status, string RunStatus);
+  private sealed record ScopeRow(int Version, string Method, string Currency, int OwnershipEdges, int GroupedMatches,
+    int OutsideReviews, string Status, string RunStatus);
   private sealed record GroupRow(Guid Id, string Code, string Name, IReadOnlyList<ScopeRow> Scopes);
   private List<GroupRow> _groups = [];
   private bool _loading = true;
@@ -60,10 +61,22 @@ else
         .Select(x => x.GroupId).Distinct().ToArrayAsync();
       var groups = await db.ClientGroups.AsNoTracking().Where(x => x.FirmId == actor.FirmId && groupIds.Contains(x.Id)).OrderBy(x => x.Name).ToListAsync();
       var scopes = await db.ConsolidationScopeVersions.AsNoTracking().Where(x => x.FirmId == actor.FirmId && groupIds.Contains(x.GroupId)).ToListAsync();
+      var ownershipCounts = await db.OwnershipInterestVersions.AsNoTracking().Where(x => x.FirmId == actor.FirmId && groupIds.Contains(x.GroupId) &&
+        x.Status == AccountingWorkflowStates.Approved).GroupBy(x => x.ScopeVersionId).Select(x => new { ScopeId = x.Key, Count = x.Count() })
+        .ToDictionaryAsync(x => x.ScopeId, x => x.Count);
+      var matchCounts = await db.IntercompanyMatches.AsNoTracking().Where(x => x.FirmId == actor.FirmId && groupIds.Contains(x.GroupId) &&
+        x.Status != AccountingWorkflowStates.Rejected).GroupBy(x => x.ScopeVersionId).Select(x => new
+        {
+          ScopeId = x.Key,
+          Grouped = x.Count(y => y.MatchMode == IntercompanyMatchModes.Grouped),
+          Outside = x.Count(y => y.OutsidePerimeterReview)
+        }).ToDictionaryAsync(x => x.ScopeId);
       var runStatuses = await db.ConsolidationRuns.AsNoTracking().Where(x => x.FirmId == actor.FirmId && groupIds.Contains(x.GroupId))
         .GroupBy(x => x.ScopeVersionId).Select(x => new { ScopeId = x.Key, Status = x.OrderByDescending(y => y.CreatedAt).Select(y => y.Status).First() }).ToDictionaryAsync(x => x.ScopeId, x => x.Status);
       _groups = groups.Select(group => new GroupRow(group.Id, group.Code, group.Name, scopes.Where(x => x.GroupId == group.Id)
-        .OrderByDescending(x => x.Version).Select(x => new ScopeRow(x.Version, x.Method, x.ReportingCurrency, x.Status,
+        .OrderByDescending(x => x.Version).Select(x => new ScopeRow(x.Version, x.Method, x.ReportingCurrency,
+          ownershipCounts.GetValueOrDefault(x.Id), matchCounts.GetValueOrDefault(x.Id)?.Grouped ?? 0,
+          matchCounts.GetValueOrDefault(x.Id)?.Outside ?? 0, x.Status,
           runStatuses.GetValueOrDefault(x.Id, "NO_RUN"))).ToArray())).ToList();
     }
     _loading = false;
