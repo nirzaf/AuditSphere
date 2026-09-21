@@ -93,6 +93,18 @@ public sealed class ClientAccountingTests
           new DateOnly(2026, 12, 31)));
       Assert.False(wrongBook.Succeeded);
       Assert.Equal(ErrorCodes.ScopeDenied, wrongBook.ErrorCode);
+      var otherPeriodId = (await ClientAccountingService.CreatePeriodAsync(db, preparer,
+        new ReportingPeriodRequest(scope.ClientA, "2027", new DateOnly(2027, 1, 1), new DateOnly(2027, 12, 31), "STATUTORY", "QAR"))).Value;
+      var batch = await db.SourceImportBatches.SingleAsync(x => x.Id == batchId);
+      batch.PeriodId = otherPeriodId;
+      await db.SaveChangesAsync();
+      var wrongPeriod = await AccountingAnalysisService.CreateReconciliationAsync(db, preparer,
+        new AccountingReconciliationRequest(scope.ClientA, scope.EngagementA, periodId, bookId, "CASH", null, batchId, ["1000"],
+          new DateOnly(2026, 12, 31)));
+      Assert.False(wrongPeriod.Succeeded);
+      Assert.Equal(ErrorCodes.Accounting.ReconciliationRejected, wrongPeriod.ErrorCode);
+      batch.PeriodId = periodId;
+      await db.SaveChangesAsync();
       reconciliationId = (await AccountingAnalysisService.CreateReconciliationAsync(db, preparer,
         new AccountingReconciliationRequest(scope.ClientA, scope.EngagementA, periodId, bookId, "CASH", null, batchId, ["1000"],
           new DateOnly(2026, 12, 31)))).Value;

@@ -298,6 +298,9 @@ public static class AccountingAnalysisService
         return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "The selected GL batch is outside the engagement or not sealed.");
       if (batch.BookId != request.BookId)
         return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "The selected GL batch does not belong to the requested reporting book.");
+      if (batch.PeriodId != request.PeriodId || !string.Equals(batch.Currency, period.Currency, StringComparison.OrdinalIgnoreCase))
+        return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ReconciliationRejected,
+          "The selected GL batch does not belong to the requested reporting period and currency.");
       var lines = await db.GeneralLedgerLines.AsNoTracking().Where(x => x.ImportBatchId == batch.Id && codes.Contains(x.AccountCode)).ToListAsync(ct);
       if (lines.Select(x => x.AccountCode).Distinct(StringComparer.OrdinalIgnoreCase).Count() != codes.Length)
         return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ReconciliationRejected, "The selected GL batch does not contain every requested account code.");
