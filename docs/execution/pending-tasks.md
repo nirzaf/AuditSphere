@@ -3,7 +3,7 @@
 **Repository:** `nirzaf/AuditSphere`
 **Authoritative specification:** [`docs/SPECIFICATION.md`](../SPECIFICATION.md) v5.0
 **Requirements backlog:** [`docs/requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md`](../requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md)
-**Source implementation checkpoint:** `master@087730c`
+**Source implementation checkpoint:** `master@c180d9a`
 
 This is a resume checklist, not an acceptance certificate. Tenant identifiers, credentials, tokens, secret values, and private-provider URLs are deliberately absent from the public repository.
 
@@ -45,6 +45,7 @@ This is a resume checklist, not an acceptance certificate. Tenant identifiers, c
 - [x] Bind context-bound financial packages to the selected client reporting period, optional book, basis and currency, including period-date validation and deterministic hash lineage.
 - [x] Bind context-bound adjustment journals to the validated client reporting period, optional book, basis and currency; reject cross-period books and preserve journal context lineage.
 - [x] Route financial-package rendering through the existing durable operation infrastructure with exact package-revision fencing and deterministic artifact-digest verification.
+- [x] Require financial-package mappings to match the approved taxonomy statement section; persist individual statement cross-cast, accounting-equation, equity/profit, comparative-consistency and note-to-face validation results and render key package-lineage identifiers.
 - [x] Benchmark representative accounting workloads before production acceptance; the current test covers four clients, 2,000 transactions, 8,000 GL lines, two concurrent workers, a 32-line group calculation, six-decimal/high-magnitude amounts and paged reads. Observed timings are local capacity evidence only.
 - [x] Add a client-safe validated-package view and signed-in management acknowledgement route with cross-client denial coverage.
 - [x] Add an authorized staff package-review queue with exact-version stage status and direct package handoff.
