@@ -36,13 +36,14 @@ else
       <div class="table-wrap">
         <table>
           <caption class="sr-only">Scoped accounting evidence queue</caption>
-          <thead><tr><th scope="col">Area</th><th scope="col">Client</th><th scope="col">Period</th><th scope="col">Status</th><th scope="col">Input generation</th><th scope="col">Audit evidence</th><th scope="col">Reference</th></tr></thead>
+      <thead><tr><th scope="col">Area</th><th scope="col">Client</th><th scope="col">Engagement</th><th scope="col">Period</th><th scope="col">Status</th><th scope="col">Input generation</th><th scope="col">Audit evidence</th><th scope="col">Reference</th></tr></thead>
           <tbody>
           @foreach (var row in _rows)
           {
             <tr>
               <td><strong>@row.Kind</strong><br /><span class="muted">@row.Area</span></td>
               <td>@row.ClientName</td>
+              <td>@row.EngagementName</td>
               <td>@row.PeriodCode</td>
               <td><span class="status">@row.Status@(row.IsStale ? " · STALE" : "")</span></td>
               <td>@row.InputGeneration / @row.CurrentGeneration</td>
@@ -65,7 +66,7 @@ else
 
 @code {
   private sealed record EvidenceRow(
-    string Kind, string Area, string ClientName, string PeriodCode, string Status,
+    string Kind, string Area, string ClientName, string EngagementName, string PeriodCode, string Status,
     long InputGeneration, long CurrentGeneration, string LinkStatus, Guid? WorkpaperId, string Reference)
   {
     public bool IsStale => InputGeneration != CurrentGeneration;
@@ -90,8 +91,20 @@ else
 
     await using var db = await DbFactory.CreateDbContextAsync();
     var grants = db.RoleGrants.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && x.UserId == _actor.UserId && x.RevokedAt == null);
-    var unrestricted = _actor.Roles.Any(x => x is "Administrator" or "Partner") || await grants.AnyAsync(x => x.ClientId == null);
-    var clientIds = await grants.Where(x => x.ClientId.HasValue).Select(x => x.ClientId!.Value).Distinct().ToArrayAsync();
+    var unrestricted = _actor.Roles.Any(x => x is "Administrator" or "Partner") ||
+      await grants.AnyAsync(x => x.ClientId == null && x.EngagementId == null);
+    var directClientIds = await grants.Where(x => x.ClientId.HasValue && x.EngagementId == null)
+      .Select(x => x.ClientId!.Value).Distinct().ToArrayAsync();
+    var grantedEngagementIds = await grants.Where(x => x.EngagementId.HasValue)
+      .Select(x => x.EngagementId!.Value).Distinct().ToArrayAsync();
+    var engagementClientIds = grantedEngagementIds.Length == 0 ? [] : await db.Engagements.AsNoTracking()
+      .Where(x => x.FirmId == _actor.FirmId && grantedEngagementIds.Contains(x.Id))
+      .Select(x => x.PracticeClientId).Distinct().ToArrayAsync();
+    var clientIds = directClientIds.Concat(engagementClientIds).Distinct().ToArray();
+    var scopedEngagementIds = unrestricted ? [] : await db.Engagements.AsNoTracking()
+      .Where(x => x.FirmId == _actor.FirmId &&
+        (directClientIds.Contains(x.PracticeClientId) || grantedEngagementIds.Contains(x.Id)))
+      .Select(x => x.Id).ToArrayAsync();
     if (!unrestricted && clientIds.Length == 0)
     {
       _loading = false;
@@ -100,17 +113,23 @@ else
     var inScope = unrestricted ? null : clientIds;
     var clients = await db.PracticeClients.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && (inScope == null || inScope.Contains(x.Id)))
       .ToDictionaryAsync(x => x.Id, x => x.LegalName);
+    var engagements = await db.Engagements.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
+      (unrestricted || directClientIds.Contains(x.PracticeClientId) || scopedEngagementIds.Contains(x.Id)))
+      .ToDictionaryAsync(x => x.Id, x => x.ServiceRoute);
     var periods = await db.ClientReportingPeriods.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && (inScope == null || inScope.Contains(x.ClientId)))
       .ToDictionaryAsync(x => x.Id, x => x.PeriodCode);
     var generations = await db.ClientSafetyStates.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && (inScope == null || inScope.Contains(x.Id)))
       .ToDictionaryAsync(x => x.Id, x => x.InputGeneration);
-    var reconciliations = await db.AccountingReconciliations.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && (inScope == null || inScope.Contains(x.ClientId)))
+    var reconciliations = await db.AccountingReconciliations.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
+      (unrestricted || directClientIds.Contains(x.ClientId) || scopedEngagementIds.Contains(x.EngagementId)))
       .ToDictionaryAsync(x => x.Id);
-    var batches = await db.SourceImportBatches.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && (inScope == null || inScope.Contains(x.ClientId)))
+    var batches = await db.SourceImportBatches.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
+      (unrestricted || directClientIds.Contains(x.ClientId) || scopedEngagementIds.Contains(x.EngagementId)))
       .ToDictionaryAsync(x => x.Id);
-    var links = await db.AccountingEvidenceAuditLinks.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && (inScope == null || inScope.Contains(x.ClientId))).ToListAsync();
+    var links = await db.AccountingEvidenceAuditLinks.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
+      (unrestricted || directClientIds.Contains(x.ClientId) || scopedEngagementIds.Contains(x.EngagementId))).ToListAsync();
     var resultInfo = await db.AuditProcedureResults.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
-      (inScope == null || inScope.Contains(x.ClientId)))
+      (unrestricted || directClientIds.Contains(x.ClientId) || scopedEngagementIds.Contains(x.EngagementId)))
       .Select(x => new { x.Id, x.Status, x.WorkpaperId }).ToDictionaryAsync(x => x.Id);
     var linkStatus = links.GroupBy(x => Key(x.EvidenceKind, x.EvidenceId)).ToDictionary(
       x => x.Key,
@@ -121,46 +140,51 @@ else
         .FirstOrDefault() ?? new AuditLinkTarget("LINKED_PENDING_REVIEW", null));
 
     var rows = new List<EvidenceRow>();
-    var ecls = await db.EclAssessments.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && (inScope == null || inScope.Contains(x.ClientId))).ToListAsync();
+    var ecls = await db.EclAssessments.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
+      (unrestricted || directClientIds.Contains(x.ClientId) || scopedEngagementIds.Contains(x.EngagementId))).ToListAsync();
     rows.AddRange(ecls.Select(x =>
     {
       var reconciliation = reconciliations[x.ReconciliationId];
-      return Row("ECL", reconciliation.Area, x.Id, x.ClientId, periods.GetValueOrDefault(reconciliation.PeriodId, "—"), x.Status,
+      return Row("ECL", reconciliation.Area, x.Id, x.ClientId, x.EngagementId, periods.GetValueOrDefault(reconciliation.PeriodId, "—"), x.Status,
         x.InputGeneration, generations.GetValueOrDefault(x.ClientId, 0), linkStatus, x.MethodologyVersion);
     }));
 
-    var inventory = await db.InventoryValuationAssessments.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && (inScope == null || inScope.Contains(x.ClientId))).ToListAsync();
+    var inventory = await db.InventoryValuationAssessments.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
+      (unrestricted || directClientIds.Contains(x.ClientId) || scopedEngagementIds.Contains(x.EngagementId))).ToListAsync();
     rows.AddRange(inventory.Select(x =>
     {
       var reconciliation = reconciliations[x.ReconciliationId];
-      return Row("INVENTORY", reconciliation.Area, x.Id, x.ClientId, periods.GetValueOrDefault(reconciliation.PeriodId, "—"), x.Status,
+      return Row("INVENTORY", reconciliation.Area, x.Id, x.ClientId, x.EngagementId, periods.GetValueOrDefault(reconciliation.PeriodId, "—"), x.Status,
         x.InputGeneration, generations.GetValueOrDefault(x.ClientId, 0), linkStatus, x.MethodologyVersion);
     }));
 
-    var specialist = await db.SpecialistAccountingSchedules.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && (inScope == null || inScope.Contains(x.ClientId))).ToListAsync();
-    rows.AddRange(specialist.Select(x => Row("SPECIALIST", x.Area, x.Id, x.ClientId, periods.GetValueOrDefault(x.PeriodId, "—"), x.Status,
+    var specialist = await db.SpecialistAccountingSchedules.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
+      (unrestricted || directClientIds.Contains(x.ClientId) || scopedEngagementIds.Contains(x.EngagementId))).ToListAsync();
+    rows.AddRange(specialist.Select(x => Row("SPECIALIST", x.Area, x.Id, x.ClientId, x.EngagementId, periods.GetValueOrDefault(x.PeriodId, "—"), x.Status,
       x.InputGeneration, generations.GetValueOrDefault(x.ClientId, 0), linkStatus, x.EvidenceReference)));
 
-    var analytical = await db.AnalyticalReviews.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && (inScope == null || inScope.Contains(x.ClientId))).ToListAsync();
-    rows.AddRange(analytical.Select(x => Row("ANALYTICAL", x.Area, x.Id, x.ClientId, periods.GetValueOrDefault(x.PeriodId, "—"), x.Status,
+    var analytical = await db.AnalyticalReviews.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
+      (unrestricted || directClientIds.Contains(x.ClientId) || scopedEngagementIds.Contains(x.EngagementId))).ToListAsync();
+    rows.AddRange(analytical.Select(x => Row("ANALYTICAL", x.Area, x.Id, x.ClientId, x.EngagementId, periods.GetValueOrDefault(x.PeriodId, "—"), x.Status,
       x.InputGeneration, generations.GetValueOrDefault(x.ClientId, 0), linkStatus, x.Explanation)));
 
-    var risks = await db.JournalRiskFlags.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && (inScope == null || inScope.Contains(x.ClientId))).ToListAsync();
+    var risks = await db.JournalRiskFlags.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
+      (unrestricted || directClientIds.Contains(x.ClientId) || scopedEngagementIds.Contains(x.EngagementId))).ToListAsync();
     rows.AddRange(risks.Select(x =>
     {
       var batch = batches.GetValueOrDefault(x.ImportBatchId);
       var periodCode = batch is null ? "—" : periods.GetValueOrDefault(batch.PeriodId, "—");
-      return Row("JOURNAL_RISK", x.RuleCode, x.Id, x.ClientId, periodCode, x.Status, generations.GetValueOrDefault(x.ClientId, 0),
+      return Row("JOURNAL_RISK", x.RuleCode, x.Id, x.ClientId, x.EngagementId, periodCode, x.Status, generations.GetValueOrDefault(x.ClientId, 0),
         generations.GetValueOrDefault(x.ClientId, 0), linkStatus, x.EvidenceReference);
     }));
     _rows = rows.OrderBy(x => x.ClientName).ThenBy(x => x.PeriodCode).ThenBy(x => x.Kind).ToList();
     _loading = false;
 
-    EvidenceRow Row(string kind, string area, Guid evidenceId, Guid clientId, string periodCode, string status, long inputGeneration,
+    EvidenceRow Row(string kind, string area, Guid evidenceId, Guid clientId, Guid engagementId, string periodCode, string status, long inputGeneration,
       long currentGeneration, IReadOnlyDictionary<string, AuditLinkTarget> statuses, string reference)
     {
       var link = statuses.GetValueOrDefault(Key(kind, evidenceId));
-      return new(kind, area, clients.GetValueOrDefault(clientId, "—"), periodCode, status, inputGeneration, currentGeneration,
+      return new(kind, area, clients.GetValueOrDefault(clientId, "—"), engagements.GetValueOrDefault(engagementId, "Scoped engagement"), periodCode, status, inputGeneration, currentGeneration,
         link?.Status ?? "LINK_PENDING", link?.WorkpaperId, reference);
     }
   }
