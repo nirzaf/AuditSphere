@@ -204,6 +204,64 @@ public sealed class ClientAccountingTests
 
   [Fact]
   [Trait("Profile", "Database")]
+  public async Task GlImport_RejectsUndefinedClientDimensionValue()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var scope = await SeedAsync(pg);
+    var preparer = Actor(scope.Preparer, "AccountingPreparer");
+    var fixture = await CreateGlFixtureAsync(pg, scope, preparer);
+    var request = new GeneralLedgerImportRequest(scope.ClientA, scope.EngagementA, fixture.PeriodId, fixture.BookId,
+      "csv-v1", "gl-v1", new string('9', 64), "CLIENT-A", "QAR", "dimension-test",
+      [new("J-DIM", "INV-DIM", new DateOnly(2026, 6, 30), null, "user-a", "LEDGER-A", null, false, false,
+        [new("J-DIM-L1", "1000", 10m, 0m, "QAR", 10m, 10m, Department: "FINANCE"),
+         new("J-DIM-L2", "4000", 0m, 10m, "QAR", -10m, -10m)])]);
+
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var blocked = await ClientAccountingService.ImportGeneralLedgerAsync(db, preparer, request);
+    Assert.False(blocked.Succeeded);
+    Assert.Equal(ErrorCodes.Accounting.ImportRejected, blocked.ErrorCode);
+    Assert.Contains("dimension", blocked.Message!, StringComparison.OrdinalIgnoreCase);
+
+    Assert.True((await ClientAccountingService.AddDimensionDefinitionsAsync(db, preparer, scope.ClientA,
+      [new("DEPARTMENT", "FINANCE", "Finance")])).Succeeded);
+    var imported = await ClientAccountingService.ImportGeneralLedgerAsync(db, preparer, request);
+    Assert.True(imported.Succeeded, imported.Message);
+  }
+
+  [Fact]
+  [Trait("Profile", "Database")]
+  public async Task AccountingSetup_DefaultsBlankCurrencyToQar()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var scope = await SeedAsync(pg);
+    var preparer = Actor(scope.Preparer, "AccountingPreparer");
+    var reviewer = Actor(scope.Reviewer, "AccountingReviewer");
+
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var profileId = (await ClientAccountingService.CreateProfileAsync(db, preparer,
+      new ClientAccountingProfileRequest(scope.ClientA, "QA", "", 1, 1, "LEDGER-A", "A-1"))).Value;
+    var profile = await db.ClientAccountingProfiles.SingleAsync(x => x.Id == profileId);
+    Assert.Equal(AccountingDefaults.DefaultCurrency, profile.FunctionalCurrency);
+
+    var periodId = (await ClientAccountingService.CreatePeriodAsync(db, preparer,
+      new ReportingPeriodRequest(scope.ClientA, "2026", new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31), "STATUTORY", ""))).Value;
+    var period = await db.ClientReportingPeriods.SingleAsync(x => x.Id == periodId);
+    Assert.Equal(AccountingDefaults.DefaultCurrency, period.Currency);
+
+    var bookId = (await ClientAccountingService.CreateBookAsync(db, preparer,
+      new ReportingBookRequest(scope.ClientA, periodId, "STAT", "STATUTORY", "STATUTORY_ONLY", ""))).Value;
+    var book = await db.ClientReportingBooks.SingleAsync(x => x.Id == bookId);
+    Assert.Equal(AccountingDefaults.DefaultCurrency, book.Currency);
+
+    var capabilityId = (await ClientAccountingService.CreateCapabilityProfileAsync(db, reviewer,
+      new CapabilityProfileRequest(scope.ClientA, null, "ENTITY_REPORTING", "IFRS", "2026", "ANNUAL", "",
+        "STATUTORY", "", "PARTNER", "ENTITY"))).Value;
+    var capability = await db.AccountingCapabilityProfiles.SingleAsync(x => x.Id == capabilityId);
+    Assert.Equal(AccountingDefaults.DefaultCurrency, capability.ReportingCurrency);
+  }
+
+  [Fact]
+  [Trait("Profile", "Database")]
   public async Task ValuationEvidence_BlocksWhenClientGenerationChanges()
   {
     await using var pg = await PgTestSchema.CreateAsync();
@@ -1172,7 +1230,9 @@ public sealed class ClientAccountingTests
       });
       await db.SaveChangesAsync();
       consolidationScopeId = (await ConsolidationService.CreateScopeAsync(db, reviewer,
-        new ConsolidationScopeRequest(groupId, Guid.NewGuid(), "QAR", ConsolidationCalculator.RestrictedMethod, "OPENING-2026"))).Value;
+        new ConsolidationScopeRequest(groupId, Guid.NewGuid(), "", ConsolidationCalculator.RestrictedMethod, "OPENING-2026"))).Value;
+      Assert.Equal(AccountingDefaults.DefaultCurrency,
+        await db.ConsolidationScopeVersions.Where(x => x.Id == consolidationScopeId).Select(x => x.ReportingCurrency).SingleAsync());
       await AddPackageAsync(db, scope, scope.ClientA, scope.EngagementA, 100m, "CASH");
       await AddPackageAsync(db, scope, scope.ClientB, scope.EngagementB, -100m, "REVENUE");
       await db.SaveChangesAsync();

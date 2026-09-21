@@ -152,6 +152,7 @@ public interface IClientAccountingDbContext : IAuditSphereDbContext
   DbSet<SourceAccountAlias> SourceAccountAliases { get; }
   DbSet<ReportingTaxonomyVersion> ReportingTaxonomyVersions { get; }
   DbSet<ReportingTaxonomyNode> ReportingTaxonomyNodes { get; }
+  DbSet<ClientAccountingDimensionDefinition> ClientAccountingDimensionDefinitions { get; }
   DbSet<SourceImportBatch> SourceImportBatches { get; }
   DbSet<GeneralLedgerImportChunk> GeneralLedgerImportChunks { get; }
   DbSet<GeneralLedgerTransaction> GeneralLedgerTransactions { get; }

@@ -98,6 +98,7 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
   public DbSet<SourceAccountAlias> SourceAccountAliases => Set<SourceAccountAlias>();
   public DbSet<ReportingTaxonomyVersion> ReportingTaxonomyVersions => Set<ReportingTaxonomyVersion>();
   public DbSet<ReportingTaxonomyNode> ReportingTaxonomyNodes => Set<ReportingTaxonomyNode>();
+  public DbSet<ClientAccountingDimensionDefinition> ClientAccountingDimensionDefinitions => Set<ClientAccountingDimensionDefinition>();
   public DbSet<SourceImportBatch> SourceImportBatches => Set<SourceImportBatch>();
   public DbSet<GeneralLedgerImportChunk> GeneralLedgerImportChunks => Set<GeneralLedgerImportChunk>();
   public DbSet<GeneralLedgerTransaction> GeneralLedgerTransactions => Set<GeneralLedgerTransaction>();
@@ -1583,6 +1584,18 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     taxonomyNode.HasOne<ReportingTaxonomyNode>().WithMany().HasForeignKey(x => new { x.FirmId, x.TaxonomyVersionId, x.ParentNodeId })
       .HasPrincipalKey(x => new { x.FirmId, x.TaxonomyVersionId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     taxonomyNode.HasAlternateKey(x => new { x.FirmId, x.TaxonomyVersionId, x.Id }).HasName("ak_reporting_taxonomy_nodes_scope_id");
+
+    var dimension = b.Entity<ClientAccountingDimensionDefinition>();
+    dimension.Property(x => x.DimensionType).HasMaxLength(40);
+    dimension.Property(x => x.Code).HasMaxLength(100);
+    dimension.Property(x => x.Name).HasMaxLength(300);
+    dimension.Property(x => x.Status).HasMaxLength(30);
+    dimension.HasIndex(x => new { x.FirmId, x.ClientId, x.DimensionType, x.Code }).IsUnique()
+      .HasDatabaseName("ux_client_accounting_dimension_definition");
+    dimension.ToTable("client_accounting_dimension_definitions", t => t.HasCheckConstraint("ck_client_accounting_dimension_values",
+      "dimension_type IN ('BRANCH','COST_CENTRE','DEPARTMENT','PROJECT','INTERCOMPANY_COUNTERPARTY') AND length(trim(code)) > 0 AND length(trim(name)) > 0"));
+    dimension.HasOne<PracticeClient>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
 
     var import = b.Entity<SourceImportBatch>();
     import.Property(x => x.SourceKind).HasMaxLength(30);

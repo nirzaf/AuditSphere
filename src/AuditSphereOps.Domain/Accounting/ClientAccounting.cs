@@ -2,6 +2,11 @@ namespace AuditSphereOps.Domain.Accounting;
 
 // Typed client-accounting and group-reporting records. These are deliberately
 // separate from FirmAccount/FirmPeriod: the firm's books are not a client ERP.
+public static class AccountingDefaults
+{
+  public const string DefaultCurrency = "QAR";
+}
+
 public static class AccountingWorkflowStates
 {
   public const string Draft = "DRAFT";
@@ -32,7 +37,7 @@ public sealed class AccountingCapabilityProfile
   public string Framework { get; set; } = string.Empty;
   public string Edition { get; set; } = string.Empty;
   public string PeriodRule { get; set; } = string.Empty;
-  public string ReportingCurrency { get; set; } = string.Empty;
+  public string ReportingCurrency { get; set; } = AccountingDefaults.DefaultCurrency;
   public string AccountingMethod { get; set; } = string.Empty;
   public string ConsolidationMethod { get; set; } = string.Empty;
   public string ReviewHierarchy { get; set; } = string.Empty;
@@ -63,7 +68,7 @@ public sealed class ClientAccountingProfile
   public Guid FirmId { get; set; }
   public Guid ClientId { get; set; }
   public string Jurisdiction { get; set; } = string.Empty;
-  public string FunctionalCurrency { get; set; } = string.Empty;
+  public string FunctionalCurrency { get; set; } = AccountingDefaults.DefaultCurrency;
   public int FiscalYearStartMonth { get; set; } = 1;
   public int FiscalYearStartDay { get; set; } = 1;
   public string SourceSystem { get; set; } = string.Empty;
@@ -125,7 +130,7 @@ public sealed class ClientReportingPeriod
   public DateOnly StartDate { get; set; }
   public DateOnly EndDate { get; set; }
   public string Basis { get; set; } = string.Empty;
-  public string Currency { get; set; } = string.Empty;
+  public string Currency { get; set; } = AccountingDefaults.DefaultCurrency;
   public string Status { get; set; } = AccountingWorkflowStates.Draft;
   public Guid? PriorPeriodId { get; set; }
   public long Revision { get; set; } = 1;
@@ -159,7 +164,7 @@ public sealed class ClientReportingBook
   public string Code { get; set; } = string.Empty;
   public string Basis { get; set; } = string.Empty;
   public string InclusionRule { get; set; } = string.Empty;
-  public string Currency { get; set; } = string.Empty;
+  public string Currency { get; set; } = AccountingDefaults.DefaultCurrency;
   public string Status { get; set; } = AccountingWorkflowStates.Draft;
   public long Revision { get; set; } = 1;
   public Guid CreatedByUserId { get; set; }
@@ -310,6 +315,34 @@ public sealed class SourceImportBatch
   public int AcceptedLineCount { get; set; }
   public string Status { get; set; } = "LOADING";
   public string ReceiptReference { get; set; } = string.Empty;
+  public Guid CreatedByUserId { get; set; }
+  public DateTimeOffset CreatedAt { get; set; }
+}
+
+public static class AccountingDimensionTypes
+{
+  public const string Branch = "BRANCH";
+  public const string CostCentre = "COST_CENTRE";
+  public const string Department = "DEPARTMENT";
+  public const string Project = "PROJECT";
+  public const string IntercompanyCounterparty = "INTERCOMPANY_COUNTERPARTY";
+
+  public static readonly IReadOnlySet<string> All = new HashSet<string>(StringComparer.Ordinal)
+  {
+    Branch, CostCentre, Department, Project, IntercompanyCounterparty
+  };
+}
+
+public sealed class ClientAccountingDimensionDefinition
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public string DimensionType { get; set; } = string.Empty;
+  public string Code { get; set; } = string.Empty;
+  public string Name { get; set; } = string.Empty;
+  public string Status { get; set; } = AccountingWorkflowStates.Active;
+  public long Revision { get; set; } = 1;
   public Guid CreatedByUserId { get; set; }
   public DateTimeOffset CreatedAt { get; set; }
 }
@@ -636,7 +669,7 @@ public sealed class ConsolidationScopeVersion
   public decimal OpeningTranslationReserve { get; set; }
   public string RecurringEliminationManifest { get; set; } = string.Empty;
   public int Version { get; set; } = 1;
-  public string ReportingCurrency { get; set; } = string.Empty;
+  public string ReportingCurrency { get; set; } = AccountingDefaults.DefaultCurrency;
   public string Method { get; set; } = string.Empty;
   public string Status { get; set; } = AccountingWorkflowStates.Draft;
   public string OpeningBasis { get; set; } = string.Empty;

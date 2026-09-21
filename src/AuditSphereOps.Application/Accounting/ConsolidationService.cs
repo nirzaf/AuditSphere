@@ -115,7 +115,7 @@ public static class ConsolidationService
     IClientAccountingDbContext db, ActorContext actor, ConsolidationScopeRequest request,
     CancellationToken ct = default)
   {
-    var currency = request.ReportingCurrency.Trim().ToUpperInvariant();
+    var currency = (string.IsNullOrWhiteSpace(request.ReportingCurrency) ? AccountingDefaults.DefaultCurrency : request.ReportingCurrency).Trim().ToUpperInvariant();
     var method = request.Method.Trim().ToUpperInvariant();
     if (request.GroupId == Guid.Empty || request.PeriodId == Guid.Empty || currency.Length != 3 ||
         currency.Any(c => c is < 'A' or > 'Z') || method is not (ConsolidationCalculator.RestrictedMethod or ConsolidationCalculator.ForeignOperationMethod) ||

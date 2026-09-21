@@ -44,6 +44,8 @@ public sealed record ClientAccountInput(
 public sealed record SourceAccountAliasInput(
   Guid ClientAccountId, string SourceSystem, string AliasCode, string AliasName);
 
+public sealed record AccountingDimensionInput(string DimensionType, string Code, string Name);
+
 public sealed record TaxonomyNodeInput(
   string Code, string Name, string StatementSection, string DisplaySign,
   string NormalBalance, string DisclosureArea, bool IsPosting,
@@ -101,7 +103,7 @@ public static class ClientAccountingService
     IClientAccountingDbContext db, ActorContext actor, ClientAccountingProfileRequest request,
     CancellationToken ct = default)
   {
-    var currency = request.FunctionalCurrency.Trim().ToUpperInvariant();
+    var currency = (string.IsNullOrWhiteSpace(request.FunctionalCurrency) ? AccountingDefaults.DefaultCurrency : request.FunctionalCurrency).Trim().ToUpperInvariant();
     if (request.ClientId == Guid.Empty || currency.Length != 3 || currency.Any(c => c is < 'A' or > 'Z') ||
         request.FiscalYearStartMonth is < 1 or > 12 || request.FiscalYearStartDay is < 1 or > 31 ||
         string.IsNullOrWhiteSpace(request.Jurisdiction) || string.IsNullOrWhiteSpace(request.SourceSystem))
@@ -129,7 +131,7 @@ public static class ClientAccountingService
     IClientAccountingDbContext db, ActorContext actor, ReportingPeriodRequest request,
     CancellationToken ct = default)
   {
-    var currency = request.Currency.Trim().ToUpperInvariant();
+    var currency = (string.IsNullOrWhiteSpace(request.Currency) ? AccountingDefaults.DefaultCurrency : request.Currency).Trim().ToUpperInvariant();
     if (request.ClientId == Guid.Empty || string.IsNullOrWhiteSpace(request.PeriodCode) ||
         request.StartDate > request.EndDate || string.IsNullOrWhiteSpace(request.Basis) ||
         currency.Length != 3 || currency.Any(c => c is < 'A' or > 'Z'))
@@ -160,7 +162,7 @@ public static class ClientAccountingService
     IClientAccountingDbContext db, ActorContext actor, RollForwardPeriodRequest request,
     CancellationToken ct = default)
   {
-    var currency = request.Currency.Trim().ToUpperInvariant();
+    var currency = (string.IsNullOrWhiteSpace(request.Currency) ? AccountingDefaults.DefaultCurrency : request.Currency).Trim().ToUpperInvariant();
     var sourceHash = request.SourceHash.Trim().ToLowerInvariant();
     if (request.ClientId == Guid.Empty || request.PriorPeriodId == Guid.Empty || string.IsNullOrWhiteSpace(request.PeriodCode) ||
         request.StartDate > request.EndDate || string.IsNullOrWhiteSpace(request.Basis) ||
@@ -239,7 +241,7 @@ public static class ClientAccountingService
     IClientAccountingDbContext db, ActorContext actor, ReportingBookRequest request,
     CancellationToken ct = default)
   {
-    var currency = request.Currency.Trim().ToUpperInvariant();
+    var currency = (string.IsNullOrWhiteSpace(request.Currency) ? AccountingDefaults.DefaultCurrency : request.Currency).Trim().ToUpperInvariant();
     if (request.ClientId == Guid.Empty || request.PeriodId == Guid.Empty || string.IsNullOrWhiteSpace(request.Code) ||
         string.IsNullOrWhiteSpace(request.Basis) || string.IsNullOrWhiteSpace(request.InclusionRule) ||
         currency.Length != 3 || currency.Any(c => c is < 'A' or > 'Z'))
@@ -570,6 +572,39 @@ public static class ClientAccountingService
     return CommandResult.Ok();
   }
 
+  public static async Task<CommandResult> AddDimensionDefinitionsAsync(
+    IClientAccountingDbContext db, ActorContext actor, Guid clientId,
+    IReadOnlyList<AccountingDimensionInput> inputs, CancellationToken ct = default)
+  {
+    if (inputs.Count == 0 || inputs.Any(x =>
+        !AccountingDimensionTypes.All.Contains(x.DimensionType.Trim().ToUpperInvariant()) ||
+        string.IsNullOrWhiteSpace(x.Code) || x.Code.Trim().Length > 100 ||
+        string.IsNullOrWhiteSpace(x.Name) || x.Name.Trim().Length > 300))
+      return CommandResult.Fail(ErrorCodes.Accounting.MappingInvalid, "Every accounting dimension needs a supported type, code and name.");
+    var auth = await AuthorizeClientAsync(db, actor, clientId, PreparerRoles, ct);
+    if (!auth.Succeeded)
+      return auth;
+    var normalized = inputs.Select(x => new
+    {
+      DimensionType = x.DimensionType.Trim().ToUpperInvariant(), Code = x.Code.Trim(), Name = x.Name.Trim()
+    }).ToArray();
+    if (normalized.GroupBy(x => (x.DimensionType, x.Code), StringTupleComparer.Instance).Any(x => x.Count() > 1))
+      return CommandResult.Fail(ErrorCodes.Accounting.MappingInvalid, "Accounting dimension codes must be unique within each type.");
+    var existing = await db.ClientAccountingDimensionDefinitions.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && x.ClientId == clientId)
+      .Select(x => new { x.DimensionType, x.Code }).ToListAsync(ct);
+    if (normalized.Any(input => existing.Any(x => x.DimensionType == input.DimensionType && x.Code == input.Code)))
+      return CommandResult.Fail(ErrorCodes.IdempotencyConflict, "An accounting dimension code already exists for this client.");
+    db.ClientAccountingDimensionDefinitions.AddRange(normalized.Select(x => new ClientAccountingDimensionDefinition
+    {
+      Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = clientId,
+      DimensionType = x.DimensionType, Code = x.Code, Name = x.Name,
+      CreatedByUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
+    }));
+    await db.SaveChangesAsync(ct);
+    return CommandResult.Ok();
+  }
+
   public static async Task<CommandResult<Guid>> CreateTaxonomyVersionAsync(
     IClientAccountingDbContext db, ActorContext actor, string code, string framework,
     string name, DateOnly effectiveFrom, CancellationToken ct = default)
@@ -659,9 +694,9 @@ public static class ClientAccountingService
     CancellationToken ct = default)
   {
     if ((request.ClientId.HasValue == request.GroupId.HasValue) || string.IsNullOrWhiteSpace(request.ServiceKind) ||
-        string.IsNullOrWhiteSpace(request.Framework) || string.IsNullOrWhiteSpace(request.ReportingCurrency))
+        string.IsNullOrWhiteSpace(request.Framework))
       return CommandResult<Guid>.Fail(ErrorCodes.Accounting.MappingInvalid, "A capability must target exactly one reporting scope.");
-    var currency = request.ReportingCurrency.Trim().ToUpperInvariant();
+    var currency = (string.IsNullOrWhiteSpace(request.ReportingCurrency) ? AccountingDefaults.DefaultCurrency : request.ReportingCurrency).Trim().ToUpperInvariant();
     if (currency.Length != 3 || currency.Any(c => c is < 'A' or > 'Z') ||
         (!string.IsNullOrWhiteSpace(request.ConsolidationMethod) &&
          request.ConsolidationMethod.Trim().ToUpperInvariant() is not (ConsolidationCalculator.RestrictedMethod or ConsolidationCalculator.ForeignOperationMethod)))
@@ -752,6 +787,7 @@ public static class ClientAccountingService
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "A published client chart is required before GL import.");
     var accounts = await db.ClientAccounts.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ClientId == request.ClientId && x.ChartVersionId == chart.Id)
       .ToDictionaryAsync(x => x.AccountCode, StringComparer.OrdinalIgnoreCase, ct);
+    var dimensionCodes = await LoadDimensionCodesAsync(db, actor.FirmId, request.ClientId, ct);
     var journals = request.Transactions.Select(x => x.StableJournalId.Trim()).ToArray();
     if (journals.Any(string.IsNullOrWhiteSpace) || journals.Distinct(StringComparer.OrdinalIgnoreCase).Count() != journals.Length ||
         request.Transactions.SelectMany(x => x.Lines).Select(x => x.StableLineId.Trim()).Any(string.IsNullOrWhiteSpace))
@@ -769,6 +805,8 @@ public static class ClientAccountingService
       if (MoneyPolicy.Normalize(transaction.Lines.Sum(x => x.Debit) - transaction.Lines.Sum(x => x.Credit)) != 0m)
         return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ImportRejected, $"Journal {transaction.StableJournalId} is not balanced.");
     }
+    if (ValidateDimensionValues(request.Transactions, dimensionCodes) is { } dimensionError)
+      return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ImportRejected, dimensionError);
     var normalized = string.Join('\n', request.Transactions.OrderBy(x => x.StableJournalId, StringComparer.Ordinal)
       .SelectMany(x => x.Lines.OrderBy(y => y.StableLineId, StringComparer.Ordinal).Select(y => string.Join('|',
         x.StableJournalId.Trim(), y.StableLineId.Trim(), y.AccountCode.Trim(),
@@ -902,7 +940,7 @@ public static class ClientAccountingService
     if (!context.Succeeded)
       return CommandResult<GeneralLedgerImportBatchSummary>.Fail(context.ErrorCode!, context.Message!);
     var validation = ValidateGeneralLedgerTransactions(request.Transactions, context.Value!.Period, currency,
-      context.Value.Accounts, MaxGlChunkTransactions, MaxGlChunkLines);
+      context.Value.Accounts, context.Value.DimensionCodes, MaxGlChunkTransactions, MaxGlChunkLines);
     if (!validation.Succeeded)
       return CommandResult<GeneralLedgerImportBatchSummary>.Fail(validation.ErrorCode!, validation.Message!);
     var lineCount = validation.Value;
@@ -1142,7 +1180,8 @@ public static class ClientAccountingService
   }
 
   private sealed record GeneralLedgerImportContext(
-    ClientReportingPeriod Period, IReadOnlyDictionary<string, ClientAccount> Accounts);
+    ClientReportingPeriod Period, IReadOnlyDictionary<string, ClientAccount> Accounts,
+    IReadOnlyDictionary<string, IReadOnlySet<string>> DimensionCodes);
 
   private static async Task<CommandResult<GeneralLedgerImportContext>> ResolveGeneralLedgerImportContextAsync(
     IClientAccountingDbContext db, ActorContext actor, Guid clientId, Guid periodId, Guid? bookId,
@@ -1167,12 +1206,15 @@ public static class ClientAccountingService
       return CommandResult<GeneralLedgerImportContext>.Fail(ErrorCodes.GateBlocked, "A published client chart is required before GL import.");
     var accounts = await db.ClientAccounts.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ClientId == clientId &&
       x.ChartVersionId == chart.Id).ToDictionaryAsync(x => x.AccountCode, StringComparer.OrdinalIgnoreCase, ct);
-    return CommandResult<GeneralLedgerImportContext>.Ok(new(period, accounts));
+    var dimensionCodes = await LoadDimensionCodesAsync(db, actor.FirmId, clientId, ct);
+    return CommandResult<GeneralLedgerImportContext>.Ok(new(period, accounts, dimensionCodes));
   }
 
   private static CommandResult<int> ValidateGeneralLedgerTransactions(
     IReadOnlyList<GeneralLedgerTransactionInput> transactions, ClientReportingPeriod period, string currency,
-    IReadOnlyDictionary<string, ClientAccount> accounts, int maxTransactions, int maxLines)
+    IReadOnlyDictionary<string, ClientAccount> accounts,
+    IReadOnlyDictionary<string, IReadOnlySet<string>> dimensionCodes,
+    int maxTransactions, int maxLines)
   {
     var lineCount = transactions.Sum(x => (long)x.Lines.Count);
     if (transactions.Count == 0 || transactions.Count > maxTransactions || lineCount > maxLines)
@@ -1192,7 +1234,42 @@ public static class ClientAccountingService
       if (MoneyPolicy.Normalize(transaction.Lines.Sum(x => x.Debit) - transaction.Lines.Sum(x => x.Credit)) != 0m)
         return CommandResult<int>.Fail(ErrorCodes.Accounting.ImportRejected, $"Journal {transaction.StableJournalId} is not balanced.");
     }
+    if (ValidateDimensionValues(transactions, dimensionCodes) is { } dimensionError)
+      return CommandResult<int>.Fail(ErrorCodes.Accounting.ImportRejected, dimensionError);
     return CommandResult<int>.Ok((int)lineCount);
+  }
+
+  private static async Task<IReadOnlyDictionary<string, IReadOnlySet<string>>> LoadDimensionCodesAsync(
+    IClientAccountingDbContext db, Guid firmId, Guid clientId, CancellationToken ct)
+  {
+    var definitions = await db.ClientAccountingDimensionDefinitions.AsNoTracking()
+      .Where(x => x.FirmId == firmId && x.ClientId == clientId && x.Status == AccountingWorkflowStates.Active)
+      .Select(x => new { x.DimensionType, x.Code }).ToListAsync(ct);
+    return definitions.GroupBy(x => x.DimensionType, StringComparer.Ordinal)
+      .ToDictionary(x => x.Key, x => (IReadOnlySet<string>)x.Select(v => v.Code).ToHashSet(StringComparer.OrdinalIgnoreCase), StringComparer.Ordinal);
+  }
+
+  private static string? ValidateDimensionValues(
+    IReadOnlyList<GeneralLedgerTransactionInput> transactions,
+    IReadOnlyDictionary<string, IReadOnlySet<string>> dimensionCodes)
+  {
+    foreach (var line in transactions.SelectMany(x => x.Lines))
+    {
+      foreach (var (type, value) in new[]
+      {
+        (AccountingDimensionTypes.Branch, line.Branch),
+        (AccountingDimensionTypes.CostCentre, line.CostCentre),
+        (AccountingDimensionTypes.Department, line.Department),
+        (AccountingDimensionTypes.Project, line.Project),
+        (AccountingDimensionTypes.IntercompanyCounterparty, line.IntercompanyCounterparty)
+      })
+      {
+        var code = value.Trim();
+        if (code.Length > 0 && (!dimensionCodes.TryGetValue(type, out var allowed) || !allowed.Contains(code)))
+          return $"GL dimension '{type}:{code}' is not defined for this client.";
+      }
+    }
+    return null;
   }
 
   private static GeneralLedgerImportBatchSummary Summarize(SourceImportBatch batch) =>
