@@ -11,7 +11,10 @@ public sealed record ConsolidationComponentBalance(
   string Currency,
   decimal OwnershipPercent,
   string ControlMethod,
-  string PackageHash = "");
+  string PackageHash = "",
+  string PeriodBasis = "",
+  string TaxonomyVersion = "",
+  string MappingVersion = "");
 
 public sealed record ConsolidationElimination(
   Guid MatchId,
@@ -70,6 +73,9 @@ public static class ConsolidationCalculator
       throw new InvalidOperationException("The restricted profile requires fully owned, controlled components in one currency.");
     if (components.Any(x => x.PackageHash.Length != 64 || x.PackageHash.Any(c => c is < '0' or > '9' and < 'a' or > 'f')))
       throw new InvalidOperationException("Every component must be bound to a valid package hash.");
+    if (components.Any(x => string.IsNullOrWhiteSpace(x.PeriodBasis) || string.IsNullOrWhiteSpace(x.TaxonomyVersion) ||
+        string.IsNullOrWhiteSpace(x.MappingVersion)))
+      throw new InvalidOperationException("Every component must be bound to period, taxonomy and mapping versions.");
     if (components.Any(x => string.IsNullOrWhiteSpace(x.TaxonomyCode)))
       throw new InvalidOperationException("Every component balance needs an approved taxonomy code.");
     if (eliminations.Any(x => x.Currency != reportingCurrency || string.IsNullOrWhiteSpace(x.TaxonomyCode)))
@@ -109,11 +115,16 @@ public static class ConsolidationCalculator
     }.Concat(lines.OrderBy(x => x.TaxonomyCode, StringComparer.Ordinal)
       .ThenBy(x => x.ComponentId)
       .ThenBy(x => x.MatchId)
-      .Select(x => string.Join('|', x.ComponentId?.ToString("D") ?? string.Empty,
-        x.MatchId?.ToString("D") ?? string.Empty, x.TaxonomyCode,
-        x.ComponentAmount.ToString("0.000000", CultureInfo.InvariantCulture),
-        x.EliminationAmount.ToString("0.000000", CultureInfo.InvariantCulture), x.Currency,
-        components.FirstOrDefault(c => c.ComponentId == x.ComponentId)?.PackageHash ?? string.Empty))));
+      .Select(x =>
+      {
+        var component = components.FirstOrDefault(c => c.ComponentId == x.ComponentId);
+        return string.Join('|', x.ComponentId?.ToString("D") ?? string.Empty,
+          x.MatchId?.ToString("D") ?? string.Empty, x.TaxonomyCode,
+          x.ComponentAmount.ToString("0.000000", CultureInfo.InvariantCulture),
+          x.EliminationAmount.ToString("0.000000", CultureInfo.InvariantCulture), x.Currency,
+          component?.PackageHash ?? string.Empty, component?.PeriodBasis ?? string.Empty,
+          component?.TaxonomyVersion ?? string.Empty, component?.MappingVersion ?? string.Empty);
+      })));
     return new ConsolidationCalculation(totals, lines, signedTotal, manifest, Hashing.Sha256Hex(manifest));
   }
 }

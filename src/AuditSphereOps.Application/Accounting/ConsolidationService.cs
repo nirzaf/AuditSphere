@@ -154,8 +154,16 @@ public static class ConsolidationService
       x.FirmId == actor.FirmId && x.ClientId == request.ClientId && x.EngagementId == request.EngagementId, ct);
     if (package is null)
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "The component package is outside the requested scope.");
+    if (string.IsNullOrWhiteSpace(request.PeriodBasis) || string.IsNullOrWhiteSpace(request.TaxonomyVersion) ||
+        string.IsNullOrWhiteSpace(request.MappingVersion))
+      return CommandResult<Guid>.Fail(ErrorCodes.Accounting.MappingInvalid,
+        "A component submission must identify its period basis, taxonomy version and mapping version.");
     if (package.Status != AccountingPackageStates.PackageValidated || package.Currency != scope.ReportingCurrency)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Only an approved same-currency component package can enter consolidation.");
+    if (!string.Equals(request.TaxonomyVersion.Trim(), package.TaxonomyVersion, StringComparison.Ordinal) ||
+        !Guid.TryParse(request.MappingVersion.Trim(), out var mappingVersionId) || mappingVersionId != package.MappingVersionId)
+      return CommandResult<Guid>.Fail(ErrorCodes.Accounting.MappingInvalid,
+        "The component taxonomy and mapping must match the selected financial package.");
     if (await db.ConsolidationComponents.AnyAsync(x => x.FirmId == actor.FirmId && x.ScopeVersionId == scope.Id && x.ClientId == request.ClientId, ct))
       return CommandResult<Guid>.Fail(ErrorCodes.IdempotencyConflict, "This legal entity already has a component submission for the perimeter.");
     var component = new ConsolidationComponent
@@ -187,9 +195,10 @@ public static class ConsolidationService
     if (component.SubmittedByUserId == actor.UserId)
       return CommandResult.Fail(ErrorCodes.Accounting.MappingInvalid, "The component preparer cannot approve the same submission.");
     var packageHash = await db.FinancialPackages.Where(x => x.FirmId == actor.FirmId && x.Id == component.PackageId)
-      .Select(x => new { x.CalculationHash, x.Status, x.Currency }).SingleOrDefaultAsync(ct);
+      .Select(x => new { x.CalculationHash, x.Status, x.Currency, x.TaxonomyVersion, x.MappingVersionId }).SingleOrDefaultAsync(ct);
     if (packageHash is null || packageHash.CalculationHash != component.PackageHash || packageHash.Status != AccountingPackageStates.PackageValidated ||
-        packageHash.Currency != component.Currency)
+        packageHash.Currency != component.Currency || packageHash.TaxonomyVersion != component.TaxonomyVersion ||
+        !Guid.TryParse(component.MappingVersion, out var componentMappingId) || componentMappingId != packageHash.MappingVersionId)
       return CommandResult.Fail(ErrorCodes.GenerationStale, "The component package changed; resubmit the current approved package.");
     var packageReview = await FinancialPackageReviewService.RequireCurrentAsync(db, actor, component.PackageId, requirePartner: true, ct);
     if (!packageReview.Succeeded)
@@ -450,7 +459,8 @@ public static class ConsolidationService
       packageIds.Contains(x.FinancialPackageId)).ToListAsync(ct);
     var balances = packageLines.Join(components, line => line.FinancialPackageId, component => component.PackageId,
       (line, component) => new ConsolidationComponentBalance(component.Id, component.ClientId, line.DestinationCode,
-        line.Amount, line.Currency, component.OwnershipPercent, component.ControlMethod, component.PackageHash)).ToList();
+        line.Amount, line.Currency, component.OwnershipPercent, component.ControlMethod, component.PackageHash,
+        component.PeriodBasis, component.TaxonomyVersion, component.MappingVersion)).ToList();
     var matches = await db.IntercompanyMatches.AsNoTracking().Where(x => x.FirmId == firmId && x.ScopeVersionId == scope.Id &&
       x.Status == AccountingWorkflowStates.Approved).ToListAsync(ct);
     var approvedJournals = await db.ConsolidationJournals.AsNoTracking().Where(x => x.FirmId == firmId &&

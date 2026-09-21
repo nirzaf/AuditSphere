@@ -885,8 +885,8 @@ public sealed class ClientAccountingTests
   {
     var components = new[]
     {
-      new ConsolidationComponentBalance(Guid.Parse("00000000-0000-0000-0000-000000000001"), Guid.NewGuid(), "CASH", 100m, "QAR", 100m, "CONTROLLED", Hashing.Sha256Hex("component-a")),
-      new ConsolidationComponentBalance(Guid.Parse("00000000-0000-0000-0000-000000000002"), Guid.NewGuid(), "REVENUE", -100m, "QAR", 100m, "CONTROLLED", Hashing.Sha256Hex("component-b"))
+      new ConsolidationComponentBalance(Guid.Parse("00000000-0000-0000-0000-000000000001"), Guid.NewGuid(), "CASH", 100m, "QAR", 100m, "CONTROLLED", Hashing.Sha256Hex("component-a"), "STATUTORY", "tax-v1", "mapping-a"),
+      new ConsolidationComponentBalance(Guid.Parse("00000000-0000-0000-0000-000000000002"), Guid.NewGuid(), "REVENUE", -100m, "QAR", 100m, "CONTROLLED", Hashing.Sha256Hex("component-b"), "STATUTORY", "tax-v1", "mapping-b")
     };
     var first = ConsolidationCalculator.Compute("QAR", ConsolidationCalculator.RestrictedMethod, "OPENING-2026", components, []);
     var second = ConsolidationCalculator.Compute("QAR", ConsolidationCalculator.RestrictedMethod, "OPENING-2026", components, []);
@@ -949,10 +949,17 @@ public sealed class ClientAccountingTests
     {
       packageA = await db.FinancialPackages.Where(x => x.ClientId == scope.ClientA).Select(x => x.Id).SingleAsync();
       packageB = await db.FinancialPackages.Where(x => x.ClientId == scope.ClientB).Select(x => x.Id).SingleAsync();
+      var packageMappings = await db.FinancialPackages.Where(x => x.Id == packageA || x.Id == packageB)
+        .ToDictionaryAsync(x => x.Id, x => x.MappingVersionId);
+      var invalidLineage = await ConsolidationService.SubmitComponentAsync(db, preparer,
+        new ConsolidationComponentRequest(consolidationScopeId, scope.ClientA, scope.EngagementA, packageA, 100m,
+          "CONTROLLED", "STATUTORY", "tax-v1", "not-a-mapping-id"));
+      Assert.False(invalidLineage.Succeeded);
+      Assert.Equal(ErrorCodes.Accounting.MappingInvalid, invalidLineage.ErrorCode);
       Assert.True((await ConsolidationService.SubmitComponentAsync(db, preparer,
-        new ConsolidationComponentRequest(consolidationScopeId, scope.ClientA, scope.EngagementA, packageA, 100m, "CONTROLLED", "STATUTORY", "tax-v1", "map-a"))).Succeeded);
+        new ConsolidationComponentRequest(consolidationScopeId, scope.ClientA, scope.EngagementA, packageA, 100m, "CONTROLLED", "STATUTORY", "tax-v1", packageMappings[packageA].ToString("D")))).Succeeded);
       Assert.True((await ConsolidationService.SubmitComponentAsync(db, preparer,
-        new ConsolidationComponentRequest(consolidationScopeId, scope.ClientB, scope.EngagementB, packageB, 100m, "CONTROLLED", "STATUTORY", "tax-v1", "map-b"))).Succeeded);
+        new ConsolidationComponentRequest(consolidationScopeId, scope.ClientB, scope.EngagementB, packageB, 100m, "CONTROLLED", "STATUTORY", "tax-v1", packageMappings[packageB].ToString("D")))).Succeeded);
       var components = await db.ConsolidationComponents.Where(x => x.ScopeVersionId == consolidationScopeId).Select(x => x.Id).ToListAsync();
       var missingPackageReview = await ConsolidationService.ApproveComponentAsync(db, reviewer, components[0]);
       Assert.False(missingPackageReview.Succeeded);
