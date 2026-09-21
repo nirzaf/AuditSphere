@@ -266,6 +266,8 @@ window.auditSphereExports.downloadText = (filename, text, contentType = 'text/pl
         if (!control.dataset.draftField && control.type !== 'file') {
           control.dataset.draftField = control.name || control.id || `${control.tagName.toLowerCase()}-${index}`;
         }
+        if (!control.name && control.dataset.draftField) control.name = control.dataset.draftField;
+        if (!control.autocomplete && control.type !== 'file') control.autocomplete = 'off';
         const label = control.labels?.[0] || control.closest('label');
         const text = fieldHintFor(control);
         if (!control.title && text) {
