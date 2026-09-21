@@ -6,8 +6,8 @@ This file records observed repository state only. The authoritative build contra
 
 | Item | Observed value |
 |---|---|
-| Source implementation checkpoint | `master@2aaf776` |
-| Remote | `origin/master` includes source checkpoint `2aaf776` |
+| Source implementation checkpoint | `master@342e111` |
+| Remote | `origin/master` includes source checkpoint `342e111` |
 | SDK | .NET 10; repository solution targets `net10.0` |
 | Database | PostgreSQL 18.6 on loopback port 5433 for development only |
 | Build | `dotnet build AuditSphereOps.slnx --no-restore --configuration Release` — passed, 0 warnings/errors |
@@ -60,6 +60,7 @@ This file records observed repository state only. The authoritative build contra
 - Source-bound GL reconciliations reject a sealed batch whose reporting period or currency differs from the selected period; PostgreSQL regression coverage passes.
 - Reconciliation items are bound to the exact source currency, reject future item dates and missing dispositions, normalize accepted currency codes, and retain explicit receivable/payable ageing basis, rule version, bucket, credit treatment and paired settlement evidence; PostgreSQL regression coverage passes.
 - Scoped audit-difference summaries preserve gross absolute totals and signed/net totals by currency, with corrected and unadjusted subtotals so offsetting differences remain visible; PostgreSQL regression coverage passes.
+- Bounded journal-risk analysis returns deterministic, criteria-versioned review indicators for manual, year-end, high-value, reversal and missing-source-origin journals, with scoped source-origin and debit-amount evidence; it does not make an automatic fraud finding.
 - GL completeness calculation can be enqueued as a local durable operation, with sealed-source revision fencing, operation completion lineage and repeat-enqueue idempotency; PostgreSQL regression coverage passes.
 - Financial-package builds can be enqueued as local durable calculations, fenced to the approved mapping revision and finalized plan, committed atomically with operation completion, and re-enqueued idempotently; PostgreSQL regression coverage passes.
 - Financial-package records inherit the source dataset's selected reporting period, optional book and normalized basis, validate period dates and book/basis/currency lineage, persist the context with scope FKs, and include it in the deterministic package hash; legacy direct fixtures remain nullable for additive compatibility.

@@ -3,7 +3,7 @@
 **Repository:** `nirzaf/AuditSphere`
 **Authoritative specification:** [`docs/SPECIFICATION.md`](../SPECIFICATION.md) v5.0
 **Requirements backlog:** [`docs/requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md`](../requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md)
-**Source implementation checkpoint:** `master@2aaf776`
+**Source implementation checkpoint:** `master@342e111`
 
 This is a resume checklist, not an acceptance certificate. Tenant identifiers, credentials, tokens, secret values, and private-provider URLs are deliberately absent from the public repository.
 
@@ -25,7 +25,7 @@ This is a resume checklist, not an acceptance certificate. Tenant identifiers, c
 - [x] Atomic multi-entity TB batches, typed GL imports and bounded completeness bridges.
 - [x] TB CSV/XLSX imports persist the selected reporting period, optional book and basis and reject mismatched context at import, completeness and reconciliation boundaries.
 - [x] Reconciliation, ECL, inventory, specialist, analytical and journal-risk workbenches.
-- [x] Analytical reviews preserve QAR-defaulted reporting currency, deterministic input snapshots/replay hashes, movement and seasonality flags; journal-risk evidence preserves sample selection, management explanation and corroboration fields.
+- [x] Analytical reviews preserve QAR-defaulted reporting currency, deterministic input snapshots/replay hashes, movement and seasonality flags; journal-risk evidence preserves sample selection, management explanation and corroboration fields, and bounded analysis returns criteria-versioned explainable review indicators without automatic fraud findings.
 - [x] Analytical-review aggregate summaries enforce client/engagement or explicit group scope, honor effective membership dates, and omit client/component identifiers.
 - [x] ECL differences are calculated against an explicit booked amount; ECL and inventory assessments retain same-engagement proposed-journal lineage. Approved golden fixtures and boundary cases remain pending.
 - [x] Analytical-review approvals require a persisted reviewer conclusion linked to the exact replay snapshot/hash; missing conclusions are rejected after freshness checks.
