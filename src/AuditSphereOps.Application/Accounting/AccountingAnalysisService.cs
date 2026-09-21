@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using System.Text.Json;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Security;
@@ -209,6 +210,61 @@ public static class AccountingAnalysisService
     db.GeneralLedgerCompletenessBridges.Add(bridge);
     await db.SaveChangesAsync(ct);
     return CommandResult<Guid>.Ok(bridge.Id);
+  }
+
+  public static async Task<CommandResult<Guid>> EnqueueGeneralLedgerCompletenessBridgeAsync(
+    IClientAccountingDbContext db, ActorContext actor, GeneralLedgerCompletenessRequest request,
+    IOperationStore operationStore, GeneralLedgerCompletenessHandler handler,
+    CancellationToken ct = default)
+  {
+    if (request.ClientId == Guid.Empty || request.EngagementId == Guid.Empty || request.PeriodId == Guid.Empty ||
+        request.TrialBalanceDatasetId == Guid.Empty || request.ImportBatchId == Guid.Empty ||
+        string.IsNullOrWhiteSpace(request.EvidenceReference) || request.EvidenceReference.Trim().Length > 2000)
+      return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ReconciliationRejected, "A completeness bridge needs one scoped period, TB, GL batch and evidence reference.");
+    var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, request.ClientId, request.EngagementId, PreparerRoles, InternalOnly: true), ct);
+    if (!auth.Succeeded)
+      return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+    var dataset = await db.TrialBalanceDatasets.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.Id == request.TrialBalanceDatasetId && x.FirmId == actor.FirmId && x.ClientId == request.ClientId &&
+      x.EngagementId == request.EngagementId && x.ValidationStatus == "Accepted" &&
+      x.ImportState == TrialBalanceImportStates.Sealed, ct);
+    var batch = await db.SourceImportBatches.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.Id == request.ImportBatchId && x.FirmId == actor.FirmId && x.ClientId == request.ClientId &&
+      x.EngagementId == request.EngagementId && x.Status == "SEALED", ct);
+    if (dataset is null || batch is null)
+      return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "The selected TB dataset or GL batch is outside the sealed engagement scope.");
+    if (batch.PeriodId != request.PeriodId || batch.BookId != request.BookId ||
+        !string.Equals(dataset.Currency, batch.Currency, StringComparison.OrdinalIgnoreCase) ||
+        !string.Equals(dataset.LegalEntityKey, batch.LegalEntityKey, StringComparison.Ordinal))
+      return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ReconciliationRejected, "The TB and GL sources do not describe the same period, book, entity or currency.");
+
+    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    var payload = JsonSerializer.Serialize(new
+    {
+      clientId = request.ClientId.ToString("D"), engagementId = request.EngagementId.ToString("D"),
+      periodId = request.PeriodId.ToString("D"), bookId = request.BookId?.ToString("D"),
+      trialBalanceDatasetId = request.TrialBalanceDatasetId.ToString("D"), importBatchId = request.ImportBatchId.ToString("D"),
+      evidenceReference = request.EvidenceReference.Trim()
+    });
+    var evidenceDigest = Hashing.Sha256Hex(Encoding.UTF8.GetBytes(request.EvidenceReference.Trim()));
+    CommandResult<Guid> enqueued;
+    try
+    {
+      enqueued = await operationStore.EnqueueAsync(db, new OperationRequest(
+        actor.FirmId, request.ClientId, request.EngagementId, GeneralLedgerCompletenessHandler.Kind,
+        request.TrialBalanceDatasetId, dataset.Revision,
+        $"gl-completeness:{request.TrialBalanceDatasetId:D}:{request.ImportBatchId:D}:{dataset.Revision}:{evidenceDigest}",
+        payload, actor.UserId), handler, ct);
+    }
+    catch (OperationBlockedException)
+    {
+      enqueued = CommandResult<Guid>.Fail(ErrorCodes.Accounting.ReconciliationRejected, "The completeness operation request was refused.");
+    }
+    if (!enqueued.Succeeded)
+      return CommandResult<Guid>.Fail(enqueued.ErrorCode!, enqueued.Message!);
+    await tx.CommitAsync(ct);
+    return enqueued;
   }
 
   public static async Task<CommandResult> ReviewGeneralLedgerCompletenessAsync(

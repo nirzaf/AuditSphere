@@ -109,6 +109,7 @@ builder.Services.AddScoped<TrustedActorResolver>();
 // composition, and this host only records queue entries.
 builder.Services.AddSingleton<IAuditSphereDbContextFactory, OperationContextFactory>();
 builder.Services.AddSingleton<IOperationStore, PostgresOperationStore>();
+builder.Services.AddSingleton<GeneralLedgerCompletenessHandler>();
 var externalEffectsEnabled = builder.Configuration.GetValue<bool>("ExternalEffects:Enabled");
 if (externalEffectsEnabled)
 {

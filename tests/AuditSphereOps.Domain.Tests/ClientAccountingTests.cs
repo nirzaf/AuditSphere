@@ -1,6 +1,8 @@
 using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Completion;
+using AuditSphereOps.Application.Documents;
+using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Reviews;
 using AuditSphereOps.Domain.Audit;
 using AuditSphereOps.Domain.Accounting;
@@ -11,7 +13,9 @@ using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
+using WorkerHost = AuditSphereOps.Worker.Worker;
 
 namespace AuditSphereOps.Domain.Tests;
 
@@ -507,15 +511,40 @@ public sealed class ClientAccountingTests
       await db.SaveChangesAsync();
     }
 
+    var factory = new OperationContextFactory(new TestDbContextFactory(pg.Options));
+    var operationStore = new PostgresOperationStore(factory);
+    var operationHandler = new GeneralLedgerCompletenessHandler();
+    var workerOptions = new WorkerOptions(scope.FirmId, "Test");
+    Guid operationId;
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
-      var created = await AccountingAnalysisService.CreateGeneralLedgerCompletenessBridgeAsync(db, preparer,
-        new GeneralLedgerCompletenessRequest(scope.ClientA, scope.EngagementA, periodId, bookId, datasetId, batchId, "tb-gl-completeness"));
-      Assert.True(created.Succeeded, created.Message);
-      var bridge = await db.GeneralLedgerCompletenessBridges.SingleAsync(x => x.Id == created.Value);
+      var queued = await AccountingAnalysisService.EnqueueGeneralLedgerCompletenessBridgeAsync(db, preparer,
+        new GeneralLedgerCompletenessRequest(scope.ClientA, scope.EngagementA, periodId, bookId, datasetId, batchId, "tb-gl-completeness"),
+        operationStore, operationHandler);
+      Assert.True(queued.Succeeded, queued.Message);
+      operationId = queued.Value;
+    }
+    var worker = new WorkerHost(
+      new OperationDispatcher(operationStore, new DurableOperationRegistry([operationHandler], workerOptions), workerOptions),
+      Array.Empty<IPendingOperationDiscovery>(), NullLogger<WorkerHost>.Instance);
+    Assert.True(await worker.ProcessNextAsync());
+    Assert.False(await worker.ProcessNextAsync());
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var retry = await AccountingAnalysisService.EnqueueGeneralLedgerCompletenessBridgeAsync(db, preparer,
+        new GeneralLedgerCompletenessRequest(scope.ClientA, scope.EngagementA, periodId, bookId, datasetId, batchId, "tb-gl-completeness"),
+        operationStore, operationHandler);
+      Assert.True(retry.Succeeded, retry.Message);
+      Assert.Equal(operationId, retry.Value);
+      var bridge = await db.GeneralLedgerCompletenessBridges.SingleAsync();
       Assert.Equal("RECONCILED", bridge.Status);
       Assert.Equal(2, bridge.MatchedAccountCount);
       Assert.Equal(0m, bridge.AbsoluteResidual);
+      var operation = await db.DurableOperations.SingleAsync(x => x.Id == operationId);
+      Assert.Equal(OperationState.COMPLETED, operation.Status);
+      Assert.Equal(bridge.Id.ToString("D"), operation.ResultIdentity);
+      Assert.True(await db.OperationEvents.AnyAsync(x => x.OperationId == operationId && x.Kind == "gl.completeness-built.v1"));
 
       var firstPage = await AccountingAnalysisService.GetGeneralLedgerPageAsync(db, preparer, batchId, 1, 1);
       Assert.True(firstPage.Succeeded, firstPage.Message);
@@ -529,6 +558,12 @@ public sealed class ClientAccountingTests
       Assert.True((await AccountingAnalysisService.ReviewGeneralLedgerCompletenessAsync(db, reviewer, bridge.Id, approve: true)).Succeeded);
       Assert.Equal(AccountingWorkflowStates.Approved, await db.GeneralLedgerCompletenessBridges.Where(x => x.Id == bridge.Id).Select(x => x.Status).SingleAsync());
     }
+  }
+
+  private sealed class TestDbContextFactory(DbContextOptions<AuditSphereDbContext> options)
+    : IDbContextFactory<AuditSphereDbContext>
+  {
+    public AuditSphereDbContext CreateDbContext() => new(options);
   }
 
   [Fact]
