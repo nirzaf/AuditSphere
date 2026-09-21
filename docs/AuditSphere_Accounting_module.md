@@ -367,8 +367,8 @@ Story criteria remain proposed unless marked locally verified in the execution l
 **Acceptance criteria**
 - [x] Taxonomy nodes define hierarchy, statement location, display sign, normal balance, disclosure/audit area and applicability metadata.
 - [x] Draft, approved, retired and effective versions are explicit; only approved applicable versions can support final reporting.
-- [ ] Firm defaults may have approved industry/group overlays without overwriting base taxonomy history.
-- [ ] Publishing a version lists impacted mappings/packages; it does not rewrite historical accounts or approvals.
+- [x] Firm defaults may have approved industry/group overlays without overwriting base taxonomy history.
+- [x] Publishing a version lists impacted mappings/packages; it does not rewrite historical accounts or approvals.
 - [ ] Client-confidential amounts, names and rationale cannot leak into shared master templates.
 - [ ] Accounting presentation taxonomy and jurisdiction-specific tax rules are separate concepts.
 

@@ -1592,13 +1592,16 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
 
     var taxonomy = b.Entity<ReportingTaxonomyVersion>();
     taxonomy.HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("ak_reporting_taxonomy_versions_firm_id_id");
+    taxonomy.Property(x => x.OverlayScope).HasMaxLength(200);
     taxonomy.Property(x => x.Code).HasMaxLength(100);
     taxonomy.Property(x => x.Framework).HasMaxLength(100);
     taxonomy.Property(x => x.Name).HasMaxLength(300);
     taxonomy.Property(x => x.Status).HasMaxLength(30);
     taxonomy.HasIndex(x => new { x.FirmId, x.Code }).IsUnique().HasDatabaseName("ux_reporting_taxonomy_code");
     taxonomy.ToTable("reporting_taxonomy_versions", t => t.HasCheckConstraint("ck_reporting_taxonomy_values",
-      "length(trim(code)) > 0 AND length(trim(framework)) > 0 AND length(trim(name)) > 0 AND (effective_to IS NULL OR effective_from <= effective_to)"));
+      "length(trim(code)) > 0 AND length(trim(framework)) > 0 AND length(trim(name)) > 0 AND (overlay_scope = 'BASE' OR overlay_scope LIKE 'INDUSTRY:%' OR overlay_scope LIKE 'GROUP:%') AND (effective_to IS NULL OR effective_from <= effective_to)"));
+    taxonomy.HasOne<ReportingTaxonomyVersion>().WithMany().HasForeignKey(x => new { x.FirmId, x.BaseTaxonomyVersionId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
 
     var taxonomyNode = b.Entity<ReportingTaxonomyNode>();
     taxonomyNode.Property(x => x.Code).HasMaxLength(100);

@@ -51,6 +51,11 @@ public sealed record TaxonomyNodeInput(
   string NormalBalance, string DisclosureArea, bool IsPosting,
   string Applicability, string? ParentCode = null);
 
+public sealed record TaxonomyOverlayRequest(
+  Guid BaseTaxonomyVersionId, string Code, string Name, string OverlayScope, DateOnly EffectiveFrom);
+
+public sealed record TaxonomyImpactItem(Guid Id, string Kind, string Status, string TaxonomyVersion);
+
 public sealed record CapabilityProfileRequest(
   Guid? ClientId, Guid? GroupId, string ServiceKind, string Framework,
   string Edition, string PeriodRule, string ReportingCurrency,
@@ -630,6 +635,40 @@ public static class ClientAccountingService
     return CommandResult<Guid>.Ok(taxonomy.Id);
   }
 
+  public static async Task<CommandResult<Guid>> CreateTaxonomyOverlayAsync(
+    IClientAccountingDbContext db, ActorContext actor, TaxonomyOverlayRequest request,
+    CancellationToken ct = default)
+  {
+    var scope = request.OverlayScope.Trim().ToUpperInvariant();
+    if (request.BaseTaxonomyVersionId == Guid.Empty || string.IsNullOrWhiteSpace(request.Code) ||
+        string.IsNullOrWhiteSpace(request.Name) ||
+        (!scope.StartsWith("INDUSTRY:", StringComparison.Ordinal) && !scope.StartsWith("GROUP:", StringComparison.Ordinal)))
+      return CommandResult<Guid>.Fail(ErrorCodes.Accounting.MappingInvalid,
+        "A taxonomy overlay needs a base version, generic industry/group scope, code and name.");
+    var baseTaxonomy = await db.ReportingTaxonomyVersions.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.FirmId == actor.FirmId && x.Id == request.BaseTaxonomyVersionId && x.Status == AccountingWorkflowStates.Approved, ct);
+    if (baseTaxonomy is null)
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "An approved base taxonomy is required for an overlay.");
+    var auth = await AuthorizeFirmAsync(db, actor, ReviewerRoles, ct);
+    if (!auth.Succeeded)
+      return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+    if (scope.StartsWith("GROUP:", StringComparison.Ordinal) &&
+        (!Guid.TryParse(scope["GROUP:".Length..], out var groupId) ||
+         !await db.ClientGroups.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId && x.Id == groupId, ct)))
+      return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "The taxonomy overlay group is outside the firm scope.");
+    if (await db.ReportingTaxonomyVersions.AnyAsync(x => x.FirmId == actor.FirmId && x.Code == request.Code.Trim(), ct))
+      return CommandResult<Guid>.Fail(ErrorCodes.IdempotencyConflict, "The taxonomy code already exists.");
+    var overlay = new ReportingTaxonomyVersion
+    {
+      Id = Guid.CreateVersion7(), FirmId = actor.FirmId, BaseTaxonomyVersionId = baseTaxonomy.Id,
+      Code = request.Code.Trim(), Framework = baseTaxonomy.Framework, Name = request.Name.Trim(), OverlayScope = scope,
+      EffectiveFrom = request.EffectiveFrom, CreatedByUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
+    };
+    db.ReportingTaxonomyVersions.Add(overlay);
+    await db.SaveChangesAsync(ct);
+    return CommandResult<Guid>.Ok(overlay.Id);
+  }
+
   public static async Task<CommandResult> AddTaxonomyNodesAsync(
     IClientAccountingDbContext db, ActorContext actor, Guid taxonomyVersionId,
     IReadOnlyList<TaxonomyNodeInput> inputs, CancellationToken ct = default)
@@ -684,6 +723,9 @@ public static class ClientAccountingService
       return auth;
     if (taxonomy.Status != AccountingWorkflowStates.Draft)
       return CommandResult.Fail(ErrorCodes.ProtectedState, "Only a draft taxonomy can be approved.");
+    if (taxonomy.BaseTaxonomyVersionId is { } baseId && !await db.ReportingTaxonomyVersions.AsNoTracking().AnyAsync(x =>
+        x.FirmId == actor.FirmId && x.Id == baseId && x.Status == AccountingWorkflowStates.Approved, ct))
+      return CommandResult.Fail(ErrorCodes.GenerationStale, "The approved base taxonomy for this overlay is no longer current.");
     if (taxonomy.CreatedByUserId == actor.UserId)
       return CommandResult.Fail(ErrorCodes.Accounting.MappingInvalid, "The taxonomy preparer cannot approve the same version.");
     if (!await db.ReportingTaxonomyNodes.AnyAsync(x => x.FirmId == actor.FirmId && x.TaxonomyVersionId == taxonomy.Id, ct))
@@ -693,6 +735,24 @@ public static class ClientAccountingService
     taxonomy.ApprovedAt = DateTimeOffset.UtcNow;
     await db.SaveChangesAsync(ct);
     return CommandResult.Ok();
+  }
+
+  public static async Task<CommandResult<IReadOnlyList<TaxonomyImpactItem>>> GetTaxonomyPublishImpactAsync(
+    IClientAccountingDbContext db, ActorContext actor, Guid taxonomyVersionId,
+    CancellationToken ct = default)
+  {
+    var taxonomy = await db.ReportingTaxonomyVersions.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.FirmId == actor.FirmId && x.Id == taxonomyVersionId, ct);
+    if (taxonomy is null)
+      return CommandResult<IReadOnlyList<TaxonomyImpactItem>>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var auth = await AuthorizeFirmAsync(db, actor, ReviewerRoles, ct);
+    if (!auth.Succeeded)
+      return CommandResult<IReadOnlyList<TaxonomyImpactItem>>.Fail(auth.ErrorCode!, auth.Message!);
+    var mappings = await db.MappingVersions.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&
+      x.TaxonomyVersion == taxonomy.Code).Select(x => new TaxonomyImpactItem(x.Id, "MAPPING", x.Status, x.TaxonomyVersion)).ToListAsync(ct);
+    var packages = await db.FinancialPackages.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&
+      x.TaxonomyVersion == taxonomy.Code).Select(x => new TaxonomyImpactItem(x.Id, "PACKAGE", x.Status, x.TaxonomyVersion)).ToListAsync(ct);
+    return CommandResult<IReadOnlyList<TaxonomyImpactItem>>.Ok(mappings.Concat(packages).OrderBy(x => x.Kind).ThenBy(x => x.Id).ToArray());
   }
 
   public static async Task<CommandResult<Guid>> CreateCapabilityProfileAsync(

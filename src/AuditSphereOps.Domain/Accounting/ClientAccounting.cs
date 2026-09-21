@@ -297,9 +297,11 @@ public sealed class ReportingTaxonomyVersion
 {
   public Guid Id { get; set; }
   public Guid FirmId { get; set; }
+  public Guid? BaseTaxonomyVersionId { get; set; }
   public string Code { get; set; } = string.Empty;
   public string Framework { get; set; } = string.Empty;
   public string Name { get; set; } = string.Empty;
+  public string OverlayScope { get; set; } = "BASE";
   public string Status { get; set; } = AccountingWorkflowStates.Draft;
   public DateOnly EffectiveFrom { get; set; }
   public DateOnly? EffectiveTo { get; set; }

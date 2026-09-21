@@ -468,6 +468,22 @@ public sealed class ClientAccountingTests
       [new("CASH", "Cash", "SFP", "+", "DEBIT", "CASH", true, "ALL", "ASSETS")]);
     Assert.False(wrongVersion.Succeeded);
     Assert.Equal(ErrorCodes.Accounting.MappingInvalid, wrongVersion.ErrorCode);
+
+    db.RoleGrants.Add(Grant(scope.FirmId, scope.Preparer, "AccountingReviewer"));
+    await db.SaveChangesAsync();
+    var preparerReviewer = Actor(scope.Preparer, "AccountingReviewer");
+    Assert.True((await ClientAccountingService.PublishTaxonomyVersionAsync(db, preparerReviewer, taxonomyId)).Succeeded);
+    var overlayId = (await ClientAccountingService.CreateTaxonomyOverlayAsync(db, reviewer,
+      new TaxonomyOverlayRequest(taxonomyId, "TAX-2026-RETAIL", "Retail overlay", "INDUSTRY:RETAIL", new DateOnly(2026, 1, 1)))).Value;
+    Assert.True((await ClientAccountingService.AddTaxonomyNodesAsync(db, reviewer, overlayId,
+      [new("RETAIL_REVENUE", "Retail revenue", "SPL", "+", "CREDIT", "REVENUE", true, "INDUSTRY:RETAIL")])).Succeeded);
+    var impact = await ClientAccountingService.GetTaxonomyPublishImpactAsync(db, reviewer, overlayId);
+    Assert.True(impact.Succeeded, impact.Message);
+    Assert.Empty(impact.Value!);
+    Assert.True((await ClientAccountingService.PublishTaxonomyVersionAsync(db, preparerReviewer, overlayId)).Succeeded);
+    var overlay = await db.ReportingTaxonomyVersions.SingleAsync(x => x.Id == overlayId);
+    Assert.Equal(taxonomyId, overlay.BaseTaxonomyVersionId);
+    Assert.Equal("INDUSTRY:RETAIL", overlay.OverlayScope);
   }
 
   [Fact]
