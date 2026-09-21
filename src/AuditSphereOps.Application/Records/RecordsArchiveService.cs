@@ -545,6 +545,62 @@ public static class RecordsArchiveService
       .Where(x => packageIds.Contains(x.FinancialPackageId)).OrderBy(x => x.Id)
       .Select(x => new { x.Id, x.FinancialPackageId, x.NoteCode, x.FaceDestinationCode, x.Amount, x.Currency, x.EvidenceReference, x.CreatedAt }).ToListAsync(ct);
 
+    var groupMembershipIds = typedAccounting is null ? [] : await typedAccounting.ClientGroupMemberships.AsNoTracking()
+      .Where(x => x.FirmId == archive.FirmId && x.ClientId == archive.ClientId)
+      .Select(x => x.GroupId).Distinct().ToArrayAsync(ct);
+    var componentGroupIds = typedAccounting is null ? [] : await typedAccounting.ConsolidationComponents.AsNoTracking()
+      .Where(x => x.FirmId == archive.FirmId && x.ClientId == archive.ClientId && x.EngagementId == archive.EngagementId)
+      .Select(x => x.GroupId).Distinct().ToArrayAsync(ct);
+    var groupIds = groupMembershipIds.Concat(componentGroupIds).Distinct().ToArray();
+    var clientGroups = typedAccounting is null ? [] : await typedAccounting.ClientGroups.AsNoTracking()
+      .Where(x => x.FirmId == archive.FirmId && groupIds.Contains(x.Id)).OrderBy(x => x.Id)
+      .Select(x => new { x.Id, x.Code, x.Name, x.Status, x.Revision, x.CreatedByUserId, x.CreatedAt }).ToListAsync(ct);
+    var groupMemberships = typedAccounting is null ? [] : await typedAccounting.ClientGroupMemberships.AsNoTracking()
+      .Where(x => x.FirmId == archive.FirmId && groupIds.Contains(x.GroupId)).OrderBy(x => x.Id)
+      .Select(x => new { x.Id, x.GroupId, x.ClientId, x.EffectiveFrom, x.EffectiveTo, x.ControlMethod, x.OwnershipPercent, x.EconomicInterestPercent, x.EvidenceReference, x.Status, x.Revision, x.CreatedByUserId, x.CreatedAt }).ToListAsync(ct);
+    var scopeVersions = typedAccounting is null ? [] : await typedAccounting.ConsolidationScopeVersions.AsNoTracking()
+      .Where(x => x.FirmId == archive.FirmId && groupIds.Contains(x.GroupId)).OrderBy(x => x.Id)
+      .Select(x => new { x.Id, x.GroupId, x.GroupRevision, x.PeriodId, x.Version, x.ReportingCurrency, x.Method, x.Status, x.OpeningBasis, x.ExchangeRateSetVersionId, x.TranslationPolicyVersionId, x.TranslationRateDate, x.TranslationRateType, x.CreatedByUserId, x.ApprovedByUserId, x.ApprovedAt, x.CreatedAt }).ToListAsync(ct);
+    var scopeIds = scopeVersions.Select(x => x.Id).ToArray();
+    var consolidationComponents = typedAccounting is null ? [] : await typedAccounting.ConsolidationComponents.AsNoTracking()
+      .Where(x => x.FirmId == archive.FirmId && scopeIds.Contains(x.ScopeVersionId) && x.ClientId == archive.ClientId && x.EngagementId == archive.EngagementId).OrderBy(x => x.Id)
+      .Select(x => new { x.Id, x.GroupId, x.ScopeVersionId, x.ClientId, x.EngagementId, x.PackageId, x.PackageHash, x.PeriodBasis, x.TaxonomyVersion, x.MappingVersion, x.Currency, x.OwnershipPercent, x.ControlMethod, x.Status, x.SubmittedByUserId, x.ApprovedByUserId, x.SubmittedAt, x.ApprovedAt }).ToListAsync(ct);
+    var componentIds = consolidationComponents.Select(x => x.Id).ToArray();
+    var ownershipInterests = typedAccounting is null ? [] : await typedAccounting.OwnershipInterestVersions.AsNoTracking()
+      .Where(x => x.FirmId == archive.FirmId && scopeIds.Contains(x.ScopeVersionId) && (x.ParentClientId == archive.ClientId || x.ChildClientId == archive.ClientId)).OrderBy(x => x.Id)
+      .Select(x => new { x.Id, x.GroupId, x.ScopeVersionId, x.ParentClientId, x.ChildClientId, x.EffectiveFrom, x.EffectiveTo, x.OwnershipPercent, x.EconomicInterestPercent, x.ControlAssessment, x.Method, x.EvidenceReference, x.Status, x.CreatedAt }).ToListAsync(ct);
+    var intercompanyMatches = typedAccounting is null ? [] : await typedAccounting.IntercompanyMatches.AsNoTracking()
+      .Where(x => x.FirmId == archive.FirmId && scopeIds.Contains(x.ScopeVersionId) && (x.SellerClientId == archive.ClientId || x.BuyerClientId == archive.ClientId)).OrderBy(x => x.Id)
+      .Select(x => new { x.Id, x.GroupId, x.ScopeVersionId, x.SellerClientId, x.BuyerClientId, x.AccountNature, x.PeriodCode, x.Currency, x.TransactionReference, x.SellerAmount, x.BuyerAmount, x.MatchedAmount, x.Difference, x.Status, x.DifferenceReason, x.EvidenceReference, x.CreatedByUserId, x.ReviewedByUserId, x.CreatedAt, x.ReviewedAt }).ToListAsync(ct);
+    var consolidationJournals = typedAccounting is null ? [] : await typedAccounting.ConsolidationJournals.AsNoTracking()
+      .Where(x => x.FirmId == archive.FirmId && scopeIds.Contains(x.ScopeVersionId)).OrderBy(x => x.Id)
+      .Select(x => new { x.Id, x.GroupId, x.ScopeVersionId, x.JournalNumber, x.JournalType, x.Currency, x.TotalDebits, x.TotalCreditsAbs, x.EvidenceReference, x.Status, x.CreatedByUserId, x.ApprovedByUserId, x.CreatedAt, x.ApprovedAt }).ToListAsync(ct);
+    var consolidationJournalIds = consolidationJournals.Select(x => x.Id).ToArray();
+    var consolidationJournalLines = typedAccounting is null ? [] : await typedAccounting.ConsolidationJournalLines.AsNoTracking()
+      .Where(x => consolidationJournalIds.Contains(x.ConsolidationJournalId)).OrderBy(x => x.Id)
+      .Select(x => new { x.Id, x.GroupId, x.ScopeVersionId, x.ConsolidationJournalId, x.IntercompanyMatchId, x.TaxonomyCode, x.Debit, x.Credit, x.Currency, x.Description, x.CreatedAt }).ToListAsync(ct);
+    var consolidationRuns = typedAccounting is null ? [] : await typedAccounting.ConsolidationRuns.AsNoTracking()
+      .Where(x => x.FirmId == archive.FirmId && scopeIds.Contains(x.ScopeVersionId)).OrderBy(x => x.Id)
+      .Select(x => new { x.Id, x.GroupId, x.ScopeVersionId, x.EngineVersion, x.InputManifest, x.RunHash, x.ReportingCurrency, x.SignedTotal, x.Status, x.CreatedByUserId, x.ApprovedByUserId, x.CreatedAt, x.ApprovedAt }).ToListAsync(ct);
+    var consolidationRunIds = consolidationRuns.Select(x => x.Id).ToArray();
+    var consolidationRunLines = typedAccounting is null ? [] : await typedAccounting.ConsolidationRunLines.AsNoTracking()
+      .Where(x => consolidationRunIds.Contains(x.RunId)).OrderBy(x => x.Id)
+      .Select(x => new { x.Id, x.GroupId, x.ScopeVersionId, x.RunId, x.ComponentId, x.SourceLineId, x.ConsolidationJournalId, x.TaxonomyCode, x.ComponentAmount, x.AlignmentAmount, x.EliminationAmount, x.ConsolidatedAmount, x.Currency, x.CreatedAt }).ToListAsync(ct);
+    var rateSetIds = scopeVersions.Where(x => x.ExchangeRateSetVersionId.HasValue).Select(x => x.ExchangeRateSetVersionId!.Value).Distinct().ToArray();
+    var translationPolicyIds = scopeVersions.Where(x => x.TranslationPolicyVersionId.HasValue).Select(x => x.TranslationPolicyVersionId!.Value).Distinct().ToArray();
+    var exchangeRateSets = typedAccounting is null ? [] : await typedAccounting.ExchangeRateSetVersions.AsNoTracking()
+      .Where(x => x.FirmId == archive.FirmId && rateSetIds.Contains(x.Id)).OrderBy(x => x.Id)
+      .Select(x => new { x.Id, x.Code, x.Source, x.Status, x.CreatedByUserId, x.ApprovedByUserId, x.CreatedAt, x.ApprovedAt }).ToListAsync(ct);
+    var exchangeRates = typedAccounting is null ? [] : await typedAccounting.ExchangeRates.AsNoTracking()
+      .Where(x => x.FirmId == archive.FirmId && rateSetIds.Contains(x.RateSetVersionId)).OrderBy(x => x.Id)
+      .Select(x => new { x.Id, x.RateSetVersionId, x.FromCurrency, x.ToCurrency, x.RateDate, x.RateType, x.Rate, x.Direction, x.CreatedAt }).ToListAsync(ct);
+    var translationPolicies = typedAccounting is null ? [] : await typedAccounting.TranslationPolicyVersions.AsNoTracking()
+      .Where(x => x.FirmId == archive.FirmId && translationPolicyIds.Contains(x.Id)).OrderBy(x => x.Id)
+      .Select(x => new { x.Id, x.Code, x.FunctionalCurrency, x.PresentationCurrency, x.ClosingRateRule, x.AverageRateRule, x.HistoricalRateRule, x.Status, x.CreatedByUserId, x.ApprovedByUserId, x.CreatedAt, x.ApprovedAt }).ToListAsync(ct);
+    var translationResults = typedAccounting is null ? [] : await typedAccounting.TranslationResults.AsNoTracking()
+      .Where(x => x.FirmId == archive.FirmId && scopeIds.Contains(x.ScopeVersionId) && componentIds.Contains(x.ComponentId)).OrderBy(x => x.Id)
+      .Select(x => new { x.Id, x.GroupId, x.ScopeVersionId, x.ComponentId, x.RateSetVersionId, x.TranslationPolicyVersionId, x.SourcePackageHash, x.RateDate, x.RateType, x.AppliedRate, x.FromCurrency, x.ToCurrency, x.TranslatedAmount, x.TranslationReserve, x.Status, x.CreatedByUserId, x.ApprovedByUserId, x.ApprovedAt, x.CreatedAt }).ToListAsync(ct);
+
     var materiality = await db.MaterialityAssessments.AsNoTracking()
       .Where(x => x.FirmId == archive.FirmId && x.ClientId == archive.ClientId && x.EngagementId == archive.EngagementId)
       .OrderBy(x => x.Id).Select(x => new { x.Id, x.BenchmarkSource, x.BenchmarkVersion, x.Rationale, x.BenchmarkAmount, x.RateApplied, x.OverallMateriality, x.PerformanceMateriality, x.ClearlyTrivialThreshold, x.QualitativeConsiderations, x.Status, x.CreatedAt }).ToListAsync(ct);
@@ -747,7 +803,21 @@ public static class RecordsArchiveService
         cashFlowLines,
         disclosures,
         equityLines,
-        noteLines
+        noteLines,
+        clientGroups,
+        groupMemberships,
+        scopeVersions,
+        consolidationComponents,
+        ownershipInterests,
+        intercompanyMatches,
+        consolidationJournals,
+        consolidationJournalLines,
+        consolidationRuns,
+        consolidationRunLines,
+        exchangeRateSets,
+        exchangeRates,
+        translationPolicies,
+        translationResults
       },
       audit = new
       {

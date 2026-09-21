@@ -1,4 +1,5 @@
 using AuditSphereOps.Application.Records;
+using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Records;
 using AuditSphereOps.Domain.Shared;
@@ -39,6 +40,20 @@ public sealed class RecordsArchiveTests
         EngagementId = scope.EngagementId, ProfileId = "AUDIT-RECORDS", ProfileVersion = 1,
         Status = ArchiveStates.Issued, CreatedAt = DateTimeOffset.UtcNow
       });
+      var groupId = Guid.CreateVersion7();
+      seed.ClientGroups.Add(new ClientGroup
+      {
+        Id = groupId, FirmId = scope.FirmId, Code = "ARCHIVE-GROUP", Name = "Archive group",
+        CreatedByUserId = scope.Actor.UserId, CreatedAt = DateTimeOffset.UtcNow
+      });
+      seed.ClientGroupMemberships.Add(new ClientGroupMembership
+      {
+        Id = Guid.CreateVersion7(), FirmId = scope.FirmId, GroupId = groupId, ClientId = scope.ClientId,
+        EffectiveFrom = DateOnly.FromDateTime(DateTime.UtcNow), ControlMethod = "CONTROLLED",
+        OwnershipPercent = 100, EconomicInterestPercent = 100, EvidenceReference = "archive-membership",
+        Status = AccountingWorkflowStates.Approved, CreatedByUserId = scope.Actor.UserId,
+        CreatedAt = DateTimeOffset.UtcNow
+      });
       await seed.SaveChangesAsync();
     }
 
@@ -58,6 +73,8 @@ public sealed class RecordsArchiveTests
     Assert.Contains("\"periodAmendments\"", structuredExport.PayloadJson);
     Assert.Contains("\"specialistSchedules\"", structuredExport.PayloadJson);
     Assert.Contains("\"accountingEvidenceAuditLinks\"", structuredExport.PayloadJson);
+    Assert.Contains("\"clientGroups\"", structuredExport.PayloadJson);
+    Assert.Contains("\"groupMemberships\"", structuredExport.PayloadJson);
     Assert.Contains("\"activityEvents\"", structuredExport.PayloadJson);
     Assert.Equal(structuredExport.ByteCount, System.Text.Encoding.UTF8.GetByteCount(structuredExport.PayloadJson));
 
