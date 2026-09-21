@@ -699,7 +699,7 @@ public static class ClientAccountingService
     IClientAccountingDbContext db, ActorContext actor, CapabilityProfileRequest request,
     CancellationToken ct = default)
   {
-    var serviceKind = request.ServiceKind.Trim().ToUpperInvariant();
+    var serviceKind = (request.ServiceKind ?? string.Empty).Trim().ToUpperInvariant();
     var validScope = serviceKind switch
     {
       AccountingCapabilityServiceKinds.GroupReporting => request.GroupId.HasValue && !request.ClientId.HasValue,
