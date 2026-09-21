@@ -79,7 +79,7 @@ public static class AdvancedConsolidationCalculator
     if (input.EffectiveDate == default || input.PreviousOwnershipPercent is < 0m or > 100m ||
         input.NewOwnershipPercent is < 0m or > 100m || input.Consideration < 0m ||
         input.FairValueRetainedInterest < 0m || input.CarryingNetAssets < 0m || input.CarryingNci < 0m ||
-        (!input.ControlLost && input.NewOwnershipPercent >= input.PreviousOwnershipPercent))
+        (input.ControlLost && input.NewOwnershipPercent >= input.PreviousOwnershipPercent))
       throw new InvalidOperationException("An ownership change needs valid effective ownership and consideration inputs.");
     var controlRetained = !input.ControlLost;
     var nciMovement = controlRetained

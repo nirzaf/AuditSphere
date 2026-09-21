@@ -1569,6 +1569,13 @@ public sealed class ClientAccountingTests
     Assert.Equal(20m, ownership.NciMovement);
     Assert.Equal(0m, ownership.DisposalGainOrLoss);
 
+    var increasedOwnership = AdvancedConsolidationCalculator.CalculateOwnershipChange(new OwnershipChangeInput(
+      new DateOnly(2026, 9, 30), 60m, 80m, 12m, 0m, 100m, 40m, false));
+    Assert.True(increasedOwnership.ControlRetained);
+    Assert.Equal(-20m, increasedOwnership.NciMovement);
+    Assert.Throws<InvalidOperationException>(() => AdvancedConsolidationCalculator.CalculateOwnershipChange(new OwnershipChangeInput(
+      new DateOnly(2026, 9, 30), 60m, 60m, 12m, 0m, 100m, 40m, true)));
+
     Assert.Throws<InvalidOperationException>(() => AdvancedConsolidationCalculator.EnsureNoNestedDoubleCount([
       new("ENTITY-A", Guid.NewGuid(), false), new("entity-a", Guid.NewGuid(), true)
     ]));
