@@ -1555,9 +1555,10 @@ public sealed class ClientAccountingTests
   public void AdvancedConsolidationMethods_RequireExplicitInputsAndConserveRollforwards()
   {
     var acquisition = AdvancedConsolidationCalculator.CalculateAcquisition(new AcquisitionAccountingInput(
-      new DateOnly(2026, 1, 1), new DateOnly(2026, 1, 15), 120m, 20m, 100m, 8m));
-    Assert.Equal(40m, acquisition.Goodwill);
+      new DateOnly(2026, 1, 1), new DateOnly(2026, 1, 15), 120m, 20m, 100m, 8m, 10m));
+    Assert.Equal(30m, acquisition.Goodwill);
     Assert.Equal(0m, acquisition.BargainPurchase);
+    Assert.Equal(110m, acquisition.FairValueAdjustedNetAssets);
     Assert.Equal(AdvancedConsolidationCalculator.AcquisitionNciMethod, acquisition.Method);
 
     var nci = AdvancedConsolidationCalculator.RollForwardNci(20m, 5m, 2m, 3m);

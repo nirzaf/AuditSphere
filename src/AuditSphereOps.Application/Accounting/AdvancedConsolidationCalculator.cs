@@ -8,12 +8,14 @@ public sealed record AcquisitionAccountingInput(
   decimal Consideration,
   decimal NciAtAcquisition,
   decimal FairValueNetAssets,
-  decimal OpeningReserves);
+  decimal OpeningReserves,
+  decimal FairValueAdjustments = 0m);
 
 public sealed record AcquisitionAccountingResult(
   decimal Goodwill,
   decimal BargainPurchase,
   decimal OpeningReserves,
+  decimal FairValueAdjustedNetAssets,
   string Method);
 
 public sealed record NciRollforwardResult(
@@ -58,10 +60,11 @@ public static class AdvancedConsolidationCalculator
   {
     if (input.ControlDate < input.AcquisitionDate || input.Consideration < 0m || input.NciAtAcquisition < 0m)
       throw new InvalidOperationException("Acquisition and control dates and consideration must be explicit and ordered.");
-    var goodwillOrBargain = MoneyPolicy.Normalize(input.Consideration + input.NciAtAcquisition - input.FairValueNetAssets);
+    var fairValueAdjustedNetAssets = MoneyPolicy.Normalize(input.FairValueNetAssets + input.FairValueAdjustments);
+    var goodwillOrBargain = MoneyPolicy.Normalize(input.Consideration + input.NciAtAcquisition - fairValueAdjustedNetAssets);
     return new AcquisitionAccountingResult(
       Math.Max(0m, goodwillOrBargain), Math.Max(0m, -goodwillOrBargain),
-      MoneyPolicy.Normalize(input.OpeningReserves), AcquisitionNciMethod);
+      MoneyPolicy.Normalize(input.OpeningReserves), fairValueAdjustedNetAssets, AcquisitionNciMethod);
   }
 
   public static NciRollforwardResult RollForwardNci(
