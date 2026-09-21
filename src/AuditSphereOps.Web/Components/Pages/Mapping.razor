@@ -55,6 +55,29 @@ else
       <p>Prior version: <a href="/app/accounting/mappings/@_priorMapping.Id" title="Open the previous immutable mapping version">v@_priorMapping.Version</a>
         <span class="muted">(@_priorMapping.Status, @_priorAllocationCount allocations)</span></p>
     }
+    <p class="status" title="Applicability is bound to this immutable dataset and approved taxonomy version">@(_mapping.Status == AccountingPackageStates.MappingApproved ? "APPLICABLE: exact dataset and taxonomy approved" : "APPLICABILITY PENDING: independent mapping approval required")</p>
+  </section>
+
+  <section class="card" aria-labelledby="comparison-heading">
+    <h2 id="comparison-heading">Current and prior allocation comparison</h2>
+    <p class="muted">This comparison is read-only. A changed source, chart or taxonomy must be reviewed in a new mapping version; prior allocations are never silently reused.</p>
+    @if (_comparison.Count == 0)
+    {
+      <p>No prior allocation comparison is available.</p>
+    }
+    else
+    {
+      <div class="table-wrap"><table>
+        <caption class="sr-only">Current and prior mapping allocation comparison</caption>
+        <thead><tr><th scope="col">Source account</th><th scope="col">Prior allocation</th><th scope="col">Current allocation</th><th scope="col">Change</th></tr></thead>
+        <tbody>
+        @foreach (var row in _comparison)
+        {
+          <tr><td><code>@row.SourceAccountCode</code></td><td>@row.Prior</td><td>@row.Current</td><td><span class="status">@row.Status</span></td></tr>
+        }
+        </tbody>
+      </table></div>
+    }
   </section>
 
   <section class="card" aria-labelledby="unmapped-heading">
@@ -167,6 +190,7 @@ else
   private List<SourceRow> _unmappedAccounts = [];
   private List<SplitRow> _splitAccounts = [];
   private List<ImpactRow> _reportImpacts = [];
+  private List<ComparisonRow> _comparison = [];
   private int _priorAllocationCount;
   private CommandResult? _result;
   private bool _loading = true;
@@ -215,7 +239,23 @@ else
           x.ClientId == _mapping.ClientId && x.EngagementId == _mapping.EngagementId && x.Version < _mapping.Version)
           .OrderByDescending(x => x.Version).FirstOrDefaultAsync();
         if (_priorMapping is not null)
-          _priorAllocationCount = await db.MappingAllocations.AsNoTracking().CountAsync(x => x.FirmId == _actor.FirmId && x.MappingVersionId == _priorMapping.Id);
+        {
+          var priorAllocations = await db.MappingAllocations.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && x.MappingVersionId == _priorMapping.Id)
+            .OrderBy(x => x.SourceAccountCode).ThenBy(x => x.DestinationCode).ToListAsync();
+          _priorAllocationCount = priorAllocations.Count;
+          var currentBySource = _allocations.GroupBy(x => x.SourceAccountCode, StringComparer.Ordinal)
+            .ToDictionary(x => x.Key, AllocationSummary, StringComparer.Ordinal);
+          var priorBySource = priorAllocations.GroupBy(x => x.SourceAccountCode, StringComparer.Ordinal)
+            .ToDictionary(x => x.Key, AllocationSummary, StringComparer.Ordinal);
+          _comparison = currentBySource.Keys.Concat(priorBySource.Keys).Distinct(StringComparer.Ordinal).OrderBy(x => x, StringComparer.Ordinal)
+            .Select(code =>
+            {
+              var prior = priorBySource.GetValueOrDefault(code, "—");
+              var current = currentBySource.GetValueOrDefault(code, "—");
+              return new ComparisonRow(code, prior, current, prior == "—" ? "NEW" : current == "—" ? "REMOVED" :
+                string.Equals(prior, current, StringComparison.Ordinal) ? "UNCHANGED" : "CHANGED");
+            }).ToList();
+        }
       }
     }
     _loading = false;
@@ -224,6 +264,11 @@ else
   private sealed record SourceRow(string AccountCode, string AccountName, decimal Amount, string Currency);
   private sealed record SplitRow(string AccountCode, int DestinationCount, decimal TotalFraction);
   private sealed record ImpactRow(string DestinationCode, string StatementSection, decimal Amount, int SourceCount);
+  private sealed record ComparisonRow(string SourceAccountCode, string Prior, string Current, string Status);
+
+  private static string AllocationSummary(IEnumerable<MappingAllocation> rows) =>
+    string.Join("; ", rows.OrderBy(x => x.DestinationCode, StringComparer.Ordinal)
+      .Select(x => $"{x.DestinationCode} ({x.Fraction:P2})"));
 
   private async Task ApproveAsync()
   {
