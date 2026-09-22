@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.Json;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Security;
@@ -59,6 +60,9 @@ public sealed record ConsolidationJournalLineInput(
 public sealed record ConsolidationJournalRequest(
   Guid ScopeVersionId, string JournalNumber, string JournalType, string Currency,
   string EvidenceReference, IReadOnlyList<ConsolidationJournalLineInput> Lines);
+
+public sealed record AdvancedConsolidationMethodScheduleRequest(
+  Guid ScopeVersionId, string Method, string Framework, string SourceManifestJson, string InputSnapshotJson);
 
 public static class ConsolidationEliminationKinds
 {
@@ -968,6 +972,74 @@ public static class ConsolidationService
     return CommandResult<Guid>.Ok(run.Id);
   }
 
+  public static async Task<CommandResult<Guid>> CreateAdvancedMethodScheduleAsync(
+    IClientAccountingDbContext db, ActorContext actor, AdvancedConsolidationMethodScheduleRequest request,
+    CancellationToken ct = default)
+  {
+    if (request.ScopeVersionId == Guid.Empty || !AdvancedConsolidationMethods.All.Contains(request.Method.Trim().ToUpperInvariant()) ||
+        !string.Equals(request.Framework.Trim(), "IFRS", StringComparison.OrdinalIgnoreCase) ||
+        !TryCanonicalObject(request.SourceManifestJson, out var sourceManifest) ||
+        !TryCanonicalObject(request.InputSnapshotJson, out var inputSnapshot))
+      return CommandResult<Guid>.Fail(ErrorCodes.Accounting.MappingInvalid,
+        "An advanced method schedule needs an approved IFRS method and JSON source/input snapshots.");
+    using var sourceDocument = JsonDocument.Parse(sourceManifest);
+    if (!sourceDocument.RootElement.TryGetProperty("sources", out var sources) ||
+        sources.ValueKind != JsonValueKind.Array || sources.GetArrayLength() == 0)
+      return CommandResult<Guid>.Fail(ErrorCodes.Accounting.MappingInvalid,
+        "An advanced method schedule must identify at least one source record.");
+
+    var scope = await db.ConsolidationScopeVersions.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.FirmId == actor.FirmId && x.Id == request.ScopeVersionId, ct);
+    if (scope is null)
+      return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var auth = await GroupAuthAsync(db, actor, scope.GroupId, PreparerRoles, ct);
+    if (!auth.Succeeded)
+      return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+    var method = request.Method.Trim().ToUpperInvariant();
+    var existing = await db.AdvancedConsolidationMethodSchedules.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.FirmId == actor.FirmId && x.ScopeVersionId == scope.Id && x.Method == method &&
+      x.InputSnapshotDigest == Hashing.Sha256Hex(inputSnapshot), ct);
+    if (existing is not null)
+      return CommandResult<Guid>.Ok(existing.Id);
+    var schedule = new AdvancedConsolidationMethodSchedule
+    {
+      Id = Guid.CreateVersion7(), FirmId = actor.FirmId, GroupId = scope.GroupId, ScopeVersionId = scope.Id,
+      GroupRevision = scope.GroupRevision, Method = method, Framework = "IFRS",
+      SourceManifestJson = sourceManifest, SourceManifestDigest = Hashing.Sha256Hex(sourceManifest),
+      InputSnapshotJson = inputSnapshot, InputSnapshotDigest = Hashing.Sha256Hex(inputSnapshot),
+      Status = AdvancedConsolidationMethodScheduleStates.Submitted,
+      CreatedByUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
+    };
+    db.AdvancedConsolidationMethodSchedules.Add(schedule);
+    await db.SaveChangesAsync(ct);
+    return CommandResult<Guid>.Ok(schedule.Id);
+  }
+
+  public static async Task<CommandResult> ApproveAdvancedMethodScheduleAsync(
+    IClientAccountingDbContext db, ActorContext actor, Guid scheduleId, CancellationToken ct = default)
+  {
+    var schedule = await db.AdvancedConsolidationMethodSchedules.SingleOrDefaultAsync(x =>
+      x.FirmId == actor.FirmId && x.Id == scheduleId, ct);
+    if (schedule is null)
+      return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var auth = await GroupAuthAsync(db, actor, schedule.GroupId, ReviewerRoles, ct);
+    if (!auth.Succeeded)
+      return auth;
+    if (schedule.Status != AdvancedConsolidationMethodScheduleStates.Submitted || schedule.CreatedByUserId == actor.UserId)
+      return CommandResult.Fail(ErrorCodes.Accounting.MappingInvalid,
+        "Only a separate reviewer can approve a submitted advanced method schedule.");
+    var scope = await db.ConsolidationScopeVersions.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.FirmId == actor.FirmId && x.Id == schedule.ScopeVersionId && x.GroupId == schedule.GroupId, ct);
+    if (scope is null || scope.GroupRevision != schedule.GroupRevision || scope.Status != AccountingWorkflowStates.Approved)
+      return CommandResult.Fail(ErrorCodes.GenerationStale,
+        "The consolidation perimeter changed; rebuild the advanced method schedule.");
+    schedule.Status = AdvancedConsolidationMethodScheduleStates.Approved;
+    schedule.ApprovedByUserId = actor.UserId;
+    schedule.ApprovedAt = DateTimeOffset.UtcNow;
+    await db.SaveChangesAsync(ct);
+    return CommandResult.Ok();
+  }
+
   public static async Task<CommandResult> ApproveRunAsync(
     IClientAccountingDbContext db, ActorContext actor, Guid runId,
     CancellationToken ct = default)
@@ -1166,6 +1238,23 @@ public static class ConsolidationService
      select acceptance.Id).AnyAsync(ct);
 
   private static bool IsSha256(string value) => value.Length == 64 && value.All(c => c is >= '0' and <= '9' or >= 'a' and <= 'f');
+
+  private static bool TryCanonicalObject(string json, out string canonical)
+  {
+    canonical = string.Empty;
+    try
+    {
+      using var document = JsonDocument.Parse(json);
+      if (document.RootElement.ValueKind != JsonValueKind.Object)
+        return false;
+      canonical = JsonSerializer.Serialize(document.RootElement);
+      return canonical.Length <= 20000;
+    }
+    catch (JsonException)
+    {
+      return false;
+    }
+  }
 
   private static string ComputeExternalPackDigest(
     int version, string periodStart, string periodEnd, string framework, string currency,

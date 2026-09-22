@@ -943,6 +943,47 @@ public sealed class ConsolidationJournal
   public DateTimeOffset? ApprovedAt { get; set; }
 }
 
+/// <summary>Immutable method-specific input schedule for advanced consolidation.</summary>
+public sealed class AdvancedConsolidationMethodSchedule
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid GroupId { get; set; }
+  public Guid ScopeVersionId { get; set; }
+  public long GroupRevision { get; set; }
+  public string Method { get; set; } = string.Empty;
+  public string Framework { get; set; } = string.Empty;
+  public string SourceManifestJson { get; set; } = string.Empty;
+  public string SourceManifestDigest { get; set; } = string.Empty;
+  public string InputSnapshotJson { get; set; } = string.Empty;
+  public string InputSnapshotDigest { get; set; } = string.Empty;
+  public string Status { get; set; } = AccountingWorkflowStates.Submitted;
+  public Guid CreatedByUserId { get; set; }
+  public Guid? ApprovedByUserId { get; set; }
+  public DateTimeOffset CreatedAt { get; set; }
+  public DateTimeOffset? ApprovedAt { get; set; }
+}
+
+public static class AdvancedConsolidationMethodScheduleStates
+{
+  public const string Submitted = "SUBMITTED";
+  public const string Approved = "APPROVED";
+}
+
+public static class AdvancedConsolidationMethods
+{
+  public const string ForeignCurrencyReserve = "FOREIGN_CURRENCY_RESERVE_V1";
+  public const string AcquisitionNci = "ACQUISITION_NCI_V1";
+  public const string OwnershipChange = "OWNERSHIP_CHANGE_V1";
+  public const string NestedGroup = "NESTED_GROUP_V1";
+  public const string AssetTransferElimination = "ASSET_TRANSFER_ELIMINATION_V1";
+
+  public static readonly IReadOnlySet<string> All = new HashSet<string>(StringComparer.Ordinal)
+  {
+    ForeignCurrencyReserve, AcquisitionNci, OwnershipChange, NestedGroup, AssetTransferElimination
+  };
+}
+
 public sealed class ConsolidationJournalLine
 {
   public Guid Id { get; set; }

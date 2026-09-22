@@ -179,6 +179,7 @@ public interface IClientAccountingDbContext : IAuditSphereDbContext
   DbSet<IntercompanyMatch> IntercompanyMatches { get; }
   DbSet<ConsolidationJournal> ConsolidationJournals { get; }
   DbSet<ConsolidationJournalLine> ConsolidationJournalLines { get; }
+  DbSet<AdvancedConsolidationMethodSchedule> AdvancedConsolidationMethodSchedules { get; }
   DbSet<ConsolidationRun> ConsolidationRuns { get; }
   DbSet<ConsolidationRunLine> ConsolidationRunLines { get; }
   DbSet<ExchangeRateSetVersion> ExchangeRateSetVersions { get; }
