@@ -1639,6 +1639,54 @@ public sealed class ClientAccountingTests
   }
 
   [Fact]
+  [Trait("Profile", "Database")]
+  public async Task AdvancedMethodSchedules_AreCanonicalScopedAndIdempotent()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await SeedAsync(pg);
+    var preparer = Actor(fixture.Preparer, "AccountingPreparer");
+    var reviewer = Actor(fixture.Reviewer, "Partner");
+    Guid scopeId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var groupId = (await ConsolidationService.CreateGroupAsync(db, reviewer,
+        new ClientGroupRequest("ADV-SCHEDULE", "Advanced schedule group"))).Value;
+      Assert.True((await ConsolidationService.AddMembershipAsync(db, reviewer,
+        new GroupMembershipRequest(groupId, fixture.ClientA, new DateOnly(2026, 1, 1), null,
+          "CONTROLLED", 100m, 100m, "advanced-schedule-membership"))).Succeeded);
+      db.GroupAccessGrants.Add(new GroupAccessGrant
+      {
+        Id = Guid.NewGuid(), FirmId = fixture.FirmId, GroupId = groupId, UserId = fixture.Preparer.Id,
+        Role = "AccountingPreparer", GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = fixture.Reviewer.Id
+      });
+      await db.SaveChangesAsync();
+      scopeId = (await ConsolidationService.CreateScopeAsync(db, reviewer,
+        new ConsolidationScopeRequest(groupId, Guid.NewGuid(), "QAR", ConsolidationCalculator.RestrictedMethod,
+          "OPENING-2026"))).Value;
+
+      var invalid = await ConsolidationService.CreateAdvancedMethodScheduleAsync(db, preparer,
+        new AdvancedConsolidationMethodScheduleRequest(scopeId, AdvancedConsolidationMethods.AcquisitionNci,
+          "IFRS", "{\"notSources\":[]}", "{\"consideration\":120}"));
+      Assert.False(invalid.Succeeded);
+      Assert.Equal(ErrorCodes.Accounting.MappingInvalid, invalid.ErrorCode);
+
+      var request = new AdvancedConsolidationMethodScheduleRequest(scopeId,
+        AdvancedConsolidationMethods.AcquisitionNci, "IFRS",
+        "{ \"sources\": [ { \"kind\": \"PACKAGE\", \"id\": \"pkg-1\" } ] }",
+        "{ \"consideration\": 120, \"nci\": 20, \"fairValueNetAssets\": 100 }\n");
+      var created = await ConsolidationService.CreateAdvancedMethodScheduleAsync(db, preparer, request);
+      Assert.True(created.Succeeded, created.Message);
+      var duplicate = await ConsolidationService.CreateAdvancedMethodScheduleAsync(db, preparer, request);
+      Assert.True(duplicate.Succeeded);
+      Assert.Equal(created.Value, duplicate.Value);
+      var stored = await db.AdvancedConsolidationMethodSchedules.SingleAsync(x => x.Id == created.Value);
+      Assert.Equal(AdvancedConsolidationMethodScheduleStates.Submitted, stored.Status);
+      Assert.Equal(Hashing.Sha256Hex(stored.SourceManifestJson), stored.SourceManifestDigest);
+      Assert.Equal(Hashing.Sha256Hex(stored.InputSnapshotJson), stored.InputSnapshotDigest);
+    }
+  }
+
+  [Fact]
   [Trait("Profile", "Unit")]
   public void ConsolidationEliminationKinds_RequireAnEnabledAccountingNature()
   {
