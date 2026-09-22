@@ -228,18 +228,18 @@ public static class ConsolidationService
       x.Status == AccountingWorkflowStates.Approved && x.EffectiveTo == null).ToListAsync(ct);
     if (members.Count == 0)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "An approved group membership is required before a perimeter can be created.");
-    if (method == ConsolidationCalculator.ForeignOperationMethod)
+    if (method is ConsolidationCalculator.ForeignOperationMethod or AdvancedConsolidationMethods.ForeignCurrencyReserve)
     {
       if (request.ExchangeRateSetVersionId is null || request.TranslationPolicyVersionId is null || request.TranslationRateDate is null ||
           string.IsNullOrWhiteSpace(request.TranslationRateType))
-        return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Foreign-operation translation requires an approved rate set, policy, date and rate type.");
+        return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Foreign-currency consolidation requires an approved rate set, policy, date and rate type.");
       var rateSet = await db.ExchangeRateSetVersions.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId &&
         x.Id == request.ExchangeRateSetVersionId && x.Status == AccountingWorkflowStates.Approved, ct);
       var policy = await db.TranslationPolicyVersions.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId &&
         x.Id == request.TranslationPolicyVersionId && x.Status == AccountingWorkflowStates.Approved, ct);
       if (rateSet is null || policy is null || policy.PresentationCurrency != currency ||
           !TranslationPolicyRules.AllowsRateType(policy, request.TranslationRateType))
-        return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The selected approved translation policy and rate set do not match the reporting currency.");
+        return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The selected approved foreign-currency policy and rate set do not match the reporting currency.");
     }
     var openingRunHash = string.Empty;
     var openingTranslationManifestHash = string.Empty;
@@ -702,21 +702,26 @@ public static class ConsolidationService
       return CommandResult.Fail(ErrorCodes.GateBlocked, "Every approved perimeter member needs one approved compatible component package.");
     if (scope.Method == ConsolidationCalculator.RestrictedMethod && components.Any(x => x.Currency != scope.ReportingCurrency))
       return CommandResult.Fail(ErrorCodes.GateBlocked, "The restricted profile requires same-currency component packages.");
-    if (scope.Method == ConsolidationCalculator.ForeignOperationMethod)
+    if (scope.Method is ConsolidationCalculator.ForeignOperationMethod or AdvancedConsolidationMethods.ForeignCurrencyReserve)
     {
       if (scope.ExchangeRateSetVersionId is null || scope.TranslationPolicyVersionId is null || scope.TranslationRateDate is null ||
           string.IsNullOrWhiteSpace(scope.TranslationRateType))
-        return CommandResult.Fail(ErrorCodes.GateBlocked, "The foreign-operation scope is missing its pinned translation inputs.");
+        return CommandResult.Fail(ErrorCodes.GateBlocked, "The foreign-currency scope is missing its pinned translation inputs.");
       var policy = await db.TranslationPolicyVersions.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId &&
         x.Id == scope.TranslationPolicyVersionId && x.Status == AccountingWorkflowStates.Approved, ct);
-      var translations = await db.TranslationResults.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.GroupId == scope.GroupId &&
-        x.ScopeVersionId == scope.Id && x.RateSetVersionId == scope.ExchangeRateSetVersionId &&
-        x.TranslationPolicyVersionId == scope.TranslationPolicyVersionId && x.RateDate == scope.TranslationRateDate &&
-        x.RateType == scope.TranslationRateType && x.Status == AccountingWorkflowStates.Approved).ToListAsync(ct);
-      if (policy is null || components.Any(x => (x.Currency != scope.ReportingCurrency &&
-          (x.Currency != policy.FunctionalCurrency || translations.All(t => t.ComponentId != x.Id || t.SourcePackageHash != x.PackageHash))) ||
-        (x.Currency == scope.ReportingCurrency && x.Currency != policy.PresentationCurrency)))
-        return CommandResult.Fail(ErrorCodes.GateBlocked, "Every foreign component needs the pinned approved translation result.");
+      if (policy is null)
+        return CommandResult.Fail(ErrorCodes.GateBlocked, "The pinned translation policy is not approved.");
+      if (scope.Method == ConsolidationCalculator.ForeignOperationMethod)
+      {
+        var translations = await db.TranslationResults.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.GroupId == scope.GroupId &&
+          x.ScopeVersionId == scope.Id && x.RateSetVersionId == scope.ExchangeRateSetVersionId &&
+          x.TranslationPolicyVersionId == scope.TranslationPolicyVersionId && x.RateDate == scope.TranslationRateDate &&
+          x.RateType == scope.TranslationRateType && x.Status == AccountingWorkflowStates.Approved).ToListAsync(ct);
+        if (components.Any(x => (x.Currency != scope.ReportingCurrency &&
+            (x.Currency != policy.FunctionalCurrency || translations.All(t => t.ComponentId != x.Id || t.SourcePackageHash != x.PackageHash))) ||
+          (x.Currency == scope.ReportingCurrency && x.Currency != policy.PresentationCurrency)))
+          return CommandResult.Fail(ErrorCodes.GateBlocked, "Every foreign component needs the pinned approved translation result.");
+      }
     }
     scope.Status = AccountingWorkflowStates.Approved;
     scope.ApprovedByUserId = actor.UserId;
@@ -1524,6 +1529,86 @@ public static class ConsolidationService
     }
   }
 
+  private static async Task<CommandResult> ValidateAdvancedForeignCurrencyEvidenceAsync(
+    IClientAccountingDbContext db, ConsolidationScopeVersion scope,
+    AdvancedConsolidationMethodSchedule schedule, CancellationToken ct)
+  {
+    if (scope.ExchangeRateSetVersionId is not { } rateSetId || scope.TranslationPolicyVersionId is not { } policyId ||
+        scope.TranslationRateDate is not { } rateDate || string.IsNullOrWhiteSpace(scope.TranslationRateType))
+      return CommandResult.Fail(ErrorCodes.ManifestMismatch,
+        "Foreign-currency advanced evidence must use the scope's pinned rate set and policy.");
+
+    try
+    {
+      using var input = JsonDocument.Parse(schedule.InputSnapshotJson);
+      var root = input.RootElement;
+      if (!TryManifestDecimal(root, "openingRate", out var openingRate) ||
+          !TryManifestDecimal(root, "closingRate", out var closingRate) ||
+          !TryManifestDecimal(root, "averageRate", out var averageRate) ||
+          !TryManifestDecimal(root, "openingTranslationReserve", out var openingReserve) ||
+          !TryManifestText(root, "functionalCurrency", out var functionalCurrency) ||
+          !TryManifestText(root, "presentationCurrency", out var presentationCurrency))
+        return CommandResult.Fail(ErrorCodes.ManifestMismatch,
+          "Foreign-currency advanced input must include currencies, rates and opening reserve.");
+
+      var policy = await db.TranslationPolicyVersions.AsNoTracking().SingleOrDefaultAsync(x =>
+        x.FirmId == scope.FirmId && x.Id == policyId && x.Status == AccountingWorkflowStates.Approved, ct);
+      var rateSet = await db.ExchangeRateSetVersions.AsNoTracking().SingleOrDefaultAsync(x =>
+        x.FirmId == scope.FirmId && x.Id == rateSetId && x.Status == AccountingWorkflowStates.Approved, ct);
+      if (policy is null || rateSet is null ||
+          !string.Equals(functionalCurrency, policy.FunctionalCurrency, StringComparison.OrdinalIgnoreCase) ||
+          !string.Equals(presentationCurrency, policy.PresentationCurrency, StringComparison.OrdinalIgnoreCase) ||
+          !string.Equals(presentationCurrency, scope.ReportingCurrency, StringComparison.OrdinalIgnoreCase) ||
+          MoneyPolicy.Normalize(openingReserve) != MoneyPolicy.Normalize(scope.OpeningTranslationReserve))
+        return CommandResult.Fail(ErrorCodes.ManifestMismatch,
+          "Foreign-currency advanced input is outside the approved policy, reporting currency or opening reserve lineage.");
+
+      using var sourceManifest = JsonDocument.Parse(schedule.SourceManifestJson);
+      if (!sourceManifest.RootElement.TryGetProperty("fxRates", out var fxRates) ||
+          fxRates.ValueKind != JsonValueKind.Array || fxRates.GetArrayLength() != 3)
+        return CommandResult.Fail(ErrorCodes.ManifestMismatch,
+          "Foreign-currency advanced evidence must bind opening, closing and average rate observations.");
+
+      var expectedRates = new Dictionary<string, decimal>(StringComparer.Ordinal)
+      {
+        ["OPENING"] = openingRate,
+        ["CLOSING"] = closingRate,
+        ["AVERAGE"] = averageRate
+      };
+      var seenRoles = new HashSet<string>(StringComparer.Ordinal);
+      foreach (var reference in fxRates.EnumerateArray())
+      {
+        if (!TryManifestText(reference, "role", out var role) || !TryManifestGuid(reference, "id", out var rateId) ||
+            !TryManifestDate(reference, "date", out var observationDate) ||
+            !TryManifestDecimal(reference, "rate", out var observedRate) ||
+            !expectedRates.ContainsKey(role) || !seenRoles.Add(role))
+          return CommandResult.Fail(ErrorCodes.ManifestMismatch,
+            "Foreign-currency rate evidence must contain unique opening, closing and average observations.");
+        var expectedRateType = role == "AVERAGE" ? policy.AverageRateRule.Trim().ToUpperInvariant() :
+          policy.ClosingRateRule.Trim().ToUpperInvariant();
+        if (role is "CLOSING" or "AVERAGE" && observationDate != rateDate)
+          return CommandResult.Fail(ErrorCodes.ManifestMismatch,
+            "Current closing and average rate evidence must use the pinned scope date.");
+        var observation = await db.ExchangeRates.AsNoTracking().SingleOrDefaultAsync(x =>
+          x.FirmId == scope.FirmId && x.Id == rateId && x.RateSetVersionId == rateSetId &&
+          x.FromCurrency == functionalCurrency.ToUpperInvariant() && x.ToCurrency == presentationCurrency.ToUpperInvariant() &&
+          x.RateDate == observationDate && x.RateType == expectedRateType && x.Direction == ExchangeRateDirections.Direct, ct);
+        if (observation is null || observation.Rate != observedRate || observation.Rate != expectedRates[role])
+          return CommandResult.Fail(ErrorCodes.ManifestMismatch,
+            "Foreign-currency rate evidence does not match the approved rate observation.");
+      }
+
+      return seenRoles.Count == expectedRates.Count
+        ? CommandResult.Ok()
+        : CommandResult.Fail(ErrorCodes.ManifestMismatch,
+          "Foreign-currency rate evidence must cover all required rate roles.");
+    }
+    catch (JsonException)
+    {
+      return CommandResult.Fail(ErrorCodes.ManifestMismatch, "Foreign-currency advanced evidence is not valid JSON.");
+    }
+  }
+
   private static async Task<CommandResult> ValidateAdvancedScheduleEvidenceAsync(
     IClientAccountingDbContext db, ConsolidationScopeVersion scope,
     AdvancedConsolidationMethodSchedule schedule, CancellationToken ct)
@@ -1531,6 +1616,8 @@ public static class ConsolidationService
     var journals = await ValidateAdvancedReviewedJournalsAsync(db, scope, schedule, ct);
     if (!journals.Succeeded)
       return journals;
+    if (schedule.Method == AdvancedConsolidationMethods.ForeignCurrencyReserve)
+      return await ValidateAdvancedForeignCurrencyEvidenceAsync(db, scope, schedule, ct);
     if (schedule.Method != AdvancedConsolidationMethods.NestedGroup)
       return CommandResult.Ok();
 
@@ -1600,6 +1687,20 @@ public static class ConsolidationService
       return false;
     value = property.GetString()?.Trim() ?? string.Empty;
     return value.Length > 0;
+  }
+
+  private static bool TryManifestDecimal(JsonElement element, string name, out decimal value)
+  {
+    value = 0m;
+    return element.TryGetProperty(name, out var property) && property.ValueKind == JsonValueKind.Number &&
+      property.TryGetDecimal(out value);
+  }
+
+  private static bool TryManifestDate(JsonElement element, string name, out DateOnly value)
+  {
+    value = default;
+    return element.TryGetProperty(name, out var property) && property.ValueKind == JsonValueKind.String &&
+      DateOnly.TryParse(property.GetString(), CultureInfo.InvariantCulture, DateTimeStyles.None, out value);
   }
 
   private static bool IsSha256(string value) => value.Length == 64 && value.All(c => c is >= '0' and <= '9' or >= 'a' and <= 'f');

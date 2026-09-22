@@ -1956,6 +1956,98 @@ public sealed class ClientAccountingTests
 
   [Fact]
   [Trait("Profile", "Database")]
+  public async Task AdvancedForeignSchedule_BindsApprovedRateEvidenceAndReserve()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await SeedAsync(pg);
+    var preparer = Actor(fixture.Preparer, "AccountingPreparer");
+    var reviewer = Actor(fixture.Reviewer, "Partner");
+    var methodOwner = Actor(fixture.Preparer, "Partner");
+    var rateDate = new DateOnly(2026, 12, 31);
+
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var groupId = (await ConsolidationService.CreateGroupAsync(db, reviewer,
+      new ClientGroupRequest("ADV-FX", "Advanced FX group"))).Value;
+    Assert.True((await ConsolidationService.AddMembershipAsync(db, reviewer,
+      new GroupMembershipRequest(groupId, fixture.ClientA, new DateOnly(2026, 1, 1), null,
+        "CONTROLLED", 100m, 100m, "advanced-fx-membership"))).Succeeded);
+    db.GroupAccessGrants.AddRange(
+      new GroupAccessGrant { Id = Guid.NewGuid(), FirmId = fixture.FirmId, GroupId = groupId, UserId = fixture.Preparer.Id,
+        Role = "AccountingPreparer", GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = fixture.Reviewer.Id },
+      new GroupAccessGrant { Id = Guid.NewGuid(), FirmId = fixture.FirmId, GroupId = groupId, UserId = fixture.Preparer.Id,
+        Role = "Partner", GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = fixture.Reviewer.Id });
+    db.RoleGrants.Add(Grant(fixture.FirmId, fixture.Preparer, "Partner"));
+    await db.SaveChangesAsync();
+
+    var rateSetId = (await CurrencyTranslationService.CreateRateSetAsync(db, reviewer,
+      new ExchangeRateSetRequest("ADV-FX-2026", "advanced-fx-fixture",
+        new DateOnly(2026, 1, 1), rateDate, 1))).Value;
+    Assert.True((await CurrencyTranslationService.AddRateAsync(db, reviewer, rateSetId,
+      new ExchangeRateInput("USD", "QAR", new DateOnly(2026, 1, 1), "CLOSING", 3.60m, "DIRECT"))).Succeeded);
+    Assert.True((await CurrencyTranslationService.AddRateAsync(db, reviewer, rateSetId,
+      new ExchangeRateInput("USD", "QAR", rateDate, "CLOSING", 3.70m, "DIRECT"))).Succeeded);
+    Assert.True((await CurrencyTranslationService.AddRateAsync(db, reviewer, rateSetId,
+      new ExchangeRateInput("USD", "QAR", rateDate, "AVERAGE", 3.65m, "DIRECT"))).Succeeded);
+    var rateSetApproval = await CurrencyTranslationService.ApproveRateSetAsync(db, methodOwner, rateSetId);
+    Assert.True(rateSetApproval.Succeeded, rateSetApproval.Message);
+    var rateIds = await db.ExchangeRates.Where(x => x.RateSetVersionId == rateSetId)
+      .ToDictionaryAsync(x => $"{x.RateType}:{x.RateDate:yyyy-MM-dd}", x => x.Id);
+    var policyId = (await CurrencyTranslationService.CreatePolicyAsync(db, reviewer,
+      new TranslationPolicyRequest("ADV-FX-POLICY", "USD", "QAR", "CLOSING", "AVERAGE", "HISTORICAL"))).Value;
+    Assert.True((await CurrencyTranslationService.ApprovePolicyAsync(db, methodOwner, policyId)).Succeeded);
+
+    var scopeId = (await ConsolidationService.CreateScopeAsync(db, reviewer,
+      new ConsolidationScopeRequest(groupId, Guid.NewGuid(), "QAR", AdvancedConsolidationMethods.ForeignCurrencyReserve,
+        "OPENING-2026", rateSetId, policyId, rateDate, "CLOSING"))).Value;
+    var profileId = (await ClientAccountingService.CreateCapabilityProfileAsync(db, reviewer,
+      new CapabilityProfileRequest(null, groupId, AccountingCapabilityServiceKinds.GroupReporting, "IFRS", "2026",
+        "ANNUAL", "QAR", "STATUTORY", AdvancedConsolidationMethods.ForeignCurrencyReserve, "PARTNER", "GROUP"))).Value;
+    Assert.True((await ClientAccountingService.RecordCapabilityAcceptanceAsync(db, reviewer, profileId,
+      AccountingCapabilityAcceptanceStages.LocalConstruction, "advanced-fx-local")).Succeeded);
+    Assert.True((await ClientAccountingService.RecordCapabilityAcceptanceAsync(db, methodOwner, profileId,
+      AccountingCapabilityAcceptanceStages.MethodOwnerApproval, "advanced-fx-method-owner")).Succeeded);
+
+    var packId = (await ConsolidationService.SubmitExternalComponentPackAsync(db, preparer,
+      new ExternalComponentPackRequest(scopeId, fixture.ClientA, fixture.EngagementA, "2026-01-01", "2026-12-31",
+        "IFRS", "USD", "STATUTORY", "tax-v1", "mapping-v1", "advanced-fx-pack",
+        new string('c', 64), new string('d', 64), 0m,
+        [new("CASH", 100m, "USD", "line-1"), new("EQUITY", -100m, "USD", "line-2")]))).Value;
+    Assert.True((await ConsolidationService.ReconcileExternalComponentPackAsync(db, reviewer,
+      new ExternalComponentReconciliationRequest(packId, "advanced-fx-reconciliation"))).Succeeded);
+    Assert.True((await ConsolidationService.ApproveExternalComponentPackAsync(db, reviewer, packId)).Succeeded);
+    var componentId = (await ConsolidationService.SubmitExternalComponentAsync(db, preparer,
+      new ExternalComponentRequest(scopeId, packId))).Value;
+    Assert.True((await ConsolidationService.ApproveComponentAsync(db, reviewer, componentId)).Succeeded);
+    Assert.True((await ConsolidationService.ApproveScopeAsync(db, reviewer, scopeId)).Succeeded);
+
+    var packHash = await db.ExternalComponentPacks.Where(x => x.Id == packId).Select(x => x.PackDigest).SingleAsync();
+    var sources = $"\"sources\":[{{\"componentId\":\"{componentId:D}\",\"kind\":\"EXTERNAL_PACK\",\"id\":\"{packId:D}\",\"hash\":\"{packHash}\"}}]";
+    var input = "{\"fixture\":\"advanced-fx-valid\",\"openingNetAssets\":100,\"closingNetAssets\":130,\"currentProfit\":20,\"openingRate\":3.6,\"closingRate\":3.7,\"averageRate\":3.65,\"openingTranslationReserve\":0,\"functionalCurrency\":\"USD\",\"presentationCurrency\":\"QAR\",\"statementLines\":[{\"code\":\"TRANSLATION_RESERVE\",\"comparativeAmount\":0,\"currentAmount\":-48},{\"code\":\"BALANCING_EQUITY\",\"comparativeAmount\":0,\"currentAmount\":48}]}";
+    var missingRates = await ConsolidationService.CreateAdvancedMethodScheduleAsync(db, preparer,
+      new AdvancedConsolidationMethodScheduleRequest(scopeId, AdvancedConsolidationMethods.ForeignCurrencyReserve,
+        "IFRS", $"{{{sources}}}", input.Replace("advanced-fx-valid", "advanced-fx-missing-rates", StringComparison.Ordinal)));
+    Assert.True(missingRates.Succeeded, missingRates.Message);
+    var missingRatesApproval = await ConsolidationService.ApproveAdvancedMethodScheduleAsync(db, reviewer, missingRates.Value);
+    Assert.False(missingRatesApproval.Succeeded);
+    Assert.Equal(ErrorCodes.ManifestMismatch, missingRatesApproval.ErrorCode);
+
+    var openingRateId = rateIds["CLOSING:2026-01-01"];
+    var closingRateId = rateIds["CLOSING:2026-12-31"];
+    var averageRateId = rateIds["AVERAGE:2026-12-31"];
+    var fxRates = $"\"fxRates\":[{{\"role\":\"OPENING\",\"id\":\"{openingRateId:D}\",\"date\":\"2026-01-01\",\"rate\":3.6}},{{\"role\":\"CLOSING\",\"id\":\"{closingRateId:D}\",\"date\":\"2026-12-31\",\"rate\":3.7}},{{\"role\":\"AVERAGE\",\"id\":\"{averageRateId:D}\",\"date\":\"2026-12-31\",\"rate\":3.65}}]";
+    var validSchedule = await ConsolidationService.CreateAdvancedMethodScheduleAsync(db, preparer,
+      new AdvancedConsolidationMethodScheduleRequest(scopeId, AdvancedConsolidationMethods.ForeignCurrencyReserve,
+        "IFRS", $"{{{sources},{fxRates}}}", input));
+    Assert.True(validSchedule.Succeeded, validSchedule.Message);
+    Assert.True((await ConsolidationService.ApproveAdvancedMethodScheduleAsync(db, reviewer, validSchedule.Value)).Succeeded);
+    var execution = await ConsolidationService.RunAdvancedProfileAsync(db, preparer,
+      await db.ConsolidationScopeVersions.SingleAsync(x => x.Id == scopeId));
+    Assert.True(execution.Succeeded, execution.Message);
+    Assert.True((await ConsolidationService.ApproveAdvancedExecutionAsync(db, reviewer, execution.Value)).Succeeded);
+  }
+
+  [Fact]
+  [Trait("Profile", "Database")]
   public async Task AdvancedConsolidationExecution_IsScopedVerifiedIdempotentlyAndSeparatelyApproved()
   {
     await using var pg = await PgTestSchema.CreateAsync();
