@@ -22,6 +22,7 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
 {
   public DbSet<AppUser> Users => Set<AppUser>();
   public DbSet<RoleGrant> RoleGrants => Set<RoleGrant>();
+  public DbSet<RoleGrantChangeEvidence> RoleGrantChangeEvidences => Set<RoleGrantChangeEvidence>();
   public DbSet<Microsoft365SetupSession> Microsoft365SetupSessions => Set<Microsoft365SetupSession>();
   public DbSet<Microsoft365SetupDraft> Microsoft365SetupDrafts => Set<Microsoft365SetupDraft>();
   public DbSet<Microsoft365ConnectionRevision> Microsoft365ConnectionRevisions => Set<Microsoft365ConnectionRevision>();
@@ -586,6 +587,16 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     b.Entity<RoleGrant>().ToTable("role_grants", t =>
       t.HasCheckConstraint("ck_role_grant_scope",
         "length(role) > 0 AND (engagement_id IS NULL OR client_id IS NOT NULL)"));
+    var roleEvidence = b.Entity<RoleGrantChangeEvidence>();
+    roleEvidence.Property(x => x.Action).HasMaxLength(20);
+    roleEvidence.Property(x => x.PriorRole).HasMaxLength(100);
+    roleEvidence.Property(x => x.NewRole).HasMaxLength(100);
+    roleEvidence.Property(x => x.Source).HasMaxLength(40);
+    roleEvidence.HasIndex(x => new { x.FirmId, x.TargetUserId, x.CreatedAt });
+    roleEvidence.ToTable("role_grant_change_evidence", t => t.HasCheckConstraint("ck_role_grant_evidence_values",
+      "action IN ('GRANTED','REVOKED') AND length(trim(source)) > 0 AND length(trim(new_role)) > 0 AND length(trim(prior_role)) >= 0"));
+    roleEvidence.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.TargetUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     b.Entity<EngagementHold>().HasOne<Engagement>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.EngagementId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);

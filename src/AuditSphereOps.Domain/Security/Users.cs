@@ -17,6 +17,24 @@ public sealed class AppUser
   public DateTimeOffset CreatedAt { get; set; }
 }
 
+public sealed class RoleGrantChangeEvidence
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid TargetUserId { get; set; }
+  public Guid? RoleGrantId { get; set; }
+  public string Action { get; set; } = string.Empty; // GRANTED|REVOKED
+  public string PriorRole { get; set; } = string.Empty;
+  public Guid? PriorClientId { get; set; }
+  public Guid? PriorEngagementId { get; set; }
+  public string NewRole { get; set; } = string.Empty;
+  public Guid? NewClientId { get; set; }
+  public Guid? NewEngagementId { get; set; }
+  public string Source { get; set; } = string.Empty; // APPROVED_ROSTER|VERIFIED_SIGN_IN|ADMIN_ACTION
+  public Guid ActorUserId { get; set; }
+  public DateTimeOffset CreatedAt { get; set; }
+}
+
 /// <summary>Role grant scoped to firm/client/engagement (§27.2, §42.5). Append-only.</summary>
 public sealed class RoleGrant
 {
