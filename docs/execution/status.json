@@ -28,7 +28,7 @@
     "implementationStatus": "IN_PROGRESS",
     "acceptanceStatus": "LOCAL_VERIFIED",
     "scope": "Local audit workflow, client accounting, scoped client file-request threads/uploads/downloads, GL intake, completeness, package, Office/PDF export, restatement, consolidation, journal-lineage, close-check and package-review slices.",
-    "nextAction": "Obtain separate method-owner approval of the candidate complete-statement fixture before enabling advanced FX, acquisition/NCI, ownership-change, nested-group and complex-elimination profiles. Provider/signing/recovery/independent-review gates remain external."
+    "nextAction": "Implement source-bound schedules and guarded production integration for the IFRS advanced-method scope in STE-METH-APP-001-addendum; keep profiles fail-closed until complete statement and comparative rollforward verification passes. Provider/signing/recovery/independent-review gates remain external."
   },
   "localEvidence": [
     {
@@ -344,11 +344,11 @@
     {
       "item": "Advanced consolidation calculation safety core",
       "status": "LOCAL_VERIFIED",
-      "details": "Deterministic local calculators cover acquisition goodwill/bargain purchase with fair-value adjustments, NCI rollforward, ownership changes/disposals, nested double-count rejection and asset-transfer/tax elimination math. A fixed candidate fixture combines FX translation/reserve, acquisition goodwill, NCI, nested-scope uniqueness and asset-transfer elimination into balanced QAR current and comparative statements. Advanced production profiles remain disabled until a method owner approves the fixture and methodology."
+      "details": "Deterministic local calculators cover acquisition goodwill/bargain purchase with fair-value adjustments, NCI rollforward, ownership changes/disposals, nested double-count rejection and asset-transfer/tax elimination math. A fixed candidate fixture combines FX translation/reserve, acquisition goodwill, NCI, nested-scope uniqueness and asset-transfer elimination into balanced QAR current and comparative statements. IFRS method-owner scope is recorded in STE-METH-APP-001-addendum; advanced production profiles remain disabled until source-bound schedules, guarded integration and complete statement verification are implemented."
     }
   ],
   "remainingLocalWork": [
-    "Method-owner approval of the candidate complete-statement fixture and advanced FX, acquisition/NCI, ownership-change, nested-group and complex-elimination methodology"
+    "Source-bound schedules and guarded integration for approved advanced FX, acquisition/NCI, ownership-change, nested-group and complex-elimination methods"
   ],
   "externalGates": [
     { "gate": "P1", "status": "BLOCKED_EXTERNAL", "required": "Live Entra OIDC and runtime identity fixtures" },

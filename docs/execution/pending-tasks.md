@@ -89,7 +89,8 @@ This is a resume checklist, not an acceptance certificate. Tenant identifiers, c
 - [x] Draft taxonomy nodes support incremental same-version parents and reject cross-version parents/cycles.
 - [x] Link accounting evidence to reviewed audit workpapers and expose accounting period handoffs from the dashboard.
 - [x] Add a fixed candidate fixture that combines FX reserve, acquisition goodwill, NCI, nested-scope uniqueness and asset-transfer elimination into balanced QAR current and comparative statements.
-- [ ] Obtain method-owner approval of the candidate fixture and advanced methodology before enabling full FX reserve, acquisition/NCI, ownership-change, nested-group and advanced-elimination calculation cores.
+- [x] Record the IFRS advanced-method scope extension in `STE-METH-APP-001-addendum` for FX reserves, acquisition/goodwill, NCI, ownership changes/disposals, nested groups and asset-transfer/tax eliminations.
+- [ ] Implement source-bound schedules and guarded production integration for the approved advanced methods; keep profiles fail-closed until complete statement and comparative rollforward verification passes.
 - [x] Add deeper accounting evidence/workpaper links and account-area UI around the typed specialist schedules.
 - [x] Add the accounting dashboard and cross-workflow navigation around accounting, roll-forward and release workflows.
 - [x] Re-run focused tests, full tests, build, migration drift and restore drill for the current coherent slice; repeat for the next slice.
