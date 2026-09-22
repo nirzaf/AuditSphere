@@ -80,5 +80,60 @@ public sealed class Microsoft365OnboardingTests
     Assert.False(unknownState.Succeeded);
   }
 
+  [Fact]
+  public async Task FolderTemplates_AreAllowlistedVersionedAndIdempotent()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var (firmId, _, _) = await pg.SeedScopeAsync();
+    var admin = new AuditSphereOps.Domain.Security.AppUser
+    {
+      Id = Guid.NewGuid(), FirmId = firmId, Subject = "admin-" + Guid.NewGuid().ToString("N"),
+      TenantId = "tenant", Email = "admin@example.test", DisplayName = "Administrator",
+      CreatedAt = DateTimeOffset.UtcNow
+    };
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      db.Users.Add(admin);
+      db.RoleGrants.Add(new AuditSphereOps.Domain.Security.RoleGrant
+      {
+        Id = Guid.NewGuid(), FirmId = firmId, UserId = admin.Id, Role = "Administrator",
+        GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = admin.Id
+      });
+      await db.SaveChangesAsync();
+
+      var actor = new AuditSphereOps.Application.Abstractions.ActorContext(
+        admin.Id, firmId, admin.SessionEpoch, ["Administrator"]);
+      var defaultManifest = Microsoft365ConfigurationService.DefaultManifest(FolderTemplatePurposes.ClientWorkspace);
+      var saved = await Microsoft365ConfigurationService.SaveFolderTemplateAsync(db, actor,
+        new(FolderTemplatePurposes.ClientWorkspace, defaultManifest),
+        DateTimeOffset.UtcNow);
+      Assert.True(saved.Succeeded);
+      Assert.Equal(1, saved.Value!.Version);
+
+      var repeat = await Microsoft365ConfigurationService.SaveFolderTemplateAsync(db, actor,
+        new(FolderTemplatePurposes.ClientWorkspace, "{ \"nodes\": [ { \"key\": \"permanent\", \"name\": \"00_Permanent\", \"children\": [ { \"key\": \"corporate\", \"name\": \"01_Corporate_Records\" }, { \"key\": \"terms\", \"name\": \"02_Engagement_Terms\" }, { \"key\": \"reference\", \"name\": \"03_Shared_Reference\" } ] }, { \"key\": \"engagements\", \"name\": \"Engagements\" } ] }", 1),
+        DateTimeOffset.UtcNow);
+      Assert.True(repeat.Succeeded);
+      Assert.Equal(saved.Value.Id, repeat.Value!.Id);
+
+      var next = await Microsoft365ConfigurationService.SaveFolderTemplateAsync(db, actor,
+        new(FolderTemplatePurposes.ClientWorkspace, "{\"nodes\":[{\"key\":\"permanent\",\"name\":\"00_Permanent\"},{\"key\":\"engagements\",\"name\":\"Engagements\"}]}", 1),
+        DateTimeOffset.UtcNow);
+      Assert.True(next.Succeeded);
+      Assert.Equal(2, next.Value!.Version);
+
+      var stale = await Microsoft365ConfigurationService.SaveFolderTemplateAsync(db, actor,
+        new(FolderTemplatePurposes.ClientWorkspace, defaultManifest, 1),
+        DateTimeOffset.UtcNow);
+      Assert.False(stale.Succeeded);
+      Assert.Equal("revision.stale", stale.ErrorCode);
+    }
+
+    var invalid = Microsoft365ConfigurationService.ValidateFolderTemplate(
+      FolderTemplatePurposes.ClientWorkspace,
+      "{\"nodes\":[{\"key\":\"bad\",\"name\":\"../secrets\"}]}" );
+    Assert.False(invalid.Succeeded);
+  }
+
   private static string Hash(string value) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value))).ToLowerInvariant();
 }
