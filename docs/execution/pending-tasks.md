@@ -41,7 +41,8 @@ This is a resume checklist, not an acceptance certificate. Tenant identifiers, c
 - [x] Produce deterministic XLSX and formula-free DOCX exports from the exact canonical package artifact; persist each renderer version and SHA-256 against the package revision/generation/hash and expose scoped downloads.
 - [x] Produce a deterministic, inactive PDF from the exact canonical package through PDFsharp/MigraDoc; embed the OFL font, canonicalize generated identifiers, persist exact bytes/SHA-256 and expose the scoped download.
 - [x] Preserve exactly one renderer-owned workbook formula, neutralize formula-shaped client text and reject unexpected formulas, VBA projects and external workbook parts at runtime.
-- [ ] Obtain approval for the business workbook template; do not substitute local export checks for live provider, signing or records acceptance.
+- [x] Record Firm Methodology Owner approval `STE-METH-APP-001` for Financial Statement Template v1.0, Audit Program Template v1.0 and ECL Provision Matrix v1.0; live provider, signing and records acceptance remain independent.
+- [ ] Map the approved business template versions to exact controlled `financial-package-*` renderer versions before claiming client-safe artifact approval.
 - [x] Backfill legacy dataset periods and mapping charts only from one exact candidate; preserve ambiguous null links and append immutable quarantine evidence.
 - [x] Require an independently accepted group capability profile before approving a consolidation perimeter.
 - [x] Require current management, accounting and partner package reviews before approving a consolidation component.
