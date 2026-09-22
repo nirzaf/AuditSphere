@@ -2,8 +2,9 @@
 
 **Repository:** `nirzaf/AuditSphere`
 **Authoritative specification:** [`docs/SPECIFICATION.md`](../SPECIFICATION.md) v5.0
+**Accounting module contract:** [`docs/AuditSphere_Accounting_module.md`](../AuditSphere_Accounting_module.md)
 **Requirements backlog:** [`docs/requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md`](../requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md)
-**Source implementation checkpoint:** `master@5074abc`
+**Source implementation checkpoint:** `master@e595ae0` (browser acceptance evidence: `75995c8`)
 
 This is a resume checklist, not an acceptance certificate. Tenant identifiers, credentials, tokens, secret values, and private-provider URLs are deliberately absent from the public repository.
 
@@ -17,6 +18,7 @@ This is a resume checklist, not an acceptance certificate. Tenant identifiers, c
 - [x] Loopback restore drill passes and writes secret-free evidence to `docs/evidence/restore-drill-latest.json`.
 - [x] Generated Graphify output and local agent state are ignored and removed from Git tracking.
 - [x] Public documentation no longer stores tenant-specific identity, site, app, or account identifiers.
+- [x] Seeded built-in-browser acceptance covers a QAR SME, unrelated colliding-code clients, a basic QAR group and the enabled USD-to-QAR profile without changing production authentication.
 
 ## Local accounting and workflow follow-up
 
@@ -30,7 +32,7 @@ This is a resume checklist, not an acceptance certificate. Tenant identifiers, c
 - [x] Difference corrections retain optional materiality/qualitative metadata, enforce reviewer-governed proposed/agreed/rejected/applied/reported states, and reject stale or hash-mismatched impact evidence before verified-reflected status.
 - [x] Bank reconciliation binds independently approved ledger and statement schedules, typed timing and proposed-correction items, exact source/evidence references and reviewer conclusions; unreconciled residuals block approval and completion.
 - [x] Analytical-review aggregate summaries enforce client/engagement or explicit group scope, honor effective membership dates, and omit client/component identifiers.
-- [x] ECL differences are calculated against an explicit booked amount; ECL and inventory assessments retain same-engagement proposed-journal lineage. Approved golden fixtures and boundary cases remain pending.
+- [x] ECL differences are calculated against an explicit booked amount; ECL and inventory assessments retain same-engagement proposed-journal lineage, with approved local golden fixtures and boundary cases for the enabled methods.
 - [x] Analytical-review approvals require a persisted reviewer conclusion linked to the exact replay snapshot/hash; missing conclusions are rejected after freshness checks.
 - [x] Entity package projections, equity, notes, comparatives, restatement lineage and bounded same-currency consolidation.
 - [x] Queued durable operations support an explicit administrator cancellation disposition; cancelled work is excluded from claims and cannot publish a partial local result, while active work remains subject to lease/reconciliation handling.
@@ -83,7 +85,7 @@ This is a resume checklist, not an acceptance certificate. Tenant identifiers, c
 - [x] Chart hierarchy parent lookups are scoped to the target chart version and reject cross-version and posting-account parents.
 - [x] Draft taxonomy nodes support incremental same-version parents and reject cross-version parents/cycles.
 - [x] Link accounting evidence to reviewed audit workpapers and expose accounting period handoffs from the dashboard.
-- [ ] Add approved-method fixtures for full FX remeasurement/reserve, complex ownership, acquisition, NCI, nested groups and advanced eliminations before implementing those methods.
+- [ ] Obtain method-owner approval and complete-statement golden fixtures before enabling the implemented full FX reserve, acquisition/NCI, ownership-change, nested-group and advanced-elimination calculation cores.
 - [x] Add deeper accounting evidence/workpaper links and account-area UI around the typed specialist schedules.
 - [x] Add the accounting dashboard and cross-workflow navigation around accounting, roll-forward and release workflows.
 - [x] Re-run focused tests, full tests, build, migration drift and restore drill for the current coherent slice; repeat for the next slice.

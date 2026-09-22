@@ -653,7 +653,7 @@ Story criteria remain proposed unless marked locally verified in the execution l
 **Priority / dependencies:** P2/P5; AC-07–11, AC-16, AC-23.
 
 **Acceptance criteria**
-- [ ] Begin with reviewed file profiles; optional ERPNext or other connectors must be read-only by default and separately approved.
+- [x] Begin with reviewed file profiles; optional ERPNext or other connectors must be read-only by default and separately approved.
 - [x] Export adjustment instructions with source, period, account, revision and management approval evidence; export is not proof of external posting.
 - [ ] Produce client-safe workbook/PDF/Word artifacts only through approved renderer/template versions and existing document-storage boundaries.
 - [ ] Preserve formulas safely in controlled templates and neutralize spreadsheet injection in untrusted values; never execute client macros.
@@ -661,6 +661,8 @@ Story criteria remain proposed unless marked locally verified in the execution l
 - [x] Tenant/provider/signing/records blockers remain independent; local export tests cannot fake live completion.
 
 **Local implementation note (2026-09-22):** the built-in `financial-package-xlsx.v1` and `financial-package-docx.v1` profiles produce deterministic, formula-free and macro-free Office packages from the exact canonical package artifact. They persist separate SHA-256-bound bytes for the package revision/generation/hash and expose authorized Blazor downloads. Approved formula-bearing templates and verified PDF conversion remain pending; tenant, signing and records acceptance remains external.
+
+The reviewed `tb-signed-net.v1` and `tb-debit-credit.v1` CSV/XLSX profiles are bounded, versioned, read-only and reject formulas, macros, external links, mixed currencies and ambiguous rows. No ERPNext or other writable accounting-system connector is installed or enabled.
 
 ### AC-26 — Close periods and roll forward safely
 

@@ -2,7 +2,7 @@
 
 Dependency-ordered checklist for the [v5.0 specification](../SPECIFICATION.md) and the [workflow-gap backlog](../requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md).
 
-**Current source checkpoint:** `master@5074abc`; PostgreSQL 18.6; 81 migrations; 220/220 tests passed; 0 skipped. The verified accounting baseline includes period/book/basis-bound packages and journals, exact package artifacts and review lineage, deterministic formula-free XLSX/DOCX exports, source-bound GL schedule controls, safe legacy period/chart backfill with append-only ambiguity quarantine, QAR setup defaults, governed specialist and analytical evidence, and bounded consolidation safety cores. Approved formula-bearing templates, PDF conversion, advanced-method golden fixtures and external provider/signing/records acceptance remain pending.
+**Current source checkpoint:** `master@e595ae0` (browser evidence `75995c8`); PostgreSQL 18.6; 81 migrations; 220/220 tests passed; 0 skipped. The verified accounting baseline includes period/book/basis-bound packages and journals, exact package artifacts and review lineage, deterministic formula-free XLSX/DOCX exports, source-bound GL schedule controls, safe legacy period/chart backfill with append-only ambiguity quarantine, QAR setup defaults, governed specialist and analytical evidence, bounded consolidation safety cores, and seeded browser acceptance. Approved formula-bearing templates, PDF conversion, advanced-method golden fixtures and external provider/signing/records acceptance remain pending.
 **Status meanings:** ✅ locally verified · 🟡 partial/local follow-up · ⬜ not started · 🚫 external gate
 
 | # | Work package | Status |
@@ -24,7 +24,7 @@ Dependency-ordered checklist for the [v5.0 specification](../SPECIFICATION.md) a
 | 15 | Bounded streaming GL intake and durable resumability | ✅ |
 | 16 | Client-safe management package view and staff package-review/release workflow surfaces | ✅ |
 | 17 | Bounded foreign-operation translation and group-revision perimeter lineage; advanced FX, ownership, acquisition, NCI and complex group methods with approved fixtures | 🟡 |
-| 18 | Remaining account-area schedules, dashboards and roll-forward usability | 🟡 |
+| 18 | Remaining account-area schedules, dashboards and roll-forward usability | ✅ |
 | P1 | Live Entra OIDC and runtime identity fixtures | 🚫 |
 | P2 | Selected-resource SharePoint/Graph provider acceptance | 🚫 |
 | P3 | External release checkpoint store and capability evidence | 🚫 |
