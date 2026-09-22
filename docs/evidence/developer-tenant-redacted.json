@@ -1,6 +1,6 @@
 {
   "status": "PARTIAL_NON_PRODUCTION_EVIDENCE",
-  "recordedAt": "2026-09-22T19:53:33Z",
+  "recordedAt": "2026-09-22T20:03:29Z",
   "environment": "owner-authorized non-production developer tenant; identifiers intentionally omitted",
   "observed": [
     "A selected-resource Microsoft Graph/SharePoint permission was configured outside this public repository.",
@@ -8,6 +8,7 @@
     "Immediate Graph retention-label readback returned no applied-label properties, and SharePoint Compliance details still showed Label Status None and no retention policy; positive label application and protection readback remain unobserved.",
     "Read-only tenant recheck at 2026-09-22T18:44:11Z showed auditsphere-graph-pdf-test.docx with Label Status None, Not an in-place record, Not on hold, and no retention policy; Purview Data Explorer returned no items containing AuditSphere Dev Test Record.",
     "At 2026-09-22T19:53:33Z, the synthetic AuditSphere acceptance file was created and edited in the approved test site; SharePoint version history showed versions 1.0 and 2.0, while compliance readback still showed Label Status None and no retention policy. Destructive or protection-dependent behavior checks were not run.",
+    "At 2026-09-22T20:03:29Z, Purview showed the synthetic-site publication policy as Enabled (Success), but SharePoint's item details had no Apply label control and the library label selector exposed only None. The library default was left unchanged because it would affect unrelated items. Label application and protection readback remain unobserved.",
     "No production approval, signing, independent review, or production recovery evidence is claimed."
   ],
   "redaction": "Tenant IDs, user principals, app IDs, site IDs, URLs, secrets, and other tenant-specific identifiers are intentionally excluded from this public repository."
