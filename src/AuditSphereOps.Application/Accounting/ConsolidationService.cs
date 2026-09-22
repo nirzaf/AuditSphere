@@ -1113,6 +1113,9 @@ public static class ConsolidationService
     if (!auth.Succeeded)
       return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
     var method = request.Method.Trim().ToUpperInvariant();
+    if (scope.Method != method)
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
+        "An advanced method schedule must match the consolidation scope method.");
     var sourceDigest = Hashing.Sha256Hex(sourceManifest);
     var existing = await db.AdvancedConsolidationMethodSchedules.AsNoTracking().SingleOrDefaultAsync(x =>
       x.FirmId == actor.FirmId && x.ScopeVersionId == scope.Id && x.Method == method &&
@@ -1148,7 +1151,8 @@ public static class ConsolidationService
         "Only a separate reviewer can approve a submitted advanced method schedule.");
     var scope = await db.ConsolidationScopeVersions.AsNoTracking().SingleOrDefaultAsync(x =>
       x.FirmId == actor.FirmId && x.Id == schedule.ScopeVersionId && x.GroupId == schedule.GroupId, ct);
-    if (scope is null || scope.GroupRevision != schedule.GroupRevision || scope.Status != AccountingWorkflowStates.Approved)
+    if (scope is null || scope.GroupRevision != schedule.GroupRevision || scope.Method != schedule.Method ||
+        scope.Status != AccountingWorkflowStates.Approved)
       return CommandResult.Fail(ErrorCodes.GenerationStale,
         "The consolidation perimeter changed; rebuild the advanced method schedule.");
     if (!await HasMethodOwnerAcceptanceAsync(db, actor.FirmId, scope.GroupId, schedule.Method, ct))
@@ -1482,6 +1486,13 @@ public static class ConsolidationService
           "This advanced method needs at least one approved reviewed consolidation journal.");
 
       var seen = new HashSet<Guid>();
+      var expectedJournalType = schedule.Method switch
+      {
+        AdvancedConsolidationMethods.AcquisitionNci => "ACQUISITION_NCI",
+        AdvancedConsolidationMethods.OwnershipChange => "OWNERSHIP_CHANGE",
+        AdvancedConsolidationMethods.AssetTransferElimination => "ASSET_TRANSFER_ELIMINATION",
+        _ => string.Empty
+      };
       foreach (var journalReference in journals.EnumerateArray())
       {
         if (!TryManifestGuid(journalReference, "id", out var journalId) || !seen.Add(journalId))
@@ -1490,9 +1501,10 @@ public static class ConsolidationService
         var journal = await db.ConsolidationJournals.AsNoTracking().SingleOrDefaultAsync(x =>
           x.FirmId == scope.FirmId && x.Id == journalId && x.GroupId == scope.GroupId &&
           x.ScopeVersionId == scope.Id && x.Status == AccountingWorkflowStates.Approved, ct);
-        if (journal is null || journal.Currency != scope.ReportingCurrency)
+        if (journal is null || journal.Currency != scope.ReportingCurrency ||
+            !string.Equals(journal.JournalType, expectedJournalType, StringComparison.OrdinalIgnoreCase))
           return CommandResult.Fail(ErrorCodes.ManifestMismatch,
-            "The advanced schedule references an unavailable or out-of-scope approved journal.");
+            "The advanced schedule references an unavailable, out-of-scope or method-mismatched approved journal.");
         var lines = await db.ConsolidationJournalLines.AsNoTracking().Where(x =>
           x.FirmId == scope.FirmId && x.GroupId == scope.GroupId && x.ScopeVersionId == scope.Id &&
           x.ConsolidationJournalId == journal.Id).ToListAsync(ct);

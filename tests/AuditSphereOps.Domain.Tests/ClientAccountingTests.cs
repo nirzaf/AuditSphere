@@ -1819,7 +1819,7 @@ public sealed class ClientAccountingTests
         });
       await db.SaveChangesAsync();
       scopeId = (await ConsolidationService.CreateScopeAsync(db, reviewer,
-        new ConsolidationScopeRequest(groupId, Guid.NewGuid(), "QAR", ConsolidationCalculator.RestrictedMethod,
+        new ConsolidationScopeRequest(groupId, Guid.NewGuid(), "QAR", AdvancedConsolidationMethods.AcquisitionNci,
           "OPENING-2026"))).Value;
       profileId = (await ClientAccountingService.CreateCapabilityProfileAsync(db, reviewer,
         new CapabilityProfileRequest(null, groupId, AccountingCapabilityServiceKinds.GroupReporting, "IFRS", "2026",
@@ -1973,6 +1973,13 @@ public sealed class ClientAccountingTests
       Assert.False(staleJournalApproval.Succeeded);
       Assert.Equal(ErrorCodes.ManifestMismatch, staleJournalApproval.ErrorCode);
       reviewedJournal.Status = AccountingWorkflowStates.Approved;
+      await db.SaveChangesAsync();
+      reviewedJournal.JournalType = "OTHER";
+      await db.SaveChangesAsync();
+      var mismatchedJournalApproval = await ConsolidationService.ApproveAdvancedExecutionAsync(db, reviewer, stored.Id);
+      Assert.False(mismatchedJournalApproval.Succeeded);
+      Assert.Equal(ErrorCodes.ManifestMismatch, mismatchedJournalApproval.ErrorCode);
+      reviewedJournal.JournalType = "ACQUISITION_NCI";
       await db.SaveChangesAsync();
       var methodAcceptance = await db.AccountingCapabilityAcceptances.SingleAsync(x => x.CapabilityProfileId == profileId &&
         x.Stage == AccountingCapabilityAcceptanceStages.MethodOwnerApproval);
