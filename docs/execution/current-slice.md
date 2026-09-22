@@ -6,18 +6,20 @@ This file records observed repository state only. The authoritative build contra
 
 | Item | Observed value |
 |---|---|
-| Source implementation checkpoint | `master@8d7a73d` |
-| Remote | `origin/master` includes source checkpoint `8d7a73d` |
+| Source implementation checkpoint | `master@b5f7ada` |
+| Remote | `origin/master` includes source checkpoint `b5f7ada` |
 | SDK | .NET 10; repository solution targets `net10.0` |
 | Database | PostgreSQL 18.6 on loopback port 5433 for development only |
-| Build | Web Release build at `8d7a73d` — passed, 0 warnings/errors |
-| Tests | 227/227 passed, 0 skipped against PostgreSQL 18.6 at `dfc7563`; the `8d7a73d` change is UI-only |
-| Migrations | 84 applied; latest `20260922104120_AdvancedConsolidationMethodSchedules` |
+| Build | Solution Release build at `b5f7ada` — passed, 0 warnings/errors |
+| Tests | 235/235 passed, 0 skipped against PostgreSQL 18.6 |
+| Migrations | 88 applied; latest `20260922115824_BindM365VerificationRevisions` |
 | Model drift | `dotnet ef migrations has-pending-model-changes` — no changes |
-| Restore drill | `scripts/db/restore-drill.sh` — passed; 84 migrations, accounting/group manifests and release-delivery identities reconciled |
+| Restore drill | `scripts/db/restore-drill.sh` — passed; 88 migrations, accounting/group manifests and release-delivery identities reconciled |
 | Production effects | Disabled locally; no production acceptance claimed |
 
 ## Implemented local capability
+
+- Microsoft 365 onboarding foundation: protected, resumable setup drafts; hashed single-use bootstrap capability; configuration-required UI; exact `(tid, oid)` roster/sign-in role assignment with scoped grants, revocation and last-administrator protection; truthful client workspace state; immutable allowlisted client/engagement folder templates; and exact connection-revision verification/activation evidence. These are local control-plane capabilities only; no Graph directory picker, SharePoint provider effect or fabricated tenant verification is enabled.
 
 - Firm/client/engagement scope authorization, durable operations, trial-balance intake, audit planning, evidence submissions, package generation, records/archive lineage, recovery quarantine, and provider safety fences.
 - Durable operations expose redacted administrator recovery state and explicit cancellation dispositions; queued work without a lease can be cancelled atomically, is excluded from worker claims, and cannot publish a partial result. Active work remains subject to lease expiry and reconciliation because cancellation cannot prove an already-started effect did not occur.
@@ -176,7 +178,7 @@ dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infr
 scripts/db/restore-drill.sh
 ```
 
-The restore evidence is written to [`docs/evidence/restore-drill-latest.json`](../evidence/restore-drill-latest.json). The latest rehearsal restored 84 migrations through `20260922104120_AdvancedConsolidationMethodSchedules`, reconciled accounting/group manifests and found zero duplicate release-delivery keys; it is loopback-only and explicitly reports that external checkpoint custody and production RPO/RTO were not run.
+The restore evidence is written to [`docs/evidence/restore-drill-latest.json`](../evidence/restore-drill-latest.json). The latest rehearsal restored 88 migrations through `20260922115824_BindM365VerificationRevisions`, reconciled accounting/group manifests and found zero duplicate release-delivery keys; it is loopback-only and explicitly reports that external checkpoint custody and production RPO/RTO were not run.
 
 ## Resume rule
 

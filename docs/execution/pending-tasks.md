@@ -4,7 +4,7 @@
 **Authoritative specification:** [`docs/SPECIFICATION.md`](../SPECIFICATION.md) v5.0
 **Accounting module contract:** [`docs/AuditSphere_Accounting_module.md`](../AuditSphere_Accounting_module.md)
 **Requirements backlog:** [`docs/requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md`](../requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md)
-**Source implementation checkpoint:** `master@8d7a73d`
+**Source implementation checkpoint:** `master@b5f7ada`
 
 This is a resume checklist, not an acceptance certificate. Tenant identifiers, credentials, tokens, secret values, and private-provider URLs are deliberately absent from the public repository.
 
@@ -12,13 +12,26 @@ This is a resume checklist, not an acceptance certificate. Tenant identifiers, c
 
 - [x] .NET 10 solution builds with zero warnings/errors.
 - [x] PostgreSQL 18.6 development profile is used on loopback port 5433.
-- [x] 227/227 PostgreSQL-backed tests pass with 0 skipped at `dfc7563`; the current `8d7a73d` change is UI-only and its Release build passed.
-- [x] 84 migrations are applied; latest is `20260922104120_AdvancedConsolidationMethodSchedules`.
+- [x] 235/235 PostgreSQL-backed tests pass with 0 skipped at `b5f7ada`; the solution Release build passes with zero warnings/errors.
+- [x] 88 migrations are applied; latest is `20260922115824_BindM365VerificationRevisions`.
 - [x] EF model has no pending migration changes.
 - [x] Loopback restore drill passes and writes secret-free evidence to `docs/evidence/restore-drill-latest.json`.
 - [x] Generated Graphify output and local agent state are ignored and removed from Git tracking.
 - [x] Public documentation no longer stores tenant-specific identity, site, app, or account identifiers.
 - [x] Seeded built-in-browser acceptance covers a QAR SME, unrelated colliding-code clients, a basic QAR group and the enabled USD-to-QAR profile without changing production authentication.
+
+## Microsoft 365 onboarding local foundation
+
+- [x] Protected `/setup/microsoft365` claim/resume flow stores only a hashed, short-lived bootstrap capability and persists resumable non-secret draft state.
+- [x] Configuration-required UI, optional mail/records `NOT_CONFIGURED` states and no-fabrication messaging are present.
+- [x] Exact `(tid, oid)` roster/pending-sign-in role assignment supports explicit scopes, atomic validation, revocation, session-epoch invalidation, evidence and last-administrator protection.
+- [x] Acceptance persistence creates one append-only decision and one client-level `WAITING_FOR_INTEGRATION` workspace intent without calling SharePoint.
+- [x] Client workspace views enforce scope before loading metadata and never expose an unverified SharePoint URL.
+- [x] Client and engagement folder templates are immutable, allowlisted, deterministic and locally approvable.
+- [x] Connection revisions require exact tenant/site/library/root and consent evidence plus an approved template before activation; migration `20260922115824_BindM365VerificationRevisions` is applied.
+- [ ] Resolve DEC-01 and prove live Entra OIDC/directory behavior against the approved EasyGuide tenant; local roster behavior is not live Graph evidence.
+- [ ] Implement and verify the selected-resource SharePoint/Graph provider, durable client-root worker, engagement provisioning and uncertain-outcome reconciliation.
+- [ ] Prove optional direct staff ACL behavior, mailbox delivery and Purview label/records behavior with the exact tenant resources.
 
 ## Local accounting and workflow follow-up
 

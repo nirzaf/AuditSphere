@@ -4,10 +4,10 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "8d7a73d",
+  "headCommit": "b5f7ada",
   "remoteHeadVerified": true,
   "productionEnabled": false,
-  "verifiedAt": "2026-09-22T11:09:20Z",
+  "verifiedAt": "2026-09-22T12:24:40Z",
   "toolchain": {
     "sdk": ".NET 10",
     "efCore": "10.0.12",
@@ -16,19 +16,19 @@
     "postgres": "18.6 loopback development profile"
   },
   "verification": {
-    "build": "PASS: dotnet build src/AuditSphereOps.Web/AuditSphereOps.Web.csproj --no-restore --configuration Release at 8d7a73d; 0 warnings/errors",
-    "tests": "PASS: 227/227 PostgreSQL-backed tests; 0 skipped at dfc7563 with PostgreSQL migration setup serialized by xunit.runner.json; the 8d7a73d change is UI-only",
-    "migrations": "PASS: 84 applied; latest 20260922104120_AdvancedConsolidationMethodSchedules",
+    "build": "PASS: dotnet build AuditSphereOps.slnx --no-restore --configuration Release at b5f7ada; 0 warnings/errors",
+    "tests": "PASS: 235/235 PostgreSQL-backed tests; 0 skipped against PostgreSQL 18.6",
+    "migrations": "PASS: 88 applied; latest 20260922115824_BindM365VerificationRevisions",
     "pendingModelChanges": "PASS: no changes",
-    "restoreDrill": "PASS at 2026-09-22T10:50:07Z: loopback restore reconciled 84 migrations, accounting/group manifests and release-delivery identities; latest 20260922104120_AdvancedConsolidationMethodSchedules; duplicate release-delivery keys=0; external custody and production RPO/RTO not run",
+    "restoreDrill": "PASS at 2026-09-22T12:24:40Z: loopback restore reconciled 88 migrations, accounting/group manifests and release-delivery identities; latest 20260922115824_BindM365VerificationRevisions; duplicate release-delivery keys=0; external custody and production RPO/RTO not run",
     "database": "127.0.0.1:5433 development only"
   },
   "active": {
     "packageId": "Audit workflow gap-closure and client accounting implementation",
     "implementationStatus": "IN_PROGRESS",
     "acceptanceStatus": "LOCAL_VERIFIED",
-    "scope": "Local audit workflow, client accounting, scoped client file-request threads/uploads/downloads, GL intake, completeness, package, Office/PDF export, restatement, consolidation, journal-lineage, close-check and package-review slices.",
-    "nextAction": "Wire the persisted source-bound advanced-method schedules into guarded profile execution and complete statement/comparative rollforward verification; keep profiles fail-closed until then. Provider/signing/recovery/independent-review gates remain external."
+    "scope": "Local audit workflow, client accounting, scoped client file-request threads/uploads/downloads, GL intake, completeness, package, Office/PDF export, restatement, consolidation, journal-lineage, close-check, package-review and Microsoft 365 onboarding control-plane slices.",
+    "nextAction": "Implement the selected-resource SharePoint/Graph provider and durable client/engagement workspace reconciliation only after approved live prerequisites; keep the provider and advanced consolidation profiles fail-closed."
   },
   "localEvidence": [
     {
@@ -345,6 +345,11 @@
       "item": "Advanced consolidation calculation safety core",
       "status": "LOCAL_VERIFIED",
       "details": "Deterministic local calculators cover acquisition goodwill/bargain purchase with fair-value adjustments, NCI rollforward, ownership changes/disposals, nested double-count rejection and asset-transfer/tax elimination math. Approved IFRS method schedules now persist canonical source/input JSON digests, validate method-specific inputs at approval, enforce group-revision fencing, support idempotent retry and maker/checker approval. The consolidation page exposes scope-bound schedule counts and fail-closed readiness guidance. A fixed candidate fixture combines FX translation/reserve, acquisition goodwill, NCI, nested-scope uniqueness and asset-transfer elimination into balanced QAR current and comparative statements. IFRS method-owner scope is recorded in STE-METH-APP-001-addendum; advanced production profiles remain disabled until guarded service integration and complete statement/comparative verification are implemented."
+    },
+    {
+      "item": "Microsoft 365 onboarding control-plane foundation",
+      "status": "LOCAL_VERIFIED",
+      "details": "Protected resumable setup drafts store only hashed bootstrap capabilities and non-secret configuration. Exact tenant/object identity roster assignments support explicit scopes, atomic apply, revocation, session-epoch invalidation, audit evidence and last-administrator protection. Acceptance persistence creates one append-only decision and one client-level WAITING_FOR_INTEGRATION workspace intent. Client views enforce scope and expose no unverified provider URL. Allowlisted immutable client/engagement folder templates and exact connection-revision verification/activation evidence are covered by PostgreSQL tests and migration 20260922115824_BindM365VerificationRevisions. No live Graph directory picker, SharePoint effect or fabricated tenant verification is enabled."
     }
   ],
   "remainingLocalWork": [
