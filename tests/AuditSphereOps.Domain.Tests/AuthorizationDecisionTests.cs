@@ -486,6 +486,7 @@ public sealed class AuthorizationDecisionTests
     public DbSet<FirmWorkspaceConfiguration> FirmWorkspaceConfigurations => db.FirmWorkspaceConfigurations;
     public DbSet<FolderTemplateVersion> FolderTemplateVersions => db.FolderTemplateVersions;
     public DbSet<IntegrationVerificationEvidence> IntegrationVerificationEvidences => db.IntegrationVerificationEvidences;
+    public DbSet<ClientWorkspace> ClientWorkspaces => db.ClientWorkspaces;
     public Microsoft.EntityFrameworkCore.Infrastructure.DatabaseFacade Database => db.Database;
     public Task<int> SaveChangesAsync(CancellationToken ct = default) => db.SaveChangesAsync(ct);
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;

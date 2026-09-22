@@ -141,6 +141,7 @@ public interface IAuditSphereDbContext : IAsyncDisposable
   DbSet<FirmWorkspaceConfiguration> FirmWorkspaceConfigurations { get; }
   DbSet<FolderTemplateVersion> FolderTemplateVersions { get; }
   DbSet<IntegrationVerificationEvidence> IntegrationVerificationEvidences { get; }
+  DbSet<ClientWorkspace> ClientWorkspaces { get; }
   DatabaseFacade Database { get; }
   Task<int> SaveChangesAsync(CancellationToken ct = default);
 }

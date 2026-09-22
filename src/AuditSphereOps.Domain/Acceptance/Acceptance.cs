@@ -20,9 +20,13 @@ public sealed class AcceptanceDecision
   public Guid FirmId { get; set; }
   public Guid PracticeClientId { get; set; }
   public Guid? EngagementId { get; set; }
-  public string Decision { get; set; } = "Pending"; // Pending|Accepted|AcceptedWithConditions|Declined
+  public string Decision { get; set; } = "Pending"; // Pending|Accepted|AcceptedWithConditions|Declined|Deferred
   public string ServiceRoute { get; set; } = string.Empty;
   public long Generation { get; set; } = 1;         // §22: approvals bind to generation
+  public string Rationale { get; set; } = string.Empty;
+  public string? Conditions { get; set; }
+  public string EvaluationTemplateVersion { get; set; } = string.Empty;
+  public string EvaluationSnapshotDigest { get; set; } = string.Empty;
   public Guid? DecidedByUserId { get; set; }
   public DateTimeOffset? DecidedAt { get; set; }
 }
@@ -65,4 +69,3 @@ public sealed class QuestionDefinition
   public bool RequiresEvidence { get; set; }
   public int SortOrder { get; set; }
 }
-

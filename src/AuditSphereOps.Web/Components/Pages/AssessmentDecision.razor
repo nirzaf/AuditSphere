@@ -1,6 +1,11 @@
 @page "/app/assessments/{Id:guid}/decision"
 @using Microsoft.AspNetCore.Components.Authorization
+@using AuditSphereOps.Application.Acceptance
+@using AuditSphereOps.Infrastructure.Persistence
+@using Microsoft.EntityFrameworkCore
 @inject AuthenticationStateProvider Auth
+@inject CurrentActorResolver ActorResolver
+@inject IDbContextFactory<AuditSphereDbContext> DbFactory
 @inject NavigationManager Nav
 
 <PageTitle>Partner Decision — AuditSphereOps</PageTitle>
@@ -21,8 +26,8 @@
     </p>
 
     <div class="form-group">
-        <label for="decision-outcome">Decision Outcome</label>
-        <select id="decision-outcome" @bind="_outcome" required>
+        <label for="decision-outcome">Decision outcome <span class="required-marker">*</span></label>
+        <select id="decision-outcome" @bind="_outcome" required title="Record the professional decision for this exact client/service scope. A decision does not create a remote folder in this request.">
             <option value="">— select —</option>
             <option value="ACCEPTED">Accepted</option>
             <option value="ACCEPTED_WITH_CONDITIONS">Accepted with Conditions</option>
@@ -32,13 +37,18 @@
     </div>
 
     <div class="form-group">
-        <label for="decision-rationale">Rationale / Scope</label>
-        <textarea id="decision-rationale" rows="5" @bind="_rationale" placeholder="Describe scope, factors considered and professional basis." required />
+        <label for="decision-service">Service route <span class="required-marker">*</span></label>
+        <input id="decision-service" @bind="_serviceRoute" maxlength="50" required title="Stable service scope used to bind the decision and any later workspace intent." />
     </div>
 
     <div class="form-group">
-        <label for="decision-conditions">Conditions (if applicable)</label>
-        <textarea id="decision-conditions" rows="3" @bind="_conditions" placeholder="Leave blank if unconditional." data-optional="true" />
+        <label for="decision-rationale">Rationale / scope <span class="required-marker">*</span></label>
+        <textarea id="decision-rationale" rows="5" @bind="_rationale" placeholder="Describe scope, factors considered and professional basis." required title="Required professional basis retained with the immutable decision." />
+    </div>
+
+    <div class="form-group">
+        <label for="decision-conditions">Conditions <span class="optional-label">optional unless conditional acceptance</span></label>
+        <textarea id="decision-conditions" rows="3" @bind="_conditions" placeholder="Leave blank if unconditional." data-optional="true" title="Required only for Accepted with Conditions; open conditions prevent workspace readiness." />
     </div>
 
     @if (!string.IsNullOrEmpty(_errorMessage))
@@ -47,7 +57,7 @@
     }
 
     <div class="action-bar">
-        <button class="btn-primary" @onclick="RecordDecision" disabled="@_submitting">
+        <button class="btn-primary" @onclick="RecordDecision" disabled="@(_submitting || _expectedGeneration is null)" title="Persist the guarded decision and, for effective acceptance, one waiting client-workspace intent">
             @(_submitting ? "Recording…" : "Record Partner Decision")
         </button>
         <a class="btn-secondary" href="/app/assessments/@Id">Cancel</a>
@@ -58,16 +68,28 @@
     [Parameter] public Guid Id { get; set; }
 
     string _outcome = "";
+    string _serviceRoute = "FinancialStatementAudit";
     string _rationale = "";
     string _conditions = "";
     string _errorMessage = "";
     bool _submitting;
+    long? _expectedGeneration;
+    AuditSphereOps.Application.Abstractions.ActorContext? _actor;
 
     protected override async Task OnInitializedAsync()
     {
         var state = await Auth.GetAuthenticationStateAsync();
         if (state.User.Identity?.IsAuthenticated != true)
+        {
             Nav.NavigateTo("/login");
+            return;
+        }
+        _actor = await ActorResolver.ResolveAsync();
+        if (_actor is null) return;
+        await using var db = await DbFactory.CreateDbContextAsync();
+        _expectedGeneration = await db.ClientSafetyStates.AsNoTracking()
+            .Where(x => x.FirmId == _actor.FirmId && x.Id == Id)
+            .Select(x => (long?)x.InputGeneration).SingleOrDefaultAsync();
     }
 
     async Task RecordDecision()
@@ -77,12 +99,22 @@
         { _errorMessage = "Select a decision outcome."; return; }
         if (string.IsNullOrWhiteSpace(_rationale))
         { _errorMessage = "Rationale is required."; return; }
+        if (string.IsNullOrWhiteSpace(_serviceRoute))
+        { _errorMessage = "Service route is required."; return; }
+        if (_actor is null || _expectedGeneration is null)
+        { _errorMessage = "The current authorized client generation could not be loaded."; return; }
 
         _submitting = true;
         try
         {
-            // Command dispatched to backend; guard + immutable record inserted.
-            await Task.Delay(300);
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var result = await AcceptanceDecisionService.RecordAsync(db, _actor,
+                new(Id, null, _serviceRoute, _outcome, _rationale, _conditions, _expectedGeneration.Value));
+            if (!result.Succeeded)
+            {
+                _errorMessage = result.Message ?? "The decision could not be recorded.";
+                return;
+            }
             Nav.NavigateTo($"/app/assessments/{Id}");
         }
         finally { _submitting = false; }

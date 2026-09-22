@@ -122,3 +122,39 @@ public sealed class IntegrationVerificationEvidence
   public string EvidenceReference { get; set; } = string.Empty;
   public DateTimeOffset ObservedAt { get; set; }
 }
+
+public static class ClientWorkspaceStates
+{
+  public const string WaitingForIntegration = "WAITING_FOR_INTEGRATION";
+  public const string Queued = "QUEUED";
+  public const string Provisioning = "PROVISIONING";
+  public const string Verifying = "VERIFYING";
+  public const string Ready = "READY";
+  public const string BlockedAcceptance = "BLOCKED_ACCEPTANCE";
+  public const string BlockedConfiguration = "BLOCKED_CONFIGURATION";
+  public const string ResultUncertain = "RESULT_UNCERTAIN";
+  public const string ConflictRequiresReview = "CONFLICT_REQUIRES_REVIEW";
+  public const string Suspended = "SUSPENDED";
+}
+
+public sealed class ClientWorkspace
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid PracticeClientId { get; set; }
+  public Guid AcceptanceDecisionId { get; set; }
+  public string Purpose { get; set; } = "PRIMARY";
+  public string LogicalKey { get; set; } = string.Empty;
+  public string State { get; set; } = ClientWorkspaceStates.WaitingForIntegration;
+  public long Revision { get; set; } = 1;
+  public Guid? ConnectionRevisionId { get; set; }
+  public Guid? FolderTemplateVersionId { get; set; }
+  public string? TenantId { get; set; }
+  public string? SiteId { get; set; }
+  public string? DriveId { get; set; }
+  public string? RootFolderId { get; set; }
+  public string? RemoteItemId { get; set; }
+  public string? LastErrorCode { get; set; }
+  public DateTimeOffset CreatedAt { get; set; }
+  public DateTimeOffset? LastVerifiedAt { get; set; }
+}

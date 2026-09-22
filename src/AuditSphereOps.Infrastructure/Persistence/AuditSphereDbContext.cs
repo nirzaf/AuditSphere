@@ -28,6 +28,7 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
   public DbSet<FirmWorkspaceConfiguration> FirmWorkspaceConfigurations => Set<FirmWorkspaceConfiguration>();
   public DbSet<FolderTemplateVersion> FolderTemplateVersions => Set<FolderTemplateVersion>();
   public DbSet<IntegrationVerificationEvidence> IntegrationVerificationEvidences => Set<IntegrationVerificationEvidence>();
+  public DbSet<ClientWorkspace> ClientWorkspaces => Set<ClientWorkspace>();
   public DbSet<Lead> Leads => Set<Lead>();
   public DbSet<Opportunity> Opportunities => Set<Opportunity>();
   public DbSet<Proposal> Proposals => Set<Proposal>();
@@ -669,6 +670,30 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     evidence.ToTable("m365_verification_evidence", t => t.HasCheckConstraint("ck_m365_evidence_values",
       "length(trim(resource_kind)) > 0 AND length(trim(resource_id)) > 0 AND length(trim(operation)) > 0 AND length(trim(identity_reference)) > 0 AND result IN ('PASS','FAIL','BLOCKED') AND length(trim(evidence_reference)) > 0"));
     evidence.HasOne<Microsoft365SetupDraft>().WithMany().HasForeignKey(x => new { x.FirmId, x.SetupDraftId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var clientWorkspace = b.Entity<ClientWorkspace>();
+    clientWorkspace.HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_client_workspaces_firm_id_id");
+    clientWorkspace.HasIndex(x => new { x.FirmId, x.PracticeClientId, x.Purpose }).IsUnique();
+    clientWorkspace.HasIndex(x => new { x.FirmId, x.LogicalKey }).IsUnique();
+    clientWorkspace.Property(x => x.Purpose).HasMaxLength(30);
+    clientWorkspace.Property(x => x.LogicalKey).HasMaxLength(300);
+    clientWorkspace.Property(x => x.State).HasMaxLength(40);
+    clientWorkspace.Property(x => x.TenantId).HasMaxLength(200);
+    clientWorkspace.Property(x => x.SiteId).HasMaxLength(2000);
+    clientWorkspace.Property(x => x.DriveId).HasMaxLength(2000);
+    clientWorkspace.Property(x => x.RootFolderId).HasMaxLength(2000);
+    clientWorkspace.Property(x => x.RemoteItemId).HasMaxLength(500);
+    clientWorkspace.Property(x => x.LastErrorCode).HasMaxLength(100);
+    clientWorkspace.ToTable("client_workspaces", t => t.HasCheckConstraint("ck_client_workspace_values",
+      "purpose = 'PRIMARY' AND length(trim(logical_key)) > 0 AND state IN ('WAITING_FOR_INTEGRATION','QUEUED','PROVISIONING','VERIFYING','READY','BLOCKED_ACCEPTANCE','BLOCKED_CONFIGURATION','RESULT_UNCERTAIN','CONFLICT_REQUIRES_REVIEW','SUSPENDED') AND revision >= 1"));
+    clientWorkspace.HasOne<PracticeClient>().WithMany().HasForeignKey(x => new { x.FirmId, x.PracticeClientId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    clientWorkspace.HasOne<AcceptanceDecision>().WithMany().HasForeignKey(x => new { x.FirmId, x.AcceptanceDecisionId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    clientWorkspace.HasOne<Microsoft365ConnectionRevision>().WithMany().HasForeignKey(x => new { x.FirmId, x.ConnectionRevisionId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    clientWorkspace.HasOne<FolderTemplateVersion>().WithMany().HasForeignKey(x => new { x.FirmId, x.FolderTemplateVersionId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
   }
 
@@ -3193,17 +3218,28 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
 
     var acceptance = b.Entity<AcceptanceDecision>();
 
+    acceptance.HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_acceptance_decisions_firm_id_id");
     acceptance.Property(x => x.Decision).HasMaxLength(40);
     acceptance.Property(x => x.ServiceRoute).HasMaxLength(50);
+    acceptance.Property(x => x.Rationale).HasMaxLength(4000);
+    acceptance.Property(x => x.Conditions).HasMaxLength(4000);
+    acceptance.Property(x => x.EvaluationTemplateVersion).HasMaxLength(100);
+    acceptance.Property(x => x.EvaluationSnapshotDigest).HasMaxLength(64);
     acceptance.HasIndex(x => new { x.FirmId, x.PracticeClientId, x.Generation }).HasDatabaseName("ix_acceptance_client_generation");
     acceptance.HasOne<PracticeClient>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.PracticeClientId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
-    acceptance.ToTable("acceptance_decisions", t => t.HasCheckConstraint("ck_acceptance_decision_values",
-      "generation >= 1 AND length(trim(service_route)) > 0" +
-      " AND decision IN ('Pending','Accepted','AcceptedWithConditions','Declined')" +
-      " AND ((decision IN ('Accepted','AcceptedWithConditions','Declined') AND decided_at IS NOT NULL" +
-      "        AND decided_by_user_id IS NOT NULL) OR decision = 'Pending')"));
+    acceptance.ToTable("acceptance_decisions", t =>
+    {
+      t.HasCheckConstraint("ck_acceptance_decision_values",
+        "generation >= 1 AND length(trim(service_route)) > 0" +
+        " AND decision IN ('Pending','Accepted','AcceptedWithConditions','Declined','Deferred')" +
+        " AND ((decision IN ('Accepted','AcceptedWithConditions','Declined','Deferred') AND decided_at IS NOT NULL" +
+        "        AND decided_by_user_id IS NOT NULL) OR decision = 'Pending')");
+      t.HasCheckConstraint("ck_acceptance_decision_evidence",
+        "((decision = 'Pending') OR (length(trim(rationale)) > 0 AND length(trim(evaluation_template_version)) > 0 AND evaluation_snapshot_digest ~ '^[0-9a-f]{64}$'))" +
+        " AND ((decision = 'AcceptedWithConditions' AND length(trim(conditions)) > 0) OR decision <> 'AcceptedWithConditions')");
+    });
 
     var evaluation = b.Entity<EvaluationResponse>();
     evaluation.Property(x => x.Bank).HasMaxLength(4);
