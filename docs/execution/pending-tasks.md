@@ -18,7 +18,7 @@ This is a resume checklist, not an acceptance certificate. Tenant identifiers, c
 - [x] Loopback restore drill passes and writes secret-free evidence to `docs/evidence/restore-drill-latest.json`.
 - [x] Generated Graphify output and local agent state are ignored and removed from Git tracking.
 - [x] Public documentation no longer stores tenant-specific identity, site, app, or account identifiers.
-- [x] Seeded built-in-browser acceptance covers a QAR SME, unrelated colliding-code clients, a basic QAR group, the enabled USD-to-QAR profile and all five advanced profiles without changing production authentication. The `ACQUISITION_NCI_V1` fixture also completes preparer submission, independent schedule review, balanced verified execution and independent execution approval; the other four advanced profiles remain fail-closed `REQUIRED`. Evidence: [`accounting-browser-advanced-gates-latest.json`](../evidence/accounting-browser-advanced-gates-latest.json).
+- [x] Seeded built-in-browser acceptance covers a QAR SME, unrelated colliding-code clients, a basic QAR group, the enabled USD-to-QAR profile and all five advanced profiles without changing production authentication. Each advanced fixture completes preparer submission, administrator schedule review, balanced verified execution and independent execution approval; each reads `1 / 1` and `APPROVED` in the workbench. Evidence: [`accounting-browser-advanced-gates-latest.json`](../evidence/accounting-browser-advanced-gates-latest.json).
 
 ## Microsoft 365 onboarding local foundation
 
@@ -110,7 +110,7 @@ This is a resume checklist, not an acceptance certificate. Tenant identifiers, c
 - [x] Complete source-bound method schedules, reviewed journal evidence and execution journeys for all five advanced profiles in PostgreSQL; keep them fail-closed until browser acceptance.
 - [x] Add a scope-bound browser workflow for advanced schedule/input drafting, guarded submission, maker/checker approval and verified-execution actions; no automatic profile enablement is exposed.
 - [x] Complete full end-to-end browser acceptance with an approved component/journal fixture for `ACQUISITION_NCI_V1`; the local flow ends with independent execution approval and does not enable the profile automatically.
-- [ ] Repeat full end-to-end browser acceptance for each additional advanced profile intended for enablement; keep unproven methods visibly fail-closed.
+- [x] Repeat full end-to-end browser acceptance for `FOREIGN_CURRENCY_RESERVE_V1`, `OWNERSHIP_CHANGE_V1`, `NESTED_GROUP_V1` and `ASSET_TRANSFER_ELIMINATION_V1`; each uses its approved source/journal or FX fixture, separate schedule/execution approval and balanced output. No production or professional gate is enabled by local evidence.
 - [x] Add deeper accounting evidence/workpaper links and account-area UI around the typed specialist schedules.
 - [x] Add the accounting dashboard and cross-workflow navigation around accounting, roll-forward and release workflows.
 - [x] Re-run focused tests, full tests, build, migration drift and restore drill for the current coherent slice; repeat for the next slice.
