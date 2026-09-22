@@ -1936,7 +1936,7 @@ public sealed class ClientAccountingTests
     await db.SaveChangesAsync();
 
     var input = $"{{\"components\":[{{\"economicEntityKey\":\"SUBGROUP\",\"sourceScopeVersionId\":\"{sourceScopeId:D}\",\"includedDirectly\":false}}]}}";
-    var validInput = $"{{\"fixture\":\"approved-source-run\",\"components\":[{{\"economicEntityKey\":\"SUBGROUP\",\"sourceScopeVersionId\":\"{sourceScopeId:D}\",\"includedDirectly\":false}}]}}";
+    var validInput = $"{{\"fixture\":\"approved-source-run\",\"components\":[{{\"economicEntityKey\":\"SUBGROUP\",\"sourceScopeVersionId\":\"{sourceScopeId:D}\",\"includedDirectly\":false}}],\"statementLines\":[{{\"code\":\"GROUP_BALANCE\",\"comparativeAmount\":0,\"currentAmount\":0}}]}}";
     var packHash = await db.ExternalComponentPacks.Where(x => x.Id == packId).Select(x => x.PackDigest).SingleAsync();
     var sources = $"\"sources\":[{{\"componentId\":\"{componentId:D}\",\"kind\":\"EXTERNAL_PACK\",\"id\":\"{packId:D}\",\"hash\":\"{packHash}\"}}]";
     var missingEvidence = await ConsolidationService.CreateAdvancedMethodScheduleAsync(db, preparer,
@@ -1952,6 +1952,9 @@ public sealed class ClientAccountingTests
         "IFRS", $"{{{sources},\"nestedScopes\":[{{\"scopeVersionId\":\"{sourceScopeId:D}\",\"runId\":\"{sourceRunId:D}\",\"runHash\":\"{sourceRunHash}\"}}]}}", validInput));
     Assert.True(validEvidence.Succeeded, validEvidence.Message);
     Assert.True((await ConsolidationService.ApproveAdvancedMethodScheduleAsync(db, reviewer, validEvidence.Value)).Succeeded);
+    var execution = await ConsolidationService.RunAdvancedProfileAsync(db, preparer, targetScope);
+    Assert.True(execution.Succeeded, execution.Message);
+    Assert.True((await ConsolidationService.ApproveAdvancedExecutionAsync(db, reviewer, execution.Value)).Succeeded);
   }
 
   [Fact]
