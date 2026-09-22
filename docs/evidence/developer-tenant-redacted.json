@@ -1,10 +1,10 @@
 {
   "status": "PARTIAL_NON_PRODUCTION_EVIDENCE",
-  "recordedAt": "2026-09-22T18:17:34Z",
+  "recordedAt": "2026-09-22T18:21:36Z",
   "environment": "owner-authorized non-production developer tenant; identifiers intentionally omitted",
   "observed": [
     "A selected-resource Microsoft Graph/SharePoint permission was configured outside this public repository.",
-    "A synthetic Purview test profile and narrowly scoped publication policy were submitted outside this public repository; Microsoft reported that the label may take up to a week to become available.",
+    "A synthetic Purview test profile and narrowly scoped publication policy were submitted outside this public repository; the policy is now shown as Enabled, while Microsoft reported that item availability may take up to a week.",
     "Immediate Graph retention-label readback returned no applied-label properties, and SharePoint Compliance details still showed Label Status None and no retention policy; positive label application and protection readback remain unobserved.",
     "No production approval, signing, independent review, or production recovery evidence is claimed."
   ],
