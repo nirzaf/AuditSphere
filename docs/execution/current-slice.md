@@ -6,15 +6,15 @@ This file records observed repository state only. The authoritative build contra
 
 | Item | Observed value |
 |---|---|
-| Source implementation checkpoint | `master@e595ae0` |
-| Remote | `origin/master` includes source checkpoint `e595ae0` |
+| Source implementation checkpoint | `master@be3b193` |
+| Remote | `origin/master` includes source checkpoint `be3b193` |
 | SDK | .NET 10; repository solution targets `net10.0` |
 | Database | PostgreSQL 18.6 on loopback port 5433 for development only |
-| Build | `dotnet build AuditSphereOps.slnx --no-restore --configuration Release` at `e595ae0` — passed, 0 warnings/errors |
-| Tests | 220/220 passed, 0 skipped against PostgreSQL 18.6 at `e595ae0` |
-| Migrations | 81 applied; latest `20260922071325_QuarantineLegacyAccountingBackfill` |
+| Build | `dotnet build src/AuditSphereOps.Web/AuditSphereOps.Web.csproj --no-restore --configuration Release` at `be3b193` — passed, 0 warnings/errors |
+| Tests | 222/222 passed, 0 skipped against PostgreSQL 18.6 at `be3b193` |
+| Migrations | 82 applied; latest `20260922081017_PbcClientCommunicationThread` |
 | Model drift | `dotnet ef migrations has-pending-model-changes` — no changes |
-| Restore drill | `scripts/db/restore-drill.sh` — passed; 81 migrations, accounting/group manifests and release-delivery identities reconciled |
+| Restore drill | `scripts/db/restore-drill.sh` — passed; 82 migrations, accounting/group manifests and release-delivery identities reconciled |
 | Production effects | Disabled locally; no production acceptance claimed |
 
 ## Implemented local capability
@@ -71,6 +71,7 @@ This file records observed repository state only. The authoritative build contra
 - Work tasks can persist an optional exact client reporting-period link and optional `DueDate`; the practice-time page creates these tasks with the same explicit grant boundary, and the accounting dashboard/period detail show the persisted owner, status and deadline before falling back to PBC values. Cross-client period links are rejected by the service and covered by PostgreSQL regression tests.
 - Accounting dashboard, period roll-forward and restatement data loaders fail closed on an empty grant set and include only clients covered by an explicit firm-wide, client or engagement grant; the dashboard surfaces the active scope description and missing-scope guidance. Period-linked workflow tasks use the same exact period scope and do not broaden authorization.
 - Client-safe validated-package view and signed-in management acknowledgement are available at the restricted client portal route. The portal exposes statement totals and package metadata only; internal review history and workpapers remain staff-only.
+- Assigned staff can create file requests only for active, authorized engagements, select the client portal owner and reviewer, and queue description-rich email notifications containing an authenticated portal upload link. Staff and client replies are retained in one append-only timeline beside upload events; the client can upload through the existing request-bound capability, while verified staged files are downloadable only through a fresh staff scope check. Notification delivery remains explicitly `QUEUED` until the separately approved mailbox-scoped Graph worker records a provider result; local request creation never claims external delivery.
 - An internal package-review queue lists only current validated packages in the actor's authorized client/engagement scopes and routes reviewers to the exact-version package surface.
 - A validated financial package can now become a release candidate only through the existing guarded approval/release path; the candidate records `FINANCIAL_PACKAGE`, exact package revision/generation/hash, current management/accounting/partner decisions, and the normal checkpoint gate.
 - The completion screen exposes package-candidate preparation only to partner/administrator actors after all three current package reviews are approved; repeated preparation reuses the exact candidate.
