@@ -169,7 +169,7 @@ public enum OperationState
 }
 
 public enum OperationMode { LOCAL, SIMULATED, LIVE }
-public enum OperationAuthority { LOCAL_VALIDATION, SIMULATION }
+public enum OperationAuthority { LOCAL_VALIDATION, SIMULATION, LIVE_PROVIDER }
 
 public sealed class OperationAttempt
 {

@@ -190,7 +190,8 @@ public sealed class PostgresOperationStore(IAuditSphereDbContextFactory factory)
     var active = op.Status is OperationState.CLAIMED or OperationState.REMOTE_STARTED or OperationState.VERIFYING or OperationState.CANCEL_REQUESTED;
     var allowed = next switch
     {
-      OperationState.REMOTE_STARTED => op.Status == OperationState.CLAIMED && op.ExecutionMode == OperationMode.SIMULATED,
+      OperationState.REMOTE_STARTED => op.Status == OperationState.CLAIMED &&
+        op.ExecutionMode is OperationMode.SIMULATED or OperationMode.LIVE,
       OperationState.VERIFYING => op.Status == OperationState.REMOTE_STARTED,
       OperationState.CANCELLED_WITH_DISPOSITION => op.Status == OperationState.CLAIMED,
       OperationState.RETRY_WAIT or OperationState.RESULT_UNCERTAIN or OperationState.DEAD_LETTER or

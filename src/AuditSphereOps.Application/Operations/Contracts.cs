@@ -218,9 +218,19 @@ public sealed record WorkerOptions(Guid FirmId, string EnvironmentName = "Develo
     if (FirmId == Guid.Empty || DeploymentEpoch < 1 || string.IsNullOrWhiteSpace(Group) ||
         LeaseSeconds < 3 || RenewalSeconds < 1 || RenewalSeconds >= LeaseSeconds || MaxAttempts is < 1 or > 20)
       throw new InvalidOperationException("Invalid worker scope or lease configuration.");
-    if (EnvironmentName is not ("Development" or "Test") || ExternalEffectsEnabled)
-      throw new InvalidOperationException("Live operation execution is not implemented or approved.");
-    if (definitions.Any(d => !Enum.IsDefined(d.Mode) || !Enum.IsDefined(d.Authority) ||
+    var declared = definitions.ToArray();
+    if (ExternalEffectsEnabled)
+    {
+      if (EnvironmentName != "Acceptance" || AllowSimulationAdapters || declared.Any(d =>
+          !Enum.IsDefined(d.Mode) || !Enum.IsDefined(d.Authority) ||
+          string.IsNullOrWhiteSpace(d.Kind) || string.IsNullOrWhiteSpace(d.Group) || d.SchemaVersion < 1 ||
+          d.Mode != OperationMode.LIVE || d.Authority != OperationAuthority.LIVE_PROVIDER))
+        throw new InvalidOperationException("Live providers require isolated Acceptance composition.");
+      return;
+    }
+    if (EnvironmentName is not ("Development" or "Test"))
+      throw new InvalidOperationException("External effects are disabled outside local validation environments.");
+    if (declared.Any(d => !Enum.IsDefined(d.Mode) || !Enum.IsDefined(d.Authority) ||
         string.IsNullOrWhiteSpace(d.Kind) || string.IsNullOrWhiteSpace(d.Group) || d.SchemaVersion < 1 ||
         (d.Mode == OperationMode.LOCAL && d.Authority != OperationAuthority.LOCAL_VALIDATION) ||
         (d.Mode == OperationMode.SIMULATED && d.Authority != OperationAuthority.SIMULATION) || d.Mode == OperationMode.LIVE ||

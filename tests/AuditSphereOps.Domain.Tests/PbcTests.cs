@@ -6,6 +6,7 @@ using AuditSphereOps.Domain.Documents;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 
 namespace AuditSphereOps.Domain.Tests;
@@ -13,6 +14,46 @@ namespace AuditSphereOps.Domain.Tests;
 [Trait("Profile", "Database")]
 public sealed class PbcTests
 {
+  [Fact]
+  public async Task MailWorker_DeliversQueuedNotification_ExactlyOnce()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await PbcSeed.SeedAsync(pg);
+    var staff = PbcSeed.Actor(fixture.Staff, "Staff");
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var created = await PbcService.CreateRequestAsync(db, staff, new CreatePbcRequestRequest(
+        fixture.EngagementId, "Upload the signed bank confirmations.", "TEST ENTITY", "2026-01-01", "2026-12-31",
+        "Cash", "PDF", string.Empty, fixture.Client.Id, fixture.Staff.Id, fixture.Reviewer.Id,
+        "2027-01-31", "Confidential", "Signed and readable."));
+      Assert.True(created.Succeeded, created.ErrorCode);
+      var sent = await PbcService.SendRequestAsync(db, staff, created.Value, 1, "https://audit.example.test/");
+      Assert.True(sent.Succeeded, sent.ErrorCode);
+    }
+
+    var factory = new OperationContextFactory(new PbcSeed.OptionsDbContextFactory(pg.Options));
+    var store = new PostgresOperationStore(factory);
+    var sender = new RecordingMailSender();
+    var handler = new PbcMailDeliveryHandler(factory, sender);
+    var options = new WorkerOptions(fixture.FirmId, "Acceptance", ExternalEffectsEnabled: true, Group: "mail");
+    var worker = new AuditSphereOps.Worker.Worker(
+      new OperationDispatcher(store, new DurableOperationRegistry([handler], options), options),
+      [new PbcMailDiscovery(factory, store, handler, options)],
+      NullLogger<AuditSphereOps.Worker.Worker>.Instance);
+
+    Assert.True(await worker.ProcessNextAsync());
+    Assert.False(await worker.ProcessNextAsync());
+    Assert.Single(sender.Plans);
+    await using var verify = new AuditSphereDbContext(pg.Options);
+    var mail = await verify.PbcCommunications.SingleAsync(x => x.Kind == PbcCommunicationKinds.Email);
+    Assert.Equal(PbcDeliveryStates.Sent, mail.DeliveryState);
+    Assert.NotNull(mail.DeliveredAt);
+    var operation = await verify.DurableOperations.SingleAsync(x => x.TargetId == mail.Id);
+    Assert.Equal(OperationState.COMPLETED, operation.Status);
+    Assert.Equal(OperationMode.LIVE, operation.ExecutionMode);
+    Assert.Equal(OperationAuthority.LIVE_PROVIDER, operation.AuthorityMode);
+  }
+
   [Fact]
   public async Task RequestThread_QueuesEmail_StoresReplies_AndScopesDownload()
   {
@@ -255,5 +296,15 @@ public sealed class PbcTests
     await Assert.ThrowsAsync<PostgresException>(() => verify.Database.ExecuteSqlInterpolatedAsync(
       $"UPDATE pbc_upload_chunks SET byte_count = 7 WHERE id = {chunkId}"));
     PbcSeed.DeleteDirectory(staged.StagingRoot);
+  }
+
+  private sealed class RecordingMailSender : IPbcMailSender
+  {
+    public List<PbcMailPlan> Plans { get; } = [];
+    public Task SendAsync(PbcMailPlan plan, CancellationToken ct)
+    {
+      Plans.Add(plan);
+      return Task.CompletedTask;
+    }
   }
 }
