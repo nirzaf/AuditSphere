@@ -218,7 +218,8 @@ else if (developmentIdentityEnabled)
 }
 if (oidcConfigured || developmentIdentityEnabled)
 {
-  app.MapGet("/auth/landing", async (HttpContext http, IDbContextFactory<AuditSphereDbContext> dbFactory, CancellationToken ct) =>
+  app.MapGet("/auth/landing", async (HttpContext http, TrustedActorResolver actorResolver,
+    IDbContextFactory<AuditSphereDbContext> dbFactory, CancellationToken ct) =>
   {
     if (http.User.Identity?.IsAuthenticated != true)
       return Results.Redirect("/app");
@@ -226,17 +227,16 @@ if (oidcConfigured || developmentIdentityEnabled)
     var tenant = http.User.FindFirstValue("tid");
     if (string.IsNullOrWhiteSpace(subject) || string.IsNullOrWhiteSpace(tenant))
       return Results.Redirect("/auth/access-not-assigned");
+    var actor = await actorResolver.ResolveAsync(http.User, ct);
+    if (actor is null || actor.Roles.Count == 0)
+      return Results.Redirect("/auth/access-not-assigned");
     await using var db = await dbFactory.CreateDbContextAsync(ct);
     var user = await db.Users.AsNoTracking().SingleOrDefaultAsync(x =>
-      x.TenantId == tenant && x.Subject == subject, ct);
-    if (user is null || user.Disabled)
-      return Results.Redirect("/auth/access-not-assigned");
-    var grants = await db.RoleGrants.AsNoTracking().Where(x => x.FirmId == user.FirmId &&
-      x.UserId == user.Id && x.RevokedAt == null).Select(x => x.Role).ToListAsync(ct);
-    if (grants.Count == 0)
+      x.Id == actor.UserId && x.FirmId == actor.FirmId && x.TenantId == tenant && x.Subject == subject, ct);
+    if (user is null)
       return Results.Redirect("/auth/access-not-assigned");
     return user.UserKind.Equals("Client", StringComparison.OrdinalIgnoreCase) ||
-           grants.Contains("ClientUser", StringComparer.OrdinalIgnoreCase)
+           actor.Roles.Contains("ClientUser", StringComparer.OrdinalIgnoreCase)
       ? Results.Redirect("/portal")
       : Results.Redirect("/app");
   });
