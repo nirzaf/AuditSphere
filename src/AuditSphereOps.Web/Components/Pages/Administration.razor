@@ -77,6 +77,7 @@ else
               <th scope="col">Client Scope</th>
               <th scope="col">Engagement Scope</th>
               <th scope="col">Granted</th>
+              <th scope="col">State / action</th>
             </tr>
           </thead>
           <tbody>
@@ -88,6 +89,16 @@ else
               <td>@(grant.ClientId.HasValue ? grant.ClientId.Value.ToString() : "Firm-wide")</td>
               <td>@(grant.EngagementId.HasValue ? grant.EngagementId.Value.ToString() : "—")</td>
               <td>@grant.GrantedAt.ToString("yyyy-MM-dd HH:mm")</td>
+              <td>
+                @if (grant.RevokedAt is null)
+                {
+                  <button class="button" @onclick="() => RevokeRoleAsync(grant.Id)" disabled="@_roleBusy" title="Record an append-only revocation and invalidate the target session">Revoke</button>
+                }
+                else
+                {
+                  <span class="muted">Revoked @grant.RevokedAt.Value.ToString("yyyy-MM-dd HH:mm")</span>
+                }
+              </td>
             </tr>
           }
           </tbody>
@@ -204,6 +215,21 @@ else
         new(_selectedUserId.Value, _roleName, _scopeKind, clientId, engagementId));
       if (!result.Succeeded) { _roleError = result.Message ?? "The role grant was rejected."; return; }
       _roleMessage = "Role grant applied and target sessions invalidated.";
+      await LoadAdminDataAsync();
+    }
+    finally { _roleBusy = false; }
+  }
+
+  private async Task RevokeRoleAsync(Guid grantId)
+  {
+    if (_actor is null) return;
+    _roleMessage = _roleError = string.Empty; _roleBusy = true;
+    try
+    {
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var result = await RoleAdministrationService.RevokeRoleGrantAsync(db, _actor, new(grantId));
+      if (!result.Succeeded) { _roleError = result.Message ?? "The role grant could not be revoked."; return; }
+      _roleMessage = "Role grant revoked and the target session epoch was invalidated.";
       await LoadAdminDataAsync();
     }
     finally { _roleBusy = false; }

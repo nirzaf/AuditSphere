@@ -77,13 +77,14 @@ public static class RoleAdministrationService
   public static async Task<CommandResult<Guid>> ApplyRoleGrantAsync(
     IAuditSphereDbContext db, ActorContext actor, ApplyRoleGrantRequest request, CancellationToken ct = default)
   {
+    var scopeKind = request.ScopeKind.Trim().ToUpperInvariant();
     if (request.UserId == Guid.Empty || !AllowedRoles.Contains(request.Role.Trim(), StringComparer.OrdinalIgnoreCase))
       return CommandResult<Guid>.Fail("roles.invalid", "The target user and supported application role are required.");
-    if (request.ScopeKind is not ("FIRM_WIDE" or "CLIENT" or "ENGAGEMENT"))
+    if (scopeKind is not ("FIRM_WIDE" or "CLIENT" or "ENGAGEMENT"))
       return CommandResult<Guid>.Fail("roles.invalid", "Choose an explicit firm, client or engagement scope.");
-    if (request.ScopeKind == "FIRM_WIDE" && (request.ClientId.HasValue || request.EngagementId.HasValue) ||
-        request.ScopeKind == "CLIENT" && (!request.ClientId.HasValue || request.EngagementId.HasValue) ||
-        request.ScopeKind == "ENGAGEMENT" && (!request.ClientId.HasValue || !request.EngagementId.HasValue))
+    if (scopeKind == "FIRM_WIDE" && (request.ClientId.HasValue || request.EngagementId.HasValue) ||
+        scopeKind == "CLIENT" && (!request.ClientId.HasValue || request.EngagementId.HasValue) ||
+        scopeKind == "ENGAGEMENT" && (!request.ClientId.HasValue || !request.EngagementId.HasValue))
       return CommandResult<Guid>.Fail("roles.invalid", "The selected scope and identifiers do not match.");
     var auth = await FirmAdministratorAsync(db, actor, ct);
     if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
@@ -142,6 +143,9 @@ public static class RoleAdministrationService
           x.ClientId == null && x.EngagementId == null && x.RevokedAt == null, ct);
         if (!replacement) return CommandResult.Fail("roles.last-admin", "A verified replacement firm administrator is required before revocation.");
       }
+      if (grant.UserId == actor.UserId &&
+          (!request.ReplacementAdministratorUserId.HasValue || request.ReplacementAdministratorUserId == actor.UserId))
+        return CommandResult.Fail("roles.self-admin-change", "Another authorized administrator must perform this privileged self-change.");
     }
     var target = await db.Users.SingleAsync(x => x.Id == grant.UserId && x.FirmId == actor.FirmId, ct);
     grant.RevokedAt = DateTimeOffset.UtcNow;

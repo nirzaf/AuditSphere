@@ -46,7 +46,7 @@ public sealed class RoleAdministrationTests
       Assert.Equal("roles.identity-conflict", conflict.ErrorCode);
 
       var clientGrant = await RoleAdministrationService.ApplyRoleGrantAsync(db, actor,
-        new(targetId, "Manager", "CLIENT", ClientId: clientId));
+        new(targetId, "Manager", "client", ClientId: clientId));
       Assert.True(clientGrant.Succeeded);
       clientGrantId = clientGrant.Value;
       var repeat = await RoleAdministrationService.ApplyRoleGrantAsync(db, actor,
@@ -78,7 +78,7 @@ public sealed class RoleAdministrationTests
         new(replacementId, "Administrator", "FIRM_WIDE"));
       Assert.True(grant.Succeeded);
 
-      var revoke = await RoleAdministrationService.RevokeRoleGrantAsync(db, actor, new(adminGrantId));
+      var revoke = await RoleAdministrationService.RevokeRoleGrantAsync(db, actor, new(adminGrantId, replacementId));
       Assert.True(revoke.Succeeded);
       Assert.True((await db.RoleGrants.SingleAsync(x => x.Id == adminGrantId)).RevokedAt.HasValue);
       Assert.Equal(2, (await db.Users.SingleAsync(x => x.Id == admin.Id)).SessionEpoch);
