@@ -140,7 +140,7 @@ These are product gaps, not claims of production readiness:
 - [x] Export exact-package deterministic XLSX and DOCX artifacts with formula-shaped client values retained as literal text, exactly one renderer-owned workbook formula, no macro/external-link parts, runtime allowlist validation, SHA-256 persistence and scoped Blazor downloads.
 - [x] Export an exact-package deterministic, inactive PDF through PDFsharp/MigraDoc with an embedded OFL font, A4 pagination, SHA-256 persistence, structural tests and rasterized visual verification.
 - [x] Record Firm Methodology Owner approval `STE-METH-APP-001` for the named v1.0 template families and approved IFRS, straight-line, Provision Matrix ECL and external-books methods; keep provider, signing and records acceptance independent.
-- [ ] Map the named business templates to exact controlled `financial-package-*` renderer versions before claiming client-safe artifact approval.
+- [x] Map Financial Statement Template v1.0 to the exact controlled XLSX, DOCX and PDF renderer profiles under approval `STE-METH-APP-001`; Audit Program and ECL approvals remain methodology/template-family records without financial-package renderer enablement.
 - [x] Benchmark representative accounting workloads before production acceptance; the current local workload evidence is recorded above and does not establish production capacity or RPO/RTO.
 - [x] Re-run focused tests, full tests, build, migration drift and restore drill for the current coherent slice; repeat this checklist for the next slice.
 

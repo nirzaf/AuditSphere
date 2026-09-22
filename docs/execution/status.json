@@ -28,7 +28,7 @@
     "implementationStatus": "IN_PROGRESS",
     "acceptanceStatus": "LOCAL_VERIFIED",
     "scope": "Local audit workflow, client accounting, scoped client file-request threads/uploads/downloads, GL intake, completeness, package, Office/PDF export, restatement, consolidation, journal-lineage, close-check and package-review slices.",
-    "nextAction": "Map approval STE-METH-APP-001 to exact renderer profiles, then obtain separate method-owner approval of the candidate complete-statement fixture before enabling advanced FX, acquisition/NCI, ownership-change, nested-group and complex-elimination profiles. Provider/signing/recovery/independent-review gates remain external."
+    "nextAction": "Obtain separate method-owner approval of the candidate complete-statement fixture before enabling advanced FX, acquisition/NCI, ownership-change, nested-group and complex-elimination profiles. Provider/signing/recovery/independent-review gates remain external."
   },
   "localEvidence": [
     {
@@ -348,7 +348,6 @@
     }
   ],
   "remainingLocalWork": [
-    "Exact renderer-profile mapping for approved business templates",
     "Method-owner approval of the candidate complete-statement fixture and advanced FX, acquisition/NCI, ownership-change, nested-group and complex-elimination methodology"
   ],
   "externalGates": [
