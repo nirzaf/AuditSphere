@@ -4,7 +4,7 @@
 **Authoritative specification:** [`docs/SPECIFICATION.md`](../SPECIFICATION.md) v5.0
 **Accounting module contract:** [`docs/AuditSphere_Accounting_module.md`](../AuditSphere_Accounting_module.md)
 **Requirements backlog:** [`docs/requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md`](../requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md)
-**Source implementation checkpoint:** `master@70f4a59` (browser acceptance evidence: `75995c8`)
+**Source implementation checkpoint:** `master@ed6624e` (browser acceptance evidence: `75995c8`)
 
 This is a resume checklist, not an acceptance certificate. Tenant identifiers, credentials, tokens, secret values, and private-provider URLs are deliberately absent from the public repository.
 
@@ -12,7 +12,7 @@ This is a resume checklist, not an acceptance certificate. Tenant identifiers, c
 
 - [x] .NET 10 solution builds with zero warnings/errors.
 - [x] PostgreSQL 18.6 development profile is used on loopback port 5433.
-- [x] 224/224 PostgreSQL-backed tests pass with 0 skipped.
+- [x] 225/225 PostgreSQL-backed tests pass with 0 skipped.
 - [x] 83 migrations are applied; latest is `20260922083103_EnableLiveMailProviderAuthority`.
 - [x] EF model has no pending migration changes.
 - [x] Loopback restore drill passes and writes secret-free evidence to `docs/evidence/restore-drill-latest.json`.
@@ -38,9 +38,10 @@ This is a resume checklist, not an acceptance certificate. Tenant identifiers, c
 - [x] Queued durable operations support an explicit administrator cancellation disposition; cancelled work is excluded from claims and cannot publish a partial local result, while active work remains subject to lease/reconciliation handling.
 - [x] Journal lineage, close checks and immutable management/accounting/partner package-review decisions.
 - [x] Persist exact rendered package bytes with framework/template versions and SHA-256 lineage; require the matching artifact before recording management, accounting or partner package review.
-- [x] Produce deterministic formula-free XLSX and DOCX exports from the exact canonical package artifact; persist each renderer version and SHA-256 against the package revision/generation/hash and expose scoped downloads.
+- [x] Produce deterministic XLSX and formula-free DOCX exports from the exact canonical package artifact; persist each renderer version and SHA-256 against the package revision/generation/hash and expose scoped downloads.
 - [x] Produce a deterministic, inactive PDF from the exact canonical package through PDFsharp/MigraDoc; embed the OFL font, canonicalize generated identifiers, persist exact bytes/SHA-256 and expose the scoped download.
-- [ ] Add approved formula-bearing template fixtures; do not substitute local export checks for live provider, signing or records acceptance.
+- [x] Preserve exactly one renderer-owned workbook formula, neutralize formula-shaped client text and reject unexpected formulas, VBA projects and external workbook parts at runtime.
+- [ ] Obtain approval for the business workbook template; do not substitute local export checks for live provider, signing or records acceptance.
 - [x] Backfill legacy dataset periods and mapping charts only from one exact candidate; preserve ambiguous null links and append immutable quarantine evidence.
 - [x] Require an independently accepted group capability profile before approving a consolidation perimeter.
 - [x] Require current management, accounting and partner package reviews before approving a consolidation component.
@@ -86,7 +87,8 @@ This is a resume checklist, not an acceptance certificate. Tenant identifiers, c
 - [x] Chart hierarchy parent lookups are scoped to the target chart version and reject cross-version and posting-account parents.
 - [x] Draft taxonomy nodes support incremental same-version parents and reject cross-version parents/cycles.
 - [x] Link accounting evidence to reviewed audit workpapers and expose accounting period handoffs from the dashboard.
-- [ ] Obtain method-owner approval and complete-statement golden fixtures before enabling the implemented full FX reserve, acquisition/NCI, ownership-change, nested-group and advanced-elimination calculation cores.
+- [x] Add a fixed candidate fixture that combines FX reserve, acquisition goodwill, NCI, nested-scope uniqueness and asset-transfer elimination into balanced QAR current and comparative statements.
+- [ ] Obtain method-owner approval of the candidate fixture and advanced methodology before enabling full FX reserve, acquisition/NCI, ownership-change, nested-group and advanced-elimination calculation cores.
 - [x] Add deeper accounting evidence/workpaper links and account-area UI around the typed specialist schedules.
 - [x] Add the accounting dashboard and cross-workflow navigation around accounting, roll-forward and release workflows.
 - [x] Re-run focused tests, full tests, build, migration drift and restore drill for the current coherent slice; repeat for the next slice.

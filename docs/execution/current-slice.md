@@ -6,12 +6,12 @@ This file records observed repository state only. The authoritative build contra
 
 | Item | Observed value |
 |---|---|
-| Source implementation checkpoint | `master@70f4a59` |
-| Remote | `origin/master` includes source checkpoint `70f4a59` |
+| Source implementation checkpoint | `master@ed6624e` |
+| Remote | `origin/master` includes source checkpoint `ed6624e` |
 | SDK | .NET 10; repository solution targets `net10.0` |
 | Database | PostgreSQL 18.6 on loopback port 5433 for development only |
-| Build | Web Release build at `70f4a59` — passed, 0 warnings/errors |
-| Tests | 224/224 passed, 0 skipped against PostgreSQL 18.6 at `70f4a59` |
+| Build | Web Release build at `ed6624e` — passed, 0 warnings/errors |
+| Tests | 225/225 passed, 0 skipped against PostgreSQL 18.6 at `ed6624e` |
 | Migrations | 83 applied; latest `20260922083103_EnableLiveMailProviderAuthority` |
 | Model drift | `dotnet ef migrations has-pending-model-changes` — no changes |
 | Restore drill | `scripts/db/restore-drill.sh` — passed; 83 migrations, accounting/group manifests and release-delivery identities reconciled |
@@ -49,7 +49,7 @@ This file records observed repository state only. The authoritative build contra
 - The enabled FX profile accepts only explicit `DIRECT` rates; unsupported inverse semantics are rejected rather than silently multiplied with the wrong direction.
 - Exchange-rate sets retain immutable version metadata, source, approval and effective date ranges; each observation retains its direction, rate date and rate type, observations outside a declared range are rejected, and scope/translation approval accepts only rate types declared by the approved policy.
 - Currency remeasurement, foreign-operation translation and display-only conversion have distinct deterministic calculators. Persisted foreign-operation results retain separate foreign-exchange and rounding adjustments, and approval recomputes both from the exact source amount and approved rate; translation reserve rollforward math is available as a separate method-specific calculation core but is not enabled as a production profile without approved fixtures.
-- Advanced consolidation calculation helpers cover acquisition goodwill/bargain purchase with fair-value adjustments, NCI rollforward, ownership changes/disposals, nested double-count detection and asset-transfer/tax elimination math. The current enabled consolidation profiles remain fail-closed until method-owner fixtures and complete statement rollforwards are approved.
+- Advanced consolidation calculation helpers cover acquisition goodwill/bargain purchase with fair-value adjustments, NCI rollforward, ownership changes/disposals, nested double-count detection and asset-transfer/tax elimination math. A fixed candidate fixture combines the FX reserve, goodwill, NCI, nested-scope and asset-transfer results into balanced QAR current and comparative statements. The current enabled consolidation profiles remain fail-closed until a method owner approves the fixture and methodology.
 - FX rate observations and translation-policy codes return controlled idempotency conflicts when repeated, rather than relying on raw database exceptions.
 - Shared reporting taxonomy overlays accept only generic industry/group scopes; a client-scoped overlay is rejected so client-specific context cannot enter a firm master template.
 - Group membership changes advance a durable group revision; consolidation scopes pin that revision and reject approval/calculation after a perimeter change while preserving historical memberships, scopes and runs.
@@ -91,7 +91,7 @@ This file records observed repository state only. The authoritative build contra
 - Financial-package records inherit the source dataset's selected reporting period, optional book and normalized basis, validate period dates and book/basis/currency lineage, persist the context with scope FKs, and include it in the deterministic package hash; legacy direct fixtures remain nullable for additive compatibility.
 - Context-bound adjustment journals inherit and persist the validated source dataset's period, book, basis and currency, reject a book from another period, and preserve that reporting context through management decisions, posting, reversal and source-reflection lineage; PostgreSQL regression coverage passes.
 - Financial-package rendering can be enqueued as a local durable calculation, fenced to the exact package revision, and records the deterministic artifact digest for later byte verification; PostgreSQL regression coverage passes.
-- Exact canonical package artifacts can be exported through pinned deterministic XLSX, DOCX and PDF renderer versions. Formula-shaped client text remains literal in Office exports; no formula, macro, external-link or active PDF content is created. The PDFsharp/MigraDoc profile embeds its OFL font, canonicalizes generated metadata and subset identifiers, preserves Unicode text, paginates on A4 and was visually checked after rasterization. Repeated rendering is byte-identical, and every format is persisted against the exact package revision/generation/hash/framework/template. The staff package page exposes tooltip-guided downloads with non-disruptive status handling. Approved formula-bearing templates remain pending, and live provider/signing/records gates remain independent.
+- Exact canonical package artifacts can be exported through pinned deterministic XLSX, DOCX and PDF renderer versions. Formula-shaped client text remains literal; the workbook preserves exactly one renderer-owned `COUNTA` formula, and runtime validation rejects every other formula, VBA project and external workbook part. The PDFsharp/MigraDoc profile embeds its OFL font, canonicalizes generated metadata and subset identifiers, preserves Unicode text, paginates on A4 and was visually checked after rasterization. Repeated rendering is byte-identical, and every format is persisted against the exact package revision/generation/hash/framework/template. The staff package page exposes tooltip-guided downloads with non-disruptive status handling. Approved business templates remain pending, and live provider/signing/records gates remain independent.
 - Financial-package mappings now require the approved taxonomy statement section; package validation records separate statement cross-cast, accounting-equation, equity/profit, comparative-consistency and note-to-face outcomes, and rendered artifacts include adjusted-snapshot, mapping-version and adjustment-plan lineage identifiers. Exact UTF-8 artifact bytes are persisted with framework/template versions and SHA-256 lineage, and package-review decisions reference that artifact; PostgreSQL financial-statement regressions pass.
 - Legacy financial packages retain their original template, calculation-engine version and calculation hash beside newly versioned canonical packages; the zero-adjustment compatibility regression verifies both identities remain readable without mutation.
 - Legacy trial-balance period links and mapping chart links are backfilled only from a single exact candidate. Zero or multiple matching periods/charts leave the nullable legacy field unchanged and create append-only `AccountingBackfillQuarantine` evidence; the migration-from-previous-schema PostgreSQL fixture verifies both the resolved and quarantined paths.
@@ -106,7 +106,7 @@ This file records observed repository state only. The authoritative build contra
 - Period roll-forward and restatement selection loads use a generation guard and a visible loading state, lock dependent selectors during the request, and prevent older async responses from replacing a newer client/period selection; the existing draft autosave remains the source of unsaved form resilience.
 - The mapping workbench shows immutable current-vs-prior allocation changes, exact-dataset/chart/taxonomy applicability, and bounded token suggestions for unmapped accounts; candidates remain review-only, ambiguous matches are labeled, and no suggestion mutates allocations.
 - Consolidation automatic matches now require an explicit enabled elimination nature (receivable/payable, revenue/expense, dividend or investment/equity); outside-perimeter reviews remain review-only, approved group-only journals remain distinct, and the selected nature participates in the deterministic run manifest. Unsupported legacy natures fail closed.
-- The loopback restore drill now reconciles accounting package/artifact, consolidation scope/run/line and external component-pack manifests, and fails closed on duplicate release-delivery identities; the current rehearsal restored 81 migrations through `20260922071325_QuarantineLegacyAccountingBackfill`; external checkpoint custody and production RPO/RTO remain separate gates.
+- The loopback restore drill now reconciles accounting package/artifact, consolidation scope/run/line and external component-pack manifests, and fails closed on duplicate release-delivery identities; the current rehearsal restored 83 migrations through `20260922083103_EnableLiveMailProviderAuthority`; external checkpoint custody and production RPO/RTO remain separate gates.
 
 ## Remaining local implementation work
 
@@ -121,7 +121,7 @@ These are product gaps, not claims of production readiness:
 - [x] Add controlled entity-period roll-forward with draft book copies and explicit opening-balance evidence.
 - [x] Add the bounded approved foreign-operation translation profile with pinned rate/policy inputs, maker/checker review, source/FX lineage and stale-input blocking.
 - [x] Add deterministic method-specific calculation cores for currency remeasurement/translation separation, acquisition/NCI, ownership changes, nested double-count rejection and asset-transfer/tax elimination.
-- [ ] Enable advanced accounting methods only after approved golden fixtures and complete statement rollforwards; the enabled first profile remains deliberately fail-closed.
+- [ ] Enable advanced accounting methods only after method-owner approval of the candidate complete-statement fixture and methodology; the enabled first profile remains deliberately fail-closed.
 - [x] Link accounting evidence to reviewed audit workpapers and expose account-area UI for the typed specialist schedules.
 - [x] Add the accounting dashboard and cross-workflow navigation for accounting, roll-forward and release handoffs.
 - [x] Include accounting/group dependencies in structured records exports while retaining the existing records-profile and legal-hold gates.
@@ -137,9 +137,9 @@ These are product gaps, not claims of production readiness:
 - [x] Run seeded built-in-browser journeys for the SME, unrelated colliding-code clients, basic group and enabled foreign-operation profile without changing production authentication.
 - [x] Route financial-package rendering through the existing durable operation infrastructure with exact package-revision fencing and deterministic artifact-digest verification.
 - [x] Export controlled adjustment instructions with exact source, period/book, account, journal revision and management-evidence lineage; keep external posting and final artifact gates independent.
-- [x] Export exact-package deterministic XLSX and DOCX artifacts with formula-shaped values retained as literal text, no macro/external-link/formula parts, SHA-256 persistence and scoped Blazor downloads.
+- [x] Export exact-package deterministic XLSX and DOCX artifacts with formula-shaped client values retained as literal text, exactly one renderer-owned workbook formula, no macro/external-link parts, runtime allowlist validation, SHA-256 persistence and scoped Blazor downloads.
 - [x] Export an exact-package deterministic, inactive PDF through PDFsharp/MigraDoc with an embedded OFL font, A4 pagination, SHA-256 persistence, structural tests and rasterized visual verification.
-- [ ] Add approved formula-bearing template fixtures; keep provider, signing and records acceptance independent.
+- [ ] Obtain approval for the business workbook template; keep provider, signing and records acceptance independent.
 - [x] Benchmark representative accounting workloads before production acceptance; the current local workload evidence is recorded above and does not establish production capacity or RPO/RTO.
 - [x] Re-run focused tests, full tests, build, migration drift and restore drill for the current coherent slice; repeat this checklist for the next slice.
 
@@ -171,7 +171,7 @@ dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infr
 scripts/db/restore-drill.sh
 ```
 
-The restore evidence is written to [`docs/evidence/restore-drill-latest.json`](../evidence/restore-drill-latest.json). The latest rehearsal restored 81 migrations through `20260922071325_QuarantineLegacyAccountingBackfill`, reconciled accounting/group manifests and found zero duplicate release-delivery keys; it is loopback-only and explicitly reports that external checkpoint custody and production RPO/RTO were not run.
+The restore evidence is written to [`docs/evidence/restore-drill-latest.json`](../evidence/restore-drill-latest.json). The latest rehearsal restored 83 migrations through `20260922083103_EnableLiveMailProviderAuthority`, reconciled accounting/group manifests and found zero duplicate release-delivery keys; it is loopback-only and explicitly reports that external checkpoint custody and production RPO/RTO were not run.
 
 ## Resume rule
 
