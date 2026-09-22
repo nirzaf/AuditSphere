@@ -701,10 +701,12 @@ Story criteria remain proposed unless marked locally verified in the execution l
 - [x] Backfill client charts/periods only from unambiguous source identity; quarantine ambiguous history rather than invent metadata.
 - [x] Legacy packages keep original hashes/calculation-engine versions; new canonical formats are versioned, with the regression retaining a legacy package beside a newly built canonical package.
 - [x] Test PostgreSQL foreign keys, immutability, access denial, concurrent approval/input replacement and recovery on changed behavior.
-- [ ] Run browser journeys for an SME, unrelated clients with colliding codes, a basic group and the enabled advanced-group profiles.
+- [x] Run browser journeys for an SME, unrelated clients with colliding codes, a basic group and the enabled advanced-group profiles.
 - [x] Record exact commits, methods, fixtures, tests, reviews and actual live-service limitations. A new profile cannot be declared complete because another profile passed.
 
 **Local migration note (2026-09-22):** migration `20260922071325_QuarantineLegacyAccountingBackfill` binds a legacy trial-balance dataset only when one client/date/currency/basis period matches and binds a legacy mapping only when one approved chart is effective for its period. Zero or multiple candidates leave the original nullable link unchanged and create append-only quarantine evidence.
+
+**Local browser note (2026-09-22):** the explicit Development/Test-only browser harness migrates and seeds the isolated `auditsphere_browser` database with one QAR SME, two unrelated clients that each retain account code `1000` in separate chart scopes, a basic QAR group and an enabled USD-to-QAR group with approved rate-set/policy fixtures. Built-in-browser journeys verified client context switching, group/FX status and scope-version rendering at `e595ae0`; the development identity refuses Production startup, cannot coexist with OIDC and rejects non-local return URLs. This is local acceptance evidence only.
 
 ---
 

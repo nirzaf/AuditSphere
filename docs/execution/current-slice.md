@@ -6,12 +6,12 @@ This file records observed repository state only. The authoritative build contra
 
 | Item | Observed value |
 |---|---|
-| Source implementation checkpoint | `master@5074abc` |
-| Remote | `origin/master` includes source checkpoint `5074abc` |
+| Source implementation checkpoint | `master@e595ae0` |
+| Remote | `origin/master` includes source checkpoint `e595ae0` |
 | SDK | .NET 10; repository solution targets `net10.0` |
 | Database | PostgreSQL 18.6 on loopback port 5433 for development only |
-| Build | `dotnet build src/AuditSphereOps.Web/AuditSphereOps.Web.csproj --no-restore --configuration Release` at `5074abc` — passed, 0 warnings/errors |
-| Tests | 220/220 passed, 0 skipped against PostgreSQL 18.6 at `5074abc` |
+| Build | `dotnet build AuditSphereOps.slnx --no-restore --configuration Release` at `e595ae0` — passed, 0 warnings/errors |
+| Tests | 220/220 passed, 0 skipped against PostgreSQL 18.6 at `e595ae0` |
 | Migrations | 81 applied; latest `20260922071325_QuarantineLegacyAccountingBackfill` |
 | Model drift | `dotnet ef migrations has-pending-model-changes` — no changes |
 | Restore drill | `scripts/db/restore-drill.sh` — passed; 81 migrations, accounting/group manifests and release-delivery identities reconciled |
@@ -63,6 +63,7 @@ This file records observed repository state only. The authoritative build contra
 - The accounting evidence queue links reviewed accounting evidence to the exact associated audit workpaper, and the accounting dashboard exposes scoped period status plus roll-forward/restatement handoffs.
 - The accounting evidence queue treats firm-wide, direct-client and exact-engagement grants distinctly, filters every listed evidence source accordingly, and shows the engagement context beside the client and period; engagement-only access cannot widen to sibling engagements.
 - The accounting workspace applies the same direct-client versus exact-engagement boundary to engagement labels, package summaries, imports and sealed-import counts, so a selected context cannot silently widen to sibling engagements.
+- The explicit Development/Test-only browser harness seeds a separate `auditsphere_browser` database with a QAR SME, unrelated clients whose identical account code remains client-scoped, a basic same-currency group and an enabled foreign-operation group. Built-in-browser journeys verified client switching, QAR/USD context, exact group scope versions and approved FX policy/rate status; the fixed development identity refuses Production startup, cannot coexist with OIDC and accepts only local return URLs.
 - Portfolio projections apply the same active firm-wide, direct-client or exact-engagement grant boundary to counters, holds, durable operations, release candidates and financial-package lists; the client index adds scope-bound search and CSV export, engagement-only grants cannot expand to sibling engagements, and actors without an explicit scope see no firm data and receive actionable guidance.
 - The shared layout exposes current-route navigation for the implemented accounting, evidence, package-review, roll-forward, restatement, consolidation and journal workbenches; unsupported workbenches are not presented as links.
 - The accounting workspace pins a selected visible period's firm, group, legal entity, engagement, period, book, currency and package version in a draft-restored context header; the selection is display-only and does not broaden authorization.
@@ -132,6 +133,7 @@ These are product gaps, not claims of production readiness:
 - [x] Bind context-bound financial packages to the selected client reporting period, optional book, basis and currency, including the package hash and period-date validation.
 - [x] Bind context-bound adjustment journals to the validated client reporting period, optional book, basis and currency; reject cross-period books and preserve the context through journal lineage.
 - [x] Validate nonblank GL dimension values against client-scoped definitions and default accounting setup/reporting currency to QAR without defaulting source evidence.
+- [x] Run seeded built-in-browser journeys for the SME, unrelated colliding-code clients, basic group and enabled foreign-operation profile without changing production authentication.
 - [x] Route financial-package rendering through the existing durable operation infrastructure with exact package-revision fencing and deterministic artifact-digest verification.
 - [x] Export controlled adjustment instructions with exact source, period/book, account, journal revision and management-evidence lineage; keep external posting and final artifact gates independent.
 - [x] Export exact-package deterministic XLSX and DOCX artifacts with formula-shaped values retained as literal text, no macro/external-link/formula parts, SHA-256 persistence and scoped Blazor downloads.
