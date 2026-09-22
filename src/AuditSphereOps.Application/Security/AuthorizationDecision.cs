@@ -16,7 +16,8 @@ public sealed record AuthorizationRequest(
   Guid? EngagementId = null,
   string[]? RequiredRoles = null,
   bool InternalOnly = false,
-  bool RequireProfessionalWork = false);
+  bool RequireProfessionalWork = false,
+  bool RequireFirmWide = false);
 
 public static class AuthorizationDecision
 {
@@ -79,6 +80,8 @@ public static class AuthorizationDecision
     var covering = grants.Where(g => CoversScope(g.ClientId, g.EngagementId)).ToList();
     if (covering.Count == 0)
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    if (request.RequireFirmWide && !covering.Any(g => g.ClientId is null && g.EngagementId is null))
+      return CommandResult.Fail(ErrorCodes.ScopeDenied, "Firm-wide administration requires an unscoped grant.");
     if (request.RequiredRoles is { Length: > 0 })
     {
       var allowed = new HashSet<string>(request.RequiredRoles, StringComparer.OrdinalIgnoreCase);

@@ -108,7 +108,10 @@ else
     _actor = await ActorResolver.ResolveAsync();
     if (_actor is not null)
     {
-      _isAdmin = _actor.Roles.Any(x => x is "Administrator" or "Partner");
+      await using var db = await DbFactory.CreateDbContextAsync();
+      _isAdmin = await db.RoleGrants.AsNoTracking().AnyAsync(x =>
+        x.FirmId == _actor.FirmId && x.UserId == _actor.UserId && x.RevokedAt == null &&
+        x.ClientId == null && x.EngagementId == null && x.Role == "Administrator");
       if (_isAdmin)
       {
         await LoadAdminDataAsync();

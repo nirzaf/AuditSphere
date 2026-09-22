@@ -85,6 +85,33 @@ public sealed class AuthorizationDecisionTests
     new(user.Id, user.FirmId, user.SessionEpoch, roles);
 
   [Fact]
+  public async Task FirmAdministration_RequiresExplicitUnscopedAdministratorGrant()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var firmId = Guid.NewGuid();
+    Scope scope;
+    AppUser user;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      scope = await SeedScopeAsync(db, firmId, "ADMIN CLIENT");
+      user = await SeedUserAsync(db, firmId);
+      await GrantAsync(db, firmId, user.Id, "Administrator", scope.ClientId);
+    }
+
+    await using var query = new AuditSphereDbContext(pg.Options);
+    var adapter = new OperationContextAdapter(query);
+    var scoped = await AuthorizationDecision.AuthorizeAsync(adapter, Actor(user, "Administrator"),
+      new AuthorizationRequest(firmId, RequiredRoles: ["Administrator"], InternalOnly: true, RequireFirmWide: true));
+    Assert.False(scoped.Succeeded);
+    Assert.Equal(ErrorCodes.ScopeDenied, scoped.ErrorCode);
+
+    await GrantAsync(query, firmId, user.Id, "Administrator");
+    var firmWide = await AuthorizationDecision.AuthorizeAsync(adapter, Actor(user, "Administrator"),
+      new AuthorizationRequest(firmId, RequiredRoles: ["Administrator"], InternalOnly: true, RequireFirmWide: true));
+    Assert.True(firmWide.Succeeded);
+  }
+
+  [Fact]
   public async Task FirmWideGrant_CanReadOwnDataset_ThroughCommand()
   {
     await using var pg = await PgTestSchema.CreateAsync();
