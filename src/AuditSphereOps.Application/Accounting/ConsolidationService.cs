@@ -1634,13 +1634,24 @@ public static class ConsolidationService
         x.FirmId == scope.FirmId && x.Id == policyId && x.Status == AccountingWorkflowStates.Approved, ct);
       var rateSet = await db.ExchangeRateSetVersions.AsNoTracking().SingleOrDefaultAsync(x =>
         x.FirmId == scope.FirmId && x.Id == rateSetId && x.Status == AccountingWorkflowStates.Approved, ct);
-      if (policy is null || rateSet is null ||
+      if (policy is null || rateSet is null)
+        return CommandResult.Fail(ErrorCodes.ManifestMismatch,
+          "Foreign-currency advanced input is outside the approved policy or rate set lineage.");
+      if (
           !string.Equals(functionalCurrency, policy.FunctionalCurrency, StringComparison.OrdinalIgnoreCase) ||
           !string.Equals(presentationCurrency, policy.PresentationCurrency, StringComparison.OrdinalIgnoreCase) ||
           !string.Equals(presentationCurrency, scope.ReportingCurrency, StringComparison.OrdinalIgnoreCase) ||
+          !string.Equals(scope.TranslationRateType, policy.ClosingRateRule, StringComparison.OrdinalIgnoreCase) ||
           MoneyPolicy.Normalize(openingReserve) != MoneyPolicy.Normalize(scope.OpeningTranslationReserve))
         return CommandResult.Fail(ErrorCodes.ManifestMismatch,
           "Foreign-currency advanced input is outside the approved policy, reporting currency or opening reserve lineage.");
+      var componentCurrencies = await db.ConsolidationComponents.AsNoTracking()
+        .Where(x => x.FirmId == scope.FirmId && x.GroupId == scope.GroupId && x.ScopeVersionId == scope.Id)
+        .Select(x => x.Currency).Distinct().ToListAsync(ct);
+      if (componentCurrencies.Any(x => !string.Equals(x, policy.FunctionalCurrency, StringComparison.OrdinalIgnoreCase) &&
+          !string.Equals(x, policy.PresentationCurrency, StringComparison.OrdinalIgnoreCase)))
+        return CommandResult.Fail(ErrorCodes.ManifestMismatch,
+          "Foreign-currency advanced components must use the approved functional or presentation currency.");
 
       using var sourceManifest = JsonDocument.Parse(schedule.SourceManifestJson);
       if (!sourceManifest.RootElement.TryGetProperty("fxRates", out var fxRates) ||
