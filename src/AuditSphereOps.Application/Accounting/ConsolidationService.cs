@@ -212,8 +212,10 @@ public static class ConsolidationService
   {
     var currency = (string.IsNullOrWhiteSpace(request.ReportingCurrency) ? AccountingDefaults.DefaultCurrency : request.ReportingCurrency).Trim().ToUpperInvariant();
     var method = request.Method.Trim().ToUpperInvariant();
+    var advancedMethod = AdvancedConsolidationMethods.All.Contains(method);
     if (request.GroupId == Guid.Empty || request.PeriodId == Guid.Empty || currency.Length != 3 ||
-        currency.Any(c => c is < 'A' or > 'Z') || method is not (ConsolidationCalculator.RestrictedMethod or ConsolidationCalculator.ForeignOperationMethod) ||
+        currency.Any(c => c is < 'A' or > 'Z') ||
+        (method is not (ConsolidationCalculator.RestrictedMethod or ConsolidationCalculator.ForeignOperationMethod) && !advancedMethod) ||
         string.IsNullOrWhiteSpace(request.OpeningBasis))
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Only the approved bounded consolidation profiles are enabled.");
     var auth = await GroupAuthAsync(db, actor, request.GroupId, PreparerRoles, ct);
@@ -315,7 +317,9 @@ public static class ConsolidationService
       return CommandResult<Guid>.Fail(ErrorCodes.ProtectedState, "The perimeter is no longer collecting components.");
     if (!await ConsolidationScopeGuards.IsCurrentAsync(db, actor.FirmId, scope.GroupId, scope.GroupRevision, ct))
       return CommandResult<Guid>.Fail(ErrorCodes.GenerationStale, "The group perimeter changed; create a new scope version.");
-    if (request.OwnershipPercent != 100m || !request.ControlMethod.Equals("CONTROLLED", StringComparison.OrdinalIgnoreCase))
+    var advancedMethod = AdvancedConsolidationMethods.All.Contains(scope.Method);
+    if ((!advancedMethod && request.OwnershipPercent != 100m) || request.OwnershipPercent is < 0m or > 100m ||
+        !request.ControlMethod.Equals("CONTROLLED", StringComparison.OrdinalIgnoreCase))
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The restricted profile requires a fully-owned controlled component.");
     var membership = await db.ClientGroupMemberships.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId && x.GroupId == scope.GroupId &&
       x.ClientId == request.ClientId && x.Status == AccountingWorkflowStates.Approved && x.EffectiveTo == null, ct);
@@ -354,7 +358,7 @@ public static class ConsolidationService
       ClientId = request.ClientId, EngagementId = request.EngagementId, PackageId = package.Id,
       PackageHash = package.CalculationHash, PeriodBasis = request.PeriodBasis.Trim(),
       TaxonomyVersion = request.TaxonomyVersion.Trim(), MappingVersion = request.MappingVersion.Trim(),
-      Currency = package.Currency, OwnershipPercent = 100m, ControlMethod = "CONTROLLED",
+      Currency = package.Currency, OwnershipPercent = MoneyPolicy.Normalize(request.OwnershipPercent), ControlMethod = request.ControlMethod.Trim().ToUpperInvariant(),
       SubmittedByUserId = actor.UserId, SubmittedAt = DateTimeOffset.UtcNow
     };
     db.ConsolidationComponents.Add(component);
@@ -679,10 +683,11 @@ public static class ConsolidationService
     var ownershipEdges = await db.OwnershipInterestVersions.AsNoTracking().Where(x =>
       x.FirmId == actor.FirmId && x.GroupId == scope.GroupId && x.ScopeVersionId == scope.Id &&
       x.Status == AccountingWorkflowStates.Approved).Select(x => new OwnershipEdge(x.ParentClientId, x.ChildClientId,
-        x.EffectiveFrom, x.EffectiveTo)).ToListAsync(ct);
+      x.EffectiveFrom, x.EffectiveTo)).ToListAsync(ct);
+    var advancedMethod = AdvancedConsolidationMethods.All.Contains(scope.Method);
     if (HasOwnershipCycle(ownershipEdges))
       return CommandResult.Fail(ErrorCodes.GateBlocked, "The consolidation perimeter contains a circular ownership hierarchy.");
-    if (ownershipEdges.Count > 0)
+    if (ownershipEdges.Count > 0 && !advancedMethod)
       return CommandResult.Fail(ErrorCodes.GateBlocked,
         "Ownership hierarchy data is recorded but intermediate and nested consolidation is not enabled for this calculation profile.");
     if (!await HasMethodOwnerAcceptanceAsync(db, actor.FirmId, scope.GroupId, scope.Method, ct))
@@ -693,7 +698,7 @@ public static class ConsolidationService
     var components = await db.ConsolidationComponents.Where(x => x.FirmId == actor.FirmId && x.ScopeVersionId == scope.Id).ToListAsync(ct);
     if (memberships.Count == 0 || components.Count != memberships.Distinct().Count() ||
         memberships.Any(x => components.All(c => c.ClientId != x)) || components.Any(x => x.Status != AccountingWorkflowStates.Approved ||
-          x.OwnershipPercent != 100m || x.ControlMethod != "CONTROLLED"))
+          (!advancedMethod && (x.OwnershipPercent != 100m || x.ControlMethod != "CONTROLLED"))))
       return CommandResult.Fail(ErrorCodes.GateBlocked, "Every approved perimeter member needs one approved compatible component package.");
     if (scope.Method == ConsolidationCalculator.RestrictedMethod && components.Any(x => x.Currency != scope.ReportingCurrency))
       return CommandResult.Fail(ErrorCodes.GateBlocked, "The restricted profile requires same-currency component packages.");
@@ -932,6 +937,8 @@ public static class ConsolidationService
       return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
     if (scope.Status != AccountingWorkflowStates.Approved)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "An approved perimeter is required before calculation.");
+    if (AdvancedConsolidationMethods.All.Contains(scope.Method))
+      return await RunAdvancedProfileAsync(db, actor, scope, ct);
     var build = await BuildCalculationAsync(db, actor.FirmId, scope, ct);
     if (!build.Succeeded)
       return CommandResult<Guid>.Fail(build.ErrorCode!, build.Message!);
@@ -970,6 +977,119 @@ public static class ConsolidationService
     }
     await db.SaveChangesAsync(ct);
     return CommandResult<Guid>.Ok(run.Id);
+  }
+
+  public static async Task<CommandResult<Guid>> RunAdvancedProfileAsync(
+    IClientAccountingDbContext db, ActorContext actor, ConsolidationScopeVersion scope,
+    CancellationToken ct = default)
+  {
+    if (!AdvancedConsolidationMethods.All.Contains(scope.Method))
+      return CommandResult<Guid>.Fail(ErrorCodes.Accounting.MappingInvalid, "The selected scope is not an advanced consolidation profile.");
+    if (!await HasMethodOwnerAcceptanceAsync(db, actor.FirmId, scope.GroupId, scope.Method, ct))
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "An independently accepted method-owner capability is required before advanced execution.");
+    if (!await ConsolidationScopeGuards.IsCurrentAsync(db, actor.FirmId, scope.GroupId, scope.GroupRevision, ct))
+      return CommandResult<Guid>.Fail(ErrorCodes.GenerationStale, "The group perimeter changed; rebuild the advanced scope.");
+
+    var schedule = await db.AdvancedConsolidationMethodSchedules.AsNoTracking().Where(x =>
+      x.FirmId == actor.FirmId && x.GroupId == scope.GroupId && x.ScopeVersionId == scope.Id &&
+      x.GroupRevision == scope.GroupRevision && x.Method == scope.Method &&
+      x.Status == AdvancedConsolidationMethodScheduleStates.Approved)
+      .OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id).FirstOrDefaultAsync(ct);
+    if (schedule is null)
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "An approved current advanced method schedule is required before execution.");
+
+    var components = await db.ConsolidationComponents.AsNoTracking().Where(x =>
+      x.FirmId == actor.FirmId && x.GroupId == scope.GroupId && x.ScopeVersionId == scope.Id).OrderBy(x => x.Id).ToListAsync(ct);
+    if (components.Count == 0 || components.Any(x => x.Status != AccountingWorkflowStates.Approved))
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Every advanced profile needs approved component reporting packs.");
+    foreach (var component in components)
+    {
+      if (component.SourceType == ConsolidationComponentSources.InternalPackage)
+      {
+        var package = component.PackageId is { } packageId
+          ? await db.FinancialPackages.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == packageId, ct)
+          : null;
+        if (package is null || package.Status != AccountingPackageStates.PackageValidated || package.CalculationHash != component.PackageHash)
+          return CommandResult<Guid>.Fail(ErrorCodes.GenerationStale, "An advanced component package changed; rebuild the advanced profile.");
+      }
+      else
+      {
+        var pack = component.ExternalComponentPackId is { } packId
+          ? await db.ExternalComponentPacks.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == packId, ct)
+          : null;
+        if (pack is null || pack.Status != ExternalComponentPackStates.Approved ||
+            pack.ReconciliationStatus != ExternalComponentReconciliationStates.Reconciled || pack.PackDigest != component.PackageHash)
+          return CommandResult<Guid>.Fail(ErrorCodes.GenerationStale, "An advanced external component pack changed; rebuild the advanced profile.");
+      }
+    }
+
+    if (!AdvancedConsolidationExecutionCalculator.TryCalculate(scope.Method, schedule.InputSnapshotJson,
+        out var calculation, out var calculationError))
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
+        $"The advanced current/comparative statement verification failed: {calculationError}");
+
+    var inputManifest = JsonSerializer.Serialize(new
+    {
+      scope.Id, scope.GroupId, scope.GroupRevision, scope.Method, scope.ReportingCurrency,
+      ScheduleId = schedule.Id, ScheduleDigest = schedule.InputSnapshotDigest,
+      Components = components.Select(x => new { x.Id, x.ClientId, x.PackageId, x.ExternalComponentPackId, x.PackageHash, x.Currency })
+    });
+    var inputDigest = Hashing.Sha256Hex(inputManifest);
+    var existing = await db.AdvancedConsolidationExecutions.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.FirmId == actor.FirmId && x.ScopeVersionId == scope.Id && x.Method == scope.Method && x.InputManifestDigest == inputDigest, ct);
+    if (existing is not null)
+      return CommandResult<Guid>.Ok(existing.Id);
+
+    var execution = new AdvancedConsolidationExecution
+    {
+      Id = Guid.CreateVersion7(), FirmId = actor.FirmId, GroupId = scope.GroupId, ScopeVersionId = scope.Id,
+      ScheduleId = schedule.Id, GroupRevision = scope.GroupRevision, Method = scope.Method, Framework = schedule.Framework,
+      EngineVersion = AdvancedConsolidationExecutionCalculator.EngineVersion, InputManifestJson = inputManifest,
+      InputManifestDigest = inputDigest, ComparativeStatementJson = calculation!.ComparativeStatementJson,
+      ComparativeStatementDigest = Hashing.Sha256Hex(calculation.ComparativeStatementJson),
+      CurrentStatementJson = calculation.CurrentStatementJson,
+      CurrentStatementDigest = Hashing.Sha256Hex(calculation.CurrentStatementJson),
+      OutputManifest = calculation.OutputManifest, OutputDigest = calculation.OutputDigest,
+      ComparativeSignedTotal = calculation.ComparativeSignedTotal, CurrentSignedTotal = calculation.CurrentSignedTotal,
+      Status = AdvancedConsolidationExecutionStates.Verified, CreatedByUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
+    };
+    db.AdvancedConsolidationExecutions.Add(execution);
+    await db.SaveChangesAsync(ct);
+    return CommandResult<Guid>.Ok(execution.Id);
+  }
+
+  public static async Task<CommandResult> ApproveAdvancedExecutionAsync(
+    IClientAccountingDbContext db, ActorContext actor, Guid executionId, CancellationToken ct = default)
+  {
+    var execution = await db.AdvancedConsolidationExecutions.SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == executionId, ct);
+    if (execution is null)
+      return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var auth = await GroupAuthAsync(db, actor, execution.GroupId, ReviewerRoles, ct);
+    if (!auth.Succeeded)
+      return auth;
+    if (execution.Status != AdvancedConsolidationExecutionStates.Verified || execution.CreatedByUserId == actor.UserId)
+      return CommandResult.Fail(ErrorCodes.Accounting.MappingInvalid, "Only a separate reviewer can approve a verified advanced execution.");
+    var scope = await db.ConsolidationScopeVersions.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.FirmId == actor.FirmId && x.Id == execution.ScopeVersionId && x.GroupId == execution.GroupId, ct);
+    var schedule = await db.AdvancedConsolidationMethodSchedules.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.FirmId == actor.FirmId && x.Id == execution.ScheduleId && x.GroupId == execution.GroupId &&
+      x.ScopeVersionId == execution.ScopeVersionId, ct);
+    if (scope is null || schedule is null || scope.Status != AccountingWorkflowStates.Approved ||
+        scope.GroupRevision != execution.GroupRevision || schedule.GroupRevision != execution.GroupRevision ||
+        schedule.Status != AdvancedConsolidationMethodScheduleStates.Approved ||
+        !AdvancedConsolidationExecutionCalculator.TryCalculate(schedule.Method, schedule.InputSnapshotJson, out var calculation, out _))
+      return CommandResult.Fail(ErrorCodes.GenerationStale, "The advanced schedule or scope changed; rerun the execution.");
+    if (!await ConsolidationScopeGuards.IsCurrentAsync(db, actor.FirmId, execution.GroupId, execution.GroupRevision, ct))
+      return CommandResult.Fail(ErrorCodes.GenerationStale, "The group perimeter changed; rerun the advanced execution.");
+    if (Hashing.Sha256Hex(calculation!.ComparativeStatementJson) != execution.ComparativeStatementDigest ||
+        Hashing.Sha256Hex(calculation.CurrentStatementJson) != execution.CurrentStatementDigest ||
+        calculation.OutputDigest != execution.OutputDigest || calculation.OutputManifest != execution.OutputManifest)
+      return CommandResult.Fail(ErrorCodes.GenerationStale, "The advanced statement evidence changed; rerun the execution.");
+    execution.Status = AdvancedConsolidationExecutionStates.Approved;
+    execution.ApprovedByUserId = actor.UserId;
+    execution.ApprovedAt = DateTimeOffset.UtcNow;
+    await db.SaveChangesAsync(ct);
+    return CommandResult.Ok();
   }
 
   public static async Task<CommandResult<Guid>> CreateAdvancedMethodScheduleAsync(

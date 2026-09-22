@@ -75,14 +75,14 @@ else
 
   <section class="card" id="advanced" aria-labelledby="advanced-heading">
     <h2 id="advanced-heading">Advanced schedules</h2>
-    <p class="muted">Advanced-method schedules are source-bound, maker/checker-reviewed inputs. A complete approved schedule is necessary but does not enable an advanced profile until the corresponding statement and comparative rollforward verification is complete.</p>
+    <p class="muted">Advanced-method schedules are source-bound, maker/checker-reviewed inputs. A complete approved schedule is necessary but does not enable an advanced profile until balanced current/comparative statement evidence is verified and separately approved.</p>
     <div class="table-wrap"><table>
       <caption class="sr-only">Advanced consolidation schedule readiness</caption>
-      <thead><tr><th scope="col">Group / scope</th><th scope="col" title="The selected consolidation method for this scope">Method</th><th scope="col" title="Persisted method schedules awaiting independent approval">Submitted</th><th scope="col" title="Schedules approved by a separate reviewer and still pinned to the scope revision">Approved</th><th scope="col" title="Readiness reflects only schedule evidence, not production profile enablement">Readiness</th></tr></thead>
+      <thead><tr><th scope="col">Group / scope</th><th scope="col" title="The selected consolidation method for this scope">Method</th><th scope="col" title="Persisted method schedules awaiting independent approval">Submitted</th><th scope="col" title="Schedules approved by a separate reviewer and still pinned to the scope revision">Approved</th><th scope="col" title="Verified and approved statement executions for the pinned schedule">Executions</th><th scope="col" title="Readiness requires the schedule, balanced statements and separate review">Readiness</th></tr></thead>
       <tbody>
       @foreach (var scope in AllScopes)
       {
-        <tr><td>@scope.GroupName · v@(scope.Version)</td><td><code>@scope.Method</code></td><td>@scope.AdvancedScheduleCount</td><td>@scope.ApprovedAdvancedScheduleCount</td><td><span class="status" title="@scope.AdvancedScheduleGuidance">@scope.AdvancedScheduleStatus</span></td></tr>
+        <tr><td>@scope.GroupName · v@(scope.Version)</td><td><code>@scope.Method</code></td><td>@scope.AdvancedScheduleCount</td><td>@scope.ApprovedAdvancedScheduleCount</td><td>@scope.AdvancedExecutionCount / @scope.ApprovedAdvancedExecutionCount</td><td><span class="status" title="@scope.AdvancedScheduleGuidance">@scope.AdvancedScheduleStatus</span></td></tr>
       }
       </tbody>
     </table></div>
@@ -127,6 +127,8 @@ else
     public int ApprovedExternalPackCount { get; init; }
     public int AdvancedScheduleCount { get; init; }
     public int ApprovedAdvancedScheduleCount { get; init; }
+    public int AdvancedExecutionCount { get; init; }
+    public int ApprovedAdvancedExecutionCount { get; init; }
     public string AdvancedScheduleStatus { get; init; } = string.Empty;
     public string AdvancedScheduleGuidance { get; init; } = string.Empty;
     public string RateSetStatus { get; init; } = string.Empty;
@@ -171,6 +173,9 @@ else
       var advancedScheduleCounts = await db.AdvancedConsolidationMethodSchedules.AsNoTracking().Where(x => x.FirmId == actor.FirmId && groupIds.Contains(x.GroupId))
         .GroupBy(x => x.ScopeVersionId).Select(x => new { ScopeId = x.Key, Count = x.Count(), Approved = x.Count(y => y.Status == AdvancedConsolidationMethodScheduleStates.Approved) })
         .ToDictionaryAsync(x => x.ScopeId);
+      var advancedExecutionCounts = await db.AdvancedConsolidationExecutions.AsNoTracking().Where(x => x.FirmId == actor.FirmId && groupIds.Contains(x.GroupId))
+        .GroupBy(x => x.ScopeVersionId).Select(x => new { ScopeId = x.Key, Count = x.Count(), Approved = x.Count(y => y.Status == AdvancedConsolidationExecutionStates.Approved) })
+        .ToDictionaryAsync(x => x.ScopeId);
       var journalCounts = await db.ConsolidationJournals.AsNoTracking().Where(x => x.FirmId == actor.FirmId && groupIds.Contains(x.GroupId))
         .GroupBy(x => x.ScopeVersionId).Select(x => new { ScopeId = x.Key, Count = x.Count(), Approved = x.Count(y => y.Status == AccountingWorkflowStates.Approved) })
         .ToDictionaryAsync(x => x.ScopeId);
@@ -187,9 +192,11 @@ else
           var components = componentCounts.GetValueOrDefault(x.Id);
           var packs = packCounts.GetValueOrDefault(x.Id);
           var advancedSchedules = advancedScheduleCounts.GetValueOrDefault(x.Id);
+          var advancedExecutions = advancedExecutionCounts.GetValueOrDefault(x.Id);
           var advancedRequired = AdvancedConsolidationMethods.All.Contains(x.Method);
           var advancedStatus = !advancedRequired ? "NOT_APPLICABLE" : advancedSchedules is null ? "REQUIRED" :
-            advancedSchedules.Approved == advancedSchedules.Count && advancedSchedules.Count > 0 ? "APPROVED" : "REVIEW_REQUIRED";
+            advancedSchedules.Approved != advancedSchedules.Count || advancedSchedules.Count == 0 ? "REVIEW_REQUIRED" :
+            advancedExecutions is null ? "EXECUTION_REQUIRED" : advancedExecutions.Approved > 0 ? "APPROVED" : "EXECUTION_REVIEW_REQUIRED";
           var journals = journalCounts.GetValueOrDefault(x.Id);
           return new ScopeRow
           {
@@ -208,9 +215,11 @@ else
             ApprovedExternalPackCount = packs?.Approved ?? 0,
             AdvancedScheduleCount = advancedSchedules?.Count ?? 0,
             ApprovedAdvancedScheduleCount = advancedSchedules?.Approved ?? 0,
+            AdvancedExecutionCount = advancedExecutions?.Count ?? 0,
+            ApprovedAdvancedExecutionCount = advancedExecutions?.Approved ?? 0,
             AdvancedScheduleStatus = advancedStatus,
             AdvancedScheduleGuidance = advancedRequired
-              ? "Schedule status only; the advanced calculation profile remains disabled until complete statement and comparative verification passes."
+              ? "Readiness requires an approved current/comparative statement execution and separate reviewer approval; local evidence does not prove methodology or live acceptance."
               : "The selected bounded profile does not require an advanced-method schedule.",
             RateSetStatus = x.ExchangeRateSetVersionId is { } rateSetId ? rateSets.GetValueOrDefault(rateSetId, "MISSING") : "SAME_CURRENCY_PROFILE",
             TranslationPolicyStatus = x.TranslationPolicyVersionId is { } policyId ? translationPolicies.GetValueOrDefault(policyId, "MISSING") : "NOT_CONFIGURED",

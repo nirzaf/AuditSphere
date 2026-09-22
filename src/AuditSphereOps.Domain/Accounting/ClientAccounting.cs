@@ -964,6 +964,41 @@ public sealed class AdvancedConsolidationMethodSchedule
   public DateTimeOffset? ApprovedAt { get; set; }
 }
 
+/// <summary>Immutable verified output for one approved advanced-method schedule.</summary>
+public sealed class AdvancedConsolidationExecution
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid GroupId { get; set; }
+  public Guid ScopeVersionId { get; set; }
+  public Guid ScheduleId { get; set; }
+  public long GroupRevision { get; set; }
+  public string Method { get; set; } = string.Empty;
+  public string Framework { get; set; } = string.Empty;
+  public string EngineVersion { get; set; } = string.Empty;
+  public string InputManifestJson { get; set; } = string.Empty;
+  public string InputManifestDigest { get; set; } = string.Empty;
+  public string ComparativeStatementJson { get; set; } = string.Empty;
+  public string ComparativeStatementDigest { get; set; } = string.Empty;
+  public string CurrentStatementJson { get; set; } = string.Empty;
+  public string CurrentStatementDigest { get; set; } = string.Empty;
+  public string OutputManifest { get; set; } = string.Empty;
+  public string OutputDigest { get; set; } = string.Empty;
+  public decimal ComparativeSignedTotal { get; set; }
+  public decimal CurrentSignedTotal { get; set; }
+  public string Status { get; set; } = AdvancedConsolidationExecutionStates.Verified;
+  public Guid CreatedByUserId { get; set; }
+  public Guid? ApprovedByUserId { get; set; }
+  public DateTimeOffset CreatedAt { get; set; }
+  public DateTimeOffset? ApprovedAt { get; set; }
+}
+
+public static class AdvancedConsolidationExecutionStates
+{
+  public const string Verified = "VERIFIED";
+  public const string Approved = "APPROVED";
+}
+
 public static class AdvancedConsolidationMethodScheduleStates
 {
   public const string Submitted = "SUBMITTED";

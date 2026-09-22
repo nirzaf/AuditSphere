@@ -133,6 +133,7 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
   public DbSet<ConsolidationJournal> ConsolidationJournals => Set<ConsolidationJournal>();
   public DbSet<ConsolidationJournalLine> ConsolidationJournalLines => Set<ConsolidationJournalLine>();
   public DbSet<AdvancedConsolidationMethodSchedule> AdvancedConsolidationMethodSchedules => Set<AdvancedConsolidationMethodSchedule>();
+  public DbSet<AdvancedConsolidationExecution> AdvancedConsolidationExecutions => Set<AdvancedConsolidationExecution>();
   public DbSet<ConsolidationRun> ConsolidationRuns => Set<ConsolidationRun>();
   public DbSet<ConsolidationRunLine> ConsolidationRunLines => Set<ConsolidationRunLine>();
   public DbSet<ExchangeRateSetVersion> ExchangeRateSetVersions => Set<ExchangeRateSetVersion>();
@@ -2200,6 +2201,8 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     methodSchedule.Property(x => x.Status).HasMaxLength(30);
     methodSchedule.HasIndex(x => new { x.FirmId, x.ScopeVersionId, x.Method, x.InputSnapshotDigest })
       .IsUnique().HasDatabaseName("ux_advanced_method_schedule_input");
+    methodSchedule.HasAlternateKey(x => new { x.FirmId, x.GroupId, x.ScopeVersionId, x.Id })
+      .HasName("ak_advanced_method_schedules_scope_id");
     methodSchedule.ToTable("advanced_consolidation_method_schedules", t => t.HasCheckConstraint("ck_advanced_method_schedule_values",
       "group_revision >= 1 AND method IN ('FOREIGN_CURRENCY_RESERVE_V1','ACQUISITION_NCI_V1','OWNERSHIP_CHANGE_V1','NESTED_GROUP_V1','ASSET_TRANSFER_ELIMINATION_V1') AND length(trim(framework)) > 0 AND length(trim(source_manifest_json)) > 0 AND source_manifest_digest ~ '^[0-9a-f]{64}$' AND length(trim(input_snapshot_json)) > 0 AND input_snapshot_digest ~ '^[0-9a-f]{64}$' AND status IN ('SUBMITTED','APPROVED')"));
     methodSchedule.HasOne<ClientGroup>().WithMany().HasForeignKey(x => new { x.FirmId, x.GroupId })
@@ -2207,6 +2210,32 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     methodSchedule.HasOne<ConsolidationScopeVersion>().WithMany().HasForeignKey(x => new { x.FirmId, x.GroupId, x.ScopeVersionId })
       .HasPrincipalKey(x => new { x.FirmId, x.GroupId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     methodSchedule.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.CreatedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var advancedExecution = b.Entity<AdvancedConsolidationExecution>();
+    advancedExecution.Property(x => x.Method).HasMaxLength(100);
+    advancedExecution.Property(x => x.Framework).HasMaxLength(100);
+    advancedExecution.Property(x => x.EngineVersion).HasMaxLength(100);
+    advancedExecution.Property(x => x.InputManifestJson).HasMaxLength(30000);
+    advancedExecution.Property(x => x.InputManifestDigest).HasMaxLength(64);
+    advancedExecution.Property(x => x.ComparativeStatementJson).HasMaxLength(30000);
+    advancedExecution.Property(x => x.ComparativeStatementDigest).HasMaxLength(64);
+    advancedExecution.Property(x => x.CurrentStatementJson).HasMaxLength(30000);
+    advancedExecution.Property(x => x.CurrentStatementDigest).HasMaxLength(64);
+    advancedExecution.Property(x => x.OutputManifest).HasMaxLength(10000);
+    advancedExecution.Property(x => x.OutputDigest).HasMaxLength(64);
+    advancedExecution.Property(x => x.Status).HasMaxLength(30);
+    advancedExecution.HasIndex(x => new { x.FirmId, x.ScopeVersionId, x.Method, x.InputManifestDigest })
+      .IsUnique().HasDatabaseName("ux_advanced_consolidation_execution");
+    advancedExecution.ToTable("advanced_consolidation_executions", t => t.HasCheckConstraint("ck_advanced_consolidation_execution_values",
+      "group_revision >= 1 AND method IN ('FOREIGN_CURRENCY_RESERVE_V1','ACQUISITION_NCI_V1','OWNERSHIP_CHANGE_V1','NESTED_GROUP_V1','ASSET_TRANSFER_ELIMINATION_V1') AND length(trim(framework)) > 0 AND length(trim(engine_version)) > 0 AND length(trim(output_manifest)) > 0 AND input_manifest_digest ~ '^[0-9a-f]{64}$' AND comparative_statement_digest ~ '^[0-9a-f]{64}$' AND current_statement_digest ~ '^[0-9a-f]{64}$' AND output_digest ~ '^[0-9a-f]{64}$' AND status IN ('VERIFIED','APPROVED')"));
+    advancedExecution.HasOne<ClientGroup>().WithMany().HasForeignKey(x => new { x.FirmId, x.GroupId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    advancedExecution.HasOne<ConsolidationScopeVersion>().WithMany().HasForeignKey(x => new { x.FirmId, x.GroupId, x.ScopeVersionId })
+      .HasPrincipalKey(x => new { x.FirmId, x.GroupId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    advancedExecution.HasOne<AdvancedConsolidationMethodSchedule>().WithMany().HasForeignKey(x => new { x.FirmId, x.GroupId, x.ScopeVersionId, x.ScheduleId })
+      .HasPrincipalKey(x => new { x.FirmId, x.GroupId, x.ScopeVersionId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    advancedExecution.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.CreatedByUserId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
 
     var journalLine = b.Entity<ConsolidationJournalLine>();

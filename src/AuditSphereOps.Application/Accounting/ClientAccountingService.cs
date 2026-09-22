@@ -772,9 +772,11 @@ public static class ClientAccountingService
       return CommandResult<Guid>.Fail(ErrorCodes.Accounting.MappingInvalid,
         "A capability needs a supported service kind and its matching client or group scope.");
     var currency = (string.IsNullOrWhiteSpace(request.ReportingCurrency) ? AccountingDefaults.DefaultCurrency : request.ReportingCurrency).Trim().ToUpperInvariant();
+    var consolidationMethod = request.ConsolidationMethod.Trim().ToUpperInvariant();
     if (currency.Length != 3 || currency.Any(c => c is < 'A' or > 'Z') ||
-        (!string.IsNullOrWhiteSpace(request.ConsolidationMethod) &&
-         request.ConsolidationMethod.Trim().ToUpperInvariant() is not (ConsolidationCalculator.RestrictedMethod or ConsolidationCalculator.ForeignOperationMethod)))
+        (!string.IsNullOrWhiteSpace(consolidationMethod) &&
+         consolidationMethod is not (ConsolidationCalculator.RestrictedMethod or ConsolidationCalculator.ForeignOperationMethod) &&
+         !AdvancedConsolidationMethods.All.Contains(consolidationMethod)))
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The requested accounting or consolidation method is not enabled.");
     if (serviceKind is AccountingCapabilityServiceKinds.EntityReporting or AccountingCapabilityServiceKinds.AuditOnly)
     {
@@ -797,7 +799,7 @@ public static class ClientAccountingService
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = request.ClientId, GroupId = request.GroupId,
       ServiceKind = serviceKind, ServiceRoute = serviceRoute, Framework = request.Framework.Trim(), Edition = request.Edition.Trim(),
       PeriodRule = request.PeriodRule.Trim(), ReportingCurrency = currency, AccountingMethod = request.AccountingMethod.Trim(),
-      ConsolidationMethod = request.ConsolidationMethod.Trim().ToUpperInvariant(), ReviewHierarchy = request.ReviewHierarchy.Trim(),
+      ConsolidationMethod = consolidationMethod, ReviewHierarchy = request.ReviewHierarchy.Trim(),
       TemplateFamily = request.TemplateFamily.Trim(), CreatedByUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
     };
     db.AccountingCapabilityProfiles.Add(profile);

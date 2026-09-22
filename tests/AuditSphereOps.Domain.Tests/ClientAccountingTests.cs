@@ -1670,6 +1670,53 @@ public sealed class ClientAccountingTests
   }
 
   [Fact]
+  [Trait("Profile", "Unit")]
+  public void AdvancedConsolidationExecution_RequiresBalancedCurrentAndComparativeEvidence()
+  {
+    const string valid = """
+      {
+        "acquisitionDate":"2026-01-01",
+        "controlDate":"2026-01-15",
+        "consideration":120,
+        "nciAtAcquisition":20,
+        "fairValueNetAssets":100,
+        "openingReserves":8,
+        "fairValueAdjustments":10,
+        "nciOpening":20,
+        "nciProfit":5,
+        "nciOci":2,
+        "nciDistributions":3,
+        "statementLines":[
+          {"code":"NET_ASSETS","comparativeAmount":20,"currentAmount":14},
+          {"code":"NCI","comparativeAmount":-20,"currentAmount":-24},
+          {"code":"GOODWILL","comparativeAmount":0,"currentAmount":30},
+          {"code":"PARENT_EQUITY","comparativeAmount":0,"currentAmount":-20}
+        ]
+      }
+      """;
+
+    Assert.True(AdvancedConsolidationExecutionCalculator.TryCalculate(
+      AdvancedConsolidationMethods.AcquisitionNci, valid, out var calculation, out var error), error);
+    Assert.NotNull(calculation);
+    Assert.Equal(0m, calculation!.ComparativeSignedTotal);
+    Assert.Equal(0m, calculation.CurrentSignedTotal);
+    Assert.Equal(Hashing.Sha256Hex(calculation.OutputManifest), calculation.OutputDigest);
+    Assert.Contains("GOODWILL", calculation.CurrentStatementJson, StringComparison.Ordinal);
+
+    var unbalanced = valid.Replace("\"PARENT_EQUITY\",\"comparativeAmount\":0,\"currentAmount\":-20", "\"PARENT_EQUITY\",\"comparativeAmount\":0,\"currentAmount\":-19", StringComparison.Ordinal);
+    Assert.False(AdvancedConsolidationExecutionCalculator.TryCalculate(
+      AdvancedConsolidationMethods.AcquisitionNci, unbalanced, out _, out var unbalancedError));
+    Assert.Contains("balance", unbalancedError, StringComparison.OrdinalIgnoreCase);
+
+    var missingMethodLine = valid
+      .Replace("{\"code\":\"GOODWILL\",\"comparativeAmount\":0,\"currentAmount\":30},", string.Empty, StringComparison.Ordinal)
+      .Replace("\"PARENT_EQUITY\",\"comparativeAmount\":0,\"currentAmount\":-20", "\"PARENT_EQUITY\",\"comparativeAmount\":0,\"currentAmount\":10", StringComparison.Ordinal);
+    Assert.False(AdvancedConsolidationExecutionCalculator.TryCalculate(
+      AdvancedConsolidationMethods.AcquisitionNci, missingMethodLine, out _, out var missingLineError));
+    Assert.Contains("GOODWILL", missingLineError, StringComparison.Ordinal);
+  }
+
+  [Fact]
   [Trait("Profile", "Database")]
   public async Task AdvancedMethodSchedules_AreCanonicalScopedAndIdempotent()
   {
@@ -1731,6 +1778,77 @@ public sealed class ClientAccountingTests
       Assert.True(approved.Succeeded, approved.Message);
       Assert.Equal(AdvancedConsolidationMethodScheduleStates.Approved,
         await db.AdvancedConsolidationMethodSchedules.Where(x => x.Id == validCreated.Value).Select(x => x.Status).SingleAsync());
+    }
+  }
+
+  [Fact]
+  [Trait("Profile", "Database")]
+  public async Task AdvancedConsolidationExecution_IsScopedVerifiedIdempotentlyAndSeparatelyApproved()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await SeedAsync(pg);
+    var preparer = Actor(fixture.Preparer, "AccountingPreparer");
+    var reviewer = Actor(fixture.Reviewer, "Partner");
+    var methodOwner = Actor(fixture.Preparer, "Partner");
+    Guid scopeId;
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var groupId = (await ConsolidationService.CreateGroupAsync(db, reviewer,
+        new ClientGroupRequest("ADV-EXECUTION", "Advanced execution group"))).Value;
+      Assert.True((await ConsolidationService.AddMembershipAsync(db, reviewer,
+        new GroupMembershipRequest(groupId, fixture.ClientA, new DateOnly(2026, 1, 1), null,
+          "CONTROLLED", 100m, 100m, "advanced-execution-membership"))).Succeeded);
+      db.GroupAccessGrants.AddRange(
+        new GroupAccessGrant { Id = Guid.NewGuid(), FirmId = fixture.FirmId, GroupId = groupId, UserId = fixture.Preparer.Id,
+          Role = "AccountingPreparer", GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = fixture.Reviewer.Id },
+        new GroupAccessGrant { Id = Guid.NewGuid(), FirmId = fixture.FirmId, GroupId = groupId, UserId = fixture.Preparer.Id,
+          Role = "Partner", GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = fixture.Reviewer.Id });
+      await db.SaveChangesAsync();
+
+      scopeId = (await ConsolidationService.CreateScopeAsync(db, reviewer,
+        new ConsolidationScopeRequest(groupId, Guid.NewGuid(), "QAR", AdvancedConsolidationMethods.AcquisitionNci,
+          "OPENING-2026"))).Value;
+      var packId = (await ConsolidationService.SubmitExternalComponentPackAsync(db, preparer,
+        new ExternalComponentPackRequest(scopeId, fixture.ClientA, fixture.EngagementA, "2026-01-01", "2026-12-31",
+          "IFRS", "QAR", "STATUTORY", "tax-v1", "mapping-v1", "advanced-execution-fixture",
+          new string('a', 64), new string('b', 64), 0m,
+          [new("CASH", 100m, "QAR", "line-1"), new("EQUITY", -100m, "QAR", "line-2")]))).Value;
+      Assert.True((await ConsolidationService.ReconcileExternalComponentPackAsync(db, reviewer,
+        new ExternalComponentReconciliationRequest(packId, "external-pack-reconciliation"))).Succeeded);
+      Assert.True((await ConsolidationService.ApproveExternalComponentPackAsync(db, reviewer, packId)).Succeeded);
+      var componentId = (await ConsolidationService.SubmitExternalComponentAsync(db, preparer,
+        new ExternalComponentRequest(scopeId, packId))).Value;
+      Assert.True((await ConsolidationService.ApproveComponentAsync(db, reviewer, componentId)).Succeeded);
+
+      var profileId = (await ClientAccountingService.CreateCapabilityProfileAsync(db, reviewer,
+        new CapabilityProfileRequest(null, groupId, AccountingCapabilityServiceKinds.GroupReporting, "IFRS", "2026",
+          "ANNUAL", "QAR", "STATUTORY", AdvancedConsolidationMethods.AcquisitionNci, "PARTNER", "GROUP"))).Value;
+      Assert.True((await ClientAccountingService.RecordCapabilityAcceptanceAsync(db, reviewer, profileId,
+        AccountingCapabilityAcceptanceStages.LocalConstruction, "advanced-execution-profile")).Succeeded);
+      Assert.True((await ClientAccountingService.RecordCapabilityAcceptanceAsync(db, methodOwner, profileId,
+        AccountingCapabilityAcceptanceStages.MethodOwnerApproval, "advanced-execution-method-owner")).Succeeded);
+      Assert.True((await ConsolidationService.ApproveScopeAsync(db, reviewer, scopeId)).Succeeded);
+
+      var scheduleId = (await ConsolidationService.CreateAdvancedMethodScheduleAsync(db, preparer,
+        new AdvancedConsolidationMethodScheduleRequest(scopeId, AdvancedConsolidationMethods.AcquisitionNci, "IFRS",
+          "{\"sources\":[{\"kind\":\"EXTERNAL_PACK\",\"id\":\"fixture\"}]}",
+          "{\"acquisitionDate\":\"2026-01-01\",\"controlDate\":\"2026-01-15\",\"consideration\":120,\"nciAtAcquisition\":20,\"fairValueNetAssets\":100,\"openingReserves\":8,\"fairValueAdjustments\":10,\"nciOpening\":20,\"nciProfit\":5,\"nciOci\":2,\"nciDistributions\":3,\"statementLines\":[{\"code\":\"NET_ASSETS\",\"comparativeAmount\":20,\"currentAmount\":14},{\"code\":\"NCI\",\"comparativeAmount\":-20,\"currentAmount\":-24},{\"code\":\"GOODWILL\",\"comparativeAmount\":0,\"currentAmount\":30},{\"code\":\"PARENT_EQUITY\",\"comparativeAmount\":0,\"currentAmount\":-20}]}"))).Value;
+      Assert.True((await ConsolidationService.ApproveAdvancedMethodScheduleAsync(db, reviewer, scheduleId)).Succeeded);
+
+      var execution = await ConsolidationService.RunAsync(db, preparer, scopeId);
+      Assert.True(execution.Succeeded, execution.Message);
+      var repeated = await ConsolidationService.RunAsync(db, preparer, scopeId);
+      Assert.True(repeated.Succeeded);
+      Assert.Equal(execution.Value, repeated.Value);
+      var stored = await db.AdvancedConsolidationExecutions.SingleAsync(x => x.Id == execution.Value);
+      Assert.Equal(AdvancedConsolidationExecutionStates.Verified, stored.Status);
+      Assert.Equal(0m, stored.ComparativeSignedTotal);
+      Assert.Equal(0m, stored.CurrentSignedTotal);
+      Assert.Equal(Hashing.Sha256Hex(stored.OutputManifest), stored.OutputDigest);
+      Assert.True((await ConsolidationService.ApproveAdvancedExecutionAsync(db, reviewer, stored.Id)).Succeeded);
+      Assert.Equal(AdvancedConsolidationExecutionStates.Approved,
+        await db.AdvancedConsolidationExecutions.Where(x => x.Id == stored.Id).Select(x => x.Status).SingleAsync());
     }
   }
 
