@@ -1717,6 +1717,79 @@ public sealed class ClientAccountingTests
   }
 
   [Fact]
+  [Trait("Profile", "Unit")]
+  public void AdvancedConsolidationExecution_GoldenFixturesCoverEachMethod()
+  {
+    var fixtures = new[]
+    {
+      (AdvancedConsolidationMethods.ForeignCurrencyReserve, """
+        {
+          "openingNetAssets":100,"closingNetAssets":130,"currentProfit":20,
+          "openingRate":3.6,"closingRate":3.7,"averageRate":3.65,"openingTranslationReserve":5,
+          "functionalCurrency":"USD","presentationCurrency":"QAR",
+          "statementLines":[
+            {"code":"TRANSLATION_RESERVE","comparativeAmount":-5,"currentAmount":-53},
+            {"code":"BALANCING_EQUITY","comparativeAmount":5,"currentAmount":53}
+          ]
+        }
+        """),
+      (AdvancedConsolidationMethods.AcquisitionNci, """
+        {
+          "acquisitionDate":"2026-01-01","controlDate":"2026-01-15","consideration":120,
+          "nciAtAcquisition":20,"fairValueNetAssets":100,"openingReserves":8,"fairValueAdjustments":10,
+          "nciOpening":20,"nciProfit":5,"nciOci":2,"nciDistributions":3,
+          "statementLines":[
+            {"code":"NET_ASSETS","comparativeAmount":20,"currentAmount":14},
+            {"code":"NCI","comparativeAmount":-20,"currentAmount":-24},
+            {"code":"GOODWILL","comparativeAmount":0,"currentAmount":30},
+            {"code":"PARENT_EQUITY","comparativeAmount":0,"currentAmount":-20}
+          ]
+        }
+        """),
+      (AdvancedConsolidationMethods.OwnershipChange, """
+        {
+          "effectiveDate":"2026-06-30","previousOwnershipPercent":80,"newOwnershipPercent":60,
+          "consideration":10,"fairValueRetainedInterest":0,"carryingNetAssets":100,"carryingNci":20,"controlLost":false,
+          "statementLines":[
+            {"code":"NCI_MOVEMENT","comparativeAmount":0,"currentAmount":20},
+            {"code":"OWNERSHIP_CHANGE_GAIN_LOSS","comparativeAmount":0,"currentAmount":0},
+            {"code":"EQUITY","comparativeAmount":0,"currentAmount":-20}
+          ]
+        }
+        """),
+      (AdvancedConsolidationMethods.NestedGroup, """
+        {
+          "components":[
+            {"economicEntityKey":"PARENT","sourceScopeVersionId":"00000000-0000-0000-0000-000000000101","includedDirectly":true},
+            {"economicEntityKey":"SUBSIDIARY","sourceScopeVersionId":"00000000-0000-0000-0000-000000000102","includedDirectly":false}
+          ],
+          "statementLines":[{"code":"GROUP_BALANCE","comparativeAmount":0,"currentAmount":0}]
+        }
+        """),
+      (AdvancedConsolidationMethods.AssetTransferElimination, """
+        {
+          "unrealizedProfit":30,"postTransferDepreciation":6,"taxRate":0.25,
+          "statementLines":[
+            {"code":"ASSET_TRANSFER_ELIMINATION","comparativeAmount":0,"currentAmount":-18},
+            {"code":"EQUITY","comparativeAmount":0,"currentAmount":18}
+          ]
+        }
+        """)
+    };
+
+    foreach (var (method, json) in fixtures)
+    {
+      Assert.True(AdvancedConsolidationExecutionCalculator.TryCalculate(method, json, out var calculation, out var error),
+        $"{method}: {error}");
+      Assert.NotNull(calculation);
+      Assert.Equal(0m, calculation!.ComparativeSignedTotal);
+      Assert.Equal(0m, calculation.CurrentSignedTotal);
+      Assert.Equal(Hashing.Sha256Hex(calculation.OutputManifest), calculation.OutputDigest);
+      Assert.Contains(method, calculation.OutputManifest, StringComparison.Ordinal);
+    }
+  }
+
+  [Fact]
   [Trait("Profile", "Database")]
   public async Task AdvancedMethodSchedules_AreCanonicalScopedAndIdempotent()
   {
@@ -1820,6 +1893,7 @@ public sealed class ClientAccountingTests
       var componentId = (await ConsolidationService.SubmitExternalComponentAsync(db, preparer,
         new ExternalComponentRequest(scopeId, packId))).Value;
       Assert.True((await ConsolidationService.ApproveComponentAsync(db, reviewer, componentId)).Succeeded);
+      var packHash = await db.ExternalComponentPacks.Where(x => x.Id == packId).Select(x => x.PackDigest).SingleAsync();
 
       var profileId = (await ClientAccountingService.CreateCapabilityProfileAsync(db, reviewer,
         new CapabilityProfileRequest(null, groupId, AccountingCapabilityServiceKinds.GroupReporting, "IFRS", "2026",
@@ -1830,9 +1904,18 @@ public sealed class ClientAccountingTests
         AccountingCapabilityAcceptanceStages.MethodOwnerApproval, "advanced-execution-method-owner")).Succeeded);
       Assert.True((await ConsolidationService.ApproveScopeAsync(db, reviewer, scopeId)).Succeeded);
 
+      var invalidSourceSchedule = await ConsolidationService.CreateAdvancedMethodScheduleAsync(db, preparer,
+        new AdvancedConsolidationMethodScheduleRequest(scopeId, AdvancedConsolidationMethods.AcquisitionNci, "IFRS",
+          $"{{\"sources\":[{{\"componentId\":\"{componentId:D}\",\"kind\":\"EXTERNAL_PACK\",\"id\":\"{Guid.NewGuid():D}\",\"hash\":\"{packHash}\"}}]}}",
+          "{}"));
+      Assert.True(invalidSourceSchedule.Succeeded, invalidSourceSchedule.Message);
+      var invalidSourceApproval = await ConsolidationService.ApproveAdvancedMethodScheduleAsync(db, reviewer, invalidSourceSchedule.Value);
+      Assert.False(invalidSourceApproval.Succeeded);
+      Assert.Equal(ErrorCodes.ManifestMismatch, invalidSourceApproval.ErrorCode);
+
       var scheduleId = (await ConsolidationService.CreateAdvancedMethodScheduleAsync(db, preparer,
         new AdvancedConsolidationMethodScheduleRequest(scopeId, AdvancedConsolidationMethods.AcquisitionNci, "IFRS",
-          "{\"sources\":[{\"kind\":\"EXTERNAL_PACK\",\"id\":\"fixture\"}]}",
+          $"{{\"sources\":[{{\"componentId\":\"{componentId:D}\",\"kind\":\"EXTERNAL_PACK\",\"id\":\"{packId:D}\",\"hash\":\"{packHash}\"}}]}}",
           "{\"acquisitionDate\":\"2026-01-01\",\"controlDate\":\"2026-01-15\",\"consideration\":120,\"nciAtAcquisition\":20,\"fairValueNetAssets\":100,\"openingReserves\":8,\"fairValueAdjustments\":10,\"nciOpening\":20,\"nciProfit\":5,\"nciOci\":2,\"nciDistributions\":3,\"statementLines\":[{\"code\":\"NET_ASSETS\",\"comparativeAmount\":20,\"currentAmount\":14},{\"code\":\"NCI\",\"comparativeAmount\":-20,\"currentAmount\":-24},{\"code\":\"GOODWILL\",\"comparativeAmount\":0,\"currentAmount\":30},{\"code\":\"PARENT_EQUITY\",\"comparativeAmount\":0,\"currentAmount\":-20}]}"))).Value;
       Assert.True((await ConsolidationService.ApproveAdvancedMethodScheduleAsync(db, reviewer, scheduleId)).Succeeded);
 

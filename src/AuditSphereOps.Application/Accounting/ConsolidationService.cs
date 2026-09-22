@@ -1002,6 +1002,9 @@ public static class ConsolidationService
     if (!componentResult.Succeeded)
       return CommandResult<Guid>.Fail(componentResult.ErrorCode!, componentResult.Message!);
     var components = componentResult.Value!;
+    var sourceBinding = ValidateAdvancedSourceManifest(schedule.SourceManifestJson, components);
+    if (!sourceBinding.Succeeded)
+      return CommandResult<Guid>.Fail(sourceBinding.ErrorCode!, sourceBinding.Message!);
 
     if (!AdvancedConsolidationExecutionCalculator.TryCalculate(scope.Method, schedule.InputSnapshotJson,
         out var calculation, out var calculationError))
@@ -1097,16 +1100,17 @@ public static class ConsolidationService
     if (!auth.Succeeded)
       return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
     var method = request.Method.Trim().ToUpperInvariant();
+    var sourceDigest = Hashing.Sha256Hex(sourceManifest);
     var existing = await db.AdvancedConsolidationMethodSchedules.AsNoTracking().SingleOrDefaultAsync(x =>
       x.FirmId == actor.FirmId && x.ScopeVersionId == scope.Id && x.Method == method &&
-      x.InputSnapshotDigest == Hashing.Sha256Hex(inputSnapshot), ct);
+      x.SourceManifestDigest == sourceDigest && x.InputSnapshotDigest == Hashing.Sha256Hex(inputSnapshot), ct);
     if (existing is not null)
       return CommandResult<Guid>.Ok(existing.Id);
     var schedule = new AdvancedConsolidationMethodSchedule
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, GroupId = scope.GroupId, ScopeVersionId = scope.Id,
       GroupRevision = scope.GroupRevision, Method = method, Framework = "IFRS",
-      SourceManifestJson = sourceManifest, SourceManifestDigest = Hashing.Sha256Hex(sourceManifest),
+      SourceManifestJson = sourceManifest, SourceManifestDigest = sourceDigest,
       InputSnapshotJson = inputSnapshot, InputSnapshotDigest = Hashing.Sha256Hex(inputSnapshot),
       Status = AdvancedConsolidationMethodScheduleStates.Submitted,
       CreatedByUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
@@ -1134,6 +1138,17 @@ public static class ConsolidationService
     if (scope is null || scope.GroupRevision != schedule.GroupRevision || scope.Status != AccountingWorkflowStates.Approved)
       return CommandResult.Fail(ErrorCodes.GenerationStale,
         "The consolidation perimeter changed; rebuild the advanced method schedule.");
+    var componentCount = await db.ConsolidationComponents.CountAsync(x =>
+      x.FirmId == actor.FirmId && x.GroupId == scope.GroupId && x.ScopeVersionId == scope.Id, ct);
+    if (componentCount > 0)
+    {
+      var componentResult = await LoadAdvancedComponentsAsync(db, actor.FirmId, scope, ct);
+      if (!componentResult.Succeeded)
+        return CommandResult.Fail(componentResult.ErrorCode!, componentResult.Message!);
+      var sourceBinding = ValidateAdvancedSourceManifest(schedule.SourceManifestJson, componentResult.Value!);
+      if (!sourceBinding.Succeeded)
+        return sourceBinding;
+    }
     if (!AdvancedConsolidationCalculator.TryValidateScheduleInput(schedule.Method, schedule.InputSnapshotJson, out var inputError))
       return CommandResult.Fail(ErrorCodes.Accounting.MappingInvalid,
         $"The advanced method schedule input is invalid: {inputError}");
@@ -1383,6 +1398,69 @@ public static class ConsolidationService
       ScheduleId = schedule.Id, ScheduleDigest = schedule.InputSnapshotDigest,
       Components = components.Select(x => new { x.Id, x.ClientId, x.PackageId, x.ExternalComponentPackId, x.PackageHash, x.Currency })
     });
+
+  private static CommandResult ValidateAdvancedSourceManifest(
+    string sourceManifestJson, IReadOnlyCollection<ConsolidationComponent> components)
+  {
+    try
+    {
+      using var document = JsonDocument.Parse(sourceManifestJson);
+      if (!document.RootElement.TryGetProperty("sources", out var sources) ||
+          sources.ValueKind != JsonValueKind.Array || sources.GetArrayLength() == 0)
+        return CommandResult.Fail(ErrorCodes.ManifestMismatch,
+          "The advanced schedule must identify the selected component sources.");
+
+      var expected = components.ToDictionary(x => x.Id);
+      var seen = new HashSet<Guid>();
+      foreach (var source in sources.EnumerateArray())
+      {
+        if (!TryManifestGuid(source, "componentId", out var componentId) ||
+            !TryManifestText(source, "kind", out var kindText) ||
+            !TryManifestGuid(source, "id", out var sourceId) ||
+            !TryManifestText(source, "hash", out var hash))
+          return CommandResult.Fail(ErrorCodes.ManifestMismatch,
+            "Each advanced source must include componentId, kind, id and hash.");
+
+        if (!expected.TryGetValue(componentId, out var component) || !seen.Add(componentId))
+          return CommandResult.Fail(ErrorCodes.ManifestMismatch,
+            "The advanced source manifest contains a duplicate or out-of-scope component.");
+        var kind = kindText.ToUpperInvariant();
+        var expectedSourceId = component.SourceType == ConsolidationComponentSources.InternalPackage
+          ? component.PackageId
+          : component.ExternalComponentPackId;
+        if (!string.Equals(kind, component.SourceType, StringComparison.Ordinal) ||
+            expectedSourceId != sourceId ||
+            !string.Equals(hash, component.PackageHash, StringComparison.OrdinalIgnoreCase))
+          return CommandResult.Fail(ErrorCodes.ManifestMismatch,
+            "The advanced source manifest does not match the current approved component source.");
+      }
+
+      return seen.Count == expected.Count
+        ? CommandResult.Ok()
+        : CommandResult.Fail(ErrorCodes.ManifestMismatch,
+          "The advanced source manifest must cover every approved component exactly once.");
+    }
+    catch (JsonException)
+    {
+      return CommandResult.Fail(ErrorCodes.ManifestMismatch, "The advanced source manifest is not valid JSON.");
+    }
+  }
+
+  private static bool TryManifestGuid(JsonElement element, string name, out Guid value)
+  {
+    value = Guid.Empty;
+    return element.TryGetProperty(name, out var property) && property.ValueKind == JsonValueKind.String &&
+      Guid.TryParse(property.GetString(), out value);
+  }
+
+  private static bool TryManifestText(JsonElement element, string name, out string value)
+  {
+    value = string.Empty;
+    if (!element.TryGetProperty(name, out var property) || property.ValueKind != JsonValueKind.String)
+      return false;
+    value = property.GetString()?.Trim() ?? string.Empty;
+    return value.Length > 0;
+  }
 
   private static bool IsSha256(string value) => value.Length == 64 && value.All(c => c is >= '0' and <= '9' or >= 'a' and <= 'f');
 
