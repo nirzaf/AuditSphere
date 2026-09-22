@@ -658,7 +658,9 @@ Story criteria remain proposed unless marked locally verified in the execution l
 - [ ] Produce client-safe workbook/PDF/Word artifacts only through approved renderer/template versions and existing document-storage boundaries.
 - [ ] Preserve formulas safely in controlled templates and neutralize spreadsheet injection in untrusted values; never execute client macros.
 - [x] Artifact hashes and delivery receipts bind to the released package; regenerate by version, not by mutable “latest.”
-- [ ] Tenant/provider/signing/records blockers remain independent; local export tests cannot fake live completion.
+- [x] Tenant/provider/signing/records blockers remain independent; local export tests cannot fake live completion.
+
+**Local implementation note (2026-09-22):** the built-in `financial-package-xlsx.v1` and `financial-package-docx.v1` profiles produce deterministic, formula-free and macro-free Office packages from the exact canonical package artifact. They persist separate SHA-256-bound bytes for the package revision/generation/hash and expose authorized Blazor downloads. Approved formula-bearing templates and verified PDF conversion remain pending; tenant, signing and records acceptance remains external.
 
 ### AC-26 — Close periods and roll forward safely
 

@@ -3,7 +3,7 @@
 **Repository:** `nirzaf/AuditSphere`
 **Authoritative specification:** [`docs/SPECIFICATION.md`](../SPECIFICATION.md) v5.0
 **Requirements backlog:** [`docs/requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md`](../requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md)
-**Source implementation checkpoint:** `master@b7305c1`
+**Source implementation checkpoint:** `master@8bfb200`
 
 This is a resume checklist, not an acceptance certificate. Tenant identifiers, credentials, tokens, secret values, and private-provider URLs are deliberately absent from the public repository.
 
@@ -11,7 +11,7 @@ This is a resume checklist, not an acceptance certificate. Tenant identifiers, c
 
 - [x] .NET 10 solution builds with zero warnings/errors.
 - [x] PostgreSQL 18.6 development profile is used on loopback port 5433.
-- [x] 218/218 PostgreSQL-backed tests pass with 0 skipped.
+- [x] 219/219 PostgreSQL-backed tests pass with 0 skipped.
 - [x] 80 migrations are applied; latest is `20260921212202_ResolveScheduleControlSource`.
 - [x] EF model has no pending migration changes.
 - [x] Loopback restore drill passes and writes secret-free evidence to `docs/evidence/restore-drill-latest.json`.
@@ -36,6 +36,8 @@ This is a resume checklist, not an acceptance certificate. Tenant identifiers, c
 - [x] Queued durable operations support an explicit administrator cancellation disposition; cancelled work is excluded from claims and cannot publish a partial local result, while active work remains subject to lease/reconciliation handling.
 - [x] Journal lineage, close checks and immutable management/accounting/partner package-review decisions.
 - [x] Persist exact rendered package bytes with framework/template versions and SHA-256 lineage; require the matching artifact before recording management, accounting or partner package review.
+- [x] Produce deterministic formula-free XLSX and DOCX exports from the exact canonical package artifact; persist each renderer version and SHA-256 against the package revision/generation/hash and expose scoped downloads.
+- [ ] Add approved formula-bearing template fixtures and verified PDF conversion; do not substitute local export checks for live provider, signing or records acceptance.
 - [x] Require an independently accepted group capability profile before approving a consolidation perimeter.
 - [x] Require current management, accounting and partner package reviews before approving a consolidation component.
 - [x] Bind each consolidation component to the exact package period basis, taxonomy version and mapping-version lineage and include it in the deterministic run manifest.

@@ -1,9 +1,9 @@
 {
   "status": "PASS",
-  "recordedAt": "2026-09-21T21:28:37Z",
+  "recordedAt": "2026-09-22T07:07:47Z",
   "databaseHost": "127.0.0.1",
   "sourceDatabase": "auditsphere",
-  "restoredDatabase": "auditsphere_restore_1790026116_16940",
+  "restoredDatabase": "auditsphere_restore_1790060866_28923",
   "expectedMigrationCount": 80,
   "restoredMigrationCount": 80,
   "expectedLatestMigration": "20260921212202_ResolveScheduleControlSource",

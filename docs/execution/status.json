@@ -4,10 +4,10 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "b7305c1",
+  "headCommit": "8bfb200",
   "remoteHeadVerified": true,
   "productionEnabled": false,
-  "verifiedAt": "2026-09-21T21:56:07Z",
+  "verifiedAt": "2026-09-22T07:07:56Z",
   "toolchain": {
     "sdk": ".NET 10",
     "efCore": "10.0.12",
@@ -16,19 +16,19 @@
     "postgres": "18.6 loopback development profile"
   },
   "verification": {
-    "build": "PASS: dotnet build src/AuditSphereOps.Web/AuditSphereOps.Web.csproj --no-restore --configuration Release at b7305c1; 0 warnings/errors",
-    "tests": "PASS: 218/218 PostgreSQL-backed tests; 0 skipped at b7305c1 with PostgreSQL migration setup serialized by xunit.runner.json",
+    "build": "PASS: dotnet build src/AuditSphereOps.Web/AuditSphereOps.Web.csproj --no-restore --configuration Release at 8bfb200; 0 warnings/errors",
+    "tests": "PASS: 219/219 PostgreSQL-backed tests; 0 skipped at 8bfb200 with PostgreSQL migration setup serialized by xunit.runner.json",
     "migrations": "PASS: 80 applied; latest 20260921212202_ResolveScheduleControlSource",
     "pendingModelChanges": "PASS: no changes",
-    "restoreDrill": "PASS: loopback restore reconciled 80 migrations, accounting/group manifests and release-delivery identities; latest 20260921212202_ResolveScheduleControlSource; duplicate release-delivery keys=0; external custody and production RPO/RTO not run",
+    "restoreDrill": "PASS at 2026-09-22T07:07:47Z: loopback restore reconciled 80 migrations, accounting/group manifests and release-delivery identities; latest 20260921212202_ResolveScheduleControlSource; duplicate release-delivery keys=0; external custody and production RPO/RTO not run",
     "database": "127.0.0.1:5433 development only"
   },
   "active": {
     "packageId": "Audit workflow gap-closure and client accounting implementation",
     "implementationStatus": "IN_PROGRESS",
     "acceptanceStatus": "LOCAL_VERIFIED",
-    "scope": "Local audit workflow, client accounting, GL intake, completeness, package, restatement, consolidation, journal-lineage, close-check and package-review slices.",
-    "nextAction": "Obtain approved golden fixtures before enabling the method-specific FX reserve, NCI, acquisition, ownership-change, nested-group and complex-elimination profiles; broader provider/signing/recovery/independent-review gates remain external."
+    "scope": "Local audit workflow, client accounting, GL intake, completeness, package, Office export, restatement, consolidation, journal-lineage, close-check and package-review slices.",
+    "nextAction": "Obtain approved formula-bearing template/PDF conversion fixtures and advanced-method golden fixtures before enabling those profiles; broader provider/signing/recovery/independent-review gates remain external."
   },
   "localEvidence": [
     {
@@ -257,6 +257,11 @@
       "details": "The staff package page rechecks exact client/engagement authorization before loading package details, reads only the persisted artifact for the current package revision/generation/hash/template, and offers a guarded text download with non-disruptive status/error handling. Release and delivery remain separate controls. Web Release build, JavaScript syntax check and the 213-test PostgreSQL suite pass at 5d32cf1."
     },
     {
+      "item": "Controlled financial-package Office exports",
+      "status": "LOCAL_VERIFIED",
+      "details": "Pinned XLSX and DOCX renderer profiles wrap the exact canonical package artifact without formulas, macros or external links. Formula-shaped client text remains literal; ZIP metadata and generated relationship identity are canonicalized for byte-stable rerendering; each artifact is SHA-256-bound and persisted against the exact package revision, generation, package hash, framework and template. Exact-scope denial, idempotent persistence and Blazor downloads are covered. Release build, 219/219 PostgreSQL tests, locked restore, model-drift check and the 80-migration loopback restore rehearsal pass at 8bfb200. Approved formula-bearing templates and verified PDF conversion remain pending; tenant/provider/signing/records gates remain independent."
+    },
+    {
       "item": "Period selection response resilience",
       "status": "LOCAL_VERIFIED",
       "details": "Period roll-forward and restatement selection loads use a generation guard so an older client/period response cannot overwrite a newer selection; dependent selectors are locked while loading, and the existing local draft form state is retained. Contextual action tooltips and non-disruptive command guidance remain in place. Web Release build, JavaScript syntax check and the 213-test PostgreSQL suite pass at d81cc65."
@@ -328,6 +333,7 @@
     }
   ],
   "remainingLocalWork": [
+    "Approved formula-bearing template fixtures and verified PDF conversion profile",
     "Approved method-specific fixtures for full FX remeasurement/reserves, NCI, acquisition, ownership change, nested groups and complex eliminations"
   ],
   "externalGates": [
