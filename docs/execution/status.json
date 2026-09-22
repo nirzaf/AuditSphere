@@ -4,10 +4,10 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "d0acf01",
+  "headCommit": "9aeec18",
   "remoteHeadVerified": true,
   "productionEnabled": false,
-  "verifiedAt": "2026-09-22T09:48:24Z",
+  "verifiedAt": "2026-09-22T10:50:07Z",
   "toolchain": {
     "sdk": ".NET 10",
     "efCore": "10.0.12",
@@ -16,11 +16,11 @@
     "postgres": "18.6 loopback development profile"
   },
   "verification": {
-    "build": "PASS: dotnet build src/AuditSphereOps.Web/AuditSphereOps.Web.csproj --no-restore --configuration Release at d0acf01; 0 warnings/errors",
-    "tests": "PASS: 225/225 PostgreSQL-backed tests; 0 skipped at d0acf01 with PostgreSQL migration setup serialized by xunit.runner.json",
-    "migrations": "PASS: 83 applied; latest 20260922083103_EnableLiveMailProviderAuthority",
+    "build": "PASS: dotnet build src/AuditSphereOps.Web/AuditSphereOps.Web.csproj --no-restore --configuration Release at 9aeec18; 0 warnings/errors",
+    "tests": "PASS: 226/226 PostgreSQL-backed tests; 0 skipped at 9aeec18 with PostgreSQL migration setup serialized by xunit.runner.json",
+    "migrations": "PASS: 84 applied; latest 20260922104120_AdvancedConsolidationMethodSchedules",
     "pendingModelChanges": "PASS: no changes",
-    "restoreDrill": "PASS at 2026-09-22T09:48:24Z: loopback restore reconciled 83 migrations, accounting/group manifests and release-delivery identities; latest 20260922083103_EnableLiveMailProviderAuthority; duplicate release-delivery keys=0; external custody and production RPO/RTO not run; documentation-only approval scope updates followed this rehearsal",
+    "restoreDrill": "PASS at 2026-09-22T10:50:07Z: loopback restore reconciled 84 migrations, accounting/group manifests and release-delivery identities; latest 20260922104120_AdvancedConsolidationMethodSchedules; duplicate release-delivery keys=0; external custody and production RPO/RTO not run",
     "database": "127.0.0.1:5433 development only"
   },
   "active": {
@@ -28,7 +28,7 @@
     "implementationStatus": "IN_PROGRESS",
     "acceptanceStatus": "LOCAL_VERIFIED",
     "scope": "Local audit workflow, client accounting, scoped client file-request threads/uploads/downloads, GL intake, completeness, package, Office/PDF export, restatement, consolidation, journal-lineage, close-check and package-review slices.",
-    "nextAction": "Implement source-bound schedules and guarded production integration for the IFRS advanced-method scope in STE-METH-APP-001-addendum; keep profiles fail-closed until complete statement and comparative rollforward verification passes. Provider/signing/recovery/independent-review gates remain external."
+    "nextAction": "Wire the persisted source-bound advanced-method schedules into guarded profile execution and complete statement/comparative rollforward verification; keep profiles fail-closed until then. Provider/signing/recovery/independent-review gates remain external."
   },
   "localEvidence": [
     {
@@ -344,11 +344,11 @@
     {
       "item": "Advanced consolidation calculation safety core",
       "status": "LOCAL_VERIFIED",
-      "details": "Deterministic local calculators cover acquisition goodwill/bargain purchase with fair-value adjustments, NCI rollforward, ownership changes/disposals, nested double-count rejection and asset-transfer/tax elimination math. A fixed candidate fixture combines FX translation/reserve, acquisition goodwill, NCI, nested-scope uniqueness and asset-transfer elimination into balanced QAR current and comparative statements. IFRS method-owner scope is recorded in STE-METH-APP-001-addendum; advanced production profiles remain disabled until source-bound schedules, guarded integration and complete statement verification are implemented."
+      "details": "Deterministic local calculators cover acquisition goodwill/bargain purchase with fair-value adjustments, NCI rollforward, ownership changes/disposals, nested double-count rejection and asset-transfer/tax elimination math. Approved IFRS method schedules now persist canonical source/input JSON digests, enforce group-revision fencing, support idempotent retry and maker/checker approval. A fixed candidate fixture combines FX translation/reserve, acquisition goodwill, NCI, nested-scope uniqueness and asset-transfer elimination into balanced QAR current and comparative statements. IFRS method-owner scope is recorded in STE-METH-APP-001-addendum; advanced production profiles remain disabled until guarded service integration and complete statement/comparative verification are implemented."
     }
   ],
   "remainingLocalWork": [
-    "Source-bound schedules and guarded integration for approved advanced FX, acquisition/NCI, ownership-change, nested-group and complex-elimination methods"
+    "Guarded execution integration and complete statement/comparative rollforward verification for approved advanced FX, acquisition/NCI, ownership-change, nested-group and complex-elimination schedules"
   ],
   "externalGates": [
     { "gate": "P1", "status": "BLOCKED_EXTERNAL", "required": "Live Entra OIDC and runtime identity fixtures" },
