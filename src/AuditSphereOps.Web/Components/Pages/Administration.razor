@@ -75,23 +75,45 @@ else
           <caption class="sr-only">Firm role grants</caption>
           <thead>
             <tr>
-              <th scope="col">User ID</th>
+              <th scope="col">Identity</th>
               <th scope="col">Role</th>
               <th scope="col">Client Scope</th>
               <th scope="col">Engagement Scope</th>
               <th scope="col">Granted</th>
+              <th scope="col">Invitation / evidence</th>
               <th scope="col">State / action</th>
             </tr>
           </thead>
           <tbody>
           @foreach (var grant in _grants)
           {
+            _usersById.TryGetValue(grant.UserId, out var user);
+            _invitationsByGrant.TryGetValue(grant.Id, out var invitation);
+            DirectoryUserObservation? observation = null;
+            if (user is not null)
+              _directoryByIdentity.TryGetValue((user.TenantId, user.Subject), out observation);
             <tr>
-              <td><code>@grant.UserId</code></td>
+              <td>
+                @if (user is null)
+                {
+                  <span class="error-text">Identity record unavailable</span>
+                }
+                else
+                {
+                  <strong>@user.DisplayName</strong><br />
+                  <span>@user.Email (@user.UserKind)</span><br />
+                  <code title="Immutable Microsoft identity binding">@user.TenantId / @user.Subject</code>
+                }
+              </td>
               <td><strong>@grant.Role</strong></td>
               <td>@(grant.ClientId.HasValue ? grant.ClientId.Value.ToString() : "Firm-wide")</td>
               <td>@(grant.EngagementId.HasValue ? grant.EngagementId.Value.ToString() : "—")</td>
               <td>@grant.GrantedAt.ToString("yyyy-MM-dd HH:mm")</td>
+              <td>
+                <div>Invitation: <strong>@(invitation?.DeliveryState ?? "NOT_CREATED")</strong></div>
+                <div>First access: @(invitation?.FirstAccessAt?.ToString("yyyy-MM-dd HH:mm") ?? "Not recorded")</div>
+                <div>Directory: @(observation?.EnabledState ?? "NOT_OBSERVED") @(observation is null ? string.Empty : $"({observation.Source}, {observation.ObservedAt:yyyy-MM-dd HH:mm})")</div>
+              </td>
               <td>
                 @if (grant.RevokedAt is null)
                 {
@@ -157,6 +179,9 @@ else
   private string _rosterTenant = string.Empty, _rosterSubject = string.Empty, _rosterEmail = string.Empty, _rosterName = string.Empty;
   private string _rosterSource = "APPROVED_ROSTER", _rosterKind = "Staff", _roleName = "Staff", _scopeKind = "FIRM_WIDE";
   private string _scopeClientIdText = string.Empty, _scopeEngagementIdText = string.Empty;
+  private Dictionary<Guid, AppUser> _usersById = [];
+  private Dictionary<Guid, UserAccessInvitation> _invitationsByGrant = [];
+  private Dictionary<(string TenantId, string Subject), DirectoryUserObservation> _directoryByIdentity = [];
   private Guid? _invitationId;
   private string _invitationLink = string.Empty, _invitationMessage = string.Empty;
   private string _roleMessage = string.Empty, _roleError = string.Empty;
@@ -190,6 +215,21 @@ else
       .OrderBy(x => x.Role)
       .ThenBy(x => x.UserId)
       .ToListAsync();
+    var userIds = _grants.Select(x => x.UserId).Distinct().ToArray();
+    _usersById = await db.Users.AsNoTracking()
+      .Where(x => x.FirmId == _actor.FirmId && userIds.Contains(x.Id))
+      .ToDictionaryAsync(x => x.Id);
+    var grantIds = _grants.Select(x => x.Id).ToArray();
+    _invitationsByGrant = await db.UserAccessInvitations.AsNoTracking()
+      .Where(x => x.FirmId == _actor.FirmId && grantIds.Contains(x.RoleGrantId))
+      .ToDictionaryAsync(x => x.RoleGrantId);
+    var observations = await db.DirectoryUserObservations.AsNoTracking()
+      .Where(x => x.FirmId == _actor.FirmId)
+      .OrderByDescending(x => x.ObservedAt)
+      .ToListAsync();
+    _directoryByIdentity = observations
+      .GroupBy(x => (x.TenantId, x.ObjectId))
+      .ToDictionary(x => x.Key, x => x.First());
   }
 
   private async Task OnboardUserAsync()
