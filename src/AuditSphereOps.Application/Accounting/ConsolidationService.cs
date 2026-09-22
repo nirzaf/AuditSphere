@@ -1057,9 +1057,13 @@ public static class ConsolidationService
       x.ScopeVersionId == execution.ScopeVersionId, ct);
     if (scope is null || schedule is null || scope.Status != AccountingWorkflowStates.Approved ||
         scope.GroupRevision != execution.GroupRevision || schedule.GroupRevision != execution.GroupRevision ||
+        schedule.Method != execution.Method || schedule.Framework != execution.Framework ||
         schedule.Status != AdvancedConsolidationMethodScheduleStates.Approved ||
         !AdvancedConsolidationExecutionCalculator.TryCalculate(schedule.Method, schedule.InputSnapshotJson, out var calculation, out _))
       return CommandResult.Fail(ErrorCodes.GenerationStale, "The advanced schedule or scope changed; rerun the execution.");
+    if (!await HasMethodOwnerAcceptanceAsync(db, actor.FirmId, execution.GroupId, execution.Method, ct))
+      return CommandResult.Fail(ErrorCodes.GateBlocked,
+        "An independently accepted method-owner capability is required before advanced execution approval.");
     if (!await ConsolidationScopeGuards.IsCurrentAsync(db, actor.FirmId, execution.GroupId, execution.GroupRevision, ct))
       return CommandResult.Fail(ErrorCodes.GenerationStale, "The group perimeter changed; rerun the advanced execution.");
     var componentResult = await LoadAdvancedComponentsAsync(db, actor.FirmId, scope, ct);
@@ -1147,6 +1151,9 @@ public static class ConsolidationService
     if (scope is null || scope.GroupRevision != schedule.GroupRevision || scope.Status != AccountingWorkflowStates.Approved)
       return CommandResult.Fail(ErrorCodes.GenerationStale,
         "The consolidation perimeter changed; rebuild the advanced method schedule.");
+    if (!await HasMethodOwnerAcceptanceAsync(db, actor.FirmId, scope.GroupId, schedule.Method, ct))
+      return CommandResult.Fail(ErrorCodes.GateBlocked,
+        "An independently accepted method-owner capability is required before advanced schedule approval.");
     var componentCount = await db.ConsolidationComponents.CountAsync(x =>
       x.FirmId == actor.FirmId && x.GroupId == scope.GroupId && x.ScopeVersionId == scope.Id, ct);
     if (componentCount > 0)

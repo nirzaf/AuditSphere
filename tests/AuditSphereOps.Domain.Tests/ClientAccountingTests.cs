@@ -1797,7 +1797,8 @@ public sealed class ClientAccountingTests
     var fixture = await SeedAsync(pg);
     var preparer = Actor(fixture.Preparer, "AccountingPreparer");
     var reviewer = Actor(fixture.Reviewer, "Partner");
-    Guid scopeId;
+    var methodOwner = Actor(fixture.Preparer, "Partner");
+    Guid scopeId, profileId;
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       var groupId = (await ConsolidationService.CreateGroupAsync(db, reviewer,
@@ -1805,15 +1806,28 @@ public sealed class ClientAccountingTests
       Assert.True((await ConsolidationService.AddMembershipAsync(db, reviewer,
         new GroupMembershipRequest(groupId, fixture.ClientA, new DateOnly(2026, 1, 1), null,
           "CONTROLLED", 100m, 100m, "advanced-schedule-membership"))).Succeeded);
-      db.GroupAccessGrants.Add(new GroupAccessGrant
-      {
-        Id = Guid.NewGuid(), FirmId = fixture.FirmId, GroupId = groupId, UserId = fixture.Preparer.Id,
-        Role = "AccountingPreparer", GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = fixture.Reviewer.Id
-      });
+      db.GroupAccessGrants.AddRange(
+        new GroupAccessGrant
+        {
+          Id = Guid.NewGuid(), FirmId = fixture.FirmId, GroupId = groupId, UserId = fixture.Preparer.Id,
+          Role = "AccountingPreparer", GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = fixture.Reviewer.Id
+        },
+        new GroupAccessGrant
+        {
+          Id = Guid.NewGuid(), FirmId = fixture.FirmId, GroupId = groupId, UserId = fixture.Preparer.Id,
+          Role = "Partner", GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = fixture.Reviewer.Id
+        });
       await db.SaveChangesAsync();
       scopeId = (await ConsolidationService.CreateScopeAsync(db, reviewer,
         new ConsolidationScopeRequest(groupId, Guid.NewGuid(), "QAR", ConsolidationCalculator.RestrictedMethod,
           "OPENING-2026"))).Value;
+      profileId = (await ClientAccountingService.CreateCapabilityProfileAsync(db, reviewer,
+        new CapabilityProfileRequest(null, groupId, AccountingCapabilityServiceKinds.GroupReporting, "IFRS", "2026",
+          "ANNUAL", "QAR", "STATUTORY", AdvancedConsolidationMethods.AcquisitionNci, "PARTNER", "GROUP"))).Value;
+      Assert.True((await ClientAccountingService.RecordCapabilityAcceptanceAsync(db, reviewer, profileId,
+        AccountingCapabilityAcceptanceStages.LocalConstruction, "advanced-schedule-local")).Succeeded);
+      Assert.True((await ClientAccountingService.RecordCapabilityAcceptanceAsync(db, methodOwner, profileId,
+        AccountingCapabilityAcceptanceStages.MethodOwnerApproval, "advanced-schedule-method-owner")).Succeeded);
 
       var invalid = await ConsolidationService.CreateAdvancedMethodScheduleAsync(db, preparer,
         new AdvancedConsolidationMethodScheduleRequest(scopeId, AdvancedConsolidationMethods.AcquisitionNci,
@@ -1959,6 +1973,15 @@ public sealed class ClientAccountingTests
       Assert.False(staleJournalApproval.Succeeded);
       Assert.Equal(ErrorCodes.ManifestMismatch, staleJournalApproval.ErrorCode);
       reviewedJournal.Status = AccountingWorkflowStates.Approved;
+      await db.SaveChangesAsync();
+      var methodAcceptance = await db.AccountingCapabilityAcceptances.SingleAsync(x => x.CapabilityProfileId == profileId &&
+        x.Stage == AccountingCapabilityAcceptanceStages.MethodOwnerApproval);
+      methodAcceptance.Status = AccountingWorkflowStates.Retired;
+      await db.SaveChangesAsync();
+      var unacceptedApproval = await ConsolidationService.ApproveAdvancedExecutionAsync(db, reviewer, stored.Id);
+      Assert.False(unacceptedApproval.Succeeded);
+      Assert.Equal(ErrorCodes.GateBlocked, unacceptedApproval.ErrorCode);
+      methodAcceptance.Status = AccountingWorkflowStates.Approved;
       await db.SaveChangesAsync();
       Assert.True((await ConsolidationService.ApproveAdvancedExecutionAsync(db, reviewer, stored.Id)).Succeeded);
       Assert.Equal(AdvancedConsolidationExecutionStates.Approved,
