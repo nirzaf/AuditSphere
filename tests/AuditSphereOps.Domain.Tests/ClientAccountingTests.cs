@@ -2190,6 +2190,80 @@ public sealed class ClientAccountingTests
     }
   }
 
+  [Theory]
+  [InlineData(AdvancedConsolidationMethods.OwnershipChange)]
+  [InlineData(AdvancedConsolidationMethods.AssetTransferElimination)]
+  [Trait("Profile", "Database")]
+  public async Task AdvancedMethodExecution_BindsMethodJournalAndSource(string method)
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await SeedAsync(pg);
+    var preparer = Actor(fixture.Preparer, "AccountingPreparer");
+    var reviewer = Actor(fixture.Reviewer, "Partner");
+    var methodOwner = Actor(fixture.Preparer, "Partner");
+
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var groupId = (await ConsolidationService.CreateGroupAsync(db, reviewer,
+      new ClientGroupRequest($"ADV-{method}", "Advanced method group"))).Value;
+    Assert.True((await ConsolidationService.AddMembershipAsync(db, reviewer,
+      new GroupMembershipRequest(groupId, fixture.ClientA, new DateOnly(2026, 1, 1), null,
+        "CONTROLLED", 100m, 100m, $"membership-{method}"))).Succeeded);
+    db.GroupAccessGrants.AddRange(
+      new GroupAccessGrant { Id = Guid.NewGuid(), FirmId = fixture.FirmId, GroupId = groupId, UserId = fixture.Preparer.Id,
+        Role = "AccountingPreparer", GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = fixture.Reviewer.Id },
+      new GroupAccessGrant { Id = Guid.NewGuid(), FirmId = fixture.FirmId, GroupId = groupId, UserId = fixture.Preparer.Id,
+        Role = "Partner", GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = fixture.Reviewer.Id });
+    db.RoleGrants.Add(Grant(fixture.FirmId, fixture.Preparer, "Partner"));
+    await db.SaveChangesAsync();
+
+    var scopeId = (await ConsolidationService.CreateScopeAsync(db, reviewer,
+      new ConsolidationScopeRequest(groupId, Guid.NewGuid(), "QAR", method, "OPENING-2026"))).Value;
+    var profileId = (await ClientAccountingService.CreateCapabilityProfileAsync(db, reviewer,
+      new CapabilityProfileRequest(null, groupId, AccountingCapabilityServiceKinds.GroupReporting, "IFRS", "2026",
+        "ANNUAL", "QAR", "STATUTORY", method, "PARTNER", "GROUP"))).Value;
+    Assert.True((await ClientAccountingService.RecordCapabilityAcceptanceAsync(db, reviewer, profileId,
+      AccountingCapabilityAcceptanceStages.LocalConstruction, $"local-{method}")).Succeeded);
+    Assert.True((await ClientAccountingService.RecordCapabilityAcceptanceAsync(db, methodOwner, profileId,
+      AccountingCapabilityAcceptanceStages.MethodOwnerApproval, $"method-owner-{method}")).Succeeded);
+
+    var packId = (await ConsolidationService.SubmitExternalComponentPackAsync(db, preparer,
+      new ExternalComponentPackRequest(scopeId, fixture.ClientA, fixture.EngagementA, "2026-01-01", "2026-12-31",
+        "IFRS", "QAR", "STATUTORY", "tax-v1", "mapping-v1", $"pack-{method}",
+        new string('e', 64), new string('f', 64), 0m,
+        [new("CASH", 100m, "QAR", "line-1"), new("EQUITY", -100m, "QAR", "line-2")]))).Value;
+    Assert.True((await ConsolidationService.ReconcileExternalComponentPackAsync(db, reviewer,
+      new ExternalComponentReconciliationRequest(packId, $"reconcile-{method}"))).Succeeded);
+    Assert.True((await ConsolidationService.ApproveExternalComponentPackAsync(db, reviewer, packId)).Succeeded);
+    var componentId = (await ConsolidationService.SubmitExternalComponentAsync(db, preparer,
+      new ExternalComponentRequest(scopeId, packId))).Value;
+    Assert.True((await ConsolidationService.ApproveComponentAsync(db, reviewer, componentId)).Succeeded);
+    Assert.True((await ConsolidationService.ApproveScopeAsync(db, reviewer, scopeId)).Succeeded);
+
+    var journalType = method == AdvancedConsolidationMethods.OwnershipChange ? "OWNERSHIP_CHANGE" : "ASSET_TRANSFER_ELIMINATION";
+    IReadOnlyList<ConsolidationJournalLineInput> journalLines = method == AdvancedConsolidationMethods.OwnershipChange
+      ? [new ConsolidationJournalLineInput(null, "NCI_MOVEMENT", 20m, 0m, "Reviewed NCI movement"),
+         new ConsolidationJournalLineInput(null, "OWNERSHIP_CHANGE_GAIN_LOSS", 0m, 0m, "Reviewed ownership gain or loss"),
+         new ConsolidationJournalLineInput(null, "PARENT_EQUITY", 0m, 20m, "Reviewed ownership equity balancing")]
+      : [new ConsolidationJournalLineInput(null, "ASSET_TRANSFER_ELIMINATION", 0m, 18m, "Reviewed asset-transfer elimination"),
+         new ConsolidationJournalLineInput(null, "PARENT_EQUITY", 18m, 0m, "Reviewed asset-transfer equity balancing")];
+    var reviewedJournalId = (await ConsolidationService.CreateConsolidationJournalAsync(db, preparer,
+      new ConsolidationJournalRequest(scopeId, $"J-{method}", journalType, "QAR", $"journal-{method}", journalLines))).Value;
+    Assert.True((await ConsolidationService.ApproveConsolidationJournalAsync(db, reviewer, reviewedJournalId)).Succeeded);
+
+    var packHash = await db.ExternalComponentPacks.Where(x => x.Id == packId).Select(x => x.PackDigest).SingleAsync();
+    var sources = $"\"sources\":[{{\"componentId\":\"{componentId:D}\",\"kind\":\"EXTERNAL_PACK\",\"id\":\"{packId:D}\",\"hash\":\"{packHash}\"}}],\"reviewedJournals\":[{{\"id\":\"{reviewedJournalId:D}\"}}]";
+    var input = method == AdvancedConsolidationMethods.OwnershipChange
+      ? "{\"effectiveDate\":\"2026-06-30\",\"previousOwnershipPercent\":80,\"newOwnershipPercent\":60,\"consideration\":10,\"fairValueRetainedInterest\":0,\"carryingNetAssets\":100,\"carryingNci\":20,\"controlLost\":false,\"statementLines\":[{\"code\":\"NCI_MOVEMENT\",\"comparativeAmount\":0,\"currentAmount\":20},{\"code\":\"OWNERSHIP_CHANGE_GAIN_LOSS\",\"comparativeAmount\":0,\"currentAmount\":0},{\"code\":\"PARENT_EQUITY\",\"comparativeAmount\":0,\"currentAmount\":-20}]}"
+      : "{\"unrealizedProfit\":30,\"postTransferDepreciation\":6,\"taxRate\":0.25,\"statementLines\":[{\"code\":\"ASSET_TRANSFER_ELIMINATION\",\"comparativeAmount\":0,\"currentAmount\":-18},{\"code\":\"PARENT_EQUITY\",\"comparativeAmount\":0,\"currentAmount\":18}]}";
+    var scheduleId = (await ConsolidationService.CreateAdvancedMethodScheduleAsync(db, preparer,
+      new AdvancedConsolidationMethodScheduleRequest(scopeId, method, "IFRS", $"{{{sources}}}", input))).Value;
+    Assert.True((await ConsolidationService.ApproveAdvancedMethodScheduleAsync(db, reviewer, scheduleId)).Succeeded);
+    var execution = await ConsolidationService.RunAdvancedProfileAsync(db, preparer,
+      await db.ConsolidationScopeVersions.SingleAsync(x => x.Id == scopeId));
+    Assert.True(execution.Succeeded, execution.Message);
+    Assert.True((await ConsolidationService.ApproveAdvancedExecutionAsync(db, reviewer, execution.Value)).Succeeded);
+  }
+
   [Fact]
   [Trait("Profile", "Unit")]
   public void ConsolidationEliminationKinds_RequireAnEnabledAccountingNature()
