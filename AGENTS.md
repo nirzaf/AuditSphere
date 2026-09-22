@@ -85,3 +85,30 @@ scripts/db/restore-drill.sh
 - **Accounting & Consolidation Roadmap:** `docs/AuditSphere_Accounting_module.md` (detailed gap analysis, AC-01 to AC-28 user stories, and implementation roadmap).
 - **Execution Ledger:** `docs/execution/status.json` & `docs/execution/current-slice.md` (pointers to active slice, local verified evidence, and external blockers; re-read repo reality on resume).
 
+---
+
+## 7. GitHub Wiki Deployment Guidelines
+
+### One guide, updated only when necessary
+
+- Use the [repository GitHub Wiki](https://github.com/nirzaf/AuditSphere/wiki) for operator-facing deployment guidance. Read its current index and relevant pages before editing; update the existing canonical page in place. Create a page only for a genuinely missing topic, then link it from the existing index. Do not create per-release copies or duplicate instructions across Wiki pages, repository docs, or `AGENTS.md`; link to the authoritative detail instead.
+- Check documentation impact when prerequisites, configuration keys/defaults, deployment commands, migrations, setup screens, permissions, verification, backup/recovery, or upgrade procedures change. Update only affected sections when the existing guidance becomes inaccurate or incomplete. If it remains correct, make no Wiki edit; avoid cosmetic rewrites, timestamp-only changes, and repeated changelog entries.
+- Verify guidance against the current checkout, especially `docs/SPECIFICATION.md` §§30 and 45, `src/AuditSphereOps.Web/appsettings.json`, `src/AuditSphereOps.Web/Components/Pages/Microsoft365Setup.razor`, and the actual startup, worker, and deployment scripts. `docs/AuditSphere_M365_Simple_Onboarding_User_Story.md` describes proposed requirements: check implementation before presenting any step as available. Link to the applicable source revision; do not copy the specification or configuration files wholesale.
+
+### Make deployment easy to follow
+
+- Use plain language and short numbered steps. Start with prerequisites, supported OS/hosting profile, required access, and a clear distinction between local simulation and production. Give each step an action, where to run it, its expected result, and what to do if it fails; mark optional and administrator-only steps explicitly.
+- Cover the shortest supported path: toolchain and PostgreSQL setup → safe configuration → restore/build → approved database migration → web/worker startup → health and sign-in checks → Microsoft 365 setup and capability verification. Link to focused troubleshooting, upgrades, credential rotation, backup/restore, and rollback guidance. Use only existing, verified commands with explicit working directory, shell, and target environment; label untested steps and missing capabilities honestly.
+- Keep local trust authentication, simulation adapters, and development defaults out of production instructions. Preserve selected-resource permissions, credential separation, release/records checks, and recovery fences. Never recommend bypassing a startup guard or merely toggling external effects to claim readiness. A saved setup draft is not Microsoft consent, verified SharePoint access, or production acceptance; missing live prerequisites remain `BLOCKED_EXTERNAL`.
+
+### Never publish sensitive information
+
+- Treat Wiki text, history, attachments, screenshots, links, and examples as potentially public. Never include passwords, client secrets, access/refresh tokens, bootstrap proofs or hashes, private keys, connection strings containing credentials, signed/preauthenticated URLs, production configuration exports, client/financial data, or personal information. Replace deployment-specific tenant/app/user/site IDs, private hostnames, and resource locations with descriptive placeholders even when they are not authentication secrets.
+- Show configuration key names and obvious placeholders such as `<TENANT_ID>` and `<SECRET_FROM_APPROVED_STORE>`, not real values. Explain how the operator supplies values privately through .NET user secrets for development or an approved production secret store/role-specific mount. Do not instruct users to paste secrets into the Wiki, Git, issues, screenshots, shared logs, or literal shell commands that retain them in history.
+- Before publication, inspect the complete changed content, examples, URLs, and attachments for sensitive material and validate links and command accuracy. Use available secret scanning as an additional check, not a guarantee. If an exposure is found, stop publication and notify the owner privately without repeating the value; removal from the current page does not remove history, and exposed credentials require revocation/rotation through the approved incident process.
+
+### Publishing and evidence
+
+- Wiki changes are separate from the main repository; editing local documentation does not publish a Wiki update. Publish only within explicit owner authorization using the existing approved access method, with a minimal diff and a concise reason. Do not change Wiki visibility, permissions, or repository protections to obtain access.
+- If Wiki access or publication authority is unavailable, report the affected topic and blocker without claiming it was updated. After an authorized update, verify the rendered page and navigation; report the actual page URL, material change, and checks performed. Record a tested version/date only when supported by new evidence, and distinguish local verification from live deployment acceptance.
+
