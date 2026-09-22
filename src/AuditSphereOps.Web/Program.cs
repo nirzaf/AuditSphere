@@ -102,6 +102,22 @@ if (oidcConfigured)
     options.MapInboundClaims = false;
     options.SaveTokens = false;
     options.GetClaimsFromUserInfoEndpoint = false;
+    options.Scope.Clear();
+    options.Scope.Add("openid");
+    options.Scope.Add("profile");
+    options.Scope.Add("email");
+    options.Events = new OpenIdConnectEvents
+    {
+      OnTokenValidated = context =>
+      {
+        var tokenTenant = context.Principal?.FindFirst("tid")?.Value;
+        var objectId = context.Principal?.FindFirst("oid")?.Value;
+        if (!string.Equals(tokenTenant, tenantId, StringComparison.OrdinalIgnoreCase) ||
+            !Guid.TryParse(objectId, out _))
+          context.Fail("The identity is not from the configured workforce tenant or has no immutable object ID.");
+        return Task.CompletedTask;
+      }
+    };
   });
 }
 builder.Services.AddAuthorization();
