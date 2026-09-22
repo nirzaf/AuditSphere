@@ -44,11 +44,11 @@ else
     <div class="form-grid">
       <label class="field" for="advanced-source-manifest">
         Source manifest JSON <span aria-hidden="true">*</span>
-        <textarea id="advanced-source-manifest" data-draft-field="source-manifest" @bind="_sourceManifestJson" rows="10" maxlength="20000" required title="Identify every approved component source exactly once. Method-specific journal, FX or nested-run evidence belongs here when required."></textarea>
+        <textarea id="advanced-source-manifest" data-draft-field="source-manifest" @bind="_sourceManifestJson" @bind:event="oninput" rows="10" maxlength="20000" required title="Identify every approved component source exactly once. Method-specific journal, FX or nested-run evidence belongs here when required."></textarea>
       </label>
       <label class="field" for="advanced-input-snapshot">
         Method input and statement JSON <span aria-hidden="true">*</span>
-        <textarea id="advanced-input-snapshot" data-draft-field="input-snapshot" @bind="_inputSnapshotJson" rows="14" maxlength="20000" required title="Provide the approved method inputs and balanced comparative/current statementLines required by the selected method."></textarea>
+        <textarea id="advanced-input-snapshot" data-draft-field="input-snapshot" @bind="_inputSnapshotJson" @bind:event="oninput" rows="14" maxlength="20000" required title="Provide the approved method inputs and balanced comparative/current statementLines required by the selected method."></textarea>
       </label>
     </div>
     <details>
