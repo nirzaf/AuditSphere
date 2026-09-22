@@ -6,11 +6,11 @@ This file records observed repository state only. The authoritative build contra
 
 | Item | Observed value |
 |---|---|
-| Source implementation checkpoint | `master@d098d50` |
-| Remote | `origin/master` includes source checkpoint `d098d50` |
+| Source implementation checkpoint | `master@0f9f10c` |
+| Remote | `origin/master` includes source checkpoint `0f9f10c` |
 | SDK | .NET 10; repository solution targets `net10.0` |
 | Database | PostgreSQL 18.6 on loopback port 5433 for development only |
-| Build | Solution Release build at `d098d50` — passed, 0 warnings/errors |
+| Build | Web Release build at `0f9f10c` — passed, 0 warnings/errors |
 | Tests | 237/237 passed, 0 skipped against PostgreSQL 18.6 |
 | Migrations | 89 applied; latest `20260922125309_AdvancedConsolidationExecution` |
 | Model drift | `dotnet ef migrations has-pending-model-changes` — no changes |
@@ -51,7 +51,7 @@ This file records observed repository state only. The authoritative build contra
 - The enabled FX profile accepts only explicit `DIRECT` rates; unsupported inverse semantics are rejected rather than silently multiplied with the wrong direction.
 - Exchange-rate sets retain immutable version metadata, source, approval and effective date ranges; each observation retains its direction, rate date and rate type, observations outside a declared range are rejected, and scope/translation approval accepts only rate types declared by the approved policy.
 - Currency remeasurement, foreign-operation translation and display-only conversion have distinct deterministic calculators. Persisted foreign-operation results retain separate foreign-exchange and rounding adjustments, and approval recomputes both from the exact source amount and approved rate; translation reserve rollforward math is available as a separate method-specific calculation core but is not enabled as a production profile without approved fixtures.
-- Advanced consolidation calculation helpers cover acquisition goodwill/bargain purchase with fair-value adjustments, NCI rollforward, ownership changes/disposals, nested double-count detection and asset-transfer/tax elimination math. Approved advanced-method schedules now persist canonical source/input digests, validate method-specific inputs at approval, and the guarded execution path persists balanced current/comparative statements, method output manifests and hashes only after current component, group-revision and method-owner checks. Repeated execution converges on one verified row; a separate reviewer approval is required. A fixed candidate fixture combines the FX reserve, goodwill, NCI, nested-scope and asset-transfer results into balanced QAR current and comparative statements. IFRS method-owner scope is recorded in `STE-METH-APP-001-addendum`; method-specific golden fixtures and browser acceptance remain required before any advanced profile is treated as fully enabled.
+- Advanced consolidation calculation helpers cover acquisition goodwill/bargain purchase with fair-value adjustments, NCI rollforward, ownership changes/disposals, nested double-count detection and asset-transfer/tax elimination math. Approved advanced-method schedules now persist canonical source/input digests, validate method-specific inputs at approval, and the guarded execution path persists balanced current/comparative statements, method output manifests and hashes only after current component, group-revision and method-owner checks. Separate reviewer approval revalidates current component-pack inputs and statement evidence before publication. Repeated execution converges on one verified row. A fixed candidate fixture combines the FX reserve, goodwill, NCI, nested-scope and asset-transfer results into balanced QAR current and comparative statements. IFRS method-owner scope is recorded in `STE-METH-APP-001-addendum`; method-specific golden fixtures and browser acceptance remain required before any advanced profile is treated as fully enabled.
 - The consolidation workbench shows scope-bound advanced schedule and verified/approved execution counts, readiness state and tooltip guidance. It does not expose a browser-side execution action; commands remain guarded and advanced live/provider acceptance is not claimed.
 - FX rate observations and translation-policy codes return controlled idempotency conflicts when repeated, rather than relying on raw database exceptions.
 - Shared reporting taxonomy overlays accept only generic industry/group scopes; a client-scoped overlay is rejected so client-specific context cannot enter a firm master template.
@@ -127,7 +127,7 @@ These are product gaps, not claims of production readiness:
 - [x] Record method-owner approval of the IFRS advanced-method scope in `STE-METH-APP-001-addendum`.
 - [x] Persist approved source-bound advanced-method schedules with canonical digests, idempotent retry, maker/checker approval and group-revision fencing.
 - [x] Validate method-specific advanced schedule inputs at approval using the deterministic FX, acquisition/NCI, ownership, nested-group and asset-transfer calculators.
-- [x] Wire persisted schedules into guarded advanced profile execution; persist balanced current/comparative statement evidence, method output manifests and digests, enforce current component/group revision/method-owner gates, and cover idempotent execution plus separate reviewer approval in PostgreSQL.
+- [x] Wire persisted schedules into guarded advanced profile execution; persist balanced current/comparative statement evidence, method output manifests and digests, enforce current component/group revision/method-owner gates, revalidate component inputs before separate reviewer approval, and cover idempotent execution in PostgreSQL.
 - [ ] Complete method-specific golden fixtures and browser journeys for every advanced profile intended to be enabled; keep unsupported or unproven methods fail-closed.
 - [x] Link accounting evidence to reviewed audit workpapers and expose account-area UI for the typed specialist schedules.
 - [x] Add the accounting dashboard and cross-workflow navigation for accounting, roll-forward and release handoffs.
