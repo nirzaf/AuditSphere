@@ -1033,6 +1033,9 @@ public static class ConsolidationService
     if (scope is null || scope.GroupRevision != schedule.GroupRevision || scope.Status != AccountingWorkflowStates.Approved)
       return CommandResult.Fail(ErrorCodes.GenerationStale,
         "The consolidation perimeter changed; rebuild the advanced method schedule.");
+    if (!AdvancedConsolidationCalculator.TryValidateScheduleInput(schedule.Method, schedule.InputSnapshotJson, out var inputError))
+      return CommandResult.Fail(ErrorCodes.Accounting.MappingInvalid,
+        $"The advanced method schedule input is invalid: {inputError}");
     schedule.Status = AdvancedConsolidationMethodScheduleStates.Approved;
     schedule.ApprovedByUserId = actor.UserId;
     schedule.ApprovedAt = DateTimeOffset.UtcNow;

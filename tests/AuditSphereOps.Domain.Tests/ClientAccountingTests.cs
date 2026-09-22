@@ -1639,6 +1639,35 @@ public sealed class ClientAccountingTests
   }
 
   [Fact]
+  [Trait("Profile", "Unit")]
+  public void AdvancedMethodScheduleValidation_RequiresMethodSpecificInputs()
+  {
+    var valid = new[]
+    {
+      (AdvancedConsolidationMethods.ForeignCurrencyReserve,
+        "{\"openingNetAssets\":100,\"closingNetAssets\":130,\"currentProfit\":20,\"openingRate\":3.6,\"closingRate\":3.7,\"averageRate\":3.65,\"openingTranslationReserve\":5,\"functionalCurrency\":\"USD\",\"presentationCurrency\":\"QAR\"}"),
+      (AdvancedConsolidationMethods.AcquisitionNci,
+        "{\"acquisitionDate\":\"2026-01-01\",\"controlDate\":\"2026-01-15\",\"consideration\":120,\"nciAtAcquisition\":20,\"fairValueNetAssets\":100,\"openingReserves\":8,\"fairValueAdjustments\":10,\"nciOpening\":20,\"nciProfit\":5,\"nciOci\":2,\"nciDistributions\":3}"),
+      (AdvancedConsolidationMethods.OwnershipChange,
+        "{\"effectiveDate\":\"2026-06-30\",\"previousOwnershipPercent\":80,\"newOwnershipPercent\":60,\"consideration\":10,\"fairValueRetainedInterest\":0,\"carryingNetAssets\":100,\"carryingNci\":20,\"controlLost\":false}"),
+      (AdvancedConsolidationMethods.NestedGroup,
+        "{\"components\":[{\"economicEntityKey\":\"PARENT\",\"sourceScopeVersionId\":\"00000000-0000-0000-0000-000000000101\",\"includedDirectly\":true},{\"economicEntityKey\":\"SUBSIDIARY\",\"sourceScopeVersionId\":\"00000000-0000-0000-0000-000000000102\",\"includedDirectly\":false}]}"),
+      (AdvancedConsolidationMethods.AssetTransferElimination,
+        "{\"unrealizedProfit\":30,\"postTransferDepreciation\":6,\"taxRate\":0.25}")
+    };
+
+    foreach (var (method, json) in valid)
+      Assert.True(AdvancedConsolidationCalculator.TryValidateScheduleInput(method, json, out var error), $"{method}: {error}");
+
+    Assert.False(AdvancedConsolidationCalculator.TryValidateScheduleInput(
+      AdvancedConsolidationMethods.AcquisitionNci, "{\"consideration\":120}", out _));
+    Assert.False(AdvancedConsolidationCalculator.TryValidateScheduleInput(
+      AdvancedConsolidationMethods.NestedGroup,
+      "{\"components\":[{\"economicEntityKey\":\"A\",\"sourceScopeVersionId\":\"00000000-0000-0000-0000-000000000101\",\"includedDirectly\":true},{\"economicEntityKey\":\"a\",\"sourceScopeVersionId\":\"00000000-0000-0000-0000-000000000102\",\"includedDirectly\":false}]}",
+      out _));
+  }
+
+  [Fact]
   [Trait("Profile", "Database")]
   public async Task AdvancedMethodSchedules_AreCanonicalScopedAndIdempotent()
   {
@@ -1683,6 +1712,23 @@ public sealed class ClientAccountingTests
       Assert.Equal(AdvancedConsolidationMethodScheduleStates.Submitted, stored.Status);
       Assert.Equal(Hashing.Sha256Hex(stored.SourceManifestJson), stored.SourceManifestDigest);
       Assert.Equal(Hashing.Sha256Hex(stored.InputSnapshotJson), stored.InputSnapshotDigest);
+
+      var scope = await db.ConsolidationScopeVersions.SingleAsync(x => x.Id == scopeId);
+      scope.Status = AccountingWorkflowStates.Approved;
+      await db.SaveChangesAsync();
+      var invalidApproval = await ConsolidationService.ApproveAdvancedMethodScheduleAsync(db, reviewer, created.Value);
+      Assert.False(invalidApproval.Succeeded);
+      Assert.Equal(ErrorCodes.Accounting.MappingInvalid, invalidApproval.ErrorCode);
+
+      var validCreated = await ConsolidationService.CreateAdvancedMethodScheduleAsync(db, preparer,
+        new AdvancedConsolidationMethodScheduleRequest(scopeId, AdvancedConsolidationMethods.AcquisitionNci,
+          "IFRS", "{ \"sources\": [ { \"kind\": \"PACKAGE\", \"id\": \"pkg-2\" } ] }",
+          "{ \"acquisitionDate\": \"2026-01-01\", \"controlDate\": \"2026-01-15\", \"consideration\": 120, \"nciAtAcquisition\": 20, \"fairValueNetAssets\": 100, \"openingReserves\": 8, \"fairValueAdjustments\": 10, \"nciOpening\": 20, \"nciProfit\": 5, \"nciOci\": 2, \"nciDistributions\": 3 }"));
+      Assert.True(validCreated.Succeeded, validCreated.Message);
+      var approved = await ConsolidationService.ApproveAdvancedMethodScheduleAsync(db, reviewer, validCreated.Value);
+      Assert.True(approved.Succeeded, approved.Message);
+      Assert.Equal(AdvancedConsolidationMethodScheduleStates.Approved,
+        await db.AdvancedConsolidationMethodSchedules.Where(x => x.Id == validCreated.Value).Select(x => x.Status).SingleAsync());
     }
   }
 

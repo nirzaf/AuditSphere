@@ -1,3 +1,6 @@
+using System.Globalization;
+using System.Text.Json;
+using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Shared;
 
 namespace AuditSphereOps.Application.Accounting;
@@ -55,6 +58,169 @@ public static class AdvancedConsolidationCalculator
   public const string OwnershipChangeMethod = "OWNERSHIP_CHANGE_V1";
   public const string NestedGroupMethod = "NESTED_GROUP_V1";
   public const string AssetTransferMethod = "ASSET_TRANSFER_ELIMINATION_V1";
+
+  public static bool TryValidateScheduleInput(string method, string json, out string error)
+  {
+    error = string.Empty;
+    try
+    {
+      using var document = JsonDocument.Parse(json);
+      if (document.RootElement.ValueKind != JsonValueKind.Object)
+      {
+        error = "The method input must be a JSON object.";
+        return false;
+      }
+
+      var root = document.RootElement;
+      switch (method.Trim().ToUpperInvariant())
+      {
+        case AdvancedConsolidationMethods.ForeignCurrencyReserve:
+          if (!TryDecimal(root, "openingNetAssets", out var openingNetAssets) ||
+              !TryDecimal(root, "closingNetAssets", out var closingNetAssets) ||
+              !TryDecimal(root, "currentProfit", out var currentProfit) ||
+              !TryDecimal(root, "openingRate", out var openingRate) ||
+              !TryDecimal(root, "closingRate", out var closingRate) ||
+              !TryDecimal(root, "averageRate", out var averageRate) ||
+              !TryDecimal(root, "openingTranslationReserve", out var openingReserve) ||
+              !TryString(root, "functionalCurrency", out var functionalCurrency) ||
+              !TryString(root, "presentationCurrency", out var presentationCurrency))
+          {
+            error = "Foreign-currency reserve input requires net assets, profit, opening reserve, opening/closing/average rates and both currencies.";
+            return false;
+          }
+          ForeignOperationTranslationCalculator.Translate(openingNetAssets, closingNetAssets, currentProfit,
+            openingRate, closingRate, averageRate, openingReserve, functionalCurrency, presentationCurrency);
+          return true;
+
+        case AdvancedConsolidationMethods.AcquisitionNci:
+          if (!TryDate(root, "acquisitionDate", out var acquisitionDate) ||
+              !TryDate(root, "controlDate", out var controlDate) ||
+              !TryDecimal(root, "consideration", out var consideration) ||
+              !TryDecimal(root, "nciAtAcquisition", out var nciAtAcquisition) ||
+              !TryDecimal(root, "fairValueNetAssets", out var fairValueNetAssets) ||
+              !TryDecimal(root, "openingReserves", out var openingReserves) ||
+              !TryDecimal(root, "fairValueAdjustments", out var fairValueAdjustments) ||
+              !TryDecimal(root, "nciOpening", out var nciOpening) ||
+              !TryDecimal(root, "nciProfit", out var nciProfit) ||
+              !TryDecimal(root, "nciOci", out var nciOci) ||
+              !TryDecimal(root, "nciDistributions", out var nciDistributions))
+          {
+            error = "Acquisition/NCI input requires acquisition and control dates, consideration, fair-value inputs, reserves and the complete NCI rollforward.";
+            return false;
+          }
+          CalculateAcquisition(new AcquisitionAccountingInput(acquisitionDate, controlDate, consideration, nciAtAcquisition,
+            fairValueNetAssets, openingReserves, fairValueAdjustments));
+          RollForwardNci(nciOpening, nciProfit, nciOci, nciDistributions);
+          return true;
+
+        case AdvancedConsolidationMethods.OwnershipChange:
+          if (!TryDate(root, "effectiveDate", out var effectiveDate) ||
+              !TryDecimal(root, "previousOwnershipPercent", out var previousOwnershipPercent) ||
+              !TryDecimal(root, "newOwnershipPercent", out var newOwnershipPercent) ||
+              !TryDecimal(root, "consideration", out var ownershipConsideration) ||
+              !TryDecimal(root, "fairValueRetainedInterest", out var fairValueRetainedInterest) ||
+              !TryDecimal(root, "carryingNetAssets", out var carryingNetAssets) ||
+              !TryDecimal(root, "carryingNci", out var carryingNci) ||
+              !TryBool(root, "controlLost", out var controlLost))
+          {
+            error = "Ownership-change input requires an effective date, both ownership percentages, consideration, retained interest, carrying values and control status.";
+            return false;
+          }
+          CalculateOwnershipChange(new OwnershipChangeInput(effectiveDate, previousOwnershipPercent, newOwnershipPercent,
+            ownershipConsideration, fairValueRetainedInterest, carryingNetAssets, carryingNci, controlLost));
+          return true;
+
+        case AdvancedConsolidationMethods.NestedGroup:
+          if (!root.TryGetProperty("components", out var components) || components.ValueKind != JsonValueKind.Array ||
+              components.GetArrayLength() == 0)
+          {
+            error = "Nested-group input requires at least one source-scope component.";
+            return false;
+          }
+          var nestedComponents = new List<NestedConsolidationComponent>();
+          foreach (var component in components.EnumerateArray())
+          {
+            if (component.ValueKind != JsonValueKind.Object ||
+                !TryString(component, "economicEntityKey", out var economicEntityKey) ||
+                !TryGuid(component, "sourceScopeVersionId", out var sourceScopeVersionId) ||
+                !TryBool(component, "includedDirectly", out var includedDirectly))
+            {
+              error = "Every nested-group component needs an entity key, source scope identifier and direct-inclusion flag.";
+              return false;
+            }
+            nestedComponents.Add(new NestedConsolidationComponent(economicEntityKey, sourceScopeVersionId, includedDirectly));
+          }
+          EnsureNoNestedDoubleCount(nestedComponents);
+          return true;
+
+        case AdvancedConsolidationMethods.AssetTransferElimination:
+          if (!TryDecimal(root, "unrealizedProfit", out var unrealizedProfit) ||
+              !TryDecimal(root, "postTransferDepreciation", out var postTransferDepreciation) ||
+              !TryDecimal(root, "taxRate", out var taxRate))
+          {
+            error = "Asset-transfer input requires unrealized profit, post-transfer depreciation and tax rate.";
+            return false;
+          }
+          CalculateAssetTransferElimination(unrealizedProfit, postTransferDepreciation, taxRate);
+          return true;
+
+        default:
+          error = "The advanced consolidation method is not supported.";
+          return false;
+      }
+    }
+    catch (JsonException)
+    {
+      error = "The method input is not valid JSON.";
+      return false;
+    }
+    catch (InvalidOperationException ex)
+    {
+      error = ex.Message;
+      return false;
+    }
+  }
+
+  private static bool TryDecimal(JsonElement root, string name, out decimal value)
+  {
+    value = 0m;
+    return root.TryGetProperty(name, out var property) && property.ValueKind == JsonValueKind.Number && property.TryGetDecimal(out value);
+  }
+
+  private static bool TryDate(JsonElement root, string name, out DateOnly value)
+  {
+    value = default;
+    return root.TryGetProperty(name, out var property) && property.ValueKind == JsonValueKind.String &&
+      DateOnly.TryParse(property.GetString() ?? string.Empty, CultureInfo.InvariantCulture, DateTimeStyles.None, out value);
+  }
+
+  private static bool TryString(JsonElement root, string name, out string value)
+  {
+    value = string.Empty;
+    if (!root.TryGetProperty(name, out var property) || property.ValueKind != JsonValueKind.String)
+      return false;
+    var text = property.GetString();
+    if (string.IsNullOrWhiteSpace(text))
+      return false;
+    value = text;
+    return true;
+  }
+
+  private static bool TryGuid(JsonElement root, string name, out Guid value)
+  {
+    value = Guid.Empty;
+    return root.TryGetProperty(name, out var property) && property.ValueKind == JsonValueKind.String &&
+      Guid.TryParse(property.GetString() ?? string.Empty, out value);
+  }
+
+  private static bool TryBool(JsonElement root, string name, out bool value)
+  {
+    value = false;
+    if (!root.TryGetProperty(name, out var property) || property.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+      return false;
+    value = property.GetBoolean();
+    return true;
+  }
 
   public static AcquisitionAccountingResult CalculateAcquisition(AcquisitionAccountingInput input)
   {
