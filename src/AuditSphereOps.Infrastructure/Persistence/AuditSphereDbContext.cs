@@ -633,6 +633,8 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
       "state IN ('DRAFT','VALIDATING','VERIFIED','ACTIVE','CONSENT_REQUIRED','SUSPENDED','BLOCKED') AND revision >= 1 AND access_profile IN ('APP_MEDIATED','DIRECT_STAFF_COLLABORATION') AND mail_state IN ('NOT_CONFIGURED','CONFIGURED') AND records_state IN ('NOT_CONFIGURED','CONFIGURED')"));
     draft.HasOne<Microsoft365SetupSession>().WithMany().HasForeignKey(x => new { x.FirmId, x.SetupSessionId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    draft.HasOne<Microsoft365ConnectionRevision>().WithMany().HasForeignKey(x => new { x.FirmId, x.ConnectionRevisionId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
 
     var connection = b.Entity<Microsoft365ConnectionRevision>();
     connection.HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_m365_connection_revisions_firm_id_id");
@@ -681,6 +683,8 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     evidence.ToTable("m365_verification_evidence", t => t.HasCheckConstraint("ck_m365_evidence_values",
       "length(trim(resource_kind)) > 0 AND length(trim(resource_id)) > 0 AND length(trim(operation)) > 0 AND length(trim(identity_reference)) > 0 AND result IN ('PASS','FAIL','BLOCKED') AND length(trim(evidence_reference)) > 0"));
     evidence.HasOne<Microsoft365SetupDraft>().WithMany().HasForeignKey(x => new { x.FirmId, x.SetupDraftId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    evidence.HasOne<Microsoft365ConnectionRevision>().WithMany().HasForeignKey(x => new { x.FirmId, x.ConnectionRevisionId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
 
     var clientWorkspace = b.Entity<ClientWorkspace>();

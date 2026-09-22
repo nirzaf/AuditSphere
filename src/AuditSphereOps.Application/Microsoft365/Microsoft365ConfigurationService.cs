@@ -34,6 +34,34 @@ public sealed record FolderTemplateValidation(
   string ManifestDigest,
   int NodeCount);
 
+public sealed record PrepareConnectionRevisionRequest(
+  Guid SetupDraftId,
+  long ExpectedDraftRevision,
+  string LoginClientIdReference,
+  string RuntimeCredentialReference,
+  string CloudProfile = "PUBLIC");
+
+public sealed record RecordVerificationEvidenceRequest(
+  Guid SetupDraftId,
+  Guid ConnectionRevisionId,
+  string ResourceKind,
+  string ResourceId,
+  string Operation,
+  string IdentityReference,
+  string Result,
+  string EvidenceReference);
+
+public sealed record ActivateConnectionRequest(
+  Guid SetupDraftId,
+  Guid ConnectionRevisionId,
+  Guid FolderTemplateVersionId,
+  long ExpectedDraftRevision,
+  string SiteId,
+  string DriveId,
+  string RootFolderId,
+  string DisplayUrl,
+  string AccessProfile);
+
 /// <summary>
 /// Local template/configuration boundary. It never resolves a Graph path or marks a
 /// Microsoft capability verified; those effects require a separate provider proof.
@@ -44,6 +72,242 @@ public static class Microsoft365ConfigurationService
   {
     "{{CLIENT_CODE}}", "{{CLIENT_NAME}}", "{{ENGAGEMENT_CODE}}", "{{SERVICE}}", "{{PERIOD}}"
   };
+
+  private static readonly string[] RequiredEvidenceKinds = ["TENANT", "SITE", "DRIVE", "ROOT"];
+
+  public static async Task<CommandResult<Guid>> PrepareConnectionRevisionAsync(
+    IAuditSphereDbContext db,
+    ActorContext actor,
+    PrepareConnectionRevisionRequest request,
+    DateTimeOffset now,
+    CancellationToken ct = default)
+  {
+    if (request.SetupDraftId == Guid.Empty || request.ExpectedDraftRevision < 1 ||
+        !CredentialReference(request.LoginClientIdReference) || !CredentialReference(request.RuntimeCredentialReference) ||
+        !string.Equals(request.CloudProfile.Trim(), "PUBLIC", StringComparison.OrdinalIgnoreCase))
+      return CommandResult<Guid>.Fail("m365.connection.invalid", "A deployment-approved credential reference and public-cloud profile are required.");
+    var auth = await FirmAdministratorAsync(db, actor, ct);
+    if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+
+    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    var draft = await db.Microsoft365SetupDrafts.SingleOrDefaultAsync(x =>
+      x.Id == request.SetupDraftId && x.FirmId == actor.FirmId, ct);
+    if (draft is null) return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "The setup draft is unavailable.");
+    if (draft.Revision != request.ExpectedDraftRevision)
+      return CommandResult<Guid>.Fail(ErrorCodes.StaleRevision, "The setup draft changed; reload it before connecting.");
+    if (string.IsNullOrWhiteSpace(draft.ExpectedTenantId))
+      return CommandResult<Guid>.Fail("m365.connection.invalid", "A verified tenant identifier is required before connection preparation.");
+    if (draft.ConnectionRevisionId is { } existingId)
+    {
+      var existing = await db.Microsoft365ConnectionRevisions.AsNoTracking().SingleOrDefaultAsync(x =>
+        x.Id == existingId && x.FirmId == actor.FirmId, ct);
+      if (existing is not null)
+      {
+        await tx.CommitAsync(ct);
+        return CommandResult<Guid>.Ok(existing.Id);
+      }
+    }
+
+    var revision = await db.Microsoft365ConnectionRevisions
+      .Where(x => x.FirmId == actor.FirmId)
+      .OrderByDescending(x => x.Revision).Select(x => (long?)x.Revision).FirstOrDefaultAsync(ct) ?? 0;
+    var connection = new Microsoft365ConnectionRevision
+    {
+      Id = Guid.CreateVersion7(), FirmId = actor.FirmId, Revision = revision + 1,
+      TenantId = draft.ExpectedTenantId.Trim(),
+      LoginClientIdReference = request.LoginClientIdReference.Trim(),
+      RuntimeCredentialReference = request.RuntimeCredentialReference.Trim(),
+      CloudProfile = "PUBLIC", State = Microsoft365RevisionStates.ConsentRequired,
+      ConsentState = "REQUIRED", CreatedByUserId = actor.UserId, CreatedAt = now
+    };
+    db.Microsoft365ConnectionRevisions.Add(connection);
+    draft.ConnectionRevisionId = connection.Id;
+    draft.State = Microsoft365RevisionStates.ConsentRequired;
+    draft.Revision++;
+    draft.UpdatedAt = now;
+    await db.SaveChangesAsync(ct);
+    await tx.CommitAsync(ct);
+    return CommandResult<Guid>.Ok(connection.Id);
+  }
+
+  public static async Task<CommandResult> RecordVerificationEvidenceAsync(
+    IAuditSphereDbContext db,
+    ActorContext actor,
+    RecordVerificationEvidenceRequest request,
+    DateTimeOffset now,
+    CancellationToken ct = default)
+  {
+    var resourceKind = request.ResourceKind.Trim().ToUpperInvariant();
+    var result = request.Result.Trim().ToUpperInvariant();
+    if (request.SetupDraftId == Guid.Empty || request.ConnectionRevisionId == Guid.Empty ||
+        resourceKind is not ("TENANT" or "SITE" or "DRIVE" or "ROOT") ||
+        string.IsNullOrWhiteSpace(request.ResourceId) || string.IsNullOrWhiteSpace(request.Operation) ||
+        string.IsNullOrWhiteSpace(request.IdentityReference) || string.IsNullOrWhiteSpace(request.EvidenceReference) ||
+        result is not ("PASS" or "FAIL" or "BLOCKED"))
+      return CommandResult.Fail("m365.verification.invalid", "Verification evidence is incomplete or uses an unsupported resource/result.");
+    var auth = await FirmAdministratorAsync(db, actor, ct);
+    if (!auth.Succeeded) return auth;
+
+    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    var draft = await db.Microsoft365SetupDrafts.SingleOrDefaultAsync(x =>
+      x.Id == request.SetupDraftId && x.FirmId == actor.FirmId, ct);
+    var connection = await db.Microsoft365ConnectionRevisions.SingleOrDefaultAsync(x =>
+      x.Id == request.ConnectionRevisionId && x.FirmId == actor.FirmId, ct);
+    if (draft is null || connection is null || draft.ConnectionRevisionId != connection.Id)
+      return CommandResult.Fail(ErrorCodes.ScopeDenied, "The verification revision is unavailable.");
+    if (connection.State == Microsoft365RevisionStates.Active)
+      return CommandResult.Fail(ErrorCodes.ProtectedState, "Active connection evidence cannot be amended; create a new revision.");
+
+    db.IntegrationVerificationEvidences.Add(new IntegrationVerificationEvidence
+    {
+      Id = Guid.CreateVersion7(), FirmId = actor.FirmId, SetupDraftId = draft.Id,
+      ConnectionRevisionId = connection.Id, ResourceKind = resourceKind,
+      ResourceId = request.ResourceId.Trim(), Operation = request.Operation.Trim(),
+      IdentityReference = request.IdentityReference.Trim(), Result = result,
+      EvidenceReference = request.EvidenceReference.Trim(), ObservedAt = now
+    });
+    await db.SaveChangesAsync(ct);
+    draft.State = result == "PASS" ? Microsoft365RevisionStates.Validating : Microsoft365RevisionStates.Blocked;
+    connection.State = result == "PASS" ? Microsoft365RevisionStates.Validating : Microsoft365RevisionStates.Blocked;
+    if (result != "PASS") connection.ConsentState = "BLOCKED";
+
+    if (result == "PASS")
+    {
+      var requiredIds = new Dictionary<string, string?>(StringComparer.Ordinal)
+      {
+        ["TENANT"] = draft.ExpectedTenantId,
+        ["SITE"] = draft.SiteId,
+        ["DRIVE"] = draft.DriveId,
+        ["ROOT"] = draft.RootFolderId
+      };
+      var passes = await db.IntegrationVerificationEvidences.AsNoTracking()
+        .Where(x => x.FirmId == actor.FirmId && x.SetupDraftId == draft.Id &&
+                    x.ConnectionRevisionId == connection.Id && x.Result == "PASS")
+        .ToListAsync(ct);
+      var allResources = RequiredEvidenceKinds.All(kind =>
+        requiredIds[kind] is { Length: > 0 } expected &&
+        passes.Any(x => x.ResourceKind == kind && x.ResourceId == expected));
+      var consentObserved = passes.Any(x => x.ResourceKind == "TENANT" && x.Operation == "CONSENT");
+      if (allResources && consentObserved)
+      {
+        draft.State = Microsoft365RevisionStates.Verified;
+        connection.State = Microsoft365RevisionStates.Verified;
+        connection.ConsentState = "OBSERVED";
+        connection.VerifiedAt = now;
+      }
+    }
+    draft.Revision++;
+    draft.UpdatedAt = now;
+    await db.SaveChangesAsync(ct);
+    await tx.CommitAsync(ct);
+    return CommandResult.Ok();
+  }
+
+  public static async Task<CommandResult<Guid>> ActivateConnectionAsync(
+    IAuditSphereDbContext db,
+    ActorContext actor,
+    ActivateConnectionRequest request,
+    DateTimeOffset now,
+    CancellationToken ct = default)
+  {
+    if (request.SetupDraftId == Guid.Empty || request.ConnectionRevisionId == Guid.Empty ||
+        request.FolderTemplateVersionId == Guid.Empty || request.ExpectedDraftRevision < 1 ||
+        string.IsNullOrWhiteSpace(request.SiteId) || string.IsNullOrWhiteSpace(request.DriveId) ||
+        string.IsNullOrWhiteSpace(request.RootFolderId) || !Https(request.DisplayUrl) ||
+        request.AccessProfile is not (Microsoft365AccessProfiles.AppMediated or Microsoft365AccessProfiles.DirectStaffCollaboration))
+      return CommandResult<Guid>.Fail("m365.activation.invalid", "A verified site, library, root, HTTPS URL, template and access profile are required.");
+    var auth = await FirmAdministratorAsync(db, actor, ct);
+    if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+
+    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    var draft = await db.Microsoft365SetupDrafts.SingleOrDefaultAsync(x =>
+      x.Id == request.SetupDraftId && x.FirmId == actor.FirmId, ct);
+    var connection = await db.Microsoft365ConnectionRevisions.SingleOrDefaultAsync(x =>
+      x.Id == request.ConnectionRevisionId && x.FirmId == actor.FirmId, ct);
+    var template = await db.FolderTemplateVersions.SingleOrDefaultAsync(x =>
+      x.Id == request.FolderTemplateVersionId && x.FirmId == actor.FirmId &&
+      x.Purpose == FolderTemplatePurposes.ClientWorkspace, ct);
+    if (draft is null || connection is null || template is null || draft.ConnectionRevisionId != connection.Id)
+      return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "The activation records are unavailable.");
+    if (draft.Revision != request.ExpectedDraftRevision)
+      return CommandResult<Guid>.Fail(ErrorCodes.StaleRevision, "The setup draft changed; reload before activation.");
+    if (connection.State != Microsoft365RevisionStates.Verified || template.ApprovedAt is null)
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Connection evidence and an approved client template are required before activation.");
+    if (!string.Equals(draft.ExpectedTenantId, connection.TenantId, StringComparison.Ordinal) ||
+        !string.Equals(draft.SiteId, request.SiteId.Trim(), StringComparison.Ordinal) ||
+        !string.Equals(draft.DriveId, request.DriveId.Trim(), StringComparison.Ordinal) ||
+        !string.Equals(draft.RootFolderId, request.RootFolderId.Trim(), StringComparison.Ordinal) ||
+        !string.Equals(draft.AccessProfile, request.AccessProfile, StringComparison.Ordinal))
+      return CommandResult<Guid>.Fail(ErrorCodes.StaleRevision, "The activation binding does not match the verified draft.");
+
+    var requiredIds = new Dictionary<string, string>(StringComparer.Ordinal)
+    {
+      ["TENANT"] = connection.TenantId, ["SITE"] = draft.SiteId!,
+      ["DRIVE"] = draft.DriveId!, ["ROOT"] = draft.RootFolderId!
+    };
+    var evidence = await db.IntegrationVerificationEvidences.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && x.SetupDraftId == draft.Id &&
+                  x.ConnectionRevisionId == connection.Id && x.Result == "PASS")
+      .ToListAsync(ct);
+    if (!RequiredEvidenceKinds.All(kind => evidence.Any(x => x.ResourceKind == kind && x.ResourceId == requiredIds[kind])) ||
+        !evidence.Any(x => x.ResourceKind == "TENANT" && x.Operation == "CONSENT"))
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The exact tenant, site, library, root and consent evidence is incomplete.");
+
+    var existing = await db.FirmWorkspaceConfigurations.SingleOrDefaultAsync(x =>
+      x.FirmId == actor.FirmId && x.ConnectionRevisionId == connection.Id, ct);
+    if (existing is not null)
+    {
+      await tx.CommitAsync(ct);
+      return CommandResult<Guid>.Ok(existing.Id);
+    }
+    await db.FirmWorkspaceConfigurations.Where(x => x.FirmId == actor.FirmId && x.DefaultForFutureClients)
+      .ExecuteUpdateAsync(setters => setters.SetProperty(x => x.DefaultForFutureClients, false), ct);
+    var workspace = new FirmWorkspaceConfiguration
+    {
+      Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ConnectionRevisionId = connection.Id,
+      TenantId = connection.TenantId, SiteId = draft.SiteId!, DriveId = draft.DriveId!,
+      RootFolderId = draft.RootFolderId!, DisplayUrl = request.DisplayUrl.Trim(),
+      AccessProfile = draft.AccessProfile, FolderTemplateVersionId = template.Id,
+      DefaultForFutureClients = true, CreatedAt = now
+    };
+    db.FirmWorkspaceConfigurations.Add(workspace);
+    connection.State = Microsoft365RevisionStates.Active;
+    connection.ApprovedByUserId = actor.UserId;
+    connection.ActivatedAt = now;
+    draft.State = Microsoft365RevisionStates.Active;
+    draft.Revision++;
+    draft.UpdatedAt = now;
+    var session = await db.Microsoft365SetupSessions.SingleOrDefaultAsync(x =>
+      x.Id == draft.SetupSessionId && x.FirmId == actor.FirmId, ct);
+    if (session is not null)
+    {
+      session.State = Microsoft365SetupStates.Active;
+      session.ConsumedAt = now;
+      session.Revision++;
+    }
+    await db.SaveChangesAsync(ct);
+    await tx.CommitAsync(ct);
+    return CommandResult<Guid>.Ok(workspace.Id);
+  }
+
+  public static async Task<CommandResult> ApproveFolderTemplateAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid templateId, DateTimeOffset now,
+    CancellationToken ct = default)
+  {
+    if (templateId == Guid.Empty) return CommandResult.Fail("m365.template.invalid", "A template is required.");
+    var auth = await FirmAdministratorAsync(db, actor, ct);
+    if (!auth.Succeeded) return auth;
+    var template = await db.FolderTemplateVersions.SingleOrDefaultAsync(x =>
+      x.Id == templateId && x.FirmId == actor.FirmId, ct);
+    if (template is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "The template is unavailable.");
+    if (template.ApprovedAt is null)
+    {
+      template.ApprovedAt = now;
+      template.ApprovedByUserId = actor.UserId;
+      await db.SaveChangesAsync(ct);
+    }
+    return CommandResult.Ok();
+  }
 
   public static async Task<CommandResult<FolderTemplateResult>> SaveFolderTemplateAsync(
     IAuditSphereDbContext db,
@@ -260,4 +524,24 @@ public static class Microsoft365ConfigurationService
 
   private static FolderTemplateResult ToResult(FolderTemplateVersion template, int nodeCount) =>
     new(template.Id, template.Purpose, template.Version, template.ManifestJson, template.ManifestDigest, nodeCount);
+
+  private static Task<CommandResult> FirmAdministratorAsync(
+    IAuditSphereDbContext db, ActorContext actor, CancellationToken ct) =>
+    AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, RequiredRoles: ["Administrator"], InternalOnly: true,
+        RequireFirmWide: true), ct);
+
+  private static bool CredentialReference(string value)
+  {
+    var trimmed = value.Trim();
+    return trimmed.Length is > 0 and <= 500 && !trimmed.Contains('\r') && !trimmed.Contains('\n') &&
+      !trimmed.Contains("BEGIN ", StringComparison.OrdinalIgnoreCase) &&
+      !trimmed.Contains("password", StringComparison.OrdinalIgnoreCase) &&
+      !trimmed.Contains("client_secret", StringComparison.OrdinalIgnoreCase);
+  }
+
+  private static bool Https(string value) =>
+    Uri.TryCreate(value.Trim(), UriKind.Absolute, out var uri) &&
+    uri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase) &&
+    string.IsNullOrWhiteSpace(uri.UserInfo) && !string.IsNullOrWhiteSpace(uri.Host);
 }

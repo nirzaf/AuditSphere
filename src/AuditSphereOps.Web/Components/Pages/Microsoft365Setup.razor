@@ -85,11 +85,20 @@
           <div class="table-wrap">
             <table>
               <caption class="sr-only">Saved folder template versions</caption>
-              <thead><tr><th scope="col">Purpose</th><th scope="col">Version</th><th scope="col">Digest</th><th scope="col">Provider state</th></tr></thead>
+              <thead><tr><th scope="col">Purpose</th><th scope="col">Version</th><th scope="col">Digest</th><th scope="col">Approval</th><th scope="col">Provider state</th></tr></thead>
               <tbody>
               @foreach (var template in _templateVersions)
               {
-                <tr><td>@template.Purpose</td><td>@template.Version</td><td><code>@template.ManifestDigest[..12]</code></td><td>Local only — SharePoint verification required</td></tr>
+                <tr>
+                  <td>@template.Purpose</td><td>@template.Version</td><td><code>@template.ManifestDigest[..12]</code></td>
+                  <td>
+                    @if (template.ApprovedAt is null)
+                    { <button class="button" @onclick="() => ApproveTemplate(template.Id)" disabled="@_templateBusy" title="Approve this immutable template for a later verified connection activation">Approve</button> }
+                    else
+                    { <span class="success-text">Approved @template.ApprovedAt.Value.ToString("yyyy-MM-dd")</span> }
+                  </td>
+                  <td>Local only — SharePoint verification required</td>
+                </tr>
               }
               </tbody>
             </table>
@@ -165,6 +174,22 @@
       if (!result.Succeeded) { _error = result.Message ?? "The template could not be saved."; return; }
       await LoadTemplates();
       _message = $"Saved local {result.Value!.Purpose} template version {result.Value.Version}. SharePoint verification is still required.";
+    }
+    finally { _templateBusy = false; }
+  }
+
+  private async Task ApproveTemplate(Guid templateId)
+  {
+    _message = _error = string.Empty;
+    if (_actor is null || !_isFirmAdministrator) return;
+    _templateBusy = true;
+    try
+    {
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var result = await Microsoft365ConfigurationService.ApproveFolderTemplateAsync(db, _actor, templateId, DateTimeOffset.UtcNow);
+      if (!result.Succeeded) { _error = result.Message ?? "The template could not be approved."; return; }
+      await LoadTemplates();
+      _message = "Template approval recorded locally. It does not verify SharePoint behavior.";
     }
     finally { _templateBusy = false; }
   }

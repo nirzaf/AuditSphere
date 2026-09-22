@@ -54,6 +54,7 @@ public sealed class Microsoft365SetupDraft
   public string? SiteId { get; set; }
   public string? DriveId { get; set; }
   public string? RootFolderId { get; set; }
+  public Guid? ConnectionRevisionId { get; set; }
   public string AccessProfile { get; set; } = Microsoft365AccessProfiles.AppMediated;
   public string MailState { get; set; } = "NOT_CONFIGURED";
   public string RecordsState { get; set; } = "NOT_CONFIGURED";
@@ -114,6 +115,7 @@ public sealed class IntegrationVerificationEvidence
   public Guid Id { get; set; }
   public Guid FirmId { get; set; }
   public Guid SetupDraftId { get; set; }
+  public Guid? ConnectionRevisionId { get; set; }
   public string ResourceKind { get; set; } = string.Empty;
   public string ResourceId { get; set; } = string.Empty;
   public string Operation { get; set; } = string.Empty;

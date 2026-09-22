@@ -135,5 +135,75 @@ public sealed class Microsoft365OnboardingTests
     Assert.False(invalid.Succeeded);
   }
 
+  [Fact]
+  public async Task ConnectionActivation_RequiresExactObservedEvidenceAndApprovedTemplate()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var (firmId, _, _) = await pg.SeedScopeAsync();
+    var admin = new AuditSphereOps.Domain.Security.AppUser
+    {
+      Id = Guid.NewGuid(), FirmId = firmId, Subject = "admin-" + Guid.NewGuid().ToString("N"),
+      TenantId = "tenant", Email = "admin@example.test", DisplayName = "Administrator",
+      CreatedAt = DateTimeOffset.UtcNow
+    };
+    var now = DateTimeOffset.UtcNow;
+    await using var db = new AuditSphereDbContext(pg.Options);
+    db.Users.Add(admin);
+    db.RoleGrants.Add(new AuditSphereOps.Domain.Security.RoleGrant
+    {
+      Id = Guid.NewGuid(), FirmId = firmId, UserId = admin.Id, Role = "Administrator",
+      GrantedAt = now, GrantedByUserId = admin.Id
+    });
+    await db.SaveChangesAsync();
+    var actor = new AuditSphereOps.Application.Abstractions.ActorContext(admin.Id, firmId, admin.SessionEpoch, ["Administrator"]);
+
+    var setup = await Microsoft365OnboardingService.ClaimAsync(db, firmId, "install-activation", "proof", Hash("proof"), now);
+    var setupClaim = setup.Value!;
+    var draft = await db.Microsoft365SetupDrafts.SingleAsync(x => x.SetupSessionId == setupClaim.SessionId);
+    Assert.True((await Microsoft365OnboardingService.SaveDraftAsync(db,
+      new(setupClaim.SessionId, setupClaim.Capability, draft.Revision, "tenant-1", "EasyGuide",
+        "https://easyguide.sharepoint.com/sites/AuditSphere", "site-1", "drive-1", "root-1",
+        Microsoft365AccessProfiles.AppMediated, "NOT_CONFIGURED", "NOT_CONFIGURED"), now)).Succeeded);
+    draft = await db.Microsoft365SetupDrafts.SingleAsync(x => x.Id == draft.Id);
+
+    var prepared = await Microsoft365ConfigurationService.PrepareConnectionRevisionAsync(db, actor,
+      new(draft.Id, draft.Revision, "slot:login-client", "slot:runtime-graph"), now);
+    Assert.True(prepared.Succeeded);
+    var connectionId = prepared.Value!;
+    draft = await db.Microsoft365SetupDrafts.SingleAsync(x => x.Id == draft.Id);
+
+    var template = await Microsoft365ConfigurationService.SaveFolderTemplateAsync(db, actor,
+      new(FolderTemplatePurposes.ClientWorkspace, Microsoft365ConfigurationService.DefaultManifest(FolderTemplatePurposes.ClientWorkspace)), now);
+    Assert.True(template.Succeeded);
+
+    var blockedActivation = await Microsoft365ConfigurationService.ActivateConnectionAsync(db, actor,
+      new(draft.Id, connectionId, template.Value!.Id, draft.Revision, "site-1", "drive-1", "root-1",
+        "https://easyguide.sharepoint.com/sites/AuditSphere", Microsoft365AccessProfiles.AppMediated), now);
+    Assert.False(blockedActivation.Succeeded);
+    Assert.Equal("gate.blocked", blockedActivation.ErrorCode);
+
+    Assert.True((await Microsoft365ConfigurationService.ApproveFolderTemplateAsync(db, actor, template.Value!.Id, now)).Succeeded);
+
+    foreach (var (kind, id, operation) in new[]
+    {
+      ("TENANT", "tenant-1", "CONSENT"), ("SITE", "site-1", "READ"),
+      ("DRIVE", "drive-1", "READ"), ("ROOT", "root-1", "READ")
+    })
+    {
+      var evidence = await Microsoft365ConfigurationService.RecordVerificationEvidenceAsync(db, actor,
+        new(draft.Id, connectionId, kind, id, operation, "runtime:acceptance", "PASS", $"evidence:{kind.ToLowerInvariant()}"), now);
+      Assert.True(evidence.Succeeded);
+    }
+
+    draft = await db.Microsoft365SetupDrafts.SingleAsync(x => x.Id == draft.Id);
+    var activated = await Microsoft365ConfigurationService.ActivateConnectionAsync(db, actor,
+      new(draft.Id, connectionId, template.Value!.Id, draft.Revision, "site-1", "drive-1", "root-1",
+        "https://easyguide.sharepoint.com/sites/AuditSphere", Microsoft365AccessProfiles.AppMediated), now);
+    Assert.True(activated.Succeeded);
+    Assert.Equal(Microsoft365RevisionStates.Active,
+      await db.Microsoft365ConnectionRevisions.Where(x => x.Id == connectionId).Select(x => x.State).SingleAsync());
+    Assert.Equal(1, await db.FirmWorkspaceConfigurations.CountAsync(x => x.FirmId == firmId && x.DefaultForFutureClients));
+  }
+
   private static string Hash(string value) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value))).ToLowerInvariant();
 }
