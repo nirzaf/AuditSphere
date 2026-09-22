@@ -130,7 +130,7 @@ These are product gaps, not claims of production readiness:
 - [x] Wire persisted schedules into guarded advanced profile execution; persist balanced current/comparative statement evidence, method output manifests and digests, enforce current component/group revision/method-owner gates, revalidate component inputs before separate reviewer approval, and cover idempotent execution in PostgreSQL.
 - [x] Add method-specific golden execution fixtures and fail-closed browser gate journeys for all five advanced profiles; keep unsupported or unproven methods visibly `REQUIRED`.
 - [x] Complete source-bound method schedules, reviewed journal evidence and execution journeys for all five advanced profiles in PostgreSQL; keep them fail-closed until browser acceptance.
-- [ ] Complete full end-to-end browser acceptance with an approved component/journal fixture for any advanced profile before enabling it.
+- [x] Complete full end-to-end browser acceptance with approved component/journal or FX fixtures for all five advanced profiles before enabling them; the local Development/Test workbench reports `1 / 1` verified executions and `APPROVED` readiness for each profile. Evidence: `docs/evidence/accounting-browser-advanced-gates-latest.json`.
 - [x] Link accounting evidence to reviewed audit workpapers and expose account-area UI for the typed specialist schedules.
 - [x] Add the accounting dashboard and cross-workflow navigation for accounting, roll-forward and release handoffs.
 - [x] Include accounting/group dependencies in structured records exports while retaining the existing records-profile and legal-hold gates.
