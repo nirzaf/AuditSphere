@@ -237,6 +237,10 @@ public static class RoleAdministrationService
     var auth = await FirmAdministratorAsync(db, actor, ct);
     if (!auth.Succeeded) return auth;
     await using var tx = await db.Database.BeginTransactionAsync(ct);
+    var firmGuard = await db.FirmSafetyStates.FromSqlInterpolated(
+      $"SELECT * FROM firm_safety_states WHERE id = {actor.FirmId} FOR UPDATE")
+      .SingleOrDefaultAsync(ct);
+    if (firmGuard is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "The firm safety state is unavailable.");
     var grant = await db.RoleGrants.SingleOrDefaultAsync(x => x.Id == request.GrantId && x.FirmId == actor.FirmId, ct);
     if (grant is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "The role grant is unavailable.");
     if (grant.RevokedAt is not null) return CommandResult.Ok();

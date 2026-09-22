@@ -90,4 +90,53 @@ public sealed class RoleAdministrationTests
       Assert.Equal(1, await db.RoleGrantChangeEvidences.CountAsync(x => x.Action == "REVOKED" && x.RoleGrantId == adminGrantId));
     }
   }
+
+  [Fact]
+  public async Task ConcurrentAdministratorRevocations_CannotRemoveTheLastUsableAdministrator()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var (firmId, _, _) = await pg.SeedScopeAsync();
+    var first = new AppUser
+    {
+      Id = Guid.NewGuid(), FirmId = firmId, Subject = "admin-1-" + Guid.NewGuid().ToString("N"),
+      TenantId = "tenant", Email = "admin1@example.test", DisplayName = "Admin One", CreatedAt = DateTimeOffset.UtcNow
+    };
+    var second = new AppUser
+    {
+      Id = Guid.NewGuid(), FirmId = firmId, Subject = "admin-2-" + Guid.NewGuid().ToString("N"),
+      TenantId = "tenant", Email = "admin2@example.test", DisplayName = "Admin Two", CreatedAt = DateTimeOffset.UtcNow
+    };
+    Guid firstGrantId, secondGrantId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      db.Users.AddRange(first, second);
+      firstGrantId = Guid.NewGuid();
+      secondGrantId = Guid.NewGuid();
+      db.RoleGrants.AddRange(
+        new RoleGrant { Id = firstGrantId, FirmId = firmId, UserId = first.Id, Role = "Administrator", GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = first.Id },
+        new RoleGrant { Id = secondGrantId, FirmId = firmId, UserId = second.Id, Role = "Administrator", GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = first.Id });
+      await db.SaveChangesAsync();
+    }
+
+    var firstTask = Task.Run(async () =>
+    {
+      await using var db = new AuditSphereDbContext(pg.Options);
+      return await RoleAdministrationService.RevokeRoleGrantAsync(
+        db, new ActorContext(first.Id, firmId, first.SessionEpoch, ["Administrator"]), new(firstGrantId, second.Id));
+    });
+    var secondTask = Task.Run(async () =>
+    {
+      await using var db = new AuditSphereDbContext(pg.Options);
+      return await RoleAdministrationService.RevokeRoleGrantAsync(
+        db, new ActorContext(second.Id, firmId, second.SessionEpoch, ["Administrator"]), new(secondGrantId, first.Id));
+    });
+
+    var results = await Task.WhenAll(firstTask, secondTask);
+    Assert.Single(results, x => x.Succeeded);
+    var rejected = Assert.Single(results, x => !x.Succeeded);
+    Assert.Equal("roles.last-admin", rejected.ErrorCode);
+
+    await using var verify = new AuditSphereDbContext(pg.Options);
+    Assert.Equal(1, await verify.RoleGrants.CountAsync(x => x.FirmId == firmId && x.Role == "Administrator" && x.RevokedAt == null));
+  }
 }
