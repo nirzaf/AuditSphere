@@ -1589,6 +1589,57 @@ public sealed class ClientAccountingTests
 
   [Fact]
   [Trait("Profile", "Unit")]
+  public void AdvancedConsolidationCandidateFixture_BalancesCurrentAndComparativeStatements()
+  {
+    var acquisition = AdvancedConsolidationCalculator.CalculateAcquisition(new AcquisitionAccountingInput(
+      new DateOnly(2026, 1, 1), new DateOnly(2026, 1, 15), 120m, 20m, 100m, 8m, 10m));
+    var nci = AdvancedConsolidationCalculator.RollForwardNci(20m, 5m, 2m, 3m);
+    var translation = ForeignOperationTranslationCalculator.Translate(
+      100m, 130m, 20m, 3.6m, 3.7m, 3.65m, 5m, "USD", "QAR");
+    var elimination = AdvancedConsolidationCalculator.CalculateAssetTransferElimination(30m, 6m, 0.25m);
+    AdvancedConsolidationCalculator.EnsureNoNestedDoubleCount([
+      new("PARENT", Guid.Parse("00000000-0000-0000-0000-000000000101"), true),
+      new("SUBSIDIARY", Guid.Parse("00000000-0000-0000-0000-000000000102"), false)
+    ]);
+
+    var comparative = new[]
+    {
+      ("Translated net assets", translation.OpeningNetAssetsTranslated),
+      ("Goodwill", acquisition.Goodwill),
+      ("NCI", -nci.OpeningNci),
+      ("Translation reserve", -5m),
+      ("Parent equity", -365m)
+    };
+    var current = new[]
+    {
+      ("Translated net assets", translation.ClosingNetAssetsTranslated),
+      ("Goodwill", acquisition.Goodwill),
+      ("Asset-transfer elimination", elimination.NetElimination),
+      ("NCI", -nci.ClosingNci),
+      ("Translation reserve", -translation.ClosingTranslationReserve),
+      ("Parent equity", -416m)
+    };
+
+    Assert.Equal(new[]
+    {
+      ("Translated net assets", 360m), ("Goodwill", 30m), ("NCI", -20m),
+      ("Translation reserve", -5m), ("Parent equity", -365m)
+    }, comparative);
+    Assert.Equal(new[]
+    {
+      ("Translated net assets", 481m), ("Goodwill", 30m), ("Asset-transfer elimination", -18m),
+      ("NCI", -24m), ("Translation reserve", -53m), ("Parent equity", -416m)
+    }, current);
+    Assert.Equal(0m, comparative.Sum(x => x.Item2));
+    Assert.Equal(0m, current.Sum(x => x.Item2));
+    Assert.Equal(121m, current[0].Item2 - comparative[0].Item2);
+    Assert.Equal(-4m, current[3].Item2 - comparative[2].Item2);
+    Assert.Equal(-48m, current[4].Item2 - comparative[3].Item2);
+    Assert.Equal(-51m, current[5].Item2 - comparative[4].Item2);
+  }
+
+  [Fact]
+  [Trait("Profile", "Unit")]
   public void ConsolidationEliminationKinds_RequireAnEnabledAccountingNature()
   {
     Assert.All(new[]
