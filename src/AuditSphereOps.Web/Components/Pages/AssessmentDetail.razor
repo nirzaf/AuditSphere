@@ -2,8 +2,10 @@
 @page "/app/clients/{ClientId:guid}/assessment"
 @rendermode InteractiveServer
 @using AuditSphereOps.Domain.Acceptance
+@using AuditSphereOps.Domain.Microsoft365
 @using AuditSphereOps.Domain.Practice
 @using AuditSphereOps.Domain.Security
+@using AuditSphereOps.Application.Security
 @using AuditSphereOps.Infrastructure.Persistence
 @using Microsoft.EntityFrameworkCore
 @inject CurrentActorResolver ActorResolver
@@ -36,6 +38,13 @@ else if (_actor is null || !_isStaff)
         <p>Sign in with an authorized internal staff identity to view assessments.</p>
     </section>
 }
+else if (_scopeDenied)
+{
+    <section class="notice" role="alert">
+        <h2>Access unavailable</h2>
+        <p>The current identity does not have an active grant covering this client. No assessment or workspace metadata is shown.</p>
+    </section>
+}
 else if (_client is null)
 {
     <section class="notice" role="alert">
@@ -57,6 +66,30 @@ else
                 <dt>Acceptance Status</dt><dd>@(_decision?.Decision ?? "Pending Evaluation")</dd>
                 <dt>Decision Generation</dt><dd>@(_decision?.Generation.ToString() ?? "—")</dd>
             </dl>
+        </section>
+
+        <section class="card" aria-labelledby="workspace-heading">
+            <h2 id="workspace-heading">Client workspace</h2>
+            @if (_workspace is null)
+            {
+                <p class="muted">No accepted-client workspace intent exists. Prospect and incomplete evaluation states do not create one.</p>
+            }
+            else
+            {
+                <dl class="detail-grid">
+                    <dt>Logical workspace</dt><dd><code>@_workspace.LogicalKey</code></dd>
+                    <dt>State</dt><dd><span class="status">@_workspace.State</span></dd>
+                    <dt>Access profile</dt><dd>Application mediated until direct access is separately verified.</dd>
+                </dl>
+                @if (_workspace.State == ClientWorkspaceStates.WaitingForIntegration)
+                {
+                    <p class="notice" role="status">Integration is not active. No SharePoint link is exposed and no remote folder is assumed to exist.</p>
+                }
+                else if (_workspace.State != ClientWorkspaceStates.Ready || string.IsNullOrWhiteSpace(_workspace.RemoteItemId))
+                {
+                    <p class="notice" role="status">Workspace is not verified yet. Remote identifiers and links remain hidden until provider reconciliation succeeds.</p>
+                }
+            }
         </section>
 
         <!-- CE / RV question sections -->
@@ -149,9 +182,11 @@ else
     bool _isStaff;
     bool _loading = true;
     bool _allSectionsClear;
+    bool _scopeDenied;
 
     PracticeClient? _client;
     AcceptanceDecision? _decision;
+    ClientWorkspace? _workspace;
 
     record SectionRow(string SectionCode, string Name, int Answered, int Total, bool Complete);
     record ClearanceRow(string Area, string Specialist, string Status, string StatusClass, string? EvidenceRef, DateTimeOffset? Date);
@@ -201,6 +236,18 @@ else
             _loading = false;
             return;
         }
+
+        var authorization = await AuthorizationDecision.AuthorizeAsync(db, _actor,
+            new AuthorizationRequest(_actor.FirmId, ClientId: _client.Id, InternalOnly: true));
+        if (!authorization.Succeeded)
+        {
+            _scopeDenied = true;
+            _loading = false;
+            return;
+        }
+
+        _workspace = await db.ClientWorkspaces.AsNoTracking()
+            .SingleOrDefaultAsync(x => x.FirmId == _actor.FirmId && x.PracticeClientId == _client.Id && x.Purpose == "PRIMARY");
 
         // Query real evaluation responses for this client
         var responses = await db.EvaluationResponses.AsNoTracking()
