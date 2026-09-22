@@ -1,10 +1,13 @@
 @page "/app/administration"
 @rendermode InteractiveServer
 @using AuditSphereOps.Application.Security
+@using AuditSphereOps.Domain.Microsoft365
 @using AuditSphereOps.Domain.Security
+@using Microsoft.JSInterop
 @inject CurrentActorResolver ActorResolver
 @inject IDbContextFactory<AuditSphereDbContext> DbFactory
 @inject IConfiguration Configuration
+@inject IJSRuntime JS
 
 <PageTitle>Firm administration</PageTitle>
 <a class="back-link" href="/app">← Back to portfolio</a>
@@ -109,23 +112,34 @@ else
 
   <section class="card" aria-labelledby="role-change-heading">
     <h2 id="role-change-heading">Verified roster role administration</h2>
-    <p class="field-help">Live Graph directory browsing is not enabled until DEC-01 is approved. Use an administrator-provided or exact verified-sign-in identity; email and display name never identify a user.</p>
+    <p class="field-help">Live Graph directory browsing is blocked until the narrow DEC-01 exception is approved. This local fallback accepts an administrator-provided or exact verified-sign-in identity; email and display name never identify a user.</p>
     <div class="form-group"><label for="roster-tenant">Tenant ID <span class="required-marker">*</span><input id="roster-tenant" @bind="_rosterTenant" maxlength="200" required title="Exact verified Entra tenant ID (tid)." /></label></div>
     <div class="form-group"><label for="roster-subject">Object ID / subject <span class="required-marker">*</span><input id="roster-subject" @bind="_rosterSubject" maxlength="200" required title="Immutable verified Entra object/subject identifier (oid/sub)." /></label></div>
     <div class="form-group"><label for="roster-email">Email <span class="required-marker">*</span><input id="roster-email" type="email" @bind="_rosterEmail" maxlength="320" required title="Display/contact data only; it cannot merge identities." /></label></div>
     <div class="form-group"><label for="roster-name">Display name <span class="required-marker">*</span><input id="roster-name" @bind="_rosterName" maxlength="300" required /></label></div>
+    <div class="form-group"><label for="roster-kind">Application identity kind <span class="required-marker">*</span><select id="roster-kind" @bind="_rosterKind" title="Staff and client identities use different landing areas and role policies."><option value="Staff">Staff</option><option value="Client">Client</option></select></label></div>
     <div class="form-group"><label for="roster-source">Identity evidence <span class="required-marker">*</span><select id="roster-source" @bind="_rosterSource" title="Record whether this exact identity came from an approved roster or a verified sign-in."><option value="APPROVED_ROSTER">Approved roster</option><option value="VERIFIED_SIGN_IN">Verified sign-in</option></select></label></div>
     <button class="button" @onclick="OnboardUserAsync" disabled="@_roleBusy" title="Bind the exact tenant and subject to a local staff user without granting a role">@(_roleBusy ? "Saving…" : "Bind user")</button>
     @if (_selectedUserId.HasValue)
     {
       <p class="field-help">Selected local user: <code>@_selectedUserId</code>. No role is granted until the explicit plan below is applied.</p>
-      <div class="form-group"><label for="role-name">Application role <span class="required-marker">*</span><select id="role-name" @bind="_roleName"><option>Administrator</option><option>Partner</option><option>Manager</option><option>Staff</option><option>RelationshipManager</option><option>FinanceManager</option><option>FinanceReviewer</option></select></label></div>
+      <div class="form-group"><label for="role-name">Application role <span class="required-marker">*</span><select id="role-name" @bind="_roleName" title="Canonical local role only; Entra job title, group and email domain do not grant authority."><option>Administrator</option><option>Partner</option><option>Manager</option><option>Staff</option><option>RelationshipManager</option><option>FinanceManager</option><option>FinanceReviewer</option><option>ClientUser</option></select></label></div>
       <div class="form-group"><label for="scope-kind">Scope <span class="required-marker">*</span><select id="scope-kind" @bind="_scopeKind" title="An empty scope is never inferred as firm-wide; choose it explicitly."><option value="FIRM_WIDE">Firm-wide</option><option value="CLIENT">Selected client</option><option value="ENGAGEMENT">Selected engagement</option></select></label></div>
       @if (_scopeKind is "CLIENT" or "ENGAGEMENT")
       { <div class="form-group"><label for="scope-client">Client ID <span class="required-marker">*</span><input id="scope-client" @bind="_scopeClientIdText" maxlength="36" title="Exact client ID in the current firm." /></label></div> }
       @if (_scopeKind == "ENGAGEMENT")
       { <div class="form-group"><label for="scope-engagement">Engagement ID <span class="required-marker">*</span><input id="scope-engagement" @bind="_scopeEngagementIdText" maxlength="36" title="Exact engagement ID; its client relationship is revalidated server-side." /></label></div> }
-      <button class="button" @onclick="ApplyRoleAsync" disabled="@_roleBusy" title="Apply one reviewed, scope-bound local role grant and invalidate the target session epoch">Apply role grant</button>
+      <button class="button" @onclick="ApplyRoleAsync" disabled="@_roleBusy" title="Atomically apply the reviewed scope-bound grant and create a safe Microsoft-only invitation copy link">Save access and create invitation</button>
+      @if (!string.IsNullOrWhiteSpace(_invitationLink))
+      {
+        <div class="notice" role="status">
+          <strong>Invitation link — not sent by AuditSphere</strong>
+          <p class="field-help">This link contains no bearer token or role data. The recipient must authenticate with Microsoft and still pass the local grant check.</p>
+          <input readonly value="@_invitationLink" title="Safe application landing path; copy and share only with the confirmed recipient." />
+          <button class="btn-secondary" @onclick="CopyInvitationAsync" disabled="@_roleBusy" title="Copy the safe invitation link and record a local copy-link action">Copy invitation</button>
+          @if (!string.IsNullOrWhiteSpace(_invitationMessage)) { <span class="success-text">@_invitationMessage</span> }
+        </div>
+      }
     }
     @if (!string.IsNullOrWhiteSpace(_roleMessage)) { <p class="notice" role="status">@_roleMessage</p> }
     @if (!string.IsNullOrWhiteSpace(_roleError)) { <p class="notice error" role="alert">@_roleError</p> }
@@ -141,8 +155,10 @@ else
   private bool _roleBusy;
   private Guid? _selectedUserId;
   private string _rosterTenant = string.Empty, _rosterSubject = string.Empty, _rosterEmail = string.Empty, _rosterName = string.Empty;
-  private string _rosterSource = "APPROVED_ROSTER", _roleName = "Staff", _scopeKind = "FIRM_WIDE";
+  private string _rosterSource = "APPROVED_ROSTER", _rosterKind = "Staff", _roleName = "Staff", _scopeKind = "FIRM_WIDE";
   private string _scopeClientIdText = string.Empty, _scopeEngagementIdText = string.Empty;
+  private Guid? _invitationId;
+  private string _invitationLink = string.Empty, _invitationMessage = string.Empty;
   private string _roleMessage = string.Empty, _roleError = string.Empty;
 
   protected override async Task OnInitializedAsync()
@@ -183,10 +199,11 @@ else
     try
     {
       await using var db = await DbFactory.CreateDbContextAsync();
-      var result = await RoleAdministrationService.EnsureStaffUserAsync(db, _actor,
-        new(_rosterTenant, _rosterSubject, _rosterEmail, _rosterName, _rosterSource));
+      var result = await RoleAdministrationService.EnsureUserAsync(db, _actor,
+        new(_rosterTenant, _rosterSubject, _rosterEmail, _rosterName, _rosterKind, _rosterSource));
       if (!result.Succeeded) { _roleError = result.Message ?? "The user could not be bound."; return; }
       _selectedUserId = result.Value;
+      _invitationId = null; _invitationLink = string.Empty; _invitationMessage = string.Empty;
       _roleMessage = "Exact identity bound. Review the explicit role and scope before applying it.";
       await LoadAdminDataAsync();
     }
@@ -211,13 +228,38 @@ else
         engagementId = parsedEngagement;
       }
       await using var db = await DbFactory.CreateDbContextAsync();
-      var result = await RoleAdministrationService.ApplyRoleGrantAsync(db, _actor,
+      var result = await RoleAdministrationService.ApplyRoleGrantAndInvitationAsync(db, _actor,
         new(_selectedUserId.Value, _roleName, _scopeKind, clientId, engagementId));
       if (!result.Succeeded) { _roleError = result.Message ?? "The role grant was rejected."; return; }
-      _roleMessage = "Role grant applied and target sessions invalidated.";
+      _invitationId = result.Value!.InvitationId;
+      _invitationLink = BuildInvitationLink(result.Value.DestinationPath);
+      _roleMessage = "Role grant and invitation intent saved atomically; target sessions were invalidated.";
       await LoadAdminDataAsync();
     }
     finally { _roleBusy = false; }
+  }
+
+  private async Task CopyInvitationAsync()
+  {
+    if (_actor is null || !_invitationId.HasValue || string.IsNullOrWhiteSpace(_invitationLink)) return;
+    _roleBusy = true; _invitationMessage = string.Empty;
+    try
+    {
+      await JS.InvokeVoidAsync("auditSphereExports.copyText", _invitationLink);
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var result = await RoleAdministrationService.MarkInvitationCopiedAsync(db, _actor, _invitationId.Value);
+      _invitationMessage = result.Succeeded ? "Copied and recorded." : result.Message ?? "Copied locally; the status could not be recorded.";
+    }
+    catch (JSException) { _invitationMessage = "Copy was unavailable; select the link and copy it manually."; }
+    finally { _roleBusy = false; }
+  }
+
+  private string BuildInvitationLink(string path)
+  {
+    var configured = Configuration["Application:PublicBaseUrl"];
+    if (Uri.TryCreate(configured, UriKind.Absolute, out var baseUri) && baseUri.Scheme is "http" or "https")
+      return new Uri(baseUri, path.TrimStart('/')).AbsoluteUri;
+    return path;
   }
 
   private async Task RevokeRoleAsync(Guid grantId)

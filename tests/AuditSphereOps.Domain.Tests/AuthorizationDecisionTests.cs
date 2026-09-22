@@ -511,6 +511,8 @@ public sealed class AuthorizationDecisionTests
     public DbSet<Microsoft365SetupSession> Microsoft365SetupSessions => db.Microsoft365SetupSessions;
     public DbSet<Microsoft365SetupDraft> Microsoft365SetupDrafts => db.Microsoft365SetupDrafts;
     public DbSet<Microsoft365ConnectionRevision> Microsoft365ConnectionRevisions => db.Microsoft365ConnectionRevisions;
+    public DbSet<DirectoryUserObservation> DirectoryUserObservations => db.DirectoryUserObservations;
+    public DbSet<UserAccessInvitation> UserAccessInvitations => db.UserAccessInvitations;
     public DbSet<FirmWorkspaceConfiguration> FirmWorkspaceConfigurations => db.FirmWorkspaceConfigurations;
     public DbSet<FolderTemplateVersion> FolderTemplateVersions => db.FolderTemplateVersions;
     public DbSet<IntegrationVerificationEvidence> IntegrationVerificationEvidences => db.IntegrationVerificationEvidences;

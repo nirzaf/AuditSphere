@@ -19,7 +19,7 @@ else if (_actor is null)
     <p>This staff view needs an authenticated identity mapped to an active AuditSphereOps user. No local demo actor is available.</p>
     @if (OidcConfigured)
     {
-      <a class="button" href="/auth/sign-in?returnUrl=%2Fapp">Sign in with Entra</a>
+      <a class="button" href="/auth/sign-in?returnUrl=%2Fauth%2Flanding" title="Use the existing Microsoft 365 identity and route to the correct staff or client area">Sign in with Entra</a>
     }
     else
     {

@@ -218,6 +218,28 @@ else if (developmentIdentityEnabled)
 }
 if (oidcConfigured || developmentIdentityEnabled)
 {
+  app.MapGet("/auth/landing", async (HttpContext http, IDbContextFactory<AuditSphereDbContext> dbFactory, CancellationToken ct) =>
+  {
+    if (http.User.Identity?.IsAuthenticated != true)
+      return Results.Redirect("/app");
+    var subject = http.User.FindFirstValue("oid") ?? http.User.FindFirstValue("sub");
+    var tenant = http.User.FindFirstValue("tid");
+    if (string.IsNullOrWhiteSpace(subject) || string.IsNullOrWhiteSpace(tenant))
+      return Results.Redirect("/auth/access-not-assigned");
+    await using var db = await dbFactory.CreateDbContextAsync(ct);
+    var user = await db.Users.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.TenantId == tenant && x.Subject == subject, ct);
+    if (user is null || user.Disabled)
+      return Results.Redirect("/auth/access-not-assigned");
+    var grants = await db.RoleGrants.AsNoTracking().Where(x => x.FirmId == user.FirmId &&
+      x.UserId == user.Id && x.RevokedAt == null).Select(x => x.Role).ToListAsync(ct);
+    if (grants.Count == 0)
+      return Results.Redirect("/auth/access-not-assigned");
+    return user.UserKind.Equals("Client", StringComparison.OrdinalIgnoreCase) ||
+           grants.Contains("ClientUser", StringComparer.OrdinalIgnoreCase)
+      ? Results.Redirect("/portal")
+      : Results.Redirect("/app");
+  });
   app.MapGet("/auth/sign-out", async (HttpContext http) =>
   {
     await http.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
@@ -377,7 +399,7 @@ app.Run();
 static string LocalDestination(string? returnUrl) =>
   !string.IsNullOrWhiteSpace(returnUrl) && returnUrl.StartsWith('/') &&
   !returnUrl.StartsWith("//", StringComparison.Ordinal)
-    ? returnUrl : "/app";
+    ? returnUrl : "/auth/landing";
 
 /// <summary>Npgsql readiness probe without an extra health-check package (§45.4).</summary>
 file sealed class NpgsqlCheck(string connectionString) : IHealthCheck

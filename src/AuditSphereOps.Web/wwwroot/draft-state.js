@@ -17,6 +17,10 @@ window.auditSphereExports.downloadBytes = (filename, bytes, contentType) => {
   anchor.click();
   setTimeout(() => URL.revokeObjectURL(url), 0);
 };
+window.auditSphereExports.copyText = async text => {
+  if (!navigator.clipboard?.writeText) throw new Error('clipboard-unavailable');
+  await navigator.clipboard.writeText(text);
+};
 
 (() => {
   const root = window.auditSphereDrafts = window.auditSphereDrafts || {};

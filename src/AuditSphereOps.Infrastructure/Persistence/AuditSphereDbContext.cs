@@ -30,6 +30,8 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
   public DbSet<FolderTemplateVersion> FolderTemplateVersions => Set<FolderTemplateVersion>();
   public DbSet<IntegrationVerificationEvidence> IntegrationVerificationEvidences => Set<IntegrationVerificationEvidence>();
   public DbSet<ClientWorkspace> ClientWorkspaces => Set<ClientWorkspace>();
+  public DbSet<DirectoryUserObservation> DirectoryUserObservations => Set<DirectoryUserObservation>();
+  public DbSet<UserAccessInvitation> UserAccessInvitations => Set<UserAccessInvitation>();
   public DbSet<Lead> Leads => Set<Lead>();
   public DbSet<Opportunity> Opportunities => Set<Opportunity>();
   public DbSet<Proposal> Proposals => Set<Proposal>();
@@ -577,6 +579,11 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
       .HasForeignKey(x => new { x.FirmId, x.PracticeClientId })
       .HasPrincipalKey(c => new { c.FirmId, c.Id })
       .OnDelete(DeleteBehavior.Restrict);
+    b.Entity<RoleGrant>().HasAlternateKey(x => new { x.FirmId, x.Id })
+      .HasName("AK_role_grants_firm_id_id");
+    b.Entity<RoleGrant>().HasIndex(x => new { x.FirmId, x.UserId, x.Role, x.ClientId, x.EngagementId })
+      .IsUnique().HasFilter("revoked_at IS NULL").HasDatabaseName("ux_active_role_grant_identity")
+      .AreNullsDistinct(false);
     b.Entity<RoleGrant>().HasOne<AppUser>().WithMany()
       .HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Restrict);
     b.Entity<RoleGrant>().HasOne<PracticeClient>().WithMany()
@@ -595,7 +602,7 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     roleEvidence.Property(x => x.Source).HasMaxLength(40);
     roleEvidence.HasIndex(x => new { x.FirmId, x.TargetUserId, x.CreatedAt });
     roleEvidence.ToTable("role_grant_change_evidence", t => t.HasCheckConstraint("ck_role_grant_evidence_values",
-      "action IN ('GRANTED','REVOKED') AND length(trim(source)) > 0 AND length(trim(new_role)) > 0 AND length(trim(prior_role)) >= 0"));
+      "action IN ('GRANTED','REVOKED','INVITATION_COPIED') AND length(trim(source)) > 0 AND length(trim(new_role)) > 0 AND length(trim(prior_role)) >= 0"));
     roleEvidence.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.TargetUserId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     b.Entity<EngagementHold>().HasOne<Engagement>().WithMany()
@@ -710,6 +717,36 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     clientWorkspace.HasOne<Microsoft365ConnectionRevision>().WithMany().HasForeignKey(x => new { x.FirmId, x.ConnectionRevisionId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     clientWorkspace.HasOne<FolderTemplateVersion>().WithMany().HasForeignKey(x => new { x.FirmId, x.FolderTemplateVersionId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var observation = b.Entity<DirectoryUserObservation>();
+    observation.HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_m365_directory_observations_firm_id_id");
+    observation.Property(x => x.TenantId).HasMaxLength(200);
+    observation.Property(x => x.ObjectId).HasMaxLength(200);
+    observation.Property(x => x.DisplayName).HasMaxLength(300);
+    observation.Property(x => x.UserPrincipalName).HasMaxLength(320);
+    observation.Property(x => x.Mail).HasMaxLength(320);
+    observation.Property(x => x.EnabledState).HasMaxLength(16);
+    observation.Property(x => x.UserType).HasMaxLength(40);
+    observation.Property(x => x.Source).HasMaxLength(32);
+    observation.HasIndex(x => new { x.FirmId, x.TenantId, x.ObjectId, x.ObservedAt });
+    observation.ToTable("m365_directory_user_observations", t => t.HasCheckConstraint("ck_m365_directory_observation_values",
+      "length(trim(tenant_id)) > 0 AND length(trim(object_id)) > 0 AND length(trim(display_name)) > 0 AND enabled_state IN ('ENABLED','DISABLED','UNKNOWN') AND length(trim(source)) > 0"));
+    observation.HasOne<Microsoft365ConnectionRevision>().WithMany().HasForeignKey(x => new { x.FirmId, x.ConnectionRevisionId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var invitation = b.Entity<UserAccessInvitation>();
+    invitation.HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_m365_user_invitations_firm_id_id");
+    invitation.HasIndex(x => new { x.FirmId, x.RoleGrantId }).IsUnique();
+    invitation.Property(x => x.RecipientEmail).HasMaxLength(320);
+    invitation.Property(x => x.DestinationPath).HasMaxLength(500);
+    invitation.Property(x => x.DeliveryState).HasMaxLength(24);
+    invitation.Property(x => x.ProviderCorrelationId).HasMaxLength(500);
+    invitation.ToTable("m365_user_access_invitations", t => t.HasCheckConstraint("ck_m365_user_invitation_values",
+      "length(trim(recipient_email)) > 0 AND length(trim(destination_path)) > 0 AND destination_path NOT LIKE '%://%' AND delivery_state IN ('NOT_SENT','QUEUED','PROVIDER_ACCEPTED','FAILED','UNKNOWN','COPIED') AND attempt_count >= 0"));
+    invitation.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.UserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    invitation.HasOne<RoleGrant>().WithMany().HasForeignKey(x => new { x.FirmId, x.RoleGrantId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
   }
 

@@ -28,6 +28,19 @@ public sealed class TrustedActorResolver(IDbContextFactory<AuditSphereDbContext>
     var roles = await db.RoleGrants.AsNoTracking()
       .Where(x => x.FirmId == user.FirmId && x.UserId == user.Id && x.RevokedAt == null)
       .Select(x => x.Role).Distinct().ToListAsync(ct);
+    var invitation = await db.UserAccessInvitations
+      .Where(x => x.FirmId == user.FirmId && x.UserId == user.Id &&
+        db.RoleGrants.Any(g => g.FirmId == x.FirmId && g.Id == x.RoleGrantId && g.RevokedAt == null))
+      .OrderByDescending(x => x.CreatedAt).FirstOrDefaultAsync(ct);
+    if (invitation?.FirstAccessAt is null)
+    {
+      if (invitation is not null)
+      {
+        invitation.FirstAccessAt = DateTimeOffset.UtcNow;
+        invitation.UpdatedAt = invitation.FirstAccessAt.Value;
+        await db.SaveChangesAsync(ct);
+      }
+    }
     return new ActorContext(user.Id, user.FirmId, user.SessionEpoch, roles);
   }
 }

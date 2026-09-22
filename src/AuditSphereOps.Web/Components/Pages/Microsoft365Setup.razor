@@ -7,9 +7,11 @@
 @using AuditSphereOps.Domain.Security
 @using AuditSphereOps.Infrastructure.Persistence
 @using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Components.Authorization
 @inject CurrentActorResolver ActorResolver
 @inject IDbContextFactory<AuditSphereDbContext> DbFactory
 @inject IConfiguration Configuration
+@inject AuthenticationStateProvider AuthenticationState
 
 <PageTitle>Microsoft 365 setup — AuditSphereOps</PageTitle>
 
@@ -47,6 +49,18 @@
       <dt>Draft revision</dt><dd>@_draft.Revision</dd>
       <dt>Session expiry</dt><dd>@_sessionExpiry?.ToLocalTime().ToString("yyyy-MM-dd HH:mm zzz")</dd>
     </dl>
+    @if (_bootstrapEligible)
+    {
+      <section class="notice" aria-labelledby="bootstrap-admin-heading">
+        <h2 id="bootstrap-admin-heading">Bind the approved Microsoft administrator</h2>
+        <p class="field-help">The current Microsoft-only sign-in matches the deployment-approved initial administrator. This one-time action creates only the local Administrator grant; it does not grant Entra or SharePoint administration.</p>
+        <button class="btn-primary" @onclick="CompleteBootstrap" disabled="@_busy" title="Consume the claimed setup capability for the exact authenticated Microsoft identity">Bind initial administrator</button>
+      </section>
+    }
+    else if (_microsoftAuthenticated)
+    {
+      <p class="notice warning" role="status">Microsoft sign-in is present, but this identity is not the deployment-approved initial administrator. No bootstrap grant is available.</p>
+    }
     <div class="form-group"><label for="tenant-id">Expected tenant ID <span class="required-marker">*</span>
       <input id="tenant-id" @bind="_tenantId" maxlength="200" required title="The verified Entra tenant identifier; this is metadata until live sign-in verification is completed." /></label></div>
     <div class="form-group"><label for="tenant-name">Tenant display name <span class="optional-label">optional</span>
@@ -130,6 +144,7 @@
   private string _message = string.Empty, _error = string.Empty;
   private bool _templateBusy;
   private bool _busy;
+  private bool _microsoftAuthenticated, _bootstrapEligible;
 
   private bool HasDeploymentSetup =>
     Guid.TryParse(Configuration["Setup:FirmId"] ?? Configuration["Application:FirmId"], out _) &&
@@ -138,6 +153,14 @@
 
   protected override async Task OnInitializedAsync()
   {
+    var authentication = await AuthenticationState.GetAuthenticationStateAsync();
+    var principal = authentication.User;
+    _microsoftAuthenticated = principal.Identity?.IsAuthenticated == true &&
+      !string.IsNullOrWhiteSpace(principal.FindFirst("tid")?.Value) &&
+      !string.IsNullOrWhiteSpace(principal.FindFirst("oid")?.Value);
+    _bootstrapEligible = _microsoftAuthenticated &&
+      string.Equals(principal.FindFirst("tid")?.Value, Configuration["Setup:InitialAdministratorTenantId"], StringComparison.OrdinalIgnoreCase) &&
+      string.Equals(principal.FindFirst("oid")?.Value, Configuration["Setup:InitialAdministratorObjectId"], StringComparison.OrdinalIgnoreCase);
     _actor = await ActorResolver.ResolveAsync();
     if (_actor is null) return;
     await using var db = await DbFactory.CreateDbContextAsync();
@@ -146,6 +169,34 @@
       x.Role == "Administrator" && x.ClientId == null && x.EngagementId == null);
     if (_isFirmAdministrator)
       await LoadTemplates();
+  }
+
+  private async Task CompleteBootstrap()
+  {
+    _message = _error = string.Empty; _busy = true;
+    try
+    {
+      if (_claim is null) { _error = "Claim setup before binding the initial administrator."; return; }
+      var principal = (await AuthenticationState.GetAuthenticationStateAsync()).User;
+      var tenant = principal.FindFirst("tid")?.Value;
+      var objectId = principal.FindFirst("oid")?.Value;
+      var email = principal.FindFirst("email")?.Value ?? principal.FindFirst("preferred_username")?.Value;
+      var name = principal.FindFirst("name")?.Value ?? email;
+      if (string.IsNullOrWhiteSpace(tenant) || string.IsNullOrWhiteSpace(objectId) || string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(name))
+      { _error = "The Microsoft identity did not provide the required immutable identity fields."; return; }
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var result = await Microsoft365OnboardingService.CompleteInitialAdministratorBootstrapAsync(db,
+        new(_claim.SessionId, _claim.Capability, tenant, objectId, email, name),
+        Configuration["Setup:InitialAdministratorTenantId"] ?? string.Empty,
+        Configuration["Setup:InitialAdministratorObjectId"] ?? string.Empty,
+        DateTimeOffset.UtcNow);
+      if (!result.Succeeded) { _error = result.Message ?? "The initial administrator could not be bound."; return; }
+      _message = "Initial administrator bound from the exact Microsoft identity. Continue with the separate connection verification steps.";
+      _actor = await ActorResolver.ResolveAsync();
+      _isFirmAdministrator = true;
+      await LoadTemplates();
+    }
+    finally { _busy = false; }
   }
 
   private async Task LoadTemplates()
@@ -201,9 +252,13 @@
     {
       if (!Guid.TryParse(Configuration["Setup:FirmId"] ?? Configuration["Application:FirmId"], out var firmId)) { _error = "The deployment firm ID is invalid."; return; }
       await using var db = await DbFactory.CreateDbContextAsync();
+      var authentication = await AuthenticationState.GetAuthenticationStateAsync();
+      var principal = authentication.User;
       var result = await Microsoft365OnboardingService.ClaimAsync(db, firmId,
         Configuration["Setup:InstallationId"] ?? Configuration["Application:InstallationId"]!, _bootstrapProof,
-        Configuration["Setup:BootstrapProofHash"]!, DateTimeOffset.UtcNow);
+        Configuration["Setup:BootstrapProofHash"]!, DateTimeOffset.UtcNow,
+        authenticatedTenantId: principal.FindFirst("tid")?.Value,
+        authenticatedObjectId: principal.FindFirst("oid")?.Value);
       if (!result.Succeeded) { _error = result.Message ?? "Setup could not be claimed."; return; }
       _claim = result.Value; _bootstrapProof = string.Empty; await Reload();
       _message = "Setup claimed. Microsoft verification and activation are separate steps.";

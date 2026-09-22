@@ -23,7 +23,7 @@ public sealed class RoleGrantChangeEvidence
   public Guid FirmId { get; set; }
   public Guid TargetUserId { get; set; }
   public Guid? RoleGrantId { get; set; }
-  public string Action { get; set; } = string.Empty; // GRANTED|REVOKED
+  public string Action { get; set; } = string.Empty; // GRANTED|REVOKED|INVITATION_COPIED
   public string PriorRole { get; set; } = string.Empty;
   public Guid? PriorClientId { get; set; }
   public Guid? PriorEngagementId { get; set; }

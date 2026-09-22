@@ -125,6 +125,51 @@ public sealed class IntegrationVerificationEvidence
   public DateTimeOffset ObservedAt { get; set; }
 }
 
+/// <summary>Bounded directory observation used by the administrator fallback roster and future Graph reader.</summary>
+public sealed class DirectoryUserObservation
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid? ConnectionRevisionId { get; set; }
+  public string TenantId { get; set; } = string.Empty;
+  public string ObjectId { get; set; } = string.Empty;
+  public string DisplayName { get; set; } = string.Empty;
+  public string? UserPrincipalName { get; set; }
+  public string? Mail { get; set; }
+  public string EnabledState { get; set; } = "UNKNOWN"; // ENABLED | DISABLED | UNKNOWN
+  public string UserType { get; set; } = "UNKNOWN";
+  public string Source { get; set; } = "APPROVED_ROSTER"; // APPROVED_ROSTER | VERIFIED_SIGN_IN | GRAPH
+  public DateTimeOffset ObservedAt { get; set; }
+}
+
+public static class UserAccessInvitationStates
+{
+  public const string NotSent = "NOT_SENT";
+  public const string Queued = "QUEUED";
+  public const string ProviderAccepted = "PROVIDER_ACCEPTED";
+  public const string Failed = "FAILED";
+  public const string Unknown = "UNKNOWN";
+  public const string Copied = "COPIED";
+}
+
+/// <summary>Notification intent for an existing Microsoft identity; never an authentication token.</summary>
+public sealed class UserAccessInvitation
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid UserId { get; set; }
+  public Guid RoleGrantId { get; set; }
+  public string RecipientEmail { get; set; } = string.Empty;
+  public string DestinationPath { get; set; } = "/auth/landing";
+  public string DeliveryState { get; set; } = UserAccessInvitationStates.NotSent;
+  public int AttemptCount { get; set; }
+  public string? ProviderCorrelationId { get; set; }
+  public DateTimeOffset CreatedAt { get; set; }
+  public DateTimeOffset UpdatedAt { get; set; }
+  public DateTimeOffset? FirstAccessAt { get; set; }
+  public DateTimeOffset? LastAttemptAt { get; set; }
+}
+
 public static class ClientWorkspaceStates
 {
   public const string WaitingForIntegration = "WAITING_FOR_INTEGRATION";
