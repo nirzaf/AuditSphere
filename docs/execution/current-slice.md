@@ -6,16 +6,18 @@ This file records observed repository state only. The authoritative build contra
 
 | Item | Observed value |
 |---|---|
-| Source implementation checkpoint | `codex/m365-simple-onboarding@cad3f85` |
-| Remote | `origin/codex/m365-simple-onboarding` includes source checkpoint `cad3f85` |
+| Source implementation checkpoint | `codex/m365-simple-onboarding@dc9cb0b` |
+| Remote | `origin/codex/m365-simple-onboarding` verified at `dc9cb0b` |
 | SDK | .NET 10; repository solution targets `net10.0` |
 | Database | PostgreSQL 18.6 on loopback port 5433 for development only |
-| Build | Full solution Release build at `cad3f85` — passed, 0 warnings/errors |
-| Tests | 246/246 passed, 0 skipped against PostgreSQL 18.6; Release run duration 6m59s |
+| Build | Full solution Release build at `dc9cb0b` — passed, 0 warnings/errors |
+| Tests | 246/246 passed, 0 failed, 0 skipped with PostgreSQL 18.6 available; Release run duration 7m21s |
 | Migrations | 91 applied; latest `20260922140527_M365InvitationEvidenceAction` |
 | Model drift | `dotnet ef migrations has-pending-model-changes` — no changes |
-| Restore drill | `scripts/db/restore-drill.sh` — passed; 91 migrations, accounting/group manifests and release-delivery identities reconciled |
+| Restore drill | Previously passed at `2026-09-22T18:52:20Z`; 91 migrations, accounting/group manifests and release-delivery identities reconciled; not rerun during test recovery |
 | Production effects | Disabled locally; no production acceptance claimed |
+
+Test-environment recovery verified at `2026-09-22T19:42:54Z`: the preceding run ended with 141 passed and 105 failed while PostgreSQL was shutting down. The server log records a smart shutdown request at `2026-09-22T19:25:04Z`; the initiator is unknown. Starting the stopped cluster on `127.0.0.1:5433` restored the test prerequisite. The complete Release suite then passed without application, test, assertion or runner changes; PostgreSQL remained available afterward. The full command and local ignored TRX artifact (`TestResults/failure-investigation.trx`) are recorded in `status.json`. Model drift and the 91 applied migrations were rechecked; external acceptance remains unchanged.
 
 ## Implemented local capability
 
@@ -174,8 +176,8 @@ No fixture, local adapter, documentation statement, or browser login is treated 
 ## Verification commands
 
 ```text
-dotnet build AuditSphereOps.slnx --no-restore
-dotnet test AuditSphereOps.slnx --no-build
+dotnet build AuditSphereOps.slnx --no-restore --configuration Release
+dotnet test AuditSphereOps.slnx --no-build --no-restore --configuration Release
 dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-restore --filter 'FullyQualifiedName~AccountingBenchmarkTests'
 dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Web
 scripts/db/restore-drill.sh
