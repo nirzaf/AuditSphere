@@ -52,6 +52,10 @@ public sealed record CompletePbcUploadRequest(Guid UploadIntentId, string FinalS
 public sealed record PbcUploadReceipt(Guid UploadIntentId, Guid PbcRequestId, string State,
   long ReceivedByteCount, long Revision, string? Capability = null);
 
+public sealed record PbcMessageRequest(Guid PbcRequestId, string Body, string PublicBaseUrl);
+public sealed record PbcDownload(string FileName, string ContentType, long ByteCount,
+  IReadOnlyList<string> ChunkPaths);
+
 /// <summary>
 /// Local PBC and upload boundary. It records bounded transfer intent/chunk receipts
 /// and never marks evidence received until a trusted completion boundary verifies it.
@@ -61,7 +65,7 @@ public static class PbcService
   public const long MaxUploadBytes = 250L * 1024 * 1024;
   public const int MaxChunkBytes = 8 * 1024 * 1024;
   private static readonly string[] StaffRoles =
-    ["Administrator", "Partner", "Manager", "Reviewer", "Staff", "AccountingPreparer", "AccountingReviewer"];
+    ["Administrator", "Partner", "Manager", "Reviewer", "Staff", "Auditor", "Accountant", "AccountingPreparer", "AccountingReviewer"];
 
   public static async Task<CommandResult<Guid>> CreateRequestAsync(
     IAuditSphereDbContext db, ActorContext actor, CreatePbcRequestRequest input,
@@ -75,6 +79,8 @@ public static class PbcService
       x.Id == input.EngagementId && x.FirmId == actor.FirmId, ct);
     if (engagement is null)
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    if (!engagement.Status.Equals("Active", StringComparison.OrdinalIgnoreCase))
+      return CommandResult<Guid>.Fail("pbc.engagement-inactive", "File requests are available only for active engagements.");
 
     var auth = await AuthorizeStaffAsync(db, actor, engagement.PracticeClientId, engagement.Id, ct);
     if (!auth.Succeeded)
@@ -83,8 +89,11 @@ public static class PbcService
     var users = await db.Users.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&
       (x.Id == input.ClientOwnerUserId || x.Id == input.FirmOwnerUserId || x.Id == input.ReviewerUserId))
       .ToListAsync(ct);
-    if (users.Count != 3 || users.Any(x => x.UserKind.Equals("Client", StringComparison.OrdinalIgnoreCase) &&
-        x.Id != input.ClientOwnerUserId) || users.SingleOrDefault(x => x.Id == input.ClientOwnerUserId)?.UserKind != "Client")
+    var clientOwner = users.SingleOrDefault(x => x.Id == input.ClientOwnerUserId);
+    var firmOwner = users.SingleOrDefault(x => x.Id == input.FirmOwnerUserId);
+    var reviewer = users.SingleOrDefault(x => x.Id == input.ReviewerUserId);
+    if (users.Count != new[] { input.ClientOwnerUserId, input.FirmOwnerUserId, input.ReviewerUserId }.Distinct().Count() ||
+        clientOwner?.UserKind != "Client" || firmOwner?.UserKind != "Staff" || reviewer?.UserKind != "Staff")
       return CommandResult<Guid>.Fail("pbc.users.invalid", "PBC owners and reviewer must be active firm users with one client upload owner.");
     if (users.Any(x => x.Disabled))
       return CommandResult<Guid>.Fail("pbc.users.disabled", "PBC cannot assign a disabled user.");
@@ -114,6 +123,12 @@ public static class PbcService
       UpdatedAt = now
     };
     db.PbcRequests.Add(request);
+    db.PbcCommunications.Add(new PbcCommunication
+    {
+      Id = Guid.CreateVersion7(), FirmId = request.FirmId, ClientId = request.ClientId,
+      EngagementId = request.EngagementId, PbcRequestId = request.Id, AuthorUserId = actor.UserId,
+      Kind = PbcCommunicationKinds.Request, Body = request.Objective, CreatedAt = now
+    });
     try
     {
       await db.SaveChangesAsync(ct);
@@ -123,6 +138,164 @@ public static class PbcService
       return CommandResult<Guid>.Fail("pbc.conflict", "The PBC request could not be created in the current scope.");
     }
     return CommandResult<Guid>.Ok(request.Id);
+  }
+
+  public static async Task<CommandResult> SendRequestAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid requestId, long expectedRevision,
+    string publicBaseUrl, CancellationToken ct = default)
+  {
+    if (requestId == Guid.Empty || expectedRevision < 1 || !TryPortalUrl(publicBaseUrl, requestId, out var portalUrl))
+      return CommandResult.Fail("pbc.invalid", "A request, current revision and valid public application URL are required.");
+
+    var current = await db.PbcRequests.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.Id == requestId && x.FirmId == actor.FirmId, ct);
+    if (current is null)
+      return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var auth = await AuthorizeStaffAsync(db, actor, current.ClientId, current.EngagementId, ct);
+    if (!auth.Succeeded) return auth;
+
+    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    var request = await db.PbcRequests.FromSqlInterpolated($"""
+      SELECT * FROM pbc_requests WHERE firm_id = {actor.FirmId} AND id = {requestId} FOR UPDATE
+      """).SingleOrDefaultAsync(ct);
+    if (request is null)
+      return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    if (request.Revision != expectedRevision)
+      return CommandResult.Fail(ErrorCodes.StaleRevision, "The PBC request changed; reload before sending it.");
+    if (request.State != PbcStates.Draft)
+      return CommandResult.Fail("pbc.transition", "Only a draft request can be sent.");
+    var client = await db.Users.AsNoTracking().SingleAsync(x =>
+      x.FirmId == actor.FirmId && x.Id == request.ClientOwnerUserId, ct);
+    if (string.IsNullOrWhiteSpace(client.Email))
+      return CommandResult.Fail("pbc.client-email", "The assigned client user does not have a valid email destination.");
+
+    var now = DateTimeOffset.UtcNow;
+    request.State = PbcStates.Sent;
+    request.Revision++;
+    request.UpdatedAt = now;
+    db.PbcCommunications.Add(Email(request, actor.UserId, client.Email, request.Objective, portalUrl!, now));
+    await db.SaveChangesAsync(ct);
+    await tx.CommitAsync(ct);
+    return CommandResult.Ok();
+  }
+
+  public static async Task<CommandResult> RequestMoreFilesAsync(
+    IAuditSphereDbContext db, ActorContext actor, PbcMessageRequest input,
+    CancellationToken ct = default)
+  {
+    var body = input.Body.Trim();
+    if (input.PbcRequestId == Guid.Empty || body.Length is 0 or > 3000 ||
+        !TryPortalUrl(input.PublicBaseUrl, input.PbcRequestId, out var portalUrl))
+      return CommandResult.Fail("pbc.message.invalid", "A message of up to 3,000 characters is required.");
+    var current = await db.PbcRequests.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.Id == input.PbcRequestId && x.FirmId == actor.FirmId, ct);
+    if (current is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var auth = await AuthorizeStaffAsync(db, actor, current.ClientId, current.EngagementId, ct);
+    if (!auth.Succeeded) return auth;
+
+    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    var request = await db.PbcRequests.FromSqlInterpolated($"""
+      SELECT * FROM pbc_requests WHERE firm_id = {actor.FirmId} AND id = {input.PbcRequestId} FOR UPDATE
+      """).SingleAsync(ct);
+    if (request.State is PbcStates.Draft or PbcStates.Accepted or PbcStates.Closed)
+      return CommandResult.Fail("pbc.message-state", "This request is not open for additional files.");
+    var client = await db.Users.AsNoTracking().SingleAsync(x =>
+      x.FirmId == actor.FirmId && x.Id == request.ClientOwnerUserId, ct);
+    if (string.IsNullOrWhiteSpace(client.Email))
+      return CommandResult.Fail("pbc.client-email", "The assigned client user does not have a valid email destination.");
+
+    var now = DateTimeOffset.UtcNow;
+    db.PbcCommunications.Add(Message(request, actor.UserId, PbcCommunicationKinds.StaffMessage, body, now));
+    db.PbcCommunications.Add(Email(request, actor.UserId, client.Email, body, portalUrl!, now));
+    if (request.State is PbcStates.Received or PbcStates.UnderReview)
+    {
+      request.State = PbcStates.ClarificationRequired;
+      request.ClarificationReason = body;
+      request.Revision++;
+      request.UpdatedAt = now;
+    }
+    await db.SaveChangesAsync(ct);
+    await tx.CommitAsync(ct);
+    return CommandResult.Ok();
+  }
+
+  public static async Task<CommandResult> ReplyAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid requestId, string body,
+    CancellationToken ct = default)
+  {
+    body = body.Trim();
+    if (requestId == Guid.Empty || body.Length is 0 or > 4000)
+      return CommandResult.Fail("pbc.message.invalid", "A message of up to 4,000 characters is required.");
+    var current = await db.PbcRequests.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.Id == requestId && x.FirmId == actor.FirmId, ct);
+    if (current is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var auth = await AuthorizeClientAsync(db, actor, current, ct);
+    if (!auth.Succeeded) return auth;
+    if (current.State is PbcStates.Draft or PbcStates.Accepted or PbcStates.Closed)
+      return CommandResult.Fail("pbc.message-state", "This request is not open for replies.");
+
+    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    var request = await db.PbcRequests.FromSqlInterpolated($"""
+      SELECT * FROM pbc_requests WHERE firm_id = {actor.FirmId} AND id = {requestId} FOR UPDATE
+      """).SingleAsync(ct);
+    var now = DateTimeOffset.UtcNow;
+    db.PbcCommunications.Add(Message(request, actor.UserId, PbcCommunicationKinds.ClientMessage, body, now));
+    if (request.State == PbcStates.ClarificationRequired)
+    {
+      request.State = PbcStates.Resubmitted;
+      request.Revision++;
+      request.UpdatedAt = now;
+    }
+    await db.SaveChangesAsync(ct);
+    await tx.CommitAsync(ct);
+    return CommandResult.Ok();
+  }
+
+  public static async Task<CommandResult<PbcDownload>> PrepareDownloadAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid uploadIntentId, CancellationToken ct = default)
+  {
+    var intent = await db.PbcUploadIntents.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.Id == uploadIntentId && x.FirmId == actor.FirmId, ct);
+    if (intent is null) return CommandResult<PbcDownload>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var auth = await AuthorizeStaffAsync(db, actor, intent.ClientId, intent.EngagementId, ct);
+    if (!auth.Succeeded) return CommandResult<PbcDownload>.Fail(auth.ErrorCode!, auth.Message!);
+    if (intent.State is not (PbcUploadStates.Staged or PbcUploadStates.Received))
+      return CommandResult<PbcDownload>.Fail("pbc.download-state", "The upload has not passed trusted completion.");
+    var verified = await VerifyStagedChunksAsync(db, actor.FirmId, intent, ct);
+    if (verified.Error is not null)
+      return CommandResult<PbcDownload>.Fail(verified.Error, verified.Message);
+    var paths = await db.PbcUploadChunks.AsNoTracking().Where(x =>
+      x.FirmId == actor.FirmId && x.PbcUploadIntentId == intent.Id)
+      .OrderBy(x => x.ChunkIndex).Select(x => x.StagedPath!).ToListAsync(ct);
+    return CommandResult<PbcDownload>.Ok(new(intent.FileName, intent.ContentType, intent.DeclaredByteCount, paths));
+  }
+
+  private static PbcCommunication Message(PbcRequest request, Guid authorUserId, string kind,
+    string body, DateTimeOffset now) => new()
+    {
+      Id = Guid.CreateVersion7(), FirmId = request.FirmId, ClientId = request.ClientId,
+      EngagementId = request.EngagementId, PbcRequestId = request.Id, AuthorUserId = authorUserId,
+      Kind = kind, Body = body, CreatedAt = now
+    };
+
+  private static PbcCommunication Email(PbcRequest request, Guid authorUserId, string recipient,
+    string description, string portalUrl, DateTimeOffset now) => new()
+    {
+      Id = Guid.CreateVersion7(), FirmId = request.FirmId, ClientId = request.ClientId,
+      EngagementId = request.EngagementId, PbcRequestId = request.Id, AuthorUserId = authorUserId,
+      Kind = PbcCommunicationKinds.Email, RecipientEmail = recipient.Trim(),
+      Subject = $"Files requested: {request.Area}", PortalUrl = portalUrl,
+      Body = $"{description}\n\nUpload the requested files securely: {portalUrl}",
+      DeliveryState = PbcDeliveryStates.Queued, CreatedAt = now
+    };
+
+  private static bool TryPortalUrl(string publicBaseUrl, Guid requestId, out string? portalUrl)
+  {
+    portalUrl = null;
+    if (!Uri.TryCreate(publicBaseUrl, UriKind.Absolute, out var baseUri) ||
+        baseUri.Scheme is not ("http" or "https")) return false;
+    portalUrl = new Uri(baseUri, $"portal/requests/{requestId:D}").AbsoluteUri;
+    return portalUrl.Length <= 900;
   }
 
   public static async Task<CommandResult> ChangeStateAsync(

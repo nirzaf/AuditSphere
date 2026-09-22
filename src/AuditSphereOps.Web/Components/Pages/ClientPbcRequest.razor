@@ -1,5 +1,6 @@
 @page "/portal/requests/{RequestId:guid}"
 @rendermode InteractiveServer
+@using AuditSphereOps.Application.Operations
 @inject CurrentActorResolver ActorResolver
 @inject IDbContextFactory<AuditSphereDbContext> DbFactory
 @inject IJSRuntime JS
@@ -49,6 +50,25 @@ else
     }
   </section>
 
+  <section class="card" aria-labelledby="conversation-heading" data-draft-scope="pbc-client-reply-@RequestId">
+    <h2 id="conversation-heading">Conversation timeline</h2>
+    <ol class="timeline">
+      @foreach (var item in Timeline())
+      {
+        <li><strong>@item.Label</strong> <span class="muted">@item.At.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</span><p>@item.Body</p></li>
+      }
+    </ol>
+    @if (_request.State is not (PbcStates.Accepted or PbcStates.Closed))
+    {
+      <div class="field"><label for="client-reply">Reply to the assigned auditor or accountant</label><textarea id="client-reply" @bind="_reply" maxlength="4000" required title="Add a response or explain the files you uploaded."></textarea></div>
+      <button class="button" @onclick="ReplyAsync" disabled="@_busy" title="Add this response to the request timeline.">Send reply</button>
+      @if (_replyResult is not null)
+      {
+        <p class="command-result @(_replyResult.Succeeded ? "success-text" : "error-text")" role="status">@(_replyResult.Succeeded ? "Reply added to the request timeline." : $"Blocked: {_replyResult.ErrorCode} — {_replyResult.Message}")</p>
+      }
+    }
+  </section>
+
   <section class="card" aria-labelledby="receipt-heading">
     <h2 id="receipt-heading">Transfer receipts</h2>
     @if (_uploads.Count == 0)
@@ -72,12 +92,16 @@ else
   private ActorContext? _actor;
   private PbcRequest? _request;
   private List<PbcUploadIntent> _uploads = [];
+  private List<PbcCommunication> _communications = [];
+  private Dictionary<Guid, string> _userNames = [];
   private CommandResult<PbcUploadReceipt>? _result;
+  private CommandResult? _replyResult;
   private string _fileName = string.Empty;
   private string _contentType = "application/octet-stream";
   private long _byteCount;
   private string _contentHash = string.Empty;
   private string? _uploadMessage;
+  private string _reply = string.Empty;
   private bool _loading = true;
   private bool _busy;
 
@@ -94,8 +118,7 @@ else
         x.Id == RequestId && x.FirmId == _actor.FirmId && clientIds.Contains(x.ClientId) &&
         x.ClientOwnerUserId == _actor.UserId);
       if (_request is not null)
-        _uploads = await db.PbcUploadIntents.AsNoTracking().Where(x =>
-          x.FirmId == _actor.FirmId && x.PbcRequestId == _request.Id).OrderByDescending(x => x.CreatedAt).ToListAsync();
+        await LoadThreadAsync(db);
     }
     _loading = false;
   }
@@ -125,8 +148,7 @@ else
         _uploadMessage = await JS.InvokeAsync<string>("auditSpherePbc.uploadChunks", "pbc-file",
           _result.Value!.UploadIntentId, _result.Value.Capability!);
         await using var refreshDb = await DbFactory.CreateDbContextAsync();
-        _uploads = await refreshDb.PbcUploadIntents.AsNoTracking().Where(x =>
-          x.FirmId == _actor.FirmId && x.PbcRequestId == _request.Id).OrderByDescending(x => x.CreatedAt).ToListAsync();
+        await LoadThreadAsync(refreshDb);
       }
     }
     catch (JSException ex)
@@ -135,6 +157,50 @@ else
     }
     finally { _busy = false; }
   }
+
+  private async Task ReplyAsync()
+  {
+    if (_actor is null || _request is null || _busy) return;
+    _busy = true;
+    try
+    {
+      await using var db = await DbFactory.CreateDbContextAsync();
+      _replyResult = await PbcService.ReplyAsync(db, _actor, _request.Id, _reply);
+      if (_replyResult.Succeeded)
+      {
+        _reply = string.Empty;
+        _request = await db.PbcRequests.AsNoTracking().SingleAsync(x =>
+          x.FirmId == _actor.FirmId && x.Id == RequestId);
+        await LoadThreadAsync(db);
+        await JS.InvokeVoidAsync("auditSphereDrafts.clear", $"pbc-client-reply-{RequestId}");
+      }
+    }
+    finally { _busy = false; }
+  }
+
+  private async Task LoadThreadAsync(IAuditSphereDbContext db)
+  {
+    var actor = _actor!;
+    _uploads = await db.PbcUploadIntents.AsNoTracking().Where(x =>
+      x.FirmId == actor.FirmId && x.PbcRequestId == RequestId).OrderByDescending(x => x.CreatedAt).ToListAsync();
+    _communications = await db.PbcCommunications.AsNoTracking().Where(x =>
+      x.FirmId == actor.FirmId && x.PbcRequestId == RequestId).OrderBy(x => x.CreatedAt).ToListAsync();
+    var userIds = _communications.Select(x => x.AuthorUserId).Distinct().ToArray();
+    _userNames = await db.Users.AsNoTracking().Where(x => x.FirmId == actor.FirmId && userIds.Contains(x.Id))
+      .ToDictionaryAsync(x => x.Id, x => string.IsNullOrWhiteSpace(x.DisplayName) ? x.Email : x.DisplayName);
+  }
+
+  private IEnumerable<TimelineItem> Timeline() => _communications.Select(x => new TimelineItem(
+      x.CreatedAt,
+      x.Kind == PbcCommunicationKinds.Email ? $"Email notification {x.DeliveryState?.ToLowerInvariant()}" :
+      x.Kind == PbcCommunicationKinds.ClientMessage ? $"You — {Name(x.AuthorUserId)}" : $"Firm — {Name(x.AuthorUserId)}",
+      x.Body))
+    .Concat(_uploads.Select(x => new TimelineItem(x.CreatedAt, $"You uploaded {x.FileName}",
+      $"{x.ReceivedByteCount} of {x.DeclaredByteCount} bytes — {x.State}")))
+    .OrderBy(x => x.At);
+
+  private string Name(Guid userId) => _userNames.GetValueOrDefault(userId, "User");
+  private sealed record TimelineItem(DateTimeOffset At, string Label, string Body);
 
   private sealed record PbcFileMetadata(string Name, string Type, long Size);
 }

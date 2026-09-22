@@ -60,6 +60,7 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
   public DbSet<PbcRequest> PbcRequests => Set<PbcRequest>();
   public DbSet<PbcUploadIntent> PbcUploadIntents => Set<PbcUploadIntent>();
   public DbSet<PbcUploadChunk> PbcUploadChunks => Set<PbcUploadChunk>();
+  public DbSet<PbcCommunication> PbcCommunications => Set<PbcCommunication>();
   public DbSet<TrialBalanceDataset> TrialBalanceDatasets => Set<TrialBalanceDataset>();
   public DbSet<TrialBalanceImportBatch> TrialBalanceImportBatches => Set<TrialBalanceImportBatch>();
   public DbSet<TrialBalanceRow> TrialBalanceRows => Set<TrialBalanceRow>();
@@ -385,6 +386,24 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     chunk.HasOne<PbcUploadIntent>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.PbcUploadIntentId })
       .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var communication = b.Entity<PbcCommunication>();
+    communication.Property(x => x.Kind).HasMaxLength(32);
+    communication.Property(x => x.Body).HasMaxLength(4000);
+    communication.Property(x => x.RecipientEmail).HasMaxLength(320);
+    communication.Property(x => x.Subject).HasMaxLength(300);
+    communication.Property(x => x.PortalUrl).HasMaxLength(2000);
+    communication.Property(x => x.DeliveryState).HasMaxLength(16);
+    communication.Property(x => x.ProviderCorrelationId).HasMaxLength(500);
+    communication.HasIndex(x => new { x.FirmId, x.PbcRequestId, x.CreatedAt });
+    communication.ToTable("pbc_communications", t => t.HasCheckConstraint("ck_pbc_communication_values",
+      "kind IN ('REQUEST','STAFF_MESSAGE','CLIENT_MESSAGE','EMAIL') AND length(trim(body)) > 0 AND (delivery_state IS NULL OR delivery_state IN ('QUEUED','SENT','FAILED','UNCERTAIN')) AND ((kind = 'EMAIL' AND recipient_email IS NOT NULL AND subject IS NOT NULL AND portal_url IS NOT NULL AND delivery_state IS NOT NULL) OR (kind <> 'EMAIL' AND recipient_email IS NULL AND subject IS NULL AND portal_url IS NULL AND delivery_state IS NULL))"));
+    communication.HasOne<PbcRequest>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.PbcRequestId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    communication.HasOne<AppUser>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.AuthorUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
   }
 
   private static void ConfigureReviews(ModelBuilder b)

@@ -316,6 +316,43 @@ app.MapPost("/api/pbc/uploads/{uploadId:guid}/chunks/{chunkIndex:int}", async (
   }
 });
 
+app.MapGet("/api/pbc/uploads/{uploadId:guid}/download", async (
+  Guid uploadId,
+  HttpContext http,
+  TrustedActorResolver actorResolver,
+  IDbContextFactory<AuditSphereDbContext> dbFactory,
+  CancellationToken ct) =>
+{
+  var actor = await actorResolver.ResolveAsync(http.User, ct);
+  if (actor is null) return Results.Unauthorized();
+  await using var db = await dbFactory.CreateDbContextAsync(ct);
+  var prepared = await PbcService.PrepareDownloadAsync(db, actor, uploadId, ct);
+  if (!prepared.Succeeded)
+    return prepared.ErrorCode == ErrorCodes.ScopeDenied ? Results.Forbid() :
+      Results.Problem(prepared.Message, statusCode: StatusCodes.Status409Conflict);
+
+  var download = prepared.Value!;
+  var configuredRoot = builder.Configuration["Storage:PbcStagingRoot"];
+  var stagingRoot = Path.GetFullPath(configuredRoot ?? Path.Combine(Path.GetTempPath(), "AuditSphereOps", "pbc-staging"));
+  var rootPrefix = stagingRoot.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+  if (download.ChunkPaths.Any(path => !Path.GetFullPath(path).StartsWith(rootPrefix, StringComparison.Ordinal)))
+    return Results.Forbid();
+
+  http.Response.StatusCode = StatusCodes.Status200OK;
+  http.Response.ContentType = download.ContentType;
+  http.Response.ContentLength = download.ByteCount;
+  http.Response.Headers.CacheControl = "no-store";
+  http.Response.Headers["X-Content-Type-Options"] = "nosniff";
+  http.Response.Headers.ContentDisposition = $"attachment; filename*=UTF-8''{Uri.EscapeDataString(download.FileName)}";
+  foreach (var path in download.ChunkPaths)
+  {
+    await using var input = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read,
+      64 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan);
+    await input.CopyToAsync(http.Response.Body, ct);
+  }
+  return Results.Empty;
+});
+
 app.MapRazorComponents<AuditSphereOps.Web.Components.App>()
   .AddInteractiveServerRenderMode();
 

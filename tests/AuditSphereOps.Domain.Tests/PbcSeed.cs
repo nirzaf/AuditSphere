@@ -36,7 +36,7 @@ internal static class PbcSeed
     db.Engagements.Add(new Engagement
     {
       Id = engagementId, FirmId = firmId, PracticeClientId = clientId,
-      ProfessionalWorkBlocked = false, CreatedAt = DateTimeOffset.UtcNow
+      Status = "Active", ProfessionalWorkBlocked = false, CreatedAt = DateTimeOffset.UtcNow
     });
     db.FirmSafetyStates.Add(new AuditSphereOps.Domain.Completion.FirmSafetyState { Id = firmId });
     db.ClientSafetyStates.Add(new AuditSphereOps.Domain.Completion.ClientSafetyState

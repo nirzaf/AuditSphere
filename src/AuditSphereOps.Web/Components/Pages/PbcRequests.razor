@@ -2,10 +2,14 @@
 @rendermode InteractiveServer
 @using AuditSphereOps.Application.Operations
 @using AuditSphereOps.Domain.Completion
+@using AuditSphereOps.Domain.Security
 @inject CurrentActorResolver ActorResolver
 @inject IDbContextFactory<AuditSphereDbContext> DbFactory
 @inject IOperationStore OperationStore
 @inject PbcDocumentTransferHandler TransferHandler
+@inject NavigationManager Navigation
+@inject IConfiguration Configuration
+@inject IJSRuntime JS
 
 <PageTitle>PBC requests</PageTitle>
 <a class="back-link" href="/app">← Back to portfolio</a>
@@ -30,6 +34,20 @@ else if (_denied)
 else
 {
   <p class="scope-note">Only request metadata, upload receipts and durable transfer state are shown. A received file is not accepted evidence until the assigned reviewer completes suitability review.</p>
+  <section class="card" aria-labelledby="new-request-heading" data-draft-scope="pbc-new-request-@EngagementId">
+    <h2 id="new-request-heading">Request files from the client</h2>
+    <p class="muted">The client receives a minimal email notification with this description and an authenticated portal upload link.</p>
+    <div class="field"><label for="pbc-description">Files required</label><textarea id="pbc-description" @bind="_description" maxlength="2000" required title="Describe the files the client must upload and the period or details they should cover."></textarea></div>
+    <div class="field"><label for="pbc-client-owner">Client recipient</label><select id="pbc-client-owner" @bind="_clientOwnerId" required title="Choose the assigned client portal user who will receive the request."><option value="@Guid.Empty">Select client user</option>@foreach (var user in _clientOwners) { <option value="@user.Id">@user.DisplayName (@user.Email)</option> }</select></div>
+    <div class="field"><label for="pbc-reviewer">Reviewer</label><select id="pbc-reviewer" @bind="_reviewerId" required title="Choose the staff member responsible for reviewing the uploaded files."><option value="@Guid.Empty">Select reviewer</option>@foreach (var user in _reviewers) { <option value="@user.Id">@user.DisplayName</option> }</select></div>
+    <div class="field"><label for="pbc-due">Due date</label><input id="pbc-due" type="date" @bind="_dueDate" required title="Choose when the client should complete this request." /></div>
+    <div class="field"><label for="pbc-format">Preferred format <span class="optional-label">optional</span></label><input id="pbc-format" @bind="_requestedFormat" maxlength="200" data-optional="true" title="Optionally name preferred formats such as PDF, XLSX, CSV, or image." /></div>
+    <button class="button" @onclick="CreateAndSendAsync" disabled="@(_busy || _clientOwners.Count == 0 || _reviewers.Count == 0)" title="Create the request, open its portal upload link, and queue the client email.">@(_busy ? "Sending…" : "Send file request")</button>
+    @if (_createResult is not null)
+    {
+      <p class="command-result @(_createResult.Succeeded ? "success-text" : "error-text")" role="status">@(_createResult.Succeeded ? "Request opened and client email queued." : $"Blocked: {_createResult.ErrorCode} — {_createResult.Message}")</p>
+    }
+  </section>
   @if (_requests.Count == 0)
   {
     <section class="card" aria-labelledby="pbc-heading">
@@ -72,11 +90,11 @@ else
                   }
                   else if (intent.State == PbcUploadStates.Staged)
                   {
-                    <span class="muted">Awaiting durable transfer</span>
+                    <a class="button" href="@DownloadUrl(intent.Id)" title="Download the verified staged client upload through the scoped server route.">Download</a>
                   }
                   else if (intent.State == PbcUploadStates.Received)
                   {
-                    <span class="muted">Provider registered</span>
+                    <a class="button" href="@DownloadUrl(intent.Id)" title="Download the verified client upload through the scoped server route.">Download</a>
                   }
                 </td>
               </tr>
@@ -94,6 +112,22 @@ else
             </tbody>
           </table></div>
         }
+        <h3>Conversation timeline</h3>
+        <ol class="timeline">
+          @foreach (var item in TimelineFor(request.Id))
+          {
+            <li><strong>@item.Label</strong> <span class="muted">@item.At.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</span><p>@item.Body</p></li>
+          }
+        </ol>
+        @if (request.State is not (PbcStates.Draft or PbcStates.Accepted or PbcStates.Closed))
+        {
+          <div class="field"><label for="@MessageId(request.Id)">Request more files</label><textarea id="@MessageId(request.Id)" value="@MessageFor(request.Id)" @oninput="e => _messages[request.Id] = e.Value?.ToString() ?? string.Empty" maxlength="3000" required title="Describe the additional or replacement files required from the client."></textarea></div>
+          <button class="button" @onclick="() => RequestMoreAsync(request.Id)" disabled="@_busy" title="Add this message to the thread and queue another client email.">Request more files</button>
+          @if (_messageResults.TryGetValue(request.Id, out var messageResult))
+          {
+            <p class="command-result @(messageResult.Succeeded ? "success-text" : "error-text")" role="status">@(messageResult.Succeeded ? "Additional request recorded and email queued." : $"Blocked: {messageResult.ErrorCode} — {messageResult.Message}")</p>
+          }
+        }
       </section>
     }
   }
@@ -106,11 +140,23 @@ else
   private List<PbcRequest> _requests = [];
   private Dictionary<Guid, List<PbcUploadIntent>> _intents = [];
   private Dictionary<Guid, DurableOperation> _operations = [];
+  private Dictionary<Guid, List<PbcCommunication>> _communications = [];
+  private Dictionary<Guid, string> _userNames = [];
   private Dictionary<Guid, CommandResult<PbcUploadReceipt>> _results = [];
+  private Dictionary<Guid, CommandResult> _messageResults = [];
+  private Dictionary<Guid, string> _messages = [];
+  private List<AppUser> _clientOwners = [];
+  private List<AppUser> _reviewers = [];
+  private string _description = string.Empty;
+  private DateTime _dueDate = DateTime.Today.AddDays(7);
+  private string _requestedFormat = string.Empty;
+  private Guid _clientOwnerId;
+  private Guid _reviewerId;
+  private CommandResult? _createResult;
   private bool _loading = true;
   private bool _busy;
   private bool _denied;
-  private bool IsStaff => _actor is not null && _actor.Roles.Any(x => x is "Administrator" or "Partner" or "Manager" or "Reviewer" or "Staff" or "AccountingPreparer" or "AccountingReviewer");
+  private bool IsStaff => _actor is not null && _actor.Roles.Any(x => x is "Administrator" or "Partner" or "Manager" or "Reviewer" or "Staff" or "Auditor" or "Accountant" or "AccountingPreparer" or "AccountingReviewer");
 
   private static string HeadingId(Guid requestId) => "pbc-" + requestId.ToString("N");
 
@@ -129,7 +175,10 @@ else
             InternalOnly: true));
         _denied = !auth.Succeeded;
         if (!_denied)
+        {
+          await LoadPeopleAsync(db);
           await LoadAsync(db);
+        }
       }
     }
     _loading = false;
@@ -153,7 +202,93 @@ else
     _operations = await db.DurableOperations.AsNoTracking()
       .Where(o => o.FirmId == actor.FirmId && operationIds.Contains(o.Id))
       .ToDictionaryAsync(o => o.Id);
+    var communications = await db.PbcCommunications.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && requestIds.Contains(x.PbcRequestId))
+      .OrderBy(x => x.CreatedAt).ToListAsync();
+    _communications = communications.GroupBy(x => x.PbcRequestId).ToDictionary(g => g.Key, g => g.ToList());
+    var userIds = communications.Select(x => x.AuthorUserId).Distinct().ToArray();
+    _userNames = await db.Users.AsNoTracking().Where(x => x.FirmId == actor.FirmId && userIds.Contains(x.Id))
+      .ToDictionaryAsync(x => x.Id, x => string.IsNullOrWhiteSpace(x.DisplayName) ? x.Email : x.DisplayName);
   }
+
+  private async Task LoadPeopleAsync(IAuditSphereDbContext db)
+  {
+    var actor = _actor!;
+    var clientId = _engagement!.PracticeClientId;
+    var clientIds = await db.RoleGrants.AsNoTracking().Where(g => g.FirmId == actor.FirmId &&
+      g.Role == "ClientUser" && g.ClientId == clientId && g.EngagementId == EngagementId && g.RevokedAt == null)
+      .Select(g => g.UserId).Distinct().ToArrayAsync();
+    var reviewerIds = await db.RoleGrants.AsNoTracking().Where(g => g.FirmId == actor.FirmId &&
+      new[] { "Reviewer", "Manager", "Partner", "AccountingReviewer" }.Contains(g.Role) &&
+      (g.ClientId == null || g.ClientId == clientId) && (g.EngagementId == null || g.EngagementId == EngagementId) && g.RevokedAt == null)
+      .Select(g => g.UserId).Distinct().ToArrayAsync();
+    _clientOwners = await db.Users.AsNoTracking().Where(x => x.FirmId == actor.FirmId && clientIds.Contains(x.Id) && !x.Disabled).OrderBy(x => x.DisplayName).ToListAsync();
+    _reviewers = await db.Users.AsNoTracking().Where(x => x.FirmId == actor.FirmId && reviewerIds.Contains(x.Id) && !x.Disabled).OrderBy(x => x.DisplayName).ToListAsync();
+    if (_clientOwners.Count == 1) _clientOwnerId = _clientOwners[0].Id;
+    if (_reviewers.Count == 1) _reviewerId = _reviewers[0].Id;
+  }
+
+  private async Task CreateAndSendAsync()
+  {
+    if (_actor is null || _engagement is null || _busy) return;
+    _busy = true;
+    try
+    {
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var created = await PbcService.CreateRequestAsync(db, _actor, new CreatePbcRequestRequest(
+        EngagementId, _description, _engagement.ServiceRoute, _engagement.PeriodStart, _engagement.PeriodEnd,
+        "Client documents", string.IsNullOrWhiteSpace(_requestedFormat) ? "Any safe readable format" : _requestedFormat,
+        string.Empty, _clientOwnerId, _actor.UserId, _reviewerId, _dueDate.ToString("yyyy-MM-dd"), "Confidential",
+        "Readable, complete, and relevant to the request description."));
+      if (!created.Succeeded)
+      {
+        _createResult = CommandResult.Fail(created.ErrorCode!, created.Message!);
+        return;
+      }
+      _createResult = await PbcService.SendRequestAsync(db, _actor, created.Value, 1, PublicBaseUrl());
+      await LoadAsync(db);
+      if (_createResult.Succeeded)
+      {
+        _description = string.Empty;
+        _requestedFormat = string.Empty;
+        await JS.InvokeVoidAsync("auditSphereDrafts.clear", $"pbc-new-request-{EngagementId}");
+      }
+    }
+    finally { _busy = false; }
+  }
+
+  private async Task RequestMoreAsync(Guid requestId)
+  {
+    if (_actor is null || _busy) return;
+    _busy = true;
+    try
+    {
+      await using var db = await DbFactory.CreateDbContextAsync();
+      _messageResults[requestId] = await PbcService.RequestMoreFilesAsync(db, _actor,
+        new PbcMessageRequest(requestId, MessageFor(requestId), PublicBaseUrl()));
+      if (_messageResults[requestId].Succeeded) _messages[requestId] = string.Empty;
+      await LoadAsync(db);
+    }
+    finally { _busy = false; }
+  }
+
+  private IEnumerable<TimelineItem> TimelineFor(Guid requestId)
+  {
+    var communications = _communications.GetValueOrDefault(requestId, []);
+    var uploads = _intents.GetValueOrDefault(requestId, []);
+    return communications.Select(x => new TimelineItem(x.CreatedAt,
+        x.Kind == PbcCommunicationKinds.Email ? $"Email {x.DeliveryState?.ToLowerInvariant()} to client" :
+        x.Kind == PbcCommunicationKinds.ClientMessage ? $"Client — {Name(x.AuthorUserId)}" : $"Staff — {Name(x.AuthorUserId)}", x.Body))
+      .Concat(uploads.Select(x => new TimelineItem(x.CreatedAt, $"Client uploaded {x.FileName}", $"{x.ReceivedByteCount} of {x.DeclaredByteCount} bytes — {x.State}")))
+      .OrderBy(x => x.At);
+  }
+
+  private string Name(Guid userId) => _userNames.GetValueOrDefault(userId, "User");
+  private string PublicBaseUrl() => Configuration["Application:PublicBaseUrl"] ?? Navigation.BaseUri;
+  private static string DownloadUrl(Guid id) => $"/api/pbc/uploads/{id:D}/download";
+  private static string MessageId(Guid id) => "pbc-message-" + id.ToString("N");
+  private string MessageFor(Guid id) => _messages.GetValueOrDefault(id, string.Empty);
+  private sealed record TimelineItem(DateTimeOffset At, string Label, string Body);
 
   private async Task CompleteUploadAsync(PbcUploadIntent intent)
   {

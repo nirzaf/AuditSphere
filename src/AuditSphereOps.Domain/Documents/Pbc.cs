@@ -29,6 +29,22 @@ public static class PbcUploadStates
   public const string Expired = "EXPIRED";
 }
 
+public static class PbcCommunicationKinds
+{
+  public const string Request = "REQUEST";
+  public const string StaffMessage = "STAFF_MESSAGE";
+  public const string ClientMessage = "CLIENT_MESSAGE";
+  public const string Email = "EMAIL";
+}
+
+public static class PbcDeliveryStates
+{
+  public const string Queued = "QUEUED";
+  public const string Sent = "SENT";
+  public const string Failed = "FAILED";
+  public const string Uncertain = "UNCERTAIN";
+}
+
 public sealed class PbcRequest
 {
   public Guid Id { get; set; }
@@ -99,4 +115,24 @@ public sealed class PbcUploadChunk
   public string Sha256Hex { get; set; } = string.Empty;
   public string? StagedPath { get; set; }
   public DateTimeOffset ReceivedAt { get; set; }
+}
+
+/// <summary>Append-only, client-visible communication for one request thread.</summary>
+public sealed class PbcCommunication
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public Guid EngagementId { get; set; }
+  public Guid PbcRequestId { get; set; }
+  public Guid AuthorUserId { get; set; }
+  public string Kind { get; set; } = string.Empty;
+  public string Body { get; set; } = string.Empty;
+  public string? RecipientEmail { get; set; }
+  public string? Subject { get; set; }
+  public string? PortalUrl { get; set; }
+  public string? DeliveryState { get; set; }
+  public string? ProviderCorrelationId { get; set; }
+  public DateTimeOffset? DeliveredAt { get; set; }
+  public DateTimeOffset CreatedAt { get; set; }
 }
