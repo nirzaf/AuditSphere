@@ -2,7 +2,7 @@
 
 Dependency-ordered checklist for the [v5.0 specification](../SPECIFICATION.md) and the [workflow-gap backlog](../requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md).
 
-**Current source checkpoint:** `master@8bfb200`; PostgreSQL 18.6; 80 migrations; 219/219 tests passed; 0 skipped. The verified accounting baseline includes period/book/basis-bound packages and journals, exact package artifacts and review lineage, deterministic formula-free XLSX/DOCX exports, source-bound GL schedule controls, QAR setup defaults, governed specialist and analytical evidence, and bounded consolidation safety cores. Approved formula-bearing templates, PDF conversion, advanced-method golden fixtures and external provider/signing/records acceptance remain pending.
+**Current source checkpoint:** `master@5074abc`; PostgreSQL 18.6; 81 migrations; 220/220 tests passed; 0 skipped. The verified accounting baseline includes period/book/basis-bound packages and journals, exact package artifacts and review lineage, deterministic formula-free XLSX/DOCX exports, source-bound GL schedule controls, safe legacy period/chart backfill with append-only ambiguity quarantine, QAR setup defaults, governed specialist and analytical evidence, and bounded consolidation safety cores. Approved formula-bearing templates, PDF conversion, advanced-method golden fixtures and external provider/signing/records acceptance remain pending.
 **Status meanings:** ✅ locally verified · 🟡 partial/local follow-up · ⬜ not started · 🚫 external gate
 
 | # | Work package | Status |
