@@ -43,7 +43,7 @@ public static class FinancialPackageOfficeRenderer
         (RenderWord(canonicalPackageText), "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "docx"),
       FinancialPackageArtifactVersions.Pdf =>
         (RenderPdf(canonicalPackageText), "application/pdf", "pdf"),
-      _ => throw new ArgumentOutOfRangeException(nameof(artifactVersion), "Unsupported Office artifact version.")
+      _ => throw new ArgumentOutOfRangeException(nameof(artifactVersion), "Unsupported export artifact version.")
     };
     return new(artifactVersion, contentType, extension, Hashing.Sha256Hex(bytes), bytes);
   }
@@ -69,10 +69,11 @@ public static class FinancialPackageOfficeRenderer
       });
       if (controlled)
       {
+        var trustedFormula = $"COUNTA('Financial package'!A1:A{lines.Length})";
         var control = workbook.AddNewPart<WorksheetPart>("rId3");
         control.Worksheet = new S.Worksheet(new S.SheetData(new S.Row(
           TextCell("Canonical line count"),
-          new S.Cell(new S.CellFormula($"COUNTA('Financial package'!A1:A{lines.Length})")))));
+          new S.Cell(new S.CellFormula(trustedFormula)))));
         sheets.Append(new S.Sheet { Id = "rId3", SheetId = 2, Name = "Control" });
         workbook.Workbook.CalculationProperties = new S.CalculationProperties
         {
@@ -80,11 +81,22 @@ public static class FinancialPackageOfficeRenderer
           ForceFullCalculation = true,
           FullCalculationOnLoad = true
         };
+        ValidateControlledWorkbook(workbook, trustedFormula);
       }
       workbook.Workbook.Append(sheets);
       workbook.Workbook.Save();
     }
     return NormalizeZip(stream.ToArray());
+  }
+
+  private static void ValidateControlledWorkbook(WorkbookPart workbook, string trustedFormula)
+  {
+    var formulas = workbook.WorksheetParts
+      .SelectMany(x => x.Worksheet!.Descendants<S.CellFormula>())
+      .Select(x => x.Text).ToArray();
+    if (workbook.VbaProjectPart is not null || workbook.ExternalWorkbookParts.Any() ||
+        formulas.Length != 1 || !string.Equals(formulas[0], trustedFormula, StringComparison.Ordinal))
+      throw new InvalidOperationException("The controlled workbook contains a non-approved formula or executable link.");
   }
 
   private static byte[] RenderWord(string text)
