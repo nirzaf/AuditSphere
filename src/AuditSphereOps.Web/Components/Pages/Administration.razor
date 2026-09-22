@@ -113,6 +113,10 @@ else
                 <div>Invitation: <strong>@(invitation?.DeliveryState ?? "NOT_CREATED")</strong></div>
                 <div>First access: @(invitation?.FirstAccessAt?.ToString("yyyy-MM-dd HH:mm") ?? "Not recorded")</div>
                 <div>Directory: @(observation?.EnabledState ?? "NOT_OBSERVED") @(observation is null ? string.Empty : $"({observation.Source}, {observation.ObservedAt:yyyy-MM-dd HH:mm})")</div>
+                @if (invitation is not null && grant.RevokedAt is null)
+                {
+                  <button class="btn-secondary" @onclick="() => CopyExistingInvitationAsync(invitation)" disabled="@_roleBusy" title="Copy the existing safe landing link and record a new copy-link action">Copy invitation</button>
+                }
               </td>
               <td>
                 @if (grant.RevokedAt is null)
@@ -145,7 +149,7 @@ else
     @if (_selectedUserId.HasValue)
     {
       <p class="field-help">Selected local user: <code>@_selectedUserId</code>. No role is granted until the explicit plan below is applied.</p>
-      <div class="form-group"><label for="role-name">Application role <span class="required-marker">*</span><select id="role-name" @bind="_roleName" title="Canonical local role only; Entra job title, group and email domain do not grant authority."><option>Administrator</option><option>Partner</option><option>Manager</option><option>Staff</option><option>RelationshipManager</option><option>FinanceManager</option><option>FinanceReviewer</option><option>ClientUser</option></select></label></div>
+      <div class="form-group"><label for="role-name">Application role <span class="required-marker">*</span><select id="role-name" @bind="_roleName" title="Canonical local role only; Entra job title, group and email domain do not grant authority.">@foreach (var roleCode in RoleAdministrationService.RoleCodes) { <option value="@roleCode">@roleCode</option> }</select></label></div>
       <div class="form-group"><label for="scope-kind">Scope <span class="required-marker">*</span><select id="scope-kind" @bind="_scopeKind" title="An empty scope is never inferred as firm-wide; choose it explicitly."><option value="FIRM_WIDE">Firm-wide</option><option value="CLIENT">Selected client</option><option value="ENGAGEMENT">Selected engagement</option></select></label></div>
       @if (_scopeKind is "CLIENT" or "ENGAGEMENT")
       { <div class="form-group"><label for="scope-client">Client ID <span class="required-marker">*</span><input id="scope-client" @bind="_scopeClientIdText" maxlength="36" title="Exact client ID in the current firm." /></label></div> }
@@ -289,6 +293,22 @@ else
       await using var db = await DbFactory.CreateDbContextAsync();
       var result = await RoleAdministrationService.MarkInvitationCopiedAsync(db, _actor, _invitationId.Value);
       _invitationMessage = result.Succeeded ? "Copied and recorded." : result.Message ?? "Copied locally; the status could not be recorded.";
+    }
+    catch (JSException) { _invitationMessage = "Copy was unavailable; select the link and copy it manually."; }
+    finally { _roleBusy = false; }
+  }
+
+  private async Task CopyExistingInvitationAsync(UserAccessInvitation invitation)
+  {
+    if (_actor is null) return;
+    _roleBusy = true; _invitationMessage = string.Empty; _roleError = string.Empty;
+    try
+    {
+      await JS.InvokeVoidAsync("auditSphereExports.copyText", BuildInvitationLink(invitation.DestinationPath));
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var result = await RoleAdministrationService.MarkInvitationCopiedAsync(db, _actor, invitation.Id);
+      _invitationMessage = result.Succeeded ? $"Copied invitation for {invitation.RecipientEmail}." : result.Message ?? "Copied locally; the status could not be recorded.";
+      await LoadAdminDataAsync();
     }
     catch (JSException) { _invitationMessage = "Copy was unavailable; select the link and copy it manually."; }
     finally { _roleBusy = false; }
