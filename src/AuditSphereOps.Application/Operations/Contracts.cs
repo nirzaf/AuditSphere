@@ -151,6 +151,7 @@ public interface IClientAccountingDbContext : IAuditSphereDbContext
   DbSet<OpeningBalanceBridge> OpeningBalanceBridges { get; }
   DbSet<ClientPeriodRestatement> ClientPeriodRestatements { get; }
   DbSet<ClientChartVersion> ClientChartVersions { get; }
+  DbSet<AccountingBackfillQuarantine> AccountingBackfillQuarantines { get; }
   DbSet<ClientAccount> ClientAccounts { get; }
   DbSet<SourceAccountAlias> SourceAccountAliases { get; }
   DbSet<ReportingTaxonomyVersion> ReportingTaxonomyVersions { get; }

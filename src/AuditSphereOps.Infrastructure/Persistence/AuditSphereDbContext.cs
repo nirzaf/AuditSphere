@@ -95,6 +95,7 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
   public DbSet<OpeningBalanceBridge> OpeningBalanceBridges => Set<OpeningBalanceBridge>();
   public DbSet<ClientPeriodRestatement> ClientPeriodRestatements => Set<ClientPeriodRestatement>();
   public DbSet<ClientChartVersion> ClientChartVersions => Set<ClientChartVersion>();
+  public DbSet<AccountingBackfillQuarantine> AccountingBackfillQuarantines => Set<AccountingBackfillQuarantine>();
   public DbSet<ClientAccount> ClientAccounts => Set<ClientAccount>();
   public DbSet<SourceAccountAlias> SourceAccountAliases => Set<SourceAccountAlias>();
   public DbSet<ReportingTaxonomyVersion> ReportingTaxonomyVersions => Set<ReportingTaxonomyVersion>();
@@ -1569,6 +1570,17 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     chart.ToTable("client_chart_versions", t => t.HasCheckConstraint("ck_client_chart_version_values",
       "effective_to IS NULL OR effective_from <= effective_to"));
     chart.HasOne<PracticeClient>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var quarantine = b.Entity<AccountingBackfillQuarantine>();
+    quarantine.Property(x => x.TargetKind).HasMaxLength(50);
+    quarantine.Property(x => x.ContextKind).HasMaxLength(50);
+    quarantine.Property(x => x.Reason).HasMaxLength(500);
+    quarantine.HasIndex(x => new { x.FirmId, x.TargetKind, x.TargetId, x.ContextKind }).IsUnique()
+      .HasDatabaseName("ux_accounting_backfill_quarantine_target");
+    quarantine.ToTable("accounting_backfill_quarantines", t => t.HasCheckConstraint("ck_accounting_backfill_quarantine_values",
+      "length(trim(target_kind)) > 0 AND length(trim(context_kind)) > 0 AND candidate_count >= 0 AND length(trim(reason)) > 0"));
+    quarantine.HasOne<PracticeClient>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
 
     var account = b.Entity<ClientAccount>();

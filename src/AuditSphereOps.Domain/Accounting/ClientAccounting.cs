@@ -291,6 +291,20 @@ public sealed class ClientChartVersion
   public DateTimeOffset CreatedAt { get; set; }
 }
 
+/// <summary>Append-only evidence that a legacy accounting link had no single defensible source match.</summary>
+public sealed class AccountingBackfillQuarantine
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public string TargetKind { get; set; } = string.Empty;
+  public Guid TargetId { get; set; }
+  public string ContextKind { get; set; } = string.Empty;
+  public int CandidateCount { get; set; }
+  public string Reason { get; set; } = string.Empty;
+  public DateTimeOffset CreatedAt { get; set; }
+}
+
 public sealed class ClientAccount
 {
   public Guid Id { get; set; }
