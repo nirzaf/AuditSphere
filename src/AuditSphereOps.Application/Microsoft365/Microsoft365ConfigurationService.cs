@@ -93,6 +93,8 @@ public static class Microsoft365ConfigurationService
     var draft = await db.Microsoft365SetupDrafts.SingleOrDefaultAsync(x =>
       x.Id == request.SetupDraftId && x.FirmId == actor.FirmId, ct);
     if (draft is null) return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "The setup draft is unavailable.");
+    if (draft.State == Microsoft365RevisionStates.Active)
+      return CommandResult<Guid>.Fail(ErrorCodes.ProtectedState, "The active connection is immutable; create a new configuration draft for reconfiguration.");
     if (draft.Revision != request.ExpectedDraftRevision)
       return CommandResult<Guid>.Fail(ErrorCodes.StaleRevision, "The setup draft changed; reload it before connecting.");
     if (string.IsNullOrWhiteSpace(draft.ExpectedTenantId))
@@ -101,7 +103,10 @@ public static class Microsoft365ConfigurationService
     {
       var existing = await db.Microsoft365ConnectionRevisions.AsNoTracking().SingleOrDefaultAsync(x =>
         x.Id == existingId && x.FirmId == actor.FirmId, ct);
-      if (existing is not null)
+      if (existing is not null &&
+          string.Equals(existing.LoginClientIdReference, request.LoginClientIdReference.Trim(), StringComparison.Ordinal) &&
+          string.Equals(existing.RuntimeCredentialReference, request.RuntimeCredentialReference.Trim(), StringComparison.Ordinal) &&
+          string.Equals(existing.CloudProfile, request.CloudProfile.Trim(), StringComparison.OrdinalIgnoreCase))
       {
         await tx.CommitAsync(ct);
         return CommandResult<Guid>.Ok(existing.Id);

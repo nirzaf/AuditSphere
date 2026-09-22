@@ -429,6 +429,8 @@ public sealed class ClientAccountingTests
     {
       Id = Guid.CreateVersion7(), FirmId = scope.FirmId, PracticeClientId = scope.ClientA,
       ServiceRoute = "AccountingOnly", Decision = "Accepted", Generation = 1,
+      Rationale = "Approved test fixture", EvaluationTemplateVersion = "TEST-1",
+      EvaluationSnapshotDigest = new string('a', 64),
       DecidedByUserId = scope.Reviewer.Id, DecidedAt = DateTimeOffset.UtcNow
     });
     await db.SaveChangesAsync();
