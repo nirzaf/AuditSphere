@@ -1663,8 +1663,12 @@ public static class ConsolidationService
             !expectedRates.ContainsKey(role) || !seenRoles.Add(role))
           return CommandResult.Fail(ErrorCodes.ManifestMismatch,
             "Foreign-currency rate evidence must contain unique opening, closing and average observations.");
-        var expectedRateType = role == "AVERAGE" ? policy.AverageRateRule.Trim().ToUpperInvariant() :
-          policy.ClosingRateRule.Trim().ToUpperInvariant();
+        var expectedRateType = role switch
+        {
+          "OPENING" => policy.HistoricalRateRule.Trim().ToUpperInvariant(),
+          "AVERAGE" => policy.AverageRateRule.Trim().ToUpperInvariant(),
+          _ => policy.ClosingRateRule.Trim().ToUpperInvariant()
+        };
         if (role is "CLOSING" or "AVERAGE" && observationDate != rateDate)
           return CommandResult.Fail(ErrorCodes.ManifestMismatch,
             "Current closing and average rate evidence must use the pinned scope date.");

@@ -1983,7 +1983,7 @@ public sealed class ClientAccountingTests
       new ExchangeRateSetRequest("ADV-FX-2026", "advanced-fx-fixture",
         new DateOnly(2026, 1, 1), rateDate, 1))).Value;
     Assert.True((await CurrencyTranslationService.AddRateAsync(db, reviewer, rateSetId,
-      new ExchangeRateInput("USD", "QAR", new DateOnly(2026, 1, 1), "CLOSING", 3.60m, "DIRECT"))).Succeeded);
+      new ExchangeRateInput("USD", "QAR", new DateOnly(2026, 1, 1), "HISTORICAL", 3.60m, "DIRECT"))).Succeeded);
     Assert.True((await CurrencyTranslationService.AddRateAsync(db, reviewer, rateSetId,
       new ExchangeRateInput("USD", "QAR", rateDate, "CLOSING", 3.70m, "DIRECT"))).Succeeded);
     Assert.True((await CurrencyTranslationService.AddRateAsync(db, reviewer, rateSetId,
@@ -2031,7 +2031,7 @@ public sealed class ClientAccountingTests
     Assert.False(missingRatesApproval.Succeeded);
     Assert.Equal(ErrorCodes.ManifestMismatch, missingRatesApproval.ErrorCode);
 
-    var openingRateId = rateIds["CLOSING:2026-01-01"];
+    var openingRateId = rateIds["HISTORICAL:2026-01-01"];
     var closingRateId = rateIds["CLOSING:2026-12-31"];
     var averageRateId = rateIds["AVERAGE:2026-12-31"];
     var fxRates = $"\"fxRates\":[{{\"role\":\"OPENING\",\"id\":\"{openingRateId:D}\",\"date\":\"2026-01-01\",\"rate\":3.6}},{{\"role\":\"CLOSING\",\"id\":\"{closingRateId:D}\",\"date\":\"2026-12-31\",\"rate\":3.7}},{{\"role\":\"AVERAGE\",\"id\":\"{averageRateId:D}\",\"date\":\"2026-12-31\",\"rate\":3.65}}]";
