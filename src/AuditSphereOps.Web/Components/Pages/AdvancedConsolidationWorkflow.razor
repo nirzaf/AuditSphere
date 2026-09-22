@@ -1,0 +1,316 @@
+@page "/app/consolidation/advanced/{ScopeId:guid}"
+@rendermode InteractiveServer
+@using System.Text.Json
+@using AuditSphereOps.Application.Accounting
+@using AuditSphereOps.Domain.Accounting
+@using AuditSphereOps.Domain.Shared
+@inject CurrentActorResolver ActorResolver
+@inject IDbContextFactory<AuditSphereDbContext> DbFactory
+
+<PageTitle>Advanced consolidation workflow</PageTitle>
+<a class="back-link" href="/app/consolidation">← Back to consolidation</a>
+
+@if (_loading)
+{
+  <p role="status">Loading the advanced consolidation workflow…</p>
+}
+else if (_actor is null || _scope is null)
+{
+  <section class="notice" role="alert"><h1>Access unavailable</h1><p>The requested consolidation scope is not available in the current firm and group grant.</p></section>
+}
+else
+{
+  <h1>Advanced consolidation workflow</h1>
+  <section class="card" aria-labelledby="scope-heading">
+    <h2 id="scope-heading">@_scope.GroupName · v@_scope.Version</h2>
+    <dl class="details">
+      <dt>Method</dt><dd><code>@_scope.Method</code></dd>
+      <dt>Reporting currency</dt><dd><code>@_scope.ReportingCurrency</code></dd>
+      <dt>Perimeter</dt><dd>@_scope.Status · group revision @_scope.GroupRevision</dd>
+      <dt>Approved components</dt><dd>@_scope.ApprovedComponentCount</dd>
+      <dt>Approved reviewed journals</dt><dd>@_scope.ApprovedReviewedJournalCount</dd>
+    </dl>
+    <p class="scope-note">This workflow calls the existing scope-checked commands. Approval remains maker/checker separated, source and method evidence are re-read server-side, and no action enables a professional or external release gate.</p>
+  </section>
+
+  @if (!string.IsNullOrWhiteSpace(_message))
+  {
+    <p class="command-result @(_messageSucceeded ? "success-text" : "error-text")" role="status" aria-live="polite">@_message</p>
+  }
+
+  <section class="card" aria-labelledby="schedule-submit-heading" data-draft-scope="advanced-schedule-@ScopeId:D">
+    <h2 id="schedule-submit-heading">Submit source-bound schedule</h2>
+    <p class="muted">Required inputs are saved as a browser draft. The server canonicalizes the JSON, validates the selected method and creates a submitted schedule only; it never accepts client-supplied approval state.</p>
+    <div class="form-grid">
+      <label class="field" for="advanced-source-manifest">
+        Source manifest JSON <span aria-hidden="true">*</span>
+        <textarea id="advanced-source-manifest" data-draft-field="source-manifest" @bind="_sourceManifestJson" rows="10" maxlength="20000" required title="Identify every approved component source exactly once. Method-specific journal, FX or nested-run evidence belongs here when required."></textarea>
+      </label>
+      <label class="field" for="advanced-input-snapshot">
+        Method input and statement JSON <span aria-hidden="true">*</span>
+        <textarea id="advanced-input-snapshot" data-draft-field="input-snapshot" @bind="_inputSnapshotJson" rows="14" maxlength="20000" required title="Provide the approved method inputs and balanced comparative/current statementLines required by the selected method."></textarea>
+      </label>
+    </div>
+    <details>
+      <summary>Input guidance</summary>
+      <p class="muted">The source manifest must contain a <code>sources</code> array with each approved component's exact <code>componentId</code>, source <code>kind</code>, source <code>id</code> and package hash. Acquisition/NCI, ownership-change and asset-transfer methods also require approved reviewed-journal references. Foreign-currency and nested-group methods require their approved rate or source-run evidence. The input snapshot must contain the method-specific fields and a balanced, duplicate-free <code>statementLines</code> array.</p>
+    </details>
+    @if (_canPrepare)
+    {
+      <button type="button" class="button" title="Submit this source-bound schedule for independent review; it does not approve or execute the schedule." @onclick="SubmitScheduleAsync" disabled="@_busy">@(_busy ? "Submitting…" : "Submit schedule")</button>
+    }
+    else
+    {
+      <p class="muted">An explicit preparer grant for this group is required to submit a schedule.</p>
+    }
+  </section>
+
+  <section class="card" aria-labelledby="schedule-list-heading">
+    <h2 id="schedule-list-heading">Schedules</h2>
+    @if (_schedules.Count == 0)
+    {
+      <p class="muted">No method schedule has been submitted for this scope.</p>
+    }
+    else
+    {
+      <div class="table-wrap"><table>
+        <caption class="sr-only">Advanced method schedules</caption>
+        <thead><tr><th scope="col">Created</th><th scope="col">Status</th><th scope="col">Schedule</th><th scope="col"><span class="sr-only">Action</span></th></tr></thead>
+        <tbody>
+        @foreach (var schedule in _schedules)
+        {
+          <tr>
+            <td>@schedule.CreatedAt.ToString("yyyy-MM-dd HH:mm") UTC<br /><span class="muted"><code>@schedule.CreatedByUserId</code></span></td>
+            <td><span class="status">@schedule.Status</span></td>
+            <td><code>@schedule.Id</code><br /><span class="muted">input @schedule.InputDigest[..Math.Min(12, schedule.InputDigest.Length)]…</span></td>
+            <td>
+              @if (schedule.Status == AdvancedConsolidationMethodScheduleStates.Submitted && _canReview)
+              {
+                <button type="button" class="button" title="Revalidate this submitted schedule and record separate reviewer approval." @onclick="() => ApproveScheduleAsync(schedule.Id)" disabled="@_busy">Approve schedule</button>
+              }
+              else if (schedule.Status == AdvancedConsolidationMethodScheduleStates.Submitted)
+              {
+                <span class="muted">Waiting for an independent reviewer</span>
+              }
+              else
+              {
+                <span class="muted">Approved @schedule.ApprovedAt?.ToString("yyyy-MM-dd HH:mm") UTC</span>
+              }
+            </td>
+          </tr>
+        }
+        </tbody>
+      </table></div>
+    }
+  </section>
+
+  <section class="card" aria-labelledby="execution-heading">
+    <h2 id="execution-heading">Verified executions</h2>
+    <p class="muted">Execution recalculates from the current approved schedule, components and group revision. Separate approval is required before the result is treated as ready.</p>
+    @if (_canPrepare && _schedules.Any(x => x.Status == AdvancedConsolidationMethodScheduleStates.Approved))
+    {
+      <button type="button" class="button" title="Run the approved schedule through the guarded local calculation path; no external provider is called." @onclick="RunExecutionAsync" disabled="@_busy">@(_busy ? "Running…" : "Run verified execution")</button>
+    }
+    @if (_executions.Count == 0)
+    {
+      <p class="muted">No verified execution exists for this scope.</p>
+    }
+    else
+    {
+      <div class="table-wrap"><table>
+        <caption class="sr-only">Advanced consolidation executions</caption>
+        <thead><tr><th scope="col">Created</th><th scope="col">Status</th><th scope="col">Balances</th><th scope="col">Execution</th><th scope="col"><span class="sr-only">Action</span></th></tr></thead>
+        <tbody>
+        @foreach (var execution in _executions)
+        {
+          <tr>
+            <td>@execution.CreatedAt.ToString("yyyy-MM-dd HH:mm") UTC<br /><span class="muted"><code>@execution.CreatedByUserId</code></span></td>
+            <td><span class="status">@execution.Status</span></td>
+            <td>Comparative @execution.ComparativeSignedTotal.ToString("N2")<br />Current @execution.CurrentSignedTotal.ToString("N2")</td>
+            <td><code>@execution.Id</code><br /><span class="muted">output @execution.OutputDigest[..Math.Min(12, execution.OutputDigest.Length)]…</span></td>
+            <td>
+              @if (execution.Status == AdvancedConsolidationExecutionStates.Verified && _canReview)
+              {
+                <button type="button" class="button" title="Revalidate current inputs and separately approve this verified execution." @onclick="() => ApproveExecutionAsync(execution.Id)" disabled="@_busy">Approve execution</button>
+              }
+              else if (execution.Status == AdvancedConsolidationExecutionStates.Verified)
+              {
+                <span class="muted">Waiting for an independent reviewer</span>
+              }
+              else
+              {
+                <span class="muted">Approved @execution.ApprovedAt?.ToString("yyyy-MM-dd HH:mm") UTC</span>
+              }
+            </td>
+          </tr>
+        }
+        </tbody>
+      </table></div>
+    }
+  </section>
+}
+
+@code {
+  [Parameter] public Guid ScopeId { get; set; }
+
+  private sealed record ScopeRow(Guid Id, string GroupName, int Version, long GroupRevision, string Method, string ReportingCurrency,
+    string Status, int ApprovedComponentCount, int ApprovedReviewedJournalCount);
+  private sealed record ScheduleRow(Guid Id, string Status, Guid CreatedByUserId, Guid? ApprovedByUserId, DateTimeOffset CreatedAt,
+    DateTimeOffset? ApprovedAt, string InputDigest);
+  private sealed record ExecutionRow(Guid Id, string Status, Guid CreatedByUserId, Guid? ApprovedByUserId, DateTimeOffset CreatedAt,
+    DateTimeOffset? ApprovedAt, decimal ComparativeSignedTotal, decimal CurrentSignedTotal, string OutputDigest);
+
+  private ActorContext? _actor;
+  private ScopeRow? _scope;
+  private List<ScheduleRow> _schedules = [];
+  private List<ExecutionRow> _executions = [];
+  private string _sourceManifestJson = "{}";
+  private string _inputSnapshotJson = "{}";
+  private string? _message;
+  private bool _messageSucceeded;
+  private bool _loading = true;
+  private bool _busy;
+  private bool _canPrepare;
+  private bool _canReview;
+
+  protected override async Task OnInitializedAsync()
+  {
+    _actor = await ActorResolver.ResolveAsync();
+    await LoadAsync();
+    _loading = false;
+  }
+
+  private async Task LoadAsync()
+  {
+    if (_actor is null) return;
+    await using var db = await DbFactory.CreateDbContextAsync();
+    var advancedMethods = AdvancedConsolidationMethods.All.ToArray();
+    var scope = await db.ConsolidationScopeVersions.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.FirmId == _actor.FirmId && x.Id == ScopeId && advancedMethods.Contains(x.Method));
+    if (scope is null) return;
+    var hasGroupAccess = await db.GroupAccessGrants.AsNoTracking().AnyAsync(x =>
+      x.FirmId == _actor.FirmId && x.GroupId == scope.GroupId && x.UserId == _actor.UserId && x.RevokedAt == null);
+    if (!hasGroupAccess) return;
+
+    var componentCount = await db.ConsolidationComponents.AsNoTracking().CountAsync(x =>
+      x.FirmId == _actor.FirmId && x.GroupId == scope.GroupId && x.ScopeVersionId == scope.Id && x.Status == AccountingWorkflowStates.Approved);
+    var journalType = RequiredJournalType(scope.Method);
+    var journalCount = journalType is null ? 0 : await db.ConsolidationJournals.AsNoTracking().CountAsync(x =>
+      x.FirmId == _actor.FirmId && x.GroupId == scope.GroupId && x.ScopeVersionId == scope.Id &&
+      x.Status == AccountingWorkflowStates.Approved && x.JournalType == journalType);
+    _scope = new ScopeRow(scope.Id, await db.ClientGroups.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && x.Id == scope.GroupId)
+      .Select(x => x.Name).SingleAsync(), scope.Version, scope.GroupRevision, scope.Method, scope.ReportingCurrency, scope.Status, componentCount, journalCount);
+    _schedules = await db.AdvancedConsolidationMethodSchedules.AsNoTracking().Where(x =>
+      x.FirmId == _actor.FirmId && x.ScopeVersionId == scope.Id).OrderByDescending(x => x.CreatedAt)
+      .Select(x => new ScheduleRow(x.Id, x.Status, x.CreatedByUserId, x.ApprovedByUserId, x.CreatedAt, x.ApprovedAt, x.InputSnapshotDigest)).ToListAsync();
+    var scheduleIds = _schedules.Select(x => x.Id).ToArray();
+    _executions = await db.AdvancedConsolidationExecutions.AsNoTracking().Where(x =>
+      x.FirmId == _actor.FirmId && x.ScopeVersionId == scope.Id && scheduleIds.Contains(x.ScheduleId)).OrderByDescending(x => x.CreatedAt)
+      .Select(x => new ExecutionRow(x.Id, x.Status, x.CreatedByUserId, x.ApprovedByUserId, x.CreatedAt, x.ApprovedAt,
+        x.ComparativeSignedTotal, x.CurrentSignedTotal, x.OutputDigest)).ToListAsync();
+    _canPrepare = await HasGroupRoleAsync(db, scope.GroupId, "AccountingPreparer", "AccountingReviewer", "Manager", "Partner", "Administrator");
+    _canReview = await HasGroupRoleAsync(db, scope.GroupId, "AccountingReviewer", "Manager", "Partner", "Administrator");
+    if (_sourceManifestJson == "{}")
+      _sourceManifestJson = await BuildSourceManifestAsync(db, scope);
+  }
+
+  private async Task SubmitScheduleAsync()
+  {
+    if (_actor is null || _scope is null || _busy) return;
+    _busy = true;
+    try
+    {
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var result = await ConsolidationService.CreateAdvancedMethodScheduleAsync(db, _actor,
+        new AdvancedConsolidationMethodScheduleRequest(ScopeId, _scope.Method, "IFRS", _sourceManifestJson, _inputSnapshotJson));
+      SetMessage(result.Succeeded, result.Message ?? (result.Succeeded ? "Schedule submitted for independent review." : result.ErrorCode ?? ErrorCatalog.UnknownUiMessage));
+      if (result.Succeeded) await LoadAsync();
+    }
+    finally { _busy = false; }
+  }
+
+  private async Task ApproveScheduleAsync(Guid scheduleId)
+  {
+    if (_actor is null || _busy) return;
+    _busy = true;
+    try
+    {
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var result = await ConsolidationService.ApproveAdvancedMethodScheduleAsync(db, _actor, scheduleId);
+      SetMessage(result.Succeeded, result.Message ?? (result.Succeeded ? "Schedule approved." : result.ErrorCode ?? ErrorCatalog.UnknownUiMessage));
+      if (result.Succeeded) await LoadAsync();
+    }
+    finally { _busy = false; }
+  }
+
+  private async Task RunExecutionAsync()
+  {
+    if (_actor is null || _busy) return;
+    _busy = true;
+    try
+    {
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var scope = await db.ConsolidationScopeVersions.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == _actor.FirmId && x.Id == ScopeId);
+      var result = scope is null
+        ? CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.")
+        : await ConsolidationService.RunAdvancedProfileAsync(db, _actor, scope);
+      SetMessage(result.Succeeded, result.Message ?? (result.Succeeded ? "Verified execution created." : result.ErrorCode ?? ErrorCatalog.UnknownUiMessage));
+      if (result.Succeeded) await LoadAsync();
+    }
+    finally { _busy = false; }
+  }
+
+  private async Task ApproveExecutionAsync(Guid executionId)
+  {
+    if (_actor is null || _busy) return;
+    _busy = true;
+    try
+    {
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var result = await ConsolidationService.ApproveAdvancedExecutionAsync(db, _actor, executionId);
+      SetMessage(result.Succeeded, result.Message ?? (result.Succeeded ? "Execution approved." : result.ErrorCode ?? ErrorCatalog.UnknownUiMessage));
+      if (result.Succeeded) await LoadAsync();
+    }
+    finally { _busy = false; }
+  }
+
+  private async Task<bool> HasGroupRoleAsync(AuditSphereDbContext db, Guid groupId, params string[] roles) =>
+    await db.GroupAccessGrants.AsNoTracking().AnyAsync(x => x.FirmId == _actor!.FirmId && x.GroupId == groupId &&
+      x.UserId == _actor.UserId && x.RevokedAt == null && roles.Contains(x.Role));
+
+  private static string? RequiredJournalType(string method) => method switch
+  {
+    AdvancedConsolidationMethods.AcquisitionNci => "ACQUISITION_NCI",
+    AdvancedConsolidationMethods.OwnershipChange => "OWNERSHIP_CHANGE",
+    AdvancedConsolidationMethods.AssetTransferElimination => "ASSET_TRANSFER_ELIMINATION",
+    _ => null
+  };
+
+  private static async Task<string> BuildSourceManifestAsync(AuditSphereDbContext db, ConsolidationScopeVersion scope)
+  {
+    var components = await db.ConsolidationComponents.AsNoTracking().Where(x =>
+      x.FirmId == scope.FirmId && x.GroupId == scope.GroupId && x.ScopeVersionId == scope.Id &&
+      x.Status == AccountingWorkflowStates.Approved).OrderBy(x => x.Id).ToListAsync();
+    var sources = components.Select(x => new
+    {
+      componentId = x.Id,
+      kind = x.SourceType,
+      id = x.PackageId ?? x.ExternalComponentPackId,
+      hash = x.PackageHash
+    }).ToArray();
+    var manifest = new Dictionary<string, object?> { ["sources"] = sources };
+    var journalType = RequiredJournalType(scope.Method);
+    if (journalType is not null)
+      manifest["reviewedJournals"] = await db.ConsolidationJournals.AsNoTracking().Where(x =>
+        x.FirmId == scope.FirmId && x.GroupId == scope.GroupId && x.ScopeVersionId == scope.Id &&
+        x.Status == AccountingWorkflowStates.Approved && x.JournalType == journalType).OrderBy(x => x.Id)
+        .Select(x => new { id = x.Id }).ToArrayAsync();
+    return JsonSerializer.Serialize(manifest, new JsonSerializerOptions { WriteIndented = true });
+  }
+
+  private void SetMessage(bool succeeded, string message)
+  {
+    _messageSucceeded = succeeded;
+    _message = message;
+  }
+}

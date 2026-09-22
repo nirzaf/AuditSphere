@@ -28,7 +28,7 @@
     "implementationStatus": "IN_PROGRESS",
     "acceptanceStatus": "LOCAL_VERIFIED",
     "scope": "Local audit workflow, client accounting, scoped client file-request threads/uploads/downloads, GL intake, completeness, package, Office/PDF export, restatement, consolidation, journal-lineage, close-check, package-review and Microsoft 365 onboarding control-plane slices.",
-    "nextAction": "Complete full end-to-end browser acceptance before enabling any advanced profile; keep provider, signing, records, recovery and independent-review gates external and fail-closed."
+    "nextAction": "Complete full end-to-end browser acceptance with an approved component/journal fixture before enabling any advanced profile; keep provider, signing, records, recovery and independent-review gates external and fail-closed."
   },
   "localEvidence": [
     {
@@ -344,7 +344,7 @@
     {
       "item": "Advanced consolidation calculation safety core",
       "status": "LOCAL_VERIFIED",
-      "details": "Deterministic local calculators cover acquisition goodwill/bargain purchase with fair-value adjustments, NCI rollforward, ownership changes/disposals, nested double-count rejection and asset-transfer/tax elimination math. Approved IFRS method schedules now persist canonical source/input JSON digests, validate method-specific inputs plus reviewed journal and approved FX evidence at approval, and guarded execution persists balanced current/comparative statements plus method output manifests/digests only after current component, group-revision and method-owner checks. Separate reviewer approval revalidates current component-pack inputs, method journal evidence and statement evidence. Repeated execution converges on one verified row. PostgreSQL schedule/journal/execution journeys cover all five methods; the full suite passes 246/246 at 25bb0ba with no skipped tests. Browser journeys remain fail-closed and required before any advanced profile is treated as fully enabled."
+      "details": "Deterministic local calculators cover acquisition goodwill/bargain purchase with fair-value adjustments, NCI rollforward, ownership changes/disposals, nested double-count rejection and asset-transfer/tax elimination math. Approved IFRS method schedules now persist canonical source/input JSON digests, validate method-specific inputs plus reviewed journal and approved FX evidence at approval, and guarded execution persists balanced current/comparative statements plus method output manifests/digests only after current component, group-revision and method-owner checks. Separate reviewer approval revalidates current component-pack inputs, method journal evidence and statement evidence. Repeated execution converges on one verified row. PostgreSQL schedule/journal/execution journeys cover all five methods; the full suite passes 246/246 at 25bb0ba with no skipped tests. The consolidation workbench now exposes a scope-bound browser workflow for schedule/input drafting, guarded submission and maker/checker execution actions; its smoke test remains fail-closed with no approved inputs. Full browser acceptance with an approved component/journal fixture remains required before any advanced profile is treated as fully enabled."
     },
     {
       "item": "Microsoft 365 onboarding control-plane foundation",
@@ -353,7 +353,7 @@
     }
   ],
   "remainingLocalWork": [
-    "Complete full end-to-end browser acceptance for any advanced FX, acquisition/NCI, ownership-change, nested-group or complex-elimination profile before enabling it; keep unsupported or unproven methods fail-closed"
+    "Complete full end-to-end browser acceptance with an approved component/journal fixture for any advanced FX, acquisition/NCI, ownership-change, nested-group or complex-elimination profile before enabling it; keep unsupported or unproven methods fail-closed"
   ],
   "externalGates": [
     { "gate": "P1", "status": "BLOCKED_EXTERNAL", "required": "Live Entra OIDC and runtime identity fixtures" },

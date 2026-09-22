@@ -108,7 +108,8 @@ This is a resume checklist, not an acceptance certificate. Tenant identifiers, c
 - [x] Wire persisted schedules into guarded advanced profile execution with balanced current/comparative statement evidence, method output manifests/digests, current component and group-revision fencing, component revalidation before reviewer approval and idempotent retry; PostgreSQL coverage passes at `0f9f10c`.
 - [x] Add method-specific golden execution fixtures and fail-closed browser gate journeys for all five advanced profiles; keep unsupported or unproven methods visibly `REQUIRED`.
 - [x] Complete source-bound method schedules, reviewed journal evidence and execution journeys for all five advanced profiles in PostgreSQL; keep them fail-closed until browser acceptance.
-- [ ] Complete full end-to-end browser acceptance for any advanced profile before enabling it.
+- [x] Add a scope-bound browser workflow for advanced schedule/input drafting, guarded submission, maker/checker approval and verified-execution actions; no automatic profile enablement is exposed.
+- [ ] Complete full end-to-end browser acceptance with an approved component/journal fixture for any advanced profile before enabling it.
 - [x] Add deeper accounting evidence/workpaper links and account-area UI around the typed specialist schedules.
 - [x] Add the accounting dashboard and cross-workflow navigation around accounting, roll-forward and release workflows.
 - [x] Re-run focused tests, full tests, build, migration drift and restore drill for the current coherent slice; repeat for the next slice.

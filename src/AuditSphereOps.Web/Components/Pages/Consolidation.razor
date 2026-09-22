@@ -41,11 +41,11 @@ else
       {
         <div class="table-wrap"><table>
           <caption class="sr-only">Consolidation scopes for @group.Name</caption>
-          <thead><tr><th scope="col">Version</th><th scope="col">Method</th><th scope="col">Currency</th><th scope="col" title="Approved ownership relationships pinned to this scope">Ownership edges</th><th scope="col" title="Grouped intercompany rows needing a complete review">Grouped matches</th><th scope="col" title="Related-party reviews retained outside automatic elimination">Outside reviews</th><th scope="col">Perimeter</th><th scope="col">Latest run</th></tr></thead>
+          <thead><tr><th scope="col">Version</th><th scope="col">Method</th><th scope="col">Currency</th><th scope="col" title="Approved ownership relationships pinned to this scope">Ownership edges</th><th scope="col" title="Grouped intercompany rows needing a complete review">Grouped matches</th><th scope="col" title="Related-party reviews retained outside automatic elimination">Outside reviews</th><th scope="col">Perimeter</th><th scope="col">Latest run</th><th scope="col"><span class="sr-only">Workflow</span></th></tr></thead>
           <tbody>
           @foreach (var scope in group.Scopes)
           {
-            <tr><td>v@(scope.Version)</td><td><code>@scope.Method</code></td><td>@scope.Currency</td><td>@scope.OwnershipEdges</td><td>@scope.GroupedMatches</td><td>@scope.OutsideReviews</td><td><span class="status">@scope.Status</span></td><td><span class="status">@scope.RunStatus</span></td></tr>
+            <tr><td>v@(scope.Version)</td><td><code>@scope.Method</code></td><td>@scope.Currency</td><td>@scope.OwnershipEdges</td><td>@scope.GroupedMatches</td><td>@scope.OutsideReviews</td><td><span class="status">@scope.Status</span></td><td><span class="status">@scope.RunStatus</span></td><td>@if (AdvancedConsolidationMethods.All.Contains(scope.Method)) { <a href="@($"/app/consolidation/advanced/{scope.Id:D}")" title="Open the guarded schedule, maker/checker approval and execution workflow for this advanced scope">Open workflow</a> }</td></tr>
           }
           </tbody>
         </table></div>
