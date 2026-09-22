@@ -7,7 +7,7 @@
 <PageTitle>Group consolidation</PageTitle>
 <a class="back-link" href="/app/accounting">← Back to accounting workspace</a>
 <h1>Group consolidation</h1>
-<p class="scope-note">Only explicitly granted group scopes appear here. The enabled first profile is same-currency, fully-owned consolidation; unsupported FX, NCI and equity-method cases remain blocked.</p>
+<p class="scope-note">Only explicitly granted group scopes appear here. The enabled first profile is same-currency, fully-owned consolidation; configured foreign-operation translation is shown separately, while advanced methods remain fail-closed until approved source-bound schedules and execution verification are complete.</p>
 
 @if (_loading)
 {
@@ -22,7 +22,8 @@ else
   <nav class="accounting-tabs" aria-label="Group consolidation tabs">
     <a href="#perimeter" title="Review versioned group membership, method and reporting currency.">Perimeter</a>
     <a href="#packs" title="Review internal and external component-pack counts and approval readiness.">Component packs</a>
-    <a href="#fx" title="Review explicitly pinned rate-set and translation-policy state; unsupported methods remain blocked.">FX</a>
+    <a href="#fx" title="Review explicitly pinned rate-set and translation-policy state; missing or stale rates block calculation.">FX</a>
+    <a href="#advanced" title="Review method-specific advanced schedules and whether a gated profile has approved inputs.">Advanced schedules</a>
     <a href="#intercompany" title="Review grouped matches, outside-perimeter reviews and unresolved differences.">Intercompany</a>
     <a href="#eliminations" title="Review persisted group-only elimination journals and their approval state.">Eliminations</a>
   </nav>
@@ -72,6 +73,21 @@ else
     </table></div>
   </section>
 
+  <section class="card" id="advanced" aria-labelledby="advanced-heading">
+    <h2 id="advanced-heading">Advanced schedules</h2>
+    <p class="muted">Advanced-method schedules are source-bound, maker/checker-reviewed inputs. A complete approved schedule is necessary but does not enable an advanced profile until the corresponding statement and comparative rollforward verification is complete.</p>
+    <div class="table-wrap"><table>
+      <caption class="sr-only">Advanced consolidation schedule readiness</caption>
+      <thead><tr><th scope="col">Group / scope</th><th scope="col" title="The selected consolidation method for this scope">Method</th><th scope="col" title="Persisted method schedules awaiting independent approval">Submitted</th><th scope="col" title="Schedules approved by a separate reviewer and still pinned to the scope revision">Approved</th><th scope="col" title="Readiness reflects only schedule evidence, not production profile enablement">Readiness</th></tr></thead>
+      <tbody>
+      @foreach (var scope in AllScopes)
+      {
+        <tr><td>@scope.GroupName · v@(scope.Version)</td><td><code>@scope.Method</code></td><td>@scope.AdvancedScheduleCount</td><td>@scope.ApprovedAdvancedScheduleCount</td><td><span class="status" title="@scope.AdvancedScheduleGuidance">@scope.AdvancedScheduleStatus</span></td></tr>
+      }
+      </tbody>
+    </table></div>
+  </section>
+
   <section class="card" id="intercompany" aria-labelledby="intercompany-heading">
     <h2 id="intercompany-heading">Intercompany</h2>
     <p class="muted">Grouped matches, outside-perimeter reviews and unresolved match rows remain visible before any automatic elimination.</p>
@@ -109,6 +125,10 @@ else
     public int ApprovedComponentCount { get; init; }
     public int ExternalPackCount { get; init; }
     public int ApprovedExternalPackCount { get; init; }
+    public int AdvancedScheduleCount { get; init; }
+    public int ApprovedAdvancedScheduleCount { get; init; }
+    public string AdvancedScheduleStatus { get; init; } = string.Empty;
+    public string AdvancedScheduleGuidance { get; init; } = string.Empty;
     public string RateSetStatus { get; init; } = string.Empty;
     public string TranslationPolicyStatus { get; init; } = string.Empty;
     public int EliminationJournalCount { get; init; }
@@ -148,6 +168,9 @@ else
       var packCounts = await db.ExternalComponentPacks.AsNoTracking().Where(x => x.FirmId == actor.FirmId && groupIds.Contains(x.GroupId))
         .GroupBy(x => x.ScopeVersionId).Select(x => new { ScopeId = x.Key, Count = x.Count(), Approved = x.Count(y => y.Status == ExternalComponentPackStates.Approved) })
         .ToDictionaryAsync(x => x.ScopeId);
+      var advancedScheduleCounts = await db.AdvancedConsolidationMethodSchedules.AsNoTracking().Where(x => x.FirmId == actor.FirmId && groupIds.Contains(x.GroupId))
+        .GroupBy(x => x.ScopeVersionId).Select(x => new { ScopeId = x.Key, Count = x.Count(), Approved = x.Count(y => y.Status == AdvancedConsolidationMethodScheduleStates.Approved) })
+        .ToDictionaryAsync(x => x.ScopeId);
       var journalCounts = await db.ConsolidationJournals.AsNoTracking().Where(x => x.FirmId == actor.FirmId && groupIds.Contains(x.GroupId))
         .GroupBy(x => x.ScopeVersionId).Select(x => new { ScopeId = x.Key, Count = x.Count(), Approved = x.Count(y => y.Status == AccountingWorkflowStates.Approved) })
         .ToDictionaryAsync(x => x.ScopeId);
@@ -163,6 +186,10 @@ else
           var matches = matchCounts.GetValueOrDefault(x.Id);
           var components = componentCounts.GetValueOrDefault(x.Id);
           var packs = packCounts.GetValueOrDefault(x.Id);
+          var advancedSchedules = advancedScheduleCounts.GetValueOrDefault(x.Id);
+          var advancedRequired = AdvancedConsolidationMethods.All.Contains(x.Method);
+          var advancedStatus = !advancedRequired ? "NOT_APPLICABLE" : advancedSchedules is null ? "REQUIRED" :
+            advancedSchedules.Approved == advancedSchedules.Count && advancedSchedules.Count > 0 ? "APPROVED" : "REVIEW_REQUIRED";
           var journals = journalCounts.GetValueOrDefault(x.Id);
           return new ScopeRow
           {
@@ -179,6 +206,12 @@ else
             ApprovedComponentCount = components?.Approved ?? 0,
             ExternalPackCount = packs?.Count ?? 0,
             ApprovedExternalPackCount = packs?.Approved ?? 0,
+            AdvancedScheduleCount = advancedSchedules?.Count ?? 0,
+            ApprovedAdvancedScheduleCount = advancedSchedules?.Approved ?? 0,
+            AdvancedScheduleStatus = advancedStatus,
+            AdvancedScheduleGuidance = advancedRequired
+              ? "Schedule status only; the advanced calculation profile remains disabled until complete statement and comparative verification passes."
+              : "The selected bounded profile does not require an advanced-method schedule.",
             RateSetStatus = x.ExchangeRateSetVersionId is { } rateSetId ? rateSets.GetValueOrDefault(rateSetId, "MISSING") : "SAME_CURRENCY_PROFILE",
             TranslationPolicyStatus = x.TranslationPolicyVersionId is { } policyId ? translationPolicies.GetValueOrDefault(policyId, "MISSING") : "NOT_CONFIGURED",
             EliminationJournalCount = journals?.Count ?? 0,
