@@ -1952,6 +1952,14 @@ public sealed class ClientAccountingTests
       Assert.Equal(ErrorCodes.GenerationStale, staleApproval.ErrorCode);
       component.PackageHash = packageHash;
       await db.SaveChangesAsync();
+      var reviewedJournal = await db.ConsolidationJournals.SingleAsync(x => x.Id == reviewedJournalId);
+      reviewedJournal.Status = AccountingWorkflowStates.Draft;
+      await db.SaveChangesAsync();
+      var staleJournalApproval = await ConsolidationService.ApproveAdvancedExecutionAsync(db, reviewer, stored.Id);
+      Assert.False(staleJournalApproval.Succeeded);
+      Assert.Equal(ErrorCodes.ManifestMismatch, staleJournalApproval.ErrorCode);
+      reviewedJournal.Status = AccountingWorkflowStates.Approved;
+      await db.SaveChangesAsync();
       Assert.True((await ConsolidationService.ApproveAdvancedExecutionAsync(db, reviewer, stored.Id)).Succeeded);
       Assert.Equal(AdvancedConsolidationExecutionStates.Approved,
         await db.AdvancedConsolidationExecutions.Where(x => x.Id == stored.Id).Select(x => x.Status).SingleAsync());

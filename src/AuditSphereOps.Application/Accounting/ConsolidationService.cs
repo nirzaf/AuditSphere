@@ -1065,6 +1065,12 @@ public static class ConsolidationService
     var componentResult = await LoadAdvancedComponentsAsync(db, actor.FirmId, scope, ct);
     if (!componentResult.Succeeded)
       return CommandResult.Fail(componentResult.ErrorCode!, componentResult.Message!);
+    var sourceBinding = ValidateAdvancedSourceManifest(schedule.SourceManifestJson, componentResult.Value!);
+    if (!sourceBinding.Succeeded)
+      return sourceBinding;
+    var journalEvidence = await ValidateAdvancedReviewedJournalsAsync(db, scope, schedule, ct);
+    if (!journalEvidence.Succeeded)
+      return journalEvidence;
     var inputManifest = BuildAdvancedInputManifest(scope, schedule, componentResult.Value!);
     if (Hashing.Sha256Hex(inputManifest) != execution.InputManifestDigest)
       return CommandResult.Fail(ErrorCodes.GenerationStale, "The advanced component inputs changed; rerun the execution.");
