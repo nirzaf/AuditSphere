@@ -4,7 +4,7 @@
 **Authoritative specification:** [`docs/SPECIFICATION.md`](../SPECIFICATION.md) v5.0
 **Accounting module contract:** [`docs/AuditSphere_Accounting_module.md`](../AuditSphere_Accounting_module.md)
 **Requirements backlog:** [`docs/requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md`](../requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md)
-**Source implementation checkpoint:** `codex/m365-simple-onboarding@ac3e0f1`
+**Source implementation checkpoint:** `codex/m365-simple-onboarding@cad3f85`
 
 This is a resume checklist, not an acceptance certificate. Tenant identifiers, credentials, tokens, secret values, and private-provider URLs are deliberately absent from the public repository.
 
@@ -12,8 +12,8 @@ This is a resume checklist, not an acceptance certificate. Tenant identifiers, c
 
 - [x] .NET 10 solution builds with zero warnings/errors.
 - [x] PostgreSQL 18.6 development profile is used on loopback port 5433.
-- [x] 246/246 PostgreSQL-backed tests pass with 0 skipped at `da1f38b`; the Web Release build passes with zero warnings/errors.
-- [x] 89 migrations are applied; latest is `20260922125309_AdvancedConsolidationExecution`.
+- [x] 246/246 PostgreSQL-backed tests pass with 0 skipped at `cad3f85`; the full solution Release build passes with zero warnings/errors.
+- [x] 91 migrations are applied; latest is `20260922140527_M365InvitationEvidenceAction`.
 - [x] EF model has no pending migration changes.
 - [x] Loopback restore drill passes and writes secret-free evidence to `docs/evidence/restore-drill-latest.json`.
 - [x] Generated Graphify output and local agent state are ignored and removed from Git tracking.

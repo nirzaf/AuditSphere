@@ -6,15 +6,15 @@ This file records observed repository state only. The authoritative build contra
 
 | Item | Observed value |
 |---|---|
-| Source implementation checkpoint | `codex/m365-simple-onboarding@ac3e0f1` |
-| Remote | `origin/codex/m365-simple-onboarding` includes source checkpoint `ac3e0f1` |
+| Source implementation checkpoint | `codex/m365-simple-onboarding@cad3f85` |
+| Remote | `origin/codex/m365-simple-onboarding` includes source checkpoint `cad3f85` |
 | SDK | .NET 10; repository solution targets `net10.0` |
 | Database | PostgreSQL 18.6 on loopback port 5433 for development only |
-| Build | Web Release build at `da1f38b` — passed, 0 warnings/errors |
-| Tests | 246/246 passed, 0 skipped against PostgreSQL 18.6 |
-| Migrations | 89 applied; latest `20260922125309_AdvancedConsolidationExecution` |
+| Build | Full solution Release build at `cad3f85` — passed, 0 warnings/errors |
+| Tests | 246/246 passed, 0 skipped against PostgreSQL 18.6; Release run duration 6m59s |
+| Migrations | 91 applied; latest `20260922140527_M365InvitationEvidenceAction` |
 | Model drift | `dotnet ef migrations has-pending-model-changes` — no changes |
-| Restore drill | `scripts/db/restore-drill.sh` — passed; 89 migrations, accounting/group manifests and release-delivery identities reconciled |
+| Restore drill | `scripts/db/restore-drill.sh` — passed; 91 migrations, accounting/group manifests and release-delivery identities reconciled |
 | Production effects | Disabled locally; no production acceptance claimed |
 
 ## Implemented local capability
@@ -109,7 +109,7 @@ This file records observed repository state only. The authoritative build contra
 - Period roll-forward and restatement selection loads use a generation guard and a visible loading state, lock dependent selectors during the request, and prevent older async responses from replacing a newer client/period selection; the existing draft autosave remains the source of unsaved form resilience.
 - The mapping workbench shows immutable current-vs-prior allocation changes, exact-dataset/chart/taxonomy applicability, and bounded token suggestions for unmapped accounts; candidates remain review-only, ambiguous matches are labeled, and no suggestion mutates allocations.
 - Consolidation automatic matches now require an explicit enabled elimination nature (receivable/payable, revenue/expense, dividend or investment/equity); outside-perimeter reviews remain review-only, approved group-only journals remain distinct, and the selected nature participates in the deterministic run manifest. Unsupported legacy natures fail closed.
-- The loopback restore drill now reconciles accounting package/artifact, consolidation scope/run/line and external component-pack manifests, and fails closed on duplicate release-delivery identities; the current rehearsal restored 89 migrations through `20260922125309_AdvancedConsolidationExecution`; external checkpoint custody and production RPO/RTO remain separate gates.
+- The loopback restore drill now reconciles accounting package/artifact, consolidation scope/run/line and external component-pack manifests, and fails closed on duplicate release-delivery identities; the current rehearsal restored 91 migrations through `20260922140527_M365InvitationEvidenceAction`; external checkpoint custody and production RPO/RTO remain separate gates.
 
 ## Remaining local implementation work
 
@@ -181,7 +181,7 @@ dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infr
 scripts/db/restore-drill.sh
 ```
 
-The restore evidence is written to [`docs/evidence/restore-drill-latest.json`](../evidence/restore-drill-latest.json). The latest rehearsal restored 89 migrations through `20260922125309_AdvancedConsolidationExecution`, reconciled accounting/group manifests and found zero duplicate release-delivery keys; it is loopback-only and explicitly reports that external checkpoint custody and production RPO/RTO were not run.
+The restore evidence is written to [`docs/evidence/restore-drill-latest.json`](../evidence/restore-drill-latest.json). The latest rehearsal restored 91 migrations through `20260922140527_M365InvitationEvidenceAction`, reconciled accounting/group manifests and found zero duplicate release-delivery keys; it is loopback-only and explicitly reports that external checkpoint custody and production RPO/RTO were not run.
 
 ## Resume rule
 
