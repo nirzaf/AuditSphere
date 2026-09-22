@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Security.Claims;
 using System.Security.Cryptography;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Accounting;
@@ -76,6 +77,11 @@ var clientSecret = identity["ClientSecret"];
 var oidcConfigured = !string.IsNullOrWhiteSpace(tenantId) &&
                      !string.IsNullOrWhiteSpace(clientId) &&
                      !string.IsNullOrWhiteSpace(clientSecret);
+var developmentIdentityEnabled = builder.Configuration.GetValue<bool>("DevelopmentIdentity:Enabled");
+if (developmentIdentityEnabled && !builder.Environment.IsDevelopment() && !builder.Environment.IsEnvironment("Test"))
+  throw new InvalidOperationException("Development identity is allowed only in Development or Test.");
+if (developmentIdentityEnabled && oidcConfigured)
+  throw new InvalidOperationException("Development identity cannot be enabled with OIDC.");
 var authentication = builder.Services.AddAuthentication(options =>
 {
   options.DefaultAuthenticateScheme = CookieAuthenticationDefaults.AuthenticationScheme;
@@ -164,11 +170,38 @@ if (oidcConfigured)
 {
   app.MapGet("/auth/sign-in", (HttpContext http, string? returnUrl) =>
   {
-    var destination = !string.IsNullOrWhiteSpace(returnUrl) && returnUrl.StartsWith('/') &&
-                      !returnUrl.StartsWith("//", StringComparison.Ordinal)
-      ? returnUrl : "/app";
-    return Results.Challenge(new AuthenticationProperties { RedirectUri = destination }, ["Entra"]);
+    return Results.Challenge(new AuthenticationProperties { RedirectUri = LocalDestination(returnUrl) }, ["Entra"]);
   });
+}
+else if (developmentIdentityEnabled)
+{
+  var subject = builder.Configuration["DevelopmentIdentity:Subject"];
+  var identityTenantId = builder.Configuration["DevelopmentIdentity:TenantId"];
+  if (string.IsNullOrWhiteSpace(subject) || string.IsNullOrWhiteSpace(identityTenantId))
+    throw new InvalidOperationException("Development identity requires Subject and TenantId.");
+
+  app.MapGet("/auth/sign-in", async (HttpContext http, IDbContextFactory<AuditSphereDbContext> dbFactory, string? returnUrl) =>
+  {
+    await using var db = await dbFactory.CreateDbContextAsync(http.RequestAborted);
+    var user = await db.Users.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.Subject == subject && x.TenantId == identityTenantId, http.RequestAborted);
+    if (user is null || user.Disabled)
+      return Results.Problem("The configured development identity is unavailable.", statusCode: StatusCodes.Status503ServiceUnavailable);
+
+    var claims = new[]
+    {
+      new Claim("oid", user.Subject),
+      new Claim("tid", user.TenantId),
+      new Claim(ClaimTypes.Name, user.DisplayName),
+      new Claim(ClaimTypes.Email, user.Email)
+    };
+    await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme,
+      new ClaimsPrincipal(new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme)));
+    return Results.Redirect(LocalDestination(returnUrl));
+  });
+}
+if (oidcConfigured || developmentIdentityEnabled)
+{
   app.MapGet("/auth/sign-out", async (HttpContext http) =>
   {
     await http.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
@@ -287,6 +320,11 @@ app.MapRazorComponents<AuditSphereOps.Web.Components.App>()
   .AddInteractiveServerRenderMode();
 
 app.Run();
+
+static string LocalDestination(string? returnUrl) =>
+  !string.IsNullOrWhiteSpace(returnUrl) && returnUrl.StartsWith('/') &&
+  !returnUrl.StartsWith("//", StringComparison.Ordinal)
+    ? returnUrl : "/app";
 
 /// <summary>Npgsql readiness probe without an extra health-check package (§45.4).</summary>
 file sealed class NpgsqlCheck(string connectionString) : IHealthCheck

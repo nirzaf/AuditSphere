@@ -44,7 +44,7 @@ else
           <tbody>
           @foreach (var scope in group.Scopes)
           {
-            <tr><td>v@scope.Version</td><td><code>@scope.Method</code></td><td>@scope.Currency</td><td>@scope.OwnershipEdges</td><td>@scope.GroupedMatches</td><td>@scope.OutsideReviews</td><td><span class="status">@scope.Status</span></td><td><span class="status">@scope.RunStatus</span></td></tr>
+            <tr><td>v@(scope.Version)</td><td><code>@scope.Method</code></td><td>@scope.Currency</td><td>@scope.OwnershipEdges</td><td>@scope.GroupedMatches</td><td>@scope.OutsideReviews</td><td><span class="status">@scope.Status</span></td><td><span class="status">@scope.RunStatus</span></td></tr>
           }
           </tbody>
         </table></div>
@@ -58,7 +58,7 @@ else
     <div class="table-wrap"><table>
       <caption class="sr-only">Group component-pack readiness</caption>
       <thead><tr><th scope="col">Group / scope</th><th scope="col">Components</th><th scope="col">Approved components</th><th scope="col">External packs</th><th scope="col">Approved packs</th></tr></thead>
-      <tbody>@foreach (var scope in AllScopes) { <tr><td>@scope.GroupName · v@scope.Version</td><td>@scope.ComponentCount</td><td>@scope.ApprovedComponentCount</td><td>@scope.ExternalPackCount</td><td>@scope.ApprovedExternalPackCount</td></tr> }</tbody>
+      <tbody>@foreach (var scope in AllScopes) { <tr><td>@scope.GroupName · v@(scope.Version)</td><td>@scope.ComponentCount</td><td>@scope.ApprovedComponentCount</td><td>@scope.ExternalPackCount</td><td>@scope.ApprovedExternalPackCount</td></tr> }</tbody>
     </table></div>
   </section>
 
@@ -68,7 +68,7 @@ else
     <div class="table-wrap"><table>
       <caption class="sr-only">Group FX configuration</caption>
       <thead><tr><th scope="col">Group / scope</th><th scope="col">Reporting currency</th><th scope="col">Rate set</th><th scope="col">Translation policy</th></tr></thead>
-      <tbody>@foreach (var scope in AllScopes) { <tr><td>@scope.GroupName · v@scope.Version</td><td><code>@scope.Currency</code></td><td><span class="status">@scope.RateSetStatus</span></td><td><span class="status">@scope.TranslationPolicyStatus</span></td></tr> }</tbody>
+      <tbody>@foreach (var scope in AllScopes) { <tr><td>@scope.GroupName · v@(scope.Version)</td><td><code>@scope.Currency</code></td><td><span class="status">@scope.RateSetStatus</span></td><td><span class="status">@scope.TranslationPolicyStatus</span></td></tr> }</tbody>
     </table></div>
   </section>
 
@@ -78,7 +78,7 @@ else
     <div class="table-wrap"><table>
       <caption class="sr-only">Group intercompany review counts</caption>
       <thead><tr><th scope="col">Group / scope</th><th scope="col">Grouped matches</th><th scope="col">Outside reviews</th><th scope="col">Open matches</th></tr></thead>
-      <tbody>@foreach (var scope in AllScopes) { <tr><td>@scope.GroupName · v@scope.Version</td><td>@scope.GroupedMatches</td><td>@scope.OutsideReviews</td><td><span class="status">@scope.OpenMatchCount</span></td></tr> }</tbody>
+      <tbody>@foreach (var scope in AllScopes) { <tr><td>@scope.GroupName · v@(scope.Version)</td><td>@scope.GroupedMatches</td><td>@scope.OutsideReviews</td><td><span class="status">@scope.OpenMatchCount</span></td></tr> }</tbody>
     </table></div>
   </section>
 
@@ -88,7 +88,7 @@ else
     <div class="table-wrap"><table>
       <caption class="sr-only">Group elimination journal counts</caption>
       <thead><tr><th scope="col">Group / scope</th><th scope="col">Journals</th><th scope="col">Approved journals</th><th scope="col">Latest run</th></tr></thead>
-      <tbody>@foreach (var scope in AllScopes) { <tr><td>@scope.GroupName · v@scope.Version</td><td>@scope.EliminationJournalCount</td><td>@scope.ApprovedEliminationJournalCount</td><td><span class="status">@scope.RunStatus</span></td></tr> }</tbody>
+      <tbody>@foreach (var scope in AllScopes) { <tr><td>@scope.GroupName · v@(scope.Version)</td><td>@scope.EliminationJournalCount</td><td>@scope.ApprovedEliminationJournalCount</td><td><span class="status">@scope.RunStatus</span></td></tr> }</tbody>
     </table></div>
   </section>
 }
