@@ -1005,6 +1005,9 @@ public static class ConsolidationService
     var sourceBinding = ValidateAdvancedSourceManifest(schedule.SourceManifestJson, components);
     if (!sourceBinding.Succeeded)
       return CommandResult<Guid>.Fail(sourceBinding.ErrorCode!, sourceBinding.Message!);
+    var journalEvidence = await ValidateAdvancedReviewedJournalsAsync(db, scope, schedule, ct);
+    if (!journalEvidence.Succeeded)
+      return CommandResult<Guid>.Fail(journalEvidence.ErrorCode!, journalEvidence.Message!);
 
     if (!AdvancedConsolidationExecutionCalculator.TryCalculate(scope.Method, schedule.InputSnapshotJson,
         out var calculation, out var calculationError))
@@ -1148,6 +1151,9 @@ public static class ConsolidationService
       var sourceBinding = ValidateAdvancedSourceManifest(schedule.SourceManifestJson, componentResult.Value!);
       if (!sourceBinding.Succeeded)
         return sourceBinding;
+      var journalEvidence = await ValidateAdvancedReviewedJournalsAsync(db, scope, schedule, ct);
+      if (!journalEvidence.Succeeded)
+        return journalEvidence;
     }
     if (!AdvancedConsolidationCalculator.TryValidateScheduleInput(schedule.Method, schedule.InputSnapshotJson, out var inputError))
       return CommandResult.Fail(ErrorCodes.Accounting.MappingInvalid,
@@ -1439,6 +1445,52 @@ public static class ConsolidationService
         ? CommandResult.Ok()
         : CommandResult.Fail(ErrorCodes.ManifestMismatch,
           "The advanced source manifest must cover every approved component exactly once.");
+    }
+    catch (JsonException)
+    {
+      return CommandResult.Fail(ErrorCodes.ManifestMismatch, "The advanced source manifest is not valid JSON.");
+    }
+  }
+
+  private static async Task<CommandResult> ValidateAdvancedReviewedJournalsAsync(
+    IClientAccountingDbContext db, ConsolidationScopeVersion scope,
+    AdvancedConsolidationMethodSchedule schedule, CancellationToken ct)
+  {
+    if (schedule.Method is not (AdvancedConsolidationMethods.AcquisitionNci or
+        AdvancedConsolidationMethods.OwnershipChange or AdvancedConsolidationMethods.AssetTransferElimination))
+      return CommandResult.Ok();
+
+    try
+    {
+      using var document = JsonDocument.Parse(schedule.SourceManifestJson);
+      if (!document.RootElement.TryGetProperty("reviewedJournals", out var journals) ||
+          journals.ValueKind != JsonValueKind.Array || journals.GetArrayLength() == 0)
+        return CommandResult.Fail(ErrorCodes.ManifestMismatch,
+          "This advanced method needs at least one approved reviewed consolidation journal.");
+
+      var seen = new HashSet<Guid>();
+      foreach (var journalReference in journals.EnumerateArray())
+      {
+        if (!TryManifestGuid(journalReference, "id", out var journalId) || !seen.Add(journalId))
+          return CommandResult.Fail(ErrorCodes.ManifestMismatch,
+            "Advanced reviewed-journal references must contain unique journal IDs.");
+        var journal = await db.ConsolidationJournals.AsNoTracking().SingleOrDefaultAsync(x =>
+          x.FirmId == scope.FirmId && x.Id == journalId && x.GroupId == scope.GroupId &&
+          x.ScopeVersionId == scope.Id && x.Status == AccountingWorkflowStates.Approved, ct);
+        if (journal is null || journal.Currency != scope.ReportingCurrency)
+          return CommandResult.Fail(ErrorCodes.ManifestMismatch,
+            "The advanced schedule references an unavailable or out-of-scope approved journal.");
+        var lines = await db.ConsolidationJournalLines.AsNoTracking().Where(x =>
+          x.FirmId == scope.FirmId && x.GroupId == scope.GroupId && x.ScopeVersionId == scope.Id &&
+          x.ConsolidationJournalId == journal.Id).ToListAsync(ct);
+        if (lines.Count < 2 || lines.Any(x => x.Currency != scope.ReportingCurrency) ||
+            MoneyPolicy.Normalize(lines.Sum(x => x.Debit)) != journal.TotalDebits ||
+            MoneyPolicy.Normalize(lines.Sum(x => x.Credit)) != journal.TotalCreditsAbs ||
+            journal.TotalDebits != journal.TotalCreditsAbs)
+          return CommandResult.Fail(ErrorCodes.ManifestMismatch,
+            "Every advanced reviewed journal must remain balanced and bound to the scope currency.");
+      }
+      return CommandResult.Ok();
     }
     catch (JsonException)
     {

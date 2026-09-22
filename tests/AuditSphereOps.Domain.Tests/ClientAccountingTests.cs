@@ -1903,6 +1903,11 @@ public sealed class ClientAccountingTests
       Assert.True((await ClientAccountingService.RecordCapabilityAcceptanceAsync(db, methodOwner, profileId,
         AccountingCapabilityAcceptanceStages.MethodOwnerApproval, "advanced-execution-method-owner")).Succeeded);
       Assert.True((await ConsolidationService.ApproveScopeAsync(db, reviewer, scopeId)).Succeeded);
+      var reviewedJournalId = (await ConsolidationService.CreateConsolidationJournalAsync(db, preparer,
+        new ConsolidationJournalRequest(scopeId, "ADV-ACQ-001", "ACQUISITION_NCI", "QAR", "advanced-reviewed-journal",
+          [new(null, "GOODWILL", 30m, 0m, "Reviewed acquisition goodwill"),
+           new(null, "PARENT_EQUITY", 0m, 30m, "Reviewed acquisition equity")]))).Value;
+      Assert.True((await ConsolidationService.ApproveConsolidationJournalAsync(db, reviewer, reviewedJournalId)).Succeeded);
 
       var invalidSourceSchedule = await ConsolidationService.CreateAdvancedMethodScheduleAsync(db, preparer,
         new AdvancedConsolidationMethodScheduleRequest(scopeId, AdvancedConsolidationMethods.AcquisitionNci, "IFRS",
@@ -1913,9 +1918,18 @@ public sealed class ClientAccountingTests
       Assert.False(invalidSourceApproval.Succeeded);
       Assert.Equal(ErrorCodes.ManifestMismatch, invalidSourceApproval.ErrorCode);
 
+      var sourceWithoutJournal = $"{{\"sources\":[{{\"componentId\":\"{componentId:D}\",\"kind\":\"EXTERNAL_PACK\",\"id\":\"{packId:D}\",\"hash\":\"{packHash}\"}}]}}";
+      var missingJournalSchedule = await ConsolidationService.CreateAdvancedMethodScheduleAsync(db, preparer,
+        new AdvancedConsolidationMethodScheduleRequest(scopeId, AdvancedConsolidationMethods.AcquisitionNci, "IFRS",
+          sourceWithoutJournal, "{\"fixture\":\"missing-reviewed-journal\"}"));
+      Assert.True(missingJournalSchedule.Succeeded, missingJournalSchedule.Message);
+      var missingJournalApproval = await ConsolidationService.ApproveAdvancedMethodScheduleAsync(db, reviewer, missingJournalSchedule.Value);
+      Assert.False(missingJournalApproval.Succeeded);
+      Assert.Equal(ErrorCodes.ManifestMismatch, missingJournalApproval.ErrorCode);
+
       var scheduleId = (await ConsolidationService.CreateAdvancedMethodScheduleAsync(db, preparer,
         new AdvancedConsolidationMethodScheduleRequest(scopeId, AdvancedConsolidationMethods.AcquisitionNci, "IFRS",
-          $"{{\"sources\":[{{\"componentId\":\"{componentId:D}\",\"kind\":\"EXTERNAL_PACK\",\"id\":\"{packId:D}\",\"hash\":\"{packHash}\"}}]}}",
+          $"{{\"sources\":[{{\"componentId\":\"{componentId:D}\",\"kind\":\"EXTERNAL_PACK\",\"id\":\"{packId:D}\",\"hash\":\"{packHash}\"}}],\"reviewedJournals\":[{{\"id\":\"{reviewedJournalId:D}\"}}]}}",
           "{\"acquisitionDate\":\"2026-01-01\",\"controlDate\":\"2026-01-15\",\"consideration\":120,\"nciAtAcquisition\":20,\"fairValueNetAssets\":100,\"openingReserves\":8,\"fairValueAdjustments\":10,\"nciOpening\":20,\"nciProfit\":5,\"nciOci\":2,\"nciDistributions\":3,\"statementLines\":[{\"code\":\"NET_ASSETS\",\"comparativeAmount\":20,\"currentAmount\":14},{\"code\":\"NCI\",\"comparativeAmount\":-20,\"currentAmount\":-24},{\"code\":\"GOODWILL\",\"comparativeAmount\":0,\"currentAmount\":30},{\"code\":\"PARENT_EQUITY\",\"comparativeAmount\":0,\"currentAmount\":-20}]}"))).Value;
       Assert.True((await ConsolidationService.ApproveAdvancedMethodScheduleAsync(db, reviewer, scheduleId)).Succeeded);
 
