@@ -4,7 +4,7 @@
 **Authoritative specification:** [`docs/SPECIFICATION.md`](../SPECIFICATION.md) v5.0
 **Accounting module contract:** [`docs/AuditSphere_Accounting_module.md`](../AuditSphere_Accounting_module.md)
 **Requirements backlog:** [`docs/requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md`](../requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md)
-**Source implementation checkpoint:** `master@e595ae0` (browser acceptance evidence: `75995c8`)
+**Source implementation checkpoint:** `master@70f4a59` (browser acceptance evidence: `75995c8`)
 
 This is a resume checklist, not an acceptance certificate. Tenant identifiers, credentials, tokens, secret values, and private-provider URLs are deliberately absent from the public repository.
 
@@ -12,8 +12,8 @@ This is a resume checklist, not an acceptance certificate. Tenant identifiers, c
 
 - [x] .NET 10 solution builds with zero warnings/errors.
 - [x] PostgreSQL 18.6 development profile is used on loopback port 5433.
-- [x] 220/220 PostgreSQL-backed tests pass with 0 skipped.
-- [x] 81 migrations are applied; latest is `20260922071325_QuarantineLegacyAccountingBackfill`.
+- [x] 224/224 PostgreSQL-backed tests pass with 0 skipped.
+- [x] 83 migrations are applied; latest is `20260922083103_EnableLiveMailProviderAuthority`.
 - [x] EF model has no pending migration changes.
 - [x] Loopback restore drill passes and writes secret-free evidence to `docs/evidence/restore-drill-latest.json`.
 - [x] Generated Graphify output and local agent state are ignored and removed from Git tracking.
@@ -39,7 +39,8 @@ This is a resume checklist, not an acceptance certificate. Tenant identifiers, c
 - [x] Journal lineage, close checks and immutable management/accounting/partner package-review decisions.
 - [x] Persist exact rendered package bytes with framework/template versions and SHA-256 lineage; require the matching artifact before recording management, accounting or partner package review.
 - [x] Produce deterministic formula-free XLSX and DOCX exports from the exact canonical package artifact; persist each renderer version and SHA-256 against the package revision/generation/hash and expose scoped downloads.
-- [ ] Add approved formula-bearing template fixtures and verified PDF conversion; do not substitute local export checks for live provider, signing or records acceptance.
+- [x] Produce a deterministic, inactive PDF from the exact canonical package through PDFsharp/MigraDoc; embed the OFL font, canonicalize generated identifiers, persist exact bytes/SHA-256 and expose the scoped download.
+- [ ] Add approved formula-bearing template fixtures; do not substitute local export checks for live provider, signing or records acceptance.
 - [x] Backfill legacy dataset periods and mapping charts only from one exact candidate; preserve ambiguous null links and append immutable quarantine evidence.
 - [x] Require an independently accepted group capability profile before approving a consolidation perimeter.
 - [x] Require current management, accounting and partner package reviews before approving a consolidation component.

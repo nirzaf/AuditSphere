@@ -6,12 +6,12 @@ This file records observed repository state only. The authoritative build contra
 
 | Item | Observed value |
 |---|---|
-| Source implementation checkpoint | `master@21734f0` |
-| Remote | `origin/master` includes source checkpoint `21734f0` |
+| Source implementation checkpoint | `master@70f4a59` |
+| Remote | `origin/master` includes source checkpoint `70f4a59` |
 | SDK | .NET 10; repository solution targets `net10.0` |
 | Database | PostgreSQL 18.6 on loopback port 5433 for development only |
-| Build | Web and worker Release builds at `21734f0` — passed, 0 warnings/errors |
-| Tests | 223/223 passed, 0 skipped against PostgreSQL 18.6 at `21734f0` |
+| Build | Web Release build at `70f4a59` — passed, 0 warnings/errors |
+| Tests | 224/224 passed, 0 skipped against PostgreSQL 18.6 at `70f4a59` |
 | Migrations | 83 applied; latest `20260922083103_EnableLiveMailProviderAuthority` |
 | Model drift | `dotnet ef migrations has-pending-model-changes` — no changes |
 | Restore drill | `scripts/db/restore-drill.sh` — passed; 83 migrations, accounting/group manifests and release-delivery identities reconciled |
@@ -91,7 +91,7 @@ This file records observed repository state only. The authoritative build contra
 - Financial-package records inherit the source dataset's selected reporting period, optional book and normalized basis, validate period dates and book/basis/currency lineage, persist the context with scope FKs, and include it in the deterministic package hash; legacy direct fixtures remain nullable for additive compatibility.
 - Context-bound adjustment journals inherit and persist the validated source dataset's period, book, basis and currency, reject a book from another period, and preserve that reporting context through management decisions, posting, reversal and source-reflection lineage; PostgreSQL regression coverage passes.
 - Financial-package rendering can be enqueued as a local durable calculation, fenced to the exact package revision, and records the deterministic artifact digest for later byte verification; PostgreSQL regression coverage passes.
-- Exact canonical package artifacts can be exported as deterministic XLSX and DOCX packages through pinned renderer versions. Formula-shaped client text remains literal, no formula, macro or external-link parts are created, repeated rendering is byte-identical, and each format is persisted against the exact package revision/generation/hash/framework/template. The staff package page exposes tooltip-guided downloads with non-disruptive status handling. PDF conversion and formula-bearing approved templates remain pending, and live provider/signing/records gates remain independent.
+- Exact canonical package artifacts can be exported through pinned deterministic XLSX, DOCX and PDF renderer versions. Formula-shaped client text remains literal in Office exports; no formula, macro, external-link or active PDF content is created. The PDFsharp/MigraDoc profile embeds its OFL font, canonicalizes generated metadata and subset identifiers, preserves Unicode text, paginates on A4 and was visually checked after rasterization. Repeated rendering is byte-identical, and every format is persisted against the exact package revision/generation/hash/framework/template. The staff package page exposes tooltip-guided downloads with non-disruptive status handling. Approved formula-bearing templates remain pending, and live provider/signing/records gates remain independent.
 - Financial-package mappings now require the approved taxonomy statement section; package validation records separate statement cross-cast, accounting-equation, equity/profit, comparative-consistency and note-to-face outcomes, and rendered artifacts include adjusted-snapshot, mapping-version and adjustment-plan lineage identifiers. Exact UTF-8 artifact bytes are persisted with framework/template versions and SHA-256 lineage, and package-review decisions reference that artifact; PostgreSQL financial-statement regressions pass.
 - Legacy financial packages retain their original template, calculation-engine version and calculation hash beside newly versioned canonical packages; the zero-adjustment compatibility regression verifies both identities remain readable without mutation.
 - Legacy trial-balance period links and mapping chart links are backfilled only from a single exact candidate. Zero or multiple matching periods/charts leave the nullable legacy field unchanged and create append-only `AccountingBackfillQuarantine` evidence; the migration-from-previous-schema PostgreSQL fixture verifies both the resolved and quarantined paths.
@@ -138,7 +138,8 @@ These are product gaps, not claims of production readiness:
 - [x] Route financial-package rendering through the existing durable operation infrastructure with exact package-revision fencing and deterministic artifact-digest verification.
 - [x] Export controlled adjustment instructions with exact source, period/book, account, journal revision and management-evidence lineage; keep external posting and final artifact gates independent.
 - [x] Export exact-package deterministic XLSX and DOCX artifacts with formula-shaped values retained as literal text, no macro/external-link/formula parts, SHA-256 persistence and scoped Blazor downloads.
-- [ ] Add approved formula-bearing template fixtures and verified PDF conversion; keep provider, signing and records acceptance independent.
+- [x] Export an exact-package deterministic, inactive PDF through PDFsharp/MigraDoc with an embedded OFL font, A4 pagination, SHA-256 persistence, structural tests and rasterized visual verification.
+- [ ] Add approved formula-bearing template fixtures; keep provider, signing and records acceptance independent.
 - [x] Benchmark representative accounting workloads before production acceptance; the current local workload evidence is recorded above and does not establish production capacity or RPO/RTO.
 - [x] Re-run focused tests, full tests, build, migration drift and restore drill for the current coherent slice; repeat this checklist for the next slice.
 
