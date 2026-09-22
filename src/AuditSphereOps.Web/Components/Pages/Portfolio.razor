@@ -41,6 +41,10 @@ else if (_error is not null)
 else
 {
   <p class="scope-note">Live projections for the current explicit scope in firm <code>@_actor.FirmId</code>. Counts are read from PostgreSQL and are not synthetic.</p>
+  @if (!_m365Ready)
+  {
+    <section class="notice" role="status"><h2>Microsoft 365 configuration required</h2><p>SharePoint-backed workspace effects remain disabled until an authorized administrator verifies and activates a configuration revision.</p><a href="/app/administration/microsoft365">Review Microsoft 365 setup</a></section>
+  }
   @if (!_hasScope)
   {
     <section class="notice" role="status"><h2>No firm, client or engagement scope</h2><p>Ask a firm administrator for an active grant before using the portfolio. No firm data is shown without an explicit scope.</p></section>
@@ -169,6 +173,7 @@ else
   private List<PackageRow> _packages = [];
   private List<ClientRow> _clients = [];
   private bool _loading = true;
+  private bool _m365Ready;
   private bool _hasScope;
   private string _search = string.Empty;
   private string? _error;
@@ -190,6 +195,8 @@ else
       _actor = await ActorResolver.ResolveAsync();
       if (_actor is null || !IsStaff) return;
       await using var db = await DbFactory.CreateDbContextAsync();
+      _m365Ready = await db.Microsoft365ConnectionRevisions.AsNoTracking()
+        .AnyAsync(x => x.FirmId == _actor.FirmId && x.State == Domain.Microsoft365.Microsoft365RevisionStates.Active);
       var grants = await db.RoleGrants.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
         x.UserId == _actor.UserId && x.RevokedAt == null).Select(x => new { x.ClientId, x.EngagementId }).ToListAsync();
       var firmWide = grants.Any(x => x.ClientId is null && x.EngagementId is null);

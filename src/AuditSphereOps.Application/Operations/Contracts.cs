@@ -9,6 +9,7 @@ using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Records;
 using AuditSphereOps.Domain.Reviews;
 using AuditSphereOps.Domain.Security;
+using AuditSphereOps.Domain.Microsoft365;
 using AuditSphereOps.Domain.Shared;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -134,6 +135,12 @@ public interface IAuditSphereDbContext : IAsyncDisposable
   DbSet<PeriodCloseDecision> PeriodCloseDecisions { get; }
   DbSet<AppUser> Users { get; }
   DbSet<RoleGrant> RoleGrants { get; }
+  DbSet<Microsoft365SetupSession> Microsoft365SetupSessions { get; }
+  DbSet<Microsoft365SetupDraft> Microsoft365SetupDrafts { get; }
+  DbSet<Microsoft365ConnectionRevision> Microsoft365ConnectionRevisions { get; }
+  DbSet<FirmWorkspaceConfiguration> FirmWorkspaceConfigurations { get; }
+  DbSet<FolderTemplateVersion> FolderTemplateVersions { get; }
+  DbSet<IntegrationVerificationEvidence> IntegrationVerificationEvidences { get; }
   DatabaseFacade Database { get; }
   Task<int> SaveChangesAsync(CancellationToken ct = default);
 }

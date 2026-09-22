@@ -1,0 +1,136 @@
+@page "/setup/microsoft365"
+@page "/app/administration/microsoft365"
+@rendermode InteractiveServer
+@using AuditSphereOps.Application.Microsoft365
+@using AuditSphereOps.Domain.Microsoft365
+@using AuditSphereOps.Infrastructure.Persistence
+@using Microsoft.EntityFrameworkCore
+@inject IDbContextFactory<AuditSphereDbContext> DbFactory
+@inject IConfiguration Configuration
+
+<PageTitle>Microsoft 365 setup — AuditSphereOps</PageTitle>
+
+<div class="page-header">
+  <nav class="breadcrumb-nav"><a href="/">Home</a> / <span>Microsoft 365 setup</span></nav>
+  <h1>Microsoft 365 onboarding</h1>
+</div>
+
+<section class="card" aria-labelledby="setup-heading">
+  <h2 id="setup-heading">Protected first-run configuration</h2>
+  <p class="scope-note">This route only creates a resumable local draft. It does not authenticate to Microsoft, grant permissions, or create SharePoint content.</p>
+  <p class="field-help"><span class="required-marker">*</span> Required. Bootstrap proof is held only in this server circuit and is never saved to browser storage or the database.</p>
+
+  @if (!HasDeploymentSetup)
+  {
+    <div class="notice" role="alert"><strong>Setup unavailable.</strong> Deployment-owned installation ID, firm ID, and bootstrap proof hash are not configured.</div>
+  }
+  else if (_claim is null)
+  {
+    <div class="form-group">
+      <label for="bootstrap-proof">Bootstrap proof <span class="required-marker">*</span>
+        <input id="bootstrap-proof" type="password" @bind="_bootstrapProof" autocomplete="off" required title="Enter the short-lived proof delivered by the installation owner." />
+      </label>
+    </div>
+    <button class="btn-primary" @onclick="Claim" disabled="@_busy" title="Claim the single-use setup session and load its server-persisted draft">@(_busy ? "Checking…" : "Claim setup")</button>
+  }
+  else if (_draft is null)
+  {
+    <div class="notice error" role="alert">The setup session was claimed but its draft could not be loaded. Contact the installation owner.</div>
+  }
+  else
+  {
+    <dl class="details">
+      <dt>Draft state</dt><dd><span class="status">@_draft.State</span></dd>
+      <dt>Draft revision</dt><dd>@_draft.Revision</dd>
+      <dt>Session expiry</dt><dd>@_sessionExpiry?.ToLocalTime().ToString("yyyy-MM-dd HH:mm zzz")</dd>
+    </dl>
+    <div class="form-group"><label for="tenant-id">Expected tenant ID <span class="required-marker">*</span>
+      <input id="tenant-id" @bind="_tenantId" maxlength="200" required title="The verified Entra tenant identifier; this is metadata until live sign-in verification is completed." /></label></div>
+    <div class="form-group"><label for="tenant-name">Tenant display name <span class="optional-label">optional</span>
+      <input id="tenant-name" @bind="_tenantName" maxlength="300" data-optional="true" title="Friendly label only; it is not used for identity or authorization." /></label></div>
+    <div class="form-group"><label for="site-url">Working SharePoint site URL <span class="optional-label">optional until live verification</span>
+      <input id="site-url" type="url" @bind="_siteUrl" maxlength="2000" data-optional="true" title="A verified HTTPS SharePoint site URL; a SitePages URL is resolved later to its site identity." /></label></div>
+    <div class="form-group"><label for="site-id">Site ID <span class="optional-label">optional until live verification</span>
+      <input id="site-id" @bind="_siteId" maxlength="2000" data-optional="true" title="Stable SharePoint site ID returned by the approved resource-resolution step." /></label></div>
+    <div class="form-group"><label for="drive-id">Document library/drive ID <span class="optional-label">optional until live verification</span>
+      <input id="drive-id" @bind="_driveId" maxlength="2000" data-optional="true" title="Stable document-library drive ID; do not use a browser path as the ownership key." /></label></div>
+    <div class="form-group"><label for="root-id">Root folder ID <span class="optional-label">optional until live verification</span>
+      <input id="root-id" @bind="_rootFolderId" maxlength="2000" data-optional="true" title="Stable verified folder ID under the selected library." /></label></div>
+    <div class="form-group"><label for="access-profile">Storage access profile <span class="required-marker">*</span>
+      <select id="access-profile" @bind="_accessProfile" required title="App mediated is the secure default; direct collaboration stays disabled until human ACL verification passes.">
+        <option value="APP_MEDIATED">App mediated</option><option value="DIRECT_STAFF_COLLABORATION">Direct staff collaboration</option>
+      </select></label></div>
+    <div class="form-group"><label for="mail-state">Mail capability <span class="optional-label">optional</span>
+      <select id="mail-state" @bind="_mailState" title="Skipped mail remains NOT_CONFIGURED and cannot be reported as verified."><option value="NOT_CONFIGURED">Not configured</option><option value="CONFIGURED">Configured (verification required)</option></select></label></div>
+    <div class="form-group"><label for="records-state">Records capability <span class="optional-label">optional</span>
+      <select id="records-state" @bind="_recordsState" title="A saved records profile is not protection verification; observed behavior is required later."><option value="NOT_CONFIGURED">Not configured</option><option value="CONFIGURED">Configured (verification required)</option></select></label></div>
+    <div class="action-bar">
+      <button class="btn-primary" @onclick="Save" disabled="@_busy" title="Persist this non-secret setup draft with an optimistic revision check">@(_busy ? "Saving…" : "Save draft")</button>
+      <button class="btn-secondary" @onclick="Reload" disabled="@_busy" title="Reload the latest server-side draft and discard only unsaved circuit values">Reload</button>
+    </div>
+  }
+  @if (!string.IsNullOrWhiteSpace(_message)) { <div class="notice" role="status">@_message</div> }
+  @if (!string.IsNullOrWhiteSpace(_error)) { <div class="notice error" role="alert">@_error</div> }
+</section>
+
+@code {
+  private SetupClaim? _claim;
+  private Microsoft365SetupDraft? _draft;
+  private DateTimeOffset? _sessionExpiry;
+  private string _bootstrapProof = string.Empty, _tenantId = string.Empty, _tenantName = string.Empty;
+  private string _siteUrl = string.Empty, _siteId = string.Empty, _driveId = string.Empty, _rootFolderId = string.Empty;
+  private string _accessProfile = Microsoft365AccessProfiles.AppMediated, _mailState = "NOT_CONFIGURED", _recordsState = "NOT_CONFIGURED";
+  private string _message = string.Empty, _error = string.Empty;
+  private bool _busy;
+
+  private bool HasDeploymentSetup =>
+    Guid.TryParse(Configuration["Setup:FirmId"] ?? Configuration["Application:FirmId"], out _) &&
+    !string.IsNullOrWhiteSpace(Configuration["Setup:InstallationId"] ?? Configuration["Application:InstallationId"]) &&
+    !string.IsNullOrWhiteSpace(Configuration["Setup:BootstrapProofHash"]);
+
+  private async Task Claim()
+  {
+    _message = _error = string.Empty; _busy = true;
+    try
+    {
+      if (!Guid.TryParse(Configuration["Setup:FirmId"] ?? Configuration["Application:FirmId"], out var firmId)) { _error = "The deployment firm ID is invalid."; return; }
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var result = await Microsoft365OnboardingService.ClaimAsync(db, firmId,
+        Configuration["Setup:InstallationId"] ?? Configuration["Application:InstallationId"]!, _bootstrapProof,
+        Configuration["Setup:BootstrapProofHash"]!, DateTimeOffset.UtcNow);
+      if (!result.Succeeded) { _error = result.Message ?? "Setup could not be claimed."; return; }
+      _claim = result.Value; _bootstrapProof = string.Empty; await Reload();
+      _message = "Setup claimed. Microsoft verification and activation are separate steps.";
+    }
+    finally { _busy = false; }
+  }
+
+  private async Task Reload()
+  {
+    if (_claim is null) return;
+    await using var db = await DbFactory.CreateDbContextAsync();
+    _draft = await db.Microsoft365SetupDrafts.AsNoTracking().SingleOrDefaultAsync(x => x.SetupSessionId == _claim.SessionId);
+    _sessionExpiry = await db.Microsoft365SetupSessions.AsNoTracking().Where(x => x.Id == _claim.SessionId).Select(x => (DateTimeOffset?)x.ExpiresAt).SingleOrDefaultAsync();
+    if (_draft is null) return;
+    _tenantId = _draft.ExpectedTenantId ?? string.Empty; _tenantName = _draft.TenantDisplayName ?? string.Empty;
+    _siteUrl = _draft.SiteUrl ?? string.Empty; _siteId = _draft.SiteId ?? string.Empty; _driveId = _draft.DriveId ?? string.Empty; _rootFolderId = _draft.RootFolderId ?? string.Empty;
+    _accessProfile = _draft.AccessProfile; _mailState = _draft.MailState; _recordsState = _draft.RecordsState;
+  }
+
+  private async Task Save()
+  {
+    _message = _error = string.Empty;
+    if (_claim is null || _draft is null) return;
+    if (string.IsNullOrWhiteSpace(_tenantId)) { _error = "Expected tenant ID is required."; return; }
+    _busy = true;
+    try
+    {
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var result = await Microsoft365OnboardingService.SaveDraftAsync(db, new(_claim.SessionId, _claim.Capability, _draft.Revision,
+        _tenantId, _tenantName, _siteUrl, _siteId, _driveId, _rootFolderId, _accessProfile, _mailState, _recordsState), DateTimeOffset.UtcNow);
+      if (!result.Succeeded) { _error = result.Message ?? "The draft could not be saved."; return; }
+      await Reload(); _message = "Draft saved. It is not verified or active.";
+    }
+    finally { _busy = false; }
+  }
+}
