@@ -1005,9 +1005,9 @@ public static class ConsolidationService
     var sourceBinding = ValidateAdvancedSourceManifest(schedule.SourceManifestJson, components);
     if (!sourceBinding.Succeeded)
       return CommandResult<Guid>.Fail(sourceBinding.ErrorCode!, sourceBinding.Message!);
-    var journalEvidence = await ValidateAdvancedReviewedJournalsAsync(db, scope, schedule, ct);
-    if (!journalEvidence.Succeeded)
-      return CommandResult<Guid>.Fail(journalEvidence.ErrorCode!, journalEvidence.Message!);
+    var scheduleEvidence = await ValidateAdvancedScheduleEvidenceAsync(db, scope, schedule, ct);
+    if (!scheduleEvidence.Succeeded)
+      return CommandResult<Guid>.Fail(scheduleEvidence.ErrorCode!, scheduleEvidence.Message!);
 
     if (!AdvancedConsolidationExecutionCalculator.TryCalculate(scope.Method, schedule.InputSnapshotJson,
         out var calculation, out var calculationError))
@@ -1072,9 +1072,9 @@ public static class ConsolidationService
     var sourceBinding = ValidateAdvancedSourceManifest(schedule.SourceManifestJson, componentResult.Value!);
     if (!sourceBinding.Succeeded)
       return sourceBinding;
-    var journalEvidence = await ValidateAdvancedReviewedJournalsAsync(db, scope, schedule, ct);
-    if (!journalEvidence.Succeeded)
-      return journalEvidence;
+    var scheduleEvidence = await ValidateAdvancedScheduleEvidenceAsync(db, scope, schedule, ct);
+    if (!scheduleEvidence.Succeeded)
+      return scheduleEvidence;
     var inputManifest = BuildAdvancedInputManifest(scope, schedule, componentResult.Value!);
     if (Hashing.Sha256Hex(inputManifest) != execution.InputManifestDigest)
       return CommandResult.Fail(ErrorCodes.GenerationStale, "The advanced component inputs changed; rerun the execution.");
@@ -1168,9 +1168,9 @@ public static class ConsolidationService
       var sourceBinding = ValidateAdvancedSourceManifest(schedule.SourceManifestJson, componentResult.Value!);
       if (!sourceBinding.Succeeded)
         return sourceBinding;
-      var journalEvidence = await ValidateAdvancedReviewedJournalsAsync(db, scope, schedule, ct);
-      if (!journalEvidence.Succeeded)
-        return journalEvidence;
+      var scheduleEvidence = await ValidateAdvancedScheduleEvidenceAsync(db, scope, schedule, ct);
+      if (!scheduleEvidence.Succeeded)
+        return scheduleEvidence;
     }
     if (!AdvancedConsolidationCalculator.TryValidateScheduleInput(schedule.Method, schedule.InputSnapshotJson, out var inputError))
       return CommandResult.Fail(ErrorCodes.Accounting.MappingInvalid,
@@ -1419,6 +1419,7 @@ public static class ConsolidationService
     {
       scope.Id, scope.GroupId, scope.GroupRevision, scope.Method, scope.ReportingCurrency,
       ScheduleId = schedule.Id, ScheduleDigest = schedule.InputSnapshotDigest,
+      SourceManifestDigest = schedule.SourceManifestDigest,
       Components = components.Select(x => new { x.Id, x.ClientId, x.PackageId, x.ExternalComponentPackId, x.PackageHash, x.Currency })
     });
 
@@ -1520,6 +1521,68 @@ public static class ConsolidationService
     catch (JsonException)
     {
       return CommandResult.Fail(ErrorCodes.ManifestMismatch, "The advanced source manifest is not valid JSON.");
+    }
+  }
+
+  private static async Task<CommandResult> ValidateAdvancedScheduleEvidenceAsync(
+    IClientAccountingDbContext db, ConsolidationScopeVersion scope,
+    AdvancedConsolidationMethodSchedule schedule, CancellationToken ct)
+  {
+    var journals = await ValidateAdvancedReviewedJournalsAsync(db, scope, schedule, ct);
+    if (!journals.Succeeded)
+      return journals;
+    if (schedule.Method != AdvancedConsolidationMethods.NestedGroup)
+      return CommandResult.Ok();
+
+    try
+    {
+      using var input = JsonDocument.Parse(schedule.InputSnapshotJson);
+      if (!input.RootElement.TryGetProperty("components", out var inputComponents) ||
+          inputComponents.ValueKind != JsonValueKind.Array || inputComponents.GetArrayLength() == 0)
+        return CommandResult.Fail(ErrorCodes.ManifestMismatch, "A nested advanced schedule must identify source scopes.");
+      var expectedScopes = new HashSet<Guid>();
+      foreach (var component in inputComponents.EnumerateArray())
+      {
+        if (!TryManifestGuid(component, "sourceScopeVersionId", out var sourceScopeId) ||
+            sourceScopeId == scope.Id || !expectedScopes.Add(sourceScopeId))
+          return CommandResult.Fail(ErrorCodes.ManifestMismatch,
+            "Nested advanced inputs must contain unique source scopes outside the target scope.");
+      }
+
+      using var sourceManifest = JsonDocument.Parse(schedule.SourceManifestJson);
+      if (!sourceManifest.RootElement.TryGetProperty("nestedScopes", out var nestedScopes) ||
+          nestedScopes.ValueKind != JsonValueKind.Array || nestedScopes.GetArrayLength() != expectedScopes.Count)
+        return CommandResult.Fail(ErrorCodes.ManifestMismatch,
+          "Nested advanced evidence must bind every source scope to an approved run.");
+
+      var seenScopes = new HashSet<Guid>();
+      foreach (var reference in nestedScopes.EnumerateArray())
+      {
+        if (!TryManifestGuid(reference, "scopeVersionId", out var sourceScopeId) ||
+            !TryManifestGuid(reference, "runId", out var runId) ||
+            !TryManifestText(reference, "runHash", out var runHash) ||
+            !expectedScopes.Contains(sourceScopeId) || !seenScopes.Add(sourceScopeId))
+          return CommandResult.Fail(ErrorCodes.ManifestMismatch,
+            "Nested advanced evidence contains a duplicate or out-of-scope source run.");
+        var sourceScope = await db.ConsolidationScopeVersions.AsNoTracking().SingleOrDefaultAsync(x =>
+          x.FirmId == scope.FirmId && x.Id == sourceScopeId && x.Status == AccountingWorkflowStates.Approved, ct);
+        var sourceRun = sourceScope is null ? null : await db.ConsolidationRuns.AsNoTracking().SingleOrDefaultAsync(x =>
+          x.FirmId == scope.FirmId && x.Id == runId && x.GroupId == sourceScope.GroupId &&
+          x.ScopeVersionId == sourceScopeId && x.Status == AccountingWorkflowStates.Approved &&
+          x.RunHash == runHash && x.ReportingCurrency == scope.ReportingCurrency, ct);
+        if (sourceRun is null)
+          return CommandResult.Fail(ErrorCodes.ManifestMismatch,
+            "Nested advanced evidence must reference an approved run for the exact source scope and currency.");
+      }
+
+      return seenScopes.SetEquals(expectedScopes)
+        ? CommandResult.Ok()
+        : CommandResult.Fail(ErrorCodes.ManifestMismatch,
+          "Nested advanced evidence must cover every source scope exactly once.");
+    }
+    catch (JsonException)
+    {
+      return CommandResult.Fail(ErrorCodes.ManifestMismatch, "Nested advanced evidence is not valid JSON.");
     }
   }
 

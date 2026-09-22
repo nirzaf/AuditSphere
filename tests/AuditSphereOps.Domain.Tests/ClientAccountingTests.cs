@@ -1870,6 +1870,92 @@ public sealed class ClientAccountingTests
 
   [Fact]
   [Trait("Profile", "Database")]
+  public async Task NestedAdvancedSchedule_BindsApprovedSourceRun()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await SeedAsync(pg);
+    var preparer = Actor(fixture.Preparer, "AccountingPreparer");
+    var reviewer = Actor(fixture.Reviewer, "Partner");
+    var methodOwner = Actor(fixture.Preparer, "Partner");
+
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var groupId = (await ConsolidationService.CreateGroupAsync(db, reviewer,
+      new ClientGroupRequest("NESTED-SCHEDULE", "Nested schedule group"))).Value;
+    Assert.True((await ConsolidationService.AddMembershipAsync(db, reviewer,
+      new GroupMembershipRequest(groupId, fixture.ClientA, new DateOnly(2026, 1, 1), null,
+        "CONTROLLED", 100m, 100m, "nested-schedule-membership"))).Succeeded);
+    db.GroupAccessGrants.AddRange(
+      new GroupAccessGrant { Id = Guid.NewGuid(), FirmId = fixture.FirmId, GroupId = groupId, UserId = fixture.Preparer.Id,
+        Role = "AccountingPreparer", GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = fixture.Reviewer.Id },
+      new GroupAccessGrant { Id = Guid.NewGuid(), FirmId = fixture.FirmId, GroupId = groupId, UserId = fixture.Preparer.Id,
+        Role = "Partner", GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = fixture.Reviewer.Id });
+    await db.SaveChangesAsync();
+
+    var targetScopeId = (await ConsolidationService.CreateScopeAsync(db, reviewer,
+      new ConsolidationScopeRequest(groupId, Guid.NewGuid(), "QAR", AdvancedConsolidationMethods.NestedGroup,
+        "OPENING-2026"))).Value;
+    var profileId = (await ClientAccountingService.CreateCapabilityProfileAsync(db, reviewer,
+      new CapabilityProfileRequest(null, groupId, AccountingCapabilityServiceKinds.GroupReporting, "IFRS", "2026",
+        "ANNUAL", "QAR", "STATUTORY", AdvancedConsolidationMethods.NestedGroup, "PARTNER", "GROUP"))).Value;
+    Assert.True((await ClientAccountingService.RecordCapabilityAcceptanceAsync(db, reviewer, profileId,
+      AccountingCapabilityAcceptanceStages.LocalConstruction, "nested-schedule-local")).Succeeded);
+    Assert.True((await ClientAccountingService.RecordCapabilityAcceptanceAsync(db, methodOwner, profileId,
+      AccountingCapabilityAcceptanceStages.MethodOwnerApproval, "nested-schedule-method-owner")).Succeeded);
+
+    var packId = (await ConsolidationService.SubmitExternalComponentPackAsync(db, preparer,
+      new ExternalComponentPackRequest(targetScopeId, fixture.ClientA, fixture.EngagementA, "2026-01-01", "2026-12-31",
+        "IFRS", "QAR", "STATUTORY", "tax-v1", "mapping-v1", "nested-schedule-pack",
+        new string('a', 64), new string('b', 64), 0m,
+        [new("CASH", 100m, "QAR", "line-1"), new("EQUITY", -100m, "QAR", "line-2")]))).Value;
+    Assert.True((await ConsolidationService.ReconcileExternalComponentPackAsync(db, reviewer,
+      new ExternalComponentReconciliationRequest(packId, "nested-pack-reconciliation"))).Succeeded);
+    Assert.True((await ConsolidationService.ApproveExternalComponentPackAsync(db, reviewer, packId)).Succeeded);
+    var componentId = (await ConsolidationService.SubmitExternalComponentAsync(db, preparer,
+      new ExternalComponentRequest(targetScopeId, packId))).Value;
+    Assert.True((await ConsolidationService.ApproveComponentAsync(db, reviewer, componentId)).Succeeded);
+
+    var targetScope = await db.ConsolidationScopeVersions.SingleAsync(x => x.Id == targetScopeId);
+    targetScope.Status = AccountingWorkflowStates.Approved;
+    var sourceScopeId = Guid.NewGuid();
+    var sourceRunId = Guid.NewGuid();
+    var sourceRunHash = Hashing.Sha256Hex("nested-source-run");
+    db.ConsolidationScopeVersions.Add(new ConsolidationScopeVersion
+    {
+      Id = sourceScopeId, FirmId = fixture.FirmId, GroupId = groupId, GroupRevision = targetScope.GroupRevision,
+      PeriodId = Guid.NewGuid(), Version = 1, ReportingCurrency = "QAR", Method = ConsolidationCalculator.RestrictedMethod,
+      Status = AccountingWorkflowStates.Approved, OpeningBasis = "NESTED-SOURCE", CreatedByUserId = reviewer.UserId,
+      CreatedAt = DateTimeOffset.UtcNow
+    });
+    db.ConsolidationRuns.Add(new ConsolidationRun
+    {
+      Id = sourceRunId, FirmId = fixture.FirmId, GroupId = groupId, ScopeVersionId = sourceScopeId,
+      EngineVersion = "fixture", InputManifest = "fixture", RunHash = sourceRunHash, ReportingCurrency = "QAR",
+      SignedTotal = 0m, Status = AccountingWorkflowStates.Approved, CreatedByUserId = reviewer.UserId,
+      CreatedAt = DateTimeOffset.UtcNow
+    });
+    await db.SaveChangesAsync();
+
+    var input = $"{{\"components\":[{{\"economicEntityKey\":\"SUBGROUP\",\"sourceScopeVersionId\":\"{sourceScopeId:D}\",\"includedDirectly\":false}}]}}";
+    var validInput = $"{{\"fixture\":\"approved-source-run\",\"components\":[{{\"economicEntityKey\":\"SUBGROUP\",\"sourceScopeVersionId\":\"{sourceScopeId:D}\",\"includedDirectly\":false}}]}}";
+    var packHash = await db.ExternalComponentPacks.Where(x => x.Id == packId).Select(x => x.PackDigest).SingleAsync();
+    var sources = $"\"sources\":[{{\"componentId\":\"{componentId:D}\",\"kind\":\"EXTERNAL_PACK\",\"id\":\"{packId:D}\",\"hash\":\"{packHash}\"}}]";
+    var missingEvidence = await ConsolidationService.CreateAdvancedMethodScheduleAsync(db, preparer,
+      new AdvancedConsolidationMethodScheduleRequest(targetScopeId, AdvancedConsolidationMethods.NestedGroup,
+        "IFRS", $"{{{sources}}}", input));
+    Assert.True(missingEvidence.Succeeded, missingEvidence.Message);
+    var missingApproval = await ConsolidationService.ApproveAdvancedMethodScheduleAsync(db, reviewer, missingEvidence.Value);
+    Assert.False(missingApproval.Succeeded);
+    Assert.Equal(ErrorCodes.ManifestMismatch, missingApproval.ErrorCode);
+
+    var validEvidence = await ConsolidationService.CreateAdvancedMethodScheduleAsync(db, preparer,
+      new AdvancedConsolidationMethodScheduleRequest(targetScopeId, AdvancedConsolidationMethods.NestedGroup,
+        "IFRS", $"{{{sources},\"nestedScopes\":[{{\"scopeVersionId\":\"{sourceScopeId:D}\",\"runId\":\"{sourceRunId:D}\",\"runHash\":\"{sourceRunHash}\"}}]}}", validInput));
+    Assert.True(validEvidence.Succeeded, validEvidence.Message);
+    Assert.True((await ConsolidationService.ApproveAdvancedMethodScheduleAsync(db, reviewer, validEvidence.Value)).Succeeded);
+  }
+
+  [Fact]
+  [Trait("Profile", "Database")]
   public async Task AdvancedConsolidationExecution_IsScopedVerifiedIdempotentlyAndSeparatelyApproved()
   {
     await using var pg = await PgTestSchema.CreateAsync();
