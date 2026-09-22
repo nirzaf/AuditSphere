@@ -6,12 +6,12 @@ This file records observed repository state only. The authoritative build contra
 
 | Item | Observed value |
 |---|---|
-| Source implementation checkpoint | `master@9aeec18` |
-| Remote | `origin/master` includes source checkpoint `9aeec18` |
+| Source implementation checkpoint | `master@dfc7563` |
+| Remote | `origin/master` includes source checkpoint `dfc7563` |
 | SDK | .NET 10; repository solution targets `net10.0` |
 | Database | PostgreSQL 18.6 on loopback port 5433 for development only |
-| Build | Web Release build at `9aeec18` — passed, 0 warnings/errors |
-| Tests | 226/226 passed, 0 skipped against PostgreSQL 18.6 at `9aeec18` |
+| Build | Web Release build at `dfc7563` — passed, 0 warnings/errors |
+| Tests | 227/227 passed, 0 skipped against PostgreSQL 18.6 at `dfc7563` |
 | Migrations | 84 applied; latest `20260922104120_AdvancedConsolidationMethodSchedules` |
 | Model drift | `dotnet ef migrations has-pending-model-changes` — no changes |
 | Restore drill | `scripts/db/restore-drill.sh` — passed; 84 migrations, accounting/group manifests and release-delivery identities reconciled |
@@ -49,7 +49,7 @@ This file records observed repository state only. The authoritative build contra
 - The enabled FX profile accepts only explicit `DIRECT` rates; unsupported inverse semantics are rejected rather than silently multiplied with the wrong direction.
 - Exchange-rate sets retain immutable version metadata, source, approval and effective date ranges; each observation retains its direction, rate date and rate type, observations outside a declared range are rejected, and scope/translation approval accepts only rate types declared by the approved policy.
 - Currency remeasurement, foreign-operation translation and display-only conversion have distinct deterministic calculators. Persisted foreign-operation results retain separate foreign-exchange and rounding adjustments, and approval recomputes both from the exact source amount and approved rate; translation reserve rollforward math is available as a separate method-specific calculation core but is not enabled as a production profile without approved fixtures.
-- Advanced consolidation calculation helpers cover acquisition goodwill/bargain purchase with fair-value adjustments, NCI rollforward, ownership changes/disposals, nested double-count detection and asset-transfer/tax elimination math. Approved advanced-method schedules now persist canonical source/input digests with idempotent retry, maker/checker approval and group-revision fencing. A fixed candidate fixture combines the FX reserve, goodwill, NCI, nested-scope and asset-transfer results into balanced QAR current and comparative statements. IFRS method-owner scope is recorded in `STE-METH-APP-001-addendum`; the current enabled consolidation profiles remain fail-closed until guarded integration and complete statement/comparative verification are implemented.
+- Advanced consolidation calculation helpers cover acquisition goodwill/bargain purchase with fair-value adjustments, NCI rollforward, ownership changes/disposals, nested double-count detection and asset-transfer/tax elimination math. Approved advanced-method schedules now persist canonical source/input digests, validate method-specific inputs at approval, support idempotent retry, maker/checker approval and group-revision fencing. A fixed candidate fixture combines the FX reserve, goodwill, NCI, nested-scope and asset-transfer results into balanced QAR current and comparative statements. IFRS method-owner scope is recorded in `STE-METH-APP-001-addendum`; the current enabled consolidation profiles remain fail-closed until guarded integration and complete statement/comparative verification are implemented.
 - FX rate observations and translation-policy codes return controlled idempotency conflicts when repeated, rather than relying on raw database exceptions.
 - Shared reporting taxonomy overlays accept only generic industry/group scopes; a client-scoped overlay is rejected so client-specific context cannot enter a firm master template.
 - Group membership changes advance a durable group revision; consolidation scopes pin that revision and reject approval/calculation after a perimeter change while preserving historical memberships, scopes and runs.
@@ -123,6 +123,7 @@ These are product gaps, not claims of production readiness:
 - [x] Add deterministic method-specific calculation cores for currency remeasurement/translation separation, acquisition/NCI, ownership changes, nested double-count rejection and asset-transfer/tax elimination.
 - [x] Record method-owner approval of the IFRS advanced-method scope in `STE-METH-APP-001-addendum`.
 - [x] Persist approved source-bound advanced-method schedules with canonical digests, idempotent retry, maker/checker approval and group-revision fencing.
+- [x] Validate method-specific advanced schedule inputs at approval using the deterministic FX, acquisition/NCI, ownership, nested-group and asset-transfer calculators.
 - [ ] Wire those schedules into guarded advanced profile execution and complete statement/comparative rollforward verification; the profiles remain deliberately fail-closed until then.
 - [x] Link accounting evidence to reviewed audit workpapers and expose account-area UI for the typed specialist schedules.
 - [x] Add the accounting dashboard and cross-workflow navigation for accounting, roll-forward and release handoffs.

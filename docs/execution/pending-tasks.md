@@ -4,7 +4,7 @@
 **Authoritative specification:** [`docs/SPECIFICATION.md`](../SPECIFICATION.md) v5.0
 **Accounting module contract:** [`docs/AuditSphere_Accounting_module.md`](../AuditSphere_Accounting_module.md)
 **Requirements backlog:** [`docs/requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md`](../requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md)
-**Source implementation checkpoint:** `master@9aeec18`
+**Source implementation checkpoint:** `master@dfc7563`
 
 This is a resume checklist, not an acceptance certificate. Tenant identifiers, credentials, tokens, secret values, and private-provider URLs are deliberately absent from the public repository.
 
@@ -12,7 +12,7 @@ This is a resume checklist, not an acceptance certificate. Tenant identifiers, c
 
 - [x] .NET 10 solution builds with zero warnings/errors.
 - [x] PostgreSQL 18.6 development profile is used on loopback port 5433.
-- [x] 226/226 PostgreSQL-backed tests pass with 0 skipped.
+- [x] 227/227 PostgreSQL-backed tests pass with 0 skipped.
 - [x] 84 migrations are applied; latest is `20260922104120_AdvancedConsolidationMethodSchedules`.
 - [x] EF model has no pending migration changes.
 - [x] Loopback restore drill passes and writes secret-free evidence to `docs/evidence/restore-drill-latest.json`.
@@ -91,6 +91,7 @@ This is a resume checklist, not an acceptance certificate. Tenant identifiers, c
 - [x] Add a fixed candidate fixture that combines FX reserve, acquisition goodwill, NCI, nested-scope uniqueness and asset-transfer elimination into balanced QAR current and comparative statements.
 - [x] Record the IFRS advanced-method scope extension in `STE-METH-APP-001-addendum` for FX reserves, acquisition/goodwill, NCI, ownership changes/disposals, nested groups and asset-transfer/tax eliminations.
 - [x] Persist approved source-bound advanced-method schedules with canonical source/input digests, idempotent retry, maker/checker approval and group-revision fencing.
+- [x] Validate method-specific advanced schedule inputs at approval using the deterministic calculators and reject incomplete or contradictory JSON.
 - [ ] Wire persisted schedules into guarded advanced profile execution and complete statement/comparative rollforward verification; keep profiles fail-closed until then.
 - [x] Add deeper accounting evidence/workpaper links and account-area UI around the typed specialist schedules.
 - [x] Add the accounting dashboard and cross-workflow navigation around accounting, roll-forward and release workflows.
