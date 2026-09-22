@@ -28,7 +28,7 @@
     "implementationStatus": "IN_PROGRESS",
     "acceptanceStatus": "LOCAL_VERIFIED",
     "scope": "Local audit workflow, client accounting, scoped client file-request threads/uploads/downloads, GL intake, completeness, package, Office export, restatement, consolidation, journal-lineage, close-check and package-review slices.",
-    "nextAction": "Compose and accept the dedicated mailbox-scoped Graph mail worker before changing queued PBC notifications to sent; approved formula/PDF and advanced-method fixtures plus broader provider/signing/recovery/independent-review gates remain external."
+    "nextAction": "Complete live acceptance for one configured mail provider. For Graph, attach the public certificate and assign Exchange Application Mail.Send to the dedicated sender mailbox only; SMTP and Resend remain optional secret-store configurations. Approved formula/PDF and advanced-method fixtures plus broader provider/signing/recovery/independent-review gates remain external."
   },
   "localEvidence": [
     {
@@ -249,7 +249,7 @@
     {
       "item": "Client file-request communication thread",
       "status": "LOCAL_VERIFIED",
-      "details": "Assigned staff can create file requests only for active authorized engagements, queue description-rich email bodies with authenticated portal upload links, request additional files and view staff/client messages plus upload events in one timeline. Client replies and communication content are append-only. Existing request-bound upload capabilities remain scoped, and verified staged files are downloadable only after a fresh staff scope check; client download is denied. Release build, focused request-thread coverage, all 14 PBC tests, the 222-test PostgreSQL suite, EF drift check and the 82-migration restore rehearsal pass at be3b193. Email delivery remains QUEUED until the dedicated mailbox-scoped Graph worker is approved and records provider evidence."
+      "details": "Assigned staff can create file requests only for active authorized engagements, queue description-rich email bodies with authenticated portal upload links, request additional files and view staff/client messages plus upload events in one timeline. Client replies and communication content are append-only. Existing request-bound upload capabilities remain scoped, and verified staged files are downloadable only after a fresh staff scope check; client download is denied. The isolated Acceptance worker supports mailbox-scoped Graph, SMTP and Resend, records provider acceptance through the durable operation, and stops uncertain outcomes without automatically sending a duplicate. Secrets and tenant identifiers remain outside the repository. Release builds, focused mail delivery coverage, the 223-test PostgreSQL suite, EF drift check and the 83-migration restore rehearsal pass at 21734f0. Live provider acceptance remains external until one provider configuration is exercised."
     },
     {
       "item": "Controlled adjustment instruction export",
