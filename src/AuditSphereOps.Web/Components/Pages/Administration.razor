@@ -127,8 +127,30 @@ else
                 {
                   <span class="muted">Revoked @grant.RevokedAt.Value.ToString("yyyy-MM-dd HH:mm")</span>
                 }
+                <button class="btn-secondary" @onclick="() => ToggleGrantHistory(grant.Id)" title="Show the append-only evidence for this access assignment">@(_expandedGrantId == grant.Id ? "Hide history" : "View history")</button>
               </td>
             </tr>
+            @if (_expandedGrantId == grant.Id)
+            {
+              <tr>
+                <td colspan="7">
+                  <strong>Access history</strong>
+                  @if (!_grantHistoryByGrant.TryGetValue(grant.Id, out var history) || history.Count == 0)
+                  {
+                    <div class="muted">No recorded evidence for this grant.</div>
+                  }
+                  else
+                  {
+                    <ul class="history-list">
+                    @foreach (var evidence in history)
+                    {
+                      <li><strong>@evidence.Action</strong> — @evidence.Source — @evidence.CreatedAt.ToString("yyyy-MM-dd HH:mm") — actor <code>@evidence.ActorUserId</code></li>
+                    }
+                    </ul>
+                  }
+                </td>
+              </tr>
+            }
           }
           </tbody>
         </table>
@@ -186,6 +208,8 @@ else
   private Dictionary<Guid, AppUser> _usersById = [];
   private Dictionary<Guid, UserAccessInvitation> _invitationsByGrant = [];
   private Dictionary<(string TenantId, string Subject), DirectoryUserObservation> _directoryByIdentity = [];
+  private Dictionary<Guid, List<RoleGrantChangeEvidence>> _grantHistoryByGrant = [];
+  private Guid? _expandedGrantId;
   private Guid? _invitationId;
   private string _invitationLink = string.Empty, _invitationMessage = string.Empty;
   private string _roleMessage = string.Empty, _roleError = string.Empty;
@@ -234,7 +258,16 @@ else
     _directoryByIdentity = observations
       .GroupBy(x => (x.TenantId, x.ObjectId))
       .ToDictionary(x => x.Key, x => x.First());
+    var grantHistory = await db.RoleGrantChangeEvidences.AsNoTracking()
+      .Where(x => x.FirmId == _actor.FirmId && x.RoleGrantId.HasValue && grantIds.Contains(x.RoleGrantId.Value))
+      .OrderByDescending(x => x.CreatedAt)
+      .ToListAsync();
+    _grantHistoryByGrant = grantHistory
+      .GroupBy(x => x.RoleGrantId!.Value)
+      .ToDictionary(x => x.Key, x => x.ToList());
   }
+
+  private void ToggleGrantHistory(Guid grantId) => _expandedGrantId = _expandedGrantId == grantId ? null : grantId;
 
   private async Task OnboardUserAsync()
   {
