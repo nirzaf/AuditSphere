@@ -4,7 +4,7 @@
 **Authoritative specification:** [`docs/SPECIFICATION.md`](../SPECIFICATION.md) v5.0
 **Accounting module contract:** [`docs/AuditSphere_Accounting_module.md`](../AuditSphere_Accounting_module.md)
 **Requirements backlog:** [`docs/requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md`](../requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md)
-**Source implementation checkpoint:** `master@ed6624e` (browser acceptance evidence: `75995c8`)
+**Source implementation checkpoint:** `master@d0acf01` (browser acceptance evidence: `75995c8`)
 
 This is a resume checklist, not an acceptance certificate. Tenant identifiers, credentials, tokens, secret values, and private-provider URLs are deliberately absent from the public repository.
 

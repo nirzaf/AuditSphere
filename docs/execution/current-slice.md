@@ -6,12 +6,12 @@ This file records observed repository state only. The authoritative build contra
 
 | Item | Observed value |
 |---|---|
-| Source implementation checkpoint | `master@ed6624e` |
-| Remote | `origin/master` includes source checkpoint `ed6624e` |
+| Source implementation checkpoint | `master@d0acf01` |
+| Remote | `origin/master` includes source checkpoint `d0acf01` |
 | SDK | .NET 10; repository solution targets `net10.0` |
 | Database | PostgreSQL 18.6 on loopback port 5433 for development only |
-| Build | Web Release build at `ed6624e` — passed, 0 warnings/errors |
-| Tests | 225/225 passed, 0 skipped against PostgreSQL 18.6 at `ed6624e` |
+| Build | Web Release build at `d0acf01` — passed, 0 warnings/errors |
+| Tests | 225/225 passed, 0 skipped against PostgreSQL 18.6 at `d0acf01` |
 | Migrations | 83 applied; latest `20260922083103_EnableLiveMailProviderAuthority` |
 | Model drift | `dotnet ef migrations has-pending-model-changes` — no changes |
 | Restore drill | `scripts/db/restore-drill.sh` — passed; 83 migrations, accounting/group manifests and release-delivery identities reconciled |

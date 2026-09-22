@@ -4,7 +4,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "ed6624e",
+  "headCommit": "d0acf01",
   "remoteHeadVerified": true,
   "productionEnabled": false,
   "verifiedAt": "2026-09-22T09:48:24Z",
@@ -16,11 +16,11 @@
     "postgres": "18.6 loopback development profile"
   },
   "verification": {
-    "build": "PASS: dotnet build src/AuditSphereOps.Web/AuditSphereOps.Web.csproj --no-restore --configuration Release at ed6624e; 0 warnings/errors",
-    "tests": "PASS: 225/225 PostgreSQL-backed tests; 0 skipped at ed6624e with PostgreSQL migration setup serialized by xunit.runner.json",
+    "build": "PASS: dotnet build src/AuditSphereOps.Web/AuditSphereOps.Web.csproj --no-restore --configuration Release at d0acf01; 0 warnings/errors",
+    "tests": "PASS: 225/225 PostgreSQL-backed tests; 0 skipped at d0acf01 with PostgreSQL migration setup serialized by xunit.runner.json",
     "migrations": "PASS: 83 applied; latest 20260922083103_EnableLiveMailProviderAuthority",
     "pendingModelChanges": "PASS: no changes",
-    "restoreDrill": "PASS at 2026-09-22T09:48:24Z: loopback restore reconciled 83 migrations, accounting/group manifests and release-delivery identities; latest 20260922083103_EnableLiveMailProviderAuthority; duplicate release-delivery keys=0; external custody and production RPO/RTO not run",
+    "restoreDrill": "PASS at 2026-09-22T09:48:24Z: loopback restore reconciled 83 migrations, accounting/group manifests and release-delivery identities; latest 20260922083103_EnableLiveMailProviderAuthority; duplicate release-delivery keys=0; external custody and production RPO/RTO not run; documentation-only approval scope updates followed this rehearsal",
     "database": "127.0.0.1:5433 development only"
   },
   "active": {
