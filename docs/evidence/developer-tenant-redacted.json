@@ -1,6 +1,6 @@
 {
   "status": "PARTIAL_NON_PRODUCTION_EVIDENCE",
-  "recordedAt": "2026-09-22T20:13:45Z",
+  "recordedAt": "2026-09-22T20:17:46Z",
   "environment": "owner-authorized non-production developer tenant; identifiers intentionally omitted",
   "observed": [
     "A selected-resource Microsoft Graph/SharePoint permission was configured outside this public repository.",
@@ -11,6 +11,7 @@
     "At 2026-09-22T20:03:29Z, Purview showed the synthetic-site publication policy as Enabled (Success), but SharePoint's item details had no Apply label control and the library label selector exposed only None. The library default was left unchanged because it would affect unrelated items. Label application and protection readback remain unobserved.",
     "At 2026-09-22T20:10:27Z, the synthetic publication policy still appeared Enabled and of type Publish. A fresh SharePoint Compliance details readback for the synthetic file showed Label Status None, no retention policy, not on hold, and not an in-place record. The label-status link still did not open an apply-label picker. A Purview role-groups dialog displayed an admin-unit visibility warning; no role or permission was changed. Microsoft guidance says published labels typically appear within one day and allows up to seven days, so same-day non-availability does not establish a policy failure. Label application and protection readback remain unobserved.",
     "At 2026-09-22T20:13:45Z, Purview File plan showed the existing synthetic label as Active, Is record Yes, Is regulatory No, Is unlocked by default No, retention 'Retain labeled item for 1 day', and disposition 'Review required'. Its site-scoped publication policy remained Enabled (Success). The synthetic SharePoint file still showed Label Status None and was not subject to a retention policy; no record-behavior checks were run.",
+    "At 2026-09-22T20:17:46Z, Purview Data Explorer showed zero content results for the current synthetic retention-label query. SharePoint's direct Compliance details still showed the test file was unlabeled, so no protection-dependent behavior checks were run.",
     "No production approval, signing, independent review, or production recovery evidence is claimed."
   ],
   "references": [
