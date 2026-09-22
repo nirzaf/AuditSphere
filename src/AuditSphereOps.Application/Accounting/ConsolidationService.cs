@@ -1499,6 +1499,7 @@ public static class ConsolidationService
         AdvancedConsolidationMethods.AssetTransferElimination => "ASSET_TRANSFER_ELIMINATION",
         _ => string.Empty
       };
+      var allLines = new List<ConsolidationJournalLine>();
       foreach (var journalReference in journals.EnumerateArray())
       {
         if (!TryManifestGuid(journalReference, "id", out var journalId) || !seen.Add(journalId))
@@ -1520,12 +1521,90 @@ public static class ConsolidationService
             journal.TotalDebits != journal.TotalCreditsAbs)
           return CommandResult.Fail(ErrorCodes.ManifestMismatch,
             "Every advanced reviewed journal must remain balanced and bound to the scope currency.");
+        allLines.AddRange(lines);
+      }
+      return ValidateAdvancedReviewedJournalAmounts(schedule.Method, schedule.InputSnapshotJson, allLines);
+    }
+    catch (JsonException)
+    {
+      return CommandResult.Fail(ErrorCodes.ManifestMismatch, "The advanced source manifest is not valid JSON.");
+    }
+  }
+
+  private static CommandResult ValidateAdvancedReviewedJournalAmounts(
+    string method, string inputSnapshotJson, IReadOnlyCollection<ConsolidationJournalLine> lines)
+  {
+    try
+    {
+      using var document = JsonDocument.Parse(inputSnapshotJson);
+      var root = document.RootElement;
+      var expected = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
+      switch (method)
+      {
+        case AdvancedConsolidationMethods.AcquisitionNci:
+          if (!TryManifestDate(root, "acquisitionDate", out var acquisitionDate) ||
+              !TryManifestDate(root, "controlDate", out var controlDate) ||
+              !TryManifestDecimal(root, "consideration", out var consideration) ||
+              !TryManifestDecimal(root, "nciAtAcquisition", out var nciAtAcquisition) ||
+              !TryManifestDecimal(root, "fairValueNetAssets", out var fairValueNetAssets) ||
+              !TryManifestDecimal(root, "openingReserves", out var openingReserves) ||
+              !TryManifestDecimal(root, "fairValueAdjustments", out var fairValueAdjustments))
+            return CommandResult.Fail(ErrorCodes.ManifestMismatch,
+              "Acquisition evidence must bind its approved goodwill or bargain-purchase amount.");
+          var acquisition = AdvancedConsolidationCalculator.CalculateAcquisition(new AcquisitionAccountingInput(
+            acquisitionDate, controlDate, consideration, nciAtAcquisition, fairValueNetAssets,
+            openingReserves, fairValueAdjustments));
+          expected[acquisition.Goodwill > 0m ? "GOODWILL" : "BARGAIN_PURCHASE"] =
+            MoneyPolicy.Normalize(acquisition.Goodwill > 0m ? acquisition.Goodwill : -acquisition.BargainPurchase);
+          break;
+
+        case AdvancedConsolidationMethods.OwnershipChange:
+          if (!TryManifestDate(root, "effectiveDate", out var effectiveDate) ||
+              !TryManifestDecimal(root, "previousOwnershipPercent", out var previousOwnership) ||
+              !TryManifestDecimal(root, "newOwnershipPercent", out var newOwnership) ||
+              !TryManifestDecimal(root, "consideration", out var ownershipConsideration) ||
+              !TryManifestDecimal(root, "fairValueRetainedInterest", out var retainedInterest) ||
+              !TryManifestDecimal(root, "carryingNetAssets", out var carryingNetAssets) ||
+              !TryManifestDecimal(root, "carryingNci", out var carryingNci) ||
+              !TryManifestBool(root, "controlLost", out var controlLost))
+            return CommandResult.Fail(ErrorCodes.ManifestMismatch,
+              "Ownership-change evidence must bind its approved movement and gain/loss amounts.");
+          var ownership = AdvancedConsolidationCalculator.CalculateOwnershipChange(new OwnershipChangeInput(
+            effectiveDate, previousOwnership, newOwnership, ownershipConsideration, retainedInterest,
+            carryingNetAssets, carryingNci, controlLost));
+          expected["NCI_MOVEMENT"] = ownership.NciMovement;
+          expected["OWNERSHIP_CHANGE_GAIN_LOSS"] = ownership.DisposalGainOrLoss;
+          break;
+
+        case AdvancedConsolidationMethods.AssetTransferElimination:
+          if (!TryManifestDecimal(root, "unrealizedProfit", out var unrealizedProfit) ||
+              !TryManifestDecimal(root, "postTransferDepreciation", out var postTransferDepreciation) ||
+              !TryManifestDecimal(root, "taxRate", out var taxRate))
+            return CommandResult.Fail(ErrorCodes.ManifestMismatch,
+              "Asset-transfer evidence must bind its approved net-elimination amount.");
+          var elimination = AdvancedConsolidationCalculator.CalculateAssetTransferElimination(
+            unrealizedProfit, postTransferDepreciation, taxRate);
+          expected["ASSET_TRANSFER_ELIMINATION"] = elimination.NetElimination;
+          break;
+      }
+
+      foreach (var expectedLine in expected)
+      {
+        var matching = lines.Where(x => string.Equals(x.TaxonomyCode, expectedLine.Key, StringComparison.OrdinalIgnoreCase)).ToList();
+        var actual = MoneyPolicy.Normalize(matching.Sum(x => x.Debit - x.Credit));
+        if (matching.Count == 0 || actual != expectedLine.Value)
+          return CommandResult.Fail(ErrorCodes.ManifestMismatch,
+            $"The reviewed advanced journal does not match the approved {expectedLine.Key} amount.");
       }
       return CommandResult.Ok();
     }
     catch (JsonException)
     {
-      return CommandResult.Fail(ErrorCodes.ManifestMismatch, "The advanced source manifest is not valid JSON.");
+      return CommandResult.Fail(ErrorCodes.ManifestMismatch, "The advanced input snapshot is not valid JSON.");
+    }
+    catch (InvalidOperationException ex)
+    {
+      return CommandResult.Fail(ErrorCodes.ManifestMismatch, ex.Message);
     }
   }
 
@@ -1701,6 +1780,15 @@ public static class ConsolidationService
     value = default;
     return element.TryGetProperty(name, out var property) && property.ValueKind == JsonValueKind.String &&
       DateOnly.TryParse(property.GetString(), CultureInfo.InvariantCulture, DateTimeStyles.None, out value);
+  }
+
+  private static bool TryManifestBool(JsonElement element, string name, out bool value)
+  {
+    value = false;
+    if (!element.TryGetProperty(name, out var property) || property.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+      return false;
+    value = property.GetBoolean();
+    return true;
   }
 
   private static bool IsSha256(string value) => value.Length == 64 && value.All(c => c is >= '0' and <= '9' or >= 'a' and <= 'f');

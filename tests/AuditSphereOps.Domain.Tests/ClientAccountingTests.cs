@@ -2159,6 +2159,22 @@ public sealed class ClientAccountingTests
       Assert.Equal(ErrorCodes.ManifestMismatch, mismatchedJournalApproval.ErrorCode);
       reviewedJournal.JournalType = "ACQUISITION_NCI";
       await db.SaveChangesAsync();
+      var journalLines = await db.ConsolidationJournalLines.Where(x => x.ConsolidationJournalId == reviewedJournalId).ToListAsync();
+      var goodwillLine = journalLines.Single(x => x.TaxonomyCode == "GOODWILL");
+      var balancingLine = journalLines.Single(x => x.TaxonomyCode == "PARENT_EQUITY");
+      goodwillLine.Debit = 29m;
+      balancingLine.Credit = 29m;
+      reviewedJournal.TotalDebits = 29m;
+      reviewedJournal.TotalCreditsAbs = 29m;
+      await db.SaveChangesAsync();
+      var changedJournalAmountApproval = await ConsolidationService.ApproveAdvancedExecutionAsync(db, reviewer, stored.Id);
+      Assert.False(changedJournalAmountApproval.Succeeded);
+      Assert.Equal(ErrorCodes.ManifestMismatch, changedJournalAmountApproval.ErrorCode);
+      goodwillLine.Debit = 30m;
+      balancingLine.Credit = 30m;
+      reviewedJournal.TotalDebits = 30m;
+      reviewedJournal.TotalCreditsAbs = 30m;
+      await db.SaveChangesAsync();
       var methodAcceptance = await db.AccountingCapabilityAcceptances.SingleAsync(x => x.CapabilityProfileId == profileId &&
         x.Stage == AccountingCapabilityAcceptanceStages.MethodOwnerApproval);
       methodAcceptance.Status = AccountingWorkflowStates.Retired;
