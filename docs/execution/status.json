@@ -28,7 +28,7 @@
     "implementationStatus": "IN_PROGRESS",
     "acceptanceStatus": "LOCAL_VERIFIED",
     "scope": "Local audit workflow, client accounting, scoped client file-request threads/uploads/downloads, GL intake, completeness, package, Office/PDF export, restatement, consolidation, journal-lineage, close-check, package-review and Microsoft 365 onboarding control-plane slices.",
-    "nextAction": "Complete method-specific advanced consolidation golden fixtures and browser journeys for each profile intended for enablement; keep provider, signing, records, recovery and independent-review gates external and fail-closed."
+    "nextAction": "Complete full end-to-end browser acceptance before enabling any advanced profile; keep provider, signing, records, recovery and independent-review gates external and fail-closed."
   },
   "localEvidence": [
     {
@@ -324,7 +324,7 @@
     {
       "item": "Seeded accounting browser acceptance",
       "status": "LOCAL_VERIFIED",
-      "details": "An explicit Development/Test-only harness migrates and idempotently seeds the isolated auditsphere_browser database with a QAR SME, two unrelated clients retaining account code 1000 in separate chart scopes, a basic QAR group and an enabled USD-to-QAR group. Built-in-browser journeys verified distinct client context switching, basic and FX group views, approved rate/policy state and corrected v1 scope rendering. The fixed development identity refuses Production startup, cannot coexist with OIDC and rejects non-local return URLs. Release build and 220/220 PostgreSQL tests pass at e595ae0; this is not live-tenant acceptance."
+      "details": "An explicit Development/Test-only harness migrates and idempotently seeds the isolated auditsphere_browser database with a QAR SME, two unrelated clients retaining account code 1000 in separate chart scopes, a basic QAR group, an enabled USD-to-QAR group and an advanced-method gating group with all five advanced profiles. Built-in-browser journeys verified distinct client context switching, basic and FX group views, approved rate/policy state, corrected v1 scope rendering and fail-closed REQUIRED status with 0 / 0 executions for FOREIGN_CURRENCY_RESERVE_V1, ACQUISITION_NCI_V1, OWNERSHIP_CHANGE_V1, NESTED_GROUP_V1 and ASSET_TRANSFER_ELIMINATION_V1. Evidence is in docs/evidence/accounting-browser-advanced-gates-latest.json. The fixed development identity refuses Production startup, cannot coexist with OIDC and rejects non-local return URLs. This is not live-tenant acceptance."
     },
     {
       "item": "Scoped accounting record queues and workflow dashboard",
@@ -344,7 +344,7 @@
     {
       "item": "Advanced consolidation calculation safety core",
       "status": "LOCAL_VERIFIED",
-      "details": "Deterministic local calculators cover acquisition goodwill/bargain purchase with fair-value adjustments, NCI rollforward, ownership changes/disposals, nested double-count rejection and asset-transfer/tax elimination math. Approved IFRS method schedules now persist canonical source/input JSON digests, validate method-specific inputs at approval, and guarded execution persists balanced current/comparative statements plus method output manifests/digests only after current component, group-revision and method-owner checks. Separate reviewer approval revalidates current component-pack inputs and statement evidence. Repeated execution converges on one verified row. PostgreSQL integration coverage passes in the 237-test suite at 0f9f10c; migration 20260922125309_AdvancedConsolidationExecution is applied and the 89-migration restore drill passes. Method-specific golden fixtures and browser journeys remain required before any advanced profile is treated as fully enabled."
+      "details": "Deterministic local calculators cover acquisition goodwill/bargain purchase with fair-value adjustments, NCI rollforward, ownership changes/disposals, nested double-count rejection and asset-transfer/tax elimination math. Approved IFRS method schedules now persist canonical source/input JSON digests, validate method-specific inputs plus reviewed journal and approved FX evidence at approval, and guarded execution persists balanced current/comparative statements plus method output manifests/digests only after current component, group-revision and method-owner checks. Separate reviewer approval revalidates current component-pack inputs, method journal evidence and statement evidence. Repeated execution converges on one verified row. PostgreSQL schedule/journal/execution journeys cover all five methods; the full suite passes 246/246 at 25bb0ba with no skipped tests. Browser journeys remain fail-closed and required before any advanced profile is treated as fully enabled."
     },
     {
       "item": "Microsoft 365 onboarding control-plane foundation",
@@ -353,7 +353,7 @@
     }
   ],
   "remainingLocalWork": [
-    "Complete method-specific golden fixtures and browser journeys for each advanced FX, acquisition/NCI, ownership-change, nested-group and complex-elimination profile intended for enablement; keep unsupported or unproven methods fail-closed"
+    "Complete full end-to-end browser acceptance for any advanced FX, acquisition/NCI, ownership-change, nested-group or complex-elimination profile before enabling it; keep unsupported or unproven methods fail-closed"
   ],
   "externalGates": [
     { "gate": "P1", "status": "BLOCKED_EXTERNAL", "required": "Live Entra OIDC and runtime identity fixtures" },

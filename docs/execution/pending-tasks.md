@@ -18,7 +18,7 @@ This is a resume checklist, not an acceptance certificate. Tenant identifiers, c
 - [x] Loopback restore drill passes and writes secret-free evidence to `docs/evidence/restore-drill-latest.json`.
 - [x] Generated Graphify output and local agent state are ignored and removed from Git tracking.
 - [x] Public documentation no longer stores tenant-specific identity, site, app, or account identifiers.
-- [x] Seeded built-in-browser acceptance covers a QAR SME, unrelated colliding-code clients, a basic QAR group and the enabled USD-to-QAR profile without changing production authentication.
+- [x] Seeded built-in-browser acceptance covers a QAR SME, unrelated colliding-code clients, a basic QAR group, the enabled USD-to-QAR profile and all five advanced profiles showing fail-closed `REQUIRED` status without changing production authentication. Evidence: [`accounting-browser-advanced-gates-latest.json`](../evidence/accounting-browser-advanced-gates-latest.json).
 
 ## Microsoft 365 onboarding local foundation
 
@@ -106,7 +106,9 @@ This is a resume checklist, not an acceptance certificate. Tenant identifiers, c
 - [x] Persist approved source-bound advanced-method schedules with canonical source/input digests, idempotent retry, maker/checker approval and group-revision fencing.
 - [x] Validate method-specific advanced schedule inputs at approval using the deterministic calculators and reject incomplete or contradictory JSON.
 - [x] Wire persisted schedules into guarded advanced profile execution with balanced current/comparative statement evidence, method output manifests/digests, current component and group-revision fencing, component revalidation before reviewer approval and idempotent retry; PostgreSQL coverage passes at `0f9f10c`.
-- [ ] Complete method-specific golden fixtures and browser journeys for each advanced profile intended for enablement; keep unsupported or unproven methods fail-closed.
+- [x] Add method-specific golden execution fixtures and fail-closed browser gate journeys for all five advanced profiles; keep unsupported or unproven methods visibly `REQUIRED`.
+- [x] Complete source-bound method schedules, reviewed journal evidence and execution journeys for all five advanced profiles in PostgreSQL; keep them fail-closed until browser acceptance.
+- [ ] Complete full end-to-end browser acceptance for any advanced profile before enabling it.
 - [x] Add deeper accounting evidence/workpaper links and account-area UI around the typed specialist schedules.
 - [x] Add the accounting dashboard and cross-workflow navigation around accounting, roll-forward and release workflows.
 - [x] Re-run focused tests, full tests, build, migration drift and restore drill for the current coherent slice; repeat for the next slice.

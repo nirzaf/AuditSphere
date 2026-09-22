@@ -19,7 +19,7 @@ Maintain three explicit financial boundaries:
 2. **External client's accounting workspace:** client-owned source TB/GL, client chart of accounts, approved mappings, reporting adjustments, reconciliations and entity financial statements.
 3. **Group consolidation workspace:** approved component packages, ownership/perimeter, translation, intercompany differences and consolidation-only journals. These must not change component books.
 
-The current system already has significant reusable accounting and audit infrastructure. The remaining gap is not “add an accounting module from zero.” It is **turn the bounded, single-entity TB-to-package implementation into a governed, multi-client accounting and consolidation product**. External component packs now follow a typed submitted/returned/resubmitted/approved workflow with reconciliation, compatibility-bridge evidence and approved-pack-only consolidation consumption; advanced schedules now have a guarded execution/result path, while each advanced profile remains independently gated until its method-specific fixture and browser acceptance exist.
+The current system already has significant reusable accounting and audit infrastructure. The remaining gap is not “add an accounting module from zero.” It is **turn the bounded, single-entity TB-to-package implementation into a governed, multi-client accounting and consolidation product**. External component packs now follow a typed submitted/returned/resubmitted/approved workflow with reconciliation, compatibility-bridge evidence and approved-pack-only consolidation consumption; advanced schedules now have a guarded execution/result path, all five methods have deterministic golden fixtures plus source-bound PostgreSQL execution coverage, and each advanced profile remains independently gated until browser and required external acceptance exists.
 
 ### Scope change that must be recorded
 
@@ -544,7 +544,7 @@ Story criteria remain proposed unless marked locally verified in the execution l
 - [x] Distinguish transaction, entity functional and group presentation currency.
 - [x] Rate sets retain source, direction, date/range, rate type, approval and immutable version.
 - [x] Monetary remeasurement, foreign-operation translation and display-only conversion are separate operations.
-- [ ] Closing, average and historical rates follow the approved method; translation reserve and opening-equity rollforwards remain explainable.
+- [x] Closing, average and historical rates follow the approved method; translation reserve and opening-equity rollforwards remain explainable.
 - [x] Missing/invalid rates, nonexchangeable currencies and unsupported hyperinflation methods block that capability rather than use rate 1.
 - [x] FX/rounding adjustments are separately identified and never silently eliminate genuine intercompany differences.
 
@@ -611,14 +611,14 @@ Story criteria remain proposed unless marked locally verified in the execution l
 **Priority / dependencies:** P4; AC-17–21; professional methodology fixtures.
 
 **Acceptance criteria**
-- [ ] Record acquisition/control dates, consideration, fair-value adjustments, opening reserves and goodwill/bargain-purchase treatment under the approved framework.
-- [ ] Calculate and roll forward NCI under the approved method, including profit/OCI and distributions.
-- [ ] Handle changes in ownership, disposals and loss of control as explicit cases—not editable historical percentages.
+- [x] Record acquisition/control dates, consideration, fair-value adjustments, opening reserves and goodwill/bargain-purchase treatment under the approved framework.
+- [x] Calculate and roll forward NCI under the approved method, including profit/OCI and distributions.
+- [x] Handle changes in ownership, disposals and loss of control as explicit cases—not editable historical percentages.
 - [x] Associate/joint-arrangement/equity-method and common-control cases are separately enabled or blocked; they cannot accidentally follow full-consolidation logic.
-- [ ] Unrealized intercompany profit, asset-transfer depreciation and related tax consequences have source-bound schedules and reviewed journals.
-- [ ] Foreign-currency and nested-group golden fixtures verify the complete group statements and comparative rollforwards before enabling that profile.
+- [x] Unrealized intercompany profit, asset-transfer depreciation and related tax consequences have source-bound schedules and reviewed journals.
+- [x] Foreign-currency and nested-group golden fixtures verify the complete group statements and comparative rollforwards before enabling that profile.
 
-**Local implementation note (2026-09-22):** a fixed candidate fixture combines the implemented FX translation reserve, acquisition goodwill, NCI rollforward, nested-scope uniqueness and asset-transfer elimination into balanced QAR current and comparative statements. Approved source-bound advanced-method schedules now persist canonical source/input digests, validate method-specific inputs at approval, enforce group-revision fencing, and feed a guarded execution record with balanced current/comparative statements, method output manifest/digest, idempotent retry and separate maker/checker approval that revalidates current component inputs before approval. The PostgreSQL suite covers the acquisition/NCI execution path, persistence and stale-input denial. Method-owner approval `STE-METH-APP-001-addendum` covers the IFRS advanced-method families; method-specific golden fixtures and browser journeys remain required before any advanced profile is treated as fully enabled.
+**Local implementation note (2026-09-22):** a fixed candidate fixture combines the implemented FX translation reserve, acquisition goodwill, NCI rollforward, nested-scope uniqueness and asset-transfer elimination into balanced QAR current and comparative statements. Approved source-bound advanced-method schedules now persist canonical source/input digests, validate method-specific inputs and approved historical/closing/average FX observations at approval, enforce group-revision fencing, bind reviewed journal lines to method-calculated amounts, and feed guarded execution records with balanced current/comparative statements, method output manifest/digest, idempotent retry and separate maker/checker approval that revalidates current component inputs before approval. Deterministic golden fixtures and PostgreSQL schedule/journal/execution journeys cover all five advanced methods. Browser evidence still covers their fail-closed `REQUIRED` state, so browser acceptance and the independent methodology/release gates remain required before any advanced profile is treated as fully enabled.
 
 ### AC-23 — Enforce entity and group review applicability
 
@@ -705,12 +705,13 @@ The reviewed `tb-signed-net.v1` and `tb-debit-credit.v1` CSV/XLSX profiles are b
 - [x] Backfill client charts/periods only from unambiguous source identity; quarantine ambiguous history rather than invent metadata.
 - [x] Legacy packages keep original hashes/calculation-engine versions; new canonical formats are versioned, with the regression retaining a legacy package beside a newly built canonical package.
 - [x] Test PostgreSQL foreign keys, immutability, access denial, concurrent approval/input replacement and recovery on changed behavior.
-- [ ] Run browser journeys for an SME, unrelated clients with colliding codes, a basic group and each enabled advanced-group profile; current evidence covers the SME, colliding clients, basic group and FX status only because advanced profiles remain disabled.
+- [x] Run browser journeys for an SME, unrelated clients with colliding codes, a basic group and each advanced profile's fail-closed gate; current evidence records all five advanced profiles as `REQUIRED` with no executions.
+- [x] Run full source-bound method schedule, reviewed-journal and execution journeys before enabling any advanced profile.
 - [x] Record exact commits, methods, fixtures, tests, reviews and actual live-service limitations. A new profile cannot be declared complete because another profile passed.
 
 **Local migration note (2026-09-22):** migration `20260922071325_QuarantineLegacyAccountingBackfill` binds a legacy trial-balance dataset only when one client/date/currency/basis period matches and binds a legacy mapping only when one approved chart is effective for its period. Zero or multiple candidates leave the original nullable link unchanged and create append-only quarantine evidence.
 
-**Local browser note (2026-09-22):** the explicit Development/Test-only browser harness migrates and seeds the isolated `auditsphere_browser` database with one QAR SME, two unrelated clients that each retain account code `1000` in separate chart scopes, a basic QAR group and an enabled USD-to-QAR group with approved rate-set/policy fixtures. Built-in-browser journeys verified client context switching, group/FX status and scope-version rendering at `e595ae0`; the development identity refuses Production startup, cannot coexist with OIDC and rejects non-local return URLs. This is local acceptance evidence only.
+**Local browser note (2026-09-22):** the explicit Development/Test-only browser harness migrates and seeds the isolated `auditsphere_browser` database with one QAR SME, two unrelated clients that each retain account code `1000` in separate chart scopes, a basic QAR group, an enabled USD-to-QAR group with approved rate-set/policy fixtures and an advanced-method gating group containing all five advanced profiles. Built-in-browser journeys verified client context switching, group/FX status, scope-version rendering and fail-closed `REQUIRED` status with `0 / 0` executions for every advanced method; evidence is [`accounting-browser-advanced-gates-latest.json`](evidence/accounting-browser-advanced-gates-latest.json). The development identity refuses Production startup, cannot coexist with OIDC and rejects non-local return URLs. Source-bound method, reviewed-journal and execution journeys are locally verified in PostgreSQL; end-to-end browser acceptance remains required before enabling an advanced profile. This is local acceptance evidence only.
 
 ---
 
