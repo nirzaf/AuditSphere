@@ -26,7 +26,9 @@ public static class FinancialPackageOfficeRenderer
     var (bytes, contentType, extension) = artifactVersion switch
     {
       FinancialPackageArtifactVersions.Workbook =>
-        (RenderWorkbook(canonicalPackageText), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "xlsx"),
+        (RenderWorkbook(canonicalPackageText, false), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "xlsx"),
+      FinancialPackageArtifactVersions.ControlledWorkbook =>
+        (RenderWorkbook(canonicalPackageText, true), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "xlsx"),
       FinancialPackageArtifactVersions.Word =>
         (RenderWord(canonicalPackageText), "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "docx"),
       _ => throw new ArgumentOutOfRangeException(nameof(artifactVersion), "Unsupported Office artifact version.")
@@ -34,8 +36,9 @@ public static class FinancialPackageOfficeRenderer
     return new(artifactVersion, contentType, extension, Hashing.Sha256Hex(bytes), bytes);
   }
 
-  private static byte[] RenderWorkbook(string text)
+  private static byte[] RenderWorkbook(string text, bool controlled)
   {
+    var lines = Lines(text).ToArray();
     using var stream = new MemoryStream();
     using (var document = SpreadsheetDocument.Create(stream, SpreadsheetDocumentType.Workbook, true))
     {
@@ -43,15 +46,30 @@ public static class FinancialPackageOfficeRenderer
       workbook.Workbook = new S.Workbook();
       var worksheet = workbook.AddNewPart<WorksheetPart>("rId2");
       var rows = new S.SheetData();
-      foreach (var line in Lines(text))
+      foreach (var line in lines)
         rows.Append(new S.Row(TextCell(line)));
       worksheet.Worksheet = new S.Worksheet(rows);
-      workbook.Workbook.Append(new S.Sheets(new S.Sheet
+      var sheets = new S.Sheets(new S.Sheet
       {
         Id = "rId2",
         SheetId = 1,
         Name = "Financial package"
-      }));
+      });
+      if (controlled)
+      {
+        var control = workbook.AddNewPart<WorksheetPart>("rId3");
+        control.Worksheet = new S.Worksheet(new S.SheetData(new S.Row(
+          TextCell("Canonical line count"),
+          new S.Cell(new S.CellFormula($"COUNTA('Financial package'!A1:A{lines.Length})")))));
+        sheets.Append(new S.Sheet { Id = "rId3", SheetId = 2, Name = "Control" });
+        workbook.Workbook.CalculationProperties = new S.CalculationProperties
+        {
+          CalculationMode = S.CalculateModeValues.Auto,
+          ForceFullCalculation = true,
+          FullCalculationOnLoad = true
+        };
+      }
+      workbook.Workbook.Append(sheets);
       workbook.Workbook.Save();
     }
     return NormalizeZip(stream.ToArray());

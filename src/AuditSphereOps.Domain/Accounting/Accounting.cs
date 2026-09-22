@@ -324,6 +324,7 @@ public static class FinancialPackageArtifactVersions
 {
   public const string Text = "financial-package-text.v1";
   public const string Workbook = "financial-package-xlsx.v1";
+  public const string ControlledWorkbook = "financial-package-xlsx-controlled.v1";
   public const string Word = "financial-package-docx.v1";
 }
 

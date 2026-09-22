@@ -876,7 +876,8 @@ public static class FinancialStatementService
     string artifactVersion,
     CancellationToken ct = default)
   {
-    if (artifactVersion is not (FinancialPackageArtifactVersions.Workbook or FinancialPackageArtifactVersions.Word))
+    if (artifactVersion is not (FinancialPackageArtifactVersions.Workbook or
+        FinancialPackageArtifactVersions.ControlledWorkbook or FinancialPackageArtifactVersions.Word))
       return CommandResult<FinancialPackageOfficeArtifact>.Fail(ErrorCodes.Accounting.PackageInvalid, "Unsupported Office artifact version.");
 
     var canonical = await RenderPackageArtifactAsync(db, actor, packageId, ct);

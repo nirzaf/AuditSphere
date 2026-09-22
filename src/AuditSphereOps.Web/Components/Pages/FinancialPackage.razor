@@ -174,6 +174,7 @@ else
       </dl>
       <button class="button" title="Download the persisted exact package artifact as text; this does not release or deliver the package." @onclick="DownloadArtifactAsync" disabled="@_artifactBusy">@(_artifactBusy ? "Preparing…" : "Download artifact")</button>
       <button class="button" title="Create and download a formula-free XLSX bound to this exact package revision and template." @onclick="() => DownloadOfficeArtifactAsync(FinancialPackageArtifactVersions.Workbook)" disabled="@_artifactBusy">Download workbook</button>
+      <button class="button" title="Create a controlled XLSX with one application-owned line-count formula. Package values remain literal text and no client formula or macro is executed." @onclick="() => DownloadOfficeArtifactAsync(FinancialPackageArtifactVersions.ControlledWorkbook)" disabled="@_artifactBusy">Download controlled workbook</button>
       <button class="button" title="Create and download a macro-free DOCX bound to this exact package revision and template." @onclick="() => DownloadOfficeArtifactAsync(FinancialPackageArtifactVersions.Word)" disabled="@_artifactBusy">Download Word document</button>
       @if (!string.IsNullOrWhiteSpace(_artifactStatus))
       {
