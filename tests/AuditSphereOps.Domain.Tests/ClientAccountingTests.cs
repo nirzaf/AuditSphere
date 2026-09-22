@@ -1846,6 +1846,15 @@ public sealed class ClientAccountingTests
       Assert.Equal(0m, stored.ComparativeSignedTotal);
       Assert.Equal(0m, stored.CurrentSignedTotal);
       Assert.Equal(Hashing.Sha256Hex(stored.OutputManifest), stored.OutputDigest);
+      var component = await db.ConsolidationComponents.SingleAsync(x => x.Id == componentId);
+      var packageHash = component.PackageHash;
+      component.PackageHash = Hashing.Sha256Hex("changed-after-execution");
+      await db.SaveChangesAsync();
+      var staleApproval = await ConsolidationService.ApproveAdvancedExecutionAsync(db, reviewer, stored.Id);
+      Assert.False(staleApproval.Succeeded);
+      Assert.Equal(ErrorCodes.GenerationStale, staleApproval.ErrorCode);
+      component.PackageHash = packageHash;
+      await db.SaveChangesAsync();
       Assert.True((await ConsolidationService.ApproveAdvancedExecutionAsync(db, reviewer, stored.Id)).Succeeded);
       Assert.Equal(AdvancedConsolidationExecutionStates.Approved,
         await db.AdvancedConsolidationExecutions.Where(x => x.Id == stored.Id).Select(x => x.Status).SingleAsync());

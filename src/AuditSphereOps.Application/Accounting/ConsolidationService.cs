@@ -998,42 +998,17 @@ public static class ConsolidationService
     if (schedule is null)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "An approved current advanced method schedule is required before execution.");
 
-    var components = await db.ConsolidationComponents.AsNoTracking().Where(x =>
-      x.FirmId == actor.FirmId && x.GroupId == scope.GroupId && x.ScopeVersionId == scope.Id).OrderBy(x => x.Id).ToListAsync(ct);
-    if (components.Count == 0 || components.Any(x => x.Status != AccountingWorkflowStates.Approved))
-      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Every advanced profile needs approved component reporting packs.");
-    foreach (var component in components)
-    {
-      if (component.SourceType == ConsolidationComponentSources.InternalPackage)
-      {
-        var package = component.PackageId is { } packageId
-          ? await db.FinancialPackages.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == packageId, ct)
-          : null;
-        if (package is null || package.Status != AccountingPackageStates.PackageValidated || package.CalculationHash != component.PackageHash)
-          return CommandResult<Guid>.Fail(ErrorCodes.GenerationStale, "An advanced component package changed; rebuild the advanced profile.");
-      }
-      else
-      {
-        var pack = component.ExternalComponentPackId is { } packId
-          ? await db.ExternalComponentPacks.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == packId, ct)
-          : null;
-        if (pack is null || pack.Status != ExternalComponentPackStates.Approved ||
-            pack.ReconciliationStatus != ExternalComponentReconciliationStates.Reconciled || pack.PackDigest != component.PackageHash)
-          return CommandResult<Guid>.Fail(ErrorCodes.GenerationStale, "An advanced external component pack changed; rebuild the advanced profile.");
-      }
-    }
+    var componentResult = await LoadAdvancedComponentsAsync(db, actor.FirmId, scope, ct);
+    if (!componentResult.Succeeded)
+      return CommandResult<Guid>.Fail(componentResult.ErrorCode!, componentResult.Message!);
+    var components = componentResult.Value!;
 
     if (!AdvancedConsolidationExecutionCalculator.TryCalculate(scope.Method, schedule.InputSnapshotJson,
         out var calculation, out var calculationError))
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
         $"The advanced current/comparative statement verification failed: {calculationError}");
 
-    var inputManifest = JsonSerializer.Serialize(new
-    {
-      scope.Id, scope.GroupId, scope.GroupRevision, scope.Method, scope.ReportingCurrency,
-      ScheduleId = schedule.Id, ScheduleDigest = schedule.InputSnapshotDigest,
-      Components = components.Select(x => new { x.Id, x.ClientId, x.PackageId, x.ExternalComponentPackId, x.PackageHash, x.Currency })
-    });
+    var inputManifest = BuildAdvancedInputManifest(scope, schedule, components);
     var inputDigest = Hashing.Sha256Hex(inputManifest);
     var existing = await db.AdvancedConsolidationExecutions.AsNoTracking().SingleOrDefaultAsync(x =>
       x.FirmId == actor.FirmId && x.ScopeVersionId == scope.Id && x.Method == scope.Method && x.InputManifestDigest == inputDigest, ct);
@@ -1081,6 +1056,12 @@ public static class ConsolidationService
       return CommandResult.Fail(ErrorCodes.GenerationStale, "The advanced schedule or scope changed; rerun the execution.");
     if (!await ConsolidationScopeGuards.IsCurrentAsync(db, actor.FirmId, execution.GroupId, execution.GroupRevision, ct))
       return CommandResult.Fail(ErrorCodes.GenerationStale, "The group perimeter changed; rerun the advanced execution.");
+    var componentResult = await LoadAdvancedComponentsAsync(db, actor.FirmId, scope, ct);
+    if (!componentResult.Succeeded)
+      return CommandResult.Fail(componentResult.ErrorCode!, componentResult.Message!);
+    var inputManifest = BuildAdvancedInputManifest(scope, schedule, componentResult.Value!);
+    if (Hashing.Sha256Hex(inputManifest) != execution.InputManifestDigest)
+      return CommandResult.Fail(ErrorCodes.GenerationStale, "The advanced component inputs changed; rerun the execution.");
     if (Hashing.Sha256Hex(calculation!.ComparativeStatementJson) != execution.ComparativeStatementDigest ||
         Hashing.Sha256Hex(calculation.CurrentStatementJson) != execution.CurrentStatementDigest ||
         calculation.OutputDigest != execution.OutputDigest || calculation.OutputManifest != execution.OutputManifest)
@@ -1359,6 +1340,49 @@ public static class ConsolidationService
        acceptance.Stage == AccountingCapabilityAcceptanceStages.MethodOwnerApproval &&
      acceptance.Status == AccountingWorkflowStates.Approved
      select acceptance.Id).AnyAsync(ct);
+
+  private static async Task<CommandResult<List<ConsolidationComponent>>> LoadAdvancedComponentsAsync(
+    IClientAccountingDbContext db, Guid firmId, ConsolidationScopeVersion scope, CancellationToken ct)
+  {
+    var components = await db.ConsolidationComponents.AsNoTracking().Where(x =>
+      x.FirmId == firmId && x.GroupId == scope.GroupId && x.ScopeVersionId == scope.Id).OrderBy(x => x.Id).ToListAsync(ct);
+    if (components.Count == 0 || components.Any(x => x.Status != AccountingWorkflowStates.Approved))
+      return CommandResult<List<ConsolidationComponent>>.Fail(ErrorCodes.GateBlocked,
+        "Every advanced profile needs approved component reporting packs.");
+    foreach (var component in components)
+    {
+      if (component.SourceType == ConsolidationComponentSources.InternalPackage)
+      {
+        var package = component.PackageId is { } packageId
+          ? await db.FinancialPackages.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == firmId && x.Id == packageId, ct)
+          : null;
+        if (package is null || package.Status != AccountingPackageStates.PackageValidated || package.CalculationHash != component.PackageHash)
+          return CommandResult<List<ConsolidationComponent>>.Fail(ErrorCodes.GenerationStale,
+            "An advanced component package changed; rebuild the advanced profile.");
+      }
+      else
+      {
+        var pack = component.ExternalComponentPackId is { } packId
+          ? await db.ExternalComponentPacks.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == firmId && x.Id == packId, ct)
+          : null;
+        if (pack is null || pack.Status != ExternalComponentPackStates.Approved ||
+            pack.ReconciliationStatus != ExternalComponentReconciliationStates.Reconciled || pack.PackDigest != component.PackageHash)
+          return CommandResult<List<ConsolidationComponent>>.Fail(ErrorCodes.GenerationStale,
+            "An advanced external component pack changed; rebuild the advanced profile.");
+      }
+    }
+    return CommandResult<List<ConsolidationComponent>>.Ok(components);
+  }
+
+  private static string BuildAdvancedInputManifest(
+    ConsolidationScopeVersion scope, AdvancedConsolidationMethodSchedule schedule,
+    IReadOnlyCollection<ConsolidationComponent> components) =>
+    JsonSerializer.Serialize(new
+    {
+      scope.Id, scope.GroupId, scope.GroupRevision, scope.Method, scope.ReportingCurrency,
+      ScheduleId = schedule.Id, ScheduleDigest = schedule.InputSnapshotDigest,
+      Components = components.Select(x => new { x.Id, x.ClientId, x.PackageId, x.ExternalComponentPackId, x.PackageHash, x.Currency })
+    });
 
   private static bool IsSha256(string value) => value.Length == 64 && value.All(c => c is >= '0' and <= '9' or >= 'a' and <= 'f');
 
