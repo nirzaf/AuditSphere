@@ -6,12 +6,12 @@ This file records observed repository state only. The authoritative build contra
 
 | Item | Observed value |
 |---|---|
-| Source implementation checkpoint | `master@0f9f10c` |
-| Remote | `origin/master` includes source checkpoint `0f9f10c` |
+| Source implementation checkpoint | `codex/m365-simple-onboarding@da1f38b` |
+| Remote | `origin/codex/m365-simple-onboarding` includes source checkpoint `da1f38b` |
 | SDK | .NET 10; repository solution targets `net10.0` |
 | Database | PostgreSQL 18.6 on loopback port 5433 for development only |
-| Build | Web Release build at `0f9f10c` — passed, 0 warnings/errors |
-| Tests | 237/237 passed, 0 skipped against PostgreSQL 18.6 |
+| Build | Web Release build at `da1f38b` — passed, 0 warnings/errors |
+| Tests | 246/246 passed, 0 skipped against PostgreSQL 18.6 |
 | Migrations | 89 applied; latest `20260922125309_AdvancedConsolidationExecution` |
 | Model drift | `dotnet ef migrations has-pending-model-changes` — no changes |
 | Restore drill | `scripts/db/restore-drill.sh` — passed; 89 migrations, accounting/group manifests and release-delivery identities reconciled |

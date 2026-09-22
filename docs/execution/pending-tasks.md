@@ -4,7 +4,7 @@
 **Authoritative specification:** [`docs/SPECIFICATION.md`](../SPECIFICATION.md) v5.0
 **Accounting module contract:** [`docs/AuditSphere_Accounting_module.md`](../AuditSphere_Accounting_module.md)
 **Requirements backlog:** [`docs/requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md`](../requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md)
-**Source implementation checkpoint:** `master@0f9f10c`
+**Source implementation checkpoint:** `codex/m365-simple-onboarding@da1f38b`
 
 This is a resume checklist, not an acceptance certificate. Tenant identifiers, credentials, tokens, secret values, and private-provider URLs are deliberately absent from the public repository.
 
@@ -12,7 +12,7 @@ This is a resume checklist, not an acceptance certificate. Tenant identifiers, c
 
 - [x] .NET 10 solution builds with zero warnings/errors.
 - [x] PostgreSQL 18.6 development profile is used on loopback port 5433.
-- [x] 237/237 PostgreSQL-backed tests pass with 0 skipped at `0f9f10c`; the Web Release build passes with zero warnings/errors.
+- [x] 246/246 PostgreSQL-backed tests pass with 0 skipped at `da1f38b`; the Web Release build passes with zero warnings/errors.
 - [x] 89 migrations are applied; latest is `20260922125309_AdvancedConsolidationExecution`.
 - [x] EF model has no pending migration changes.
 - [x] Loopback restore drill passes and writes secret-free evidence to `docs/evidence/restore-drill-latest.json`.
@@ -105,7 +105,7 @@ This is a resume checklist, not an acceptance certificate. Tenant identifiers, c
 - [x] Record the IFRS advanced-method scope extension in `STE-METH-APP-001-addendum` for FX reserves, acquisition/goodwill, NCI, ownership changes/disposals, nested groups and asset-transfer/tax eliminations.
 - [x] Persist approved source-bound advanced-method schedules with canonical source/input digests, idempotent retry, maker/checker approval and group-revision fencing.
 - [x] Validate method-specific advanced schedule inputs at approval using the deterministic calculators and reject incomplete or contradictory JSON.
-- [x] Wire persisted schedules into guarded advanced profile execution with balanced current/comparative statement evidence, method output manifests/digests, current component and group-revision fencing, component revalidation before reviewer approval and idempotent retry; PostgreSQL coverage passes at `0f9f10c`.
+- [x] Wire persisted schedules into guarded advanced profile execution with balanced current/comparative statement evidence, method output manifests/digests, current component and group-revision fencing, component revalidation before reviewer approval and idempotent retry; PostgreSQL coverage passes at `da1f38b`.
 - [x] Add method-specific golden execution fixtures and fail-closed browser gate journeys for all five advanced profiles; keep unsupported or unproven methods visibly `REQUIRED`.
 - [x] Complete source-bound method schedules, reviewed journal evidence and execution journeys for all five advanced profiles in PostgreSQL; keep them fail-closed until browser acceptance.
 - [x] Add a scope-bound browser workflow for advanced schedule/input drafting, guarded submission, maker/checker approval and verified-execution actions; no automatic profile enablement is exposed.
