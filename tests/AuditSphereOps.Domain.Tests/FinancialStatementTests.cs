@@ -16,6 +16,7 @@ using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
+using PdfSharp.Pdf.IO;
 using WorkerHost = AuditSphereOps.Worker.Worker;
 
 namespace AuditSphereOps.Domain.Tests;
@@ -86,6 +87,27 @@ public sealed class FinancialStatementTests
     var text = string.Concat(xml.SelectMany(x => x.DescendantNodes().OfType<XText>()).Select(x => x.Value));
     Assert.Contains("=2+2", text, StringComparison.Ordinal);
     Assert.Contains("+SUM(A1:A2)", text, StringComparison.Ordinal);
+  }
+
+  [Fact]
+  public void PdfArtifact_IsDeterministicUnicodeAndInactive()
+  {
+    const string canonical = "Package: test (QAR) — Crédit\\source\n--- STATEMENT LINES ---\n" +
+      "ASSETS | CASH | 1000 | 100.000000 QAR | 1.000000 | residual=0.000000\n";
+    var first = FinancialPackageOfficeRenderer.Render(FinancialPackageArtifactVersions.Pdf, canonical);
+    var second = FinancialPackageOfficeRenderer.Render(FinancialPackageArtifactVersions.Pdf, canonical);
+
+    Assert.Equal(first.ArtifactBytes, second.ArtifactBytes);
+    Assert.Equal(first.ArtifactSha256Hex, Hashing.Sha256Hex(first.ArtifactBytes));
+    using var stream = new MemoryStream(first.ArtifactBytes);
+    using var document = PdfReader.Open(stream, PdfDocumentOpenMode.Import);
+    Assert.Single(document.Pages);
+    var pdf = System.Text.Encoding.Latin1.GetString(first.ArtifactBytes);
+    Assert.StartsWith("%PDF-", pdf, StringComparison.Ordinal);
+    Assert.DoesNotContain("/JavaScript", pdf, StringComparison.Ordinal);
+    Assert.DoesNotContain("/OpenAction", pdf, StringComparison.Ordinal);
+    Assert.DoesNotContain("/Launch", pdf, StringComparison.Ordinal);
+    Assert.DoesNotContain("/EmbeddedFile", pdf, StringComparison.Ordinal);
   }
 
   [Fact]
@@ -558,7 +580,8 @@ public sealed class FinancialStatementTests
       {
         FinancialPackageArtifactVersions.Workbook,
         FinancialPackageArtifactVersions.ControlledWorkbook,
-        FinancialPackageArtifactVersions.Word
+        FinancialPackageArtifactVersions.Word,
+        FinancialPackageArtifactVersions.Pdf
       })
       {
         var office1 = await FinancialStatementService.RenderPackageOfficeArtifactAsync(db, preparer, packageId, version);
@@ -569,7 +592,7 @@ public sealed class FinancialStatementTests
         Assert.Equal(office1.Value.ArtifactBytes, office2.Value.ArtifactBytes);
         Assert.Equal(office1.Value.ArtifactSha256Hex, Hashing.Sha256Hex(office1.Value.ArtifactBytes));
       }
-      Assert.Equal(4, await db.FinancialPackageArtifacts.CountAsync(x => x.FinancialPackageId == packageId));
+      Assert.Equal(5, await db.FinancialPackageArtifacts.CountAsync(x => x.FinancialPackageId == packageId));
 
       // Denied to client without accounting roles
       var clientUser = User(fixture.FirmId);

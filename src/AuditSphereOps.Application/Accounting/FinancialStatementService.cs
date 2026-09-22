@@ -877,8 +877,9 @@ public static class FinancialStatementService
     CancellationToken ct = default)
   {
     if (artifactVersion is not (FinancialPackageArtifactVersions.Workbook or
-        FinancialPackageArtifactVersions.ControlledWorkbook or FinancialPackageArtifactVersions.Word))
-      return CommandResult<FinancialPackageOfficeArtifact>.Fail(ErrorCodes.Accounting.PackageInvalid, "Unsupported Office artifact version.");
+        FinancialPackageArtifactVersions.ControlledWorkbook or FinancialPackageArtifactVersions.Word or
+        FinancialPackageArtifactVersions.Pdf))
+      return CommandResult<FinancialPackageOfficeArtifact>.Fail(ErrorCodes.Accounting.PackageInvalid, "Unsupported export artifact version.");
 
     var canonical = await RenderPackageArtifactAsync(db, actor, packageId, ct);
     if (!canonical.Succeeded || canonical.Value is null)
@@ -886,7 +887,12 @@ public static class FinancialStatementService
 
     var package = await db.FinancialPackages.AsNoTracking().SingleAsync(x =>
       x.Id == packageId && x.FirmId == actor.FirmId, ct);
-    var artifact = FinancialPackageOfficeRenderer.Render(artifactVersion, canonical.Value.RenderedText);
+    FinancialPackageOfficeArtifact artifact;
+    try { artifact = FinancialPackageOfficeRenderer.Render(artifactVersion, canonical.Value.RenderedText); }
+    catch (InvalidOperationException ex)
+    {
+      return CommandResult<FinancialPackageOfficeArtifact>.Fail(ErrorCodes.Accounting.PackageInvalid, ex.Message);
+    }
     var stored = await db.FinancialPackageArtifacts.SingleOrDefaultAsync(x =>
       x.FirmId == package.FirmId && x.ClientId == package.ClientId && x.EngagementId == package.EngagementId &&
       x.FinancialPackageId == package.Id && x.PackageRevision == package.Revision &&

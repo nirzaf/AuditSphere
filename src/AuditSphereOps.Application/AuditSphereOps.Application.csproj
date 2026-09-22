@@ -8,8 +8,14 @@
   <ItemGroup>
     <ProjectReference Include="..\AuditSphereOps.Domain\AuditSphereOps.Domain.csproj" />
     <PackageReference Include="DocumentFormat.OpenXml" />
+    <PackageReference Include="PDFsharp-MigraDoc" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Assets/Fonts/NotoSans-Regular.ttf"
+                      LogicalName="AuditSphereOps.Application.Assets.Fonts.NotoSans-Regular.ttf" />
   </ItemGroup>
 
 </Project>
