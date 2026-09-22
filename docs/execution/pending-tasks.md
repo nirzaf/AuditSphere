@@ -4,7 +4,7 @@
 **Authoritative specification:** [`docs/SPECIFICATION.md`](../SPECIFICATION.md) v5.0
 **Accounting module contract:** [`docs/AuditSphere_Accounting_module.md`](../AuditSphere_Accounting_module.md)
 **Requirements backlog:** [`docs/requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md`](../requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md)
-**Source implementation checkpoint:** `master@b5f7ada`
+**Source implementation checkpoint:** `master@d098d50`
 
 This is a resume checklist, not an acceptance certificate. Tenant identifiers, credentials, tokens, secret values, and private-provider URLs are deliberately absent from the public repository.
 
@@ -12,8 +12,8 @@ This is a resume checklist, not an acceptance certificate. Tenant identifiers, c
 
 - [x] .NET 10 solution builds with zero warnings/errors.
 - [x] PostgreSQL 18.6 development profile is used on loopback port 5433.
-- [x] 235/235 PostgreSQL-backed tests pass with 0 skipped at `b5f7ada`; the solution Release build passes with zero warnings/errors.
-- [x] 88 migrations are applied; latest is `20260922115824_BindM365VerificationRevisions`.
+- [x] 237/237 PostgreSQL-backed tests pass with 0 skipped at `d098d50`; the solution Release build passes with zero warnings/errors.
+- [x] 89 migrations are applied; latest is `20260922125309_AdvancedConsolidationExecution`.
 - [x] EF model has no pending migration changes.
 - [x] Loopback restore drill passes and writes secret-free evidence to `docs/evidence/restore-drill-latest.json`.
 - [x] Generated Graphify output and local agent state are ignored and removed from Git tracking.
@@ -105,7 +105,8 @@ This is a resume checklist, not an acceptance certificate. Tenant identifiers, c
 - [x] Record the IFRS advanced-method scope extension in `STE-METH-APP-001-addendum` for FX reserves, acquisition/goodwill, NCI, ownership changes/disposals, nested groups and asset-transfer/tax eliminations.
 - [x] Persist approved source-bound advanced-method schedules with canonical source/input digests, idempotent retry, maker/checker approval and group-revision fencing.
 - [x] Validate method-specific advanced schedule inputs at approval using the deterministic calculators and reject incomplete or contradictory JSON.
-- [ ] Wire persisted schedules into guarded advanced profile execution and complete statement/comparative rollforward verification; keep profiles fail-closed until then.
+- [x] Wire persisted schedules into guarded advanced profile execution with balanced current/comparative statement evidence, method output manifests/digests, current component and group-revision fencing, idempotent retry and separate reviewer approval; PostgreSQL coverage passes at `d098d50`.
+- [ ] Complete method-specific golden fixtures and browser journeys for each advanced profile intended for enablement; keep unsupported or unproven methods fail-closed.
 - [x] Add deeper accounting evidence/workpaper links and account-area UI around the typed specialist schedules.
 - [x] Add the accounting dashboard and cross-workflow navigation around accounting, roll-forward and release workflows.
 - [x] Re-run focused tests, full tests, build, migration drift and restore drill for the current coherent slice; repeat for the next slice.

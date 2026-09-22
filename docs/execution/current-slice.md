@@ -6,15 +6,15 @@ This file records observed repository state only. The authoritative build contra
 
 | Item | Observed value |
 |---|---|
-| Source implementation checkpoint | `master@b5f7ada` |
-| Remote | `origin/master` includes source checkpoint `b5f7ada` |
+| Source implementation checkpoint | `master@d098d50` |
+| Remote | `origin/master` includes source checkpoint `d098d50` |
 | SDK | .NET 10; repository solution targets `net10.0` |
 | Database | PostgreSQL 18.6 on loopback port 5433 for development only |
-| Build | Solution Release build at `b5f7ada` — passed, 0 warnings/errors |
-| Tests | 235/235 passed, 0 skipped against PostgreSQL 18.6 |
-| Migrations | 88 applied; latest `20260922115824_BindM365VerificationRevisions` |
+| Build | Solution Release build at `d098d50` — passed, 0 warnings/errors |
+| Tests | 237/237 passed, 0 skipped against PostgreSQL 18.6 |
+| Migrations | 89 applied; latest `20260922125309_AdvancedConsolidationExecution` |
 | Model drift | `dotnet ef migrations has-pending-model-changes` — no changes |
-| Restore drill | `scripts/db/restore-drill.sh` — passed; 88 migrations, accounting/group manifests and release-delivery identities reconciled |
+| Restore drill | `scripts/db/restore-drill.sh` — passed; 89 migrations, accounting/group manifests and release-delivery identities reconciled |
 | Production effects | Disabled locally; no production acceptance claimed |
 
 ## Implemented local capability
@@ -51,8 +51,8 @@ This file records observed repository state only. The authoritative build contra
 - The enabled FX profile accepts only explicit `DIRECT` rates; unsupported inverse semantics are rejected rather than silently multiplied with the wrong direction.
 - Exchange-rate sets retain immutable version metadata, source, approval and effective date ranges; each observation retains its direction, rate date and rate type, observations outside a declared range are rejected, and scope/translation approval accepts only rate types declared by the approved policy.
 - Currency remeasurement, foreign-operation translation and display-only conversion have distinct deterministic calculators. Persisted foreign-operation results retain separate foreign-exchange and rounding adjustments, and approval recomputes both from the exact source amount and approved rate; translation reserve rollforward math is available as a separate method-specific calculation core but is not enabled as a production profile without approved fixtures.
-- Advanced consolidation calculation helpers cover acquisition goodwill/bargain purchase with fair-value adjustments, NCI rollforward, ownership changes/disposals, nested double-count detection and asset-transfer/tax elimination math. Approved advanced-method schedules now persist canonical source/input digests, validate method-specific inputs at approval, support idempotent retry, maker/checker approval and group-revision fencing. A fixed candidate fixture combines the FX reserve, goodwill, NCI, nested-scope and asset-transfer results into balanced QAR current and comparative statements. IFRS method-owner scope is recorded in `STE-METH-APP-001-addendum`; the current enabled consolidation profiles remain fail-closed until guarded integration and complete statement/comparative verification are implemented.
-- The consolidation workbench shows scope-bound advanced schedule submitted/approved counts, readiness state and tooltip guidance; it does not offer an execution action while advanced profiles remain disabled.
+- Advanced consolidation calculation helpers cover acquisition goodwill/bargain purchase with fair-value adjustments, NCI rollforward, ownership changes/disposals, nested double-count detection and asset-transfer/tax elimination math. Approved advanced-method schedules now persist canonical source/input digests, validate method-specific inputs at approval, and the guarded execution path persists balanced current/comparative statements, method output manifests and hashes only after current component, group-revision and method-owner checks. Repeated execution converges on one verified row; a separate reviewer approval is required. A fixed candidate fixture combines the FX reserve, goodwill, NCI, nested-scope and asset-transfer results into balanced QAR current and comparative statements. IFRS method-owner scope is recorded in `STE-METH-APP-001-addendum`; method-specific golden fixtures and browser acceptance remain required before any advanced profile is treated as fully enabled.
+- The consolidation workbench shows scope-bound advanced schedule and verified/approved execution counts, readiness state and tooltip guidance. It does not expose a browser-side execution action; commands remain guarded and advanced live/provider acceptance is not claimed.
 - FX rate observations and translation-policy codes return controlled idempotency conflicts when repeated, rather than relying on raw database exceptions.
 - Shared reporting taxonomy overlays accept only generic industry/group scopes; a client-scoped overlay is rejected so client-specific context cannot enter a firm master template.
 - Group membership changes advance a durable group revision; consolidation scopes pin that revision and reject approval/calculation after a perimeter change while preserving historical memberships, scopes and runs.
@@ -109,7 +109,7 @@ This file records observed repository state only. The authoritative build contra
 - Period roll-forward and restatement selection loads use a generation guard and a visible loading state, lock dependent selectors during the request, and prevent older async responses from replacing a newer client/period selection; the existing draft autosave remains the source of unsaved form resilience.
 - The mapping workbench shows immutable current-vs-prior allocation changes, exact-dataset/chart/taxonomy applicability, and bounded token suggestions for unmapped accounts; candidates remain review-only, ambiguous matches are labeled, and no suggestion mutates allocations.
 - Consolidation automatic matches now require an explicit enabled elimination nature (receivable/payable, revenue/expense, dividend or investment/equity); outside-perimeter reviews remain review-only, approved group-only journals remain distinct, and the selected nature participates in the deterministic run manifest. Unsupported legacy natures fail closed.
-- The loopback restore drill now reconciles accounting package/artifact, consolidation scope/run/line and external component-pack manifests, and fails closed on duplicate release-delivery identities; the current rehearsal restored 84 migrations through `20260922104120_AdvancedConsolidationMethodSchedules`; external checkpoint custody and production RPO/RTO remain separate gates.
+- The loopback restore drill now reconciles accounting package/artifact, consolidation scope/run/line and external component-pack manifests, and fails closed on duplicate release-delivery identities; the current rehearsal restored 89 migrations through `20260922125309_AdvancedConsolidationExecution`; external checkpoint custody and production RPO/RTO remain separate gates.
 
 ## Remaining local implementation work
 
@@ -127,7 +127,8 @@ These are product gaps, not claims of production readiness:
 - [x] Record method-owner approval of the IFRS advanced-method scope in `STE-METH-APP-001-addendum`.
 - [x] Persist approved source-bound advanced-method schedules with canonical digests, idempotent retry, maker/checker approval and group-revision fencing.
 - [x] Validate method-specific advanced schedule inputs at approval using the deterministic FX, acquisition/NCI, ownership, nested-group and asset-transfer calculators.
-- [ ] Wire those schedules into guarded advanced profile execution and complete statement/comparative rollforward verification; the profiles remain deliberately fail-closed until then.
+- [x] Wire persisted schedules into guarded advanced profile execution; persist balanced current/comparative statement evidence, method output manifests and digests, enforce current component/group revision/method-owner gates, and cover idempotent execution plus separate reviewer approval in PostgreSQL.
+- [ ] Complete method-specific golden fixtures and browser journeys for every advanced profile intended to be enabled; keep unsupported or unproven methods fail-closed.
 - [x] Link accounting evidence to reviewed audit workpapers and expose account-area UI for the typed specialist schedules.
 - [x] Add the accounting dashboard and cross-workflow navigation for accounting, roll-forward and release handoffs.
 - [x] Include accounting/group dependencies in structured records exports while retaining the existing records-profile and legal-hold gates.
@@ -178,7 +179,7 @@ dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infr
 scripts/db/restore-drill.sh
 ```
 
-The restore evidence is written to [`docs/evidence/restore-drill-latest.json`](../evidence/restore-drill-latest.json). The latest rehearsal restored 88 migrations through `20260922115824_BindM365VerificationRevisions`, reconciled accounting/group manifests and found zero duplicate release-delivery keys; it is loopback-only and explicitly reports that external checkpoint custody and production RPO/RTO were not run.
+The restore evidence is written to [`docs/evidence/restore-drill-latest.json`](../evidence/restore-drill-latest.json). The latest rehearsal restored 89 migrations through `20260922125309_AdvancedConsolidationExecution`, reconciled accounting/group manifests and found zero duplicate release-delivery keys; it is loopback-only and explicitly reports that external checkpoint custody and production RPO/RTO were not run.
 
 ## Resume rule
 
