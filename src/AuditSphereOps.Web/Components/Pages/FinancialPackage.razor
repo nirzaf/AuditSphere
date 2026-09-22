@@ -173,6 +173,8 @@ else
         <dt>Artifact size</dt><dd>@_artifact.ArtifactBytes.Length bytes</dd>
       </dl>
       <button class="button" title="Download the persisted exact package artifact as text; this does not release or deliver the package." @onclick="DownloadArtifactAsync" disabled="@_artifactBusy">@(_artifactBusy ? "Preparing…" : "Download artifact")</button>
+      <button class="button" title="Create and download a formula-free XLSX bound to this exact package revision and template." @onclick="() => DownloadOfficeArtifactAsync(FinancialPackageArtifactVersions.Workbook)" disabled="@_artifactBusy">Download workbook</button>
+      <button class="button" title="Create and download a macro-free DOCX bound to this exact package revision and template." @onclick="() => DownloadOfficeArtifactAsync(FinancialPackageArtifactVersions.Word)" disabled="@_artifactBusy">Download Word document</button>
       @if (!string.IsNullOrWhiteSpace(_artifactStatus))
       {
         <p class="notice-text" role="status" aria-live="polite">@_artifactStatus</p>
@@ -297,6 +299,36 @@ else
       await JS.InvokeVoidAsync("auditSphereExports.downloadText",
         $"auditsphere-financial-package-{_package.Id:D}-r{_package.Revision}.txt", _artifact.RenderedText, "text/plain;charset=utf-8");
       _artifactStatus = "Artifact download started. Release and delivery remain separate controls.";
+    }
+    catch (JSDisconnectedException)
+    {
+      _artifactStatus = "The download acknowledgement was interrupted; reopen the page and retry.";
+    }
+    catch (JSException ex)
+    {
+      _artifactStatus = $"Download failed without changing the package: {ex.Message}";
+    }
+    finally { _artifactBusy = false; }
+  }
+
+  private async Task DownloadOfficeArtifactAsync(string artifactVersion)
+  {
+    if (_actor is null || _package is null || _artifactBusy) return;
+    _artifactBusy = true;
+    _artifactStatus = "Preparing the version-bound Office artifact…";
+    try
+    {
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var result = await FinancialStatementService.RenderPackageOfficeArtifactAsync(db, _actor, _package.Id, artifactVersion);
+      if (!result.Succeeded || result.Value is null)
+      {
+        _artifactStatus = result.Message ?? "Office artifact generation was blocked.";
+        return;
+      }
+      await JS.InvokeVoidAsync("auditSphereExports.downloadBytes",
+        $"auditsphere-financial-package-{_package.Id:D}-r{_package.Revision}.{result.Value.FileExtension}",
+        result.Value.ArtifactBytes, result.Value.ContentType);
+      _artifactStatus = $"{result.Value.FileExtension.ToUpperInvariant()} download started. Release and delivery remain separate controls.";
     }
     catch (JSDisconnectedException)
     {

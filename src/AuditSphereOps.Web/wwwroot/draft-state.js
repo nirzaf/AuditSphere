@@ -8,6 +8,15 @@ window.auditSphereExports.downloadText = (filename, text, contentType = 'text/pl
   anchor.click();
   setTimeout(() => URL.revokeObjectURL(url), 0);
 };
+window.auditSphereExports.downloadBytes = (filename, bytes, contentType) => {
+  const blob = new Blob([bytes], { type: contentType });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+};
 
 (() => {
   const root = window.auditSphereDrafts = window.auditSphereDrafts || {};

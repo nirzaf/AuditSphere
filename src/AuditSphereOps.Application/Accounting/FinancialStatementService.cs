@@ -869,6 +869,63 @@ public static class FinancialStatementService
     return CommandResult<FinancialStatementPackageArtifact>.Ok(artifact with { ArtifactId = stored.Id });
   }
 
+  public static async Task<CommandResult<FinancialPackageOfficeArtifact>> RenderPackageOfficeArtifactAsync(
+    IAuditSphereDbContext db,
+    ActorContext actor,
+    Guid packageId,
+    string artifactVersion,
+    CancellationToken ct = default)
+  {
+    if (artifactVersion is not (FinancialPackageArtifactVersions.Workbook or FinancialPackageArtifactVersions.Word))
+      return CommandResult<FinancialPackageOfficeArtifact>.Fail(ErrorCodes.Accounting.PackageInvalid, "Unsupported Office artifact version.");
+
+    var canonical = await RenderPackageArtifactAsync(db, actor, packageId, ct);
+    if (!canonical.Succeeded || canonical.Value is null)
+      return CommandResult<FinancialPackageOfficeArtifact>.Fail(canonical.ErrorCode!, canonical.Message!);
+
+    var package = await db.FinancialPackages.AsNoTracking().SingleAsync(x =>
+      x.Id == packageId && x.FirmId == actor.FirmId, ct);
+    var artifact = FinancialPackageOfficeRenderer.Render(artifactVersion, canonical.Value.RenderedText);
+    var stored = await db.FinancialPackageArtifacts.SingleOrDefaultAsync(x =>
+      x.FirmId == package.FirmId && x.ClientId == package.ClientId && x.EngagementId == package.EngagementId &&
+      x.FinancialPackageId == package.Id && x.PackageRevision == package.Revision &&
+      x.PackageGeneration == package.Generation && x.PackageHash == package.CalculationHash &&
+      x.ArtifactVersion == artifactVersion, ct);
+    if (stored is null)
+    {
+      stored = new FinancialPackageArtifact
+      {
+        Id = Guid.CreateVersion7(), FirmId = package.FirmId, ClientId = package.ClientId,
+        EngagementId = package.EngagementId, FinancialPackageId = package.Id,
+        PackageRevision = package.Revision, PackageGeneration = package.Generation,
+        PackageHash = package.CalculationHash, ArtifactVersion = artifactVersion,
+        FrameworkVersion = package.Framework, TemplateVersion = package.TemplateVersion,
+        ArtifactSha256Hex = artifact.ArtifactSha256Hex, ArtifactBytes = artifact.ArtifactBytes,
+        CreatedByUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
+      };
+      db.FinancialPackageArtifacts.Add(stored);
+      try
+      {
+        await db.SaveChangesAsync(ct);
+      }
+      catch (DbUpdateException)
+      {
+        return CommandResult<FinancialPackageOfficeArtifact>.Fail(ErrorCodes.IdempotencyConflict,
+          "The exact Office artifact was rendered concurrently; reload and retry.");
+      }
+    }
+    else if (stored.ArtifactSha256Hex != artifact.ArtifactSha256Hex ||
+             !stored.ArtifactBytes.SequenceEqual(artifact.ArtifactBytes) ||
+             !string.Equals(stored.FrameworkVersion, package.Framework, StringComparison.Ordinal) ||
+             !string.Equals(stored.TemplateVersion, package.TemplateVersion, StringComparison.Ordinal))
+    {
+      return CommandResult<FinancialPackageOfficeArtifact>.Fail(ErrorCodes.StaleRevision,
+        "The stored Office artifact does not match the current deterministic export.");
+    }
+
+    return CommandResult<FinancialPackageOfficeArtifact>.Ok(artifact with { ArtifactId = stored.Id });
+  }
+
   private static async Task<CommandResult> AuthorizeAsync(
     IAuditSphereDbContext db, ActorContext actor, Guid firmId, Guid clientId, Guid engagementId,
     IReadOnlyList<string> roles, CancellationToken ct) =>

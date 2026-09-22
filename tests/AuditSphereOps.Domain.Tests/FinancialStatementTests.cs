@@ -1,3 +1,5 @@
+using System.IO.Compression;
+using System.Xml.Linq;
 using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Audit;
@@ -29,6 +31,35 @@ public sealed class FinancialStatementTests
     : IDbContextFactory<AuditSphereDbContext>
   {
     public AuditSphereDbContext CreateDbContext() => new(options);
+  }
+
+  [Fact]
+  public void OfficeArtifacts_AreDeterministicFormulaFreeAndMacroFree()
+  {
+    const string canonical = "Package: test\nDisclosure: =2+2\nReference: +SUM(A1:A2)\n";
+    foreach (var version in new[] { FinancialPackageArtifactVersions.Workbook, FinancialPackageArtifactVersions.Word })
+    {
+      var first = FinancialPackageOfficeRenderer.Render(version, canonical);
+      var second = FinancialPackageOfficeRenderer.Render(version, canonical);
+      Assert.Equal(first.ArtifactBytes, second.ArtifactBytes);
+      Assert.Equal(first.ArtifactSha256Hex, Hashing.Sha256Hex(first.ArtifactBytes));
+
+      using var stream = new MemoryStream(first.ArtifactBytes);
+      using var archive = new ZipArchive(stream, ZipArchiveMode.Read);
+      Assert.DoesNotContain(archive.Entries, x =>
+        x.FullName.Contains("externalLinks", StringComparison.OrdinalIgnoreCase) ||
+        x.FullName.Contains("vbaProject", StringComparison.OrdinalIgnoreCase));
+      var xml = archive.Entries.Where(x => x.FullName.EndsWith(".xml", StringComparison.OrdinalIgnoreCase))
+        .Select(x =>
+        {
+          using var reader = x.Open();
+          return XDocument.Load(reader);
+        }).ToList();
+      Assert.DoesNotContain(xml.SelectMany(x => x.Descendants()), x => x.Name.LocalName == "f");
+      var text = string.Concat(xml.SelectMany(x => x.DescendantNodes().OfType<XText>()).Select(x => x.Value));
+      Assert.Contains("=2+2", text, StringComparison.Ordinal);
+      Assert.Contains("+SUM(A1:A2)", text, StringComparison.Ordinal);
+    }
   }
 
   [Fact]
@@ -497,6 +528,18 @@ public sealed class FinancialStatementTests
       Assert.Equal(artifact1.Value.ArtifactSha256Hex, artifact2.Value!.ArtifactSha256Hex);
       Assert.Equal(artifact1.Value.ArtifactBytes, artifact2.Value.ArtifactBytes);
 
+      foreach (var version in new[] { FinancialPackageArtifactVersions.Workbook, FinancialPackageArtifactVersions.Word })
+      {
+        var office1 = await FinancialStatementService.RenderPackageOfficeArtifactAsync(db, preparer, packageId, version);
+        var office2 = await FinancialStatementService.RenderPackageOfficeArtifactAsync(db, reviewer, packageId, version);
+        Assert.True(office1.Succeeded, office1.Message);
+        Assert.True(office2.Succeeded, office2.Message);
+        Assert.Equal(office1.Value!.ArtifactId, office2.Value!.ArtifactId);
+        Assert.Equal(office1.Value.ArtifactBytes, office2.Value.ArtifactBytes);
+        Assert.Equal(office1.Value.ArtifactSha256Hex, Hashing.Sha256Hex(office1.Value.ArtifactBytes));
+      }
+      Assert.Equal(3, await db.FinancialPackageArtifacts.CountAsync(x => x.FinancialPackageId == packageId));
+
       // Denied to client without accounting roles
       var clientUser = User(fixture.FirmId);
       db.Users.Add(clientUser);
@@ -507,6 +550,10 @@ public sealed class FinancialStatementTests
       var denied = await FinancialStatementService.RenderPackageArtifactAsync(db, clientActor, packageId);
       Assert.False(denied.Succeeded);
       Assert.Equal(ErrorCodes.ScopeDenied, denied.ErrorCode);
+      var deniedOffice = await FinancialStatementService.RenderPackageOfficeArtifactAsync(
+        db, clientActor, packageId, FinancialPackageArtifactVersions.Workbook);
+      Assert.False(deniedOffice.Succeeded);
+      Assert.Equal(ErrorCodes.ScopeDenied, deniedOffice.ErrorCode);
     }
 
     var renderFactory = new OperationContextFactory(new TestDbContextFactory(pg.Options));
