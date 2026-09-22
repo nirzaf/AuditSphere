@@ -6,8 +6,8 @@ This file records observed repository state only. The authoritative build contra
 
 | Item | Observed value |
 |---|---|
-| Source implementation checkpoint | `codex/m365-simple-onboarding@da1f38b` |
-| Remote | `origin/codex/m365-simple-onboarding` includes source checkpoint `da1f38b` |
+| Source implementation checkpoint | `codex/m365-simple-onboarding@ac3e0f1` |
+| Remote | `origin/codex/m365-simple-onboarding` includes source checkpoint `ac3e0f1` |
 | SDK | .NET 10; repository solution targets `net10.0` |
 | Database | PostgreSQL 18.6 on loopback port 5433 for development only |
 | Build | Web Release build at `da1f38b` — passed, 0 warnings/errors |
