@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @inject CurrentActorResolver ActorResolver
 @inject IDbContextFactory<AuditSphereDbContext> DbFactory
+@using AuditSphereOps.Domain.Shared
 
 <PageTitle>Financial package — management review</PageTitle>
 <a class="back-link" href="/portal">← Back to client portal</a>
@@ -100,13 +101,27 @@ else
 
   private async Task LoadAsync()
   {
-    if (_actor is null) return;
-    await using var db = await DbFactory.CreateDbContextAsync();
-    var view = await FinancialPackageReviewService.GetClientViewAsync(db, _actor, PackageId);
-    if (view.Succeeded)
-      _view = view.Value;
-    else if (_result is null)
+    _view = null;
+    _loadError = null;
+    _loading = true;
+    try
+    {
+      if (_actor is null)
+      {
+        _loadError = "This package is not available in the current client scope.";
+        return;
+      }
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var view = await FinancialPackageReviewService.GetClientViewAsync(db, _actor, PackageId);
+      if (view.Succeeded && view.Value is not null)
+      {
+        _view = view.Value;
+        return;
+      }
+      _actor = null;
       _loadError = view.Message;
+    }
+    finally { _loading = false; }
   }
 
   private async Task RecordAsync()
@@ -119,6 +134,17 @@ else
       _result = await FinancialPackageReviewService.RecordAsync(db, _actor,
         new FinancialPackageReviewRequest(PackageId, FinancialPackageReviewStages.ManagementApproval,
           _decision, FinancialPackageReviewEvidenceModes.SignedIn, _evidenceReference, _comment));
+      if (!_result.Succeeded && _result.ErrorCode is (ErrorCodes.ScopeDenied or ErrorCodes.GenerationStale))
+      {
+        _actor = null;
+        _view = null;
+        _result = null;
+        _decision = FinancialPackageReviewDecisions.Approved;
+        _evidenceReference = string.Empty;
+        _comment = string.Empty;
+        _loadError = "Your access changed. Sign in again to continue.";
+        return;
+      }
       if (_result.Succeeded)
       {
         _evidenceReference = string.Empty;

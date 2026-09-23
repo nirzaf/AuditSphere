@@ -1606,6 +1606,28 @@ public sealed class ClientAccountingTests
       Assert.False(otherClient.Succeeded);
       Assert.Equal(ErrorCodes.ScopeDenied, otherClient.ErrorCode);
     }
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var grant = await db.RoleGrants.SingleAsync(x => x.UserId == clientUser.Id &&
+        x.Role == "ClientUser" && x.RevokedAt == null);
+      grant.RevokedAt = DateTimeOffset.UtcNow;
+      var currentUser = await db.Users.SingleAsync(x => x.Id == clientUser.Id);
+      currentUser.SessionEpoch++;
+      await db.SaveChangesAsync();
+    }
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var staleDecision = await FinancialPackageReviewService.RecordAsync(db, actor,
+        new FinancialPackageReviewRequest(packageA, FinancialPackageReviewStages.ManagementApproval,
+          FinancialPackageReviewDecisions.ChangesRequired, FinancialPackageReviewEvidenceModes.SignedIn,
+          "stale-client-session", "Must not persist after grant revocation."));
+      Assert.False(staleDecision.Succeeded);
+      Assert.Equal(ErrorCodes.GenerationStale, staleDecision.ErrorCode);
+      Assert.Single(await db.FinancialPackageReviewDecisions.AsNoTracking()
+        .Where(x => x.FinancialPackageId == packageA).ToListAsync());
+    }
   }
 
   [Fact]
