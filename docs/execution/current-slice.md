@@ -6,16 +6,28 @@ This file records observed repository state only. The authoritative build contra
 
 | Item | Observed value |
 |---|---|
-| Source/test checkpoint | `master@6a81076e60a0608a6624b534425f147272d771a8`; client financial-package projections and review forms clear after scope revocation or stale-session denial |
-| Remote | `origin/master` confirmed to equal `6a81076e60a0608a6624b534425f147272d771a8` at 2026-09-23 18:27 UTC |
+| Source/test checkpoint | `master@ba4f81a08b48a006cbefdeb266c961cfee7cea84`; ReviewPoint revocation clears protected state and AccountingRecords uses a stable actor in scoped queries |
+| Remote | `origin/master` confirmed to equal `ba4f81a08b48a006cbefdeb266c961cfee7cea84` at 2026-09-23 19:33 UTC |
 | SDK | .NET 10; repository solution targets `net10.0` |
 | Database | PostgreSQL 18.6 on loopback port 5433 for development only |
-| Build | Full solution Release build for `6a81076` — passed, 0 warnings/errors |
-| Tests | Fresh discovery: 311 (Domain 259, API 6, E2E 46). Separate project runs passed Domain 259/259 (8m23s), API 6/6, and E2E 46/46, 0 skips; focused client-package route/revocation E2E cases passed 2/2 and the stale-generation/no-write Domain regression passed 1/1. During stabilization, one full E2E run had an intermittent failure in an existing preparer/reviewer browser journey; its focused retry passed, a network-idle wait was added, and the final full E2E run passed 46/46. The aggregate solution test command was not run. |
+| Build | Full solution Release build for `ba4f81a` — passed, 0 warnings/errors |
+| Tests | Fresh discovery: 312 (Domain 259, API 6, E2E 47). Aggregate solution run passed Domain 259/259, API 6/6 and E2E 47/47; 312 total, 0 skips. The focused ReviewPoint pair passed 2/2 and the accounting-record navigation regression passed 1/1. |
 | Migrations | Added `20260923145244_ProposalPreparedByAttribution`; prior-schema PostgreSQL regression upgraded a synthetic legacy proposal and preserved its values with preparer left unknown. The existing local `auditsphere` database remains at its 91-migration baseline. |
-| Model drift | `dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Web --no-build --configuration Release` — no pending model changes for tested `6a81076` source; no schema changes in this slice |
+| Model drift | `dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Web` — no pending model changes for tested `ba4f81a` source; no schema changes in these UI/test slices |
 | Restore drill | Passed at `2026-09-23T15:20:43Z` on loopback; restored the existing `auditsphere` source at 91 migrations through `20260922140527_M365InvitationEvidenceAction`. Evidence was redirected to `/tmp`; the check does not apply the new proposal migration to that development database. |
 | Production effects | Disabled locally; no production acceptance claimed |
+
+## AS-PAR-002 — Review-point revocation state clearing (`07b0e44`)
+
+- A scope-denied or stale-generation review-point disposition now clears the protected point, status badge and staff actor context. The PostgreSQL-backed browser case revokes the exact synthetic grant while the page remains open, invokes Clear, verifies private comment/blocking state and actions disappear, and confirms no disposition was persisted.
+- Added `AS-PAR-002-REV-REVOKE-01`; the CI expected discovery count increased to 312. Focused ReviewPoint journeys passed 2/2. The first full E2E run exposed a separate existing AccountingRecords navigation failure, fixed in the follow-up checkpoint below.
+- Commit `07b0e447854eb83b53cae937f14beae1b0639efa` was pushed to `master`; `git ls-remote` confirmed it at 2026-09-23 19:33 UTC. No migration, tenant operation or production effect.
+
+## AS-PAR-002 — Stable actor capture in accounting records (`ba4f81a`)
+
+- `AccountingRecords.LoadCurrentQueueAsync` now uses its resolved actor local for authorization and every EF predicate rather than capturing mutable component state, preventing an overlapping in-app route load from nulling a query parameter.
+- The existing `AS-PAR-002-ACCT-RECORD-TABS-01` browser case passed 1/1 after the fix. Full solution Release build passed with 0 warnings/errors; solution tests passed 312/312 (Domain 259, API 6, E2E 47; 0 skipped); EF reports no pending model changes. Fresh discovery reconciles to 312.
+- Commit `ba4f81a08b48a006cbefdeb266c961cfee7cea84` was pushed and remote-confirmed at 2026-09-23 19:33 UTC. Hosted GitHub CI was not observed. No migration, tenant operation or production effect. AS-PAR-002 remains partial.
 
 ## AS-PAR-002 — Audit-plan engagement scope and revocation (`eee833d`)
 
