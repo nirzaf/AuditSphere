@@ -838,17 +838,32 @@ public sealed class ClientScopeJourneyTests
 
   [Fact]
   [Trait("CaseId", "AS-PAR-002-ENG-01")]
-  public async Task EngagementDetailDeniesSiblingScopeBeforeLoadingClientMetadata()
+  public async Task EngagementDetailDeniesUnassignedScopeAndClearsOnRouteChange()
   {
     await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "AS-PAR-002-ENG-01");
     var viewer = PbcSeed.User(host.Fixture.FirmId, "Staff");
     var unrelatedClientId = Guid.NewGuid();
+    var unrelatedEngagementId = Guid.NewGuid();
+    const string unrelatedClientName = "SYN-PAR-002-ENG-PRIVATE-CLIENT";
+    const string unrelatedServiceRoute = "SYN-PAR-002-ENG-PRIVATE-SERVICE";
+    const string privateHoldReason = "SYN-PAR-002-ENG-PRIVATE-HOLD";
     await using (var db = host.CreateDbContext())
     {
       db.PracticeClients.Add(new PracticeClient
       {
         Id = unrelatedClientId, FirmId = host.Fixture.FirmId,
-        LegalName = "Synthetic unrelated engagement client", CreatedAt = DateTimeOffset.UtcNow
+        LegalName = unrelatedClientName, CreatedAt = DateTimeOffset.UtcNow
+      });
+      db.Engagements.Add(new Engagement
+      {
+        Id = unrelatedEngagementId, FirmId = host.Fixture.FirmId,
+        PracticeClientId = unrelatedClientId, ServiceRoute = unrelatedServiceRoute,
+        Status = "Active", CreatedAt = DateTimeOffset.UtcNow
+      });
+      db.EngagementHolds.Add(new EngagementHold
+      {
+        Id = Guid.NewGuid(), FirmId = host.Fixture.FirmId, EngagementId = host.Fixture.EngagementId,
+        HoldKind = "Synthetic review", Reason = privateHoldReason, CreatedAt = DateTimeOffset.UtcNow
       });
       db.Users.Add(viewer);
       db.RoleGrants.Add(PbcSeed.Grant(host.Fixture.FirmId, viewer, "Manager", clientId: unrelatedClientId));
@@ -864,7 +879,26 @@ public sealed class ClientScopeJourneyTests
     var staffConnected = WaitForCircuitConnectionAsync(staffPage, staffDiagnostics);
     await staffPage.GotoAsync(SignInUrl(host.StaffUrl, $"/app/engagements/{host.Fixture.EngagementId:D}"));
     await staffPage.GetByText("PBC TEST CLIENT", new() { Exact = true }).WaitForAsync();
+    await staffPage.GetByText(privateHoldReason, new() { Exact = true }).WaitForAsync();
     await staffConnected;
+    var documentToken = Guid.NewGuid().ToString("N");
+    await staffPage.EvaluateAsync("token => window.__engagementRouteTestToken = token", documentToken);
+    await staffPage.EvaluateAsync("path => { history.pushState({}, '', path); dispatchEvent(new PopStateEvent('popstate')); }",
+      $"/app/engagements/{unrelatedEngagementId:D}");
+    await staffPage.GetByRole(AriaRole.Heading, new() { Name = "Engagement unavailable" }).WaitForAsync();
+    var transitionedBody = await staffPage.Locator("body").InnerTextAsync();
+    Assert.DoesNotContain("PBC TEST CLIENT", transitionedBody);
+    Assert.DoesNotContain("Professional Work Blocked", transitionedBody);
+    Assert.DoesNotContain(privateHoldReason, transitionedBody);
+    Assert.DoesNotContain(unrelatedClientName, transitionedBody);
+    Assert.DoesNotContain(unrelatedServiceRoute, transitionedBody);
+    Assert.Equal(documentToken, await staffPage.EvaluateAsync<string>("window.__engagementRouteTestToken"));
+
+    await staffPage.EvaluateAsync("path => { history.pushState({}, '', path); dispatchEvent(new PopStateEvent('popstate')); }",
+      $"/app/engagements/{host.Fixture.EngagementId:D}");
+    await staffPage.GetByText("PBC TEST CLIENT", new() { Exact = true }).WaitForAsync();
+    await staffPage.GetByText(privateHoldReason, new() { Exact = true }).WaitForAsync();
+    Assert.DoesNotContain(staffDiagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
 
     await using var viewerContext = await browser.NewContextAsync();
     var page = await viewerContext.NewPageAsync();
