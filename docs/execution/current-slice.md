@@ -6,12 +6,12 @@ This file records observed repository state only. The authoritative build contra
 
 | Item | Observed value |
 |---|---|
-| Source implementation checkpoint | `master@00d7bd0985af3d4cdd49fceedfc05be7aeb0ccfd`; implementation/test/CI changes committed |
-| Remote | `origin/master` confirmed to equal `00d7bd0985af3d4cdd49fceedfc05be7aeb0ccfd` at 2026-09-23 11:52 UTC |
+| Source implementation checkpoint | `master@9562e38e716462ca8dad76ad86b566fa9ed47fbb`; test/CI changes committed |
+| Remote | `origin/master` confirmed to equal `9562e38e716462ca8dad76ad86b566fa9ed47fbb` at 2026-09-23 12:12 UTC |
 | SDK | .NET 10; repository solution targets `net10.0` |
 | Database | PostgreSQL 18.6 on loopback port 5433 for development only |
-| Build | Full solution Release build for source checkpoint `00d7bd0` — passed, 0 warnings/errors |
-| Tests | Fresh discovery: 299 (Domain 257, API 6, E2E 36). Full Playwright E2E run passed 36/36, 0 skipped. Domain 257/257 and API 6/6 last passed at source checkpoint `65bcc63`; those projects were unchanged and not rerun in this Razor-only slice. |
+| Build | Full solution Release build for source checkpoint `9562e38` — passed, 0 warnings/errors |
+| Tests | Fresh discovery: 300 (Domain 257, API 6, E2E 37). Full Playwright E2E run passed 37/37, 0 skipped. Domain 257/257 and API 6/6 last passed at source checkpoint `65bcc63`; this test-only slice did not change those projects. |
 | Migrations | Previous recorded baseline: 91 applied through `20260922140527_M365InvitationEvidenceAction`; no schema migration in these slices |
 | Model drift | `dotnet ef migrations has-pending-model-changes --no-build --configuration Release` — no pending model changes after this slice on 2026-09-23 |
 | Restore drill | Previously passed at `2026-09-22T18:52:20Z`; 91 migrations, accounting/group manifests and release-delivery identities reconciled; not rerun during test recovery |
@@ -330,6 +330,14 @@ Implemented and pushed to `origin/master` in source checkpoint `00d7bd0985af3d4c
 - The task projection now admits client-level tasks only under a client grant, and engagement tasks only when the engagement is in the actor’s effective scope and its stored client relationship matches.
 - Added `AS-PAR-002-ACCT-WORKSPACE-SIBLING-TASK-01`. It reproduces the synthetic sibling assignee disclosure before the filter and verifies only the assigned engagement’s task summary is visible after the fix. Existing accounting-workspace scope regression also passed.
 - Verification: full Release solution build passed with 0 warnings/errors; fresh discovery is 299 (Domain 257, API 6, E2E 36); complete Playwright E2E suite passed 36/36, 0 skipped. Domain 257/257 and API 6/6 last passed at source checkpoint `65bcc63` and were not rerun because this slice changes only the Razor query, E2E test and CI expected count. EF reports no pending model changes; `git diff --check` passed. CI expected discovery is 299. No schema migration, tenant operation or production effect. AS-PAR-002 remains partial.
+
+## AS-PAR-002 — Journal detail route-transition regression
+
+Added browser coverage and pushed test/CI checkpoint `9562e38e716462ca8dad76ad86b566fa9ed47fbb`; remote equality was verified at 2026-09-23 12:12 UTC.
+
+- Added `AS-PAR-002-JOURNAL-STALE-ROUTE-01`: while the same browser document is active, navigate from an authorized synthetic journal to an unavailable journal ID. The unavailable state must not retain the previous journal number or private line code.
+- The test confirmed the in-app transition stayed within the same document and rendered the non-disclosing unavailable state with no prior journal details. No runtime change was required for this slice.
+- Verification: full Release solution build passed with 0 warnings/errors; fresh solution discovery is 300 (Domain 257, API 6, E2E 37); full Playwright E2E suite passed 37/37, 0 skipped. Domain 257/257 and API 6/6 last passed at `65bcc63`; neither project changed in this test-only slice. EF reports no pending model changes; `git diff --check` passed. CI expected discovery is 300. No schema migration, tenant operation or production effect. AS-PAR-002 remains partial.
 
 ## Remaining local implementation work
 
