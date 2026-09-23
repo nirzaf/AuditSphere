@@ -6,16 +6,23 @@ This file records observed repository state only. The authoritative build contra
 
 | Item | Observed value |
 |---|---|
-| Source implementation checkpoint | `master@5a03350f054fbdb09d8761d546fec106974a89e0`; client portal PBC recipient-route regression committed |
-| Remote | `origin/master` confirmed to equal `5a03350f054fbdb09d8761d546fec106974a89e0` at 2026-09-23 13:57 UTC |
+| Source implementation checkpoint | `master@5fd9f6971305f3999e2d02347549fda0a3c6ec24`; financial-package route-isolation characterization committed |
+| Remote | `origin/master` confirmed to equal `5fd9f6971305f3999e2d02347549fda0a3c6ec24` at 2026-09-23 14:20 UTC |
 | SDK | .NET 10; repository solution targets `net10.0` |
 | Database | PostgreSQL 18.6 on loopback port 5433 for development only |
-| Build | Full solution Release build for test checkpoint `5a03350` — passed, 0 warnings/errors |
-| Tests | Discovery: 303 (Domain 257, API 6, E2E 40). Focused client route test 1/1 and full standalone Playwright E2E 40/40 passed, 0 skipped. Domain 257/257 and API 6/6 passed in the preceding full-solution run; the latest change only adds browser coverage and CI/docs counts. |
+| Build | Full solution Release build for test checkpoint `5fd9f69` — passed, 0 warnings/errors |
+| Tests | Discovery: 304 (Domain 257, API 6, E2E 41). Focused package-route test 1/1; standalone E2E 41/41; combined solution Domain 257/257, API 6/6 and E2E 41/41; 0 skipped. |
 | Migrations | Previous recorded baseline: 91 applied through `20260922140527_M365InvitationEvidenceAction`; no schema migration in these slices |
-| Model drift | `dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Web --no-build --configuration Release` — no pending model changes after test checkpoint `5a03350` on 2026-09-23 |
+| Model drift | `dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Web --no-build --configuration Release` — no pending model changes after test checkpoint `5fd9f69` on 2026-09-23 |
 | Restore drill | Previously passed at `2026-09-22T18:52:20Z`; 91 migrations, accounting/group manifests and release-delivery identities reconciled; not rerun during test recovery |
 | Production effects | Disabled locally; no production acceptance claimed |
+
+## AS-PAR-002 financial-package route isolation
+
+- Added `AS-PAR-002-FS-STALE-ROUTE-01`: a same-document navigation from an authorized synthetic package to an unavailable package ID must hide the prior package ID and statement totals and show the generic unavailable state.
+- The characterization passed 1/1 before any runtime edits, confirming that the existing component clears the previous package projection on this route transition; no runtime change was needed.
+- Test/CI/docs commit `5fd9f6971305f3999e2d02347549fda0a3c6ec24` was pushed to `master` and confirmed with `git ls-remote` at 2026-09-23 14:20 UTC. Discovery reconciles 257 Domain + 6 API + 41 E2E = 304; standalone E2E passed 41/41 (4m39s), combined solution passed 257/257 Domain, 6/6 API and 41/41 E2E (5m23s for E2E), no skips. Release build passed with 0 warnings/errors; the CI discovery rule matched 304; EF reports no pending model changes.
+- No schema migration, tenant operation or production effect. AS-PAR-002 remains partial; continue the whole-application route/query/search/count/export/direct-command audit.
 
 ## AS-PAR-002 client portal PBC recipient-route isolation
 
