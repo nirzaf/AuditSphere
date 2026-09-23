@@ -13,9 +13,9 @@ dotnet build AuditSphereOps.slnx --no-restore --configuration Release
 dotnet test AuditSphereOps.slnx --no-build --no-restore --configuration Release --list-tests
 ```
 
-The tables below preserve the original **246 Domain cases**, representing **235 test methods: 229 facts and 6 theories with 17 data rows**, in **37 classes across 36 test-source files**. They belong to `AuditSphereOps.Domain.Tests`, the original [Domain test project](../../tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj). Fresh solution discovery on 2026-09-23 found **294 cases** across Domain 257, [API 6](../../tests/AuditSphereOps.Api.Tests/PbcHttpTests.cs), and [Playwright E2E 31](../../tests/AuditSphereOps.E2E.Tests). The Domain suite has grown by 11 cases since the detailed baseline; the API/E2E scenarios use `CaseId` traits. These additions are not yet reconciled into the original category tables below.
+The tables below preserve the original **246 Domain cases**, representing **235 test methods: 229 facts and 6 theories with 17 data rows**, in **37 classes across 36 test-source files**. They belong to `AuditSphereOps.Domain.Tests`, the original [Domain test project](../../tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj). Fresh solution discovery on 2026-09-23 found **295 cases** across Domain 257, [API 6](../../tests/AuditSphereOps.Api.Tests/PbcHttpTests.cs), and [Playwright E2E 32](../../tests/AuditSphereOps.E2E.Tests). The Domain suite has grown by 11 cases since the detailed baseline; the API/E2E scenarios use `CaseId` traits. These additions are not yet reconciled into the original category tables below.
 
-The 246-case detailed tables are a historical Domain baseline, not the current solution total. The current inventory includes dedicated API and Playwright projects; the [execution ledger](../execution/status.json) records the latest local 294/294 Release pass separately from hosted CI and live acceptance.
+The 246-case detailed tables are a historical Domain baseline, not the current solution total. The current inventory includes dedicated API and Playwright projects; the [execution ledger](../execution/status.json) records the latest local 295/295 Release pass separately from hosted CI and live acceptance.
 
 | Primary category | Methods | Expanded cases |
 |---|---:|---:|
@@ -417,7 +417,7 @@ Controlling sources: [system specification §§44–47](../SPECIFICATION.md#s44)
 | Accounting profiles, imports, valuation, reconciliation, close and groups | ACC-014–075 | Partial: substantial service/calculation tests; full UI and independent source-to-statement reconciliation still needed. |
 | Native audit planning/program/fieldwork and durable drafts | AUD-005–019 | Partial: service persistence covered; disconnect/reconnect and concurrent browser editing proposed. |
 | Scope constraints, immutable history, rollback (§44.2 NT-11/12/14) | ACC-002–006, AUD-020–031, INT-004–008,018 | Covered for tested paths; does not imply every table/action covered. |
-| Role revoke during an existing circuit (NT-03), client switch (NT-08), pooled scope (NT-16) | SEC-003–007, M365-002 | Partial: command authority covered; actual circuit/browser behavior proposed. |
+| Role revoke during an existing circuit (NT-03), client switch (NT-08), pooled scope (NT-16) | SEC-003–007, M365-002 | Partial: `AS-PAR-002-JOURNAL-STALE-01` verifies reviewer-action removal and stale-post denial; broader route/circuit coverage remains. |
 | HTTP origin and bounded PBC transfer (NT-04/07/17) | API `PROP-API-01`–`04`; Web endpoint code | Covered for unauthenticated/forged-origin denial, invalid/over-limit chunks, duplicate handling, scoped exact-byte download and safe headers; broader adversarial cases remain. |
 | XLSX and exact money (NT-09/10) | ACC-007–013,078–084 | Partial: add archive bomb/external relationship, culture and resource-bound matrices. |
 | Leases, uncertain effects and recovery (NT-15/18) | INT-006–029, PLAT-015–027 | Partial: restore-behind-external-state and separate custody remain external. |
@@ -441,6 +441,7 @@ Controlling sources: [system specification §§44–47](../SPECIFICATION.md#s44)
 | PROP-E2E-01 | UI/E2E | TB/GL → adjustment → reviewed package with exact expected balances and artifact lineage. | Implemented locally; scenario-specific assertions are in test source. |
 | PROP-E2E-02 | UI/E2E | Client/engagement scope isolation, including unrelated records with shared account codes. | Implemented locally; see tagged client-scope journey; delayed-read/draft variants remain. |
 | PROP-E2E-03 | UI/E2E | Preparer/reviewer roles, self-review and authorization boundaries. | Implemented locally; broader multi-reviewer and revision-change variants remain. |
+| AS-PAR-002-JOURNAL-STALE-01 | UI/E2E | Audited reviewer-grant revocation removes the post action; a stale-session post is denied and the journal stays Draft while the retained Staff grant allows reading. | Implemented locally in [FinancialArtifactJourneyTests.cs](../../tests/AuditSphereOps.E2E.Tests/FinancialArtifactJourneyTests.cs); live Entra/session revocation acceptance remains separate. |
 | PROP-E2E-04 | UI/E2E | Audit planning/fieldwork review and durable workpaper behavior across reconnect. | Implemented locally; see tagged audit journey. |
 | PROP-E2E-05 | UI/E2E | Setup draft resumes without implying Microsoft verification. | Implemented locally; invitation and live SSO/revocation acceptance remain separate. |
 | PROP-E2E-06 | UI/E2E | PBC upload/worker reconciliation and exact scoped download. | Implemented locally; see tagged PBC journey. |
@@ -464,7 +465,7 @@ Controlling sources: [system specification §§44–47](../SPECIFICATION.md#s44)
 4. Add new IDs without renumbering existing ones. Update requirement status only when assertions/evidence justify it.
 5. Keep proposed cases outside the discovered-case total. Record execution evidence separately from discovery.
 
-Validation of the historical inventory reconciled all 246 rows and 235 method identities against source attributes, including class/file mappings, theory multiplicities and full arguments, observed traits, custom display names, unique IDs and category totals. Current solution discovery on 2026-09-23 independently reconciled 257 Domain + 6 API + 31 E2E = 294 cases; all three projects passed in the full local Release run with 0 skipped. The newer cases are source-identified but their per-category catalog reconciliation remains follow-up work; this does not imply live tenant or production acceptance.
+Validation of the historical inventory reconciled all 246 rows and 235 method identities against source attributes, including class/file mappings, theory multiplicities and full arguments, observed traits, custom display names, unique IDs and category totals. Current solution discovery on 2026-09-23 independently reconciled 257 Domain + 6 API + 32 E2E = 295 cases; all three projects passed in the full local Release run with 0 skipped. The newer cases are source-identified but their per-category catalog reconciliation remains follow-up work; this does not imply live tenant or production acceptance.
 
 ## Source references
 

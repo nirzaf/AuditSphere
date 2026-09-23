@@ -6,14 +6,14 @@ This file records observed repository state only. The authoritative build contra
 
 | Item | Observed value |
 |---|---|
-| Source implementation checkpoint | `master@f1467e620b9400923fb324fcb57e66d9ced3eba6`; implementation/test/CI changes committed |
-| Remote | `origin/master` confirmed to equal `f1467e620b9400923fb324fcb57e66d9ced3eba6` at 2026-09-23 09:10 UTC |
+| Source implementation checkpoint | `master@b4067353a9d63521e34ab8efc4f11008e5a1ad04`; implementation/test/CI changes committed |
+| Remote | `origin/master` confirmed to equal `b4067353a9d63521e34ab8efc4f11008e5a1ad04` at 2026-09-23 09:50 UTC |
 | SDK | .NET 10; repository solution targets `net10.0` |
 | Database | PostgreSQL 18.6 on loopback port 5433 for development only |
-| Build | Full solution Release build for source checkpoint `f1467e6` — passed, 0 warnings/errors |
-| Tests | Full solution run on 2026-09-23 for `f1467e6`: API 6/6, Domain 257/257, E2E 31/31; 0 skipped (294 discovered) |
+| Build | Full solution Release build for source checkpoint `b406735` — passed, 0 warnings/errors |
+| Tests | Full solution run on 2026-09-23 for `b406735`: API 6/6, Domain 257/257, E2E 32/32; 0 skipped (295 discovered) |
 | Migrations | Previous recorded baseline: 91 applied through `20260922140527_M365InvitationEvidenceAction`; no schema migration in these slices |
-| Model drift | `dotnet ef migrations has-pending-model-changes` — no pending model changes after consolidation authorization slice on 2026-09-23 |
+| Model drift | `dotnet ef migrations has-pending-model-changes` — no pending model changes after the reviewer-grant revocation coverage on 2026-09-23 |
 | Restore drill | Previously passed at `2026-09-22T18:52:20Z`; 91 migrations, accounting/group manifests and release-delivery identities reconciled; not rerun during test recovery |
 | Production effects | Disabled locally; no production acceptance claimed |
 
@@ -289,6 +289,13 @@ Implemented in source checkpoint `master@f1467e620b9400923fb324fcb57e66d9ced3eba
 - `/app/consolidation` now validates each candidate group grant through the existing `AuthorizationDecision.AuthorizeGroupAsync` policy before loading group names, scopes or readiness counts. Rate-set and translation-policy lookups are limited to IDs referenced by the authorized scopes.
 - The PostgreSQL-backed browser regression confirms an assigned staff member can view the granted group, while a client identity carrying an erroneous `AccountingPreparer` group grant is denied both the overview and the advanced workflow without the private group name or scope ID.
 - Verification for `f1467e6`: targeted browser case 1/1; full solution Release run API 6/6, Domain 257/257, E2E 31/31; 294/294 discovered, 0 skipped; build 0 warnings/errors; EF reports no pending model changes. `git ls-remote` confirmed the exact commit on `origin/master`. No schema migration or tenant operation. AS-PAR-002 remains partial.
+
+## AS-PAR-002 — Reviewer grant revocation on an open accounting journal
+
+Implemented in source checkpoint `master@b4067353a9d63521e34ab8efc4f11008e5a1ad04`, pushed to `origin/master` and verified there at 2026-09-23 09:50 UTC.
+
+- Added `AS-PAR-002-JOURNAL-STALE-01`: the browser opens a synthetic draft journal with Staff read and AccountingReviewer post grants, then an administrator revokes the reviewer grant through `RoleAdministrationService`. The reviewer-only post action disappears while the still-authorized Staff read projection remains. A post command using the stale session is rejected with `generation.stale`, and PostgreSQL confirms the journal remains Draft.
+- Verification: targeted regression 1/1; full E2E 32/32; full solution API 6/6, Domain 257/257 and E2E 32/32 (295 discovered, 0 skipped); Release build 0 warnings/errors; EF reports no pending model changes. The first full E2E attempt had one transient timeout in the existing preparer/reviewer browser journey; that case passed alone and the complete E2E and solution reruns passed. No schema migration or tenant operation. This remains one bounded AS-PAR-002 slice.
 
 ## Remaining local implementation work
 

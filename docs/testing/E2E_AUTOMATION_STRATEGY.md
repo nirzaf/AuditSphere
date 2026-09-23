@@ -2,9 +2,9 @@
 
 ## 1. Scope, evidence, and safety boundary
 
-This document records the automation strategy and the current CI contract. As of 2026-09-23, the working tree contains dedicated API and Playwright E2E projects and an active CI workflow. Fresh Release discovery found **294 cases**: Domain 257, API 6, E2E 31. The historical [test catalog](TEST_CASE_CATALOG.md) still inventories its original 246 Domain cases; the API/E2E projects identify their new scenarios with `CaseId` traits.
+This document records the automation strategy and the current CI contract. As of 2026-09-23, the working tree contains dedicated API and Playwright E2E projects and an active CI workflow. Fresh Release discovery found **295 cases**: Domain 257, API 6, E2E 32. The historical [test catalog](TEST_CASE_CATALOG.md) still inventories its original 246 Domain cases; the API/E2E projects identify their new scenarios with `CaseId` traits.
 
-The documentation inventory baseline was inspected on 2026-09-22 at `b8e47219179ab5cd707d95dfc6e594da37429d85`, with a later source/discovery check at `053aaec315a179082d0535ad4bda3c2706c5900d`. It found **246 Domain cases / 235 methods**. That historical count is not the current solution total. The current 294-case solution run passed on 2026-09-23: API 6/6, Domain 257/257 and E2E 31/31; 0 skipped. The previous 246/246 result at `dc9cb0b` remains historical [execution evidence](../execution/status.json).
+The documentation inventory baseline was inspected on 2026-09-22 at `b8e47219179ab5cd707d95dfc6e594da37429d85`, with a later source/discovery check at `053aaec315a179082d0535ad4bda3c2706c5900d`. It found **246 Domain cases / 235 methods**. That historical count is not the current solution total. The current 295-case solution run passed on 2026-09-23: API 6/6, Domain 257/257 and E2E 32/32; 0 skipped. The previous 246/246 result at `dc9cb0b` remains historical [execution evidence](../execution/status.json).
 
 Controlling requirements are the [system test contract, §44](../SPECIFICATION.md#s44), [CI/runtime contract, §45](../SPECIFICATION.md#s45), [accounting requirements](../AuditSphere_Accounting_module.md), [audit-workflow requirements](../requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md), and [M365 onboarding requirements](../AuditSphere_M365_Simple_Onboarding_User_Story.md). Requirement checkboxes and test titles alone do not establish end-to-end acceptance.
 
@@ -175,7 +175,7 @@ The [restore drill](../../scripts/db/restore-drill.sh) is a separate mutating re
 
 ## 6. CI expansion blueprint beyond the active workflow
 
-The [active workflow](../../.github/workflows/ci.yml) pins PostgreSQL 18.6 and action revisions, restores in locked mode, builds Release, checks EF model drift, migrates its disposable database, reconciles all 294 discovered/executed tests with zero skips, collects Cobertura/TRX, probes readiness, and uploads diagnostics. This workflow has not yet been observed running on GitHub. The longer example below is a **future hardening blueprint**, not the active workflow; it adds stricter runner-owned scenario manifests and artifact controls.
+The [active workflow](../../.github/workflows/ci.yml) pins PostgreSQL 18.6 and action revisions, restores in locked mode, builds Release, checks EF model drift, migrates its disposable database, reconciles all 295 discovered/executed tests with zero skips, collects Cobertura/TRX, probes readiness, and uploads diagnostics. This workflow has not yet been observed running on GitHub. The longer example below is a **future hardening blueprint**, not the active workflow; it adds stricter runner-owned scenario manifests and artifact controls.
 
 A hosted-runner PostgreSQL service container does not impose Docker on local development. The official `postgres:18.6` tag was verified as active through [Docker Hub metadata](https://hub.docker.com/v2/repositories/library/postgres/tags/18.6); the example pins its observed OCI index digest. Action v4 SHAs were resolved from upstream tags; they still require repository supply-chain review before activation. Recheck availability and patches when implementing, without silently weakening the exact-version requirement.
 
@@ -213,7 +213,7 @@ jobs:
       ExternalEffects__Enabled: 'false'
       Application__AllowSimulationAdapters: 'true'
       DevelopmentIdentity__Enabled: 'false'
-      EXPECTED_CASES: '294'
+      EXPECTED_CASES: '295'
     defaults:
       run:
         shell: bash
@@ -360,7 +360,7 @@ jobs:
 
 The trust-auth container is disposable, loopback-published, synthetic-only and has no tenant secrets. It is not a production database recipe. Never expose this profile on a shared network. For a Docker-free CI alternative, use an ephemeral native PostgreSQL 18.6 runner image labeled for that capability, provision an isolated `auditsphere_tests` DB before the job, omit `services`, and replace `docker exec/logs` with native `psql` and owned server-log collection. Prefer separate runner VMs over changing the fixture's guarded database name. Do not schedule untrusted fork code onto a persistent privileged/self-hosted machine.
 
-`EXPECTED_CASES=294` is the current reconciled discovery count across the three projects, not a permanent cap. Legitimate additions/removals require a reviewed count/catalog update; do not reduce it just to pass CI. The textual parser counts all three solution project sections and deliberately includes duplicate display names. The TRX check rejects any nonexecuted outcome; no `continue-on-error` or `dotnet test || true` hides failure. Infrastructure failures should be classified separately in the future structured summary while still failing the required check.
+`EXPECTED_CASES=295` is the current reconciled discovery count across the three projects, not a permanent cap. Legitimate additions/removals require a reviewed count/catalog update; do not reduce it just to pass CI. The textual parser counts all three solution project sections and deliberately includes duplicate display names. The TRX check rejects any nonexecuted outcome; no `continue-on-error` or `dotnet test || true` hides failure. Infrastructure failures should be classified separately in the future structured summary while still failing the required check.
 
 ## 7. Proposed API/browser workflow and orchestration contract
 
