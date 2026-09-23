@@ -6,16 +6,23 @@ This file records observed repository state only. The authoritative build contra
 
 | Item | Observed value |
 |---|---|
-| Source implementation checkpoint | `master@ef06660f0214d74da2914281141b55b456d128b9`; proposal-author attribution and independent-review separation committed |
-| Remote | `origin/master` confirmed to equal `ef06660f0214d74da2914281141b55b456d128b9` at 2026-09-23 15:31 UTC |
+| Source implementation checkpoint | `master@eee833d680486c2d70dbe24bcfec93d6961aa8c9`; exact audit-plan grant enforcement and stale-route clearing committed |
+| Remote | `origin/master` confirmed to equal `eee833d680486c2d70dbe24bcfec93d6961aa8c9` at 2026-09-23 16:33 UTC |
 | SDK | .NET 10; repository solution targets `net10.0` |
 | Database | PostgreSQL 18.6 on loopback port 5433 for development only |
-| Build | Full solution Release build for `ef06660` — passed, 0 warnings/errors |
-| Tests | Discovery: 307 (Domain 259, API 6, E2E 42). Full Domain 259/259 and E2E 42/42 passed with 0 skips; API 6/6 passed in the combined attempt. Focused maker/checker, prior-schema migration, proposal-page and corrected CRM browser journeys each passed 1/1. The combined solution run was not repeated after fixing its synthetic reviewer-grant fixture failure. |
+| Build | Full solution Release build for `eee833d` — passed, 0 warnings/errors |
+| Tests | Discovery: 308 (Domain 259, API 6, E2E 43). Domain 259/259 and API 6/6 passed in the full solution invocation; its E2E run had one intermittent accounting-record queue load-error failure (42/43). Standalone E2E passed 43/43 with 0 skips; the audit-plan scope/revocation case passed focused and in that full run. The aggregate solution invocation is not reported green. |
 | Migrations | Added `20260923145244_ProposalPreparedByAttribution`; prior-schema PostgreSQL regression upgraded a synthetic legacy proposal and preserved its values with preparer left unknown. The existing local `auditsphere` database remains at its 91-migration baseline. |
-| Model drift | `dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Web --no-build --configuration Release` — no pending model changes after `ef06660` on 2026-09-23 |
+| Model drift | `dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Web --no-build --configuration Release` — no pending model changes after `eee833d` on 2026-09-23 |
 | Restore drill | Passed at `2026-09-23T15:20:43Z` on loopback; restored the existing `auditsphere` source at 91 migrations through `20260922140527_M365InvitationEvidenceAction`. Evidence was redirected to `/tmp`; the check does not apply the new proposal migration to that development database. |
 | Production effects | Disabled locally; no production acceptance claimed |
+
+## AS-PAR-002 — Audit-plan engagement scope and revocation (`eee833d`)
+
+- `AuditPlan.razor` now checks the current persisted role grant for the exact engagement before reading plan data. Route changes clear the previous projection and draft fields; a generation fence prevents a slow earlier load or command result from repopulating a newer route. Scope-denied or stale-generation command results clear the protected page.
+- Added `AS-PAR-002-AUDIT-PLAN-READ-01`: a granted staff identity can read its assigned plan, same-document navigation to a sibling engagement clears private data, revocation prevents the next risk write and leaves no persisted risk, and a user scoped to an unrelated client sees no plan marker. The test allows either stale-session revalidation or command denial after revocation.
+- Verification: full Release build passed with 0 warnings/errors; discovery reconciles to 308 (Domain 259, API 6, E2E 43); focused audit-plan test 1/1; full standalone E2E 43/43; Domain 259/259 and API 6/6 in the attempted solution run. That solution-wide run had one intermittent failure in the existing accounting-record queue journey, which rendered its safe generic error state under concurrent project execution; no data was exposed. EF reports no pending model changes. No migration, tenant operation or production effect.
+- Commit `eee833d680486c2d70dbe24bcfec93d6961aa8c9` was pushed to `master` and verified equal to `origin/master` at 2026-09-23 16:33 UTC. AS-PAR-002 remains partial.
 
 ## AS-PAR-009 persisted proposal detail and scope checks (`5e3687b`)
 
