@@ -95,6 +95,8 @@ else
 }
 
 @code {
+  private static readonly string[] CommercialRoles = ["Administrator", "Partner", "Manager", "RelationshipManager"];
+
   private ActorContext? _actor;
   private bool _isAuthorized;
   private List<Lead> _leads = [];
@@ -111,21 +113,20 @@ else
   protected override async Task OnInitializedAsync()
   {
     _actor = await ActorResolver.ResolveAsync();
-    if (_actor is not null)
-    {
-      _isAuthorized = _actor.Roles.Any(x => x is "Administrator" or "Partner" or "Manager" or "RelationshipManager");
-      if (_isAuthorized)
-      {
-        await LoadLeadsAsync();
-      }
-    }
+    await LoadLeadsAsync();
     _loading = false;
   }
 
   private async Task LoadLeadsAsync()
   {
+    _leads = [];
+    _isAuthorized = false;
     if (_actor is null) return;
     await using var db = await DbFactory.CreateDbContextAsync();
+    var authorization = await AuthorizationDecision.AuthorizeAsync(db, _actor,
+      new AuthorizationRequest(_actor.FirmId, RequiredRoles: CommercialRoles, InternalOnly: true, RequireFirmWide: true));
+    if (!authorization.Succeeded) return;
+    _isAuthorized = true;
     _leads = await db.Leads.AsNoTracking()
       .Where(x => x.FirmId == _actor.FirmId)
       .OrderByDescending(x => x.CreatedAt)
@@ -153,6 +154,12 @@ else
         _newContactEmail = null;
         await LoadLeadsAsync();
       }
+      else if (res.ErrorCode is ErrorCodes.ScopeDenied or ErrorCodes.GenerationStale)
+      {
+        _actor = null;
+        _isAuthorized = false;
+        _leads = [];
+      }
     }
     finally { _busy = false; }
   }
@@ -170,6 +177,12 @@ else
       {
         _successMessage = "The lead was qualified.";
         await LoadLeadsAsync();
+      }
+      else if (res.ErrorCode is ErrorCodes.ScopeDenied or ErrorCodes.GenerationStale)
+      {
+        _actor = null;
+        _isAuthorized = false;
+        _leads = [];
       }
     }
     finally { _busy = false; }

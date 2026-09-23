@@ -79,6 +79,8 @@ else
 }
 
 @code {
+  private static readonly string[] AccountingRoles = ["Administrator", "Partner", "Manager", "AccountingPreparer", "AccountingReviewer"];
+
   [Parameter] public Guid PeriodId { get; set; }
 
   private sealed record PeriodView(Guid Id, Guid ClientId, string ClientName, string Engagement, string PeriodCode,
@@ -94,11 +96,16 @@ else
   private bool _loading = true;
   private bool _authorized;
 
-  protected override async Task OnInitializedAsync()
+  protected override async Task OnParametersSetAsync()
   {
+    _period = null;
+    _pbc = null;
+    _task = null;
+    _actor = null;
+    _authorized = false;
+    _loading = true;
     _actor = await ActorResolver.ResolveAsync();
-    _authorized = _actor is not null && _actor.Roles.Any(x => x is "Administrator" or "Partner" or "Manager" or "AccountingPreparer" or "AccountingReviewer");
-    if (_authorized && _actor is not null) await LoadAsync();
+    if (_actor is not null) await LoadAsync();
     _loading = false;
   }
 
@@ -106,20 +113,20 @@ else
   {
     if (_actor is null) return;
     await using var db = await DbFactory.CreateDbContextAsync();
-    var grants = await db.RoleGrants.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && x.UserId == _actor.UserId && x.RevokedAt == null)
-      .Select(x => new { x.ClientId, x.EngagementId }).ToListAsync();
-    var period = await db.ClientReportingPeriods.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == _actor.FirmId && x.Id == PeriodId);
-    if (period is null) return;
-    var firmWide = grants.Any(x => x.ClientId is null && x.EngagementId is null);
-    var directClient = grants.Any(x => x.ClientId == period.ClientId);
-    var engagementIds = grants.Where(x => x.EngagementId.HasValue).Select(x => x.EngagementId!.Value).ToArray();
-    var engagementGrant = engagementIds.Length > 0 && await db.Engagements.AsNoTracking().AnyAsync(x => x.FirmId == _actor.FirmId &&
-      engagementIds.Contains(x.Id) && x.PracticeClientId == period.ClientId);
-    if (!firmWide && !directClient && !engagementGrant)
+    var clientId = await db.ClientReportingPeriods.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && x.Id == PeriodId)
+      .Select(x => (Guid?)x.ClientId).SingleOrDefaultAsync();
+    if (clientId is null) return;
+    var authorization = await AuthorizationDecision.AuthorizeAsync(db, _actor,
+      new AuthorizationRequest(_actor.FirmId, ClientId: clientId, RequiredRoles: AccountingRoles, InternalOnly: true));
+    if (!authorization.Succeeded)
     {
-      _authorized = false;
+      _actor = null;
       return;
     }
+
+    _authorized = true;
+    var period = await db.ClientReportingPeriods.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == _actor.FirmId && x.Id == PeriodId);
+    if (period is null) return;
 
     var client = await db.PracticeClients.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == _actor.FirmId && x.Id == period.ClientId);
     var book = await db.ClientReportingBooks.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && x.ClientId == period.ClientId && x.PeriodId == period.Id)

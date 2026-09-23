@@ -3,6 +3,7 @@
 @rendermode InteractiveServer
 @using AuditSphereOps.Application.Abstractions
 @using AuditSphereOps.Application.Microsoft365
+@using AuditSphereOps.Application.Security
 @using AuditSphereOps.Domain.Microsoft365
 @using AuditSphereOps.Domain.Security
 @using AuditSphereOps.Infrastructure.Persistence
@@ -164,9 +165,9 @@
     _actor = await ActorResolver.ResolveAsync();
     if (_actor is null) return;
     await using var db = await DbFactory.CreateDbContextAsync();
-    _isFirmAdministrator = await db.RoleGrants.AsNoTracking().AnyAsync(x =>
-      x.FirmId == _actor.FirmId && x.UserId == _actor.UserId && x.RevokedAt == null &&
-      x.Role == "Administrator" && x.ClientId == null && x.EngagementId == null);
+    _isFirmAdministrator = (await AuthorizationDecision.AuthorizeAsync(db, _actor,
+      new AuthorizationRequest(_actor.FirmId, RequiredRoles: ["Administrator"],
+        InternalOnly: true, RequireFirmWide: true))).Succeeded;
     if (_isFirmAdministrator)
       await LoadTemplates();
   }

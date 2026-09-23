@@ -41,7 +41,7 @@ else
       <label>
         Reporting period <span class="optional-label">(optional)</span>
         <select class="input" @bind="_taskPeriodKey" data-optional="true" disabled="@_busy" title="Link this task to the exact client reporting period shown on the accounting dashboard.">
-          <option value="">No period link</option>
+          <option value="" disabled="@(!_firmWide)">No period link (firm-wide task)</option>
           @foreach (var period in _periodOptions)
           {
             <option value="@period.Id">@period.Label</option>
@@ -207,9 +207,12 @@ else
 
 @code {
   private sealed record PeriodOption(Guid Id, Guid ClientId, Guid? EngagementId, string Label);
+  private static readonly string[] WorkRoles = ["Staff", "Manager", "Partner", "Administrator"];
+  private static readonly string[] ApprovalRoles = ["Manager", "Partner", "Administrator"];
   private ActorContext? _actor;
   private bool _isStaff;
   private bool _isApprover;
+  private bool _firmWide;
   private List<WorkTask> _availableTasks = [];
   private List<PeriodOption> _periodOptions = [];
   private Dictionary<Guid, string> _taskMap = [];
@@ -234,70 +237,111 @@ else
   protected override async Task OnInitializedAsync()
   {
     _actor = await ActorResolver.ResolveAsync();
-    if (_actor is not null)
-    {
-      _isStaff = _actor.Roles.Any(x => x is "Administrator" or "Partner" or "Manager" or "Staff" or "EngagementLeader");
-      _isApprover = _actor.Roles.Any(x => x is "Administrator" or "Partner" or "Manager");
-      _role = _actor.Roles.FirstOrDefault() ?? "Staff";
-      if (_isStaff)
-      {
-        await LoadDataAsync();
-      }
-    }
+    await LoadDataAsync();
     _loading = false;
   }
 
   private async Task LoadDataAsync()
   {
+    _availableTasks = [];
+    _periodOptions = [];
+    _taskMap = [];
+    _myEntries = [];
+    _submittedEntries = [];
+    _isStaff = false;
+    _isApprover = false;
+    _firmWide = false;
     if (_actor is null) return;
     await using var db = await DbFactory.CreateDbContextAsync();
+    var authorization = await AuthorizationDecision.AuthorizeAsync(db, _actor,
+      new AuthorizationRequest(_actor.FirmId, RequiredRoles: WorkRoles, InternalOnly: true));
+    if (!authorization.Succeeded)
+    {
+      _actor = null;
+      return;
+    }
     var grants = await db.RoleGrants.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && x.UserId == _actor.UserId && x.RevokedAt == null)
-      .Select(x => new { x.ClientId, x.EngagementId }).ToListAsync();
-    var firmWide = grants.Any(x => x.ClientId is null && x.EngagementId is null);
-    var directClientIds = grants.Where(x => x.ClientId.HasValue && x.EngagementId is null).Select(x => x.ClientId!.Value).ToArray();
-    var engagementIds = grants.Where(x => x.EngagementId.HasValue).Select(x => x.EngagementId!.Value).ToArray();
-    var engagementClientIds = engagementIds.Length == 0 ? [] : await db.Engagements.AsNoTracking()
-      .Where(x => x.FirmId == _actor.FirmId && engagementIds.Contains(x.Id)).Select(x => x.PracticeClientId).ToArrayAsync();
-    var clientIds = directClientIds.Concat(engagementClientIds).Distinct().ToArray();
-    var scopedEngagements = await db.Engagements.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
-      (firmWide || clientIds.Contains(x.PracticeClientId))).OrderByDescending(x => x.CreatedAt).ToListAsync();
+      .Select(x => new { x.Role, x.ClientId, x.EngagementId }).ToListAsync();
+    var workGrants = grants.Where(x => WorkRoles.Contains(x.Role)).ToArray();
+    var approvalGrants = grants.Where(x => ApprovalRoles.Contains(x.Role)).ToArray();
+    _firmWide = workGrants.Any(x => x.ClientId is null && x.EngagementId is null);
+    var directClientIds = workGrants.Where(x => x.ClientId.HasValue && x.EngagementId is null)
+      .Select(x => x.ClientId!.Value).Distinct().ToArray();
+    var grantEngagementIds = workGrants.Concat(approvalGrants).Where(x => x.EngagementId.HasValue)
+      .Select(x => x.EngagementId!.Value).Distinct().ToArray();
+    var engagementClients = grantEngagementIds.Length == 0 ? new Dictionary<Guid, Guid>() : await db.Engagements.AsNoTracking()
+      .Where(x => x.FirmId == _actor.FirmId && grantEngagementIds.Contains(x.Id))
+      .ToDictionaryAsync(x => x.Id, x => x.PracticeClientId);
+    var grantedEngagementIds = workGrants.Where(x => x.ClientId.HasValue && x.EngagementId.HasValue &&
+        engagementClients.TryGetValue(x.EngagementId.Value, out var clientId) && clientId == x.ClientId.Value)
+      .Select(x => x.EngagementId!.Value).Distinct().ToArray();
+    var reviewFirmWide = approvalGrants.Any(x => x.ClientId is null && x.EngagementId is null);
+    var reviewClientIds = approvalGrants.Where(x => x.ClientId.HasValue && x.EngagementId is null)
+      .Select(x => x.ClientId!.Value).Distinct().ToArray();
+    var reviewEngagementIds = approvalGrants.Where(x => x.ClientId.HasValue && x.EngagementId.HasValue &&
+        engagementClients.TryGetValue(x.EngagementId.Value, out var clientId) && clientId == x.ClientId.Value)
+      .Select(x => x.EngagementId!.Value).Distinct().ToArray();
+    _isStaff = _firmWide || directClientIds.Length > 0 || grantedEngagementIds.Length > 0;
+    _isApprover = reviewFirmWide || reviewClientIds.Length > 0 || reviewEngagementIds.Length > 0;
+    if (!_isStaff) return;
+
     var periods = await db.ClientReportingPeriods.AsNoTracking()
-      .Where(x => x.FirmId == _actor.FirmId && (firmWide || clientIds.Contains(x.ClientId)))
-      .OrderByDescending(x => x.EndDate).ThenBy(x => x.PeriodCode)
-      .ToListAsync();
-    _periodOptions = periods.Select(x => new PeriodOption(x.Id, x.ClientId,
-      scopedEngagements.FirstOrDefault(e => e.PracticeClientId == x.ClientId)?.Id,
-      x.PeriodCode + " · " + x.Currency)).ToList();
-    _availableTasks = await db.WorkTasks.AsNoTracking()
-      .Where(x => x.FirmId == _actor.FirmId && (firmWide || (x.ClientId.HasValue && clientIds.Contains(x.ClientId.Value))) &&
-        x.Status != PracticeTimeStates.TaskCancelled && x.Status != PracticeTimeStates.TaskCompleted)
-      .OrderBy(x => x.Title)
-      .ToListAsync();
+      .Where(x => x.FirmId == _actor.FirmId && (_firmWide || directClientIds.Contains(x.ClientId)))
+      .OrderByDescending(x => x.EndDate).ThenBy(x => x.PeriodCode).ToListAsync();
+    var periodClientNames = await db.PracticeClients.AsNoTracking()
+      .Where(x => x.FirmId == _actor.FirmId && periods.Select(p => p.ClientId).Contains(x.Id))
+      .ToDictionaryAsync(x => x.Id, x => x.LegalName);
+    _periodOptions = periods.Select(x => new PeriodOption(x.Id, x.ClientId, null,
+      $"{periodClientNames.GetValueOrDefault(x.ClientId, "Scoped client")} · {x.PeriodCode} · {x.Currency}")).ToList();
+
+    var scopedEngagementIds = _firmWide ? [] : await db.Engagements.AsNoTracking()
+      .Where(x => x.FirmId == _actor.FirmId && (directClientIds.Contains(x.PracticeClientId) || grantedEngagementIds.Contains(x.Id)))
+      .Select(x => x.Id).ToArrayAsync();
+    var scopedEngagementClients = await db.Engagements.AsNoTracking()
+      .Where(x => x.FirmId == _actor.FirmId && (_firmWide || scopedEngagementIds.Contains(x.Id)))
+      .ToDictionaryAsync(x => x.Id, x => x.PracticeClientId);
+    var tasks = await db.WorkTasks.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
+      (_firmWide || (x.EngagementId.HasValue && scopedEngagementIds.Contains(x.EngagementId.Value)) ||
+        (!x.EngagementId.HasValue && x.ClientId.HasValue && directClientIds.Contains(x.ClientId.Value))))
+      .OrderBy(x => x.Title).ToListAsync();
+    var visibleTasks = tasks.Where(x => x.EngagementId is null ||
+      (x.ClientId.HasValue && scopedEngagementClients.TryGetValue(x.EngagementId.Value, out var clientId) && clientId == x.ClientId.Value)).ToList();
+    var taskById = visibleTasks.ToDictionary(x => x.Id);
+    _availableTasks = visibleTasks.Where(x => x.Status != PracticeTimeStates.TaskCancelled && x.Status != PracticeTimeStates.TaskCompleted).ToList();
 
     if (_selectedTaskId == Guid.Empty && _availableTasks.Count > 0)
     {
       _selectedTaskId = _availableTasks[0].Id;
     }
 
-    var allTasks = await db.WorkTasks.AsNoTracking()
-      .Where(x => x.FirmId == _actor.FirmId && (firmWide || (x.ClientId.HasValue && clientIds.Contains(x.ClientId.Value))))
-      .Select(x => new { x.Id, x.Title })
-      .ToListAsync();
-    _taskMap = allTasks.ToDictionary(x => x.Id, x => x.Title);
+    _taskMap = visibleTasks.ToDictionary(x => x.Id, x => x.Title);
 
-    _myEntries = await db.TimeEntries.AsNoTracking()
-      .Where(x => x.FirmId == _actor.FirmId && x.UserId == _actor.UserId)
+    var myEntries = await db.TimeEntries.AsNoTracking()
+      .Where(x => x.FirmId == _actor.FirmId && x.UserId == _actor.UserId &&
+        (_firmWide || (x.EngagementId.HasValue && scopedEngagementIds.Contains(x.EngagementId.Value)) ||
+          (!x.EngagementId.HasValue && x.ClientId.HasValue && directClientIds.Contains(x.ClientId.Value))))
       .OrderByDescending(x => x.WorkDate)
       .ThenByDescending(x => x.CreatedAt)
       .ToListAsync();
+    _myEntries = myEntries.Where(x => taskById.TryGetValue(x.TaskId, out var task) &&
+      task.ClientId == x.ClientId && task.EngagementId == x.EngagementId).ToList();
 
     if (_isApprover)
     {
-      _submittedEntries = await db.TimeEntries.AsNoTracking()
-        .Where(x => x.FirmId == _actor.FirmId && (firmWide || (x.ClientId.HasValue && clientIds.Contains(x.ClientId.Value))) &&
+      var reviewScopedEngagementIds = reviewFirmWide ? [] : await db.Engagements.AsNoTracking()
+        .Where(x => x.FirmId == _actor.FirmId && (reviewClientIds.Contains(x.PracticeClientId) || reviewEngagementIds.Contains(x.Id)))
+        .Select(x => x.Id).ToArrayAsync();
+      var submittedEntries = await db.TimeEntries.AsNoTracking()
+        .Where(x => x.FirmId == _actor.FirmId &&
+          (reviewFirmWide || (x.EngagementId.HasValue && reviewScopedEngagementIds.Contains(x.EngagementId.Value)) ||
+            (!x.EngagementId.HasValue && x.ClientId.HasValue && reviewClientIds.Contains(x.ClientId.Value))) &&
           x.Status == PracticeTimeStates.TimeSubmitted && x.UserId != _actor.UserId)
         .OrderBy(x => x.WorkDate)
         .ToListAsync();
+      _submittedEntries = submittedEntries.Where(x =>
+        taskById.TryGetValue(x.TaskId, out var task) && task.ClientId == x.ClientId && task.EngagementId == x.EngagementId &&
+        (reviewFirmWide || (x.EngagementId.HasValue && reviewScopedEngagementIds.Contains(x.EngagementId.Value)) ||
+          (!x.EngagementId.HasValue && x.ClientId.HasValue && reviewClientIds.Contains(x.ClientId.Value)))).ToList();
     }
   }
 
@@ -329,6 +373,7 @@ else
         _narrative = string.Empty;
         await LoadDataAsync();
       }
+      else if (res.ErrorCode is ErrorCodes.ScopeDenied or ErrorCodes.GenerationStale) ClearScope();
     }
     finally { _busy = false; }
   }
@@ -342,6 +387,11 @@ else
     {
       var period = Guid.TryParse(_taskPeriodKey, out var periodId)
         ? _periodOptions.FirstOrDefault(x => x.Id == periodId) : null;
+      if (period is null && !_firmWide)
+      {
+        _result = CommandResult.Fail(ErrorCodes.ScopeDenied, "Select an authorized client reporting period to scope this task.");
+        return;
+      }
       await using var db = await DbFactory.CreateDbContextAsync();
       var res = await PracticeTimeService.CreateTaskAsync(db, _actor,
         new CreateTaskRequest(_taskTitle, ClientId: period?.ClientId, EngagementId: period?.EngagementId,
@@ -355,6 +405,7 @@ else
         _taskDueDate = null;
         await LoadDataAsync();
       }
+      else if (res.ErrorCode is ErrorCodes.ScopeDenied or ErrorCodes.GenerationStale) ClearScope();
     }
     finally { _busy = false; }
   }
@@ -374,6 +425,7 @@ else
         _successMessage = "Time entry was submitted for approval.";
         await LoadDataAsync();
       }
+      else if (res.ErrorCode is ErrorCodes.ScopeDenied or ErrorCodes.GenerationStale) ClearScope();
     }
     finally { _busy = false; }
   }
@@ -393,7 +445,22 @@ else
         _successMessage = "Time entry was approved.";
         await LoadDataAsync();
       }
+      else if (res.ErrorCode is ErrorCodes.ScopeDenied or ErrorCodes.GenerationStale) ClearScope();
     }
     finally { _busy = false; }
+  }
+
+  private void ClearScope()
+  {
+    _actor = null;
+    _isStaff = false;
+    _isApprover = false;
+    _firmWide = false;
+    _availableTasks = [];
+    _periodOptions = [];
+    _taskMap = [];
+    _myEntries = [];
+    _submittedEntries = [];
+    _selectedTaskId = Guid.Empty;
   }
 }

@@ -1,13 +1,28 @@
+const selectedFiles = new Map();
+
+document.addEventListener("change", event => {
+  const input = event.target;
+  if (input?.type !== "file" || !input.id.startsWith("pbc-file-")) return;
+  const file = input.files?.[0];
+  if (file) selectedFiles.set(input.id, file);
+  else selectedFiles.delete(input.id);
+}, true);
+
+function selectedFile(inputId) {
+  const input = document.getElementById(inputId);
+  const file = input?.files?.[0];
+  if (file) selectedFiles.set(inputId, file);
+  return file || selectedFiles.get(inputId) || null;
+}
+
 window.auditSpherePbc = {
   readFileMetadata: function (inputId) {
-    const input = document.getElementById(inputId);
-    const file = input && input.files && input.files[0];
+    const file = selectedFile(inputId);
     return file ? { name: file.name, type: file.type || "application/octet-stream", size: file.size } : null;
   },
 
   uploadChunks: async function (inputId, uploadId, capability) {
-    const input = document.getElementById(inputId);
-    const file = input && input.files && input.files[0];
+    const file = selectedFile(inputId);
     if (!file) throw new Error("Select a file before starting the upload.");
 
     const chunkSize = 8 * 1024 * 1024;
@@ -35,6 +50,9 @@ window.auditSpherePbc = {
       offset += bytes.byteLength;
       chunkIndex += 1;
     }
+    selectedFiles.delete(inputId);
     return `Staged ${offset} bytes in ${chunkIndex} chunk(s); trusted completion is still required.`;
-  }
+  },
+
+  clearFile: inputId => selectedFiles.delete(inputId)
 };

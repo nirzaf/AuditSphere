@@ -4,6 +4,7 @@ using AuditSphereOps.Application.Diagnostics;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Audit;
+using AuditSphereOps.Domain.Reviews;
 using AuditSphereOps.Domain.Shared;
 using Microsoft.EntityFrameworkCore;
 
@@ -802,6 +803,36 @@ public static class AuditPlanningService
             target.Id, status, req.Corrected));
     }
 
+    public static async Task<CommandResult> SetReviewPointDispositionAsync(
+        IAuditSphereDbContext db, ActorContext actor, Guid reviewPointId, bool cleared,
+        CancellationToken ct = default)
+    {
+        if (reviewPointId == Guid.Empty)
+            return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+        var snapshot = await db.ReviewPoints.AsNoTracking().SingleOrDefaultAsync(x =>
+            x.Id == reviewPointId && x.FirmId == actor.FirmId, ct);
+        if (snapshot is null)
+            return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+
+        var scope = await LockedEngagementAsync(db, actor, snapshot.EngagementId, ct,
+            snapshot.ClientId, requireProfessionalWork: false);
+        if (scope.Denied is not null)
+            return CommandResult.Fail(scope.Denied, scope.Message);
+
+        var point = await db.ReviewPoints.FromSqlInterpolated($"""
+            SELECT * FROM review_points WHERE id = {reviewPointId} AND firm_id = {actor.FirmId} FOR UPDATE
+            """).SingleOrDefaultAsync(ct);
+        if (point is null || point.ClientId != snapshot.ClientId || point.EngagementId != snapshot.EngagementId)
+            return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+
+        point.Cleared = cleared;
+        await db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
+        return CommandResult.Ok();
+    }
+
     // ── Posting balance guard (NT-22.1 — pure domain invariant) ─────────────
 
     /// <summary>
@@ -884,7 +915,7 @@ public static class AuditPlanningService
     /// </summary>
     private static async Task<Scope> LockedEngagementAsync(
         IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct,
-        Guid? expectedClientId = null)
+        Guid? expectedClientId = null, bool requireProfessionalWork = true)
     {
         var engagement = await db.Engagements.FromSqlInterpolated($"""
             SELECT * FROM engagements WHERE id = {engagementId} AND firm_id = {actor.FirmId} FOR UPDATE
@@ -895,7 +926,7 @@ public static class AuditPlanningService
 
         var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
             new AuthorizationRequest(actor.FirmId, engagement.PracticeClientId, engagement.Id,
-                PlanningRoles, InternalOnly: true, RequireProfessionalWork: true), ct);
+                PlanningRoles, InternalOnly: true, RequireProfessionalWork: requireProfessionalWork), ct);
         return auth.Succeeded
             ? new Scope(engagement.FirmId, engagement.PracticeClientId, null)
             : new Scope(engagement.FirmId, engagement.PracticeClientId, auth.ErrorCode,

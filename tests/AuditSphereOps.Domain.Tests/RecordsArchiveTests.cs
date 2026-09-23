@@ -13,6 +13,23 @@ namespace AuditSphereOps.Domain.Tests;
 public sealed class RecordsArchiveTests
 {
   [Fact]
+  public async Task EngagementScopedPartner_CannotCreateFirmWideRecordsProfile()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await PlanningSeed.CreateAsync(pg, "Partner");
+    var request = new CreateRecordsProfileRequest("AUDIT-TEST", 1, "Audit record", "QA",
+      "STATUTORY_AUDIT", "REPORT_DATE", null, "PURVIEW_RECORD", "label-test",
+      "SUSPEND_DISPOSITION", "CONTROLLED_AMENDMENT", "Records Custodian", "Protected backup");
+
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var result = await RecordsArchiveService.CreateProfileAsync(db, fixture.Primary.Actor, request);
+
+    Assert.False(result.Succeeded);
+    Assert.Equal(ErrorCodes.ScopeDenied, result.ErrorCode);
+    Assert.Empty(await db.RecordsProfiles.ToListAsync());
+  }
+
+  [Fact]
   public async Task ArchiveWorkflow_StoresStructuredManifest_AndRequiresObservedProtection()
   {
     await using var pg = await PgTestSchema.CreateAsync();

@@ -1,6 +1,7 @@
 @page "/app/findings/{Id:guid}"
 @rendermode InteractiveServer
 @using AuditSphereOps.Application.Audit
+@using AuditSphereOps.Application.Security
 @using AuditSphereOps.Domain.Audit
 @using FindingRecord = AuditSphereOps.Domain.Audit.Finding
 @using WorkpaperRecord = AuditSphereOps.Domain.Audit.Workpaper
@@ -36,7 +37,7 @@ else if (_finding is null)
 {
     <section class="notice" role="alert">
         <h2>Finding unavailable</h2>
-        <p>The requested finding was not found in the current firm scope.</p>
+        <p>The requested finding is unavailable in your current scope.</p>
     </section>
 }
 else
@@ -107,8 +108,10 @@ else
     private string _draftResponse = "";
     private bool _draftCorrected;
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnParametersSetAsync()
     {
+        _loading = true;
+        ClearFinding();
         _actor = await ActorResolver.ResolveAsync();
         if (_actor is not null)
             await RefreshAsync();
@@ -117,15 +120,31 @@ else
 
     private async Task RefreshAsync()
     {
+        var actor = _actor;
+        if (actor is null) return;
         await using var db = await DbFactory.CreateDbContextAsync();
+        var scope = await db.Findings.AsNoTracking()
+            .Where(f => f.Id == Id && f.FirmId == actor.FirmId)
+            .Select(f => new { f.ClientId, f.EngagementId })
+            .SingleOrDefaultAsync();
+        if (scope is null) return;
+
+        var authorization = await AuthorizationDecision.AuthorizeAsync(db, actor,
+            new AuthorizationRequest(actor.FirmId, ClientId: scope.ClientId,
+                EngagementId: scope.EngagementId,
+                RequiredRoles: ["Administrator", "Partner", "Manager", "SeniorManager", "Senior", "Staff", "EngagementLeader", "Auditor"],
+                InternalOnly: true));
+        if (!authorization.Succeeded) return;
+
         _finding = await db.Findings.AsNoTracking()
-            .FirstOrDefaultAsync(f => f.Id == Id && f.FirmId == _actor!.FirmId);
+            .FirstOrDefaultAsync(f => f.Id == Id && f.FirmId == actor.FirmId &&
+                f.ClientId == scope.ClientId && f.EngagementId == scope.EngagementId);
         if (_finding is null) return;
 
         _draftResponse = _finding.ManagementResponse ?? "";
         _draftCorrected = _finding.Corrected;
         _engagement = await db.Engagements.AsNoTracking()
-            .FirstOrDefaultAsync(e => e.Id == _finding.EngagementId && e.FirmId == _actor!.FirmId);
+            .FirstOrDefaultAsync(e => e.Id == _finding.EngagementId && e.FirmId == actor.FirmId);
     }
 
     private async Task RecordResponseAsync()
@@ -138,8 +157,19 @@ else
             var filed = await AuditPlanningService.RecordFindingResponseAsync(db, _actor,
                 new RecordFindingResponseRequest(_finding.Id, _draftResponse, _draftCorrected));
             _result = filed.Succeeded ? CommandResult.Ok() : CommandResult.Fail(filed.ErrorCode!, filed.Message ?? "The command was refused.");
+            if (!filed.Succeeded && (filed.ErrorCode is ErrorCodes.ScopeDenied or ErrorCodes.GenerationStale))
+                ClearFinding();
             if (_result.Succeeded) await RefreshAsync();
         }
         finally { _busy = false; }
+    }
+
+    private void ClearFinding()
+    {
+        _finding = null;
+        _engagement = null;
+        _draftResponse = "";
+        _draftCorrected = false;
+        _result = null;
     }
 }

@@ -183,6 +183,12 @@ else
   {
     if (_actor is null) return;
     await using var db = await DbFactory.CreateDbContextAsync();
+    var authorization = await AuthorizationDecision.AuthorizeAsync(db, _actor,
+      new AuthorizationRequest(_actor.FirmId, ClientId,
+        RequiredRoles: ["Administrator", "Partner", "Manager", "Staff", "CommercialManager", "EngagementLeader"],
+        InternalOnly: true));
+    if (!authorization.Succeeded) return;
+
     _client = await db.PracticeClients.AsNoTracking()
       .SingleOrDefaultAsync(x => x.Id == ClientId && x.FirmId == _actor.FirmId);
     if (_client is not null)
@@ -221,6 +227,15 @@ else
       );
       var res = await PracticeCrmService.CreateClientContactAsync(db, _actor, req);
       _result = res.Succeeded ? CommandResult.Ok() : CommandResult.Fail(res.ErrorCode!, res.Message!);
+      if (!res.Succeeded && (res.ErrorCode is ErrorCodes.ScopeDenied or ErrorCodes.GenerationStale))
+      {
+        _client = null;
+        _safetyState = null;
+        _contacts.Clear();
+        _engagements.Clear();
+        _result = null;
+        return;
+      }
       if (res.Succeeded)
       {
         _successMessage = $"Contact '{_contactName}' was recorded.";

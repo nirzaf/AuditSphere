@@ -49,7 +49,8 @@ public static class RecordsArchiveService
       return CommandResult<RecordsProfileResult>.Fail("records-profile.invalid", invalid);
 
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
-      new AuthorizationRequest(actor.FirmId, RequiredRoles: CustodianRoles, InternalOnly: true), ct);
+      new AuthorizationRequest(actor.FirmId, RequiredRoles: CustodianRoles, InternalOnly: true,
+        RequireFirmWide: true), ct);
     if (!auth.Succeeded)
       return CommandResult<RecordsProfileResult>.Fail(auth.ErrorCode!, auth.Message!);
 

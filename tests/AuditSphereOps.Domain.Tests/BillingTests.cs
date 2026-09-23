@@ -75,6 +75,25 @@ public sealed class BillingTests
       Assert.Equal(20m, balance.Value.Credited);
       Assert.Equal(200m, balance.Value.Allocated);
       Assert.Equal(0m, balance.Value.Outstanding);
+
+      var detail = await BillingService.GetInvoiceDetailAsync(db, fixture.ManagerActor, invoiceId);
+      Assert.True(detail.Succeeded, detail.Message);
+      Assert.Single(detail.Value!.Lines);
+      Assert.Equal(0m, detail.Value.Balance.Outstanding);
+
+      var otherClientId = Guid.NewGuid();
+      db.PracticeClients.Add(new PracticeClient
+      {
+        Id = otherClientId, FirmId = fixture.FirmId, LegalName = "Unrelated billing client", CreatedAt = DateTimeOffset.UtcNow
+      });
+      var unrelatedManager = User(fixture.FirmId, "FinanceManager");
+      db.Users.Add(unrelatedManager);
+      db.RoleGrants.Add(Grant(fixture.FirmId, unrelatedManager, "FinanceManager", otherClientId));
+      await db.SaveChangesAsync();
+      var deniedDetail = await BillingService.GetInvoiceDetailAsync(db, Actor(unrelatedManager, "FinanceManager"), invoiceId);
+      Assert.False(deniedDetail.Succeeded);
+      Assert.Equal(ErrorCodes.ScopeDenied, deniedDetail.ErrorCode);
+      Assert.Null(deniedDetail.Value);
     }
 
     await using (var db = new AuditSphereDbContext(pg.Options))

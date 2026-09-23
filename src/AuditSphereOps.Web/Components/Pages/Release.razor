@@ -1,8 +1,11 @@
 @page "/app/releases/{CandidateId:guid}"
 @rendermode InteractiveServer
+@using AuditSphereOps.Application.Completion
+@using AuditSphereOps.Application.Security
 @using AuditSphereOps.Domain.Records
 @inject CurrentActorResolver ActorResolver
 @inject IDbContextFactory<AuditSphereDbContext> DbFactory
+@inject ReleaseSafetyOptions Safety
 
 
 <PageTitle>Release candidate</PageTitle>
@@ -67,7 +70,14 @@ else
           }
           else if (_attestation.ObservedState == "PROTECTED")
           {
-            <span class="success-text">verified — Profile @_attestation.ProfileId (v@_attestation.ProfileVersion)</span>
+            @if (_attestation.ExpiryTime is { } expiry && expiry <= DateTimeOffset.UtcNow)
+            {
+              <span class="error-text">expired — Profile @_attestation.ProfileId (v@_attestation.ProfileVersion)</span>
+            }
+            else
+            {
+              <span class="success-text">verified — Profile @_attestation.ProfileId (v@_attestation.ProfileVersion)</span>
+            }
           }
           else
           {
@@ -100,7 +110,7 @@ else
         <label for="release-key">Authorized release key</label>
         <input id="release-key" @bind="_releaseKey" maxlength="200" autocomplete="off" required data-draft-skip="true" title="Enter the authorized key only for this release action; it is never stored in browser draft state." />
       </div>
-      <button class="button" @onclick="IssueAsync" disabled="@(_busy || _checkpoint?.VerifiedStatus != "VERIFIED" || string.IsNullOrWhiteSpace(_releaseKey))">@(_busy ? "Issuing…" : "Issue release")</button>
+      <button class="button" @onclick="IssueAsync" disabled="@(!CanIssue || string.IsNullOrWhiteSpace(_releaseKey))">@(_busy ? "Issuing…" : "Issue release")</button>
       @if (_result is not null)
       {
         <p class="command-result @(_result.Succeeded ? "success-text" : "error-text")" role="status">@(_result.Succeeded ? $"Release event: {_result.Value}" : $"Blocked: {_result.ErrorCode}")</p>
@@ -121,6 +131,10 @@ else
   private bool _loading = true;
   private bool _busy;
   private bool IsStaff => _actor is not null && _actor.Roles.Any(x => x is "Administrator" or "Partner" or "Manager" or "Reviewer" or "Staff");
+  private bool CanIssue => !_busy && _checkpoint?.VerifiedStatus == "VERIFIED" &&
+    (!Safety.RequireProtectionAttestation || _attestation is { ObservedState: "PROTECTED" } &&
+      (_attestation.ExpiryTime is null || _attestation.ExpiryTime > DateTimeOffset.UtcNow)) &&
+    (!Safety.RequireSignatureLineage || _lineage?.VerificationOutcome == "VERIFIED");
 
   protected override async Task OnInitializedAsync()
   {
@@ -128,16 +142,24 @@ else
     if (_actor is not null && IsStaff)
     {
       await using var db = await DbFactory.CreateDbContextAsync();
-      _candidate = await db.ReleaseCandidates.AsNoTracking().SingleOrDefaultAsync(x => x.Id == CandidateId && x.FirmId == _actor.FirmId);
-      if (_candidate is not null)
+      var candidate = await db.ReleaseCandidates.AsNoTracking()
+        .SingleOrDefaultAsync(x => x.Id == CandidateId && x.FirmId == _actor.FirmId);
+      if (candidate is not null)
       {
-        _checkpoint = await db.ReleaseCheckpoints.AsNoTracking().SingleOrDefaultAsync(x =>
-          x.FirmId == _actor.FirmId && x.ReleaseCandidateId == CandidateId &&
-          x.CandidateRevision == _candidate.Revision && x.ManifestDigest == _candidate.ManifestDigest);
-        _attestation = await db.ProtectionAttestations.AsNoTracking().SingleOrDefaultAsync(x =>
-          x.FirmId == _actor.FirmId && x.ArtifactHash == _candidate.ManifestDigest);
-        _lineage = await db.SignatureLineages.AsNoTracking().SingleOrDefaultAsync(x =>
-          x.FirmId == _actor.FirmId && x.CandidateId == CandidateId);
+        var authorization = await AuthorizationDecision.AuthorizeAsync(db, _actor,
+          new AuthorizationRequest(candidate.FirmId, candidate.ClientId, candidate.EngagementId,
+            ["Administrator", "Partner", "Manager", "Reviewer", "Staff"], InternalOnly: true));
+        if (authorization.Succeeded)
+        {
+          _candidate = candidate;
+          _checkpoint = await db.ReleaseCheckpoints.AsNoTracking().SingleOrDefaultAsync(x =>
+            x.FirmId == _actor.FirmId && x.ReleaseCandidateId == CandidateId &&
+            x.CandidateRevision == candidate.Revision && x.ManifestDigest == candidate.ManifestDigest);
+          _attestation = await db.ProtectionAttestations.AsNoTracking().SingleOrDefaultAsync(x =>
+            x.FirmId == _actor.FirmId && x.ArtifactHash == candidate.ManifestDigest);
+          _lineage = await db.SignatureLineages.AsNoTracking().SingleOrDefaultAsync(x =>
+            x.FirmId == _actor.FirmId && x.CandidateId == CandidateId);
+        }
       }
     }
     _loading = false;
@@ -151,7 +173,7 @@ else
     {
       await using var db = await DbFactory.CreateDbContextAsync();
       _result = await ReleaseService.IssueAsync(db, _actor,
-        new IssueReleaseRequest(_candidate.Id, _candidate.Revision, _candidate.ManifestDigest, _releaseKey));
+        new IssueReleaseRequest(_candidate.Id, _candidate.Revision, _candidate.ManifestDigest, _releaseKey), Safety);
       if (_result.Succeeded) _candidate.Status = ReleaseStates.Issued;
     }
     finally { _busy = false; }

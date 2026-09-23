@@ -298,5 +298,5 @@ public static class OperationRecoveryService
   private static async Task<CommandResult> AuthorizeAsync(
     IAuditSphereDbContext db, ActorContext actor, CancellationToken ct) =>
     await AuthorizationDecision.AuthorizeAsync(db, actor,
-      new AuthorizationRequest(actor.FirmId, RequiredRoles: ["Administrator"]), ct);
+      new AuthorizationRequest(actor.FirmId, RequiredRoles: ["Administrator"], RequireFirmWide: true), ct);
 }

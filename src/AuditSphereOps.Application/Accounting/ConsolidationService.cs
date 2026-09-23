@@ -1358,18 +1358,11 @@ public static class ConsolidationService
   private static async Task<CommandResult> FirmAuthAsync(
     IClientAccountingDbContext db, ActorContext actor, IReadOnlyList<string> roles, CancellationToken ct) =>
     await Application.Security.AuthorizationDecision.AuthorizeAsync(db, actor,
-      new AuthorizationRequest(actor.FirmId, RequiredRoles: roles.ToArray(), InternalOnly: true), ct);
+      new AuthorizationRequest(actor.FirmId, RequiredRoles: roles.ToArray(), InternalOnly: true, RequireFirmWide: true), ct);
 
   private static async Task<CommandResult> GroupAuthAsync(
     IClientAccountingDbContext db, ActorContext actor, Guid groupId, IReadOnlyList<string> roles, CancellationToken ct)
-  {
-    var user = await db.Users.AsNoTracking().SingleOrDefaultAsync(x => x.Id == actor.UserId && x.FirmId == actor.FirmId && !x.Disabled, ct);
-    if (user is null || user.SessionEpoch != actor.SessionEpoch)
-      return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    var allowed = await db.GroupAccessGrants.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId && x.GroupId == groupId &&
-      x.UserId == actor.UserId && x.RevokedAt == null && roles.Contains(x.Role), ct);
-    return allowed ? CommandResult.Ok() : CommandResult.Fail(ErrorCodes.ScopeDenied, "Explicit group access is required.");
-  }
+    => await AuthorizationDecision.AuthorizeGroupAsync(db, actor, groupId, roles, ct);
 
   private static Task<bool> HasMethodOwnerAcceptanceAsync(
     IClientAccountingDbContext db, Guid firmId, Guid groupId, string method, CancellationToken ct) =>

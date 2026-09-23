@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @using System.Text.Json
 @using AuditSphereOps.Application.Accounting
+@using AuditSphereOps.Application.Security
 @using AuditSphereOps.Domain.Accounting
 @using AuditSphereOps.Domain.Shared
 @inject CurrentActorResolver ActorResolver
@@ -188,9 +189,9 @@ else
     var scope = await db.ConsolidationScopeVersions.AsNoTracking().SingleOrDefaultAsync(x =>
       x.FirmId == _actor.FirmId && x.Id == ScopeId && advancedMethods.Contains(x.Method));
     if (scope is null) return;
-    var hasGroupAccess = await db.GroupAccessGrants.AsNoTracking().AnyAsync(x =>
-      x.FirmId == _actor.FirmId && x.GroupId == scope.GroupId && x.UserId == _actor.UserId && x.RevokedAt == null);
-    if (!hasGroupAccess) return;
+    var groupAccess = await AuthorizationDecision.AuthorizeGroupAsync(db, _actor, scope.GroupId,
+      ["AccountingPreparer", "AccountingReviewer", "Manager", "Partner", "Administrator"]);
+    if (!groupAccess.Succeeded) return;
 
     var componentCount = await db.ConsolidationComponents.AsNoTracking().CountAsync(x =>
       x.FirmId == _actor.FirmId && x.GroupId == scope.GroupId && x.ScopeVersionId == scope.Id && x.Status == AccountingWorkflowStates.Approved);

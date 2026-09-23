@@ -136,6 +136,7 @@ else
 
 @code {
   private enum RecordMode { Mappings, Journals, Differences }
+  private static readonly string[] AccountingRoles = ["Administrator", "Partner", "Manager", "AccountingPreparer", "AccountingReviewer"];
 
   private sealed record MappingRow(Guid Id, string ClientName, string EngagementName, string PeriodStart, string PeriodEnd,
     long Version, long Generation, bool HasChart, string Status);
@@ -168,19 +169,35 @@ else
   protected override async Task OnInitializedAsync()
   {
     _actor = await ActorResolver.ResolveAsync();
-    _authorized = _actor is not null && _actor.Roles.Any(x => x is "Administrator" or "Partner" or "Manager" or "AccountingPreparer" or "AccountingReviewer");
-    if (!_authorized || _actor is null)
+    if (_actor is null)
     {
       _loading = false;
       return;
     }
 
     await using var db = await DbFactory.CreateDbContextAsync();
-    var grants = await db.RoleGrants.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && x.UserId == _actor.UserId && x.RevokedAt == null)
+    var authorization = await AuthorizationDecision.AuthorizeAsync(db, _actor,
+      new AuthorizationRequest(_actor.FirmId, RequiredRoles: AccountingRoles, InternalOnly: true));
+    if (!authorization.Succeeded)
+    {
+      _actor = null;
+      _loading = false;
+      return;
+    }
+
+    _authorized = true;
+    var grants = await db.RoleGrants.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && x.UserId == _actor.UserId &&
+        x.RevokedAt == null && AccountingRoles.Contains(x.Role))
       .Select(x => new { x.ClientId, x.EngagementId }).ToListAsync();
     var firmWide = grants.Any(x => x.ClientId is null && x.EngagementId is null);
     var directClientIds = grants.Where(x => x.ClientId.HasValue && x.EngagementId is null).Select(x => x.ClientId!.Value).Distinct().ToArray();
-    var grantedEngagementIds = grants.Where(x => x.EngagementId.HasValue).Select(x => x.EngagementId!.Value).Distinct().ToArray();
+    var engagementIds = grants.Where(x => x.EngagementId.HasValue).Select(x => x.EngagementId!.Value).Distinct().ToArray();
+    var engagementClients = engagementIds.Length == 0 ? new Dictionary<Guid, Guid>() : await db.Engagements.AsNoTracking()
+      .Where(x => x.FirmId == _actor.FirmId && engagementIds.Contains(x.Id))
+      .ToDictionaryAsync(x => x.Id, x => x.PracticeClientId);
+    var grantedEngagementIds = grants.Where(x => x.ClientId.HasValue && x.EngagementId.HasValue &&
+      engagementClients.TryGetValue(x.EngagementId.Value, out var clientId) && clientId == x.ClientId.Value)
+      .Select(x => x.EngagementId!.Value).Distinct().ToArray();
     var scopedEngagementIds = firmWide ? [] : await db.Engagements.AsNoTracking()
       .Where(x => x.FirmId == _actor.FirmId && (directClientIds.Contains(x.PracticeClientId) || grantedEngagementIds.Contains(x.Id)))
       .Select(x => x.Id).ToArrayAsync();

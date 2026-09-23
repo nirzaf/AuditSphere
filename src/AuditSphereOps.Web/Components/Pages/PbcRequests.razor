@@ -104,7 +104,7 @@ else
                   <p class="command-result @(result.Succeeded ? "success-text" : "error-text")" role="status">
                     @(result.Succeeded
                       ? "Staged bytes verified; a durable provider transfer is queued. The request is not received until that transfer completes."
-                      : $"Blocked: {result.ErrorCode}")
+                      : $"Blocked: {result.ErrorCode} — {result.Message}")
                   </p>
                 </td></tr>
               }

@@ -1,7 +1,9 @@
+using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Documents;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Documents;
+using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -248,6 +250,30 @@ public sealed class OperationRecoveryTests
     Assert.Equal(ErrorCodes.ScopeDenied, denied.ErrorCode);
     PbcSeed.DeleteDirectory(harness.Staged.StagingRoot);
     PbcSeed.DeleteDirectory(other.Staged.StagingRoot);
+  }
+
+  [Fact]
+  public async Task ClientScopedAdministrator_CannotListFirmRecoveryOperations()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var harness = await PbcSeed.CreateTransferHarnessAsync(pg);
+    var scopedAdmin = PbcSeed.User(harness.Fixture.FirmId, "Staff");
+
+    await using (var seed = new AuditSphereDbContext(pg.Options))
+    {
+      seed.Users.Add(scopedAdmin);
+      seed.RoleGrants.Add(PbcSeed.Grant(harness.Fixture.FirmId, scopedAdmin, "Administrator",
+        harness.Fixture.ClientId, harness.Fixture.EngagementId));
+      await seed.SaveChangesAsync();
+    }
+
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var result = await OperationRecoveryService.ListAsync(db,
+      PbcSeed.Actor(scopedAdmin, "Administrator"));
+
+    Assert.False(result.Succeeded);
+    Assert.Equal(ErrorCodes.ScopeDenied, result.ErrorCode);
+    PbcSeed.DeleteDirectory(harness.Staged.StagingRoot);
   }
 
   private static async Task<Guid> SingleOperationIdAsync(PgTestSchema pg)

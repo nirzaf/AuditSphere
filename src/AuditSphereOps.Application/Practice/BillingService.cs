@@ -48,12 +48,20 @@ public sealed record InvoiceBalance(
   decimal Allocated,
   decimal Outstanding);
 
+public sealed record InvoiceDetailView(
+  Invoice Invoice,
+  IReadOnlyList<InvoiceLine> Lines,
+  IReadOnlyList<ReceiptAllocation> Allocations,
+  InvoiceBalance Balance);
+
 /// <summary>
 /// Local billing artifact commands. Posting is a billing-state transition gated by an
 /// approved finance profile; firm-ledger journal creation remains the next slice.
 /// </summary>
 public static class BillingService
 {
+  private sealed record AuthorizedInvoice(Invoice Invoice, BillingAccount Account);
+
   private static readonly string[] BillingRoles = ["FinanceManager", "FinanceReviewer"];
   private static readonly string[] ReviewerRoles = ["FinanceReviewer"];
   private static readonly string[] ManagerRoles = ["FinanceManager"];
@@ -346,14 +354,10 @@ public static class BillingService
   public static async Task<CommandResult<InvoiceBalance>> GetInvoiceBalanceAsync(
     IAuditSphereDbContext db, ActorContext actor, Guid invoiceId, CancellationToken ct = default)
   {
-    var invoice = await db.Invoices.AsNoTracking().SingleOrDefaultAsync(x =>
-      x.Id == invoiceId && x.FirmId == actor.FirmId, ct);
-    if (invoice is null) return CommandResult<InvoiceBalance>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    var account = await db.BillingAccounts.AsNoTracking().SingleOrDefaultAsync(x =>
-      x.Id == invoice.BillingAccountId && x.FirmId == actor.FirmId, ct);
-    if (account is null) return CommandResult<InvoiceBalance>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    var auth = await AuthorizeBillingAsync(db, actor, account.PracticeClientId, BillingRoles, ct);
-    if (!auth.Succeeded) return CommandResult<InvoiceBalance>.Fail(auth.ErrorCode!, auth.Message!);
+    var resolved = await ResolveAuthorizedInvoiceAsync(db, actor, invoiceId, ct);
+    if (!resolved.Succeeded) return CommandResult<InvoiceBalance>.Fail(resolved.ErrorCode!, resolved.Message!);
+    var invoice = resolved.Value!.Invoice;
+    var account = resolved.Value.Account;
     var credited = await db.CreditNotes.Where(x => x.FirmId == actor.FirmId && x.InvoiceId == invoiceId &&
       x.Status == BillingStates.CreditIssued).SumAsync(x => (decimal?)x.Amount, ct) ?? 0;
     var allocated = await db.ReceiptAllocations.Where(x => x.FirmId == actor.FirmId && x.InvoiceId == invoiceId)
@@ -362,6 +366,41 @@ public static class BillingService
     return CommandResult<InvoiceBalance>.Ok(new InvoiceBalance(invoice.Id, currency, invoice.Total,
       MoneyPolicy.Normalize(credited), MoneyPolicy.Normalize(allocated),
       MoneyPolicy.Normalize(invoice.Total - credited - allocated)));
+  }
+
+  public static async Task<CommandResult<InvoiceDetailView>> GetInvoiceDetailAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid invoiceId, CancellationToken ct = default)
+  {
+    var resolved = await ResolveAuthorizedInvoiceAsync(db, actor, invoiceId, ct);
+    if (!resolved.Succeeded) return CommandResult<InvoiceDetailView>.Fail(resolved.ErrorCode!, resolved.Message!);
+    var context = resolved.Value!;
+    var lines = await db.InvoiceLines.AsNoTracking().Where(x =>
+      x.FirmId == actor.FirmId && x.InvoiceId == invoiceId).ToListAsync(ct);
+    var allocations = await db.ReceiptAllocations.AsNoTracking().Where(x =>
+      x.FirmId == actor.FirmId && x.InvoiceId == invoiceId).OrderByDescending(x => x.CreatedAt).ToListAsync(ct);
+    var credited = await db.CreditNotes.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&
+      x.InvoiceId == invoiceId && x.Status == BillingStates.CreditIssued)
+      .SumAsync(x => (decimal?)x.Amount, ct) ?? 0;
+    var allocated = allocations.Sum(x => x.Amount);
+    var currency = context.Invoice.Currency ?? context.Account.Currency;
+    var balance = new InvoiceBalance(context.Invoice.Id, currency, context.Invoice.Total,
+      MoneyPolicy.Normalize(credited), MoneyPolicy.Normalize(allocated),
+      MoneyPolicy.Normalize(context.Invoice.Total - credited - allocated));
+    return CommandResult<InvoiceDetailView>.Ok(new(context.Invoice, lines, allocations, balance));
+  }
+
+  private static async Task<CommandResult<AuthorizedInvoice>> ResolveAuthorizedInvoiceAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid invoiceId, CancellationToken ct)
+  {
+    var invoice = await db.Invoices.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.Id == invoiceId && x.FirmId == actor.FirmId, ct);
+    if (invoice is null) return CommandResult<AuthorizedInvoice>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var account = await db.BillingAccounts.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.Id == invoice.BillingAccountId && x.FirmId == actor.FirmId, ct);
+    if (account is null) return CommandResult<AuthorizedInvoice>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var auth = await AuthorizeBillingAsync(db, actor, account.PracticeClientId, BillingRoles, ct);
+    if (!auth.Succeeded) return CommandResult<AuthorizedInvoice>.Fail(auth.ErrorCode!, auth.Message!);
+    return CommandResult<AuthorizedInvoice>.Ok(new(invoice, account));
   }
 
   private static async Task<CommandResult> PostInvoiceCoreAsync(

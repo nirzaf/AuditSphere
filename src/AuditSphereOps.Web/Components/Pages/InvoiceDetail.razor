@@ -164,8 +164,8 @@ else
     _actor = await ActorResolver.ResolveAsync();
     if (_actor is not null)
     {
-      _isAuthorized = _actor.Roles.Any(x => x is "Administrator" or "Partner" or "Manager" or "FinanceOfficer" or "FinanceManager" or "Staff");
-      _canAct = _actor.Roles.Any(x => x is "Administrator" or "Partner" or "Manager" or "FinanceManager");
+      _isAuthorized = _actor.Roles.Any(x => x is "FinanceManager" or "FinanceReviewer");
+      _canAct = _isAuthorized;
       if (_isAuthorized)
       {
         await LoadInvoiceAsync();
@@ -178,21 +178,21 @@ else
   {
     if (_actor is null) return;
     await using var db = await DbFactory.CreateDbContextAsync();
-    _invoice = await db.Invoices.AsNoTracking()
-      .SingleOrDefaultAsync(x => x.Id == InvoiceId && x.FirmId == _actor.FirmId);
-    if (_invoice is not null)
+    var detail = await BillingService.GetInvoiceDetailAsync(db, _actor, InvoiceId);
+    if (!detail.Succeeded || detail.Value is null)
     {
-      _lines = await db.InvoiceLines.AsNoTracking()
-        .Where(x => x.InvoiceId == _invoice.Id && x.FirmId == _actor.FirmId)
-        .ToListAsync();
-      _allocations = await db.ReceiptAllocations.AsNoTracking()
-        .Where(x => x.InvoiceId == _invoice.Id && x.FirmId == _actor.FirmId)
-        .OrderByDescending(x => x.CreatedAt)
-        .ToListAsync();
-
-      var balResult = await BillingService.GetInvoiceBalanceAsync(db, _actor, _invoice.Id);
-      _balance = balResult.Succeeded ? balResult.Value!.Outstanding : (_invoice.Total - _allocations.Sum(x => x.Amount));
+      _isAuthorized = false;
+      _canAct = false;
+      _invoice = null;
+      _lines = [];
+      _allocations = [];
+      _balance = 0;
+      return;
     }
+    _invoice = detail.Value.Invoice;
+    _lines = detail.Value.Lines.ToList();
+    _allocations = detail.Value.Allocations.ToList();
+    _balance = detail.Value.Balance.Outstanding;
   }
 
   private async Task ApproveInvoiceAsync()

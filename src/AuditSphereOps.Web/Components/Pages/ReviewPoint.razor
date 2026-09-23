@@ -1,5 +1,6 @@
 @page "/app/reviews/{Id:guid}"
 @rendermode InteractiveServer
+@using AuditSphereOps.Application.Audit
 @using AuditSphereOps.Domain.Reviews
 @using AuditSphereOps.Domain.Security
 @using AuditSphereOps.Infrastructure.Persistence
@@ -70,14 +71,18 @@ else
             {
                 <div class="alert alert-success" style="margin-bottom:0.75rem;">Disposition updated successfully.</div>
             }
+            @if (_actionError is not null)
+            {
+                <p class="command-result error-text" role="status">Disposition was not updated: @_actionError</p>
+            }
             <div class="action-bar" style="display:flex; gap:0.75rem;">
                 @if (!_point.Cleared)
                 {
-                    <button class="btn-primary btn-green" @onclick="ClearPoint">Clear Review Point</button>
+                    <button class="btn-primary btn-green" @onclick="ClearPoint" disabled="@_busy">Clear Review Point</button>
                 }
                 else
                 {
-                    <button class="btn-secondary btn-red" @onclick="ReopenPoint">Reopen Review Point</button>
+                    <button class="btn-secondary btn-red" @onclick="ReopenPoint" disabled="@_busy">Reopen Review Point</button>
                 }
                 <a class="button" href="/app/engagements/@_point.EngagementId">Back to Engagement</a>
             </div>
@@ -91,7 +96,9 @@ else
     AuditSphereOps.Application.Abstractions.ActorContext? _actor;
     bool _isStaff;
     bool _loading = true;
+    bool _busy;
     bool _actionSuccess;
+    string? _actionError;
 
     AuditSphereOps.Domain.Reviews.ReviewPoint? _point;
     string _status = "OPEN";
@@ -110,8 +117,21 @@ else
         }
 
         await using var db = await DbFactory.CreateDbContextAsync();
-        _point = await db.ReviewPoints.AsNoTracking()
-            .FirstOrDefaultAsync(rp => rp.Id == Id && rp.FirmId == _actor.FirmId);
+        var candidate = await db.ReviewPoints.AsNoTracking().Where(rp =>
+                rp.Id == Id && rp.FirmId == _actor.FirmId)
+            .Select(rp => new { rp.ClientId, rp.EngagementId })
+            .SingleOrDefaultAsync();
+        if (candidate is not null)
+        {
+            var authorization = await AuthorizationDecision.AuthorizeAsync(db, _actor,
+                new AuthorizationRequest(_actor.FirmId, candidate.ClientId, candidate.EngagementId,
+                    ["Administrator", "Partner", "Manager", "Staff", "EngagementLeader", "Auditor"],
+                    InternalOnly: true));
+            if (authorization.Succeeded)
+                _point = await db.ReviewPoints.AsNoTracking().SingleOrDefaultAsync(rp =>
+                    rp.Id == Id && rp.FirmId == _actor.FirmId && rp.ClientId == candidate.ClientId &&
+                    rp.EngagementId == candidate.EngagementId);
+        }
 
         UpdateStatusBadge();
         _loading = false;
@@ -137,33 +157,41 @@ else
         }
     }
 
-    async Task ClearPoint()
-    {
-        if (_point is null || _actor is null) return;
-        await using var db = await DbFactory.CreateDbContextAsync();
-        var entity = await db.ReviewPoints.FirstOrDefaultAsync(rp => rp.Id == _point.Id && rp.FirmId == _actor.FirmId);
-        if (entity is not null)
-        {
-            entity.Cleared = true;
-            await db.SaveChangesAsync();
-            _point.Cleared = true;
-            UpdateStatusBadge();
-            _actionSuccess = true;
-        }
-    }
+    Task ClearPoint() => SetDispositionAsync(cleared: true);
 
-    async Task ReopenPoint()
+    Task ReopenPoint() => SetDispositionAsync(cleared: false);
+
+    private async Task SetDispositionAsync(bool cleared)
     {
-        if (_point is null || _actor is null) return;
-        await using var db = await DbFactory.CreateDbContextAsync();
-        var entity = await db.ReviewPoints.FirstOrDefaultAsync(rp => rp.Id == _point.Id && rp.FirmId == _actor.FirmId);
-        if (entity is not null)
+        var point = _point;
+        var actor = _actor;
+        if (point is null || actor is null || _busy) return;
+        _busy = true;
+        _actionSuccess = false;
+        _actionError = null;
+        try
         {
-            entity.Cleared = false;
-            await db.SaveChangesAsync();
-            _point.Cleared = false;
-            UpdateStatusBadge();
-            _actionSuccess = true;
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var result = await AuditPlanningService.SetReviewPointDispositionAsync(db, actor, point.Id, cleared);
+            if (!result.Succeeded && (result.ErrorCode is ErrorCodes.ScopeDenied or ErrorCodes.GenerationStale))
+            {
+                _point = null;
+                return;
+            }
+            if (result.Succeeded)
+            {
+                point.Cleared = cleared;
+                UpdateStatusBadge();
+                _actionSuccess = true;
+            }
+            else
+            {
+                _actionError = ErrorCatalog.ForUi(result.ErrorCode);
+            }
+        }
+        finally
+        {
+            _busy = false;
         }
     }
 }

@@ -132,6 +132,29 @@ public sealed class AuthorizationDecisionTests
   }
 
   [Fact]
+  public async Task EngagementGrantMustMatchItsStoredClientParent()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var firmId = Guid.NewGuid();
+    Scope clientA;
+    Scope clientB;
+    AppUser user;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      clientA = await SeedScopeAsync(db, firmId, "CLIENT A");
+      clientB = await SeedScopeAsync(db, firmId, "CLIENT B");
+      user = await SeedUserAsync(db, firmId);
+      await GrantAsync(db, firmId, user.Id, "Staff", clientA.ClientId, clientB.EngagementId);
+    }
+
+    await using var query = new AuditSphereDbContext(pg.Options);
+    var result = await AuthorizationDecision.AuthorizeAsync(query, Actor(user, "Staff"),
+      new AuthorizationRequest(firmId, clientB.ClientId, clientB.EngagementId, ["Staff"], InternalOnly: true));
+    Assert.False(result.Succeeded);
+    Assert.Equal(ErrorCodes.ScopeDenied, result.ErrorCode);
+  }
+
+  [Fact]
   public async Task CrossFirm_DatasetRead_IsDenied()
   {
     await using var pg = await PgTestSchema.CreateAsync();

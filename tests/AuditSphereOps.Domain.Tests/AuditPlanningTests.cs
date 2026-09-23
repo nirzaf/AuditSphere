@@ -5,6 +5,7 @@ using AuditSphereOps.Domain.Audit;
 using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Engagements;
 using AuditSphereOps.Domain.Practice;
+using AuditSphereOps.Domain.Reviews;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -459,6 +460,84 @@ public sealed class AuditPlanningTests
             new RecordFindingResponseRequest(created.Value!.FindingId, "   ", false));
         Assert.False(blank.Succeeded);
         Assert.Equal("audit-planning.invalid", blank.ErrorCode);
+    }
+
+    [Fact(DisplayName = "Finding response refuses a command after the engagement grant is revoked")]
+    public async Task FindingResponse_RevokedGrantDoesNotChangeFinding()
+    {
+        await using var pg = await PgTestSchema.CreateAsync();
+        var fixture = await PlanningSeed.CreateAsync(pg);
+        var scope = fixture.Primary;
+        Guid findingId;
+
+        await using (var ctx = new AuditSphereDbContext(pg.Options))
+        {
+            var created = await AuditPlanningService.CreateFindingAsync(ctx, scope.Actor,
+                new CreateFindingRequest(scope.EngagementId, "Synthetic finding", "Synthetic impact",
+                    false, 125m, null));
+            Assert.True(created.Succeeded, created.Message);
+            findingId = created.Value!.FindingId;
+            var revokedAt = DateTimeOffset.UtcNow;
+            Assert.Equal(1, await ctx.RoleGrants.Where(x => x.FirmId == scope.FirmId &&
+                    x.UserId == scope.Actor.UserId && x.RevokedAt == null)
+                .ExecuteUpdateAsync(update => update.SetProperty(x => x.RevokedAt, revokedAt)));
+
+            var denied = await AuditPlanningService.RecordFindingResponseAsync(ctx, scope.Actor,
+                new RecordFindingResponseRequest(findingId, "Must not be persisted", false));
+            Assert.False(denied.Succeeded);
+            Assert.Equal(ErrorCodes.ScopeDenied, denied.ErrorCode);
+        }
+
+        await using var verify = new AuditSphereDbContext(pg.Options);
+        var unchanged = await verify.Findings.AsNoTracking().SingleAsync(x => x.Id == findingId);
+        Assert.Null(unchanged.ManagementResponse);
+        Assert.Equal(FindingStatuses.Open, unchanged.Status);
+    }
+
+    [Fact(DisplayName = "Review point disposition requires current engagement scope and is idempotent")]
+    public async Task ReviewPointDisposition_IsScopedAndRetrySafe()
+    {
+        await using var pg = await PgTestSchema.CreateAsync();
+        var fixture = await PlanningSeed.CreateAsync(pg);
+        var primary = new ReviewPoint
+        {
+            Id = Guid.NewGuid(), FirmId = fixture.Primary.FirmId, ClientId = fixture.Primary.ClientId,
+            EngagementId = fixture.Primary.EngagementId, TargetId = Guid.NewGuid(), TargetKind = "workpaper",
+            TargetRevision = 1, Comment = "Synthetic primary review point", RaisedByUserId = fixture.Primary.Actor.UserId,
+            RaisedAt = DateTimeOffset.UtcNow
+        };
+        var other = new ReviewPoint
+        {
+            Id = Guid.NewGuid(), FirmId = fixture.Other.FirmId, ClientId = fixture.Other.ClientId,
+            EngagementId = fixture.Other.EngagementId, TargetId = Guid.NewGuid(), TargetKind = "workpaper",
+            TargetRevision = 1, Comment = "Synthetic other-client review point", RaisedByUserId = fixture.Primary.Actor.UserId,
+            RaisedAt = DateTimeOffset.UtcNow
+        };
+        await using (var seed = new AuditSphereDbContext(pg.Options))
+        {
+            seed.ReviewPoints.AddRange(primary, other);
+            await seed.SaveChangesAsync();
+        }
+
+        await using (var db = new AuditSphereDbContext(pg.Options))
+        {
+            var clear = await AuditPlanningService.SetReviewPointDispositionAsync(db, fixture.Primary.Actor, primary.Id, true);
+            var retry = await AuditPlanningService.SetReviewPointDispositionAsync(db, fixture.Primary.Actor, primary.Id, true);
+            var sibling = await AuditPlanningService.SetReviewPointDispositionAsync(db, fixture.Primary.Actor, other.Id, true);
+            var staleActor = fixture.Primary.Actor with { SessionEpoch = fixture.Primary.Actor.SessionEpoch + 1 };
+            var stale = await AuditPlanningService.SetReviewPointDispositionAsync(db, staleActor, primary.Id, false);
+
+            Assert.True(clear.Succeeded);
+            Assert.True(retry.Succeeded);
+            Assert.False(sibling.Succeeded);
+            Assert.Equal(ErrorCodes.ScopeDenied, sibling.ErrorCode);
+            Assert.False(stale.Succeeded);
+            Assert.Equal(ErrorCodes.GenerationStale, stale.ErrorCode);
+        }
+
+        await using var verify = new AuditSphereDbContext(pg.Options);
+        Assert.True(await verify.ReviewPoints.Where(x => x.Id == primary.Id).Select(x => x.Cleared).SingleAsync());
+        Assert.False(await verify.ReviewPoints.Where(x => x.Id == other.Id).Select(x => x.Cleared).SingleAsync());
     }
 
     // ── NT-22 — Posting balance guard (pure unit) ───────────────────────────

@@ -1,5 +1,6 @@
 @page "/portal/requests/{RequestId:guid}"
 @rendermode InteractiveServer
+@implements IAsyncDisposable
 @using AuditSphereOps.Application.Operations
 @inject CurrentActorResolver ActorResolver
 @inject IDbContextFactory<AuditSphereDbContext> DbFactory
@@ -31,18 +32,18 @@ else
     </dl>
   </section>
 
-  <section class="card" aria-labelledby="upload-heading">
+  <section class="card" aria-labelledby="upload-heading" data-draft-scope="pbc-upload-@RequestId">
     <h2 id="upload-heading">Prepare a controlled upload</h2>
     <p class="muted">This creates a request-bound, expiring transfer intent. Content bytes are not accepted through the interactive circuit and are not marked received until a trusted completion boundary verifies the staged file.</p>
-    <div class="field"><label for="pbc-file">File</label><input id="pbc-file" type="file" required title="Select the file to transfer; browser security prevents retaining the file itself after navigation." /></div>
+    <div class="field"><label for="@FileInputId">File</label><input id="@FileInputId" type="file" required title="Select the file to transfer; browser security prevents retaining the file itself after navigation." /></div>
     <div class="field"><label for="file-name">File name</label><input id="file-name" @bind="_fileName" maxlength="255" readonly title="Filled from the selected file before the upload starts." /></div>
     <div class="field"><label for="content-type">Content type</label><input id="content-type" @bind="_contentType" maxlength="200" readonly title="Filled from the selected file before the upload starts." /></div>
     <div class="field"><label for="byte-count">Declared bytes</label><input id="byte-count" type="number" min="1" max="262144000" @bind="_byteCount" readonly title="Filled from the selected file before the upload starts." /></div>
-    <div class="field"><label for="content-hash">Declared SHA-256</label><input id="content-hash" @bind="_contentHash" maxlength="64" autocomplete="off" required title="Enter the lowercase or uppercase SHA-256 digest used to verify the upload." /></div>
+    <div class="field"><label for="content-hash">Declared SHA-256</label><input id="content-hash" data-draft-field="declared-sha256" @bind="_contentHash" @bind:event="oninput" maxlength="64" autocomplete="off" required aria-describedby="content-hash-help content-hash-state" title="Enter the lowercase or uppercase SHA-256 digest used to verify the upload." /><span id="content-hash-help" class="muted">Enter the 64-character digest of the exact file selected above.</span><span id="content-hash-state" class="sr-only" aria-live="polite">@(_contentHash.Length == 64 ? "SHA-256 digest entered." : string.Empty)</span></div>
     <button class="button" @onclick="StartUploadAsync" disabled="@_busy">@(_busy ? "Preparing…" : "Prepare upload")</button>
     @if (_result is not null)
     {
-      <p class="command-result @(_result.Succeeded ? "success-text" : "error-text")" role="status">@(_result.Succeeded ? "Transfer intent created; continue through the approved upload transport." : $"Blocked: {_result.ErrorCode}")</p>
+      <p class="command-result @(_result.Succeeded ? "success-text" : "error-text")" role="status">@(_result.Succeeded ? "Transfer intent created; continue through the approved upload transport." : $"Blocked: {_result.ErrorCode} — {_result.Message}")</p>
     }
     @if (!string.IsNullOrWhiteSpace(_uploadMessage))
     {
@@ -89,6 +90,7 @@ else
 
 @code {
   [Parameter] public Guid RequestId { get; set; }
+  private string FileInputId => $"pbc-file-{RequestId:N}";
   private ActorContext? _actor;
   private PbcRequest? _request;
   private List<PbcUploadIntent> _uploads = [];
@@ -111,12 +113,18 @@ else
     if (_actor is not null)
     {
       await using var db = await DbFactory.CreateDbContextAsync();
-      var clientIds = await db.RoleGrants.AsNoTracking().Where(x =>
-        x.FirmId == _actor.FirmId && x.UserId == _actor.UserId && x.Role == "ClientUser" &&
-        x.ClientId.HasValue && x.RevokedAt == null).Select(x => x.ClientId!.Value).Distinct().ToListAsync();
-      _request = await db.PbcRequests.AsNoTracking().SingleOrDefaultAsync(x =>
-        x.Id == RequestId && x.FirmId == _actor.FirmId && clientIds.Contains(x.ClientId) &&
-        x.ClientOwnerUserId == _actor.UserId);
+      var candidate = await db.PbcRequests.AsNoTracking().Where(x =>
+          x.Id == RequestId && x.FirmId == _actor.FirmId && x.ClientOwnerUserId == _actor.UserId)
+        .Select(x => new { x.ClientId, x.EngagementId })
+        .SingleOrDefaultAsync();
+      if (candidate is not null)
+      {
+        var authorization = await AuthorizationDecision.AuthorizeAsync(db, _actor,
+          new AuthorizationRequest(_actor.FirmId, candidate.ClientId, candidate.EngagementId, ["ClientUser"]));
+        if (authorization.Succeeded)
+          _request = await db.PbcRequests.AsNoTracking().SingleOrDefaultAsync(x =>
+            x.Id == RequestId && x.FirmId == _actor.FirmId && x.ClientOwnerUserId == _actor.UserId);
+      }
       if (_request is not null)
         await LoadThreadAsync(db);
     }
@@ -129,7 +137,7 @@ else
     _busy = true;
     try
     {
-      var metadata = await JS.InvokeAsync<PbcFileMetadata?>("auditSpherePbc.readFileMetadata", "pbc-file");
+      var metadata = await JS.InvokeAsync<PbcFileMetadata?>("auditSpherePbc.readFileMetadata", FileInputId);
       if (metadata is null)
       {
         _result = CommandResult<PbcUploadReceipt>.Fail("pbc.file-required", "Select a file before preparing the upload.");
@@ -145,10 +153,15 @@ else
       }
       if (_result.Succeeded)
       {
-        _uploadMessage = await JS.InvokeAsync<string>("auditSpherePbc.uploadChunks", "pbc-file",
+        _uploadMessage = await JS.InvokeAsync<string>("auditSpherePbc.uploadChunks", FileInputId,
           _result.Value!.UploadIntentId, _result.Value.Capability!);
+        await JS.InvokeVoidAsync("auditSphereDrafts.clear", $"pbc-upload-{RequestId}");
         await using var refreshDb = await DbFactory.CreateDbContextAsync();
         await LoadThreadAsync(refreshDb);
+      }
+      else if (IsAuthorizationFailure(_result.ErrorCode))
+      {
+        await DenyAndClearAsync();
       }
     }
     catch (JSException ex)
@@ -173,6 +186,10 @@ else
           x.FirmId == _actor.FirmId && x.Id == RequestId);
         await LoadThreadAsync(db);
         await JS.InvokeVoidAsync("auditSphereDrafts.clear", $"pbc-client-reply-{RequestId}");
+      }
+      else if (IsAuthorizationFailure(_replyResult.ErrorCode))
+      {
+        await DenyAndClearAsync();
       }
     }
     finally { _busy = false; }
@@ -200,7 +217,39 @@ else
     .OrderBy(x => x.At);
 
   private string Name(Guid userId) => _userNames.GetValueOrDefault(userId, "User");
+  private static bool IsAuthorizationFailure(string? errorCode) =>
+    errorCode is ErrorCodes.ScopeDenied or ErrorCodes.GenerationStale;
+
+  private async Task DenyAndClearAsync()
+  {
+    _request = null;
+    _uploads.Clear();
+    _communications.Clear();
+    _userNames.Clear();
+    _reply = string.Empty;
+    _fileName = string.Empty;
+    _contentType = "application/octet-stream";
+    _byteCount = 0;
+    _contentHash = string.Empty;
+    _uploadMessage = null;
+    _result = null;
+    _replyResult = null;
+    try
+    {
+      await JS.InvokeVoidAsync("auditSphereDrafts.clear", $"pbc-upload-{RequestId}");
+      await JS.InvokeVoidAsync("auditSphereDrafts.clear", $"pbc-client-reply-{RequestId}");
+      await JS.InvokeVoidAsync("auditSpherePbc.clearFile", FileInputId);
+    }
+    catch (JSException) { }
+  }
+
   private sealed record TimelineItem(DateTimeOffset At, string Label, string Body);
 
   private sealed record PbcFileMetadata(string Name, string Type, long Size);
+
+  public async ValueTask DisposeAsync()
+  {
+    try { await JS.InvokeVoidAsync("auditSpherePbc.clearFile", FileInputId); }
+    catch (JSDisconnectedException) { }
+  }
 }

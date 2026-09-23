@@ -163,6 +163,9 @@ else
 }
 
 @code {
+  private static readonly string[] FinanceRoles = ["FinanceManager", "FinanceReviewer"];
+  private const string PeriodCloseRole = "FinanceReviewer";
+
   private ActorContext? _actor;
   private bool _isAuthorized;
   private bool _canClosePeriod;
@@ -179,22 +182,26 @@ else
   protected override async Task OnInitializedAsync()
   {
     _actor = await ActorResolver.ResolveAsync();
-    if (_actor is not null)
-    {
-      _isAuthorized = _actor.Roles.Any(x => x is "Administrator" or "Partner" or "Manager" or "FinanceOfficer" or "FinanceManager");
-      _canClosePeriod = _actor.Roles.Any(x => x is "Administrator" or "Partner" or "FinanceManager");
-      if (_isAuthorized)
-      {
-        await LoadFinanceDataAsync();
-      }
-    }
+    await LoadFinanceDataAsync();
     _loading = false;
   }
 
   private async Task LoadFinanceDataAsync()
   {
+    _periods = [];
+    _accounts = [];
+    _postings = [];
+    _isAuthorized = false;
+    _canClosePeriod = false;
     if (_actor is null) return;
     await using var db = await DbFactory.CreateDbContextAsync();
+    var authorization = await AuthorizationDecision.AuthorizeAsync(db, _actor,
+      new AuthorizationRequest(_actor.FirmId, RequiredRoles: FinanceRoles, InternalOnly: true, RequireFirmWide: true));
+    if (!authorization.Succeeded) return;
+    _isAuthorized = true;
+    _canClosePeriod = await db.RoleGrants.AsNoTracking().AnyAsync(x => x.FirmId == _actor.FirmId &&
+      x.UserId == _actor.UserId && x.RevokedAt == null && x.Role == PeriodCloseRole &&
+      x.ClientId == null && x.EngagementId == null);
     _periods = await db.FirmPeriods.AsNoTracking()
       .Where(x => x.FirmId == _actor.FirmId)
       .OrderByDescending(x => x.PeriodCode)
@@ -233,6 +240,16 @@ else
         _successMessage = "Fiscal period successfully closed.";
         _selectedPeriodIdToClose = null;
         await LoadFinanceDataAsync();
+      }
+      else if (res.ErrorCode is ErrorCodes.ScopeDenied or ErrorCodes.GenerationStale)
+      {
+        _actor = null;
+        _isAuthorized = false;
+        _canClosePeriod = false;
+        _periods = [];
+        _accounts = [];
+        _postings = [];
+        _selectedPeriodIdToClose = null;
       }
     }
     finally { _busy = false; }

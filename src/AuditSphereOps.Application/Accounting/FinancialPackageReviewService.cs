@@ -60,16 +60,6 @@ public static class FinancialPackageReviewService
     if (package.Status != AccountingPackageStates.PackageValidated)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The financial package must be validated before review.");
 
-    var artifact = await db.FinancialPackageArtifacts.AsNoTracking().SingleOrDefaultAsync(x =>
-      x.FirmId == package.FirmId && x.ClientId == package.ClientId && x.EngagementId == package.EngagementId &&
-      x.FinancialPackageId == package.Id && x.PackageRevision == package.Revision &&
-      x.PackageGeneration == package.Generation && x.PackageHash == package.CalculationHash &&
-      x.ArtifactVersion == FinancialPackageArtifactVersions.Text, ct);
-    if (artifact is null || artifact.ArtifactBytes.Length == 0 ||
-        artifact.FrameworkVersion != package.Framework || artifact.TemplateVersion != package.TemplateVersion)
-      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
-        "A deterministic rendered artifact for the exact package framework/template version is required before review.");
-
     var (roles, internalOnly) = stage switch
     {
       FinancialPackageReviewStages.ManagementApproval when evidenceMode == FinancialPackageReviewEvidenceModes.SignedIn
@@ -83,6 +73,16 @@ public static class FinancialPackageReviewService
       new AuthorizationRequest(package.FirmId, package.ClientId, package.EngagementId, roles, InternalOnly: internalOnly), ct);
     if (!auth.Succeeded)
       return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+
+    var artifact = await db.FinancialPackageArtifacts.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.FirmId == package.FirmId && x.ClientId == package.ClientId && x.EngagementId == package.EngagementId &&
+      x.FinancialPackageId == package.Id && x.PackageRevision == package.Revision &&
+      x.PackageGeneration == package.Generation && x.PackageHash == package.CalculationHash &&
+      x.ArtifactVersion == FinancialPackageArtifactVersions.Text, ct);
+    if (artifact is null || artifact.ArtifactBytes.Length == 0 ||
+        artifact.FrameworkVersion != package.Framework || artifact.TemplateVersion != package.TemplateVersion)
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
+        "A deterministic rendered artifact for the exact package framework/template version is required before review.");
 
     if (await db.FinancialPackageReviewDecisions.AnyAsync(x =>
         x.FirmId == package.FirmId && x.ClientId == package.ClientId && x.EngagementId == package.EngagementId &&
@@ -204,8 +204,14 @@ public static class FinancialPackageReviewService
     if (!firmAuth.Succeeded)
       return CommandResult<IReadOnlyList<FinancialPackageReviewQueueItem>>.Fail(firmAuth.ErrorCode!, firmAuth.Message!);
 
+    var userGrants = db.RoleGrants.AsNoTracking().Where(g =>
+      g.FirmId == actor.FirmId && g.UserId == actor.UserId && g.RevokedAt == null && AccountingRoles.Contains(g.Role));
     var packages = await db.FinancialPackages.AsNoTracking()
-      .Where(x => x.FirmId == actor.FirmId && x.Status == AccountingPackageStates.PackageValidated)
+      .Where(x => x.FirmId == actor.FirmId && x.Status == AccountingPackageStates.PackageValidated &&
+        userGrants.Any(g =>
+          (g.ClientId == null && g.EngagementId == null) ||
+          (g.ClientId == x.ClientId && g.EngagementId == null) ||
+          (g.ClientId == x.ClientId && g.EngagementId == x.EngagementId)))
       .OrderByDescending(x => x.CreatedAt).Take(100).ToListAsync(ct);
     if (packages.Count == 0)
       return CommandResult<IReadOnlyList<FinancialPackageReviewQueueItem>>.Ok([]);

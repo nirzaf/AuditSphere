@@ -23,6 +23,7 @@ using AuditSphereOps.Web.Authentication;
 using AuditSphereOps.Infrastructure.Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
+if (builder.Environment.IsEnvironment("Test")) builder.WebHost.UseStaticWebAssets();
 
 // Serilog console bootstrap (§45.8); file/central sinks land with operations hardening.
 Log.Logger = new LoggerConfiguration()
@@ -87,7 +88,30 @@ var authentication = builder.Services.AddAuthentication(options =>
   options.DefaultAuthenticateScheme = CookieAuthenticationDefaults.AuthenticationScheme;
   options.DefaultSignInScheme = CookieAuthenticationDefaults.AuthenticationScheme;
   options.DefaultChallengeScheme = oidcConfigured ? "Entra" : CookieAuthenticationDefaults.AuthenticationScheme;
-}).AddCookie(options => options.LoginPath = "/auth/sign-in");
+}).AddCookie(options =>
+{
+  options.LoginPath = "/auth/sign-in";
+  options.Events.OnRedirectToLogin = context =>
+  {
+    if (context.Request.Path.StartsWithSegments("/api"))
+    {
+      context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+      return Task.CompletedTask;
+    }
+    context.Response.Redirect(context.RedirectUri);
+    return Task.CompletedTask;
+  };
+  options.Events.OnRedirectToAccessDenied = context =>
+  {
+    if (context.Request.Path.StartsWithSegments("/api"))
+    {
+      context.Response.StatusCode = StatusCodes.Status403Forbidden;
+      return Task.CompletedTask;
+    }
+    context.Response.Redirect(context.RedirectUri);
+    return Task.CompletedTask;
+  };
+});
 if (oidcConfigured)
 {
   authentication.AddOpenIdConnect("Entra", options =>
@@ -259,17 +283,14 @@ app.MapPost("/api/pbc/uploads/{uploadId:guid}/chunks/{chunkIndex:int}", async (
   if (actor is null)
     return Results.Unauthorized();
   var origin = http.Request.Headers.Origin.ToString();
-  if (!string.IsNullOrWhiteSpace(origin))
-  {
-    if (!Uri.TryCreate(origin, UriKind.Absolute, out var originUri))
-      return Results.Forbid();
-    var expectedPort = http.Request.Host.Port ?? (http.Request.IsHttps ? 443 : 80);
-    var originPort = originUri.IsDefaultPort ? (originUri.Scheme.Equals("https", StringComparison.OrdinalIgnoreCase) ? 443 : 80) : originUri.Port;
-    if (!string.Equals(originUri.Scheme, http.Request.Scheme, StringComparison.OrdinalIgnoreCase) ||
-        !string.Equals(originUri.Host, http.Request.Host.Host, StringComparison.OrdinalIgnoreCase) ||
-        originPort != expectedPort)
-      return Results.Forbid();
-  }
+  if (string.IsNullOrWhiteSpace(origin) || !Uri.TryCreate(origin, UriKind.Absolute, out var originUri))
+    return Results.Forbid();
+  var expectedPort = http.Request.Host.Port ?? (http.Request.IsHttps ? 443 : 80);
+  var originPort = originUri.IsDefaultPort ? (originUri.Scheme.Equals("https", StringComparison.OrdinalIgnoreCase) ? 443 : 80) : originUri.Port;
+  if (!string.Equals(originUri.Scheme, http.Request.Scheme, StringComparison.OrdinalIgnoreCase) ||
+      !string.Equals(originUri.Host, http.Request.Host.Host, StringComparison.OrdinalIgnoreCase) ||
+      originPort != expectedPort)
+    return Results.Forbid();
   if (chunkIndex < 0 || !long.TryParse(http.Request.Headers["X-Upload-Offset"], out var offset) || offset < 0 ||
       string.IsNullOrWhiteSpace(http.Request.Headers["X-Content-SHA256"]) ||
       string.IsNullOrWhiteSpace(http.Request.Headers["X-Pbc-Upload-Capability"]))
@@ -447,3 +468,5 @@ file sealed class MigrationCheck(IDbContextFactory<AuditSphereDbContext> factory
     }
   }
 }
+
+public partial class Program { }

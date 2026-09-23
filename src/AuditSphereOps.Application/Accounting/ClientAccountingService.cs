@@ -1260,15 +1260,11 @@ public static class ClientAccountingService
   private static async Task<CommandResult> AuthorizeFirmAsync(
     IClientAccountingDbContext db, ActorContext actor, IReadOnlyList<string> roles, CancellationToken ct) =>
     await AuthorizationDecision.AuthorizeAsync(db, actor,
-      new AuthorizationRequest(actor.FirmId, RequiredRoles: roles.ToArray(), InternalOnly: true), ct);
+      new AuthorizationRequest(actor.FirmId, RequiredRoles: roles.ToArray(), InternalOnly: true, RequireFirmWide: true), ct);
 
   private static async Task<CommandResult> AuthorizeGroupAsync(
     IClientAccountingDbContext db, ActorContext actor, Guid groupId, IReadOnlyList<string> roles, CancellationToken ct)
-  {
-    var allowed = await db.GroupAccessGrants.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId && x.GroupId == groupId &&
-      x.UserId == actor.UserId && x.RevokedAt == null && roles.Contains(x.Role), ct);
-    return allowed ? CommandResult.Ok() : CommandResult.Fail(ErrorCodes.ScopeDenied, "Explicit group access is required.");
-  }
+    => await AuthorizationDecision.AuthorizeGroupAsync(db, actor, groupId, roles, ct);
 
   private sealed record GeneralLedgerImportContext(
     ClientReportingPeriod Period, IReadOnlyDictionary<string, ClientAccount> Accounts,

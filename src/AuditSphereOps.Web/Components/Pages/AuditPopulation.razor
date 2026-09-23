@@ -1,5 +1,6 @@
 @page "/app/audit/populations/{Id:guid}"
 @rendermode InteractiveServer
+@using AuditSphereOps.Application.Security
 @using AuditSphereOps.Domain.Audit
 @using AuditSphereOps.Infrastructure.Persistence
 @using Microsoft.EntityFrameworkCore
@@ -33,7 +34,7 @@ else if (_population is null)
 {
     <section class="notice" role="alert">
         <h2>Population unavailable</h2>
-        <p>The requested population was not found in the current firm scope.</p>
+        <p>The requested population is unavailable in your current scope.</p>
     </section>
 }
 else
@@ -120,47 +121,79 @@ else
 
     private sealed record SelectionSummary(string Method, string Status, string Rationale, int ItemCount, int TestCount, int ReviewedTestCount);
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnParametersSetAsync()
     {
+        _loading = true;
+        ClearPopulation();
         _actor = await ActorResolver.ResolveAsync();
-        if (_actor is not null)
-        {
-            await using var db = await DbFactory.CreateDbContextAsync();
-            _population = await db.PopulationVersions.AsNoTracking()
-                .FirstOrDefaultAsync(p => p.Id == Id && p.FirmId == _actor.FirmId);
-            if (_population is not null)
-            {
-                _evidence = await db.EvidenceLinks.AsNoTracking()
-                    .Where(e => e.FirmId == _population.FirmId && e.EngagementId == _population.EngagementId)
-                    .OrderByDescending(e => e.CreatedAt)
-                    .ToListAsync();
-                var receiptIds = _evidence.Select(e => e.SourceReceiptId).Distinct().ToArray();
-                _receiptTokens = await db.SourceReceipts.AsNoTracking()
-                    .Where(r => receiptIds.Contains(r.Id))
-                    .ToDictionaryAsync(r => r.Id, r => r.ReceiptToken);
-
-                var selectionRows = await db.AuditSelections.AsNoTracking()
-                    .Where(s => s.FirmId == _population.FirmId && s.ClientId == _population.ClientId &&
-                        s.EngagementId == _population.EngagementId && s.PopulationVersionId == _population.Id)
-                    .OrderBy(s => s.CreatedAt)
-                    .ToListAsync();
-                var selectionIds = selectionRows.Select(s => s.Id).ToArray();
-                var itemRows = await db.AuditSelectionItems.AsNoTracking()
-                    .Where(i => selectionIds.Contains(i.SelectionId)).Select(i => new { i.Id, i.SelectionId }).ToListAsync();
-                var itemIds = itemRows.Select(i => i.Id).ToArray();
-                var testRows = await db.AuditItemTests.AsNoTracking()
-                    .Where(t => itemIds.Contains(t.SelectionItemId)).Select(t => new { t.Id, t.SelectionId }).ToListAsync();
-                var testIds = testRows.Select(t => t.Id).ToArray();
-                var reviewedTestIds = await db.AuditItemTestReviews.AsNoTracking()
-                    .Where(r => testIds.Contains(r.AuditItemTestId) && r.Decision == AuditItemTestReviewDecisions.Reviewed)
-                    .Select(r => r.AuditItemTestId).Distinct().ToListAsync();
-                _selections = selectionRows.Select(s => new SelectionSummary(
-                    s.Method, s.Status, s.Rationale,
-                    itemRows.Count(i => i.SelectionId == s.Id),
-                    testRows.Count(t => t.SelectionId == s.Id),
-                    testRows.Count(t => t.SelectionId == s.Id && reviewedTestIds.Contains(t.Id)))).ToList();
-            }
-        }
+        if (_actor is not null) await LoadPopulationAsync(_actor);
         _loading = false;
+    }
+
+    private async Task LoadPopulationAsync(AuditSphereOps.Application.Abstractions.ActorContext actor)
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var scope = await db.PopulationVersions.AsNoTracking()
+            .Where(p => p.Id == Id && p.FirmId == actor.FirmId)
+            .Select(p => new { p.ClientId, p.EngagementId })
+            .SingleOrDefaultAsync();
+        if (scope is null) return;
+
+        var authorization = await AuthorizationDecision.AuthorizeAsync(db, actor,
+            new AuthorizationRequest(actor.FirmId, ClientId: scope.ClientId,
+                EngagementId: scope.EngagementId,
+                RequiredRoles: ["Administrator", "Partner", "Manager", "SeniorManager", "Senior", "Staff", "EngagementLeader", "Auditor"],
+                InternalOnly: true));
+        if (!authorization.Succeeded) return;
+
+        _population = await db.PopulationVersions.AsNoTracking()
+            .FirstOrDefaultAsync(p => p.Id == Id && p.FirmId == actor.FirmId &&
+                p.ClientId == scope.ClientId && p.EngagementId == scope.EngagementId);
+        if (_population is null) return;
+
+        _evidence = await db.EvidenceLinks.AsNoTracking()
+            .Where(e => e.FirmId == actor.FirmId && e.ClientId == scope.ClientId && e.EngagementId == scope.EngagementId)
+            .OrderByDescending(e => e.CreatedAt)
+            .ToListAsync();
+        var receiptIds = _evidence.Select(e => e.SourceReceiptId).Distinct().ToArray();
+        _receiptTokens = await db.SourceReceipts.AsNoTracking()
+            .Where(r => r.FirmId == actor.FirmId && r.ClientId == scope.ClientId &&
+                r.EngagementId == scope.EngagementId && receiptIds.Contains(r.Id))
+            .ToDictionaryAsync(r => r.Id, r => r.ReceiptToken);
+
+        var selectionRows = await db.AuditSelections.AsNoTracking()
+            .Where(s => s.FirmId == actor.FirmId && s.ClientId == scope.ClientId &&
+                s.EngagementId == scope.EngagementId && s.PopulationVersionId == _population.Id)
+            .OrderBy(s => s.CreatedAt)
+            .ToListAsync();
+        var selectionIds = selectionRows.Select(s => s.Id).ToArray();
+        var itemRows = await db.AuditSelectionItems.AsNoTracking()
+            .Where(i => i.FirmId == actor.FirmId && i.ClientId == scope.ClientId &&
+                i.EngagementId == scope.EngagementId && selectionIds.Contains(i.SelectionId))
+            .Select(i => new { i.Id, i.SelectionId }).ToListAsync();
+        var itemIds = itemRows.Select(i => i.Id).ToArray();
+        var testRows = await db.AuditItemTests.AsNoTracking()
+            .Where(t => t.FirmId == actor.FirmId && t.ClientId == scope.ClientId &&
+                t.EngagementId == scope.EngagementId && itemIds.Contains(t.SelectionItemId))
+            .Select(t => new { t.Id, t.SelectionId }).ToListAsync();
+        var testIds = testRows.Select(t => t.Id).ToArray();
+        var reviewedTestIds = await db.AuditItemTestReviews.AsNoTracking()
+            .Where(r => r.FirmId == actor.FirmId && r.ClientId == scope.ClientId &&
+                r.EngagementId == scope.EngagementId && testIds.Contains(r.AuditItemTestId) &&
+                r.Decision == AuditItemTestReviewDecisions.Reviewed)
+            .Select(r => r.AuditItemTestId).Distinct().ToListAsync();
+        _selections = selectionRows.Select(s => new SelectionSummary(
+            s.Method, s.Status, s.Rationale,
+            itemRows.Count(i => i.SelectionId == s.Id),
+            testRows.Count(t => t.SelectionId == s.Id),
+            testRows.Count(t => t.SelectionId == s.Id && reviewedTestIds.Contains(t.Id)))).ToList();
+    }
+
+    private void ClearPopulation()
+    {
+        _population = null;
+        _evidence.Clear();
+        _receiptTokens.Clear();
+        _selections.Clear();
     }
 }

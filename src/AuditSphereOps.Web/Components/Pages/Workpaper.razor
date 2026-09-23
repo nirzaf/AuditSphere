@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @implements IAsyncDisposable
 @using AuditSphereOps.Application.Audit
+@using AuditSphereOps.Application.Security
 @using AuditSphereOps.Domain.Audit
 @using AuditSphereOps.Domain.Shared
 @using FindingRecord = AuditSphereOps.Domain.Audit.Finding
@@ -43,7 +44,7 @@ else if (_workpaper is null)
 {
     <section class="notice" role="alert">
         <h2>Workpaper unavailable</h2>
-        <p>The requested workpaper was not found in the current firm scope.</p>
+        <p>The requested workpaper is unavailable in your current scope.</p>
     </section>
 }
 else
@@ -173,8 +174,10 @@ else
     private CancellationTokenSource? _autosaveCts;
     private Task? _pendingAutosave;
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnParametersSetAsync()
     {
+        _loading = true;
+        ClearProtectedState();
         _actor = await ActorResolver.ResolveAsync();
         if (_actor is not null)
             await RefreshAsync();
@@ -186,44 +189,64 @@ else
         var actor = _actor;
         if (actor is null) return;
         await using var db = await DbFactory.CreateDbContextAsync();
+        var scope = await db.Workpapers.AsNoTracking()
+            .Where(w => w.Id == Id && w.FirmId == actor.FirmId)
+            .Select(w => new { w.ClientId, w.EngagementId })
+            .SingleOrDefaultAsync();
+        if (scope is null)
+        {
+            ClearProtectedState();
+            return;
+        }
+
+        var authorization = await AuthorizationDecision.AuthorizeAsync(db, actor,
+            new AuthorizationRequest(actor.FirmId, ClientId: scope.ClientId,
+                EngagementId: scope.EngagementId,
+                RequiredRoles: ["Administrator", "Partner", "Manager", "SeniorManager", "Senior", "Staff", "EngagementLeader", "Auditor"],
+                InternalOnly: true));
+        if (!authorization.Succeeded)
+        {
+            ClearProtectedState();
+            return;
+        }
+
         _workpaper = await db.Workpapers.AsNoTracking()
-            .FirstOrDefaultAsync(w => w.Id == Id && w.FirmId == actor.FirmId);
-        if (_workpaper is null) return;
+            .FirstOrDefaultAsync(w => w.Id == Id && w.FirmId == actor.FirmId &&
+                w.ClientId == scope.ClientId && w.EngagementId == scope.EngagementId);
+        if (_workpaper is null)
+        {
+            ClearProtectedState();
+            return;
+        }
 
         var draftResult = await AuditPlanningService.LoadWorkpaperDraftAsync(db, actor, _workpaper.Id);
-        if (draftResult.Succeeded && draftResult.Value is not null)
+        if (!draftResult.Succeeded || draftResult.Value is null)
         {
-            var draft = draftResult.Value;
-            _draftWork = draft.WorkPerformed;
-            _draftConclusion = draft.Conclusion;
-            _draftRevision = draft.DraftRevision;
-            _baseInputGeneration = draft.BaseInputGeneration;
-            _basePolicyGeneration = draft.BasePolicyGeneration;
-            _lastSaveId = draft.LastSaveId;
-            _draftConflict = draft.Lifecycle == "TARGET_CHANGED";
-            _draftStatus = _draftConflict ? "Target changed — reload before editing." :
-                draft.DraftRevision > 0 && draft.LastSavedAt is not null
-                    ? $"Saved at {draft.LastSavedAt.Value.ToUniversalTime():yyyy-MM-dd HH:mm:ss} UTC"
-                    : "Unsaved changes";
+            ClearProtectedState();
+            return;
         }
-        else
-        {
-            _draftWork = _workpaper.WorkPerformed ?? "";
-            _draftConclusion = _workpaper.Conclusion ?? "";
-            _draftRevision = 0;
-            _baseInputGeneration = 1;
-            _basePolicyGeneration = 1;
-            _lastSaveId = Guid.Empty;
-            _draftStatus = "Unsaved changes";
-        }
+        var draft = draftResult.Value;
+        _draftWork = draft.WorkPerformed;
+        _draftConclusion = draft.Conclusion;
+        _draftRevision = draft.DraftRevision;
+        _baseInputGeneration = draft.BaseInputGeneration;
+        _basePolicyGeneration = draft.BasePolicyGeneration;
+        _lastSaveId = draft.LastSaveId;
+        _draftConflict = draft.Lifecycle == "TARGET_CHANGED";
+        _draftStatus = _draftConflict ? "Target changed — reload before editing." :
+            draft.DraftRevision > 0 && draft.LastSavedAt is not null
+                ? $"Saved at {draft.LastSavedAt.Value.ToUniversalTime():yyyy-MM-dd HH:mm:ss} UTC"
+                : "Unsaved changes";
         _hasUnsavedChanges = false;
 
         if (_workpaper.ProcedureId is { } procedureId)
             _procedure = await db.AuditProcedures.AsNoTracking()
-                .FirstOrDefaultAsync(p => p.Id == procedureId && p.FirmId == actor.FirmId);
+                .FirstOrDefaultAsync(p => p.Id == procedureId && p.FirmId == actor.FirmId &&
+                    p.ClientId == scope.ClientId && p.EngagementId == scope.EngagementId);
 
         _submissions = await db.WorkpaperSubmissions.AsNoTracking()
-            .Where(s => s.WorkpaperId == _workpaper.Id)
+            .Where(s => s.FirmId == actor.FirmId && s.ClientId == scope.ClientId &&
+                s.EngagementId == scope.EngagementId && s.WorkpaperId == _workpaper.Id)
             .OrderByDescending(s => s.Revision)
             .ToListAsync();
     }
@@ -246,6 +269,7 @@ else
                 new SubmitWorkpaperRequest(_workpaper.Id, _workpaper.Revision, _draftWork, _draftConclusion,
                     _draftRevision, _lastSaveId));
             _result = submitted.Succeeded ? CommandResult.Ok() : CommandResult.Fail(submitted.ErrorCode!, submitted.Message ?? "The command was refused.");
+            if (!submitted.Succeeded && await ClearIfAccessRevokedAsync(submitted.ErrorCode!)) return;
             if (_result.Succeeded) await RefreshAsync();
         }
         finally { _busy = false; }
@@ -315,6 +339,7 @@ else
             {
                 _result = CommandResult.Fail(result.ErrorCode ?? ErrorCodes.Drafts.Conflict,
                     result.Message ?? "The draft could not be saved.");
+                if (await ClearIfAccessRevokedAsync(result.ErrorCode ?? ErrorCodes.Drafts.Conflict)) return;
                 _draftConflict = result.ErrorCode is ErrorCodes.StaleRevision or ErrorCodes.GenerationStale or ErrorCodes.Drafts.TargetChanged;
                 _draftStatus = _draftConflict
                     ? "Conflict — a newer draft or target exists. Reload the current workpaper."
@@ -355,6 +380,7 @@ else
         if (_busy || _saving) return;
         _result = null;
         _draftConflict = false;
+        ClearProtectedState();
         await RefreshAsync();
     }
 
@@ -368,9 +394,52 @@ else
             var result = await AuditPlanningService.DiscardWorkpaperDraftAsync(db, _actor,
                 _workpaper.Id, _draftRevision);
             _result = result.Succeeded ? CommandResult.Ok() : CommandResult.Fail(result.ErrorCode!, result.Message ?? "The draft could not be discarded.");
+            if (!result.Succeeded && await ClearIfAccessRevokedAsync(result.ErrorCode!)) return;
             if (result.Succeeded) await RefreshAsync();
         }
         finally { _busy = false; }
+    }
+
+    private async Task<bool> ClearIfAccessRevokedAsync(string errorCode)
+    {
+        if (errorCode == ErrorCodes.ScopeDenied)
+        {
+            ClearProtectedState();
+            return true;
+        }
+        if (errorCode != ErrorCodes.GenerationStale || _actor is null || _workpaper is null)
+            return false;
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var authorization = await AuthorizationDecision.AuthorizeAsync(db, _actor,
+            new AuthorizationRequest(_actor.FirmId, ClientId: _workpaper.ClientId,
+                EngagementId: _workpaper.EngagementId,
+                RequiredRoles: ["Administrator", "Partner", "Manager", "SeniorManager", "Senior", "Staff", "EngagementLeader", "Auditor"],
+                InternalOnly: true));
+        if (authorization.Succeeded) return false;
+        ClearProtectedState();
+        return true;
+    }
+
+    private void ClearProtectedState()
+    {
+        _autosaveCts?.Cancel();
+        _autosaveCts?.Dispose();
+        _autosaveCts = null;
+        _pendingAutosave = null;
+        _workpaper = null;
+        _procedure = null;
+        _submissions.Clear();
+        _draftWork = "";
+        _draftConclusion = "";
+        _draftRevision = 0;
+        _baseInputGeneration = 1;
+        _basePolicyGeneration = 1;
+        _lastSaveId = Guid.Empty;
+        _hasUnsavedChanges = false;
+        _draftConflict = false;
+        _draftStatus = "Unsaved changes";
+        _result = null;
     }
 
     public async ValueTask DisposeAsync()

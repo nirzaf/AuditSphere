@@ -1,6 +1,7 @@
 @page "/app"
 @page "/app/overview"
 @rendermode InteractiveServer
+@using AuditSphereOps.Application.Security
 @inject CurrentActorResolver ActorResolver
 @inject IDbContextFactory<AuditSphereDbContext> DbFactory
 @inject IConfiguration Configuration
@@ -177,6 +178,7 @@ else
   private bool _hasScope;
   private string _search = string.Empty;
   private string? _error;
+  private static readonly string[] PortfolioRoles = ["Administrator", "Partner", "Manager", "Reviewer", "Staff"];
 
   private IEnumerable<ClientRow> VisibleClients => Filter(_clients, x => $"{x.Name} {x.Id}");
   private IEnumerable<CandidateRow> VisibleCandidates => Filter(_candidates, x => $"{x.ClientName} {x.Id} {x.Status}");
@@ -185,8 +187,7 @@ else
 
   private bool OidcConfigured => !string.IsNullOrWhiteSpace(Configuration["Identity:TenantId"]) &&
                                  !string.IsNullOrWhiteSpace(Configuration["Identity:ClientId"]);
-  private bool IsStaff => _actor is not null &&
-    _actor.Roles.Any(x => x is "Administrator" or "Partner" or "Manager" or "Reviewer" or "Staff");
+  private bool IsStaff => _actor is not null && _actor.Roles.Any(PortfolioRoles.Contains);
 
   protected override async Task OnInitializedAsync()
   {
@@ -195,22 +196,35 @@ else
       _actor = await ActorResolver.ResolveAsync();
       if (_actor is null || !IsStaff) return;
       await using var db = await DbFactory.CreateDbContextAsync();
-      _m365Ready = await db.Microsoft365ConnectionRevisions.AsNoTracking()
-        .AnyAsync(x => x.FirmId == _actor.FirmId && x.State == Domain.Microsoft365.Microsoft365RevisionStates.Active);
-      var grants = await db.RoleGrants.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
-        x.UserId == _actor.UserId && x.RevokedAt == null).Select(x => new { x.ClientId, x.EngagementId }).ToListAsync();
-      var firmWide = grants.Any(x => x.ClientId is null && x.EngagementId is null);
-      var directClientIds = grants.Where(x => x.ClientId.HasValue && x.EngagementId is null).Select(x => x.ClientId!.Value).ToArray();
-      var grantedEngagementIds = grants.Where(x => x.EngagementId.HasValue).Select(x => x.EngagementId!.Value).ToArray();
-      var engagementClientIds = grantedEngagementIds.Length == 0 ? [] : await db.Engagements.AsNoTracking()
-        .Where(x => x.FirmId == _actor.FirmId && grantedEngagementIds.Contains(x.Id))
-        .Select(x => x.PracticeClientId).ToArrayAsync();
+      var grantScopes = await db.RoleGrants.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
+          x.UserId == _actor.UserId && x.RevokedAt == null && PortfolioRoles.Contains(x.Role))
+        .Select(x => new { x.ClientId, x.EngagementId }).Distinct().ToListAsync();
+      var authorizedScopes = new List<(Guid? ClientId, Guid? EngagementId)>();
+      foreach (var scope in grantScopes)
+      {
+        var authorization = await AuthorizationDecision.AuthorizeAsync(db, _actor,
+          new AuthorizationRequest(_actor.FirmId, scope.ClientId, scope.EngagementId, PortfolioRoles,
+            InternalOnly: true, RequireFirmWide: scope.ClientId is null && scope.EngagementId is null));
+        if (authorization.Succeeded) authorizedScopes.Add((scope.ClientId, scope.EngagementId));
+      }
+
+      var firmWide = authorizedScopes.Contains((null, null));
+      var directClientIds = authorizedScopes.Where(x => x.ClientId.HasValue && x.EngagementId is null)
+        .Select(x => x.ClientId!.Value).Distinct().ToArray();
+      var grantedEngagementIds = authorizedScopes.Where(x => x.EngagementId.HasValue)
+        .Select(x => x.EngagementId!.Value).Distinct().ToArray();
+      var engagementClientIds = authorizedScopes.Where(x => x.EngagementId.HasValue && x.ClientId.HasValue)
+        .Select(x => x.ClientId!.Value).Distinct().ToArray();
       var clientIds = directClientIds.Concat(engagementClientIds).Distinct().ToArray();
       var scopedEngagementIds = firmWide ? Array.Empty<Guid>() : await db.Engagements.AsNoTracking()
-        .Where(x => x.FirmId == _actor.FirmId && (directClientIds.Contains(x.PracticeClientId) || grantedEngagementIds.Contains(x.Id)))
+        .Where(x => x.FirmId == _actor.FirmId &&
+          (directClientIds.Contains(x.PracticeClientId) ||
+           (grantedEngagementIds.Contains(x.Id) && clientIds.Contains(x.PracticeClientId))))
         .Select(x => x.Id).ToArrayAsync();
-      _hasScope = firmWide || directClientIds.Length > 0 || grantedEngagementIds.Length > 0;
+      _hasScope = firmWide || directClientIds.Length > 0 || scopedEngagementIds.Length > 0;
       if (!_hasScope) return;
+      _m365Ready = await db.Microsoft365ConnectionRevisions.AsNoTracking()
+        .AnyAsync(x => x.FirmId == _actor.FirmId && x.State == Domain.Microsoft365.Microsoft365RevisionStates.Active);
       var clients = await db.PracticeClients.AsNoTracking()
         .Where(x => x.FirmId == _actor.FirmId && (firmWide || clientIds.Contains(x.Id)))
         .Select(x => new { x.Id, x.LegalName }).ToDictionaryAsync(x => x.Id, x => x.LegalName);
@@ -224,7 +238,7 @@ else
         await db.Engagements.CountAsync(x => x.FirmId == _actor.FirmId && (firmWide || scopedEngagementIds.Contains(x.Id))),
         await db.EngagementHolds.CountAsync(x => x.FirmId == _actor.FirmId && !x.Released && (firmWide || scopedEngagementIds.Contains(x.EngagementId))),
         await db.DurableOperations.CountAsync(x => x.FirmId == _actor.FirmId &&
-          (firmWide || (x.ClientId == null && x.EngagementId == null) ||
+          (firmWide ||
            (x.ClientId.HasValue && directClientIds.Contains(x.ClientId.Value)) ||
            (x.EngagementId.HasValue && scopedEngagementIds.Contains(x.EngagementId.Value))) &&
           x.Status != Domain.Completion.OperationState.COMPLETED && x.Status != Domain.Completion.OperationState.CANCELLED_WITH_DISPOSITION),

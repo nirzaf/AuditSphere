@@ -129,6 +129,12 @@ else
   {
     if (_actor is null) return;
     await using var db = await DbFactory.CreateDbContextAsync();
+    var authorization = await AuthorizationDecision.AuthorizeAsync(db, _actor,
+      new AuthorizationRequest(_actor.FirmId, EngagementId: EngagementId,
+        RequiredRoles: ["Administrator", "Partner", "Manager", "Staff", "EngagementLeader", "Auditor"],
+        InternalOnly: true));
+    if (!authorization.Succeeded) return;
+
     _engagement = await db.Engagements.AsNoTracking()
       .SingleOrDefaultAsync(x => x.Id == EngagementId && x.FirmId == _actor.FirmId);
     if (_engagement is not null)

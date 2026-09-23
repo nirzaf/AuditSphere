@@ -101,6 +101,73 @@ public sealed class PracticeCrmTests
   }
 
   [Fact]
+  public async Task ClientScopedRelationshipManager_CannotCreateFirmWideLead()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await SeedAsync(pg);
+    var scoped = new AppUser
+    {
+      Id = Guid.NewGuid(), FirmId = fixture.FirmId,
+      Subject = "crm-scoped-" + Guid.NewGuid().ToString("N"), TenantId = "tenant-test",
+      Email = $"scoped-{Guid.NewGuid():N}@example.test", DisplayName = "Scoped manager",
+      UserKind = "Staff", SessionEpoch = 1, CreatedAt = DateTimeOffset.UtcNow
+    };
+
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var clientId = Guid.NewGuid();
+    db.PracticeClients.Add(new PracticeClient
+    {
+      Id = clientId, FirmId = fixture.FirmId, LegalName = "Scoped client", CreatedAt = DateTimeOffset.UtcNow
+    });
+    db.Users.Add(scoped);
+    db.RoleGrants.Add(new RoleGrant
+    {
+      Id = Guid.NewGuid(), FirmId = fixture.FirmId, UserId = scoped.Id, Role = "RelationshipManager",
+      ClientId = clientId, GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = fixture.User.Id
+    });
+    await db.SaveChangesAsync();
+
+    var result = await PracticeCrmService.CreateLeadAsync(db,
+      new ActorContext(scoped.Id, fixture.FirmId, scoped.SessionEpoch, ["RelationshipManager"]),
+      new CreateLeadRequest("Unauthorized firm-wide lead", "Test"));
+
+    Assert.False(result.Succeeded);
+    Assert.Equal(ErrorCodes.ScopeDenied, result.ErrorCode);
+    Assert.Empty(await db.Leads.ToListAsync());
+  }
+
+  [Fact]
+  public async Task ClientClassifiedRelationshipManager_CannotCreateFirmWideLead()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await SeedAsync(pg);
+    var client = new AppUser
+    {
+      Id = Guid.NewGuid(), FirmId = fixture.FirmId,
+      Subject = "crm-client-" + Guid.NewGuid().ToString("N"), TenantId = "tenant-test",
+      Email = $"client-{Guid.NewGuid():N}@example.test", DisplayName = "Client identity",
+      UserKind = "Client", SessionEpoch = 1, CreatedAt = DateTimeOffset.UtcNow
+    };
+
+    await using var db = new AuditSphereDbContext(pg.Options);
+    db.Users.Add(client);
+    db.RoleGrants.Add(new RoleGrant
+    {
+      Id = Guid.NewGuid(), FirmId = fixture.FirmId, UserId = client.Id, Role = "RelationshipManager",
+      GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = fixture.User.Id
+    });
+    await db.SaveChangesAsync();
+
+    var result = await PracticeCrmService.CreateLeadAsync(db,
+      new ActorContext(client.Id, fixture.FirmId, client.SessionEpoch, ["RelationshipManager"]),
+      new CreateLeadRequest("Client-classified firm lead", "Test"));
+
+    Assert.False(result.Succeeded);
+    Assert.Equal(ErrorCodes.ScopeDenied, result.ErrorCode);
+    Assert.Empty(await db.Leads.ToListAsync());
+  }
+
+  [Fact]
   public async Task ClientContactCommand_IsScopedAndSerializesPrimaryContact()
   {
     await using var pg = await PgTestSchema.CreateAsync();

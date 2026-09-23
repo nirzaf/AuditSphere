@@ -178,6 +178,16 @@ else
         }
 
         await using var db = await DbFactory.CreateDbContextAsync();
+        var authorization = await AuthorizationDecision.AuthorizeAsync(db, _actor,
+            new AuthorizationRequest(_actor.FirmId, EngagementId: _effectiveEngagementId.Value,
+                RequiredRoles: ["Administrator", "Partner", "Manager", "Staff", "EngagementLeader", "Auditor"],
+                InternalOnly: true));
+        if (!authorization.Succeeded)
+        {
+            _loading = false;
+            return;
+        }
+
         _engagement = await db.Engagements.AsNoTracking()
             .FirstOrDefaultAsync(e => e.Id == _effectiveEngagementId.Value && e.FirmId == _actor.FirmId);
 
@@ -319,6 +329,11 @@ else
                     client.InputGeneration, firm.PolicyGeneration, package.CalculationHash));
             if (!approval.Succeeded)
             {
+                if (IsAuthorizationFailure(approval.ErrorCode))
+                {
+                    ClearScopedState();
+                    return;
+                }
                 _releaseMessage = $"Blocked: {approval.Message}";
                 return;
             }
@@ -328,6 +343,11 @@ else
                     package.Id, package.Revision, client.InputGeneration, firm.PolicyGeneration, package.CalculationHash));
             if (!candidate.Succeeded)
             {
+                if (IsAuthorizationFailure(candidate.ErrorCode))
+                {
+                    ClearScopedState();
+                    return;
+                }
                 _releaseMessage = $"Blocked: {candidate.Message}";
                 return;
             }
@@ -340,5 +360,24 @@ else
         {
             _busy = false;
         }
+    }
+
+    private static bool IsAuthorizationFailure(string? errorCode) =>
+        errorCode is ErrorCodes.ScopeDenied or ErrorCodes.GenerationStale;
+
+    private void ClearScopedState()
+    {
+        _engagement = null;
+        _packageId = null;
+        _releaseCandidateId = null;
+        _packageStatus = "—";
+        _partnerApproved = false;
+        _packageReviewsComplete = false;
+        _canPrepareRelease = false;
+        _eqrStatus = "NOT_ASSIGNED";
+        _releaseMessage = null;
+        _releaseSucceeded = false;
+        _gates.Clear();
+        _representations.Clear();
     }
 }

@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" />
+    <PackageReference Include="Microsoft.Playwright.Xunit" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/AuditSphereOps.Web/AuditSphereOps.Web.csproj" />
+    <ProjectReference Include="../../src/AuditSphereOps.Infrastructure/AuditSphereOps.Infrastructure.csproj" />
+    <ProjectReference Include="../../src/AuditSphereOps.Worker/AuditSphereOps.Worker.csproj" />
+    <ProjectReference Include="../../src/AuditSphereOps.Application/AuditSphereOps.Application.csproj" />
+    <ProjectReference Include="../../src/AuditSphereOps.Domain/AuditSphereOps.Domain.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="../AuditSphereOps.Domain.Tests/PgTestSchema.cs" Link="Fixtures/PgTestSchema.cs" />
+    <Compile Include="../AuditSphereOps.Domain.Tests/PbcSeed.cs" Link="Fixtures/PbcSeed.cs" />
+    <Compile Include="../Shared/OwnedPostgresDatabase.cs" Link="Fixtures/OwnedPostgresDatabase.cs" />
+    <Using Include="Xunit" />
+    <None Include="../AuditSphereOps.Domain.Tests/xunit.runner.json" Link="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

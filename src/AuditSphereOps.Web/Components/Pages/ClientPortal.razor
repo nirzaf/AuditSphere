@@ -90,24 +90,24 @@ else
     if (_actor is not null)
     {
       await using var db = await DbFactory.CreateDbContextAsync();
-      var grants = await db.RoleGrants.AsNoTracking().Where(x =>
+      var grants = db.RoleGrants.AsNoTracking().Where(x =>
         x.FirmId == _actor.FirmId && x.UserId == _actor.UserId && x.Role == "ClientUser" &&
-        x.ClientId.HasValue && x.RevokedAt == null)
-        .Select(x => new { x.ClientId, x.EngagementId }).ToListAsync();
-      _clientIds = grants.Select(x => x.ClientId!.Value).Distinct().ToList();
+        x.ClientId.HasValue && x.RevokedAt == null);
+      var grantScopes = await grants.Select(x => new { x.ClientId, x.EngagementId }).ToListAsync();
+      _clientIds = grantScopes.Select(x => x.ClientId!.Value).Distinct().ToList();
       if (_clientIds.Count > 0)
       {
         _requests = await db.PbcRequests.AsNoTracking().Where(x =>
-          x.FirmId == _actor.FirmId && _clientIds.Contains(x.ClientId) &&
-          x.ClientOwnerUserId == _actor.UserId).OrderBy(x => x.DueDate).ThenBy(x => x.Area).ToListAsync();
+          x.FirmId == _actor.FirmId && x.ClientOwnerUserId == _actor.UserId &&
+          grants.Any(g => g.ClientId == x.ClientId &&
+            (!g.EngagementId.HasValue || g.EngagementId == x.EngagementId)))
+          .OrderBy(x => x.DueDate).ThenBy(x => x.Area).ToListAsync();
         var packages = await db.FinancialPackages.AsNoTracking().Where(x =>
-          x.FirmId == _actor.FirmId && _clientIds.Contains(x.ClientId) &&
-          x.Status == AccountingPackageStates.PackageValidated)
+          x.FirmId == _actor.FirmId && x.Status == AccountingPackageStates.PackageValidated &&
+          grants.Any(g => g.ClientId == x.ClientId &&
+            (!g.EngagementId.HasValue || g.EngagementId == x.EngagementId)))
           .OrderByDescending(x => x.CreatedAt).Take(100).ToListAsync();
-        _packages = packages
-          .Where(package => grants.Any(grant => grant.ClientId == package.ClientId &&
-            (!grant.EngagementId.HasValue || grant.EngagementId == package.EngagementId)))
-          .Select(package => new ClientPackageRow(package.Id, package.Framework, package.PeriodStart,
+        _packages = packages.Select(package => new ClientPackageRow(package.Id, package.Framework, package.PeriodStart,
             package.PeriodEnd, package.Currency))
           .ToList();
       }

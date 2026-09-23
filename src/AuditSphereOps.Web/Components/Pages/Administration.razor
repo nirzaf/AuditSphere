@@ -220,9 +220,9 @@ else
     if (_actor is not null)
     {
       await using var db = await DbFactory.CreateDbContextAsync();
-      _isAdmin = await db.RoleGrants.AsNoTracking().AnyAsync(x =>
-        x.FirmId == _actor.FirmId && x.UserId == _actor.UserId && x.RevokedAt == null &&
-        x.ClientId == null && x.EngagementId == null && x.Role == "Administrator");
+      _isAdmin = (await AuthorizationDecision.AuthorizeAsync(db, _actor,
+        new AuthorizationRequest(_actor.FirmId, RequiredRoles: ["Administrator"],
+          InternalOnly: true, RequireFirmWide: true))).Succeeded;
       if (_isAdmin)
       {
         await LoadAdminDataAsync();

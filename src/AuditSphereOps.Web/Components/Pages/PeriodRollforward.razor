@@ -75,6 +75,8 @@ else
 }
 
 @code {
+  private static readonly string[] AccountingRoles = ["Administrator", "Partner", "Manager", "AccountingPreparer", "AccountingReviewer"];
+
   private sealed record ClientOption(Guid Id, string Name);
   private sealed record PeriodOption(Guid Id, string Label);
   private sealed record PackageOption(Guid Id, string Label);
@@ -108,11 +110,10 @@ else
   protected override async Task OnInitializedAsync()
   {
     _actor = await ActorResolver.ResolveAsync();
-    _isStaff = _actor is not null && _actor.Roles.Any(x => x is "Administrator" or "Partner" or "Manager" or "AccountingPreparer" or "AccountingReviewer");
-    if (_isStaff && _actor is not null)
+    if (_actor is not null)
     {
       await LoadDataAsync();
-      if (_clients.Count > 0)
+      if (_isStaff && _clients.Count > 0)
       {
         _selectedClientId = _clients[0].Id.ToString();
         await LoadClientAsync();
@@ -124,10 +125,26 @@ else
   private async Task LoadDataAsync()
   {
     if (_actor is null) return;
+    _clients = [];
+    _closedPeriods = [];
+    _sourcePackages = [];
+    _history = [];
     await using var db = await DbFactory.CreateDbContextAsync();
-    var clientIds = await ScopedClientIdsAsync(db, _actor);
-    var firmWide = clientIds is null;
-    var scopedClientIds = clientIds ?? [];
+    var authorization = await AuthorizationDecision.AuthorizeAsync(db, _actor,
+      new AuthorizationRequest(_actor.FirmId, RequiredRoles: AccountingRoles, InternalOnly: true));
+    if (!authorization.Succeeded)
+    {
+      _actor = null;
+      _isStaff = false;
+      return;
+    }
+    var grants = await db.RoleGrants.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && x.UserId == _actor.UserId &&
+      x.RevokedAt == null && AccountingRoles.Contains(x.Role))
+      .Select(x => new { x.ClientId, x.EngagementId }).ToListAsync();
+    var firmWide = grants.Any(x => x.ClientId is null && x.EngagementId is null);
+    var scopedClientIds = grants.Where(x => x.ClientId.HasValue && x.EngagementId is null).Select(x => x.ClientId!.Value).Distinct().ToArray();
+    _isStaff = firmWide || scopedClientIds.Length > 0;
+    if (!_isStaff) return;
     var clients = await db.PracticeClients.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
       (firmWide || scopedClientIds.Contains(x.Id))).OrderBy(x => x.LegalName).ToListAsync();
     var periods = await db.ClientReportingPeriods.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
@@ -147,6 +164,15 @@ else
     try
     {
       await using var db = await DbFactory.CreateDbContextAsync();
+      var authorization = await AuthorizationDecision.AuthorizeAsync(db, _actor,
+        new AuthorizationRequest(_actor.FirmId, ClientId: clientId, RequiredRoles: AccountingRoles, InternalOnly: true));
+      if (!authorization.Succeeded)
+      {
+        _closedPeriods = [];
+        _sourcePackages = [];
+        _selectedPriorPeriodId = _selectedSourcePackageId = string.Empty;
+        return;
+      }
       var periods = await db.ClientReportingPeriods.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
         x.ClientId == clientId && x.Status == AccountingWorkflowStates.Closed).OrderByDescending(x => x.EndDate).ToListAsync();
       if (generation != _selectionGeneration) return;
@@ -211,11 +237,4 @@ else
     finally { _busy = false; }
   }
 
-  private static async Task<Guid[]?> ScopedClientIdsAsync(AuditSphereDbContext db, ActorContext actor)
-  {
-    var grants = await db.RoleGrants.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.UserId == actor.UserId && x.RevokedAt == null)
-      .Select(x => new { x.ClientId, x.EngagementId }).ToListAsync();
-    if (grants.Any(x => x.ClientId is null && x.EngagementId is null)) return null;
-    return grants.Where(x => x.ClientId.HasValue).Select(x => x.ClientId!.Value).Distinct().ToArray();
-  }
 }

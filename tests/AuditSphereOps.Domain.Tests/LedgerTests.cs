@@ -203,6 +203,15 @@ public sealed class LedgerTests
     Assert.False(denied.Succeeded);
     Assert.Equal(ErrorCodes.ScopeDenied, denied.ErrorCode);
 
+    var scopedManager = User(fixture.FirmId, "ScopedFinanceManager");
+    db.Users.Add(scopedManager);
+    db.RoleGrants.Add(Grant(fixture.FirmId, scopedManager, "FinanceManager", fixture.ClientId));
+    await db.SaveChangesAsync();
+    var scopedDenied = await LedgerService.CreateFirmAccountAsync(db, Actor(scopedManager, "FinanceManager"),
+      new CreateFirmAccountRequest("9988", "Scoped must not manage firm ledger", LedgerStates.AccountAsset, LedgerStates.Debit));
+    Assert.False(scopedDenied.Succeeded);
+    Assert.Equal(ErrorCodes.ScopeDenied, scopedDenied.ErrorCode);
+
     var blocked = (await LedgerService.CreateFirmAccountAsync(db, fixture.ManagerActor,
       new CreateFirmAccountRequest("9900", "Control", LedgerStates.AccountAsset, LedgerStates.Debit, false))).Value;
     var period = (await LedgerService.CreateFirmPeriodAsync(db, fixture.ManagerActor,
@@ -242,9 +251,9 @@ public sealed class LedgerTests
     });
     await db.SaveChangesAsync();
     db.RoleGrants.AddRange(
-      Grant(firmId, manager, "FinanceManager", clientId),
-      Grant(firmId, reviewer, "FinanceReviewer", clientId),
-      Grant(firmId, partner, "Partner", clientId));
+      Grant(firmId, manager, "FinanceManager"),
+      Grant(firmId, reviewer, "FinanceReviewer"),
+      Grant(firmId, partner, "Partner"));
     await db.SaveChangesAsync();
     return new Fixture(firmId, clientId, manager, reviewer, partner,
       Actor(manager, "FinanceManager"), Actor(reviewer, "FinanceReviewer"), Actor(partner, "Partner"));
@@ -257,7 +266,7 @@ public sealed class LedgerTests
     DisplayName = label, UserKind = "Staff", SessionEpoch = 1, CreatedAt = DateTimeOffset.UtcNow
   };
 
-  private static RoleGrant Grant(Guid firmId, AppUser user, string role, Guid clientId) => new()
+  private static RoleGrant Grant(Guid firmId, AppUser user, string role, Guid? clientId = null) => new()
   {
     Id = Guid.NewGuid(), FirmId = firmId, UserId = user.Id, Role = role, ClientId = clientId,
     GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = user.Id

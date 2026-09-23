@@ -19,7 +19,7 @@ internal static class PbcSeed
     Guid FirmId, Guid ClientId, Guid EngagementId,
     AppUser Staff, AppUser Reviewer, AppUser Client, AppUser Admin);
 
-  internal static async Task<Fixture> SeedAsync(PgTestSchema pg)
+  internal static async Task<Fixture> SeedAsync(ITestPostgresDatabase pg)
   {
     var firmId = Guid.NewGuid();
     var clientId = Guid.NewGuid();
@@ -82,7 +82,7 @@ internal static class PbcSeed
   /// <summary>Stages a bounded upload through the service with real chunk files on a
   /// temporary staging root, exactly as the HTTP transport would record them.</summary>
   internal static async Task<StagedUpload> StageUploadAsync(
-    PgTestSchema pg, Fixture fixture, ActorContext client, Guid requestId,
+    ITestPostgresDatabase pg, Fixture fixture, ActorContext client, Guid requestId,
     byte[] content, string fileName = "bank-statements.csv", string contentType = "text/csv")
   {
     var stagingRoot = Path.Combine(Path.GetTempPath(), "AuditSphereOps-tests", Guid.NewGuid().ToString("N"));
@@ -125,7 +125,7 @@ internal static class PbcSeed
   /// <summary>Creates a scoped PBC request as staff, sends it, and acknowledges it as the
   /// client owner, returning the request id ready to accept uploads.</summary>
   internal static async Task<Guid> CreateSentAcknowledgedRequestAsync(
-    PgTestSchema pg, Fixture fixture, ActorContext staff, ActorContext client)
+    ITestPostgresDatabase pg, Fixture fixture, ActorContext staff, ActorContext client)
   {
     Guid requestId;
     await using (var db = new AuditSphereDbContext(pg.Options))
@@ -158,7 +158,7 @@ internal static class PbcSeed
   /// <summary>Builds the trusted completion boundary for one schema: the durable operation
   /// store plus the transfer handler sharing its context factory.</summary>
   internal static (PostgresOperationStore Store, PbcDocumentTransferHandler Handler) Boundary(
-    IPbcProviderSink sink, PgTestSchema pg)
+    IPbcProviderSink sink, ITestPostgresDatabase pg)
   {
     var factory = new OperationContextFactory(new OptionsDbContextFactory(pg.Options));
     var store = new PostgresOperationStore(factory);
@@ -169,13 +169,13 @@ internal static class PbcSeed
   internal sealed record TransferHarness(
     Fixture Fixture, Guid RequestId, StagedUpload Staged, string ProviderRoot,
     WorkerOptions Options, PostgresOperationStore Store, PbcDocumentTransferHandler Handler,
-    AuditSphereOps.Worker.Worker Worker, PgTestSchema Pg);
+    AuditSphereOps.Worker.Worker Worker, ITestPostgresDatabase Pg);
 
   /// <summary>Builds the full PBC transfer worker for one schema: seeds the scope, stages a
   /// complete upload through the trusted completion boundary, and wires a worker around the
   /// given (possibly scripted) provider sink.</summary>
   internal static async Task<TransferHarness> CreateTransferHarnessAsync(
-    PgTestSchema pg, ScriptedSink? scripted = null)
+    ITestPostgresDatabase pg, ScriptedSink? scripted = null)
   {
     var fixture = await SeedAsync(pg);
     var staff = Actor(fixture.Staff, "Staff");

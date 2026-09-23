@@ -22,6 +22,7 @@ public sealed class PracticeTimeTests
     AppUser Preparer,
     AppUser Manager,
     AppUser Partner,
+    ActorContext RateCardManagerActor,
     ActorContext PreparerActor,
     ActorContext ManagerActor,
     ActorContext PartnerActor);
@@ -48,7 +49,8 @@ public sealed class PracticeTimeTests
     var preparer = User(firmId, "Preparer");
     var manager = User(firmId, "Manager");
     var partner = User(firmId, "Partner");
-    db.Users.AddRange(preparer, manager, partner);
+    var rateCardManager = User(firmId, "FirmRateCardManager");
+    db.Users.AddRange(preparer, manager, partner, rateCardManager);
     db.ClientReportingPeriods.Add(new ClientReportingPeriod
     {
       Id = reportingPeriodId, FirmId = firmId, ClientId = clientId, PeriodCode = "2026-12",
@@ -59,10 +61,33 @@ public sealed class PracticeTimeTests
     db.RoleGrants.AddRange(
       Grant(firmId, preparer, "Staff", clientId, engagementId),
       Grant(firmId, manager, "Manager", clientId, engagementId),
-      Grant(firmId, partner, "Partner"));
+      Grant(firmId, partner, "Partner"),
+      Grant(firmId, rateCardManager, "Manager"));
     await db.SaveChangesAsync();
     return new Fixture(firmId, clientId, engagementId, reportingPeriodId, preparer, manager, partner,
-      Actor(preparer, "Staff"), Actor(manager, "Manager"), Actor(partner, "Partner"));
+      Actor(rateCardManager, "Manager"), Actor(preparer, "Staff"), Actor(manager, "Manager"), Actor(partner, "Partner"));
+  }
+
+  [Fact]
+  public async Task EngagementScopedManager_CannotReviseOrApproveFirmRateCards()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await SeedAsync(pg);
+    await using var db = new AuditSphereDbContext(pg.Options);
+
+    var unauthorizedDraft = await PracticeTimeService.ReviseRateCardAsync(db, fixture.ManagerActor,
+      new RateCardDraftRequest("Staff", "Scoped", "QAR", 100m));
+    Assert.False(unauthorizedDraft.Succeeded);
+    Assert.Equal(ErrorCodes.ScopeDenied, unauthorizedDraft.ErrorCode);
+
+    var draft = await PracticeTimeService.ReviseRateCardAsync(db, fixture.RateCardManagerActor,
+      new RateCardDraftRequest("Staff", "Scoped", "QAR", 100m));
+    Assert.True(draft.Succeeded, draft.Message);
+    var unauthorizedApproval = await PracticeTimeService.ApproveRateCardAsync(db, fixture.ManagerActor, draft.Value);
+    Assert.False(unauthorizedApproval.Succeeded);
+    Assert.Equal(ErrorCodes.ScopeDenied, unauthorizedApproval.ErrorCode);
+    Assert.Equal(PracticeTimeStates.RateDraft,
+      await db.RateCardVersions.Where(x => x.Id == draft.Value).Select(x => x.Status).SingleAsync());
   }
 
   [Fact]
@@ -90,6 +115,22 @@ public sealed class PracticeTimeTests
         new CreateTaskRequest("Unscoped period", ReportingPeriodId: fixture.ReportingPeriodId));
       Assert.False(missingClient.Succeeded);
       Assert.Equal("time.invalid", missingClient.ErrorCode);
+
+      var unscopedTask = await PracticeTimeService.CreateTaskAsync(db, fixture.PreparerActor,
+        new CreateTaskRequest("Unscoped task from engagement grant"));
+      Assert.False(unscopedTask.Succeeded);
+      Assert.Equal(ErrorCodes.ScopeDenied, unscopedTask.ErrorCode);
+
+      var client = User(fixture.FirmId, "MisclassifiedClient");
+      client.UserKind = "Client";
+      db.Users.Add(client);
+      db.RoleGrants.Add(Grant(fixture.FirmId, client, "Manager", fixture.ClientId, fixture.EngagementId));
+      await db.SaveChangesAsync();
+      var clientTask = await PracticeTimeService.CreateTaskAsync(db,
+        new ActorContext(client.Id, fixture.FirmId, client.SessionEpoch, ["Manager"]),
+        new CreateTaskRequest("Client user must not create internal task", fixture.ClientId, fixture.EngagementId));
+      Assert.False(clientTask.Succeeded);
+      Assert.Equal(ErrorCodes.ScopeDenied, clientTask.ErrorCode);
     }
 
     await using (var db = new AuditSphereDbContext(pg.Options))
@@ -155,7 +196,7 @@ public sealed class PracticeTimeTests
           "Staff", "Controls", Currency: "QAR"))).Value;
       await PracticeTimeService.SubmitTimeAsync(db, fixture.PreparerActor, originalId);
       await PracticeTimeService.ApproveTimeAsync(db, fixture.PartnerActor, originalId);
-      var revisedRate = await PracticeTimeService.ReviseRateCardAsync(db, fixture.ManagerActor,
+      var revisedRate = await PracticeTimeService.ReviseRateCardAsync(db, fixture.RateCardManagerActor,
         new RateCardDraftRequest("Staff", "Controls", "QAR", 120m, ExpectedVersion: 1));
       Assert.True(revisedRate.Succeeded);
       Assert.True((await PracticeTimeService.ApproveRateCardAsync(db, fixture.PartnerActor, revisedRate.Value)).Succeeded);
@@ -203,7 +244,7 @@ public sealed class PracticeTimeTests
       Assert.Equal(ErrorCodes.ProtectedState, self.ErrorCode);
       Assert.True((await PracticeTimeService.ApproveBudgetAsync(db, fixture.PartnerActor, firstBudgetId)).Succeeded);
 
-      var rate = await PracticeTimeService.ReviseRateCardAsync(db, fixture.ManagerActor,
+      var rate = await PracticeTimeService.ReviseRateCardAsync(db, fixture.RateCardManagerActor,
         new RateCardDraftRequest("Staff", "Schedules", "QAR", 120m, ExpectedVersion: 1));
       Assert.True(rate.Succeeded);
       Assert.True((await PracticeTimeService.ApproveRateCardAsync(db, fixture.PartnerActor, rate.Value)).Succeeded);
@@ -299,7 +340,7 @@ public sealed class PracticeTimeTests
   private static async Task<Guid> CreateApprovedRateAsync(
     AuditSphereDbContext db, Fixture fixture, string activity = "Schedules")
   {
-    var draft = await PracticeTimeService.ReviseRateCardAsync(db, fixture.ManagerActor,
+    var draft = await PracticeTimeService.ReviseRateCardAsync(db, fixture.RateCardManagerActor,
       new RateCardDraftRequest("Staff", activity, "QAR", 100m));
     Assert.True(draft.Succeeded);
     Assert.True((await PracticeTimeService.ApproveRateCardAsync(db, fixture.PartnerActor, draft.Value)).Succeeded);

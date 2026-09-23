@@ -425,7 +425,7 @@ public static class PracticeCrmService
   private static async Task<CommandResult> AuthorizeAsync(
     IAuditSphereDbContext db, ActorContext actor, CancellationToken ct) =>
     await AuthorizationDecision.AuthorizeAsync(db, actor,
-      new AuthorizationRequest(actor.FirmId, RequiredRoles: CommercialRoles), ct);
+      new AuthorizationRequest(actor.FirmId, RequiredRoles: CommercialRoles, InternalOnly: true, RequireFirmWide: true), ct);
 
   private static async Task<CommandResult?> ValidateOwnerAsync(
     IAuditSphereDbContext db, ActorContext actor, Guid? ownerUserId, CancellationToken ct)

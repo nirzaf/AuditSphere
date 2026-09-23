@@ -255,8 +255,8 @@ else
           x.FirmId == _package.FirmId && x.ClientId == _package.ClientId && x.EngagementId == _package.EngagementId &&
           x.FinancialPackageId == _package.Id && x.PackageRevision == _package.Revision &&
           x.PackageGeneration == _package.Generation && x.PackageHash == _package.CalculationHash &&
-          x.ArtifactVersion == FinancialPackageArtifactVersions.Text && x.ArtifactBytes.Length > 0);
-        if (storedArtifact is not null)
+          x.ArtifactVersion == FinancialPackageArtifactVersions.Text);
+        if (storedArtifact is { ArtifactBytes.Length: > 0 })
           _artifact = new FinancialStatementPackageArtifact(storedArtifact.FinancialPackageId,
             storedArtifact.PackageHash, storedArtifact.ArtifactSha256Hex, storedArtifact.ArtifactBytes,
             System.Text.Encoding.UTF8.GetString(storedArtifact.ArtifactBytes), storedArtifact.Id);

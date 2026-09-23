@@ -181,10 +181,9 @@ public static class CurrencyTranslationService
     var scope = await db.ConsolidationScopeVersions.AsNoTracking().SingleOrDefaultAsync(x => x.Id == component.ScopeVersionId && x.FirmId == actor.FirmId, ct);
     if (scope is null)
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    var groupGrant = await db.GroupAccessGrants.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId && x.GroupId == scope.GroupId &&
-      x.UserId == actor.UserId && x.RevokedAt == null && PreparerRoles.Contains(x.Role), ct);
-    if (!groupGrant)
-      return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Explicit group access is required.");
+    var auth = await GroupAuthAsync(db, actor, scope.GroupId, PreparerRoles, ct);
+    if (!auth.Succeeded)
+      return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
     if (!await ConsolidationScopeGuards.IsCurrentAsync(db, actor.FirmId, scope.GroupId, scope.GroupRevision, ct))
       return CommandResult<Guid>.Fail(ErrorCodes.GenerationStale, "The group perimeter changed; create a new scope version.");
     if (scope.Method != ConsolidationCalculator.ForeignOperationMethod || scope.Status != AccountingWorkflowStates.Draft ||
@@ -259,8 +258,7 @@ public static class CurrencyTranslationService
     var result = await db.TranslationResults.SingleOrDefaultAsync(x => x.Id == translationResultId && x.FirmId == actor.FirmId, ct);
     if (result is null)
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
-      new AuthorizationRequest(actor.FirmId, RequiredRoles: ReviewerRoles, InternalOnly: true), ct);
+    var auth = await GroupAuthAsync(db, actor, result.GroupId, ReviewerRoles, ct);
     if (!auth.Succeeded)
       return auth;
     if (result.Status != AccountingWorkflowStates.Submitted || result.CreatedByUserId == actor.UserId || result.RateDate is null ||
@@ -327,5 +325,9 @@ public static class CurrencyTranslationService
   private static async Task<CommandResult> FirmAuthAsync(
     IClientAccountingDbContext db, ActorContext actor, IReadOnlyList<string> roles, CancellationToken ct) =>
     await AuthorizationDecision.AuthorizeAsync(db, actor,
-      new AuthorizationRequest(actor.FirmId, RequiredRoles: roles.ToArray(), InternalOnly: true), ct);
+      new AuthorizationRequest(actor.FirmId, RequiredRoles: roles.ToArray(), InternalOnly: true, RequireFirmWide: true), ct);
+
+  private static async Task<CommandResult> GroupAuthAsync(
+    IClientAccountingDbContext db, ActorContext actor, Guid groupId, IReadOnlyList<string> roles, CancellationToken ct)
+    => await AuthorizationDecision.AuthorizeGroupAsync(db, actor, groupId, roles, ct);
 }

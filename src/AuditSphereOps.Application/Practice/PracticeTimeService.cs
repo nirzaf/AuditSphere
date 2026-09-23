@@ -85,7 +85,8 @@ public static class PracticeTimeService
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Accounting period data is unavailable.");
 
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
-      new AuthorizationRequest(actor.FirmId, request.ClientId, request.EngagementId, WorkRoles), ct);
+      new AuthorizationRequest(actor.FirmId, request.ClientId, request.EngagementId, WorkRoles,
+        InternalOnly: true, RequireFirmWide: request.ClientId is null && request.EngagementId is null), ct);
     if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
 
     await using var tx = await db.Database.BeginTransactionAsync(ct);
@@ -328,7 +329,7 @@ public static class PracticeTimeService
     var validation = ValidateRateCard(request);
     if (validation is not null) return CommandResult<Guid>.Fail("time.invalid", validation);
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
-      new AuthorizationRequest(actor.FirmId, RequiredRoles: ApprovalRoles), ct);
+      new AuthorizationRequest(actor.FirmId, RequiredRoles: ApprovalRoles, InternalOnly: true, RequireFirmWide: true), ct);
     if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     if (await LockFirmAsync(db, actor.FirmId, ct) is null)
@@ -361,7 +362,7 @@ public static class PracticeTimeService
       x => x.Id == rateCardId && x.FirmId == actor.FirmId, ct);
     if (snapshot is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
-      new AuthorizationRequest(actor.FirmId, RequiredRoles: ApprovalRoles), ct);
+      new AuthorizationRequest(actor.FirmId, RequiredRoles: ApprovalRoles, InternalOnly: true, RequireFirmWide: true), ct);
     if (!auth.Succeeded) return auth;
     if (await LockFirmAsync(db, actor.FirmId, ct) is null)
       return CommandResult.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
@@ -396,7 +397,7 @@ public static class PracticeTimeService
       x => x.Id == request.EngagementId && x.FirmId == actor.FirmId, ct);
     if (engagement is null) return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
-      new AuthorizationRequest(actor.FirmId, engagement.PracticeClientId, engagement.Id, ApprovalRoles), ct);
+      new AuthorizationRequest(actor.FirmId, engagement.PracticeClientId, engagement.Id, ApprovalRoles, InternalOnly: true), ct);
     if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
     if (await LockFirmAsync(db, actor.FirmId, ct) is null)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
@@ -449,7 +450,7 @@ public static class PracticeTimeService
       x => x.Id == snapshot.EngagementId && x.FirmId == actor.FirmId, ct);
     if (engagement is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
-      new AuthorizationRequest(actor.FirmId, engagement.PracticeClientId, engagement.Id, ApprovalRoles), ct);
+      new AuthorizationRequest(actor.FirmId, engagement.PracticeClientId, engagement.Id, ApprovalRoles, InternalOnly: true), ct);
     if (!auth.Succeeded) return auth;
     if (await LockFirmAsync(db, actor.FirmId, ct) is null)
       return CommandResult.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
@@ -480,7 +481,7 @@ public static class PracticeTimeService
       x => x.Id == engagementId && x.FirmId == actor.FirmId, ct);
     if (engagement is null) return CommandResult<BudgetActualSummary>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
-      new AuthorizationRequest(actor.FirmId, engagement.PracticeClientId, engagement.Id, WorkRoles), ct);
+      new AuthorizationRequest(actor.FirmId, engagement.PracticeClientId, engagement.Id, WorkRoles, InternalOnly: true), ct);
     if (!auth.Succeeded) return CommandResult<BudgetActualSummary>.Fail(auth.ErrorCode!, auth.Message!);
     var budget = budgetId.HasValue
       ? await db.EngagementBudgets.AsNoTracking().SingleOrDefaultAsync(
@@ -535,7 +536,7 @@ public static class PracticeTimeService
     IAuditSphereDbContext db, ActorContext actor, WorkTask task, string[] roles, CancellationToken ct)
   {
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
-      new AuthorizationRequest(actor.FirmId, task.ClientId, task.EngagementId, roles), ct);
+      new AuthorizationRequest(actor.FirmId, task.ClientId, task.EngagementId, roles, InternalOnly: true), ct);
     if (!auth.Succeeded) return auth;
     return CommandResult.Ok();
   }

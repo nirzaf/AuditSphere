@@ -5,4 +5,6 @@
   <Project Path="src/AuditSphereOps.Web/AuditSphereOps.Web.csproj" />
   <Project Path="src/AuditSphereOps.Worker/AuditSphereOps.Worker.csproj" />
   <Project Path="tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj" />
+  <Project Path="tests/AuditSphereOps.Api.Tests/AuditSphereOps.Api.Tests.csproj" />
+  <Project Path="tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj" />
 </Solution>

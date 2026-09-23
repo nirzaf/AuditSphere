@@ -21,6 +21,35 @@ public sealed record AuthorizationRequest(
 
 public static class AuthorizationDecision
 {
+  public static async Task<CommandResult> AuthorizeGroupAsync(
+    IClientAccountingDbContext db,
+    ActorContext actor,
+    Guid groupId,
+    IReadOnlyCollection<string> requiredRoles,
+    CancellationToken ct = default)
+  {
+    if (actor.UserId == Guid.Empty || actor.FirmId == Guid.Empty || groupId == Guid.Empty)
+      return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+
+    var user = await db.Users.AsNoTracking()
+      .SingleOrDefaultAsync(u => u.Id == actor.UserId && u.FirmId == actor.FirmId, ct);
+    if (user is null || user.Disabled || user.UserKind.Equals("Client", StringComparison.OrdinalIgnoreCase) ||
+        actor.Roles.Contains("ClientUser", StringComparer.OrdinalIgnoreCase))
+      return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    if (user.SessionEpoch != actor.SessionEpoch)
+      return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+
+    var groupExists = await db.ClientGroups.AsNoTracking()
+      .AnyAsync(x => x.Id == groupId && x.FirmId == actor.FirmId, ct);
+    if (!groupExists)
+      return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+
+    var allowed = await db.GroupAccessGrants.AsNoTracking().AnyAsync(x =>
+      x.FirmId == actor.FirmId && x.GroupId == groupId && x.UserId == actor.UserId && x.RevokedAt == null &&
+      requiredRoles.Contains(x.Role), ct);
+    return allowed ? CommandResult.Ok() : CommandResult.Fail(ErrorCodes.ScopeDenied, "Explicit group access is required.");
+  }
+
   public static async Task<CommandResult> AuthorizeAsync(
     IAuditSphereDbContext db,
     ActorContext actor,
@@ -70,7 +99,7 @@ public static class AuthorizationDecision
     {
       if (request.EngagementId.HasValue)
         return (grantClient is null && grantEngagement is null)
-          || (grantEngagement == request.EngagementId)
+          || (grantClient == effectiveClientId && grantEngagement == request.EngagementId)
           || (grantClient.HasValue && grantClient == effectiveClientId && grantEngagement is null);
       if (effectiveClientId.HasValue)
         return (grantClient is null && grantEngagement is null)

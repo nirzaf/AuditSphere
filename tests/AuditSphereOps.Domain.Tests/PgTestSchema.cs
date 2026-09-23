@@ -12,7 +12,13 @@ namespace AuditSphereOps.Domain.Tests;
 /// auditsphere_tests, migrates it, and drops only that schema on dispose.
 /// The loopback/database guard refuses any other target; there is no InMemory fallback.
 /// </summary>
-public sealed class PgTestSchema : IAsyncDisposable
+public interface ITestPostgresDatabase
+{
+  DbContextOptions<AuditSphereDbContext> Options { get; }
+  string ConnectionString { get; }
+}
+
+public sealed class PgTestSchema : IAsyncDisposable, ITestPostgresDatabase
 {
   public string Schema { get; }
   public DbContextOptions<AuditSphereDbContext> Options { get; }

@@ -333,6 +333,56 @@ public sealed class ClientAccountingTests
 
   [Fact]
   [Trait("Profile", "Database")]
+  public async Task GroupCapabilityAuthorization_RejectsStaleDisabledAndClientActors()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var scope = await SeedAsync(pg);
+    var reviewer = Actor(scope.Reviewer, "Partner");
+    Guid groupId, profileId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      groupId = (await ConsolidationService.CreateGroupAsync(db, reviewer,
+        new ClientGroupRequest("GROUP-AUTH", "Group authorization regression"))).Value;
+      profileId = (await ClientAccountingService.CreateCapabilityProfileAsync(db, reviewer,
+        new CapabilityProfileRequest(null, groupId, AccountingCapabilityServiceKinds.GroupReporting, "IFRS", "2026",
+          "ANNUAL", "QAR", "STATUTORY", "", "PARTNER", "GROUP"))).Value;
+
+      var currentUser = await db.Users.SingleAsync(x => x.Id == scope.Reviewer.Id);
+      currentUser.SessionEpoch++;
+      await db.SaveChangesAsync();
+      var stale = await ClientAccountingService.RecordCapabilityAcceptanceAsync(db, reviewer, profileId,
+        AccountingCapabilityAcceptanceStages.LocalConstruction, "stale-session");
+      Assert.False(stale.Succeeded);
+      Assert.Equal(ErrorCodes.ScopeDenied, stale.ErrorCode);
+
+      currentUser.Disabled = true;
+      await db.SaveChangesAsync();
+      var disabled = await ClientAccountingService.RecordCapabilityAcceptanceAsync(db,
+        new ActorContext(scope.Reviewer.Id, scope.FirmId, currentUser.SessionEpoch, ["Partner"]), profileId,
+        AccountingCapabilityAcceptanceStages.LocalConstruction, "disabled-user");
+      Assert.False(disabled.Succeeded);
+      Assert.Equal(ErrorCodes.ScopeDenied, disabled.ErrorCode);
+
+      var clientUser = User(scope.FirmId, "group-client");
+      clientUser.UserKind = "Client";
+      db.Users.Add(clientUser);
+      db.GroupAccessGrants.Add(new GroupAccessGrant
+      {
+        Id = Guid.NewGuid(), FirmId = scope.FirmId, GroupId = groupId, UserId = clientUser.Id,
+        Role = "Partner", GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = scope.Reviewer.Id
+      });
+      await db.SaveChangesAsync();
+      var clientActor = new ActorContext(clientUser.Id, scope.FirmId, clientUser.SessionEpoch, ["Partner"]);
+      var clientResult = await ClientAccountingService.RecordCapabilityAcceptanceAsync(db, clientActor, profileId,
+        AccountingCapabilityAcceptanceStages.LocalConstruction, "client-classification");
+      Assert.False(clientResult.Succeeded);
+      Assert.Equal(ErrorCodes.ScopeDenied, clientResult.ErrorCode);
+      Assert.Empty(await db.AccountingCapabilityAcceptances.Where(x => x.CapabilityProfileId == profileId).ToListAsync());
+    }
+  }
+
+  [Fact]
+  [Trait("Profile", "Database")]
   public async Task OwnershipInterest_RejectsDuplicateAndCircularHierarchy()
   {
     await using var pg = await PgTestSchema.CreateAsync();
@@ -457,6 +507,37 @@ public sealed class ClientAccountingTests
         "STATUTORY", "", "PARTNER", "ENTITY"));
     Assert.False(unsupportedKind.Succeeded);
     Assert.Equal(ErrorCodes.Accounting.MappingInvalid, unsupportedKind.ErrorCode);
+  }
+
+  [Fact]
+  [Trait("Profile", "Database")]
+  public async Task FirmWideAccountingConfiguration_RejectsClientScopedGrants()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var scope = await SeedAsync(pg);
+    var user = User(scope.FirmId, "scoped-config-reviewer");
+    var actor = new ActorContext(user.Id, scope.FirmId, user.SessionEpoch, ["Partner", "AccountingReviewer"]);
+
+    await using var db = new AuditSphereDbContext(pg.Options);
+    db.Users.Add(user);
+    db.RoleGrants.AddRange(
+      Grant(scope.FirmId, user, "Partner", scope.ClientA),
+      Grant(scope.FirmId, user, "AccountingReviewer", scope.ClientA));
+    await db.SaveChangesAsync();
+
+    var group = await ConsolidationService.CreateGroupAsync(db, actor,
+      new ClientGroupRequest("SCOPED-GROUP", "Must be firm-authorized"));
+    var taxonomy = await ClientAccountingService.CreateTaxonomyVersionAsync(db, actor,
+      "SCOPED-TAXONOMY", "IFRS", "Must be firm-authorized", new DateOnly(2026, 1, 1));
+    var rates = await CurrencyTranslationService.CreateRateSetAsync(db, actor,
+      new ExchangeRateSetRequest("SCOPED-FX", "test-source"));
+
+    Assert.Equal(ErrorCodes.ScopeDenied, group.ErrorCode);
+    Assert.Equal(ErrorCodes.ScopeDenied, taxonomy.ErrorCode);
+    Assert.Equal(ErrorCodes.ScopeDenied, rates.ErrorCode);
+    Assert.Empty(await db.ClientGroups.ToListAsync());
+    Assert.Empty(await db.ReportingTaxonomyVersions.ToListAsync());
+    Assert.Empty(await db.ExchangeRateSetVersions.ToListAsync());
   }
 
   [Fact]
@@ -1381,6 +1462,38 @@ public sealed class ClientAccountingTests
     var mutation = await Assert.ThrowsAsync<PostgresException>(() => verify.Database.ExecuteSqlInterpolatedAsync(
       $"UPDATE financial_package_review_decisions SET comment = {"tampered"} WHERE id = {managementDecisionId}"));
     Assert.Equal("55000", mutation.SqlState);
+  }
+
+  [Fact]
+  [Trait("Profile", "Database")]
+  public async Task FinancialPackageReviewQueue_FiltersScopeBeforeApplyingPageLimit()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var scope = await SeedAsync(pg);
+    var scopedReviewer = User(scope.FirmId, "scoped-queue-reviewer");
+    var actor = Actor(scopedReviewer, "AccountingReviewer");
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      db.Users.Add(scopedReviewer);
+      db.RoleGrants.Add(Grant(scope.FirmId, scopedReviewer, "AccountingReviewer", scope.ClientA));
+
+      for (var i = 0; i < 101; i++)
+      {
+        var id = await AddPackageAsync(db, scope, scope.ClientB, scope.EngagementB, 100m, "CASH", $"queue-hidden-{i}");
+        db.FinancialPackages.Local.Single(x => x.Id == id).CreatedAt = DateTimeOffset.UtcNow.AddSeconds(i + 2);
+      }
+
+      var visibleId = await AddPackageAsync(db, scope, scope.ClientA, scope.EngagementA, 100m, "CASH", "queue-visible");
+      db.FinancialPackages.Local.Single(x => x.Id == visibleId).CreatedAt = DateTimeOffset.UtcNow;
+      await db.SaveChangesAsync();
+    }
+
+    await using var query = new AuditSphereDbContext(pg.Options);
+    var queue = await FinancialPackageReviewService.GetStaffQueueAsync(query, actor);
+    Assert.True(queue.Succeeded, queue.Message);
+    var item = Assert.Single(queue.Value!);
+    Assert.Equal(scope.ClientA, await query.FinancialPackages.Where(x => x.Id == item.PackageId).Select(x => x.ClientId).SingleAsync());
   }
 
   [Fact]
@@ -2421,11 +2534,26 @@ public sealed class ClientAccountingTests
       Assert.False(pinnedInputRejected.Succeeded);
       Assert.Equal(ErrorCodes.GateBlocked, pinnedInputRejected.ErrorCode);
 
+      var stalePreparer = new ActorContext(preparer.UserId, preparer.FirmId, preparer.SessionEpoch + 1, preparer.Roles);
+      var staleTranslation = await CurrencyTranslationService.TranslateComponentAsync(db, stalePreparer, componentUsd,
+        rateSetId, policyId, rateDate, "CLOSING");
+      Assert.False(staleTranslation.Succeeded);
+      Assert.Equal(ErrorCodes.ScopeDenied, staleTranslation.ErrorCode);
+
       translationId = (await CurrencyTranslationService.TranslateComponentAsync(db, preparer, componentUsd,
         rateSetId, policyId, rateDate, "CLOSING")).Value;
       var selfApproval = await CurrencyTranslationService.ApproveTranslationAsync(db, preparer, translationId);
       Assert.False(selfApproval.Succeeded);
       Assert.Equal(ErrorCodes.GateBlocked, selfApproval.ErrorCode);
+
+      var unrelatedPartner = User(scope.FirmId, "unrelated-group-partner");
+      db.Users.Add(unrelatedPartner);
+      db.RoleGrants.Add(Grant(scope.FirmId, unrelatedPartner, "Partner"));
+      await db.SaveChangesAsync();
+      var unrelatedApproval = await CurrencyTranslationService.ApproveTranslationAsync(db,
+        Actor(unrelatedPartner, "Partner"), translationId);
+      Assert.False(unrelatedApproval.Succeeded);
+      Assert.Equal(ErrorCodes.ScopeDenied, unrelatedApproval.ErrorCode);
       Assert.True((await CurrencyTranslationService.ApproveTranslationAsync(db, reviewer, translationId)).Succeeded);
       var translation = await db.TranslationResults.SingleAsync(x => x.Id == translationId);
       Assert.Equal(364m, translation.TranslatedAmount);
@@ -2960,9 +3088,11 @@ public sealed class ClientAccountingTests
     TenantId = "tenant-test", Email = name + "@example.test", DisplayName = name, CreatedAt = DateTimeOffset.UtcNow
   };
 
-  private static RoleGrant Grant(Guid firmId, AppUser user, string role) => new()
+  private static RoleGrant Grant(Guid firmId, AppUser user, string role,
+    Guid? clientId = null, Guid? engagementId = null) => new()
   {
     Id = Guid.NewGuid(), FirmId = firmId, UserId = user.Id, Role = role,
+    ClientId = clientId, EngagementId = engagementId,
     GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = user.Id
   };
 

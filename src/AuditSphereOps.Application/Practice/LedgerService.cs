@@ -433,7 +433,7 @@ public static class LedgerService
   private static async Task<CommandResult> AuthorizeFirmAsync(
     IAuditSphereDbContext db, ActorContext actor, string[] roles, CancellationToken ct) =>
     await AuthorizationDecision.AuthorizeAsync(db, actor,
-      new AuthorizationRequest(actor.FirmId, RequiredRoles: roles, InternalOnly: true), ct);
+      new AuthorizationRequest(actor.FirmId, RequiredRoles: roles, InternalOnly: true, RequireFirmWide: true), ct);
 
   private static string? ValidateAccount(CreateFirmAccountRequest request) =>
     string.IsNullOrWhiteSpace(request.Code) || request.Code.Trim().Length > 32

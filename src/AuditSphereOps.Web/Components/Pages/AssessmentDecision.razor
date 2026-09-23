@@ -1,6 +1,8 @@
 @page "/app/assessments/{Id:guid}/decision"
 @using Microsoft.AspNetCore.Components.Authorization
 @using AuditSphereOps.Application.Acceptance
+@using AuditSphereOps.Application.Security
+@using AuditSphereOps.Domain.Shared
 @using AuditSphereOps.Infrastructure.Persistence
 @using Microsoft.EntityFrameworkCore
 @inject AuthenticationStateProvider Auth
@@ -19,6 +21,26 @@
     <h1>Partner Acceptance / Continuance Decision</h1>
 </div>
 
+@if (_loading)
+{
+    <p role="status">Checking decision access…</p>
+}
+else if (_scopeDenied)
+{
+    <section class="notice" role="alert">
+        <h2>Decision unavailable</h2>
+        <p>The current identity is not authorized to record a partner decision for this client.</p>
+    </section>
+}
+else if (_expectedGeneration is null)
+{
+    <section class="notice" role="alert">
+        <h2>Decision unavailable</h2>
+        <p>The current client evaluation is unavailable. No decision was recorded.</p>
+    </section>
+}
+else
+{
 <div class="card decision-card">
     <p class="notice-text">
         This decision is <strong>immutable</strong>. The partner records scope, rationale and conditions. 
@@ -63,6 +85,7 @@
         <a class="btn-secondary" href="/app/assessments/@Id">Cancel</a>
     </div>
 </div>
+}
 
 @code {
     [Parameter] public Guid Id { get; set; }
@@ -73,23 +96,52 @@
     string _conditions = "";
     string _errorMessage = "";
     bool _submitting;
+    bool _loading = true;
+    bool _scopeDenied;
     long? _expectedGeneration;
     AuditSphereOps.Application.Abstractions.ActorContext? _actor;
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnParametersSetAsync()
     {
-        var state = await Auth.GetAuthenticationStateAsync();
-        if (state.User.Identity?.IsAuthenticated != true)
+        _loading = true;
+        _scopeDenied = false;
+        _expectedGeneration = null;
+        _actor = null;
+        _errorMessage = "";
+        _outcome = "";
+        _serviceRoute = "FinancialStatementAudit";
+        _rationale = "";
+        _conditions = "";
+
+        try
         {
-            Nav.NavigateTo("/login");
-            return;
+            var state = await Auth.GetAuthenticationStateAsync();
+            if (state.User.Identity?.IsAuthenticated != true)
+            {
+                Nav.NavigateTo("/login");
+                return;
+            }
+            _actor = await ActorResolver.ResolveAsync();
+            if (_actor is null)
+            {
+                _scopeDenied = true;
+                return;
+            }
+
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var authorization = await AuthorizationDecision.AuthorizeAsync(db, _actor,
+                new AuthorizationRequest(_actor.FirmId, ClientId: Id, RequiredRoles: ["Partner"], InternalOnly: true));
+            if (!authorization.Succeeded)
+            {
+                _scopeDenied = true;
+                return;
+            }
+
+            _expectedGeneration = await db.ClientSafetyStates.AsNoTracking()
+                .Where(x => x.FirmId == _actor.FirmId && x.Id == Id)
+                .Select(x => (long?)x.InputGeneration).SingleOrDefaultAsync();
         }
-        _actor = await ActorResolver.ResolveAsync();
-        if (_actor is null) return;
-        await using var db = await DbFactory.CreateDbContextAsync();
-        _expectedGeneration = await db.ClientSafetyStates.AsNoTracking()
-            .Where(x => x.FirmId == _actor.FirmId && x.Id == Id)
-            .Select(x => (long?)x.InputGeneration).SingleOrDefaultAsync();
+        finally { _loading = false; }
     }
 
     async Task RecordDecision()
@@ -112,6 +164,16 @@
                 new(Id, null, _serviceRoute, _outcome, _rationale, _conditions, _expectedGeneration.Value));
             if (!result.Succeeded)
             {
+                if (result.ErrorCode is ErrorCodes.ScopeDenied or ErrorCodes.GenerationStale)
+                {
+                    _scopeDenied = true;
+                    _expectedGeneration = null;
+                    _actor = null;
+                    _outcome = "";
+                    _rationale = "";
+                    _conditions = "";
+                    return;
+                }
                 _errorMessage = result.Message ?? "The decision could not be recorded.";
                 return;
             }
