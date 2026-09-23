@@ -270,6 +270,10 @@ else
       var periodIds = periods.Select(x => x.Id).ToArray();
       var workflowTasks = periodIds.Length == 0 ? [] : await db.WorkTasks.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
         x.ReportingPeriodId.HasValue && periodIds.Contains(x.ReportingPeriodId.Value) &&
+        (firmWide ||
+          (!x.EngagementId.HasValue && x.ClientId.HasValue && grantedClientIds.Contains(x.ClientId.Value)) ||
+          (x.EngagementId.HasValue && scopedEngagementIds.Contains(x.EngagementId.Value) &&
+            db.Engagements.Any(e => e.Id == x.EngagementId.Value && e.FirmId == x.FirmId && e.PracticeClientId == x.ClientId))) &&
         (x.Status == PracticeTimeStates.TaskOpen || x.Status == PracticeTimeStates.TaskInProgress))
         .OrderBy(x => x.DueDate).ThenBy(x => x.CreatedAt).ToListAsync();
       var books = await db.ClientReportingBooks.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&

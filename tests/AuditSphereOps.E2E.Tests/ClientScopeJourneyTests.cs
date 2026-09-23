@@ -549,6 +549,71 @@ public sealed class ClientScopeJourneyTests
   }
 
   [Fact]
+  [Trait("CaseId", "AS-PAR-002-ACCT-WORKSPACE-SIBLING-TASK-01")]
+  public async Task AccountingWorkspaceHidesSiblingEngagementTaskSummary()
+  {
+    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false,
+      caseId: "AS-PAR-002-ACCT-WORKSPACE-SIBLING-TASK-01");
+    var scopedUser = PbcSeed.User(host.Fixture.FirmId, "Staff");
+    var assignedOwner = PbcSeed.User(host.Fixture.FirmId, "Staff");
+    assignedOwner.DisplayName = "SYN-PAR-002-WORKSPACE-ASSIGNED-OWNER";
+    var siblingOwner = PbcSeed.User(host.Fixture.FirmId, "Staff");
+    siblingOwner.DisplayName = "SYN-PAR-002-WORKSPACE-SIBLING-OWNER";
+    var siblingEngagementId = Guid.NewGuid();
+    var periodId = Guid.NewGuid();
+
+    await using (var db = host.CreateDbContext())
+    {
+      db.Users.AddRange(scopedUser, assignedOwner, siblingOwner);
+      db.RoleGrants.Add(PbcSeed.Grant(host.Fixture.FirmId, scopedUser, "AccountingPreparer",
+        host.Fixture.ClientId, host.Fixture.EngagementId));
+      db.Engagements.Add(new AuditSphereOps.Domain.Engagements.Engagement
+      {
+        Id = siblingEngagementId, FirmId = host.Fixture.FirmId, PracticeClientId = host.Fixture.ClientId,
+        Status = "Active", ProfessionalWorkBlocked = false, CreatedAt = DateTimeOffset.UtcNow
+      });
+      db.ClientReportingPeriods.Add(new ClientReportingPeriod
+      {
+        Id = periodId, FirmId = host.Fixture.FirmId, ClientId = host.Fixture.ClientId,
+        PeriodCode = "SYN-PAR-002-WORKSPACE-PERIOD", StartDate = new DateOnly(2026, 1, 1),
+        EndDate = new DateOnly(2026, 12, 31), Basis = "STATUTORY", Currency = "QAR",
+        CreatedByUserId = host.Fixture.Staff.Id, CreatedAt = DateTimeOffset.UtcNow
+      });
+      db.WorkTasks.AddRange(
+        new WorkTask
+        {
+          Id = Guid.NewGuid(), FirmId = host.Fixture.FirmId, ClientId = host.Fixture.ClientId,
+          EngagementId = host.Fixture.EngagementId, ReportingPeriodId = periodId,
+          Title = "Synthetic assigned workflow task", AssigneeUserId = assignedOwner.Id,
+          DueDate = new DateOnly(2026, 9, 30), CreatedAt = DateTimeOffset.UtcNow
+        },
+        new WorkTask
+        {
+          Id = Guid.NewGuid(), FirmId = host.Fixture.FirmId, ClientId = host.Fixture.ClientId,
+          EngagementId = siblingEngagementId, ReportingPeriodId = periodId,
+          Title = "Synthetic sibling workflow task", AssigneeUserId = siblingOwner.Id,
+          DueDate = new DateOnly(2026, 9, 1), CreatedAt = DateTimeOffset.UtcNow
+        });
+      await db.SaveChangesAsync();
+    }
+
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    var origin = await host.StartWebForIdentityAsync(scopedUser);
+    await using var context = await browser.NewContextAsync();
+    var page = await context.NewPageAsync();
+    var diagnostics = new List<string>();
+    var connected = WaitForCircuitConnectionAsync(page, diagnostics);
+    await page.GotoAsync(SignInUrl(origin, "/app/accounting"));
+    await page.GetByText("1 explicitly granted legal entity").WaitForAsync();
+    await connected;
+    var body = await page.Locator("body").InnerTextAsync();
+    Assert.DoesNotContain(siblingOwner.DisplayName, body);
+    Assert.Contains(assignedOwner.DisplayName, body);
+    Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
+  }
+
+  [Fact]
   [Trait("CaseId", "AS-PAR-002-ACCT-PERIOD-01")]
   public async Task AccountingPeriodRequiresClientGrantAndClearsPriorPeriodOnRouteChange()
   {
