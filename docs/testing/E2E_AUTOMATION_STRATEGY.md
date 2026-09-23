@@ -2,9 +2,9 @@
 
 ## 1. Scope, evidence, and safety boundary
 
-This document records the automation strategy and the current CI contract. As of 2026-09-23, the repository contains dedicated API and Playwright E2E projects and an active CI workflow. Fresh Release discovery found **297 cases**: Domain 257, API 6, E2E 34. Fresh separate project runs passed all 257 Domain, 6 API and 34 E2E cases, with no skips; they were not one solution-level test invocation. The historical [test catalog](TEST_CASE_CATALOG.md) still inventories its original 246 Domain cases; the API/E2E projects identify their newer scenarios with `CaseId` traits.
+This document records the automation strategy and the current CI contract. As of 2026-09-23, the repository contains dedicated API and Playwright E2E projects and an active CI workflow. Fresh Release discovery found **298 cases**: Domain 257, API 6, E2E 35. Separate project runs passed all 257 Domain, 6 API and 35 E2E cases, with no skips; they were not one solution-level test invocation. The historical [test catalog](TEST_CASE_CATALOG.md) still inventories its original 246 Domain cases; the API/E2E projects identify their newer scenarios with `CaseId` traits.
 
-The documentation inventory baseline was inspected on 2026-09-22 at `b8e47219179ab5cd707d95dfc6e594da37429d85`, with a later source/discovery check at `053aaec315a179082d0535ad4bda3c2706c5900d`. It found **246 Domain cases / 235 methods**. That historical count is not the current solution total. At the prior 296-case checkpoint, a full solution attempt had one intermittent E2E reviewer-page case (32/33); it passed alone and a complete E2E rerun passed 33/33. The current 297-case per-project runs passed Domain 257/257, API 6/6 and E2E 34/34, with no skips. The previous 246/246 result at `dc9cb0b` remains historical [execution evidence](../execution/status.json).
+The documentation inventory baseline was inspected on 2026-09-22 at `b8e47219179ab5cd707d95dfc6e594da37429d85`, with a later source/discovery check at `053aaec315a179082d0535ad4bda3c2706c5900d`. It found **246 Domain cases / 235 methods**. That historical count is not the current solution total. Earlier full-solution checkpoints had intermittent E2E reviewer-page timeouts that passed in isolation and on complete E2E reruns. At this 298-case checkpoint, a grouped financial-journey attempt also had one intermittent journal-revocation timeout; the isolated case and complete E2E rerun passed. The previous 246/246 result at `dc9cb0b` remains historical [execution evidence](../execution/status.json).
 
 Controlling requirements are the [system test contract, §44](../SPECIFICATION.md#s44), [CI/runtime contract, §45](../SPECIFICATION.md#s45), [accounting requirements](../AuditSphere_Accounting_module.md), [audit-workflow requirements](../requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md), and [M365 onboarding requirements](../AuditSphere_M365_Simple_Onboarding_User_Story.md). Requirement checkboxes and test titles alone do not establish end-to-end acceptance.
 
@@ -213,7 +213,7 @@ jobs:
       ExternalEffects__Enabled: 'false'
       Application__AllowSimulationAdapters: 'true'
       DevelopmentIdentity__Enabled: 'false'
-      EXPECTED_CASES: '297'
+      EXPECTED_CASES: '298'
     defaults:
       run:
         shell: bash
@@ -360,7 +360,7 @@ jobs:
 
 The trust-auth container is disposable, loopback-published, synthetic-only and has no tenant secrets. It is not a production database recipe. Never expose this profile on a shared network. For a Docker-free CI alternative, use an ephemeral native PostgreSQL 18.6 runner image labeled for that capability, provision an isolated `auditsphere_tests` DB before the job, omit `services`, and replace `docker exec/logs` with native `psql` and owned server-log collection. Prefer separate runner VMs over changing the fixture's guarded database name. Do not schedule untrusted fork code onto a persistent privileged/self-hosted machine.
 
-`EXPECTED_CASES=297` is the current reconciled discovery count across the three projects, not a permanent cap. Legitimate additions/removals require a reviewed count/catalog update; do not reduce it just to pass CI. The textual parser counts all three solution project sections and deliberately includes duplicate display names. The TRX check rejects any nonexecuted outcome; no `continue-on-error` or `dotnet test || true` hides failure. Infrastructure failures should be classified separately in the future structured summary while still failing the required check.
+`EXPECTED_CASES=298` is the current reconciled discovery count across the three projects, not a permanent cap. Legitimate additions/removals require a reviewed count/catalog update; do not reduce it just to pass CI. The textual parser counts all three solution project sections and deliberately includes duplicate display names. The TRX check rejects any nonexecuted outcome; no `continue-on-error` or `dotnet test || true` hides failure. Infrastructure failures should be classified separately in the future structured summary while still failing the required check.
 
 ## 7. Proposed API/browser workflow and orchestration contract
 

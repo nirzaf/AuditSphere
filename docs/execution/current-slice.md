@@ -6,12 +6,12 @@ This file records observed repository state only. The authoritative build contra
 
 | Item | Observed value |
 |---|---|
-| Source implementation checkpoint | `master@f10ed0f3ffed4f3e1701f6f25529f109d2815b9f`; implementation/test/CI changes committed |
-| Remote | `origin/master` confirmed to equal `f10ed0f3ffed4f3e1701f6f25529f109d2815b9f` at 2026-09-23 10:59 UTC |
+| Source implementation checkpoint | `master@65bcc63f2fb4e7b125ce827f39b79ce8533c1fb1`; implementation/test/CI changes committed |
+| Remote | `origin/master` confirmed to equal `65bcc63f2fb4e7b125ce827f39b79ce8533c1fb1` at 2026-09-23 11:39 UTC |
 | SDK | .NET 10; repository solution targets `net10.0` |
 | Database | PostgreSQL 18.6 on loopback port 5433 for development only |
-| Build | Full solution Release build for source checkpoint `f10ed0f` — passed, 0 warnings/errors |
-| Tests | Fresh discovery: 297 (Domain 257, API 6, E2E 34). Fresh per-project runs: Domain 257/257, API 6/6, E2E 34/34; 0 skipped. These were separate project runs, not one solution-level test invocation. |
+| Build | Full solution Release build for source checkpoint `65bcc63` — passed, 0 warnings/errors |
+| Tests | Fresh discovery: 298 (Domain 257, API 6, E2E 35). Separate per-project runs passed Domain 257/257, API 6/6 and E2E 35/35; 0 skipped. These were not one solution-level execution. |
 | Migrations | Previous recorded baseline: 91 applied through `20260922140527_M365InvitationEvidenceAction`; no schema migration in these slices |
 | Model drift | `dotnet ef migrations has-pending-model-changes --no-build --configuration Release` — no pending model changes after this slice on 2026-09-23 |
 | Restore drill | Previously passed at `2026-09-22T18:52:20Z`; 91 migrations, accounting/group manifests and release-delivery identities reconciled; not rerun during test recovery |
@@ -312,6 +312,15 @@ Implemented in source checkpoint `master@f10ed0f3ffed4f3e1701f6f25529f109d2815b9
 - When a PBC create/send, request-more-files, or staged-upload completion command returns `scope.denied` or `generation.stale`, the staff inbox now switches to its generic unavailable state, clears loaded request/timeline and action projections, and removes the new-request browser draft. Stored client requests and upload evidence are not deleted.
 - Added `AS-PAR-002-PBC-STALE-READ-01`: a synthetic staff user opens the inbox and saves a draft; an administrator revokes the exact Staff grant; the next staged-transfer command is denied. The browser verifies that the private request marker and draft disappear, the draft key is removed from local storage, and the persisted request remains unchanged.
 - Fresh Release build passed with 0 warnings/errors. Discovery is 297 (Domain 257, API 6, E2E 34); fresh per-project runs passed Domain 257/257, API 6/6 and the full Playwright E2E suite 34/34, with 0 skips. `ClientScopeJourneyTests` passed 23/23; EF reports no pending model changes; `git diff --check` passed. The full solution test command was not run as a single invocation for this checkpoint. No schema migration, tenant operation or production effect. AS-PAR-002 remains partial.
+
+## AS-PAR-002 — Revalidate financial package artifact downloads
+
+Implemented and pushed to `origin/master` in source checkpoint `65bcc63f2fb4e7b125ce827f39b79ce8533c1fb1`; remote equality was checked at 2026-09-23 11:39 UTC.
+
+- Text-artifact downloads now re-read the current package and exact persisted artifact through `FinancialStatementService`, re-authorize the actor against current firm/client/engagement grants and session epoch, and verify the stored SHA-256 before returning any bytes to the browser download hook.
+- If a grant is revoked while a package page is open, the stale-session state removes the rendered package/artifact view. The artifact read command returns `generation.stale`, the browser download hook is not invoked, and the stored artifact remains unchanged.
+- Added `AS-PAR-002-FS-STALE-DOWNLOAD-01` in `FinancialArtifactJourneyTests.cs`; the test revokes both synthetic package-read grants, checks the browser projection and download hook, asserts the service-level stale-session denial, and verifies retained bytes/hash.
+- Verification: full Release solution build passed with 0 warnings/errors; fresh discovery is 298 (Domain 257, API 6, E2E 35); Domain 257/257, API 6/6 and complete Playwright E2E 35/35 passed in separate project runs, 0 skipped. The financial-journey subset initially had one intermittent journal-revocation browser timeout; that case passed alone and the complete E2E rerun passed. Exact-case discovery confirmed 298; EF reports no pending model changes; `git diff --check` passed. Source SHA was pushed to `master` and matched `git ls-remote`. No schema migration, tenant operation or production effect. AS-PAR-002 remains partial.
 
 ## Remaining local implementation work
 
