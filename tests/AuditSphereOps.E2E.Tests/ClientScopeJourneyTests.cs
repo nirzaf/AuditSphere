@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Playwright;
+using AuditSphereOps.Application.Security;
+using AuditSphereOps.Application.Documents;
 using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Acceptance;
 using AuditSphereOps.Application.Audit;
@@ -1234,6 +1236,81 @@ public sealed class ClientScopeJourneyTests
     Assert.Contains("Access unavailable", body);
     Assert.DoesNotContain(privateMarker, body);
     Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
+  }
+
+  [Fact]
+  [Trait("CaseId", "AS-PAR-002-PBC-STALE-READ-01")]
+  public async Task RevokedStaffGrantClearsOpenPbcInboxAfterNextCommand()
+  {
+    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false,
+      caseId: "AS-PAR-002-PBC-STALE-READ-01");
+    const string privateMarker = "SYN-PAR-002-STALE-PBC-PRIVATE";
+    const string privateDraft = "SYN-PAR-002-STALE-PBC-DRAFT";
+    await using (var db = host.CreateDbContext())
+    {
+      var request = await db.PbcRequests.SingleAsync(x => x.Id == host.RequestId);
+      request.Objective = privateMarker;
+      request.Area = privateMarker;
+      await db.SaveChangesAsync();
+    }
+    var stagedBytes = "SYNTHETIC-PBC-REVOCATION-FIXTURE"u8.ToArray();
+    var stagedHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(stagedBytes)).ToLowerInvariant();
+    var stagedActor = PbcSeed.Actor(host.Fixture.Client, "ClientUser");
+    Guid uploadId;
+    var chunkPath = Path.Combine(host.StagingRoot, "synthetic-revocation-chunk.part");
+    Directory.CreateDirectory(host.StagingRoot);
+    await File.WriteAllBytesAsync(chunkPath, stagedBytes);
+    await using (var db = host.CreateDbContext())
+    {
+      var started = await PbcService.StartUploadAsync(db, stagedActor,
+        new StartPbcUploadRequest(host.RequestId, "AuditSphere-Synthetic-Revocation.txt", "text/plain",
+          stagedBytes.Length, stagedHash));
+      Assert.True(started.Succeeded, started.Message);
+      uploadId = started.Value!.UploadIntentId;
+      var recorded = await PbcService.RecordChunkAsync(db, stagedActor,
+        new RecordPbcUploadChunkRequest(uploadId, 0, 0, stagedBytes.Length, stagedHash,
+          started.Value.Capability!, chunkPath));
+      Assert.True(recorded.Succeeded, recorded.Message);
+    }
+
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    await using var context = await browser.NewContextAsync();
+    var page = await context.NewPageAsync();
+    var diagnostics = new List<string>();
+    var connected = WaitForCircuitConnectionAsync(page, diagnostics);
+    await page.GotoAsync(SignInUrl(host.StaffUrl, $"/app/engagements/{host.Fixture.EngagementId:D}/pbc"));
+    await page.GetByRole(AriaRole.Heading, new() { Name = privateMarker }).WaitForAsync();
+    await connected;
+
+    await page.GetByLabel("Files required").FillAsync(privateDraft);
+    var scope = $"pbc-new-request-{host.Fixture.EngagementId}";
+    var storageKey = $"auditsphere:draft:v1:{Uri.EscapeDataString(scope)}";
+    await page.WaitForFunctionAsync("key => localStorage.getItem(key) !== null", storageKey);
+    Assert.Contains(privateDraft, await page.EvaluateAsync<string?>("key => localStorage.getItem(key)", storageKey));
+
+    await using (var db = host.CreateDbContext())
+    {
+      var grant = await db.RoleGrants.SingleAsync(x => x.FirmId == host.Fixture.FirmId &&
+        x.UserId == host.Fixture.Staff.Id && x.Role == "Staff" && x.RevokedAt == null);
+      var revoked = await RoleAdministrationService.RevokeRoleGrantAsync(db,
+        PbcSeed.Actor(host.Fixture.Admin, "Administrator"), new RevokeRoleGrantRequest(grant.Id));
+      Assert.True(revoked.Succeeded, revoked.Message);
+    }
+
+    await page.GetByRole(AriaRole.Button, new() { Name = "Complete staged transfer" }).ClickAsync();
+    try { await page.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable" }).WaitForAsync(new() { Timeout = 5000 }); }
+    catch (TimeoutException ex)
+    {
+      throw new Xunit.Sdk.XunitException($"Revoked inbox remained rendered.\n{await page.Locator("body").InnerTextAsync()}\n{string.Join("\n", diagnostics)}\n{ex.Message}");
+    }
+    var body = await page.Locator("body").InnerTextAsync();
+    Assert.DoesNotContain(privateMarker, body);
+    Assert.DoesNotContain(privateDraft, body);
+    Assert.Null(await page.EvaluateAsync<string?>("key => localStorage.getItem(key)", storageKey));
+    Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
+    await using var verify = host.CreateDbContext();
+    Assert.Single(await verify.PbcRequests.AsNoTracking().Where(x => x.FirmId == host.Fixture.FirmId).ToListAsync());
   }
 
   [Fact]

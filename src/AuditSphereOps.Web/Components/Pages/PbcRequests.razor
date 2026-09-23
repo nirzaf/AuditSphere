@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @using AuditSphereOps.Application.Operations
 @using AuditSphereOps.Domain.Completion
+@using AuditSphereOps.Domain.Shared
 @using AuditSphereOps.Domain.Security
 @inject CurrentActorResolver ActorResolver
 @inject IDbContextFactory<AuditSphereDbContext> DbFactory
@@ -247,9 +248,15 @@ else
       if (!created.Succeeded)
       {
         _createResult = CommandResult.Fail(created.ErrorCode!, created.Message!);
+        if (IsAuthorizationFailure(created.ErrorCode)) await DenyAndClearAsync();
         return;
       }
       _createResult = await PbcService.SendRequestAsync(db, _actor, created.Value, 1, PublicBaseUrl());
+      if (IsAuthorizationFailure(_createResult.ErrorCode))
+      {
+        await DenyAndClearAsync();
+        return;
+      }
       await LoadAsync(db);
       if (_createResult.Succeeded)
       {
@@ -270,6 +277,11 @@ else
       await using var db = await DbFactory.CreateDbContextAsync();
       _messageResults[requestId] = await PbcService.RequestMoreFilesAsync(db, _actor,
         new PbcMessageRequest(requestId, MessageFor(requestId), PublicBaseUrl()));
+      if (IsAuthorizationFailure(_messageResults[requestId].ErrorCode))
+      {
+        await DenyAndClearAsync();
+        return;
+      }
       if (_messageResults[requestId].Succeeded) _messages[requestId] = string.Empty;
       await LoadAsync(db);
     }
@@ -292,6 +304,31 @@ else
   private static string DownloadUrl(Guid id) => $"/api/pbc/uploads/{id:D}/download";
   private static string MessageId(Guid id) => "pbc-message-" + id.ToString("N");
   private string MessageFor(Guid id) => _messages.GetValueOrDefault(id, string.Empty);
+  private static bool IsAuthorizationFailure(string? errorCode) =>
+    errorCode is ErrorCodes.ScopeDenied or ErrorCodes.GenerationStale;
+
+  private async Task DenyAndClearAsync()
+  {
+    _denied = true;
+    _requests.Clear();
+    _intents.Clear();
+    _operations.Clear();
+    _communications.Clear();
+    _userNames.Clear();
+    _results.Clear();
+    _messageResults.Clear();
+    _messages.Clear();
+    _clientOwners.Clear();
+    _reviewers.Clear();
+    _description = string.Empty;
+    _requestedFormat = string.Empty;
+    _clientOwnerId = Guid.Empty;
+    _reviewerId = Guid.Empty;
+    _createResult = null;
+    try { await JS.InvokeVoidAsync("auditSphereDrafts.clear", $"pbc-new-request-{EngagementId}"); }
+    catch (JSException) { }
+  }
+
   private sealed record TimelineItem(DateTimeOffset At, string Label, string Body);
 
   private async Task CompleteUploadAsync(PbcUploadIntent intent)
@@ -306,6 +343,11 @@ else
       _results[intent.Id] = await PbcService.CompleteUploadAsync(db, _actor,
         new CompletePbcUploadRequest(intent.Id, intent.DeclaredSha256Hex),
         OperationStore, TransferHandler);
+      if (IsAuthorizationFailure(_results[intent.Id].ErrorCode))
+      {
+        await DenyAndClearAsync();
+        return;
+      }
       await LoadAsync(db);
     }
     finally { _busy = false; }
