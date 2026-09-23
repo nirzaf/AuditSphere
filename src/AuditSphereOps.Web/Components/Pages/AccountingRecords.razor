@@ -203,16 +203,17 @@ else
     _journals.Clear();
     _differences.Clear();
     _loading = true;
-    _actor = await ActorResolver.ResolveAsync();
-    if (_actor is null)
+    var actor = await ActorResolver.ResolveAsync();
+    _actor = actor;
+    if (actor is null)
     {
       _loading = false;
       return;
     }
 
     await using var db = await DbFactory.CreateDbContextAsync();
-    var authorization = await AuthorizationDecision.AuthorizeAsync(db, _actor,
-      new AuthorizationRequest(_actor.FirmId, RequiredRoles: AccountingRoles, InternalOnly: true));
+    var authorization = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, RequiredRoles: AccountingRoles, InternalOnly: true));
     if (!authorization.Succeeded)
     {
       _actor = null;
@@ -221,40 +222,40 @@ else
     }
 
     _authorized = true;
-    var grants = await db.RoleGrants.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && x.UserId == _actor.UserId &&
+    var grants = await db.RoleGrants.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.UserId == actor.UserId &&
         x.RevokedAt == null && AccountingRoles.Contains(x.Role))
       .Select(x => new { x.ClientId, x.EngagementId }).ToListAsync();
     var firmWide = grants.Any(x => x.ClientId is null && x.EngagementId is null);
     var directClientIds = grants.Where(x => x.ClientId.HasValue && x.EngagementId is null).Select(x => x.ClientId!.Value).Distinct().ToArray();
     var engagementIds = grants.Where(x => x.EngagementId.HasValue).Select(x => x.EngagementId!.Value).Distinct().ToArray();
     var engagementClients = engagementIds.Length == 0 ? new Dictionary<Guid, Guid>() : await db.Engagements.AsNoTracking()
-      .Where(x => x.FirmId == _actor.FirmId && engagementIds.Contains(x.Id))
+      .Where(x => x.FirmId == actor.FirmId && engagementIds.Contains(x.Id))
       .ToDictionaryAsync(x => x.Id, x => x.PracticeClientId);
     var grantedEngagementIds = grants.Where(x => x.ClientId.HasValue && x.EngagementId.HasValue &&
       engagementClients.TryGetValue(x.EngagementId.Value, out var clientId) && clientId == x.ClientId.Value)
       .Select(x => x.EngagementId!.Value).Distinct().ToArray();
     var scopedEngagementIds = firmWide ? [] : await db.Engagements.AsNoTracking()
-      .Where(x => x.FirmId == _actor.FirmId && (directClientIds.Contains(x.PracticeClientId) || grantedEngagementIds.Contains(x.Id)))
+      .Where(x => x.FirmId == actor.FirmId && (directClientIds.Contains(x.PracticeClientId) || grantedEngagementIds.Contains(x.Id)))
       .Select(x => x.Id).ToArrayAsync();
     var scope = (Expression: firmWide, DirectClients: directClientIds, Engagements: scopedEngagementIds);
 
     if (Mode == RecordMode.Mappings)
     {
-      var mappings = await db.MappingVersions.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
+      var mappings = await db.MappingVersions.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&
         (scope.Expression || scope.DirectClients.Contains(x.ClientId) || scope.Engagements.Contains(x.EngagementId)))
         .OrderByDescending(x => x.CreatedAt).ToListAsync();
       _mappings = await MapMappingsAsync(db, mappings);
     }
     else if (Mode == RecordMode.Journals)
     {
-      var journals = await db.AdjustmentJournals.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
+      var journals = await db.AdjustmentJournals.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&
         (scope.Expression || scope.DirectClients.Contains(x.ClientId) || scope.Engagements.Contains(x.EngagementId)))
         .OrderByDescending(x => x.CreatedAt).ToListAsync();
       _journals = await MapJournalsAsync(db, journals);
     }
     else
     {
-      var differences = await db.AuditDifferences.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
+      var differences = await db.AuditDifferences.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&
         (scope.Expression || scope.DirectClients.Contains(x.ClientId) || scope.Engagements.Contains(x.EngagementId)))
         .OrderByDescending(x => x.CreatedAt).ToListAsync();
       _differences = await MapDifferencesAsync(db, differences);
