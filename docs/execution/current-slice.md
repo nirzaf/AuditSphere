@@ -6,16 +6,23 @@ This file records observed repository state only. The authoritative build contra
 
 | Item | Observed value |
 |---|---|
-| Source implementation checkpoint | `master@d065008600670fa19e8ecbda6b6c97c9e38d5e36`; PBC inbox route-scope revalidation committed |
-| Remote | `origin/master` confirmed to equal `d065008600670fa19e8ecbda6b6c97c9e38d5e36` at 2026-09-23 13:44 UTC |
+| Source implementation checkpoint | `master@5a03350f054fbdb09d8761d546fec106974a89e0`; client portal PBC recipient-route regression committed |
+| Remote | `origin/master` confirmed to equal `5a03350f054fbdb09d8761d546fec106974a89e0` at 2026-09-23 13:57 UTC |
 | SDK | .NET 10; repository solution targets `net10.0` |
 | Database | PostgreSQL 18.6 on loopback port 5433 for development only |
-| Build | Full solution Release build for source checkpoint `d065008` — passed, 0 warnings/errors |
-| Tests | Discovery: 302 (Domain 257, API 6, E2E 39). Domain 257/257, API 6/6 and standalone full Playwright E2E 39/39 passed, 0 skipped. Combined solution run passed Domain/API but its initial E2E run failed the browser-trigger assertion; corrected focused test and full E2E rerun passed separately. |
+| Build | Full solution Release build for test checkpoint `5a03350` — passed, 0 warnings/errors |
+| Tests | Discovery: 303 (Domain 257, API 6, E2E 40). Focused client route test 1/1 and full standalone Playwright E2E 40/40 passed, 0 skipped. Domain 257/257 and API 6/6 passed in the preceding full-solution run; the latest change only adds browser coverage and CI/docs counts. |
 | Migrations | Previous recorded baseline: 91 applied through `20260922140527_M365InvitationEvidenceAction`; no schema migration in these slices |
-| Model drift | `dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Web --no-build --configuration Release` — no pending model changes after source checkpoint `d065008` on 2026-09-23 |
+| Model drift | `dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Web --no-build --configuration Release` — no pending model changes after test checkpoint `5a03350` on 2026-09-23 |
 | Restore drill | Previously passed at `2026-09-22T18:52:20Z`; 91 migrations, accounting/group manifests and release-delivery identities reconciled; not rerun during test recovery |
 | Production effects | Disabled locally; no production acceptance claimed |
+
+## AS-PAR-002 client portal PBC recipient-route isolation
+
+- Added `AS-PAR-002-CLIENT-PBC-STALE-ROUTE-01`: navigate within the same browser document from a synthetic request assigned to the authenticated client to another request assigned to a different client identity; verify the generic unavailable view, both markers hidden and the window token retained.
+- The focused characterization passed 1/1; the complete E2E project passed 40/40 with no skips. The existing page already clears/remounts route state, so this checkpoint intentionally contains no runtime change.
+- The Release build passed with 0 warnings/errors; discovery reconciles to 303. Domain 257/257 and API 6/6 passed in the previous full-solution run and were unchanged here. The combined solution command was not rerun after its earlier E2E trigger assertion was corrected.
+- Test/CI commit `5a03350f054fbdb09d8761d546fec106974a89e0` was pushed to `master`; `git ls-remote` confirmed the exact SHA at 2026-09-23 13:57 UTC. EF reports no pending model changes. No migration, tenant operation or production effect.
 
 ## AS-PAR-002 PBC inbox route scope and stale-state regression
 
