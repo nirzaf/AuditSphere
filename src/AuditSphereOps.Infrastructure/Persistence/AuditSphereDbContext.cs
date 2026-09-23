@@ -950,6 +950,9 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     b.Entity<Proposal>().HasOne<AppUser>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.ApprovedByUserId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    b.Entity<Proposal>().HasOne<AppUser>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.PreparedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     b.Entity<Opportunity>().HasOne<Lead>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.LeadId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);

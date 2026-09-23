@@ -197,7 +197,7 @@ public static class PracticeCrmService
       Deliverables = request.Deliverables.Trim(), Dependencies = request.Dependencies.Trim(),
       Fee = request.Fee, Currency = request.Currency.Trim().ToUpperInvariant(),
       PeriodStart = request.PeriodStart.Trim(), PeriodEnd = request.PeriodEnd.Trim(),
-      SupersedesId = previous?.Id, CreatedAt = DateTimeOffset.UtcNow
+      SupersedesId = previous?.Id, PreparedByUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
     };
     opportunity.Stage = CrmStates.OpportunityProposal;
     db.Proposals.Add(proposal);
@@ -219,6 +219,10 @@ public static class PracticeCrmService
     if (proposal.Status == CrmStates.ProposalInternalReview) return CommandResult.Ok();
     if (proposal.Status != CrmStates.ProposalDraft)
       return CommandResult.Fail(ErrorCodes.ProtectedState, "Only a draft proposal can enter internal review.");
+    if (!proposal.PreparedByUserId.HasValue)
+      return CommandResult.Fail(ErrorCodes.ProtectedState, "A proposal without recorded authorship cannot enter internal review.");
+    if (proposal.PreparedByUserId == actor.UserId)
+      return CommandResult.Fail(ErrorCodes.ProtectedState, "Proposal preparers cannot approve their own revision.");
     proposal.Status = CrmStates.ProposalInternalReview;
     proposal.ApprovedByUserId = actor.UserId;
     proposal.ApprovedAt = DateTimeOffset.UtcNow;

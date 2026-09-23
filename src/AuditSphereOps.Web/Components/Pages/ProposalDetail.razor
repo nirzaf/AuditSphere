@@ -48,7 +48,7 @@ else
       <dt>Period</dt><dd>@_proposal.PeriodStart to @_proposal.PeriodEnd</dd>
       <dt>Proposed fee</dt><dd>@_proposal.Fee.ToString("N2") @_proposal.Currency</dd>
       <dt>Commercial owner</dt><dd>@_ownerName</dd>
-      <dt>Proposal author</dt><dd>Not recorded in the current proposal schema</dd>
+      <dt>Proposal author</dt><dd>@_authorName</dd>
       <dt>Validity</dt><dd>Not recorded in the current proposal schema</dd>
       <dt>Internal review</dt><dd>@_reviewerName @(_proposal.ApprovedAt.HasValue ? $"· {_proposal.ApprovedAt.Value.ToString("yyyy-MM-dd HH:mm")} UTC" : "· Not recorded")</dd>
       <dt>Delivery</dt><dd>@(_proposal.SentAt.HasValue ? $"Recorded sent {_proposal.SentAt.Value.ToString("yyyy-MM-dd HH:mm")} UTC" : "Not recorded as sent")</dd>
@@ -101,7 +101,7 @@ else
 
   <section class="notice" role="status" aria-labelledby="workflow-heading">
     <h2 id="workflow-heading">Workflow actions unavailable</h2>
-    <p>This record does not yet persist its author, independent pricing-review evidence, validity, or outbound delivery receipt. This page therefore will not change review, sent, or client-response status. No email is sent by opening or refreshing this page.</p>
+    <p>Independent pricing-review evidence, validity, and outbound delivery receipt are not yet persisted. This page therefore will not change review, sent, or client-response status. No email is sent by opening or refreshing this page.</p>
   </section>
 }
 
@@ -120,6 +120,7 @@ else
   private string _clientName = string.Empty;
   private string _leadName = string.Empty;
   private string _ownerName = "Not assigned";
+  private string _authorName = "Not recorded (legacy proposal)";
   private string _reviewerName = "Not recorded";
   private List<ProposalVersionRow> _versions = [];
 
@@ -180,6 +181,12 @@ else
           .Where(x => x.Id == ownerId.Value && x.FirmId == actor.FirmId && !x.Disabled)
           .Select(x => x.DisplayName).SingleOrDefaultAsync() ?? "Not assigned";
 
+      var authorName = proposal.PreparedByUserId.HasValue
+        ? await db.Users.AsNoTracking()
+          .Where(x => x.Id == proposal.PreparedByUserId.Value && x.FirmId == actor.FirmId)
+          .Select(x => x.DisplayName).SingleOrDefaultAsync() ?? "Author unavailable"
+        : "Not recorded (legacy proposal)";
+
       var reviewerName = "Not recorded";
       if (proposal.ApprovedByUserId.HasValue)
         reviewerName = await db.Users.AsNoTracking()
@@ -198,6 +205,7 @@ else
       _clientName = clientName;
       _leadName = lead.Name;
       _ownerName = ownerName;
+      _authorName = authorName;
       _reviewerName = reviewerName;
       _versions = versions;
     }
@@ -227,6 +235,7 @@ else
     _clientName = string.Empty;
     _leadName = string.Empty;
     _ownerName = "Not assigned";
+    _authorName = "Not recorded (legacy proposal)";
     _reviewerName = "Not recorded";
     _versions.Clear();
   }

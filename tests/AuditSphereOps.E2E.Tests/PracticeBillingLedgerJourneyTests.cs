@@ -42,7 +42,10 @@ public sealed class PracticeBillingLedgerJourneyTests
       var proposalId = (await PracticeCrmService.ReviseProposalAsync(db, admin,
         new ReviseProposalRequest(opportunityId, "SYNTHETIC-2026", "Synthetic services", "None",
           "Synthetic scope", "Synthetic source records", 100m, "QAR", "2026-01-01", "2026-12-31"))).Value;
-      Assert.True((await PracticeCrmService.ApproveProposalAsync(db, admin, proposalId)).Succeeded);
+      db.RoleGrants.Add(PbcSeed.Grant(host.Fixture.FirmId, host.Fixture.Reviewer, "Partner"));
+      await db.SaveChangesAsync();
+      var proposalReview = await PracticeCrmService.ApproveProposalAsync(db, partner, proposalId);
+      Assert.True(proposalReview.Succeeded, proposalReview.Message);
       Assert.True((await PracticeCrmService.SendProposalAsync(db, admin, proposalId)).Succeeded);
       Assert.True((await PracticeCrmService.RecordProposalResponseAsync(db, admin, proposalId,
         new ProposalResponseRequest(CrmStates.ProposalAccepted))).Succeeded);
@@ -55,7 +58,6 @@ public sealed class PracticeBillingLedgerJourneyTests
         PbcSeed.Grant(host.Fixture.Staff.FirmId, host.Fixture.Staff, "Manager"),
         PbcSeed.Grant(host.Fixture.FirmId, host.Fixture.Staff, "FinanceManager"),
         PbcSeed.Grant(host.Fixture.FirmId, host.Fixture.Reviewer, "Manager", clientId),
-        PbcSeed.Grant(host.Fixture.FirmId, host.Fixture.Reviewer, "Partner"),
         PbcSeed.Grant(host.Fixture.FirmId, host.Fixture.Reviewer, "FinanceReviewer"));
       await db.SaveChangesAsync();
 
@@ -271,6 +273,7 @@ public sealed class PracticeBillingLedgerJourneyTests
     Assert.Contains("SYN-PAR-009-DELIVERABLES", body);
     Assert.Contains("SUPERSEDED", body);
     Assert.Contains("Proposal author", body);
+    Assert.Contains(host.Fixture.Admin.DisplayName, body);
     Assert.Contains("Validity", body);
     Assert.Contains("Workflow actions unavailable", body);
     Assert.DoesNotContain("Acme Holdings W.L.L.", body);
