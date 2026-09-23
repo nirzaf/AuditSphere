@@ -118,54 +118,77 @@ else
     private List<ArchiveManifestEntry> _entries = [];
     private int _activeHoldCount;
     private string _statusClass = "badge-gray";
+    private long _loadGeneration;
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnParametersSetAsync()
     {
-        var actor = await ActorResolver.ResolveAsync();
-        if (actor is null)
-        {
-            _accessDenied = true;
-            _loading = false;
-            return;
-        }
+        var generation = ++_loadGeneration;
+        var archiveId = Id;
+        _loading = true;
+        _accessDenied = false;
+        _archive = null;
+        _manifest = null;
+        _action = null;
+        _entries.Clear();
+        _activeHoldCount = 0;
+        _statusClass = "badge-gray";
 
-        await using var db = await DbFactory.CreateDbContextAsync();
-        var archive = await db.Archives.AsNoTracking()
-            .SingleOrDefaultAsync(x => x.Id == Id && x.FirmId == actor.FirmId);
-        if (archive is null)
+        try
         {
-            _accessDenied = true;
-            _loading = false;
-            return;
-        }
+            var actor = await ActorResolver.ResolveAsync();
+            if (!IsCurrentLoad(generation, archiveId)) return;
+            if (actor is null)
+            {
+                _accessDenied = true;
+                return;
+            }
 
-        var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
-            new AuthorizationRequest(actor.FirmId, archive.ClientId, archive.EngagementId,
-                RequiredRoles: ["Administrator", "Partner", "Manager", "EngagementLeader", "Senior", "Staff", "Auditor", "RecordsCustodian"],
-                InternalOnly: true));
-        if (!auth.Succeeded)
-        {
-            _accessDenied = true;
-            _loading = false;
-            return;
-        }
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var archive = await db.Archives.AsNoTracking()
+                .SingleOrDefaultAsync(x => x.Id == archiveId && x.FirmId == actor.FirmId);
+            if (!IsCurrentLoad(generation, archiveId)) return;
+            if (archive is null)
+            {
+                _accessDenied = true;
+                return;
+            }
 
-        _archive = archive;
-        _manifest = await db.ArchiveManifests.AsNoTracking()
+            var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+                new AuthorizationRequest(actor.FirmId, archive.ClientId, archive.EngagementId,
+                    RequiredRoles: ["Administrator", "Partner", "Manager", "EngagementLeader", "Senior", "Staff", "Auditor", "RecordsCustodian"],
+                    InternalOnly: true));
+            if (!IsCurrentLoad(generation, archiveId)) return;
+            if (!auth.Succeeded)
+            {
+                _accessDenied = true;
+                return;
+            }
+
+            var manifest = await db.ArchiveManifests.AsNoTracking()
             .Where(x => x.FirmId == actor.FirmId && x.ArchiveId == archive.Id)
             .OrderByDescending(x => x.Version).FirstOrDefaultAsync();
-        if (_manifest is not null)
-        {
-            _entries = await db.ArchiveManifestEntries.AsNoTracking()
-                .Where(x => x.FirmId == actor.FirmId && x.ArchiveManifestId == _manifest.Id)
+            List<ArchiveManifestEntry> entries = manifest is null ? [] : await db.ArchiveManifestEntries.AsNoTracking()
+                .Where(x => x.FirmId == actor.FirmId && x.ArchiveManifestId == manifest.Id)
                 .OrderBy(x => x.Ordinal).ToListAsync();
-        }
-        _action = await db.RecordsActions.AsNoTracking()
+            var action = await db.RecordsActions.AsNoTracking()
             .SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.ArchiveId == archive.Id);
-        _activeHoldCount = await db.LegalHolds.AsNoTracking()
+            var activeHoldCount = await db.LegalHolds.AsNoTracking()
             .CountAsync(x => x.FirmId == actor.FirmId && x.ArchiveId == archive.Id && x.State != "RELEASED");
-        _statusClass = archive.Status == ArchiveStates.ArchiveVerified ? "badge-green" :
-            archive.Status == ArchiveStates.ProtectionObserved ? "badge-blue" : "badge-yellow";
-        _loading = false;
+            if (!IsCurrentLoad(generation, archiveId)) return;
+
+            _archive = archive;
+            _manifest = manifest;
+            _entries = entries;
+            _action = action;
+            _activeHoldCount = activeHoldCount;
+            _statusClass = archive.Status == ArchiveStates.ArchiveVerified ? "badge-green" :
+                archive.Status == ArchiveStates.ProtectionObserved ? "badge-blue" : "badge-yellow";
+        }
+        finally
+        {
+            if (IsCurrentLoad(generation, archiveId)) _loading = false;
+        }
     }
+
+    private bool IsCurrentLoad(long generation, Guid archiveId) => generation == _loadGeneration && Id == archiveId;
 }

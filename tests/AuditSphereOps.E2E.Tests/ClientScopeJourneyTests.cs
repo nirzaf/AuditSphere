@@ -10,6 +10,7 @@ using AuditSphereOps.Domain.Documents;
 using AuditSphereOps.Domain.Engagements;
 using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Practice;
+using AuditSphereOps.Domain.Records;
 using AuditSphereOps.Domain.Reviews;
 using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Tests;
@@ -1173,6 +1174,95 @@ public sealed class ClientScopeJourneyTests
     var restoredBody = await page.Locator("body").InnerTextAsync();
     Assert.Contains("BLOCKING", restoredBody);
     Assert.Equal(documentToken, await page.EvaluateAsync<string>("window.__reviewPointRouteToken"));
+    Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
+  }
+
+  [Fact]
+  [Trait("CaseId", "AS-PAR-002-ARCH-STALE-ROUTE-01")]
+  public async Task RecordsArchiveClearsPriorManifestOnUnauthorizedRouteChange()
+  {
+    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false,
+      caseId: "AS-PAR-002-ARCH-STALE-ROUTE-01");
+    var otherClientId = Guid.NewGuid();
+    var otherEngagementId = Guid.NewGuid();
+    var archive = new Archive
+    {
+      Id = Guid.NewGuid(), FirmId = host.Fixture.FirmId, ClientId = host.Fixture.ClientId,
+      EngagementId = host.Fixture.EngagementId, ProfileId = "SYN-PAR-002-PRIVATE-ARCHIVE-PROFILE",
+      ProfileVersion = 1, Status = ArchiveStates.Issued, CreatedAt = DateTimeOffset.UtcNow
+    };
+    var manifest = new ArchiveManifest
+    {
+      Id = Guid.NewGuid(), FirmId = archive.FirmId, ClientId = archive.ClientId,
+      EngagementId = archive.EngagementId, ArchiveId = archive.Id, Version = 1, Status = "BUILT",
+      ManifestDigest = new string('a', 64), EntryCount = 1, CompletenessStatus = "COMPLETE",
+      BuiltAt = DateTimeOffset.UtcNow
+    };
+    var entry = new ArchiveManifestEntry
+    {
+      Id = Guid.NewGuid(), FirmId = archive.FirmId, ClientId = archive.ClientId,
+      EngagementId = archive.EngagementId, ArchiveManifestId = manifest.Id, Ordinal = 1,
+      EntryKind = "WORKPAPER", SourceKind = "SYNTHETIC", RelativeName = "SYN-PAR-002-PRIVATE-ARCHIVE-FILE",
+      ContentHash = new string('b', 64), ByteCount = 32
+    };
+    var otherArchive = new Archive
+    {
+      Id = Guid.NewGuid(), FirmId = host.Fixture.FirmId, ClientId = otherClientId,
+      EngagementId = otherEngagementId, ProfileId = "SYN-PAR-002-UNAUTHORIZED-ARCHIVE-PROFILE",
+      ProfileVersion = 1, Status = ArchiveStates.Issued, CreatedAt = DateTimeOffset.UtcNow
+    };
+    await using (var db = host.CreateDbContext())
+    {
+      db.PracticeClients.Add(new PracticeClient
+      {
+        Id = otherClientId, FirmId = host.Fixture.FirmId,
+        LegalName = "Synthetic unrelated archive client", CreatedAt = DateTimeOffset.UtcNow
+      });
+      db.Engagements.Add(new Engagement
+      {
+        Id = otherEngagementId, FirmId = host.Fixture.FirmId, PracticeClientId = otherClientId,
+        ServiceRoute = "Synthetic unrelated archive engagement", Status = "Active", CreatedAt = DateTimeOffset.UtcNow
+      });
+      db.Archives.AddRange(archive, otherArchive);
+      db.ArchiveManifests.Add(manifest);
+      db.ArchiveManifestEntries.Add(entry);
+      await db.SaveChangesAsync();
+    }
+
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    await using var context = await browser.NewContextAsync();
+    var page = await context.NewPageAsync();
+    var diagnostics = new List<string>();
+    page.PageError += (_, error) => diagnostics.Add($"page-error: {error}");
+    var connected = WaitForCircuitConnectionAsync(page, diagnostics);
+    await page.GotoAsync(SignInUrl(host.StaffUrl, $"/app/records/archives/{archive.Id:D}"));
+    await connected;
+    try { await page.GetByText(archive.ProfileId, new() { Exact = false }).WaitForAsync(new() { Timeout = 5000 }); }
+    catch (TimeoutException ex)
+    {
+      throw new Xunit.Sdk.XunitException($"Authorized synthetic archive did not load.\n{await page.Locator("body").InnerTextAsync()}\n{string.Join("\n", diagnostics)}\n{ex.Message}");
+    }
+    await page.GetByText(entry.RelativeName, new() { Exact = true }).WaitForAsync();
+
+    var documentToken = Guid.NewGuid().ToString("N");
+    await page.EvaluateAsync("token => window.__recordsArchiveRouteToken = token", documentToken);
+    await page.EvaluateAsync("path => { history.pushState({}, '', path); dispatchEvent(new PopStateEvent('popstate')); }",
+      $"/app/records/archives/{otherArchive.Id:D}");
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Archive unavailable" })
+      .WaitForAsync(new() { Timeout = 5000 });
+    var deniedBody = await page.Locator("body").InnerTextAsync();
+    Assert.DoesNotContain(archive.ProfileId, deniedBody);
+    Assert.DoesNotContain(entry.RelativeName, deniedBody);
+    Assert.DoesNotContain(manifest.ManifestDigest, deniedBody);
+    Assert.DoesNotContain("Archive Manifest", deniedBody);
+    Assert.Equal(documentToken, await page.EvaluateAsync<string>("window.__recordsArchiveRouteToken"));
+
+    await page.EvaluateAsync("path => { history.pushState({}, '', path); dispatchEvent(new PopStateEvent('popstate')); }",
+      $"/app/records/archives/{archive.Id:D}");
+    await page.GetByText(archive.ProfileId, new() { Exact = false }).WaitForAsync();
+    await page.GetByText(entry.RelativeName, new() { Exact = true }).WaitForAsync();
+    Assert.Equal(documentToken, await page.EvaluateAsync<string>("window.__recordsArchiveRouteToken"));
     Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
   }
 
