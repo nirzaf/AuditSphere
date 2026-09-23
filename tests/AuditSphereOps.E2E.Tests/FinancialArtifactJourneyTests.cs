@@ -143,6 +143,46 @@ public sealed class FinancialArtifactJourneyTests
   }
 
   [Fact]
+  [Trait("CaseId", "AS-PAR-002-ACCT-RECORD-TABS-01")]
+  public async Task AccountingRecordTabsReloadTheirScopedQueueDuringInAppNavigation()
+  {
+    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false,
+      caseId: "AS-PAR-002-ACCT-RECORD-TABS-01");
+    await CreatePackageAsync(host);
+    await using (var db = host.CreateDbContext())
+      Assert.Contains("AJ-E2E-001", await db.AdjustmentJournals.AsNoTracking().Where(x => x.FirmId == host.Fixture.FirmId)
+        .Select(x => x.JournalNumber).ToListAsync());
+
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    var page = await browser.NewPageAsync();
+    var diagnostics = new List<string>();
+    var connected = WaitForCircuitConnectionAsync(page, diagnostics);
+    await page.GotoAsync(SignInUrl(host.StaffUrl, "/app/accounting/mappings"));
+    await page.GetByRole(AriaRole.Heading, new() { Name = "COA and accounting mappings" }).WaitForAsync();
+    var adjustmentTab = page.Locator("nav[aria-label='Accounting record queues'] a[href='/app/accounting/journals']");
+    await adjustmentTab.WaitForAsync();
+    await connected;
+    await page.GetByText("Only records in the authenticated client or exact engagement scope are shown.").WaitForAsync();
+    var documentToken = await page.EvaluateAsync<string>("""
+      () => {
+        window.__accountingQueueRouteTestToken ??= crypto.randomUUID();
+        return window.__accountingQueueRouteTestToken;
+      }
+      """);
+
+    await adjustmentTab.ClickAsync();
+    await page.WaitForURLAsync("**/app/accounting/journals");
+    await page.Locator("h1").GetByText("Adjustment journals", new() { Exact = true }).WaitForAsync();
+    await page.GetByText("AJ-E2E-001", new() { Exact = true }).WaitForAsync();
+    var body = await page.Locator("body").InnerTextAsync();
+    if (!body.Contains("AJ-E2E-001", StringComparison.Ordinal))
+      throw new Xunit.Sdk.XunitException($"Journal list missing after tab navigation. URL={page.Url}\n{body}\n{string.Join("\n", diagnostics)}");
+    Assert.Equal(documentToken, await page.EvaluateAsync<string>("window.__accountingQueueRouteTestToken"));
+    Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
+  }
+
+  [Fact]
   [Trait("CaseId", "PROP-E2E-01")]
   public async Task ReviewedAdjustmentFlowsFromTrialBalanceIntoTheBrowserPackage()
   {

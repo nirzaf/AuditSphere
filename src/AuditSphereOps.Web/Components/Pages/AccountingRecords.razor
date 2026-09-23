@@ -1,12 +1,14 @@
 @page "/app/accounting/mappings"
 @page "/app/accounting/journals"
 @page "/app/accounting/differences"
+@implements IDisposable
 @rendermode InteractiveServer
 @using AuditSphereOps.Domain.Accounting
 @using AuditSphereOps.Domain.Audit
 @inject CurrentActorResolver ActorResolver
 @inject IDbContextFactory<AuditSphereDbContext> DbFactory
 @inject NavigationManager Navigation
+@inject ILogger<AccountingRecords> Logger
 
 <PageTitle>@Title</PageTitle>
 <a class="back-link" href="/app/accounting">← Back to accounting workspace</a>
@@ -15,6 +17,10 @@
 @if (_loading)
 {
   <p role="status">Loading scoped accounting records…</p>
+}
+else if (_loadError is not null)
+{
+  <section class="notice" role="alert"><h2>Records unavailable</h2><p>@_loadError</p></section>
 }
 else if (!_authorized)
 {
@@ -148,16 +154,13 @@ else
   private ActorContext? _actor;
   private bool _loading = true;
   private bool _authorized;
+  private string? _loadError;
+  private RecordMode _mode;
   private List<MappingRow> _mappings = [];
   private List<JournalRow> _journals = [];
   private List<DifferenceRow> _differences = [];
 
-  private RecordMode Mode => Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0].TrimEnd('/') switch
-  {
-    "app/accounting/journals" => RecordMode.Journals,
-    "app/accounting/differences" => RecordMode.Differences,
-    _ => RecordMode.Mappings
-  };
+  private RecordMode Mode => _mode;
 
   private string Title => Mode switch
   {
@@ -168,6 +171,38 @@ else
 
   protected override async Task OnInitializedAsync()
   {
+    SetMode(Navigation.Uri);
+    Navigation.LocationChanged += OnLocationChanged;
+    await LoadCurrentQueueSafelyAsync();
+  }
+
+  private async Task LoadCurrentQueueSafelyAsync()
+  {
+    try
+    {
+      await LoadCurrentQueueAsync();
+    }
+    catch (Exception exception)
+    {
+      Logger.LogError(exception, "Failed to load accounting records queue {Queue}", Mode);
+      _loadError = "The selected queue could not be loaded. Refresh the page and try again.";
+      _authorized = false;
+    }
+    finally
+    {
+      _loading = false;
+    }
+  }
+
+  private async Task LoadCurrentQueueAsync()
+  {
+    _authorized = false;
+    _loadError = null;
+    _actor = null;
+    _mappings.Clear();
+    _journals.Clear();
+    _differences.Clear();
+    _loading = true;
     _actor = await ActorResolver.ResolveAsync();
     if (_actor is null)
     {
@@ -227,6 +262,36 @@ else
     _loading = false;
   }
 
+  private bool SetMode(string location)
+  {
+    if (!Uri.TryCreate(location, UriKind.Absolute, out var uri)) return false;
+    var mode = uri.AbsolutePath.TrimEnd('/').ToLowerInvariant() switch
+    {
+      "/app/accounting/mappings" => RecordMode.Mappings,
+      "/app/accounting/journals" => RecordMode.Journals,
+      "/app/accounting/differences" => RecordMode.Differences,
+      _ => (RecordMode?)null
+    };
+    if (mode is null) return false;
+    _mode = mode.Value;
+    return true;
+  }
+
+  private void OnLocationChanged(object? sender, LocationChangedEventArgs args)
+  {
+    _ = InvokeAsync(async () =>
+    {
+      if (!SetMode(args.Location)) return;
+      _loading = true;
+      _authorized = false;
+      StateHasChanged();
+      await LoadCurrentQueueSafelyAsync();
+      StateHasChanged();
+    });
+  }
+
+  public void Dispose() => Navigation.LocationChanged -= OnLocationChanged;
+
   private static async Task<List<MappingRow>> MapMappingsAsync(AuditSphereDbContext db, List<MappingVersion> mappings)
   {
     var clientNames = await db.PracticeClients.AsNoTracking().Where(x => mappings.Select(y => y.ClientId).Contains(x.Id))
@@ -244,8 +309,9 @@ else
       .ToDictionaryAsync(x => x.Id, x => x.LegalName);
     var engagementNames = await db.Engagements.AsNoTracking().Where(x => journals.Select(y => y.EngagementId).Contains(x.Id))
       .ToDictionaryAsync(x => x.Id, x => x.ServiceRoute);
-    var periods = await db.ClientReportingPeriods.AsNoTracking().Where(x => journals.Where(y => y.PeriodId.HasValue).Select(y => y.PeriodId!.Value).Contains(x.Id))
-      .ToDictionaryAsync(x => x.Id, x => x.PeriodCode);
+    var periodIds = journals.Where(x => x.PeriodId.HasValue).Select(x => x.PeriodId!.Value).Distinct().ToArray();
+    var periods = periodIds.Length == 0 ? new Dictionary<Guid, string>() : await db.ClientReportingPeriods.AsNoTracking()
+      .Where(x => periodIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.PeriodCode);
     return journals.Select(x => new JournalRow(x.Id, x.JournalNumber, clientNames.GetValueOrDefault(x.ClientId, "Scoped client"),
       engagementNames.GetValueOrDefault(x.EngagementId, "Scoped engagement"), x.Purpose,
       x.PeriodId is { } periodId ? periods.GetValueOrDefault(periodId, "Unknown period") : "No period", x.Currency, x.Status, x.Revision)).ToList();
