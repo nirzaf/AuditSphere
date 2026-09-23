@@ -6,14 +6,14 @@ This file records observed repository state only. The authoritative build contra
 
 | Item | Observed value |
 |---|---|
-| Source/test checkpoint | `master@21b74874e644942dea74a373a1f7d9961f4bd972`; open financial-package review queues can be refreshed against current grants after revocation |
-| Remote | `origin/master` confirmed to equal `21b74874e644942dea74a373a1f7d9961f4bd972` at 2026-09-23 17:30 UTC |
+| Source/test checkpoint | `master@6a81076e60a0608a6624b534425f147272d771a8`; client financial-package projections and review forms clear after scope revocation or stale-session denial |
+| Remote | `origin/master` confirmed to equal `6a81076e60a0608a6624b534425f147272d771a8` at 2026-09-23 18:27 UTC |
 | SDK | .NET 10; repository solution targets `net10.0` |
 | Database | PostgreSQL 18.6 on loopback port 5433 for development only |
-| Build | Full solution Release build for `21b7487` — passed, 0 warnings/errors |
-| Tests | Fresh discovery: 309 (Domain 259, API 6, E2E 44). Separate project runs passed Domain 259/259 (7m42s), API 6/6 (25s), and E2E 44/44 (5m01s), 0 skips; focused queue-revocation case passed 1/1. A prior concurrent solution run had one intermittent accounting-record queue load-error (42/43); the aggregate solution test command was not rerun for this checkpoint. |
+| Build | Full solution Release build for `6a81076` — passed, 0 warnings/errors |
+| Tests | Fresh discovery: 311 (Domain 259, API 6, E2E 46). Separate project runs passed Domain 259/259 (8m23s), API 6/6, and E2E 46/46, 0 skips; focused client-package route/revocation E2E cases passed 2/2 and the stale-generation/no-write Domain regression passed 1/1. During stabilization, one full E2E run had an intermittent failure in an existing preparer/reviewer browser journey; its focused retry passed, a network-idle wait was added, and the final full E2E run passed 46/46. The aggregate solution test command was not run. |
 | Migrations | Added `20260923145244_ProposalPreparedByAttribution`; prior-schema PostgreSQL regression upgraded a synthetic legacy proposal and preserved its values with preparer left unknown. The existing local `auditsphere` database remains at its 91-migration baseline. |
-| Model drift | `dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Web --no-build --configuration Release` — no pending model changes for the tested `21b7487` source; no schema changes in this slice |
+| Model drift | `dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Web --no-build --configuration Release` — no pending model changes for tested `6a81076` source; no schema changes in this slice |
 | Restore drill | Passed at `2026-09-23T15:20:43Z` on loopback; restored the existing `auditsphere` source at 91 migrations through `20260922140527_M365InvitationEvidenceAction`. Evidence was redirected to `/tmp`; the check does not apply the new proposal migration to that development database. |
 | Production effects | Disabled locally; no production acceptance claimed |
 
@@ -43,6 +43,13 @@ This file records observed repository state only. The authoritative build contra
 - Added `AS-PAR-002-FS-QUEUE-REVOKE-01`: an authorized synthetic reviewer opens a package queue, an administrator revokes its exact `AccountingReviewer` grant, then refresh removes the previous package from the still-open page and shows the authorization state without a browser-document reload. The regression failed before the refresh action existed and passed 1/1 after the fix.
 - Verification: full Release build passed with 0 warnings/errors; fresh discovery reconciles to 309; Domain 259/259, API 6/6 and standalone E2E 44/44 passed in separate runs with 0 skips. The new case passed 1/1; EF reports no pending model changes. A prior full-solution concurrent run's intermittent accounting-queue error (42/43) is retained as historical evidence; the aggregate command was not rerun for this checkpoint.
 - Commit `21b74874e644942dea74a373a1f7d9961f4bd972` was pushed to `master` and `git ls-remote` confirmed the exact SHA at 2026-09-23 17:30 UTC. CI discovery was updated to 309; hosted GitHub CI was not run/observed. No migration, tenant operation or production effect. AS-PAR-002 remains partial.
+
+## AS-PAR-002 client financial-package view after revocation (`6a81076`)
+
+- `ClientFinancialPackage.razor` now clears the previous package and review form before loading or after a scope-denied/stale-generation command result; authorization denial also drops the component's resolved actor. A focused PostgreSQL regression revokes the synthetic client grant, advances its session epoch, and confirms the stale review command records no decision.
+- Added `AS-PAR-002-CLIENT-FS-STALE-ROUTE-01` and `AS-PAR-002-CLIENT-FS-REVOKE-01`. The same-document unavailable-route case confirms package identifiers and totals are not retained; the revocation journey reloads the exact package after grant removal and verifies the generic unavailable state, hidden decision form, and no review write.
+- Verification at this checkpoint: full Release build passed with 0 warnings/errors; fresh discovery 311 (Domain 259, API 6, E2E 46); Domain 259/259, API 6/6, standalone E2E 46/46, no skips; the two focused E2E cases passed 2/2 and the Domain stale-generation/no-write case passed 1/1. `dotnet ef migrations has-pending-model-changes` reports no pending model changes. The final standalone E2E run passed after an earlier intermittent miss in an existing preparer/reviewer browser test was stabilized with a network-idle wait; the aggregate solution test command was not run.
+- Source/test/CI/catalog/strategy commit `6a81076e60a0608a6624b534425f147272d771a8` was pushed to `master`; `git ls-remote` confirmed the exact SHA at 2026-09-23 18:27 UTC. No migration, tenant operation or production effect; hosted GitHub CI was not observed. AS-PAR-002 remains partial.
 
 ## AS-PAR-009 persisted proposal detail and scope checks (`5e3687b`)
 
