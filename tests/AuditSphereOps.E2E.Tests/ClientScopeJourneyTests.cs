@@ -1373,6 +1373,59 @@ public sealed class ClientScopeJourneyTests
   }
 
   [Fact]
+  [Trait("CaseId", "AS-PAR-002-REV-REVOKE-01")]
+  public async Task ReviewPointClearsProtectedStateWhenCurrentGrantIsRevoked()
+  {
+    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false,
+      caseId: "AS-PAR-002-REV-REVOKE-01");
+    var reviewer = PbcSeed.User(host.Fixture.FirmId, "Staff");
+    const string privateComment = "SYN-PAR-002-REVOKED-REVIEW-COMMENT";
+    var point = new ReviewPoint
+    {
+      Id = Guid.NewGuid(), FirmId = host.Fixture.FirmId, ClientId = host.Fixture.ClientId,
+      EngagementId = host.Fixture.EngagementId, TargetId = Guid.NewGuid(), TargetKind = "workpaper",
+      TargetRevision = 1, Comment = privateComment, RaisedByUserId = host.Fixture.Staff.Id,
+      RaisedAt = DateTimeOffset.UtcNow, Significant = true
+    };
+    await using (var db = host.CreateDbContext())
+    {
+      db.Users.Add(reviewer);
+      db.RoleGrants.Add(PbcSeed.Grant(host.Fixture.FirmId, reviewer, "Auditor",
+        host.Fixture.ClientId, host.Fixture.EngagementId));
+      db.ReviewPoints.Add(point);
+      await db.SaveChangesAsync();
+    }
+
+    var reviewerUrl = await host.StartWebForIdentityAsync(reviewer);
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    var page = await browser.NewPageAsync();
+    var diagnostics = new List<string>();
+    var connected = WaitForCircuitConnectionAsync(page, diagnostics);
+    await page.GotoAsync(SignInUrl(reviewerUrl, $"/app/reviews/{point.Id:D}"));
+    await page.GetByText(privateComment, new() { Exact = true }).WaitForAsync();
+    await connected;
+    await using (var db = host.CreateDbContext())
+    {
+      var revoked = await db.RoleGrants.Where(x => x.UserId == reviewer.Id &&
+          x.Role == "Auditor" && x.RevokedAt == null)
+        .ExecuteUpdateAsync(update => update.SetProperty(x => x.RevokedAt, DateTimeOffset.UtcNow));
+      Assert.Equal(1, revoked);
+    }
+
+    await page.GetByRole(AriaRole.Button, new() { Name = "Clear Review Point" }).ClickAsync();
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable" }).WaitForAsync();
+    var body = await page.Locator("body").InnerTextAsync();
+    Assert.DoesNotContain(privateComment, body);
+    Assert.DoesNotContain("BLOCKING", body);
+    Assert.DoesNotContain("Clear Review Point", body);
+    Assert.Contains("UNAVAILABLE", body);
+    Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
+    await using var verify = host.CreateDbContext();
+    Assert.False((await verify.ReviewPoints.AsNoTracking().SingleAsync(x => x.Id == point.Id)).Cleared);
+  }
+
+  [Fact]
   [Trait("CaseId", "AS-PAR-002-CLIENT-PORTAL-READ-01")]
   public async Task ClientPortalHidesPbcRequestsOutsideAssignedEngagement()
   {

@@ -112,6 +112,7 @@ else
 
         if (_actor is null || !_isStaff)
         {
+            MarkUnavailable();
             _loading = false;
             return;
         }
@@ -131,6 +132,8 @@ else
                 _point = await db.ReviewPoints.AsNoTracking().SingleOrDefaultAsync(rp =>
                     rp.Id == Id && rp.FirmId == _actor.FirmId && rp.ClientId == candidate.ClientId &&
                     rp.EngagementId == candidate.EngagementId);
+            else
+                MarkUnavailable();
         }
 
         UpdateStatusBadge();
@@ -157,6 +160,22 @@ else
         }
     }
 
+    private void MarkUnavailable()
+    {
+        _point = null;
+        _status = "UNAVAILABLE";
+        _statusClass = "badge-yellow";
+        _actionSuccess = false;
+        _actionError = null;
+    }
+
+    private void ClearProtectedState()
+    {
+        MarkUnavailable();
+        _actor = null;
+        _isStaff = false;
+    }
+
     Task ClearPoint() => SetDispositionAsync(cleared: true);
 
     Task ReopenPoint() => SetDispositionAsync(cleared: false);
@@ -175,7 +194,7 @@ else
             var result = await AuditPlanningService.SetReviewPointDispositionAsync(db, actor, point.Id, cleared);
             if (!result.Succeeded && (result.ErrorCode is ErrorCodes.ScopeDenied or ErrorCodes.GenerationStale))
             {
-                _point = null;
+                ClearProtectedState();
                 return;
             }
             if (result.Succeeded)
