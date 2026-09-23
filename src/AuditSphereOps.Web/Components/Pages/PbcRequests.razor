@@ -156,7 +156,11 @@ else
   private bool _loading = true;
   private bool _busy;
   private bool _denied;
-  private bool IsStaff => _actor is not null && _actor.Roles.Any(x => x is "Administrator" or "Partner" or "Manager" or "Reviewer" or "Staff" or "Auditor" or "Accountant" or "AccountingPreparer" or "AccountingReviewer");
+  private static readonly string[] StaffRoles = [
+    "Administrator", "Partner", "Manager", "Reviewer", "Staff", "Auditor", "Accountant", "AccountingPreparer", "AccountingReviewer"
+  ];
+  private bool IsStaff => _actor is not null && _actor.Roles.Any(role =>
+    StaffRoles.Contains(role, StringComparer.OrdinalIgnoreCase));
 
   private static string HeadingId(Guid requestId) => "pbc-" + requestId.ToString("N");
 
@@ -172,7 +176,7 @@ else
       {
         var auth = await AuthorizationDecision.AuthorizeAsync(db, _actor,
           new AuthorizationRequest(_actor.FirmId, _engagement.PracticeClientId, _engagement.Id,
-            InternalOnly: true));
+            RequiredRoles: StaffRoles, InternalOnly: true));
         _denied = !auth.Succeeded;
         if (!_denied)
         {

@@ -1190,6 +1190,53 @@ public sealed class ClientScopeJourneyTests
   }
 
   [Fact]
+  [Trait("CaseId", "AS-PAR-002-PBC-ROLE-READ-01")]
+  public async Task PbcInboxRequiresAllowedRoleGrantForTheTargetEngagement()
+  {
+    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false,
+      caseId: "AS-PAR-002-PBC-ROLE-READ-01");
+    const string privateMarker = "SYN-PAR-002-PBC-ROLE-COMPOSITION-PRIVATE";
+    var identity = PbcSeed.User(host.Fixture.FirmId, "Staff");
+    await using (var db = host.CreateDbContext())
+    {
+      var request = await db.PbcRequests.SingleAsync(x => x.Id == host.RequestId);
+      request.Objective = privateMarker;
+      request.Area = privateMarker;
+
+      var siblingEngagementId = Guid.NewGuid();
+      db.Engagements.Add(new Engagement
+      {
+        Id = siblingEngagementId, FirmId = host.Fixture.FirmId,
+        PracticeClientId = host.Fixture.ClientId, ServiceRoute = "SYNTHETIC-SIBLING",
+        PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31", Status = "Active",
+        ProfessionalWorkBlocked = false, CreatedAt = DateTimeOffset.UtcNow
+      });
+      db.Users.Add(identity);
+      db.RoleGrants.AddRange(
+        PbcSeed.Grant(host.Fixture.FirmId, identity, "Staff", host.Fixture.ClientId, siblingEngagementId),
+        PbcSeed.Grant(host.Fixture.FirmId, identity, "FinanceManager",
+          host.Fixture.ClientId, host.Fixture.EngagementId));
+      await db.SaveChangesAsync();
+    }
+
+    var origin = await host.StartWebForIdentityAsync(identity);
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    await using var context = await browser.NewContextAsync();
+    var page = await context.NewPageAsync();
+    var diagnostics = new List<string>();
+    var connected = WaitForCircuitConnectionAsync(page, diagnostics);
+    await page.GotoAsync(SignInUrl(origin, $"/app/engagements/{host.Fixture.EngagementId:D}/pbc"));
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Prepared-by-client requests" }).WaitForAsync();
+    await connected;
+
+    var body = await page.Locator("body").InnerTextAsync();
+    Assert.Contains("Access unavailable", body);
+    Assert.DoesNotContain(privateMarker, body);
+    Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
+  }
+
+  [Fact]
   [Trait("CaseId", "AS-PAR-002-PBC-01")]
   public async Task RevokedClientGrantClearsOpenRequestAfterNextCommand()
   {
