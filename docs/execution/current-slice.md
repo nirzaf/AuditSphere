@@ -6,16 +6,30 @@ This file records observed repository state only. The authoritative build contra
 
 | Item | Observed value |
 |---|---|
-| Source implementation checkpoint | `master@5fd9f6971305f3999e2d02347549fda0a3c6ec24`; financial-package route-isolation characterization committed |
-| Remote | `origin/master` confirmed to equal `5fd9f6971305f3999e2d02347549fda0a3c6ec24` at 2026-09-23 14:20 UTC |
+| Source implementation checkpoint | `master@5e3687ba4ee9914aec5a09c478fc832db6f0e4e1`; proposal-detail persisted-read/scope slice committed |
+| Remote | `origin/master` confirmed to equal `5e3687ba4ee9914aec5a09c478fc832db6f0e4e1` at 2026-09-23 14:43 UTC |
 | SDK | .NET 10; repository solution targets `net10.0` |
 | Database | PostgreSQL 18.6 on loopback port 5433 for development only |
-| Build | Full solution Release build for test checkpoint `5fd9f69` — passed, 0 warnings/errors |
-| Tests | Discovery: 304 (Domain 257, API 6, E2E 41). Focused package-route test 1/1; standalone E2E 41/41; combined solution Domain 257/257, API 6/6 and E2E 41/41; 0 skipped. |
+| Build | Full solution Release build for test checkpoint `5e3687b` — passed, 0 warnings/errors |
+| Tests | Discovery: 305 (Domain 257, API 6, E2E 42). Focused proposal journey 1/1; full standalone E2E 42/42, 0 skipped. Domain 257/257 and API 6/6 passed in the preceding full combined run at the 304-case checkpoint and were unchanged by this slice; the combined 305-case run was not repeated. |
 | Migrations | Previous recorded baseline: 91 applied through `20260922140527_M365InvitationEvidenceAction`; no schema migration in these slices |
-| Model drift | `dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Web --no-build --configuration Release` — no pending model changes after test checkpoint `5fd9f69` on 2026-09-23 |
+| Model drift | `dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Web --no-build --configuration Release` — no pending model changes after test checkpoint `5e3687b` on 2026-09-23 |
 | Restore drill | Previously passed at `2026-09-22T18:52:20Z`; 91 migrations, accounting/group manifests and release-delivery identities reconciled; not rerun during test recovery |
 | Production effects | Disabled locally; no production acceptance claimed |
+
+## AS-PAR-009 persisted proposal detail and scope checks
+
+- Replaced `ProposalDetail.razor` sample values and `Task.Delay` status changes with a firm-wide, internal-only authorized read of the persisted proposal, linked lead/client, opportunity, owner, reviewer metadata and revisions. Parameter changes clear the previous projection; a load-generation check prevents a late earlier request from repopulating a newer route.
+- The PostgreSQL-backed browser journey verified persisted fee, terms, status and revision history; same-document unavailable-ID navigation clears prior data; a client-scoped RelationshipManager is denied; and revoking the firm-wide grant prevents the still-open circuit from reopening another proposal.
+- Workflow mutations are intentionally not offered: current records lack persisted proposal authorship, independent pricing-review basis, validity and outbound-delivery receipt. Existing status-only commands would misrepresent review or email. The story is therefore still partial, not complete.
+- Focused test passed 1/1; full standalone E2E passed 42/42 (4m44s), 0 skips; CI-equivalent discovery is 305; Release build passed with 0 warnings/errors; EF reports no pending model changes. The combined 305-case solution run was not repeated; Domain/API passed in the preceding 304-case combined run and are unchanged in this slice.
+- Source/test/CI/docs commit `5e3687ba4ee9914aec5a09c478fc832db6f0e4e1` was pushed to `master` and confirmed with `git ls-remote` at 2026-09-23 14:43 UTC. No schema migration, tenant operation, email or production effect.
+
+## AS-PAR-009 next local requirements
+
+- Add and verify immutable proposal authorship, independent commercial pricing review/limits, explicit validity and durable outbound-delivery evidence before enabling the corresponding UI actions.
+- Then implement version-bound client response authority/evidence and negotiation revisions without allowing commercial acceptance to imply professional acceptance or engagement commencement.
+- No action is currently available from the proposal detail page; live mail and professional acceptance remain separate from this local page slice.
 
 ## AS-PAR-002 financial-package route isolation
 
