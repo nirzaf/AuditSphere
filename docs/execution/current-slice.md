@@ -11,7 +11,7 @@ This file records observed repository state only. The authoritative build contra
 | SDK | .NET 10; repository solution targets `net10.0` |
 | Database | PostgreSQL 18.6 on loopback port 5433 for development only |
 | Build | Full solution Release build for `c214cb3` — passed, 0 warnings/errors |
-| Tests | CI-style discovery: 315 (Domain 259, API 6, E2E 50). ClientDetail route E2E passed 1/1; Phase-0 accounting regressions passed 5/5. Last full solution run passed 314/314 at `72944dd`; the later 315-case aggregate was interrupted and has no result. |
+| Tests | Full Release solution aggregate passed 315/315 with 0 skipped (Domain 259/259, API 6/6, E2E 50/50); CI-style discovery is 315. ClientDetail route E2E passed 1/1; Phase-0 accounting regressions passed 5/5. |
 | Migrations | Added `20260923145244_ProposalPreparedByAttribution`; prior-schema PostgreSQL regression upgraded a synthetic legacy proposal and preserved its values with preparer left unknown. The existing local `auditsphere` database remains at its 91-migration baseline. |
 | Model drift | `dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Web` — no pending model changes for `c214cb3`; no persistence model changes in these slices |
 | Restore drill | Passed at `2026-09-23T15:20:43Z` on loopback; restored the existing `auditsphere` source at 91 migrations through `20260922140527_M365InvitationEvidenceAction`. Evidence was redirected to `/tmp`; the check does not apply the new proposal migration to that development database. |
@@ -21,7 +21,7 @@ This file records observed repository state only. The authoritative build contra
 
 - `ClientDetail.razor` now reloads and reauthorizes when `ClientId` changes, clears the previous client/contact/engagement projection and draft form, and fences stale reads and command results by route generation.
 - Added `AS-PAR-002-CLIENT-STALE-ROUTE-01`: a client-scoped synthetic manager switches within the same browser document to an unassigned client, confirms the old profile, registration number, contact and engagement are hidden, then returns to the authorized client without a page reload.
-- Focused browser case passed 1/1; Release solution build passed with 0 warnings/errors; discovery is 315. The full 315-case aggregate did not complete after it was interrupted; no 315/315 claim is made. Commit `c214cb35743284b7c336ae5d193d4026afb81da0` was pushed and remote-confirmed at 2026-09-23 20:48 UTC. No migration, tenant operation or production effect.
+- Focused browser case passed 1/1; full Release solution build passed with 0 warnings/errors; full solution tests passed 315/315 with 0 skipped (Domain 259, API 6, E2E 50). E2E took 6m29s and Domain 8m08s. Commit `c214cb35743284b7c336ae5d193d4026afb81da0` was pushed and remote-confirmed at 2026-09-23 20:48 UTC. No migration, tenant operation or production effect.
 
 ## Accounting Phase-0 source-integrity and clean-package checks (`c214cb3`)
 
