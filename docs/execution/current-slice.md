@@ -6,14 +6,14 @@ This file records observed repository state only. The authoritative build contra
 
 | Item | Observed value |
 |---|---|
-| Source implementation checkpoint | `master@b4067353a9d63521e34ab8efc4f11008e5a1ad04`; implementation/test/CI changes committed |
-| Remote | `origin/master` confirmed to equal `b4067353a9d63521e34ab8efc4f11008e5a1ad04` at 2026-09-23 09:50 UTC |
+| Source implementation checkpoint | `master@404c6f5f6eac0de948cd28d4f6f88f91085cd0d6`; implementation/test/CI changes committed |
+| Remote | `origin/master` confirmed to equal `404c6f5f6eac0de948cd28d4f6f88f91085cd0d6` at 2026-09-23 10:21 UTC |
 | SDK | .NET 10; repository solution targets `net10.0` |
 | Database | PostgreSQL 18.6 on loopback port 5433 for development only |
-| Build | Full solution Release build for source checkpoint `b406735` — passed, 0 warnings/errors |
-| Tests | Full solution run on 2026-09-23 for `b406735`: API 6/6, Domain 257/257, E2E 32/32; 0 skipped (295 discovered) |
+| Build | Full solution Release build for source checkpoint `404c6f5` — passed, 0 warnings/errors |
+| Tests | Fresh discovery: 296 (Domain 257, API 6, E2E 33). Full solution attempt: API 6/6, Domain 257/257, E2E 32/33; the one intermittent existing reviewer-browser case passed alone and in a clean full E2E rerun (33/33). No skips. |
 | Migrations | Previous recorded baseline: 91 applied through `20260922140527_M365InvitationEvidenceAction`; no schema migration in these slices |
-| Model drift | `dotnet ef migrations has-pending-model-changes` — no pending model changes after the reviewer-grant revocation coverage on 2026-09-23 |
+| Model drift | `dotnet ef migrations has-pending-model-changes` — no pending model changes after this slice on 2026-09-23 |
 | Restore drill | Previously passed at `2026-09-22T18:52:20Z`; 91 migrations, accounting/group manifests and release-delivery identities reconciled; not rerun during test recovery |
 | Production effects | Disabled locally; no production acceptance claimed |
 
@@ -296,6 +296,14 @@ Implemented in source checkpoint `master@b4067353a9d63521e34ab8efc4f11008e5a1ad0
 
 - Added `AS-PAR-002-JOURNAL-STALE-01`: the browser opens a synthetic draft journal with Staff read and AccountingReviewer post grants, then an administrator revokes the reviewer grant through `RoleAdministrationService`. The reviewer-only post action disappears while the still-authorized Staff read projection remains. A post command using the stale session is rejected with `generation.stale`, and PostgreSQL confirms the journal remains Draft.
 - Verification: targeted regression 1/1; full E2E 32/32; full solution API 6/6, Domain 257/257 and E2E 32/32 (295 discovered, 0 skipped); Release build 0 warnings/errors; EF reports no pending model changes. The first full E2E attempt had one transient timeout in the existing preparer/reviewer browser journey; that case passed alone and the complete E2E and solution reruns passed. No schema migration or tenant operation. This remains one bounded AS-PAR-002 slice.
+
+## AS-PAR-002 — PBC inbox requires a role covering the target engagement
+
+Implemented in source checkpoint `master@404c6f5f6eac0de948cd28d4f6f88f91085cd0d6`, pushed to `origin/master` and confirmed there at 2026-09-23 10:21 UTC.
+
+- The PBC inbox now applies the same allowed staff-role set used by PBC commands through `AuthorizationDecision` at the exact stored client/engagement scope. A role from a sibling engagement cannot combine with an unrelated role on the target engagement to reveal its request thread.
+- Added `AS-PAR-002-PBC-ROLE-READ-01`: the PostgreSQL-backed Playwright fixture gives the synthetic actor `Staff` only on a sibling engagement and `FinanceManager` on the target. The browser receives the generic unavailable state and never sees the private request marker. The test reproduced the exposure before the guard and passes after it.
+- Verification: focused regression 1/1; `ClientScopeJourneyTests` 22/22; Release build 0 warnings/errors; API 6/6 and Domain 257/257 in the full solution attempt; that attempt's E2E run had one intermittent unrelated reviewer-browser failure (32/33). The failed case passed alone (1/1), then the full E2E retry passed 33/33; 296 cases are discovered overall, 0 skipped. EF reports no pending model changes. No schema migration or tenant operation. AS-PAR-002 remains partial.
 
 ## Remaining local implementation work
 

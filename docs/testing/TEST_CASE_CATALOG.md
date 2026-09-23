@@ -13,9 +13,9 @@ dotnet build AuditSphereOps.slnx --no-restore --configuration Release
 dotnet test AuditSphereOps.slnx --no-build --no-restore --configuration Release --list-tests
 ```
 
-The tables below preserve the original **246 Domain cases**, representing **235 test methods: 229 facts and 6 theories with 17 data rows**, in **37 classes across 36 test-source files**. They belong to `AuditSphereOps.Domain.Tests`, the original [Domain test project](../../tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj). Fresh solution discovery on 2026-09-23 found **295 cases** across Domain 257, [API 6](../../tests/AuditSphereOps.Api.Tests/PbcHttpTests.cs), and [Playwright E2E 32](../../tests/AuditSphereOps.E2E.Tests). The Domain suite has grown by 11 cases since the detailed baseline; the API/E2E scenarios use `CaseId` traits. These additions are not yet reconciled into the original category tables below.
+The tables below preserve the original **246 Domain cases**, representing **235 test methods: 229 facts and 6 theories with 17 data rows**, in **37 classes across 36 test-source files**. They belong to `AuditSphereOps.Domain.Tests`, the original [Domain test project](../../tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj). Fresh solution discovery on 2026-09-23 found **296 cases** across Domain 257, [API 6](../../tests/AuditSphereOps.Api.Tests/PbcHttpTests.cs), and [Playwright E2E 33](../../tests/AuditSphereOps.E2E.Tests). The Domain suite has grown by 11 cases since the detailed baseline; the API/E2E scenarios use `CaseId` traits. These additions are not yet reconciled into the original category tables below.
 
-The 246-case detailed tables are a historical Domain baseline, not the current solution total. The current inventory includes dedicated API and Playwright projects; the [execution ledger](../execution/status.json) records the latest local 295/295 Release pass separately from hosted CI and live acceptance.
+The 246-case detailed tables are a historical Domain baseline, not the current solution total. The current inventory includes dedicated API and Playwright projects; the [execution ledger](../execution/status.json) records the latest local discovery and run evidence separately from hosted CI and live acceptance.
 
 | Primary category | Methods | Expanded cases |
 |---|---:|---:|
@@ -465,7 +465,7 @@ Controlling sources: [system specification §§44–47](../SPECIFICATION.md#s44)
 4. Add new IDs without renumbering existing ones. Update requirement status only when assertions/evidence justify it.
 5. Keep proposed cases outside the discovered-case total. Record execution evidence separately from discovery.
 
-Validation of the historical inventory reconciled all 246 rows and 235 method identities against source attributes, including class/file mappings, theory multiplicities and full arguments, observed traits, custom display names, unique IDs and category totals. Current solution discovery on 2026-09-23 independently reconciled 257 Domain + 6 API + 32 E2E = 295 cases; all three projects passed in the full local Release run with 0 skipped. The newer cases are source-identified but their per-category catalog reconciliation remains follow-up work; this does not imply live tenant or production acceptance.
+Validation of the historical inventory reconciled all 246 rows and 235 method identities against source attributes, including class/file mappings, theory multiplicities and full arguments, observed traits, custom display names, unique IDs and category totals. Current solution discovery on 2026-09-23 independently reconciled 257 Domain + 6 API + 33 E2E = 296 cases, including `AS-PAR-002-PBC-ROLE-READ-01`. The full solution attempt had one intermittent existing E2E reviewer-page failure; that case passed alone and the subsequent complete E2E rerun passed 33/33, with API 6/6 and Domain 257/257 passing in the full solution attempt. The newer cases are source-identified but their per-category catalog reconciliation remains follow-up work; this does not imply live tenant or production acceptance.
 
 ## Source references
 
