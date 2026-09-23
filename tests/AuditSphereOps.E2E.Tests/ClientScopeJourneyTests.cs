@@ -132,23 +132,49 @@ public sealed class ClientScopeJourneyTests
         UserId = host.Fixture.Client.Id, Role = "AccountingPreparer", GrantedAt = DateTimeOffset.UtcNow,
         GrantedByUserId = host.Fixture.Admin.Id
       });
+      db.GroupAccessGrants.Add(new GroupAccessGrant
+      {
+        Id = Guid.NewGuid(), FirmId = host.Fixture.FirmId, GroupId = groupId,
+        UserId = host.Fixture.Staff.Id, Role = "AccountingPreparer", GrantedAt = DateTimeOffset.UtcNow,
+        GrantedByUserId = host.Fixture.Admin.Id
+      });
       await db.SaveChangesAsync();
     }
 
-    var origin = await host.StartWebForIdentityAsync(host.Fixture.Client);
+    var clientOrigin = await host.StartWebForIdentityAsync(host.Fixture.Client);
+    var staffOrigin = await host.StartWebForIdentityAsync(host.Fixture.Staff);
     using var playwright = await Playwright.CreateAsync();
     await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
     await using var context = await browser.NewContextAsync();
     var page = await context.NewPageAsync();
     var diagnostics = new List<string>();
     var connected = WaitForCircuitConnectionAsync(page, diagnostics);
-    await page.GotoAsync(SignInUrl(origin, $"/app/consolidation/advanced/{scopeId:D}"));
+    await page.GotoAsync(SignInUrl(clientOrigin, $"/app/consolidation/advanced/{scopeId:D}"));
     await page.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable" }).WaitForAsync();
     await connected;
     var body = await page.Locator("body").InnerTextAsync();
     Assert.DoesNotContain(privateGroupName, body);
     Assert.DoesNotContain(scopeId.ToString("D"), body);
+
+    await page.GotoAsync(SignInUrl(clientOrigin, "/app/consolidation"));
+    await page.GetByRole(AriaRole.Heading, new() { Name = "No group access" }).WaitForAsync();
+    await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new() { Timeout = 5000 });
+    body = await page.Locator("body").InnerTextAsync();
+    Assert.DoesNotContain(privateGroupName, body);
+    Assert.DoesNotContain(scopeId.ToString("D"), body);
+
+    await using var staffContext = await browser.NewContextAsync();
+    var staffPage = await staffContext.NewPageAsync();
+    var staffDiagnostics = new List<string>();
+    var staffConnected = WaitForCircuitConnectionAsync(staffPage, staffDiagnostics);
+    await staffPage.GotoAsync(SignInUrl(staffOrigin, "/app/consolidation"));
+    await staffPage.GetByRole(AriaRole.Heading, new() { Name = privateGroupName }).WaitForAsync();
+    await staffConnected;
+    var staffBody = await staffPage.Locator("body").InnerTextAsync();
+    Assert.Contains(privateGroupName, staffBody);
+    Assert.Contains(AdvancedConsolidationMethods.AcquisitionNci, staffBody);
     Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
+    Assert.DoesNotContain(staffDiagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
   }
 
   [Fact]

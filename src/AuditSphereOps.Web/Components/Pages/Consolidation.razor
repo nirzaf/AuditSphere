@@ -1,5 +1,6 @@
 @page "/app/consolidation"
 @rendermode InteractiveServer
+@using AuditSphereOps.Application.Security
 @using AuditSphereOps.Domain.Accounting
 @inject CurrentActorResolver ActorResolver
 @inject IDbContextFactory<AuditSphereDbContext> DbFactory
@@ -149,8 +150,15 @@ else
     if (actor is not null)
     {
       await using var db = await DbFactory.CreateDbContextAsync();
-      var groupIds = await db.GroupAccessGrants.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.UserId == actor.UserId && x.RevokedAt == null)
+      var candidateGroupIds = await db.GroupAccessGrants.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.UserId == actor.UserId && x.RevokedAt == null)
         .Select(x => x.GroupId).Distinct().ToArrayAsync();
+      var groupIds = new List<Guid>(candidateGroupIds.Length);
+      foreach (var groupId in candidateGroupIds)
+      {
+        var access = await AuthorizationDecision.AuthorizeGroupAsync(db, actor, groupId,
+          ["AccountingPreparer", "AccountingReviewer", "Manager", "Partner", "Administrator"]);
+        if (access.Succeeded) groupIds.Add(groupId);
+      }
       var groups = await db.ClientGroups.AsNoTracking().Where(x => x.FirmId == actor.FirmId && groupIds.Contains(x.Id)).OrderBy(x => x.Name).ToListAsync();
       var scopes = await db.ConsolidationScopeVersions.AsNoTracking().Where(x => x.FirmId == actor.FirmId && groupIds.Contains(x.GroupId)).ToListAsync();
       var ownershipCounts = await db.OwnershipInterestVersions.AsNoTracking().Where(x => x.FirmId == actor.FirmId && groupIds.Contains(x.GroupId) &&
@@ -181,9 +189,11 @@ else
         .ToDictionaryAsync(x => x.ScopeId);
       var runStatuses = await db.ConsolidationRuns.AsNoTracking().Where(x => x.FirmId == actor.FirmId && groupIds.Contains(x.GroupId))
         .GroupBy(x => x.ScopeVersionId).Select(x => new { ScopeId = x.Key, Status = x.OrderByDescending(y => y.CreatedAt).Select(y => y.Status).First() }).ToDictionaryAsync(x => x.ScopeId, x => x.Status);
-      var rateSets = await db.ExchangeRateSetVersions.AsNoTracking().Where(x => x.FirmId == actor.FirmId)
+      var rateSetIds = scopes.Where(x => x.ExchangeRateSetVersionId.HasValue).Select(x => x.ExchangeRateSetVersionId!.Value).Distinct().ToArray();
+      var rateSets = await db.ExchangeRateSetVersions.AsNoTracking().Where(x => x.FirmId == actor.FirmId && rateSetIds.Contains(x.Id))
         .ToDictionaryAsync(x => x.Id, x => x.Status);
-      var translationPolicies = await db.TranslationPolicyVersions.AsNoTracking().Where(x => x.FirmId == actor.FirmId)
+      var translationPolicyIds = scopes.Where(x => x.TranslationPolicyVersionId.HasValue).Select(x => x.TranslationPolicyVersionId!.Value).Distinct().ToArray();
+      var translationPolicies = await db.TranslationPolicyVersions.AsNoTracking().Where(x => x.FirmId == actor.FirmId && translationPolicyIds.Contains(x.Id))
         .ToDictionaryAsync(x => x.Id, x => x.Status);
       _groups = groups.Select(group => new GroupRow(group.Id, group.Code, group.Name, scopes.Where(x => x.GroupId == group.Id)
         .OrderByDescending(x => x.Version).Select(x =>
