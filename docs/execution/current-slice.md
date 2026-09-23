@@ -6,14 +6,14 @@ This file records observed repository state only. The authoritative build contra
 
 | Item | Observed value |
 |---|---|
-| Source/test checkpoint | `master@ba4f81a08b48a006cbefdeb266c961cfee7cea84`; ReviewPoint revocation clears protected state and AccountingRecords uses a stable actor in scoped queries |
-| Remote | `origin/master` confirmed to equal `ba4f81a08b48a006cbefdeb266c961cfee7cea84` at 2026-09-23 19:33 UTC |
+| Source/test checkpoint | `master@07d1a352ffa16511ec2b7150f0f0b2a9201ec71d`; ReviewPoint dispositions recheck current grants and route changes reload only the authorized point |
+| Remote | `origin/master` confirmed to equal `07d1a352ffa16511ec2b7150f0f0b2a9201ec71d` at 2026-09-23 19:58 UTC |
 | SDK | .NET 10; repository solution targets `net10.0` |
 | Database | PostgreSQL 18.6 on loopback port 5433 for development only |
-| Build | Full solution Release build for `ba4f81a` — passed, 0 warnings/errors |
-| Tests | Fresh discovery: 312 (Domain 259, API 6, E2E 47). Aggregate solution run passed Domain 259/259, API 6/6 and E2E 47/47; 312 total, 0 skips. The focused ReviewPoint pair passed 2/2 and the accounting-record navigation regression passed 1/1. |
+| Build | Full solution Release build for `07d1a35` — passed, 0 warnings/errors |
+| Tests | Fresh discovery: 313 (Domain 259, API 6, E2E 48). Aggregate solution run passed Domain 259/259, API 6/6 and E2E 48/48; 313 total, 0 skips. The focused ReviewPoint route/revocation journeys passed 2/2; accounting-record navigation passed 1/1. |
 | Migrations | Added `20260923145244_ProposalPreparedByAttribution`; prior-schema PostgreSQL regression upgraded a synthetic legacy proposal and preserved its values with preparer left unknown. The existing local `auditsphere` database remains at its 91-migration baseline. |
-| Model drift | `dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Web` — no pending model changes for tested `ba4f81a` source; no schema changes in these UI/test slices |
+| Model drift | `dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Web` — no pending model changes for tested `07d1a35` source; no schema changes in these UI/test slices |
 | Restore drill | Passed at `2026-09-23T15:20:43Z` on loopback; restored the existing `auditsphere` source at 91 migrations through `20260922140527_M365InvitationEvidenceAction`. Evidence was redirected to `/tmp`; the check does not apply the new proposal migration to that development database. |
 | Production effects | Disabled locally; no production acceptance claimed |
 
@@ -28,6 +28,12 @@ This file records observed repository state only. The authoritative build contra
 - `AccountingRecords.LoadCurrentQueueAsync` now uses its resolved actor local for authorization and every EF predicate rather than capturing mutable component state, preventing an overlapping in-app route load from nulling a query parameter.
 - The existing `AS-PAR-002-ACCT-RECORD-TABS-01` browser case passed 1/1 after the fix. Full solution Release build passed with 0 warnings/errors; solution tests passed 312/312 (Domain 259, API 6, E2E 47; 0 skipped); EF reports no pending model changes. Fresh discovery reconciles to 312.
 - Commit `ba4f81a08b48a006cbefdeb266c961cfee7cea84` was pushed and remote-confirmed at 2026-09-23 19:33 UTC. Hosted GitHub CI was not observed. No migration, tenant operation or production effect. AS-PAR-002 remains partial.
+
+## AS-PAR-002 — ReviewPoint same-document route reauthorization (`07d1a35`)
+
+- Replaced the initial-only load with parameter-change authorization, immediate clearing of the prior point, and generation fencing so stale reads/actions cannot repopulate a newer route. Queries use the resolved actor local, and actions stop updating the UI if the route generation changes while a command is in flight.
+- Added `AS-PAR-002-REV-STALE-ROUTE-01`: within one browser document, the authorized synthetic point is followed by an unauthorized point ID; its private comment, status and action disappear, then routing back reloads the authorized point. The test checks a stable document token and no browser page errors.
+- Focused ReviewPoint route/revocation tests passed 2/2; full Release build passed with 0 warnings/errors; discovery reconciles to 313; aggregate solution tests passed 313/313 with 0 skips; EF reports no pending model changes. Commit `07d1a352ffa16511ec2b7150f0f0b2a9201ec71d` was pushed and remote-confirmed at 2026-09-23 19:58 UTC. No migration, tenant operation or production effect. AS-PAR-002 remains partial.
 
 ## AS-PAR-002 — Audit-plan engagement scope and revocation (`eee833d`)
 
