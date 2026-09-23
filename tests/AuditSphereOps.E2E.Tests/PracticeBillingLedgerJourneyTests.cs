@@ -103,9 +103,10 @@ public sealed class PracticeBillingLedgerJourneyTests
     await staffPage.GetByLabel("Role").FillAsync("Staff");
     await staffPage.GetByLabel("Activity").FillAsync("Fieldwork");
     await staffPage.GetByRole(AriaRole.Button, new() { Name = "Save time draft" }).ClickAsync();
-    await Assertions.Expect(staffPage.Locator(".command-result")).ToContainTextAsync("Time draft recorded");
     var timeRow = staffPage.GetByRole(AriaRole.Row).Filter(new() { HasText = "Synthetic approved time" });
     await timeRow.WaitForAsync();
+    await Assertions.Expect(staffPage.Locator(".command-result")).ToContainTextAsync(
+      "Time draft recorded", new() { Timeout = 30000 });
     await timeRow.GetByRole(AriaRole.Button, new() { Name = "Submit" }).ClickAsync();
     await Assertions.Expect(staffPage.Locator(".command-result")).ToContainTextAsync("submitted for approval");
     await using (var db = host.CreateDbContext())

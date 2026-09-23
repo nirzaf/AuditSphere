@@ -12,6 +12,7 @@ using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Records;
 using AuditSphereOps.Domain.Reviews;
+using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Tests;
 
@@ -992,6 +993,15 @@ public sealed class ClientScopeJourneyTests
       await revokePage.GetByText(privateRisk, new() { Exact = true }).WaitForAsync();
       await revokeConnected;
 
+      const string unpersistedRisk = "SYN-PAR-002-REVOKED-RISK-MUST-NOT-PERSIST";
+      var staleActor = PbcSeed.Actor(host.Fixture.Staff, "Staff");
+      var riskForm = revokePage.GetByRole(AriaRole.Group, new() { Name = "Record an identified risk" });
+      await riskForm.GetByLabel("Account or disclosure area").FillAsync("Synthetic area");
+      await riskForm.GetByLabel("Assertion").FillAsync("Completeness");
+      await riskForm.GetByLabel("Risk description").FillAsync(unpersistedRisk);
+      await riskForm.GetByLabel("Drivers").FillAsync("Synthetic test driver");
+      await riskForm.GetByLabel("Planned response").FillAsync("Synthetic response");
+
       await using (var db = host.CreateDbContext())
       {
         var grant = await db.RoleGrants.SingleAsync(x => x.FirmId == host.Fixture.FirmId &&
@@ -1000,25 +1010,16 @@ public sealed class ClientScopeJourneyTests
         var revoked = await RoleAdministrationService.RevokeRoleGrantAsync(db,
           PbcSeed.Actor(host.Fixture.Admin, "Administrator"), new RevokeRoleGrantRequest(grant.Id));
         Assert.True(revoked.Succeeded, revoked.Message);
+        var staleWrite = await AuditPlanningService.CreateAuditRiskAsync(db, staleActor,
+          new CreateAuditRiskRequest(host.Fixture.EngagementId, "Synthetic area", "Completeness",
+            unpersistedRisk, "Synthetic test driver", SignificanceDecisions.Normal, null, "Synthetic response"));
+        Assert.False(staleWrite.Succeeded);
+        Assert.Equal(ErrorCodes.GenerationStale, staleWrite.ErrorCode);
       }
 
-      const string unpersistedRisk = "SYN-PAR-002-REVOKED-RISK-MUST-NOT-PERSIST";
-      await revokePage.WaitForFunctionAsync("""
-        () => document.body.innerText.includes("Access unavailable") ||
-          Array.from(document.querySelectorAll("fieldset legend")).some(x => x.textContent.trim() === "Record an identified risk")
-        """);
-      var unavailable = revokePage.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable" });
-      if (!await unavailable.IsVisibleAsync())
-      {
-        var riskForm = revokePage.GetByRole(AriaRole.Group, new() { Name = "Record an identified risk" });
-        await riskForm.GetByLabel("Account or disclosure area").FillAsync("Synthetic area");
-        await riskForm.GetByLabel("Assertion").FillAsync("Completeness");
-        await riskForm.GetByLabel("Risk description").FillAsync(unpersistedRisk);
-        await riskForm.GetByLabel("Drivers").FillAsync("Synthetic test driver");
-        await riskForm.GetByLabel("Planned response").FillAsync("Synthetic response");
-        await revokePage.GetByRole(AriaRole.Button, new() { Name = "Record risk" }).ClickAsync();
-        await unavailable.WaitForAsync();
-      }
+      await revokePage.EvaluateAsync("path => { history.pushState({}, '', path); dispatchEvent(new PopStateEvent('popstate')); }",
+        $"/app/engagements/{siblingEngagementId:D}/audit-plan");
+      await revokePage.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable" }).WaitForAsync();
       var revokedBody = await revokePage.Locator("body").InnerTextAsync();
       Assert.DoesNotContain(privateRisk, revokedBody);
       Assert.DoesNotContain(unpersistedRisk, revokedBody);
