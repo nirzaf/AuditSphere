@@ -6,14 +6,14 @@ This file records observed repository state only. The authoritative build contra
 
 | Item | Observed value |
 |---|---|
-| Source implementation checkpoint | `master@404c6f5f6eac0de948cd28d4f6f88f91085cd0d6`; implementation/test/CI changes committed |
-| Remote | `origin/master` confirmed to equal `404c6f5f6eac0de948cd28d4f6f88f91085cd0d6` at 2026-09-23 10:21 UTC |
+| Source implementation checkpoint | `master@f10ed0f3ffed4f3e1701f6f25529f109d2815b9f`; implementation/test/CI changes committed |
+| Remote | `origin/master` confirmed to equal `f10ed0f3ffed4f3e1701f6f25529f109d2815b9f` at 2026-09-23 10:59 UTC |
 | SDK | .NET 10; repository solution targets `net10.0` |
 | Database | PostgreSQL 18.6 on loopback port 5433 for development only |
-| Build | Full solution Release build for source checkpoint `404c6f5` — passed, 0 warnings/errors |
-| Tests | Fresh discovery: 296 (Domain 257, API 6, E2E 33). Full solution attempt: API 6/6, Domain 257/257, E2E 32/33; the one intermittent existing reviewer-browser case passed alone and in a clean full E2E rerun (33/33). No skips. |
+| Build | Full solution Release build for source checkpoint `f10ed0f` — passed, 0 warnings/errors |
+| Tests | Fresh discovery: 297 (Domain 257, API 6, E2E 34). Fresh per-project runs: Domain 257/257, API 6/6, E2E 34/34; 0 skipped. These were separate project runs, not one solution-level test invocation. |
 | Migrations | Previous recorded baseline: 91 applied through `20260922140527_M365InvitationEvidenceAction`; no schema migration in these slices |
-| Model drift | `dotnet ef migrations has-pending-model-changes` — no pending model changes after this slice on 2026-09-23 |
+| Model drift | `dotnet ef migrations has-pending-model-changes --no-build --configuration Release` — no pending model changes after this slice on 2026-09-23 |
 | Restore drill | Previously passed at `2026-09-22T18:52:20Z`; 91 migrations, accounting/group manifests and release-delivery identities reconciled; not rerun during test recovery |
 | Production effects | Disabled locally; no production acceptance claimed |
 
@@ -304,6 +304,14 @@ Implemented in source checkpoint `master@404c6f5f6eac0de948cd28d4f6f88f91085cd0d
 - The PBC inbox now applies the same allowed staff-role set used by PBC commands through `AuthorizationDecision` at the exact stored client/engagement scope. A role from a sibling engagement cannot combine with an unrelated role on the target engagement to reveal its request thread.
 - Added `AS-PAR-002-PBC-ROLE-READ-01`: the PostgreSQL-backed Playwright fixture gives the synthetic actor `Staff` only on a sibling engagement and `FinanceManager` on the target. The browser receives the generic unavailable state and never sees the private request marker. The test reproduced the exposure before the guard and passes after it.
 - Verification: focused regression 1/1; `ClientScopeJourneyTests` 22/22; Release build 0 warnings/errors; API 6/6 and Domain 257/257 in the full solution attempt; that attempt's E2E run had one intermittent unrelated reviewer-browser failure (32/33). The failed case passed alone (1/1), then the full E2E retry passed 33/33; 296 cases are discovered overall, 0 skipped. EF reports no pending model changes. No schema migration or tenant operation. AS-PAR-002 remains partial.
+
+## AS-PAR-002 — Clear staff PBC inbox after scope revocation
+
+Implemented in source checkpoint `master@f10ed0f3ffed4f3e1701f6f25529f109d2815b9f`, pushed to `origin/master` and confirmed there at 2026-09-23 10:59 UTC.
+
+- When a PBC create/send, request-more-files, or staged-upload completion command returns `scope.denied` or `generation.stale`, the staff inbox now switches to its generic unavailable state, clears loaded request/timeline and action projections, and removes the new-request browser draft. Stored client requests and upload evidence are not deleted.
+- Added `AS-PAR-002-PBC-STALE-READ-01`: a synthetic staff user opens the inbox and saves a draft; an administrator revokes the exact Staff grant; the next staged-transfer command is denied. The browser verifies that the private request marker and draft disappear, the draft key is removed from local storage, and the persisted request remains unchanged.
+- Fresh Release build passed with 0 warnings/errors. Discovery is 297 (Domain 257, API 6, E2E 34); fresh per-project runs passed Domain 257/257, API 6/6 and the full Playwright E2E suite 34/34, with 0 skips. `ClientScopeJourneyTests` passed 23/23; EF reports no pending model changes; `git diff --check` passed. The full solution test command was not run as a single invocation for this checkpoint. No schema migration, tenant operation or production effect. AS-PAR-002 remains partial.
 
 ## Remaining local implementation work
 
