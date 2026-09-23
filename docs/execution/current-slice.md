@@ -6,14 +6,14 @@ This file records observed repository state only. The authoritative build contra
 
 | Item | Observed value |
 |---|---|
-| Source implementation checkpoint | `master@eee833d680486c2d70dbe24bcfec93d6961aa8c9`; exact audit-plan grant enforcement and stale-route clearing committed |
-| Remote | `origin/master` confirmed to equal `eee833d680486c2d70dbe24bcfec93d6961aa8c9` at 2026-09-23 16:33 UTC |
+| Source implementation checkpoint | `master@887183489292a38a87eb8878f701fca48f96f1fd`; invoice detail now clears and reauthorizes on route changes |
+| Remote | `origin/master` confirmed to equal `887183489292a38a87eb8878f701fca48f96f1fd` at 2026-09-23 16:48 UTC |
 | SDK | .NET 10; repository solution targets `net10.0` |
 | Database | PostgreSQL 18.6 on loopback port 5433 for development only |
-| Build | Full solution Release build for `eee833d` — passed, 0 warnings/errors |
-| Tests | Discovery: 308 (Domain 259, API 6, E2E 43). Domain 259/259 and API 6/6 passed in the full solution invocation; its E2E run had one intermittent accounting-record queue load-error failure (42/43). Standalone E2E passed 43/43 with 0 skips; the audit-plan scope/revocation case passed focused and in that full run. The aggregate solution invocation is not reported green. |
+| Build | Full solution Release build for `8871834` — passed, 0 warnings/errors |
+| Tests | Discovery: 308 (Domain 259, API 6, E2E 43). Standalone E2E passed 43/43 with 0 skips after the invoice route change; the final stale-command guard then passed its focused invoice journey 1/1. Domain 259/259 and API 6/6 passed in the prior solution attempt; that aggregate E2E run had one intermittent accounting-record queue load-error failure (42/43) and is not reported green. |
 | Migrations | Added `20260923145244_ProposalPreparedByAttribution`; prior-schema PostgreSQL regression upgraded a synthetic legacy proposal and preserved its values with preparer left unknown. The existing local `auditsphere` database remains at its 91-migration baseline. |
-| Model drift | `dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Web --no-build --configuration Release` — no pending model changes after `eee833d` on 2026-09-23 |
+| Model drift | `dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Web --no-build --configuration Release` — no pending model changes after `8871834` on 2026-09-23 |
 | Restore drill | Passed at `2026-09-23T15:20:43Z` on loopback; restored the existing `auditsphere` source at 91 migrations through `20260922140527_M365InvitationEvidenceAction`. Evidence was redirected to `/tmp`; the check does not apply the new proposal migration to that development database. |
 | Production effects | Disabled locally; no production acceptance claimed |
 
@@ -23,6 +23,13 @@ This file records observed repository state only. The authoritative build contra
 - Added `AS-PAR-002-AUDIT-PLAN-READ-01`: a granted staff identity can read its assigned plan, same-document navigation to a sibling engagement clears private data, revocation prevents the next risk write and leaves no persisted risk, and a user scoped to an unrelated client sees no plan marker. The test allows either stale-session revalidation or command denial after revocation.
 - Verification: full Release build passed with 0 warnings/errors; discovery reconciles to 308 (Domain 259, API 6, E2E 43); focused audit-plan test 1/1; full standalone E2E 43/43; Domain 259/259 and API 6/6 in the attempted solution run. That solution-wide run had one intermittent failure in the existing accounting-record queue journey, which rendered its safe generic error state under concurrent project execution; no data was exposed. EF reports no pending model changes. No migration, tenant operation or production effect.
 - Commit `eee833d680486c2d70dbe24bcfec93d6961aa8c9` was pushed to `master` and verified equal to `origin/master` at 2026-09-23 16:33 UTC. AS-PAR-002 remains partial.
+
+## AS-PAR-002 — Invoice detail route isolation (`8871834`)
+
+- `InvoiceDetail.razor` now reloads whenever the invoice route parameter changes, clears the previous invoice, line items, allocations, balance and command result first, and fences late reads/actions by route generation. The underlying billing service continues to perform the authoritative exact-client grant check; scope-denied or stale command results clear the page.
+- Expanded `AS-PAR-002-INV-01` with two synthetic clients/invoices. The browser navigates in the same document from an authorized invoice to another client’s invoice, verifies both invoice projections remain hidden, then returns and confirms the authorized invoice reloads. Existing separate-identity denial coverage remains.
+- Verification: full Release solution build passed with 0 warnings/errors; discovery remains 308; the full standalone E2E project passed 43/43 with 0 skips after the route change, and the final stale-command guard passed the focused invoice case 1/1. EF reports no pending model changes. The last full solution attempt still has the separately recorded intermittent accounting-queue E2E failure. No migration, tenant operation or production effect.
+- Commit `887183489292a38a87eb8878f701fca48f96f1fd` was pushed to `master` and verified equal to `origin/master` at 2026-09-23 16:48 UTC. AS-PAR-002 remains partial.
 
 ## AS-PAR-009 persisted proposal detail and scope checks (`5e3687b`)
 
