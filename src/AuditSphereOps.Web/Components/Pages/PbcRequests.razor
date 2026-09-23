@@ -165,28 +165,36 @@ else
 
   private static string HeadingId(Guid requestId) => "pbc-" + requestId.ToString("N");
 
-  protected override async Task OnInitializedAsync()
+  protected override async Task OnParametersSetAsync()
   {
-    _actor = await ActorResolver.ResolveAsync();
-    if (_actor is not null && IsStaff)
+    _loading = true;
+    _actor = null;
+    _engagement = null;
+    _denied = false;
+    ClearInboxState();
+    try
     {
-      await using var db = await DbFactory.CreateDbContextAsync();
-      _engagement = await db.Engagements.AsNoTracking().SingleOrDefaultAsync(x =>
-        x.Id == EngagementId && x.FirmId == _actor.FirmId);
-      if (_engagement is not null)
+      _actor = await ActorResolver.ResolveAsync();
+      if (_actor is not null && IsStaff)
       {
-        var auth = await AuthorizationDecision.AuthorizeAsync(db, _actor,
-          new AuthorizationRequest(_actor.FirmId, _engagement.PracticeClientId, _engagement.Id,
-            RequiredRoles: StaffRoles, InternalOnly: true));
-        _denied = !auth.Succeeded;
-        if (!_denied)
+        await using var db = await DbFactory.CreateDbContextAsync();
+        _engagement = await db.Engagements.AsNoTracking().SingleOrDefaultAsync(x =>
+          x.Id == EngagementId && x.FirmId == _actor.FirmId);
+        if (_engagement is not null)
         {
-          await LoadPeopleAsync(db);
-          await LoadAsync(db);
+          var auth = await AuthorizationDecision.AuthorizeAsync(db, _actor,
+            new AuthorizationRequest(_actor.FirmId, _engagement.PracticeClientId, _engagement.Id,
+              RequiredRoles: StaffRoles, InternalOnly: true));
+          _denied = !auth.Succeeded;
+          if (!_denied)
+          {
+            await LoadPeopleAsync(db);
+            await LoadAsync(db);
+          }
         }
       }
     }
-    _loading = false;
+    finally { _loading = false; }
   }
 
   private async Task LoadAsync(IAuditSphereDbContext db)
@@ -310,6 +318,13 @@ else
   private async Task DenyAndClearAsync()
   {
     _denied = true;
+    ClearInboxState();
+    try { await JS.InvokeVoidAsync("auditSphereDrafts.clear", $"pbc-new-request-{EngagementId}"); }
+    catch (JSException) { }
+  }
+
+  private void ClearInboxState()
+  {
     _requests.Clear();
     _intents.Clear();
     _operations.Clear();
@@ -325,8 +340,6 @@ else
     _clientOwnerId = Guid.Empty;
     _reviewerId = Guid.Empty;
     _createResult = null;
-    try { await JS.InvokeVoidAsync("auditSphereDrafts.clear", $"pbc-new-request-{EngagementId}"); }
-    catch (JSException) { }
   }
 
   private sealed record TimelineItem(DateTimeOffset At, string Label, string Body);
