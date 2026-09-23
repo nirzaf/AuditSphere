@@ -97,6 +97,7 @@ else
     bool _isStaff;
     bool _loading = true;
     bool _busy;
+    long _loadGeneration;
     bool _actionSuccess;
     string? _actionError;
 
@@ -104,41 +105,50 @@ else
     string _status = "OPEN";
     string _statusClass = "badge-red";
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnParametersSetAsync()
     {
+        var generation = ++_loadGeneration;
+        var pointId = Id;
         _loading = true;
-        _actor = await ActorResolver.ResolveAsync();
-        _isStaff = _actor is not null && _actor.Roles.Any(x => x is "Administrator" or "Partner" or "Manager" or "Staff" or "EngagementLeader" or "Auditor");
+        MarkUnavailable();
+        _actor = null;
+        _isStaff = false;
 
-        if (_actor is null || !_isStaff)
+        try
         {
-            MarkUnavailable();
-            _loading = false;
-            return;
-        }
+            var actor = await ActorResolver.ResolveAsync();
+            if (!IsCurrentLoad(generation, pointId)) return;
+            _actor = actor;
+            _isStaff = actor is not null && actor.Roles.Any(x => x is "Administrator" or "Partner" or "Manager" or "Staff" or "EngagementLeader" or "Auditor");
+            if (actor is null || !_isStaff) return;
 
-        await using var db = await DbFactory.CreateDbContextAsync();
-        var candidate = await db.ReviewPoints.AsNoTracking().Where(rp =>
-                rp.Id == Id && rp.FirmId == _actor.FirmId)
-            .Select(rp => new { rp.ClientId, rp.EngagementId })
-            .SingleOrDefaultAsync();
-        if (candidate is not null)
-        {
-            var authorization = await AuthorizationDecision.AuthorizeAsync(db, _actor,
-                new AuthorizationRequest(_actor.FirmId, candidate.ClientId, candidate.EngagementId,
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var candidate = await db.ReviewPoints.AsNoTracking().Where(rp =>
+                    rp.Id == pointId && rp.FirmId == actor.FirmId)
+                .Select(rp => new { rp.ClientId, rp.EngagementId })
+                .SingleOrDefaultAsync();
+            if (!IsCurrentLoad(generation, pointId) || candidate is null) return;
+
+            var authorization = await AuthorizationDecision.AuthorizeAsync(db, actor,
+                new AuthorizationRequest(actor.FirmId, candidate.ClientId, candidate.EngagementId,
                     ["Administrator", "Partner", "Manager", "Staff", "EngagementLeader", "Auditor"],
                     InternalOnly: true));
-            if (authorization.Succeeded)
-                _point = await db.ReviewPoints.AsNoTracking().SingleOrDefaultAsync(rp =>
-                    rp.Id == Id && rp.FirmId == _actor.FirmId && rp.ClientId == candidate.ClientId &&
-                    rp.EngagementId == candidate.EngagementId);
-            else
-                MarkUnavailable();
-        }
+            if (!IsCurrentLoad(generation, pointId) || !authorization.Succeeded) return;
 
-        UpdateStatusBadge();
-        _loading = false;
+            var point = await db.ReviewPoints.AsNoTracking().SingleOrDefaultAsync(rp =>
+                rp.Id == pointId && rp.FirmId == actor.FirmId && rp.ClientId == candidate.ClientId &&
+                rp.EngagementId == candidate.EngagementId);
+            if (!IsCurrentLoad(generation, pointId)) return;
+            _point = point;
+            UpdateStatusBadge();
+        }
+        finally
+        {
+            if (IsCurrentLoad(generation, pointId)) _loading = false;
+        }
     }
+
+    private bool IsCurrentLoad(long generation, Guid pointId) => generation == _loadGeneration && Id == pointId;
 
     private void UpdateStatusBadge()
     {
@@ -184,6 +194,7 @@ else
     {
         var point = _point;
         var actor = _actor;
+        var generation = _loadGeneration;
         if (point is null || actor is null || _busy) return;
         _busy = true;
         _actionSuccess = false;
@@ -191,7 +202,9 @@ else
         try
         {
             await using var db = await DbFactory.CreateDbContextAsync();
+            if (!IsCurrentLoad(generation, point.Id)) return;
             var result = await AuditPlanningService.SetReviewPointDispositionAsync(db, actor, point.Id, cleared);
+            if (!IsCurrentLoad(generation, point.Id)) return;
             if (!result.Succeeded && (result.ErrorCode is ErrorCodes.ScopeDenied or ErrorCodes.GenerationStale))
             {
                 ClearProtectedState();

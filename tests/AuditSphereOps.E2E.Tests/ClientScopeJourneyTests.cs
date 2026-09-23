@@ -1106,6 +1106,77 @@ public sealed class ClientScopeJourneyTests
   }
 
   [Fact]
+  [Trait("CaseId", "AS-PAR-002-REV-STALE-ROUTE-01")]
+  public async Task ReviewPointClearsPriorPointOnSameDocumentIdChange()
+  {
+    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false,
+      caseId: "AS-PAR-002-REV-STALE-ROUTE-01");
+    var otherClientId = Guid.NewGuid();
+    var otherEngagementId = Guid.NewGuid();
+    var authorizedPoint = new ReviewPoint
+    {
+      Id = Guid.NewGuid(), FirmId = host.Fixture.FirmId, ClientId = host.Fixture.ClientId,
+      EngagementId = host.Fixture.EngagementId, TargetId = Guid.NewGuid(), TargetKind = "workpaper",
+      TargetRevision = 1, Comment = "SYN-PAR-002-REVIEW-ROUTE-PRIVATE-COMMENT",
+      RaisedByUserId = host.Fixture.Staff.Id, RaisedAt = DateTimeOffset.UtcNow, Significant = true
+    };
+    var unauthorizedPoint = new ReviewPoint
+    {
+      Id = Guid.NewGuid(), FirmId = host.Fixture.FirmId, ClientId = otherClientId,
+      EngagementId = otherEngagementId, TargetId = Guid.NewGuid(), TargetKind = "workpaper",
+      TargetRevision = 1, Comment = "SYN-PAR-002-OTHER-CLIENT-REVIEW-COMMENT",
+      RaisedByUserId = host.Fixture.Staff.Id, RaisedAt = DateTimeOffset.UtcNow
+    };
+    await using (var db = host.CreateDbContext())
+    {
+      db.PracticeClients.Add(new PracticeClient
+      {
+        Id = otherClientId, FirmId = host.Fixture.FirmId,
+        LegalName = "Synthetic unrelated review client", CreatedAt = DateTimeOffset.UtcNow
+      });
+      db.Engagements.Add(new Engagement
+      {
+        Id = otherEngagementId, FirmId = host.Fixture.FirmId, PracticeClientId = otherClientId,
+        ServiceRoute = "Synthetic unrelated review engagement", Status = "Active", CreatedAt = DateTimeOffset.UtcNow
+      });
+      db.ReviewPoints.AddRange(authorizedPoint, unauthorizedPoint);
+      await db.SaveChangesAsync();
+    }
+
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    await using var context = await browser.NewContextAsync();
+    var page = await context.NewPageAsync();
+    var diagnostics = new List<string>();
+    page.PageError += (_, error) => diagnostics.Add($"page-error: {error}");
+    var connected = WaitForCircuitConnectionAsync(page, diagnostics);
+    await page.GotoAsync(SignInUrl(host.StaffUrl, $"/app/reviews/{authorizedPoint.Id:D}"));
+    await page.GetByText(authorizedPoint.Comment, new() { Exact = true }).WaitForAsync();
+    await connected;
+
+    var documentToken = Guid.NewGuid().ToString("N");
+    await page.EvaluateAsync("token => window.__reviewPointRouteToken = token", documentToken);
+    await page.EvaluateAsync("path => { history.pushState({}, '', path); dispatchEvent(new PopStateEvent('popstate')); }",
+      $"/app/reviews/{unauthorizedPoint.Id:D}");
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Review point unavailable" })
+      .WaitForAsync(new() { Timeout = 5000 });
+    var deniedBody = await page.Locator("body").InnerTextAsync();
+    Assert.DoesNotContain(authorizedPoint.Comment, deniedBody);
+    Assert.DoesNotContain(unauthorizedPoint.Comment, deniedBody);
+    Assert.DoesNotContain("Review Context", deniedBody);
+    Assert.DoesNotContain("Clear Review Point", deniedBody);
+    Assert.Equal(documentToken, await page.EvaluateAsync<string>("window.__reviewPointRouteToken"));
+
+    await page.EvaluateAsync("path => { history.pushState({}, '', path); dispatchEvent(new PopStateEvent('popstate')); }",
+      $"/app/reviews/{authorizedPoint.Id:D}");
+    await page.GetByText(authorizedPoint.Comment, new() { Exact = true }).WaitForAsync();
+    var restoredBody = await page.Locator("body").InnerTextAsync();
+    Assert.Contains("BLOCKING", restoredBody);
+    Assert.Equal(documentToken, await page.EvaluateAsync<string>("window.__reviewPointRouteToken"));
+    Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
+  }
+
+  [Fact]
   [Trait("CaseId", "AS-PAR-002-FIND-01")]
   public async Task FindingDetailsRequireCurrentClientAndEngagementScope()
   {
