@@ -2,6 +2,12 @@
 
 This file records observed repository state only. The authoritative build contract is [`docs/SPECIFICATION.md`](../SPECIFICATION.md) v5.0. The public repository intentionally excludes tenant identifiers, user principals, credentials, tokens, secret values, and private-provider URLs.
 
+## CI workflow validation fix — run #393
+
+- Reproduced GitHub's invalid-workflow error with actionlint: `runner.temp` is unavailable in job-level `env`.
+- Initialize `E2E_RUN_ROOT` after checkout using `$RUNNER_TEMP`, `$E2E_RUN_ID`, and `$GITHUB_ENV`; subsequent steps retain the same path used by isolated-scenario artifact uploads.
+- Local checks: actionlint v1.7.7 exited 0 after the fix (`-shellcheck= -pyflakes=`); Bash path assertion passed with spaces and a run/attempt suffix. Full .NET suite and hosted GitHub Actions were not rerun for this workflow-only fix. Existing application verification below remains historical.
+
 ## Current checkout and latest verification snapshot
 
 | Item | Observed value |
