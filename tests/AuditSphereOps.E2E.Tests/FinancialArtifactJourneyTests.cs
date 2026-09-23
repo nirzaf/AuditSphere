@@ -181,6 +181,51 @@ public sealed class FinancialArtifactJourneyTests
   }
 
   [Fact]
+  [Trait("CaseId", "AS-PAR-002-FS-QUEUE-REVOKE-01")]
+  public async Task FinancialPackageReviewQueueClearsAfterGrantRevocationAndRefresh()
+  {
+    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false,
+      caseId: "AS-PAR-002-FS-QUEUE-REVOKE-01");
+    var (packageId, _) = await CreatePackageAsync(host);
+    Guid reviewGrantId;
+    await using (var db = host.CreateDbContext())
+    {
+      var grant = PbcSeed.Grant(host.Fixture.FirmId, host.Fixture.Staff, "AccountingReviewer",
+        host.Fixture.ClientId, host.Fixture.EngagementId);
+      reviewGrantId = grant.Id;
+      db.RoleGrants.Add(grant);
+      await db.SaveChangesAsync();
+    }
+
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    await using var context = await browser.NewContextAsync();
+    var page = await context.NewPageAsync();
+    var diagnostics = new List<string>();
+    var connected = WaitForCircuitConnectionAsync(page, diagnostics);
+    await page.GotoAsync(SignInUrl(host.StaffUrl, "/app/accounting/reviews"));
+    await page.GetByText(packageId.ToString("D"), new() { Exact = true }).WaitForAsync();
+    await connected;
+    var documentToken = Guid.NewGuid().ToString("N");
+    await page.EvaluateAsync("token => window.__reviewQueueRouteToken = token", documentToken);
+
+    await using (var db = host.CreateDbContext())
+    {
+      var revoked = await RoleAdministrationService.RevokeRoleGrantAsync(db,
+        PbcSeed.Actor(host.Fixture.Admin, "Administrator"), new RevokeRoleGrantRequest(reviewGrantId));
+      Assert.True(revoked.Succeeded, revoked.Message);
+    }
+
+    await page.GetByRole(AriaRole.Button, new() { Name = "Refresh queue" }).ClickAsync();
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Review queue unavailable" }).WaitForAsync();
+    var body = await page.Locator("body").InnerTextAsync();
+    Assert.DoesNotContain(packageId.ToString("D"), body);
+    Assert.DoesNotContain("Action required", body);
+    Assert.Equal(documentToken, await page.EvaluateAsync<string>("window.__reviewQueueRouteToken"));
+    Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
+  }
+
+  [Fact]
   [Trait("CaseId", "AS-PAR-002-ACCT-RECORD-TABS-01")]
   public async Task AccountingRecordTabsReloadTheirScopedQueueDuringInAppNavigation()
   {

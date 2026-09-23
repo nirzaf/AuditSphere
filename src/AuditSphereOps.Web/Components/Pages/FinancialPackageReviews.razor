@@ -2,10 +2,16 @@
 @rendermode InteractiveServer
 @inject CurrentActorResolver ActorResolver
 @inject IDbContextFactory<AuditSphereDbContext> DbFactory
+@inject ILogger<FinancialPackageReviews> Logger
 
 <PageTitle>Financial package reviews</PageTitle>
 <a class="back-link" href="/app/accounting">← Back to accounting workspace</a>
 <h1>Financial package reviews</h1>
+<button class="button-secondary" title="Clear this queue and recheck your current review grants before loading packages." @onclick="LoadQueueAsync" disabled="@(_loading || _refreshing)">Refresh queue</button>
+@if (_refreshing)
+{
+  <p role="status">Refreshing the queue for your current access…</p>
+}
 
 @if (_loading)
 {
@@ -34,7 +40,7 @@ else
     </div>
     @if (_queue.Count == 0)
     {
-      <p class="muted">No current package review stage is waiting in your authorized scope.</p>
+      <p class="muted">@(_refreshing ? "Refreshing…" : "No current package review stage is waiting in your authorized scope.")</p>
     }
     else
     {
@@ -67,23 +73,43 @@ else
   private string? _error;
   private string? _selectionPreview;
   private bool _loading = true;
+  private bool _refreshing;
   private HashSet<Guid> _selectedPackageIds = [];
   private bool IsStaff => _actor is not null && _actor.Roles.Any(x => x is "Administrator" or "Partner" or "Manager" or "AccountingReviewer" or "AccountingPreparer");
   private bool AllSelected => _queue.Count > 0 && _queue.All(x => _selectedPackageIds.Contains(x.PackageId));
 
-  protected override async Task OnInitializedAsync()
+  protected override Task OnInitializedAsync() => LoadQueueAsync();
+
+  private async Task LoadQueueAsync()
   {
-    _actor = await ActorResolver.ResolveAsync();
-    if (_actor is not null && IsStaff)
+    _refreshing = true;
+    _queue = [];
+    _selectedPackageIds.Clear();
+    _selectionPreview = null;
+    _error = null;
+    try
     {
-      await using var db = await DbFactory.CreateDbContextAsync();
-      var result = await FinancialPackageReviewService.GetStaffQueueAsync(db, _actor);
-      if (result.Succeeded)
-        _queue = result.Value?.ToList() ?? [];
-      else
-        _error = result.Message;
+      _actor = await ActorResolver.ResolveAsync();
+      if (_actor is not null && IsStaff)
+      {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var result = await FinancialPackageReviewService.GetStaffQueueAsync(db, _actor);
+        if (result.Succeeded)
+          _queue = result.Value?.ToList() ?? [];
+        else
+          _error = result.Message;
+      }
     }
-    _loading = false;
+    catch (Exception ex)
+    {
+      Logger.LogError(ex, "Failed to refresh the financial package review queue.");
+      _error = "The review queue could not be refreshed. Retry when the connection is available.";
+    }
+    finally
+    {
+      _loading = false;
+      _refreshing = false;
+    }
   }
 
   private bool IsSelected(Guid packageId) => _selectedPackageIds.Contains(packageId);
