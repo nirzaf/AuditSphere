@@ -2,22 +2,174 @@
 
 This file records observed repository state only. The authoritative build contract is [`docs/SPECIFICATION.md`](../SPECIFICATION.md) v5.0. The public repository intentionally excludes tenant identifiers, user principals, credentials, tokens, secret values, and private-provider URLs.
 
-## Current verified baseline
+## Current checkout and latest verification snapshot
 
 | Item | Observed value |
 |---|---|
-| Source implementation checkpoint | `codex/m365-simple-onboarding@dc9cb0b` |
-| Remote | `origin/codex/m365-simple-onboarding` verified at `dc9cb0b` |
+| Source implementation checkpoint | `master@670d5ecbf0f2b5eda928fe89a3234e0abf92a050`; implementation/test/CI changes committed |
+| Remote | `origin/master` confirmed to contain `670d5ecbf0f2b5eda928fe89a3234e0abf92a050` at 2026-09-23 08:53 UTC; later checkpoint is documentation/evidence only |
 | SDK | .NET 10; repository solution targets `net10.0` |
 | Database | PostgreSQL 18.6 on loopback port 5433 for development only |
-| Build | Full solution Release build at `dc9cb0b` — passed, 0 warnings/errors |
-| Tests | 246/246 passed, 0 failed, 0 skipped with PostgreSQL 18.6 available; Release run duration 7m21s |
-| Migrations | 91 applied; latest `20260922140527_M365InvitationEvidenceAction` |
-| Model drift | `dotnet ef migrations has-pending-model-changes` — no changes |
+| Build | Full solution Release build for source checkpoint `670d5ec` — passed, 0 warnings/errors |
+| Tests | Full solution run on 2026-09-23 for `670d5ec`: API 6/6, Domain 257/257, E2E 31/31; 0 skipped (294 discovered) |
+| Migrations | Previous recorded baseline: 91 applied through `20260922140527_M365InvitationEvidenceAction`; no schema migration in these slices |
+| Model drift | `dotnet ef migrations has-pending-model-changes` — no pending model changes on 2026-09-23 |
 | Restore drill | Previously passed at `2026-09-22T18:52:20Z`; 91 migrations, accounting/group manifests and release-delivery identities reconciled; not rerun during test recovery |
 | Production effects | Disabled locally; no production acceptance claimed |
 
 Test-environment recovery verified at `2026-09-22T19:42:54Z`: the preceding run ended with 141 passed and 105 failed while PostgreSQL was shutting down. The server log records a smart shutdown request at `2026-09-22T19:25:04Z`; the initiator is unknown. Starting the stopped cluster on `127.0.0.1:5433` restored the test prerequisite. The complete Release suite then passed without application, test, assertion or runner changes; PostgreSQL remained available afterward. The full command and local ignored TRX artifact (`TestResults/failure-investigation.trx`) are recorded in `status.json`. Model drift and the 91 applied migrations were rechecked; external acceptance remains unchanged.
+
+## Historical documentation-only E2E automation blueprint
+
+Observed on 2026-09-22; this is separate from the historical runtime verification above.
+
+- Added [E2E automation strategy and embedded CI examples](../testing/E2E_AUTOMATION_STRATEGY.md) and the [complete existing-test catalog](../testing/TEST_CASE_CATALOG.md).
+- SDK 10.0.300 tool restore, locked restore and full solution Release build passed at `b8e4721` before fresh discovery. Source remained unchanged through `f64a1f4`; intervening commits touched only separate evidence documentation.
+- Reconciled 246 expanded cases / 235 methods: 229 facts, six theories with 17 full data rows, 37 classes and 36 test-source files. Checked unique IDs, category totals, method multiplicities, exact theory values, source references, traits and 38 custom display names against source and fresh discovery.
+- Validated relative links/anchors, Markdown fences/table widths and whitespace; parsed three YAML examples, syntax-checked 15 Bash blocks, three PowerShell blocks and embedded Python. `git diff --check` passed. Actionlint/ShellCheck were unavailable, and editor diagnostics were unavailable during language-server initialization; syntax/source checks are not cloud-workflow execution.
+- No full-suite execution, EF drift run, restore drill, browser journey, live-provider operation, notification, Wiki publication, commit or push was performed for this documentation task. Existing evidence and acceptance statuses remain unchanged.
+- At that historical point the API/E2E projects, Playwright package and workflow were proposals. They have since been implemented locally; a dedicated shard-manifest/orchestrator script and cryptographic per-host Data Protection isolation remain absent. Live acceptance still requires approved provider composition, runner, grants, custody and policy-required professional decisions.
+
+## Prototype gap-closure scope authorization slice
+
+Implemented in source checkpoint `master@670d5ecbf0f2b5eda928fe89a3234e0abf92a050`, pushed to `origin/master` and verified there at 2026-09-23 08:53 UTC. Documentation/evidence follow-up does not change runtime source.
+
+- Tightened firm-wide authorization for recovery, firm-ledger, CRM, records-profile, consolidation setup, shared accounting catalogs and practice rate cards; a client/engagement-scoped administrator or manager can no longer mutate those firm-wide resources.
+- Engagement grants must match both the stored engagement and its client parent. Translation preparation and approval now revalidate the active user/session epoch and require an explicit grant to that consolidation group.
+- Financial-package review queues apply active client/engagement/firm grant filtering before the bounded 100-row page and load of review decisions; exact package checks remain in place. Review artifacts are fetched only after the stage-specific authorization succeeds.
+- PostgreSQL regression batch: 39/39 passed. Full Domain suite: 253/253 passed; API suite: 6/6 passed. Release solution build passed with 0 warnings/errors; EF model-drift check reports no pending changes; `git diff --check` passed.
+- Full solution E2E suite: 9/10 passed. `PracticeBillingLedgerJourneyTests.ProspectTimeBillingAndManualFirmCloseKeepTheirBoundaries` remains failing with `time.rate-missing`; it predates this authorization slice and is not reported as passed.
+- On 2026-09-23, the user approved additive adoption of the parity baseline and continuation of AS-PAR-002. No approver name or job title was supplied, so none is attributed. The authoritative SPEC/WBS remain unchanged; this approval does not certify completion of AS-PAR-001's full traceability and review criteria.
+- This verifies a bounded subset of AS-PAR-002 only; no overall story, live tenant gate, production readiness, commit or push is claimed.
+
+## Group-scoped identity authorization continuation
+
+Observed on 2026-09-23 in the uncommitted `master` worktree at `f64a1f4ef05b`.
+
+- Consolidation, currency-translation and accounting capability group authorization now use one shared check that re-reads the same-firm user, rejects disabled and client-classified identities, verifies the current session epoch and requires an unrevoked role grant for an existing group in that firm. Denials keep the established non-disclosing `scope.denied` response.
+- Added a PostgreSQL regression proving stale-session, disabled-user and client-classified group actors cannot record capability acceptance; no acceptance evidence is written. It failed before the guard, then passed after the fix. The new test and existing foreign-operation translation regression pass 2/2.
+- Final full Domain suite: 254/254 passed, 0 skipped; full solution Release build: 0 warnings/errors; EF reports no pending model changes; `git diff --check` and status JSON parsing pass.
+- Remaining AS-PAR-002 route/read/UI-clearing and end-to-end scope coverage is not complete. The previously observed full-solution E2E `time.rate-missing` failure was not rerun during this slice. No schema migration, tenant operation, commit or push was performed.
+
+## Finance invoice detail scope and denied-state clearing
+
+Observed on 2026-09-23 in the uncommitted `master` worktree at `f64a1f4ef05b`.
+
+- Replaced direct firm-wide invoice/line/allocation reads in `InvoiceDetail.razor` with the finance-role and client-scope-checked `BillingService.GetInvoiceDetailAsync` query. The query authorizes the invoice's client before returning line text, allocations or balance.
+- If the detail query is denied, the page clears invoice, line, allocation and balance state, hides actions and renders the generic unavailable message. Removed the fallback balance calculation that ran after a denied balance query.
+- Added a PostgreSQL assertion for an authorized finance manager and a finance manager scoped to another client. Added a browser journey with synthetic invoice data: the correct manager sees the invoice; the other-client manager sees no invoice number, line description or `247.00` balance. Billing DB tests pass 2/2 and the focused Playwright journey passes 1/1.
+- Final full solution Release build passes with 0 warnings/errors. The 254-test Domain run predates this last invoice-query/UI slice; affected Billing tests and the browser journey were rerun after it. No database model/migration change was made.
+- Final-slice commands: `dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-restore --filter FullyQualifiedName~BillingTests`; `dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-restore --filter FullyQualifiedName~FinanceManagerScopedToAnotherClientCannotViewInvoiceOrFallbackBalance`; `dotnet build AuditSphereOps.slnx --no-restore --configuration Release`.
+- Remaining AS-PAR-002 audits across other routes, query/search/count/export/download paths, mutation transactions and denied-state UI behavior remain open; no whole-story completion is claimed.
+
+## Additional scoped-read routes and review-point disposition
+
+Observed on 2026-09-23 in the uncommitted `master` worktree at `f64a1f4ef05b`.
+
+- The client PBC request route now authorizes the exact client/engagement and current ClientUser grant before loading the request thread. A revoked/stale result on upload or reply clears the request, communication, upload, and browser-draft state; the open-circuit browser journey proves the reply is not persisted after revocation.
+- Engagement detail and completion pages now require a current internal role grant covering the exact engagement before loading client names, holds, review-point counts/comments, representations, package approvals, or EQR state. Completion clears the protected projection when release preparation returns a scope/session denial.
+- Client detail now requires a covering client-level grant, so an engagement-only grant cannot expose shared client contacts or sibling engagement metadata. A denied contact-creation result clears the loaded client projection.
+- Review-point reads now require a current scoped internal grant. Clear/reopen moved from direct Razor EF writes into a PostgreSQL-transactional application command that locks/revalidates the engagement and point, rechecks current session and role grant, and converges on repeated same-state commands. Denial clears the page projection.
+- Regression evidence: PBC service tests 8/8; review-point scoped/replay PostgreSQL test 1/1; combined `ClientScopeJourneyTests` browser suite 6/6 (authorized and denied client/engagement/review access plus mid-circuit PBC revocation); full solution Release build passed with 0 warnings/errors. No schema change or tenant operation was needed.
+- Remaining AS-PAR-002 route/query/search/count/export/download/direct-command review and broader mutation stale-session/idempotency coverage are still open. These slices do not complete AS-PAR-002 or the prototype backlog.
+
+## Finding detail scope and revoked-command protection
+
+Observed on 2026-09-23 in the uncommitted `master` worktree at `f64a1f4ef05b`.
+
+- Finding detail now resolves only the stored client/engagement scope, checks a current internal role grant for that exact scope, and loads the finding text, amount, management response and engagement state only after authorization. A denied or missing record renders the same non-disclosing unavailable state; route parameter changes clear prior detail state first.
+- If the guarded management-response command sees a revoked grant or stale session, the page clears the finding, engagement and draft projection. The transactional application command remains the mutation boundary.
+- Regression evidence: finding detail browser journey passes for authorized staff and denies a manager assigned to an unrelated client without exposing finding text, response or amount; PostgreSQL verifies the response command is denied after grant revocation and the finding remains unchanged. `ClientScopeJourneyTests` passes 7/7; `AuditPlanningTests` passes 22/22; Release solution build passes with 0 warnings/errors.
+- No schema migration or tenant operation was needed. Broader AS-PAR-002 query/search/count/export/download and remaining route/mutation audits are still open; no story completion is claimed.
+
+## Audit population detail scope and linked evidence isolation
+
+Observed on 2026-09-23 in the uncommitted `master` worktree at `f64a1f4ef05b`.
+
+- Audit population detail authorizes the stored client/engagement tuple before loading extraction metadata or linked content. Evidence links, source-receipt tokens, selections, selected items, item tests and review counts all use the same firm/client/engagement boundary; route parameter changes clear prior content before the next authorization check.
+- Regression evidence: assigned staff can see the synthetic population and receipt, while a manager scoped to another client sees no extraction details, receipt token, filename or monetary total. The complete `ClientScopeJourneyTests` suite passes 8/8; `AuditPlanningTests` passes 22/22; Release solution build passes with 0 warnings/errors.
+- No schema migration or tenant operation was needed. This route slice does not complete the AS-PAR-002 application-wide audit.
+
+## Workpaper detail, durable draft and submission-history scope
+
+Observed on 2026-09-23 in the uncommitted `master` worktree at `f64a1f4ef05b`.
+
+- Workpaper detail now authorizes its stored client/engagement tuple before loading the workpaper, durable draft, linked procedure or submission history. Every linked query is constrained to the same scope. If the draft command denies access, the page fails closed rather than falling back to content from the base row.
+- A revoked/stale identity is rechecked on draft save, submission and discard failures; access loss clears workpaper, submission and editor state. Ordinary target-generation conflicts remain recoverable without discarding local draft text.
+- Regression evidence: the browser journey confirms authorized staff can read the synthetic workpaper and frozen conclusion; an unrelated-client manager cannot. After mid-circuit grant revocation, the next autosave clears the editor and the attempted draft is not persisted. `ClientScopeJourneyTests` passes 9/9; `AuditPlanningTests` passes 22/22; Release solution build passes with 0 warnings/errors.
+- No schema migration or tenant operation was needed. This route slice does not complete AS-PAR-002.
+
+## Acceptance-decision route authorization
+
+Observed on 2026-09-23 in the uncommitted `master` worktree at `f64a1f4ef05b`.
+
+- The decision page now checks the persisted Partner role grant against the exact client before reading the client generation or displaying the decision form. A client-scoped Partner remains permitted; an unrelated-client Manager sees only a generic unavailable state.
+- Route parameter changes clear prior inputs and authorization state before reloading. If the transactional acceptance command reports a revoked grant or stale session, the page clears the form and generation projection. The command remains responsible for the final current-authorization check.
+- Regression evidence: `AcceptanceDecisionRequiresPartnerGrantForExactClient` and the full `ClientScopeJourneyTests` browser class pass 10/10; PostgreSQL `AuditPlanningTests` pass 22/22; full Release solution build passes with 0 warnings/errors; `git diff --check` passes.
+- No schema migration or tenant operation was needed. This route slice does not complete AS-PAR-002.
+
+## Accounting evidence queue scope
+
+Observed on 2026-09-23 in the uncommitted `master` worktree at `f64a1f4ef05b`.
+
+- Replaced the queue's role-name shortcut with `AuthorizationDecision` using the persisted, current internal role grants. Visible client and engagement IDs now derive only from active grants for the queue's allowed accounting roles; a scoped Administrator or Partner no longer becomes firm-wide by role name alone.
+- Regression evidence: the browser journey seeds synthetic specialist accounting evidence. A Partner scoped to its client sees the row; a Partner scoped to a different client sees an empty queue and no evidence reference. `ClientScopeJourneyTests` passes 11/11; `AuditPlanningTests` passes 22/22; full Release solution build passes with 0 warnings/errors; `git diff --check` passes.
+- No schema migration or tenant operation was needed. Mid-circuit read-only view refresh/revocation handling and the remaining AS-PAR-002 route/query/export/download audit remain open.
+
+## Assessment detail scope resolution
+
+Observed on 2026-09-23 in the uncommitted `master` worktree at `f64a1f4ef05b`.
+
+- Assessment routes now resolve only the client ID needed for the scope check, including the compatibility route keyed by acceptance-decision ID. The persisted current internal grant is checked before loading the client profile, full decision, workspace state, questionnaire responses or specialist clearances.
+- Route-parameter changes clear the previously loaded client, decision, workspace, question and clearance projection before reloading. The exact decision is loaded only after authorization succeeds.
+- Regression evidence: a client-scoped Partner can open a synthetic decision-ID route and sees its client registration/decision status; an unrelated-client Manager receives the unavailable state without either value or workspace details. `ClientScopeJourneyTests` passes 12/12; full Release solution build passes with 0 warnings/errors; `git diff --check` passes.
+- No schema migration or tenant operation was needed. This does not close AS-PAR-002; the broader read/export/download/mutation and mid-circuit revocation audit remains open.
+
+## Accounting workspace and record-queue grant scope
+
+Observed on 2026-09-23 in the uncommitted `master` worktree at `f64a1f4ef05b`.
+
+- The accounting workspace and mapping/journal/difference queues now authorize the current internal actor/session against an active accounting-role grant before loading data. Their client and engagement projections use only active grants for those roles; engagement grants are accepted only when the stored client matches the engagement's persisted parent.
+- Applied the same parent-consistency check to the accounting evidence queue. A grant attached to a different engagement/client pair can no longer expand these views to that engagement's parent client.
+- The exact accounting-period detail route checks the current session and a covering client-level accounting grant before loading its projection. An engagement-only grant is not widened to a client-level period record; route changes clear the previously displayed period before the next scope check.
+- Period roll-forward and restatement queues now require a current internal accounting grant and derive client-level period visibility only from firm-wide or direct client grants. Engagement-only grants cannot expose a client-owned period; restatement approval controls are limited to reviewer grants for the exact client or firm-wide scope. Selection loads reauthorize the requested client before reading closed periods/packages, and denied selection clears dependent data.
+- Regression evidence: the PostgreSQL-backed Playwright journey combines a direct Partner grant, an unrelated non-accounting Staff grant, and a deliberately mismatched Partner engagement grant. The workspace shows only the directly assigned client; its unrelated period and evidence marker stay hidden; the assigned client's difference remains visible while the unrelated client's difference, name and evidence reference stay hidden. A route-change journey opens an assigned period, then verifies that its content clears and an unrelated client period is denied. A period-maintenance journey verifies that a direct client Partner sees the closed period on both roll-forward and restatement pages, while an engagement-only AccountingPreparer sees neither that period nor the client on either page. `ClientScopeJourneyTests` passes 15/15; Release solution build passes with 0 warnings/errors; `git diff --check` passes.
+- No schema migration or tenant operation was needed. Mid-circuit read-only revocation handling and the wider AS-PAR-002 route/query/export/download/mutation audit remain open.
+
+## Firm-ledger and commercial lead read authorization
+
+Observed on 2026-09-23 in the uncommitted `master` worktree at `f64a1f4ef05b`.
+
+- Firm-ledger reads now use the existing `FinanceManager`/`FinanceReviewer` role policy and require an unscoped firm grant. Audit Partner or Administrator role names alone do not provide firm-ledger access. The close-period action is displayed only to a firm-wide `FinanceReviewer`, matching `LedgerService.CloseFiscalPeriodAsync`.
+- Commercial lead reads now use the same `Administrator`/`Partner`/`Manager`/`RelationshipManager` role set and firm-wide requirement as the CRM commands. The shared CRM command authorization also rejects client-classified identities; denied or stale command results clear the page projection.
+- Synthetic PostgreSQL-backed Playwright coverage verifies a firm-wide FinanceReviewer can read the firm period/account, while a client-scoped FinanceManager and firm-wide audit Partner cannot; a firm-wide RelationshipManager can read leads, while a client-scoped RelationshipManager and a client-classified identity with an erroneous firm-wide RelationshipManager grant cannot. `ClientScopeJourneyTests` passes 16/16, the focused firm-page journey passes after the final regression addition, `PracticeCrmTests` passes 9/9, and Release solution build passes with 0 warnings/errors.
+- No schema migration or tenant operation was needed. Remaining AS-PAR-002 work includes other route/query/search/count/export/download and direct-command paths, broader stale-state clearing, and a complete whole-application mutation/idempotency review.
+
+## Practice-time queue scope
+
+Observed on 2026-09-23 in the uncommitted `master` worktree at `f64a1f4ef05b`.
+
+- `PracticeTime.razor` now authorizes the current internal actor and derives work/review scopes only from active grants for the corresponding roles. Engagement grants must match the persisted engagement-to-client parent; engagement-only access no longer expands into sibling tasks or submitted narratives. Client reporting periods are shown only for firm-wide or direct client grants.
+- Task and time-entry projections are limited to visible exact client/engagement tuples. Review queues additionally require an applicable manager/partner/admin grant. A non-firmwide actor must select an authorized client period to create a client-scoped task; unscoped task creation requires a current firm-wide grant. `PracticeTimeService` applies the same internal/firm-wide boundary to commands.
+- PostgreSQL-backed browser coverage proves an engagement Manager sees its assigned task and narrative but not a sibling engagement's task/narrative or the client-level period. `PracticeTimeTests` passes 7/7; the practice billing/ledger browser journey passes 1/1 after stabilizing its status selectors and case-insensitive CSS-transformed status assertion. The full `ClientScopeJourneyTests` suite subsequently passes 19/19.
+- Final Release solution build passes with 0 warnings/errors; EF reports no pending model changes; `jq empty` and `git diff --check` pass. No schema migration, tenant operation, commit or push was performed.
+- AS-PAR-002 remains partial: other route/query/search/count/export/download/direct-command paths, stale rendered-state revocation handling, broader mutation/idempotency review and corresponding HTTP/browser coverage remain open. External gates remain unchanged.
+
+## Advanced consolidation read authorization
+
+Observed on 2026-09-23 in the uncommitted `master` worktree at `f64a1f4ef05b`.
+
+- `AdvancedConsolidationWorkflow.razor` now gates its scope name, method, counts, schedules, execution summaries and source-manifest projection through the existing `AuthorizationDecision.AuthorizeGroupAsync` helper. That check re-reads the same-firm active internal user and session epoch, rejects client-classified identities, verifies the group exists, and requires an active role grant for that exact group.
+- Added a PostgreSQL-backed Playwright negative case with an intentionally erroneous `AccountingPreparer` group grant on a Client identity. The route shows the generic unavailable state and exposes neither the synthetic group name nor scope ID. The focused test passes 1/1; the full `ClientScopeJourneyTests` suite passes 19/19.
+- Full Release solution build passes with 0 warnings/errors; EF reports no pending model changes. No schema migration or tenant operation was needed. AS-PAR-002 and all external gates remain open as previously recorded.
+
+## Firm administration and Microsoft 365 setup read authorization
+
+Observed on 2026-09-23 in the uncommitted `master` worktree at `f64a1f4ef05b`.
+
+- Firm administration and the Microsoft 365 setup page now use `AuthorizationDecision` with an explicit firm-wide `Administrator` role, `InternalOnly`, and current session validation before exposing role rosters, safety state or saved folder templates. The one-time Microsoft bootstrap eligibility path remains separately bound to the configured tenant/object identity and its existing setup capability.
+- Added a PostgreSQL-backed Playwright denial case for a Client identity with a deliberately erroneous firm-wide Administrator grant. It sees only the generic unavailable state, not firm safety, role roster or its own user record. `ClientScopeJourneyTests` passes 19/19; `M365SetupJourneyTests` passes 1/1.
+- Full Release solution build passes with 0 warnings/errors; EF reports no pending model changes. No schema migration or tenant operation was needed. The whole-application AS-PAR-002 audit remains partial.
 
 ## Implemented local capability
 
@@ -112,6 +264,23 @@ Test-environment recovery verified at `2026-09-22T19:42:54Z`: the preceding run 
 - The mapping workbench shows immutable current-vs-prior allocation changes, exact-dataset/chart/taxonomy applicability, and bounded token suggestions for unmapped accounts; candidates remain review-only, ambiguous matches are labeled, and no suggestion mutates allocations.
 - Consolidation automatic matches now require an explicit enabled elimination nature (receivable/payable, revenue/expense, dividend or investment/equity); outside-perimeter reviews remain review-only, approved group-only journals remain distinct, and the selected nature participates in the deterministic run manifest. Unsupported legacy natures fail closed.
 - The loopback restore drill now reconciles accounting package/artifact, consolidation scope/run/line and external component-pack manifests, and fails closed on duplicate release-delivery identities; the current rehearsal restored 91 migrations through `20260922140527_M365InvitationEvidenceAction`; external checkpoint custody and production RPO/RTO remain separate gates.
+
+## Scoped release and portfolio read authorization
+
+Observed on 2026-09-23 in the uncommitted `master` worktree at `f64a1f4ef05b`.
+
+- Portfolio projections now derive firm, client and engagement scopes only from active grants that pass `AuthorizationDecision` for the current internal user/session and the permitted portfolio roles. Engagement scopes are constrained to their stored client parent; firm-only durable-operation counts are no longer included for scoped users. A synthetic Client identity with an erroneous firm-wide Staff grant sees no private portfolio client.
+- Release-candidate detail authorizes the stored firm/client/engagement tuple before reading checkpoint, records-protection or signature-lineage metadata. A same-client sibling-engagement Staff identity sees only the generic unavailable state; candidate ID, artifact digest, profile ID and checkpoint reference are absent. The assigned Staff route still renders the expired attestation truthfully and prevents release.
+- The period-reopen browser fixture now grants the client-level accounting scope required by its client-owned period detail; the page continues to deny engagement-only users.
+- Verification at 2026-09-23 08:46 UTC: full Release solution build, 0 warnings/errors; API tests 6/6; PostgreSQL Domain tests 257/257; Playwright E2E tests 31/31; 294 discovered; EF model-drift check reports no pending changes. No schema migration or tenant operation. The changes are uncommitted, and AS-PAR-002 remains in progress.
+
+## AS-PAR-002 — PBC origin and client portal list scope
+
+Observed on 2026-09-23 in the uncommitted `master` worktree at `f64a1f4ef05b`.
+
+- The browser PBC chunk endpoint now requires a valid same-origin `Origin`; absent, malformed or foreign origins fail before staging. HTTP regression coverage confirms unauthenticated, missing-origin and forged-origin uploads create no chunk receipt or staging directory.
+- Client portal PBC-request and validated-package list queries now apply the current `ClientUser` grant at exact client/engagement scope in SQL before loading rows. Sibling-engagement PBC request metadata is absent while the assigned request remains visible in a PostgreSQL-backed Playwright journey.
+- Verification for source checkpoint `670d5ec`: API suite 6/6; full PostgreSQL Domain suite 257/257; full Playwright E2E suite 31/31; full Release build 0 warnings/errors; EF model drift none; 294 solution cases discovered; `git diff --check` and status JSON parsing pass. The same commit was pushed to `origin/master` and confirmed with `git ls-remote`. No schema migration, tenant mutation or external-provider acceptance. AS-PAR-002 remains partial.
 
 ## Remaining local implementation work
 

@@ -1,0 +1,23 @@
+{
+  "status": "PASS",
+  "recordedAt": "2026-09-22T17:52:00Z",
+  "environment": "Development/Test-only",
+  "url": "http://127.0.0.1:5032/app/consolidation",
+  "database": "auditsphere_browser",
+  "identity": "auditsphere-browser-preparer",
+  "advancedProfiles": [
+    { "method": "FOREIGN_CURRENCY_RESERVE_V1", "readiness": "APPROVED", "executions": "1 / 1" },
+    { "method": "ACQUISITION_NCI_V1", "readiness": "APPROVED", "executions": "1 / 1" },
+    { "method": "OWNERSHIP_CHANGE_V1", "readiness": "APPROVED", "executions": "1 / 1" },
+    { "method": "NESTED_GROUP_V1", "readiness": "APPROVED", "executions": "1 / 1" },
+    { "method": "ASSET_TRANSFER_ELIMINATION_V1", "readiness": "APPROVED", "executions": "1 / 1" }
+  ],
+  "assertions": [
+    "Each advanced profile is visible only in an explicitly granted group scope.",
+    "No profile is marked ready without an approved schedule and a verified, separately approved execution.",
+    "The local development harness exposes no provider effect or production activation."
+  ],
+  "limitations": [
+    "This is local browser evidence only; it is not live Microsoft provider, professional methodology, signing, records, recovery or production acceptance."
+  ]
+}
