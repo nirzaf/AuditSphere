@@ -143,6 +143,44 @@ public sealed class FinancialArtifactJourneyTests
   }
 
   [Fact]
+  [Trait("CaseId", "AS-PAR-002-FS-STALE-ROUTE-01")]
+  public async Task FinancialPackagePageClearsPriorPackageWhenRouteChangesToUnavailableId()
+  {
+    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false,
+      caseId: "AS-PAR-002-FS-STALE-ROUTE-01");
+    var (packageId, _) = await CreatePackageAsync(host);
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    var page = await browser.NewPageAsync();
+    var diagnostics = new List<string>();
+    var connected = WaitForCircuitConnectionAsync(page, diagnostics);
+    await page.GotoAsync(SignInUrl(host.StaffUrl, $"/app/accounting/packages/{packageId:D}"));
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Financial statement package" }).WaitForAsync();
+    await page.GetByText("Mapped statement totals", new() { Exact = true }).WaitForAsync();
+    await connected;
+    var documentToken = await page.EvaluateAsync<string>("window.__packageRouteTestToken = crypto.randomUUID()");
+
+    var unavailablePackageId = Guid.NewGuid();
+    await page.EvaluateAsync("""
+      (path) => {
+      const link = document.createElement('a');
+      link.href = path;
+      link.textContent = 'Open unavailable package';
+      document.body.append(link);
+      link.click();
+      }
+      """, $"/app/accounting/packages/{unavailablePackageId:D}");
+
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Package unavailable" })
+      .WaitForAsync(new() { Timeout = 5000 });
+    Assert.Equal(documentToken, await page.EvaluateAsync<string>("window.__packageRouteTestToken"));
+    var body = await page.Locator("body").InnerTextAsync();
+    Assert.DoesNotContain(packageId.ToString("D"), body);
+    Assert.DoesNotContain("Mapped statement totals", body);
+    Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
+  }
+
+  [Fact]
   [Trait("CaseId", "AS-PAR-002-ACCT-RECORD-TABS-01")]
   public async Task AccountingRecordTabsReloadTheirScopedQueueDuringInAppNavigation()
   {
