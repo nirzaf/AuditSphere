@@ -6,14 +6,14 @@ This file records observed repository state only. The authoritative build contra
 
 | Item | Observed value |
 |---|---|
-| Source implementation checkpoint | `master@670d5ecbf0f2b5eda928fe89a3234e0abf92a050`; implementation/test/CI changes committed |
-| Remote | `origin/master` confirmed to contain `670d5ecbf0f2b5eda928fe89a3234e0abf92a050` at 2026-09-23 08:53 UTC; later checkpoint is documentation/evidence only |
+| Source implementation checkpoint | `master@f1467e620b9400923fb324fcb57e66d9ced3eba6`; implementation/test/CI changes committed |
+| Remote | `origin/master` confirmed to equal `f1467e620b9400923fb324fcb57e66d9ced3eba6` at 2026-09-23 09:10 UTC |
 | SDK | .NET 10; repository solution targets `net10.0` |
 | Database | PostgreSQL 18.6 on loopback port 5433 for development only |
-| Build | Full solution Release build for source checkpoint `670d5ec` — passed, 0 warnings/errors |
-| Tests | Full solution run on 2026-09-23 for `670d5ec`: API 6/6, Domain 257/257, E2E 31/31; 0 skipped (294 discovered) |
+| Build | Full solution Release build for source checkpoint `f1467e6` — passed, 0 warnings/errors |
+| Tests | Full solution run on 2026-09-23 for `f1467e6`: API 6/6, Domain 257/257, E2E 31/31; 0 skipped (294 discovered) |
 | Migrations | Previous recorded baseline: 91 applied through `20260922140527_M365InvitationEvidenceAction`; no schema migration in these slices |
-| Model drift | `dotnet ef migrations has-pending-model-changes` — no pending model changes on 2026-09-23 |
+| Model drift | `dotnet ef migrations has-pending-model-changes` — no pending model changes after consolidation authorization slice on 2026-09-23 |
 | Restore drill | Previously passed at `2026-09-22T18:52:20Z`; 91 migrations, accounting/group manifests and release-delivery identities reconciled; not rerun during test recovery |
 | Production effects | Disabled locally; no production acceptance claimed |
 
@@ -32,7 +32,7 @@ Observed on 2026-09-22; this is separate from the historical runtime verificatio
 
 ## Prototype gap-closure scope authorization slice
 
-Implemented in source checkpoint `master@670d5ecbf0f2b5eda928fe89a3234e0abf92a050`, pushed to `origin/master` and verified there at 2026-09-23 08:53 UTC. Documentation/evidence follow-up does not change runtime source.
+Implemented in source checkpoint `master@670d5ecbf0f2b5eda928fe89a3234e0abf92a050`, pushed to `origin/master` and verified there at 2026-09-23 08:53 UTC. Documentation/evidence follow-up did not change runtime source.
 
 - Tightened firm-wide authorization for recovery, firm-ledger, CRM, records-profile, consolidation setup, shared accounting catalogs and practice rate cards; a client/engagement-scoped administrator or manager can no longer mutate those firm-wide resources.
 - Engagement grants must match both the stored engagement and its client parent. Translation preparation and approval now revalidate the active user/session epoch and require an explicit grant to that consolidation group.
@@ -281,6 +281,14 @@ Observed on 2026-09-23 in the uncommitted `master` worktree at `f64a1f4ef05b`.
 - The browser PBC chunk endpoint now requires a valid same-origin `Origin`; absent, malformed or foreign origins fail before staging. HTTP regression coverage confirms unauthenticated, missing-origin and forged-origin uploads create no chunk receipt or staging directory.
 - Client portal PBC-request and validated-package list queries now apply the current `ClientUser` grant at exact client/engagement scope in SQL before loading rows. Sibling-engagement PBC request metadata is absent while the assigned request remains visible in a PostgreSQL-backed Playwright journey.
 - Verification for source checkpoint `670d5ec`: API suite 6/6; full PostgreSQL Domain suite 257/257; full Playwright E2E suite 31/31; full Release build 0 warnings/errors; EF model drift none; 294 solution cases discovered; `git diff --check` and status JSON parsing pass. The same commit was pushed to `origin/master` and confirmed with `git ls-remote`. No schema migration, tenant mutation or external-provider acceptance. AS-PAR-002 remains partial.
+
+## AS-PAR-002 — Consolidation overview group authorization
+
+Implemented in source checkpoint `master@f1467e620b9400923fb324fcb57e66d9ced3eba6`, pushed to `origin/master` and verified there at 2026-09-23 09:10 UTC.
+
+- `/app/consolidation` now validates each candidate group grant through the existing `AuthorizationDecision.AuthorizeGroupAsync` policy before loading group names, scopes or readiness counts. Rate-set and translation-policy lookups are limited to IDs referenced by the authorized scopes.
+- The PostgreSQL-backed browser regression confirms an assigned staff member can view the granted group, while a client identity carrying an erroneous `AccountingPreparer` group grant is denied both the overview and the advanced workflow without the private group name or scope ID.
+- Verification for `f1467e6`: targeted browser case 1/1; full solution Release run API 6/6, Domain 257/257, E2E 31/31; 294/294 discovered, 0 skipped; build 0 warnings/errors; EF reports no pending model changes. `git ls-remote` confirmed the exact commit on `origin/master`. No schema migration or tenant operation. AS-PAR-002 remains partial.
 
 ## Remaining local implementation work
 
