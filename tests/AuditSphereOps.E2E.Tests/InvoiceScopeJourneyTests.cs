@@ -15,8 +15,11 @@ public sealed class InvoiceScopeJourneyTests
   {
     await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "AS-PAR-002-INV-01");
     Guid invoiceId;
+    Guid unrelatedInvoiceId;
     const string invoiceNumber = "SYN-PAR-002-INV-001";
     const string privateLine = "Synthetic restricted invoice line";
+    const string unrelatedInvoiceNumber = "SYN-PAR-002-INV-002";
+    const string unrelatedPrivateLine = "Synthetic other-client invoice line";
     var viewer = PbcSeed.User(host.Fixture.FirmId, "Staff");
     var invoiceClientManager = PbcSeed.User(host.Fixture.FirmId, "Staff");
     var unrelatedClientId = Guid.NewGuid();
@@ -44,6 +47,15 @@ public sealed class InvoiceScopeJourneyTests
         new CreateInvoiceDraftRequest(account.Value, invoiceNumber, [new InvoiceLineRequest(privateLine, 1m, 247m)]));
       Assert.True(invoice.Succeeded, invoice.Message);
       invoiceId = invoice.Value;
+
+      var unrelatedAccount = await BillingService.CreateBillingAccountAsync(db,
+        PbcSeed.Actor(viewer, "FinanceManager"), new CreateBillingAccountRequest(unrelatedClientId, "QAR"));
+      Assert.True(unrelatedAccount.Succeeded, unrelatedAccount.Message);
+      var unrelatedInvoice = await BillingService.CreateInvoiceDraftAsync(db,
+        PbcSeed.Actor(viewer, "FinanceManager"), new CreateInvoiceDraftRequest(unrelatedAccount.Value,
+          unrelatedInvoiceNumber, [new InvoiceLineRequest(unrelatedPrivateLine, 1m, 991m)]));
+      Assert.True(unrelatedInvoice.Succeeded, unrelatedInvoice.Message);
+      unrelatedInvoiceId = unrelatedInvoice.Value;
     }
 
     var managerUrl = await host.StartWebForIdentityAsync(invoiceClientManager);
@@ -62,6 +74,24 @@ public sealed class InvoiceScopeJourneyTests
     Assert.Contains(privateLine, managerBody);
     Assert.Contains("247.00", managerBody);
     Assert.DoesNotContain(managerDiagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
+
+    var documentToken = Guid.NewGuid().ToString("N");
+    await managerPage.EvaluateAsync("token => window.__invoiceRouteTestToken = token", documentToken);
+    await managerPage.EvaluateAsync("path => { history.pushState({}, '', path); dispatchEvent(new PopStateEvent('popstate')); }",
+      $"/app/practice/invoices/{unrelatedInvoiceId:D}");
+    await managerPage.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable" }).WaitForAsync();
+    var deniedRouteBody = await managerPage.Locator("body").InnerTextAsync();
+    Assert.DoesNotContain(invoiceNumber, deniedRouteBody);
+    Assert.DoesNotContain(privateLine, deniedRouteBody);
+    Assert.DoesNotContain("247.00", deniedRouteBody);
+    Assert.DoesNotContain(unrelatedInvoiceNumber, deniedRouteBody);
+    Assert.DoesNotContain(unrelatedPrivateLine, deniedRouteBody);
+    Assert.Equal(documentToken, await managerPage.EvaluateAsync<string>("window.__invoiceRouteTestToken"));
+
+    await managerPage.EvaluateAsync("path => { history.pushState({}, '', path); dispatchEvent(new PopStateEvent('popstate')); }",
+      $"/app/practice/invoices/{invoiceId:D}");
+    await managerPage.GetByText(invoiceNumber, new() { Exact = true }).WaitForAsync();
+    Assert.Contains(privateLine, await managerPage.Locator("body").InnerTextAsync());
 
     await using var context = await browser.NewContextAsync();
     var page = await context.NewPageAsync();

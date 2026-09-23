@@ -158,35 +158,45 @@ else
   private string? _successMessage;
   private bool _loading = true;
   private bool _busy;
+  private Guid? _loadedInvoiceId;
+  private bool _routeInitialized;
+  private long _loadGeneration;
 
-  protected override async Task OnInitializedAsync()
+  protected override async Task OnParametersSetAsync()
   {
-    _actor = await ActorResolver.ResolveAsync();
-    if (_actor is not null)
+    if (_routeInitialized && _loadedInvoiceId == InvoiceId) return;
+    _routeInitialized = true;
+    _loadedInvoiceId = InvoiceId;
+    var generation = ++_loadGeneration;
+    ClearInvoice();
+    _loading = true;
+    try
     {
-      _isAuthorized = _actor.Roles.Any(x => x is "FinanceManager" or "FinanceReviewer");
-      _canAct = _isAuthorized;
-      if (_isAuthorized)
+      _actor = await ActorResolver.ResolveAsync();
+      if (_actor is not null)
       {
-        await LoadInvoiceAsync();
+        _isAuthorized = _actor.Roles.Any(x => x is "FinanceManager" or "FinanceReviewer");
+        _canAct = _isAuthorized;
+        if (_isAuthorized)
+          await LoadInvoiceAsync(InvoiceId, generation);
       }
     }
-    _loading = false;
+    finally
+    {
+      if (generation == _loadGeneration) _loading = false;
+    }
   }
 
-  private async Task LoadInvoiceAsync()
+  private async Task LoadInvoiceAsync(Guid invoiceId, long generation)
   {
-    if (_actor is null) return;
+    var actor = _actor;
+    if (actor is null) return;
     await using var db = await DbFactory.CreateDbContextAsync();
-    var detail = await BillingService.GetInvoiceDetailAsync(db, _actor, InvoiceId);
+    var detail = await BillingService.GetInvoiceDetailAsync(db, actor, invoiceId);
+    if (generation != _loadGeneration) return;
     if (!detail.Succeeded || detail.Value is null)
     {
-      _isAuthorized = false;
-      _canAct = false;
-      _invoice = null;
-      _lines = [];
-      _allocations = [];
-      _balance = 0;
+      ClearInvoice();
       return;
     }
     _invoice = detail.Value.Invoice;
@@ -195,59 +205,78 @@ else
     _balance = detail.Value.Balance.Outstanding;
   }
 
+  private void ClearInvoice()
+  {
+    _actor = null;
+    _isAuthorized = false;
+    _canAct = false;
+    _invoice = null;
+    _balance = 0;
+    _lines = [];
+    _allocations = [];
+    _result = null;
+    _successMessage = null;
+  }
+
+  private void ApplyCommandResult(CommandResult result, string successMessage, long generation)
+  {
+    if (generation != _loadGeneration) return;
+    _result = result;
+    _successMessage = result.Succeeded ? successMessage : null;
+    if (!result.Succeeded && result.ErrorCode is ErrorCodes.ScopeDenied or ErrorCodes.GenerationStale)
+      ClearInvoice();
+  }
+
   private async Task ApproveInvoiceAsync()
   {
-    if (_actor is null || _invoice is null || _busy) return;
+    var actor = _actor;
+    var invoice = _invoice;
+    var generation = _loadGeneration;
+    if (actor is null || invoice is null || _busy) return;
     _busy = true;
     _result = null;
     try
     {
       await using var db = await DbFactory.CreateDbContextAsync();
-      var res = await BillingService.ApproveInvoiceAsync(db, _actor, _invoice.Id);
-      _result = res;
-      if (res.Succeeded)
-      {
-        _successMessage = "Invoice approved.";
-        await LoadInvoiceAsync();
-      }
+      var result = await BillingService.ApproveInvoiceAsync(db, actor, invoice.Id);
+      ApplyCommandResult(result, "Invoice approved.", generation);
+      if (result.Succeeded && generation == _loadGeneration) await LoadInvoiceAsync(invoice.Id, generation);
     }
     finally { _busy = false; }
   }
 
   private async Task PostInvoiceAsync()
   {
-    if (_actor is null || _invoice is null || _busy) return;
+    var actor = _actor;
+    var invoice = _invoice;
+    var generation = _loadGeneration;
+    if (actor is null || invoice is null || _busy) return;
     _busy = true;
     _result = null;
     try
     {
       await using var db = await DbFactory.CreateDbContextAsync();
-      var res = await BillingService.PostInvoiceAsync(db, _actor, _invoice.Id);
-      _result = res;
-      if (res.Succeeded)
-      {
-        _successMessage = "Invoice posted and frozen.";
-        await LoadInvoiceAsync();
-      }
+      var result = await BillingService.PostInvoiceAsync(db, actor, invoice.Id);
+      ApplyCommandResult(result, "Invoice posted and frozen.", generation);
+      if (result.Succeeded && generation == _loadGeneration) await LoadInvoiceAsync(invoice.Id, generation);
     }
     finally { _busy = false; }
   }
 
   private async Task SendInvoiceAsync()
   {
-    if (_actor is null || _invoice is null || _busy) return;
+    var actor = _actor;
+    var invoice = _invoice;
+    var generation = _loadGeneration;
+    if (actor is null || invoice is null || _busy) return;
     _busy = true;
     _result = null;
     try
     {
       await using var db = await DbFactory.CreateDbContextAsync();
-      var res = await BillingService.SendInvoiceAsync(db, _actor, _invoice.Id);
-      _result = res;
-      if (res.Succeeded)
-      {
-        _successMessage = "Invoice marked as sent.";
-        await LoadInvoiceAsync();
-      }
+      var result = await BillingService.SendInvoiceAsync(db, actor, invoice.Id);
+      ApplyCommandResult(result, "Invoice marked as sent.", generation);
+      if (result.Succeeded && generation == _loadGeneration) await LoadInvoiceAsync(invoice.Id, generation);
     }
     finally { _busy = false; }
   }
