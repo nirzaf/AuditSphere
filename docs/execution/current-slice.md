@@ -6,16 +6,22 @@ This file records observed repository state only. The authoritative build contra
 
 | Item | Observed value |
 |---|---|
-| Source/test checkpoint | `master@07d1a352ffa16511ec2b7150f0f0b2a9201ec71d`; ReviewPoint dispositions recheck current grants and route changes reload only the authorized point |
-| Remote | `origin/master` confirmed to equal `07d1a352ffa16511ec2b7150f0f0b2a9201ec71d` at 2026-09-23 19:58 UTC |
+| Source/test checkpoint | `master@72944dd8f4d0ab408b0e257275d25ef9e1ca4f55`; ReviewPoint and RecordsArchive reauthorize route changes and clear prior scoped projections |
+| Remote | `origin/master` confirmed to equal `72944dd8f4d0ab408b0e257275d25ef9e1ca4f55` at 2026-09-23 20:24 UTC |
 | SDK | .NET 10; repository solution targets `net10.0` |
 | Database | PostgreSQL 18.6 on loopback port 5433 for development only |
-| Build | Full solution Release build for `07d1a35` — passed, 0 warnings/errors |
-| Tests | Fresh discovery: 313 (Domain 259, API 6, E2E 48). Aggregate solution run passed Domain 259/259, API 6/6 and E2E 48/48; 313 total, 0 skips. The focused ReviewPoint route/revocation journeys passed 2/2; accounting-record navigation passed 1/1. |
+| Build | Full solution Release build for `72944dd` — passed, 0 warnings/errors |
+| Tests | Fresh discovery: 314 (Domain 259, API 6, E2E 49). Aggregate solution run passed Domain 259/259, API 6/6 and E2E 49/49; 314 total, 0 skips. RecordsArchive stale-route E2E passed 1/1; full E2E passed 49/49. |
 | Migrations | Added `20260923145244_ProposalPreparedByAttribution`; prior-schema PostgreSQL regression upgraded a synthetic legacy proposal and preserved its values with preparer left unknown. The existing local `auditsphere` database remains at its 91-migration baseline. |
-| Model drift | `dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Web` — no pending model changes for tested `07d1a35` source; no schema changes in these UI/test slices |
+| Model drift | `dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Web` — no pending model changes for tested `72944dd` source; no schema changes in these UI/test slices |
 | Restore drill | Passed at `2026-09-23T15:20:43Z` on loopback; restored the existing `auditsphere` source at 91 migrations through `20260922140527_M365InvitationEvidenceAction`. Evidence was redirected to `/tmp`; the check does not apply the new proposal migration to that development database. |
 | Production effects | Disabled locally; no production acceptance claimed |
+
+## AS-PAR-002 — Records archive route reauthorization (`72944dd`)
+
+- `RecordsArchive.razor` now reloads and reauthorizes on route-parameter changes, immediately clears the prior manifest/entry projection, and fences stale reads so an earlier request cannot repopulate a newer route.
+- Added `AS-PAR-002-ARCH-STALE-ROUTE-01`: the same browser document switches from an authorized synthetic archive to an unrelated client's archive, confirms profile/digest/entry data and archive headings are absent, then returns to the authorized archive without a document reload.
+- Release build passed with 0 warnings/errors; fresh discovery is 314 (Domain 259, API 6, E2E 49); focused archive E2E passed 1/1, full E2E 49/49 and full solution tests 314/314 with 0 skips. EF reports no pending model changes. Commit `72944dd8f4d0ab408b0e257275d25ef9e1ca4f55` was pushed to `master` and remote-confirmed at 2026-09-23 20:24 UTC. No migration, tenant operation or production effect. AS-PAR-002 remains partial.
 
 ## AS-PAR-002 — Review-point revocation state clearing (`07b0e44`)
 
