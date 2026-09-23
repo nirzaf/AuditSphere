@@ -1534,6 +1534,91 @@ public sealed class ClientScopeJourneyTests
   }
 
   [Fact]
+  [Trait("CaseId", "AS-PAR-002-CLIENT-STALE-ROUTE-01")]
+  public async Task ClientProfileClearsPriorClientOnUnauthorizedSameDocumentRouteChange()
+  {
+    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false,
+      caseId: "AS-PAR-002-CLIENT-STALE-ROUTE-01");
+    var manager = PbcSeed.User(host.Fixture.FirmId, "Staff");
+    var unrelatedClientId = Guid.NewGuid();
+    const string privateClientName = "SYNTHETIC-PAR-002-PRIVATE-CLIENT-A";
+    const string privateContact = "SYNTHETIC-PAR-002-PRIVATE-CONTACT-A";
+    const string privateEngagement = "SYNTHETIC-PAR-002-PRIVATE-ENGAGEMENT-A";
+    const string unrelatedClientName = "SYNTHETIC-PAR-002-UNRELATED-CLIENT-B";
+    await using (var db = host.CreateDbContext())
+    {
+      var client = await db.PracticeClients.SingleAsync(x => x.Id == host.Fixture.ClientId);
+      client.LegalName = privateClientName;
+      client.RegistrationNumber = "SYNTHETIC-REGISTRATION-A";
+      var engagement = await db.Engagements.SingleAsync(x => x.Id == host.Fixture.EngagementId);
+      engagement.ServiceRoute = privateEngagement;
+      db.ClientContacts.Add(new ClientContact
+      {
+        Id = Guid.NewGuid(), FirmId = host.Fixture.FirmId, PracticeClientId = client.Id,
+        FullName = privateContact, Email = "private-contact-a@synthetic.test", Role = "Synthetic CFO",
+        ValidFrom = DateTimeOffset.UtcNow, Primary = true
+      });
+      db.PracticeClients.Add(new PracticeClient
+      {
+        Id = unrelatedClientId, FirmId = host.Fixture.FirmId,
+        LegalName = unrelatedClientName, CreatedAt = DateTimeOffset.UtcNow
+      });
+      db.Engagements.Add(new Engagement
+      {
+        Id = Guid.NewGuid(), FirmId = host.Fixture.FirmId, PracticeClientId = unrelatedClientId,
+        ServiceRoute = "SYNTHETIC-PAR-002-UNRELATED-ENGAGEMENT-B", Status = "Active",
+        CreatedAt = DateTimeOffset.UtcNow
+      });
+      db.Users.Add(manager);
+      db.RoleGrants.Add(PbcSeed.Grant(host.Fixture.FirmId, manager, "Manager",
+        clientId: host.Fixture.ClientId));
+      await db.SaveChangesAsync();
+    }
+
+    var managerUrl = await host.StartWebForIdentityAsync(manager);
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    var page = await browser.NewPageAsync();
+    var diagnostics = new List<string>();
+    page.PageError += (_, error) => diagnostics.Add($"page-error: {error}");
+    var connected = WaitForCircuitConnectionAsync(page, diagnostics);
+    await page.GotoAsync(SignInUrl(managerUrl, $"/app/clients/{host.Fixture.ClientId:D}"));
+    await connected;
+    try
+    {
+      await page.GetByText(privateContact, new() { Exact = true }).WaitForAsync(new() { Timeout = 5000 });
+    }
+    catch (TimeoutException ex)
+    {
+      throw new Xunit.Sdk.XunitException($"Authorized client profile did not load.\n{await page.Locator("body").InnerTextAsync()}\n{string.Join("\n", diagnostics)}\n{ex.Message}");
+    }
+    await page.GetByText(privateEngagement, new() { Exact = true }).WaitForAsync();
+    await page.GetByText(privateClientName, new() { Exact = true }).WaitForAsync();
+
+    var documentToken = Guid.NewGuid().ToString("N");
+    await page.EvaluateAsync("token => window.__clientDetailRouteToken = token", documentToken);
+    await page.EvaluateAsync("path => { history.pushState({}, '', path); dispatchEvent(new PopStateEvent('popstate')); }",
+      $"/app/clients/{unrelatedClientId:D}");
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Client unavailable" })
+      .WaitForAsync(new() { Timeout = 5000 });
+    var deniedBody = await page.Locator("body").InnerTextAsync();
+    Assert.DoesNotContain(privateClientName, deniedBody);
+    Assert.DoesNotContain("SYNTHETIC-REGISTRATION-A", deniedBody);
+    Assert.DoesNotContain(privateContact, deniedBody);
+    Assert.DoesNotContain("private-contact-a@synthetic.test", deniedBody);
+    Assert.DoesNotContain(privateEngagement, deniedBody);
+    Assert.DoesNotContain("SYNTHETIC-PAR-002-UNRELATED-ENGAGEMENT-B", deniedBody);
+    Assert.Equal(documentToken, await page.EvaluateAsync<string>("window.__clientDetailRouteToken"));
+
+    await page.EvaluateAsync("path => { history.pushState({}, '', path); dispatchEvent(new PopStateEvent('popstate')); }",
+      $"/app/clients/{host.Fixture.ClientId:D}");
+    await page.GetByText(privateContact, new() { Exact = true }).WaitForAsync();
+    await page.GetByText(privateEngagement, new() { Exact = true }).WaitForAsync();
+    Assert.Equal(documentToken, await page.EvaluateAsync<string>("window.__clientDetailRouteToken"));
+    Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
+  }
+
+  [Fact]
   [Trait("CaseId", "AS-PAR-002-REV-REVOKE-01")]
   public async Task ReviewPointClearsProtectedStateWhenCurrentGrantIsRevoked()
   {

@@ -158,65 +158,89 @@ else
   private string? _successMessage;
   private bool _loading = true;
   private bool _busy;
+  private Guid? _loadedClientId;
+  private bool _routeInitialized;
+  private long _loadGeneration;
 
   private string _contactName = string.Empty;
   private string _contactEmail = string.Empty;
   private string _contactRole = string.Empty;
   private bool _contactPrimary;
 
-  protected override async Task OnInitializedAsync()
+  protected override async Task OnParametersSetAsync()
   {
-    _actor = await ActorResolver.ResolveAsync();
-    if (_actor is not null)
+    if (_routeInitialized && _loadedClientId == ClientId) return;
+    _routeInitialized = true;
+    _loadedClientId = ClientId;
+    var clientId = ClientId;
+    var generation = ++_loadGeneration;
+    ClearClient();
+    _busy = false;
+    _loading = true;
+    try
     {
-      _isStaff = _actor.Roles.Any(x => x is "Administrator" or "Partner" or "Manager" or "Staff" or "CommercialManager" or "EngagementLeader");
-      _canManageContacts = _actor.Roles.Any(x => x is "Administrator" or "Partner" or "Manager" or "CommercialManager" or "EngagementLeader");
-      if (_isStaff)
+      var actor = await ActorResolver.ResolveAsync();
+      if (!IsCurrentLoad(generation, clientId)) return;
+      _actor = actor;
+      if (actor is not null)
       {
-        await LoadClientAsync();
+        _isStaff = actor.Roles.Any(x => x is "Administrator" or "Partner" or "Manager" or "Staff" or "CommercialManager" or "EngagementLeader");
+        _canManageContacts = actor.Roles.Any(x => x is "Administrator" or "Partner" or "Manager" or "CommercialManager" or "EngagementLeader");
+        if (_isStaff)
+          await LoadClientAsync(actor, clientId, generation);
       }
     }
-    _loading = false;
+    finally
+    {
+      if (IsCurrentLoad(generation, clientId)) _loading = false;
+    }
   }
 
-  private async Task LoadClientAsync()
+  private async Task LoadClientAsync(ActorContext actor, Guid clientId, long generation)
   {
-    if (_actor is null) return;
     await using var db = await DbFactory.CreateDbContextAsync();
-    var authorization = await AuthorizationDecision.AuthorizeAsync(db, _actor,
-      new AuthorizationRequest(_actor.FirmId, ClientId,
+    var authorization = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, clientId,
         RequiredRoles: ["Administrator", "Partner", "Manager", "Staff", "CommercialManager", "EngagementLeader"],
         InternalOnly: true));
-    if (!authorization.Succeeded) return;
+    if (!IsCurrentLoad(generation, clientId) || !authorization.Succeeded) return;
 
-    _client = await db.PracticeClients.AsNoTracking()
-      .SingleOrDefaultAsync(x => x.Id == ClientId && x.FirmId == _actor.FirmId);
-    if (_client is not null)
+    var client = await db.PracticeClients.AsNoTracking()
+      .SingleOrDefaultAsync(x => x.Id == clientId && x.FirmId == actor.FirmId);
+    if (client is not null)
     {
-      _safetyState = await db.ClientSafetyStates.AsNoTracking()
-        .SingleOrDefaultAsync(x => x.Id == _client.Id && x.FirmId == _actor.FirmId);
-      _contacts = await db.ClientContacts.AsNoTracking()
-        .Where(x => x.PracticeClientId == _client.Id && x.FirmId == _actor.FirmId)
+      var safetyState = await db.ClientSafetyStates.AsNoTracking()
+        .SingleOrDefaultAsync(x => x.Id == client.Id && x.FirmId == actor.FirmId);
+      var contacts = await db.ClientContacts.AsNoTracking()
+        .Where(x => x.PracticeClientId == client.Id && x.FirmId == actor.FirmId)
         .OrderByDescending(x => x.Primary)
         .ThenBy(x => x.FullName)
         .ToListAsync();
-      _engagements = await db.Engagements.AsNoTracking()
-        .Where(x => x.PracticeClientId == _client.Id && x.FirmId == _actor.FirmId)
+      var engagements = await db.Engagements.AsNoTracking()
+        .Where(x => x.PracticeClientId == client.Id && x.FirmId == actor.FirmId)
         .OrderByDescending(x => x.CreatedAt)
         .ToListAsync();
+      if (!IsCurrentLoad(generation, clientId)) return;
+      _client = client;
+      _safetyState = safetyState;
+      _contacts = contacts;
+      _engagements = engagements;
     }
   }
 
   private async Task CreateContactAsync()
   {
-    if (_actor is null || _client is null || _busy) return;
+    var actor = _actor;
+    var client = _client;
+    var generation = _loadGeneration;
+    if (actor is null || client is null || client.Id != ClientId || _busy) return;
     _busy = true;
     _result = null;
     try
     {
       await using var db = await DbFactory.CreateDbContextAsync();
       var req = new CreateClientContactRequest(
-        PracticeClientId: _client.Id,
+        PracticeClientId: client.Id,
         FullName: _contactName,
         Email: _contactEmail,
         Role: _contactRole,
@@ -225,15 +249,12 @@ else
         ValidTo: null,
         Primary: _contactPrimary
       );
-      var res = await PracticeCrmService.CreateClientContactAsync(db, _actor, req);
+      var res = await PracticeCrmService.CreateClientContactAsync(db, actor, req);
+      if (generation != _loadGeneration) return;
       _result = res.Succeeded ? CommandResult.Ok() : CommandResult.Fail(res.ErrorCode!, res.Message!);
       if (!res.Succeeded && (res.ErrorCode is ErrorCodes.ScopeDenied or ErrorCodes.GenerationStale))
       {
-        _client = null;
-        _safetyState = null;
-        _contacts.Clear();
-        _engagements.Clear();
-        _result = null;
+        ClearClient();
         return;
       }
       if (res.Succeeded)
@@ -243,9 +264,32 @@ else
         _contactEmail = string.Empty;
         _contactRole = string.Empty;
         _contactPrimary = false;
-        await LoadClientAsync();
+        await LoadClientAsync(actor, client.Id, generation);
       }
     }
-    finally { _busy = false; }
+    finally
+    {
+      if (generation == _loadGeneration) _busy = false;
+    }
   }
+
+  private void ClearClient()
+  {
+    _actor = null;
+    _isStaff = false;
+    _canManageContacts = false;
+    _client = null;
+    _safetyState = null;
+    _contacts = [];
+    _engagements = [];
+    _result = null;
+    _successMessage = null;
+    _contactName = string.Empty;
+    _contactEmail = string.Empty;
+    _contactRole = string.Empty;
+    _contactPrimary = false;
+  }
+
+  private bool IsCurrentLoad(long generation, Guid clientId) =>
+    generation == _loadGeneration && ClientId == clientId;
 }
