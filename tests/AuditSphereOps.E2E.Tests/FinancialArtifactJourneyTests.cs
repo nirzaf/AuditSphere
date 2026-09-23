@@ -212,7 +212,20 @@ public sealed class FinancialArtifactJourneyTests
     await adjustmentTab.ClickAsync();
     await page.WaitForURLAsync("**/app/accounting/journals");
     await page.Locator("h1").GetByText("Adjustment journals", new() { Exact = true }).WaitForAsync();
-    await page.GetByText("AJ-E2E-001", new() { Exact = true }).WaitForAsync();
+    try
+    {
+      await page.GetByText("AJ-E2E-001", new() { Exact = true }).WaitForAsync(new() { Timeout = 5_000 });
+    }
+    catch (TimeoutException)
+    {
+      var failureBody = await page.Locator("body").InnerTextAsync();
+      var staffLog = Directory.GetFiles(host.RunRoot, $"web-Staff-{host.Fixture.Staff.Id:N}.log").SingleOrDefault();
+      var logText = staffLog is null ? string.Empty : File.ReadAllText(staffLog);
+      var failureAt = logText.LastIndexOf("Failed to load accounting records queue", StringComparison.Ordinal);
+      var error = failureAt < 0 ? "No component exception was logged."
+        : logText[failureAt..Math.Min(logText.Length, failureAt + 8_000)];
+      throw new Xunit.Sdk.XunitException($"Journal list missing after tab navigation. URL={page.Url}\n{failureBody}\n{string.Join("\n", diagnostics)}\n{error}");
+    }
     var body = await page.Locator("body").InnerTextAsync();
     if (!body.Contains("AJ-E2E-001", StringComparison.Ordinal))
       throw new Xunit.Sdk.XunitException($"Journal list missing after tab navigation. URL={page.Url}\n{body}\n{string.Join("\n", diagnostics)}");

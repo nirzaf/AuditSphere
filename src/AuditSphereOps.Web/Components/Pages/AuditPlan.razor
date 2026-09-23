@@ -364,125 +364,206 @@ else
     string _findingType = "";
     string _findingImpact = "";
     decimal _findingAmount;
+    private static readonly string[] PlanningRoles =
+        ["Partner", "Manager", "SeniorManager", "Senior", "Staff", "Auditor", "EngagementLeader", "Administrator"];
+    Guid? _lastRequestedEngagementId;
+    bool _routeInitialized;
+    long _loadGeneration;
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnParametersSetAsync()
     {
+        var requestedEngagementId = EngagementId ?? Id;
+        if (_routeInitialized && requestedEngagementId == _lastRequestedEngagementId) return;
+        _routeInitialized = true;
+        _lastRequestedEngagementId = requestedEngagementId;
+        var generation = ++_loadGeneration;
+        ClearPlan();
         _loading = true;
-        _actor = await ActorResolver.ResolveAsync();
-        _isStaff = _actor is not null && _actor.Roles.Any(x => x is "Administrator" or "Partner" or "Manager" or "Staff" or "EngagementLeader" or "Auditor");
-
-        _effectiveEngagementId = EngagementId ?? Id;
-        if (_actor is null || !_isStaff || !_effectiveEngagementId.HasValue)
+        try
         {
-            _loading = false;
+            _actor = await ActorResolver.ResolveAsync();
+            if (_actor is not null && requestedEngagementId.HasValue)
+            {
+                _effectiveEngagementId = requestedEngagementId;
+                await RefreshAsync(generation);
+            }
+        }
+        finally
+        {
+            if (generation == _loadGeneration) _loading = false;
+        }
+    }
+
+    private async Task RefreshAsync(long generation)
+    {
+        var actor = _actor;
+        var engagementId = _effectiveEngagementId;
+        if (actor is null || !engagementId.HasValue) return;
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var authorization = await AuthorizationDecision.AuthorizeAsync(db, actor,
+            new AuthorizationRequest(actor.FirmId, EngagementId: engagementId,
+                RequiredRoles: PlanningRoles, InternalOnly: true));
+        if (!authorization.Succeeded)
+        {
+            ClearPlan();
             return;
         }
 
-        await RefreshAsync();
-        _loading = false;
-    }
+        var engagement = await db.Engagements.AsNoTracking()
+            .FirstOrDefaultAsync(e => e.Id == engagementId.Value && e.FirmId == actor.FirmId);
 
-    private async Task RefreshAsync()
-    {
-        await using var db = await DbFactory.CreateDbContextAsync();
-        _engagement = await db.Engagements.AsNoTracking()
-            .FirstOrDefaultAsync(e => e.Id == _effectiveEngagementId!.Value && e.FirmId == _actor!.FirmId);
+        if (engagement is null || generation != _loadGeneration) return;
 
-        if (_engagement is null)
-            return;
-
-        _status = _engagement.ProfessionalWorkBlocked ? "PLANNING_BLOCKED" : "PLANNING_ACTIVE";
-
-        _materiality = await db.MaterialityAssessments.AsNoTracking()
-            .Where(m => m.FirmId == _engagement.FirmId && m.EngagementId == _engagement.Id)
+        var materiality = await db.MaterialityAssessments.AsNoTracking()
+            .Where(m => m.FirmId == engagement.FirmId && m.EngagementId == engagement.Id)
             .OrderByDescending(m => m.CreatedAt)
             .FirstOrDefaultAsync();
 
-        _risks = await db.AuditRisks.AsNoTracking()
-            .Where(r => r.FirmId == _engagement.FirmId && r.EngagementId == _engagement.Id)
+        var risks = await db.AuditRisks.AsNoTracking()
+            .Where(r => r.FirmId == engagement.FirmId && r.EngagementId == engagement.Id)
             .OrderBy(r => r.CreatedAt)
             .ToListAsync();
 
-        _workpapers = await db.Workpapers.AsNoTracking()
-            .Where(w => w.FirmId == _engagement.FirmId && w.EngagementId == _engagement.Id)
+        var workpapers = await db.Workpapers.AsNoTracking()
+            .Where(w => w.FirmId == engagement.FirmId && w.EngagementId == engagement.Id)
             .OrderBy(w => w.Index)
             .ToListAsync();
 
-        _populations = await db.PopulationVersions.AsNoTracking()
-            .Where(p => p.FirmId == _engagement.FirmId && p.EngagementId == _engagement.Id)
+        var populations = await db.PopulationVersions.AsNoTracking()
+            .Where(p => p.FirmId == engagement.FirmId && p.EngagementId == engagement.Id)
             .OrderByDescending(p => p.CreatedAt)
             .ToListAsync();
 
-        _findings = await db.Findings.AsNoTracking()
-            .Where(f => f.FirmId == _engagement.FirmId && f.EngagementId == _engagement.Id)
+        var findings = await db.Findings.AsNoTracking()
+            .Where(f => f.FirmId == engagement.FirmId && f.EngagementId == engagement.Id)
             .OrderByDescending(f => f.CreatedAt)
             .ToListAsync();
+
+        if (generation != _loadGeneration) return;
+        _isStaff = true;
+        _engagement = engagement;
+        _status = engagement.ProfessionalWorkBlocked ? "PLANNING_BLOCKED" : "PLANNING_ACTIVE";
+        _materiality = materiality;
+        _risks = risks;
+        _workpapers = workpapers;
+        _populations = populations;
+        _findings = findings;
+    }
+
+    private void ClearPlan()
+    {
+        _actor = null;
+        _isStaff = false;
+        _effectiveEngagementId = null;
+        _engagement = null;
+        _materiality = null;
+        _risks = [];
+        _populations = [];
+        _findings = [];
+        _workpapers = [];
+        _status = "IN_PROGRESS";
+        _result = null;
+        _successMessage = null;
+        _matBenchmark = _matVersion = _matRationale = "";
+        _matAmount = _matRate = _matOverall = _matPerformance = _matTrivial = 0;
+        _riskArea = _riskAssertion = _riskDescription = _riskDrivers = _riskResponse = "";
+        _riskSignificance = SignificanceDecisions.Normal;
+        _popPurpose = _popAssertion = _popReceiptRef = _popExtraction = _popCurrency = "";
+        _popRows = 0;
+        _popTotal = 0;
+        _findingType = _findingImpact = "";
+        _findingAmount = 0;
+    }
+
+    private void ApplyCommandResult(CommandResult result, string successMessage)
+    {
+        _result = result;
+        _successMessage = result.Succeeded ? successMessage : null;
+        if (!result.Succeeded && result.ErrorCode is ErrorCodes.ScopeDenied or ErrorCodes.GenerationStale)
+            ClearPlan();
     }
 
     private async Task CreateMaterialityAsync()
     {
-        if (_actor is null || _engagement is null || _busy) return;
+        var actor = _actor;
+        var engagement = _engagement;
+        var generation = _loadGeneration;
+        if (actor is null || engagement is null || _busy) return;
         _busy = true;
         try
         {
             await using var db = await DbFactory.CreateDbContextAsync();
-            var created = await AuditPlanningService.CreateMaterialityAssessmentAsync(db, _actor,
-                new CreateMaterialityRequest(_engagement.Id, _matBenchmark, _matVersion, _matRationale,
+            var created = await AuditPlanningService.CreateMaterialityAssessmentAsync(db, actor,
+                new CreateMaterialityRequest(engagement.Id, _matBenchmark, _matVersion, _matRationale,
                     _matAmount, _matRate, _matOverall, _matPerformance, _matTrivial, null));
-            _result = created.Succeeded ? CommandResult.Ok() : CommandResult.Fail(created.ErrorCode!, created.Message ?? "The command was refused.");
-            _successMessage = created.Succeeded ? "The materiality assessment was recorded as a draft." : null;
-            if (created.Succeeded) await RefreshAsync();
+            if (generation != _loadGeneration) return;
+            ApplyCommandResult(created.Succeeded ? CommandResult.Ok() : CommandResult.Fail(created.ErrorCode!, created.Message ?? "The command was refused."),
+                "The materiality assessment was recorded as a draft.");
+            if (created.Succeeded) await RefreshAsync(generation);
         }
         finally { _busy = false; }
     }
 
     private async Task CreateRiskAsync()
     {
-        if (_actor is null || _engagement is null || _busy) return;
+        var actor = _actor;
+        var engagement = _engagement;
+        var generation = _loadGeneration;
+        if (actor is null || engagement is null || _busy) return;
         _busy = true;
         try
         {
             await using var db = await DbFactory.CreateDbContextAsync();
-            var created = await AuditPlanningService.CreateAuditRiskAsync(db, _actor,
-                new CreateAuditRiskRequest(_engagement.Id, _riskArea, _riskAssertion, _riskDescription,
+            var created = await AuditPlanningService.CreateAuditRiskAsync(db, actor,
+                new CreateAuditRiskRequest(engagement.Id, _riskArea, _riskAssertion, _riskDescription,
                     _riskDrivers, _riskSignificance, null, _riskResponse));
-            _result = created.Succeeded ? CommandResult.Ok() : CommandResult.Fail(created.ErrorCode!, created.Message ?? "The command was refused.");
-            _successMessage = created.Succeeded ? "The identified risk was recorded." : null;
-            if (created.Succeeded) await RefreshAsync();
+            if (generation != _loadGeneration) return;
+            ApplyCommandResult(created.Succeeded ? CommandResult.Ok() : CommandResult.Fail(created.ErrorCode!, created.Message ?? "The command was refused."),
+                "The identified risk was recorded.");
+            if (created.Succeeded) await RefreshAsync(generation);
         }
         finally { _busy = false; }
     }
 
     private async Task CreatePopulationAsync()
     {
-        if (_actor is null || _engagement is null || _busy) return;
+        var actor = _actor;
+        var engagement = _engagement;
+        var generation = _loadGeneration;
+        if (actor is null || engagement is null || _busy) return;
         _busy = true;
         try
         {
             await using var db = await DbFactory.CreateDbContextAsync();
-            var created = await AuditPlanningService.CreatePopulationVersionAsync(db, _actor,
-                new CreatePopulationRequest(_engagement.Id, _popPurpose, _popAssertion, _popReceiptRef,
+            var created = await AuditPlanningService.CreatePopulationVersionAsync(db, actor,
+                new CreatePopulationRequest(engagement.Id, _popPurpose, _popAssertion, _popReceiptRef,
                     _popExtraction, _popRows, _popTotal, _popCurrency, null));
-            _result = created.Succeeded ? CommandResult.Ok() : CommandResult.Fail(created.ErrorCode!, created.Message ?? "The command was refused.");
-            _successMessage = created.Succeeded ? "The population version was recorded as pending approval." : null;
-            if (created.Succeeded) await RefreshAsync();
+            if (generation != _loadGeneration) return;
+            ApplyCommandResult(created.Succeeded ? CommandResult.Ok() : CommandResult.Fail(created.ErrorCode!, created.Message ?? "The command was refused."),
+                "The population version was recorded as pending approval.");
+            if (created.Succeeded) await RefreshAsync(generation);
         }
         finally { _busy = false; }
     }
 
     private async Task CreateFindingAsync()
     {
-        if (_actor is null || _engagement is null || _busy) return;
+        var actor = _actor;
+        var engagement = _engagement;
+        var generation = _loadGeneration;
+        if (actor is null || engagement is null || _busy) return;
         _busy = true;
         try
         {
             await using var db = await DbFactory.CreateDbContextAsync();
-            var created = await AuditPlanningService.CreateFindingAsync(db, _actor,
-                new CreateFindingRequest(_engagement.Id, _findingType, _findingImpact, false,
+            var created = await AuditPlanningService.CreateFindingAsync(db, actor,
+                new CreateFindingRequest(engagement.Id, _findingType, _findingImpact, false,
                     _findingAmount == 0 ? null : _findingAmount, null));
-            _result = created.Succeeded ? CommandResult.Ok() : CommandResult.Fail(created.ErrorCode!, created.Message ?? "The command was refused.");
-            _successMessage = created.Succeeded ? "The finding was recorded as open." : null;
-            if (created.Succeeded) await RefreshAsync();
+            if (generation != _loadGeneration) return;
+            ApplyCommandResult(created.Succeeded ? CommandResult.Ok() : CommandResult.Fail(created.ErrorCode!, created.Message ?? "The command was refused."),
+                "The finding was recorded as open.");
+            if (created.Succeeded) await RefreshAsync(generation);
         }
         finally { _busy = false; }
     }

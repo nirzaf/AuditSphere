@@ -880,6 +880,133 @@ public sealed class ClientScopeJourneyTests
   }
 
   [Fact]
+  [Trait("CaseId", "AS-PAR-002-AUDIT-PLAN-READ-01")]
+  public async Task AuditPlanRequiresExactEngagementGrantAndClearsOnRouteChange()
+  {
+    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false,
+      caseId: "AS-PAR-002-AUDIT-PLAN-READ-01");
+    const string privateRisk = "SYN-PAR-002-AUDIT-PLAN-PRIVATE-RISK";
+    var siblingClientId = Guid.NewGuid();
+    var siblingEngagementId = Guid.NewGuid();
+    var unrelatedClientId = Guid.NewGuid();
+    var unrelatedManager = PbcSeed.User(host.Fixture.FirmId, "Staff");
+    await using (var db = host.CreateDbContext())
+    {
+      db.PracticeClients.AddRange(
+        new PracticeClient
+        {
+          Id = siblingClientId, FirmId = host.Fixture.FirmId,
+          LegalName = "Synthetic sibling audit-plan client", CreatedAt = DateTimeOffset.UtcNow
+        },
+        new PracticeClient
+        {
+          Id = unrelatedClientId, FirmId = host.Fixture.FirmId,
+          LegalName = "Synthetic unrelated audit-plan client", CreatedAt = DateTimeOffset.UtcNow
+        });
+      db.Engagements.Add(new Engagement
+      {
+        Id = siblingEngagementId, FirmId = host.Fixture.FirmId,
+        PracticeClientId = siblingClientId, Status = "Active", CreatedAt = DateTimeOffset.UtcNow
+      });
+      db.ClientSafetyStates.Add(new ClientSafetyState { Id = siblingClientId, FirmId = host.Fixture.FirmId });
+      db.Users.Add(unrelatedManager);
+      db.RoleGrants.Add(PbcSeed.Grant(host.Fixture.FirmId, unrelatedManager, "Manager",
+        clientId: unrelatedClientId));
+      db.AuditRisks.Add(new AuditRisk
+      {
+        Id = Guid.NewGuid(), FirmId = host.Fixture.FirmId, ClientId = host.Fixture.ClientId,
+        EngagementId = host.Fixture.EngagementId, ActorId = host.Fixture.Staff.Id,
+        AccountArea = "Synthetic audit area", Assertion = "Completeness", Description = privateRisk,
+        Drivers = "Synthetic test driver", Severity = RiskSeverities.Normal,
+        SignificanceDecision = SignificanceDecisions.Normal, ResponseDescription = "Synthetic response",
+        Status = RiskStatuses.Identified, CreatedAt = DateTimeOffset.UtcNow
+      });
+      await db.SaveChangesAsync();
+    }
+
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    await using (var staffContext = await browser.NewContextAsync())
+    {
+      var page = await staffContext.NewPageAsync();
+      var diagnostics = new List<string>();
+      var connected = WaitForCircuitConnectionAsync(page, diagnostics);
+      await page.GotoAsync(SignInUrl(host.StaffUrl,
+        $"/app/engagements/{host.Fixture.EngagementId:D}/audit-plan"));
+      await page.GetByText(privateRisk, new() { Exact = true }).WaitForAsync();
+      await connected;
+
+      var documentToken = Guid.NewGuid().ToString("N");
+      await page.EvaluateAsync("token => window.__testDocumentToken = token", documentToken);
+      await page.EvaluateAsync("path => { history.pushState({}, '', path); dispatchEvent(new PopStateEvent('popstate')); }",
+        $"/app/engagements/{siblingEngagementId:D}/audit-plan");
+      await page.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable" }).WaitForAsync();
+      var body = await page.Locator("body").InnerTextAsync();
+      Assert.DoesNotContain(privateRisk, body);
+      Assert.Equal(documentToken, await page.EvaluateAsync<string>("window.__testDocumentToken"));
+      Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
+    }
+
+    await using (var revokeContext = await browser.NewContextAsync())
+    {
+      var revokePage = await revokeContext.NewPageAsync();
+      var revokeDiagnostics = new List<string>();
+      var revokeConnected = WaitForCircuitConnectionAsync(revokePage, revokeDiagnostics);
+      await revokePage.GotoAsync(SignInUrl(host.StaffUrl,
+        $"/app/engagements/{host.Fixture.EngagementId:D}/audit-plan"));
+      await revokePage.GetByText(privateRisk, new() { Exact = true }).WaitForAsync();
+      await revokeConnected;
+
+      await using (var db = host.CreateDbContext())
+      {
+        var grant = await db.RoleGrants.SingleAsync(x => x.FirmId == host.Fixture.FirmId &&
+          x.UserId == host.Fixture.Staff.Id && x.Role == "Staff" && x.EngagementId == host.Fixture.EngagementId &&
+          x.RevokedAt == null);
+        var revoked = await RoleAdministrationService.RevokeRoleGrantAsync(db,
+          PbcSeed.Actor(host.Fixture.Admin, "Administrator"), new RevokeRoleGrantRequest(grant.Id));
+        Assert.True(revoked.Succeeded, revoked.Message);
+      }
+
+      const string unpersistedRisk = "SYN-PAR-002-REVOKED-RISK-MUST-NOT-PERSIST";
+      await revokePage.WaitForFunctionAsync("""
+        () => document.body.innerText.includes("Access unavailable") ||
+          Array.from(document.querySelectorAll("fieldset legend")).some(x => x.textContent.trim() === "Record an identified risk")
+        """);
+      var unavailable = revokePage.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable" });
+      if (!await unavailable.IsVisibleAsync())
+      {
+        var riskForm = revokePage.GetByRole(AriaRole.Group, new() { Name = "Record an identified risk" });
+        await riskForm.GetByLabel("Account or disclosure area").FillAsync("Synthetic area");
+        await riskForm.GetByLabel("Assertion").FillAsync("Completeness");
+        await riskForm.GetByLabel("Risk description").FillAsync(unpersistedRisk);
+        await riskForm.GetByLabel("Drivers").FillAsync("Synthetic test driver");
+        await riskForm.GetByLabel("Planned response").FillAsync("Synthetic response");
+        await revokePage.GetByRole(AriaRole.Button, new() { Name = "Record risk" }).ClickAsync();
+        await unavailable.WaitForAsync();
+      }
+      var revokedBody = await revokePage.Locator("body").InnerTextAsync();
+      Assert.DoesNotContain(privateRisk, revokedBody);
+      Assert.DoesNotContain(unpersistedRisk, revokedBody);
+      Assert.DoesNotContain(revokeDiagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
+      await using (var verify = host.CreateDbContext())
+        Assert.False(await verify.AuditRisks.AnyAsync(x => x.Description == unpersistedRisk));
+    }
+
+    var unrelatedUrl = await host.StartWebForIdentityAsync(unrelatedManager);
+    await using var unrelatedContext = await browser.NewContextAsync();
+    var unrelatedPage = await unrelatedContext.NewPageAsync();
+    var unrelatedDiagnostics = new List<string>();
+    var unrelatedConnected = WaitForCircuitConnectionAsync(unrelatedPage, unrelatedDiagnostics);
+    await unrelatedPage.GotoAsync(SignInUrl(unrelatedUrl,
+      $"/app/engagements/{host.Fixture.EngagementId:D}/audit-plan"));
+    await unrelatedPage.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable" }).WaitForAsync();
+    await unrelatedConnected;
+    var unrelatedBody = await unrelatedPage.Locator("body").InnerTextAsync();
+    Assert.DoesNotContain(privateRisk, unrelatedBody);
+    Assert.DoesNotContain(unrelatedDiagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
+  }
+
+  [Fact]
   [Trait("CaseId", "AS-PAR-002-REV-01")]
   public async Task ReviewPointReadAndDispositionAreEngagementScoped()
   {
