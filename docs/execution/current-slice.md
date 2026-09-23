@@ -6,12 +6,12 @@ This file records observed repository state only. The authoritative build contra
 
 | Item | Observed value |
 |---|---|
-| Source implementation checkpoint | `master@887183489292a38a87eb8878f701fca48f96f1fd`; invoice detail now clears and reauthorizes on route changes |
-| Remote | `origin/master` confirmed to equal `887183489292a38a87eb8878f701fca48f96f1fd` at 2026-09-23 16:48 UTC |
+| Source/test checkpoint | `master@27ad0dd5f69cee1858592c8cf8354260c53f2134`; engagement-detail route isolation characterized with synthetic browser data |
+| Remote | `origin/master` confirmed to equal `27ad0dd5f69cee1858592c8cf8354260c53f2134` at 2026-09-23 17:03 UTC |
 | SDK | .NET 10; repository solution targets `net10.0` |
 | Database | PostgreSQL 18.6 on loopback port 5433 for development only |
-| Build | Full solution Release build for `8871834` — passed, 0 warnings/errors |
-| Tests | Discovery: 308 (Domain 259, API 6, E2E 43). Standalone E2E passed 43/43 with 0 skips after the invoice route change; the final stale-command guard then passed its focused invoice journey 1/1. Domain 259/259 and API 6/6 passed in the prior solution attempt; that aggregate E2E run had one intermittent accounting-record queue load-error failure (42/43) and is not reported green. |
+| Build | Full solution Release build for `27ad0dd` — passed, 0 warnings/errors |
+| Tests | Discovery: 308 (Domain 259, API 6, E2E 43). Focused `AS-PAR-002-ENG-01` passed 1/1; standalone E2E passed 43/43 with 0 skips. Domain 259/259 and API 6/6 last passed in the prior solution attempt; its aggregate E2E run had one intermittent accounting-record queue load-error failure (42/43) and is not reported green. |
 | Migrations | Added `20260923145244_ProposalPreparedByAttribution`; prior-schema PostgreSQL regression upgraded a synthetic legacy proposal and preserved its values with preparer left unknown. The existing local `auditsphere` database remains at its 91-migration baseline. |
 | Model drift | `dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Web --no-build --configuration Release` — no pending model changes after `8871834` on 2026-09-23 |
 | Restore drill | Passed at `2026-09-23T15:20:43Z` on loopback; restored the existing `auditsphere` source at 91 migrations through `20260922140527_M365InvitationEvidenceAction`. Evidence was redirected to `/tmp`; the check does not apply the new proposal migration to that development database. |
@@ -30,6 +30,12 @@ This file records observed repository state only. The authoritative build contra
 - Expanded `AS-PAR-002-INV-01` with two synthetic clients/invoices. The browser navigates in the same document from an authorized invoice to another client’s invoice, verifies both invoice projections remain hidden, then returns and confirms the authorized invoice reloads. Existing separate-identity denial coverage remains.
 - Verification: full Release solution build passed with 0 warnings/errors; discovery remains 308; the full standalone E2E project passed 43/43 with 0 skips after the route change, and the final stale-command guard passed the focused invoice case 1/1. EF reports no pending model changes. The last full solution attempt still has the separately recorded intermittent accounting-queue E2E failure. No migration, tenant operation or production effect.
 - Commit `887183489292a38a87eb8878f701fca48f96f1fd` was pushed to `master` and verified equal to `origin/master` at 2026-09-23 16:48 UTC. AS-PAR-002 remains partial.
+
+## AS-PAR-002 — Engagement detail route isolation (`27ad0dd`)
+
+- Expanded `AS-PAR-002-ENG-01` to open an authorized synthetic engagement, navigate in the same browser document to an unassigned engagement, and assert that the previous client, work-block state and private hold reason are absent. Returning to the authorized engagement restores its client and hold; a window token and browser diagnostics verify the transition remained in the same document without page errors.
+- The PostgreSQL-backed browser test passed before any runtime edit and after expansion (1/1), so the existing page/router lifecycle already clears and reloads this projection. No runtime change was needed. Full standalone E2E passed 43/43 with 0 skips; full Release build passed with 0 warnings/errors; fresh discovery remains 308. Domain 259/259 and API 6/6 were last verified in the prior solution run, whose aggregate E2E had the previously recorded intermittent accounting-record safe load-error (42/43); the aggregate is not reported green.
+- Test/catalog commit `27ad0dd5f69cee1858592c8cf8354260c53f2134` was pushed to `master` and `git ls-remote` confirmed the exact SHA at 2026-09-23 17:03 UTC. No migration, tenant operation or production effect. AS-PAR-002 remains partial.
 
 ## AS-PAR-009 persisted proposal detail and scope checks (`5e3687b`)
 
