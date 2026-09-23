@@ -6,16 +6,24 @@ This file records observed repository state only. The authoritative build contra
 
 | Item | Observed value |
 |---|---|
-| Source implementation checkpoint | `master@9562e38e716462ca8dad76ad86b566fa9ed47fbb`; test/CI changes committed |
-| Remote | `origin/master` confirmed to equal `9562e38e716462ca8dad76ad86b566fa9ed47fbb` at 2026-09-23 12:12 UTC |
+| Source implementation checkpoint | `master@743b177c1530d64b9ce2a3ffd2a08ed983179a72`; accounting queue query/navigation fix committed |
+| Remote | `origin/master` confirmed to equal `743b177c1530d64b9ce2a3ffd2a08ed983179a72` at 2026-09-23 13:11 UTC |
 | SDK | .NET 10; repository solution targets `net10.0` |
 | Database | PostgreSQL 18.6 on loopback port 5433 for development only |
-| Build | Full solution Release build for source checkpoint `9562e38` — passed, 0 warnings/errors |
-| Tests | Fresh discovery: 300 (Domain 257, API 6, E2E 37). Full Playwright E2E run passed 37/37, 0 skipped. Domain 257/257 and API 6/6 last passed at source checkpoint `65bcc63`; this test-only slice did not change those projects. |
+| Build | Full solution Release build for source checkpoint `743b177` — passed, 0 warnings/errors |
+| Tests | Discovery: 301 (Domain 257, API 6, E2E 38). Domain 257/257 and API 6/6 passed; standalone full Playwright E2E passed 38/38, 0 skipped. A parallel solution run had one intermittent existing journal-revocation timeout; isolated retry and full E2E rerun passed. |
 | Migrations | Previous recorded baseline: 91 applied through `20260922140527_M365InvitationEvidenceAction`; no schema migration in these slices |
-| Model drift | `dotnet ef migrations has-pending-model-changes --no-build --configuration Release` — no pending model changes after this slice on 2026-09-23 |
+| Model drift | `dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Web --no-build --configuration Release` — no pending model changes after this slice on 2026-09-23 |
 | Restore drill | Previously passed at `2026-09-22T18:52:20Z`; 91 migrations, accounting/group manifests and release-delivery identities reconciled; not rerun during test recovery |
 | Production effects | Disabled locally; no production acceptance claimed |
+
+## AS-PAR-002 accounting queue query and navigation regression
+
+- Added `AS-PAR-002-ACCT-RECORD-TABS-01`: from the mappings queue, in-app navigation to Adjustments retains the browser document and renders the authorized synthetic journal `AJ-E2E-001`.
+- Fixed the PostgreSQL EF translation failure by materializing distinct non-null journal period IDs before `Contains`; asynchronous queue-load exceptions are logged and presented as a recoverable page error instead of an indefinite loading state.
+- Source commit `743b177c1530d64b9ce2a3ffd2a08ed983179a72` was pushed to `master`; `git ls-remote` confirmed the exact SHA at 2026-09-23 13:11 UTC.
+- Focused browser regression passed 1/1; Release build passed with 0 warnings/errors; discovery 301; Domain 257/257, API 6/6 and full standalone E2E 38/38 passed; EF reports no pending model changes.
+- One parallel full-solution invocation had a transient existing journal-revocation browser timeout; the isolated retry passed 1/1 and a subsequent complete E2E run passed 38/38. No schema migration, tenant operation or production effect. AS-PAR-002 remains partial.
 
 Test-environment recovery verified at `2026-09-22T19:42:54Z`: the preceding run ended with 141 passed and 105 failed while PostgreSQL was shutting down. The server log records a smart shutdown request at `2026-09-22T19:25:04Z`; the initiator is unknown. Starting the stopped cluster on `127.0.0.1:5433` restored the test prerequisite. The complete Release suite then passed without application, test, assertion or runner changes; PostgreSQL remained available afterward. The full command and local ignored TRX artifact (`TestResults/failure-investigation.trx`) are recorded in `status.json`. Model drift and the 91 applied migrations were rechecked; external acceptance remains unchanged.
 
