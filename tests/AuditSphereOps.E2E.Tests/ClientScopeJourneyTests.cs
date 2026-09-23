@@ -1257,6 +1257,68 @@ public sealed class ClientScopeJourneyTests
   }
 
   [Fact]
+  [Trait("CaseId", "AS-PAR-002-CLIENT-PBC-STALE-ROUTE-01")]
+  public async Task ClientPbcRequestClearsThreadWhenNavigatingToAnotherRecipientsRequest()
+  {
+    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false,
+      caseId: "AS-PAR-002-CLIENT-PBC-STALE-ROUTE-01");
+    const string privateMarker = "SYN-PAR-002-CLIENT-PBC-ROUTE-PRIVATE";
+    const string otherRecipientMarker = "SYN-PAR-002-CLIENT-PBC-ROUTE-OTHER-RECIPIENT";
+    var otherClient = PbcSeed.User(host.Fixture.FirmId, "Client");
+    var otherRequestId = Guid.NewGuid();
+    await using (var db = host.CreateDbContext())
+    {
+      var now = DateTimeOffset.UtcNow;
+      var currentRequest = await db.PbcRequests.SingleAsync(x => x.Id == host.RequestId);
+      currentRequest.Objective = privateMarker;
+      currentRequest.Area = privateMarker;
+      db.Users.Add(otherClient);
+      db.RoleGrants.Add(PbcSeed.Grant(host.Fixture.FirmId, otherClient, "ClientUser",
+        host.Fixture.ClientId, host.Fixture.EngagementId));
+      db.PbcRequests.Add(new PbcRequest
+      {
+        Id = otherRequestId, FirmId = host.Fixture.FirmId, ClientId = host.Fixture.ClientId,
+        EngagementId = host.Fixture.EngagementId, Objective = otherRecipientMarker,
+        EntityScope = "Synthetic recipient scope", PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31",
+        Area = otherRecipientMarker, RequestedFormat = "PDF", ClientOwnerUserId = otherClient.Id,
+        FirmOwnerUserId = host.Fixture.Staff.Id, ReviewerUserId = host.Fixture.Reviewer.Id,
+        DueDate = "2026-10-01", Confidentiality = "Confidential",
+        AcceptanceCriteria = "Synthetic test only", State = PbcStates.Sent,
+        CreatedAt = now, CreatedByUserId = host.Fixture.Staff.Id, UpdatedAt = now
+      });
+      await db.SaveChangesAsync();
+    }
+
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    await using var context = await browser.NewContextAsync();
+    var page = await context.NewPageAsync();
+    var diagnostics = new List<string>();
+    var connected = WaitForCircuitConnectionAsync(page, diagnostics);
+    await page.GotoAsync(SignInUrl(host.ClientUrl, $"/portal/requests/{host.RequestId:D}"));
+    await page.GetByRole(AriaRole.Heading, new() { Name = privateMarker }).WaitForAsync();
+    await connected;
+
+    var documentToken = Guid.NewGuid().ToString("N");
+    await page.EvaluateAsync("token => window.__testDocumentToken = token", documentToken);
+    await page.EvaluateAsync("path => { history.pushState({}, '', path); dispatchEvent(new PopStateEvent('popstate')); }",
+      $"/portal/requests/{otherRequestId:D}");
+    try
+    {
+      await page.GetByRole(AriaRole.Heading, new() { Name = "Request unavailable" }).WaitForAsync(new() { Timeout = 5000 });
+    }
+    catch (TimeoutException ex)
+    {
+      throw new Xunit.Sdk.XunitException($"Recipient change did not clear the prior PBC thread. URL={page.Url}\n{await page.Locator("body").InnerTextAsync()}\n{string.Join("\n", diagnostics)}\n{ex.Message}");
+    }
+    var body = await page.Locator("body").InnerTextAsync();
+    Assert.DoesNotContain(privateMarker, body);
+    Assert.DoesNotContain(otherRecipientMarker, body);
+    Assert.Equal(documentToken, await page.EvaluateAsync<string>("window.__testDocumentToken"));
+    Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
+  }
+
+  [Fact]
   [Trait("CaseId", "AS-PAR-002-PBC-ROLE-READ-01")]
   public async Task PbcInboxRequiresAllowedRoleGrantForTheTargetEngagement()
   {
