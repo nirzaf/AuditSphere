@@ -1,4 +1,5 @@
 using AuditSphereOps.Application.Practice;
+using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Acceptance;
 using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Practice;
@@ -210,6 +211,111 @@ public sealed class PracticeBillingLedgerJourneyTests
     Assert.Contains("100.00", invoiceBody);
     Assert.Contains("0.00", invoiceBody);
     Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
+  }
+
+  [Fact]
+  [Trait("CaseId", "AS-PAR-009-PROPOSAL-READ-01")]
+  public async Task ProposalDetailShowsPersistedFirmWideProposalAndDeniesScopedIdentity()
+  {
+    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false,
+      caseId: "AS-PAR-009-PROPOSAL-READ-01");
+    var admin = PbcSeed.Actor(host.Fixture.Admin, "Administrator");
+    const string leadName = "SYN-PAR-009-REAL-LEAD";
+    const string scope = "SYN-PAR-009-REVISION-TWO-SCOPE";
+    const decimal fee = 1234.56m;
+    Guid proposalId, firstProposalId;
+    var restricted = PbcSeed.User(host.Fixture.FirmId, "Staff");
+    await using (var db = host.CreateDbContext())
+    {
+      var lead = await PracticeCrmService.CreateLeadAsync(db, admin,
+        new CreateLeadRequest(leadName, "Synthetic test", OwnerUserId: admin.UserId));
+      Assert.True(lead.Succeeded, lead.Message);
+      Assert.True((await PracticeCrmService.QualifyLeadAsync(db, admin, lead.Value)).Succeeded);
+      var opportunity = await PracticeCrmService.CreateOpportunityAsync(db, admin,
+        new CreateOpportunityRequest(lead.Value, "SYNTHETIC-AUDIT", "SYN-PAR-009-ENTITY",
+          "2026-01-01", "2026-12-31", fee, "QAR", OwnerUserId: admin.UserId));
+      Assert.True(opportunity.Succeeded, opportunity.Message);
+      var first = await PracticeCrmService.ReviseProposalAsync(db, admin,
+        new ReviseProposalRequest(opportunity.Value, "SYN-PAR-009-PROFILE-V1", "Revision one scope",
+          "Revision one exclusions", "Revision one deliverables", "Revision one dependencies",
+          1000m, "QAR", "2026-01-01", "2026-12-31"));
+      Assert.True(first.Succeeded, first.Message);
+      firstProposalId = first.Value;
+      var second = await PracticeCrmService.ReviseProposalAsync(db, admin,
+        new ReviseProposalRequest(opportunity.Value, "SYN-PAR-009-PROFILE-V2", scope,
+          "SYN-PAR-009-EXCLUSIONS", "SYN-PAR-009-DELIVERABLES", "SYN-PAR-009-DEPENDENCIES",
+          fee, "QAR", "2026-01-01", "2026-12-31", ExpectedRevision: 1));
+      Assert.True(second.Succeeded, second.Message);
+      proposalId = second.Value;
+
+      db.Users.Add(restricted);
+      db.RoleGrants.AddRange(
+        PbcSeed.Grant(host.Fixture.FirmId, host.Fixture.Staff, "RelationshipManager"),
+        PbcSeed.Grant(host.Fixture.FirmId, restricted, "RelationshipManager", host.Fixture.ClientId));
+      await db.SaveChangesAsync();
+    }
+
+    var restrictedUrl = await host.StartWebForIdentityAsync(restricted);
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    var page = await browser.NewPageAsync();
+    var diagnostics = new List<string>();
+    var connected = WaitForCircuitConnectionAsync(page, diagnostics);
+    await page.GotoAsync(SignInUrl(host.StaffUrl, $"/app/practice/proposals/{proposalId:D}"));
+    await page.GetByRole(AriaRole.Heading, new() { Name = leadName }).WaitForAsync();
+    await page.GetByText(scope, new() { Exact = true }).WaitForAsync();
+    await connected;
+    var body = await page.Locator("body").InnerTextAsync();
+    Assert.Contains("DRAFT", body);
+    Assert.Contains("1,234.56 QAR", body);
+    Assert.Contains("SYN-PAR-009-DELIVERABLES", body);
+    Assert.Contains("SUPERSEDED", body);
+    Assert.Contains("Proposal author", body);
+    Assert.Contains("Validity", body);
+    Assert.Contains("Workflow actions unavailable", body);
+    Assert.DoesNotContain("Acme Holdings W.L.L.", body);
+    Assert.DoesNotContain("Senior Manager A", body);
+
+    var documentToken = await page.EvaluateAsync<string>("window.__proposalRouteTestToken = crypto.randomUUID()");
+    var unavailableProposalId = Guid.NewGuid();
+    await page.EvaluateAsync("path => { history.pushState({}, '', path); dispatchEvent(new PopStateEvent('popstate')); }",
+      $"/app/practice/proposals/{unavailableProposalId:D}");
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Proposal unavailable" }).WaitForAsync();
+    Assert.Equal(documentToken, await page.EvaluateAsync<string>("window.__proposalRouteTestToken"));
+    var unavailableBody = await page.Locator("body").InnerTextAsync();
+    Assert.DoesNotContain(leadName, unavailableBody);
+    Assert.DoesNotContain(scope, unavailableBody);
+    Assert.DoesNotContain(proposalId.ToString("D"), unavailableBody);
+
+    await using (var db = host.CreateDbContext())
+    {
+      var grant = await db.RoleGrants.SingleAsync(x => x.FirmId == host.Fixture.FirmId &&
+        x.UserId == host.Fixture.Staff.Id && x.Role == "RelationshipManager" && x.RevokedAt == null);
+      var revoked = await RoleAdministrationService.RevokeRoleGrantAsync(db, admin,
+        new RevokeRoleGrantRequest(grant.Id));
+      Assert.True(revoked.Succeeded, revoked.Message);
+    }
+
+    await page.EvaluateAsync("path => { history.pushState({}, '', path); dispatchEvent(new PopStateEvent('popstate')); }",
+      $"/app/practice/proposals/{firstProposalId:D}");
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable" }).WaitForAsync();
+    var revokedBody = await page.Locator("body").InnerTextAsync();
+    Assert.DoesNotContain(leadName, revokedBody);
+    Assert.DoesNotContain(scope, revokedBody);
+    Assert.DoesNotContain(proposalId.ToString("D"), revokedBody);
+
+    var restrictedPage = await browser.NewPageAsync();
+    var restrictedDiagnostics = new List<string>();
+    var restrictedConnected = WaitForCircuitConnectionAsync(restrictedPage, restrictedDiagnostics);
+    await restrictedPage.GotoAsync(SignInUrl(restrictedUrl, $"/app/practice/proposals/{proposalId:D}"));
+    await restrictedPage.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable" }).WaitForAsync();
+    await restrictedConnected;
+    var restrictedBody = await restrictedPage.Locator("body").InnerTextAsync();
+    Assert.DoesNotContain(leadName, restrictedBody);
+    Assert.DoesNotContain(scope, restrictedBody);
+    Assert.DoesNotContain(proposalId.ToString("D"), restrictedBody);
+    Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
+    Assert.DoesNotContain(restrictedDiagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
   }
 
   private static string SignInUrl(string origin, string returnUrl) =>

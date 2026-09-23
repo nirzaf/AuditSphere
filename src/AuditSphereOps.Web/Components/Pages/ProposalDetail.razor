@@ -1,121 +1,233 @@
 @page "/app/practice/proposals/{Id:guid}"
-@using Microsoft.AspNetCore.Components.Authorization
-@inject AuthenticationStateProvider Auth
-@inject NavigationManager Nav
+@rendermode InteractiveServer
+@using AuditSphereOps.Application.Security
+@using AuditSphereOps.Domain.Practice
+@inject CurrentActorResolver ActorResolver
+@inject IDbContextFactory<AuditSphereDbContext> DbFactory
+@inject ILogger<ProposalDetail> Logger
 
 <PageTitle>Proposal — AuditSphereOps</PageTitle>
 
 <div class="page-header">
-    <nav class="breadcrumb-nav">
-        <a href="/app">Portfolio</a> /
-        <a href="/app/practice/leads">Leads &amp; Opportunities</a> /
-        <span>Proposal @Id</span>
-    </nav>
-    <h1>Proposal</h1>
-    <span class="status-badge @_statusClass">@_status</span>
+  <nav class="breadcrumb-nav" aria-label="Breadcrumb">
+    <a href="/app">Portfolio</a> /
+    <a href="/app/practice/leads">Leads &amp; Opportunities</a> /
+    <span>Proposal</span>
+  </nav>
+  <h1>Proposal</h1>
 </div>
 
 @if (_loading)
 {
-    <div class="loading-state">Loading proposal…</div>
+  <p role="status">Loading proposal…</p>
+}
+else if (_actor is null || !_isAuthorized)
+{
+  <section class="notice" role="alert"><h2>Access unavailable</h2><p>Sign in with an authorized firm-wide commercial identity to view proposals.</p></section>
+}
+else if (_loadError is not null)
+{
+  <section class="notice" role="alert"><h2>Proposal could not be loaded</h2><p>@_loadError</p></section>
+}
+else if (_proposal is null || _opportunity is null)
+{
+  <section class="notice" role="alert"><h2>Proposal unavailable</h2><p>The requested proposal is not available in the current firm scope.</p></section>
 }
 else
 {
-    <div class="proposal-shell">
+  <section class="card" aria-labelledby="proposal-details-heading">
+    <p class="eyebrow">Status: <span class="status">@_proposal.Status</span> · Revision @_proposal.Revision</p>
+    <h2 id="proposal-details-heading">@_clientName</h2>
+    <dl class="detail-grid">
+      <dt>Proposal ID</dt><dd><code>@_proposal.Id</code></dd>
+      <dt>Opportunity stage</dt><dd>@_opportunity.Stage</dd>
+      <dt>Lead</dt><dd>@_leadName</dd>
+      <dt>Service profile</dt><dd>@_proposal.ServiceProfileId</dd>
+      <dt>Entity scope</dt><dd>@_opportunity.EntityScope</dd>
+      <dt>Service route</dt><dd>@_opportunity.ServiceRoute</dd>
+      <dt>Period</dt><dd>@_proposal.PeriodStart to @_proposal.PeriodEnd</dd>
+      <dt>Proposed fee</dt><dd>@_proposal.Fee.ToString("N2") @_proposal.Currency</dd>
+      <dt>Commercial owner</dt><dd>@_ownerName</dd>
+      <dt>Proposal author</dt><dd>Not recorded in the current proposal schema</dd>
+      <dt>Validity</dt><dd>Not recorded in the current proposal schema</dd>
+      <dt>Internal review</dt><dd>@_reviewerName @(_proposal.ApprovedAt.HasValue ? $"· {_proposal.ApprovedAt.Value.ToString("yyyy-MM-dd HH:mm")} UTC" : "· Not recorded")</dd>
+      <dt>Delivery</dt><dd>@(_proposal.SentAt.HasValue ? $"Recorded sent {_proposal.SentAt.Value.ToString("yyyy-MM-dd HH:mm")} UTC" : "Not recorded as sent")</dd>
+      <dt>Client response</dt><dd>@(_proposal.ResponseAt.HasValue ? $"{_proposal.Status} · {_proposal.ResponseAt.Value.ToString("yyyy-MM-dd HH:mm")} UTC" : "Not recorded")</dd>
+      @if (!string.IsNullOrWhiteSpace(_proposal.ResponseReason))
+      {
+        <dt>Response note</dt><dd>@_proposal.ResponseReason</dd>
+      }
+      @if (_proposal.SupersedesId.HasValue)
+      {
+        <dt>Supersedes</dt><dd><code>@_proposal.SupersedesId</code></dd>
+      }
+    </dl>
+  </section>
 
-        <section class="card">
-            <h2>Proposal Details</h2>
-            <dl class="detail-grid">
-                <dt>Client</dt><dd>@_clientName</dd>
-                <dt>Service scope</dt><dd>@_serviceScope</dd>
-                <dt>Period</dt><dd>@_period</dd>
-                <dt>Proposed fee</dt><dd>@_currency @_proposedFee.ToString("N2")</dd>
-                <dt>Version</dt><dd>@_version</dd>
-                <dt>Owner</dt><dd>@_ownerName</dd>
-            </dl>
-        </section>
+  <section class="card" aria-labelledby="terms-heading">
+    <h2 id="terms-heading">Proposal terms</h2>
+    <dl class="detail-grid">
+      <dt>Scope</dt><dd>@_proposal.Scope</dd>
+      <dt>Exclusions</dt><dd>@(string.IsNullOrWhiteSpace(_proposal.Exclusions) ? "Not specified" : _proposal.Exclusions)</dd>
+      <dt>Deliverables</dt><dd>@_proposal.Deliverables</dd>
+      <dt>Dependencies</dt><dd>@(string.IsNullOrWhiteSpace(_proposal.Dependencies) ? "Not specified" : _proposal.Dependencies)</dd>
+    </dl>
+  </section>
 
-        <section class="card">
-            <h2>Versions</h2>
-            <table class="data-table">
-                <thead>
-                    <tr><th>Rev</th><th>Status</th><th>Sent</th><th>Response</th></tr>
-                </thead>
-                <tbody>
-                    @foreach (var v in _versions)
-                    {
-                        <tr>
-                            <td>@v.Rev</td>
-                            <td>@v.Status</td>
-                            <td>@(v.SentAt?.ToString("yyyy-MM-dd") ?? "—")</td>
-                            <td>@(v.Response ?? "—")</td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        </section>
-
-        <section class="card">
-            <h2>Actions</h2>
-            <div class="action-bar">
-                @if (_status == "DRAFT" || _status == "INTERNAL_REVIEW")
-                {
-                    <button class="btn-primary" @onclick="SubmitForReview">Submit for Internal Review</button>
-                }
-                @if (_status == "INTERNAL_REVIEW")
-                {
-                    <button class="btn-primary" @onclick="ApproveAndSend">Approve &amp; Send</button>
-                }
-                @if (_status == "SENT")
-                {
-                    <button class="btn-secondary" @onclick="RecordResponse">Record Client Response</button>
-                }
-            </div>
-        </section>
+  <section class="card" aria-labelledby="versions-heading">
+    <h2 id="versions-heading">Proposal versions</h2>
+    <div class="table-wrap">
+      <table>
+        <caption class="sr-only">Persisted versions for this commercial opportunity</caption>
+        <thead>
+          <tr><th scope="col">Revision</th><th scope="col">Status</th><th scope="col">Fee</th><th scope="col">Created</th><th scope="col">Sent</th><th scope="col">Response</th></tr>
+        </thead>
+        <tbody>
+        @foreach (var version in _versions)
+        {
+          <tr>
+            <td>@version.Revision</td>
+            <td>@version.Status</td>
+            <td>@version.Fee.ToString("N2") @version.Currency</td>
+            <td>@version.CreatedAt.ToString("yyyy-MM-dd HH:mm") UTC</td>
+            <td>@(version.SentAt?.ToString("yyyy-MM-dd HH:mm") ?? "—")</td>
+            <td>@(version.ResponseAt?.ToString("yyyy-MM-dd HH:mm") ?? "—")</td>
+          </tr>
+        }
+        </tbody>
+      </table>
     </div>
+  </section>
+
+  <section class="notice" role="status" aria-labelledby="workflow-heading">
+    <h2 id="workflow-heading">Workflow actions unavailable</h2>
+    <p>This record does not yet persist its author, independent pricing-review evidence, validity, or outbound delivery receipt. This page therefore will not change review, sent, or client-response status. No email is sent by opening or refreshing this page.</p>
+  </section>
 }
 
 @code {
-    [Parameter] public Guid Id { get; set; }
+  [Parameter] public Guid Id { get; set; }
 
-    bool _loading = true;
-    string _status = "DRAFT";
-    string _statusClass = "badge-yellow";
-    string _clientName = "—";
-    string _serviceScope = "—";
-    string _period = "—";
-    string _currency = "QAR";
-    decimal _proposedFee;
-    int _version;
-    string _ownerName = "—";
+  private static readonly string[] CommercialRoles = ["Administrator", "Partner", "Manager", "RelationshipManager"];
 
-    record VersionRow(int Rev, string Status, DateTime? SentAt, string? Response);
-    List<VersionRow> _versions = [];
+  private ActorContext? _actor;
+  private Proposal? _proposal;
+  private Opportunity? _opportunity;
+  private bool _loading = true;
+  private bool _isAuthorized;
+  private string? _loadError;
+  private int _loadGeneration;
+  private string _clientName = string.Empty;
+  private string _leadName = string.Empty;
+  private string _ownerName = "Not assigned";
+  private string _reviewerName = "Not recorded";
+  private List<ProposalVersionRow> _versions = [];
 
-    protected override async Task OnInitializedAsync()
+  private sealed record ProposalVersionRow(
+    long Revision, string Status, decimal Fee, string Currency,
+    DateTimeOffset CreatedAt, DateTimeOffset? SentAt, DateTimeOffset? ResponseAt);
+
+  protected override async Task OnParametersSetAsync()
+  {
+    var generation = ++_loadGeneration;
+    var actor = (ActorContext?)null;
+    var authorized = false;
+    ClearProjection();
+    _loading = true;
+    try
     {
-        var state = await Auth.GetAuthenticationStateAsync();
-        if (state.User.Identity?.IsAuthenticated != true)
-        { Nav.NavigateTo("/login"); return; }
+      actor = await ActorResolver.ResolveAsync();
+      if (generation != _loadGeneration || actor is null) return;
 
-        // Stub projection.
-        _clientName = "Acme Holdings W.L.L.";
-        _serviceScope = "Statutory audit — financial statements year ended 31 Dec 2025";
-        _period = "2025";
-        _proposedFee = 45000m;
-        _version = 2;
-        _status = "INTERNAL_REVIEW";
-        _statusClass = "badge-blue";
-        _ownerName = "Senior Manager A";
-        _versions =
-        [
-            new(1, "SUPERSEDED", DateTime.UtcNow.AddDays(-14), null),
-            new(2, "INTERNAL_REVIEW", null, null),
-        ];
-        _loading = false;
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var authorization = await AuthorizationDecision.AuthorizeAsync(db, actor,
+        new AuthorizationRequest(actor.FirmId, RequiredRoles: CommercialRoles,
+          InternalOnly: true, RequireFirmWide: true));
+      if (generation != _loadGeneration || !authorization.Succeeded) return;
+      authorized = true;
+      _actor = actor;
+      _isAuthorized = true;
+
+      var proposal = await db.Proposals.AsNoTracking()
+        .SingleOrDefaultAsync(x => x.Id == Id && x.FirmId == actor.FirmId);
+      if (generation != _loadGeneration) return;
+      if (proposal is null) return;
+
+      var opportunity = await db.Opportunities.AsNoTracking()
+        .SingleOrDefaultAsync(x => x.Id == proposal.OpportunityId && x.FirmId == actor.FirmId);
+      if (generation != _loadGeneration) return;
+      if (opportunity is null) return;
+      var lead = await db.Leads.AsNoTracking()
+        .SingleOrDefaultAsync(x => x.Id == opportunity.LeadId && x.FirmId == actor.FirmId);
+      if (generation != _loadGeneration) return;
+      if (lead is null) return;
+
+      var clientName = lead.Name;
+      var clientId = proposal.PracticeClientId ?? opportunity.PracticeClientId;
+      if (clientId.HasValue)
+      {
+        var client = await db.PracticeClients.AsNoTracking()
+          .SingleOrDefaultAsync(x => x.Id == clientId.Value && x.FirmId == actor.FirmId);
+        if (generation != _loadGeneration) return;
+        if (client is null) return;
+        clientName = client.LegalName;
+      }
+
+      var ownerName = "Not assigned";
+      var ownerId = opportunity.OwnerUserId ?? lead.OwnerUserId;
+      if (ownerId.HasValue)
+        ownerName = await db.Users.AsNoTracking()
+          .Where(x => x.Id == ownerId.Value && x.FirmId == actor.FirmId && !x.Disabled)
+          .Select(x => x.DisplayName).SingleOrDefaultAsync() ?? "Not assigned";
+
+      var reviewerName = "Not recorded";
+      if (proposal.ApprovedByUserId.HasValue)
+        reviewerName = await db.Users.AsNoTracking()
+          .Where(x => x.Id == proposal.ApprovedByUserId.Value && x.FirmId == actor.FirmId)
+          .Select(x => x.DisplayName).SingleOrDefaultAsync() ?? "Reviewer unavailable";
+
+      var versions = (await db.Proposals.AsNoTracking()
+          .Where(x => x.FirmId == actor.FirmId && x.OpportunityId == opportunity.Id)
+          .OrderBy(x => x.Revision).ToListAsync())
+        .Select(x => new ProposalVersionRow(x.Revision, x.Status, x.Fee, x.Currency,
+          x.CreatedAt, x.SentAt, x.ResponseAt)).ToList();
+      if (generation != _loadGeneration) return;
+
+      _proposal = proposal;
+      _opportunity = opportunity;
+      _clientName = clientName;
+      _leadName = lead.Name;
+      _ownerName = ownerName;
+      _reviewerName = reviewerName;
+      _versions = versions;
     }
+    catch (Exception ex)
+    {
+      if (generation == _loadGeneration)
+      {
+        Logger.LogError(ex, "Failed to load proposal detail for route {ProposalId}", Id);
+        _actor = actor;
+        _isAuthorized = authorized;
+        _loadError = "The proposal details could not be loaded. Retry by refreshing this page.";
+      }
+    }
+    finally
+    {
+      if (generation == _loadGeneration) _loading = false;
+    }
+  }
 
-    async Task SubmitForReview() { await Task.Delay(100); _status = "INTERNAL_REVIEW"; _statusClass = "badge-blue"; }
-    async Task ApproveAndSend() { await Task.Delay(100); _status = "SENT"; _statusClass = "badge-purple"; }
-    async Task RecordResponse() => Nav.NavigateTo($"/app/practice/proposals/{Id}/response");
+  private void ClearProjection()
+  {
+    _actor = null;
+    _proposal = null;
+    _opportunity = null;
+    _isAuthorized = false;
+    _loadError = null;
+    _clientName = string.Empty;
+    _leadName = string.Empty;
+    _ownerName = "Not assigned";
+    _reviewerName = "Not recorded";
+    _versions.Clear();
+  }
 }
