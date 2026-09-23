@@ -2,8 +2,10 @@ using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text;
 using AuditSphereOps.Application.Accounting;
+using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Completion;
+using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Domain.Tests;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -15,6 +17,73 @@ namespace AuditSphereOps.E2E.Tests;
 [Trait("Category", "AccountingAndReporting")]
 public sealed class FinancialArtifactJourneyTests
 {
+  [Fact]
+  [Trait("CaseId", "AS-PAR-002-JOURNAL-STALE-01")]
+  public async Task JournalPageRemovesReviewerActionAfterGrantRevocation()
+  {
+    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false,
+      caseId: "AS-PAR-002-JOURNAL-STALE-01");
+    var (packageId, _) = await CreatePackageAsync(host);
+    Guid journalId;
+    const string journalNumber = "SYN-PAR-002-REVOKED-JOURNAL";
+    const string privateAccountCode = "SYN-PRIVATE-REVOCATION-LINE";
+    await using (var db = host.CreateDbContext())
+    {
+      var package = await db.FinancialPackages.AsNoTracking().SingleAsync(x => x.Id == packageId);
+      var plan = await db.AdjustmentPlans.AsNoTracking().SingleAsync(x => x.Id == package.AdjustmentPlanId);
+      db.RoleGrants.AddRange(
+        PbcSeed.Grant(host.Fixture.FirmId, host.Fixture.Reviewer, "AccountingPreparer",
+          host.Fixture.ClientId, host.Fixture.EngagementId),
+        PbcSeed.Grant(host.Fixture.FirmId, host.Fixture.Staff, "AccountingReviewer",
+          host.Fixture.ClientId, host.Fixture.EngagementId));
+      await db.SaveChangesAsync();
+      var draft = await AdjustmentJournalService.CreateDraftAsync(db,
+        PbcSeed.Actor(host.Fixture.Reviewer, "AccountingPreparer"), plan.BaseDatasetId, journalNumber,
+        [(privateAccountCode, 250m, 0m), ("SYN-PRIVATE-OFFSET-LINE", 0m, 250m)],
+        purpose: AdjustmentJournalPurposes.ReportingAdjustment,
+        reason: "Synthetic access-revocation regression", evidenceReference: "synthetic-test-evidence");
+      Assert.True(draft.Succeeded, draft.Message);
+      journalId = draft.Value;
+    }
+
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    await using var context = await browser.NewContextAsync();
+    var page = await context.NewPageAsync();
+    var diagnostics = new List<string>();
+    var connected = WaitForCircuitConnectionAsync(page, diagnostics);
+    await page.GotoAsync(SignInUrl(host.StaffUrl, $"/app/accounting/journals/{journalId:D}"));
+    await page.GetByRole(AriaRole.Heading, new() { Name = journalNumber }).WaitForAsync();
+    await page.GetByText(privateAccountCode, new() { Exact = true }).WaitForAsync();
+    await connected;
+
+    await using (var db = host.CreateDbContext())
+    {
+      var grant = await db.RoleGrants.SingleAsync(x => x.UserId == host.Fixture.Staff.Id &&
+        x.Role == "AccountingReviewer" && x.RevokedAt == null);
+      var revoked = await RoleAdministrationService.RevokeRoleGrantAsync(db,
+        PbcSeed.Actor(host.Fixture.Admin, "Administrator"), new RevokeRoleGrantRequest(grant.Id));
+      Assert.True(revoked.Succeeded, revoked.Message);
+    }
+
+    await page.GetByText("You must have the AccountingReviewer, Partner or Manager role", new() { Exact = false }).WaitForAsync();
+    var body = await page.Locator("body").InnerTextAsync();
+    Assert.Contains(journalNumber, body);
+    Assert.Contains(privateAccountCode, body);
+    Assert.Contains("SYN-PRIVATE-OFFSET-LINE", body);
+    await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Post adjustment journal" })).ToBeHiddenAsync();
+    Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
+
+    await using (var db = host.CreateDbContext())
+    {
+      var stalePost = await AdjustmentJournalService.PostAsync(db,
+        PbcSeed.Actor(host.Fixture.Staff, "AccountingReviewer"), journalId);
+      Assert.Equal(ErrorCodes.GenerationStale, stalePost.ErrorCode);
+    }
+    await using var verify = host.CreateDbContext();
+    Assert.Equal("Draft", (await verify.AdjustmentJournals.AsNoTracking().SingleAsync(x => x.Id == journalId)).Status);
+  }
+
   [Fact]
   [Trait("CaseId", "PROP-E2E-01")]
   public async Task ReviewedAdjustmentFlowsFromTrialBalanceIntoTheBrowserPackage()
