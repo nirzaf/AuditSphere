@@ -85,6 +85,64 @@ public sealed class FinancialArtifactJourneyTests
   }
 
   [Fact]
+  [Trait("CaseId", "AS-PAR-002-JOURNAL-STALE-ROUTE-01")]
+  public async Task JournalPageClearsPriorJournalWhenRouteChangesToUnavailableId()
+  {
+    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false,
+      caseId: "AS-PAR-002-JOURNAL-STALE-ROUTE-01");
+    var (packageId, _) = await CreatePackageAsync(host);
+    Guid journalId;
+    const string journalNumber = "SYN-PAR-002-STALE-ROUTE-JOURNAL";
+    const string privateAccountCode = "SYN-PRIVATE-STALE-ROUTE-LINE";
+    await using (var db = host.CreateDbContext())
+    {
+      var package = await db.FinancialPackages.AsNoTracking().SingleAsync(x => x.Id == packageId);
+      var plan = await db.AdjustmentPlans.AsNoTracking().SingleAsync(x => x.Id == package.AdjustmentPlanId);
+      var draft = await AdjustmentJournalService.CreateDraftAsync(db,
+        PbcSeed.Actor(host.Fixture.Staff, "AccountingPreparer"), plan.BaseDatasetId, journalNumber,
+        [(privateAccountCode, 75m, 0m), ("SYN-PRIVATE-STALE-ROUTE-OFFSET", 0m, 75m)],
+        purpose: AdjustmentJournalPurposes.ReportingAdjustment,
+        reason: "Synthetic route-change regression", evidenceReference: "synthetic-test-evidence");
+      Assert.True(draft.Succeeded, draft.Message);
+      journalId = draft.Value;
+    }
+
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    var page = await browser.NewPageAsync();
+    var diagnostics = new List<string>();
+    var connected = WaitForCircuitConnectionAsync(page, diagnostics);
+    await page.GotoAsync(SignInUrl(host.StaffUrl, $"/app/accounting/journals/{journalId:D}"));
+    await page.GetByRole(AriaRole.Heading, new() { Name = journalNumber }).WaitForAsync();
+    await page.GetByText(privateAccountCode, new() { Exact = true }).WaitForAsync();
+    await connected;
+    var documentToken = await page.EvaluateAsync<string>("""
+      () => {
+        window.__journalRouteTestToken ??= crypto.randomUUID();
+        return window.__journalRouteTestToken;
+      }
+      """);
+
+    var missingJournalId = Guid.NewGuid();
+    await page.EvaluateAsync("""
+      (path) => {
+      const link = document.createElement('a');
+      link.href = path;
+      link.textContent = 'Open unavailable journal';
+      document.body.append(link);
+      link.click();
+      }
+      """, $"/app/accounting/journals/{missingJournalId:D}");
+
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Journal unavailable" }).WaitForAsync();
+    Assert.Equal(documentToken, await page.EvaluateAsync<string>("window.__journalRouteTestToken"));
+    var body = await page.Locator("body").InnerTextAsync();
+    Assert.DoesNotContain(journalNumber, body);
+    Assert.DoesNotContain(privateAccountCode, body);
+    Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
+  }
+
+  [Fact]
   [Trait("CaseId", "PROP-E2E-01")]
   public async Task ReviewedAdjustmentFlowsFromTrialBalanceIntoTheBrowserPackage()
   {
