@@ -6,16 +6,24 @@ This file records observed repository state only. The authoritative build contra
 
 | Item | Observed value |
 |---|---|
-| Source implementation checkpoint | `master@743b177c1530d64b9ce2a3ffd2a08ed983179a72`; accounting queue query/navigation fix committed |
-| Remote | `origin/master` confirmed to equal `743b177c1530d64b9ce2a3ffd2a08ed983179a72` at 2026-09-23 13:11 UTC |
+| Source implementation checkpoint | `master@d065008600670fa19e8ecbda6b6c97c9e38d5e36`; PBC inbox route-scope revalidation committed |
+| Remote | `origin/master` confirmed to equal `d065008600670fa19e8ecbda6b6c97c9e38d5e36` at 2026-09-23 13:44 UTC |
 | SDK | .NET 10; repository solution targets `net10.0` |
 | Database | PostgreSQL 18.6 on loopback port 5433 for development only |
-| Build | Full solution Release build for source checkpoint `743b177` — passed, 0 warnings/errors |
-| Tests | Discovery: 301 (Domain 257, API 6, E2E 38). Domain 257/257 and API 6/6 passed; standalone full Playwright E2E passed 38/38, 0 skipped. A parallel solution run had one intermittent existing journal-revocation timeout; isolated retry and full E2E rerun passed. |
+| Build | Full solution Release build for source checkpoint `d065008` — passed, 0 warnings/errors |
+| Tests | Discovery: 302 (Domain 257, API 6, E2E 39). Domain 257/257, API 6/6 and standalone full Playwright E2E 39/39 passed, 0 skipped. Combined solution run passed Domain/API but its initial E2E run failed the browser-trigger assertion; corrected focused test and full E2E rerun passed separately. |
 | Migrations | Previous recorded baseline: 91 applied through `20260922140527_M365InvitationEvidenceAction`; no schema migration in these slices |
-| Model drift | `dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Web --no-build --configuration Release` — no pending model changes after this slice on 2026-09-23 |
+| Model drift | `dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Web --no-build --configuration Release` — no pending model changes after source checkpoint `d065008` on 2026-09-23 |
 | Restore drill | Previously passed at `2026-09-22T18:52:20Z`; 91 migrations, accounting/group manifests and release-delivery identities reconciled; not rerun during test recovery |
 | Production effects | Disabled locally; no production acceptance claimed |
+
+## AS-PAR-002 PBC inbox route scope and stale-state regression
+
+- Added `AS-PAR-002-PBC-STALE-ROUTE-01`: from an authorized synthetic PBC inbox, the browser performs same-document history/popstate navigation to an unauthorized sibling engagement and confirms the old thread and sibling marker are absent while a window token proves the browser document remained active.
+- Changed `PbcRequests.razor` to clear the prior scoped projection and repeat actor, engagement and exact role-grant resolution whenever route parameters change. Loading now resets in a `finally` block.
+- The pre-fix same-document test timed out waiting for the denied-state heading, demonstrating missing parameter reauthorization. The corrected focused test passed 1/1; full standalone E2E passed 39/39, no skips. The Release build passed with 0 warnings/errors; Domain passed 257/257 and API 6/6 in the full-solution run; discovery reconciled to 302; EF reports no pending model changes.
+- Source commit `d065008600670fa19e8ecbda6b6c97c9e38d5e36` was pushed to `master`; `git ls-remote` confirmed the exact SHA at 2026-09-23 13:44 UTC. The initial combined solution run's E2E attempt failed its earlier browser-trigger assertion; after correction, the focused test and full E2E project passed separately. The combined command was not rerun after correction.
+- No schema migration, tenant operation or production effect. AS-PAR-002 remains partial.
 
 ## AS-PAR-002 accounting queue query and navigation regression
 
