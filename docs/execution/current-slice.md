@@ -6,7 +6,12 @@ This file records observed repository state only. The authoritative build contra
 
 - Run `35920521850` reached restore, then failed with NU1004: SDK-injected `Microsoft.AspNetCore.App.Internal.Assets` requested `10.0.11`, while the lock file records `10.0.8`. Local SDK `10.0.300` evaluates that package to `10.0.8` and restores the existing locks successfully.
 - `global.json` previously allowed `latestPatch`, which can select a newer preinstalled SDK even after setup installs `10.0.300`. It now requires an exact SDK match with `rollForward: disable`. CI installs from `global.json`, checks the policy and selected SDK before restore, and prints SDK diagnostics. Locked restore and all package lock files remain unchanged.
-- Local verification: the SDK policy check failed before the fix and passed afterward with SDK `10.0.300`; tool restore, full-solution locked restore, and Release build passed. Actionlint v1.7.7 passed with ShellCheck/Pyflakes disabled. Full application tests and hosted execution of this fix were not rerun; no production acceptance is claimed.
+- Local verification: the SDK policy check failed before the fix and passed afterward with SDK `10.0.300`; tool restore, full-solution locked restore, and Release build passed. Hosted run `35921528397` then passed SDK selection, locked restore, Release build, Playwright setup, migration/model-drift checks, and 315-case discovery. Domain passed 259/259; API testing was still running when the 45-minute job limit cancelled the run, so API/E2E hosted results are incomplete. No production acceptance is claimed.
+
+## CI runtime adjustment — hosted run #35921528397
+
+- The CI job executes Domain, API, and E2E test projects sequentially with coverage. The 45-minute job limit cancelled run `35921528397` during API tests after Domain passed 259/259 in 15m57s. This is a timeout, not a reported test failure.
+- Raised the job timeout to 90 minutes so the full suite and readiness/artifact steps can complete. Keep hosted status pending until a new run finishes; local aggregate 315/315 does not substitute for hosted completion.
 
 ## CI workflow validation fix — run #393
 
