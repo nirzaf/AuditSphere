@@ -6,16 +6,28 @@ This file records observed repository state only. The authoritative build contra
 
 | Item | Observed value |
 |---|---|
-| Source/test checkpoint | `master@72944dd8f4d0ab408b0e257275d25ef9e1ca4f55`; ReviewPoint and RecordsArchive reauthorize route changes and clear prior scoped projections |
-| Remote | `origin/master` confirmed to equal `72944dd8f4d0ab408b0e257275d25ef9e1ca4f55` at 2026-09-23 20:24 UTC |
+| Source/test checkpoint | `master@c214cb35743284b7c336ae5d193d4026afb81da0`; ClientDetail route changes reauthorize and clear prior client data; Phase-0 TB/package paths verified |
+| Remote | `origin/master` confirmed to equal `c214cb35743284b7c336ae5d193d4026afb81da0` at 2026-09-23 20:48 UTC |
 | SDK | .NET 10; repository solution targets `net10.0` |
 | Database | PostgreSQL 18.6 on loopback port 5433 for development only |
-| Build | Full solution Release build for `72944dd` — passed, 0 warnings/errors |
-| Tests | Fresh discovery: 314 (Domain 259, API 6, E2E 49). Aggregate solution run passed Domain 259/259, API 6/6 and E2E 49/49; 314 total, 0 skips. RecordsArchive stale-route E2E passed 1/1; full E2E passed 49/49. |
+| Build | Full solution Release build for `c214cb3` — passed, 0 warnings/errors |
+| Tests | CI-style discovery: 315 (Domain 259, API 6, E2E 50). ClientDetail route E2E passed 1/1; Phase-0 accounting regressions passed 5/5. Last full solution run passed 314/314 at `72944dd`; the later 315-case aggregate was interrupted and has no result. |
 | Migrations | Added `20260923145244_ProposalPreparedByAttribution`; prior-schema PostgreSQL regression upgraded a synthetic legacy proposal and preserved its values with preparer left unknown. The existing local `auditsphere` database remains at its 91-migration baseline. |
-| Model drift | `dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Web` — no pending model changes for tested `72944dd` source; no schema changes in these UI/test slices |
+| Model drift | `dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Web` — no pending model changes for `c214cb3`; no persistence model changes in these slices |
 | Restore drill | Passed at `2026-09-23T15:20:43Z` on loopback; restored the existing `auditsphere` source at 91 migrations through `20260922140527_M365InvitationEvidenceAction`. Evidence was redirected to `/tmp`; the check does not apply the new proposal migration to that development database. |
 | Production effects | Disabled locally; no production acceptance claimed |
+
+## AS-PAR-002 — Client profile same-document route reauthorization (`c214cb3`)
+
+- `ClientDetail.razor` now reloads and reauthorizes when `ClientId` changes, clears the previous client/contact/engagement projection and draft form, and fences stale reads and command results by route generation.
+- Added `AS-PAR-002-CLIENT-STALE-ROUTE-01`: a client-scoped synthetic manager switches within the same browser document to an unassigned client, confirms the old profile, registration number, contact and engagement are hidden, then returns to the authorized client without a page reload.
+- Focused browser case passed 1/1; Release solution build passed with 0 warnings/errors; discovery is 315. The full 315-case aggregate did not complete after it was interrupted; no 315/315 claim is made. Commit `c214cb35743284b7c336ae5d193d4026afb81da0` was pushed and remote-confirmed at 2026-09-23 20:48 UTC. No migration, tenant operation or production effect.
+
+## Accounting Phase-0 source-integrity and clean-package checks (`c214cb3`)
+
+- `ZeroAdjustmentPlan_ProducesSourceEquivalentPackage` passes end to end through mapping approval, an empty adjustment plan, finalization, adjusted-snapshot creation and financial-package build; no dummy journal is inserted and source balances remain unchanged.
+- Focused PostgreSQL regressions also pass for equivalent normalized data with distinct raw-file hashes, one-source multi-entity batches producing separate datasets, mixed-entity direct import rejection, and mapping maker/checker self-approval denial. Combined focused result: 5/5.
+- These checks confirm the guide's Phase-0 zero-adjustment, raw/normalized identity, entity-boundary and maker/checker foundations already exist in this checkout; the remaining accounting backlog still requires an AC-by-AC audit.
 
 ## AS-PAR-002 — Records archive route reauthorization (`72944dd`)
 
