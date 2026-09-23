@@ -13,6 +13,14 @@ This file records observed repository state only. The authoritative build contra
 - The CI job executes Domain, API, and E2E test projects sequentially with coverage. The 45-minute job limit cancelled run `35921528397` during API tests after Domain passed 259/259 in 15m57s. This is a timeout, not a reported test failure.
 - Raised the job timeout to 90 minutes so the full suite and readiness/artifact steps can complete. Keep hosted status pending until a new run finishes; local aggregate 315/315 does not substitute for hosted completion.
 
+## CI E2E stabilization — hosted run #35926424863
+
+- Run `35926424863` on `30d3191` completed all earlier gates and discovered 315 tests, but the full suite failed at 313/315: two E2E browser scenarios failed. The time-entry journey timed out on its success-message assertion before its longer row wait; the audit-plan case raced role revocation against entering the form.
+- Updated the audit-plan scenario to populate the synthetic risk before revocation, assert that the stale pre-revocation actor is denied with `generation.stale` and that no risk is persisted, then verify same-document navigation clears the revoked user's private plan state. This retains the authorization and data-clearing assertions without depending on an in-flight browser race.
+- Updated the time-entry journey to wait for the persisted row before checking the success message, with a 30-second UI expectation. No application runtime changes were needed.
+- Local verification at `01485f9cbea61c1a0aff053f85fdd9f55bc9a1d6`: both focused journeys passed 2/2, and the complete PostgreSQL-backed Playwright E2E project passed 50/50 with 0 skips in 5m27s. The Release E2E test project rebuilt successfully; `git diff --check` passed. Full solution Domain/API suites were not rerun for these test-only changes.
+- Commit `01485f9` was pushed to `master`; `git ls-remote` confirmed exact remote SHA. Hosted CI for the fixed revision is pending. External production/tenant acceptance is unchanged and remains blocked where listed below.
+
 ## CI workflow validation fix — run #393
 
 - Reproduced GitHub's invalid-workflow error with actionlint: `runner.temp` is unavailable in job-level `env`.
@@ -23,12 +31,12 @@ This file records observed repository state only. The authoritative build contra
 
 | Item | Observed value |
 |---|---|
-| Source/test checkpoint | `master@c214cb35743284b7c336ae5d193d4026afb81da0`; ClientDetail route changes reauthorize and clear prior client data; Phase-0 TB/package paths verified |
-| Remote | `origin/master` confirmed to equal `c214cb35743284b7c336ae5d193d4026afb81da0` at 2026-09-23 20:48 UTC |
+| Source/test checkpoint | `master@01485f9cbea61c1a0aff053f85fdd9f55bc9a1d6`; E2E audit-plan revocation and practice-time journeys stabilized |
+| Remote | `origin/master` confirmed to equal `01485f9cbea61c1a0aff053f85fdd9f55bc9a1d6` at 2026-09-23 23:54 UTC |
 | SDK | .NET 10; repository solution targets `net10.0` |
 | Database | PostgreSQL 18.6 on loopback port 5433 for development only |
-| Build | Full solution Release build for `c214cb3` — passed, 0 warnings/errors |
-| Tests | Full Release solution aggregate passed 315/315 with 0 skipped (Domain 259/259, API 6/6, E2E 50/50); CI-style discovery is 315. ClientDetail route E2E passed 1/1; Phase-0 accounting regressions passed 5/5. |
+| Build | Full solution Release build for `c214cb3` — passed, 0 warnings/errors; changed Release E2E project rebuilt for `01485f9` as part of test run |
+| Tests | Full Release solution aggregate passed 315/315 with 0 skipped at `c214cb3` (Domain 259/259, API 6/6, E2E 50/50); latest E2E suite passed 50/50 with 0 skips at `01485f9`; CI-style discovery remains 315. |
 | Migrations | Added `20260923145244_ProposalPreparedByAttribution`; prior-schema PostgreSQL regression upgraded a synthetic legacy proposal and preserved its values with preparer left unknown. The existing local `auditsphere` database remains at its 91-migration baseline. |
 | Model drift | `dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Web` — no pending model changes for `c214cb3`; no persistence model changes in these slices |
 | Restore drill | Passed at `2026-09-23T15:20:43Z` on loopback; restored the existing `auditsphere` source at 91 migrations through `20260922140527_M365InvitationEvidenceAction`. Evidence was redirected to `/tmp`; the check does not apply the new proposal migration to that development database. |
