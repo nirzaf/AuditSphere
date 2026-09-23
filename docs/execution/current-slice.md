@@ -2,6 +2,12 @@
 
 This file records observed repository state only. The authoritative build contract is [`docs/SPECIFICATION.md`](../SPECIFICATION.md) v5.0. The public repository intentionally excludes tenant identifiers, user principals, credentials, tokens, secret values, and private-provider URLs.
 
+## CI locked restore — exact SDK selection
+
+- Run `35920521850` reached restore, then failed with NU1004: SDK-injected `Microsoft.AspNetCore.App.Internal.Assets` requested `10.0.11`, while the lock file records `10.0.8`. Local SDK `10.0.300` evaluates that package to `10.0.8` and restores the existing locks successfully.
+- `global.json` previously allowed `latestPatch`, which can select a newer preinstalled SDK even after setup installs `10.0.300`. It now requires an exact SDK match with `rollForward: disable`. CI installs from `global.json`, checks the policy and selected SDK before restore, and prints SDK diagnostics. Locked restore and all package lock files remain unchanged.
+- Local verification: the SDK policy check failed before the fix and passed afterward with SDK `10.0.300`; tool restore, full-solution locked restore, and Release build passed. Actionlint v1.7.7 passed with ShellCheck/Pyflakes disabled. Full application tests and hosted execution of this fix were not rerun; no production acceptance is claimed.
+
 ## CI workflow validation fix — run #393
 
 - Reproduced GitHub's invalid-workflow error with actionlint: `runner.temp` is unavailable in job-level `env`.

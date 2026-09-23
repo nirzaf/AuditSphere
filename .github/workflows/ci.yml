@@ -51,7 +51,7 @@ jobs:
           printf 'E2E_RUN_ROOT=%s/auditsphere-e2e-%s\n' "$RUNNER_TEMP" "$E2E_RUN_ID" >> "$GITHUB_ENV"
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
         with:
-          dotnet-version: 10.0.300
+          global-json-file: global.json
           cache: true
           cache-dependency-path: '**/packages.lock.json'
       - name: Verify PostgreSQL 18.6
@@ -66,6 +66,17 @@ jobs:
       - name: Restore and build Release
         run: |
           set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import subprocess
+          from pathlib import Path
+          sdk = json.loads(Path('global.json').read_text())['sdk']
+          assert sdk.get('rollForward') == 'disable', 'Locked restore requires an exact SDK pin'
+          actual = subprocess.check_output(['dotnet', '--version'], text=True).strip()
+          assert actual == sdk['version'], f"Expected SDK {sdk['version']}, selected {actual}"
+          print(f'Verified pinned .NET SDK {actual}')
+          PY
+          dotnet --info
           dotnet tool restore
           dotnet restore AuditSphereOps.slnx --locked-mode
           dotnet build AuditSphereOps.slnx --no-restore --configuration Release
