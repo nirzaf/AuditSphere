@@ -290,6 +290,79 @@ public sealed class FinancialArtifactJourneyTests
     }
   }
 
+  [Fact]
+  [Trait("CaseId", "AS-PAR-002-FS-STALE-DOWNLOAD-01")]
+  public async Task RevokedPackageGrantCannotDownloadCachedArtifact()
+  {
+    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false,
+      caseId: "AS-PAR-002-FS-STALE-DOWNLOAD-01");
+    var (packageId, _) = await CreatePackageAsync(host);
+    byte[] originalBytes;
+    string artifactHash;
+    await using (var db = host.CreateDbContext())
+    {
+      var artifact = await db.FinancialPackageArtifacts.AsNoTracking().SingleAsync(x =>
+        x.FinancialPackageId == packageId && x.ArtifactVersion == FinancialPackageArtifactVersions.Text);
+      originalBytes = artifact.ArtifactBytes;
+      artifactHash = artifact.ArtifactSha256Hex;
+    }
+
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    var page = await browser.NewPageAsync();
+    var diagnostics = new List<string>();
+    var connected = WaitForCircuitConnectionAsync(page, diagnostics);
+    await page.GotoAsync(SignInUrl(host.StaffUrl, $"/app/accounting/packages/{packageId:D}"));
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Financial statement package" }).WaitForAsync();
+    await connected;
+    var initialBody = await page.Locator("body").InnerTextAsync();
+    if (!initialBody.Contains("Mapped statement totals", StringComparison.Ordinal) ||
+        !initialBody.Contains(artifactHash, StringComparison.Ordinal))
+      throw new Xunit.Sdk.XunitException($"The package artifact did not render for the fixture.\n{initialBody}\n{string.Join("\n", diagnostics)}");
+    await page.EvaluateAsync("""
+      () => {
+      window.__syntheticArtifactDownloadCalls = 0;
+      window.auditSphereExports.downloadText = () => window.__syntheticArtifactDownloadCalls++;
+      }
+      """);
+
+    await using (var db = host.CreateDbContext())
+    {
+      var grants = await db.RoleGrants.Where(x => x.FirmId == host.Fixture.FirmId &&
+        x.UserId == host.Fixture.Staff.Id && x.RevokedAt == null &&
+        (x.Role == "Staff" || x.Role == "AccountingPreparer")).ToListAsync();
+      Assert.Equal(2, grants.Count);
+      foreach (var grant in grants)
+      {
+        var revoked = await RoleAdministrationService.RevokeRoleGrantAsync(db,
+          PbcSeed.Actor(host.Fixture.Admin, "Administrator"), new RevokeRoleGrantRequest(grant.Id));
+        Assert.True(revoked.Succeeded, revoked.Message);
+      }
+    }
+
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable" }).WaitForAsync();
+    var body = await page.Locator("body").InnerTextAsync();
+    Assert.DoesNotContain(artifactHash, body);
+    Assert.DoesNotContain("Mapped statement totals", body);
+    Assert.Equal(0, await page.EvaluateAsync<int>("window.__syntheticArtifactDownloadCalls"));
+    Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
+
+    await using (var db = host.CreateDbContext())
+    {
+      var denied = await FinancialStatementService.GetStoredPackageArtifactAsync(db,
+        PbcSeed.Actor(host.Fixture.Staff, "Staff"), packageId);
+      Assert.False(denied.Succeeded);
+      Assert.Equal(ErrorCodes.GenerationStale, denied.ErrorCode);
+      Assert.Null(denied.Value);
+    }
+
+    await using var verify = host.CreateDbContext();
+    var retained = await verify.FinancialPackageArtifacts.AsNoTracking().SingleAsync(x =>
+      x.FinancialPackageId == packageId && x.ArtifactVersion == FinancialPackageArtifactVersions.Text);
+    Assert.Equal(originalBytes, retained.ArtifactBytes);
+    Assert.Equal(artifactHash, retained.ArtifactSha256Hex);
+  }
+
   internal static async Task<(Guid PackageId, Dictionary<string, (byte[] Bytes, string Sha256)> Expected)> CreatePackageAsync(
     OwnedBlazorHost host)
   {

@@ -87,6 +87,7 @@ public static class FinancialStatementService
 {
   private static readonly string[] PreparerRoles = ["AccountingPreparer", "AccountingReviewer", "Manager", "Partner", "Administrator"];
   private static readonly string[] ReviewerRoles = ["AccountingReviewer", "Manager", "Partner", "Administrator"];
+  private static readonly string[] PackageReadRoles = ["Administrator", "Partner", "Manager", "Reviewer", "Staff", "AccountingPreparer", "AccountingReviewer"];
 
   public static async Task<CommandResult<Guid>> CreateMappingVersionAsync(
     IAuditSphereDbContext db,
@@ -931,6 +932,36 @@ public static class FinancialStatementService
     }
 
     return CommandResult<FinancialPackageOfficeArtifact>.Ok(artifact with { ArtifactId = stored.Id });
+  }
+
+  public static async Task<CommandResult<FinancialStatementPackageArtifact>> GetStoredPackageArtifactAsync(
+    IAuditSphereDbContext db,
+    ActorContext actor,
+    Guid packageId,
+    CancellationToken ct = default)
+  {
+    var package = await db.FinancialPackages.AsNoTracking()
+      .SingleOrDefaultAsync(x => x.Id == packageId && x.FirmId == actor.FirmId, ct);
+    if (package is null)
+      return CommandResult<FinancialStatementPackageArtifact>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+
+    var auth = await AuthorizeAsync(db, actor, package.FirmId, package.ClientId, package.EngagementId, PackageReadRoles, ct);
+    if (!auth.Succeeded)
+      return CommandResult<FinancialStatementPackageArtifact>.Fail(auth.ErrorCode!, auth.Message!);
+
+    var stored = await db.FinancialPackageArtifacts.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.FirmId == package.FirmId && x.ClientId == package.ClientId && x.EngagementId == package.EngagementId &&
+      x.FinancialPackageId == package.Id && x.PackageRevision == package.Revision &&
+      x.PackageGeneration == package.Generation && x.PackageHash == package.CalculationHash &&
+      x.ArtifactVersion == FinancialPackageArtifactVersions.Text, ct);
+    if (stored is null || stored.ArtifactBytes.Length == 0 ||
+        !string.Equals(stored.ArtifactSha256Hex, Hashing.Sha256Hex(stored.ArtifactBytes), StringComparison.Ordinal))
+      return CommandResult<FinancialStatementPackageArtifact>.Fail(ErrorCodes.Accounting.PackageInvalid,
+        "The current persisted package artifact is unavailable or failed its integrity check.");
+
+    return CommandResult<FinancialStatementPackageArtifact>.Ok(new FinancialStatementPackageArtifact(
+      package.Id, package.CalculationHash, stored.ArtifactSha256Hex, stored.ArtifactBytes,
+      System.Text.Encoding.UTF8.GetString(stored.ArtifactBytes), stored.Id));
   }
 
   private static async Task<CommandResult> AuthorizeAsync(

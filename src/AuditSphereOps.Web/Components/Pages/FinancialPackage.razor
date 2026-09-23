@@ -1,6 +1,7 @@
 @page "/app/accounting/packages/{PackageId:guid}"
 @rendermode InteractiveServer
 @using AuditSphereOps.Application.Accounting
+@using AuditSphereOps.Domain.Shared
 @inject CurrentActorResolver ActorResolver
 @inject IDbContextFactory<AuditSphereDbContext> DbFactory
 @inject IJSRuntime JS
@@ -13,7 +14,7 @@
 {
   <p role="status">Loading the scoped package…</p>
 }
-else if (_actor is null || !IsStaff)
+else if (_denied || _actor is null || !IsStaff)
 {
   <section class="notice" role="alert"><h2>Access unavailable</h2><p>Sign in with an authorized staff identity to view this package.</p></section>
 }
@@ -200,6 +201,7 @@ else
   private List<FinancialPackageDisclosure> _disclosures = [];
   private List<FinancialPackageReviewSummary> _reviews = [];
   private bool _loading = true;
+  private bool _denied;
   private bool _reviewBusy;
   private bool _artifactBusy;
   private string? _artifactStatus;
@@ -235,6 +237,7 @@ else
             ["Administrator", "Partner", "Manager", "Reviewer", "Staff", "AccountingPreparer", "AccountingReviewer"], InternalOnly: true));
         if (!authorization.Succeeded)
         {
+          _denied = true;
           _loading = false;
           return;
         }
@@ -263,6 +266,12 @@ else
         var reviews = await FinancialPackageReviewService.GetAsync(db, _actor, _package.Id);
         if (reviews.Succeeded)
           _reviews = reviews.Value?.ToList() ?? [];
+        else if (IsStaleSession(reviews.ErrorCode))
+        {
+          DenyAndClear();
+          _loading = false;
+          return;
+        }
       }
     }
     _loading = false;
@@ -278,6 +287,11 @@ else
       _reviewResult = await FinancialPackageReviewService.RecordAsync(db, _actor,
         new FinancialPackageReviewRequest(_package.Id, _reviewStage, _reviewDecision, _reviewEvidenceMode,
           _reviewEvidenceReference, _reviewComment));
+      if (IsStaleSession(_reviewResult.ErrorCode))
+      {
+        DenyAndClear();
+        return;
+      }
       if (_reviewResult.Succeeded)
       {
         _reviewSuccessMessage = "Decision recorded against the current package version.";
@@ -286,6 +300,11 @@ else
         var reviews = await FinancialPackageReviewService.GetAsync(db, _actor, _package.Id);
         if (reviews.Succeeded)
           _reviews = reviews.Value?.ToList() ?? [];
+        else if (IsStaleSession(reviews.ErrorCode))
+        {
+          DenyAndClear();
+          return;
+        }
       }
     }
     finally { _reviewBusy = false; }
@@ -293,13 +312,26 @@ else
 
   private async Task DownloadArtifactAsync()
   {
-    if (_package is null || _artifact is null || _artifactBusy) return;
+    if (_actor is null || _package is null || _artifact is null || _artifactBusy) return;
     _artifactBusy = true;
     _artifactStatus = "Preparing the persisted exact artifact…";
     try
     {
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var result = await FinancialStatementService.GetStoredPackageArtifactAsync(db, _actor, _package.Id);
+      if (!result.Succeeded || result.Value is null)
+      {
+        if (IsStaleSession(result.ErrorCode))
+        {
+          DenyAndClear();
+          return;
+        }
+        _artifact = null;
+        _artifactStatus = result.Message ?? "The current artifact is unavailable; no download occurred.";
+        return;
+      }
       await JS.InvokeVoidAsync("auditSphereExports.downloadText",
-        $"auditsphere-financial-package-{_package.Id:D}-r{_package.Revision}.txt", _artifact.RenderedText, "text/plain;charset=utf-8");
+        $"auditsphere-financial-package-{result.Value.PackageId:D}-r{_package.Revision}.txt", result.Value.RenderedText, "text/plain;charset=utf-8");
       _artifactStatus = "Artifact download started. Release and delivery remain separate controls.";
     }
     catch (JSDisconnectedException)
@@ -324,6 +356,11 @@ else
       var result = await FinancialStatementService.RenderPackageOfficeArtifactAsync(db, _actor, _package.Id, artifactVersion);
       if (!result.Succeeded || result.Value is null)
       {
+        if (IsStaleSession(result.ErrorCode))
+        {
+          DenyAndClear();
+          return;
+        }
         _artifactStatus = result.Message ?? "Export artifact generation was blocked.";
         return;
       }
@@ -341,5 +378,19 @@ else
       _artifactStatus = $"Download failed without changing the package: {ex.Message}";
     }
     finally { _artifactBusy = false; }
+  }
+
+  private static bool IsStaleSession(string? errorCode) => errorCode == ErrorCodes.GenerationStale;
+
+  private void DenyAndClear()
+  {
+    _denied = true;
+    _package = null;
+    _artifact = null;
+    _validations.Clear();
+    _lines.Clear();
+    _cashFlowLines.Clear();
+    _disclosures.Clear();
+    _reviews.Clear();
   }
 }
