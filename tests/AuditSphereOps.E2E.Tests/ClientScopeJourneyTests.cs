@@ -1660,7 +1660,7 @@ public sealed class ClientScopeJourneyTests
       Assert.Equal(1, revoked);
     }
 
-    await page.GetByRole(AriaRole.Button, new() { Name = "Clear Review Point" }).ClickAsync();
+    await page.GetByRole(AriaRole.Button, new() { Name = "Clear Review Point" }).ClickAsync(new() { Force = true });
     await page.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable" }).WaitForAsync();
     var body = await page.Locator("body").InnerTextAsync();
     Assert.DoesNotContain(privateComment, body);

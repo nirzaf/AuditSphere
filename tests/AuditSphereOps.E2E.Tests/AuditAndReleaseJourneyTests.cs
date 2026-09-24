@@ -16,6 +16,47 @@ namespace AuditSphereOps.E2E.Tests;
 public sealed class AuditAndReleaseJourneyTests
 {
   [Fact]
+  [Trait("CaseId", "AS-PAR-002-COMPLETION-STALE-ROUTE-01")]
+  public async Task CompletionClearsPriorEngagementWhenRouteChangesInPlace()
+  {
+    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false,
+      caseId: "AS-PAR-002-COMPLETION-STALE-ROUTE-01");
+    var (packageId, _) = await FinancialArtifactJourneyTests.CreatePackageAsync(host);
+    var unauthorizedEngagementId = Guid.NewGuid();
+    await using (var db = host.CreateDbContext())
+    {
+      db.RoleGrants.Add(PbcSeed.Grant(host.Fixture.FirmId, host.Fixture.Staff, "Partner",
+        host.Fixture.ClientId, host.Fixture.EngagementId));
+      db.Engagements.Add(new Engagement
+      {
+        Id = unauthorizedEngagementId, FirmId = host.Fixture.FirmId,
+        PracticeClientId = host.Fixture.ClientId, Status = "Active", CreatedAt = DateTimeOffset.UtcNow
+      });
+      await db.SaveChangesAsync();
+    }
+
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    await using var context = await browser.NewContextAsync();
+    var page = await context.NewPageAsync();
+    var diagnostics = new List<string>();
+    var connected = WaitForCircuitConnectionAsync(page, diagnostics);
+    await page.GotoAsync(SignInUrl(host.StaffUrl,
+      $"/app/engagements/{host.Fixture.EngagementId:D}/completion"));
+    await page.GetByText(packageId.ToString(), new() { Exact = true }).WaitForAsync();
+    await connected;
+    var documentToken = Guid.NewGuid().ToString("N");
+    await page.EvaluateAsync("token => window.__testDocumentToken = token", documentToken);
+    await page.EvaluateAsync("path => { history.pushState({}, '', path); dispatchEvent(new PopStateEvent('popstate')); }",
+      $"/app/engagements/{unauthorizedEngagementId:D}/completion");
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Engagement unavailable" }).WaitForAsync();
+    var body = await page.Locator("body").InnerTextAsync();
+    Assert.DoesNotContain(packageId.ToString(), body);
+    Assert.Equal(documentToken, await page.EvaluateAsync<string>("window.__testDocumentToken"));
+    Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
+  }
+
+  [Fact]
   [Trait("CaseId", "AS-PAR-002-AUDIT-FIELDWORK-STALE-ROUTE-01")]
   public async Task AuditFieldworkClearsPriorEngagementWhenRouteChangesInPlace()
   {

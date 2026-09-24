@@ -9,6 +9,16 @@ This file records observed repository state only. The authoritative build contra
 - Added `AS-PAR-002-AUDIT-FIELDWORK-STALE-ROUTE-01`. The synthetic PostgreSQL-backed browser journey adopts a program for the assigned engagement, navigates in-place to an unassigned sibling and confirms program details are absent, then returns to the authorized engagement and confirms it reloads without a document reload.
 - Verification: focused journey 1/1; complete E2E project 51/51, 0 skipped; Release solution build 0 warnings/errors; EF reports no pending model changes; actionlint v1.7.7 passes. No schema migration, tenant operation or production effect. The existing hosted run on predecessor `2ce6184` had not completed when this slice was prepared; its final outcome is recorded after push.
 
+## AS-PAR-002 — Completion checklist route characterization
+
+- Added `AS-PAR-002-COMPLETION-STALE-ROUTE-01`: a synthetic Partner opens completion for an engagement with a persisted financial package, navigates within the same browser document to an unassigned sibling, and confirms the old package ID is absent from the unavailable state.
+- The focused browser case passed 1/1 without a runtime change; the existing routed component lifecycle clears the projection. The complete E2E suite then passed 52/52 with 0 skips. No schema migration, tenant operation or production effect.
+
+## E2E — ReviewPoint revocation click stabilization
+
+- In the synthetic current-grant revocation journey, the page removes the disposition button as soon as its expected authorization-denied response clears protected state. Playwright sometimes reported the button detached during the click and retried until timeout.
+- The browser test now force-dispatches the already-visible action, then verifies the non-disclosing unavailable state, absent private comment/action, and unchanged `ReviewPoint.Cleared` value. Focused test passed 1/1 and complete PostgreSQL-backed E2E passed 52/52 with 0 skips. No production or tenant effect.
+
 ## CI locked restore — exact SDK selection
 
 - Run `35920521850` reached restore, then failed with NU1004: SDK-injected `Microsoft.AspNetCore.App.Internal.Assets` requested `10.0.11`, while the lock file records `10.0.8`. Local SDK `10.0.300` evaluates that package to `10.0.8` and restores the existing locks successfully.
