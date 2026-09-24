@@ -516,6 +516,19 @@ public sealed class ClientScopeJourneyTests
     Assert.DoesNotContain(privateEvidenceReference, body);
     Assert.Contains("No ECL, inventory, specialist, analytical or journal-risk records are available in the selected scope.", body);
     Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
+
+    await using (var db = host.CreateDbContext())
+    {
+      var revoked = await db.RoleGrants.Where(x => x.UserId == allowedPartner.Id && x.Role == "Partner" && x.RevokedAt == null)
+        .ExecuteUpdateAsync(update => update.SetProperty(x => x.RevokedAt, DateTimeOffset.UtcNow));
+      Assert.Equal(1, revoked);
+    }
+
+    await allowedPage.GetByRole(AriaRole.Button, new() { Name = "Refresh queue" }).ClickAsync();
+    await allowedPage.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable" }).WaitForAsync();
+    var revokedBody = await allowedPage.Locator("body").InnerTextAsync();
+    Assert.DoesNotContain(privateEvidenceReference, revokedBody);
+    Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
   }
 
   [Fact]

@@ -3,14 +3,20 @@
 @using AuditSphereOps.Domain.Accounting
 @inject CurrentActorResolver ActorResolver
 @inject IDbContextFactory<AuditSphereDbContext> DbFactory
+@inject ILogger<AccountingEvidence> Logger
 
 <PageTitle>Accounting evidence queue</PageTitle>
 <a class="back-link" href="/app/accounting">← Back to accounting workspace</a>
 <h1>Accounting evidence queue</h1>
+<button class="button-secondary" title="Clear this queue and check your current client and engagement grants again." @onclick="LoadEvidenceAsync" disabled="@_loading">Refresh queue</button>
 
 @if (_loading)
 {
   <p role="status">Loading scoped accounting evidence…</p>
+}
+else if (_error is not null)
+{
+  <section class="notice" role="alert"><h2>Evidence queue unavailable</h2><p>@_error</p></section>
 }
 else if (!_authorized)
 {
@@ -79,17 +85,41 @@ else
   private ActorContext? _actor;
   private bool _loading = true;
   private bool _authorized;
+  private string? _error;
   private List<EvidenceRow> _rows = [];
 
-  protected override async Task OnInitializedAsync()
+  protected override Task OnInitializedAsync() => LoadEvidenceAsync();
+
+  private async Task LoadEvidenceAsync()
   {
-    _actor = await ActorResolver.ResolveAsync();
+    _loading = true;
+    _authorized = false;
+    _actor = null;
     _rows = [];
-    if (_actor is null)
+    _error = null;
+    try
+    {
+      await LoadEvidenceCoreAsync();
+    }
+    catch (Exception ex)
+    {
+      Logger.LogError(ex, "Failed to refresh the accounting evidence queue.");
+      _actor = null;
+      _authorized = false;
+      _rows = [];
+      _error = "The evidence queue could not be refreshed. Retry when the connection is available.";
+    }
+    finally
     {
       _loading = false;
-      return;
     }
+  }
+
+  private async Task LoadEvidenceCoreAsync()
+  {
+    _actor = await ActorResolver.ResolveAsync();
+    if (_actor is null)
+      return;
 
     await using var db = await DbFactory.CreateDbContextAsync();
     var authorization = await AuthorizationDecision.AuthorizeAsync(db, _actor,
@@ -97,7 +127,6 @@ else
     if (!authorization.Succeeded)
     {
       _actor = null;
-      _loading = false;
       return;
     }
 
@@ -123,10 +152,7 @@ else
         (directClientIds.Contains(x.PracticeClientId) || grantedEngagementIds.Contains(x.Id)))
       .Select(x => x.Id).ToArrayAsync();
     if (!unrestricted && clientIds.Length == 0)
-    {
-      _loading = false;
       return;
-    }
     var inScope = unrestricted ? null : clientIds;
     var clients = await db.PracticeClients.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && (inScope == null || inScope.Contains(x.Id)))
       .ToDictionaryAsync(x => x.Id, x => x.LegalName);
@@ -195,7 +221,6 @@ else
         generations.GetValueOrDefault(x.ClientId, 0), linkStatus, x.EvidenceReference);
     }));
     _rows = rows.OrderBy(x => x.ClientName).ThenBy(x => x.PeriodCode).ThenBy(x => x.Kind).ToList();
-    _loading = false;
 
     EvidenceRow Row(string kind, string area, Guid evidenceId, Guid clientId, Guid engagementId, string periodCode, string status, long inputGeneration,
       long currentGeneration, IReadOnlyDictionary<string, AuditLinkTarget> statuses, string reference)
