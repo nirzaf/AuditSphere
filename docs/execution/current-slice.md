@@ -2,6 +2,13 @@
 
 This file records observed repository state only. The authoritative build contract is [`docs/SPECIFICATION.md`](../SPECIFICATION.md) v5.0. The public repository intentionally excludes tenant identifiers, user principals, credentials, tokens, secret values, and private-provider URLs.
 
+## Accounting — preserve foreign-currency amounts in GL imports
+
+- Direct and chunked GL ingestion now preserve each line's normalized original currency, original amount and functional amount rather than forcing the period currency into every source line. Both paths use the same transaction validation; signed functional postings must match debit/credit, same-currency amounts must agree, and normalized source fields participate in the idempotency digest.
+- PostgreSQL-backed regressions cover direct and streamed foreign-currency lines, stored source values, normalization/idempotency, and rejection of a mismatched functional posting. The focused two-test run passed 2/2; full Domain Release suite passed 261/261 with 0 skips. Focused E2E practice-time journey passed 1/1; Release solution build passed with 0 warnings/errors; EF found no pending model changes; `git diff --check` passed.
+- Hosted run `35971115983` on predecessor `ba1a3ec` discovered 323 tests and passed Domain 261/261 plus API 6/6, then the E2E journey `ProspectTimeBillingAndManualFirmCloseKeepTheirBoundaries` failed waiting for the time-draft success message. Its browser/server artifacts show no persistence exception; the same journey passed locally. The 90-minute hosted job was cancelled before aggregate E2E completion/readiness. This is not a hosted full-suite pass; rerun after this checkpoint.
+- This improves imported source fidelity only. Remeasurement still requires a preparer to identify/prove an outstanding balance and enter its classification and carrying amount; a posted GL line is not automatically treated as an open item. Methodology and live acceptance remain separate gates.
+
 ## Accounting — versioned component FX translation correction
 
 - Corrected the sibling persisted translation path: component translation no longer labels `translated amount - source amount` as an FX adjustment. New `COMPONENT_TRANSLATION_V2` results store no monetary FX adjustment; translation-reserve computations remain in their separate method-specific schedule. Scope approval/build require V2. Added an append-only calculation version and migration that labels existing rows V1, preserves their bytes/values/status, and changes the unique key so a corrected V2 result can coexist instead of rewriting history. Archive export retains the algorithm version.

@@ -77,7 +77,7 @@ public sealed class ClientAccountingTests
       var imported = await ClientAccountingService.ImportGeneralLedgerAsync(db, preparer,
         new GeneralLedgerImportRequest(scope.ClientA, scope.EngagementA, periodId, bookId, "csv-v1", "gl-v1", rawHash,
           "CLIENT-A", "QAR", "receipt-a", [new("J-1", "INV-1", new DateOnly(2026, 6, 30), null, "user-a", "LEDGER-A", null, false, false,
-            [new("J-1-L1", "1000", 100m, 0m, "QAR", 100m, 100m), new("J-1-L2", "4000", 0m, 100m, "QAR", -100m, -100m)])]));
+            [new("J-1-L1", "1000", 100m, 0m, "USD", 27.027m, 100m), new("J-1-L2", "4000", 0m, 100m, "QAR", -100m, -100m)])]));
       Assert.True(imported.Succeeded);
       batchId = imported.Value;
     }
@@ -89,6 +89,10 @@ public sealed class ClientAccountingTests
       Assert.NotEqual(batch.RawFileSha256Hex, batch.NormalizedDatasetDigest);
       Assert.Equal(2, await db.GeneralLedgerLines.CountAsync(x => x.ImportBatchId == batchId));
       Assert.Equal(1, await db.GeneralLedgerTransactions.CountAsync(x => x.ImportBatchId == batchId));
+      var foreignLine = await db.GeneralLedgerLines.SingleAsync(x => x.ImportBatchId == batchId && x.StableLineId == "J-1-L1");
+      Assert.Equal("USD", foreignLine.OriginalCurrency);
+      Assert.Equal(27.027m, foreignLine.OriginalAmount);
+      Assert.Equal(100m, foreignLine.FunctionalAmount);
     }
 
     Guid reconciliationId, transactionId, eclId, inventoryId, specialistId, analyticalId, riskId;
@@ -1029,12 +1033,26 @@ public sealed class ClientAccountingTests
     var chunkTwo = new[]
     {
       new GeneralLedgerTransactionInput("J-2", "INV-2", new DateOnly(2026, 7, 1), null, "user-a", "LEDGER-A", null, false, false,
-        [new("J-2-L1", "1000", 25m, 0m, "QAR", 25m, 25m), new("J-2-L2", "4000", 0m, 25m, "QAR", -25m, -25m)])
+        [new("J-2-L1", "1000", 25m, 0m, "USD", 20m, 25m), new("J-2-L2", "4000", 0m, 25m, "QAR", -25m, -25m)])
     };
     var digestOne = ClientAccountingService.ComputeGeneralLedgerChunkDigest("QAR", chunkOne);
     var digestTwo = ClientAccountingService.ComputeGeneralLedgerChunkDigest("QAR", chunkTwo);
     var noServiceDateChunk = chunkOne.Select(x => x with { ServiceDate = null }).ToArray();
     Assert.NotEqual(digestOne, ClientAccountingService.ComputeGeneralLedgerChunkDigest("QAR", noServiceDateChunk));
+    var sourceCurrencyVariant = chunkOne.Select(x => x with
+    {
+      Lines = x.Lines.Select((line, index) => index == 0
+        ? line with { OriginalCurrency = "USD", OriginalAmount = 27.027m }
+        : line).ToArray()
+    }).ToArray();
+    Assert.NotEqual(digestOne, ClientAccountingService.ComputeGeneralLedgerChunkDigest("QAR", sourceCurrencyVariant));
+    var normalizedCaseVariant = chunkOne.Select(x => x with
+    {
+      Lines = x.Lines.Select((line, index) => index == 0
+        ? line with { OriginalCurrency = " qar ", StableLineId = " J-1-L1 ", AccountCode = " 1000 " }
+        : line).ToArray()
+    }).ToArray();
+    Assert.Equal(digestOne, ClientAccountingService.ComputeGeneralLedgerChunkDigest("QAR", normalizedCaseVariant));
     Guid batchId;
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
@@ -1043,6 +1061,16 @@ public sealed class ClientAccountingTests
           new string('9', 64), "CLIENT-A", "QAR", "stream-receipt", 2, 2, 4));
       Assert.True(started.Succeeded, started.Message);
       batchId = started.Value;
+
+      var invalidChunk = chunkOne.Select(x => x with
+      {
+        Lines = x.Lines.Select((line, index) => index == 0 ? line with { FunctionalAmount = 99m } : line).ToArray()
+      }).ToArray();
+      var invalidDigest = ClientAccountingService.ComputeGeneralLedgerChunkDigest("QAR", invalidChunk);
+      var invalid = await ClientAccountingService.AppendGeneralLedgerChunkAsync(db, preparer,
+        new GeneralLedgerImportChunkRequest(batchId, 0, invalidDigest, invalidChunk, Finalize: false));
+      Assert.False(invalid.Succeeded);
+      Assert.Equal(ErrorCodes.Accounting.ImportRejected, invalid.ErrorCode);
 
       var first = await ClientAccountingService.AppendGeneralLedgerChunkAsync(db, preparer,
         new GeneralLedgerImportChunkRequest(batchId, 0, digestOne, chunkOne, Finalize: false));
@@ -1074,6 +1102,10 @@ public sealed class ClientAccountingTests
     Assert.Equal(2, await verify.GeneralLedgerImportChunks.CountAsync(x => x.ImportBatchId == batchId));
     Assert.Equal(2, await verify.GeneralLedgerTransactions.CountAsync(x => x.ImportBatchId == batchId));
     Assert.Equal(4, await verify.GeneralLedgerLines.CountAsync(x => x.ImportBatchId == batchId));
+    var foreignLine = await verify.GeneralLedgerLines.SingleAsync(x => x.ImportBatchId == batchId && x.StableLineId == "J-2-L1");
+    Assert.Equal("USD", foreignLine.OriginalCurrency);
+    Assert.Equal(20m, foreignLine.OriginalAmount);
+    Assert.Equal(25m, foreignLine.FunctionalAmount);
     Assert.Equal(new DateOnly(2026, 6, 29), await verify.GeneralLedgerTransactions.Where(x => x.ImportBatchId == batchId && x.StableJournalId == "J-1").Select(x => x.ServiceDate).SingleAsync());
   }
 

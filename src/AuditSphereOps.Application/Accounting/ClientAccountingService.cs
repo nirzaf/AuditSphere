@@ -876,31 +876,12 @@ public static class ClientAccountingService
     var accounts = await db.ClientAccounts.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ClientId == request.ClientId && x.ChartVersionId == chart.Id)
       .ToDictionaryAsync(x => x.AccountCode, StringComparer.OrdinalIgnoreCase, ct);
     var dimensionCodes = await LoadDimensionCodesAsync(db, actor.FirmId, request.ClientId, ct);
-    var journals = request.Transactions.Select(x => x.StableJournalId.Trim()).ToArray();
-    if (journals.Any(string.IsNullOrWhiteSpace) || journals.Distinct(StringComparer.OrdinalIgnoreCase).Count() != journals.Length ||
-        request.Transactions.SelectMany(x => x.Lines).Select(x => x.StableLineId.Trim()).Any(string.IsNullOrWhiteSpace))
-      return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ImportRejected, "GL journal and line identities must be unique and non-empty.");
-    var lineIds = request.Transactions.SelectMany(x => x.Lines).Select(x => x.StableLineId.Trim()).ToArray();
-    if (lineIds.Distinct(StringComparer.OrdinalIgnoreCase).Count() != lineIds.Length)
-      return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ImportRejected, "GL line identities must be unique.");
-    foreach (var transaction in request.Transactions)
-    {
-      if (transaction.PostingDate < period.StartDate || transaction.PostingDate > period.EndDate || transaction.Lines.Count == 0)
-        return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ImportRejected, "Every GL journal must be populated and inside the selected period.");
-      if (transaction.Lines.Any(x => x.Debit < 0m || x.Credit < 0m || (x.Debit > 0m && x.Credit > 0m) ||
-          !accounts.ContainsKey(x.AccountCode.Trim()) || x.OriginalCurrency.Trim().ToUpperInvariant() != currency))
-        return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ImportRejected, "GL lines must use published accounts, one-sided amounts and the selected currency.");
-      if (MoneyPolicy.Normalize(transaction.Lines.Sum(x => x.Debit) - transaction.Lines.Sum(x => x.Credit)) != 0m)
-        return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ImportRejected, $"Journal {transaction.StableJournalId} is not balanced.");
-    }
-    if (ValidateDimensionValues(request.Transactions, dimensionCodes) is { } dimensionError)
-      return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ImportRejected, dimensionError);
-    var normalized = string.Join('\n', request.Transactions.OrderBy(x => x.StableJournalId, StringComparer.Ordinal)
-      .SelectMany(x => x.Lines.OrderBy(y => y.StableLineId, StringComparer.Ordinal).Select(y => string.Join('|',
-        x.StableJournalId.Trim(), x.ServiceDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? string.Empty,
-        y.StableLineId.Trim(), y.AccountCode.Trim(),
-        y.Debit.ToString("0.000000", CultureInfo.InvariantCulture), y.Credit.ToString("0.000000", CultureInfo.InvariantCulture), currency))));
-    var normalizedHash = Hashing.Sha256Hex(Encoding.UTF8.GetBytes("gl-import.v2\n" + normalized));
+    var validation = ValidateGeneralLedgerTransactions(request.Transactions, period, currency,
+      accounts, dimensionCodes, MaxGlTransactions, MaxGlLines);
+    if (!validation.Succeeded)
+      return CommandResult<Guid>.Fail(validation.ErrorCode!, validation.Message!);
+    var normalizedHash = Hashing.Sha256Hex(Encoding.UTF8.GetBytes(
+      "gl-import.single.v2\n" + ComputeGeneralLedgerChunkDigest(currency, request.Transactions)));
     if (await db.SourceImportBatches.AnyAsync(x => x.FirmId == actor.FirmId && x.EngagementId == request.EngagementId &&
         x.RawFileSha256Hex == request.RawFileSha256Hex.Trim().ToLowerInvariant(), ct))
       return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ImportDuplicate, "The source file was already imported for this engagement.");
@@ -936,7 +917,7 @@ public static class ClientAccountingService
           ImportBatchId = batch.Id, TransactionId = transaction.Id, StableLineId = line.StableLineId.Trim(),
           AccountCode = line.AccountCode.Trim(), ClientAccountId = accounts[line.AccountCode.Trim()].Id,
           Debit = MoneyPolicy.Normalize(line.Debit), Credit = MoneyPolicy.Normalize(line.Credit),
-          OriginalCurrency = currency, OriginalAmount = MoneyPolicy.Normalize(line.OriginalAmount),
+          OriginalCurrency = line.OriginalCurrency.Trim().ToUpperInvariant(), OriginalAmount = MoneyPolicy.Normalize(line.OriginalAmount),
           FunctionalAmount = MoneyPolicy.Normalize(line.FunctionalAmount), PartyIdentifier = line.PartyIdentifier.Trim(),
           Branch = line.Branch.Trim(), CostCentre = line.CostCentre.Trim(), Department = line.Department.Trim(),
           Project = line.Project.Trim(), IntercompanyCounterparty = line.IntercompanyCounterparty.Trim(),
@@ -1109,7 +1090,8 @@ public static class ClientAccountingService
             Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = batch.ClientId, EngagementId = batch.EngagementId,
             ImportBatchId = batch.Id, TransactionId = transaction.Id, StableLineId = line.StableLineId.Trim(),
             AccountCode = line.AccountCode.Trim(), ClientAccountId = context.Value.Accounts[line.AccountCode.Trim()].Id,
-            Debit = MoneyPolicy.Normalize(line.Debit), Credit = MoneyPolicy.Normalize(line.Credit), OriginalCurrency = currency,
+            Debit = MoneyPolicy.Normalize(line.Debit), Credit = MoneyPolicy.Normalize(line.Credit),
+            OriginalCurrency = line.OriginalCurrency.Trim().ToUpperInvariant(),
             OriginalAmount = MoneyPolicy.Normalize(line.OriginalAmount), FunctionalAmount = MoneyPolicy.Normalize(line.FunctionalAmount),
             PartyIdentifier = line.PartyIdentifier.Trim(), Branch = line.Branch.Trim(), CostCentre = line.CostCentre.Trim(),
             Department = line.Department.Trim(), Project = line.Project.Trim(), IntercompanyCounterparty = line.IntercompanyCounterparty.Trim(),
@@ -1125,7 +1107,7 @@ public static class ClientAccountingService
     {
       var finalDigests = chunkRows.OrderBy(x => x.ChunkNumber).Select(x => $"{x.ChunkNumber}:{x.ChunkDigest}");
       batch.NormalizedDatasetDigest = Hashing.Sha256Hex(Encoding.UTF8.GetBytes(
-        "gl-import.stream.v1\n" + string.Join('\n', finalDigests)));
+        "gl-import.stream.v2\n" + string.Join('\n', finalDigests)));
       batch.Status = "SEALED";
     }
     try
@@ -1147,18 +1129,23 @@ public static class ClientAccountingService
     var canonical = new
     {
       Currency = currency.Trim().ToUpperInvariant(),
-      Transactions = transactions.OrderBy(x => x.StableJournalId, StringComparer.Ordinal).Select(x => new
+      Transactions = transactions.OrderBy(x => x.StableJournalId.Trim(), StringComparer.Ordinal).Select(x => new
       {
-        x.StableJournalId, x.DocumentNumber, x.PostingDate, x.DocumentDate, x.ServiceDate, x.SourceUser, x.SourceSystem,
-        x.ReversalReference, x.IsManual, x.IsYearEnd,
-        Lines = x.Lines.OrderBy(y => y.StableLineId, StringComparer.Ordinal).Select(y => new
+        StableJournalId = x.StableJournalId.Trim(), DocumentNumber = x.DocumentNumber.Trim(),
+        x.PostingDate, x.DocumentDate, x.ServiceDate, SourceUser = x.SourceUser.Trim(), SourceSystem = x.SourceSystem.Trim(),
+        ReversalReference = x.ReversalReference?.Trim(), x.IsManual, x.IsYearEnd,
+        Lines = x.Lines.OrderBy(y => y.StableLineId.Trim(), StringComparer.Ordinal).Select(y => new
         {
-          y.StableLineId, y.AccountCode, y.Debit, y.Credit, y.OriginalCurrency, y.OriginalAmount, y.FunctionalAmount,
-          y.PartyIdentifier, y.Branch, y.CostCentre, y.Department, y.Project, y.IntercompanyCounterparty
+          StableLineId = y.StableLineId.Trim(), AccountCode = y.AccountCode.Trim(),
+          Debit = MoneyPolicy.Normalize(y.Debit), Credit = MoneyPolicy.Normalize(y.Credit),
+          OriginalCurrency = y.OriginalCurrency.Trim().ToUpperInvariant(),
+          OriginalAmount = MoneyPolicy.Normalize(y.OriginalAmount), FunctionalAmount = MoneyPolicy.Normalize(y.FunctionalAmount),
+          PartyIdentifier = y.PartyIdentifier.Trim(), Branch = y.Branch.Trim(), CostCentre = y.CostCentre.Trim(),
+          Department = y.Department.Trim(), Project = y.Project.Trim(), IntercompanyCounterparty = y.IntercompanyCounterparty.Trim()
         }).ToArray()
       }).ToArray()
     };
-    return Hashing.Sha256Hex(Encoding.UTF8.GetBytes("gl-import.chunk.v1\n" + JsonSerializer.Serialize(canonical)));
+    return Hashing.Sha256Hex(Encoding.UTF8.GetBytes("gl-import.chunk.v2\n" + JsonSerializer.Serialize(canonical)));
   }
 
   public static async Task<CommandResult> ClosePeriodAsync(
@@ -1316,8 +1303,14 @@ public static class ClientAccountingService
       if (transaction.PostingDate < period.StartDate || transaction.PostingDate > period.EndDate || transaction.Lines.Count == 0)
         return CommandResult<int>.Fail(ErrorCodes.Accounting.ImportRejected, "Every GL journal must be populated and inside the selected period.");
       if (transaction.Lines.Any(x => x.Debit < 0m || x.Credit < 0m || (x.Debit > 0m && x.Credit > 0m) ||
-          !accounts.ContainsKey(x.AccountCode.Trim()) || x.OriginalCurrency.Trim().ToUpperInvariant() != currency))
-        return CommandResult<int>.Fail(ErrorCodes.Accounting.ImportRejected, "GL lines must use published accounts, one-sided amounts and the selected currency.");
+          !accounts.ContainsKey(x.AccountCode.Trim()) || !IsCurrencyCode(x.OriginalCurrency) ||
+          MoneyPolicy.Normalize(x.OriginalAmount) != x.OriginalAmount ||
+          MoneyPolicy.Normalize(x.FunctionalAmount) != x.FunctionalAmount ||
+          x.FunctionalAmount != MoneyPolicy.Normalize(x.Debit - x.Credit) ||
+          (string.Equals(x.OriginalCurrency.Trim(), currency, StringComparison.OrdinalIgnoreCase) && x.OriginalAmount != x.FunctionalAmount) ||
+          (x.OriginalAmount != 0m && Math.Sign(x.OriginalAmount) != Math.Sign(x.FunctionalAmount))))
+        return CommandResult<int>.Fail(ErrorCodes.Accounting.ImportRejected,
+          "GL lines need a published account, valid original currency, normalized amounts, and signed functional value equal to the debit/credit posting.");
       if (MoneyPolicy.Normalize(transaction.Lines.Sum(x => x.Debit) - transaction.Lines.Sum(x => x.Credit)) != 0m)
         return CommandResult<int>.Fail(ErrorCodes.Accounting.ImportRejected, $"Journal {transaction.StableJournalId} is not balanced.");
     }
@@ -1366,6 +1359,12 @@ public static class ClientAccountingService
 
   private static bool IsSha256(string value) => value.Trim().Length == 64 && value.Trim().All(c =>
     c is >= '0' and <= '9' or >= 'a' and <= 'f' or >= 'A' and <= 'F');
+
+  private static bool IsCurrencyCode(string value)
+  {
+    var currency = value.Trim();
+    return currency.Length == 3 && currency.All(char.IsAsciiLetter);
+  }
 
   private sealed class StringTupleComparer : IEqualityComparer<(string SourceSystem, string AliasCode)>
   {
