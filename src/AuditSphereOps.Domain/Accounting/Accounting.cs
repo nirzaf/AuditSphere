@@ -1,6 +1,47 @@
 // Accounting: TB datasets, rows (immutable), mappings, journals, packages (§§16–18, 27.2, 42.1–42.6).
 namespace AuditSphereOps.Domain.Accounting;
 
+public static class AccountingSourceKinds
+{
+  public const string TrialBalance = "TB";
+  public const string GeneralLedger = "GL";
+}
+
+/// <summary>Append-only independent acceptance of a sealed source revision (M21): sealing
+/// proves immutability, this decision selects the accepted source for downstream modules.</summary>
+public sealed class SourceAcceptanceDecision
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public Guid EngagementId { get; set; }
+  public string SourceKind { get; set; } = AccountingSourceKinds.TrialBalance;
+  public Guid? TrialBalanceDatasetId { get; set; }
+  public Guid? ImportBatchId { get; set; }
+  public string SourceIdentityHash { get; set; } = string.Empty;
+  public string Decision { get; set; } = "ACCEPTED";
+  public string EvidenceReference { get; set; } = string.Empty;
+  public Guid AcceptedByUserId { get; set; }
+  public DateTimeOffset CreatedAt { get; set; }
+}
+
+/// <summary>Row-level validation issue persisted when a sealed TB dataset fails validation,
+/// so reviewers can explain a rejection without access to the original upload.</summary>
+public sealed class TrialBalanceValidationIssue
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public Guid EngagementId { get; set; }
+  public Guid DatasetId { get; set; }
+  public long Revision { get; set; }
+  public string RowKey { get; set; } = string.Empty;
+  public string Severity { get; set; } = "ERROR";
+  public string Code { get; set; } = string.Empty;
+  public string Message { get; set; } = string.Empty;
+  public DateTimeOffset CreatedAt { get; set; }
+}
+
 public sealed class TrialBalanceDataset
 {
   public Guid Id { get; set; }

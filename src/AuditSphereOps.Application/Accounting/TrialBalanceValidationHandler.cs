@@ -56,11 +56,41 @@ public sealed class TrialBalanceValidationHandler : IOperationHandler
     dataset.ControlTotal = total;
     dataset.Balanced = rows.Count > 0 && total == 0;
     dataset.ValidationStatus = valid ? "Accepted" : "Rejected";
+    if (!valid)
+    {
+      // Row-level issues are persisted so a rejection can be explained without the upload.
+      var issues = new List<TrialBalanceValidationIssue>();
+      if (rows.Count == 0)
+        issues.Add(NewIssue(dataset, "DATASET", "NO_ROWS", "The dataset contains no trial-balance rows."));
+      if (total != 0)
+        issues.Add(NewIssue(dataset, "DATASET", "UNBALANCED",
+          $"Signed total {total.ToString("0.000000", System.Globalization.CultureInfo.InvariantCulture)} is not zero."));
+      if (string.IsNullOrWhiteSpace(dataset.Currency))
+        issues.Add(NewIssue(dataset, "DATASET", "MISSING_CURRENCY", "The dataset currency is missing."));
+      foreach (var row in rows.Where(r => string.IsNullOrWhiteSpace(r.AccountCode)))
+        issues.Add(NewIssue(dataset, row.AccountCode, "MISSING_ACCOUNT_CODE", "A row has no account code."));
+      foreach (var row in rows.Where(r => !string.Equals(r.Currency, dataset.Currency, StringComparison.Ordinal)))
+        issues.Add(NewIssue(dataset, row.AccountCode, "CURRENCY_MISMATCH",
+          $"Row currency {row.Currency} does not match the dataset currency {dataset.Currency}."));
+      foreach (var group in rows.GroupBy(r => (r.Entity, r.AccountCode)).Where(g => g.Count() > 1))
+        issues.Add(NewIssue(dataset, group.Key.AccountCode, "DUPLICATE_AMBIGUOUS_KEY",
+          $"Entity/account key '{group.Key.Entity}/{group.Key.AccountCode}' appears {group.Count()} times."));
+      db.TrialBalanceValidationIssues.AddRange(issues);
+    }
     var evidence = JsonSerializer.Serialize(new { dataset.Id, dataset.Revision, dataset.ValidationStatus, dataset.ControlTotal });
     db.OperationEvents.Add(new OperationEvent { Id = Guid.CreateVersion7(), OperationId = op.Id,
       Token = op.AttemptToken, Kind = "tb.validated.v1", Executor = op.LeaseOwner!, OccurredAt = DateTimeOffset.UtcNow });
     return new(dataset.Id.ToString("D"), Hashing.Sha256Hex(evidence));
   }
+
+  private static TrialBalanceValidationIssue NewIssue(TrialBalanceDataset dataset, string rowKey, string code, string message) =>
+    new()
+    {
+      Id = Guid.CreateVersion7(), FirmId = dataset.FirmId, ClientId = dataset.ClientId,
+      EngagementId = dataset.EngagementId, DatasetId = dataset.Id, Revision = dataset.Revision,
+      RowKey = rowKey.Trim()[..Math.Min(200, rowKey.Trim().Length)], Severity = "ERROR",
+      Code = code, Message = message[..Math.Min(1000, message.Length)], CreatedAt = DateTimeOffset.UtcNow
+    };
 
   public Task<OperationResult> ExecuteEffectAsync(DurableOperation op, CancellationToken ct) =>
     throw new OperationBlockedException("local-operation-has-no-provider-effect");

@@ -626,7 +626,11 @@ public static class ClientAccountingService
     IClientAccountingDbContext db, ActorContext actor, Guid chartVersionId,
     CancellationToken ct = default)
   {
-    var chart = await db.ClientChartVersions.SingleOrDefaultAsync(x => x.Id == chartVersionId && x.FirmId == actor.FirmId, ct);
+    // Serialize concurrent publishers on the chart revision row before validation.
+    var charts = await db.ClientChartVersions
+      .FromSqlInterpolated($"SELECT * FROM client_chart_versions WHERE id = {chartVersionId} AND firm_id = {actor.FirmId} FOR UPDATE")
+      .ToListAsync(ct);
+    var chart = charts.SingleOrDefault(x => x.Id == chartVersionId && x.FirmId == actor.FirmId);
     if (chart is null)
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var auth = await AuthorizeClientAsync(db, actor, chart.ClientId, ReviewerRoles, ct);
@@ -639,6 +643,34 @@ public static class ClientAccountingService
     var accounts = await db.ClientAccounts.Where(x => x.FirmId == chart.FirmId && x.ClientId == chart.ClientId && x.ChartVersionId == chart.Id).ToListAsync(ct);
     if (accounts.Count == 0 || accounts.Any(x => x.ParentAccountId == x.Id))
       return CommandResult.Fail(ErrorCodes.Accounting.MappingIncomplete, "A chart needs at least one valid account.");
+    // Full publication-time re-validation under the row lock: the draft-time checks are
+    // insufficient when two concurrent edits land before publish.
+    var duplicateCodes = accounts.GroupBy(x => x.AccountCode.Trim(), StringComparer.OrdinalIgnoreCase)
+      .Where(g => g.Count() > 1).Select(g => g.Key).OrderBy(x => x, StringComparer.Ordinal).ToArray();
+    if (duplicateCodes.Length > 0)
+      return CommandResult.Fail(ErrorCodes.Accounting.MappingIncomplete,
+        $"Duplicate account codes at publication: {string.Join(", ", duplicateCodes)}.");
+    if (accounts.Any(x => x.IsPosting && x.ParentAccountId.HasValue &&
+        accounts.SingleOrDefault(p => p.Id == x.ParentAccountId.Value)?.IsPosting == true))
+      return CommandResult.Fail(ErrorCodes.Accounting.MappingIncomplete, "A posting account cannot have a posting parent.");
+    var byStable = accounts.ToDictionary(x => x.StableIdentity.Trim(), StringComparer.OrdinalIgnoreCase);
+    var state = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+    bool Visits(string identity)
+    {
+      if (state.GetValueOrDefault(identity) == 1) return true;
+      if (state.GetValueOrDefault(identity) == 2) return false;
+      state[identity] = 1;
+      if (byStable[identity].ParentAccountId is { } parentId &&
+          accounts.SingleOrDefault(p => p.Id == parentId) is { } parent &&
+          byStable.ContainsKey(parent.StableIdentity.Trim()) && Visits(parent.StableIdentity.Trim()))
+        return true;
+      state[identity] = 2;
+      return false;
+    }
+    if (accounts.Any(x => Visits(x.StableIdentity.Trim())))
+      return CommandResult.Fail(ErrorCodes.Accounting.MappingIncomplete, "The chart contains an account-parent cycle at publication.");
+    if (accounts.Any(x => x.ParentAccountId.HasValue && !accounts.Any(p => p.Id == x.ParentAccountId.Value)))
+      return CommandResult.Fail(ErrorCodes.Accounting.MappingIncomplete, "The chart contains an account with a missing parent.");
     chart.Status = AccountingWorkflowStates.Approved;
     chart.PublishedByUserId = actor.UserId;
     chart.PublishedAt = DateTimeOffset.UtcNow;

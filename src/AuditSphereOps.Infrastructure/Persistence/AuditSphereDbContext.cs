@@ -73,6 +73,8 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
   public DbSet<PbcUploadChunk> PbcUploadChunks => Set<PbcUploadChunk>();
   public DbSet<PbcCommunication> PbcCommunications => Set<PbcCommunication>();
   public DbSet<TrialBalanceDataset> TrialBalanceDatasets => Set<TrialBalanceDataset>();
+  public DbSet<SourceAcceptanceDecision> SourceAcceptanceDecisions => Set<SourceAcceptanceDecision>();
+  public DbSet<TrialBalanceValidationIssue> TrialBalanceValidationIssues => Set<TrialBalanceValidationIssue>();
   public DbSet<TrialBalanceImportBatch> TrialBalanceImportBatches => Set<TrialBalanceImportBatch>();
   public DbSet<TrialBalanceRow> TrialBalanceRows => Set<TrialBalanceRow>();
   public DbSet<MappingRule> MappingRules => Set<MappingRule>();
@@ -1332,6 +1334,35 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     var dataset = b.Entity<TrialBalanceDataset>();
     dataset.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
       .HasName("AK_trial_balance_datasets_scope_id");
+
+    var acceptance = b.Entity<SourceAcceptanceDecision>();
+    acceptance.Property(x => x.SourceKind).HasMaxLength(10);
+    acceptance.Property(x => x.SourceIdentityHash).HasMaxLength(64);
+    acceptance.Property(x => x.Decision).HasMaxLength(20);
+    acceptance.Property(x => x.EvidenceReference).HasMaxLength(2000);
+    acceptance.HasIndex(x => new { x.FirmId, x.ClientId, x.EngagementId, x.SourceKind, x.CreatedAt })
+      .HasDatabaseName("ix_source_acceptance_pointer");
+    acceptance.HasIndex(x => new { x.FirmId, x.TrialBalanceDatasetId }).IsUnique()
+      .HasDatabaseName("ux_source_acceptance_tb_dataset").HasFilter("trial_balance_dataset_id IS NOT NULL");
+    acceptance.HasIndex(x => new { x.FirmId, x.ImportBatchId }).IsUnique()
+      .HasDatabaseName("ux_source_acceptance_gl_batch").HasFilter("import_batch_id IS NOT NULL");
+    acceptance.ToTable("source_acceptance_decisions", t => t.HasCheckConstraint("ck_source_acceptance_values",
+      "source_kind IN ('TB','GL') AND decision IN ('ACCEPTED') AND length(trim(evidence_reference)) > 0 " +
+      "AND ((source_kind = 'TB' AND trial_balance_dataset_id IS NOT NULL AND import_batch_id IS NULL) " +
+      "OR (source_kind = 'GL' AND import_batch_id IS NOT NULL AND trial_balance_dataset_id IS NULL))"));
+    acceptance.HasOne<TrialBalanceDataset>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.TrialBalanceDatasetId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    acceptance.HasOne<SourceImportBatch>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.ImportBatchId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var tbIssue = b.Entity<TrialBalanceValidationIssue>();
+    tbIssue.Property(x => x.RowKey).HasMaxLength(200);
+    tbIssue.Property(x => x.Severity).HasMaxLength(20);
+    tbIssue.Property(x => x.Code).HasMaxLength(100);
+    tbIssue.Property(x => x.Message).HasMaxLength(1000);
+    tbIssue.HasIndex(x => new { x.FirmId, x.DatasetId, x.Severity }).HasDatabaseName("ix_tb_validation_issues");
 
     var mapping = b.Entity<MappingVersion>();
     mapping.HasAlternateKey(x => new { x.FirmId, x.Id })

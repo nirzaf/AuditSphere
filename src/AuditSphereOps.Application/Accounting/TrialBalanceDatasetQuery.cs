@@ -161,3 +161,42 @@ public static class TrialBalanceDatasetQuery
     return $"\"{text.Replace("\"", "\"\"", StringComparison.Ordinal)}\"";
   }
 }
+
+public sealed record TrialBalanceIssueDto(
+  Guid Id, string RowKey, string Severity, string Code, string Message, DateTimeOffset CreatedAt);
+
+public sealed record TrialBalanceIssuesPage(
+  IReadOnlyList<TrialBalanceIssueDto> Items, int TotalCount, int Page, int PageSize);
+
+public static class TrialBalanceValidationIssueQuery
+{
+  /// <summary>Paged row-level validation issues for one dataset revision, so a rejected
+  /// import can be explained without the original upload.</summary>
+  public static async Task<CommandResult<TrialBalanceIssuesPage>> GetIssuesAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid datasetId,
+    int page = 1, int pageSize = 100, CancellationToken ct = default)
+  {
+    if (datasetId == Guid.Empty || page < 1 || pageSize is < 1 or > 500)
+      return CommandResult<TrialBalanceIssuesPage>.Fail(ErrorCodes.Accounting.ImportRejected,
+        "The issue page request is invalid.");
+    var dataset = await db.TrialBalanceDatasets.AsNoTracking()
+      .SingleOrDefaultAsync(d => d.Id == datasetId && d.FirmId == actor.FirmId, ct);
+    if (dataset is null)
+      return CommandResult<TrialBalanceIssuesPage>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(dataset.FirmId, dataset.ClientId, dataset.EngagementId, InternalOnly: true), ct);
+    if (!auth.Succeeded)
+      return CommandResult<TrialBalanceIssuesPage>.Fail(auth.ErrorCode!, auth.Message!);
+
+    var issues = db.TrialBalanceValidationIssues.AsNoTracking()
+      .Where(x => x.FirmId == dataset.FirmId && x.DatasetId == dataset.Id);
+    var totalCount = await issues.CountAsync(ct);
+    var items = await issues
+      .OrderBy(x => x.CreatedAt).ThenBy(x => x.RowKey).ThenBy(x => x.Id)
+      .Skip((page - 1) * pageSize).Take(pageSize)
+      .Select(x => new TrialBalanceIssueDto(
+        x.Id, x.RowKey, x.Severity, x.Code, x.Message, x.CreatedAt))
+      .ToListAsync(ct);
+    return CommandResult<TrialBalanceIssuesPage>.Ok(new TrialBalanceIssuesPage(items, totalCount, page, pageSize));
+  }
+}

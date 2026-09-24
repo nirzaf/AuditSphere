@@ -12,10 +12,23 @@ concurrency:
   group: auditsphere-ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  DOTNET_ENVIRONMENT: Test
+  ASPNETCORE_ENVIRONMENT: Test
+  ExternalEffects__Enabled: 'false'
+  Application__AllowSimulationAdapters: 'true'
+  DevelopmentIdentity__Enabled: 'false'
+  EXPECTED_CASES: '351'
+
 jobs:
-  build-test-ready:
+  # ------------------------------------------------------------------
+  # Build once: SDK pin check, locked restore, Release build, model
+  # drift, database migration, discovery reconciliation and readiness.
+  # ------------------------------------------------------------------
+  build:
+    name: Build · migrate · reconcile discovery
     runs-on: ubuntu-24.04
-    timeout-minutes: 90
+    timeout-minutes: 15
     services:
       postgres:
         image: postgres:18.6@sha256:86c951e05bf56c93d95d397747fb8820ac76cc3bedb78f43abd83eedbe3666ae
@@ -31,38 +44,30 @@ jobs:
       AUDITSPHERE_TEST_CONNECTION: Host=127.0.0.1;Port=5433;Database=auditsphere_tests;Username=postgres
       AUDITSPHERE_EF_CONNECTION: Host=127.0.0.1;Port=5433;Database=auditsphere_tests;Username=postgres
       ConnectionStrings__AuditSphere: Host=127.0.0.1;Port=5433;Database=auditsphere_tests;Username=postgres
-      E2E_ADMIN_CONNECTION: Host=127.0.0.1;Port=5433;Database=postgres;Username=postgres
-      E2E_RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}
-      DOTNET_ENVIRONMENT: Test
-      ASPNETCORE_ENVIRONMENT: Test
-      ExternalEffects__Enabled: 'false'
-      Application__AllowSimulationAdapters: 'true'
-      DevelopmentIdentity__Enabled: 'false'
-      EXPECTED_CASES: '347'
     defaults:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           persist-credentials: false
-      - name: Initialize E2E run root
-        run: |
-          printf 'E2E_RUN_ROOT=%s/auditsphere-e2e-%s\n' "$RUNNER_TEMP" "$E2E_RUN_ID" >> "$GITHUB_ENV"
-      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
-        with:
-          global-json-file: global.json
-          cache: true
-          cache-dependency-path: '**/packages.lock.json'
+
       - name: Verify PostgreSQL 18.6
         env:
           PG_CONTAINER: ${{ job.services.postgres.id }}
         run: |
           set -euo pipefail
-          mkdir -p artifacts/ci/results
+          mkdir -p artifacts/ci
           docker exec "$PG_CONTAINER" psql -X -U postgres -d auditsphere_tests -At \
             -v ON_ERROR_STOP=1 -c 'SHOW server_version_num' > artifacts/ci/postgres-version.txt
           test "$(tr -d '\r\n' < artifacts/ci/postgres-version.txt)" = 180006
+
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          global-json-file: global.json
+          cache: true
+          cache-dependency-path: '**/packages.lock.json'
+
       - name: Restore and build Release
         run: |
           set -euo pipefail
@@ -76,15 +81,10 @@ jobs:
           assert actual == sdk['version'], f"Expected SDK {sdk['version']}, selected {actual}"
           print(f'Verified pinned .NET SDK {actual}')
           PY
-          dotnet --info
           dotnet tool restore
           dotnet restore AuditSphereOps.slnx --locked-mode
           dotnet build AuditSphereOps.slnx --no-restore --configuration Release
-      - name: Install matching Playwright Chromium
-        shell: pwsh
-        run: |
-          & tests/AuditSphereOps.E2E.Tests/bin/Release/net10.0/playwright.ps1 install --with-deps chromium
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
       - name: Check model drift and migrate disposable test database
         run: |
           set -euo pipefail
@@ -92,6 +92,7 @@ jobs:
             --startup-project src/AuditSphereOps.Web --no-build --configuration Release
           dotnet ef database update --project src/AuditSphereOps.Infrastructure \
             --startup-project src/AuditSphereOps.Web --no-build --configuration Release
+
       - name: Reconcile full-suite discovery
         run: |
           set -euo pipefail
@@ -108,54 +109,7 @@ jobs:
           assert count > 0 and count == int(os.environ['EXPECTED_CASES']), count
           Path('artifacts/ci/discovery-count.txt').write_text(str(count))
           PY
-      - name: Run the unfiltered suite with coverage
-        id: tests
-        run: |
-          set -euo pipefail
-          for project in \
-            tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj \
-            tests/AuditSphereOps.Api.Tests/AuditSphereOps.Api.Tests.csproj \
-            tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj; do
-            name="${project##*/}"
-            name="${name%.csproj}"
-            results="artifacts/ci/results/$name"
-            mkdir -p "$results"
-            dotnet test "$project" --no-build --no-restore --configuration Release \
-              --logger "trx;LogFileName=$name.trx" --results-directory "$results" \
-              --collect:"XPlat Code Coverage"
-          done
-      - name: Reject failed, skipped, or undiscovered tests
-        if: ${{ always() && steps.tests.outcome != 'skipped' }}
-        run: |
-          python3 - <<'PY'
-          import json
-          import os
-          import xml.etree.ElementTree as ET
-          from pathlib import Path
-          root = Path('artifacts/ci')
-          reports = list((root / 'results').rglob('*.trx'))
-          assert reports, 'No TRX execution reports found'
-          totals = {key: 0 for key in ('total', 'executed', 'passed', 'failed', 'notExecuted')}
-          def parse(path):
-              raw = path.read_bytes()
-              assert len(raw) <= 32 * 1024 * 1024, f'{path} exceeds report size limit'
-              text = raw.decode('utf-8-sig')
-              assert '<!DOCTYPE' not in text.upper() and '<!ENTITY' not in text.upper()
-              return ET.fromstring(text)
-          for report in reports:
-              counters = parse(report).find('.//{*}Counters')
-              assert counters is not None, f'Missing counters in {report}'
-              for key in totals:
-                  totals[key] += int(counters.get(key, '0'))
-          (root / 'execution-counters.json').write_text(json.dumps(totals, indent=2))
-          expected = int(os.environ['EXPECTED_CASES'])
-          assert totals['total'] == totals['executed'] == totals['passed'] == expected, totals
-          assert totals['failed'] == totals['notExecuted'] == 0, totals
-          coverage = list((root / 'results').rglob('coverage.cobertura.xml'))
-          assert coverage, 'No Cobertura reports found'
-          for report in coverage:
-              parse(report)
-          PY
+
       - name: Verify readiness on an owned Web process
         run: |
           set -euo pipefail
@@ -179,36 +133,271 @@ jobs:
             sleep 1
           done
           exit 1
-      - name: Capture job summary
+
+      - name: Capture diagnostics
         if: ${{ always() }}
         env:
           PG_CONTAINER: ${{ job.services.postgres.id }}
           RESULT: ${{ job.status }}
         run: |
-          mkdir -p artifacts/ci
-          docker logs "$PG_CONTAINER" > artifacts/ci/postgres.log 2>&1
+          docker logs "$PG_CONTAINER" > artifacts/ci/postgres.log 2>&1 || true
           printf 'CI outcome: %s\nCommit: %s\nRun: %s / attempt %s\n' \
             "$RESULT" "$GITHUB_SHA" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" >> "$GITHUB_STEP_SUMMARY"
-      - name: Upload diagnostics
+
+      - name: Upload build diagnostics
         if: ${{ always() }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: ci-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
+          name: build-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             artifacts/ci/*.txt
-            artifacts/ci/*.json
             artifacts/ci/*.log
-            artifacts/ci/results/**/*.trx
           if-no-files-found: warn
           retention-days: 14
-      - name: Upload coverage
+
+  # ------------------------------------------------------------------
+  # Domain tests — largest suite, PostgreSQL-backed, ~10 min.
+  # ------------------------------------------------------------------
+  domain-tests:
+    name: Domain tests
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:18.6@sha256:86c951e05bf56c93d95d397747fb8820ac76cc3bedb78f43abd83eedbe3666ae
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_DB: auditsphere_tests
+        ports:
+          - 127.0.0.1:5433:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d auditsphere_tests"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      AUDITSPHERE_TEST_CONNECTION: Host=127.0.0.1;Port=5433;Database=auditsphere_tests;Username=postgres
+      E2E_ADMIN_CONNECTION: Host=127.0.0.1;Port=5433;Database=postgres;Username=postgres
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          global-json-file: global.json
+          cache: true
+          cache-dependency-path: '**/packages.lock.json'
+
+      - name: Restore and build Release
+        run: |
+          set -euo pipefail
+          dotnet tool restore
+          dotnet restore AuditSphereOps.slnx --locked-mode
+          dotnet build AuditSphereOps.slnx --no-restore --configuration Release
+
+      - name: Migrate disposable test database
+        run: |
+          set -euo pipefail
+          dotnet ef database update --project src/AuditSphereOps.Infrastructure \
+            --startup-project src/AuditSphereOps.Web --no-build --configuration Release
+
+      - name: Run Domain tests with coverage
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/ci/results/AuditSphereOps.Domain.Tests
+          dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj \
+            --no-build --no-restore --configuration Release \
+            --logger "trx;LogFileName=AuditSphereOps.Domain.Tests.trx" \
+            --results-directory artifacts/ci/results/AuditSphereOps.Domain.Tests \
+            --collect:"XPlat Code Coverage"
+
+      - name: Assert Domain TRX exists
+        run: |
+          set -euo pipefail
+          test -s artifacts/ci/results/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.trx \
+            || { echo "Domain TRX is missing"; exit 1; }
+
+      - name: Upload Domain TRX and coverage
         if: ${{ always() }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: ci-coverage-${{ github.run_id }}-${{ github.run_attempt }}
-          path: artifacts/ci/results/**/coverage.cobertura.xml
-          if-no-files-found: warn
-          retention-days: 30
+          name: domain-trx-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            artifacts/ci/results/AuditSphereOps.Domain.Tests/**/*.trx
+            artifacts/ci/results/AuditSphereOps.Domain.Tests/**/coverage.cobertura.xml
+          if-no-files-found: error
+          retention-days: 14
+
+  # ------------------------------------------------------------------
+  # Api tests — small suite, ~1 min.
+  # ------------------------------------------------------------------
+  api-tests:
+    name: Api tests
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:18.6@sha256:86c951e05bf56c93d95d397747fb8820ac76cc3bedb78f43abd83eedbe3666ae
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_DB: auditsphere_tests
+        ports:
+          - 127.0.0.1:5433:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d auditsphere_tests"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      AUDITSPHERE_TEST_CONNECTION: Host=127.0.0.1;Port=5433;Database=auditsphere_tests;Username=postgres
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          global-json-file: global.json
+          cache: true
+          cache-dependency-path: '**/packages.lock.json'
+
+      - name: Restore and build Release
+        run: |
+          set -euo pipefail
+          dotnet restore AuditSphereOps.slnx --locked-mode
+          dotnet build AuditSphereOps.slnx --no-restore --configuration Release
+
+      - name: Restore tools and migrate test database
+        run: |
+          set -euo pipefail
+          dotnet tool restore
+          dotnet ef database update --project src/AuditSphereOps.Infrastructure \
+            --startup-project src/AuditSphereOps.Web --no-build --configuration Release
+
+      - name: Run Api tests with coverage
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/ci/results/AuditSphereOps.Api.Tests
+          dotnet test tests/AuditSphereOps.Api.Tests/AuditSphereOps.Api.Tests.csproj \
+            --no-build --no-restore --configuration Release \
+            --logger "trx;LogFileName=AuditSphereOps.Api.Tests.trx" \
+            --results-directory artifacts/ci/results/AuditSphereOps.Api.Tests \
+            --collect:"XPlat Code Coverage"
+
+      - name: Assert Api TRX exists
+        run: |
+          set -euo pipefail
+          test -s artifacts/ci/results/AuditSphereOps.Api.Tests/AuditSphereOps.Api.Tests.trx \
+            || { echo "Api TRX is missing"; exit 1; }
+
+      - name: Upload Api TRX and coverage
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: api-trx-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            artifacts/ci/results/AuditSphereOps.Api.Tests/**/*.trx
+            artifacts/ci/results/AuditSphereOps.Api.Tests/**/coverage.cobertura.xml
+          if-no-files-found: error
+          retention-days: 14
+
+  # ------------------------------------------------------------------
+  # E2E tests — Playwright journeys, ~7–11 min.
+  # ------------------------------------------------------------------
+  e2e-tests:
+    name: E2E tests
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    services:
+      postgres:
+        image: postgres:18.6@sha256:86c951e05bf56c93d95d397747fb8820ac76cc3bedb78f43abd83eedbe3666ae
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_DB: auditsphere_tests
+        ports:
+          - 127.0.0.1:5433:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d auditsphere_tests"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      E2E_ADMIN_CONNECTION: Host=127.0.0.1;Port=5433;Database=postgres;Username=postgres
+      E2E_RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+
+      - name: Initialize E2E run root
+        run: |
+          printf 'E2E_RUN_ROOT=%s/auditsphere-e2e-%s\n' "$RUNNER_TEMP" "$E2E_RUN_ID" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          global-json-file: global.json
+          cache: true
+          cache-dependency-path: '**/packages.lock.json'
+
+      - name: Cache Playwright Chromium
+        uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-${{ hashFiles('tests/AuditSphereOps.E2E.Tests/packages.lock.json') }}
+
+      - name: Restore and build Release
+        run: |
+          set -euo pipefail
+          dotnet restore AuditSphereOps.slnx --locked-mode
+          dotnet build AuditSphereOps.slnx --no-restore --configuration Release
+
+      - name: Restore tools and migrate test database
+        run: |
+          set -euo pipefail
+          dotnet tool restore
+          dotnet ef database update --project src/AuditSphereOps.Infrastructure \
+            --startup-project src/AuditSphereOps.Web --no-build --configuration Release
+
+      - name: Install matching Playwright Chromium
+        shell: pwsh
+        run: |
+          & tests/AuditSphereOps.E2E.Tests/bin/Release/net10.0/playwright.ps1 install --with-deps chromium
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Run E2E tests with coverage
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/ci/results/AuditSphereOps.E2E.Tests
+          dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj \
+            --no-build --no-restore --configuration Release \
+            --logger "trx;LogFileName=AuditSphereOps.E2E.Tests.trx" \
+            --results-directory artifacts/ci/results/AuditSphereOps.E2E.Tests \
+            --collect:"XPlat Code Coverage"
+
+      - name: Assert E2E TRX exists
+        run: |
+          set -euo pipefail
+          test -s artifacts/ci/results/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.trx \
+            || { echo "E2E TRX is missing"; exit 1; }
+
+      - name: Upload E2E TRX and coverage
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: e2e-trx-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            artifacts/ci/results/AuditSphereOps.E2E.Tests/**/*.trx
+            artifacts/ci/results/AuditSphereOps.E2E.Tests/**/coverage.cobertura.xml
+          if-no-files-found: error
+          retention-days: 14
+
       - name: Upload isolated scenario diagnostics
         if: ${{ always() }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -218,4 +407,94 @@ jobs:
             ${{ runner.temp }}/auditsphere-e2e-${{ github.run_id }}-${{ github.run_attempt }}/**/ownership.json
             ${{ runner.temp }}/auditsphere-e2e-${{ github.run_id }}-${{ github.run_attempt }}/**/*.log
           if-no-files-found: warn
+          retention-days: 14
+
+  # ------------------------------------------------------------------
+  # Guard: download all TRX artifacts, sum counters, enforce the global
+  # inventory, verify coverage. Runs even when a test job fails so the
+  # counts explain which project under-reported.
+  # ------------------------------------------------------------------
+  guard:
+    name: Guard · counts · coverage
+    needs: [domain-tests, api-tests, e2e-tests]
+    if: ${{ always() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+
+      - name: Download Domain TRX
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4
+        with:
+          name: domain-trx-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/ci/results/AuditSphereOps.Domain.Tests
+        continue-on-error: true
+
+      - name: Download Api TRX
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4
+        with:
+          name: api-trx-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/ci/results/AuditSphereOps.Api.Tests
+        continue-on-error: true
+
+      - name: Download E2E TRX
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4
+        with:
+          name: e2e-trx-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/ci/results/AuditSphereOps.E2E.Tests
+        continue-on-error: true
+
+      - name: Reject failed, skipped, or undiscovered tests
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+          root = Path('artifacts/ci')
+          reports = sorted((root / 'results').rglob('*.trx'))
+          per_project = {}
+          totals = {key: 0 for key in ('total', 'executed', 'passed', 'failed', 'notExecuted')}
+          def parse(path):
+              raw = path.read_bytes()
+              assert len(raw) <= 32 * 1024 * 1024, f'{path} exceeds report size limit'
+              text = raw.decode('utf-8-sig')
+              assert '<!DOCTYPE' not in text.upper() and '<!ENTITY' not in text.upper()
+              return ET.fromstring(text)
+          for report in reports:
+              counters = parse(report).find('.//{*}Counters')
+              assert counters is not None, f'Missing counters in {report}'
+              project = report.relative_to(root / 'results').parts[0]
+              c = {key: int(counters.get(key, '0')) for key in totals}
+              per_project[project] = c
+              for key in totals:
+                  totals[key] += c[key]
+          (root / 'execution-counters.json').write_text(json.dumps(
+              {'totals': totals, 'per_project': per_project}, indent=2))
+          expected = int(os.environ['EXPECTED_CASES'])
+          assert totals['total'] == totals['executed'] == totals['passed'] == expected, {
+              'expected': expected, 'actual': totals, 'per_project': per_project,
+              'hint': 'A project TRX may be missing if its test job crashed before writing results.',
+          }
+          assert totals['failed'] == totals['notExecuted'] == 0, totals
+          coverage = list((root / 'results').rglob('coverage.cobertura.xml'))
+          assert coverage, 'No Cobertura reports found'
+          for report in coverage:
+              parse(report)
+          PY
+        env:
+          EXPECTED_CASES: '351'
+
+      - name: Upload guard counters
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: execution-counters-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/ci/execution-counters.json
+          if-no-files-found: error
           retention-days: 14
