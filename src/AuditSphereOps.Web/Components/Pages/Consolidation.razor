@@ -108,6 +108,42 @@ else
       <tbody>@foreach (var scope in AllScopes) { <tr><td>@scope.GroupName · v@(scope.Version)</td><td>@scope.EliminationJournalCount</td><td>@scope.ApprovedEliminationJournalCount</td><td><span class="status">@scope.RunStatus</span></td></tr> }</tbody>
     </table></div>
   </section>
+
+  <section class="card" id="group-report" aria-labelledby="group-report-heading">
+    <h2 id="group-report-heading">Approved group reports</h2>
+    <p class="muted">Only the latest approved report with inputs that still match its manifest is shown. This group-level summary does not grant access to component workpapers.</p>
+    @foreach (var scope in AllScopes)
+    {
+      <h3>@scope.GroupName · v@(scope.Version)</h3>
+      @if (AdvancedConsolidationMethods.All.Contains(scope.Method))
+      {
+        <p class="muted">Open the method workflow for its separately reviewed statement execution.</p>
+      }
+      else if (scope.Report is { State: "CURRENT_APPROVED" } report)
+      {
+        <p class="status">Run @report.RunId · approved @report.ApprovedAt?.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</p>
+        <div class="table-wrap"><table>
+          <caption class="sr-only">Current approved group report for @scope.GroupName version @scope.Version</caption>
+          <thead><tr><th scope="col">Component / adjustment</th><th scope="col">Reporting code</th><th scope="col">Component</th><th scope="col">Alignment</th><th scope="col">Elimination</th><th scope="col">Consolidated</th><th scope="col">Currency</th></tr></thead>
+          <tbody>
+          @foreach (var line in report.Lines)
+          {
+            <tr><td>@line.Component</td><td><code>@line.TaxonomyCode</code></td><td>@line.ComponentAmount.ToString("N2")</td><td>@line.AlignmentAmount.ToString("N2")</td><td>@line.EliminationAmount.ToString("N2")</td><td>@line.ConsolidatedAmount.ToString("N2")</td><td>@line.Currency</td></tr>
+          }
+          </tbody>
+          <tfoot><tr><th colspan="5">Net total</th><td>@report.Lines.Sum(x => x.ConsolidatedAmount).ToString("N2")</td><td>@scope.Currency</td></tr></tfoot>
+        </table></div>
+      }
+      else if (scope.Report is { State: "STALE" })
+      {
+        <p class="notice-text" role="status">The latest approval is historical: a current component, perimeter, rate, match or group journal no longer matches the run. The result is withheld; rebuild and review the group run.</p>
+      }
+      else
+      {
+        <p class="muted">No current approved group report is available. Latest run state: @scope.RunStatus.</p>
+      }
+    }
+  </section>
 }
 
 @code {
@@ -138,6 +174,7 @@ else
     public int ApprovedEliminationJournalCount { get; init; }
     public string Status { get; init; } = string.Empty;
     public string RunStatus { get; init; } = string.Empty;
+    public ConsolidationReport? Report { get; init; }
   }
   private sealed record GroupRow(Guid Id, string Code, string Name, IReadOnlyList<ScopeRow> Scopes);
   private List<GroupRow> _groups = [];
@@ -188,7 +225,16 @@ else
         .GroupBy(x => x.ScopeVersionId).Select(x => new { ScopeId = x.Key, Count = x.Count(), Approved = x.Count(y => y.Status == AccountingWorkflowStates.Approved) })
         .ToDictionaryAsync(x => x.ScopeId);
       var runStatuses = await db.ConsolidationRuns.AsNoTracking().Where(x => x.FirmId == actor.FirmId && groupIds.Contains(x.GroupId))
-        .GroupBy(x => x.ScopeVersionId).Select(x => new { ScopeId = x.Key, Status = x.OrderByDescending(y => y.CreatedAt).Select(y => y.Status).First() }).ToDictionaryAsync(x => x.ScopeId, x => x.Status);
+        .GroupBy(x => x.ScopeVersionId).Select(x => new { ScopeId = x.Key, Status = x.OrderByDescending(y => y.CreatedAt)
+          .ThenByDescending(y => y.Id).Select(y => y.Status).First() }).ToDictionaryAsync(x => x.ScopeId, x => x.Status);
+      var reports = new Dictionary<Guid, ConsolidationReport>();
+      foreach (var scope in scopes.Where(x => !AdvancedConsolidationMethods.All.Contains(x.Method) &&
+        runStatuses.GetValueOrDefault(x.Id) == AccountingWorkflowStates.Approved))
+      {
+        var report = await ConsolidationService.GetLatestReportAsync(db, actor, scope.Id);
+        if (report.Succeeded && report.Value is not null)
+          reports[scope.Id] = report.Value;
+      }
       var rateSetIds = scopes.Where(x => x.ExchangeRateSetVersionId.HasValue).Select(x => x.ExchangeRateSetVersionId!.Value).Distinct().ToArray();
       var rateSets = await db.ExchangeRateSetVersions.AsNoTracking().Where(x => x.FirmId == actor.FirmId && rateSetIds.Contains(x.Id))
         .ToDictionaryAsync(x => x.Id, x => x.Status);
@@ -236,7 +282,8 @@ else
             EliminationJournalCount = journals?.Count ?? 0,
             ApprovedEliminationJournalCount = journals?.Approved ?? 0,
             Status = x.Status,
-            RunStatus = runStatuses.GetValueOrDefault(x.Id, "NO_RUN")
+            RunStatus = runStatuses.GetValueOrDefault(x.Id, "NO_RUN"),
+            Report = reports.GetValueOrDefault(x.Id)
           };
         }).ToArray())).ToList();
     }

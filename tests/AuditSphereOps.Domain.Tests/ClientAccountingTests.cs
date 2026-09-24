@@ -2654,6 +2654,8 @@ public sealed class ClientAccountingTests
     var scope = await SeedAsync(pg);
     var preparer = Actor(scope.Preparer, "AccountingPreparer");
     var reviewer = Actor(scope.Reviewer, "Partner");
+    var groupViewer = User(scope.FirmId, "group-viewer");
+    var groupViewerActor = Actor(groupViewer, "AccountingReviewer");
     Guid groupId, consolidationScopeId, matchId, outsideMatchId;
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
@@ -2671,6 +2673,12 @@ public sealed class ClientAccountingTests
       {
         Id = Guid.NewGuid(), FirmId = scope.FirmId, GroupId = groupId, UserId = scope.Preparer.Id,
         Role = "Partner", GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = scope.Reviewer.Id
+      });
+      db.Users.Add(groupViewer);
+      db.GroupAccessGrants.Add(new GroupAccessGrant
+      {
+        Id = Guid.NewGuid(), FirmId = scope.FirmId, GroupId = groupId, UserId = groupViewer.Id,
+        Role = "AccountingReviewer", GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = scope.Reviewer.Id
       });
       await db.SaveChangesAsync();
       consolidationScopeId = (await ConsolidationService.CreateScopeAsync(db, reviewer,
@@ -2816,6 +2824,14 @@ public sealed class ClientAccountingTests
       component.PackageHash = packageHash;
       await db.SaveChangesAsync();
       Assert.True((await ConsolidationService.ApproveRunAsync(db, reviewer, rebuiltRunId)).Succeeded);
+      var report = await ConsolidationService.GetLatestReportAsync(db, groupViewerActor, consolidationScopeId);
+      Assert.True(report.Succeeded, report.Message);
+      Assert.Equal("CURRENT_APPROVED", report.Value!.State);
+      Assert.Equal(rebuiltRunId, report.Value.RunId);
+      Assert.Contains(report.Value.Lines, x => x.Component == "CLIENT A" && x.TaxonomyCode == "CASH");
+      var rawPackage = await FinancialStatementService.GetStoredPackageArtifactAsync(db, groupViewerActor, packageA);
+      Assert.False(rawPackage.Succeeded);
+      Assert.Equal(ErrorCodes.ScopeDenied, rawPackage.ErrorCode);
       Assert.Equal(10, await db.ConsolidationRunLines.CountAsync(x => x.RunId == runId));
       Assert.Equal(2, await db.ConsolidationRunLines.CountAsync(x => x.RunId == runId && x.ConsolidationJournalId == journalId));
       Assert.Equal(2, await db.ConsolidationRunLines.CountAsync(x => x.RunId == runId && x.IntercompanyMatchId == matchId));
@@ -2840,6 +2856,10 @@ public sealed class ClientAccountingTests
       var changedPerimeter = await ConsolidationService.RunAsync(db, preparer, consolidationScopeId);
       Assert.False(changedPerimeter.Succeeded);
       Assert.Equal(ErrorCodes.GenerationStale, changedPerimeter.ErrorCode);
+      var staleReport = await ConsolidationService.GetLatestReportAsync(db, groupViewerActor, consolidationScopeId);
+      Assert.True(staleReport.Succeeded, staleReport.Message);
+      Assert.Equal("STALE", staleReport.Value!.State);
+      Assert.Empty(staleReport.Value.Lines);
     }
   }
 

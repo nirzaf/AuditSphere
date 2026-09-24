@@ -2,6 +2,11 @@
 
 This file records observed repository state only. The authoritative build contract is [`docs/SPECIFICATION.md`](../SPECIFICATION.md) v5.0. The public repository intentionally excludes tenant identifiers, user principals, credentials, tokens, secret values, and private-provider URLs.
 
+## Accounting — current approved group report
+
+- The consolidation workbench now displays the latest approved report as component/taxonomy totals split into component, alignment, elimination and consolidated amounts. The service revalidates the run’s current input manifest before returning amounts; stale approvals show no lines. The report is authorized at group scope and does not expose source-package artifacts to a group-only reviewer.
+- `GroupWorkflow_UsesApprovedComponentPackagesWithoutMutatingThem` now checks the group-only report view, denied raw package-artifact access, and stale-report withholding after a perimeter change. PostgreSQL-backed Release test passed 1/1 on 2026-09-24. The full Release solution build passed with 0 warnings/errors before this final focused rerun. Hosted run `35953670134` for base `57e2c82` passed restore/build, Playwright setup, migration/model-drift and test-discovery steps; the unfiltered suite was still running at 2026-09-24T04:08:10Z and predates this unpushed report slice. No schema migration, tenant operation or production effect.
+
 ## Accounting — consolidation component freshness
 
 - Extended `GroupWorkflow_UsesApprovedComponentPackagesWithoutMutatingThem` with a PostgreSQL-backed stale-source check: after a group run is built, a changed component package hash causes run approval to fail with `GenerationStale`; restoring the original source hash permits approval. This is a local fault-injection regression of the run-manifest guard, not a new component-replacement workflow.
