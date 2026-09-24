@@ -2,6 +2,12 @@
 
 This file records observed repository state only. The authoritative build contract is [`docs/SPECIFICATION.md`](../SPECIFICATION.md) v5.0. The public repository intentionally excludes tenant identifiers, user principals, credentials, tokens, secret values, and private-provider URLs.
 
+## Accounting — functional-currency remeasurement correctness
+
+- Fixed `CurrencyRemeasurementCalculator`: it now requires the prior carrying amount in functional currency and computes a monetary FX adjustment as closing-rate functional value less that same-currency carrying amount. Historical-cost non-monetary items still use the historical rate and do not report an FX remeasurement gain/loss. This avoids subtracting foreign-currency units from functional-currency units.
+- The regression covers a QAR 10 monetary gain, zero FX adjustment for historical-cost non-monetary value, and a signed QAR 10 liability loss. The focused case passed 1/1; full Domain Release suite passed 260/260 with 0 skipped; Web Release build passed with 0 warnings/errors. No schema/model change. G16 remains partial until a persisted, rate-evidence-bound transaction remeasurement workflow exists.
+- The fix is local and not yet pushed. Hosted run `35962862931` still targets prior remote SHA `a3e271c0c7c27db7df0045e183126dde7ac758f6`; its unfiltered suite was running at 2026-09-24T06:19:36Z. No tenant or production effect.
+
 ## Accounting — capability-matrix reconciliation
 
 - Reconciled stale G02–G05, G08, G10, G12–G17 descriptions against the current domain/application services, PostgreSQL regressions and the checked AC stories. Advanced group methods are implemented behind method-specific source-bound schedules and separate approvals; unsupported associate/joint-arrangement and common-control cases, auto-enablement, and external release/records/production acceptance remain blocked or separately gated.

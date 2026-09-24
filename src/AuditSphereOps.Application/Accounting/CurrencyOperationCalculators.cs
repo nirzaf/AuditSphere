@@ -21,7 +21,7 @@ public static class CurrencyRemeasurementCalculator
 {
   public static MonetaryRemeasurementResult Remeasure(
     decimal amount, string fromCurrency, string toCurrency, bool monetary,
-    decimal closingRate, decimal historicalRate)
+    decimal closingRate, decimal historicalRate, decimal priorCarryingAmountInFunctionalCurrency)
   {
     if (closingRate <= 0m || historicalRate <= 0m)
       throw new InvalidOperationException("Remeasurement requires positive closing and historical rates.");
@@ -30,7 +30,8 @@ public static class CurrencyRemeasurementCalculator
     var remeasured = CurrencyTranslationCalculator.Translate(amount, fromCurrency, toCurrency, rate);
     return new MonetaryRemeasurementResult(
       MoneyPolicy.Normalize(amount), remeasured, monetary ? "CLOSING" : "HISTORICAL",
-      MoneyPolicy.Normalize(remeasured - amount), MoneyPolicy.Normalize(remeasured - exact));
+      monetary ? MoneyPolicy.Normalize(remeasured - priorCarryingAmountInFunctionalCurrency) : 0m,
+      MoneyPolicy.Normalize(remeasured - exact));
   }
 }
 

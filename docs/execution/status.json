@@ -4,10 +4,10 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "f6855620fe703a8ad1128adac899e30fe503348c",
-  "remoteHeadVerified": false,
+  "headCommit": "a3e271c0c7c27db7df0045e183126dde7ac758f6",
+  "remoteHeadVerified": true,
   "productionEnabled": false,
-  "verifiedAt": "2026-09-24T06:04:49Z",
+  "verifiedAt": "2026-09-24T06:20:35Z",
   "toolchain": {
     "sdk": ".NET 10",
     "efCore": "10.0.12",
@@ -16,13 +16,13 @@
     "postgres": "18.6 loopback development profile"
   },
   "verification": {
-    "ciLatestHostedRun": "Run 35959313796 targets remotely verified master code SHA 8eb8d1ce2dc658006561692fdf9bd0da8d9f6423. At 2026-09-24T06:02:48Z GitHub reported the unfiltered test step still in progress after Release build, model drift/disposable migration, and discovery checks passed. No hosted test result is claimed. Local master has docs-only commits 5826504 and f685562 ahead; do not push them until this run reaches a terminal result.",
+    "ciLatestHostedRun": "Run 35962862931 targets remotely verified master a3e271c0c7c27db7df0045e183126dde7ac758f6. At 2026-09-24T06:20:35Z GitHub reported its unfiltered suite still in progress. The earlier superseded run 35959313796 on 8eb8d1ce2dc658006561692fdf9bd0da8d9f6423 was cancelled after its test step remained in progress for over 40 minutes; this is not a test result. The local FX correction below has not yet been pushed and the running workflow does not include it.",
     "ciLockedRestore": "PASS locally: SDK policy regression check rejected latestPatch and passed after global.json required rollForward=disable for SDK 10.0.300. CI now installs from global.json and checks SDK selection before locked restore. dotnet tool restore; dotnet restore AuditSphereOps.slnx --locked-mode; dotnet build AuditSphereOps.slnx --no-restore --configuration Release all passed. Actionlint v1.7.7 passed with ShellCheck/Pyflakes disabled. Package lock files unchanged. Addresses run 35920521850 NU1004 for SDK-injected Microsoft.AspNetCore.App.Internal.Assets 10.0.11 versus locked 10.0.8; local SDK 10.0.300 evaluates 10.0.8. Full tests and hosted execution of this fix not rerun.",
     "ciWorkflowValidation": "PASS locally: actionlint v1.7.7 reproduced the forbidden runner context in job-level env, then exited 0 after E2E_RUN_ROOT initialization moved to a step using RUNNER_TEMP and GITHUB_ENV. Command: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7 -shellcheck= -pyflakes= .github/workflows/ci.yml. Bash assertion also passed for a temporary path containing spaces and run/attempt suffix 393-2. ShellCheck/Pyflakes disabled; full .NET suite and hosted GitHub Actions not rerun for this workflow-only fix.",
-    "build": "PASS: dotnet build AuditSphereOps.slnx --no-restore --configuration Release at the worktree now committed as 4529b98f4ad09c6b4c8c85715f882f7a05dde77d; 0 warnings/errors.",
-    "tests": "PASS locally at code SHA 8eb8d1ce2dc658006561692fdf9bd0da8d9f6423: Domain 260/260, API 6/6 and E2E 55/55, 0 skipped; solution discovery 321. Additional focused advanced-consolidation/currency/foreign-schedule regressions passed 7/7 on 2026-09-24; two subsequent commits are documentation-only. Hosted run 35959313796 remains in progress and is not counted as a pass.",
-    "testCommand": "Focused: dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-restore --configuration Release --filter 'FullyQualifiedName~AdvancedConsolidation|FullyQualifiedName~CurrencyOperations|FullyQualifiedName~AdvancedForeignSchedule' (7/7 passed). Aggregate feature full local runs: Domain 260/260, API 6/6, E2E 55/55; commands and source evidence are in current-slice.md.",
-    "testResults": "Advanced acquisition/NCI, ownership-change, nested-scope, FX-reserve, asset-transfer, currency-operation and foreign-schedule focused cases passed 7/7 locally with 0 skips. Aggregate difference feature full local suites passed Domain 260/260, API 6/6 and E2E 55/55, and discovery reconciled to 321. Hosted run 35959313796 targets code SHA 8eb8d1ce2dc658006561692fdf9bd0da8d9f6423; at 2026-09-24T06:02:48Z its unfiltered suite was still running. No tenant or production effect.",
+    "build": "PASS: dotnet build src/AuditSphereOps.Web/AuditSphereOps.Web.csproj --no-restore --configuration Release on 2026-09-24; 0 warnings/errors after the FX calculator change. Prior full Release solution build is recorded in the preceding evidence entries.",
+    "tests": "PASS locally at prior remote code SHA a3e271c0c7c27db7df0045e183126dde7ac758f6: Domain 260/260, API 6/6 and E2E 55/55 with 0 skips; discovery 321. After the local FX correction, full Domain Release suite passed 260/260 with 0 skips and the focused remeasurement case passed 1/1. Web Release build passed with 0 warnings/errors. Hosted run 35962862931 does not include the local FX change and remains in progress.",
+    "testCommand": "After the FX correction: dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-restore --configuration Release (260/260 passed, 0 skipped); focused case used --filter 'FullyQualifiedName~CurrencyOperations_KeepRemeasurementTranslationAndDisplaySeparate' (1/1 passed).",
+    "testResults": "The remeasurement calculator now compares closing-rate functional currency amount with a separately supplied prior functional-currency carrying amount. Regression verifies +10 QAR monetary gain, zero exchange adjustment for historical-cost non-monetary item, and -10 QAR signed liability result. Full Domain Release suite passed 260/260, Web Release build passed with 0 warnings/errors. These tests do not constitute a persisted source-bound remeasurement workflow or external acceptance.",
     "testEnvironmentRecovery": "The preceding run had 141 passed and 105 failed while PostgreSQL was shutting down. The server log records a smart shutdown request at 2026-09-22T19:25:04Z; its initiator is unknown. Started the stopped local cluster on 127.0.0.1:5433, confirmed PostgreSQL 18.6 and the auditsphere_tests database, then reran the entire suite successfully without source, test, assertion or runner changes. PostgreSQL remained available after the run; no production effects were enabled.",
     "migrations": "Added 20260923145244_ProposalPreparedByAttribution with a nullable composite user FK/index. Prior-schema PostgreSQL test confirms legacy proposal values survive upgrade and no historical author is fabricated. Existing local auditsphere database remains at 91 migrations through 20260922140527_M365InvitationEvidenceAction.",
     "pendingModelChanges": "PASS at code SHA 8eb8d1ce2dc658006561692fdf9bd0da8d9f6423: dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Web --configuration Release; no pending model changes after adding 20260924042437_MaterialityApprovalEvidence. The subsequent local commits only change documentation.",
@@ -57,9 +57,14 @@
     "implementationStatus": "IN_PROGRESS",
     "acceptanceStatus": "LOCAL_VERIFIED",
     "scope": "Local audit workflow, client accounting, scoped client file-request threads/uploads/downloads, GL intake, completeness, package, Office/PDF export, restatement, consolidation, journal-lineage, close-check, package-review and Microsoft 365 onboarding control-plane slices.",
-    "nextAction": "Wait for hosted run 35959313796 on exact remote code SHA 8eb8d1ce2dc658006561692fdf9bd0da8d9f6423 to reach a terminal result; it is still running the unfiltered suite. Then push the two docs-only commits 5826504 and f685562 plus this ledger update, and verify the resulting remote head/checks. Continue requirement-by-requirement against AuditSphere_Accounting_module.md, preserving unsupported-method and independent professional/external approval gates; do not infer a final conclusion from software tests."
+    "nextAction": "Commit and push the local functional-currency remeasurement correction and its regression/docs. This will supersede run 35962862931, which has remained in the unfiltered test step and does not contain the correction; then verify hosted CI for the exact pushed SHA. Add a persisted rate-evidence-bound remeasurement workflow before treating G16 as complete. Preserve unsupported-method and independent professional/external approval gates; software tests do not establish accounting sign-off."
   },
   "localEvidence": [
+    {
+      "item": "Functional-currency FX remeasurement arithmetic correction",
+      "status": "LOCAL_VERIFIED",
+      "details": "CurrencyRemeasurementCalculator now receives the prior carrying amount in functional currency and calculates monetary FX adjustment against that same-currency amount; historical-cost non-monetary items produce no FX remeasurement adjustment. Test verifies +10 QAR monetary gain, zero historical-cost non-monetary FX adjustment and -10 QAR signed liability result. Focused test 1/1, full Domain Release suite 260/260, and Web Release build 0 warnings/errors passed on 2026-09-24. This remains a pure calculation core, not a persisted rate-evidence-bound transaction workflow. Local changes are not pushed; run 35962862931 targets earlier SHA a3e271c and remains in progress."
+    },
     {
       "item": "Accounting capability matrix and advanced-method evidence reconciliation",
       "status": "LOCAL_VERIFIED",
