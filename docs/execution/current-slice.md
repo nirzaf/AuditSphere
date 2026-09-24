@@ -2,6 +2,11 @@
 
 This file records observed repository state only. The authoritative build contract is [`docs/SPECIFICATION.md`](../SPECIFICATION.md) v5.0. The public repository intentionally excludes tenant identifiers, user principals, credentials, tokens, secret values, and private-provider URLs.
 
+## Accounting — consolidation component freshness
+
+- Extended `GroupWorkflow_UsesApprovedComponentPackagesWithoutMutatingThem` with a PostgreSQL-backed stale-source check: after a group run is built, a changed component package hash causes run approval to fail with `GenerationStale`; restoring the original source hash permits approval. This is a local fault-injection regression of the run-manifest guard, not a new component-replacement workflow.
+- Focused Release test passed 1/1 on 2026-09-24. Full solution/hosted CI for this assertion is pending. No runtime or schema change, tenant operation or production effect.
+
 ## AS-PAR-002 — Audit fieldwork same-document engagement reauthorization
 
 - Reproduced a stale disclosure: moving from an assigned engagement to an unassigned sibling in the same browser document left the prior adopted audit program visible.

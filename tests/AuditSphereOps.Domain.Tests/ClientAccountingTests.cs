@@ -2804,6 +2804,15 @@ public sealed class ClientAccountingTests
       Assert.Equal(ErrorCodes.GenerationStale, stale.ErrorCode);
       var rebuiltRunId = (await ConsolidationService.RunAsync(db, preparer, consolidationScopeId)).Value;
       Assert.NotEqual(runId, rebuiltRunId);
+      var component = await db.ConsolidationComponents.OrderBy(x => x.Id).FirstAsync(x => x.ScopeVersionId == consolidationScopeId);
+      var packageHash = component.PackageHash;
+      component.PackageHash = Hashing.Sha256Hex("replacement-component-source");
+      await db.SaveChangesAsync();
+      var staleComponent = await ConsolidationService.ApproveRunAsync(db, reviewer, rebuiltRunId);
+      Assert.False(staleComponent.Succeeded);
+      Assert.Equal(ErrorCodes.GenerationStale, staleComponent.ErrorCode);
+      component.PackageHash = packageHash;
+      await db.SaveChangesAsync();
       Assert.True((await ConsolidationService.ApproveRunAsync(db, reviewer, rebuiltRunId)).Succeeded);
       Assert.Equal(10, await db.ConsolidationRunLines.CountAsync(x => x.RunId == runId));
       Assert.Equal(2, await db.ConsolidationRunLines.CountAsync(x => x.RunId == runId && x.ConsolidationJournalId == journalId));
