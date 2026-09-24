@@ -2,6 +2,12 @@
 
 This file records observed repository state only. The authoritative build contract is [`docs/SPECIFICATION.md`](../SPECIFICATION.md) v5.0. The public repository intentionally excludes tenant identifiers, user principals, credentials, tokens, secret values, and private-provider URLs.
 
+## AC-24 / AS-PAR-002 — financial package refresh after grant revocation
+
+- The financial statement package page now clears package, statement, cash-flow, disclosure, review and artifact projections before resolving the current actor and rechecking the exact client/engagement grants. A failed refresh leaves prior package data cleared.
+- `AS-PAR-002-FS-REFRESH-REVOKED-01` revokes the displayed user's active Staff and AccountingPreparer grants while the package remains open, clicks Refresh package, and verifies that Access unavailable replaces the package and its statement data. Focused PostgreSQL-backed browser case passed 1/1; full E2E passed 57/57 with 0 skips; Release solution build passed with 0 warnings/errors; `git diff --check` passed. Code commit `f6a1bacf4336eea8abf75ff0c63d547c28d96fe8` is pushed to `master` and remote-confirmed. Hosted run `35999115290` targets that SHA and was pending as of 2026-09-24T12:26:56Z; no hosted result is inferred.
+- No migration, tenant operation or production effect. AS-PAR-002 remains partial.
+
 ## AC-24 / AS-PAR-002 — exact accounting period revocation refresh
 
 - The period detail now provides a refresh that immediately clears period, PBC and task projections, resolves the current actor, and reauthorizes the exact client before loading the period again. Errors are logged without exposing provider/database details and the old period remains cleared.
