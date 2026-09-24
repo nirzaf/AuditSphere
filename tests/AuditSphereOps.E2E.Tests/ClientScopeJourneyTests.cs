@@ -787,6 +787,23 @@ public sealed class ClientScopeJourneyTests
     Assert.DoesNotContain(privatePeriodCode, body);
     Assert.DoesNotContain("SYNTHETIC-PAR-002-UNRELATED-PERIOD-CLIENT", body);
     Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
+
+    await page.EvaluateAsync("path => { history.pushState({}, '', path); dispatchEvent(new PopStateEvent('popstate')); }",
+      $"/app/accounting/periods/{assignedPeriodId:D}");
+    await page.GetByText(assignedPeriodCode).WaitForAsync();
+    await using (var db = host.CreateDbContext())
+    {
+      var revoked = await db.RoleGrants.Where(x => x.UserId == partner.Id && x.Role == "Partner" && x.RevokedAt == null)
+        .ExecuteUpdateAsync(update => update.SetProperty(x => x.RevokedAt, DateTimeOffset.UtcNow));
+      Assert.Equal(2, revoked);
+    }
+
+    await page.GetByRole(AriaRole.Button, new() { Name = "Refresh period" }).ClickAsync();
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable" }).WaitForAsync();
+    var revokedBody = await page.Locator("body").InnerTextAsync();
+    Assert.DoesNotContain(assignedPeriodCode, revokedBody);
+    Assert.DoesNotContain(privatePeriodCode, revokedBody);
+    Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
   }
 
   [Fact]
