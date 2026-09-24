@@ -29,6 +29,11 @@ This file records observed repository state only. The authoritative build contra
 - Added `AS-PAR-002-MAPPING-STALE-ROUTE-01`: a synthetic staff actor reads an authorized mapping, then navigates in the same browser document to a real mapping belonging to a sibling engagement for which the actor has no grant. The page renders only the generic unavailable state and clears both mapping IDs, source dataset ID and private rationale.
 - The focused PostgreSQL-backed browser case passed 1/1 and the full Release E2E project passed 54/54 with 0 skips; unfiltered Release discovery reconciled to 319 (Domain 259, API 6, E2E 54). Hosted aggregate remains pending. No schema migration, tenant operation or production effect.
 
+## AS-PAR-002 — Client package revocation in the existing browser circuit
+
+- Strengthened `AS-PAR-002-CLIENT-FS-REVOKE-01`: revoke the synthetic client's package grant while management review is open, keep the same document token, and verify the package hash, statement totals and decision control disappear without a document reload; no decision is persisted.
+- The PostgreSQL-backed focused browser case passed 1/1. This is a test-only characterization of the current revocation behavior; no runtime/schema change, tenant operation or production effect. Full E2E/hosted verification of this strengthened assertion is pending.
+
 ## CI locked restore — exact SDK selection
 
 - Run `35920521850` reached restore, then failed with NU1004: SDK-injected `Microsoft.AspNetCore.App.Internal.Assets` requested `10.0.11`, while the lock file records `10.0.8`. Local SDK `10.0.300` evaluates that package to `10.0.8` and restores the existing locks successfully.

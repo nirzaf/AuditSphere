@@ -332,6 +332,7 @@ public sealed class FinancialArtifactJourneyTests
     await page.GetByRole(AriaRole.Heading, new() { Name = "Management review" }).WaitForAsync();
     await page.GetByText(packageHash, new() { Exact = true }).WaitForAsync();
     await connected;
+    var documentToken = await page.EvaluateAsync<string>("window.__clientPackageRevokeToken = crypto.randomUUID()");
     await using (var db = host.CreateDbContext())
     {
       var grant = await db.RoleGrants.SingleAsync(x => x.UserId == host.Fixture.Client.Id &&
@@ -341,8 +342,19 @@ public sealed class FinancialArtifactJourneyTests
       Assert.True(revoked.Succeeded, revoked.Message);
     }
 
-    await page.GotoAsync($"{host.ClientUrl}/portal/accounting/packages/{packageId:D}");
-    await page.GetByRole(AriaRole.Heading, new() { Name = "Package unavailable" }).WaitForAsync();
+    var decisionButton = page.GetByRole(AriaRole.Button, new() { Name = "Record management decision" });
+    if (await decisionButton.CountAsync() > 0)
+      await decisionButton.ClickAsync();
+    try
+    {
+      await page.GetByRole(AriaRole.Heading, new() { Name = "Package unavailable" }).WaitForAsync();
+    }
+    catch (TimeoutException)
+    {
+      throw new Xunit.Sdk.XunitException($"The revoked package view did not clear after an action.\n" +
+        $"{await page.Locator("body").InnerTextAsync()}\n{string.Join("\n", diagnostics)}");
+    }
+    Assert.Equal(documentToken, await page.EvaluateAsync<string>("window.__clientPackageRevokeToken"));
     var body = await page.Locator("body").InnerTextAsync();
     Assert.DoesNotContain(packageHash, body);
     Assert.DoesNotContain("Statement totals", body);
