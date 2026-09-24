@@ -13,6 +13,7 @@
 <PageTitle>@Title</PageTitle>
 <a class="back-link" href="/app/accounting">← Back to accounting workspace</a>
 <h1>@Title</h1>
+<button class="button-secondary" title="Clear this queue and recheck your current accounting grants before loading records." @onclick="LoadCurrentQueueSafelyAsync" disabled="@_loading">Refresh queue</button>
 
 @if (_loading)
 {

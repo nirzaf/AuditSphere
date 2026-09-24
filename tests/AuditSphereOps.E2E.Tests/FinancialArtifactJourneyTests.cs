@@ -561,6 +561,43 @@ public sealed class FinancialArtifactJourneyTests
   }
 
   [Fact]
+  [Trait("CaseId", "AS-PAR-002-ACCT-RECORD-REVOKED-01")]
+  public async Task RefreshClearsPreviouslyAuthorizedAccountingQueueAfterGrantRevocation()
+  {
+    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false,
+      caseId: "AS-PAR-002-ACCT-RECORD-REVOKED-01");
+    await CreatePackageAsync(host);
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    var page = await browser.NewPageAsync();
+    var diagnostics = new List<string>();
+    var connected = WaitForCircuitConnectionAsync(page, diagnostics);
+    await page.GotoAsync(SignInUrl(host.StaffUrl, "/app/accounting/journals"));
+    await page.GetByText("AJ-E2E-001", new() { Exact = true }).WaitForAsync();
+    await connected;
+
+    await using (var db = host.CreateDbContext())
+    {
+      var grants = await db.RoleGrants.Where(x => x.FirmId == host.Fixture.FirmId &&
+        x.UserId == host.Fixture.Staff.Id && x.RevokedAt == null &&
+        (x.Role == "Staff" || x.Role == "AccountingPreparer")).ToListAsync();
+      Assert.NotEmpty(grants);
+      foreach (var grant in grants)
+      {
+        var revoked = await RoleAdministrationService.RevokeRoleGrantAsync(db,
+          PbcSeed.Actor(host.Fixture.Admin, "Administrator"), new RevokeRoleGrantRequest(grant.Id));
+        Assert.True(revoked.Succeeded, revoked.Message);
+      }
+    }
+
+    await page.GetByRole(AriaRole.Button, new() { Name = "Refresh queue" }).ClickAsync();
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable" }).WaitForAsync();
+    var body = await page.Locator("body").InnerTextAsync();
+    Assert.DoesNotContain("AJ-E2E-001", body);
+    Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
+  }
+
+  [Fact]
   [Trait("CaseId", "PROP-E2E-01")]
   public async Task ReviewedAdjustmentFlowsFromTrialBalanceIntoTheBrowserPackage()
   {
