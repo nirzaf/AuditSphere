@@ -4,10 +4,10 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "c19f4cb73412e876bac2e6b1af1d30a026681464",
-  "remoteHeadVerified": true,
+  "headCommit": "f6855620fe703a8ad1128adac899e30fe503348c",
+  "remoteHeadVerified": false,
   "productionEnabled": false,
-  "verifiedAt": "2026-09-24T04:39:10Z",
+  "verifiedAt": "2026-09-24T06:04:49Z",
   "toolchain": {
     "sdk": ".NET 10",
     "efCore": "10.0.12",
@@ -16,16 +16,16 @@
     "postgres": "18.6 loopback development profile"
   },
   "verification": {
-    "ciLatestHostedRun": "Run 35956466558 targets remotely verified master c19f4cb73412e876bac2e6b1af1d30a026681464. It was pending at 2026-09-24T04:39:10Z; no hosted result is claimed.",
+    "ciLatestHostedRun": "Run 35959313796 targets remotely verified master code SHA 8eb8d1ce2dc658006561692fdf9bd0da8d9f6423. At 2026-09-24T06:02:48Z GitHub reported the unfiltered test step still in progress after Release build, model drift/disposable migration, and discovery checks passed. No hosted test result is claimed. Local master has docs-only commits 5826504 and f685562 ahead; do not push them until this run reaches a terminal result.",
     "ciLockedRestore": "PASS locally: SDK policy regression check rejected latestPatch and passed after global.json required rollForward=disable for SDK 10.0.300. CI now installs from global.json and checks SDK selection before locked restore. dotnet tool restore; dotnet restore AuditSphereOps.slnx --locked-mode; dotnet build AuditSphereOps.slnx --no-restore --configuration Release all passed. Actionlint v1.7.7 passed with ShellCheck/Pyflakes disabled. Package lock files unchanged. Addresses run 35920521850 NU1004 for SDK-injected Microsoft.AspNetCore.App.Internal.Assets 10.0.11 versus locked 10.0.8; local SDK 10.0.300 evaluates 10.0.8. Full tests and hosted execution of this fix not rerun.",
     "ciWorkflowValidation": "PASS locally: actionlint v1.7.7 reproduced the forbidden runner context in job-level env, then exited 0 after E2E_RUN_ROOT initialization moved to a step using RUNNER_TEMP and GITHUB_ENV. Command: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7 -shellcheck= -pyflakes= .github/workflows/ci.yml. Bash assertion also passed for a temporary path containing spaces and run/attempt suffix 393-2. ShellCheck/Pyflakes disabled; full .NET suite and hosted GitHub Actions not rerun for this workflow-only fix.",
     "build": "PASS: dotnet build AuditSphereOps.slnx --no-restore --configuration Release at the worktree now committed as 4529b98f4ad09c6b4c8c85715f882f7a05dde77d; 0 warnings/errors.",
-    "tests": "PASS locally: current group-report PostgreSQL regression 1/1; prior consolidation component-freshness PostgreSQL regression 1/1; client package acknowledgement/no-release PostgreSQL regression 1/1; client package portal browser test 1/1. Current group-report browser rendering is compiled by the solution Release build but no dedicated browser assertion has been added. Hosted run 35954419644 for the pushed exact SHA was pending at 2026-09-24T04:09:22Z.",
-    "testCommand": "Current focused PostgreSQL test: dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-build --no-restore --configuration Release --filter 'FullyQualifiedName~GroupWorkflow_UsesApprovedComponentPackagesWithoutMutatingThem' (1/1 passed). Prior focused tests and commands are retained in the preceding execution entry.",
-    "testResults": "The group-only reviewer receives the latest current approved component/taxonomy report, cannot read the underlying package artifact, and receives STALE with zero lines after the group perimeter changes. Current focused PostgreSQL test passed 1/1; full Release solution build passed with 0 warnings/errors. Hosted run 35954419644 targets the pushed exact SHA and was pending at 2026-09-24T04:09:22Z. No schema migration, tenant operation or production effect.",
+    "tests": "PASS locally at code SHA 8eb8d1ce2dc658006561692fdf9bd0da8d9f6423: Domain 260/260, API 6/6 and E2E 55/55, 0 skipped; solution discovery 321. Additional focused advanced-consolidation/currency/foreign-schedule regressions passed 7/7 on 2026-09-24; two subsequent commits are documentation-only. Hosted run 35959313796 remains in progress and is not counted as a pass.",
+    "testCommand": "Focused: dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-restore --configuration Release --filter 'FullyQualifiedName~AdvancedConsolidation|FullyQualifiedName~CurrencyOperations|FullyQualifiedName~AdvancedForeignSchedule' (7/7 passed). Aggregate feature full local runs: Domain 260/260, API 6/6, E2E 55/55; commands and source evidence are in current-slice.md.",
+    "testResults": "Advanced acquisition/NCI, ownership-change, nested-scope, FX-reserve, asset-transfer, currency-operation and foreign-schedule focused cases passed 7/7 locally with 0 skips. Aggregate difference feature full local suites passed Domain 260/260, API 6/6 and E2E 55/55, and discovery reconciled to 321. Hosted run 35959313796 targets code SHA 8eb8d1ce2dc658006561692fdf9bd0da8d9f6423; at 2026-09-24T06:02:48Z its unfiltered suite was still running. No tenant or production effect.",
     "testEnvironmentRecovery": "The preceding run had 141 passed and 105 failed while PostgreSQL was shutting down. The server log records a smart shutdown request at 2026-09-22T19:25:04Z; its initiator is unknown. Started the stopped local cluster on 127.0.0.1:5433, confirmed PostgreSQL 18.6 and the auditsphere_tests database, then reran the entire suite successfully without source, test, assertion or runner changes. PostgreSQL remained available after the run; no production effects were enabled.",
     "migrations": "Added 20260923145244_ProposalPreparedByAttribution with a nullable composite user FK/index. Prior-schema PostgreSQL test confirms legacy proposal values survive upgrade and no historical author is fabricated. Existing local auditsphere database remains at 91 migrations through 20260922140527_M365InvitationEvidenceAction.",
-    "pendingModelChanges": "PASS at c19f4cb: dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Web --configuration Release; no pending model changes after adding 20260924042437_MaterialityApprovalEvidence.",
+    "pendingModelChanges": "PASS at code SHA 8eb8d1ce2dc658006561692fdf9bd0da8d9f6423: dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Web --configuration Release; no pending model changes after adding 20260924042437_MaterialityApprovalEvidence. The subsequent local commits only change documentation.",
     "restoreDrill": "PASS at 2026-09-23T15:20:43Z: loopback restore reconciled the existing auditsphere database at 91 migrations through 20260922140527_M365InvitationEvidenceAction, including checkpoint/accounting/group manifests and release-delivery identities. Evidence was redirected to a temporary path. The local source DB was not migrated to the new proposal migration; production custody/RPO/RTO remain unverified.",
     "database": "127.0.0.1:5433 development only"
   },
@@ -57,9 +57,14 @@
     "implementationStatus": "IN_PROGRESS",
     "acceptanceStatus": "LOCAL_VERIFIED",
     "scope": "Local audit workflow, client accounting, scoped client file-request threads/uploads/downloads, GL intake, completeness, package, Office/PDF export, restatement, consolidation, journal-lineage, close-check, package-review and Microsoft 365 onboarding control-plane slices.",
-    "nextAction": "Verify hosted run 35956466558 for exact source SHA c19f4cb73412e876bac2e6b1af1d30a026681464. Continue the AuditSphere_Accounting_module.md implementation audit with the next local gap: human-authored, independently reviewed aggregate difference evaluation and final reporting determination; do not infer conclusions from thresholds or net unrelated errors. Preserve AS-PAR-002 stale-route/revocation work and AS-PAR-009 commercial pricing/delivery requirements as separate partial work. Keep provider, signing, records, recovery and independent-review gates separate and external until authorized and observed."
+    "nextAction": "Wait for hosted run 35959313796 on exact remote code SHA 8eb8d1ce2dc658006561692fdf9bd0da8d9f6423 to reach a terminal result; it is still running the unfiltered suite. Then push the two docs-only commits 5826504 and f685562 plus this ledger update, and verify the resulting remote head/checks. Continue requirement-by-requirement against AuditSphere_Accounting_module.md, preserving unsupported-method and independent professional/external approval gates; do not infer a final conclusion from software tests."
   },
   "localEvidence": [
+    {
+      "item": "Accounting capability matrix and advanced-method evidence reconciliation",
+      "status": "LOCAL_VERIFIED",
+      "details": "Updated G02–G05, G08, G10, G12–G17 to describe implemented capabilities and remaining unsupported/external gates based on current services and acceptance stories. Focused Release tests covering advanced consolidation, currency operations and foreign-schedule evidence passed 7/7 with 0 skipped. Commits 5826504 and f685562 are local only; remote master remains at 8eb8d1ce2dc658006561692fdf9bd0da8d9f6423. Hosted run 35959313796 for that exact remote code SHA was in progress at 2026-09-24T06:02:48Z. No runtime, schema, tenant or production change."
+    },
     {
       "item": "Independent materiality approval",
       "status": "LOCAL_VERIFIED",

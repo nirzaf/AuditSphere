@@ -2,6 +2,12 @@
 
 This file records observed repository state only. The authoritative build contract is [`docs/SPECIFICATION.md`](../SPECIFICATION.md) v5.0. The public repository intentionally excludes tenant identifiers, user principals, credentials, tokens, secret values, and private-provider URLs.
 
+## Accounting — capability-matrix reconciliation
+
+- Reconciled stale G02–G05, G08, G10, G12–G17 descriptions against the current domain/application services, PostgreSQL regressions and the checked AC stories. Advanced group methods are implemented behind method-specific source-bound schedules and separate approvals; unsupported associate/joint-arrangement and common-control cases, auto-enablement, and external release/records/production acceptance remain blocked or separately gated.
+- Focused Release tests for advanced consolidation methods, currency operations and foreign-schedule evidence passed 7/7 with 0 skipped on 2026-09-24. `git diff --check` passed. This was a documentation and evidence reconciliation; no runtime, schema, tenant or production changes.
+- Documentation commits `5826504` and `f685562` are local on `master`, not pushed. Hosted run `35959313796` still targets remote code SHA `8eb8d1ce2dc658006561692fdf9bd0da8d9f6423`; GitHub reports its unfiltered test step in progress, with no final result available. Do not infer its outcome.
+
 ## Accounting — independent materiality approval
 
 - Added a separate append-only `MaterialityApproval` record so an independent, engagement-scoped Manager or Partner can approve a materiality plan without mutating the immutable assessment. The command reauthorizes current scope, rejects self-approval and replay; PostgreSQL enforces one approval per assessment and blocks update/delete. Audit Plan displays the observed approval.
