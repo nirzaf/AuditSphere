@@ -8,6 +8,11 @@ This file records observed repository state only. The authoritative build contra
 - `AS-PAR-002-FS-REFRESH-REVOKED-01` revokes the displayed user's active Staff and AccountingPreparer grants while the package remains open, clicks Refresh package, and verifies that Access unavailable replaces the package and its statement data. Focused PostgreSQL-backed browser case passed 1/1; full E2E passed 57/57 with 0 skips; Release solution build passed with 0 warnings/errors; `git diff --check` passed. Code commit `f6a1bacf4336eea8abf75ff0c63d547c28d96fe8` is pushed to `master` and remote-confirmed. Hosted run `35999115290` targets that SHA and was pending as of 2026-09-24T12:26:56Z; no hosted result is inferred.
 - No migration, tenant operation or production effect. AS-PAR-002 remains partial.
 
+## AC-24 / AS-PAR-002 — accounting record queue refresh after grant revocation
+
+- The shared accounting mappings/journals/differences page now offers a queue refresh; its existing loader clears prior queue rows and actor state before resolving current identity and grants. `AS-PAR-002-ACCT-RECORD-REVOKED-01` revokes active Staff and AccountingPreparer grants while the synthetic journal queue is open, then verifies refresh removes the journal row and shows Access unavailable. Focused PostgreSQL-backed browser test passed 1/1; full E2E passed 58/58 with 0 skips; Release solution build passed with 0 warnings/errors; `git diff --check` passed. Commit `7c5575e877513b7611f1c25370d3bd12a993c79c` is pushed to `master` and remote-confirmed. No schema migration, tenant operation or production effect.
+- Hosted run `35999241668` failed before test execution because discovery found 324 cases while the workflow still expected 323. Fresh local full-solution discovery now finds 325 after the second test was added. The workflow expectation and test documentation are updated to 325 and actionlint passes locally; a corrected hosted run is required. AS-PAR-002 remains partial.
+
 ## AC-24 / AS-PAR-002 — exact accounting period revocation refresh
 
 - The period detail now provides a refresh that immediately clears period, PBC and task projections, resolves the current actor, and reauthorizes the exact client before loading the period again. Errors are logged without exposing provider/database details and the old period remains cleared.

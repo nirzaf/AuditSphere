@@ -213,7 +213,7 @@ jobs:
       ExternalEffects__Enabled: 'false'
       Application__AllowSimulationAdapters: 'true'
       DevelopmentIdentity__Enabled: 'false'
-      EXPECTED_CASES: '321'
+      EXPECTED_CASES: '325'
     defaults:
       run:
         shell: bash
@@ -360,7 +360,7 @@ jobs:
 
 The trust-auth container is disposable, loopback-published, synthetic-only and has no tenant secrets. It is not a production database recipe. Never expose this profile on a shared network. For a Docker-free CI alternative, use an ephemeral native PostgreSQL 18.6 runner image labeled for that capability, provision an isolated `auditsphere_tests` DB before the job, omit `services`, and replace `docker exec/logs` with native `psql` and owned server-log collection. Prefer separate runner VMs over changing the fixture's guarded database name. Do not schedule untrusted fork code onto a persistent privileged/self-hosted machine.
 
-`EXPECTED_CASES=321` is the current reconciled discovery count across the three projects, not a permanent cap. Legitimate additions/removals require a reviewed count/catalog update; do not reduce it just to pass CI. The textual parser counts all three solution project sections and deliberately includes duplicate display names. The TRX check rejects any nonexecuted outcome; no `continue-on-error` or `dotnet test || true` hides failure. Infrastructure failures should be classified separately in the future structured summary while still failing the required check.
+`EXPECTED_CASES=325` is the currently reconciled discovery count across the three projects as of 2026-09-24, not a permanent cap. Legitimate additions/removals require a reviewed count/catalog update; do not reduce it just to pass CI. The textual parser counts all three solution project sections and deliberately includes duplicate display names. The TRX check rejects any nonexecuted outcome; no `continue-on-error` or `dotnet test || true` hides failure. Infrastructure failures should be classified separately in the future structured summary while still failing the required check.
 
 ## 7. Proposed API/browser workflow and orchestration contract
 
