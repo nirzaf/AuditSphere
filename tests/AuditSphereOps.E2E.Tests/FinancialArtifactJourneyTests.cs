@@ -5,6 +5,7 @@ using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Completion;
+using AuditSphereOps.Domain.Engagements;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Domain.Tests;
 using AuditSphereOps.Infrastructure.Persistence;
@@ -177,6 +178,93 @@ public sealed class FinancialArtifactJourneyTests
     var body = await page.Locator("body").InnerTextAsync();
     Assert.DoesNotContain(packageId.ToString("D"), body);
     Assert.DoesNotContain("Mapped statement totals", body);
+    Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
+  }
+
+  [Fact]
+  [Trait("CaseId", "AS-PAR-002-MAPPING-STALE-ROUTE-01")]
+  public async Task MappingPageClearsPriorEngagementWhenRouteChangesToUnauthorizedMapping()
+  {
+    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false,
+      caseId: "AS-PAR-002-MAPPING-STALE-ROUTE-01");
+    var (packageId, _) = await CreatePackageAsync(host);
+    Guid authorizedMappingId;
+    Guid authorizedDatasetId;
+    Guid unauthorizedEngagementId;
+    Guid unauthorizedMappingId;
+    const string privateMappingMarker = "SYN-PAR-002-MAPPING-PRIVATE";
+    await using (var db = host.CreateDbContext())
+    {
+      var package = await db.FinancialPackages.AsNoTracking().SingleAsync(x => x.Id == packageId);
+      authorizedMappingId = package.MappingVersionId;
+      authorizedDatasetId = await db.MappingVersions.AsNoTracking().Where(x => x.Id == authorizedMappingId)
+        .Select(x => x.DatasetId).SingleAsync();
+      var sourceDataset = await db.TrialBalanceDatasets.AsNoTracking()
+        .SingleAsync(x => x.Id == authorizedDatasetId);
+      var sourceRows = await db.TrialBalanceRows.AsNoTracking().Where(x => x.DatasetId == authorizedDatasetId).ToListAsync();
+      unauthorizedEngagementId = Guid.NewGuid();
+      db.Engagements.Add(new Engagement
+      {
+        Id = unauthorizedEngagementId, FirmId = host.Fixture.FirmId,
+        PracticeClientId = host.Fixture.ClientId, ServiceRoute = "SYNTHETIC-SIBLING",
+        PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31", Status = "Active",
+        ProfessionalWorkBlocked = false, CreatedAt = DateTimeOffset.UtcNow
+      });
+      db.RoleGrants.Add(PbcSeed.Grant(host.Fixture.FirmId, host.Fixture.Reviewer, "AccountingPreparer",
+        host.Fixture.ClientId, unauthorizedEngagementId));
+      var datasetId = Guid.NewGuid();
+      db.TrialBalanceDatasets.Add(new TrialBalanceDataset
+      {
+        Id = datasetId, FirmId = sourceDataset.FirmId, ClientId = sourceDataset.ClientId,
+        EngagementId = unauthorizedEngagementId, PeriodId = sourceDataset.PeriodId, BookId = sourceDataset.BookId,
+        Basis = sourceDataset.Basis, SourceKind = sourceDataset.SourceKind, Revision = 1,
+        LegalEntityKey = sourceDataset.LegalEntityKey, Currency = sourceDataset.Currency,
+        RawFileSha256Hex = sourceDataset.RawFileSha256Hex,
+        NormalizedDatasetDigest = sourceDataset.NormalizedDatasetDigest,
+        Sha256Hex = sourceDataset.Sha256Hex, ImportProfileVersion = sourceDataset.ImportProfileVersion,
+        SourceLayout = sourceDataset.SourceLayout, Balanced = sourceDataset.Balanced,
+        ValidationStatus = sourceDataset.ValidationStatus, ImportState = sourceDataset.ImportState,
+        ControlTotal = sourceDataset.ControlTotal, ImportedAt = DateTimeOffset.UtcNow,
+        ImportedByUserId = host.Fixture.Reviewer.Id
+      });
+      db.TrialBalanceRows.AddRange(sourceRows.Select(x => new TrialBalanceRow
+      {
+        Id = Guid.NewGuid(), DatasetId = datasetId, AccountCode = x.AccountCode,
+        AccountName = x.AccountName, Amount = x.Amount, SourceDebit = x.SourceDebit,
+        SourceCredit = x.SourceCredit, Currency = x.Currency, Entity = x.Entity, MappingCode = x.MappingCode
+      }));
+      await db.SaveChangesAsync();
+      var mapping = await FinancialStatementService.CreateMappingVersionAsync(db,
+        PbcSeed.Actor(host.Fixture.Reviewer, "AccountingPreparer"),
+        new CreateMappingVersionRequest(datasetId, "tax-e2e-v1", "2026-01-01", "2026-12-31", [
+          new("1000", "CASH", "ASSETS", 1m, privateMappingMarker),
+          new("4000", "REVENUE", "INCOME", 1m, "Synthetic sibling mapping")
+        ]));
+      Assert.True(mapping.Succeeded, mapping.Message);
+      unauthorizedMappingId = mapping.Value;
+    }
+
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    await using var context = await browser.NewContextAsync();
+    var page = await context.NewPageAsync();
+    var diagnostics = new List<string>();
+    var connected = WaitForCircuitConnectionAsync(page, diagnostics);
+    await page.GotoAsync(SignInUrl(host.StaffUrl, $"/app/accounting/mappings/{authorizedMappingId:D}"));
+    await page.GetByRole(AriaRole.Heading, new() { Name = authorizedMappingId.ToString("D") }).WaitForAsync();
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Mapping lineage" }).WaitForAsync();
+    await connected;
+    var documentToken = Guid.NewGuid().ToString("N");
+    await page.EvaluateAsync("token => window.__testDocumentToken = token", documentToken);
+    await page.EvaluateAsync("path => { history.pushState({}, '', path); dispatchEvent(new PopStateEvent('popstate')); }",
+      $"/app/accounting/mappings/{unauthorizedMappingId:D}");
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Mapping unavailable" }).WaitForAsync();
+    var body = await page.Locator("body").InnerTextAsync();
+    Assert.DoesNotContain(authorizedMappingId.ToString("D"), body);
+    Assert.DoesNotContain(unauthorizedMappingId.ToString("D"), body);
+    Assert.DoesNotContain(authorizedDatasetId.ToString("D"), body);
+    Assert.DoesNotContain(privateMappingMarker, body);
+    Assert.Equal(documentToken, await page.EvaluateAsync<string>("window.__testDocumentToken"));
     Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
   }
 

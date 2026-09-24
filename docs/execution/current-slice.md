@@ -24,6 +24,11 @@ This file records observed repository state only. The authoritative build contra
 - Added `AS-PAR-002-ADV-CONSOLIDATION-STALE-ROUTE-01`: an assigned staff actor opens a synthetic advanced-consolidation group scope, navigates within the same browser document to an unauthorized group, and verifies that neither group name nor prior scope ID remains visible.
 - Focused PostgreSQL-backed browser case passed 1/1; full Release E2E project passed 53/53 with 0 skips; unfiltered Release discovery reconciled to 318. No runtime or schema change, tenant operation or production effect.
 
+## AS-PAR-002 — Accounting mapping cross-engagement route characterization
+
+- Added `AS-PAR-002-MAPPING-STALE-ROUTE-01`: a synthetic staff actor reads an authorized mapping, then navigates in the same browser document to a real mapping belonging to a sibling engagement for which the actor has no grant. The page renders only the generic unavailable state and clears both mapping IDs, source dataset ID and private rationale.
+- The focused PostgreSQL-backed browser case passed 1/1 and the full Release E2E project passed 54/54 with 0 skips; unfiltered Release discovery reconciled to 319 (Domain 259, API 6, E2E 54). Hosted aggregate remains pending. No schema migration, tenant operation or production effect.
+
 ## CI locked restore — exact SDK selection
 
 - Run `35920521850` reached restore, then failed with NU1004: SDK-injected `Microsoft.AspNetCore.App.Internal.Assets` requested `10.0.11`, while the lock file records `10.0.8`. Local SDK `10.0.300` evaluates that package to `10.0.8` and restores the existing locks successfully.
