@@ -553,6 +553,10 @@ public sealed class AccountingReconciliation
   public decimal Residual { get; set; }
   public string SourceHash { get; set; } = string.Empty;
   public string Status { get; set; } = AccountingWorkflowStates.Draft;
+  /// <summary>Monotonic revision; a revision supersedes the prior schedule without mutating it.</summary>
+  public long Revision { get; set; } = 1;
+  /// <summary>The schedule this revision supersedes; null for a first-period schedule.</summary>
+  public Guid? SupersedesReconciliationId { get; set; }
   public long InputGeneration { get; set; } = 1;
   public Guid CreatedByUserId { get; set; }
   public Guid? ReviewedByUserId { get; set; }

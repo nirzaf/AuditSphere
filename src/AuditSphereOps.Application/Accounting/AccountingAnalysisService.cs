@@ -747,6 +747,131 @@ public static class AccountingAnalysisService
     return CommandResult.Ok();
   }
 
+  /// <summary>Creates a new revision of an existing reconciliation. The prior schedule
+  /// and its review are preserved unchanged; the successor starts unapproved with a
+  /// bumped revision and an explicit supersession link.</summary>
+  public static async Task<CommandResult<Guid>> ReviseReconciliationAsync(
+    IClientAccountingDbContext db, ActorContext actor, Guid reconciliationId, string reason,
+    CancellationToken ct = default)
+  {
+    if (string.IsNullOrWhiteSpace(reason) || reason.Trim().Length > 2000)
+      return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ReconciliationRejected,
+        "A revision requires a reason of at most 2000 characters.");
+    var original = await db.AccountingReconciliations.AsNoTracking().SingleOrDefaultAsync(
+      x => x.Id == reconciliationId && x.FirmId == actor.FirmId, ct);
+    if (original is null)
+      return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, original.ClientId, original.EngagementId, PreparerRoles, InternalOnly: true), ct);
+    if (!auth.Succeeded)
+      return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+    if (original.Status == AccountingWorkflowStates.Approved)
+      return CommandResult<Guid>.Fail(ErrorCodes.ProtectedState,
+        "An approved reconciliation is immutable; the finding must be handled through a correction journal or a new schedule.");
+
+    // The successor is the highest revision for the same source-bound account selection.
+    var prior = await db.AccountingReconciliations.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && x.ClientId == original.ClientId &&
+        x.EngagementId == original.EngagementId && x.PeriodId == original.PeriodId &&
+        x.Area == original.Area && x.AccountSelection == original.AccountSelection &&
+        x.TrialBalanceDatasetId == original.TrialBalanceDatasetId && x.ImportBatchId == original.ImportBatchId)
+      .OrderByDescending(x => x.Revision)
+      .FirstOrDefaultAsync(ct);
+    var nextRevision = (prior?.Revision ?? 0) + 1;
+
+    var successor = new AccountingReconciliation
+    {
+      Id = Guid.CreateVersion7(), FirmId = original.FirmId, ClientId = original.ClientId,
+      EngagementId = original.EngagementId, PeriodId = original.PeriodId, BookId = original.BookId,
+      Area = original.Area, TrialBalanceDatasetId = original.TrialBalanceDatasetId,
+      ImportBatchId = original.ImportBatchId, AccountSelection = original.AccountSelection,
+      AsOfDate = original.AsOfDate, AgingBasis = original.AgingBasis,
+      AgingBucketRuleVersion = original.AgingBucketRuleVersion,
+      SourceTotal = original.SourceTotal, GlTotal = original.GlTotal,
+      SourceHash = original.SourceHash, Status = AccountingWorkflowStates.Draft,
+      Revision = nextRevision, SupersedesReconciliationId = original.Id,
+      InputGeneration = original.InputGeneration, CreatedByUserId = actor.UserId,
+      CreatedAt = DateTimeOffset.UtcNow
+    };
+    db.AccountingReconciliations.Add(successor);
+    await db.SaveChangesAsync(ct);
+    return CommandResult<Guid>.Ok(successor.Id);
+  }
+
+  /// <summary>Copies selected unresolved item references from an approved reconciliation
+  /// into a new draft for the next period. Only the item references are carried forward;
+  /// no proof, approval or journal link is inherited.</summary>
+  public static async Task<CommandResult<Guid>> CarryForwardReconciliationItemsAsync(
+    IClientAccountingDbContext db, ActorContext actor, Guid sourceReconciliationId,
+    Guid targetPeriodId, Guid? targetBookId, IReadOnlyList<Guid> selectedItemIds, string evidenceReference,
+    CancellationToken ct = default)
+  {
+    if (string.IsNullOrWhiteSpace(evidenceReference) || evidenceReference.Trim().Length > 2000)
+      return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ReconciliationRejected,
+        "A carry-forward requires an evidence reference.");
+    var source = await db.AccountingReconciliations.AsNoTracking().SingleOrDefaultAsync(
+      x => x.Id == sourceReconciliationId && x.FirmId == actor.FirmId, ct);
+    if (source is null)
+      return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, source.ClientId, source.EngagementId, PreparerRoles, InternalOnly: true), ct);
+    if (!auth.Succeeded)
+      return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+    if (source.Status != AccountingWorkflowStates.Approved)
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
+        "Only an approved reconciliation can carry items forward to the next period.");
+    if (selectedItemIds.Count == 0)
+      return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ReconciliationRejected,
+        "Select at least one item to carry forward.");
+
+    var targetPeriod = await db.ClientReportingPeriods.AsNoTracking().SingleOrDefaultAsync(
+      x => x.Id == targetPeriodId && x.FirmId == actor.FirmId && x.ClientId == source.ClientId, ct);
+    if (targetPeriod is null)
+      return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "The target period is outside the client scope.");
+    if (targetPeriod.StartDate <= source.AsOfDate)
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
+        "The carry-forward target period must start after the source reconciliation as-of date.");
+
+    var sourceItems = await db.AccountingReconciliationItems.AsNoTracking()
+      .Where(x => x.ReconciliationId == source.Id && x.FirmId == actor.FirmId &&
+        selectedItemIds.Contains(x.Id))
+      .ToListAsync(ct);
+    if (sourceItems.Count != selectedItemIds.Count)
+      return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied,
+        "One or more selected items do not belong to the source reconciliation.");
+
+    var carry = new AccountingReconciliation
+    {
+      Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = source.ClientId,
+      EngagementId = source.EngagementId, PeriodId = targetPeriod.Id, BookId = targetBookId,
+      Area = source.Area, TrialBalanceDatasetId = null, ImportBatchId = null,
+      AccountSelection = source.AccountSelection, AsOfDate = targetPeriod.EndDate,
+      AgingBasis = source.AgingBasis, AgingBucketRuleVersion = source.AgingBucketRuleVersion,
+      SourceTotal = 0m, GlTotal = 0m, SourceHash = string.Empty,
+      Status = AccountingWorkflowStates.Draft, Revision = 1,
+      InputGeneration = 1, CreatedByUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
+    };
+    db.AccountingReconciliations.Add(carry);
+    await db.SaveChangesAsync(ct);
+
+    foreach (var item in sourceItems)
+    {
+      db.AccountingReconciliationItems.Add(new AccountingReconciliationItem
+      {
+        Id = Guid.CreateVersion7(), FirmId = carry.FirmId, ClientId = carry.ClientId,
+        EngagementId = carry.EngagementId, ReconciliationId = carry.Id,
+        StableItemId = item.StableItemId, SignedAmount = item.SignedAmount,
+        Currency = item.Currency, ItemDate = item.ItemDate,
+        DateBasis = item.DateBasis, AgingBucket = item.AgingBucket,
+        IsCredit = item.IsCredit, Reason = item.Reason,
+        EvidenceReference = item.EvidenceReference,
+        Disposition = "CARRIED_FORWARD", CreatedAt = carry.CreatedAt
+      });
+    }
+    await db.SaveChangesAsync(ct);
+    return CommandResult<Guid>.Ok(carry.Id);
+  }
+
   public static async Task<CommandResult<Guid>> CreateEclAssessmentAsync(
     IClientAccountingDbContext db, ActorContext actor, EclAssessmentRequest request,
     CancellationToken ct = default)
