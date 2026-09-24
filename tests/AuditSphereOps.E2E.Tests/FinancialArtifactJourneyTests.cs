@@ -840,6 +840,46 @@ public sealed class FinancialArtifactJourneyTests
     Assert.Equal(artifactHash, retained.ArtifactSha256Hex);
   }
 
+  [Fact]
+  [Trait("CaseId", "AS-PAR-002-FS-REFRESH-REVOKED-01")]
+  public async Task RefreshClearsPreviouslyAuthorizedPackageAfterGrantRevocation()
+  {
+    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false,
+      caseId: "AS-PAR-002-FS-REFRESH-REVOKED-01");
+    var (packageId, _) = await CreatePackageAsync(host);
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    var page = await browser.NewPageAsync();
+    var diagnostics = new List<string>();
+    var connected = WaitForCircuitConnectionAsync(page, diagnostics);
+    await page.GotoAsync(SignInUrl(host.StaffUrl, $"/app/accounting/packages/{packageId:D}"));
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Financial statement package" }).WaitForAsync();
+    await page.GetByText("Mapped statement totals", new() { Exact = true }).WaitForAsync();
+    await connected;
+
+    await using (var db = host.CreateDbContext())
+    {
+      var grants = await db.RoleGrants.Where(x => x.FirmId == host.Fixture.FirmId &&
+        x.UserId == host.Fixture.Staff.Id && x.RevokedAt == null &&
+        (x.Role == "Staff" || x.Role == "AccountingPreparer")).ToListAsync();
+      Assert.NotEmpty(grants);
+      foreach (var grant in grants)
+      {
+        var revoked = await RoleAdministrationService.RevokeRoleGrantAsync(db,
+          PbcSeed.Actor(host.Fixture.Admin, "Administrator"), new RevokeRoleGrantRequest(grant.Id));
+        Assert.True(revoked.Succeeded, revoked.Message);
+      }
+    }
+
+    await page.GetByRole(AriaRole.Button, new() { Name = "Refresh package" }).ClickAsync();
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable" }).WaitForAsync();
+    var body = await page.Locator("body").InnerTextAsync();
+    Assert.DoesNotContain(packageId.ToString("D"), body);
+    Assert.DoesNotContain("Mapped statement totals", body);
+    Assert.DoesNotContain("Calculation hash", body);
+    Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
+  }
+
   internal static async Task<(Guid PackageId, Dictionary<string, (byte[] Bytes, string Sha256)> Expected)> CreatePackageAsync(
     OwnedBlazorHost host)
   {
