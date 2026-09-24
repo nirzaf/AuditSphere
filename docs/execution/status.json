@@ -4,10 +4,10 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "48bd2e4d88de236989b4cbe20cab8a360ffe451c",
+  "headCommit": "1b63f275f49f39bafa4e2a5f57c4ea66a7b6f1c3",
   "remoteHeadVerified": true,
   "productionEnabled": false,
-  "verifiedAt": "2026-09-24T07:41:54Z",
+  "verifiedAt": "2026-09-24T09:29:39Z",
   "toolchain": {
     "sdk": ".NET 10",
     "efCore": "10.0.12",
@@ -16,13 +16,13 @@
     "postgres": "18.6 loopback development profile"
   },
   "verification": {
-    "ciLatestHostedRun": "Run 35969468368 for remotely verified master d8b0310ba0450d259f47934de3b6b20af49d3631 passed restore/build and migration/model-drift checks, then failed the discovery guard: 323 tests were found versus the pinned expected count 321. Updated .github/workflows/ci.yml to expect 323; local actionlint passed. This workflow correction is not yet pushed and hosted rerun is pending.",
+    "ciLatestHostedRun": "Run 35981469838 targets exact pushed master SHA 1b63f275f49f39bafa4e2a5f57c4ea66a7b6f1c3 and is in progress as of 2026-09-24T09:28:43Z. Previous run 35971115983 discovered 323 tests and passed Domain 261/261 plus API 6/6, but failed the E2E time-entry success-message assertion and ended cancelled before aggregate E2E/readiness. The focused journey and full E2E suite passed locally (56/56). No hosted pass is inferred.",
     "ciLockedRestore": "PASS locally: SDK policy regression check rejected latestPatch and passed after global.json required rollForward=disable for SDK 10.0.300. CI now installs from global.json and checks SDK selection before locked restore. dotnet tool restore; dotnet restore AuditSphereOps.slnx --locked-mode; dotnet build AuditSphereOps.slnx --no-restore --configuration Release all passed. Actionlint v1.7.7 passed with ShellCheck/Pyflakes disabled. Package lock files unchanged. Addresses run 35920521850 NU1004 for SDK-injected Microsoft.AspNetCore.App.Internal.Assets 10.0.11 versus locked 10.0.8; local SDK 10.0.300 evaluates 10.0.8. Full tests and hosted execution of this fix not rerun.",
     "ciWorkflowValidation": "PASS locally: actionlint v1.7.7 reproduced the forbidden runner context in job-level env, then exited 0 after E2E_RUN_ROOT initialization moved to a step using RUNNER_TEMP and GITHUB_ENV. Command: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7 -shellcheck= -pyflakes= .github/workflows/ci.yml. Bash assertion also passed for a temporary path containing spaces and run/attempt suffix 393-2. ShellCheck/Pyflakes disabled; full .NET suite and hosted GitHub Actions not rerun for this workflow-only fix.",
-    "build": "PASS: dotnet build src/AuditSphereOps.Web/AuditSphereOps.Web.csproj --no-restore --configuration Release on 2026-09-24; 0 warnings/errors after component-translation V2 changes.",
-    "tests": "Pushed remeasurement code SHA 48bd2e4d88de236989b4cbe20cab8a360ffe451c plus local follow-up UI/workflow changes: PostgreSQL Domain 261/261, API 6/6 and Playwright E2E 56/56 passed serially, all with 0 skips (323 cases); focused remeasurement DB and browser cases also passed. Web Release build 0 warnings/errors, EF no pending model changes, actionlint v1.7.7 and git diff --check passed. Hosted run 35969468368 reached discovery and found 323 vs expected 321; suite did not run. Workflow count updated locally to 323; hosted rerun awaits push.",
-    "testCommand": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-build --configuration Release (261/261); dotnet test tests/AuditSphereOps.Api.Tests/AuditSphereOps.Api.Tests.csproj --no-restore --configuration Release (6/6); dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-build --configuration Release (56/56). All passed with 0 skipped.",
-    "testResults": "The PostgreSQL remeasurement journey verifies monetary closing-rate and non-monetary historical-rate behavior, immutable exact snapshot/hash/rate lineage, idempotent replay, maker/checker, readback and database triggers. The Playwright journey verifies only a scoped period is offered and browser-local draft state restores after reload. All three local test projects passed serially, total 323/323. Hosted CI has not passed: run 35969468368 failed the stale expected-case-count assertion before tests. No production migration or tenant effect.",
+    "build": "PASS: dotnet build AuditSphereOps.slnx --no-restore --configuration Release on 2026-09-24; 0 warnings/errors.",
+    "tests": "PostgreSQL-backed Release Domain 261/261, API 6/6 and Playwright E2E 56/56 passed with 0 skips (323 total); focused direct/streamed GL currency regressions passed 2/2 and focused time-entry journey passed 1/1. Solution build passed with 0 warnings/errors and EF found no pending model changes. Hosted run 35981469838 is in progress; predecessor run 35971115983 failed the E2E time-entry journey and did not complete the hosted aggregate.",
+    "testCommand": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-build --configuration Release (261/261); dotnet test tests/AuditSphereOps.Api.Tests/AuditSphereOps.Api.Tests.csproj --no-restore --configuration Release (6/6); dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-build --configuration Release (56/56). All local tests passed with 0 skipped.",
+    "testResults": "Direct and streamed GL regressions verify original currency/source amount/functional posting retention, canonical idempotency inputs and rejection of inconsistent functional postings. All local solution test projects passed serially, 323/323. Hosted run 35981469838 is pending on the exact pushed SHA; previous hosted time-entry E2E failure was not reproduced in the focused or full local E2E runs. No tenant or production effect.",
     "testEnvironmentRecovery": "The preceding run had 141 passed and 105 failed while PostgreSQL was shutting down. The server log records a smart shutdown request at 2026-09-22T19:25:04Z; its initiator is unknown. Started the stopped local cluster on 127.0.0.1:5433, confirmed PostgreSQL 18.6 and the auditsphere_tests database, then reran the entire suite successfully without source, test, assertion or runner changes. PostgreSQL remained available after the run; no production effects were enabled.",
     "migrations": "Added 20260924070028_AddCurrencyRemeasurementWorkpaper after 20260924062848_CurrencyTranslationCalculationVersion. Focused PostgreSQL integration applied and verified the schema, evidence constraints and append-only triggers. The existing local auditsphere database remains at 91 migrations through 20260922140527_M365InvitationEvidenceAction; no local/production database migration was run outside isolated tests.",
     "pendingModelChanges": "PASS before push for code identical to pushed SHA 48bd2e4d88de236989b4cbe20cab8a360ffe451c: dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Web --configuration Release; no pending model changes after AddCurrencyRemeasurementWorkpaper.",
@@ -57,7 +57,7 @@
     "implementationStatus": "IN_PROGRESS",
     "acceptanceStatus": "LOCAL_VERIFIED",
     "scope": "Local audit workflow, client accounting, scoped client file-request threads/uploads/downloads, GL intake, completeness, package, Office/PDF export, restatement, consolidation, journal-lineage, close-check, package-review and Microsoft 365 onboarding control-plane slices.",
-    "nextAction": "Commit and push the expected test discovery count 323 and its execution-ledger update, then verify hosted CI on the exact SHA. Continue only after the hosted suite result; G16 professional methodology acceptance and applicable live evidence remain separate external gates."
+    "nextAction": "Verify hosted CI run 35981469838 on exact master SHA 1b63f275f49f39bafa4e2a5f57c4ea66a7b6f1c3. Continue the remaining local accounting stories after recording its result; G16 open-item sourcing/methodology and applicable live evidence remain separate gates."
   },
   "localEvidence": [
     {
@@ -633,7 +633,12 @@
     {
       "item": "Current full solution verification",
       "status": "LOCAL_VERIFIED",
-      "details": "At source checkpoint c214cb35743284b7c336ae5d193d4026afb81da0, Release build passed with 0 warnings/errors, full solution tests passed 315/315 with 0 skips (Domain 259, API 6, E2E 50), discovery matched 315 and EF found no pending model changes. E2E ran 6m29s; Domain 8m08s. PostgreSQL 18.6 at 127.0.0.1:5433 remained available. No migration of the existing development database, tenant operation, or production effect."
+      "details": "At source checkpoint 1b63f275f49f39bafa4e2a5f57c4ea66a7b6f1c3, Release build passed with 0 warnings/errors, full solution test projects passed 323/323 with 0 skips (Domain 261, API 6, E2E 56), and EF found no pending model changes. PostgreSQL 18.6 at 127.0.0.1:5433 remained available. No migration of the existing development database, tenant operation, or production effect."
+    },
+    {
+      "item": "Accounting — preserve source currency in GL imports",
+      "status": "LOCAL_VERIFIED",
+      "details": "Direct and streamed GL import now retain normalized per-line original currency, original amount and functional posting; shared validation rejects inconsistent functional values and canonical digests bind source amounts/currency. Focused PostgreSQL regressions passed 2/2; full Domain passed 261/261; API 6/6; E2E 56/56; Release solution build passed with 0 warnings/errors; EF reports no pending model changes. Commit 1b63f275f49f39bafa4e2a5f57c4ea66a7b6f1c3 is pushed to master and exact remote SHA confirmed. Hosted run 35981469838 is pending. Open-item status/classification/carrying amount remain preparer-substantiated; imported journal lines are not automatically treated as period-end open balances. No external tenant or production effect."
     }
   ],
   "remainingLocalWork": [
