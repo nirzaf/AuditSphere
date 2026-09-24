@@ -806,10 +806,13 @@ public sealed class FinancialArtifactJourneyTests
 
     await using var verify = host.CreateDbContext();
     var decision = await verify.FinancialPackageReviewDecisions.AsNoTracking()
-      .SingleAsync(x => x.FinancialPackageId == packageId);
+      .SingleAsync(x => x.FinancialPackageId == packageId &&
+        x.Stage == FinancialPackageReviewStages.AccountingReview);
     Assert.Equal(host.Fixture.Reviewer.Id, decision.DecidedByUserId);
     Assert.Equal(FinancialPackageReviewStages.AccountingReview, decision.Stage);
     Assert.Equal(FinancialPackageReviewDecisions.Approved, decision.Decision);
+    Assert.Equal(2, await verify.FinancialPackageReviewDecisions.AsNoTracking()
+      .CountAsync(x => x.FinancialPackageId == packageId));
     await reviewerPage.CloseAsync();
   }
 
