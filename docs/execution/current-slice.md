@@ -7,6 +7,11 @@ This file records observed repository state only. The authoritative build contra
 - Extended `GroupWorkflow_UsesApprovedComponentPackagesWithoutMutatingThem` with a PostgreSQL-backed stale-source check: after a group run is built, a changed component package hash causes run approval to fail with `GenerationStale`; restoring the original source hash permits approval. This is a local fault-injection regression of the run-manifest guard, not a new component-replacement workflow.
 - Focused Release test passed 1/1 on 2026-09-24. Full solution/hosted CI for this assertion is pending. No runtime or schema change, tenant operation or production effect.
 
+## Accounting — management package is not an assurance release
+
+- Strengthened `ClientPackageView_IsScopedAndSupportsSignedInManagementDecision` to verify that a client’s signed management acknowledgement creates neither a release candidate nor a release. Strengthened the existing package-portal browser journey to assert the UI explicitly says this is not an audit opinion, assurance conclusion, or proof of external posting.
+- PostgreSQL domain test passed 1/1; focused Playwright test passed 1/1; full Release solution build passed with 0 warnings/errors. No runtime/schema change, tenant operation or production effect. Hosted CI for this new assertion is pending.
+
 ## AS-PAR-002 — Audit fieldwork same-document engagement reauthorization
 
 - Reproduced a stale disclosure: moving from an assigned engagement to an unassigned sibling in the same browser document left the prior adopted audit program visible.

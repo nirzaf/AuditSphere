@@ -288,6 +288,8 @@ public sealed class FinancialArtifactJourneyTests
     await page.GotoAsync(SignInUrl(host.ClientUrl, $"/portal/accounting/packages/{packageId:D}"));
     await page.GetByRole(AriaRole.Heading, new() { Name = "Management review" }).WaitForAsync();
     await page.GetByText(packageHash, new() { Exact = true }).WaitForAsync();
+    Assert.Contains("not an audit opinion, assurance conclusion or proof that an external ledger has been posted",
+      await page.Locator("body").InnerTextAsync(), StringComparison.OrdinalIgnoreCase);
     await connected;
     var documentToken = await page.EvaluateAsync<string>("window.__clientPackageRouteToken = crypto.randomUUID()");
 

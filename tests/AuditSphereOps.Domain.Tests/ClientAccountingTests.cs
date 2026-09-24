@@ -1601,6 +1601,8 @@ public sealed class ClientAccountingTests
       var internalReviews = await FinancialPackageReviewService.GetAsync(db, actor, packageA);
       Assert.False(internalReviews.Succeeded);
       Assert.Equal(ErrorCodes.ScopeDenied, internalReviews.ErrorCode);
+      Assert.Empty(await db.ReleaseCandidates.Where(x => x.TargetId == packageA).ToListAsync());
+      Assert.Empty(await db.Releases.Where(x => x.PackageId == packageA).ToListAsync());
 
       var otherClient = await FinancialPackageReviewService.GetClientViewAsync(db, actor, packageB);
       Assert.False(otherClient.Succeeded);
