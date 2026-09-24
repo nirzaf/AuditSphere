@@ -116,6 +116,36 @@ Use pure xUnit for deterministic rules, real PostgreSQL for persistence/concurre
 
 **Golden fixtures:** [GOLD-R2R-01](../../coverage/04_Golden_Fixture_Tracking.md#gold-r2r-01), [GOLD-R2R-03](../../coverage/04_Golden_Fixture_Tracking.md#gold-r2r-03), [GOLD-R2R-04](../../coverage/04_Golden_Fixture_Tracking.md#gold-r2r-04), [GOLD-R2R-05](../../coverage/04_Golden_Fixture_Tracking.md#gold-r2r-05), [GOLD-R2R-08](../../coverage/04_Golden_Fixture_Tracking.md#gold-r2r-08). Fixture use requires the original policy approval; the numbers are synthetic QA values.
 
+### Audit completion review, representation letter and release gates
+- Perform and record engagement partner second review of all completed audit sections and workpapers (`AWP-20-01`).
+- Enforce Engagement Quality Review (EQR) sign-off where mandated by firm policy or engagement risk profile (`AWP-20-02`).
+- Require and verify uploaded signed management representations letter covering required ISA 580 matters (`AWP-20-05`).
+- Formulate and record the auditor's professional opinion (unmodified, qualified, adverse, disclaimer) (`AWP-20-07`).
+- Enforce audit report dating rule: report date must not precede the date on which all necessary audit evidence was obtained (`AWP-20-09`).
+- Execute final audit report release workflow and atomically lock the engagement archive file (`AWP-20-10`).
+
+## Audit workflow source traceability
+
+| Source | Coverage |
+|---|---|
+| AS-AUD-027 | Primary |
+| AS-AUD-027-AC01 | Covered |
+| AS-AUD-027-AC02 | Covered |
+| AS-AUD-027-AC05 | Covered |
+| AS-AUD-027-AC07 | Covered |
+| AS-AUD-027-AC09 | Covered |
+| AS-AUD-027-AC10 | Covered |
+| AS-AUD-027-AC11 | Covered |
+| AS-AUD-027-AC12 | Covered |
+| AS-AUD-027-AC13 | Covered |
+| AS-AUD-027-AC14 | Covered (Blocked external) |
+| AWP-20-01 | Covered |
+| AWP-20-02 | Covered |
+| AWP-20-05 | Covered |
+| AWP-20-07 | Covered |
+| AWP-20-09 | Covered |
+| AWP-20-10 | Covered |
+
 ## Completion checklist
 
 <!-- COMPLETION-CHECKLIST -->

@@ -149,6 +149,19 @@ Use pure xUnit for deterministic rules, real PostgreSQL for persistence/concurre
 
 **Related integration journeys:** [R2R-AT-07](../../coverage/03_Integration_Journey_Tracking.md#r2r-at-07), [R2R-AT-08](../../coverage/03_Integration_Journey_Tracking.md#r2r-at-08), [R2R-AT-18](../../coverage/03_Integration_Journey_Tracking.md#r2r-at-18), [R2R-AT-20](../../coverage/03_Integration_Journey_Tracking.md#r2r-at-20), [R2R-AT-27](../../coverage/03_Integration_Journey_Tracking.md#r2r-at-27), [R2R-AT-28](../../coverage/03_Integration_Journey_Tracking.md#r2r-at-28), [R2R-AT-29](../../coverage/03_Integration_Journey_Tracking.md#r2r-at-29).
 
+### Audit population scaling and archive integrity verification
+- Verify bounded performance and responsive UI handling for large audit populations (100k+ transactions).
+- Verify exact checksum (SHA-256) calculation and verification on all uploaded audit evidence and sealed workpapers.
+- Verify exact reproducibility of sealed audit archive files.
+
+## Audit workflow source traceability
+
+| Source | Coverage |
+|---|---|
+| AS-AUD-028 | Primary |
+| AS-AUD-028-AC07 | Covered |
+| AS-AUD-028-AC08 | Covered |
+
 ## Completion checklist
 
 <!-- COMPLETION-CHECKLIST -->

@@ -150,6 +150,17 @@ Use pure xUnit for deterministic rules, real PostgreSQL for persistence/concurre
 
 **Related integration journeys:** [R2R-AT-01](../../coverage/03_Integration_Journey_Tracking.md#r2r-at-01), [R2R-AT-02](../../coverage/03_Integration_Journey_Tracking.md#r2r-at-02), [R2R-AT-03](../../coverage/03_Integration_Journey_Tracking.md#r2r-at-03), [R2R-AT-04](../../coverage/03_Integration_Journey_Tracking.md#r2r-at-04), [R2R-AT-05](../../coverage/03_Integration_Journey_Tracking.md#r2r-at-05), [R2R-AT-06](../../coverage/03_Integration_Journey_Tracking.md#r2r-at-06), [R2R-AT-07](../../coverage/03_Integration_Journey_Tracking.md#r2r-at-07), [R2R-AT-08](../../coverage/03_Integration_Journey_Tracking.md#r2r-at-08), [R2R-AT-09](../../coverage/03_Integration_Journey_Tracking.md#r2r-at-09), [R2R-AT-10](../../coverage/03_Integration_Journey_Tracking.md#r2r-at-10), [R2R-AT-11](../../coverage/03_Integration_Journey_Tracking.md#r2r-at-11), [R2R-AT-12](../../coverage/03_Integration_Journey_Tracking.md#r2r-at-12), [R2R-AT-13](../../coverage/03_Integration_Journey_Tracking.md#r2r-at-13), [R2R-AT-14](../../coverage/03_Integration_Journey_Tracking.md#r2r-at-14), [R2R-AT-15](../../coverage/03_Integration_Journey_Tracking.md#r2r-at-15), [R2R-AT-16](../../coverage/03_Integration_Journey_Tracking.md#r2r-at-16), [R2R-AT-17](../../coverage/03_Integration_Journey_Tracking.md#r2r-at-17), [R2R-AT-18](../../coverage/03_Integration_Journey_Tracking.md#r2r-at-18), [R2R-AT-19](../../coverage/03_Integration_Journey_Tracking.md#r2r-at-19), [R2R-AT-20](../../coverage/03_Integration_Journey_Tracking.md#r2r-at-20), [R2R-AT-21](../../coverage/03_Integration_Journey_Tracking.md#r2r-at-21), [R2R-AT-22](../../coverage/03_Integration_Journey_Tracking.md#r2r-at-22), [R2R-AT-23](../../coverage/03_Integration_Journey_Tracking.md#r2r-at-23), [R2R-AT-24](../../coverage/03_Integration_Journey_Tracking.md#r2r-at-24), [R2R-AT-25](../../coverage/03_Integration_Journey_Tracking.md#r2r-at-25), [R2R-AT-26](../../coverage/03_Integration_Journey_Tracking.md#r2r-at-26), [R2R-AT-27](../../coverage/03_Integration_Journey_Tracking.md#r2r-at-27), [R2R-AT-28](../../coverage/03_Integration_Journey_Tracking.md#r2r-at-28), [R2R-AT-29](../../coverage/03_Integration_Journey_Tracking.md#r2r-at-29), [R2R-AT-30](../../coverage/03_Integration_Journey_Tracking.md#r2r-at-30).
 
+### Final audit workflow production acceptance and operator handover
+- Obtain final operational sign-off covering both Record-to-Report and Audit execution workflows.
+- Confirm complete audit documentation, operator guidance, and verified handover record.
+
+## Audit workflow source traceability
+
+| Source | Coverage |
+|---|---|
+| AS-AUD-028 | Primary |
+| AS-AUD-028-AC10 | Covered |
+
 ## Completion checklist
 
 <!-- COMPLETION-CHECKLIST -->

@@ -131,6 +131,29 @@ Use pure xUnit for deterministic rules, real PostgreSQL for persistence/concurre
 
 **Golden fixtures:** [GOLD-R2R-01](../../coverage/04_Golden_Fixture_Tracking.md#gold-r2r-01), [GOLD-R2R-04](../../coverage/04_Golden_Fixture_Tracking.md#gold-r2r-04), [GOLD-R2R-05](../../coverage/04_Golden_Fixture_Tracking.md#gold-r2r-05). Fixture use requires the original policy approval; the numbers are synthetic QA values.
 
+### Audit financial statements tie-out and cross-casting requirements
+- Agree all financial statement line items to the final adjusted trial balance (`AWP-18-01`).
+- Perform mathematical accuracy and cross-casting verification across all statements, notes, and schedules (`AWP-18-02`).
+- Verify comparative figures agree with prior-year audited financial statements (`AWP-18-03`).
+- Review accounting policies for consistency with the prior period and compliance with framework standards (`AWP-18-05`).
+- Verify that the statement of cash flows is consistent with balance sheet and profit-and-loss movements (`AWP-18-07`).
+
+## Audit workflow source traceability
+
+| Source | Coverage |
+|---|---|
+| AS-AUD-025 | Primary |
+| AS-AUD-025-AC01 | Covered |
+| AS-AUD-025-AC02 | Covered |
+| AS-AUD-025-AC03 | Covered |
+| AS-AUD-025-AC04 | Covered |
+| AS-AUD-025-AC07 | Covered |
+| AWP-18-01 | Covered |
+| AWP-18-02 | Covered |
+| AWP-18-03 | Covered |
+| AWP-18-05 | Covered |
+| AWP-18-07 | Covered |
+
 ## Completion checklist
 
 <!-- COMPLETION-CHECKLIST -->

@@ -151,6 +151,18 @@ Use pure xUnit for deterministic rules, real PostgreSQL for persistence/concurre
 
 **Golden fixtures:** [GOLD-R2R-01](../../coverage/04_Golden_Fixture_Tracking.md#gold-r2r-01), [GOLD-R2R-02](../../coverage/04_Golden_Fixture_Tracking.md#gold-r2r-02), [GOLD-R2R-03](../../coverage/04_Golden_Fixture_Tracking.md#gold-r2r-03), [GOLD-R2R-04](../../coverage/04_Golden_Fixture_Tracking.md#gold-r2r-04), [GOLD-R2R-05](../../coverage/04_Golden_Fixture_Tracking.md#gold-r2r-05), [GOLD-R2R-06](../../coverage/04_Golden_Fixture_Tracking.md#gold-r2r-06), [GOLD-R2R-07](../../coverage/04_Golden_Fixture_Tracking.md#gold-r2r-07), [GOLD-R2R-08](../../coverage/04_Golden_Fixture_Tracking.md#gold-r2r-08). Fixture use requires the original policy approval; the numbers are synthetic QA values.
 
+### End-to-end entity audit journey and difference reconciliation
+- Verify complete audit journey from planning through TB reconciliation, sampling, vouching, difference evaluation, FS tie-out, partner review, and release.
+- Verify audit difference reconciliation path: finding -> SAD schedule -> proposed adjustment -> management decision -> reflection in revised TB -> adjusted TB -> financial statements.
+
+## Audit workflow source traceability
+
+| Source | Coverage |
+|---|---|
+| AS-AUD-028 | Primary |
+| AS-AUD-028-AC06 | Covered |
+| AS-AUD-028-AC09 | Covered |
+
 ## Completion checklist
 
 <!-- COMPLETION-CHECKLIST -->

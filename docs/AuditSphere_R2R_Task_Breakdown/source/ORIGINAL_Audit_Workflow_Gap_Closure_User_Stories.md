@@ -12,7 +12,7 @@
 | Backlog | **28 issue-ready stories**, grouped into 5 proposed milestones |
 | Repository snapshot inspected | `master@b7305c1` for current implementation evidence; historical source links retain their original snapshot |
 | Status | Partially implemented; local evidence is summarized in the execution ledger; not professional or production acceptance |
-| Suggested repository location | `docs/requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md` |
+| Preserved repository location | `docs/AuditSphere_R2R_Task_Breakdown/source/ORIGINAL_Audit_Workflow_Gap_Closure_User_Stories.md` |
 | Repository changes made by this document task | Requirements documentation only; implementation evidence is tracked separately |
 
 > **Epic outcome:** An authorized auditor can perform, evidence, review and conclude every applicable procedure in the uploaded checklist using AuditSphere, and the existing final release gate consumes those exact reviewed results. Reuse working capabilities; implement only demonstrated gaps. Do not confuse a template, database entity or generic workpaper with accepted end-to-end functionality.
@@ -41,6 +41,27 @@
 **As an engagement partner and audit team, I want AuditSphere to provide approved audit programs, structured workpapers, supporting calculations and evidence-backed completion for the uploaded 20-section checklist, so that we can carry out the audit consistently and authorize a final report only after the required professional work and reviews are complete.**
 
 The business requirement is **support for performing and documenting the work**, not an autonomous auditor. The application performs authorized calculations, retains evidence, presents exceptions and enforces workflow gates. Qualified people choose methodology, assess evidence, determine materiality, decide accounting/reporting treatment, conclude audit work and authorize reports.
+
+### 1.1a Complementary R2R and audit-plan boundary
+
+This backlog is the professional audit-execution contract for the 20 audit sections. It is complementary to, and does not replace, the R2R Modules 20–26 task breakdown. R2R owns the accounting/reporting engine (context, TB/GL, journals, reconciliations, statements, packages and consolidation); this backlog owns audit programs, populations, sampling, evidence, findings, audit-area conclusions, review and completion.
+
+Accounting objects are audit inputs, not substitutes for audit work. An accounting reconciliation review is not an auditor's reconciliation testing; an accounting package approval is not audit acceptance; and an accounting journal decision is not an audit finding conclusion. Audit schedules and populations must bind to the exact accepted R2R source identities (`AcceptedSourceRevisionId`, dataset digest, reporting context, period, book, currency and revision) where applicable. Do not create duplicate audit TB, chart-of-accounts or reporting-period masters.
+
+The current 165-procedure programme is a **single-entity audit programme**. R2R Module 26 remains supported for group consolidation, but this backlog does not define group-audit methodology, group scoping, component-audit coordination or group opinion requirements. Those require a separate approved group-audit backlog.
+
+### 1.1b Product-scope reconciliation
+
+The current STEAuditSphere product scope supersedes provider-specific requirements in this backlog:
+
+- **No Purview integration:** do not require Purview labels, protection, readback or provider acceptance. Logical archive, holds, retention metadata, exact bytes and SHA-256 identities remain in scope.
+- **No eSignature provider integration:** do not require DocuSign, Adobe Sign, cryptographic signing workflow or provider live acceptance. Management representations and signed artifacts may be uploaded or linked as exact documents, with signatory/date evidence, SHA-256, human review and release-manifest decisions retained. Uploaded signed evidence is not proof that a signing provider was integrated or that live provider acceptance passed.
+
+These are requirement supersessions, not test waivers. A live provider gate may remain `BLOCKED_EXTERNAL`; local simulation and uploaded evidence must not be presented as provider acceptance.
+
+### 1.1c Payroll and tax boundary
+
+AS-AUD-016 Payroll Audit and AS-AUD-020 Tax & Statutory Liabilities Audit are **audit workpaper capabilities only**. They may import and reconcile client-provided payroll/tax schedules, inspect evidence, select items, perform authorized recalculations, test payments and review disclosures. They must not implement payroll runs, payslips, employee master/HR operations, salary disbursement, tax preparation, tax filing, tax-authority submission or a universal statutory tax engine. Missing jurisdiction, rates, legal rules or source evidence remains an explicit methodology/input dependency and is never defaulted.
 
 ### 1.2 What is source-derived and what is proposed
 
@@ -1417,7 +1438,7 @@ Respect any stricter existing repository/WBS sequencing and owner authorization.
 
 **Gap to establish:** Completion/EQR/representation/release records exist, but that alone does not prove the source's complete set of professional prerequisites is enforced by the release command.
 
-**Reuse boundary:** Extend existing completion projections and ReleaseService gate evaluation. Reuse exact snapshots, approvals, signatures, checkpoints, records protection and recovery safeguards; do not build a second release path. [R5]
+**Reuse boundary:** Extend existing completion projections and ReleaseService gate evaluation. Reuse exact snapshots, approvals, uploaded signed-document evidence, release manifests, records protection and recovery safeguards; do not build a second release path or an eSignature/Purview provider integration. [R5]
 
 **Minimum information:** Applicable program and area completions; review-point clearance; risk responses; current materiality/misstatement assessment; going-concern/subsequent-event/FS/final-analytics reviews; signed representation; reviewer decisions; report date; final artifacts/signature lineage; release evidence.
 

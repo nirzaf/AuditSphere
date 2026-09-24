@@ -153,6 +153,20 @@ Use pure xUnit for deterministic rules, real PostgreSQL for persistence/concurre
 
 **Golden fixtures:** [GOLD-R2R-01](../../coverage/04_Golden_Fixture_Tracking.md#gold-r2r-01), [GOLD-R2R-02](../../coverage/04_Golden_Fixture_Tracking.md#gold-r2r-02), [GOLD-R2R-03](../../coverage/04_Golden_Fixture_Tracking.md#gold-r2r-03), [GOLD-R2R-04](../../coverage/04_Golden_Fixture_Tracking.md#gold-r2r-04), [GOLD-R2R-05](../../coverage/04_Golden_Fixture_Tracking.md#gold-r2r-05), [GOLD-R2R-06](../../coverage/04_Golden_Fixture_Tracking.md#gold-r2r-06), [GOLD-R2R-07](../../coverage/04_Golden_Fixture_Tracking.md#gold-r2r-07), [GOLD-R2R-08](../../coverage/04_Golden_Fixture_Tracking.md#gold-r2r-08). Fixture use requires the original policy approval; the numbers are synthetic QA values.
 
+### Audit program 20-section and 165-procedure coverage reconciliation
+- Verify 100% coverage across all 20 audit sections (AS-AUD-028-AC01).
+- Verify completion evidence for all 165 AWP source procedures (AWP-01-01 to AWP-20-10) or valid approved N/A justifications (AS-AUD-028-AC02).
+- Freeze release candidate with zero unmapped or unverified audit workflow requirements.
+
+## Audit workflow source traceability
+
+| Source | Coverage |
+|---|---|
+| AS-AUD-028 | Primary |
+| AS-AUD-028-AC01 | Covered |
+| AS-AUD-028-AC02 | Covered |
+| All 165 AWPs (`AWP-01-01`–`AWP-20-10`) | Covered |
+
 ## Completion checklist
 
 <!-- COMPLETION-CHECKLIST -->

@@ -35,7 +35,19 @@ public sealed record OpeningBalanceBridgeRequest(
 
 public sealed record CreatePeriodRestatementRequest(
   Guid ClientId, Guid PeriodId, Guid OriginalPackageId, Guid RevisedPackageId,
-  string RevisedBasis, string Reason, string EvidenceReference);
+  string RevisedBasis, string Reason, string EvidenceReference,
+  string ChangeType = "", string AffectedPeriods = "");
+
+/// <summary>Supported restatement treatments per the IAS 8 contract; estimate
+/// changes use prospective treatment and never silently restate prior periods.</summary>
+public static class PeriodRestatementChangeTypes
+{
+  public const string Reclassified = "RECLASSIFIED";
+  public const string RestatedError = "RESTATED_ERROR";
+  public const string PolicyTransition = "POLICY_TRANSITION";
+  public const string ProspectiveEstimateChange = "PROSPECTIVE_ESTIMATE_CHANGE";
+  public static readonly string[] All = [Reclassified, RestatedError, PolicyTransition, ProspectiveEstimateChange];
+}
 
 public sealed record ClientAccountInput(
   string StableIdentity, string AccountCode, string AccountName, string AccountType,
@@ -392,6 +404,19 @@ public static class ClientAccountingService
         string.IsNullOrWhiteSpace(request.EvidenceReference))
       return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ReconciliationRejected,
         "A restatement needs distinct issued/revised packages, a revised basis, reason and evidence.");
+    var changeType = request.ChangeType.Trim().ToUpperInvariant();
+    if (!PeriodRestatementChangeTypes.All.Contains(changeType))
+      return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ReconciliationRejected,
+        "A restatement needs a supported change type: reclassified, restated error, policy transition or prospective estimate change.");
+    if (changeType == PeriodRestatementChangeTypes.ProspectiveEstimateChange &&
+        string.IsNullOrWhiteSpace(request.AffectedPeriods))
+      return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ReconciliationRejected,
+        "A prospective estimate change must name the periods it affects; prior periods are never silently restated.");
+    var affectedPeriods = string.Join(',', (request.AffectedPeriods ?? string.Empty)
+      .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+      .Select(x => x.ToUpperInvariant())
+      .Distinct(StringComparer.Ordinal)
+      .OrderBy(x => x, StringComparer.Ordinal));
     var auth = await AuthorizeClientAsync(db, actor, request.ClientId, PreparerRoles, ct);
     if (!auth.Succeeded)
       return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
@@ -427,6 +452,7 @@ public static class ClientAccountingService
       OriginalPackageId = original.Id, RevisedPackageId = revised.Id,
       OriginalPackageHash = original.CalculationHash, RevisedPackageHash = revised.CalculationHash,
       RevisedBasis = request.RevisedBasis.Trim(), Reason = request.Reason.Trim(),
+      ChangeType = changeType, AffectedPeriods = affectedPeriods,
       EvidenceReference = request.EvidenceReference.Trim(), CreatedByUserId = actor.UserId,
       CreatedAt = DateTimeOffset.UtcNow
     };

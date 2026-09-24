@@ -120,6 +120,7 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
   public DbSet<GeneralLedgerLine> GeneralLedgerLines => Set<GeneralLedgerLine>();
   public DbSet<GeneralLedgerCompletenessBridge> GeneralLedgerCompletenessBridges => Set<GeneralLedgerCompletenessBridge>();
   public DbSet<AccountingReconciliation> AccountingReconciliations => Set<AccountingReconciliation>();
+  public DbSet<AccountingReconciliationProof> AccountingReconciliationProofs => Set<AccountingReconciliationProof>();
   public DbSet<AccountingReconciliationItem> AccountingReconciliationItems => Set<AccountingReconciliationItem>();
   public DbSet<EclAssessment> EclAssessments => Set<EclAssessment>();
   public DbSet<InventoryValuationAssessment> InventoryValuationAssessments => Set<InventoryValuationAssessment>();
@@ -1176,10 +1177,11 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     journal.Property(x => x.Origin).HasMaxLength(40);
     journal.Property(x => x.Reason).HasMaxLength(4000);
     journal.Property(x => x.EvidenceReference).HasMaxLength(2000);
+    journal.Property(x => x.ReturnReason).HasMaxLength(2000);
     journal.ToTable("adjustment_journals", table => table.HasCheckConstraint("ck_adjustment_journal_values",
       "purpose IN ('CLIENT_BOOK_CORRECTION','REPORTING_ADJUSTMENT','PRESENTATION_RECLASSIFICATION','GROUP_ONLY_ELIMINATION')" +
       " AND origin IN ('AUDIT_PROPOSED','CLIENT_REQUESTED','MANAGEMENT_PROVIDED','IMPORTED')" +
-      " AND status IN ('Draft','Posted','ReflectedInSource','Void')" +
+      " AND status IN ('Draft','Submitted','Returned','Posted','ReflectedInSource','Void')" +
       " AND revision >= 1 AND length(trim(journal_number)) > 0 AND length(trim(reason)) <= 4000 AND length(trim(evidence_reference)) <= 2000" +
       " AND (period_id IS NULL OR (length(trim(basis)) > 0 AND currency ~ '^[A-Z]{3}$')) AND (book_id IS NULL OR period_id IS NOT NULL)"));
     // Duplicate-file guard: the same source bytes can never become two datasets for one
@@ -1754,6 +1756,8 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     restatement.Property(x => x.OriginalPackageHash).HasMaxLength(64);
     restatement.Property(x => x.RevisedPackageHash).HasMaxLength(64);
     restatement.Property(x => x.RevisedBasis).HasMaxLength(100);
+    restatement.Property(x => x.ChangeType).HasMaxLength(30);
+    restatement.Property(x => x.AffectedPeriods).HasMaxLength(500);
     restatement.Property(x => x.Reason).HasMaxLength(4000);
     restatement.Property(x => x.EvidenceReference).HasMaxLength(2000);
     restatement.Property(x => x.Status).HasMaxLength(30);
@@ -1985,6 +1989,18 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     reconciliation.ToTable("accounting_reconciliations", t => t.HasCheckConstraint("ck_accounting_reconciliation_values",
       "length(trim(area)) > 0 AND length(trim(account_selection)) > 0"));
     ScopeToEngagement(reconciliation, nameof(AccountingReconciliation.FirmId), nameof(AccountingReconciliation.ClientId), nameof(AccountingReconciliation.EngagementId));
+
+    var reconProof = b.Entity<AccountingReconciliationProof>();
+    reconProof.Property(x => x.FormulaVersion).HasMaxLength(40);
+    reconProof.Property(x => x.ItemManifestDigest).HasMaxLength(64);
+    reconProof.Property(x => x.SourceHash).HasMaxLength(64);
+    reconProof.HasIndex(x => new { x.FirmId, x.ReconciliationId, x.CreatedAt }).HasDatabaseName("ix_accounting_reconciliation_proof");
+    reconProof.ToTable("accounting_reconciliation_proofs", t => t.HasCheckConstraint("ck_accounting_reconciliation_proof_values",
+      "length(trim(formula_version)) > 0 AND item_manifest_digest ~ '^[0-9a-f]{64}$' AND item_count >= 0"));
+    reconProof.HasOne<AccountingReconciliation>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.ReconciliationId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    ScopeToEngagement(reconProof, nameof(AccountingReconciliationProof.FirmId), nameof(AccountingReconciliationProof.ClientId), nameof(AccountingReconciliationProof.EngagementId));
 
     var reconItem = b.Entity<AccountingReconciliationItem>();
     reconItem.Property(x => x.StableItemId).HasMaxLength(200);
@@ -2242,6 +2258,7 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     journal.Property(x => x.JournalType).HasMaxLength(100);
     journal.Property(x => x.Currency).HasMaxLength(3);
     journal.Property(x => x.EvidenceReference).HasMaxLength(2000);
+    journal.Property(x => x.ReturnReason).HasMaxLength(2000);
     journal.Property(x => x.Status).HasMaxLength(30);
     journal.HasIndex(x => new { x.FirmId, x.ScopeVersionId, x.JournalNumber }).IsUnique().HasDatabaseName("ux_consolidation_journal_number");
     journal.ToTable("consolidation_journals", t => t.HasCheckConstraint("ck_consolidation_journal_values",

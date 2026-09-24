@@ -985,6 +985,55 @@ public static class ConsolidationService
     return CommandResult.Ok();
   }
 
+  /// <summary>Reviewer return: a submitted group journal goes back to the preparer with a
+  /// mandatory reason. The journal stays out of any run until it is resubmitted and
+  /// independently approved.</summary>
+  public static async Task<CommandResult> ReturnConsolidationJournalAsync(
+    IClientAccountingDbContext db, ActorContext actor, Guid journalId, string reason,
+    CancellationToken ct = default)
+  {
+    if (string.IsNullOrWhiteSpace(reason) || reason.Trim().Length > 2000)
+      return CommandResult.Fail(ErrorCodes.Accounting.MappingInvalid,
+        "A return requires a reason of at most 2000 characters.");
+    var journal = await db.ConsolidationJournals.SingleOrDefaultAsync(x => x.Id == journalId && x.FirmId == actor.FirmId, ct);
+    if (journal is null)
+      return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var auth = await GroupAuthAsync(db, actor, journal.GroupId, ReviewerRoles, ct);
+    if (!auth.Succeeded)
+      return auth;
+    if (journal.Status != AccountingWorkflowStates.Submitted)
+      return CommandResult.Fail(ErrorCodes.ProtectedState, "Only a submitted consolidation journal can be returned.");
+    if (journal.CreatedByUserId == actor.UserId)
+      return CommandResult.Fail(ErrorCodes.ScopeDenied,
+        "Separation of duties: the preparer cannot review their own group journal.");
+
+    journal.Status = "Returned";
+    journal.ReturnReason = reason.Trim();
+    await db.SaveChangesAsync(ct);
+    return CommandResult.Ok();
+  }
+
+  /// <summary>Preparer resubmission of a returned group journal; the reason is cleared and
+  /// the journal re-enters the independent review queue.</summary>
+  public static async Task<CommandResult> ResubmitConsolidationJournalAsync(
+    IClientAccountingDbContext db, ActorContext actor, Guid journalId,
+    CancellationToken ct = default)
+  {
+    var journal = await db.ConsolidationJournals.SingleOrDefaultAsync(x => x.Id == journalId && x.FirmId == actor.FirmId, ct);
+    if (journal is null)
+      return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var auth = await GroupAuthAsync(db, actor, journal.GroupId, PreparerRoles, ct);
+    if (!auth.Succeeded)
+      return auth;
+    if (journal.Status != "Returned")
+      return CommandResult.Fail(ErrorCodes.ProtectedState, "Only a returned consolidation journal can be resubmitted.");
+
+    journal.Status = AccountingWorkflowStates.Submitted;
+    journal.ReturnReason = null;
+    await db.SaveChangesAsync(ct);
+    return CommandResult.Ok();
+  }
+
   public static async Task<CommandResult> ApproveIntercompanyMatchAsync(
     IClientAccountingDbContext db, ActorContext actor, Guid matchId,
     CancellationToken ct = default)

@@ -172,8 +172,8 @@ public static class AdjustmentJournalService
     if (!auth.Succeeded)
       return CommandResult<long>.Fail(auth.ErrorCode!, auth.Message!);
 
-    if (journal.Status != "Draft")
-      return CommandResult<long>.Fail(ErrorCodes.ProtectedState, "Only a draft journal can be updated.");
+    if (journal.Status is not ("Draft" or "Returned"))
+      return CommandResult<long>.Fail(ErrorCodes.ProtectedState, "Only a draft or returned journal can be updated.");
 
     if (journal.Revision != expectedRevision)
       return CommandResult<long>.Fail(ErrorCodes.StaleRevision, "The journal revision is outdated.");
@@ -208,6 +208,62 @@ public static class AdjustmentJournalService
     return CommandResult<long>.Ok(journal.Revision);
   }
 
+  /// <summary>Technical submit: the preparer asserts the exact revision is complete and
+  /// balanced, moving it to the reviewer queue. Posting still requires the independent
+  /// technical review; legacy drafts posted without submit stay supported.</summary>
+  public static async Task<CommandResult<long>> SubmitDraftAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid journalId,
+    CancellationToken ct = default)
+  {
+    var journal = await db.AdjustmentJournals.SingleOrDefaultAsync(j => j.Id == journalId, ct);
+    if (journal is null)
+      return CommandResult<long>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(journal.FirmId, journal.ClientId, journal.EngagementId, PreparerRoles), ct);
+    if (!auth.Succeeded)
+      return CommandResult<long>.Fail(auth.ErrorCode!, auth.Message!);
+    if (journal.Status is not ("Draft" or "Returned"))
+      return CommandResult<long>.Fail(ErrorCodes.ProtectedState, "Only a draft or returned journal can be submitted.");
+    var lines = await db.AdjustmentLines.AsNoTracking()
+      .Where(l => l.JournalId == journal.Id).ToListAsync(ct);
+    var check = CheckLines(lines.Select(l => (l.AccountCode, l.Debit, l.Credit)).ToList());
+    if (check is not null)
+      return CommandResult<long>.Fail(ErrorCodes.Accounting.JournalRejected, check);
+
+    journal.Status = "Submitted";
+    await db.SaveChangesAsync(ct);
+    return CommandResult<long>.Ok(journal.Revision);
+  }
+
+  /// <summary>Technical return: an independent reviewer sends a submitted revision back to
+  /// the preparer with a mandatory reason; the revision returns to the draft state.</summary>
+  public static async Task<CommandResult<long>> ReturnSubmissionAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid journalId, string reason,
+    CancellationToken ct = default)
+  {
+    if (string.IsNullOrWhiteSpace(reason) || reason.Trim().Length > 2000)
+      return CommandResult<long>.Fail(ErrorCodes.Accounting.JournalRejected,
+        "A return requires a reason of at most 2000 characters.");
+    var journal = await db.AdjustmentJournals.SingleOrDefaultAsync(j => j.Id == journalId, ct);
+    if (journal is null)
+      return CommandResult<long>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(journal.FirmId, journal.ClientId, journal.EngagementId, ReviewerRoles,
+        RequireProfessionalWork: true), ct);
+    if (!auth.Succeeded)
+      return CommandResult<long>.Fail(auth.ErrorCode!, auth.Message!);
+    if (journal.Status != "Submitted")
+      return CommandResult<long>.Fail(ErrorCodes.ProtectedState, "Only a submitted journal can be returned.");
+    if (journal.CreatedByUserId == actor.UserId)
+      return CommandResult<long>.Fail(ErrorCodes.ScopeDenied,
+        "Separation of duties: the preparer cannot review their own journal.");
+
+    journal.Status = "Returned";
+    journal.ReturnReason = reason.Trim();
+    await db.SaveChangesAsync(ct);
+    return CommandResult<long>.Ok(journal.Revision);
+  }
+
   public static async Task<CommandResult<Guid>> CreateReversalDraftAsync(
     IAuditSphereDbContext db, ActorContext actor, Guid postedJournalId, string journalNumber,
     CancellationToken ct = default)
@@ -216,6 +272,10 @@ public static class AdjustmentJournalService
       x.FirmId == actor.FirmId && x.Status == "Posted", ct);
     if (original is null)
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "The posted journal is outside the authorized scope.");
+    if (await db.AdjustmentJournals.AsNoTracking().AnyAsync(x =>
+        x.FirmId == actor.FirmId && x.ReversalOfJournalId == original.Id && x.Status != "Void", ct))
+      return CommandResult<Guid>.Fail(ErrorCodes.ProtectedState,
+        "This posted journal already has a reversal; void the reversal draft instead of duplicating it.");
     var rawLines = await db.AdjustmentLines.AsNoTracking().Where(x => x.JournalId == original.Id)
       .Select(x => new { x.AccountCode, Debit = x.Credit, Credit = x.Debit }).ToListAsync(ct);
     var lines = rawLines.Select(x => (x.AccountCode, x.Debit, x.Credit)).ToList();
@@ -380,8 +440,8 @@ public static class AdjustmentJournalService
     if (!auth.Succeeded)
       return CommandResult.Fail(auth.ErrorCode!, auth.Message!);
 
-    if (journal.Status != "Draft")
-      return CommandResult.Fail(ErrorCodes.ProtectedState, "Only a draft journal can be posted.");
+    if (journal.Status is not ("Draft" or "Submitted"))
+      return CommandResult.Fail(ErrorCodes.ProtectedState, "Only a draft or submitted journal can be posted.");
     if (journal.Purpose == AdjustmentJournalPurposes.GroupOnlyElimination)
       return CommandResult.Fail(ErrorCodes.GateBlocked, "Group-only eliminations must use the consolidation journal workflow.");
     if (journal.CreatedByUserId == actor.UserId)

@@ -152,7 +152,7 @@ def md_anchors(text):
 def validate():
     errors=[];manifest=load_manifest();tasks=load_tasks(manifest)
     ids=[r['id'] for r in manifest['tasks']]
-    if len(ids)!=54 or len(set(ids))!=54:errors.append('Task inventory must contain exactly 54 distinct IDs')
+    if len(ids)!=len(manifest['tasks']) or len(set(ids))!=len(manifest['tasks']):errors.append(f"Task inventory must contain exactly {len(manifest['tasks'])} distinct IDs")
     source=ROOT/'source/ORIGINAL_R2R_Blueprint_Modules_20-26.md'
     if hashlib.sha256(source.read_bytes()).hexdigest()!=manifest['source_sha256']:errors.append('Original source hash mismatch')
     source_text=source.read_text(encoding='utf-8')

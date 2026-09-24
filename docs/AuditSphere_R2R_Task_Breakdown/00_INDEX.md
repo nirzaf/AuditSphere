@@ -9,7 +9,10 @@
 **Source repository baseline:** `master@ba1a3ec23335b40667b679e4f0cd5f66b9e723b9` — a historical reference, not a freshly verified head  
 **Target solution:** `nirzaf/AuditSphere` / `AuditSphereOps.slnx`
 
-The original 17 work packages have been decomposed into **54 smaller task cards**, with **one owner for each of the 111 command/query contracts**. All **52 original acceptance criteria**, **30 R2R integration journeys**, **eight golden fixtures** and the full module specifications are retained. Task numbering and operational tracking conventions are new coordination aids; they are not additional accounting requirements or claims of current implementation progress.
+- **R2R Modules 20–26:** implementation contract for the accounting/reporting engine: context, TB/GL, adjustments, reconciliations, statements, packages and consolidation.
+- **Audit workflow backlog:** complementary professional contract for the 20-section, 165-procedure, 28-story audit programme: planning, programme execution, populations, sampling, confirmations, fieldwork, findings, financial-statement audit review and completion.
+
+These are separate layers and must not be merged into one module implementation. Audit consumes exact R2R source identities but does not create duplicate TB/GL, chart, period or package masters. Accounting review, package approval, journal management decisions and release gates are not substitutes for independent audit testing or audit acceptance. The current audit programme is single-entity; R2R Module 26 consolidation remains supported, while group-audit methodology is a future separate backlog. Payroll and tax stories in the audit backlog are workpaper testing only, never payroll execution or tax preparation/filing.
 
 ## Quick navigation
 
@@ -25,7 +28,7 @@ The original 17 work packages have been decomposed into **54 smaller task cards*
 5. Mark a task COMPLETED only after its own checks and review pass. Record original criteria and integration journey outcomes separately; **task completion is not automatic module or production acceptance**.
 6. Refresh this index and validate the pack after tracking updates. A standard-library-only helper is included; Markdown remains usable without it.
 
-**Initial status:** all 54 cards are `NOT_STARTED`. This means they have not been evaluated or executed under this new breakdown. It does **not** mean that all the underlying application features are missing. Existing code must be inspected, reused and reverified against the task.
+**Initial status:** all 75 cards are `NOT_STARTED`. This means they have not been evaluated or executed under this new breakdown. It does **not** mean that all the underlying application features are missing. Existing code must be inspected, reused and reverified against the task.
 
 <a id="current-tracking"></a>
 ## 2. Current task tracking
@@ -33,14 +36,14 @@ The original 17 work packages have been decomposed into **54 smaller task cards*
 <!-- BEGIN PROGRESS -->
 | Tracking measure | Current value |
 |---|---:|
-| Numbered implementation tasks | 54 |
-| Original work packages | 17 |
+| Numbered implementation tasks | 75 |
+| Original work packages | 21 |
 | COMPLETED | 0 |
 | IN_REVIEW | 0 |
 | IN_PROGRESS | 0 |
 | BLOCKED | 0 |
 | REOPENED | 0 |
-| NOT_STARTED | 54 |
+| NOT_STARTED | 75 |
 
 These are task-tracking totals, not a software-completion percentage or a transferred status from the source repository. Original criterion, fixture and integration acceptance are tracked separately.
 <!-- END PROGRESS -->
@@ -122,13 +125,14 @@ Original acceptance ledgers are deliberately separate:
 - [52 original acceptance criteria](coverage/02_Acceptance_Criteria_Tracking.md): `NOT_RUN / PASS / FAIL / BLOCKED` with evidence.
 - [30 integrated R2R journeys](coverage/03_Integration_Journey_Tracking.md): scenario-level observed results.
 - [Eight golden fixtures](coverage/04_Golden_Fixture_Tracking.md): policy approval and numerical execution separately.
+- [Audit workflow traceability](tracking/AUDIT_WORKFLOW_TRACEABILITY.md): complete mapping of 28 AS-AUD stories and 165 AWP procedures.
 
 T051 and T054 cannot be marked complete through the helper until those ledgers show all required PASS results and fixture approvals. Passing the documentation validator does not run the application tests.
 
 <a id="dependencies"></a>
 ## 4. Dependency rules and safe coordination
 
-**Default route:** T001 through T054 in numerical order. A larger number never appears as a prerequisite of a smaller number. Every original work-package dependency is preserved transitively, and each task lists direct predecessors and consumers.
+**Default route:** T001 through T075 (T001–T054 for foundational R2R accounting/reporting, followed by T055–T075 for integrated audit-workflow gap closure). A larger number never appears as a prerequisite of a smaller number. Every original work-package dependency is preserved transitively, and each task lists direct predecessors and consumers.
 
 The sequence deliberately breaks module-level cycles:
 
@@ -361,6 +365,63 @@ The following table is the only master navigation/status index. Each task opens 
 | [ ] | [T052 — Rehearse staged deployment and migrations](tasks/16_Deployment/052_Rehearse_staged_deployment_and_migrations.md) | [T051](tasks/15_Acceptance/051_Reconcile_every_requirement_and_freeze_the_verified_release_candidate.md) | NOT_STARTED | WAITING: T051 | Unassigned |
 | [ ] | [T053 — Verify enabled Microsoft dependencies and complete operator handover](tasks/16_Deployment/053_Verify_enabled_Microsoft_dependencies_and_complete_operator_handover.md) | [T052](tasks/16_Deployment/052_Rehearse_staged_deployment_and_migrations.md) | NOT_STARTED | WAITING: T052 | Unassigned |
 | [ ] | [T054 — Obtain final production acceptance and record the handover](tasks/16_Deployment/054_Obtain_final_production_acceptance_and_record_the_handover.md) | [T053](tasks/16_Deployment/053_Verify_enabled_Microsoft_dependencies_and_complete_operator_handover.md) | NOT_STARTED | WAITING: T053 | Unassigned |
+
+<a id="wp-17"></a>
+### AUD-17 — Audit program library, engagement tailoring, lead schedules, sampling and confirmations foundation
+
+**Original dependencies:** R2R-00. **Task gate:** 0/5 COMPLETED.
+**Original exit evidence:** Published 20-section library, tailored engagement procedures, reconciled lead schedules and auditable sampling/confirmation records.
+
+| Done | Task file | Direct dependencies | Status | Readiness | Owner |
+|---|---|---|---|---|---|
+| [ ] | [T055 — Publish versioned audit-program library](tasks/17_Audit_Foundation/055_Publish_versioned_audit_program_library.md) | [T003](tasks/00_Baseline/003_Approve_accounting_policies_resource_bounds_and_golden_fixtures.md) | NOT_STARTED | WAITING: T003 | Unassigned |
+| [ ] | [T056 — Instantiate and tailor engagement audit programs](tasks/17_Audit_Foundation/056_Instantiate_and_tailor_engagement_audit_programs.md) | [T014](tasks/03_M20_Setup/014_Activate_exact_reporting_contexts_and_verify_Module_20_setup.md), [T055](tasks/17_Audit_Foundation/055_Publish_versioned_audit_program_library.md) | NOT_STARTED | WAITING: T014, T055 | Unassigned |
+| [ ] | [T057 — Reconcile audit lead schedules and source populations](tasks/17_Audit_Foundation/057_Reconcile_audit_lead_schedules_and_source_populations.md) | [T020](tasks/05_M21_GL_Mapping/020_Build_opening_completeness_proofs_and_scoped_source_exports.md), [T056](tasks/17_Audit_Foundation/056_Instantiate_and_tailor_engagement_audit_programs.md) | NOT_STARTED | WAITING: T020, T056 | Unassigned |
+| [ ] | [T058 — Implement audit sampling, item testing and subsequent matching](tasks/17_Audit_Foundation/058_Implement_audit_sampling_item_testing_and_subsequent_matching.md) | [T057](tasks/17_Audit_Foundation/057_Reconcile_audit_lead_schedules_and_source_populations.md) | NOT_STARTED | WAITING: T057 | Unassigned |
+| [ ] | [T059 — Manage audit confirmations and alternative procedures](tasks/17_Audit_Foundation/059_Manage_audit_confirmations_and_alternative_procedures.md) | [T058](tasks/17_Audit_Foundation/058_Implement_audit_sampling_item_testing_and_subsequent_matching.md) | NOT_STARTED | WAITING: T058 | Unassigned |
+
+<a id="wp-18"></a>
+### AUD-18 — Audit planning, materiality, Cash & Bank, Receivables, Inventory, Revenue and Payables fieldwork
+
+**Original dependencies:** R2R-00. **Task gate:** 0/6 COMPLETED.
+**Original exit evidence:** Approved materiality/risk, complete Cash, Receivables, Inventory, Revenue and Payables audit workpapers.
+
+| Done | Task file | Direct dependencies | Status | Readiness | Owner |
+|---|---|---|---|---|---|
+| [ ] | [T060 — Implement audit planning, materiality and risk assessment](tasks/18_Audit_Fieldwork_Core/060_Implement_audit_planning_materiality_and_risk_assessment.md) | [T056](tasks/17_Audit_Foundation/056_Instantiate_and_tailor_engagement_audit_programs.md), [T057](tasks/17_Audit_Foundation/057_Reconcile_audit_lead_schedules_and_source_populations.md) | NOT_STARTED | WAITING: T056, T057 | Unassigned |
+| [ ] | [T061 — Implement cash and bank audit workpapers](tasks/18_Audit_Fieldwork_Core/061_Implement_cash_and_bank_audit_workpapers.md) | [T026](tasks/07_M23_Reconciliations/026_Implement_reconciliation_review_rework_and_export.md), [T059](tasks/17_Audit_Foundation/059_Manage_audit_confirmations_and_alternative_procedures.md), [T060](tasks/18_Audit_Fieldwork_Core/060_Implement_audit_planning_materiality_and_risk_assessment.md) | NOT_STARTED | WAITING: T026, T059, T060 | Unassigned |
+| [ ] | [T062 — Implement trade receivables and allowance audit workpapers](tasks/18_Audit_Fieldwork_Core/062_Implement_trade_receivables_and_allowance_audit_workpapers.md) | [T058](tasks/17_Audit_Foundation/058_Implement_audit_sampling_item_testing_and_subsequent_matching.md), [T059](tasks/17_Audit_Foundation/059_Manage_audit_confirmations_and_alternative_procedures.md), [T060](tasks/18_Audit_Fieldwork_Core/060_Implement_audit_planning_materiality_and_risk_assessment.md) | NOT_STARTED | WAITING: T058, T059, T060 | Unassigned |
+| [ ] | [T063 — Implement inventory count, costing and nrv audit workpapers](tasks/18_Audit_Fieldwork_Core/063_Implement_inventory_count_costing_and_nrv_audit_workpapers.md) | [T058](tasks/17_Audit_Foundation/058_Implement_audit_sampling_item_testing_and_subsequent_matching.md), [T060](tasks/18_Audit_Fieldwork_Core/060_Implement_audit_planning_materiality_and_risk_assessment.md) | NOT_STARTED | WAITING: T058, T060 | Unassigned |
+| [ ] | [T064 — Implement revenue testing and cut-off audit workpapers](tasks/18_Audit_Fieldwork_Core/064_Implement_revenue_testing_and_cut_off_audit_workpapers.md) | [T058](tasks/17_Audit_Foundation/058_Implement_audit_sampling_item_testing_and_subsequent_matching.md), [T060](tasks/18_Audit_Fieldwork_Core/060_Implement_audit_planning_materiality_and_risk_assessment.md) | NOT_STARTED | WAITING: T058, T060 | Unassigned |
+| [ ] | [T065 — Implement purchases, payables and unrecorded liabilities audit workpapers](tasks/18_Audit_Fieldwork_Core/065_Implement_purchases_payables_and_unrecorded_liabilities_audit_workpapers.md) | [T058](tasks/17_Audit_Foundation/058_Implement_audit_sampling_item_testing_and_subsequent_matching.md), [T059](tasks/17_Audit_Foundation/059_Manage_audit_confirmations_and_alternative_procedures.md), [T060](tasks/18_Audit_Fieldwork_Core/060_Implement_audit_planning_materiality_and_risk_assessment.md) | NOT_STARTED | WAITING: T058, T059, T060 | Unassigned |
+
+<a id="wp-19"></a>
+### AUD-19 — Fixed Assets, Expenses, Payroll, Loans, Related Parties, Tax and client journal fraud testing
+
+**Original dependencies:** R2R-00. **Task gate:** 0/7 COMPLETED.
+**Original exit evidence:** Complete audit workpapers for remaining balance-sheet and P&L areas, plus ISA 240 journal-entry testing.
+
+| Done | Task file | Direct dependencies | Status | Readiness | Owner |
+|---|---|---|---|---|---|
+| [ ] | [T066 — Implement fixed assets audit workpapers](tasks/19_Audit_Fieldwork_Extended/066_Implement_fixed_assets_audit_workpapers.md) | [T058](tasks/17_Audit_Foundation/058_Implement_audit_sampling_item_testing_and_subsequent_matching.md), [T060](tasks/18_Audit_Fieldwork_Core/060_Implement_audit_planning_materiality_and_risk_assessment.md) | NOT_STARTED | WAITING: T058, T060 | Unassigned |
+| [ ] | [T067 — Implement expenses vouching and cut-off audit workpapers](tasks/19_Audit_Fieldwork_Extended/067_Implement_expenses_vouching_and_cut_off_audit_workpapers.md) | [T058](tasks/17_Audit_Foundation/058_Implement_audit_sampling_item_testing_and_subsequent_matching.md), [T060](tasks/18_Audit_Fieldwork_Core/060_Implement_audit_planning_materiality_and_risk_assessment.md), [T066](tasks/19_Audit_Fieldwork_Extended/066_Implement_fixed_assets_audit_workpapers.md) | NOT_STARTED | WAITING: T058, T060, T066 | Unassigned |
+| [ ] | [T068 — Implement payroll audit workpapers](tasks/19_Audit_Fieldwork_Extended/068_Implement_payroll_audit_workpapers.md) | [T058](tasks/17_Audit_Foundation/058_Implement_audit_sampling_item_testing_and_subsequent_matching.md), [T060](tasks/18_Audit_Fieldwork_Core/060_Implement_audit_planning_materiality_and_risk_assessment.md) | NOT_STARTED | WAITING: T058, T060 | Unassigned |
+| [ ] | [T069 — Implement loans, borrowings and covenant audit workpapers](tasks/19_Audit_Fieldwork_Extended/069_Implement_loans_borrowings_and_covenant_audit_workpapers.md) | [T059](tasks/17_Audit_Foundation/059_Manage_audit_confirmations_and_alternative_procedures.md), [T060](tasks/18_Audit_Fieldwork_Core/060_Implement_audit_planning_materiality_and_risk_assessment.md) | NOT_STARTED | WAITING: T059, T060 | Unassigned |
+| [ ] | [T070 — Implement related parties audit workpapers](tasks/19_Audit_Fieldwork_Extended/070_Implement_related_parties_audit_workpapers.md) | [T060](tasks/18_Audit_Fieldwork_Core/060_Implement_audit_planning_materiality_and_risk_assessment.md) | NOT_STARTED | WAITING: T060 | Unassigned |
+| [ ] | [T071 — Implement tax and statutory liabilities audit workpapers](tasks/19_Audit_Fieldwork_Extended/071_Implement_tax_and_statutory_liabilities_audit_workpapers.md) | [T060](tasks/18_Audit_Fieldwork_Core/060_Implement_audit_planning_materiality_and_risk_assessment.md) | NOT_STARTED | WAITING: T060 | Unassigned |
+| [ ] | [T072 — Implement journal entries and fraud risk audit testing](tasks/19_Audit_Fieldwork_Extended/072_Implement_journal_entries_and_fraud_risk_audit_testing.md) | [T020](tasks/05_M21_GL_Mapping/020_Build_opening_completeness_proofs_and_scoped_source_exports.md), [T058](tasks/17_Audit_Foundation/058_Implement_audit_sampling_item_testing_and_subsequent_matching.md), [T060](tasks/18_Audit_Fieldwork_Core/060_Implement_audit_planning_materiality_and_risk_assessment.md) | NOT_STARTED | WAITING: T020, T058, T060 | Unassigned |
+
+<a id="wp-20"></a>
+### AUD-20 — Substantive analytics, Going Concern assessment and Subsequent Events review
+
+**Original dependencies:** R2R-00. **Task gate:** 0/3 COMPLETED.
+**Original exit evidence:** Documented ratio/variance analysis, evaluated going-concern forecast and reviewed subsequent events through report date.
+
+| Done | Task file | Direct dependencies | Status | Readiness | Owner |
+|---|---|---|---|---|---|
+| [ ] | [T073 — Implement substantive and final analytical review](tasks/20_Audit_Completion/073_Implement_substantive_and_final_analytical_review.md) | [T029](tasks/08_M24_Statements/029_Build_canonical_statement_sets_and_exact_line_drill_down.md), [T060](tasks/18_Audit_Fieldwork_Core/060_Implement_audit_planning_materiality_and_risk_assessment.md) | NOT_STARTED | WAITING: T029, T060 | Unassigned |
+| [ ] | [T074 — Implement going concern audit evaluation](tasks/20_Audit_Completion/074_Implement_going_concern_audit_evaluation.md) | [T069](tasks/19_Audit_Fieldwork_Extended/069_Implement_loans_borrowings_and_covenant_audit_workpapers.md), [T073](tasks/20_Audit_Completion/073_Implement_substantive_and_final_analytical_review.md) | NOT_STARTED | WAITING: T069, T073 | Unassigned |
+| [ ] | [T075 — Implement subsequent events audit review](tasks/20_Audit_Completion/075_Implement_subsequent_events_audit_review.md) | [T073](tasks/20_Audit_Completion/073_Implement_substantive_and_final_analytical_review.md), [T074](tasks/20_Audit_Completion/074_Implement_going_concern_audit_evaluation.md) | NOT_STARTED | WAITING: T073, T074 | Unassigned |
 <!-- END TASKS -->
 
 <a id="module-map"></a>
@@ -378,6 +439,10 @@ The following table is the only master navigation/status index. Each task opens 
 | 26 — Consolidation | T041–T047 | R2R-12–14 | [Consolidation](modules/26_Consolidation_Contract.md) |
 | Integrated acceptance | T048–T051 | R2R-15 | [Fixtures and journeys](reference/07_Golden_Fixtures_and_Integration_Journeys.md) |
 | Deployment and handover | T052–T054 | R2R-16 | [Readiness and handoff](reference/05_Execution_Coordination_and_Handover.md) |
+| Audit Foundation | T055–T059 | AUD-17 | [Audit Traceability](tracking/AUDIT_WORKFLOW_TRACEABILITY.md) |
+| Audit Fieldwork (Core) | T060–T065 | AUD-18 | [Audit Traceability](tracking/AUDIT_WORKFLOW_TRACEABILITY.md) |
+| Audit Fieldwork (Extended) | T066–T072 | AUD-19 | [Audit Traceability](tracking/AUDIT_WORKFLOW_TRACEABILITY.md) |
+| Audit Completion & Review | T073–T075 | AUD-20 | [Audit Traceability](tracking/AUDIT_WORKFLOW_TRACEABILITY.md) |
 
 Module completion requires its implementation tasks **and** applicable integrated criteria/consumer tests, not simply the last local task in a row. External identity, document, engagement, review, release and archive modules remain existing dependencies, not extra modules to rebuild under this request.
 
@@ -387,6 +452,7 @@ Module completion requires its implementation tasks **and** applicable integrate
 | File | Purpose |
 |---|---|
 | [Unchanged original blueprint](source/ORIGINAL_R2R_Blueprint_Modules_20-26.md) | Byte-for-byte source of this breakdown; retained for conflict resolution and historical provenance |
+| [Original audit workflow user stories](source/ORIGINAL_Audit_Workflow_Gap_Closure_User_Stories.md) | Full 28-story, 165-procedure, 20-section audit workflow source document |
 | [Scope/evidence boundaries](reference/00_Scope_and_Evidence_Boundaries.md) | Included/excluded functionality and meaning of EXISTING/EXTEND/NEW/DECISION |
 | [Baseline, architecture and ten ADRs](reference/01_Baseline_Architecture_and_ADRs.md) | Reuse plan, architecture transition and approvals |
 | [Research and source register](reference/02_Standards_and_Source_Register.md) | Original standards, product and engineering citations; not newly researched |
@@ -400,6 +466,7 @@ Module completion requires its implementation tasks **and** applicable integrate
 | [Criterion result ledger](coverage/02_Acceptance_Criteria_Tracking.md) | Editable criterion-by-criterion acceptance results |
 | [Integration journey result ledger](coverage/03_Integration_Journey_Tracking.md) | Editable full-journey evidence |
 | [Golden fixture approval/results](coverage/04_Golden_Fixture_Tracking.md) | Separate professional approval and numerical proof |
+| [Audit workflow traceability ledger](tracking/AUDIT_WORKFLOW_TRACEABILITY.md) | Traceability ledger mapping 28 AS-AUD stories, 258 criteria and 165 AWP procedures to canonical tasks |
 | [Status history](tracking/STATUS_HISTORY.md) | Append-only documentation history for task changes |
 | [Pack manifest](tracking/pack_manifest.json) | Source hash, task paths, dependency graph and original coverage inventories |
 | [Local status helper](tools/task_status.py) | Optional local status transitions, index refresh and structural checks |

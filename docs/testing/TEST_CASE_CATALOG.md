@@ -407,7 +407,7 @@ The original detailed tables stop at their 246-case Domain baseline. API and E2E
 
 ## Requirement coverage and proposed additions
 
-Controlling sources: [system specification §§44–47](../SPECIFICATION.md#s44), [accounting requirements](../AuditSphere_Accounting_module.md), [audit-workflow requirements](../requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md), and [M365 onboarding requirements](../AuditSphere_M365_Simple_Onboarding_User_Story.md).
+Controlling sources: [system specification §§44–47](../SPECIFICATION.md#s44), [accounting requirements](../AuditSphere_Accounting_module.md), [audit-workflow requirements](../AuditSphere_R2R_Task_Breakdown/source/ORIGINAL_Audit_Workflow_Gap_Closure_User_Stories.md), and [M365 onboarding requirements](../AuditSphere_M365_Simple_Onboarding_User_Story.md).
 
 `Covered` below means the narrow stated behavior has existing automation, not that the whole module is accepted. `Partial` means some layers/conditions are unproven. `Proposed` means no executable test for that scenario is established here. `Blocked` requires separate external authority/infrastructure. The specification's 120 named scenarios are requirement IDs, not 120 discovered tests; this inventory does not assert complete AT/ET/VT/NT coverage.
 

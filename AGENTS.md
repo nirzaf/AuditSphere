@@ -30,7 +30,7 @@ AuditSphereOps is an audit, accounting, and assurance operations platform built 
 - **Configuration & Toggles:**
   - Optional overrides: `AUDITSPHERE_TEST_CONNECTION` or `PGSQL_HOME`.
   - Local dev: `ExternalEffects.Enabled=false` and `AllowSimulationAdapters=true`.
-  - Production external gates (Entra OIDC, SharePoint/Graph, Purview, cryptographic signing) require live infrastructure; record as `BLOCKED_EXTERNAL`, never fake pass.
+  - Production external gates (Entra OIDC, selected-resource SharePoint/Graph and any separately approved live release checkpoint) require live infrastructure; record them as `BLOCKED_EXTERNAL`, never fake pass. Purview and eSignature provider integrations are out of product scope: preserve exact uploaded signed-document evidence, SHA-256 identities, human decisions and release manifests without claiming provider acceptance.
 
 ---
 

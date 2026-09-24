@@ -119,6 +119,35 @@ Use pure xUnit for deterministic rules, real PostgreSQL for persistence/concurre
 
 **Golden fixtures:** [GOLD-R2R-05](../../coverage/04_Golden_Fixture_Tracking.md#gold-r2r-05). Fixture use requires the original policy approval; the numbers are synthetic QA values.
 
+### Audit equity verification and statutory register review requirements
+- Agree share capital and share premium balances to statutory records, certificate of incorporation and register of members (`AWP-11-01`).
+- Verify new share issues, allotments, and cancellations against board minutes, shareholder resolutions, and bank receipts (`AWP-11-02`).
+- Inspect share transfer forms, board approvals, and statutory filings (`AWP-11-03`).
+- Test dividend declarations against available distributable profits, board minutes, and bank payment evidence (`AWP-11-04`).
+- Review terms of share options, warrants, and share-based payment agreements (`AWP-11-05`).
+- Agree opening retained earnings and verify movements tie out to current-year profit and prior-period adjustments (`AWP-11-06`).
+- Review equity disclosures for compliance with the applicable financial reporting framework (`AWP-11-07`).
+
+## Audit workflow source traceability
+
+| Source | Coverage |
+|---|---|
+| AS-AUD-018 | Primary |
+| AS-AUD-018-AC01 | Covered |
+| AS-AUD-018-AC02 | Covered |
+| AS-AUD-018-AC03 | Covered |
+| AS-AUD-018-AC04 | Covered |
+| AS-AUD-018-AC05 | Covered |
+| AS-AUD-018-AC06 | Covered |
+| AS-AUD-018-AC07 | Covered |
+| AWP-11-01 | Covered |
+| AWP-11-02 | Covered |
+| AWP-11-03 | Covered |
+| AWP-11-04 | Covered |
+| AWP-11-05 | Covered |
+| AWP-11-06 | Covered |
+| AWP-11-07 | Covered |
+
 ## Completion checklist
 
 <!-- COMPLETION-CHECKLIST -->

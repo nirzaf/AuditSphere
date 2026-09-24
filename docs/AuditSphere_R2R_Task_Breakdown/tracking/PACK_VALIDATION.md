@@ -8,8 +8,8 @@ The following checks were performed while creating the pack:
 
 | Check | Observed result |
 |---|---|
-| Numbered task inventory | 54 unique tasks, T001–T054 |
-| Original work-package order | All 17 original R2R-00–R2R-16 packages retained |
+| Numbered task inventory | 75 unique tasks, T001–T075 (T001–T054 R2R baseline, T055–T075 Audit gap-closure) |
+| Original work-package order | All 21 packages retained (17 R2R packages R2R-00–R2R-16, 4 Audit packages AUD-17–AUD-20) |
 | Dependency graph | Acyclic; all direct predecessors have smaller task numbers |
 | Original work-package prerequisites | All preserved as task completion prerequisites |
 | Explicit command/query contracts | All 111 source contracts assigned exactly once, with original signature/return/check rows retained |
@@ -17,9 +17,10 @@ The following checks were performed while creating the pack:
 | Integrated acceptance journeys | All 30 R2R-AT IDs and expected outcomes retained |
 | Golden fixtures | All 8 original inputs and expected outcomes retained |
 | Module contracts | All 7 original six-part specifications retained |
-| Original source integrity | Byte-for-byte original retained; SHA-256 validated against the manifest |
-| Initial status | All 54 NOT_STARTED; no invented completed work or executed application acceptance |
-| Local documentation links | All local file and anchor targets validated |
+| Audit workflow traceability | All 28 AS-AUD stories, 258 criteria, and 165 AWP procedures mapped without loss |
+| Original source integrity | Byte-for-byte original R2R and Audit sources retained; SHA-256 validated against the manifest |
+| Initial status | All 75 NOT_STARTED; no invented completed work or executed application acceptance |
+| Local documentation links | All local file and anchor targets validated (2,449 local links checked) |
 | Status-helper tests | 12/12 passed in temporary copies; dependency, evidence, transition, reopening, drift and link checks covered |
 
 The helper tests do **not** run .NET, PostgreSQL, bUnit, Playwright, financial calculations or live Microsoft calls. This pack does not assert a fresh repository head, implemented module status, accounting-method approval or production readiness. Existing code must be re-inspected before each implementation task.

@@ -23,6 +23,7 @@ public sealed record ReconciliationItemInput(
   string SettlementReference = "");
 
 public sealed record ReconciliationProofDto(
+  Guid ProofId,
   Guid ReconciliationId,
   decimal SourceTotal,
   decimal GlTotal,
@@ -588,6 +589,16 @@ public static class AccountingAnalysisService
     return CommandResult.Ok();
   }
 
+  public const string ReconciliationProofFormulaVersion = "reconciliation-proof.v1";
+
+  /// <summary>Canonical digest of the exact reconciliation item set; the proof and the
+  /// approval gate both recompute it so an edited item set invalidates old proofs.</summary>
+  private static string ComputeReconciliationItemManifestDigest(
+    IEnumerable<(Guid ItemId, decimal SignedAmount)> items) =>
+    Hashing.Sha256Hex(string.Join('\n', items
+      .OrderBy(x => x.ItemId)
+      .Select(x => $"{x.ItemId:D}|{x.SignedAmount.ToString("0.000000", CultureInfo.InvariantCulture)}")));
+
   public static async Task<CommandResult<ReconciliationProofDto>> CalculateReconciliationProofAsync(
     IClientAccountingDbContext db, ActorContext actor, Guid reconciliationId,
     CancellationToken ct = default)
@@ -609,9 +620,26 @@ public static class AccountingAnalysisService
 
     reconciliation.Residual = residual;
     reconciliation.Status = residual == 0m ? "RECONCILED" : "UNRECONCILED";
+
+    // Every calculation appends an immutable proof; old proofs are never edited.
+    var proof = new AccountingReconciliationProof
+    {
+      Id = Guid.CreateVersion7(), FirmId = reconciliation.FirmId, ClientId = reconciliation.ClientId,
+      EngagementId = reconciliation.EngagementId, ReconciliationId = reconciliation.Id,
+      FormulaVersion = ReconciliationProofFormulaVersion,
+      SourceTotal = reconciliation.SourceTotal, GlTotal = reconciliation.GlTotal,
+      ItemsSignedTotal = itemsSum, Residual = residual, IsReconciled = residual == 0m,
+      ItemCount = items.Count,
+      ItemManifestDigest = ComputeReconciliationItemManifestDigest(
+        items.Select(x => (x.Id, MoneyPolicy.Normalize(x.SignedAmount)))),
+      SourceHash = reconciliation.SourceHash, InputGeneration = reconciliation.InputGeneration,
+      CreatedByUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
+    };
+    db.AccountingReconciliationProofs.Add(proof);
     await db.SaveChangesAsync(ct);
 
     return CommandResult<ReconciliationProofDto>.Ok(new ReconciliationProofDto(
+      proof.Id,
       reconciliation.Id,
       reconciliation.SourceTotal,
       reconciliation.GlTotal,
@@ -688,6 +716,30 @@ public static class AccountingAnalysisService
       await db.SaveChangesAsync(ct);
       return CommandResult.Fail(ErrorCodes.GenerationStale, "The client accounting inputs changed; prepare a new source-bound review.");
     }
+
+    // The approval must bind to a persisted proof of the exact current inputs.
+    var latestProof = await db.AccountingReconciliationProofs.AsNoTracking()
+      .Where(x => x.ReconciliationId == reconciliation.Id && x.FirmId == actor.FirmId)
+      .OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id)
+      .FirstOrDefaultAsync(ct);
+    if (latestProof is null || !latestProof.IsReconciled)
+      return CommandResult.Fail(ErrorCodes.GateBlocked,
+        "A calculated reconciliation proof with zero unexplained residual is required before approval.");
+    var liveItems = await db.AccountingReconciliationItems.AsNoTracking()
+      .Where(x => x.ReconciliationId == reconciliation.Id && x.FirmId == actor.FirmId)
+      .Select(x => new ValueTuple<Guid, decimal>(x.Id, x.SignedAmount))
+      .ToListAsync(ct);
+    var liveDigest = ComputeReconciliationItemManifestDigest(
+      liveItems.Select(x => (x.Item1, MoneyPolicy.Normalize(x.Item2))));
+    if (latestProof.ItemManifestDigest != liveDigest ||
+        latestProof.ItemCount != liveItems.Count ||
+        latestProof.SourceHash != reconciliation.SourceHash ||
+        latestProof.InputGeneration != reconciliation.InputGeneration ||
+        latestProof.SourceTotal != reconciliation.SourceTotal ||
+        latestProof.GlTotal != reconciliation.GlTotal)
+      return CommandResult.Fail(ErrorCodes.ManifestMismatch,
+        "The reconciliation inputs changed after the proof was calculated; recalculate the proof.");
+
     reconciliation.Status = AccountingWorkflowStates.Approved;
     reconciliation.ReviewedByUserId = actor.UserId;
     reconciliation.ReviewedAt = DateTimeOffset.UtcNow;

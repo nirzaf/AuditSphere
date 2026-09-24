@@ -125,6 +125,28 @@ Use pure xUnit for deterministic rules, real PostgreSQL for persistence/concurre
 
 **Related integration journeys:** [R2R-AT-04](../../coverage/03_Integration_Journey_Tracking.md#r2r-at-04), [R2R-AT-17](../../coverage/03_Integration_Journey_Tracking.md#r2r-at-17).
 
+### Audit disclosure checklist and notes review requirements
+- Complete and evaluate the financial statement disclosure checklist for the applicable reporting framework (IFRS / local GAAP) (`AWP-18-04`).
+- Verify that critical accounting estimates, judgments, and key sources of estimation uncertainty are adequately disclosed (`AWP-18-06`).
+- Review related party disclosures for completeness against the audit related-party register and findings (`AWP-18-08`).
+- Verify that all required notes, segment reporting, and supplementary schedules are included without omission (`AWP-18-09`).
+
+## Audit workflow source traceability
+
+| Source | Coverage |
+|---|---|
+| AS-AUD-025 | Primary |
+| AS-AUD-025-AC05 | Covered |
+| AS-AUD-025-AC06 | Covered |
+| AS-AUD-025-AC08 | Covered |
+| AS-AUD-025-AC09 | Covered |
+| AS-AUD-025-AC10 | Covered |
+| AS-AUD-025-AC11 | Covered |
+| AWP-18-04 | Covered |
+| AWP-18-06 | Covered |
+| AWP-18-08 | Covered |
+| AWP-18-09 | Covered |
+
 ## Completion checklist
 
 <!-- COMPLETION-CHECKLIST -->

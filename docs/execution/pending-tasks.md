@@ -3,7 +3,7 @@
 **Repository:** `nirzaf/AuditSphere`
 **Authoritative specification:** [`docs/SPECIFICATION.md`](../SPECIFICATION.md) v5.0
 **Accounting module contract:** [`docs/AuditSphere_Accounting_module.md`](../AuditSphere_Accounting_module.md)
-**Requirements backlog:** [`docs/requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md`](../requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md)
+**Requirements backlog:** [`docs/AuditSphere_R2R_Task_Breakdown/source/ORIGINAL_Audit_Workflow_Gap_Closure_User_Stories.md`](../AuditSphere_R2R_Task_Breakdown/source/ORIGINAL_Audit_Workflow_Gap_Closure_User_Stories.md)
 **Source implementation checkpoint:** `codex/m365-simple-onboarding@cad3f85`
 
 This is a resume checklist, not an acceptance certificate. Tenant identifiers, credentials, tokens, secret values, and private-provider URLs are deliberately absent from the public repository.

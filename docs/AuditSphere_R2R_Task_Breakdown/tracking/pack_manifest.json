@@ -828,6 +828,237 @@
         "T053"
       ],
       "commands": []
+    },
+    {
+      "id": "T055",
+      "file": "tasks/17_Audit_Foundation/055_Publish_versioned_audit_program_library.md",
+      "work_package": "AUD-17",
+      "module_ids": [],
+      "depends_on": [
+        "T003"
+      ],
+      "commands": []
+    },
+    {
+      "id": "T056",
+      "file": "tasks/17_Audit_Foundation/056_Instantiate_and_tailor_engagement_audit_programs.md",
+      "work_package": "AUD-17",
+      "module_ids": [],
+      "depends_on": [
+        "T014",
+        "T055"
+      ],
+      "commands": []
+    },
+    {
+      "id": "T057",
+      "file": "tasks/17_Audit_Foundation/057_Reconcile_audit_lead_schedules_and_source_populations.md",
+      "work_package": "AUD-17",
+      "module_ids": [],
+      "depends_on": [
+        "T020",
+        "T056"
+      ],
+      "commands": []
+    },
+    {
+      "id": "T058",
+      "file": "tasks/17_Audit_Foundation/058_Implement_audit_sampling_item_testing_and_subsequent_matching.md",
+      "work_package": "AUD-17",
+      "module_ids": [],
+      "depends_on": [
+        "T057"
+      ],
+      "commands": []
+    },
+    {
+      "id": "T059",
+      "file": "tasks/17_Audit_Foundation/059_Manage_audit_confirmations_and_alternative_procedures.md",
+      "work_package": "AUD-17",
+      "module_ids": [],
+      "depends_on": [
+        "T058"
+      ],
+      "commands": []
+    },
+    {
+      "id": "T060",
+      "file": "tasks/18_Audit_Fieldwork_Core/060_Implement_audit_planning_materiality_and_risk_assessment.md",
+      "work_package": "AUD-18",
+      "module_ids": [],
+      "depends_on": [
+        "T056",
+        "T057"
+      ],
+      "commands": []
+    },
+    {
+      "id": "T061",
+      "file": "tasks/18_Audit_Fieldwork_Core/061_Implement_cash_and_bank_audit_workpapers.md",
+      "work_package": "AUD-18",
+      "module_ids": [],
+      "depends_on": [
+        "T026",
+        "T059",
+        "T060"
+      ],
+      "commands": []
+    },
+    {
+      "id": "T062",
+      "file": "tasks/18_Audit_Fieldwork_Core/062_Implement_trade_receivables_and_allowance_audit_workpapers.md",
+      "work_package": "AUD-18",
+      "module_ids": [],
+      "depends_on": [
+        "T058",
+        "T059",
+        "T060"
+      ],
+      "commands": []
+    },
+    {
+      "id": "T063",
+      "file": "tasks/18_Audit_Fieldwork_Core/063_Implement_inventory_count_costing_and_nrv_audit_workpapers.md",
+      "work_package": "AUD-18",
+      "module_ids": [],
+      "depends_on": [
+        "T058",
+        "T060"
+      ],
+      "commands": []
+    },
+    {
+      "id": "T064",
+      "file": "tasks/18_Audit_Fieldwork_Core/064_Implement_revenue_testing_and_cut_off_audit_workpapers.md",
+      "work_package": "AUD-18",
+      "module_ids": [],
+      "depends_on": [
+        "T058",
+        "T060"
+      ],
+      "commands": []
+    },
+    {
+      "id": "T065",
+      "file": "tasks/18_Audit_Fieldwork_Core/065_Implement_purchases_payables_and_unrecorded_liabilities_audit_workpapers.md",
+      "work_package": "AUD-18",
+      "module_ids": [],
+      "depends_on": [
+        "T058",
+        "T059",
+        "T060"
+      ],
+      "commands": []
+    },
+    {
+      "id": "T066",
+      "file": "tasks/19_Audit_Fieldwork_Extended/066_Implement_fixed_assets_audit_workpapers.md",
+      "work_package": "AUD-19",
+      "module_ids": [],
+      "depends_on": [
+        "T058",
+        "T060"
+      ],
+      "commands": []
+    },
+    {
+      "id": "T067",
+      "file": "tasks/19_Audit_Fieldwork_Extended/067_Implement_expenses_vouching_and_cut_off_audit_workpapers.md",
+      "work_package": "AUD-19",
+      "module_ids": [],
+      "depends_on": [
+        "T058",
+        "T060",
+        "T066"
+      ],
+      "commands": []
+    },
+    {
+      "id": "T068",
+      "file": "tasks/19_Audit_Fieldwork_Extended/068_Implement_payroll_audit_workpapers.md",
+      "work_package": "AUD-19",
+      "module_ids": [],
+      "depends_on": [
+        "T058",
+        "T060"
+      ],
+      "commands": []
+    },
+    {
+      "id": "T069",
+      "file": "tasks/19_Audit_Fieldwork_Extended/069_Implement_loans_borrowings_and_covenant_audit_workpapers.md",
+      "work_package": "AUD-19",
+      "module_ids": [],
+      "depends_on": [
+        "T059",
+        "T060"
+      ],
+      "commands": []
+    },
+    {
+      "id": "T070",
+      "file": "tasks/19_Audit_Fieldwork_Extended/070_Implement_related_parties_audit_workpapers.md",
+      "work_package": "AUD-19",
+      "module_ids": [],
+      "depends_on": [
+        "T060"
+      ],
+      "commands": []
+    },
+    {
+      "id": "T071",
+      "file": "tasks/19_Audit_Fieldwork_Extended/071_Implement_tax_and_statutory_liabilities_audit_workpapers.md",
+      "work_package": "AUD-19",
+      "module_ids": [],
+      "depends_on": [
+        "T060"
+      ],
+      "commands": []
+    },
+    {
+      "id": "T072",
+      "file": "tasks/19_Audit_Fieldwork_Extended/072_Implement_journal_entries_and_fraud_risk_audit_testing.md",
+      "work_package": "AUD-19",
+      "module_ids": [],
+      "depends_on": [
+        "T020",
+        "T058",
+        "T060"
+      ],
+      "commands": []
+    },
+    {
+      "id": "T073",
+      "file": "tasks/20_Audit_Completion/073_Implement_substantive_and_final_analytical_review.md",
+      "work_package": "AUD-20",
+      "module_ids": [],
+      "depends_on": [
+        "T029",
+        "T060"
+      ],
+      "commands": []
+    },
+    {
+      "id": "T074",
+      "file": "tasks/20_Audit_Completion/074_Implement_going_concern_audit_evaluation.md",
+      "work_package": "AUD-20",
+      "module_ids": [],
+      "depends_on": [
+        "T069",
+        "T073"
+      ],
+      "commands": []
+    },
+    {
+      "id": "T075",
+      "file": "tasks/20_Audit_Completion/075_Implement_subsequent_events_audit_review.md",
+      "work_package": "AUD-20",
+      "module_ids": [],
+      "depends_on": [
+        "T073",
+        "T074"
+      ],
+      "commands": []
     }
   ],
   "original_work_packages": [
@@ -932,11 +1163,35 @@
       "description": "Staged deployment/migration rehearsal, operator training and production acceptance",
       "depends": "R2R-15",
       "exit": "Approved environment, backups/restore, configuration and live Microsoft evidence where the enabled workflow requires it."
+    },
+    {
+      "id": "AUD-17",
+      "description": "Audit program library, engagement tailoring, lead schedules, sampling and confirmations foundation",
+      "depends": "R2R-00",
+      "exit": "Published 20-section library, tailored engagement procedures, reconciled lead schedules and auditable sampling/confirmation records."
+    },
+    {
+      "id": "AUD-18",
+      "description": "Audit planning, materiality, Cash & Bank, Receivables, Inventory, Revenue and Payables fieldwork",
+      "depends": "R2R-00",
+      "exit": "Approved materiality/risk, complete Cash, Receivables, Inventory, Revenue and Payables audit workpapers."
+    },
+    {
+      "id": "AUD-19",
+      "description": "Fixed Assets, Expenses, Payroll, Loans, Related Parties, Tax and client journal fraud testing",
+      "depends": "R2R-00",
+      "exit": "Complete audit workpapers for remaining balance-sheet and P&L areas, plus ISA 240 journal-entry testing."
+    },
+    {
+      "id": "AUD-20",
+      "description": "Substantive analytics, Going Concern assessment and Subsequent Events review",
+      "depends": "R2R-00",
+      "exit": "Documented ratio/variance analysis, evaluated going-concern forecast and reviewed subsequent events through report date."
     }
   ],
   "counts": {
-    "tasks": 54,
-    "work_packages": 17,
+    "tasks": 75,
+    "work_packages": 21,
     "modules": 7,
     "commands_queries": 111,
     "original_criteria": 52,

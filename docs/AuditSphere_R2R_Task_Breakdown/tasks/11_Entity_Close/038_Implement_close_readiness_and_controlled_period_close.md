@@ -119,6 +119,20 @@ Use pure xUnit for deterministic rules, real PostgreSQL for persistence/concurre
 
 **Related integration journeys:** [R2R-AT-01](../../coverage/03_Integration_Journey_Tracking.md#r2r-at-01), [R2R-AT-21](../../coverage/03_Integration_Journey_Tracking.md#r2r-at-21), [R2R-AT-26](../../coverage/03_Integration_Journey_Tracking.md#r2r-at-26).
 
+### Audit close readiness and program completion checks
+- Enforce clearance of all ReviewPoints and queries across all audit workpapers before close readiness (`AWP-20-03`).
+- Enforce complete audit program coverage: verify that no audit procedure remains unexecuted without an approved N/A justification (`AWP-20-04`).
+
+## Audit workflow source traceability
+
+| Source | Coverage |
+|---|---|
+| AS-AUD-027 | Primary |
+| AS-AUD-027-AC03 | Covered |
+| AS-AUD-027-AC04 | Covered |
+| AWP-20-03 | Covered |
+| AWP-20-04 | Covered |
+
 ## Completion checklist
 
 <!-- COMPLETION-CHECKLIST -->

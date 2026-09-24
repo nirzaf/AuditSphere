@@ -150,6 +150,20 @@ Use pure xUnit for deterministic rules, real PostgreSQL for persistence/concurre
 
 **Related integration journeys:** [R2R-AT-02](../../coverage/03_Integration_Journey_Tracking.md#r2r-at-02), [R2R-AT-03](../../coverage/03_Integration_Journey_Tracking.md#r2r-at-03), [R2R-AT-04](../../coverage/03_Integration_Journey_Tracking.md#r2r-at-04), [R2R-AT-05](../../coverage/03_Integration_Journey_Tracking.md#r2r-at-05), [R2R-AT-06](../../coverage/03_Integration_Journey_Tracking.md#r2r-at-06), [R2R-AT-19](../../coverage/03_Integration_Journey_Tracking.md#r2r-at-19), [R2R-AT-22](../../coverage/03_Integration_Journey_Tracking.md#r2r-at-22), [R2R-AT-25](../../coverage/03_Integration_Journey_Tracking.md#r2r-at-25), [R2R-AT-29](../../coverage/03_Integration_Journey_Tracking.md#r2r-at-29).
 
+### Audit authority, multi-user review and staleness propagation
+- Verify role-based authorization for audit roles (Engagement Partner, Audit Senior, Staff Auditor) and explicit scope grants.
+- Enforce multi-user concurrent review rules: independent reviewer cannot be procedure preparer.
+- Verify atomic staleness propagation: replacing client source TB automatically stales dependent audit lead schedules and difference evaluations.
+
+## Audit workflow source traceability
+
+| Source | Coverage |
+|---|---|
+| AS-AUD-028 | Primary |
+| AS-AUD-028-AC03 | Covered |
+| AS-AUD-028-AC04 | Covered |
+| AS-AUD-028-AC05 | Covered |
+
 ## Completion checklist
 
 <!-- COMPLETION-CHECKLIST -->

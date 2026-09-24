@@ -185,6 +185,9 @@ public sealed class ClientAccountingTests
           new LinkAccountingEvidenceRequest(link.Item1, link.Item2, auditResultId));
         Assert.True(linked.Succeeded, linked.Message);
       }
+      var proof = await AccountingAnalysisService.CalculateReconciliationProofAsync(db, preparer, reconciliationId);
+      Assert.True(proof.Succeeded, proof.Message);
+      Assert.True(proof.Value!.IsReconciled);
       var approvedReconciliation = await AccountingAnalysisService.ApproveReconciliationAsync(db, reviewer, reconciliationId);
       Assert.True(approvedReconciliation.Succeeded, approvedReconciliation.Message);
       var blockedClose = await ClientAccountingService.ClosePeriodAsync(db, reviewer, periodId, "Premature close");

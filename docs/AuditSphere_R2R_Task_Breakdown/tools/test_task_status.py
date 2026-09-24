@@ -44,7 +44,7 @@ class TaskStatusTests(unittest.TestCase):
         helper.refresh()
         errors,stats=helper.validate()
         self.assertEqual([],errors)
-        self.assertEqual(54,stats['tasks'])
+        self.assertEqual(75,stats['tasks'])
         self.assertEqual(111,stats['commands_queries'])
     def test_dependency_blocks_early_start(self):
         with self.assertRaisesRegex(ValueError,'Incomplete dependencies'):

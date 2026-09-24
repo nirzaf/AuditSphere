@@ -177,6 +177,7 @@ public interface IClientAccountingDbContext : IAuditSphereDbContext
   DbSet<GeneralLedgerLine> GeneralLedgerLines { get; }
   DbSet<GeneralLedgerCompletenessBridge> GeneralLedgerCompletenessBridges { get; }
   DbSet<AccountingReconciliation> AccountingReconciliations { get; }
+  DbSet<AccountingReconciliationProof> AccountingReconciliationProofs { get; }
   DbSet<AccountingReconciliationItem> AccountingReconciliationItems { get; }
   DbSet<EclAssessment> EclAssessments { get; }
   DbSet<InventoryValuationAssessment> InventoryValuationAssessments { get; }

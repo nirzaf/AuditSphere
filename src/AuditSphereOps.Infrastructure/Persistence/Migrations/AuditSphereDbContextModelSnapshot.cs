@@ -835,6 +835,96 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.ToTable("accounting_reconciliation_items");
                 });
 
+            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.AccountingReconciliationProof", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<Guid>("EngagementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("engagement_id");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<string>("FormulaVersion")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("formula_version");
+
+                    b.Property<decimal>("GlTotal")
+                        .HasColumnType("numeric(19,6)")
+                        .HasColumnName("gl_total");
+
+                    b.Property<long>("InputGeneration")
+                        .HasColumnType("bigint")
+                        .HasColumnName("input_generation");
+
+                    b.Property<bool>("IsReconciled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_reconciled");
+
+                    b.Property<int>("ItemCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("item_count");
+
+                    b.Property<string>("ItemManifestDigest")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("item_manifest_digest");
+
+                    b.Property<decimal>("ItemsSignedTotal")
+                        .HasColumnType("numeric(19,6)")
+                        .HasColumnName("items_signed_total");
+
+                    b.Property<Guid>("ReconciliationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reconciliation_id");
+
+                    b.Property<decimal>("Residual")
+                        .HasColumnType("numeric(19,6)")
+                        .HasColumnName("residual");
+
+                    b.Property<string>("SourceHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("source_hash");
+
+                    b.Property<decimal>("SourceTotal")
+                        .HasColumnType("numeric(19,6)")
+                        .HasColumnName("source_total");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FirmId", "ReconciliationId", "CreatedAt")
+                        .HasDatabaseName("ix_accounting_reconciliation_proof");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "ReconciliationId");
+
+                    b.ToTable("accounting_reconciliation_proofs", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_accounting_reconciliation_proof_values", "length(trim(formula_version)) > 0 AND item_manifest_digest ~ '^[0-9a-f]{64}$' AND item_count >= 0");
+                        });
+                });
+
             modelBuilder.Entity("AuditSphereOps.Domain.Accounting.AdjustedTrialBalanceRow", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1025,6 +1115,11 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(4000)")
                         .HasColumnName("reason");
 
+                    b.Property<string>("ReturnReason")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("return_reason");
+
                     b.Property<Guid?>("ReversalOfJournalId")
                         .HasColumnType("uuid")
                         .HasColumnName("reversal_of_journal_id");
@@ -1058,7 +1153,7 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.ToTable("adjustment_journals", null, t =>
                         {
-                            t.HasCheckConstraint("ck_adjustment_journal_values", "purpose IN ('CLIENT_BOOK_CORRECTION','REPORTING_ADJUSTMENT','PRESENTATION_RECLASSIFICATION','GROUP_ONLY_ELIMINATION') AND origin IN ('AUDIT_PROPOSED','CLIENT_REQUESTED','MANAGEMENT_PROVIDED','IMPORTED') AND status IN ('Draft','Posted','ReflectedInSource','Void') AND revision >= 1 AND length(trim(journal_number)) > 0 AND length(trim(reason)) <= 4000 AND length(trim(evidence_reference)) <= 2000 AND (period_id IS NULL OR (length(trim(basis)) > 0 AND currency ~ '^[A-Z]{3}$')) AND (book_id IS NULL OR period_id IS NOT NULL)");
+                            t.HasCheckConstraint("ck_adjustment_journal_values", "purpose IN ('CLIENT_BOOK_CORRECTION','REPORTING_ADJUSTMENT','PRESENTATION_RECLASSIFICATION','GROUP_ONLY_ELIMINATION') AND origin IN ('AUDIT_PROPOSED','CLIENT_REQUESTED','MANAGEMENT_PROVIDED','IMPORTED') AND status IN ('Draft','Submitted','Returned','Posted','ReflectedInSource','Void') AND revision >= 1 AND length(trim(journal_number)) > 0 AND length(trim(reason)) <= 4000 AND length(trim(evidence_reference)) <= 2000 AND (period_id IS NULL OR (length(trim(basis)) > 0 AND currency ~ '^[A-Z]{3}$')) AND (book_id IS NULL OR period_id IS NOT NULL)");
                         });
                 });
 
@@ -2149,6 +2244,12 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<string>("AffectedPeriods")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("affected_periods");
+
                     b.Property<DateTimeOffset?>("ApprovedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("approved_at");
@@ -2156,6 +2257,12 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.Property<Guid?>("ApprovedByUserId")
                         .HasColumnType("uuid")
                         .HasColumnName("approved_by_user_id");
+
+                    b.Property<string>("ChangeType")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("change_type");
 
                     b.Property<Guid>("ClientId")
                         .HasColumnType("uuid")
@@ -2589,6 +2696,11 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)")
                         .HasColumnName("journal_type");
+
+                    b.Property<string>("ReturnReason")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("return_reason");
 
                     b.Property<Guid>("ScopeVersionId")
                         .HasColumnType("uuid")
@@ -15456,6 +15568,23 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Accounting.AccountingReconciliationItem", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Engagements.Engagement", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId")
+                        .HasPrincipalKey("FirmId", "PracticeClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Accounting.AccountingReconciliation", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "ReconciliationId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.AccountingReconciliationProof", b =>
                 {
                     b.HasOne("AuditSphereOps.Domain.Engagements.Engagement", null)
                         .WithMany()

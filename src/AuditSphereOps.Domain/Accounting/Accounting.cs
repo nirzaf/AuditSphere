@@ -192,7 +192,9 @@ public sealed class AdjustmentJournal
   public string EvidenceReference { get; set; } = string.Empty;
   public Guid? SupersedesJournalId { get; set; }
   public Guid? ReversalOfJournalId { get; set; }
-  public string Status { get; set; } = "Draft";             // Draft|Posted|ReflectedInSource|Void
+  public string Status { get; set; } = "Draft";             // Draft|Submitted|Returned|Posted|ReflectedInSource|Void
+  /// <summary>Mandatory reviewer rationale when a submitted revision is returned to the preparer.</summary>
+  public string? ReturnReason { get; set; }
   public long Revision { get; set; } = 1;
   public Guid CreatedByUserId { get; set; }
   public DateTimeOffset CreatedAt { get; set; }

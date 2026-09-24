@@ -93,6 +93,25 @@ Extend the source-listed existing routes before adding a parallel workspace. Use
 
 Use pure xUnit for deterministic rules, real PostgreSQL for persistence/concurrency, bUnit for component behavior and Playwright for actual Blazor journeys where applicable. Record the subset executed for this task. Deferred consumer tests stay explicitly unverified until their scheduled integration gate; a task completion is not automatic whole-module acceptance.
 
+### Audit workflow integration scope
+- Reconcile the 20-section, 165-procedure audit workflow backlog (`ORIGINAL_Audit_Workflow_Gap_Closure_User_Stories.md`) against current code.
+- Enforce strict separation between client accounting (R2R) and external audit: audit consumes exact R2R source revisions but never creates duplicate chart, period, or ledger masters.
+- Exclude client operational ERP, payroll execution, and statutory tax filing from AuditSphere scope.
+- Enforce human professional judgement boundaries: the platform evaluates formulas and enforces workflow gates, but never issues autonomous audit opinions.
+
+## Audit workflow source traceability
+
+| Source | Coverage |
+|---|---|
+| AS-AUD-001 | Primary |
+| AS-AUD-001-AC01 | Covered |
+| AS-AUD-001-AC02 | Covered |
+| AS-AUD-001-AC03 | Covered |
+| AS-AUD-001-AC04 | Covered (Reference) |
+| AS-AUD-001-AC05 | Covered |
+| AS-AUD-001-AC06 | Covered (Blocked external) |
+| AS-AUD-001-AC07 | Covered |
+
 ## Completion checklist
 
 <!-- COMPLETION-CHECKLIST -->

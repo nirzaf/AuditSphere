@@ -125,6 +125,32 @@ Use pure xUnit for deterministic rules, real PostgreSQL for persistence/concurre
 
 **Related integration journeys:** [R2R-AT-04](../../coverage/03_Integration_Journey_Tracking.md#r2r-at-04), [R2R-AT-05](../../coverage/03_Integration_Journey_Tracking.md#r2r-at-05), [R2R-AT-11](../../coverage/03_Integration_Journey_Tracking.md#r2r-at-11).
 
+### Audit misstatement evaluation and SAD schedule requirements
+- Capture all audit misstatements and proposed adjustments in a Summary of Audit Differences (SAD) schedule (`AWP-19-01`).
+- Classify differences by nature: factual, judgmental, or projected (`AWP-19-02`).
+- Filter out differences falling below the Clearly Trivial Threshold (CTT) (`AWP-19-03`).
+- Compute cumulative and aggregate impact of unadjusted misstatements against materiality thresholds (`AWP-19-04`).
+- Document communication of proposed adjustments to client management and record client acceptance/rejection decisions (`AWP-19-05`).
+
+## Audit workflow source traceability
+
+| Source | Coverage |
+|---|---|
+| AS-AUD-026 | Primary |
+| AS-AUD-026-AC01 | Covered |
+| AS-AUD-026-AC02 | Covered |
+| AS-AUD-026-AC03 | Covered |
+| AS-AUD-026-AC04 | Covered |
+| AS-AUD-026-AC05 | Covered |
+| AS-AUD-026-AC06 | Covered |
+| AS-AUD-026-AC07 | Covered |
+| AS-AUD-026-AC08 | Covered |
+| AWP-19-01 | Covered |
+| AWP-19-02 | Covered |
+| AWP-19-03 | Covered |
+| AWP-19-04 | Covered |
+| AWP-19-05 | Covered |
+
 ## Completion checklist
 
 <!-- COMPLETION-CHECKLIST -->

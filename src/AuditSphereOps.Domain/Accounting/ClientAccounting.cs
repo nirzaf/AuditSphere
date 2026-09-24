@@ -266,6 +266,11 @@ public sealed class ClientPeriodRestatement
   public string OriginalPackageHash { get; set; } = string.Empty;
   public string RevisedPackageHash { get; set; } = string.Empty;
   public string RevisedBasis { get; set; } = string.Empty;
+  /// <summary>Supported IAS 8 treatment: RECLASSIFIED, RESTATED_ERROR, POLICY_TRANSITION
+  /// or PROSPECTIVE_ESTIMATE_CHANGE — estimate changes are never silently retrospective.</summary>
+  public string ChangeType { get; set; } = string.Empty;
+  /// <summary>Explicit affected period codes, comma-separated, per the approved treatment.</summary>
+  public string AffectedPeriods { get; set; } = string.Empty;
   public string Reason { get; set; } = string.Empty;
   public string EvidenceReference { get; set; } = string.Empty;
   public string Status { get; set; } = AccountingWorkflowStates.Submitted;
@@ -553,6 +558,30 @@ public sealed class AccountingReconciliation
   public Guid? ReviewedByUserId { get; set; }
   public DateTimeOffset CreatedAt { get; set; }
   public DateTimeOffset? ReviewedAt { get; set; }
+}
+
+/// <summary>Immutable reconciliation proof: the formula version, exact item manifest
+/// digest and computed residual at calculation time. Approval requires the latest
+/// proof to be reconciled and to still match the live item set and source identity.</summary>
+public sealed class AccountingReconciliationProof
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public Guid EngagementId { get; set; }
+  public Guid ReconciliationId { get; set; }
+  public string FormulaVersion { get; set; } = "reconciliation-proof.v1";
+  public decimal SourceTotal { get; set; }
+  public decimal GlTotal { get; set; }
+  public decimal ItemsSignedTotal { get; set; }
+  public decimal Residual { get; set; }
+  public bool IsReconciled { get; set; }
+  public int ItemCount { get; set; }
+  public string ItemManifestDigest { get; set; } = string.Empty;
+  public string SourceHash { get; set; } = string.Empty;
+  public long InputGeneration { get; set; }
+  public Guid CreatedByUserId { get; set; }
+  public DateTimeOffset CreatedAt { get; set; }
 }
 
 public sealed class AccountingReconciliationItem
@@ -937,6 +966,8 @@ public sealed class ConsolidationJournal
   public decimal TotalCreditsAbs { get; set; }
   public string EvidenceReference { get; set; } = string.Empty;
   public string Status { get; set; } = AccountingWorkflowStates.Draft;
+  /// <summary>Mandatory reviewer rationale when a submitted group journal is returned for rework.</summary>
+  public string? ReturnReason { get; set; }
   public Guid CreatedByUserId { get; set; }
   public Guid? ApprovedByUserId { get; set; }
   public DateTimeOffset CreatedAt { get; set; }

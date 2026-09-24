@@ -1,6 +1,6 @@
 # AuditSphereOps — implementation checklist
 
-Dependency-ordered checklist for the [v5.0 specification](../SPECIFICATION.md) and the [workflow-gap backlog](../requirements/AuditSphere_Audit_Workflow_Gap_Closure_User_Stories.md).
+Dependency-ordered checklist for the [v5.0 specification](../SPECIFICATION.md) and the [workflow-gap backlog](../AuditSphere_R2R_Task_Breakdown/source/ORIGINAL_Audit_Workflow_Gap_Closure_User_Stories.md).
 
 **Current source checkpoint:** `master@8d7a73d`; PostgreSQL 18.6; 84 migrations; 227/227 tests passed at `dfc7563`; 0 skipped. The verified accounting baseline includes period/book/basis-bound packages and journals, exact package artifacts and review lineage, deterministic XLSX/DOCX/PDF exports with a runtime-enforced trusted workbook formula allowlist, source-bound GL schedule controls, safe legacy period/chart backfill with append-only ambiguity quarantine, QAR setup defaults, governed specialist and analytical evidence, bounded consolidation safety cores, persisted and method-validated advanced-method schedules, and a balanced candidate advanced-method statement fixture. Methodology approval `STE-METH-APP-001` plus its advanced-scope addendum are recorded; guarded advanced-profile integration, complete statement verification and external provider/signing/records acceptance remain pending.
 **Status meanings:** ✅ locally verified · 🟡 partial/local follow-up · ⬜ not started · 🚫 external gate

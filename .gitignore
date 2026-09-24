@@ -17,6 +17,7 @@ packages/
 ## Test and coverage output
 [Tt]est[Rr]esults/
 coverage/
+!docs/AuditSphere_R2R_Task_Breakdown/coverage/
 *.trx
 *.coverage
 coverage*.xml

@@ -127,6 +127,20 @@ Use pure xUnit for deterministic rules, real PostgreSQL for persistence/concurre
 
 **Related integration journeys:** [R2R-AT-04](../../coverage/03_Integration_Journey_Tracking.md#r2r-at-04), [R2R-AT-05](../../coverage/03_Integration_Journey_Tracking.md#r2r-at-05), [R2R-AT-20](../../coverage/03_Integration_Journey_Tracking.md#r2r-at-20), [R2R-AT-22](../../coverage/03_Integration_Journey_Tracking.md#r2r-at-22), [R2R-AT-30](../../coverage/03_Integration_Journey_Tracking.md#r2r-at-30).
 
+### Audit package readiness and draft report linkage
+- Verify client director/management approval and signed financial statement evidence before release readiness (`AWP-20-06`).
+- Link and validate the draft independent auditor's report (ISA 700/705/706) against the financial package artifacts (`AWP-20-08`).
+
+## Audit workflow source traceability
+
+| Source | Coverage |
+|---|---|
+| AS-AUD-027 | Primary |
+| AS-AUD-027-AC06 | Covered |
+| AS-AUD-027-AC08 | Covered |
+| AWP-20-06 | Covered |
+| AWP-20-08 | Covered |
+
 ## Completion checklist
 
 <!-- COMPLETION-CHECKLIST -->
