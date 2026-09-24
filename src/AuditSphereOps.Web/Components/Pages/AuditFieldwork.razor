@@ -60,6 +60,44 @@ else
             }
         </section>
 
+        @if (_differenceSummaries.Count > 0)
+        {
+            <section class="card" aria-labelledby="difference-summary-heading">
+                    <h2 id="difference-summary-heading">Aggregate differences and reporting assessment</h2>
+                    <p class="info-text">Review gross and signed amounts separately by currency. These totals do not determine materiality or an audit opinion; the engagement team records the professional conclusion.</p>
+                    <div class="table-wrap">
+                        <table class="data-table">
+                            <caption class="sr-only">Audit differences by currency</caption>
+                            <thead><tr><th scope="col">Currency</th><th scope="col">Count</th><th scope="col">Gross</th><th scope="col">Signed/net</th><th scope="col">Unadjusted gross</th><th scope="col">Unadjusted net</th><th scope="col">Corrected gross</th></tr></thead>
+                            <tbody>
+                                @foreach (var summary in _differenceSummaries)
+                                {
+                                    <tr><td>@summary.Currency</td><td>@summary.DifferenceCount</td><td>@summary.GrossAmount.ToString("N2")</td><td>@summary.SignedNetAmount.ToString("N2")</td><td>@summary.UnadjustedGrossAmount.ToString("N2")</td><td>@summary.UnadjustedSignedNetAmount.ToString("N2")</td><td>@summary.CorrectedGrossAmount.ToString("N2")</td></tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                    @if (_aggregateAssessment is not null)
+                    {
+                        <dl class="detail-grid">
+                            <dt>Assessment</dt><dd>@_aggregateAssessment.Status</dd>
+                            <dt>Current and independently reviewed</dt><dd>@(_aggregateCurrentAndReviewed ? "Yes" : "No — refresh the assessment before completion")</dd>
+                            <dt>Professional conclusion / reporting impact</dt><dd>@_aggregateAssessment.Conclusion</dd>
+                        </dl>
+                        @if (_aggregateAssessment.Status != AuditAreaAssessmentStatuses.Reviewed &&
+                            _aggregateAssessment.CreatedByUserId != _actor.UserId)
+                        {
+                            <button class="btn-small" title="Independently review this conclusion against the current schedule and approved materiality" @onclick="ReviewAggregateAssessmentAsync" disabled="@_busy">Review aggregate conclusion</button>
+                        }
+                    }
+                    <form @onsubmit="RecordAggregateAssessmentAsync" @onsubmit:preventDefault>
+                        <label for="aggregate-conclusion">Required: professional aggregate conclusion and reporting impact</label>
+                        <textarea id="aggregate-conclusion" @bind="_aggregateConclusion" @bind:event="oninput" required maxlength="4000" rows="4" title="Explain the aggregate evaluation by currency, qualitative factors, unadjusted/corrected status, and reporting implications. Totals do not make the professional decision."></textarea>
+                        <button class="btn-small" type="submit" disabled="@(_busy || string.IsNullOrWhiteSpace(_aggregateConclusion))" title="Save a conclusion bound to the current differences and independently approved materiality">Record aggregate conclusion</button>
+                    </form>
+            </section>
+        }
+
         @if (_programVersion is not null)
         {
             <section class="card" aria-labelledby="coverage-heading">
@@ -117,6 +155,10 @@ else
     private Engagement? _engagement;
     private AuditProgramVersion? _programVersion;
     private List<AuditProcedure> _procedures = [];
+    private List<AuditDifferenceSummary> _differenceSummaries = [];
+    private AuditAreaAssessment? _aggregateAssessment;
+    private string _aggregateConclusion = string.Empty;
+    private bool _aggregateCurrentAndReviewed;
     private CommandResult? _result;
     private string? _authorizationMessage;
     private string _version = "2026.1";
@@ -135,6 +177,10 @@ else
         _engagement = null;
         _programVersion = null;
         _procedures = [];
+        _differenceSummaries = [];
+        _aggregateAssessment = null;
+        _aggregateConclusion = string.Empty;
+        _aggregateCurrentAndReviewed = false;
         _authorizationMessage = null;
         _result = null;
 
@@ -182,6 +228,23 @@ else
             _programVersion = programVersion;
             _procedures = procedures;
         }
+        var differenceResult = await AuditFieldworkService.GetDifferenceSummariesAsync(db, actor, engagement.Id);
+        if (generation != _loadGeneration) return;
+        if (differenceResult.Succeeded) _differenceSummaries = differenceResult.Value!.ToList();
+        _aggregateAssessment = await db.AuditAreaAssessments.AsNoTracking()
+            .Where(x => x.FirmId == actor.FirmId && x.ClientId == engagement.PracticeClientId &&
+                x.EngagementId == engagement.Id && x.AreaCode == AuditAreaCodes.AuditDifferences &&
+                x.AssessmentKind == AuditAreaAssessmentKinds.AggregateDifferences)
+            .OrderByDescending(x => x.CreatedAt).FirstOrDefaultAsync();
+        if (generation != _loadGeneration) return;
+        if (_aggregateAssessment is not null) _aggregateConclusion = _aggregateAssessment.Conclusion;
+        if (_differenceSummaries.Count > 0)
+        {
+            var completion = await AuditFieldworkService.EvaluateCompletionAsync(db, actor, engagement.Id);
+            if (generation != _loadGeneration) return;
+            _aggregateCurrentAndReviewed = completion.Succeeded &&
+                !completion.Value!.Blockers.Contains("difference-aggregate:missing-stale-or-unreviewed", StringComparer.Ordinal);
+        }
         _loading = false;
     }
 
@@ -212,6 +275,32 @@ else
         var result = await AuditProgramService.DecideApplicabilityAsync(db, _actor,
             new DecideProcedureApplicabilityRequest(procedureId, decision,
                 decision == AuditApplicabilityStatuses.NotApplicablePendingReview ? "Not applicable pending independent review." : null));
+        _result = result.Succeeded ? CommandResult.Ok() : CommandResult.Fail(result.ErrorCode!, result.Message!);
+        _busy = false;
+        await LoadAsync();
+    }
+
+    private async Task RecordAggregateAssessmentAsync()
+    {
+        if (_actor is null || _engagement is null || string.IsNullOrWhiteSpace(_aggregateConclusion)) return;
+        _busy = true;
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var result = await AuditFieldworkService.RecordAreaAssessmentAsync(db, _actor,
+            new RecordAreaAssessmentRequest(EngagementId, null, AuditAreaCodes.AuditDifferences,
+                AuditAreaAssessmentKinds.AggregateDifferences, "audit-differences-aggregate.v1", "{}", null, null,
+                null, null, null, null, null, ["aggregate-difference-schedule"], _aggregateConclusion));
+        _result = result.Succeeded ? CommandResult.Ok() : CommandResult.Fail(result.ErrorCode!, result.Message!);
+        _busy = false;
+        await LoadAsync();
+    }
+
+    private async Task ReviewAggregateAssessmentAsync()
+    {
+        if (_actor is null || _aggregateAssessment is null) return;
+        _busy = true;
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var result = await AuditFieldworkService.ReviewAreaAssessmentAsync(db, _actor,
+            new ReviewAreaAssessmentRequest(_aggregateAssessment.Id, AuditAreaAssessmentStatuses.Reviewed, null));
         _result = result.Succeeded ? CommandResult.Ok() : CommandResult.Fail(result.ErrorCode!, result.Message!);
         _busy = false;
         await LoadAsync();

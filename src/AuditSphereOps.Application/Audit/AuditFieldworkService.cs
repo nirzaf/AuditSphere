@@ -1,4 +1,6 @@
 using System.Text.Json;
+using System.Security.Cryptography;
+using System.Text;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Application.Operations;
@@ -777,7 +779,8 @@ public static class AuditFieldworkService
   public static async Task<CommandResult<AreaAssessmentValue>> RecordAreaAssessmentAsync(
     IAuditSphereDbContext db, ActorContext actor, RecordAreaAssessmentRequest request, CancellationToken ct = default)
   {
-    if (!AuditAreaCodes.All.Contains(request.AreaCode.Trim().ToUpperInvariant()) || string.IsNullOrWhiteSpace(request.AssessmentKind) ||
+    var areaCode = request.AreaCode.Trim().ToUpperInvariant();
+    if (!AuditAreaCodes.All.Contains(areaCode) || string.IsNullOrWhiteSpace(request.AssessmentKind) ||
         string.IsNullOrWhiteSpace(request.MethodologyReference) || !JsonObject(request.InputSnapshotJson) ||
         request.EvidenceReferences is null || request.EvidenceReferences.Count == 0 || request.EvidenceReferences.Any(string.IsNullOrWhiteSpace) ||
         string.IsNullOrWhiteSpace(request.Conclusion) || request.Currency is not null && !IsCurrency(request.Currency))
@@ -791,11 +794,22 @@ public static class AuditFieldworkService
       return Invalid<AreaAssessmentValue>("Currency must be ISO 4217.");
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     var generation = await CurrentGenerationAsync(db, auth.ClientId, actor.FirmId, ct);
+    var inputSnapshot = request.InputSnapshotJson.Trim();
+    if (areaCode == AuditAreaCodes.AuditDifferences)
+    {
+      if (request.AssessmentKind.Trim() != AuditAreaAssessmentKinds.AggregateDifferences)
+        return Invalid<AreaAssessmentValue>("Audit-difference assessments must use the aggregate-differences workflow.");
+      inputSnapshot = await CurrentDifferenceSnapshotAsync(db, actor.FirmId, auth.ClientId, request.EngagementId, ct)
+        ?? string.Empty;
+      if (inputSnapshot.Length == 0)
+        return CommandResult<AreaAssessmentValue>.Fail(ErrorCodes.GateBlocked,
+          "An independently approved materiality assessment is required before aggregate evaluation.");
+    }
     var assessment = new AuditAreaAssessment
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = auth.ClientId, EngagementId = request.EngagementId,
       ProcedureId = request.ProcedureId, AreaCode = request.AreaCode.Trim().ToUpperInvariant(), AssessmentKind = request.AssessmentKind.Trim(),
-      MethodologyReference = request.MethodologyReference.Trim(), InputSnapshotJson = request.InputSnapshotJson.Trim(),
+      MethodologyReference = request.MethodologyReference.Trim(), InputSnapshotJson = inputSnapshot,
       BookedAmount = request.BookedAmount, AuditedAmount = request.AuditedAmount, ResidualAmount = request.ResidualAmount,
       VariancePercent = request.VariancePercent, Currency = request.Currency?.ToUpperInvariant(), PeriodStart = request.PeriodStart,
       PeriodEnd = request.PeriodEnd, EvidenceReferencesJson = JsonSerializer.Serialize(request.EvidenceReferences), InputGeneration = generation,
@@ -820,6 +834,11 @@ public static class AuditFieldworkService
       return auth;
     if (existing!.InputGeneration != await CurrentGenerationAsync(db, existing.ClientId, existing.FirmId, ct))
       return CommandResult.Fail(ErrorCodes.GenerationStale, "The assessment inputs changed; review the new revision.");
+    if (existing.AreaCode == AuditAreaCodes.AuditDifferences &&
+        (existing.AssessmentKind != AuditAreaAssessmentKinds.AggregateDifferences ||
+         existing.InputSnapshotJson != await CurrentDifferenceSnapshotAsync(db, existing.FirmId, existing.ClientId,
+           existing.EngagementId, ct)))
+      return CommandResult.Fail(ErrorCodes.GenerationStale, "The aggregate difference schedule or approved materiality changed; prepare a new assessment.");
     if (existing.CreatedByUserId == actor.UserId)
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "The preparer cannot review the same assessment.");
     await using var tx = await db.Database.BeginTransactionAsync(ct);
@@ -935,6 +954,40 @@ public static class AuditFieldworkService
           MoneyPolicy.Normalize(corrected.Sum(x => x.Amount)));
       }).ToArray();
     return CommandResult<IReadOnlyList<AuditDifferenceSummary>>.Ok(summaries);
+  }
+
+  private static async Task<string?> CurrentDifferenceSnapshotAsync(
+    IAuditSphereDbContext db, Guid firmId, Guid clientId, Guid engagementId, CancellationToken ct)
+  {
+    var materiality = await db.MaterialityAssessments.AsNoTracking().Where(x => x.FirmId == firmId &&
+        x.ClientId == clientId && x.EngagementId == engagementId)
+      .OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id).FirstOrDefaultAsync(ct);
+    if (materiality is null) return null;
+    var approval = await db.MaterialityApprovals.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.FirmId == firmId && x.ClientId == clientId && x.EngagementId == engagementId &&
+      x.MaterialityAssessmentId == materiality.Id, ct);
+    if (approval is null) return null;
+    var differences = await db.AuditDifferences.AsNoTracking().Where(x => x.FirmId == firmId &&
+        x.ClientId == clientId && x.EngagementId == engagementId)
+      .OrderBy(x => x.Id)
+      .Select(x => new
+      {
+        x.Id, x.AccountArea, x.DifferenceType, x.Description, x.Amount, x.Currency, x.Corrected,
+        x.ManagementResponse, x.CorrectionReference, x.MaterialityReference, x.QualitativeConcerns,
+        x.CorrectionState, x.JournalImpactHash, x.Evaluation, x.Status, x.InputGeneration
+      }).ToListAsync(ct);
+    var snapshot = new
+    {
+      Version = "audit-difference-aggregate.v1",
+      Materiality = new
+      {
+        materiality.Id, materiality.OverallMateriality, materiality.PerformanceMateriality,
+        materiality.ClearlyTrivialThreshold, ApprovalId = approval.Id, approval.ApprovedByUserId, approval.ApprovedAt
+      },
+      Differences = differences
+    };
+    var json = JsonSerializer.Serialize(snapshot);
+    return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(json))) + ":" + json;
   }
 
   public static async Task<CommandResult<DifferenceValue>> SetDifferenceCorrectionStateAsync(
@@ -1156,6 +1209,19 @@ public static class AuditFieldworkService
     blockers.AddRange(await db.AuditDifferences.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ClientId == auth.ClientId && x.EngagementId == engagementId &&
       (x.Status == AuditDifferenceStatuses.Open || x.Status == AuditDifferenceStatuses.ManagementResponded))
       .Select(x => $"difference:{x.Id}:unevaluated").ToListAsync(ct));
+    var hasDifferences = await db.AuditDifferences.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId &&
+      x.ClientId == auth.ClientId && x.EngagementId == engagementId, ct);
+    if (hasDifferences)
+    {
+      var snapshot = await CurrentDifferenceSnapshotAsync(db, actor.FirmId, auth.ClientId, engagementId, ct);
+      var reviewedAggregate = snapshot is not null && await db.AuditAreaAssessments.AsNoTracking().AnyAsync(x =>
+        x.FirmId == actor.FirmId && x.ClientId == auth.ClientId && x.EngagementId == engagementId &&
+        x.AreaCode == AuditAreaCodes.AuditDifferences && x.AssessmentKind == AuditAreaAssessmentKinds.AggregateDifferences &&
+        x.MethodologyReference == "audit-differences-aggregate.v1" && x.InputSnapshotJson == snapshot &&
+        x.Status == AuditAreaAssessmentStatuses.Reviewed, ct);
+      if (!reviewedAggregate)
+        blockers.Add("difference-aggregate:missing-stale-or-unreviewed");
+    }
     var evaluation = new AuditCompletionEvaluation(blockers.Count == 0, procedures.Count, applicable.Length, reviewed, blockers);
     return CommandResult<AuditCompletionEvaluation>.Ok(evaluation);
   }

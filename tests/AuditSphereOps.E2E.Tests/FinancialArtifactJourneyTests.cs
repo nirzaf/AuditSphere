@@ -346,7 +346,7 @@ public sealed class FinancialArtifactJourneyTests
 
     var decisionButton = page.GetByRole(AriaRole.Button, new() { Name = "Record management decision" });
     if (await decisionButton.CountAsync() > 0)
-      await decisionButton.ClickAsync();
+      await decisionButton.ClickAsync(new() { Force = true });
     try
     {
       await page.GetByRole(AriaRole.Heading, new() { Name = "Package unavailable" }).WaitForAsync();

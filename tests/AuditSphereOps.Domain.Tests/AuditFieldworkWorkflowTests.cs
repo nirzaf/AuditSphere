@@ -41,8 +41,14 @@ public sealed class AuditFieldworkWorkflowTests
       ClientId = scope.ClientId, EngagementId = scope.EngagementId, GrantedAt = DateTimeOffset.UtcNow,
       GrantedByUserId = scope.Actor.UserId
     });
+    db.RoleGrants.Add(new RoleGrant
+    {
+      Id = Guid.NewGuid(), FirmId = scope.FirmId, UserId = reviewerId, Role = "Partner",
+      ClientId = scope.ClientId, EngagementId = scope.EngagementId, GrantedAt = DateTimeOffset.UtcNow,
+      GrantedByUserId = scope.Actor.UserId
+    });
     await db.SaveChangesAsync();
-    var reviewer = new ActorContext(reviewerId, scope.FirmId, 1, ["Reviewer"]);
+    var reviewer = new ActorContext(reviewerId, scope.FirmId, 1, ["Reviewer", "Partner"]);
 
     var sourceHash = new string('a', 64);
     var schedule = await AuditFieldworkService.CreateScheduleAsync(db, scope.Actor, new CreateScheduleRequest(
@@ -226,11 +232,38 @@ public sealed class AuditFieldworkWorkflowTests
     Assert.Equal(0m, qar.UnadjustedSignedNetAmount);
     Assert.Equal(0m, qar.CorrectedGrossAmount);
 
+    var unapprovedAggregate = await AuditFieldworkService.RecordAreaAssessmentAsync(db, scope.Actor,
+      new RecordAreaAssessmentRequest(scope.EngagementId, null, AuditAreaCodes.AuditDifferences,
+        AuditAreaAssessmentKinds.AggregateDifferences, "audit-differences-aggregate.v1", "{}", null, null,
+        null, null, null, null, null, ["aggregate-difference-schedule"], "Prepared conclusion."));
+    Assert.False(unapprovedAggregate.Succeeded);
+    Assert.Equal(ErrorCodes.GateBlocked, unapprovedAggregate.ErrorCode);
+    var materiality = await AuditPlanningService.CreateMaterialityAssessmentAsync(db, scope.Actor,
+      new CreateMaterialityRequest(scope.EngagementId, "Total assets", "AFS-v1", "Stable benchmark",
+        1_000_000m, 0.05m, 50_000m, 37_500m, 2_500m, null));
+    Assert.True(materiality.Succeeded);
+    Assert.True((await AuditPlanningService.ApproveMaterialityAssessmentAsync(db, reviewer,
+      materiality.Value!.AssessmentId)).Succeeded);
+    var aggregate = await AuditFieldworkService.RecordAreaAssessmentAsync(db, scope.Actor,
+      new RecordAreaAssessmentRequest(scope.EngagementId, null, AuditAreaCodes.AuditDifferences,
+        AuditAreaAssessmentKinds.AggregateDifferences, "audit-differences-aggregate.v1", "{}", null, null, null,
+        null, null, null, null, ["aggregate-difference-schedule"], "Gross QAR differences exceed performance materiality; unadjusted amounts and qualitative factors require partner reporting judgment."));
+    Assert.True(aggregate.Succeeded, aggregate.Message);
+    var aggregateRow = await db.AuditAreaAssessments.SingleAsync(x => x.Id == aggregate.Value!.AuditAreaAssessmentId);
+    Assert.Contains("audit-difference-aggregate.v1", aggregateRow.InputSnapshotJson, StringComparison.Ordinal);
+    Assert.True((await AuditFieldworkService.ReviewAreaAssessmentAsync(db, reviewer,
+      new ReviewAreaAssessmentRequest(aggregateRow.Id, AuditAreaAssessmentStatuses.Reviewed, null))).Succeeded);
+
     var completion = await AuditFieldworkService.EvaluateCompletionAsync(db, reviewer, scope.EngagementId);
     Assert.True(completion.Succeeded);
     Assert.False(completion.Value!.Ready);
     Assert.Contains(completion.Value.Blockers, x => x.StartsWith("procedure:", StringComparison.Ordinal));
+    Assert.DoesNotContain("difference-aggregate:missing-stale-or-unreviewed", completion.Value.Blockers);
+    Assert.True((await AuditFieldworkService.RecordDifferenceAsync(db, scope.Actor,
+      new RecordDifferenceRequest(scope.EngagementId, procedure.Id, "Revenue", "KNOWN", "Later identified cut-off difference.", 100m, "QAR"))).Succeeded);
+    var changedSchedule = await AuditFieldworkService.EvaluateCompletionAsync(db, reviewer, scope.EngagementId);
+    Assert.Contains("difference-aggregate:missing-stale-or-unreviewed", changedSchedule.Value!.Blockers);
     Assert.Equal(2, await db.AuditScheduleRows.CountAsync(x => x.ScheduleId == schedule.Value.ScheduleId));
-    Assert.Equal(2, await db.AuditDifferences.CountAsync());
+    Assert.Equal(3, await db.AuditDifferences.CountAsync());
   }
 }

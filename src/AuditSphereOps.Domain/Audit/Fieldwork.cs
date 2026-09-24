@@ -373,6 +373,11 @@ public static class AuditAreaCodes
   };
 }
 
+public static class AuditAreaAssessmentKinds
+{
+  public const string AggregateDifferences = "AGGREGATE_DIFFERENCES";
+}
+
 public sealed class AuditDifference
 {
   public Guid Id { get; set; }

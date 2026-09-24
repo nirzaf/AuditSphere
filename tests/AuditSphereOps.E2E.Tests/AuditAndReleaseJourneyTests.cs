@@ -108,6 +108,65 @@ public sealed class AuditAndReleaseJourneyTests
   }
 
   [Fact]
+  [Trait("CaseId", "AS-PAR-009-AGGREGATE-DIFFERENCES-UI-01")]
+  public async Task AuditFieldworkRecordsHumanAggregateConclusionBoundToDifferenceSchedule()
+  {
+    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false,
+      caseId: "AS-PAR-009-AGGREGATE-DIFFERENCES-UI-01");
+    var assessmentId = Guid.NewGuid();
+    await using (var db = host.CreateDbContext())
+    {
+      db.RoleGrants.Add(PbcSeed.Grant(host.Fixture.FirmId, host.Fixture.Staff, "Partner",
+        host.Fixture.ClientId, host.Fixture.EngagementId));
+      db.RoleGrants.Add(PbcSeed.Grant(host.Fixture.FirmId, host.Fixture.Reviewer, "Partner",
+        host.Fixture.ClientId, host.Fixture.EngagementId));
+      db.MaterialityAssessments.Add(new MaterialityAssessment
+      {
+        Id = assessmentId, FirmId = host.Fixture.FirmId, ClientId = host.Fixture.ClientId,
+        EngagementId = host.Fixture.EngagementId, ActorId = host.Fixture.Staff.Id,
+        BenchmarkSource = "Total assets", BenchmarkVersion = "AFS-v1", Rationale = "Synthetic E2E fixture",
+        BenchmarkAmount = 1_000_000m, RateApplied = 0.05m, OverallMateriality = 50_000m,
+        PerformanceMateriality = 37_500m, ClearlyTrivialThreshold = 2_500m, Status = MaterialityStatuses.Draft,
+        CreatedAt = DateTimeOffset.UtcNow
+      });
+      db.MaterialityApprovals.Add(new MaterialityApproval
+      {
+        Id = Guid.NewGuid(), FirmId = host.Fixture.FirmId, ClientId = host.Fixture.ClientId,
+        EngagementId = host.Fixture.EngagementId, MaterialityAssessmentId = assessmentId,
+        ApprovedByUserId = host.Fixture.Reviewer.Id, ApprovedAt = DateTimeOffset.UtcNow
+      });
+      db.AuditDifferences.Add(new AuditDifference
+      {
+        Id = Guid.NewGuid(), FirmId = host.Fixture.FirmId, ClientId = host.Fixture.ClientId,
+        EngagementId = host.Fixture.EngagementId, AccountArea = "Revenue", DifferenceType = "KNOWN",
+        Description = "Synthetic unadjusted cut-off difference", Amount = 12_000m, Currency = "QAR",
+        MaterialityReference = "AFS-v1", QualitativeConcerns = "Synthetic only", Status = AuditDifferenceStatuses.Evaluated,
+        CreatedByUserId = host.Fixture.Staff.Id, EvaluatedByUserId = host.Fixture.Reviewer.Id,
+        Evaluation = "Synthetic individual evaluation", CreatedAt = DateTimeOffset.UtcNow, EvaluatedAt = DateTimeOffset.UtcNow
+      });
+      await db.SaveChangesAsync();
+    }
+
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    await using var context = await browser.NewContextAsync();
+    var page = await context.NewPageAsync();
+    var diagnostics = new List<string>();
+    var connected = WaitForCircuitConnectionAsync(page, diagnostics);
+    await page.GotoAsync(SignInUrl(host.StaffUrl,
+      $"/app/engagements/{host.Fixture.EngagementId:D}/audit-fieldwork"));
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Controlled Audit Fieldwork" }).WaitForAsync();
+    await connected;
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Aggregate differences and reporting assessment" }).WaitForAsync();
+    await page.GetByLabel("Required: professional aggregate conclusion and reporting impact")
+      .FillAsync("Human assessment: evaluate unadjusted QAR amounts and qualitative factors; reporting impact remains subject to partner judgment.");
+    await page.GetByRole(AriaRole.Button, new() { Name = "Record aggregate conclusion" }).ClickAsync();
+    await Assertions.Expect(page.GetByText("Human assessment: evaluate unadjusted QAR amounts and qualitative factors; reporting impact remains subject to partner judgment.", new() { Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(page.GetByText("SUBMITTED", new() { Exact = true })).ToBeVisibleAsync();
+    Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
+  }
+
+  [Fact]
   [Trait("CaseId", "PROP-E2E-04")]
   public async Task AuditProgramAndReviewedFieldworkSurviveReconnectAndFreezeWorkpaper()
   {

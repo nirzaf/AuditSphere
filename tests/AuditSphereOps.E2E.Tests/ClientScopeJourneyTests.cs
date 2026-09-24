@@ -172,7 +172,7 @@ public sealed class ClientScopeJourneyTests
     var staffDiagnostics = new List<string>();
     var staffConnected = WaitForCircuitConnectionAsync(staffPage, staffDiagnostics);
     await staffPage.GotoAsync(SignInUrl(staffOrigin, "/app/consolidation"));
-    await staffPage.GetByRole(AriaRole.Heading, new() { Name = privateGroupName }).WaitForAsync();
+    await staffPage.GetByRole(AriaRole.Heading, new() { Name = $"{privateGroupName} · v1", Exact = true }).WaitForAsync();
     await staffConnected;
     var staffBody = await staffPage.Locator("body").InnerTextAsync();
     Assert.Contains(privateGroupName, staffBody);
