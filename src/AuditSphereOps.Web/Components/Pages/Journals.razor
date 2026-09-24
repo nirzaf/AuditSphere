@@ -9,6 +9,7 @@
 <PageTitle>Adjustment journal</PageTitle>
 <a class="back-link" href="/app">← Back to portfolio</a>
 <h1>Adjustment journal</h1>
+<button class="button-secondary" title="Clear this journal and verify your current client and engagement grants before reloading it." @onclick="RefreshJournalAsync" disabled="@_loading">Refresh journal</button>
 
 @if (_loading)
 {
@@ -132,18 +133,32 @@ else
   private bool _exportBusy;
   private string? _exportStatus;
 
-  protected override async Task OnInitializedAsync()
+  protected override Task OnParametersSetAsync() => RefreshJournalAsync();
+
+  private async Task RefreshJournalAsync()
   {
-    _actor = await ActorResolver.ResolveAsync();
-    if (_actor is not null)
+    _loading = true;
+    _actor = null;
+    _isStaff = false;
+    _canPost = false;
+    _canExport = false;
+    _journal = null;
+    _managementDecision = null;
+    _lines.Clear();
+    _result = null;
+    _successMessage = null;
+    _exportStatus = null;
+    try
     {
-      _isStaff = _actor.Roles.Any(x => x is "Administrator" or "Partner" or "Manager" or "Staff" or "AccountingPreparer" or "AccountingReviewer");
-      if (_isStaff)
+      _actor = await ActorResolver.ResolveAsync();
+      if (_actor is not null)
       {
-        await LoadJournalAsync();
+        _isStaff = _actor.Roles.Any(x => x is "Administrator" or "Partner" or "Manager" or "Staff" or "AccountingPreparer" or "AccountingReviewer");
+        if (_isStaff)
+          await LoadJournalAsync();
       }
     }
-    _loading = false;
+    finally { _loading = false; }
   }
 
   private async Task LoadJournalAsync()
