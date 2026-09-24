@@ -544,6 +544,7 @@ public sealed class ClientScopeJourneyTests
     const string privateEvidenceReference = "SYNTHETIC-PAR-002-UNRELATED-ACCOUNTING-EVIDENCE";
     const string privateDifferenceArea = "SYNTHETIC-PAR-002-UNRELATED-DIFFERENCE";
     const string allowedDifferenceArea = "SYNTHETIC-PAR-002-ASSIGNED-DIFFERENCE";
+    const string stalePeriodCode = "SYN-PAR-002-ACCOUNTING-STALE-CONTEXT";
     await using (var db = host.CreateDbContext())
     {
       db.PracticeClients.Add(new PracticeClient
@@ -572,6 +573,12 @@ public sealed class ClientScopeJourneyTests
       {
         Id = Guid.NewGuid(), FirmId = host.Fixture.FirmId, ClientId = unrelatedClientId,
         PeriodCode = privatePeriodCode, StartDate = new DateOnly(2026, 1, 1), EndDate = new DateOnly(2026, 12, 31),
+        Basis = "STATUTORY", Currency = "QAR", CreatedByUserId = host.Fixture.Staff.Id, CreatedAt = DateTimeOffset.UtcNow
+      });
+      db.ClientReportingPeriods.Add(new ClientReportingPeriod
+      {
+        Id = Guid.NewGuid(), FirmId = host.Fixture.FirmId, ClientId = host.Fixture.ClientId,
+        PeriodCode = stalePeriodCode, StartDate = new DateOnly(2026, 1, 1), EndDate = new DateOnly(2026, 12, 31),
         Basis = "STATUTORY", Currency = "QAR", CreatedByUserId = host.Fixture.Staff.Id, CreatedAt = DateTimeOffset.UtcNow
       });
       db.SpecialistAccountingSchedules.Add(new SpecialistAccountingSchedule
@@ -610,6 +617,7 @@ public sealed class ClientScopeJourneyTests
     var body = await page.Locator("body").InnerTextAsync();
     Assert.DoesNotContain(privateClientName, body);
     Assert.DoesNotContain(privatePeriodCode, body);
+    Assert.Contains(stalePeriodCode, body);
     Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
 
     var evidencePage = await context.NewPageAsync();
@@ -631,6 +639,20 @@ public sealed class ClientScopeJourneyTests
     Assert.Contains(allowedDifferenceArea, recordsBody);
     Assert.DoesNotContain(privateDifferenceArea, recordsBody);
     Assert.DoesNotContain(privateClientName, recordsBody);
+    Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
+
+    await using (var db = host.CreateDbContext())
+    {
+      var revoked = await db.RoleGrants.Where(x => x.UserId == partner.Id && x.Role == "Partner" && x.RevokedAt == null)
+        .ExecuteUpdateAsync(update => update.SetProperty(x => x.RevokedAt, DateTimeOffset.UtcNow));
+      Assert.Equal(2, revoked);
+    }
+
+    await page.GetByRole(AriaRole.Button, new() { Name = "Refresh workspace" }).ClickAsync();
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable" }).WaitForAsync();
+    var revokedWorkspace = await page.Locator("body").InnerTextAsync();
+    Assert.DoesNotContain(stalePeriodCode, revokedWorkspace);
+    Assert.DoesNotContain("1 explicitly granted legal entity", revokedWorkspace);
     Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
   }
 
