@@ -25,6 +25,7 @@ else
   <section class="card" aria-labelledby="prepare-heading">
     <h2 id="prepare-heading">Prepare workpaper</h2>
     <p class="muted"><span class="required-mark">*</span> Required. Amounts and classifications are transcribed from the cited evidence snapshot; confirm them against that source. Historical rate date is required for non-monetary historical-cost items.</p>
+    <p class="muted">Unsubmitted fields are saved in this browser's local storage for this signed-in user and cleared after a confirmed submission. Do not use a shared browser profile for confidential work.</p>
     <div class="form-grid">
       <label>Client period and engagement <span class="required-mark">*</span>
         <select @bind="_contextId" @bind:after="ContextChangedAsync" required title="Only periods and engagements within your current accounting grants are listed.">
@@ -265,9 +266,10 @@ else
           x.Currency, x.ForeignAmount!.Value, x.PriorCarrying!.Value, x.HistoricalRateDate.HasValue ? DateOnly.FromDateTime(x.HistoricalRateDate.Value) : null)).ToArray());
       var result = await CurrencyRemeasurementService.PrepareAsync(db, _actor, request);
       if (!result.Succeeded) { _error = true; _message = $"Blocked: {result.ErrorCode} — {result.Message}"; return; }
+      var saved = await db.CurrencyRemeasurementSchedules.AsNoTracking().SingleAsync(x => x.Id == result.Value && x.FirmId == _actor.FirmId);
       await LoadScheduleAsync(result.Value);
       _history = _history.Where(x => x.Id != result.Value).Prepend(new ScheduleRow(result.Value, context.ClientName,
-        context.PeriodCode, AccountingWorkflowStates.Submitted, DateTimeOffset.UtcNow)).Take(50).ToList();
+        context.PeriodCode, saved.Status, saved.CreatedAt)).Take(50).ToList();
       try { await JS.InvokeVoidAsync("localStorage.removeItem", DraftKey); } catch (JSException) { }
       _draftReady = false;
       _error = false;
