@@ -94,4 +94,100 @@ public sealed class AuditProgramWorkflowTests
     Assert.False(stale.Succeeded);
     Assert.Equal(ErrorCodes.GenerationStale, stale.ErrorCode);
   }
+
+  [Fact(DisplayName = "Library query lists versions, sections and paged procedures with search")]
+  public async Task LibraryQuery_BrowsesVersionsSectionsAndProcedures()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await PlanningSeed.CreateAsync(pg, role: "Partner");
+    var scope = fixture.Primary;
+
+    Guid versionId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var published = await AuditProgramService.PublishAsync(db, scope.Actor,
+        new PublishAuditProgramRequest("2026.1", AuditProgramCatalog.SourceHash));
+      Assert.True(published.Succeeded, published.Message);
+      versionId = published.Value!.ProgramVersionId;
+    }
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var library = await AuditProgramLibraryQuery.GetLibraryAsync(db, scope.Actor);
+      Assert.True(library.Succeeded, library.Message);
+      var selected = library.Value!.SelectedVersion;
+      Assert.NotNull(selected);
+      Assert.Equal("2026.1", selected!.Version);
+      Assert.Equal(165, selected.ProcedureCount);
+      Assert.Equal(20, library.Value.Sections.Count);
+      Assert.All(library.Value.Sections, s => Assert.True(s.ProcedureCount > 0));
+      // Sections are ordered and carry the exact source titles.
+      Assert.Equal(1, library.Value.Sections[0].SectionNumber);
+      Assert.Equal("Planning & Risk Assessment", library.Value.Sections[0].SectionTitle);
+      Assert.Equal(20, library.Value.Sections[^1].SectionNumber);
+
+      var section = await AuditProgramLibraryQuery.GetSectionAsync(db, scope.Actor, versionId, 2);
+      Assert.True(section.Succeeded, section.Message);
+      Assert.Equal("Cash & Bank", section.Value!.SectionTitle);
+      Assert.Equal(8, section.Value.TotalCount);
+      Assert.Equal("AWP-02-01", section.Value.Items[0].SourceProcedureId);
+      Assert.Equal("Obtain bank reconciliation for all bank accounts at year-end.",
+        section.Value.Items[0].SourceWording);
+
+      // Paging is honoured.
+      var firstPage = await AuditProgramLibraryQuery.GetSectionAsync(db, scope.Actor, versionId, 2, pageSize: 3);
+      Assert.Equal(8, firstPage.Value!.TotalCount);
+      Assert.Equal(3, firstPage.Value.Items.Count);
+
+      // Search matches the source id and the exact wording.
+      var byId = await AuditProgramLibraryQuery.GetSectionAsync(db, scope.Actor, versionId, 2, search: "AWP-02-0");
+      Assert.Equal(8, byId.Value!.TotalCount);
+      var byWording = await AuditProgramLibraryQuery.GetSectionAsync(db, scope.Actor, versionId, 2, search: "confirmations");
+      Assert.Equal(1, byWording.Value!.TotalCount);
+      Assert.Equal("AWP-02-04", byWording.Value.Items[0].SourceProcedureId);
+      var noMatch = await AuditProgramLibraryQuery.GetSectionAsync(db, scope.Actor, versionId, 2, search: "zzz-not-present");
+      Assert.Equal(0, noMatch.Value!.TotalCount);
+
+      // Invalid section numbers and page sizes are rejected before any query.
+      var badSection = await AuditProgramLibraryQuery.GetSectionAsync(db, scope.Actor, versionId, 21);
+      Assert.False(badSection.Succeeded);
+      var badPage = await AuditProgramLibraryQuery.GetSectionAsync(db, scope.Actor, versionId, 2, pageSize: 900);
+      Assert.False(badPage.Succeeded);
+    }
+  }
+
+  [Fact(DisplayName = "Library query denies a foreign firm and returns an empty view without versions")]
+  public async Task LibraryQuery_IsFirmScopedAndHandlesNoVersions()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await PlanningSeed.CreateAsync(pg, role: "Partner");
+    var scope = fixture.Primary;
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var empty = await AuditProgramLibraryQuery.GetLibraryAsync(db, scope.Actor);
+      Assert.True(empty.Succeeded, empty.Message);
+      Assert.Empty(empty.Value!.Versions);
+      Assert.Null(empty.Value.SelectedVersion);
+
+      var published = await AuditProgramService.PublishAsync(db, scope.Actor,
+        new PublishAuditProgramRequest("2026.1", AuditProgramCatalog.SourceHash));
+      Assert.True(published.Succeeded, published.Message);
+
+      // A foreign firm's actor is denied outright (fail closed), and cannot read a
+      // version id belonging to another firm.
+      var foreign = new ActorContext(fixture.Other.Actor.UserId, Guid.NewGuid(),
+        fixture.Other.Actor.SessionEpoch, ["Partner"]);
+      var foreignLibrary = await AuditProgramLibraryQuery.GetLibraryAsync(db, foreign);
+      Assert.False(foreignLibrary.Succeeded);
+      Assert.Equal(ErrorCodes.ScopeDenied, foreignLibrary.ErrorCode);
+
+      // An internal actor without a covering grant for the firm is also denied.
+      var ungranted = new ActorContext(scope.Actor.UserId, scope.Actor.FirmId,
+        scope.Actor.SessionEpoch, ["ClientUser"]);
+      var ungrantedLibrary = await AuditProgramLibraryQuery.GetLibraryAsync(db, ungranted);
+      Assert.False(ungrantedLibrary.Succeeded);
+      Assert.Equal(ErrorCodes.ScopeDenied, ungrantedLibrary.ErrorCode);
+    }
+  }
 }
