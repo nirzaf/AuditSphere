@@ -7,6 +7,7 @@ This file records observed repository state only. The authoritative build contra
 - Added a separate append-only `MaterialityApproval` record so an independent, engagement-scoped Manager or Partner can approve a materiality plan without mutating the immutable assessment. The command reauthorizes current scope, rejects self-approval and replay; PostgreSQL enforces one approval per assessment and blocks update/delete. Audit Plan displays the observed approval.
 - PostgreSQL focused regression passed 1/1; the complete Domain test project passed 260/260 with 0 skipped; Release web build passed with 0 warnings/errors; EF reports no pending model changes. `scripts/db/restore-drill.sh` passed for the local source DB's existing 91 migrations through `20260922140527_M365InvitationEvidenceAction`; the new migration remains pending there, while the focused PostgreSQL test applies and verifies the new migration in its isolated schema. No tenant or production effect.
 - This closes only independent approval of materiality planning. Professional aggregate difference evaluation and final reporting determination remain incomplete; they must be human-authored and reviewed, and aggregate completion remains a separate next slice.
+- Commit `c19f4cb73412e876bac2e6b1af1d30a026681464` is pushed to `master` and remote-confirmed. Hosted CI run `35956466558` for this exact source SHA was pending at 2026-09-24T04:39:10Z.
 
 ## Accounting — current approved group report
 
