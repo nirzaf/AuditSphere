@@ -2818,6 +2818,9 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     schedule.Property(x => x.SourceHash).HasMaxLength(64).IsFixedLength();
     schedule.Property(x => x.CompletenessDecision).HasMaxLength(2000);
     schedule.Property(x => x.Status).HasMaxLength(30);
+    schedule.Property(x => x.AcceptedSourceHash).HasMaxLength(64);
+    schedule.HasIndex(x => new { x.FirmId, x.EngagementId, x.AcceptedSourceDecisionId })
+      .HasDatabaseName("ix_audit_schedule_accepted_source");
     schedule.HasIndex(x => new { x.FirmId, x.EngagementId, x.SourceReceiptReference, x.SourceHash }).IsUnique()
       .HasDatabaseName("ux_audit_schedule_source_version");
     schedule.HasIndex(x => new { x.FirmId, x.EngagementId, x.ScheduleType, x.AsOfDate })

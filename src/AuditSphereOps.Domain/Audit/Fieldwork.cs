@@ -17,6 +17,12 @@ public sealed class AuditSchedule
   public string SignConvention { get; set; } = string.Empty;
   public string SourceHash { get; set; } = string.Empty;
   public Guid? SourceImportBatchId { get; set; }
+  /// <summary>The accepted R2R source revision this lead schedule was prepared against
+  /// (a Module 21 source-acceptance decision). Null for a client-supplied schedule not
+  /// tied to an accepted TB/GL revision.</summary>
+  public Guid? AcceptedSourceDecisionId { get; set; }
+  /// <summary>Identity hash of that accepted revision, captured at binding time.</summary>
+  public string AcceptedSourceHash { get; set; } = string.Empty;
   public int RowCount { get; set; }
   public decimal SignedControlTotal { get; set; }
   public decimal GlControlTotal { get; set; }
