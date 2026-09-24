@@ -2,6 +2,12 @@
 
 This file records observed repository state only. The authoritative build contract is [`docs/SPECIFICATION.md`](../SPECIFICATION.md) v5.0. The public repository intentionally excludes tenant identifiers, user principals, credentials, tokens, secret values, and private-provider URLs.
 
+## AC-24 / AS-PAR-002 — exact accounting period revocation refresh
+
+- The period detail now provides a refresh that immediately clears period, PBC and task projections, resolves the current actor, and reauthorizes the exact client before loading the period again. Errors are logged without exposing provider/database details and the old period remains cleared.
+- Existing `AS-PAR-002-ACCT-PERIOD-01` now verifies client-scope denial after same-document navigation and, separately, in-place grant revocation after returning to the authorized period. Revoking both valid/mismatched Partner grants then refreshing hides the prior period and shows Access unavailable. Focused PostgreSQL-backed browser test passed 1/1; full E2E passed 56/56 with 0 skipped in 6m04s; Release solution build passed with 0 warnings/errors; `git diff --check` passed. Commit `94bbb08dd1004bb215fb8c32a3635728e6a1930e` is pushed and remote-confirmed. Hosted run `35997764542` was pending for that SHA as of 2026-09-24T12:14:08Z; no hosted pass is inferred.
+- No schema migration, tenant operation or production effect. The broader AS-PAR-002 review remains partial.
+
 ## AC-24 / AS-PAR-002 — accounting workspace revocation refresh
 
 - The client accounting dashboard now exposes an explicit refresh that wipes its current client, period, task, package and count projections before resolving the actor and current grants again. Revoked or unavailable authorization cannot leave the prior dashboard visible; transient errors return a retryable non-disclosing message.
