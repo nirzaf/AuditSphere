@@ -19,6 +19,11 @@ This file records observed repository state only. The authoritative build contra
 - In the synthetic current-grant revocation journey, the page removes the disposition button as soon as its expected authorization-denied response clears protected state. Playwright sometimes reported the button detached during the click and retried until timeout.
 - The browser test now force-dispatches the already-visible action, then verifies the non-disclosing unavailable state, absent private comment/action, and unchanged `ReviewPoint.Cleared` value. Focused test passed 1/1 and complete PostgreSQL-backed E2E passed 52/52 with 0 skips. No production or tenant effect.
 
+## AS-PAR-002 — Advanced consolidation group-scope route characterization
+
+- Added `AS-PAR-002-ADV-CONSOLIDATION-STALE-ROUTE-01`: an assigned staff actor opens a synthetic advanced-consolidation group scope, navigates within the same browser document to an unauthorized group, and verifies that neither group name nor prior scope ID remains visible.
+- Focused PostgreSQL-backed browser case passed 1/1; full Release E2E project passed 53/53 with 0 skips; unfiltered Release discovery reconciled to 318. No runtime or schema change, tenant operation or production effect.
+
 ## CI locked restore — exact SDK selection
 
 - Run `35920521850` reached restore, then failed with NU1004: SDK-injected `Microsoft.AspNetCore.App.Internal.Assets` requested `10.0.11`, while the lock file records `10.0.8`. Local SDK `10.0.300` evaluates that package to `10.0.8` and restores the existing locks successfully.

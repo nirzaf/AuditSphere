@@ -182,6 +182,77 @@ public sealed class ClientScopeJourneyTests
   }
 
   [Fact]
+  [Trait("CaseId", "AS-PAR-002-ADV-CONSOLIDATION-STALE-ROUTE-01")]
+  public async Task AdvancedConsolidationClearsPriorGroupWhenRouteChangesInPlace()
+  {
+    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false,
+      caseId: "AS-PAR-002-ADV-CONSOLIDATION-STALE-ROUTE-01");
+    var authorizedGroupId = Guid.NewGuid();
+    var authorizedScopeId = Guid.NewGuid();
+    var unauthorizedGroupId = Guid.NewGuid();
+    var unauthorizedScopeId = Guid.NewGuid();
+    const string privateGroupName = "SYN-PAR-002-ADV-GROUP-PRIVATE";
+    const string unauthorizedGroupName = "SYN-PAR-002-ADV-GROUP-UNAUTHORIZED";
+    await using (var db = host.CreateDbContext())
+    {
+      var now = DateTimeOffset.UtcNow;
+      db.ClientGroups.AddRange(
+        new ClientGroup
+        {
+          Id = authorizedGroupId, FirmId = host.Fixture.FirmId, Code = "SYN-PAR-002-ADV-A",
+          Name = privateGroupName, CreatedByUserId = host.Fixture.Admin.Id, CreatedAt = now
+        },
+        new ClientGroup
+        {
+          Id = unauthorizedGroupId, FirmId = host.Fixture.FirmId, Code = "SYN-PAR-002-ADV-B",
+          Name = unauthorizedGroupName, CreatedByUserId = host.Fixture.Admin.Id, CreatedAt = now
+        });
+      db.ConsolidationScopeVersions.AddRange(
+        new ConsolidationScopeVersion
+        {
+          Id = authorizedScopeId, FirmId = host.Fixture.FirmId, GroupId = authorizedGroupId,
+          PeriodId = Guid.NewGuid(), Method = AdvancedConsolidationMethods.AcquisitionNci,
+          ReportingCurrency = "QAR", OpeningBasis = "OPENING-2026", CreatedByUserId = host.Fixture.Admin.Id
+        },
+        new ConsolidationScopeVersion
+        {
+          Id = unauthorizedScopeId, FirmId = host.Fixture.FirmId, GroupId = unauthorizedGroupId,
+          PeriodId = Guid.NewGuid(), Method = AdvancedConsolidationMethods.AcquisitionNci,
+          ReportingCurrency = "QAR", OpeningBasis = "OPENING-2026", CreatedByUserId = host.Fixture.Admin.Id
+        });
+      db.GroupAccessGrants.Add(new GroupAccessGrant
+      {
+        Id = Guid.NewGuid(), FirmId = host.Fixture.FirmId, GroupId = authorizedGroupId,
+        UserId = host.Fixture.Staff.Id, Role = "AccountingPreparer", GrantedAt = now,
+        GrantedByUserId = host.Fixture.Admin.Id
+      });
+      await db.SaveChangesAsync();
+    }
+
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    await using var context = await browser.NewContextAsync();
+    var page = await context.NewPageAsync();
+    var diagnostics = new List<string>();
+    var connected = WaitForCircuitConnectionAsync(page, diagnostics);
+    await page.GotoAsync(SignInUrl(host.StaffUrl, $"/app/consolidation/advanced/{authorizedScopeId:D}"));
+    await page.GetByRole(AriaRole.Heading, new() { Name = privateGroupName }).WaitForAsync();
+    await connected;
+
+    var documentToken = Guid.NewGuid().ToString("N");
+    await page.EvaluateAsync("token => window.__testDocumentToken = token", documentToken);
+    await page.EvaluateAsync("path => { history.pushState({}, '', path); dispatchEvent(new PopStateEvent('popstate')); }",
+      $"/app/consolidation/advanced/{unauthorizedScopeId:D}");
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable" }).WaitForAsync();
+    var body = await page.Locator("body").InnerTextAsync();
+    Assert.DoesNotContain(privateGroupName, body);
+    Assert.DoesNotContain(unauthorizedGroupName, body);
+    Assert.DoesNotContain(authorizedScopeId.ToString("D"), body);
+    Assert.Equal(documentToken, await page.EvaluateAsync<string>("window.__testDocumentToken"));
+    Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
+  }
+
+  [Fact]
   [Trait("CaseId", "AS-PAR-002-FIRM-ADMIN-READ-01")]
   public async Task FirmAdministrationRejectsClientIdentityWithErroneousAdminGrant()
   {
