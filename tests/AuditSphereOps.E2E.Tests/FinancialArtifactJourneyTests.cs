@@ -524,10 +524,12 @@ public sealed class FinancialArtifactJourneyTests
     var diagnostics = new List<string>();
     var connected = WaitForCircuitConnectionAsync(page, diagnostics);
     await page.GotoAsync(SignInUrl(host.StaffUrl, "/app/accounting/mappings"));
+    var prerenderedHeading = await page.QuerySelectorAsync("h1");
     await page.GetByRole(AriaRole.Heading, new() { Name = "COA and accounting mappings" }).WaitForAsync();
     var adjustmentTab = page.Locator("nav[aria-label='Accounting record queues'] a[href='/app/accounting/journals']");
     await adjustmentTab.WaitForAsync();
     await connected;
+    await WaitForInteractiveRenderAsync(page, prerenderedHeading);
     await page.GetByText("Only records in the authenticated client or exact engagement scope are shown.").WaitForAsync();
     var documentToken = await page.EvaluateAsync<string>("""
       () => {
@@ -707,7 +709,7 @@ public sealed class FinancialArtifactJourneyTests
           FinancialPackageReviewDecisions.Approved, FinancialPackageReviewEvidenceModes.SignedIn,
           "synthetic-accounting-review", "Synthetic acceptance fixture."))).Succeeded);
       Assert.True((await FinancialPackageReviewService.RecordAsync(db,
-        PbcSeed.Actor(host.Fixture.Reviewer, "Partner"),
+        PbcSeed.Actor(host.Fixture.Admin, "Partner"),
         new FinancialPackageReviewRequest(packageId, FinancialPackageReviewStages.PartnerApproval,
           FinancialPackageReviewDecisions.Approved, FinancialPackageReviewEvidenceModes.SignedIn,
           "synthetic-partner-review", "Synthetic acceptance fixture."))).Succeeded);
@@ -773,6 +775,14 @@ public sealed class FinancialArtifactJourneyTests
     await using (var db = host.CreateDbContext())
       Assert.Empty(await db.FinancialPackageReviewDecisions.AsNoTracking()
         .Where(x => x.FinancialPackageId == packageId).ToListAsync());
+
+    // Stage sequencing: management approval precedes the independent accounting review.
+    await using (var db = host.CreateDbContext())
+      Assert.True((await FinancialPackageReviewService.RecordAsync(db,
+        PbcSeed.Actor(host.Fixture.Staff, "AccountingPreparer"),
+        new FinancialPackageReviewRequest(packageId, FinancialPackageReviewStages.ManagementApproval,
+          FinancialPackageReviewDecisions.Approved, FinancialPackageReviewEvidenceModes.Offline,
+          "synthetic-management-approval", "Management approved the exact package."))).Succeeded);
 
     var reviewerUrl = await host.StartReviewerWebAsync();
     var reviewerPage = await browser.NewPageAsync();
@@ -1177,6 +1187,14 @@ public sealed class FinancialArtifactJourneyTests
 
   private static string SignInUrl(string origin, string returnUrl) =>
     $"{origin}/auth/sign-in?returnUrl={Uri.EscapeDataString(returnUrl)}";
+
+  private static async Task WaitForInteractiveRenderAsync(IPage page, IElementHandle? prerendered)
+  {
+    if (prerendered is null)
+      throw new InvalidOperationException("The page was served without the expected prerendered content.");
+    await page.WaitForFunctionAsync("element => !element.isConnected", prerendered,
+      new() { PollingInterval = 50, Timeout = 30_000 });
+  }
 
   private static Task WaitForCircuitConnectionAsync(IPage page, List<string> diagnostics)
   {

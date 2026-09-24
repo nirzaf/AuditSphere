@@ -87,14 +87,14 @@ public static class FinancialStatementCalculator
   {
     var parts = new List<string>
     {
-      "financial-supplementary-information.v1", currency,
+      "financial-supplementary-information.v2", currency,
       input.CashBeginning.ToString("0.000000", CultureInfo.InvariantCulture),
       input.CashEnding.ToString("0.000000", CultureInfo.InvariantCulture)
     };
     parts.AddRange(input.CashFlowLines.OrderBy(x => x.Section, StringComparer.OrdinalIgnoreCase)
       .ThenBy(x => x.Description, StringComparer.Ordinal)
       .Select(x => string.Join('|', x.Section.Trim().ToUpperInvariant(), x.Description.Trim(),
-        x.Amount.ToString("0.000000", CultureInfo.InvariantCulture))));
+        x.Amount.ToString("0.000000", CultureInfo.InvariantCulture), x.IsNonCash ? "NONCASH" : "CASH")));
     parts.AddRange(input.Disclosures.OrderBy(x => x.Code, StringComparer.OrdinalIgnoreCase)
       .Select(x => string.Join('|', x.Code.Trim().ToUpperInvariant(),
         x.NotApplicable ? "NA" : x.Response.Trim(), x.Rationale?.Trim() ?? string.Empty)));
@@ -113,6 +113,11 @@ public static class FinancialStatementCalculator
       .Select(x => string.Join('|', "NOTE", x.NoteCode.Trim().ToUpperInvariant(),
         x.FaceDestinationCode.Trim().ToUpperInvariant(), x.Amount.ToString("0.000000", CultureInfo.InvariantCulture),
         x.EvidenceReference.Trim())));
+    parts.AddRange((input.FxCashEffects ?? [])
+      .OrderBy(x => x.CurrencyPair, StringComparer.OrdinalIgnoreCase)
+      .ThenBy(x => x.EvidenceReference, StringComparer.Ordinal)
+      .Select(x => string.Join('|', "FX", x.CurrencyPair.Trim().ToUpperInvariant(),
+        x.Amount.ToString("0.000000", CultureInfo.InvariantCulture), x.EvidenceReference.Trim())));
     if (input.Comparative is { } comparative)
       parts.Add(string.Join('|', "COMPARATIVE", comparative.PackageId.ToString("D"),
         comparative.Basis.Trim(), comparative.EvidenceReference.Trim()));

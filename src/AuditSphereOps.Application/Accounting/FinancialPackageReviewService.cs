@@ -35,6 +35,18 @@ public static class FinancialPackageReviewService
   private static readonly string[] PartnerRoles = ["Partner", "Administrator"];
   private static readonly string[] OfflineManagementRoles = ["AccountingPreparer", "AccountingReviewer", "Manager", "Partner", "Administrator"];
 
+  /// <summary>
+  /// Validation codes that block package decisions when they fail. Codes outside
+  /// this set (for example CASH_FLOW_RECONCILED before supplementary information
+  /// is supplied) record readiness facts and deliberately do not block review.
+  /// </summary>
+  public static readonly string[] BlockingValidationCodes =
+  [
+    "TB_BALANCED", "MAPPING_COMPLETE", "ADJUSTMENTS_REPRODUCIBLE", "PACKAGE_BALANCED",
+    "STATEMENT_CROSS_CAST", "ACCOUNTING_EQUATION", "EQUITY_ROLLFORWARD", "EQUITY_PROFIT",
+    "COMPARATIVE_CONSISTENCY", "NOTE_TO_FACE_TOTALS"
+  ];
+
   public static async Task<CommandResult<Guid>> RecordAsync(
     IClientAccountingDbContext db, ActorContext actor, FinancialPackageReviewRequest request,
     CancellationToken ct = default)
@@ -57,8 +69,34 @@ public static class FinancialPackageReviewService
       .SingleOrDefaultAsync(x => x.Id == request.FinancialPackageId && x.FirmId == actor.FirmId, ct);
     if (package is null)
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+
+    var failedBlocking = (await db.FinancialPackageValidations.AsNoTracking()
+      .Where(x => x.FinancialPackageId == package.Id && !x.Passed && BlockingValidationCodes.Contains(x.Code))
+      .Select(x => x.Code)
+      .Distinct()
+      .ToListAsync(ct));
+    failedBlocking.Sort(StringComparer.Ordinal);
+    if (failedBlocking.Count > 0)
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
+        $"The package has failed blocking validations: {string.Join(", ", failedBlocking)}.");
+
     if (package.Status != AccountingPackageStates.PackageValidated)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The financial package must be validated before review.");
+
+    if (stage is FinancialPackageReviewStages.AccountingReview or FinancialPackageReviewStages.PartnerApproval)
+    {
+      var predecessorStage = stage == FinancialPackageReviewStages.AccountingReview
+        ? FinancialPackageReviewStages.ManagementApproval
+        : FinancialPackageReviewStages.AccountingReview;
+      var predecessorApproved = await db.FinancialPackageReviewDecisions.AsNoTracking().AnyAsync(x =>
+        x.FirmId == package.FirmId && x.FinancialPackageId == package.Id &&
+        x.PackageHash == package.CalculationHash && x.PackageRevision == package.Revision &&
+        x.PackageGeneration == package.Generation && x.Stage == predecessorStage &&
+        x.Decision == FinancialPackageReviewDecisions.Approved, ct);
+      if (!predecessorApproved)
+        return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
+          $"A current approved {predecessorStage} decision is required before {stage}.");
+    }
 
     var (roles, internalOnly) = stage switch
     {
@@ -83,6 +121,18 @@ public static class FinancialPackageReviewService
         artifact.FrameworkVersion != package.Framework || artifact.TemplateVersion != package.TemplateVersion)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
         "A deterministic rendered artifact for the exact package framework/template version is required before review.");
+
+    if (evidenceMode == FinancialPackageReviewEvidenceModes.SignedIn)
+    {
+      var samePersonElsewhere = await db.FinancialPackageReviewDecisions.AsNoTracking().AnyAsync(x =>
+        x.FirmId == package.FirmId && x.FinancialPackageId == package.Id &&
+        x.PackageHash == package.CalculationHash && x.PackageRevision == package.Revision &&
+        x.PackageGeneration == package.Generation && x.Stage != stage &&
+        x.Decision == FinancialPackageReviewDecisions.Approved && x.DecidedByUserId == actor.UserId, ct);
+      if (samePersonElsewhere)
+        return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
+          "The same person cannot record approved decisions at two different stages of one package version.");
+    }
 
     if (await db.FinancialPackageReviewDecisions.AnyAsync(x =>
         x.FirmId == package.FirmId && x.ClientId == package.ClientId && x.EngagementId == package.EngagementId &&
@@ -208,6 +258,8 @@ public static class FinancialPackageReviewService
       g.FirmId == actor.FirmId && g.UserId == actor.UserId && g.RevokedAt == null && AccountingRoles.Contains(g.Role));
     var packages = await db.FinancialPackages.AsNoTracking()
       .Where(x => x.FirmId == actor.FirmId && x.Status == AccountingPackageStates.PackageValidated &&
+        !db.FinancialPackageValidations.Any(v => v.FinancialPackageId == x.Id && !v.Passed &&
+          BlockingValidationCodes.Contains(v.Code)) &&
         userGrants.Any(g =>
           (g.ClientId == null && g.EngagementId == null) ||
           (g.ClientId == x.ClientId && g.EngagementId == null) ||
@@ -271,6 +323,15 @@ public static class FinancialPackageReviewService
       return auth;
     if (package.Status != AccountingPackageStates.PackageValidated)
       return CommandResult.Fail(ErrorCodes.GateBlocked, "The financial package is not currently reviewable.");
+    var failedBlocking = (await db.FinancialPackageValidations.AsNoTracking()
+      .Where(x => x.FinancialPackageId == financialPackageId && !x.Passed && BlockingValidationCodes.Contains(x.Code))
+      .Select(x => x.Code)
+      .Distinct()
+      .ToListAsync(ct));
+    failedBlocking.Sort(StringComparer.Ordinal);
+    if (failedBlocking.Count > 0)
+      return CommandResult.Fail(ErrorCodes.GateBlocked,
+        $"The package has failed blocking validations: {string.Join(", ", failedBlocking)}.");
 
     var requiredStages = requirePartner
       ? new[] { FinancialPackageReviewStages.ManagementApproval, FinancialPackageReviewStages.AccountingReview, FinancialPackageReviewStages.PartnerApproval }

@@ -142,6 +142,72 @@ public static class AdjustmentJournalService
     return CommandResult<Guid>.Ok(journal.Id);
   }
 
+  public static async Task<CommandResult<long>> UpdateDraftAsync(
+    IAuditSphereDbContext db,
+    ActorContext actor,
+    Guid journalId,
+    IReadOnlyList<(string AccountCode, decimal Debit, decimal Credit)> lines,
+    string reason,
+    string evidenceReference,
+    long expectedRevision,
+    CancellationToken ct = default)
+  {
+    if (lines.Count < 2)
+      return CommandResult<long>.Fail(ErrorCodes.Accounting.JournalRejected, "A journal needs at least two lines.");
+
+    var check = CheckLines(lines);
+    if (check is not null)
+      return CommandResult<long>.Fail(ErrorCodes.Accounting.JournalRejected, check);
+
+    if (string.IsNullOrWhiteSpace(reason) || reason.Trim().Length > 4000 ||
+        string.IsNullOrWhiteSpace(evidenceReference) || evidenceReference.Trim().Length > 2000)
+      return CommandResult<long>.Fail(ErrorCodes.Accounting.JournalRejected, "Journal reason and evidence are required.");
+
+    var journal = await db.AdjustmentJournals.SingleOrDefaultAsync(j => j.Id == journalId, ct);
+    if (journal is null)
+      return CommandResult<long>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+
+    var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(journal.FirmId, journal.ClientId, journal.EngagementId, PreparerRoles), ct);
+    if (!auth.Succeeded)
+      return CommandResult<long>.Fail(auth.ErrorCode!, auth.Message!);
+
+    if (journal.Status != "Draft")
+      return CommandResult<long>.Fail(ErrorCodes.ProtectedState, "Only a draft journal can be updated.");
+
+    if (journal.Revision != expectedRevision)
+      return CommandResult<long>.Fail(ErrorCodes.StaleRevision, "The journal revision is outdated.");
+
+    if (db is IAdjustmentJournalDbContext decisionDb &&
+        await decisionDb.AdjustmentJournalManagementDecisions.AnyAsync(x =>
+          x.FirmId == journal.FirmId && x.ClientId == journal.ClientId && x.EngagementId == journal.EngagementId &&
+          x.JournalId == journal.Id && x.JournalRevision == journal.Revision, ct))
+    {
+      return CommandResult<long>.Fail(ErrorCodes.ProtectedState, "A journal with recorded management decisions cannot be mutated in place.");
+    }
+
+    var oldLines = await db.AdjustmentLines.Where(l => l.JournalId == journal.Id).ToListAsync(ct);
+    db.AdjustmentLines.RemoveRange(oldLines);
+
+    foreach (var (code, debit, credit) in lines)
+    {
+      db.AdjustmentLines.Add(new AdjustmentLine
+      {
+        Id = Guid.CreateVersion7(),
+        JournalId = journal.Id,
+        AccountCode = code.Trim(),
+        Debit = MoneyPolicy.Normalize(debit),
+        Credit = MoneyPolicy.Normalize(credit)
+      });
+    }
+
+    journal.Reason = reason.Trim();
+    journal.EvidenceReference = evidenceReference.Trim();
+    journal.Revision++;
+    await db.SaveChangesAsync(ct);
+    return CommandResult<long>.Ok(journal.Revision);
+  }
+
   public static async Task<CommandResult<Guid>> CreateReversalDraftAsync(
     IAuditSphereDbContext db, ActorContext actor, Guid postedJournalId, string journalNumber,
     CancellationToken ct = default)

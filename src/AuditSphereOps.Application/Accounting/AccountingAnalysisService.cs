@@ -22,6 +22,16 @@ public sealed record ReconciliationItemInput(
   string AgingBucket = "", bool? IsCredit = null, DateOnly? SettlementDate = null,
   string SettlementReference = "");
 
+public sealed record ReconciliationProofDto(
+  Guid ReconciliationId,
+  decimal SourceTotal,
+  decimal GlTotal,
+  decimal ItemsSignedTotal,
+  decimal Residual,
+  bool IsReconciled,
+  int ItemCount,
+  string Status);
+
 public sealed record EclAssessmentRequest(
   Guid ReconciliationId, DateOnly AsOfDate, string Method, string MethodologyVersion,
   decimal ProbabilityOfDefault, decimal LossGivenDefault, decimal ManagementOverlay,
@@ -574,6 +584,70 @@ public static class AccountingAnalysisService
         CreatedAt = DateTimeOffset.UtcNow
       });
     }
+    await db.SaveChangesAsync(ct);
+    return CommandResult.Ok();
+  }
+
+  public static async Task<CommandResult<ReconciliationProofDto>> CalculateReconciliationProofAsync(
+    IClientAccountingDbContext db, ActorContext actor, Guid reconciliationId,
+    CancellationToken ct = default)
+  {
+    var reconciliation = await db.AccountingReconciliations.SingleOrDefaultAsync(x => x.Id == reconciliationId && x.FirmId == actor.FirmId, ct);
+    if (reconciliation is null)
+      return CommandResult<ReconciliationProofDto>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, reconciliation.ClientId, reconciliation.EngagementId, PreparerRoles, InternalOnly: true), ct);
+    if (!auth.Succeeded)
+      return CommandResult<ReconciliationProofDto>.Fail(auth.ErrorCode!, auth.Message!);
+
+    var items = await db.AccountingReconciliationItems.AsNoTracking()
+      .Where(x => x.ReconciliationId == reconciliation.Id && x.FirmId == actor.FirmId)
+      .ToListAsync(ct);
+
+    var itemsSum = MoneyPolicy.Normalize(items.Sum(x => x.SignedAmount));
+    var residual = MoneyPolicy.Normalize(reconciliation.GlTotal - reconciliation.SourceTotal - itemsSum);
+
+    reconciliation.Residual = residual;
+    reconciliation.Status = residual == 0m ? "RECONCILED" : "UNRECONCILED";
+    await db.SaveChangesAsync(ct);
+
+    return CommandResult<ReconciliationProofDto>.Ok(new ReconciliationProofDto(
+      reconciliation.Id,
+      reconciliation.SourceTotal,
+      reconciliation.GlTotal,
+      itemsSum,
+      residual,
+      residual == 0m,
+      items.Count,
+      reconciliation.Status));
+  }
+
+  public static async Task<CommandResult> LinkReconciliationCorrectionAsync(
+    IClientAccountingDbContext db, ActorContext actor, Guid reconciliationId,
+    Guid itemId, Guid journalId, CancellationToken ct = default)
+  {
+    var reconciliation = await db.AccountingReconciliations.AsNoTracking().SingleOrDefaultAsync(x => x.Id == reconciliationId && x.FirmId == actor.FirmId, ct);
+    if (reconciliation is null)
+      return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, reconciliation.ClientId, reconciliation.EngagementId, PreparerRoles, InternalOnly: true), ct);
+    if (!auth.Succeeded)
+      return auth;
+
+    var item = await db.AccountingReconciliationItems.SingleOrDefaultAsync(x =>
+      x.Id == itemId && x.ReconciliationId == reconciliation.Id && x.FirmId == actor.FirmId, ct);
+    if (item is null)
+      return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+
+    var journal = await db.AdjustmentJournals.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.Id == journalId && x.FirmId == actor.FirmId && x.ClientId == reconciliation.ClientId &&
+      x.EngagementId == reconciliation.EngagementId, ct);
+    if (journal is null)
+      return CommandResult.Fail(ErrorCodes.ScopeDenied, "The correction journal is outside the reconciliation engagement scope.");
+
+    item.SettlementReference = $"JOURNAL:{journal.JournalNumber}";
+    item.SettlementDate = DateOnly.FromDateTime(DateTime.UtcNow);
+    item.Disposition = "LINKED_JOURNAL";
     await db.SaveChangesAsync(ct);
     return CommandResult.Ok();
   }

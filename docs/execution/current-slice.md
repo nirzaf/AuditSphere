@@ -2,6 +2,16 @@
 
 This file records observed repository state only. The authoritative build contract is [`docs/SPECIFICATION.md`](../SPECIFICATION.md) v5.0. The public repository intentionally excludes tenant identifiers, user principals, credentials, tokens, secret values, and private-provider URLs.
 
+## AC-24 / AS-PAR-002 — journal detail refresh and parameter reauthorization
+
+- Journal detail now clears header, lines, management decision, action controls and prior result messages before resolving the current actor and loading the exact authorized journal. It reruns that flow on route-parameter changes. `AS-PAR-002-JOURNAL-REFRESH-REVOKED-01` revokes active Staff and AccountingPreparer grants while the journal is open and verifies refresh removes journal ID/lines and shows Access unavailable. Focused PostgreSQL-backed browser case passed 1/1; full E2E passed 60/60 with 0 skips; Release solution build passed with 0 warnings/errors; solution discovery returned 327; actionlint and `git diff --check` passed. Commit `2b68e6def6586dd97fed4135c74eaf814f65ab90` is pushed to `master` and remote-confirmed. Hosted run `36004759332` targets this exact SHA and was pending at 2026-09-24T13:18:30Z.
+- No schema migration, tenant operation or production effect. AS-PAR-002 remains partial.
+
+## AC-24 / AS-PAR-002 — mapping detail refresh and parameter reauthorization
+
+- Mapping detail now clears the prior mapping, source rows, allocations, suggestions, impact and comparison projections before reloading, and reruns authorization when the route parameter changes in the same Blazor component. `AS-PAR-002-MAPPING-REFRESH-REVOKED-01` verifies revocation followed by refresh clears the mapping; `MappingPageClearsPriorEngagementWhenRouteChangesToUnauthorizedMapping` verifies same-document scope transition. The two focused cases passed 2/2; full E2E passed 59/59 with 0 skips; Release solution build passed with 0 warnings/errors; local CI discovery returned 326; actionlint and `git diff --check` passed. Commit `9842265b1e39e7bac0d604c47abe79814f922871` is pushed to `master` and remote-confirmed. Hosted run `36003312576` targets this exact SHA and was pending at 2026-09-24T13:05:32Z.
+- No schema migration, tenant operation or production effect. AS-PAR-002 remains partial.
+
 ## AC-24 / AS-PAR-002 — financial package refresh after grant revocation
 
 - The financial statement package page now clears package, statement, cash-flow, disclosure, review and artifact projections before resolving the current actor and rechecking the exact client/engagement grants. A failed refresh leaves prior package data cleared.
@@ -11,7 +21,7 @@ This file records observed repository state only. The authoritative build contra
 ## AC-24 / AS-PAR-002 — accounting record queue refresh after grant revocation
 
 - The shared accounting mappings/journals/differences page now offers a queue refresh; its existing loader clears prior queue rows and actor state before resolving current identity and grants. `AS-PAR-002-ACCT-RECORD-REVOKED-01` revokes active Staff and AccountingPreparer grants while the synthetic journal queue is open, then verifies refresh removes the journal row and shows Access unavailable. Focused PostgreSQL-backed browser test passed 1/1; full E2E passed 58/58 with 0 skips; Release solution build passed with 0 warnings/errors; `git diff --check` passed. Commit `7c5575e877513b7611f1c25370d3bd12a993c79c` is pushed to `master` and remote-confirmed. No schema migration, tenant operation or production effect.
-- Hosted run `35999241668` failed before test execution because discovery found 324 cases while the workflow still expected 323. Fresh local full-solution discovery now finds 325 after the second test was added. The workflow expectation and test documentation are updated to 325 and actionlint passes locally; a corrected hosted run is required. AS-PAR-002 remains partial.
+- Hosted run `35999241668` failed before test execution because discovery found 324 cases while the workflow still expected 323. The expectation and test catalog were subsequently updated first to 325 and then to 326 after the mapping regression was added. A corrected hosted run for commit `9842265b1e39e7bac0d604c47abe79814f922871` is pending; no hosted pass is inferred. AS-PAR-002 remains partial.
 
 ## AC-24 / AS-PAR-002 — exact accounting period revocation refresh
 

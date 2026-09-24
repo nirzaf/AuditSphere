@@ -44,6 +44,14 @@ public sealed record ClientAccountInput(
 public sealed record SourceAccountAliasInput(
   Guid ClientAccountId, string SourceSystem, string AliasCode, string AliasName);
 
+public sealed record ChartAccountViewDto(
+  Guid Id, string StableIdentity, string AccountCode, string AccountName,
+  string AccountType, string NormalBalance, bool IsPosting, Guid? ParentAccountId,
+  string? ParentAccountCode, int ChildCount);
+
+public sealed record ChartRevisionAccountsPage(
+  IReadOnlyList<ChartAccountViewDto> Items, int TotalCount, int Page, int PageSize);
+
 public sealed record AccountingDimensionInput(string DimensionType, string Code, string Name);
 
 public sealed record TaxonomyNodeInput(
@@ -130,6 +138,37 @@ public static class ClientAccountingService
     db.ClientAccountingProfiles.Add(profile);
     await db.SaveChangesAsync(ct);
     return CommandResult<Guid>.Ok(profile.Id);
+  }
+
+  public static async Task<CommandResult<long>> ReviseProfileAsync(
+    IClientAccountingDbContext db, ActorContext actor, Guid profileId, ClientAccountingProfileRequest request,
+    long expectedRevision, CancellationToken ct = default)
+  {
+    var currency = (string.IsNullOrWhiteSpace(request.FunctionalCurrency) ? AccountingDefaults.DefaultCurrency : request.FunctionalCurrency).Trim().ToUpperInvariant();
+    if (request.ClientId == Guid.Empty || currency.Length != 3 || currency.Any(c => c is < 'A' or > 'Z') ||
+        request.FiscalYearStartMonth is < 1 or > 12 || request.FiscalYearStartDay is < 1 or > 31 ||
+        string.IsNullOrWhiteSpace(request.Jurisdiction) || string.IsNullOrWhiteSpace(request.SourceSystem))
+      return CommandResult<long>.Fail(ErrorCodes.Accounting.MappingInvalid, "A valid client accounting profile is required.");
+    var profile = await db.ClientAccountingProfiles.SingleOrDefaultAsync(x => x.Id == profileId && x.FirmId == actor.FirmId, ct);
+    if (profile is null)
+      return CommandResult<long>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    if (profile.ClientId != request.ClientId)
+      return CommandResult<long>.Fail(ErrorCodes.ScopeDenied, "The profile belongs to a different client.");
+    var auth = await AuthorizeClientAsync(db, actor, request.ClientId, PreparerRoles, ct);
+    if (!auth.Succeeded)
+      return CommandResult<long>.Fail(auth.ErrorCode!, auth.Message!);
+    if (profile.Revision != expectedRevision)
+      return CommandResult<long>.Fail(ErrorCodes.StaleRevision, "The profile revision is outdated.");
+
+    profile.Jurisdiction = request.Jurisdiction.Trim();
+    profile.FunctionalCurrency = currency;
+    profile.FiscalYearStartMonth = request.FiscalYearStartMonth;
+    profile.FiscalYearStartDay = request.FiscalYearStartDay;
+    profile.SourceSystem = request.SourceSystem.Trim();
+    profile.SourceSystemIdentifier = request.SourceSystemIdentifier.Trim();
+    profile.Revision++;
+    await db.SaveChangesAsync(ct);
+    return CommandResult<long>.Ok(profile.Revision);
   }
 
   public static async Task<CommandResult<Guid>> CreatePeriodAsync(
@@ -579,6 +618,47 @@ public static class ClientAccountingService
     chart.PublishedAt = DateTimeOffset.UtcNow;
     await db.SaveChangesAsync(ct);
     return CommandResult.Ok();
+  }
+
+  public static async Task<CommandResult<ChartRevisionAccountsPage>> GetChartRevisionAccountsAsync(
+    IClientAccountingDbContext db, ActorContext actor, Guid chartVersionId,
+    int page = 1, int pageSize = 100, CancellationToken ct = default)
+  {
+    if (page < 1 || pageSize is < 1 or > 500)
+      return CommandResult<ChartRevisionAccountsPage>.Fail(ErrorCodes.Accounting.MappingInvalid, "A valid page number and size (1-500) are required.");
+    var chart = await db.ClientChartVersions.AsNoTracking().SingleOrDefaultAsync(x => x.Id == chartVersionId && x.FirmId == actor.FirmId, ct);
+    if (chart is null)
+      return CommandResult<ChartRevisionAccountsPage>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var auth = await AuthorizeClientAsync(db, actor, chart.ClientId, PreparerRoles, ct);
+    if (!auth.Succeeded)
+      return CommandResult<ChartRevisionAccountsPage>.Fail(auth.ErrorCode!, auth.Message!);
+
+    var accountsQuery = db.ClientAccounts.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && x.ClientId == chart.ClientId && x.ChartVersionId == chart.Id);
+    var totalCount = await accountsQuery.CountAsync(ct);
+    var allAccounts = await accountsQuery.ToListAsync(ct);
+    var byId = allAccounts.ToDictionary(x => x.Id);
+    var childCounts = allAccounts.Where(x => x.ParentAccountId.HasValue)
+      .GroupBy(x => x.ParentAccountId!.Value)
+      .ToDictionary(g => g.Key, g => g.Count());
+
+    var skip = (page - 1) * pageSize;
+    var paged = allAccounts.OrderBy(x => x.AccountCode, StringComparer.Ordinal)
+      .Skip(skip).Take(pageSize)
+      .Select(x => new ChartAccountViewDto(
+        x.Id,
+        x.StableIdentity,
+        x.AccountCode,
+        x.AccountName,
+        x.AccountType,
+        x.NormalBalance,
+        x.IsPosting,
+        x.ParentAccountId,
+        x.ParentAccountId.HasValue && byId.TryGetValue(x.ParentAccountId.Value, out var parent) ? parent.AccountCode : null,
+        childCounts.GetValueOrDefault(x.Id, 0)))
+      .ToList();
+
+    return CommandResult<ChartRevisionAccountsPage>.Ok(new ChartRevisionAccountsPage(paged, totalCount, page, pageSize));
   }
 
   public static async Task<CommandResult> AddDimensionDefinitionsAsync(

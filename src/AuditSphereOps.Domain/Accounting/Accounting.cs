@@ -421,7 +421,25 @@ public sealed class FinancialPackageCashFlowLine
   public string Section { get; set; } = string.Empty;
   public string Description { get; set; } = string.Empty;
   public decimal Amount { get; set; }
+  /// <summary>Noncash investing/financing movements are disclosed separately and never enter the cash bridge.</summary>
+  public bool IsNonCash { get; set; }
   public string Currency { get; set; } = string.Empty;
+  public DateTimeOffset CreatedAt { get; set; }
+}
+
+/// <summary>Exchange-rate effect on cash for one package; reconciles cash movements
+/// to the opening/closing cash bridge without being folded into an activity section.</summary>
+public sealed class FinancialPackageFxEffect
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public Guid EngagementId { get; set; }
+  public Guid FinancialPackageId { get; set; }
+  public string CurrencyPair { get; set; } = string.Empty;
+  public decimal Amount { get; set; }
+  public string Currency { get; set; } = string.Empty;
+  public string EvidenceReference { get; set; } = string.Empty;
   public DateTimeOffset CreatedAt { get; set; }
 }
 

@@ -24,7 +24,7 @@ namespace AuditSphereOps.Domain.Tests;
 public sealed class ClientAccountingTests
 {
   private sealed record Scope(Guid FirmId, Guid ClientA, Guid ClientB, Guid EngagementA, Guid EngagementB,
-    AppUser Preparer, AppUser Reviewer);
+    AppUser Preparer, AppUser Reviewer, AppUser Partner);
 
   [Fact]
   [Trait("Profile", "Database")]
@@ -1301,7 +1301,7 @@ public sealed class ClientAccountingTests
     var scope = await SeedAsync(pg);
     var preparer = Actor(scope.Preparer, "AccountingPreparer");
     var reviewer = Actor(scope.Reviewer, "AccountingReviewer");
-    var partner = Actor(scope.Reviewer, "Partner");
+    var partner = Actor(scope.Partner, "Partner");
     Guid periodId, amendmentId;
 
     await using (var db = new AuditSphereDbContext(pg.Options))
@@ -1343,7 +1343,7 @@ public sealed class ClientAccountingTests
     var scope = await SeedAsync(pg);
     var preparer = Actor(scope.Preparer, "AccountingPreparer");
     var reviewer = Actor(scope.Reviewer, "AccountingReviewer");
-    var partner = Actor(scope.Reviewer, "Partner");
+    var partner = Actor(scope.Partner, "Partner");
 
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
@@ -1431,7 +1431,7 @@ public sealed class ClientAccountingTests
     var scope = await SeedAsync(pg);
     var preparer = Actor(scope.Preparer, "AccountingPreparer");
     var reviewer = Actor(scope.Reviewer, "AccountingReviewer");
-    var partner = Actor(scope.Reviewer, "Partner");
+    var partner = Actor(scope.Partner, "Partner");
     Guid packageId, managementDecisionId;
 
     await using (var db = new AuditSphereDbContext(pg.Options))
@@ -1537,7 +1537,7 @@ public sealed class ClientAccountingTests
     var scope = await SeedAsync(pg);
     var preparer = Actor(scope.Preparer, "AccountingPreparer");
     var reviewer = Actor(scope.Reviewer, "AccountingReviewer");
-    var partner = Actor(scope.Reviewer, "Partner");
+    var partner = Actor(scope.Partner, "Partner");
     var manifestBytes = System.Text.Encoding.UTF8.GetBytes("financial-package-release-manifest");
     var manifest = Hashing.Sha256Hex(manifestBytes);
     Guid packageId, candidateId;
@@ -2737,6 +2737,7 @@ public sealed class ClientAccountingTests
       componentQar = (await ConsolidationService.SubmitComponentAsync(db, preparer,
         new ConsolidationComponentRequest(consolidationScopeId, scope.ClientB, scope.EngagementB, packageQar, 100m,
           "CONTROLLED", "STATUTORY", "tax-v1", mappings[packageQar].ToString("D")))).Value;
+      var partner = Actor(scope.Partner, "Partner");
       foreach (var packageId in new[] { packageUsd, packageQar })
       {
         Assert.True((await FinancialPackageReviewService.RecordAsync(db, reviewer,
@@ -2747,7 +2748,7 @@ public sealed class ClientAccountingTests
           new FinancialPackageReviewRequest(packageId, FinancialPackageReviewStages.AccountingReview,
             FinancialPackageReviewDecisions.Approved, FinancialPackageReviewEvidenceModes.SignedIn,
             "fx-accounting", "Accounting reviewed the exact component package."))).Succeeded);
-        Assert.True((await FinancialPackageReviewService.RecordAsync(db, reviewer,
+        Assert.True((await FinancialPackageReviewService.RecordAsync(db, partner,
           new FinancialPackageReviewRequest(packageId, FinancialPackageReviewStages.PartnerApproval,
             FinancialPackageReviewDecisions.Approved, FinancialPackageReviewEvidenceModes.SignedIn,
             "fx-partner", "Partner approved the exact component package."))).Succeeded);
@@ -2930,6 +2931,7 @@ public sealed class ClientAccountingTests
       var missingPackageReview = await ConsolidationService.ApproveComponentAsync(db, reviewer, components[0]);
       Assert.False(missingPackageReview.Succeeded);
       Assert.Equal(ErrorCodes.GateBlocked, missingPackageReview.ErrorCode);
+      var partner = Actor(scope.Partner, "Partner");
       foreach (var packageId in new[] { packageA, packageB })
       {
         Assert.True((await FinancialPackageReviewService.RecordAsync(db, reviewer,
@@ -2940,7 +2942,7 @@ public sealed class ClientAccountingTests
           new FinancialPackageReviewRequest(packageId, FinancialPackageReviewStages.AccountingReview,
             FinancialPackageReviewDecisions.Approved, FinancialPackageReviewEvidenceModes.SignedIn,
             "accounting-review-fixture", "Accounting review fixture."))).Succeeded);
-        Assert.True((await FinancialPackageReviewService.RecordAsync(db, reviewer,
+        Assert.True((await FinancialPackageReviewService.RecordAsync(db, partner,
           new FinancialPackageReviewRequest(packageId, FinancialPackageReviewStages.PartnerApproval,
             FinancialPackageReviewDecisions.Approved, FinancialPackageReviewEvidenceModes.SignedIn,
             "partner-review-fixture", "Partner approval fixture."))).Succeeded);
@@ -3203,6 +3205,7 @@ public sealed class ClientAccountingTests
     var engagementB = Guid.NewGuid();
     var preparer = User(firmId, "preparer");
     var reviewer = User(firmId, "reviewer");
+    var partner = User(firmId, "partner");
     await using var db = new AuditSphereDbContext(pg.Options);
     db.PracticeClients.AddRange(
       new PracticeClient { Id = clientA, FirmId = firmId, LegalName = "CLIENT A", CreatedAt = DateTimeOffset.UtcNow },
@@ -3212,12 +3215,12 @@ public sealed class ClientAccountingTests
       new Engagement { Id = engagementB, FirmId = firmId, PracticeClientId = clientB, ProfessionalWorkBlocked = false, CreatedAt = DateTimeOffset.UtcNow });
     db.FirmSafetyStates.Add(new FirmSafetyState { Id = firmId });
     db.ClientSafetyStates.AddRange(new ClientSafetyState { Id = clientA, FirmId = firmId }, new ClientSafetyState { Id = clientB, FirmId = firmId });
-    db.Users.AddRange(preparer, reviewer);
+    db.Users.AddRange(preparer, reviewer, partner);
     db.RoleGrants.AddRange(
       Grant(firmId, preparer, "AccountingPreparer"), Grant(firmId, reviewer, "AccountingReviewer"),
-      Grant(firmId, reviewer, "Partner"));
+      Grant(firmId, reviewer, "Partner"), Grant(firmId, partner, "Partner"));
     await db.SaveChangesAsync();
-    return new Scope(firmId, clientA, clientB, engagementA, engagementB, preparer, reviewer);
+    return new Scope(firmId, clientA, clientB, engagementA, engagementB, preparer, reviewer, partner);
   }
 
   private static async Task<(Guid PeriodId, Guid BookId)> CreateGlFixtureAsync(

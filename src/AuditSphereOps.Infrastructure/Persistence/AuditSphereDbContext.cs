@@ -91,6 +91,7 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
   public DbSet<FinancialPackageLine> FinancialPackageLines => Set<FinancialPackageLine>();
   public DbSet<FinancialPackageValidation> FinancialPackageValidations => Set<FinancialPackageValidation>();
   public DbSet<FinancialPackageCashFlowLine> FinancialPackageCashFlowLines => Set<FinancialPackageCashFlowLine>();
+  public DbSet<FinancialPackageFxEffect> FinancialPackageFxEffects => Set<FinancialPackageFxEffect>();
   public DbSet<FinancialPackageDisclosure> FinancialPackageDisclosures => Set<FinancialPackageDisclosure>();
   public DbSet<FinancialPackageEquityLine> FinancialPackageEquityLines => Set<FinancialPackageEquityLine>();
   public DbSet<FinancialPackageNoteLine> FinancialPackageNoteLines => Set<FinancialPackageNoteLine>();
@@ -1519,6 +1520,18 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     cashFlow.ToTable("financial_package_cash_flow_lines", t => t.HasCheckConstraint("ck_financial_package_cash_flow_values",
       "section IN ('OPERATING','INVESTING','FINANCING') AND length(trim(description)) > 0 AND currency ~ '^[A-Z]{3}$'"));
     cashFlow.HasOne<FinancialPackage>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.FinancialPackageId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var fxCashEffect = b.Entity<FinancialPackageFxEffect>();
+    fxCashEffect.Property(x => x.CurrencyPair).HasMaxLength(20);
+    fxCashEffect.Property(x => x.Currency).HasMaxLength(3);
+    fxCashEffect.Property(x => x.EvidenceReference).HasMaxLength(2000);
+    fxCashEffect.HasIndex(x => new { x.FirmId, x.FinancialPackageId, x.CurrencyPair, x.EvidenceReference })
+      .HasDatabaseName("ux_financial_package_fx_effect_identity");
+    fxCashEffect.ToTable("financial_package_fx_effects", t => t.HasCheckConstraint("ck_financial_package_fx_effect_values",
+      "length(trim(currency_pair)) > 0 AND length(trim(evidence_reference)) > 0 AND currency ~ '^[A-Z]{3}$'"));
+    fxCashEffect.HasOne<FinancialPackage>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.FinancialPackageId })
       .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
 

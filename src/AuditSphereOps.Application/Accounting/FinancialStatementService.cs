@@ -42,9 +42,12 @@ public sealed record FinancialSupplementaryInformation(
   IReadOnlyList<DisclosureInput> Disclosures,
   IReadOnlyList<EquityLineInput>? EquityLines = null,
   FinancialComparativeInput? Comparative = null,
-  IReadOnlyList<NoteLineInput>? NoteLines = null);
+  IReadOnlyList<NoteLineInput>? NoteLines = null,
+  IReadOnlyList<FxCashEffectInput>? FxCashEffects = null);
 
-public sealed record CashFlowLineInput(string Section, string Description, decimal Amount);
+public sealed record CashFlowLineInput(string Section, string Description, decimal Amount, bool IsNonCash = false);
+
+public sealed record FxCashEffectInput(string CurrencyPair, decimal Amount, string EvidenceReference);
 
 public sealed record DisclosureInput(string Code, string Response, bool NotApplicable = false, string? Rationale = null);
 
@@ -489,8 +492,12 @@ public static class FinancialStatementService
         ? "Assets, liabilities, equity, income, expense and OCI signed totals satisfy the accounting equation."
         : $"The accounting equation has unclassified statement sections: {string.Join(", ", unclassifiedSections)}.");
     var hasSupplementary = request.SupplementaryInformation is not null;
-    AddValidation(db, package, "CASH_FLOW_RECONCILED", hasSupplementary,
-      hasSupplementary ? "Cash-flow lines reconcile to the supplied opening and closing cash." : "Cash-flow workings are not supplied.");
+    var cashBridgeReconciled = request.SupplementaryInformation is { } supplied &&
+      ValidateSupplementaryInformation(supplied) is null;
+    AddValidation(db, package, "CASH_FLOW_RECONCILED", hasSupplementary && cashBridgeReconciled,
+      hasSupplementary
+        ? "Cash movements, FX cash effects and noncash disclosures reconcile to the supplied opening and closing cash."
+        : "Cash-flow workings are not supplied.");
     AddValidation(db, package, "DISCLOSURES_COMPLETE", hasSupplementary,
       hasSupplementary ? "Disclosure responses are present, including rationale for not-applicable items." : "Disclosure responses are not supplied.");
     AddValidation(db, package, "SUPPLEMENTARY_INFORMATION", hasSupplementary,
@@ -566,7 +573,17 @@ public static class FinancialStatementService
           Id = Guid.CreateVersion7(), FirmId = package.FirmId, ClientId = package.ClientId,
           EngagementId = package.EngagementId, FinancialPackageId = package.Id,
           Section = line.Section.Trim().ToUpperInvariant(), Description = line.Description.Trim(),
-          Amount = MoneyPolicy.Normalize(line.Amount), Currency = package.Currency, CreatedAt = package.CreatedAt
+          Amount = MoneyPolicy.Normalize(line.Amount), IsNonCash = line.IsNonCash,
+          Currency = package.Currency, CreatedAt = package.CreatedAt
+        });
+      foreach (var fxEffect in request.SupplementaryInformation.FxCashEffects ?? [])
+        db.FinancialPackageFxEffects.Add(new FinancialPackageFxEffect
+        {
+          Id = Guid.CreateVersion7(), FirmId = package.FirmId, ClientId = package.ClientId,
+          EngagementId = package.EngagementId, FinancialPackageId = package.Id,
+          CurrencyPair = fxEffect.CurrencyPair.Trim().ToUpperInvariant(),
+          Amount = MoneyPolicy.Normalize(fxEffect.Amount), Currency = package.Currency,
+          EvidenceReference = fxEffect.EvidenceReference.Trim(), CreatedAt = package.CreatedAt
         });
       foreach (var disclosure in request.SupplementaryInformation.Disclosures)
         db.FinancialPackageDisclosures.Add(new FinancialPackageDisclosure
@@ -578,6 +595,13 @@ public static class FinancialStatementService
           Rationale = disclosure.NotApplicable ? disclosure.Rationale!.Trim() : null, CreatedAt = package.CreatedAt
         });
     }
+
+    // Fail closed: a package whose blocking validations failed must never carry the
+    // VALIDATED state, so review, management view and release all refuse it.
+    var blockingValidationFailed = db.FinancialPackageValidations.Local
+      .Any(v => !v.Passed && FinancialPackageReviewService.BlockingValidationCodes.Contains(v.Code));
+    if (blockingValidationFailed && package.Status == AccountingPackageStates.PackageValidated)
+      package.Status = AccountingPackageStates.PackageReviewRequired;
 
     try
     {
@@ -1081,6 +1105,15 @@ public static class FinancialStatementService
     if (input.CashFlowLines.Any(x => x.Section.Trim().ToUpperInvariant() is not ("OPERATING" or "INVESTING" or "FINANCING") ||
                                      string.IsNullOrWhiteSpace(x.Description) || x.Description.Trim().Length > 2000))
       return "Each cash-flow line needs an allowed section and description.";
+    if (input.CashFlowLines.Any(x => x.IsNonCash &&
+        !x.Section.Trim().Equals("INVESTING", StringComparison.OrdinalIgnoreCase) &&
+        !x.Section.Trim().Equals("FINANCING", StringComparison.OrdinalIgnoreCase)))
+      return "Only investing or financing movements can be noncash; noncash amounts never enter the cash bridge.";
+    if (input.FxCashEffects is { Count: > 0 } fxEffects &&
+        fxEffects.Any(x => string.IsNullOrWhiteSpace(x.CurrencyPair) || x.CurrencyPair.Trim().Length > 20 ||
+          string.IsNullOrWhiteSpace(x.EvidenceReference) || x.EvidenceReference.Trim().Length > 2000 ||
+          MoneyPolicy.Normalize(x.Amount) != x.Amount))
+      return "Each FX cash effect needs a currency pair, bounded amount and evidence reference.";
     if (input.CashFlowLines.GroupBy(x => x.Section.Trim().ToUpperInvariant() + "\u001f" + x.Description.Trim(), StringComparer.Ordinal).Any(x => x.Count() != 1))
       return "Cash-flow section and description pairs must be unique.";
     if (MoneyPolicy.Normalize(input.CashBeginning) != input.CashBeginning ||
@@ -1118,8 +1151,12 @@ public static class FinancialStatementService
         (comparative.PackageId == Guid.Empty || string.IsNullOrWhiteSpace(comparative.Basis) || string.IsNullOrWhiteSpace(comparative.EvidenceReference)))
       return "A comparative package needs an exact package identity, basis and evidence reference.";
     var expected = MoneyPolicy.Normalize(input.CashEnding - input.CashBeginning);
-    var actual = MoneyPolicy.Normalize(input.CashFlowLines.Sum(x => x.Amount));
-    return expected == actual ? null : $"Cash-flow lines total {actual} but the opening/closing bridge is {expected}.";
+    var cashMovements = MoneyPolicy.Normalize(
+      input.CashFlowLines.Where(x => !x.IsNonCash).Sum(x => x.Amount));
+    var fxTotal = MoneyPolicy.Normalize(input.FxCashEffects?.Sum(x => x.Amount) ?? 0m);
+    return expected == MoneyPolicy.Normalize(cashMovements + fxTotal)
+      ? null
+      : $"Cash-flow lines and FX effects total {MoneyPolicy.Normalize(cashMovements + fxTotal)} but the opening/closing cash bridge is {expected}.";
   }
 
   private static void AddValidation(
