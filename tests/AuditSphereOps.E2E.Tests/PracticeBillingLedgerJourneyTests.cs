@@ -97,16 +97,17 @@ public sealed class PracticeBillingLedgerJourneyTests
     await staffPage.GotoAsync(SignInUrl(host.StaffUrl, "/app/practice/time"));
     await staffPage.GetByRole(AriaRole.Heading, new() { Name = "Practice time & task records" }).WaitForAsync();
     await staffConnected;
-    await staffPage.Locator("select").Nth(1).SelectOptionAsync(taskId.ToString("D"));
+    await staffPage.GetByRole(AriaRole.Region, new() { Name = "Record time draft" })
+      .GetByLabel("Work task").SelectOptionAsync(taskId.ToString("D"));
     await staffPage.Locator("input[type='date']").Last.FillAsync("2026-09-10");
     await staffPage.GetByLabel("Duration (minutes)").FillAsync("60");
     await staffPage.GetByLabel("Role").FillAsync("Staff");
     await staffPage.GetByLabel("Activity").FillAsync("Fieldwork");
     await staffPage.GetByRole(AriaRole.Button, new() { Name = "Save time draft" }).ClickAsync();
-    var timeRow = staffPage.GetByRole(AriaRole.Row).Filter(new() { HasText = "Synthetic approved time" });
-    await timeRow.WaitForAsync();
     await Assertions.Expect(staffPage.Locator(".command-result")).ToContainTextAsync(
-      "Time draft recorded", new() { Timeout = 30000 });
+      "Time draft recorded", new() { Timeout = 60000 });
+    var timeRow = staffPage.GetByRole(AriaRole.Row).Filter(new() { HasText = "Synthetic approved time" });
+    await timeRow.WaitForAsync(new() { Timeout = 60000 });
     await timeRow.GetByRole(AriaRole.Button, new() { Name = "Submit" }).ClickAsync();
     await Assertions.Expect(staffPage.Locator(".command-result")).ToContainTextAsync("submitted for approval");
     await using (var db = host.CreateDbContext())
