@@ -23,6 +23,17 @@ public sealed class MaterialityAssessment
   public DateTimeOffset CreatedAt { get; set; }
 }
 
+public sealed class MaterialityApproval
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public Guid EngagementId { get; set; }
+  public Guid MaterialityAssessmentId { get; set; }
+  public Guid ApprovedByUserId { get; set; }
+  public DateTimeOffset ApprovedAt { get; set; }
+}
+
 public static class MaterialityStatuses
 {
   public const string Draft = "DRAFT";

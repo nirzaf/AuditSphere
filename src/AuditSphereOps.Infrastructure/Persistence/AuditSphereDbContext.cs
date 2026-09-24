@@ -143,6 +143,7 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
   public DbSet<TranslationPolicyVersion> TranslationPolicyVersions => Set<TranslationPolicyVersion>();
   public DbSet<TranslationResult> TranslationResults => Set<TranslationResult>();
   public DbSet<MaterialityAssessment> MaterialityAssessments => Set<MaterialityAssessment>();
+  public DbSet<MaterialityApproval> MaterialityApprovals => Set<MaterialityApproval>();
   public DbSet<AuditRisk> AuditRisks => Set<AuditRisk>();
   public DbSet<AuditProcedure> AuditProcedures => Set<AuditProcedure>();
   public DbSet<PopulationVersion> PopulationVersions => Set<PopulationVersion>();
@@ -2398,6 +2399,19 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
       nameof(MaterialityAssessment.ClientId), nameof(MaterialityAssessment.EngagementId));
     materiality.HasOne<AppUser>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.ActorId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    var materialityApproval = b.Entity<MaterialityApproval>();
+    materialityApproval.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
+      .HasName("AK_materiality_approvals_scope_id");
+    materialityApproval.HasIndex(x => new { x.FirmId, x.MaterialityAssessmentId }).IsUnique()
+      .HasDatabaseName("ux_materiality_approval_assessment");
+    materialityApproval.ToTable("materiality_approvals");
+    ScopeToEngagement(materialityApproval, nameof(MaterialityApproval.FirmId), nameof(MaterialityApproval.ClientId), nameof(MaterialityApproval.EngagementId));
+    materialityApproval.HasOne<MaterialityAssessment>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.MaterialityAssessmentId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    materialityApproval.HasOne<AppUser>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ApprovedByUserId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
 
     var risk = b.Entity<AuditRisk>();

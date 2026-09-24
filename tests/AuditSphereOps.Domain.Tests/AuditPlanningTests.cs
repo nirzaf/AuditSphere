@@ -6,6 +6,7 @@ using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Engagements;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Reviews;
+using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -61,10 +62,58 @@ public sealed class AuditPlanningTests
         Assert.Equal(187_500m, saved.PerformanceMateriality);
         Assert.Equal(12_500m, saved.ClearlyTrivialThreshold);
         Assert.Equal("Related-party transactions elevated", saved.QualitativeConsiderations);
-        Assert.Equal(MaterialityStatuses.Draft, saved.Status);
-    }
+    Assert.Equal(MaterialityStatuses.Draft, saved.Status);
+  }
 
-    // ── NT-21.2 ─────────────────────────────────────────────────────────────
+  [Fact(DisplayName = "Materiality approval requires an independently scoped manager or partner")]
+  public async Task Materiality_ApprovalRequiresIndependentReviewer()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await PlanningSeed.CreateAsync(pg, role: "Senior");
+    await using var ctx = new AuditSphereDbContext(pg.Options);
+    var created = await AuditPlanningService.CreateMaterialityAssessmentAsync(ctx, fixture.Primary.Actor,
+      new CreateMaterialityRequest(fixture.Primary.EngagementId, "Total assets", "AFS-v1", "Stable benchmark",
+        1_000_000m, 0.05m, 50_000m, 37_500m, 2_500m, null));
+    Assert.True(created.Succeeded);
+    var selfApproval = await AuditPlanningService.ApproveMaterialityAssessmentAsync(ctx, fixture.Primary.Actor,
+      created.Value!.AssessmentId);
+    Assert.False(selfApproval.Succeeded);
+    Assert.Equal(ErrorCodes.ScopeDenied, selfApproval.ErrorCode);
+
+    var reviewerId = Guid.NewGuid();
+    ctx.Users.Add(new AppUser
+    {
+      Id = reviewerId, FirmId = fixture.Primary.FirmId, Subject = "materiality-reviewer-" + reviewerId.ToString("N"),
+      TenantId = "tenant-planning", Email = "materiality-reviewer@example.test", DisplayName = "Materiality Reviewer",
+      UserKind = "Staff", SessionEpoch = 1, CreatedAt = DateTimeOffset.UtcNow
+    });
+    ctx.RoleGrants.Add(new RoleGrant
+    {
+      Id = Guid.NewGuid(), FirmId = fixture.Primary.FirmId, UserId = reviewerId, Role = "Partner",
+      ClientId = fixture.Primary.ClientId, EngagementId = fixture.Primary.EngagementId,
+      GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = fixture.Primary.Actor.UserId
+    });
+    await ctx.SaveChangesAsync();
+    var reviewer = new ActorContext(reviewerId, fixture.Primary.FirmId, 1, ["Partner"]);
+    var approved = await AuditPlanningService.ApproveMaterialityAssessmentAsync(ctx, reviewer,
+      created.Value.AssessmentId);
+    Assert.True(approved.Succeeded, approved.Message);
+    var saved = await ctx.MaterialityAssessments.AsNoTracking().SingleAsync(x => x.Id == created.Value.AssessmentId);
+    Assert.Equal(MaterialityStatuses.Draft, saved.Status);
+    var approval = await ctx.MaterialityApprovals.AsNoTracking().SingleAsync(x => x.MaterialityAssessmentId == saved.Id);
+    Assert.Equal(reviewerId, approval.ApprovedByUserId);
+    Assert.NotEqual(Guid.Empty, approval.Id);
+    var replay = await AuditPlanningService.ApproveMaterialityAssessmentAsync(ctx, reviewer, saved.Id);
+    Assert.False(replay.Succeeded);
+    Assert.Equal(ErrorCodes.ProtectedState, replay.ErrorCode);
+    await using var mutationDb = new AuditSphereDbContext(pg.Options);
+    var immutableApproval = await mutationDb.MaterialityApprovals.SingleAsync(x => x.Id == approval.Id);
+    immutableApproval.ApprovedAt = immutableApproval.ApprovedAt.AddSeconds(1);
+    var mutation = await Assert.ThrowsAsync<InvalidOperationException>(() => mutationDb.SaveChangesAsync());
+    Assert.Contains("Materiality approvals are immutable evidence.", mutation.ToString(), StringComparison.Ordinal);
+  }
+
+  // ── NT-21.2 ─────────────────────────────────────────────────────────────
 
     [Theory(DisplayName = "NT-21.2: Inverted materiality thresholds are refused with a stable code")]
     [InlineData(50_000, 60_000, 2_500)]   // performance >= overall

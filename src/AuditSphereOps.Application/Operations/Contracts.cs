@@ -58,6 +58,7 @@ public interface IAuditSphereDbContext : IAsyncDisposable
   DbSet<WorkpaperDraft> WorkpaperDrafts { get; }
   DbSet<WorkpaperSubmission> WorkpaperSubmissions { get; }
   DbSet<MaterialityAssessment> MaterialityAssessments { get; }
+  DbSet<MaterialityApproval> MaterialityApprovals { get; }
   DbSet<PopulationVersion> PopulationVersions { get; }
   DbSet<AuditRisk> AuditRisks { get; }
   DbSet<AuditProcedure> AuditProcedures { get; }

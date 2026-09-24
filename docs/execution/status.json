@@ -57,9 +57,14 @@
     "implementationStatus": "IN_PROGRESS",
     "acceptanceStatus": "LOCAL_VERIFIED",
     "scope": "Local audit workflow, client accounting, scoped client file-request threads/uploads/downloads, GL intake, completeness, package, Office/PDF export, restatement, consolidation, journal-lineage, close-check, package-review and Microsoft 365 onboarding control-plane slices.",
-    "nextAction": "Verify hosted run 35954419644 for exact source SHA 4529b98f4ad09c6b4c8c85715f882f7a05dde77d, then continue the active AuditSphere_Accounting_module.md implementation audit against services, migrations and PostgreSQL/browser evidence. Add a focused browser assertion for the visible group report if a minimal existing fixture supports it. Preserve AS-PAR-002 stale-route/revocation work and AS-PAR-009 commercial pricing/delivery requirements as separate partial work. Keep provider, signing, records, recovery and independent-review gates separate and external until authorized and observed."
+    "nextAction": "Verify hosted run 35954419644 for exact source SHA 4529b98f4ad09c6b4c8c85715f882f7a05dde77d. Continue the AuditSphere_Accounting_module.md implementation audit with the next local gap: human-authored, independently reviewed aggregate difference evaluation and final reporting determination; do not infer conclusions from thresholds or net unrelated errors. Preserve AS-PAR-002 stale-route/revocation work and AS-PAR-009 commercial pricing/delivery requirements as separate partial work. Keep provider, signing, records, recovery and independent-review gates separate and external until authorized and observed."
   },
   "localEvidence": [
+    {
+      "item": "Independent materiality approval",
+      "status": "LOCAL_VERIFIED",
+      "details": "A separate append-only MaterialityApproval records an independently scoped Manager/Partner approval without mutating the immutable materiality assessment. Self-approval and replay are denied; PostgreSQL enforces one approval per assessment and blocks update/delete. The focused PostgreSQL test passed 1/1, the Domain project passed 260/260 with 0 skipped, the Release web build passed with 0 warnings/errors, and EF reports no pending model changes. The restore drill verified the existing local database at 91 migrations through 20260922140527_M365InvitationEvidenceAction; the focused test applied the new migration in its isolated schema. Professional aggregate difference evaluation/final reporting determination remain separate and incomplete. No tenant or production effect."
+    },
     {
       "item": "Approved group report and workpaper separation",
       "status": "LOCAL_VERIFIED",

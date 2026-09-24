@@ -226,6 +226,42 @@ public static class AuditPlanningService
             assessment.ClearlyTrivialThreshold, assessment.Status));
     }
 
+    public static async Task<CommandResult<MaterialityResult>> ApproveMaterialityAssessmentAsync(
+        IAuditSphereDbContext db, ActorContext actor, Guid assessmentId, CancellationToken ct = default)
+    {
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+        var existing = await db.MaterialityAssessments.AsNoTracking().SingleOrDefaultAsync(x =>
+            x.Id == assessmentId && x.FirmId == actor.FirmId, ct);
+        if (existing is null)
+            return CommandResult<MaterialityResult>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+        var scope = await LockedEngagementAsync(db, actor, existing.EngagementId, ct, existing.ClientId);
+        if (scope.Denied is not null)
+            return CommandResult<MaterialityResult>.Fail(scope.Denied, scope.Message);
+        var approval = await AuthorizationDecision.AuthorizeAsync(db, actor,
+            new AuthorizationRequest(actor.FirmId, existing.ClientId, existing.EngagementId,
+                ["Manager", "Partner"], InternalOnly: true), ct);
+        if (!approval.Succeeded)
+            return CommandResult<MaterialityResult>.Fail(approval.ErrorCode!, approval.Message!);
+        if (existing.ActorId == actor.UserId)
+            return CommandResult<MaterialityResult>.Fail(ErrorCodes.ScopeDenied,
+                "The preparer cannot approve the same materiality assessment.");
+        if (existing.Status != MaterialityStatuses.Draft || await db.MaterialityApprovals.AnyAsync(x =>
+            x.FirmId == existing.FirmId && x.MaterialityAssessmentId == existing.Id, ct))
+            return CommandResult<MaterialityResult>.Fail(ErrorCodes.ProtectedState,
+                "Only a draft materiality assessment can be approved.");
+        var approvalRecord = new MaterialityApproval
+        {
+            Id = Guid.CreateVersion7(), FirmId = existing.FirmId, ClientId = existing.ClientId,
+            EngagementId = existing.EngagementId, MaterialityAssessmentId = existing.Id,
+            ApprovedByUserId = actor.UserId, ApprovedAt = DateTimeOffset.UtcNow
+        };
+        db.MaterialityApprovals.Add(approvalRecord);
+        await db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
+        return CommandResult<MaterialityResult>.Ok(new(existing.Id, existing.OverallMateriality,
+            existing.PerformanceMateriality, existing.ClearlyTrivialThreshold, MaterialityStatuses.Approved));
+    }
+
     // ── Risk ────────────────────────────────────────────────────────────────
 
     public static async Task<CommandResult<AuditRiskResult>> CreateAuditRiskAsync(

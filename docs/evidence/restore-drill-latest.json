@@ -1,9 +1,9 @@
 {
   "status": "PASS",
-  "recordedAt": "2026-09-22T18:52:20Z",
+  "recordedAt": "2026-09-24T04:36:24Z",
   "databaseHost": "127.0.0.1",
   "sourceDatabase": "auditsphere",
-  "restoredDatabase": "auditsphere_restore_1790103139_13965",
+  "restoredDatabase": "auditsphere_restore_1790224583_27990",
   "expectedMigrationCount": 91,
   "restoredMigrationCount": 91,
   "expectedLatestMigration": "20260922140527_M365InvitationEvidenceAction",

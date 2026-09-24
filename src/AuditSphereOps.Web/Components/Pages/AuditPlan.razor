@@ -67,8 +67,17 @@ else
                     <dt>Benchmark</dt><dd>@_materiality.BenchmarkSource (@_materiality.BenchmarkVersion)</dd>
                     <dt>Benchmark amount</dt><dd>@_materiality.BenchmarkAmount.ToString("N2") × @_materiality.RateApplied.ToString("P2")</dd>
                     <dt>Rationale</dt><dd>@_materiality.Rationale</dd>
-                    <dt>Status</dt><dd>@_materiality.Status</dd>
+                    <dt>Status</dt><dd>@(_materialityApproval is null ? _materiality.Status : MaterialityStatuses.Approved)</dd>
                 </dl>
+                @if (_materialityApproval is null && _actor is not null &&
+                    _materiality.ActorId != _actor.UserId && _actor.Roles.Any(x => x is "Manager" or "Partner"))
+                {
+                    <button class="btn-small" title="Approve this exact assessment as an independent reviewer" @onclick="ApproveMaterialityAsync" disabled="@_busy">Approve materiality</button>
+                }
+                @if (_materialityApproval is not null)
+                {
+                    <p class="muted">Approved by @_materialityApproval.ApprovedByUserId at @_materialityApproval.ApprovedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm").</p>
+                }
                 @if (_materiality.QualitativeConsiderations is not null)
                 {
                     <p class="info-text">Qualitative considerations: @_materiality.QualitativeConsiderations</p>
@@ -332,6 +341,7 @@ else
 
     Engagement? _engagement;
     MaterialityAssessment? _materiality;
+    MaterialityApproval? _materialityApproval;
     List<AuditRisk> _risks = [];
     List<PopulationVersion> _populations = [];
     List<FindingRecord> _findings = [];
@@ -419,6 +429,8 @@ else
             .Where(m => m.FirmId == engagement.FirmId && m.EngagementId == engagement.Id)
             .OrderByDescending(m => m.CreatedAt)
             .FirstOrDefaultAsync();
+        var materialityApproval = materiality is null ? null : await db.MaterialityApprovals.AsNoTracking()
+            .SingleOrDefaultAsync(x => x.FirmId == engagement.FirmId && x.MaterialityAssessmentId == materiality.Id);
 
         var risks = await db.AuditRisks.AsNoTracking()
             .Where(r => r.FirmId == engagement.FirmId && r.EngagementId == engagement.Id)
@@ -443,6 +455,7 @@ else
         if (generation != _loadGeneration) return;
         _isStaff = true;
         _engagement = engagement;
+        _materialityApproval = materialityApproval;
         _status = engagement.ProfessionalWorkBlocked ? "PLANNING_BLOCKED" : "PLANNING_ACTIVE";
         _materiality = materiality;
         _risks = risks;
@@ -501,6 +514,25 @@ else
             ApplyCommandResult(created.Succeeded ? CommandResult.Ok() : CommandResult.Fail(created.ErrorCode!, created.Message ?? "The command was refused."),
                 "The materiality assessment was recorded as a draft.");
             if (created.Succeeded) await RefreshAsync(generation);
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task ApproveMaterialityAsync()
+    {
+        var actor = _actor;
+        var assessment = _materiality;
+        var generation = _loadGeneration;
+        if (actor is null || assessment is null || _busy) return;
+        _busy = true;
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var result = await AuditPlanningService.ApproveMaterialityAssessmentAsync(db, actor, assessment.Id);
+            if (generation != _loadGeneration) return;
+            ApplyCommandResult(result.Succeeded ? CommandResult.Ok() : CommandResult.Fail(result.ErrorCode!, result.Message ?? "The command was refused."),
+                "The materiality assessment was independently approved.");
+            if (result.Succeeded) await RefreshAsync(generation);
         }
         finally { _busy = false; }
     }

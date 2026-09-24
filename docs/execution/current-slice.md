@@ -2,6 +2,12 @@
 
 This file records observed repository state only. The authoritative build contract is [`docs/SPECIFICATION.md`](../SPECIFICATION.md) v5.0. The public repository intentionally excludes tenant identifiers, user principals, credentials, tokens, secret values, and private-provider URLs.
 
+## Accounting — independent materiality approval
+
+- Added a separate append-only `MaterialityApproval` record so an independent, engagement-scoped Manager or Partner can approve a materiality plan without mutating the immutable assessment. The command reauthorizes current scope, rejects self-approval and replay; PostgreSQL enforces one approval per assessment and blocks update/delete. Audit Plan displays the observed approval.
+- PostgreSQL focused regression passed 1/1; the complete Domain test project passed 260/260 with 0 skipped; Release web build passed with 0 warnings/errors; EF reports no pending model changes. `scripts/db/restore-drill.sh` passed for the local source DB's existing 91 migrations through `20260922140527_M365InvitationEvidenceAction`; the new migration remains pending there, while the focused PostgreSQL test applies and verifies the new migration in its isolated schema. No tenant or production effect.
+- This closes only independent approval of materiality planning. Professional aggregate difference evaluation and final reporting determination remain incomplete; they must be human-authored and reviewed, and aggregate completion remains a separate next slice.
+
 ## Accounting — current approved group report
 
 - The consolidation workbench now displays the latest approved report as component/taxonomy totals split into component, alignment, elimination and consolidated amounts. The service revalidates the run’s current input manifest before returning amounts; stale approvals show no lines. The report is authorized at group scope and does not expose source-package artifacts to a group-only reviewer.
