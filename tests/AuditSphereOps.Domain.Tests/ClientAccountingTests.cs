@@ -136,6 +136,9 @@ public sealed class ClientAccountingTests
       var savedItem = await db.AccountingReconciliationItems.SingleAsync(x => x.ReconciliationId == reconciliationId);
       Assert.Equal("QAR", savedItem.Currency);
       Assert.Equal(1, savedItem.AgeDays);
+      var offsetItem = await AccountingAnalysisService.AddReconciliationItemsAsync(db, preparer, reconciliationId,
+        [new("ITEM-QAR-OFFSET", -10m, "qar", new DateOnly(2026, 12, 30), "timing", "receipt-qar-offset", "OPEN")]);
+      Assert.True(offsetItem.Succeeded, offsetItem.Message);
       transactionId = await db.GeneralLedgerTransactions.Where(x => x.ImportBatchId == batchId).Select(x => x.Id).SingleAsync();
       eclId = (await AccountingAnalysisService.CreateEclAssessmentAsync(db, preparer,
         new EclAssessmentRequest(reconciliationId, new DateOnly(2026, 12, 31), "PROVISION_MATRIX_V1", "ecl-v1", .1m, .5m, 2m, 7m, new string('c', 64)))).Value;
@@ -1270,7 +1273,8 @@ public sealed class ClientAccountingTests
 
       var created = await ClientAccountingService.CreatePeriodRestatementAsync(db, preparer,
         new CreatePeriodRestatementRequest(scope.ClientA, periodId, originalPackageId, revisedPackageId,
-          "IAS 8", "Prior-period error identified", "restatement-evidence"));
+          "IAS 8", "Prior-period error identified", "restatement-evidence",
+          PeriodRestatementChangeTypes.RestatedError, "FY2026"));
       Assert.True(created.Succeeded, created.Message);
 
       var selfApproval = await ClientAccountingService.ApprovePeriodRestatementAsync(db, preparer, created.Value);

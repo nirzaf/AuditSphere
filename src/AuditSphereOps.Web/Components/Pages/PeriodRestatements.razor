@@ -29,6 +29,14 @@ else
       <label>Original package<select @bind="_selectedOriginalPackageId" required title="Choose the original validated package version."><option value="">Select package</option>@foreach (var package in _packages) { <option value="@package.Id">@package.Label</option> }</select></label>
       <label>Revised package<select @bind="_selectedRevisedPackageId" required title="Choose the revised validated package version; it must differ from the original."><option value="">Select package</option>@foreach (var package in _packages) { <option value="@package.Id">@package.Label</option> }</select></label>
       <label>Revised basis<input @bind="_revisedBasis" maxlength="200" required /></label>
+      <label>Change type<select @bind="_changeType" required title="Supported IAS 8 treatment; estimate changes use prospective treatment and never silently restate prior periods.">
+        <option value="">Select change type</option>
+        <option value="@PeriodRestatementChangeTypes.Reclassified">Reclassified presentation</option>
+        <option value="@PeriodRestatementChangeTypes.RestatedError">Prior-period error restated</option>
+        <option value="@PeriodRestatementChangeTypes.PolicyTransition">Accounting policy transition</option>
+        <option value="@PeriodRestatementChangeTypes.ProspectiveEstimateChange">Prospective estimate change</option>
+      </select></label>
+      <label>Affected periods (comma-separated codes)<input @bind="_affectedPeriods" maxlength="500" title="Period codes the approved treatment affects; required for prospective estimate changes." /></label>
       <label>Evidence reference<input @bind="_evidenceReference" maxlength="2000" required /></label>
     </div>
     <label>Reason<textarea @bind="_reason" maxlength="4000" rows="3" required></textarea></label>
@@ -100,6 +108,8 @@ else
   private string _selectedOriginalPackageId = string.Empty;
   private string _selectedRevisedPackageId = string.Empty;
   private string _revisedBasis = string.Empty;
+  private string _changeType = string.Empty;
+  private string _affectedPeriods = string.Empty;
   private string _reason = string.Empty;
   private string _evidenceReference = string.Empty;
   private CommandResult? _result;
@@ -213,7 +223,8 @@ else
     {
       await using var db = await DbFactory.CreateDbContextAsync();
       var created = await ClientAccountingService.CreatePeriodRestatementAsync(db, _actor,
-        new CreatePeriodRestatementRequest(clientId, periodId, originalId, revisedId, _revisedBasis, _reason, _evidenceReference));
+        new CreatePeriodRestatementRequest(clientId, periodId, originalId, revisedId, _revisedBasis, _reason,
+          _evidenceReference, _changeType, _affectedPeriods));
       if (created.Succeeded)
       {
         _result = CommandResult.Ok();
