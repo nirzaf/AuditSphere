@@ -2,6 +2,12 @@
 
 This file records observed repository state only. The authoritative build contract is [`docs/SPECIFICATION.md`](../SPECIFICATION.md) v5.0. The public repository intentionally excludes tenant identifiers, user principals, credentials, tokens, secret values, and private-provider URLs.
 
+## AS-PAR-002 — accounting evidence queue revocation refresh
+
+- The accounting evidence queue now offers a manual refresh that immediately clears the previous rows, re-resolves the actor, rechecks current internal role grants, and reloads only the resulting scope. Revocation and connection errors leave no stale evidence visible; refresh failures show a retryable, non-disclosing message.
+- The PostgreSQL-backed Playwright journey `AS-PAR-002-ACCT-QUEUE-01` verifies the assigned user sees the synthetic evidence, an unrelated client cannot see it, and revoking the assigned grant while the page remains open causes refresh to clear it and show Access unavailable. Focused case passed 1/1; full E2E suite passed 56/56 with 0 skipped in 6m03s; Release solution build passed with 0 warnings/errors; `git diff --check` passed. Hosted run `35994986488` is pending on exact pushed SHA `e27f7bceddc15e71ea2632e8ebd88b3f116e631e`; predecessor run `35992006745` was still running its unfiltered suite at the last check. No hosted result is inferred.
+- This is one route-level slice only. AS-PAR-002 remains partial pending the remaining route/query/search/count/export/direct-command and already-rendered-content audit. No schema migration, tenant operation or production effect.
+
 ## Accounting — preserve foreign-currency amounts in GL imports
 
 - Direct and chunked GL ingestion now preserve each line's normalized original currency, original amount and functional amount rather than forcing the period currency into every source line. Both paths use the same transaction validation; signed functional postings must match debit/credit, same-currency amounts must agree, and normalized source fields participate in the idempotency digest.
