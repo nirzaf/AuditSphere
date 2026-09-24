@@ -917,6 +917,57 @@ public sealed class FinancialArtifactJourneyTests
     Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
   }
 
+  [Fact]
+  [Trait("CaseId", "AS-PAR-002-MAPPING-REFRESH-REVOKED-01")]
+  public async Task RefreshClearsPreviouslyAuthorizedMappingAfterGrantRevocation()
+  {
+    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false,
+      caseId: "AS-PAR-002-MAPPING-REFRESH-REVOKED-01");
+    var (packageId, _) = await CreatePackageAsync(host);
+    Guid mappingId;
+    await using (var db = host.CreateDbContext())
+      mappingId = await db.FinancialPackages.AsNoTracking().Where(x => x.Id == packageId)
+        .Select(x => x.MappingVersionId).SingleAsync();
+
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    var page = await browser.NewPageAsync();
+    var diagnostics = new List<string>();
+    var connected = WaitForCircuitConnectionAsync(page, diagnostics);
+    await page.GotoAsync(SignInUrl(host.StaffUrl, $"/app/accounting/mappings/{mappingId:D}"));
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Current and prior allocation comparison" }).WaitForAsync();
+    await connected;
+
+    await using (var db = host.CreateDbContext())
+    {
+      var grants = await db.RoleGrants.Where(x => x.FirmId == host.Fixture.FirmId &&
+        x.UserId == host.Fixture.Staff.Id && x.RevokedAt == null &&
+        (x.Role == "Staff" || x.Role == "AccountingPreparer")).ToListAsync();
+      Assert.NotEmpty(grants);
+      foreach (var grant in grants)
+      {
+        var revoked = await RoleAdministrationService.RevokeRoleGrantAsync(db,
+          PbcSeed.Actor(host.Fixture.Admin, "Administrator"), new RevokeRoleGrantRequest(grant.Id));
+        Assert.True(revoked.Succeeded, revoked.Message);
+      }
+    }
+
+    await page.GetByRole(AriaRole.Button, new() { Name = "Refresh mapping" }).ClickAsync();
+    try
+    {
+      await page.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable" }).WaitForAsync(new() { Timeout = 5_000 });
+    }
+    catch (TimeoutException)
+    {
+      throw new Xunit.Sdk.XunitException($"Refresh did not render the unavailable mapping state.\n{await page.Locator("body").InnerTextAsync()}\n{string.Join("\n", diagnostics)}");
+    }
+    var body = await page.Locator("body").InnerTextAsync();
+    Assert.DoesNotContain(mappingId.ToString("D"), body);
+    Assert.DoesNotContain("Current and prior allocation comparison", body);
+    Assert.DoesNotContain("Unmapped source accounts", body);
+    Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
+  }
+
   internal static async Task<(Guid PackageId, Dictionary<string, (byte[] Bytes, string Sha256)> Expected)> CreatePackageAsync(
     OwnedBlazorHost host)
   {

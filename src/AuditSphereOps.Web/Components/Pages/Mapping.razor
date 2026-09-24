@@ -8,6 +8,7 @@
 <PageTitle>Accounting mapping</PageTitle>
 <a class="back-link" href="/app">← Back to portfolio</a>
 <h1>Accounting mapping</h1>
+<button class="button-secondary" title="Clear this mapping and verify your current client and engagement grants before reloading it." @onclick="LoadMappingAsync" disabled="@_loading">Refresh mapping</button>
 
 @if (_loading)
 {
@@ -226,7 +227,30 @@ else
   private bool _busy;
   private bool IsStaff => _actor is not null && _actor.Roles.Any(x => x is "Administrator" or "Partner" or "Manager" or "Reviewer" or "Staff" or "AccountingPreparer" or "AccountingReviewer");
 
-  protected override async Task OnInitializedAsync()
+  protected override Task OnParametersSetAsync() => LoadMappingAsync();
+
+  private async Task LoadMappingAsync()
+  {
+    _loading = true;
+    _actor = null;
+    _mapping = null;
+    _priorMapping = null;
+    _taxonomy = null;
+    _chart = null;
+    _allocations.Clear();
+    _sourceAccounts.Clear();
+    _unmappedAccounts.Clear();
+    _splitAccounts.Clear();
+    _suggestions.Clear();
+    _reportImpacts.Clear();
+    _comparison.Clear();
+    _priorAllocationCount = 0;
+    _result = null;
+    try { await LoadMappingCoreAsync(); }
+    finally { _loading = false; }
+  }
+
+  private async Task LoadMappingCoreAsync()
   {
     _actor = await ActorResolver.ResolveAsync();
     if (_actor is not null && IsStaff)
@@ -241,7 +265,6 @@ else
             ["Administrator", "Partner", "Manager", "AccountingPreparer", "AccountingReviewer"], InternalOnly: true));
         if (!authorization.Succeeded)
         {
-          _loading = false;
           return;
         }
         _mapping = candidate;
@@ -309,7 +332,6 @@ else
         }
       }
     }
-    _loading = false;
   }
 
   private sealed record SourceRow(string AccountCode, string AccountName, decimal Amount, string Currency);
