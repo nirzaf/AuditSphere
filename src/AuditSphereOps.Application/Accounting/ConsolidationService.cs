@@ -275,7 +275,7 @@ public static class ConsolidationService
         x.SourcePackageHash ?? string.Empty, x.RateDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? string.Empty,
         x.RateType, x.AppliedRate?.ToString("0.000000", CultureInfo.InvariantCulture) ?? string.Empty,
         x.FromCurrency, x.ToCurrency, x.TranslatedAmount.ToString("0.000000", CultureInfo.InvariantCulture),
-        x.TranslationReserve.ToString("0.000000", CultureInfo.InvariantCulture)))));
+        x.CalculationVersion, x.TranslationReserve.ToString("0.000000", CultureInfo.InvariantCulture)))));
 
       var priorJournals = await db.ConsolidationJournals.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&
         x.GroupId == request.GroupId && x.ScopeVersionId == priorScope.Id && x.Status == AccountingWorkflowStates.Approved)
@@ -724,7 +724,8 @@ public static class ConsolidationService
         var translations = await db.TranslationResults.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.GroupId == scope.GroupId &&
           x.ScopeVersionId == scope.Id && x.RateSetVersionId == scope.ExchangeRateSetVersionId &&
           x.TranslationPolicyVersionId == scope.TranslationPolicyVersionId && x.RateDate == scope.TranslationRateDate &&
-          x.RateType == scope.TranslationRateType && x.Status == AccountingWorkflowStates.Approved).ToListAsync(ct);
+          x.RateType == scope.TranslationRateType && x.Status == AccountingWorkflowStates.Approved &&
+          x.CalculationVersion == TranslationCalculationVersions.ComponentTranslationV2).ToListAsync(ct);
         if (components.Any(x => (x.Currency != scope.ReportingCurrency &&
             (x.Currency != policy.FunctionalCurrency || translations.All(t => t.ComponentId != x.Id || t.SourcePackageHash != x.PackageHash))) ||
           (x.Currency == scope.ReportingCurrency && x.Currency != policy.PresentationCurrency)))
@@ -1333,7 +1334,8 @@ public static class ConsolidationService
       translationResults = await db.TranslationResults.AsNoTracking().Where(x => x.FirmId == firmId && x.GroupId == scope.GroupId &&
         x.ScopeVersionId == scope.Id && x.RateSetVersionId == scope.ExchangeRateSetVersionId &&
         x.TranslationPolicyVersionId == scope.TranslationPolicyVersionId && x.RateDate == scope.TranslationRateDate &&
-        x.RateType == scope.TranslationRateType && x.Status == AccountingWorkflowStates.Approved).ToListAsync(ct);
+        x.RateType == scope.TranslationRateType && x.Status == AccountingWorkflowStates.Approved &&
+        x.CalculationVersion == TranslationCalculationVersions.ComponentTranslationV2).ToListAsync(ct);
     }
     var packageLines = await db.FinancialPackageLines.AsNoTracking().Where(x => x.FirmId == firmId &&
       packageIds.Contains(x.FinancialPackageId)).ToListAsync(ct);

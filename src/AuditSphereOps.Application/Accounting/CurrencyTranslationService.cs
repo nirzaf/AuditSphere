@@ -18,6 +18,12 @@ public static class ExchangeRateDirections
   public const string Direct = "DIRECT";
 }
 
+public static class TranslationCalculationVersions
+{
+  public const string ComponentTranslationV1 = "COMPONENT_TRANSLATION_V1";
+  public const string ComponentTranslationV2 = "COMPONENT_TRANSLATION_V2";
+}
+
 public static class TranslationPolicyRules
 {
   public static bool AllowsRateType(TranslationPolicyVersion policy, string rateType)
@@ -223,7 +229,8 @@ public static class CurrencyTranslationService
       return CommandResult<Guid>.Fail(ErrorCodes.GenerationStale, "The component source changed; rebuild the translation input.");
     var sourceHash = component.PackageHash;
     var existing = await db.TranslationResults.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId &&
-      x.ComponentId == component.Id && x.RateSetVersionId == set.Id && x.TranslationPolicyVersionId == policy.Id, ct);
+      x.ComponentId == component.Id && x.RateSetVersionId == set.Id && x.TranslationPolicyVersionId == policy.Id &&
+      x.CalculationVersion == TranslationCalculationVersions.ComponentTranslationV2, ct);
     if (existing is not null)
     {
       if (existing.SourcePackageHash == sourceHash && existing.RateDate == rateDate && existing.RateType == normalizedRateType &&
@@ -237,14 +244,14 @@ public static class CurrencyTranslationService
       : externalLines.Sum(x => x.Amount);
     var translated = CurrencyTranslationCalculator.Translate(componentAmount, component.Currency, scope.ReportingCurrency, rate);
     var roundingAdjustment = MoneyPolicy.Normalize(translated - componentAmount * rate);
-    var foreignExchangeAdjustment = MoneyPolicy.Normalize(translated - componentAmount - roundingAdjustment);
     var result = new TranslationResult
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, GroupId = component.GroupId, ScopeVersionId = component.ScopeVersionId,
       ComponentId = component.Id, RateSetVersionId = set.Id, TranslationPolicyVersionId = policy.Id,
+      CalculationVersion = TranslationCalculationVersions.ComponentTranslationV2,
       SourcePackageHash = sourceHash, RateDate = rateDate, RateType = normalizedRateType, AppliedRate = rate,
       FromCurrency = component.Currency, ToCurrency = scope.ReportingCurrency, TranslatedAmount = translated,
-      ForeignExchangeAdjustment = foreignExchangeAdjustment, RoundingAdjustment = roundingAdjustment,
+      ForeignExchangeAdjustment = 0m, RoundingAdjustment = roundingAdjustment,
       TranslationReserve = 0m, Status = AccountingWorkflowStates.Submitted, CreatedByUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
     };
     db.TranslationResults.Add(result);
@@ -261,7 +268,8 @@ public static class CurrencyTranslationService
     var auth = await GroupAuthAsync(db, actor, result.GroupId, ReviewerRoles, ct);
     if (!auth.Succeeded)
       return auth;
-    if (result.Status != AccountingWorkflowStates.Submitted || result.CreatedByUserId == actor.UserId || result.RateDate is null ||
+    if (result.CalculationVersion != TranslationCalculationVersions.ComponentTranslationV2 ||
+        result.Status != AccountingWorkflowStates.Submitted || result.CreatedByUserId == actor.UserId || result.RateDate is null ||
         result.AppliedRate is not > 0m || string.IsNullOrWhiteSpace(result.SourcePackageHash) || string.IsNullOrWhiteSpace(result.RateType))
       return CommandResult.Fail(ErrorCodes.GateBlocked, "Only a complete translation prepared by another user can be approved.");
     var component = await db.ConsolidationComponents.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId &&
@@ -311,7 +319,7 @@ public static class CurrencyTranslationService
       : externalLines.Sum(x => x.Amount);
     var expectedTranslated = CurrencyTranslationCalculator.Translate(total, result.FromCurrency, result.ToCurrency, result.AppliedRate.Value);
     var expectedRounding = MoneyPolicy.Normalize(expectedTranslated - total * result.AppliedRate.Value);
-    var expectedForeignExchange = MoneyPolicy.Normalize(expectedTranslated - total - expectedRounding);
+    const decimal expectedForeignExchange = 0m;
     if (expectedTranslated != result.TranslatedAmount || expectedRounding != result.RoundingAdjustment ||
         expectedForeignExchange != result.ForeignExchangeAdjustment)
       return CommandResult.Fail(ErrorCodes.GenerationStale, "The translation result no longer matches the package lines.");

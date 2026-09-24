@@ -2360,11 +2360,12 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
 
     var translation = b.Entity<TranslationResult>();
     translation.Property(x => x.SourcePackageHash).HasMaxLength(64);
+    translation.Property(x => x.CalculationVersion).HasMaxLength(40);
     translation.Property(x => x.RateType).HasMaxLength(30);
     translation.Property(x => x.FromCurrency).HasMaxLength(3);
     translation.Property(x => x.ToCurrency).HasMaxLength(3);
     translation.Property(x => x.Status).HasMaxLength(30);
-    translation.HasIndex(x => new { x.FirmId, x.ScopeVersionId, x.ComponentId, x.RateSetVersionId, x.TranslationPolicyVersionId }).IsUnique()
+    translation.HasIndex(x => new { x.FirmId, x.ScopeVersionId, x.ComponentId, x.RateSetVersionId, x.TranslationPolicyVersionId, x.CalculationVersion }).IsUnique()
       .HasDatabaseName("ux_translation_result_input");
     translation.ToTable("translation_results", t => t.HasCheckConstraint("ck_translation_result_values",
       "from_currency ~ '^[A-Z]{3}$' AND to_currency ~ '^[A-Z]{3}$'"));

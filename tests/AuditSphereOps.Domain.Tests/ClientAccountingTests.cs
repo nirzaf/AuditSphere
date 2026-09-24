@@ -2527,7 +2527,7 @@ public sealed class ClientAccountingTests
       await db.SaveChangesAsync();
     }
 
-    Guid componentUsd, componentQar, translationId;
+    Guid componentUsd, componentQar, translationId, legacyTranslationId;
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       var mappings = await db.FinancialPackages.Where(x => x.Id == packageUsd || x.Id == packageQar)
@@ -2555,6 +2555,20 @@ public sealed class ClientAccountingTests
       }
       Assert.True((await ConsolidationService.ApproveComponentAsync(db, reviewer, componentUsd)).Succeeded);
       Assert.True((await ConsolidationService.ApproveComponentAsync(db, reviewer, componentQar)).Succeeded);
+
+      var legacyComponent = await db.ConsolidationComponents.SingleAsync(x => x.Id == componentUsd);
+      legacyTranslationId = Guid.CreateVersion7();
+      db.TranslationResults.Add(new TranslationResult
+      {
+        Id = legacyTranslationId, FirmId = scope.FirmId, GroupId = groupId, ScopeVersionId = consolidationScopeId,
+        ComponentId = componentUsd, RateSetVersionId = rateSetId, TranslationPolicyVersionId = policyId,
+        CalculationVersion = TranslationCalculationVersions.ComponentTranslationV1,
+        SourcePackageHash = legacyComponent.PackageHash, RateDate = rateDate, RateType = "CLOSING", AppliedRate = 3.64m,
+        FromCurrency = "USD", ToCurrency = "QAR", TranslatedAmount = 364m, ForeignExchangeAdjustment = 264m,
+        Status = AccountingWorkflowStates.Approved, CreatedByUserId = preparer.UserId, ApprovedByUserId = reviewer.UserId,
+        CreatedAt = DateTimeOffset.UtcNow, ApprovedAt = DateTimeOffset.UtcNow
+      });
+      await db.SaveChangesAsync();
 
       var pinnedInputRejected = await CurrencyTranslationService.TranslateComponentAsync(db, preparer, componentUsd,
         rateSetId, policyId, rateDate, "AVERAGE");
@@ -2584,8 +2598,12 @@ public sealed class ClientAccountingTests
       Assert.True((await CurrencyTranslationService.ApproveTranslationAsync(db, reviewer, translationId)).Succeeded);
       var translation = await db.TranslationResults.SingleAsync(x => x.Id == translationId);
       Assert.Equal(364m, translation.TranslatedAmount);
-      Assert.Equal(264m, translation.ForeignExchangeAdjustment);
+      Assert.Equal(TranslationCalculationVersions.ComponentTranslationV2, translation.CalculationVersion);
+      Assert.Equal(0m, translation.ForeignExchangeAdjustment);
       Assert.Equal(0m, translation.RoundingAdjustment);
+      var legacyTranslation = await db.TranslationResults.SingleAsync(x => x.Id == legacyTranslationId);
+      Assert.Equal(TranslationCalculationVersions.ComponentTranslationV1, legacyTranslation.CalculationVersion);
+      Assert.Equal(264m, legacyTranslation.ForeignExchangeAdjustment);
 
       var capabilityId = (await ClientAccountingService.CreateCapabilityProfileAsync(db, reviewer,
         new CapabilityProfileRequest(null, groupId, "GROUP_REPORTING", "IFRS", "2026", "ANNUAL", "QAR",

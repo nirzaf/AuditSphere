@@ -2,6 +2,12 @@
 
 This file records observed repository state only. The authoritative build contract is [`docs/SPECIFICATION.md`](../SPECIFICATION.md) v5.0. The public repository intentionally excludes tenant identifiers, user principals, credentials, tokens, secret values, and private-provider URLs.
 
+## Accounting — versioned component FX translation correction
+
+- Corrected the sibling persisted translation path: component translation no longer labels `translated amount - source amount` as an FX adjustment. New `COMPONENT_TRANSLATION_V2` results store no monetary FX adjustment; translation-reserve computations remain in their separate method-specific schedule. Scope approval/build require V2. Added an append-only calculation version and migration that labels existing rows V1, preserves their bytes/values/status, and changes the unique key so a corrected V2 result can coexist instead of rewriting history. Archive export retains the algorithm version.
+- The PostgreSQL integration journey seeded an approved V1 result with the former 264-unit mismatch, then verified a V2 row is separately produced/approved with zero FX adjustment while the V1 evidence remains unchanged. Focused journey passed 1/1; full Domain Release suite passed 260/260 with 0 skipped; Web Release build passed with 0 warnings/errors; EF pending-model-change check passed. No production DB migration or tenant effect.
+- The change is local and not yet pushed. Hosted run `35964126911` targets prior remote SHA `eade350213ee2718e880ff1d9bb8e24be70748de`; GitHub reported its unfiltered test step in progress at 2026-09-24T06:25:57Z. No hosted result is inferred.
+
 ## Accounting — functional-currency remeasurement correctness
 
 - Fixed `CurrencyRemeasurementCalculator`: it now requires the prior carrying amount in functional currency and computes a monetary FX adjustment as closing-rate functional value less that same-currency carrying amount. Historical-cost non-monetary items still use the historical rate and do not report an FX remeasurement gain/loss. This avoids subtracting foreign-currency units from functional-currency units.

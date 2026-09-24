@@ -1129,6 +1129,7 @@ public sealed class TranslationResult
   public Guid ComponentId { get; set; }
   public Guid RateSetVersionId { get; set; }
   public Guid TranslationPolicyVersionId { get; set; }
+  public string CalculationVersion { get; set; } = "COMPONENT_TRANSLATION_V2";
   public string? SourcePackageHash { get; set; }
   public DateOnly? RateDate { get; set; }
   public string RateType { get; set; } = string.Empty;
