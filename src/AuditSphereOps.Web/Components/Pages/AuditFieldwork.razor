@@ -122,28 +122,44 @@ else
     private string _version = "2026.1";
     private bool _loading = true;
     private bool _busy;
+    private int _loadGeneration;
 
-    protected override async Task OnInitializedAsync() => await LoadAsync();
+    protected override async Task OnParametersSetAsync() => await LoadAsync();
 
     private async Task LoadAsync()
     {
+        var generation = ++_loadGeneration;
+        var engagementId = EngagementId;
         _loading = true;
-        _actor = await ActorResolver.ResolveAsync();
-        if (_actor is null)
+        _actor = null;
+        _engagement = null;
+        _programVersion = null;
+        _procedures = [];
+        _authorizationMessage = null;
+        _result = null;
+
+        var actor = await ActorResolver.ResolveAsync();
+        if (generation != _loadGeneration) return;
+        _actor = actor;
+        if (actor is null)
         {
             _loading = false;
             return;
         }
         await using var db = await DbFactory.CreateDbContextAsync();
-        _engagement = await db.Engagements.AsNoTracking().SingleOrDefaultAsync(x => x.Id == EngagementId && x.FirmId == _actor.FirmId);
-        if (_engagement is null)
+        var engagement = await db.Engagements.AsNoTracking()
+            .SingleOrDefaultAsync(x => x.Id == engagementId && x.FirmId == actor.FirmId);
+        if (generation != _loadGeneration) return;
+        _engagement = engagement;
+        if (engagement is null)
         {
             _loading = false;
             return;
         }
-        var authorization = await AuthorizationDecision.AuthorizeAsync(db, _actor,
-            new AuthorizationRequest(_actor.FirmId, _engagement.PracticeClientId, _engagement.Id,
+        var authorization = await AuthorizationDecision.AuthorizeAsync(db, actor,
+            new AuthorizationRequest(actor.FirmId, engagement.PracticeClientId, engagement.Id,
                 ["Partner", "Manager", "SeniorManager", "Senior", "Staff", "Auditor", "EngagementLeader", "Administrator"], true, true));
+        if (generation != _loadGeneration) return;
         if (!authorization.Succeeded)
         {
             _authorizationMessage = authorization.Message;
@@ -151,14 +167,20 @@ else
             return;
         }
         var adoption = await db.EngagementAuditPrograms.AsNoTracking()
-            .Where(x => x.FirmId == _actor.FirmId && x.ClientId == _engagement.PracticeClientId && x.EngagementId == _engagement.Id && x.Status == EngagementAuditProgramStatuses.Adopted)
+            .Where(x => x.FirmId == actor.FirmId && x.ClientId == engagement.PracticeClientId && x.EngagementId == engagement.Id && x.Status == EngagementAuditProgramStatuses.Adopted)
             .OrderByDescending(x => x.AdoptedAt).FirstOrDefaultAsync();
+        if (generation != _loadGeneration) return;
         if (adoption is not null)
         {
-            _programVersion = await db.AuditProgramVersions.AsNoTracking().SingleAsync(x => x.Id == adoption.ProgramVersionId && x.FirmId == _actor.FirmId);
-            _procedures = await db.AuditProcedures.AsNoTracking()
-                .Where(x => x.FirmId == _actor.FirmId && x.ClientId == _engagement.PracticeClientId && x.EngagementId == _engagement.Id && x.EngagementProgramId == adoption.Id)
+            var programVersion = await db.AuditProgramVersions.AsNoTracking()
+                .SingleAsync(x => x.Id == adoption.ProgramVersionId && x.FirmId == actor.FirmId);
+            if (generation != _loadGeneration) return;
+            var procedures = await db.AuditProcedures.AsNoTracking()
+                .Where(x => x.FirmId == actor.FirmId && x.ClientId == engagement.PracticeClientId && x.EngagementId == engagement.Id && x.EngagementProgramId == adoption.Id)
                 .OrderBy(x => x.SourceSectionNumber).ThenBy(x => x.SourceProcedureId).ToListAsync();
+            if (generation != _loadGeneration) return;
+            _programVersion = programVersion;
+            _procedures = procedures;
         }
         _loading = false;
     }

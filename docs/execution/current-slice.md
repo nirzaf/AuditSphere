@@ -2,6 +2,13 @@
 
 This file records observed repository state only. The authoritative build contract is [`docs/SPECIFICATION.md`](../SPECIFICATION.md) v5.0. The public repository intentionally excludes tenant identifiers, user principals, credentials, tokens, secret values, and private-provider URLs.
 
+## AS-PAR-002 — Audit fieldwork same-document engagement reauthorization
+
+- Reproduced a stale disclosure: moving from an assigned engagement to an unassigned sibling in the same browser document left the prior adopted audit program visible.
+- `AuditFieldwork.razor` now reloads and reauthorizes on route-parameter changes, clears the previous engagement/program/procedure projection first, and discards results from earlier overlapping reads. Commands continue to use the guarded audit-program services.
+- Added `AS-PAR-002-AUDIT-FIELDWORK-STALE-ROUTE-01`. The synthetic PostgreSQL-backed browser journey adopts a program for the assigned engagement, navigates in-place to an unassigned sibling and confirms program details are absent, then returns to the authorized engagement and confirms it reloads without a document reload.
+- Verification: focused journey 1/1; complete E2E project 51/51, 0 skipped; Release solution build 0 warnings/errors; EF reports no pending model changes; actionlint v1.7.7 passes. No schema migration, tenant operation or production effect. The existing hosted run on predecessor `2ce6184` had not completed when this slice was prepared; its final outcome is recorded after push.
+
 ## CI locked restore — exact SDK selection
 
 - Run `35920521850` reached restore, then failed with NU1004: SDK-injected `Microsoft.AspNetCore.App.Internal.Assets` requested `10.0.11`, while the lock file records `10.0.8`. Local SDK `10.0.300` evaluates that package to `10.0.8` and restores the existing locks successfully.
