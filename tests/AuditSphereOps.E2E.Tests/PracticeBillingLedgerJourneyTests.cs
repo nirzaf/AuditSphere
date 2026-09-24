@@ -95,8 +95,10 @@ public sealed class PracticeBillingLedgerJourneyTests
     var diagnostics = new List<string>();
     var staffConnected = WaitForCircuitConnectionAsync(staffPage, diagnostics);
     await staffPage.GotoAsync(SignInUrl(host.StaffUrl, "/app/practice/time"));
+    var staffPrerenderedLog = await staffPage.QuerySelectorAsync("#log-heading");
     await staffPage.GetByRole(AriaRole.Heading, new() { Name = "Practice time & task records" }).WaitForAsync();
     await staffConnected;
+    await WaitForInteractiveRenderAsync(staffPage, staffPrerenderedLog);
     await staffPage.GetByRole(AriaRole.Region, new() { Name = "Record time draft" })
       .GetByLabel("Work task").SelectOptionAsync(taskId.ToString("D"));
     await staffPage.Locator("input[type='date']").Last.FillAsync("2026-09-10");
@@ -123,9 +125,11 @@ public sealed class PracticeBillingLedgerJourneyTests
     var reviewerPage = await reviewerContext.NewPageAsync();
     var reviewerConnected = WaitForCircuitConnectionAsync(reviewerPage, diagnostics);
     await reviewerPage.GotoAsync(SignInUrl(reviewerUrl, "/app/practice/time"));
+    var reviewerPrerenderedLog = await reviewerPage.QuerySelectorAsync("#log-heading");
     await reviewerPage.GetByRole(AriaRole.Heading, new() { Name = "Practice time & task records" }).WaitForAsync();
     await reviewerConnected;
     await reviewerPage.WaitForLoadStateAsync(LoadState.NetworkIdle, new() { Timeout = 5000 });
+    await WaitForInteractiveRenderAsync(reviewerPage, reviewerPrerenderedLog);
     var reviewRow = reviewerPage.GetByRole(AriaRole.Row).Filter(new() { HasText = "Synthetic approved time" });
     await reviewRow.GetByRole(AriaRole.Button, new() { Name = "Approve" }).ClickAsync();
     await Assertions.Expect(reviewerPage.Locator(".command-result")).ToContainTextAsync("approved");
@@ -325,6 +329,17 @@ public sealed class PracticeBillingLedgerJourneyTests
 
   private static string SignInUrl(string origin, string returnUrl) =>
     $"{origin}/auth/sign-in?returnUrl={Uri.EscapeDataString(returnUrl)}";
+
+  // The circuit-ready log fires before Blazor's interactive render replaces the
+  // prerendered static DOM; actions on the static DOM never reach the server, so
+  // every form-driving step waits until the captured prerendered node is swapped out.
+  private static async Task WaitForInteractiveRenderAsync(IPage page, IElementHandle? prerendered)
+  {
+    if (prerendered is null)
+      throw new InvalidOperationException("The page was served without the expected prerendered content.");
+    await page.WaitForFunctionAsync("element => !element.isConnected", prerendered,
+      new() { PollingInterval = 50, Timeout = 30000 });
+  }
 
   private static Task WaitForCircuitConnectionAsync(IPage page, List<string> diagnostics)
   {
