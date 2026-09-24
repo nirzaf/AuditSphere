@@ -21,6 +21,13 @@ This file records observed repository state only. The authoritative build contra
 - Local verification at `01485f9cbea61c1a0aff053f85fdd9f55bc9a1d6`: both focused journeys passed 2/2, and the complete PostgreSQL-backed Playwright E2E project passed 50/50 with 0 skips in 5m27s. The Release E2E test project rebuilt successfully; `git diff --check` passed. Full solution Domain/API suites were not rerun for these test-only changes.
 - Commit `01485f9` was pushed to `master`; `git ls-remote` confirmed exact remote SHA. Hosted CI for the fixed revision is pending. External production/tenant acceptance is unchanged and remains blocked where listed below.
 
+## CI time-entry selector follow-up — hosted run #35936138214
+
+- Run `35936138214` on `d5aa1833` passed SDK selection, locked restore, Release build, Playwright setup, migration/model-drift validation, and 315-case discovery. Domain passed 259/259 and API passed 6/6. The time-entry browser journey failed while waiting for its saved row; the 90-minute job was canceled before an E2E TRX report or full-suite counters could be produced. The recorded 265 tests are Domain and API only, not a 315-test pass.
+- Replaced the time-entry journey's positional dropdown selection with the accessible control scoped to the “Record time draft” region, and assert the saved command result before the row. This makes the intended task control explicit and reports a server rejection before waiting on the table.
+- At `7433e76ae745145a28dd5bb0ae97af7dc0840f93`, the focused time-entry browser case passed 1/1 and the complete PostgreSQL-backed E2E project passed 50/50 with 0 skips. `git diff --check` passed. Hosted verification of this follow-up remains pending; no full-solution hosted pass is claimed.
+- CI failure diagnostics were downloaded from run `35936138214` to `/tmp/auditsphere-ci-35936138214-e2e` for local inspection. No production or Microsoft tenant effects were performed.
+
 ## CI workflow validation fix — run #393
 
 - Reproduced GitHub's invalid-workflow error with actionlint: `runner.temp` is unavailable in job-level `env`.
@@ -31,12 +38,12 @@ This file records observed repository state only. The authoritative build contra
 
 | Item | Observed value |
 |---|---|
-| Source/test checkpoint | `master@01485f9cbea61c1a0aff053f85fdd9f55bc9a1d6`; E2E audit-plan revocation and practice-time journeys stabilized |
-| Remote | `origin/master` confirmed to equal `01485f9cbea61c1a0aff053f85fdd9f55bc9a1d6` at 2026-09-23 23:54 UTC |
+| Source/test checkpoint | `master@7433e76ae745145a28dd5bb0ae97af7dc0840f93`; practice time E2E now uses a scoped accessible selector and checks the command result before the row |
+| Remote | `01485f9cbea61c1a0aff053f85fdd9f55bc9a1d6` was the last `origin/master` SHA confirmed before the current test follow-up push |
 | SDK | .NET 10; repository solution targets `net10.0` |
 | Database | PostgreSQL 18.6 on loopback port 5433 for development only |
 | Build | Full solution Release build for `c214cb3` — passed, 0 warnings/errors; changed Release E2E project rebuilt for `01485f9` as part of test run |
-| Tests | Full Release solution aggregate passed 315/315 with 0 skipped at `c214cb3` (Domain 259/259, API 6/6, E2E 50/50); latest E2E suite passed 50/50 with 0 skips at `01485f9`; CI-style discovery remains 315. |
+| Tests | Full Release solution aggregate passed 315/315 with 0 skipped at `c214cb3`; latest E2E suite passed 50/50 with 0 skips at `7433e76`. Hosted run `35936138214` passed Domain 259/259 and API 6/6, then was canceled at 90 minutes during E2E; hosted full-suite acceptance remains unverified. CI-style discovery remains 315. |
 | Migrations | Added `20260923145244_ProposalPreparedByAttribution`; prior-schema PostgreSQL regression upgraded a synthetic legacy proposal and preserved its values with preparer left unknown. The existing local `auditsphere` database remains at its 91-migration baseline. |
 | Model drift | `dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Web` — no pending model changes for `c214cb3`; no persistence model changes in these slices |
 | Restore drill | Passed at `2026-09-23T15:20:43Z` on loopback; restored the existing `auditsphere` source at 91 migrations through `20260922140527_M365InvitationEvidenceAction`. Evidence was redirected to `/tmp`; the check does not apply the new proposal migration to that development database. |
