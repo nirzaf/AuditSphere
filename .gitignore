@@ -79,3 +79,7 @@ docs/architecture/
 *.log
 tmp/go-build/
 tmp/go-mod/
+
+## Python cache
+__pycache__/
+*.py[cod]

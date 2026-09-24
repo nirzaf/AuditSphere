@@ -1,0 +1,107 @@
+#!/usr/bin/env python3
+"""Self-tests for the documentation helper only; never execute application code.
+All writes use a temporary copy of this task pack.
+Run: python tools/test_task_status.py
+"""
+from __future__ import annotations
+import argparse
+import importlib.util
+from pathlib import Path
+import shutil
+import tempfile
+import unittest
+
+ORIGINAL=Path(__file__).resolve().parents[1]
+spec=importlib.util.spec_from_file_location('local_task_status',ORIGINAL/'tools/task_status.py')
+helper=importlib.util.module_from_spec(spec)
+spec.loader.exec_module(helper)
+
+class TaskStatusTests(unittest.TestCase):
+    def setUp(self):
+        self.temp=tempfile.TemporaryDirectory()
+        self.root=Path(self.temp.name)/'pack'
+        shutil.copytree(ORIGINAL,self.root,ignore=shutil.ignore_patterns('__pycache__','*.pyc'))
+        helper.ROOT=self.root
+        (self.root/'tracking/test_evidence.md').write_text('Synthetic evidence for helper self-test only. Not application evidence.\n')
+    def tearDown(self):
+        helper.ROOT=ORIGINAL
+        self.temp.cleanup()
+    def arguments(self,task,status,**kwargs):
+        defaults=dict(task=task,status=status,owner='Synthetic test owner',reviewer=None,commit=None,
+          evidence=None,approval=None,review_decision=None,reason=None,branch=None,pr=None)
+        defaults.update(kwargs)
+        return argparse.Namespace(**defaults)
+    def complete(self,task):
+        tasks=helper.load_tasks();row,m,body=tasks[task]
+        helper.set_status(self.arguments(task,'IN_PROGRESS'))
+        helper.set_status(self.arguments(task,'IN_REVIEW'))
+        m,body=helper.read_task(self.root/row['file'])
+        body=body.replace('- [ ]','- [x]')
+        helper.write_task(self.root/row['file'],m,body)
+        helper.set_status(self.arguments(task,'COMPLETED',reviewer='Synthetic independent reviewer',
+            commit='1'*40,evidence='tracking/test_evidence.md',approval='Synthetic scope approval',review_decision='APPROVED'))
+    def test_initial_pack_validates(self):
+        helper.refresh()
+        errors,stats=helper.validate()
+        self.assertEqual([],errors)
+        self.assertEqual(54,stats['tasks'])
+        self.assertEqual(111,stats['commands_queries'])
+    def test_dependency_blocks_early_start(self):
+        with self.assertRaisesRegex(ValueError,'Incomplete dependencies'):
+            helper.set_status(self.arguments('T019','IN_PROGRESS'))
+    def test_direct_completion_is_rejected(self):
+        with self.assertRaisesRegex(ValueError,'Invalid transition'):
+            helper.set_status(self.arguments('T001','COMPLETED'))
+    def test_review_without_evidence_cannot_complete(self):
+        helper.set_status(self.arguments('T001','IN_PROGRESS'))
+        helper.set_status(self.arguments('T001','IN_REVIEW'))
+        with self.assertRaisesRegex(ValueError,'reviewer|reviewed_commit|evidence'):
+            helper.set_status(self.arguments('T001','COMPLETED'))
+    def test_valid_completion_unlocks_next_task(self):
+        self.complete('T001')
+        tasks=helper.load_tasks()
+        self.assertEqual('COMPLETED',tasks['T001'][1]['status'])
+        self.assertEqual('READY',helper.readiness('T002',tasks))
+        errors,_=helper.validate()
+        self.assertEqual([],errors)
+    def test_reopen_blocks_affected_started_descendants(self):
+        self.complete('T001');self.complete('T002')
+        helper.set_status(self.arguments('T003','IN_PROGRESS'))
+        helper.set_status(self.arguments('T001','REOPENED',reason='Synthetic contract change'))
+        tasks=helper.load_tasks()
+        self.assertEqual('BLOCKED',tasks['T002'][1]['status'])
+        self.assertEqual('BLOCKED',tasks['T003'][1]['status'])
+        self.assertEqual('NOT_STARTED',tasks['T006'][1]['status'])
+        self.assertEqual('tracking/test_evidence.md',tasks['T002'][1]['evidence_ref'])
+        errors,_=helper.validate();self.assertEqual([],errors)
+    def test_stale_index_is_detected_and_refresh_repairs_it(self):
+        tasks=helper.load_tasks();row,m,b=tasks['T001']
+        m['owner']='Synthetic owner';m['status']='IN_PROGRESS'
+        helper.write_task(self.root/row['file'],m,b)
+        errors,_=helper.validate();self.assertTrue(any('Index' in x for x in errors))
+        helper.refresh();errors,_=helper.validate();self.assertEqual([],errors)
+    def test_original_source_tampering_is_detected(self):
+        p=self.root/'source/ORIGINAL_R2R_Blueprint_Modules_20-26.md'
+        p.write_text(p.read_text()+'\nSynthetic tamper.\n')
+        errors,_=helper.validate();self.assertIn('Original source hash mismatch',errors)
+    def test_missing_link_is_detected(self):
+        p=self.root/'tracking/test_evidence.md'
+        p.write_text('[Broken synthetic link](does-not-exist.md)\n')
+        errors,_=helper.validate();self.assertTrue(any('missing link target' in x for x in errors))
+    def test_dependency_metadata_drift_is_detected(self):
+        tasks=helper.load_tasks();row,m,b=tasks['T020'];m['depends_on']=[]
+        helper.write_task(self.root/row['file'],m,b);helper.refresh()
+        errors,_=helper.validate();self.assertTrue(any('dependency/identity drift' in x for x in errors))
+    def test_same_person_review_is_rejected(self):
+        helper.set_status(self.arguments('T001','IN_PROGRESS'))
+        helper.set_status(self.arguments('T001','IN_REVIEW'))
+        tasks=helper.load_tasks();row,m,b=tasks['T001']
+        helper.write_task(self.root/row['file'],m,b.replace('- [ ]','- [x]'))
+        with self.assertRaisesRegex(ValueError,'independent reviewer'):
+            helper.set_status(self.arguments('T001','COMPLETED',reviewer='Synthetic test owner',
+                commit='1'*40,evidence='tracking/test_evidence.md',approval='Synthetic approval',review_decision='APPROVED'))
+    def test_blocker_reason_is_required(self):
+        with self.assertRaisesRegex(ValueError,'reason'):
+            helper.set_status(self.arguments('T001','BLOCKED'))
+
+if __name__=='__main__':unittest.main(verbosity=2)
