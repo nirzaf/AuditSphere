@@ -1,0 +1,313 @@
+@page "/app/accounting/remeasurement"
+@rendermode InteractiveServer
+@using AuditSphereOps.Domain.Accounting
+@using AuditSphereOps.Domain.Practice
+@using AuditSphereOps.Domain.Engagements
+@inject CurrentActorResolver ActorResolver
+@inject IDbContextFactory<AuditSphereDbContext> DbFactory
+@inject IJSRuntime JS
+
+<PageTitle>Currency remeasurement</PageTitle>
+<a class="back-link" href="/app/accounting">← Back to accounting workspace</a>
+<h1>Currency remeasurement workpapers</h1>
+
+@if (_loading)
+{
+  <p role="status">Loading scoped periods and approved inputs…</p>
+}
+else if (!_authorized)
+{
+  <section class="notice" role="alert"><h2>Access unavailable</h2><p>An explicitly scoped internal accounting-preparer or reviewer grant is required.</p></section>
+}
+else
+{
+  <p class="scope-note">Create a source-evidence-linked calculation using an approved rate set and translation policy. Independent approval rechecks the source, policy, rate and totals. Approval records a workpaper only; it does not post an adjustment journal or clear any release/records gate.</p>
+  <section class="card" aria-labelledby="prepare-heading">
+    <h2 id="prepare-heading">Prepare workpaper</h2>
+    <p class="muted"><span class="required-mark">*</span> Required. Amounts and classifications are transcribed from the cited evidence snapshot; confirm them against that source. Historical rate date is required for non-monetary historical-cost items.</p>
+    <div class="form-grid">
+      <label>Client period and engagement <span class="required-mark">*</span>
+        <select @bind="_contextId" @bind:after="ContextChangedAsync" required title="Only periods and engagements within your current accounting grants are listed.">
+          <option value="">Select a scoped period</option>
+          @foreach (var context in _contexts) { <option value="@context.Id">@context.ClientName · @context.PeriodCode · @context.EndDate.ToString("yyyy-MM-dd") · @context.EngagementLabel</option> }
+        </select>
+      </label>
+      <label>Approved rate set <span class="required-mark">*</span>
+        <select @bind="_rateSetId" @bind:after="SaveDraftAsync" required title="Only approved firm rate sets effective on the period end are available."><option value="">Select an approved rate set</option>@foreach (var rate in _rateSets) { <option value="@rate.Id">@rate.Label</option> }</select>
+      </label>
+      <label>Approved translation policy <span class="required-mark">*</span>
+        <select @bind="_policyId" @bind:after="SaveDraftAsync" required title="The policy chooses the closing rate for monetary items and historical rate for historical-cost non-monetary items."><option value="">Select an approved policy</option>@foreach (var policy in _policies) { <option value="@policy.Id">@policy.Label</option> }</select>
+      </label>
+    </div>
+    @if (_lines.Count == 0) { <p class="muted">Select a period to add evidence-backed line items.</p> }
+    @for (var index = 0; index < _lines.Count; index++)
+    {
+      var line = _lines[index];
+      <fieldset class="card" @key="line">
+        <legend>Item @(index + 1)</legend>
+        <div class="form-grid">
+          <label>Stable source reference <span class="required-mark">*</span><input @bind="line.Reference" @bind:after="SaveDraftAsync" maxlength="200" required title="Use a stable transaction or balance reference from the cited evidence." /></label>
+          <label>Evidence snapshot ID <span class="required-mark">*</span><input @bind="line.SnapshotId" @bind:after="SaveDraftAsync" required inputmode="text" title="Paste the exact snapshot ID from the scoped source document. The service verifies firm, client and engagement ownership." /></label>
+          <label>Classification <span class="required-mark">*</span><select @bind="line.IsMonetary" @bind:after="SaveDraftAsync" title="Monetary items use the policy closing rate; historical-cost non-monetary items use the historical rate."><option value="true">Monetary — closing rate</option><option value="false">Non-monetary — historical cost</option></select></label>
+          <label>Foreign currency <span class="required-mark">*</span><input @bind="line.Currency" @bind:after="SaveDraftAsync" maxlength="3" minlength="3" required pattern="[A-Za-z]{3}" title="Three-letter ISO currency code, different from the functional currency." /></label>
+          <label>Foreign-currency amount <span class="required-mark">*</span><input @bind="line.ForeignAmount" @bind:after="SaveDraftAsync" type="number" step="0.000001" required title="Amount in the item's foreign currency, as shown in the source evidence." /></label>
+          <label>Prior functional carrying amount <span class="required-mark">*</span><input @bind="line.PriorCarrying" @bind:after="SaveDraftAsync" type="number" step="0.000001" required title="Prior carrying value already expressed in the client's functional currency." /></label>
+          <label>Historical rate date @if (!line.IsMonetary) { <span class="required-mark">*</span> } else { <span class="muted">optional for monetary items</span> }
+            <input @bind="line.HistoricalRateDate" @bind:after="SaveDraftAsync" type="date" required="@(!line.IsMonetary)" title="Required only for non-monetary historical-cost items; must be on or before period end." />
+          </label>
+        <div><button type="button" class="button" @onclick="() => RemoveLineAsync(line)" title="Remove this unsubmitted line from the current workpaper." disabled="@_busy">Remove item</button></div>
+        </div>
+      </fieldset>
+    }
+    <div style="display:flex;gap:.75rem;flex-wrap:wrap">
+      <button class="button" @onclick="AddLineAsync" disabled="@(_busy || _contextId.Length == 0 || _lines.Count >= 500)" title="Add another evidence-linked calculation line, up to 500 per schedule.">Add item</button>
+      <button class="button" @onclick="PrepareAsync" disabled="@_busy" title="Validate exact source snapshot ownership and approved rates, calculate, then persist an immutable submitted schedule.">@(_busy ? "Saving…" : "Prepare workpaper")</button>
+    </div>
+  </section>
+
+  @if (_message is not null) { <p class="command-result @(_error ? "error-text" : "success-text")" role="status">@_message</p> }
+  @if (_schedule is not null)
+  {
+    <section class="card" aria-labelledby="schedule-heading">
+      <h2 id="schedule-heading">Workpaper · @_schedule.Status</h2>
+      <p>As of @_schedule.AsOfDate · functional currency @_schedule.FunctionalCurrency · @_schedule.ItemCount item(s) · FX adjustment <strong>@_schedule.TotalForeignExchangeAdjustment.ToString("0.000000") @_schedule.FunctionalCurrency</strong></p>
+      <p>Manifest <code>@_schedule.InputHash</code></p>
+      <div class="table-wrap"><table><caption class="sr-only">Currency remeasurement item calculations</caption><thead><tr><th>Reference</th><th>Evidence snapshot / SHA-256</th><th>Classification</th><th>Rate</th><th>Remeasured</th><th>FX adjustment</th></tr></thead><tbody>
+        @foreach (var item in _schedule.Items)
+        {
+          <tr><td>@item.StableItemReference</td><td><code>@item.EvidenceSnapshotId</code><br /><code>@item.EvidenceSha256</code></td><td>@(item.IsMonetary ? "Monetary" : "Historical-cost non-monetary")</td><td>@item.RateType · @item.RateDate · @item.AppliedRate</td><td>@item.RemeasuredFunctionalAmount</td><td>@item.ForeignExchangeAdjustment</td></tr>
+        }
+      </tbody></table></div>
+      @if (_schedule.Status == AccountingWorkflowStates.Submitted && _schedule.CreatedByUserId != _actor!.UserId)
+      {
+        <button class="button" @onclick="ApproveAsync" disabled="@_busy" title="Independently revalidate current source evidence, approved rate/policy and calculations before approving this workpaper.">Approve independently</button>
+      }
+      <p class="muted">Prepared by <code>@_schedule.CreatedByUserId</code>@if (_schedule.ApprovedByUserId is { } approvedBy) { <span> · Approved by <code>@approvedBy</code></span> }</p>
+    </section>
+  }
+  <section class="card" aria-labelledby="history-heading">
+    <h2 id="history-heading">Recent scoped workpapers</h2>
+    @if (_history.Count == 0) { <p class="muted">No saved workpapers are available in the current scope.</p> }
+    else
+    {
+      <div class="table-wrap"><table><caption class="sr-only">Recent scoped currency remeasurement workpapers</caption>
+        <thead><tr><th>Client</th><th>Period</th><th>Status</th><th>Created</th><th>Action</th></tr></thead>
+        <tbody>@foreach (var row in _history)
+        {
+          <tr><td>@row.ClientName</td><td>@row.PeriodCode</td><td><span class="status">@row.Status</span></td><td>@row.CreatedAt.ToString("yyyy-MM-dd HH:mm 'UTC'")</td>
+            <td><button class="button" @onclick="() => OpenScheduleAsync(row.Id)" title="Load this schedule only if the current exact client and engagement grant allows access.">Open / review</button></td></tr>
+        }</tbody>
+      </table></div>
+    }
+  </section>
+}
+
+@code {
+  private static readonly string[] Roles = ["Administrator", "Partner", "Manager", "AccountingPreparer", "AccountingReviewer"];
+  private sealed record ContextOption(Guid Id, Guid ClientId, Guid EngagementId, string ClientName, string PeriodCode, DateOnly EndDate, string EngagementLabel);
+  private sealed record IdOption(Guid Id, string Label);
+  private sealed record ScheduleRow(Guid Id, string ClientName, string PeriodCode, string Status, DateTimeOffset CreatedAt);
+  private sealed record DraftLine(string Reference, string SnapshotId, bool IsMonetary, string Currency,
+    decimal? ForeignAmount, decimal? PriorCarrying, DateTime? HistoricalRateDate);
+  private sealed record BrowserDraft(string ContextId, string RateSetId, string PolicyId, List<DraftLine> Lines);
+  private sealed class LineInput
+  {
+    public string Reference { get; set; } = string.Empty;
+    public string SnapshotId { get; set; } = string.Empty;
+    public bool IsMonetary { get; set; } = true;
+    public string Currency { get; set; } = string.Empty;
+    public decimal? ForeignAmount { get; set; }
+    public decimal? PriorCarrying { get; set; }
+    public DateTime? HistoricalRateDate { get; set; }
+  }
+
+  private ActorContext? _actor;
+  private bool _loading = true;
+  private bool _authorized;
+  private bool _busy;
+  private bool _error;
+  private string _contextId = string.Empty;
+  private string _rateSetId = string.Empty;
+  private string _policyId = string.Empty;
+  private string? _message;
+  private List<ContextOption> _contexts = [];
+  private List<IdOption> _rateSets = [];
+  private List<IdOption> _policies = [];
+  private List<ScheduleRow> _history = [];
+  private List<LineInput> _lines = [];
+  private CurrencyRemeasurementScheduleView? _schedule;
+  private bool _draftReady;
+  private string DraftKey => $"auditsphere:accounting:remeasurement:{_actor?.FirmId:D}:{_actor?.UserId:D}";
+
+  protected override async Task OnInitializedAsync()
+  {
+    _actor = await ActorResolver.ResolveAsync();
+    if (_actor is not null)
+    {
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var authorization = await AuthorizationDecision.AuthorizeAsync(db, _actor,
+        new AuthorizationRequest(_actor.FirmId, RequiredRoles: Roles, InternalOnly: true));
+      if (authorization.Succeeded)
+      {
+        _authorized = true;
+        var grants = await db.RoleGrants.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && x.UserId == _actor.UserId &&
+          x.RevokedAt == null && Roles.Contains(x.Role)).Select(x => new { x.ClientId, x.EngagementId }).ToListAsync();
+        var firmWide = grants.Any(x => x.ClientId is null && x.EngagementId is null);
+        var grantedClientIds = grants.Where(x => x.ClientId.HasValue && x.EngagementId is null).Select(x => x.ClientId!.Value).Distinct().ToArray();
+        var grantedEngagementIds = grants.Where(x => x.EngagementId.HasValue).Select(x => x.EngagementId!.Value).Distinct().ToArray();
+        var engagements = await db.Engagements.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
+          (firmWide || grantedClientIds.Contains(x.PracticeClientId) || grantedEngagementIds.Contains(x.Id))).ToListAsync();
+        var permitted = engagements.Where(e => firmWide || grants.Any(g => g.ClientId == e.PracticeClientId && g.EngagementId is null) ||
+          grants.Any(g => g.ClientId == e.PracticeClientId && g.EngagementId == e.Id)).ToArray();
+        var clientIds = permitted.Select(x => x.PracticeClientId).Distinct().ToArray();
+        var engagementIds = permitted.Select(x => x.Id).ToArray();
+        var periods = await db.ClientReportingPeriods.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && clientIds.Contains(x.ClientId)).ToListAsync();
+        var clients = await db.PracticeClients.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && clientIds.Contains(x.Id))
+          .ToDictionaryAsync(x => x.Id, x => x.LegalName);
+        _contexts = periods.SelectMany(p => permitted.Where(e => e.PracticeClientId == p.ClientId).Select(e => new ContextOption(
+          p.Id, p.ClientId, e.Id, clients.GetValueOrDefault(p.ClientId, "Scoped client"), p.PeriodCode, p.EndDate, e.ServiceRoute)))
+          .OrderByDescending(x => x.EndDate).ThenBy(x => x.ClientName).ToList();
+        _history = await db.CurrencyRemeasurementSchedules.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
+          (firmWide || grantedClientIds.Contains(x.ClientId) || engagementIds.Contains(x.EngagementId)))
+          .OrderByDescending(x => x.CreatedAt).Take(50).Join(db.ClientReportingPeriods.AsNoTracking(),
+            schedule => schedule.PeriodId, period => period.Id, (schedule, period) => new { schedule, period })
+          .Join(db.PracticeClients.AsNoTracking(), x => x.schedule.ClientId, client => client.Id,
+            (x, client) => new ScheduleRow(x.schedule.Id, client.LegalName, x.period.PeriodCode, x.schedule.Status, x.schedule.CreatedAt)).ToListAsync();
+        if (_contexts.Count > 0)
+        {
+          _contextId = _contexts[0].Id.ToString("D");
+          await LoadChoicesAsync();
+        }
+      }
+    }
+    _loading = false;
+  }
+
+  protected override async Task OnAfterRenderAsync(bool firstRender)
+  {
+    if (!firstRender || !_authorized || _actor is null) return;
+    try
+    {
+      var json = await JS.InvokeAsync<string?>("localStorage.getItem", DraftKey);
+      if (!string.IsNullOrWhiteSpace(json))
+      {
+        var draft = System.Text.Json.JsonSerializer.Deserialize<BrowserDraft>(json);
+        if (draft is not null && _contexts.Any(x => x.Id.ToString("D") == draft.ContextId))
+        {
+          _contextId = draft.ContextId;
+          await LoadChoicesAsync();
+          _rateSetId = _rateSets.Any(x => x.Id.ToString("D") == draft.RateSetId) ? draft.RateSetId : string.Empty;
+          _policyId = _policies.Any(x => x.Id.ToString("D") == draft.PolicyId) ? draft.PolicyId : string.Empty;
+          _lines = draft.Lines.Take(500).Select(x => new LineInput { Reference = x.Reference, SnapshotId = x.SnapshotId,
+            IsMonetary = x.IsMonetary, Currency = x.Currency, ForeignAmount = x.ForeignAmount,
+            PriorCarrying = x.PriorCarrying, HistoricalRateDate = x.HistoricalRateDate }).ToList();
+          if (_lines.Count == 0) _lines.Add(new LineInput());
+          StateHasChanged();
+        }
+      }
+    }
+    catch (JSException) { /* Draft restoration is best-effort; application actions still validate server-side. */ }
+    catch (System.Text.Json.JsonException) { await JS.InvokeVoidAsync("localStorage.removeItem", DraftKey); }
+    _draftReady = true;
+  }
+
+  private async Task LoadChoicesAsync()
+  {
+    _rateSets = [];
+    _policies = [];
+    _rateSetId = _policyId = string.Empty;
+    if (_actor is null || !Guid.TryParse(_contextId, out var periodId)) return;
+    var context = _contexts.FirstOrDefault(x => x.Id == periodId);
+    if (context is null) return;
+    await using var db = await DbFactory.CreateDbContextAsync();
+    var profile = await db.ClientAccountingProfiles.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == _actor.FirmId && x.ClientId == context.ClientId);
+    if (profile is null) return;
+    var rateSets = await db.ExchangeRateSetVersions.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && x.Status == AccountingWorkflowStates.Approved &&
+      (x.EffectiveFrom == null || x.EffectiveFrom <= context.EndDate) && (x.EffectiveTo == null || x.EffectiveTo >= context.EndDate))
+      .OrderByDescending(x => x.ApprovedAt).ToListAsync();
+    var policies = await db.TranslationPolicyVersions.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
+      x.Status == AccountingWorkflowStates.Approved && x.FunctionalCurrency == profile.FunctionalCurrency).OrderByDescending(x => x.ApprovedAt).ToListAsync();
+    _rateSets = rateSets.Select(x => new IdOption(x.Id, $"{x.Code} v{x.Version} · {x.Source}")).ToList();
+    _policies = policies.Select(x => new IdOption(x.Id, $"{x.Code} · {x.FunctionalCurrency} · closing {x.ClosingRateRule} / historical {x.HistoricalRateRule}")).ToList();
+    if (_rateSets.Count == 1) _rateSetId = _rateSets[0].Id.ToString("D");
+    if (_policies.Count == 1) _policyId = _policies[0].Id.ToString("D");
+    if (_lines.Count == 0) _lines.Add(new LineInput());
+  }
+
+  private async Task ContextChangedAsync() { await LoadChoicesAsync(); await SaveDraftAsync(); }
+  private async Task AddLineAsync() { if (_lines.Count < 500) _lines.Add(new LineInput()); await SaveDraftAsync(); }
+  private async Task RemoveLineAsync(LineInput line) { _lines.Remove(line); await SaveDraftAsync(); }
+  private async Task SaveDraftAsync()
+  {
+    if (!_draftReady || _actor is null) return;
+    var draft = new BrowserDraft(_contextId, _rateSetId, _policyId, _lines.Select(x => new DraftLine(x.Reference, x.SnapshotId,
+      x.IsMonetary, x.Currency, x.ForeignAmount, x.PriorCarrying, x.HistoricalRateDate)).ToList());
+    try { await JS.InvokeVoidAsync("localStorage.setItem", DraftKey, System.Text.Json.JsonSerializer.Serialize(draft)); }
+    catch (JSException) { _message = "Browser draft storage is unavailable; submit before navigating away."; _error = true; }
+  }
+
+  private async Task PrepareAsync()
+  {
+    _message = null;
+    if (_busy || _actor is null || !Guid.TryParse(_contextId, out var periodId) ||
+        !Guid.TryParse(_rateSetId, out var rateSetId) || !Guid.TryParse(_policyId, out var policyId) || _lines.Count == 0)
+    { _error = true; _message = "Select a scoped period, approved inputs and at least one complete evidence line."; return; }
+    var context = _contexts.FirstOrDefault(x => x.Id == periodId);
+    if (context is null || !_lines.All(x => Guid.TryParse(x.SnapshotId, out _) && !string.IsNullOrWhiteSpace(x.Reference) &&
+        x.ForeignAmount.HasValue && x.PriorCarrying.HasValue && (x.IsMonetary || x.HistoricalRateDate.HasValue)))
+    { _error = true; _message = "Complete each required field and provide a valid source snapshot ID; historical rate dates are required for non-monetary items."; return; }
+    _busy = true;
+    try
+    {
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var request = new CurrencyRemeasurementScheduleRequest(context.ClientId, context.EngagementId, periodId, rateSetId, policyId,
+        context.EndDate, _lines.Select(x => new CurrencyRemeasurementItemRequest(x.Reference.Trim(), Guid.Parse(x.SnapshotId), x.IsMonetary,
+          x.Currency, x.ForeignAmount!.Value, x.PriorCarrying!.Value, x.HistoricalRateDate.HasValue ? DateOnly.FromDateTime(x.HistoricalRateDate.Value) : null)).ToArray());
+      var result = await CurrencyRemeasurementService.PrepareAsync(db, _actor, request);
+      if (!result.Succeeded) { _error = true; _message = $"Blocked: {result.ErrorCode} — {result.Message}"; return; }
+      await LoadScheduleAsync(result.Value);
+      _history = _history.Where(x => x.Id != result.Value).Prepend(new ScheduleRow(result.Value, context.ClientName,
+        context.PeriodCode, AccountingWorkflowStates.Submitted, DateTimeOffset.UtcNow)).Take(50).ToList();
+      try { await JS.InvokeVoidAsync("localStorage.removeItem", DraftKey); } catch (JSException) { }
+      _draftReady = false;
+      _error = false;
+      _message = "Submitted workpaper saved. Review the source and calculation before independent approval.";
+    }
+    catch (Exception ex) when (ex is DbUpdateException or InvalidOperationException or ArgumentException)
+    { _error = true; _message = "Workpaper was not confirmed as saved. Refresh the schedule list or retry only after checking whether the submission exists."; }
+    finally { _busy = false; }
+  }
+
+  private async Task ApproveAsync()
+  {
+    if (_actor is null || _schedule is null || _busy) return;
+    _busy = true;
+    try
+    {
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var result = await CurrencyRemeasurementService.ApproveAsync(db, _actor, _schedule.Id);
+      if (!result.Succeeded) { _error = true; _message = $"Approval blocked: {result.ErrorCode} — {result.Message}"; return; }
+      await LoadScheduleAsync(_schedule.Id);
+      _error = false;
+      _message = "Independent approval recorded after current evidence and calculation revalidation. No journal was posted.";
+    }
+    catch (Exception) { _error = true; _message = "Approval outcome could not be confirmed. Reopen this workpaper before retrying."; }
+    finally { _busy = false; }
+  }
+
+  private async Task LoadScheduleAsync(Guid id)
+  {
+    _schedule = null;
+    await using var db = await DbFactory.CreateDbContextAsync();
+    var result = await CurrencyRemeasurementService.GetAsync(db, _actor!, id);
+    if (result.Succeeded) _schedule = result.Value;
+    else { _error = true; _message = "Schedule saved, but its scoped readback could not be confirmed."; }
+  }
+
+  private async Task OpenScheduleAsync(Guid id)
+  {
+    _message = null;
+    await LoadScheduleAsync(id);
+    if (_schedule is null && _message is null) { _error = true; _message = "Schedule is unavailable in the current authorization scope."; }
+  }
+}

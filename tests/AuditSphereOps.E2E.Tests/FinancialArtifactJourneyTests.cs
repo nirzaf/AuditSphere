@@ -19,6 +19,53 @@ namespace AuditSphereOps.E2E.Tests;
 public sealed class FinancialArtifactJourneyTests
 {
   [Fact]
+  [Trait("Category", "AccountingAndReporting")]
+  [Trait("CaseId", "AS-ACCOUNTING-REMEASUREMENT-UI-01")]
+  public async Task CurrencyRemeasurementWorkbenchRestrictsContextAndRestoresBrowserDraft()
+  {
+    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false,
+      caseId: "AS-ACCOUNTING-REMEASUREMENT-UI-01");
+    var periodId = Guid.NewGuid();
+    await using (var db = host.CreateDbContext())
+    {
+      db.RoleGrants.Add(PbcSeed.Grant(host.Fixture.FirmId, host.Fixture.Staff, "AccountingPreparer",
+        host.Fixture.ClientId, host.Fixture.EngagementId));
+      db.ClientAccountingProfiles.Add(new ClientAccountingProfile
+      {
+        Id = Guid.NewGuid(), FirmId = host.Fixture.FirmId, ClientId = host.Fixture.ClientId,
+        Jurisdiction = "QA", FunctionalCurrency = "QAR", Status = AccountingWorkflowStates.Active,
+        CreatedByUserId = host.Fixture.Admin.Id, CreatedAt = DateTimeOffset.UtcNow
+      });
+      db.ClientReportingPeriods.Add(new ClientReportingPeriod
+      {
+        Id = periodId, FirmId = host.Fixture.FirmId, ClientId = host.Fixture.ClientId,
+        PeriodCode = "FY26-SYNTHETIC", StartDate = new DateOnly(2026, 1, 1), EndDate = new DateOnly(2026, 12, 31),
+        Basis = "IFRS", Currency = "QAR", Status = AccountingWorkflowStates.Active,
+        CreatedByUserId = host.Fixture.Admin.Id, CreatedAt = DateTimeOffset.UtcNow
+      });
+      await db.SaveChangesAsync();
+    }
+
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    await using var context = await browser.NewContextAsync();
+    var page = await context.NewPageAsync();
+    var diagnostics = new List<string>();
+    var connected = WaitForCircuitConnectionAsync(page, diagnostics);
+    await page.GotoAsync(SignInUrl(host.StaffUrl, "/app/accounting/remeasurement"));
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Currency remeasurement workpapers" }).WaitForAsync();
+    Assert.Contains(await page.Locator("select").First.Locator("option").AllTextContentsAsync(),
+      x => x.Contains("PBC TEST CLIENT · FY26-SYNTHETIC", StringComparison.Ordinal));
+    await connected;
+    var reference = page.GetByLabel("Stable source reference *");
+    await reference.FillAsync("SYNTHETIC-REMEASUREMENT-LINE");
+    await page.ReloadAsync();
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Currency remeasurement workpapers" }).WaitForAsync();
+    await Assertions.Expect(page.GetByLabel("Stable source reference *")).ToHaveValueAsync("SYNTHETIC-REMEASUREMENT-LINE");
+    Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
+  }
+
+  [Fact]
   [Trait("CaseId", "AS-PAR-002-JOURNAL-STALE-01")]
   public async Task JournalPageRemovesReviewerActionAfterGrantRevocation()
   {

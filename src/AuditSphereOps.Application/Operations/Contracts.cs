@@ -199,6 +199,8 @@ public interface IClientAccountingDbContext : IAuditSphereDbContext
   DbSet<ExchangeRate> ExchangeRates { get; }
   DbSet<TranslationPolicyVersion> TranslationPolicyVersions { get; }
   DbSet<TranslationResult> TranslationResults { get; }
+  DbSet<CurrencyRemeasurementSchedule> CurrencyRemeasurementSchedules { get; }
+  DbSet<CurrencyRemeasurementItem> CurrencyRemeasurementItems { get; }
   DbSet<FinancialPackageEquityLine> FinancialPackageEquityLines { get; }
   DbSet<FinancialPackageNoteLine> FinancialPackageNoteLines { get; }
   DbSet<FinancialPackageReviewDecision> FinancialPackageReviewDecisions { get; }

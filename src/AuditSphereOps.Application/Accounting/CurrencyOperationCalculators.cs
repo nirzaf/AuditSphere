@@ -23,9 +23,9 @@ public static class CurrencyRemeasurementCalculator
     decimal amount, string fromCurrency, string toCurrency, bool monetary,
     decimal closingRate, decimal historicalRate, decimal priorCarryingAmountInFunctionalCurrency)
   {
-    if (closingRate <= 0m || historicalRate <= 0m)
-      throw new InvalidOperationException("Remeasurement requires positive closing and historical rates.");
     var rate = monetary ? closingRate : historicalRate;
+    if (rate <= 0m)
+      throw new InvalidOperationException("Remeasurement requires a positive rate for the selected item classification.");
     var exact = amount * rate;
     var remeasured = CurrencyTranslationCalculator.Translate(amount, fromCurrency, toCurrency, rate);
     return new MonetaryRemeasurementResult(

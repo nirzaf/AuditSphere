@@ -142,6 +142,8 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
   public DbSet<ExchangeRate> ExchangeRates => Set<ExchangeRate>();
   public DbSet<TranslationPolicyVersion> TranslationPolicyVersions => Set<TranslationPolicyVersion>();
   public DbSet<TranslationResult> TranslationResults => Set<TranslationResult>();
+  public DbSet<CurrencyRemeasurementSchedule> CurrencyRemeasurementSchedules => Set<CurrencyRemeasurementSchedule>();
+  public DbSet<CurrencyRemeasurementItem> CurrencyRemeasurementItems => Set<CurrencyRemeasurementItem>();
   public DbSet<MaterialityAssessment> MaterialityAssessments => Set<MaterialityAssessment>();
   public DbSet<MaterialityApproval> MaterialityApprovals => Set<MaterialityApproval>();
   public DbSet<AuditRisk> AuditRisks => Set<AuditRisk>();
@@ -305,6 +307,8 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
       .OnDelete(DeleteBehavior.Restrict);
 
     var snapshot = b.Entity<DocumentSnapshot>();
+    snapshot.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
+      .HasName("ak_document_snapshots_scope_id");
     snapshot.Property(x => x.DriveId).HasMaxLength(200);
     snapshot.Property(x => x.ItemId).HasMaxLength(200);
     snapshot.Property(x => x.VersionId).HasMaxLength(200);
@@ -2339,6 +2343,7 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     rate.Property(x => x.ToCurrency).HasMaxLength(3);
     rate.Property(x => x.RateType).HasMaxLength(30);
     rate.Property(x => x.Direction).HasMaxLength(30);
+    rate.HasAlternateKey(x => new { x.FirmId, x.RateSetVersionId, x.Id }).HasName("ak_exchange_rates_set_id");
     rate.HasIndex(x => new { x.FirmId, x.RateSetVersionId, x.FromCurrency, x.ToCurrency, x.RateDate, x.RateType }).IsUnique()
       .HasDatabaseName("ux_exchange_rate_identity");
     rate.ToTable("exchange_rates", t => t.HasCheckConstraint("ck_exchange_rate_values",
@@ -2375,6 +2380,48 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     translation.HasOne<TranslationPolicyVersion>().WithMany().HasForeignKey(x => new { x.FirmId, x.TranslationPolicyVersionId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var remeasurement = b.Entity<CurrencyRemeasurementSchedule>();
+    remeasurement.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
+      .HasName("ak_currency_remeasurement_schedules_scope_id");
+    remeasurement.Property(x => x.FunctionalCurrency).HasMaxLength(3);
+    remeasurement.Property(x => x.InputHash).HasMaxLength(64);
+    remeasurement.Property(x => x.Status).HasMaxLength(30);
+    remeasurement.HasIndex(x => new { x.FirmId, x.ClientId, x.EngagementId, x.PeriodId, x.InputHash }).IsUnique()
+      .HasDatabaseName("ux_currency_remeasurement_input");
+    remeasurement.ToTable("currency_remeasurement_schedules", t => t.HasCheckConstraint("ck_currency_remeasurement_schedule_values",
+      "functional_currency ~ '^[A-Z]{3}$' AND input_hash ~ '^[0-9a-f]{64}$' AND item_count > 0 " +
+      "AND status IN ('SUBMITTED','APPROVED','STALE') AND ((status = 'APPROVED' AND approved_by_user_id IS NOT NULL AND approved_at IS NOT NULL) " +
+      "OR (status <> 'APPROVED' AND approved_by_user_id IS NULL AND approved_at IS NULL))"));
+    remeasurement.HasOne<ClientReportingPeriod>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.PeriodId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    remeasurement.HasOne<ExchangeRateSetVersion>().WithMany().HasForeignKey(x => new { x.FirmId, x.RateSetVersionId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    remeasurement.HasOne<TranslationPolicyVersion>().WithMany().HasForeignKey(x => new { x.FirmId, x.TranslationPolicyVersionId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    remeasurement.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.CreatedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    remeasurement.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.ApprovedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var remeasurementItem = b.Entity<CurrencyRemeasurementItem>();
+    remeasurementItem.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.ScheduleId, x.Id })
+      .HasName("ak_currency_remeasurement_items_scope_id");
+    remeasurementItem.Property(x => x.StableItemReference).HasMaxLength(200);
+    remeasurementItem.Property(x => x.SourceEvidenceSha256).HasMaxLength(64);
+    remeasurementItem.Property(x => x.ForeignCurrency).HasMaxLength(3);
+    remeasurementItem.Property(x => x.RateType).HasMaxLength(30);
+    remeasurementItem.HasIndex(x => new { x.FirmId, x.ScheduleId, x.StableItemReference }).IsUnique()
+      .HasDatabaseName("ux_currency_remeasurement_item_reference");
+    remeasurementItem.ToTable("currency_remeasurement_items", t => t.HasCheckConstraint("ck_currency_remeasurement_item_values",
+      "source_evidence_sha256 ~ '^[0-9a-f]{64}$' AND foreign_currency ~ '^[A-Z]{3}$' AND stable_item_reference <> '' " +
+      "AND applied_rate > 0 AND rate_type <> ''"));
+    remeasurementItem.HasOne<CurrencyRemeasurementSchedule>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.ScheduleId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    remeasurementItem.HasOne<DocumentSnapshot>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.EvidenceSnapshotId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    remeasurementItem.HasOne<ExchangeRate>().WithMany().HasForeignKey(x => new { x.FirmId, x.RateSetVersionId, x.ExchangeRateId })
+      .HasPrincipalKey(x => new { x.FirmId, x.RateSetVersionId, x.Id }).OnDelete(DeleteBehavior.Restrict);
   }
 
   // Audit planning and execution evidence (§§19–23, 27.2, 42.3–42.4). Every row carries the full

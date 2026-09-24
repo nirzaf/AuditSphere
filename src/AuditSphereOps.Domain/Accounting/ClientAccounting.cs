@@ -1146,3 +1146,50 @@ public sealed class TranslationResult
   public DateTimeOffset? ApprovedAt { get; set; }
   public DateTimeOffset CreatedAt { get; set; }
 }
+
+/// <summary>Immutable, evidence-bound entity-currency remeasurement workpaper; approval never posts a journal.</summary>
+public sealed class CurrencyRemeasurementSchedule
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public Guid EngagementId { get; set; }
+  public Guid PeriodId { get; set; }
+  public Guid RateSetVersionId { get; set; }
+  public Guid TranslationPolicyVersionId { get; set; }
+  public DateOnly AsOfDate { get; set; }
+  public string FunctionalCurrency { get; set; } = string.Empty;
+  public string InputHash { get; set; } = string.Empty;
+  public int ItemCount { get; set; }
+  public decimal TotalForeignExchangeAdjustment { get; set; }
+  public string Status { get; set; } = AccountingWorkflowStates.Submitted;
+  public Guid CreatedByUserId { get; set; }
+  public Guid? ApprovedByUserId { get; set; }
+  public DateTimeOffset CreatedAt { get; set; }
+  public DateTimeOffset? ApprovedAt { get; set; }
+}
+
+/// <summary>One open monetary/non-monetary balance, pinned to its source snapshot and exact approved rate.</summary>
+public sealed class CurrencyRemeasurementItem
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public Guid EngagementId { get; set; }
+  public Guid ScheduleId { get; set; }
+  public Guid EvidenceSnapshotId { get; set; }
+  public Guid RateSetVersionId { get; set; }
+  public Guid ExchangeRateId { get; set; }
+  public string StableItemReference { get; set; } = string.Empty;
+  public string SourceEvidenceSha256 { get; set; } = string.Empty;
+  public bool IsMonetary { get; set; }
+  public string ForeignCurrency { get; set; } = string.Empty;
+  public decimal ForeignCurrencyAmount { get; set; }
+  public decimal PriorFunctionalCarryingAmount { get; set; }
+  public DateOnly RateDate { get; set; }
+  public string RateType { get; set; } = string.Empty;
+  public decimal AppliedRate { get; set; }
+  public decimal RemeasuredFunctionalAmount { get; set; }
+  public decimal ForeignExchangeAdjustment { get; set; }
+  public decimal RoundingAdjustment { get; set; }
+}

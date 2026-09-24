@@ -8,6 +8,7 @@ using AuditSphereOps.Domain.Acceptance;
 using AuditSphereOps.Domain.Audit;
 using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Completion;
+using AuditSphereOps.Domain.Documents;
 using AuditSphereOps.Domain.Engagements;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Security;
@@ -1688,8 +1689,110 @@ public sealed class ClientAccountingTests
     Assert.Equal(48m, translation.TranslationReserveMovement);
     Assert.Equal(53m, translation.ClosingTranslationReserve);
     Assert.Equal(0m, translation.RoundingAdjustment);
+    Assert.Equal(10m, CurrencyRemeasurementCalculator.Remeasure(100m, "USD", "QAR", true, 3.7m, 0m, 360m).ForeignExchangeAdjustment);
+    Assert.Equal(0m, CurrencyRemeasurementCalculator.Remeasure(100m, "USD", "QAR", false, 0m, 3.6m, 360m).ForeignExchangeAdjustment);
+    Assert.Throws<InvalidOperationException>(() => CurrencyRemeasurementCalculator.Remeasure(100m, "USD", "QAR", true, 0m, 3.6m, 360m));
 
     Assert.Equal(370m, DisplayCurrencyConversionCalculator.Convert(100m, "USD", "QAR", 3.7m));
+  }
+
+  [Fact]
+  [Trait("Profile", "Database")]
+  public async Task CurrencyRemeasurement_IsEvidenceBoundAndRequiresIndependentApproval()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var scope = await SeedAsync(pg);
+    var preparer = Actor(scope.Preparer, "AccountingPreparer");
+    var reviewer = Actor(scope.Reviewer, "AccountingReviewer");
+    Guid periodId, rateSetId, policyId, monetarySnapshotId, nonMonetarySnapshotId;
+    var asOf = new DateOnly(2026, 12, 31);
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      Assert.True((await ClientAccountingService.CreateProfileAsync(db, preparer,
+        new ClientAccountingProfileRequest(scope.ClientA, "QA", "QAR", 1, 1, "LEDGER-A", "A-1"))).Succeeded);
+      periodId = (await ClientAccountingService.CreatePeriodAsync(db, preparer,
+        new ReportingPeriodRequest(scope.ClientA, "2026", new DateOnly(2026, 1, 1), asOf, "STATUTORY", "QAR"))).Value;
+
+      rateSetId = Guid.CreateVersion7();
+      policyId = Guid.CreateVersion7();
+      var now = DateTimeOffset.UtcNow;
+      db.ExchangeRateSetVersions.Add(new ExchangeRateSetVersion
+      {
+        Id = rateSetId, FirmId = scope.FirmId, Code = "FX-REMEASURE-2026", Version = 1, Source = "approved test evidence",
+        EffectiveFrom = new DateOnly(2026, 1, 1), EffectiveTo = asOf, Status = AccountingWorkflowStates.Approved,
+        CreatedByUserId = scope.Preparer.Id, ApprovedByUserId = scope.Reviewer.Id, CreatedAt = now, ApprovedAt = now
+      });
+      db.TranslationPolicyVersions.Add(new TranslationPolicyVersion
+      {
+        Id = policyId, FirmId = scope.FirmId, Code = "FX-REMEASURE-IFRS", FunctionalCurrency = "QAR",
+        PresentationCurrency = "QAR", ClosingRateRule = "CLOSING", AverageRateRule = "AVERAGE",
+        HistoricalRateRule = "HISTORICAL", Status = AccountingWorkflowStates.Approved,
+        CreatedByUserId = scope.Preparer.Id, ApprovedByUserId = scope.Reviewer.Id, CreatedAt = now, ApprovedAt = now
+      });
+      db.ExchangeRates.AddRange(
+        new ExchangeRate { Id = Guid.CreateVersion7(), FirmId = scope.FirmId, RateSetVersionId = rateSetId, FromCurrency = "USD", ToCurrency = "QAR", RateDate = asOf, RateType = "CLOSING", Rate = 3.7m, Direction = "DIRECT", CreatedAt = now },
+        new ExchangeRate { Id = Guid.CreateVersion7(), FirmId = scope.FirmId, RateSetVersionId = rateSetId, FromCurrency = "USD", ToCurrency = "QAR", RateDate = new DateOnly(2026, 1, 1), RateType = "HISTORICAL", Rate = 3.6m, Direction = "DIRECT", CreatedAt = now });
+
+      var bindingId = Guid.CreateVersion7();
+      var documentReferenceId = Guid.CreateVersion7();
+      db.RepositoryBindings.Add(new RepositoryBinding
+      {
+        Id = bindingId, FirmId = scope.FirmId, ClientId = scope.ClientA, EngagementId = scope.EngagementA,
+        TenantId = "tenant-test", SiteId = "site-test", DriveId = "drive-test", RootFolderId = "root-test",
+        Classification = "WORKING", DesiredAccess = "APP_MEDIATED", ObservedAccess = "APP_MEDIATED",
+        CapabilityProfile = "TEST", CreatedAt = now
+      });
+      db.DocumentReferences.Add(new DocumentReference
+      {
+        Id = documentReferenceId, FirmId = scope.FirmId, ClientId = scope.ClientA, EngagementId = scope.EngagementA,
+        RepositoryBindingId = bindingId, Provider = "SharePoint", DriveId = "drive-test", ItemId = "evidence-test",
+        Path = "/AuditSphere/Test/open-items.xlsx", Purpose = "Evidence", CreatedAt = now
+      });
+      monetarySnapshotId = Guid.CreateVersion7();
+      nonMonetarySnapshotId = Guid.CreateVersion7();
+      db.DocumentSnapshots.AddRange(
+        new DocumentSnapshot { Id = monetarySnapshotId, FirmId = scope.FirmId, ClientId = scope.ClientA, EngagementId = scope.EngagementA, DocumentReferenceId = documentReferenceId, DriveId = "drive-test", ItemId = "evidence-test", VersionId = "v1", Sha256Hex = new string('a', 64), ByteCount = 100, CapturedBy = "test", CapturedAt = now },
+        new DocumentSnapshot { Id = nonMonetarySnapshotId, FirmId = scope.FirmId, ClientId = scope.ClientA, EngagementId = scope.EngagementA, DocumentReferenceId = documentReferenceId, DriveId = "drive-test", ItemId = "evidence-test", VersionId = "v2", Sha256Hex = new string('b', 64), ByteCount = 100, CapturedBy = "test", CapturedAt = now });
+      await db.SaveChangesAsync();
+    }
+
+    Guid scheduleId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var request = new CurrencyRemeasurementScheduleRequest(scope.ClientA, scope.EngagementA, periodId,
+        rateSetId, policyId, asOf,
+        [new("AR-INV-100", monetarySnapshotId, true, "USD", 100m, 360m, null),
+         new("EQUITY-HIST-1", nonMonetarySnapshotId, false, "USD", 100m, 360m, new DateOnly(2026, 1, 1))]);
+      var prepared = await CurrencyRemeasurementService.PrepareAsync(db, preparer, request);
+      Assert.True(prepared.Succeeded, prepared.Message);
+      scheduleId = prepared.Value;
+      var replay = await CurrencyRemeasurementService.PrepareAsync(db, preparer, request);
+      Assert.True(replay.Succeeded);
+      Assert.Equal(scheduleId, replay.Value);
+      var selfApproval = await CurrencyRemeasurementService.ApproveAsync(db, preparer, scheduleId);
+      Assert.False(selfApproval.Succeeded);
+    }
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var approved = await CurrencyRemeasurementService.ApproveAsync(db, reviewer, scheduleId);
+      Assert.True(approved.Succeeded, $"{approved.ErrorCode}: {approved.Message}");
+      var view = await CurrencyRemeasurementService.GetAsync(db, preparer, scheduleId);
+      Assert.True(view.Succeeded);
+      Assert.Equal(AccountingWorkflowStates.Approved, view.Value!.Status);
+      Assert.Equal(10m, view.Value.TotalForeignExchangeAdjustment);
+      Assert.Equal(2, view.Value.Items.Count);
+      Assert.Equal(10m, view.Value.Items.Single(x => x.IsMonetary).ForeignExchangeAdjustment);
+      Assert.Equal(0m, view.Value.Items.Single(x => !x.IsMonetary).ForeignExchangeAdjustment);
+      Assert.Equal(new string('a', 64), view.Value.Items.Single(x => x.IsMonetary).EvidenceSha256);
+    }
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM currency_remeasurement_items WHERE schedule_id = {scheduleId}"));
+      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM currency_remeasurement_schedules WHERE id = {scheduleId}"));
+    }
   }
 
   [Fact]
