@@ -190,4 +190,67 @@ public sealed class AuditProgramWorkflowTests
       Assert.Equal(ErrorCodes.ScopeDenied, ungrantedLibrary.ErrorCode);
     }
   }
+
+  [Fact(DisplayName = "Engagement program query reports tailoring, status and section coverage")]
+  public async Task EngagementProgramQuery_ReportsTailoredCoverage()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await PlanningSeed.CreateAsync(pg, role: "Partner");
+    var scope = fixture.Primary;
+
+    Guid programVersionId, procedureId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var published = await AuditProgramService.PublishAsync(db, scope.Actor,
+        new PublishAuditProgramRequest("2026.1", AuditProgramCatalog.SourceHash));
+      Assert.True(published.Succeeded, published.Message);
+      programVersionId = published.Value!.ProgramVersionId;
+      Assert.True((await AuditProgramService.AdoptAsync(db, scope.Actor,
+        new AdoptAuditProgramRequest(scope.EngagementId, programVersionId))).Succeeded);
+
+      // Tailor one procedure out of scope in the cash section.
+      var cash = await db.AuditProcedures.SingleAsync(x =>
+        x.EngagementId == scope.EngagementId && x.SourceProcedureId == "AWP-02-04");
+      procedureId = cash.Id;
+      Assert.True((await AuditProgramService.DecideApplicabilityAsync(db, scope.Actor,
+        new DecideProcedureApplicabilityRequest(cash.Id, AuditApplicabilityStatuses.Applicable,
+          "Bank confirmations are required for this engagement."))).Succeeded);
+    }
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      // Cross-engagement and foreign-firm access fails closed.
+      var denied = await EngagementAuditProgramQuery.GetProceduresAsync(db, scope.Actor, fixture.Other.EngagementId);
+      Assert.False(denied.Succeeded);
+      Assert.Equal(ErrorCodes.ScopeDenied, denied.ErrorCode);
+
+      var page = await EngagementAuditProgramQuery.GetProceduresAsync(db, scope.Actor, scope.EngagementId);
+      Assert.True(page.Succeeded, page.Message);
+      Assert.Equal(165, page.Value!.TotalCount);
+      var cashProcedure = page.Value.Items.Single(x => x.SourceProcedureId == "AWP-02-04");
+      Assert.Equal(2, cashProcedure.SectionNumber);
+      Assert.Equal("Cash & Bank", cashProcedure.SectionTitle);
+      Assert.Equal(AuditApplicabilityStatuses.Applicable, cashProcedure.ApplicabilityStatus);
+      Assert.Equal("Bank confirmations are required for this engagement.", cashProcedure.ApplicabilityRationale);
+      Assert.Equal(4, cashProcedure.Ordinal);
+      Assert.Equal("Obtain direct bank confirmations and reconcile confirmed balances.", cashProcedure.SourceWording);
+
+      // Section filter narrows the page to the eight cash procedures.
+      var cashOnly = await EngagementAuditProgramQuery.GetProceduresAsync(db, scope.Actor, scope.EngagementId, sectionNumber: 2);
+      Assert.Equal(8, cashOnly.Value!.TotalCount);
+      Assert.All(cashOnly.Value.Items, x => Assert.Equal(2, x.SectionNumber));
+
+      var program = await EngagementAuditProgramQuery.GetProgramAsync(db, scope.Actor, scope.EngagementId);
+      Assert.True(program.Succeeded, program.Message);
+      Assert.Equal(programVersionId, program.Value!.ProgramVersionId);
+      Assert.Equal(AuditProgramCatalog.ProgramCode, program.Value.ProgramCode);
+      Assert.Equal("2026.1", program.Value.ProgramVersion);
+      Assert.Equal(165, program.Value.TotalProcedures);
+      Assert.Equal(20, program.Value.Sections.Count);
+      var cashCoverage = program.Value.Sections.Single(x => x.SectionNumber == 2);
+      Assert.Equal(8, cashCoverage.Total);
+      Assert.Equal(1, cashCoverage.Applicable);
+      Assert.Equal(7, cashCoverage.PendingDecision);
+    }
+  }
 }

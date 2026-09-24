@@ -18,7 +18,7 @@ env:
   ExternalEffects__Enabled: 'false'
   Application__AllowSimulationAdapters: 'true'
   DevelopmentIdentity__Enabled: 'false'
-  EXPECTED_CASES: '356'
+  EXPECTED_CASES: '357'
 
 jobs:
   # ------------------------------------------------------------------
@@ -488,7 +488,7 @@ jobs:
               parse(report)
           PY
         env:
-          EXPECTED_CASES: '356'
+          EXPECTED_CASES: '357'
 
       - name: Upload guard counters
         if: ${{ always() }}
