@@ -165,7 +165,7 @@ Use pure xUnit for deterministic rules, real PostgreSQL for persistence/concurre
 | AS-AUD-028 | Primary |
 | AS-AUD-028-AC01 | Covered |
 | AS-AUD-028-AC02 | Covered |
-| All 165 AWPs (`AWP-01-01`–`AWP-20-10`) | Covered |
+| All 165 AWPs (`AWP-01-01`–`AWP-20-10`) | Cross-cutting coverage reference |
 
 ## Completion checklist
 

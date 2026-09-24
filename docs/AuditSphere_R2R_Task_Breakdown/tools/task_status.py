@@ -149,6 +149,108 @@ def md_anchors(text):
     return result
 
 
+def validate_audit_workflow(manifest, tasks):
+    errors = []
+    stats = {}
+    audit_meta = manifest.get('sources', {}).get('audit_workflow')
+    if not audit_meta:
+        errors.append('Manifest missing sources.audit_workflow metadata')
+        return errors, stats
+    audit_file = ROOT / audit_meta['file']
+    if not audit_file.is_file():
+        errors.append(f"Audit source file missing: {audit_meta['file']}")
+        return errors, stats
+    audit_bytes = audit_file.read_bytes()
+    actual_sha = hashlib.sha256(audit_bytes).hexdigest()
+    if actual_sha != audit_meta['sha256']:
+        errors.append(f"Audit source hash mismatch: expected {audit_meta['sha256']}, got {actual_sha}")
+    audit_text = audit_file.read_text(encoding='utf-8')
+    src_stories = set(re.findall(r'^###\s+(AS-AUD-\d{3})\b', audit_text, re.M))
+    src_acs = set(re.findall(r'\b(AS-AUD-\d{3}-AC\d{2})\b', audit_text))
+    src_awps = set(re.findall(r'\b(AWP-\d{2}-\d{2})\b', audit_text))
+    if len(src_stories) != 28: errors.append(f"Audit source must contain 28 stories, found {len(src_stories)}")
+    if len(src_acs) != 258: errors.append(f"Audit source must contain 258 acceptance criteria, found {len(src_acs)}")
+    if len(src_awps) != 165: errors.append(f"Audit source must contain 165 AWP procedures, found {len(src_awps)}")
+    trace_file = ROOT / 'tracking/AUDIT_WORKFLOW_TRACEABILITY.md'
+    if not trace_file.is_file():
+        errors.append('Audit traceability ledger missing')
+        return errors, stats
+    trace_text = trace_file.read_text(encoding='utf-8')
+    ac_rows = []
+    awp_rows = []
+    for line in trace_text.splitlines():
+        if line.startswith('| AS-AUD-'):
+            ac_rows.append([p.strip() for p in line.split('|')[1:-1]])
+        elif line.startswith('| `AWP-'):
+            awp_rows.append([p.strip() for p in line.split('|')[1:-1]])
+    if len(ac_rows) != 258:
+        errors.append(f"Traceability ledger must contain 258 AC rows, found {len(ac_rows)}")
+    ledger_acs = [r[1].strip('`') for r in ac_rows]
+    if len(set(ledger_acs)) != len(ledger_acs):
+        errors.append('Duplicate AC rows in traceability ledger')
+    if set(ledger_acs) != src_acs:
+        errors.append('Traceability ledger ACs do not match source ACs')
+    if len(awp_rows) != 165:
+        errors.append(f"Traceability ledger must contain 165 AWP rows, found {len(awp_rows)}")
+    ledger_awps = [r[0].strip('`') for r in awp_rows]
+    if len(set(ledger_awps)) != len(ledger_awps):
+        errors.append('Duplicate AWP rows in traceability ledger')
+    if set(ledger_awps) != src_awps:
+        errors.append('Traceability ledger AWPs do not match source AWPs')
+    disp_counts = collections.Counter(r[4].strip('`') for r in ac_rows)
+    valid_disps = {'MERGE_EXISTING', 'NEW_TASK_REQUIRED', 'REFERENCE_ONLY', 'BLOCKED_EXTERNAL'}
+    if not set(disp_counts.keys()).issubset(valid_disps):
+        errors.append(f"Invalid dispositions found: {set(disp_counts.keys()) - valid_disps}")
+    if sum(disp_counts.values()) != 258:
+        errors.append(f"Disposition counts sum to {sum(disp_counts.values())}, expected 258")
+    for disp, count in disp_counts.items():
+        pattern = rf"`{disp}`:\s*{count}\b"
+        if not re.search(pattern, trace_text):
+            errors.append(f"Traceability summary mismatch for {disp}: expected {count}")
+    task_expected_acs = collections.defaultdict(set)
+    for r in ac_rows:
+        ac = r[1].strip('`')
+        tid = r[3].strip('*')
+        task_expected_acs[tid].add(ac)
+    task_expected_awps = collections.defaultdict(set)
+    for r in awp_rows:
+        awp = r[0].strip('`')
+        tid = r[5].strip('*')
+        task_expected_awps[tid].add(awp)
+    mapped_tasks = set(task_expected_acs.keys()) | set(task_expected_awps.keys())
+    for tid, (row, m, body) in tasks.items():
+        trace_sec = re.search(r"## Audit workflow source traceability.*?(?=\n## |\Z)", body, re.DOTALL)
+        expected_acs = task_expected_acs.get(tid, set())
+        expected_awps = task_expected_awps.get(tid, set())
+        if expected_acs or expected_awps:
+            if not trace_sec:
+                errors.append(f"{tid}: missing ## Audit workflow source traceability section")
+                continue
+            sec_text = trace_sec.group(0)
+            local_acs = set(re.findall(r"\b(AS-AUD-\d{3}-AC\d{2})\b", sec_text))
+            if local_acs != expected_acs:
+                errors.append(f"{tid}: local AC traceability drift: missing={expected_acs - local_acs}, extra={local_acs - expected_acs}")
+            local_primary_awps = set(re.findall(r"\|\s*(AWP-\d{2}-\d{2})\s*\|\s*Covered\s*\|", sec_text))
+            if local_primary_awps != expected_awps:
+                errors.append(f"{tid}: local primary AWP traceability drift: missing={expected_awps - local_primary_awps}, extra={local_primary_awps - expected_awps}")
+        else:
+            if trace_sec:
+                sec_text = trace_sec.group(0)
+                local_acs = set(re.findall(r"\b(AS-AUD-\d{3}-AC\d{2})\b", sec_text))
+                local_awps = set(re.findall(r"\|\s*(AWP-\d{2}-\d{2})\s*\|\s*Covered\s*\|", sec_text))
+                if local_acs or local_awps:
+                    errors.append(f"{tid}: claims unmapped audit ACs={local_acs}, AWPs={local_awps}")
+    stats = {
+        'audit_source_sha256': actual_sha,
+        'audit_stories': len(src_stories),
+        'audit_criteria': len(src_acs),
+        'audit_procedures': len(src_awps),
+        'audit_mapped_tasks': len(mapped_tasks),
+        'audit_dispositions': dict(disp_counts)
+    }
+    return errors, stats
+
+
 def validate():
     errors=[];manifest=load_manifest();tasks=load_tasks(manifest)
     ids=[r['id'] for r in manifest['tasks']]
@@ -222,7 +324,21 @@ def validate():
     for name,expected in generated_blocks(tasks,manifest).items():
         current=re.search(rf'<!-- BEGIN {name} -->\n(.*?)\n<!-- END {name} -->',index,re.S)
         if not current or current[1]!=expected:errors.append(f'Index {name} is stale; run refresh')
-    return errors,{'tasks':len(tasks),'work_packages':len(manifest['original_work_packages']),'commands_queries':len(source_commands),'criteria':52,'journeys':30,'fixtures':8,'markdown_files':len(md_files),'local_links_checked':local_count,'original_source_sha256':manifest['source_sha256']}
+    audit_errors, audit_stats = validate_audit_workflow(manifest, tasks)
+    errors.extend(audit_errors)
+    out_stats = {
+        'tasks': len(tasks),
+        'work_packages': len(manifest['original_work_packages']),
+        'commands_queries': len(source_commands),
+        'criteria': 52,
+        'journeys': 30,
+        'fixtures': 8,
+        'markdown_files': len(md_files),
+        'local_links_checked': local_count,
+        'original_source_sha256': manifest['source_sha256']
+    }
+    out_stats.update(audit_stats)
+    return errors, out_stats
 
 
 def log_change(task_id,old,new,actor,reason):

@@ -1,10 +1,28 @@
 {
   "pack_version": "1.0",
+  "scope": "R2R Modules 20–26 plus integrated Audit Workflow Gap Closure",
   "source_filename": "STEAuditSphere_R2R_Implementation_Blueprint_Modules_20-26.md",
   "source_sha256": "3847e73e50cb6c9971281e8d1b8660ced437c00fbac377b2c5c6f7053a0bb2ed",
   "source_lines": 1664,
-  "scope": "Modules 20–26 only",
   "source_baseline": "ba1a3ec23335b40667b679e4f0cd5f66b9e723b9",
+  "sources": {
+    "r2r": {
+      "file": "source/ORIGINAL_R2R_Blueprint_Modules_20-26.md",
+      "sha256": "3847e73e50cb6c9971281e8d1b8660ced437c00fbac377b2c5c6f7053a0bb2ed",
+      "lines": 1664,
+      "role": "R2R accounting/reporting implementation source"
+    },
+    "audit_workflow": {
+      "file": "source/ORIGINAL_Audit_Workflow_Gap_Closure_User_Stories.md",
+      "sha256": "c05b20c9dd90c1c90360bda463e2a95000ba26d07f6d07d41247e02af0273895",
+      "lines": 2060,
+      "role": "Audit workflow requirement source",
+      "stories": 28,
+      "acceptance_criteria": 258,
+      "procedures": 165,
+      "sections": 20
+    }
+  },
   "tasks": [
     {
       "id": "T001",

@@ -131,21 +131,18 @@ Use pure xUnit for deterministic rules, real PostgreSQL for persistence/concurre
 **Golden fixtures:** [GOLD-R2R-01](../../coverage/04_Golden_Fixture_Tracking.md#gold-r2r-01), [GOLD-R2R-08](../../coverage/04_Golden_Fixture_Tracking.md#gold-r2r-08). Fixture use requires the original policy approval; the numbers are synthetic QA values.
 
 ### Audit adjusted TB verification and reflection requirements
-- Verify accepted audit adjustments are accurately reflected in revised client TB and AuditSphere adjusted TB snapshots (`AWP-19-06`).
-- Tie out the final adjusted trial balance to the draft financial statements (`AWP-19-07`).
-- Obtain and record engagement partner sign-off on the schedule of unadjusted audit misstatements (`AWP-19-07`).
+- Ensure all agreed adjustments are posted and reflected in the final TB (`AWP-19-07`).
 
 ## Audit workflow source traceability
 
 | Source | Coverage |
 |---|---|
 | AS-AUD-026 | Primary |
+| AS-AUD-026-AC07 | Covered |
+| AS-AUD-026-AC08 | Covered |
 | AS-AUD-026-AC09 | Covered |
 | AS-AUD-026-AC10 | Covered |
 | AS-AUD-026-AC11 | Covered |
-| AS-AUD-026-AC12 | Covered |
-| AS-AUD-026-AC13 | Covered |
-| AWP-19-06 | Covered |
 | AWP-19-07 | Covered |
 
 ## Completion checklist

@@ -466,6 +466,7 @@ Module completion requires its implementation tasks **and** applicable integrate
 | [Criterion result ledger](coverage/02_Acceptance_Criteria_Tracking.md) | Editable criterion-by-criterion acceptance results |
 | [Integration journey result ledger](coverage/03_Integration_Journey_Tracking.md) | Editable full-journey evidence |
 | [Golden fixture approval/results](coverage/04_Golden_Fixture_Tracking.md) | Separate professional approval and numerical proof |
+| [Audit workflow clarifications](reference/09_Audit_Workflow_Consolidation_Clarifications.md) | Architectural, boundary, and product-scope determinations for audit consolidation |
 | [Audit workflow traceability ledger](tracking/AUDIT_WORKFLOW_TRACEABILITY.md) | Traceability ledger mapping 28 AS-AUD stories, 258 criteria and 165 AWP procedures to canonical tasks |
 | [Status history](tracking/STATUS_HISTORY.md) | Append-only documentation history for task changes |
 | [Pack manifest](tracking/pack_manifest.json) | Source hash, task paths, dependency graph and original coverage inventories |

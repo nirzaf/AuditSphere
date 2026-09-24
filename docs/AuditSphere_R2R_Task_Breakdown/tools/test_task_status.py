@@ -103,5 +103,53 @@ class TaskStatusTests(unittest.TestCase):
     def test_blocker_reason_is_required(self):
         with self.assertRaisesRegex(ValueError,'reason'):
             helper.set_status(self.arguments('T001','BLOCKED'))
+    def test_audit_source_tampering_is_detected(self):
+        p=self.root/'source/ORIGINAL_Audit_Workflow_Gap_Closure_User_Stories.md'
+        p.write_text(p.read_text(encoding='utf-8')+'\nSynthetic tamper.\n',encoding='utf-8')
+        errors,_=helper.validate()
+        self.assertTrue(any('Audit source hash mismatch' in x for x in errors))
+    def test_missing_audit_ac_is_detected(self):
+        p=self.root/'tracking/AUDIT_WORKFLOW_TRACEABILITY.md'
+        lines=p.read_text(encoding='utf-8').splitlines()
+        new_lines=[l for l in lines if not l.startswith('| AS-AUD-001 | `AS-AUD-001-AC01`')]
+        p.write_text('\n'.join(new_lines)+'\n',encoding='utf-8')
+        errors,_=helper.validate()
+        self.assertTrue(any('Traceability ledger must contain 258 AC rows' in x for x in errors))
+    def test_duplicate_audit_ac_is_detected(self):
+        p=self.root/'tracking/AUDIT_WORKFLOW_TRACEABILITY.md'
+        text=p.read_text(encoding='utf-8')
+        text=text.replace('`AS-AUD-001-AC02`','`AS-AUD-001-AC01`',1)
+        p.write_text(text,encoding='utf-8')
+        errors,_=helper.validate()
+        self.assertTrue(any('Duplicate AC rows' in x for x in errors))
+    def test_missing_awp_is_detected(self):
+        p=self.root/'tracking/AUDIT_WORKFLOW_TRACEABILITY.md'
+        lines=p.read_text(encoding='utf-8').splitlines()
+        new_lines=[l for l in lines if not l.startswith('| `AWP-01-01`')]
+        p.write_text('\n'.join(new_lines)+'\n',encoding='utf-8')
+        errors,_=helper.validate()
+        self.assertTrue(any('Traceability ledger must contain 165 AWP rows' in x for x in errors))
+    def test_duplicate_awp_owner_is_detected(self):
+        p=self.root/'tracking/AUDIT_WORKFLOW_TRACEABILITY.md'
+        text=p.read_text(encoding='utf-8')
+        text=text.replace('\n| `AWP-01-02` |','\n| `AWP-01-01` |',1)
+        p.write_text(text,encoding='utf-8')
+        errors,_=helper.validate()
+        self.assertTrue(any('Duplicate AWP rows' in x for x in errors))
+    def test_task_local_traceability_mismatch_is_detected(self):
+        p=self.root/'tracking/AUDIT_WORKFLOW_TRACEABILITY.md'
+        text=p.read_text(encoding='utf-8')
+        text=text.replace('| `AWP-01-01` | 1. Planning & Risk Assessment | Obtain company registration documents and basic company information. | AS-AUD-007 | `AS-AUD-007-AC01` | **T060** |',
+                           '| `AWP-01-01` | 1. Planning & Risk Assessment | Obtain company registration documents and basic company information. | AS-AUD-007 | `AS-AUD-007-AC01` | **T061** |')
+        p.write_text(text,encoding='utf-8')
+        errors,_=helper.validate()
+        self.assertTrue(any('local primary AWP traceability drift' in x for x in errors))
+    def test_disposition_summary_drift_is_detected(self):
+        p=self.root/'tracking/AUDIT_WORKFLOW_TRACEABILITY.md'
+        text=p.read_text(encoding='utf-8')
+        text=text.replace('`MERGE_EXISTING`: 59','`MERGE_EXISTING`: 58')
+        p.write_text(text,encoding='utf-8')
+        errors,_=helper.validate()
+        self.assertTrue(any('Traceability summary mismatch for MERGE_EXISTING' in x for x in errors))
 
 if __name__=='__main__':unittest.main(verbosity=2)

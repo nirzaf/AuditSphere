@@ -18,8 +18,8 @@
 
 ### Dispositions breakdown
 
-- `MERGE_EXISTING`: 69 criteria merged into existing tasks (AS-AUD-001 baseline, AS-AUD-018 equity, AS-AUD-025 statements/disclosures, AS-AUD-026 audit differences, AS-AUD-027 release gates, AS-AUD-028 acceptance/journeys).
-- `NEW_TASK_REQUIRED`: 186 criteria assigned to 21 new tasks (T055–T075) covering genuine residual gaps (audit program library, tailoring, lead schedules, sampling, confirmations, 14 field audit workpapers, analytics, going concern, subsequent events).
+- `MERGE_EXISTING`: 59 criteria merged into existing tasks (AS-AUD-001 baseline, AS-AUD-018 equity, AS-AUD-025 statements/disclosures, AS-AUD-026 audit differences, AS-AUD-027 release gates, AS-AUD-028 acceptance/journeys).
+- `NEW_TASK_REQUIRED`: 196 criteria assigned to 21 new tasks (T055–T075) covering genuine residual gaps (audit program library, tailoring, lead schedules, sampling, confirmations, 14 field audit workpapers, analytics, going concern, subsequent events).
 - `REFERENCE_ONLY`: 1 criterion (AS-AUD-001-AC04) recording architectural boundary preservation.
 - `BLOCKED_EXTERNAL`: 2 criteria (AS-AUD-001-AC06 methodology inputs; AS-AUD-027-AC14 final partner professional sign-off and report issuance) recording external human/methodology prerequisites.
 
@@ -240,8 +240,8 @@
 | AS-AUD-025 | `AS-AUD-025-AC01` | `AWP-18-01` | **T033** | `MERGE_EXISTING` | Consolidated into statement review and tie-out lifecycle |
 | AS-AUD-025 | `AS-AUD-025-AC02` | `AWP-18-02` | **T033** | `MERGE_EXISTING` | Consolidated into statement review and tie-out lifecycle |
 | AS-AUD-025 | `AS-AUD-025-AC03` | `AWP-18-03` | **T033** | `MERGE_EXISTING` | Consolidated into statement review and tie-out lifecycle |
-| AS-AUD-025 | `AS-AUD-025-AC04` | `AWP-18-04` | **T033** | `MERGE_EXISTING` | Consolidated into statement review and tie-out lifecycle |
-| AS-AUD-025 | `AS-AUD-025-AC05` | `AWP-18-05` | **T032** | `MERGE_EXISTING` | Consolidated into disclosure notes applicability and checklist review |
+| AS-AUD-025 | `AS-AUD-025-AC04` | `AWP-18-04` | **T032** | `MERGE_EXISTING` | Consolidated into disclosure notes applicability and checklist review |
+| AS-AUD-025 | `AS-AUD-025-AC05` | `AWP-18-05` | **T033** | `MERGE_EXISTING` | Consolidated into statement review and tie-out lifecycle |
 | AS-AUD-025 | `AS-AUD-025-AC06` | `AWP-18-06` | **T032** | `MERGE_EXISTING` | Consolidated into disclosure notes applicability and checklist review |
 | AS-AUD-025 | `AS-AUD-025-AC07` | `AWP-18-07` | **T033** | `MERGE_EXISTING` | Consolidated into statement review and tie-out lifecycle |
 | AS-AUD-025 | `AS-AUD-025-AC08` | `AWP-18-08` | **T032** | `MERGE_EXISTING` | Consolidated into disclosure notes applicability and checklist review |
@@ -254,13 +254,13 @@
 | AS-AUD-026 | `AS-AUD-026-AC04` | `AWP-19-04` | **T022** | `MERGE_EXISTING` | Consolidated into adjustment drafts, decisions and SAD schedule |
 | AS-AUD-026 | `AS-AUD-026-AC05` | `AWP-19-05` | **T022** | `MERGE_EXISTING` | Consolidated into adjustment drafts, decisions and SAD schedule |
 | AS-AUD-026 | `AS-AUD-026-AC06` | `AWP-19-06` | **T022** | `MERGE_EXISTING` | Consolidated into adjustment drafts, decisions and SAD schedule |
-| AS-AUD-026 | `AS-AUD-026-AC07` | `AWP-19-07` | **T022** | `MERGE_EXISTING` | Consolidated into adjustment drafts, decisions and SAD schedule |
-| AS-AUD-026 | `AS-AUD-026-AC08` | — | **T022** | `MERGE_EXISTING` | Consolidated into adjustment drafts, decisions and SAD schedule |
+| AS-AUD-026 | `AS-AUD-026-AC07` | `AWP-19-07` | **T023** | `MERGE_EXISTING` | Consolidated into reflection plans and final adjusted TB posting verification |
+| AS-AUD-026 | `AS-AUD-026-AC08` | — | **T023** | `MERGE_EXISTING` | Consolidated into reflection treatment and double-counting prevention |
 | AS-AUD-026 | `AS-AUD-026-AC09` | — | **T023** | `MERGE_EXISTING` | Consolidated into reflection plans, adjusted TB tie-out and partner sign-off |
 | AS-AUD-026 | `AS-AUD-026-AC10` | — | **T023** | `MERGE_EXISTING` | Consolidated into reflection plans, adjusted TB tie-out and partner sign-off |
 | AS-AUD-026 | `AS-AUD-026-AC11` | — | **T023** | `MERGE_EXISTING` | Consolidated into reflection plans, adjusted TB tie-out and partner sign-off |
-| AS-AUD-026 | `AS-AUD-026-AC12` | — | **T023** | `MERGE_EXISTING` | Consolidated into reflection plans, adjusted TB tie-out and partner sign-off |
-| AS-AUD-026 | `AS-AUD-026-AC13` | — | **T023** | `MERGE_EXISTING` | Consolidated into reflection plans, adjusted TB tie-out and partner sign-off |
+| AS-AUD-026 | `AS-AUD-026-AC12` | — | **T022** | `MERGE_EXISTING` | Consolidated into uncorrected differences and reporting consequence evaluation |
+| AS-AUD-026 | `AS-AUD-026-AC13` | — | **T022** | `MERGE_EXISTING` | Consolidated into sample projection and difference evaluation |
 | AS-AUD-027 | `AS-AUD-027-AC01` | `AWP-20-01` | **T040** | `MERGE_EXISTING` | Consolidated into partner review, rep letter, opinion formulation & archive release |
 | AS-AUD-027 | `AS-AUD-027-AC02` | `AWP-20-02` | **T040** | `MERGE_EXISTING` | Consolidated into partner review, rep letter, opinion formulation & archive release |
 | AS-AUD-027 | `AS-AUD-027-AC03` | `AWP-20-03` | **T038** | `MERGE_EXISTING` | Consolidated into close readiness, program completion & ReviewPoint clearance |
@@ -432,8 +432,8 @@
 | `AWP-18-01` | 18. Financial Statements & Disclosures | Agree final financial statements to the audited Trial Balance. | AS-AUD-025 | `AS-AUD-025-AC01` | **T033** | `MERGE_EXISTING` |
 | `AWP-18-02` | 18. Financial Statements & Disclosures | Check statement of financial position and profit/loss. | AS-AUD-025 | `AS-AUD-025-AC02` | **T033** | `MERGE_EXISTING` |
 | `AWP-18-03` | 18. Financial Statements & Disclosures | Check cash flow statement and statement of changes in equity. | AS-AUD-025 | `AS-AUD-025-AC03` | **T033** | `MERGE_EXISTING` |
-| `AWP-18-04` | 18. Financial Statements & Disclosures | Review accounting policies and significant estimates. | AS-AUD-025 | `AS-AUD-025-AC04` | **T033** | `MERGE_EXISTING` |
-| `AWP-18-05` | 18. Financial Statements & Disclosures | Check comparative figures with prior-year audited FS. | AS-AUD-025 | `AS-AUD-025-AC05` | **T032** | `MERGE_EXISTING` |
+| `AWP-18-04` | 18. Financial Statements & Disclosures | Review accounting policies and significant estimates. | AS-AUD-025 | `AS-AUD-025-AC04` | **T032** | `MERGE_EXISTING` |
+| `AWP-18-05` | 18. Financial Statements & Disclosures | Check comparative figures with prior-year audited FS. | AS-AUD-025 | `AS-AUD-025-AC05` | **T033** | `MERGE_EXISTING` |
 | `AWP-18-06` | 18. Financial Statements & Disclosures | Check note disclosures and supporting schedules. | AS-AUD-025 | `AS-AUD-025-AC06` | **T032** | `MERGE_EXISTING` |
 | `AWP-18-07` | 18. Financial Statements & Disclosures | Check related-party, tax and going-concern disclosures. | AS-AUD-025 | `AS-AUD-025-AC07` | **T033** | `MERGE_EXISTING` |
 | `AWP-18-08` | 18. Financial Statements & Disclosures | Check subsequent-event disclosures. | AS-AUD-025 | `AS-AUD-025-AC08` | **T032** | `MERGE_EXISTING` |
@@ -444,7 +444,7 @@
 | `AWP-19-04` | 19. Audit Differences & Adjustments | Update the adjusted and unadjusted misstatement schedule. | AS-AUD-026 | `AS-AUD-026-AC04` | **T022** | `MERGE_EXISTING` |
 | `AWP-19-05` | 19. Audit Differences & Adjustments | Compare total unadjusted differences with materiality. | AS-AUD-026 | `AS-AUD-026-AC05` | **T022** | `MERGE_EXISTING` |
 | `AWP-19-06` | 19. Audit Differences & Adjustments | Assess whether remaining differences affect the audit conclusion. | AS-AUD-026 | `AS-AUD-026-AC06` | **T022** | `MERGE_EXISTING` |
-| `AWP-19-07` | 19. Audit Differences & Adjustments | Ensure all agreed adjustments are posted and reflected in the final TB. | AS-AUD-026 | `AS-AUD-026-AC07` | **T022** | `MERGE_EXISTING` |
+| `AWP-19-07` | 19. Audit Differences & Adjustments | Ensure all agreed adjustments are posted and reflected in the final TB. | AS-AUD-026 | `AS-AUD-026-AC07` | **T023** | `MERGE_EXISTING` |
 | `AWP-20-01` | 20. Final Completion & Audit Report | Ensure all audit sections are completed and cross-referenced. | AS-AUD-027 | `AS-AUD-027-AC01` | **T040** | `MERGE_EXISTING` |
 | `AWP-20-02` | 20. Final Completion & Audit Report | Ensure all review points have been cleared. | AS-AUD-027 | `AS-AUD-027-AC02` | **T040** | `MERGE_EXISTING` |
 | `AWP-20-03` | 20. Final Completion & Audit Report | Confirm all significant risks have been addressed. | AS-AUD-027 | `AS-AUD-027-AC03` | **T038** | `MERGE_EXISTING` |

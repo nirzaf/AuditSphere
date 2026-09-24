@@ -126,11 +126,12 @@ Use pure xUnit for deterministic rules, real PostgreSQL for persistence/concurre
 **Related integration journeys:** [R2R-AT-04](../../coverage/03_Integration_Journey_Tracking.md#r2r-at-04), [R2R-AT-05](../../coverage/03_Integration_Journey_Tracking.md#r2r-at-05), [R2R-AT-11](../../coverage/03_Integration_Journey_Tracking.md#r2r-at-11).
 
 ### Audit misstatement evaluation and SAD schedule requirements
-- Capture all audit misstatements and proposed adjustments in a Summary of Audit Differences (SAD) schedule (`AWP-19-01`).
-- Classify differences by nature: factual, judgmental, or projected (`AWP-19-02`).
-- Filter out differences falling below the Clearly Trivial Threshold (CTT) (`AWP-19-03`).
-- Compute cumulative and aggregate impact of unadjusted misstatements against materiality thresholds (`AWP-19-04`).
-- Document communication of proposed adjustments to client management and record client acceptance/rejection decisions (`AWP-19-05`).
+- Record all identified audit differences with supporting workpapers (`AWP-19-01`).
+- Obtain and record management's response to each proposed adjustment (`AWP-19-02`).
+- Calculate the impact of unadjusted differences on FS line items (`AWP-19-03`).
+- Prepare Summary of Unadjusted Differences (SUD) / Summary of Audit Differences (SAD) (`AWP-19-04`).
+- Evaluate aggregate unadjusted differences against materiality (`AWP-19-05`).
+- Assess whether remaining differences affect the audit conclusion (`AWP-19-06`).
 
 ## Audit workflow source traceability
 
@@ -143,13 +144,14 @@ Use pure xUnit for deterministic rules, real PostgreSQL for persistence/concurre
 | AS-AUD-026-AC04 | Covered |
 | AS-AUD-026-AC05 | Covered |
 | AS-AUD-026-AC06 | Covered |
-| AS-AUD-026-AC07 | Covered |
-| AS-AUD-026-AC08 | Covered |
+| AS-AUD-026-AC12 | Covered |
+| AS-AUD-026-AC13 | Covered |
 | AWP-19-01 | Covered |
 | AWP-19-02 | Covered |
 | AWP-19-03 | Covered |
 | AWP-19-04 | Covered |
 | AWP-19-05 | Covered |
+| AWP-19-06 | Covered |
 
 ## Completion checklist
 
