@@ -30,7 +30,17 @@ window.auditSphereExports.copyText = async text => {
   const timers = new WeakMap();
   const restoring = new WeakSet();
   const dirtyControls = new WeakSet();
+  const dirtyBoundaries = new WeakSet();
   let guidanceSequence = 0;
+  root.readScopedDraft = scope => {
+    const key = `auditsphere:draft:v1:${encodeURIComponent(scope)}`;
+    return window.localStorage.getItem(key) || window.sessionStorage.getItem(key);
+  };
+  root.restoreScope = scope => {
+    for (const boundary of document.querySelectorAll('[data-draft-scope]')) {
+      if (boundary.dataset.draftScope === scope) restore(boundary);
+    }
+  };
 
   const keyFor = boundary => `auditsphere:draft:v1:${encodeURIComponent(boundary.dataset.draftScope)}`;
   const stores = [
@@ -43,7 +53,7 @@ window.auditSphereExports.copyText = async text => {
       (includeDisabled || !control.disabled) &&
       control.type !== 'file' &&
       control.type !== 'password' &&
-      !control.dataset.draftSkip);
+      !control.hasAttribute('data-draft-skip'));
 
   function statusFor(boundary) {
     let status = boundary.querySelector('[data-draft-status]');
@@ -111,16 +121,19 @@ window.auditSphereExports.copyText = async text => {
     }
   }
 
-  function save(boundary) {
+  function save(boundary, force = false) {
+    if (boundary.hasAttribute('data-draft-server-managed') && !force && !dirtyBoundaries.has(boundary)) return;
     const draft = collect(boundary);
     const key = keyFor(boundary);
     memoryDrafts.set(key, draft);
     for (const store of stores) {
       if (writeStored(store, key, draft)) {
+        dirtyBoundaries.delete(boundary);
         setStatus(boundary, `Draft saved ${store.label}.`, store.state);
         return;
       }
     }
+    dirtyBoundaries.delete(boundary);
     setStatus(boundary, 'Draft saved for this page session; browser storage is unavailable.', 'session-only');
   }
 
@@ -178,12 +191,17 @@ window.auditSphereExports.copyText = async text => {
     if (wired.has(boundary) || !boundary.dataset.draftScope) return;
     wired.add(boundary);
     boundaries.add(boundary);
-    restore(boundary);
-    setTimeout(() => restore(boundary, 1), 250);
+    if (!boundary.hasAttribute('data-draft-server-managed')) {
+      restore(boundary);
+      setTimeout(() => restore(boundary, 1), 250);
+    }
     const listen = event => {
       const control = event.target?.closest?.('input, select, textarea');
       if (control && !restoring.has(boundary)) dirtyControls.add(control);
-      if (!restoring.has(boundary)) scheduleSave(boundary);
+      if (!restoring.has(boundary)) {
+        dirtyBoundaries.add(boundary);
+        scheduleSave(boundary);
+      }
     };
     boundary.addEventListener('input', listen);
     boundary.addEventListener('change', listen);
@@ -320,7 +338,13 @@ window.auditSphereExports.copyText = async text => {
         continue;
       }
       clearTimeout(timers.get(boundary));
-      save(boundary);
+      save(boundary, true);
+    }
+  };
+  root.saveDirty = () => {
+    for (const boundary of [...boundaries]) {
+      if (document.contains(boundary)) save(boundary);
+      else boundaries.delete(boundary);
     }
   };
   root.clear = scope => {
@@ -343,10 +367,10 @@ window.auditSphereExports.copyText = async text => {
     init();
     setTimeout(init, 250);
   });
-  window.addEventListener('beforeunload', () => root.saveAll());
-  window.addEventListener('pagehide', () => root.saveAll());
+  window.addEventListener('beforeunload', () => root.saveDirty());
+  window.addEventListener('pagehide', () => root.saveDirty());
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'hidden') root.saveAll();
+    if (document.visibilityState === 'hidden') root.saveDirty();
   });
   new MutationObserver(() => init()).observe(document.body, { childList: true, subtree: true });
 })();

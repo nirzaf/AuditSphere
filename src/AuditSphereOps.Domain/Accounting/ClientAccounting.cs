@@ -1178,6 +1178,8 @@ public sealed class CurrencyRemeasurementItem
   public Guid EngagementId { get; set; }
   public Guid ScheduleId { get; set; }
   public Guid EvidenceSnapshotId { get; set; }
+  public Guid? SourceGeneralLedgerLineId { get; set; }
+  public string SourceGlLineDigest { get; set; } = string.Empty;
   public Guid RateSetVersionId { get; set; }
   public Guid ExchangeRateId { get; set; }
   public string StableItemReference { get; set; } = string.Empty;

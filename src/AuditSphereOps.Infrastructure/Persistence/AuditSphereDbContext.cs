@@ -1905,6 +1905,8 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     glLine.Property(x => x.IntercompanyCounterparty).HasMaxLength(200);
     glLine.HasIndex(x => new { x.FirmId, x.ImportBatchId, x.StableLineId }).IsUnique()
       .HasDatabaseName("ux_gl_line_stable_line");
+    glLine.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
+      .HasName("ak_gl_lines_scope_id");
     glLine.ToTable("general_ledger_lines", t => t.HasCheckConstraint("ck_gl_line_values",
       "length(trim(account_code)) > 0 AND debit >= 0 AND credit >= 0 AND NOT (debit > 0 AND credit > 0) AND original_currency ~ '^[A-Z]{3}$'"));
     ScopeToEngagement(glLine, nameof(GeneralLedgerLine.FirmId), nameof(GeneralLedgerLine.ClientId), nameof(GeneralLedgerLine.EngagementId));
@@ -2409,16 +2411,26 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
       .HasName("ak_currency_remeasurement_items_scope_id");
     remeasurementItem.Property(x => x.StableItemReference).HasMaxLength(200);
     remeasurementItem.Property(x => x.SourceEvidenceSha256).HasMaxLength(64);
+    remeasurementItem.Property(x => x.SourceGlLineDigest).HasMaxLength(64);
     remeasurementItem.Property(x => x.ForeignCurrency).HasMaxLength(3);
     remeasurementItem.Property(x => x.RateType).HasMaxLength(30);
     remeasurementItem.HasIndex(x => new { x.FirmId, x.ScheduleId, x.StableItemReference }).IsUnique()
       .HasDatabaseName("ux_currency_remeasurement_item_reference");
-    remeasurementItem.ToTable("currency_remeasurement_items", t => t.HasCheckConstraint("ck_currency_remeasurement_item_values",
-      "source_evidence_sha256 ~ '^[0-9a-f]{64}$' AND foreign_currency ~ '^[A-Z]{3}$' AND stable_item_reference <> '' " +
-      "AND applied_rate > 0 AND rate_type <> ''"));
+    remeasurementItem.ToTable("currency_remeasurement_items", t =>
+    {
+      t.HasCheckConstraint("ck_currency_remeasurement_item_values",
+        "source_evidence_sha256 ~ '^[0-9a-f]{64}$' AND foreign_currency ~ '^[A-Z]{3}$' AND stable_item_reference <> '' " +
+        "AND applied_rate > 0 AND rate_type <> ''");
+      t.HasCheckConstraint("ck_currency_remeasurement_gl_source",
+        "(source_general_ledger_line_id IS NULL AND source_gl_line_digest = '') OR " +
+        "(source_general_ledger_line_id IS NOT NULL AND source_gl_line_digest ~ '^[0-9a-f]{64}$')");
+    });
     remeasurementItem.HasOne<CurrencyRemeasurementSchedule>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.ScheduleId })
       .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     remeasurementItem.HasOne<DocumentSnapshot>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.EvidenceSnapshotId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    remeasurementItem.HasOne<GeneralLedgerLine>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.SourceGeneralLedgerLineId })
       .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     remeasurementItem.HasOne<ExchangeRate>().WithMany().HasForeignKey(x => new { x.FirmId, x.RateSetVersionId, x.ExchangeRateId })
       .HasPrincipalKey(x => new { x.FirmId, x.RateSetVersionId, x.Id }).OnDelete(DeleteBehavior.Restrict);

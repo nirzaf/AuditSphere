@@ -57,7 +57,7 @@
     "implementationStatus": "IN_PROGRESS",
     "acceptanceStatus": "LOCAL_VERIFIED",
     "scope": "Local audit workflow, client accounting, scoped client file-request threads/uploads/downloads, GL intake, completeness, package, Office/PDF export, restatement, consolidation, journal-lineage, close-check, package-review and Microsoft 365 onboarding control-plane slices.",
-    "nextAction": "Verify hosted CI run 35981469838 on exact master SHA 1b63f275f49f39bafa4e2a5f57c4ea66a7b6f1c3. Continue the remaining local accounting stories after recording its result; G16 open-item sourcing/methodology and applicable live evidence remain separate gates."
+    "nextAction": "Continue the remaining local accounting stories and verify hosted CI against each pushed SHA. G16 period-end open-item methodology approval and applicable live integration evidence remain separate gates."
   },
   "localEvidence": [
     {
@@ -68,7 +68,7 @@
     {
       "item": "Persisted source-bound currency remeasurement workpaper",
       "status": "LOCAL_VERIFIED",
-      "details": "Added a PostgreSQL migration and immutable schedule/item persistence bound to exact engagement-owned evidence snapshots and hashes, approved rate rows and policy, with idempotent input manifests and separate reviewer revalidation. The workbench filters context/history by explicit grants, renders item-level source/calculation lineage, and restores unsubmitted inputs from per-user localStorage. Full serial local verification passed: Domain 261/261, API 6/6 and E2E 56/56, 0 skips; web build 0 warnings/errors; EF no pending model changes. Hosted run 35969468368 found the correct 323 tests but failed because CI still expected 321 before suite execution. Updated CI count and UI clarity follow-up are local pending changes. Pushed feature SHA 48bd2e4d88de236989b4cbe20cab8a360ffe451c. No production/tenant effect."
+      "details": "Added a PostgreSQL migration and immutable schedule/item persistence bound to exact engagement-owned evidence snapshots and hashes, approved rate rows and policy, with idempotent input manifests and separate reviewer revalidation. Follow-up now requires a unique exact sealed GL source line from the same client/engagement/reporting period and matching original currency; item digest pins the line, source batch and transaction, approval revalidates the link, the database enforces scope and append-only GL lines/transactions, and the workbench restores drafts only after scoped choices are loaded. The UI preserves the boundary that a GL link does not prove period-end outstanding status. Full local verification passed: Domain 261/261, API 6/6 and E2E 56/56, 0 skips; Release build 0 warnings/errors; EF no pending model changes. Hosted checks are not inferred from local results. No production/tenant effect."
     },
     {
       "item": "Accounting capability matrix and advanced-method evidence reconciliation",

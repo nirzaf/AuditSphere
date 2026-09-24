@@ -26,6 +26,7 @@ public sealed class FinancialArtifactJourneyTests
     await using var host = await OwnedBlazorHost.StartAsync(startWorker: false,
       caseId: "AS-ACCOUNTING-REMEASUREMENT-UI-01");
     var periodId = Guid.NewGuid();
+    var glLineId = Guid.NewGuid();
     await using (var db = host.CreateDbContext())
     {
       db.RoleGrants.Add(PbcSeed.Grant(host.Fixture.FirmId, host.Fixture.Staff, "AccountingPreparer",
@@ -43,6 +44,41 @@ public sealed class FinancialArtifactJourneyTests
         Basis = "IFRS", Currency = "QAR", Status = AccountingWorkflowStates.Active,
         CreatedByUserId = host.Fixture.Admin.Id, CreatedAt = DateTimeOffset.UtcNow
       });
+      var now = DateTimeOffset.UtcNow;
+      var importBatchId = Guid.NewGuid();
+      var transactionId = Guid.NewGuid();
+      db.SourceImportBatches.Add(new SourceImportBatch
+      {
+        Id = importBatchId, FirmId = host.Fixture.FirmId, ClientId = host.Fixture.ClientId,
+        EngagementId = host.Fixture.EngagementId, PeriodId = periodId, SourceKind = "GL",
+        ProfileVersion = "synthetic-v1", ParserVersion = "synthetic-v1", RawFileSha256Hex = new string('1', 64),
+        NormalizedDatasetDigest = new string('2', 64), LegalEntityKey = "SYNTHETIC-ENTITY", Currency = "QAR",
+        RowCount = 2, ExpectedTransactionCount = 1, ExpectedLineCount = 2, AcceptedTransactionCount = 1,
+        AcceptedLineCount = 2, Status = "SEALED", ReceiptReference = "synthetic-e2e-gl",
+        CreatedByUserId = host.Fixture.Admin.Id, CreatedAt = now
+      });
+      db.GeneralLedgerTransactions.Add(new GeneralLedgerTransaction
+      {
+        Id = transactionId, FirmId = host.Fixture.FirmId, ClientId = host.Fixture.ClientId,
+        EngagementId = host.Fixture.EngagementId, ImportBatchId = importBatchId,
+        StableJournalId = "SYN-REMEASURE-JOURNAL", PostingDate = new DateOnly(2026, 12, 31),
+        Currency = "QAR", SourceSystem = "synthetic-test", CreatedAt = now
+      });
+      db.GeneralLedgerLines.AddRange(
+        new GeneralLedgerLine
+        {
+          Id = glLineId, FirmId = host.Fixture.FirmId, ClientId = host.Fixture.ClientId,
+          EngagementId = host.Fixture.EngagementId, ImportBatchId = importBatchId, TransactionId = transactionId,
+          StableLineId = "SYN-FOREIGN-LINE", AccountCode = "1200", Debit = 370m,
+          OriginalCurrency = "USD", OriginalAmount = 100m, FunctionalAmount = 370m, CreatedAt = now
+        },
+        new GeneralLedgerLine
+        {
+          Id = Guid.NewGuid(), FirmId = host.Fixture.FirmId, ClientId = host.Fixture.ClientId,
+          EngagementId = host.Fixture.EngagementId, ImportBatchId = importBatchId, TransactionId = transactionId,
+          StableLineId = "SYN-OFFSET-LINE", AccountCode = "4000", Credit = 370m,
+          OriginalCurrency = "QAR", OriginalAmount = -370m, FunctionalAmount = -370m, CreatedAt = now
+        });
       await db.SaveChangesAsync();
     }
 
@@ -56,12 +92,24 @@ public sealed class FinancialArtifactJourneyTests
     await page.GetByRole(AriaRole.Heading, new() { Name = "Currency remeasurement workpapers" }).WaitForAsync();
     Assert.Contains(await page.Locator("select").First.Locator("option").AllTextContentsAsync(),
       x => x.Contains("PBC TEST CLIENT · FY26-SYNTHETIC", StringComparison.Ordinal));
+    var sourceSelector = page.GetByLabel("Imported GL source line *");
+    Assert.Contains(await sourceSelector.Locator("option").AllTextContentsAsync(),
+      x => x.Contains("SYN-REMEASURE-JOURNAL / SYN-FOREIGN-LINE", StringComparison.Ordinal));
     await connected;
     var reference = page.GetByLabel("Stable source reference *");
     await reference.FillAsync("SYNTHETIC-REMEASUREMENT-LINE");
+    await sourceSelector.SelectOptionAsync(glLineId.ToString("D"));
+    await page.WaitForFunctionAsync($"() => Object.values(localStorage).some(value => value.includes('{glLineId:D}') && value.includes('SYNTHETIC-REMEASUREMENT-LINE'))", null, new() { Timeout = 5000 });
+    var draftBeforeReload = await page.EvaluateAsync<string>("() => JSON.stringify(Object.fromEntries(Object.entries(localStorage)))");
+    Assert.Contains("SYNTHETIC-REMEASUREMENT-LINE", draftBeforeReload);
+    var reconnected = WaitForCircuitConnectionAsync(page, diagnostics);
     await page.ReloadAsync();
     await page.GetByRole(AriaRole.Heading, new() { Name = "Currency remeasurement workpapers" }).WaitForAsync();
-    await Assertions.Expect(page.GetByLabel("Stable source reference *")).ToHaveValueAsync("SYNTHETIC-REMEASUREMENT-LINE");
+    await reconnected;
+    await page.WaitForFunctionAsync("() => document.querySelector('[data-draft-field=\\\"reference-0\\\"]')?.value === 'SYNTHETIC-REMEASUREMENT-LINE' && document.querySelector('[data-draft-field=\\\"source-line-0\\\"]')?.value", null, new() { Timeout = 5000 });
+    var currentDraft = await page.EvaluateAsync<string>("() => JSON.stringify(Object.fromEntries(Object.entries(localStorage)))");
+    Assert.Contains("SYNTHETIC-REMEASUREMENT-LINE", currentDraft);
+    Assert.Equal(glLineId.ToString("D"), await page.GetByLabel("Imported GL source line *").InputValueAsync());
     Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
   }
 

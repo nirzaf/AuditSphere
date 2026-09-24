@@ -1737,6 +1737,7 @@ public sealed class ClientAccountingTests
     var preparer = Actor(scope.Preparer, "AccountingPreparer");
     var reviewer = Actor(scope.Reviewer, "AccountingReviewer");
     Guid periodId, rateSetId, policyId, monetarySnapshotId, nonMonetarySnapshotId;
+    var sourceLineIds = Enumerable.Range(0, 3).Select(_ => Guid.CreateVersion7()).ToArray();
     var asOf = new DateOnly(2026, 12, 31);
 
     await using (var db = new AuditSphereDbContext(pg.Options))
@@ -1786,6 +1787,41 @@ public sealed class ClientAccountingTests
       db.DocumentSnapshots.AddRange(
         new DocumentSnapshot { Id = monetarySnapshotId, FirmId = scope.FirmId, ClientId = scope.ClientA, EngagementId = scope.EngagementA, DocumentReferenceId = documentReferenceId, DriveId = "drive-test", ItemId = "evidence-test", VersionId = "v1", Sha256Hex = new string('a', 64), ByteCount = 100, CapturedBy = "test", CapturedAt = now },
         new DocumentSnapshot { Id = nonMonetarySnapshotId, FirmId = scope.FirmId, ClientId = scope.ClientA, EngagementId = scope.EngagementA, DocumentReferenceId = documentReferenceId, DriveId = "drive-test", ItemId = "evidence-test", VersionId = "v2", Sha256Hex = new string('b', 64), ByteCount = 100, CapturedBy = "test", CapturedAt = now });
+      var importBatchId = Guid.CreateVersion7();
+      db.SourceImportBatches.Add(new SourceImportBatch
+      {
+        Id = importBatchId, FirmId = scope.FirmId, ClientId = scope.ClientA, EngagementId = scope.EngagementA,
+        PeriodId = periodId, SourceKind = "GL", ProfileVersion = "test-v1", ParserVersion = "test-v1",
+        RawFileSha256Hex = new string('c', 64), NormalizedDatasetDigest = new string('d', 64),
+        LegalEntityKey = "SYNTHETIC-ENTITY", Currency = "QAR", RowCount = 6,
+        ExpectedTransactionCount = 3, ExpectedLineCount = 6, AcceptedTransactionCount = 3, AcceptedLineCount = 6,
+        Status = "SEALED", ReceiptReference = "synthetic-gl-test", CreatedByUserId = scope.Preparer.Id, CreatedAt = now
+      });
+      for (var index = 0; index < sourceLineIds.Length; index++)
+      {
+        var transactionId = Guid.CreateVersion7();
+        db.GeneralLedgerTransactions.Add(new GeneralLedgerTransaction
+        {
+          Id = transactionId, FirmId = scope.FirmId, ClientId = scope.ClientA, EngagementId = scope.EngagementA,
+          ImportBatchId = importBatchId, StableJournalId = $"SYN-GL-{index + 1}",
+          PostingDate = asOf, Currency = "QAR", SourceSystem = "synthetic-test", CreatedAt = now
+        });
+        db.GeneralLedgerLines.AddRange(
+          new GeneralLedgerLine
+          {
+            Id = sourceLineIds[index], FirmId = scope.FirmId, ClientId = scope.ClientA, EngagementId = scope.EngagementA,
+            ImportBatchId = importBatchId, TransactionId = transactionId, StableLineId = $"FOREIGN-{index + 1}",
+            AccountCode = "1200", Debit = 370m, OriginalCurrency = "USD", OriginalAmount = 100m,
+            FunctionalAmount = 370m, CreatedAt = now
+          },
+          new GeneralLedgerLine
+          {
+            Id = Guid.CreateVersion7(), FirmId = scope.FirmId, ClientId = scope.ClientA, EngagementId = scope.EngagementA,
+            ImportBatchId = importBatchId, TransactionId = transactionId, StableLineId = $"OFFSET-{index + 1}",
+            AccountCode = "4000", Credit = 370m, OriginalCurrency = "QAR", OriginalAmount = -370m,
+            FunctionalAmount = -370m, CreatedAt = now
+          });
+      }
       await db.SaveChangesAsync();
     }
 
@@ -1794,8 +1830,8 @@ public sealed class ClientAccountingTests
     {
       var request = new CurrencyRemeasurementScheduleRequest(scope.ClientA, scope.EngagementA, periodId,
         rateSetId, policyId, asOf,
-        [new("AR-INV-100", monetarySnapshotId, true, "USD", 100m, 360m, null),
-         new("EQUITY-HIST-1", nonMonetarySnapshotId, false, "USD", 100m, 360m, new DateOnly(2026, 1, 1))]);
+        [new("AR-INV-100", monetarySnapshotId, true, "USD", 100m, 360m, null, sourceLineIds[0]),
+         new("EQUITY-HIST-1", nonMonetarySnapshotId, false, "USD", 100m, 360m, new DateOnly(2026, 1, 1), sourceLineIds[1])]);
       var prepared = await CurrencyRemeasurementService.PrepareAsync(db, preparer, request);
       Assert.True(prepared.Succeeded, prepared.Message);
       scheduleId = prepared.Value;
@@ -1818,6 +1854,34 @@ public sealed class ClientAccountingTests
       Assert.Equal(10m, view.Value.Items.Single(x => x.IsMonetary).ForeignExchangeAdjustment);
       Assert.Equal(0m, view.Value.Items.Single(x => !x.IsMonetary).ForeignExchangeAdjustment);
       Assert.Equal(new string('a', 64), view.Value.Items.Single(x => x.IsMonetary).EvidenceSha256);
+      Assert.Equal(sourceLineIds[0], view.Value.Items.Single(x => x.IsMonetary).SourceGeneralLedgerLineId);
+      Assert.Matches("^[0-9a-f]{64}$", view.Value.Items.Single(x => x.IsMonetary).SourceGlLineDigest);
+    }
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var staleRequest = new CurrencyRemeasurementScheduleRequest(scope.ClientA, scope.EngagementA, periodId,
+        rateSetId, policyId, asOf,
+        [new("AR-INV-101", monetarySnapshotId, true, "USD", 100m, 355m, null, sourceLineIds[2])]);
+      var stalePrepared = await CurrencyRemeasurementService.PrepareAsync(db, preparer, staleRequest);
+      Assert.True(stalePrepared.Succeeded, stalePrepared.Message);
+      var importBatchId = await db.GeneralLedgerLines.AsNoTracking().Where(x => x.Id == sourceLineIds[2])
+        .Select(x => x.ImportBatchId).SingleAsync();
+      await db.SourceImportBatches.Where(x => x.Id == importBatchId).ExecuteUpdateAsync(setters =>
+        setters.SetProperty(x => x.Status, "REJECTED"));
+      var staleApproval = await CurrencyRemeasurementService.ApproveAsync(db, reviewer, stalePrepared.Value);
+      Assert.False(staleApproval.Succeeded);
+      Assert.Equal(ErrorCodes.GenerationStale, staleApproval.ErrorCode);
+      Assert.Equal(AccountingWorkflowStates.Stale, await db.CurrencyRemeasurementSchedules
+        .Where(x => x.Id == stalePrepared.Value).Select(x => x.Status).SingleAsync());
+    }
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+        $"UPDATE general_ledger_lines SET original_amount = 101 WHERE id = {sourceLineIds[0]}"));
+      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+        $"DELETE FROM general_ledger_transactions WHERE id = (SELECT transaction_id FROM general_ledger_lines WHERE id = {sourceLineIds[0]})"));
     }
 
     await using (var db = new AuditSphereDbContext(pg.Options))

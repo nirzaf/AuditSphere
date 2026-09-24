@@ -13,14 +13,16 @@ namespace AuditSphereOps.Application.Accounting;
 
 public sealed record CurrencyRemeasurementItemRequest(
   string StableItemReference, Guid EvidenceSnapshotId, bool IsMonetary, string ForeignCurrency,
-  decimal ForeignCurrencyAmount, decimal PriorFunctionalCarryingAmount, DateOnly? HistoricalRateDate);
+  decimal ForeignCurrencyAmount, decimal PriorFunctionalCarryingAmount, DateOnly? HistoricalRateDate,
+  Guid? SourceGeneralLedgerLineId = null);
 
 public sealed record CurrencyRemeasurementScheduleRequest(
   Guid ClientId, Guid EngagementId, Guid PeriodId, Guid RateSetVersionId, Guid TranslationPolicyVersionId,
   DateOnly AsOfDate, IReadOnlyList<CurrencyRemeasurementItemRequest> Items);
 
 public sealed record CurrencyRemeasurementItemView(
-  string StableItemReference, Guid EvidenceSnapshotId, string EvidenceSha256, bool IsMonetary,
+  string StableItemReference, Guid EvidenceSnapshotId, string EvidenceSha256,
+  Guid? SourceGeneralLedgerLineId, string SourceGlLineDigest, bool IsMonetary,
   string ForeignCurrency, decimal ForeignCurrencyAmount, decimal PriorFunctionalCarryingAmount,
   DateOnly RateDate, string RateType, decimal AppliedRate, decimal RemeasuredFunctionalAmount,
   decimal ForeignExchangeAdjustment, decimal RoundingAdjustment);
@@ -42,8 +44,11 @@ public static class CurrencyRemeasurementService
     if (request.ClientId == Guid.Empty || request.EngagementId == Guid.Empty || request.PeriodId == Guid.Empty ||
         request.RateSetVersionId == Guid.Empty || request.TranslationPolicyVersionId == Guid.Empty || request.Items.Count is < 1 or > 500 ||
         request.Items.Any(x => string.IsNullOrWhiteSpace(x.StableItemReference) || x.StableItemReference.Trim().Length > 200) ||
-        request.Items.Select(x => x.StableItemReference.Trim()).Distinct(StringComparer.Ordinal).Count() != request.Items.Count)
-      return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ReconciliationRejected, "A remeasurement schedule needs 1–500 uniquely identified, evidenced items.");
+        request.Items.Select(x => x.StableItemReference.Trim()).Distinct(StringComparer.Ordinal).Count() != request.Items.Count ||
+        request.Items.Any(x => !x.SourceGeneralLedgerLineId.HasValue) ||
+        request.Items.Select(x => x.SourceGeneralLedgerLineId).Distinct().Count() != request.Items.Count)
+      return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ReconciliationRejected,
+        "A remeasurement schedule needs 1–500 uniquely identified items, each linked to one imported GL line and one evidence snapshot.");
 
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
       new AuthorizationRequest(actor.FirmId, request.ClientId, request.EngagementId, PreparerRoles, InternalOnly: true), ct);
@@ -63,7 +68,7 @@ public static class CurrencyRemeasurementService
         !string.Equals(profile.FunctionalCurrency, policy.FunctionalCurrency, StringComparison.OrdinalIgnoreCase))
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "An active functional-currency profile, approved policy/rate set and period-end date are required.");
 
-    var prepared = await PrepareItemsAsync(db, actor.FirmId, request.ClientId, request.EngagementId,
+    var prepared = await PrepareItemsAsync(db, actor.FirmId, request.ClientId, request.EngagementId, request.PeriodId,
       request.AsOfDate, profile.FunctionalCurrency, rateSet, policy, request.Items, ct);
     if (prepared is null)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Source snapshots, exact approved rates or item inputs are missing or inconsistent.");
@@ -153,6 +158,7 @@ public static class CurrencyRemeasurementService
       where item.FirmId == actor.FirmId && item.ScheduleId == schedule.Id
       orderby item.StableItemReference
       select new CurrencyRemeasurementItemView(item.StableItemReference, item.EvidenceSnapshotId, snapshot.Sha256Hex,
+        item.SourceGeneralLedgerLineId, item.SourceGlLineDigest,
         item.IsMonetary, item.ForeignCurrency, item.ForeignCurrencyAmount, item.PriorFunctionalCarryingAmount,
         item.RateDate, item.RateType, item.AppliedRate, item.RemeasuredFunctionalAmount,
         item.ForeignExchangeAdjustment, item.RoundingAdjustment)).ToListAsync(ct);
@@ -163,7 +169,7 @@ public static class CurrencyRemeasurementService
   }
 
   private static async Task<List<PreparedItem>?> PrepareItemsAsync(
-    IClientAccountingDbContext db, Guid firmId, Guid clientId, Guid engagementId, DateOnly asOfDate,
+    IClientAccountingDbContext db, Guid firmId, Guid clientId, Guid engagementId, Guid periodId, DateOnly asOfDate,
     string functionalCurrency, ExchangeRateSetVersion rateSet, TranslationPolicyVersion policy,
     IReadOnlyList<CurrencyRemeasurementItemRequest> inputs, CancellationToken ct)
   {
@@ -191,16 +197,40 @@ public static class CurrencyRemeasurementService
       x.ToCurrency == functionalCurrency.Trim().ToUpperInvariant() && rateDates.Contains(x.RateDate) &&
       rateTypes.Contains(x.RateType) && x.Direction == ExchangeRateDirections.Direct)
       .ToDictionaryAsync(x => (x.FromCurrency, x.ToCurrency, x.RateDate, x.RateType), ct);
+    var sourceLineIds = normalizedInputs.Where(x => x.Input.SourceGeneralLedgerLineId.HasValue)
+      .Select(x => x.Input.SourceGeneralLedgerLineId!.Value).Distinct().ToArray();
+    var sourceLineRows = await (
+      from line in db.GeneralLedgerLines.AsNoTracking()
+      join batch in db.SourceImportBatches.AsNoTracking() on new
+        { line.FirmId, line.ClientId, line.EngagementId, line.ImportBatchId }
+        equals new { batch.FirmId, batch.ClientId, batch.EngagementId, ImportBatchId = batch.Id }
+      join transaction in db.GeneralLedgerTransactions.AsNoTracking() on new
+        { line.FirmId, line.ClientId, line.EngagementId, line.TransactionId }
+        equals new { transaction.FirmId, transaction.ClientId, transaction.EngagementId, TransactionId = transaction.Id }
+      where line.FirmId == firmId && line.ClientId == clientId && line.EngagementId == engagementId &&
+        sourceLineIds.Contains(line.Id) && batch.PeriodId == periodId && batch.SourceKind == "GL" &&
+        batch.Status == "SEALED" && batch.NormalizedDatasetDigest.Length == 64
+      select new { Line = line, Batch = batch, Transaction = transaction }).ToDictionaryAsync(x => x.Line.Id, ct);
+    if (sourceLineRows.Values.Any(x => !IsSha256(x.Batch.NormalizedDatasetDigest)))
+      return null;
     foreach (var row in normalizedInputs)
     {
       var input = row.Input;
       if (!snapshots.TryGetValue(input.EvidenceSnapshotId, out var snapshot) || snapshot.Sha256Hex.Length != 64 ||
           !rates.TryGetValue((row.Currency, functionalCurrency.Trim().ToUpperInvariant(), row.RateDate!.Value, row.RateType), out var rate))
         return null;
+      string sourceLineDigest = string.Empty;
+      if (input.SourceGeneralLedgerLineId is { } sourceLineId)
+      {
+        if (!sourceLineRows.TryGetValue(sourceLineId, out var source) ||
+            !string.Equals(source.Line.OriginalCurrency, row.Currency, StringComparison.OrdinalIgnoreCase))
+          return null;
+        sourceLineDigest = HashSourceGeneralLedgerLine(source.Line, source.Batch, source.Transaction);
+      }
       var calculation = CurrencyRemeasurementCalculator.Remeasure(input.ForeignCurrencyAmount, row.Currency,
         functionalCurrency, input.IsMonetary, input.IsMonetary ? rate.Rate : 1m, input.IsMonetary ? 1m : rate.Rate,
         input.PriorFunctionalCarryingAmount);
-      output.Add(new PreparedItem(input, snapshot.Sha256Hex.ToLowerInvariant(), rate.Id, rateSet.Id,
+      output.Add(new PreparedItem(input, snapshot.Sha256Hex.ToLowerInvariant(), sourceLineDigest, rate.Id, rateSet.Id,
         row.RateDate.Value, row.RateType, rate.Rate, calculation));
     }
     return output;
@@ -213,8 +243,8 @@ public static class CurrencyRemeasurementService
   {
     var requests = stored.Select(x => new CurrencyRemeasurementItemRequest(x.StableItemReference, x.EvidenceSnapshotId,
       x.IsMonetary, x.ForeignCurrency, x.ForeignCurrencyAmount, x.PriorFunctionalCarryingAmount,
-      x.IsMonetary ? null : x.RateDate)).ToArray();
-    var prepared = await PrepareItemsAsync(db, firmId, schedule.ClientId, schedule.EngagementId, schedule.AsOfDate,
+      x.IsMonetary ? null : x.RateDate, x.SourceGeneralLedgerLineId)).ToArray();
+    var prepared = await PrepareItemsAsync(db, firmId, schedule.ClientId, schedule.EngagementId, schedule.PeriodId, schedule.AsOfDate,
       schedule.FunctionalCurrency, rateSet, policy, requests, ct);
     if (prepared is null || prepared.Count != stored.Count)
       return null;
@@ -222,7 +252,8 @@ public static class CurrencyRemeasurementService
     {
       var item = stored[i];
       var current = prepared[i];
-      if (item.ExchangeRateId != current.ExchangeRateId || item.RateSetVersionId != current.RateSetVersionId ||
+      if (item.SourceGlLineDigest != current.SourceGlLineDigest || item.ExchangeRateId != current.ExchangeRateId ||
+          item.RateSetVersionId != current.RateSetVersionId ||
           item.SourceEvidenceSha256 != current.SourceEvidenceSha256 || item.RateDate != current.RateDate ||
           item.RateType != current.RateType || item.AppliedRate != current.AppliedRate ||
           item.RemeasuredFunctionalAmount != current.Calculation.RemeasuredAmount ||
@@ -241,6 +272,7 @@ public static class CurrencyRemeasurementService
       Items = items.Select(x => new
       {
         Reference = x.Request.StableItemReference.Trim(), x.Request.EvidenceSnapshotId, x.SourceEvidenceSha256,
+        x.Request.SourceGeneralLedgerLineId, x.SourceGlLineDigest,
         x.Request.IsMonetary, Currency = x.Request.ForeignCurrency.Trim().ToUpperInvariant(),
         ForeignCurrencyAmount = x.Request.ForeignCurrencyAmount.ToString("0.000000", CultureInfo.InvariantCulture),
         PriorFunctionalCarryingAmount = x.Request.PriorFunctionalCarryingAmount.ToString("0.000000", CultureInfo.InvariantCulture),
@@ -258,6 +290,7 @@ public static class CurrencyRemeasurementService
   {
     Id = Guid.CreateVersion7(), FirmId = schedule.FirmId, ClientId = schedule.ClientId, EngagementId = schedule.EngagementId,
     ScheduleId = schedule.Id, EvidenceSnapshotId = item.Request.EvidenceSnapshotId, RateSetVersionId = item.RateSetVersionId,
+    SourceGeneralLedgerLineId = item.Request.SourceGeneralLedgerLineId, SourceGlLineDigest = item.SourceGlLineDigest,
     ExchangeRateId = item.ExchangeRateId, StableItemReference = item.Request.StableItemReference.Trim(),
     SourceEvidenceSha256 = item.SourceEvidenceSha256, IsMonetary = item.Request.IsMonetary,
     ForeignCurrency = item.Request.ForeignCurrency.Trim().ToUpperInvariant(), ForeignCurrencyAmount = item.Request.ForeignCurrencyAmount,
@@ -274,7 +307,25 @@ public static class CurrencyRemeasurementService
     return CommandResult.Fail(ErrorCodes.GenerationStale, $"{reason} Prepare a new schedule revision.");
   }
 
+  private static string HashSourceGeneralLedgerLine(GeneralLedgerLine line, SourceImportBatch batch,
+    GeneralLedgerTransaction transaction)
+  {
+    var canonical = JsonSerializer.Serialize(new
+    {
+      BatchDigest = batch.NormalizedDatasetDigest.ToLowerInvariant(), line.Id, line.ImportBatchId,
+      line.TransactionId, transaction.StableJournalId, transaction.PostingDate,
+      StableLineId = line.StableLineId.Trim(), AccountCode = line.AccountCode.Trim(),
+      line.Debit, line.Credit, Currency = line.OriginalCurrency.Trim().ToUpperInvariant(),
+      line.OriginalAmount, line.FunctionalAmount
+    });
+    return Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(canonical)));
+  }
+
+  private static bool IsSha256(string value) => value.Length == 64 && value.All(c =>
+    c is >= '0' and <= '9' or >= 'a' and <= 'f' or >= 'A' and <= 'F');
+
   private sealed record PreparedItem(CurrencyRemeasurementItemRequest Request, string SourceEvidenceSha256,
+    string SourceGlLineDigest,
     Guid ExchangeRateId, Guid RateSetVersionId, DateOnly RateDate, string RateType, decimal AppliedRate,
     MonetaryRemeasurementResult Calculation);
 }
