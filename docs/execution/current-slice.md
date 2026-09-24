@@ -2,6 +2,12 @@
 
 This file records observed repository state only. The authoritative build contract is [`docs/SPECIFICATION.md`](../SPECIFICATION.md) v5.0. The public repository intentionally excludes tenant identifiers, user principals, credentials, tokens, secret values, and private-provider URLs.
 
+## AC-24 / AS-PAR-002 — accounting workspace revocation refresh
+
+- The client accounting dashboard now exposes an explicit refresh that wipes its current client, period, task, package and count projections before resolving the actor and current grants again. Revoked or unavailable authorization cannot leave the prior dashboard visible; transient errors return a retryable non-disclosing message.
+- `AS-PAR-002-ACCT-WORKSPACE-01` verifies a scoped period is visible initially, unrelated-client and mismatched-engagement records stay hidden, and after revoking all required Partner grants while the page remains open, refresh clears the period and scope summary and shows Access unavailable. Focused PostgreSQL-backed browser test passed 1/1; full E2E passed 56/56 with 0 skipped in 6m04s; Release solution build passed with 0 warnings/errors; `git diff --check` passed. Code commit `3d387ecd69b4bc46722d0f08ff845f489bc0bb3a` is pushed to `master`. Hosted run `35996541118` was pending on that SHA at 2026-09-24T12:02:09Z; no hosted pass is inferred.
+- This closes a bounded AC-24 context/revocation slice only. The whole-application AS-PAR-002 audit remains partial. No schema migration, tenant operation or production effect.
+
 ## AS-PAR-002 — accounting evidence queue revocation refresh
 
 - The accounting evidence queue now offers a manual refresh that immediately clears the previous rows, re-resolves the actor, rechecks current internal role grants, and reloads only the resulting scope. Revocation and connection errors leave no stale evidence visible; refresh failures show a retryable, non-disclosing message.

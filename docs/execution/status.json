@@ -4,10 +4,10 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "e27f7bceddc15e71ea2632e8ebd88b3f116e631e",
+  "headCommit": "3d387ecd69b4bc46722d0f08ff845f489bc0bb3a",
   "remoteHeadVerified": true,
   "productionEnabled": false,
-  "verifiedAt": "2026-09-24T11:46:28Z",
+  "verifiedAt": "2026-09-24T12:02:09Z",
   "toolchain": {
     "sdk": ".NET 10",
     "efCore": "10.0.12",
@@ -16,13 +16,13 @@
     "postgres": "18.6 loopback development profile"
   },
   "verification": {
-    "ciLatestHostedRun": "Run 35994986488 targets exact pushed master SHA e27f7bceddc15e71ea2632e8ebd88b3f116e631e and is pending as of 2026-09-24T11:46:28Z. Previous run 35992006745 on 3057ffe remains in progress in its unfiltered suite; no result is inferred for either run.",
+    "ciLatestHostedRun": "Run 35996541118 targets exact pushed master SHA 3d387ecd69b4bc46722d0f08ff845f489bc0bb3a and was pending as of 2026-09-24T12:02:09Z. Run 35995094564 on predecessor 81f913d was still in its unfiltered suite at the last check; no hosted pass is inferred.",
     "ciLockedRestore": "PASS locally: SDK policy regression check rejected latestPatch and passed after global.json required rollForward=disable for SDK 10.0.300. CI now installs from global.json and checks SDK selection before locked restore. dotnet tool restore; dotnet restore AuditSphereOps.slnx --locked-mode; dotnet build AuditSphereOps.slnx --no-restore --configuration Release all passed. Actionlint v1.7.7 passed with ShellCheck/Pyflakes disabled. Package lock files unchanged. Addresses run 35920521850 NU1004 for SDK-injected Microsoft.AspNetCore.App.Internal.Assets 10.0.11 versus locked 10.0.8; local SDK 10.0.300 evaluates 10.0.8. Full tests and hosted execution of this fix not rerun.",
     "ciWorkflowValidation": "PASS locally: actionlint v1.7.7 reproduced the forbidden runner context in job-level env, then exited 0 after E2E_RUN_ROOT initialization moved to a step using RUNNER_TEMP and GITHUB_ENV. Command: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7 -shellcheck= -pyflakes= .github/workflows/ci.yml. Bash assertion also passed for a temporary path containing spaces and run/attempt suffix 393-2. ShellCheck/Pyflakes disabled; full .NET suite and hosted GitHub Actions not rerun for this workflow-only fix.",
     "build": "PASS: dotnet build AuditSphereOps.slnx --no-restore --configuration Release on 2026-09-24; 0 warnings/errors.",
-    "tests": "At predecessor source 3057ffe, PostgreSQL-backed Release Domain 261/261 and API 6/6 passed; after the accounting evidence refresh change, the focused revocation journey passed 1/1, the full E2E project passed 56/56 with 0 skips, the Release solution build passed with 0 warnings/errors, and git diff --check passed. Hosted run 35994986488 for exact pushed SHA e27f7bceddc15e71ea2632e8ebd88b3f116e631e is pending. No hosted result is inferred.",
-    "testCommand": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --configuration Release --filter FullyQualifiedName~ClientScopedPartnerCannotSeeAccountingEvidenceFromAnotherClient (1/1); dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-build --no-restore --configuration Release (56/56); dotnet build AuditSphereOps.slnx --no-restore --configuration Release (0 warnings/errors). Domain/API 261/261 and 6/6 passed at the immediately preceding source checkpoint.",
-    "testResults": "AS-PAR-002-ACCT-QUEUE-01 confirms the granted user's evidence appears, an unrelated client sees none, and after exact grant revocation an explicit refresh clears the previously rendered reference and shows Access unavailable. Focused case passed 1/1; full E2E 56/56, 0 skips; Release build 0 warnings/errors. Hosted run 35994986488 is pending. No tenant or production effect.",
+    "tests": "At predecessor source 3057ffe, PostgreSQL-backed Release Domain 261/261 and API 6/6 passed. On the current accounting-workspace refresh change, focused ACCT-WORKSPACE revocation test passed 1/1, full E2E passed 56/56 with 0 skips, Release solution build passed with 0 warnings/errors, and git diff --check passed. Hosted run 35996541118 on exact code SHA 3d387ecd69b4bc46722d0f08ff845f489bc0bb3a was pending; no hosted pass is inferred.",
+    "testCommand": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --configuration Release --filter FullyQualifiedName~AccountingWorkspaceIgnoresOtherRoleAndMismatchedEngagementGrants (1/1); dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-build --no-restore --configuration Release (56/56); dotnet build AuditSphereOps.slnx --no-restore --configuration Release (0 warnings/errors). Domain/API 261/261 and 6/6 passed at the immediately preceding source checkpoint.",
+    "testResults": "AS-PAR-002-ACCT-WORKSPACE-01 confirms an assigned period is shown, unrelated-client data is absent, and after required Partner grants are revoked while the page remains open, refresh removes its period and scope summary and shows Access unavailable. Focused case 1/1; full E2E 56/56, 0 skips; Release build 0 warnings/errors. Hosted run 35996541118 was pending. No tenant or production effect.",
     "testEnvironmentRecovery": "The preceding run had 141 passed and 105 failed while PostgreSQL was shutting down. The server log records a smart shutdown request at 2026-09-22T19:25:04Z; its initiator is unknown. Started the stopped local cluster on 127.0.0.1:5433, confirmed PostgreSQL 18.6 and the auditsphere_tests database, then reran the entire suite successfully without source, test, assertion or runner changes. PostgreSQL remained available after the run; no production effects were enabled.",
     "migrations": "Added 20260924070028_AddCurrencyRemeasurementWorkpaper after 20260924062848_CurrencyTranslationCalculationVersion. Focused PostgreSQL integration applied and verified the schema, evidence constraints and append-only triggers. The existing local auditsphere database remains at 91 migrations through 20260922140527_M365InvitationEvidenceAction; no local/production database migration was run outside isolated tests.",
     "pendingModelChanges": "PASS before push for code identical to pushed SHA 48bd2e4d88de236989b4cbe20cab8a360ffe451c: dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Web --configuration Release; no pending model changes after AddCurrencyRemeasurementWorkpaper.",
@@ -57,9 +57,14 @@
     "implementationStatus": "IN_PROGRESS",
     "acceptanceStatus": "LOCAL_VERIFIED",
     "scope": "Local audit workflow, client accounting, scoped client file-request threads/uploads/downloads, GL intake, completeness, package, Office/PDF export, restatement, consolidation, journal-lineage, close-check, package-review and Microsoft 365 onboarding control-plane slices.",
-    "nextAction": "Continue the remaining AS-PAR-002 route/query/search/count/export/direct-command and stale-content review in bounded slices; verify hosted CI against each pushed SHA. G16 period-end open-item methodology approval and applicable live integration evidence remain separate gates."
+    "nextAction": "Continue the AC-01–AC-28 source-to-acceptance audit and remaining AS-PAR-002 route/query/search/count/export/direct-command and stale-content review in bounded slices; verify hosted CI against each pushed SHA. G16 period-end open-item methodology approval and applicable live integration evidence remain separate gates."
   },
   "localEvidence": [
+    {
+      "item": "AC-24 / AS-PAR-002 — accounting workspace refresh after grant revocation",
+      "status": "LOCAL_VERIFIED",
+      "details": "The dashboard clears prior client/period/task/package/count state before actor and scope re-resolution. PostgreSQL-backed `AS-PAR-002-ACCT-WORKSPACE-01` passed 1/1: allowed period initially visible, unrelated and mismatched scope withheld, and revoked required grants produce Access unavailable with old period and scope summary removed. Full E2E 56/56, 0 skipped; Release build 0 warnings/errors; git diff --check passed. Commit 3d387ecd69b4bc46722d0f08ff845f489bc0bb3a is pushed and remote-confirmed; hosted run 35996541118 was pending at verification time. No migration, tenant operation or production effect."
+    },
     {
       "item": "AS-PAR-002 — accounting evidence queue refresh after revocation",
       "status": "LOCAL_VERIFIED",
