@@ -6,11 +6,12 @@ Short pointer; full authoritative contracts live in `docs/SPECIFICATION.md` (v5.
 
 ## 1. System Objectives & Architecture
 
-AuditSphereOps is an audit, accounting, and assurance operations platform built as an ASP.NET Core modular monolith:
-- **`AuditSphereOps.Domain/`**: Pure business models and invariants (`Practice/`, `Accounting/`, `Consolidation/`, `Audit/`, `Reviews/`).
-- **`AuditSphereOps.Application/`**: Pure deterministic calculators, commands, queries, and durable operation orchestrators.
-- **`AuditSphereOps.Infrastructure/`**: EF Core 10, Npgsql, PostgreSQL migrations, local durable workers, and provider adapters.
+AuditSphereOps is an audit, accounting, and assurance operations platform built as an ASP.NET Core modular monolith across five projects:
+- **`AuditSphereOps.Domain/`**: Pure business models and invariants grouped by business capability (`Practice/`, `Accounting/` including consolidation and FX domain records, `Audit/`, `Reviews/`, `Completion/`, `Documents/`, `Security/`, etc.).
+- **`AuditSphereOps.Application/`**: Capability services, queries, deterministic calculators, and durable-operation contracts/orchestrators.
+- **`AuditSphereOps.Infrastructure/`**: EF Core 10, Npgsql 10, PostgreSQL migrations, durable-operation storage, and provider adapters.
 - **`AuditSphereOps.Web/`**: Blazor Web App (Interactive Server), staff workbenches (`/app/accounting`, `/app/consolidation`, etc.), and restricted client portal (`/portal`).
+- **`AuditSphereOps.Worker/`**: BackgroundService host executing durable operations (general, processing, records).
 
 ### Three Strict Financial Boundaries
 1. **Firm's Own Books (`Practice/FirmLedger`)**: Firm CRM, billing, time tracking, and firm financial ledger.

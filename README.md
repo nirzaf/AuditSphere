@@ -4,8 +4,8 @@
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-18.6-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 [![EF Core](https://img.shields.io/badge/EF%20Core-10.0-0078D4?logo=nuget&logoColor=white)](https://learn.microsoft.com/ef/core/)
 [![Blazor](https://img.shields.io/badge/Blazor-Interactive%20Server-512BD4?logo=blazor&logoColor=white)](https://dotnet.microsoft.com/apps/aspnet/web-apps/blazor)
-[![Tests](https://img.shields.io/badge/Tests-334%20Cases-brightgreen)](tests/)
-[![Migrations](https://img.shields.io/badge/Migrations-96%20Applied-blue)](src/AuditSphereOps.Infrastructure/Persistence/Migrations/)
+[![Tests](https://img.shields.io/badge/Tests-PostgreSQL--backed-brightgreen)](tests/)
+[![Migrations](https://img.shields.io/badge/Migrations-EF%20Core-blue)](src/AuditSphereOps.Infrastructure/Persistence/Migrations/)
 [![License](https://img.shields.io/badge/License-Informational-lightgrey)](LICENSE)
 
 **AuditSphereOps** is a professional audit, accounting, and assurance operations platform — an enterprise **.NET 10 modular monolith** built for accounting practices, CPA firms, audit engagements, and multi-entity group consolidation. It governs the entire engagement lifecycle: lead qualification, proposal generation, client acceptance, practice time and billing, trial-balance and general-ledger intake, financial statement production, audit fieldwork, review, controlled package signing/release, records retention, and multi-currency consolidation.
@@ -94,14 +94,14 @@ AuditSphereOps is structured as a **clean-architecture modular monolith** on ASP
 │  ClientAccountingService · TrialBalanceDatasetQuery · AdjustmentJournal     │
 │  AccountingAnalysisService · FinancialStatementService · Consolidation      │
 │  Pure Calculators (Statement, Remeasurement, Translation, Eliminations)     │
-│  Durable Operation Orchestrators & Idempotent Commands                      │
+│  Package Assembly · OpenXML/PDFsharp Renderers · Durable Handlers           │
 └──────────────────────────────────────┬──────────────────────────────────────┘
                                        │
 ┌──────────────────────────────────────┴──────────────────────────────────────┐
-│                         INFRASTRUCTURE PERSISTENCE                          │
+│                    INFRASTRUCTURE PERSISTENCE & ADAPTERS                    │
 │  EF Core 10 · Npgsql 10 · AuditSphereDbContext · Snake_Case Naming          │
 │  Exact numeric(19,6) Money Policy · Append-Only DB Triggers & Constraints   │
-│  OpenXML Formula-Free XLSX/DOCX Renderers · Byte-Stable PDFsharp Exporters  │
+│  PostgresOperationStore · PostgreSQL Migrations · Provider Adapters         │
 └──────────────────────────────────────┬──────────────────────────────────────┘
                                        │
                     ┌──────────────────┴──────────────────┐
@@ -109,7 +109,7 @@ AuditSphereOps is structured as a **clean-architecture modular monolith** on ASP
         ┌───────────────────────┐             ┌───────────────────────┐
         │     POSTGRESQL 18     │             │    DURABLE WORKERS    │
         │  Loopback port 5433   │             │  general · processing │
-        │  96 Applied Migrations│             │  records deployments  │
+        │  EF Core Migrations   │             │  records deployments  │
         │  Disposable Schemas   │             │  SKIP LOCKED Leasing  │
         └───────────────────────┘             └───────────────────────┘
                                        │
@@ -209,14 +209,14 @@ The Blazor Interactive Server front-end (`src/AuditSphereOps.Web`) delivers role
 AuditSphere/
 ├── src/
 │   ├── AuditSphereOps.Domain/          # Pure domain models, entities, and business invariants
-│   ├── AuditSphereOps.Application/     # ActorContext, scope authorization, pure calculators, orchestrators
-│   ├── AuditSphereOps.Infrastructure/  # EF Core DbContext, PostgreSQL mappings, migrations, document renderers
+│   ├── AuditSphereOps.Application/     # ActorContext, scope authorization, pure calculators, renderers, orchestrators
+│   ├── AuditSphereOps.Infrastructure/  # EF Core DbContext, PostgreSQL mappings, migrations, provider adapters
 │   ├── AuditSphereOps.Web/             # Blazor Web App (Interactive Server), workbenches, client portal, health probes
 │   └── AuditSphereOps.Worker/          # Durable-operation background worker (general, processing, records)
 ├── tests/
-│   ├── AuditSphereOps.Domain.Tests/    # 268 integration tests against isolated PostgreSQL schemas
-│   ├── AuditSphereOps.Api.Tests/       # 6 HTTP API & transfer security tests
-│   └── AuditSphereOps.E2E.Tests/       # 60 Playwright end-to-end user journeys & grant revocation tests
+│   ├── AuditSphereOps.Domain.Tests/    # PostgreSQL-backed domain and integration test suites
+│   ├── AuditSphereOps.Api.Tests/       # HTTP API & transfer security tests
+│   └── AuditSphereOps.E2E.Tests/       # Playwright end-to-end user journeys & grant revocation tests
 ├── docs/
 │   ├── SPECIFICATION.md                # Authoritative v5.0 build contract
 │   ├── AuditSphere_Accounting_module.md# AC-01 to AC-28 user stories & gap analysis

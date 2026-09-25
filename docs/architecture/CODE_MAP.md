@@ -71,7 +71,7 @@ unclassified line is an explicit unmapped issue, never assumed ASSETS.
 
 ## Consolidation — perimeter, components, matching, journals, runs, reports
 
-- Domain: `Domain/Consolidation/`
+- Domain: `Domain/Accounting/ClientAccounting.cs` (`ClientGroup`, `ConsolidationScopeVersion`, `ConsolidationComponent`, `ConsolidationRun`, `ExchangeRateSetVersion`, `TranslationPolicyVersion`, `TranslationResult`)
 - Application: `Application/Accounting/Consolidation/ConsolidationService.{Groups,Ownership,Scopes,Components,ExternalPacks,Intercompany,Journals,Advanced,Runs,Reports,Authorization}.cs`, `ConsolidationCalculator.cs`, `AdvancedConsolidationCalculator.cs`, `AdvancedConsolidationExecutionCalculator.cs`, `ConsolidationQuery.cs`
 - Persistence: `AuditSphereDbContext.Consolidation.cs`
 - UI: `Consolidation.razor`, `AdvancedConsolidationWorkflow.razor`
@@ -110,7 +110,7 @@ identities; provider acceptance (Purview/eSignature) is never claimed.
 ## Practice — CRM, time, billing, firm ledger
 
 - Domain: `Domain/Practice/`
-- Application: `Application/Practice/PracticeTimeService.cs`, `BillingService.cs`
+- Application: `Application/Practice/PracticeCrmService.cs` (CRM / proposals), `PracticeTimeService.cs` (time / budgets), `BillingService.cs` (billing), `LedgerService.cs` (firm financial ledger)
 - Persistence: `AuditSphereDbContext.Practice.cs`
 - UI: `Leads.razor`, `Portfolio.razor`, `ClientDetail.razor`, `Finance.razor`, `InvoiceDetail.razor`, `PracticeTime.razor`
 
