@@ -96,6 +96,7 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
   public DbSet<FinancialPackageValidation> FinancialPackageValidations => Set<FinancialPackageValidation>();
   public DbSet<FinancialPackageCashFlowLine> FinancialPackageCashFlowLines => Set<FinancialPackageCashFlowLine>();
   public DbSet<FinancialPackageFxEffect> FinancialPackageFxEffects => Set<FinancialPackageFxEffect>();
+  public DbSet<FinancialPackageSeal> FinancialPackageSeals => Set<FinancialPackageSeal>();
   public DbSet<FinancialPackageDisclosure> FinancialPackageDisclosures => Set<FinancialPackageDisclosure>();
   public DbSet<FinancialPackageEquityLine> FinancialPackageEquityLines => Set<FinancialPackageEquityLine>();
   public DbSet<FinancialPackageNoteLine> FinancialPackageNoteLines => Set<FinancialPackageNoteLine>();
@@ -1596,6 +1597,22 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     cashFlow.ToTable("financial_package_cash_flow_lines", t => t.HasCheckConstraint("ck_financial_package_cash_flow_values",
       "section IN ('OPERATING','INVESTING','FINANCING') AND length(trim(description)) > 0 AND currency ~ '^[A-Z]{3}$'"));
     cashFlow.HasOne<FinancialPackage>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.FinancialPackageId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var packageSeal = b.Entity<FinancialPackageSeal>();
+    packageSeal.Property(x => x.PackageHash).HasMaxLength(64).IsFixedLength();
+    packageSeal.Property(x => x.ContentManifestDigest).HasMaxLength(64).IsFixedLength();
+    packageSeal.Property(x => x.ArtifactManifestDigest).HasMaxLength(64).IsFixedLength();
+    packageSeal.Property(x => x.SealVersion).HasMaxLength(40);
+    packageSeal.Property(x => x.ArtifactManifestJson).HasMaxLength(20000);
+    packageSeal.HasIndex(x => new { x.FirmId, x.FinancialPackageId, x.PackageRevision, x.PackageGeneration, x.ArtifactManifestDigest })
+      .IsUnique().HasDatabaseName("ux_financial_package_seal_identity");
+    packageSeal.ToTable("financial_package_seals", t => t.HasCheckConstraint("ck_financial_package_seal_values",
+      "artifact_count > 0 AND total_byte_length > 0 AND length(trim(seal_version)) > 0 " +
+      "AND package_hash ~ '^[0-9a-f]{64}$' AND content_manifest_digest ~ '^[0-9a-f]{64}$' " +
+      "AND artifact_manifest_digest ~ '^[0-9a-f]{64}$'"));
+    packageSeal.HasOne<FinancialPackage>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.FinancialPackageId })
       .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
 

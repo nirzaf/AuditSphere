@@ -536,3 +536,33 @@ public sealed class FinancialPackageNoteLine
   public string EvidenceReference { get; set; } = string.Empty;
   public DateTimeOffset CreatedAt { get; set; }
 }
+
+/// <summary>
+/// M25 two-digest seal: the content manifest hashes the immutable inputs before rendering,
+/// and the artifact manifest hashes the completed ordered artifact identities afterwards.
+/// The artifact digest is stored here rather than embedded in the artifacts themselves, so
+/// no artifact ever claims to contain its own final hash.
+/// </summary>
+public sealed class FinancialPackageSeal
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public Guid EngagementId { get; set; }
+  public Guid FinancialPackageId { get; set; }
+  public long PackageRevision { get; set; }
+  public long PackageGeneration { get; set; }
+  /// <summary>Package calculation hash captured at seal time.</summary>
+  public string PackageHash { get; set; } = string.Empty;
+  /// <summary>Digest over immutable source/statement/layout/note/policy/template inputs.</summary>
+  public string ContentManifestDigest { get; set; } = string.Empty;
+  /// <summary>Digest over the ordered artifact identities, byte hashes, sizes and renderer versions.</summary>
+  public string ArtifactManifestDigest { get; set; } = string.Empty;
+  public int ArtifactCount { get; set; }
+  public long TotalByteLength { get; set; }
+  /// <summary>Ordered artifact manifest JSON: version, byte length, SHA-256 and renderer versions.</summary>
+  public string ArtifactManifestJson { get; set; } = "[]";
+  public string SealVersion { get; set; } = "package-seal.v1";
+  public Guid SealedByUserId { get; set; }
+  public DateTimeOffset SealedAt { get; set; }
+}
