@@ -5,6 +5,8 @@ namespace AuditSphereOps.Domain.Accounting;
 public static class AccountingDefaults
 {
   public const string DefaultCurrency = "QAR";
+  /// <summary>Section that carries the cumulative translation reserve in a translated bridge.</summary>
+  public const string CumulativeTranslationReserveSection = "CTA_RESERVE";
 }
 
 public static class AccountingWorkflowStates
