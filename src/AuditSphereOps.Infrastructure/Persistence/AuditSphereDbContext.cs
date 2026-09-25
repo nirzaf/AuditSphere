@@ -171,6 +171,9 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
   public DbSet<AuditItemTestReview> AuditItemTestReviews => Set<AuditItemTestReview>();
   public DbSet<AuditCutOffTestRecord> AuditCutOffTestRecords => Set<AuditCutOffTestRecord>();
   public DbSet<OpeningBalanceVerification> OpeningBalanceVerifications => Set<OpeningBalanceVerification>();
+  public DbSet<AnalyticalReviewVarianceInvestigation> AnalyticalReviewVarianceInvestigations => Set<AnalyticalReviewVarianceInvestigation>();
+  public DbSet<GoingConcernAssessment> GoingConcernAssessments => Set<GoingConcernAssessment>();
+  public DbSet<SubsequentEventReview> SubsequentEventReviews => Set<SubsequentEventReview>();
   public DbSet<AuditSubsequentMatchRecord> AuditSubsequentMatchRecords => Set<AuditSubsequentMatchRecord>();
   public DbSet<AuditConfirmationCase> AuditConfirmationCases => Set<AuditConfirmationCase>();
   public DbSet<AuditConfirmationResponse> AuditConfirmationResponses => Set<AuditConfirmationResponse>();
@@ -3017,6 +3020,48 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
       "revision > 0 AND length(trim(prior_reference)) > 0 AND currency ~ '^[A-Z]{3}$' " +
       "AND conclusion IN ('AGREED','DIFFERENCES_RESOLVED','DIFFERENCES_UNRESOLVED','NOT_VERIFIABLE')"));
     ScopeToEngagement(openingBalance, nameof(OpeningBalanceVerification.FirmId), nameof(OpeningBalanceVerification.ClientId), nameof(OpeningBalanceVerification.EngagementId));
+
+    var variance = b.Entity<AnalyticalReviewVarianceInvestigation>();
+    variance.HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_analytical_variance_investigations_firm_id_id");
+    variance.Property(x => x.AccountArea).HasMaxLength(80);
+    variance.Property(x => x.PeriodReference).HasMaxLength(60);
+    variance.Property(x => x.Currency).HasMaxLength(3).IsFixedLength();
+    variance.Property(x => x.Explanation).HasMaxLength(4000);
+    variance.Property(x => x.Conclusion).HasMaxLength(30);
+    variance.Property(x => x.EvidenceReferencesJson).HasMaxLength(20000);
+    variance.HasIndex(x => new { x.FirmId, x.EngagementId, x.AccountArea, x.PeriodReference }).IsUnique()
+      .HasDatabaseName("ux_analytical_variance_engagement_area_period");
+    variance.ToTable("analytical_variance_investigations", t => t.HasCheckConstraint("ck_analytical_variance_values",
+      "revision > 0 AND currency ~ '^[A-Z]{3}$' AND investigation_threshold >= 0 " +
+      "AND conclusion IN ('EXPLAINED','UNEXPLAINED','CORROBORATED')"));
+    ScopeToEngagement(variance, nameof(AnalyticalReviewVarianceInvestigation.FirmId), nameof(AnalyticalReviewVarianceInvestigation.ClientId), nameof(AnalyticalReviewVarianceInvestigation.EngagementId));
+
+    var goingConcern = b.Entity<GoingConcernAssessment>();
+    goingConcern.HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_going_concern_assessments_firm_id_id");
+    goingConcern.Property(x => x.ForecastReviewOutcome).HasMaxLength(4000);
+    goingConcern.Property(x => x.Conclusion).HasMaxLength(40);
+    goingConcern.Property(x => x.Rationale).HasMaxLength(4000);
+    goingConcern.Property(x => x.Currency).HasMaxLength(3).IsFixedLength();
+    goingConcern.Property(x => x.EvidenceReferencesJson).HasMaxLength(20000);
+    goingConcern.HasIndex(x => new { x.FirmId, x.EngagementId, x.AssessmentDate }).IsUnique()
+      .HasDatabaseName("ux_going_concern_engagement_date");
+    goingConcern.ToTable("going_concern_assessments", t => t.HasCheckConstraint("ck_going_concern_values",
+      "revision > 0 AND currency ~ '^[A-Z]{3}$' AND period_covered_to >= assessment_date " +
+      "AND conclusion IN ('NO_MATERIAL_UNCERTAINTY','MATERIAL_UNCERTAINTY_DISCLOSED','INADEQUATE_DISCLOSURE','NOT_ASSESSED')"));
+    ScopeToEngagement(goingConcern, nameof(GoingConcernAssessment.FirmId), nameof(GoingConcernAssessment.ClientId), nameof(GoingConcernAssessment.EngagementId));
+
+    var subsequentEvent = b.Entity<SubsequentEventReview>();
+    subsequentEvent.HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_subsequent_event_reviews_firm_id_id");
+    subsequentEvent.Property(x => x.Description).HasMaxLength(4000);
+    subsequentEvent.Property(x => x.Classification).HasMaxLength(30);
+    subsequentEvent.Property(x => x.DisclosureReference).HasMaxLength(200);
+    subsequentEvent.Property(x => x.Rationale).HasMaxLength(4000);
+    subsequentEvent.Property(x => x.Currency).HasMaxLength(3).IsFixedLength();
+    subsequentEvent.Property(x => x.EvidenceReferencesJson).HasMaxLength(20000);
+    subsequentEvent.ToTable("subsequent_event_reviews", t => t.HasCheckConstraint("ck_subsequent_event_values",
+      "revision > 0 AND currency ~ '^[A-Z]{3}$' AND event_date >= period_end_date " +
+      "AND classification IN ('ADJUSTING','NON_ADJUSTING','PENDING_ASSESSMENT')"));
+    ScopeToEngagement(subsequentEvent, nameof(SubsequentEventReview.FirmId), nameof(SubsequentEventReview.ClientId), nameof(SubsequentEventReview.EngagementId));
 
     var confirmation = b.Entity<AuditConfirmationCase>();
     confirmation.HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_audit_confirmation_cases_firm_id_id");

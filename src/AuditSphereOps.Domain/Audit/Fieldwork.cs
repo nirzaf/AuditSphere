@@ -517,3 +517,113 @@ public sealed class AuditSubsequentMatchRecord
   public Guid RecordedByUserId { get; set; }
   public DateTimeOffset RecordedAt { get; set; }
 }
+
+public static class VarianceInvestigationConclusions
+{
+  public const string Explained = "EXPLAINED";
+  public const string Unexplained = "UNEXPLAINED";
+  public const string Corroborated = "CORROBORATED";
+}
+
+/// <summary>T073 analytical-review variance investigation: the expectation, the actual
+/// figure, the difference against the investigation threshold, the explanation offered
+/// and the auditor's conclusion. An unexplained difference above the threshold stays
+/// flagged rather than being closed by assertion.</summary>
+public sealed class AnalyticalReviewVarianceInvestigation
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public Guid EngagementId { get; set; }
+  public Guid? ProcedureId { get; set; }
+  public string AccountArea { get; set; } = string.Empty;
+  public string PeriodReference { get; set; } = string.Empty;
+  public decimal ExpectedAmount { get; set; }
+  public decimal ActualAmount { get; set; }
+  public decimal DifferenceAmount { get; set; }
+  public decimal? DifferencePercent { get; set; }
+  public decimal InvestigationThreshold { get; set; }
+  public bool ExceedsThreshold { get; set; }
+  public string? Explanation { get; set; }
+  public string Conclusion { get; set; } = VarianceInvestigationConclusions.Unexplained;
+  public string Currency { get; set; } = string.Empty;
+  public string EvidenceReferencesJson { get; set; } = "[]";
+  public long Revision { get; set; } = 1;
+  public Guid RecordedByUserId { get; set; }
+  public Guid? ReviewedByUserId { get; set; }
+  public DateTimeOffset RecordedAt { get; set; }
+  public DateTimeOffset? ReviewedAt { get; set; }
+}
+
+public static class GoingConcernConclusions
+{
+  public const string NoMaterialUncertainty = "NO_MATERIAL_UNCERTAINTY";
+  public const string MaterialUncertaintyDisclosed = "MATERIAL_UNCERTAINTY_DISCLOSED";
+  public const string InadequateDisclosure = "INADEQUATE_DISCLOSURE";
+  public const string NotAssessed = "NOT_ASSESSED";
+}
+
+/// <summary>T074 going-concern assessment: the period covered, the forecast review
+/// outcome and the auditor's conclusion, with the evidence that supports it. A material
+/// uncertainty cannot be recorded without either disclosure evidence or an explicit
+/// inadequate-disclosure finding.</summary>
+public sealed class GoingConcernAssessment
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public Guid EngagementId { get; set; }
+  public Guid? ProcedureId { get; set; }
+  public DateOnly AssessmentDate { get; set; }
+  /// <summary>End of the period covered by management's assessment (at least 12 months).</summary>
+  public DateOnly PeriodCoveredTo { get; set; }
+  public string ForecastReviewOutcome { get; set; } = string.Empty;
+  public bool MaterialUncertaintyIdentified { get; set; }
+  public bool DisclosureAdequate { get; set; }
+  public string Conclusion { get; set; } = GoingConcernConclusions.NotAssessed;
+  public string Rationale { get; set; } = string.Empty;
+  public string Currency { get; set; } = string.Empty;
+  public string EvidenceReferencesJson { get; set; } = "[]";
+  public long Revision { get; set; } = 1;
+  public Guid RecordedByUserId { get; set; }
+  public Guid? ReviewedByUserId { get; set; }
+  public DateTimeOffset RecordedAt { get; set; }
+  public DateTimeOffset? ReviewedAt { get; set; }
+}
+
+public static class SubsequentEventClassifications
+{
+  public const string Adjusting = "ADJUSTING";
+  public const string NonAdjusting = "NON_ADJUSTING";
+  public const string PendingAssessment = "PENDING_ASSESSMENT";
+  public static readonly string[] All = [Adjusting, NonAdjusting, PendingAssessment];
+}
+
+/// <summary>T075 subsequent-event review: each event with its date, the qualified
+/// classification (adjusting or non-adjusting) and the disclosure decision. The
+/// classification is recorded by a professional, never inferred by the platform, and a
+/// pending event blocks finalisation until it is assessed.</summary>
+public sealed class SubsequentEventReview
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public Guid EngagementId { get; set; }
+  public Guid? ProcedureId { get; set; }
+  public DateOnly PeriodEndDate { get; set; }
+  public DateOnly EventDate { get; set; }
+  public string Description { get; set; } = string.Empty;
+  public string Classification { get; set; } = SubsequentEventClassifications.PendingAssessment;
+  public bool AdjustmentRequired { get; set; }
+  public bool DisclosureRequired { get; set; }
+  public string? DisclosureReference { get; set; }
+  public string? Rationale { get; set; }
+  public string Currency { get; set; } = string.Empty;
+  public decimal? FinancialEffect { get; set; }
+  public string EvidenceReferencesJson { get; set; } = "[]";
+  public long Revision { get; set; } = 1;
+  public Guid RecordedByUserId { get; set; }
+  public Guid? ReviewedByUserId { get; set; }
+  public DateTimeOffset RecordedAt { get; set; }
+  public DateTimeOffset? ReviewedAt { get; set; }
+}

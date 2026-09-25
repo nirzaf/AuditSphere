@@ -475,6 +475,9 @@ public sealed class AuthorizationDecisionTests
     public DbSet<AuditSphereOps.Domain.Audit.AuditCutOffTestRecord> AuditCutOffTestRecords => db.AuditCutOffTestRecords;
     public DbSet<AuditSphereOps.Domain.Audit.AuditSubsequentMatchRecord> AuditSubsequentMatchRecords => db.AuditSubsequentMatchRecords;
     public DbSet<AuditSphereOps.Domain.Audit.OpeningBalanceVerification> OpeningBalanceVerifications => db.OpeningBalanceVerifications;
+    public DbSet<AuditSphereOps.Domain.Audit.AnalyticalReviewVarianceInvestigation> AnalyticalReviewVarianceInvestigations => db.AnalyticalReviewVarianceInvestigations;
+    public DbSet<AuditSphereOps.Domain.Audit.GoingConcernAssessment> GoingConcernAssessments => db.GoingConcernAssessments;
+    public DbSet<AuditSphereOps.Domain.Audit.SubsequentEventReview> SubsequentEventReviews => db.SubsequentEventReviews;
     public DbSet<AuditSphereOps.Domain.Audit.AuditConfirmationCase> AuditConfirmationCases => db.AuditConfirmationCases;
     public DbSet<AuditSphereOps.Domain.Audit.AuditConfirmationResponse> AuditConfirmationResponses => db.AuditConfirmationResponses;
     public DbSet<AuditSphereOps.Domain.Audit.AuditAlternativeProcedure> AuditAlternativeProcedures => db.AuditAlternativeProcedures;
