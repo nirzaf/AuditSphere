@@ -61,6 +61,11 @@
   },
   "localEvidence": [
     {
+      "item": "IAS 21 Translation Rate Bridge, Consolidation Integration & Task Breakdown Reconciliation (F01–F08)",
+      "status": "LOCAL_VERIFIED",
+      "details": "IAS 21 rate bridge in LineTranslationCalculator computes TranslationReserve from equity (-40) and P&L (-8) differences totaling -48, with zero residual signed sum, passing GOLD-R2R-07. Connected multi-rate translation through CurrencyTranslationService and ConsolidationService, persisting TranslationReserve/FX adjustment and adding CTA_RESERVE line to group balances. Reconciled T054 as R2R-only handover, moving AS-AUD-028-AC10 to T075, validated task_status pack (75 tasks, 19/19 tests pass). Aligned README.md with AGENTS.md excluding Purview/eSignature from product scope. Verified via LineTranslationTests (8/8 pass) and ClientAccountingTests:ForeignOperation_GoldR2R07_TranslatesPerLineWithExplainedReserveAndConsolidates (1/1 pass)."
+    },
+    {
       "item": "AC-24 / AS-PAR-002 — journal detail refresh and parameter reauthorization",
       "status": "LOCAL_VERIFIED",
       "details": "Journal detail clears protected data/action projections before reload and reauthorizes on route parameter changes. Focused revocation journey 1/1; full E2E 60/60, 0 skips; Release build 0 warnings/errors; discovery 327; actionlint and diff checks passed. Code commit 2b68e6def6586dd97fed4135c74eaf814f65ab90 is pushed to master. Hosted run 36004759332 was pending at 2026-09-24T13:18:30Z. No schema, tenant or production effect; AS-PAR-002 remains partial."

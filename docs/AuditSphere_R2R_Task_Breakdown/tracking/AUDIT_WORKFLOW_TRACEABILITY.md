@@ -284,7 +284,7 @@
 | AS-AUD-028 | `AS-AUD-028-AC07` | — | **T050** | `MERGE_EXISTING` | Bounded performance & large population handling consolidated into schema/output safety |
 | AS-AUD-028 | `AS-AUD-028-AC08` | — | **T050** | `MERGE_EXISTING` | Exact archive reproducibility & checksum integrity consolidated into schema/output safety |
 | AS-AUD-028 | `AS-AUD-028-AC09` | — | **T049** | `MERGE_EXISTING` | End-to-end entity audit journey consolidated into accounting journeys |
-| AS-AUD-028 | `AS-AUD-028-AC10` | — | **T054** | `MERGE_EXISTING` | Final audit acceptance & verification sign-off consolidated into production acceptance |
+| AS-AUD-028 | `AS-AUD-028-AC10` | — | **T075** | `MERGE_EXISTING` | Final audit acceptance & verification sign-off consolidated into subsequent events & completion review |
 
 ## 3. Complete AWP source-procedure inventory (165 procedures)
 

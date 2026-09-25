@@ -23,7 +23,7 @@ updated_at: ""
 
 ## Outcome
 
-Execute Section 17 ISA 560 Subsequent Events review up to the report date: management inquiries regarding post-balance-sheet events (`AWP-17-01`), review of subsequent board minutes, interim accounts, and legal correspondence (`AWP-17-02`), review of subsequent cash receipts and disbursements (`AWP-17-03`), classify identified events as Adjusting or Non-Adjusting (`AWP-17-04`), verify appropriate adjustments or footnote disclosures in the financial statements (`AWP-17-05`).
+Execute Section 17 ISA 560 Subsequent Events review up to the report date: management inquiries regarding post-balance-sheet events (`AWP-17-01`), review of subsequent board minutes, interim accounts, and legal correspondence (`AWP-17-02`), review of subsequent cash receipts and disbursements (`AWP-17-03`), classify identified events as Adjusting or Non-Adjusting (`AWP-17-04`), verify appropriate adjustments or footnote disclosures in the financial statements (`AWP-17-05`), and record audit acceptance, execution/traceability reconciliation and operator handover (`AS-AUD-028-AC10`).
 
 ## Before starting
 
@@ -89,6 +89,8 @@ Subsequent Events view under `/app/audit/completion/subsequent-events` with even
 | AS-AUD-024-AC08 | Covered |
 | AS-AUD-024-AC09 | Covered |
 | AS-AUD-024-AC10 | Covered |
+| AS-AUD-028 | Primary |
+| AS-AUD-028-AC10 | Covered |
 | AWP-17-01 | Covered |
 | AWP-17-02 | Covered |
 | AWP-17-03 | Covered |

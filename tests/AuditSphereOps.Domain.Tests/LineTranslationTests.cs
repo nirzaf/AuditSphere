@@ -60,17 +60,56 @@ public sealed class LineTranslationTests
   public void TranslationReserveIsCalculatedFromTheRateBridge()
   {
     var bridge = LineTranslationCalculator.Translate(Lines, new Dictionary<string, string>(), SectionPurposes, Rates, "QAR");
-    // Equity at the historical rate is -280; at the closing rate it would be -320.
+    // Equity at historical rate is -280; at closing rate it would be -320 (difference: -40).
     Assert.Equal(-280m, bridge.EquityAtHistoricalRate);
     Assert.Equal(-320m, bridge.EquityAtClosingRate);
-    Assert.Equal(-40m, bridge.TranslationReserveMovement);
-    Assert.Equal(-40m, bridge.ClosingTranslationReserve);
+    // P&L at average rate is -72; at closing rate it would be -80 (difference: -8).
+    Assert.Equal(-72m, bridge.ProfitAtAverageRate);
+    Assert.Equal(-80m, bridge.ProfitAtClosingRate);
+    // Full reserve movement = -40 (equity diff) + -8 (profit diff) = -48.
+    Assert.Equal(-48m, bridge.TranslationReserveMovement);
+    Assert.Equal(-48m, bridge.ClosingTranslationReserve);
     Assert.True(bridge.ReserveExplained);
     var reserve = bridge.Lines.Single(x => x.SourceLineId == "CTA_RESERVE");
     Assert.Equal(AccountingDefaults.CumulativeTranslationReserveSection, reserve.Section);
-    Assert.Equal(-40m, reserve.TranslatedAmount);
-    // The bridge sum equals the translated total including the reserve.
-    Assert.Equal(bridge.Lines.Sum(x => x.TranslatedAmount), bridge.TranslatedTotal);
+    Assert.Equal(-48m, reserve.TranslatedAmount);
+    // The translated trial balance including the reserve is exactly balanced to zero.
+    Assert.Equal(0m, bridge.TranslatedTotal);
+    Assert.Equal(0m, bridge.Lines.Sum(x => x.TranslatedAmount));
+  }
+
+  [Fact(DisplayName = "GOLD-R2R-07: Translates foreign operation with cash 400, capital -280, revenue -144, expense 72, reserve -48, signed sum 0")]
+  public void GoldR2R07_TranslatesAccuratelyAndBalancesToZero()
+  {
+    // GOLD-R2R-07: Cash 100, Capital -80, Revenue -40, Expense 20
+    // Closing 4.0, Historical 3.5, Average 3.6
+    var bridge = LineTranslationCalculator.Translate(Lines, new Dictionary<string, string>(), SectionPurposes, Rates, "QAR");
+    Assert.Equal(400m, bridge.Lines.Single(x => x.TaxonomyCode == "CASH").TranslatedAmount);
+    Assert.Equal(-280m, bridge.Lines.Single(x => x.TaxonomyCode == "CAPITAL").TranslatedAmount);
+    Assert.Equal(-144m, bridge.Lines.Single(x => x.TaxonomyCode == "REVENUE").TranslatedAmount);
+    Assert.Equal(72m, bridge.Lines.Single(x => x.TaxonomyCode == "EXPENSE").TranslatedAmount);
+    Assert.Equal(-48m, bridge.Lines.Single(x => x.SourceLineId == "CTA_RESERVE").TranslatedAmount);
+    // Signed sum is zero: 400 - 280 - 144 + 72 - 48 = 0
+    Assert.Equal(0m, bridge.TranslatedTotal);
+    // Balance sheet presentation: Assets 400 == Equity 400 (Capital 280 + Profit 72 + Reserve 48)
+    var assets = bridge.Lines.Where(x => x.Section == "ASSETS").Sum(x => x.TranslatedAmount);
+    var capital = Math.Abs(bridge.Lines.Single(x => x.TaxonomyCode == "CAPITAL").TranslatedAmount);
+    var profit = Math.Abs(bridge.Lines.Where(x => x.Section is "INCOME" or "EXPENSE").Sum(x => x.TranslatedAmount));
+    var reserve = Math.Abs(bridge.Lines.Single(x => x.SourceLineId == "CTA_RESERVE").TranslatedAmount);
+    Assert.Equal(400m, assets);
+    Assert.Equal(400m, capital + profit + reserve);
+  }
+
+  [Fact(DisplayName = "Opening translation reserve is carried forward into closing reserve")]
+  public void OpeningTranslationReserve_IsCarriedForward()
+  {
+    var bridge = LineTranslationCalculator.Translate(Lines, new Dictionary<string, string>(), SectionPurposes, Rates, "QAR",
+      openingTranslationReserve: -10m);
+    Assert.Equal(-10m, bridge.OpeningTranslationReserve);
+    Assert.Equal(-48m, bridge.TranslationReserveMovement);
+    Assert.Equal(-58m, bridge.ClosingTranslationReserve);
+    var reserve = bridge.Lines.Single(x => x.SourceLineId == "CTA_RESERVE");
+    Assert.Equal(-58m, reserve.TranslatedAmount);
   }
 
   [Fact(DisplayName = "A selector overrides the section default and a wildcard is honoured")]

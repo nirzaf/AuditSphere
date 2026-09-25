@@ -104,7 +104,7 @@ Use predecessor outputs by exact identity/revision/manifest, not by selecting a 
 
 **Direct consumers unlocked by this task:**
 
-- [T054 — Obtain final production acceptance and record the handover](054_Obtain_final_production_acceptance_and_record_the_handover.md)
+- [T054 — Obtain final Record-to-Report production acceptance and record the R2R handover](054_Obtain_final_production_acceptance_and_record_the_handover.md)
 
 - [Module 20: exact producer/consumer boundaries](../../modules/20_Accounting_Contract.md#lineage)
 - [Module 21: exact producer/consumer boundaries](../../modules/21_Trial_Balance_and_GL_Contract.md#lineage)

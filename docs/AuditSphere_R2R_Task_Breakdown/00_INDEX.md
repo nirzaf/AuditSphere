@@ -364,7 +364,7 @@ The following table is the only master navigation/status index. Each task opens 
 |---|---|---|---|---|---|
 | [ ] | [T052 — Rehearse staged deployment and migrations](tasks/16_Deployment/052_Rehearse_staged_deployment_and_migrations.md) | [T051](tasks/15_Acceptance/051_Reconcile_every_requirement_and_freeze_the_verified_release_candidate.md) | NOT_STARTED | WAITING: T051 | Unassigned |
 | [ ] | [T053 — Verify enabled Microsoft dependencies and complete operator handover](tasks/16_Deployment/053_Verify_enabled_Microsoft_dependencies_and_complete_operator_handover.md) | [T052](tasks/16_Deployment/052_Rehearse_staged_deployment_and_migrations.md) | NOT_STARTED | WAITING: T052 | Unassigned |
-| [ ] | [T054 — Obtain final production acceptance and record the handover](tasks/16_Deployment/054_Obtain_final_production_acceptance_and_record_the_handover.md) | [T053](tasks/16_Deployment/053_Verify_enabled_Microsoft_dependencies_and_complete_operator_handover.md) | NOT_STARTED | WAITING: T053 | Unassigned |
+| [ ] | [T054 — Obtain final Record-to-Report production acceptance and record the R2R handover](tasks/16_Deployment/054_Obtain_final_production_acceptance_and_record_the_handover.md) | [T053](tasks/16_Deployment/053_Verify_enabled_Microsoft_dependencies_and_complete_operator_handover.md) | NOT_STARTED | WAITING: T053 | Unassigned |
 
 <a id="wp-17"></a>
 ### AUD-17 — Audit program library, engagement tailoring, lead schedules, sampling and confirmations foundation

@@ -99,7 +99,10 @@ public sealed record LineTranslationBridge(
   decimal EquityAtHistoricalRate, decimal EquityAtClosingRate,
   decimal TranslationReserveMovement, decimal ClosingTranslationReserve,
   bool ReserveExplained,
-  IReadOnlyList<TranslatedLine> Lines);
+  IReadOnlyList<TranslatedLine> Lines,
+  decimal ProfitAtAverageRate = 0m,
+  decimal ProfitAtClosingRate = 0m,
+  decimal OpeningTranslationReserve = 0m);
 
 /// <summary>
 /// Per-line foreign-operation translation. Each line's rate purpose is resolved from the
@@ -110,6 +113,36 @@ public sealed record LineTranslationBridge(
 /// </summary>
 public static class LineTranslationCalculator
 {
+  public static readonly IReadOnlyDictionary<string, string> DefaultSectionPurposes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+  {
+    ["ASSETS"] = TranslationRatePurposes.Closing,
+    ["ASSET"] = TranslationRatePurposes.Closing,
+    ["CURRENT_ASSETS"] = TranslationRatePurposes.Closing,
+    ["NON_CURRENT_ASSETS"] = TranslationRatePurposes.Closing,
+    ["LIABILITIES"] = TranslationRatePurposes.Closing,
+    ["LIABILITY"] = TranslationRatePurposes.Closing,
+    ["CURRENT_LIABILITIES"] = TranslationRatePurposes.Closing,
+    ["NON_CURRENT_LIABILITIES"] = TranslationRatePurposes.Closing,
+    ["EQUITY"] = TranslationRatePurposes.Historical,
+    ["CAPITAL"] = TranslationRatePurposes.Historical,
+    ["RESERVES"] = TranslationRatePurposes.Historical,
+    ["RETAINED_EARNINGS"] = TranslationRatePurposes.Historical,
+    ["OCI"] = TranslationRatePurposes.Historical,
+    ["CHANGES_IN_EQUITY"] = TranslationRatePurposes.Historical,
+    ["CTA_RESERVE"] = TranslationRatePurposes.Closing,
+    ["INCOME"] = TranslationRatePurposes.Average,
+    ["REVENUE"] = TranslationRatePurposes.Average,
+    ["EXPENSE"] = TranslationRatePurposes.Average,
+    ["EXPENSES"] = TranslationRatePurposes.Average,
+    ["PROFIT_LOSS"] = TranslationRatePurposes.Average,
+    ["PL"] = TranslationRatePurposes.Average,
+    ["COST_OF_SALES"] = TranslationRatePurposes.Average,
+    ["OPERATING_EXPENSES"] = TranslationRatePurposes.Average,
+    ["FINANCE_COSTS"] = TranslationRatePurposes.Average,
+    ["TAX"] = TranslationRatePurposes.Average,
+    ["TAXATION"] = TranslationRatePurposes.Average,
+  };
+
   /// <summary>Resolves the rate purpose for a line: the first matching selector wins, and
   /// a section default applies when no selector matches.</summary>
   public static string ResolvePurpose(
@@ -124,10 +157,13 @@ public static class LineTranslationCalculator
       if (key.Length == 0) continue;
       if (Matches(key, line.TaxonomyCode) || Matches(key, line.SourceLineId)) return selector.Value;
     }
-    return sectionPurposes.TryGetValue(NormalizeSection(line.Section), out var purpose)
-      ? purpose
-      : throw new InvalidOperationException(
-        $"No rate purpose is defined for line '{line.SourceLineId}' in section '{line.Section}'.");
+    var normalizedSection = NormalizeSection(line.Section);
+    if (sectionPurposes.TryGetValue(normalizedSection, out var purpose))
+      return purpose;
+    if (DefaultSectionPurposes.TryGetValue(normalizedSection, out var defaultPurpose))
+      return defaultPurpose;
+    throw new InvalidOperationException(
+      $"No rate purpose is defined for line '{line.SourceLineId}' in section '{line.Section}'.");
   }
 
   public static LineTranslationBridge Translate(
@@ -135,7 +171,8 @@ public static class LineTranslationCalculator
     IReadOnlyDictionary<string, string> selectorPurposes,
     IReadOnlyDictionary<string, string> sectionPurposes,
     IReadOnlyDictionary<string, decimal> ratesByPurpose,
-    string presentationCurrency)
+    string presentationCurrency,
+    decimal openingTranslationReserve = 0m)
   {
     ArgumentNullException.ThrowIfNull(lines);
     if (lines.Count == 0)
@@ -168,31 +205,48 @@ public static class LineTranslationCalculator
         CurrencyTranslationCalculator.Translate(line.FunctionalAmount, functional, currency, rate)));
     }
 
-    // The cumulative translation reserve is the difference between equity translated at
-    // historical rates and the same equity translated at the closing rate. It is a
-    // calculated result with a rate bridge, never a balancing plug.
-    var equityLines = translated.Where(x => IsEquity(x.Section)).ToList();
-    var equityHistorical = MoneyPolicy.Normalize(equityLines.Sum(x => x.TranslatedAmount));
+    // Under IAS 21, the cumulative translation reserve is calculated through the rate bridge:
+    // 1. Difference on equity items translated at historical rates vs closing rate.
+    // 2. Difference on income and expense items translated at average/transaction rates vs closing rate.
+    // 3. Difference on any carried forward/other non-closing rate items.
+    // It is a calculated, fully explained result from exchange rate movements, never a balancing plug.
     var closingRate = string.Equals(functional, currency, StringComparison.Ordinal) ? 1m
       : ratesByPurpose.TryGetValue(TranslationRatePurposes.Closing, out var closing) ? closing
         : throw new InvalidOperationException("The closing rate is required to calculate the translation reserve bridge.");
+
+    var equityLines = translated.Where(x => IsEquity(x.Section)).ToList();
+    var equityHistorical = MoneyPolicy.Normalize(equityLines.Sum(x => x.TranslatedAmount));
     var equityAtClosing = MoneyPolicy.Normalize(equityLines.Sum(x =>
       CurrencyTranslationCalculator.Translate(x.FunctionalAmount, functional, currency, closingRate)));
-    var reserveMovement = MoneyPolicy.Normalize(equityAtClosing - equityHistorical);
+    var equityDifference = MoneyPolicy.Normalize(equityAtClosing - equityHistorical);
+
+    var pnlLines = translated.Where(x => IsProfitOrLoss(x.Section)).ToList();
+    var profitAtAverage = MoneyPolicy.Normalize(pnlLines.Sum(x => x.TranslatedAmount));
+    var profitAtClosing = MoneyPolicy.Normalize(pnlLines.Sum(x =>
+      CurrencyTranslationCalculator.Translate(x.FunctionalAmount, functional, currency, closingRate)));
+    var profitDifference = MoneyPolicy.Normalize(profitAtClosing - profitAtAverage);
+
+    var otherNonClosingLines = translated.Where(x => !IsEquity(x.Section) && !IsProfitOrLoss(x.Section)).ToList();
+    var otherDifference = MoneyPolicy.Normalize(otherNonClosingLines.Sum(x =>
+      CurrencyTranslationCalculator.Translate(x.FunctionalAmount, functional, currency, closingRate) - x.TranslatedAmount));
+
+    var reserveMovement = MoneyPolicy.Normalize(equityDifference + profitDifference + otherDifference);
+    var closingReserve = MoneyPolicy.Normalize(openingTranslationReserve + reserveMovement);
 
     var linesWithReserve = new List<TranslatedLine>(translated);
-    if (reserveMovement != 0m)
+    if (closingReserve != 0m)
       linesWithReserve.Add(new TranslatedLine(
         "CTA_RESERVE", "CTA", AccountingDefaults.CumulativeTranslationReserveSection, 0m,
-        TranslationRatePurposes.Closing, closingRate, reserveMovement));
+        TranslationRatePurposes.Closing, closingRate, closingReserve));
 
     return new LineTranslationBridge(
       functional, currency,
       MoneyPolicy.Normalize(lines.Sum(x => x.FunctionalAmount)),
       MoneyPolicy.Normalize(linesWithReserve.Sum(x => x.TranslatedAmount)),
-      equityHistorical, equityAtClosing, reserveMovement, reserveMovement,
-      ReserveExplained: reserveMovement == 0m || equityLines.Count > 0,
-      linesWithReserve);
+      equityHistorical, equityAtClosing, reserveMovement, closingReserve,
+      ReserveExplained: reserveMovement == 0m || equityLines.Count > 0 || pnlLines.Count > 0,
+      linesWithReserve,
+      profitAtAverage, profitAtClosing, openingTranslationReserve);
   }
 
   private static bool Matches(string selector, string value) =>
@@ -202,6 +256,60 @@ public static class LineTranslationCalculator
 
   private static string NormalizeSection(string section) => (section ?? string.Empty).Trim().ToUpperInvariant();
 
-  private static bool IsEquity(string section) => NormalizeSection(section) is
+  public static bool IsEquity(string section) => NormalizeSection(section) is
     "EQUITY" or "CAPITAL" or "RESERVES" or "RETAINED_EARNINGS" or "OCI" or "CHANGES_IN_EQUITY";
+
+  public static bool IsProfitOrLoss(string section) => NormalizeSection(section) is
+    "INCOME" or "EXPENSE" or "REVENUE" or "PROFIT_LOSS" or "PL" or "COST_OF_SALES" or
+    "OPERATING_EXPENSES" or "FINANCE_COSTS" or "TAX" or "TAXATION";
+
+  public static string InferSection(string taxonomyCodeOrAccount)
+  {
+    if (string.IsNullOrWhiteSpace(taxonomyCodeOrAccount)) return "ASSETS";
+    var normalized = NormalizeSection(taxonomyCodeOrAccount);
+    if (IsEquity(normalized)) return "EQUITY";
+    if (IsProfitOrLoss(normalized)) return "EXPENSE";
+    if (normalized.StartsWith("CASH", StringComparison.Ordinal) ||
+        normalized.StartsWith("BANK", StringComparison.Ordinal) ||
+        normalized.StartsWith("RECEIV", StringComparison.Ordinal) ||
+        normalized.StartsWith("INVENT", StringComparison.Ordinal) ||
+        normalized.StartsWith("PREPAY", StringComparison.Ordinal) ||
+        normalized.StartsWith("ASSET", StringComparison.Ordinal) ||
+        normalized.StartsWith("PPE", StringComparison.Ordinal) ||
+        normalized.StartsWith("DEPOSIT", StringComparison.Ordinal))
+      return "ASSETS";
+    if (normalized.StartsWith("PAYAB", StringComparison.Ordinal) ||
+        normalized.StartsWith("ACCRU", StringComparison.Ordinal) ||
+        normalized.StartsWith("LOAN", StringComparison.Ordinal) ||
+        normalized.StartsWith("BORROW", StringComparison.Ordinal) ||
+        normalized.StartsWith("LIABIL", StringComparison.Ordinal) ||
+        normalized.StartsWith("PROVIS", StringComparison.Ordinal))
+      return "LIABILITIES";
+    if (normalized.StartsWith("CAPITAL", StringComparison.Ordinal) ||
+        normalized.StartsWith("SHARE", StringComparison.Ordinal) ||
+        normalized.StartsWith("EQUITY", StringComparison.Ordinal) ||
+        normalized.StartsWith("RETAIN", StringComparison.Ordinal) ||
+        normalized.StartsWith("RESERV", StringComparison.Ordinal) ||
+        normalized.StartsWith("CTA", StringComparison.Ordinal))
+      return "EQUITY";
+    if (normalized.StartsWith("REV", StringComparison.Ordinal) ||
+        normalized.StartsWith("SALE", StringComparison.Ordinal) ||
+        normalized.StartsWith("INCOME", StringComparison.Ordinal) ||
+        normalized.StartsWith("TURNOVER", StringComparison.Ordinal))
+      return "INCOME";
+    if (normalized.StartsWith("EXP", StringComparison.Ordinal) ||
+        normalized.StartsWith("COST", StringComparison.Ordinal) ||
+        normalized.StartsWith("COS", StringComparison.Ordinal) ||
+        normalized.StartsWith("COG", StringComparison.Ordinal) ||
+        normalized.StartsWith("SALARY", StringComparison.Ordinal) ||
+        normalized.StartsWith("WAGE", StringComparison.Ordinal) ||
+        normalized.StartsWith("DEPREC", StringComparison.Ordinal) ||
+        normalized.StartsWith("AMORT", StringComparison.Ordinal) ||
+        normalized.StartsWith("INTEREST", StringComparison.Ordinal) ||
+        normalized.StartsWith("TAX", StringComparison.Ordinal) ||
+        normalized.StartsWith("FEE", StringComparison.Ordinal) ||
+        normalized.StartsWith("RENT", StringComparison.Ordinal))
+      return "EXPENSE";
+    return "ASSETS";
+  }
 }

@@ -227,6 +227,79 @@ public static class CurrencyTranslationService
          (externalPack is null || externalPack.ReportingCurrency != component.Currency || externalPack.PackDigest != component.PackageHash ||
           !ConsolidationService.ExternalPackLinesMatch(externalPack, externalLines))))
       return CommandResult<Guid>.Fail(ErrorCodes.GenerationStale, "The component source changed; rebuild the translation input.");
+    var directRates = await db.ExchangeRates.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.RateSetVersionId == set.Id &&
+        x.FromCurrency == component.Currency && x.ToCurrency == scope.ReportingCurrency && x.RateDate == rateDate &&
+        x.Direction == ExchangeRateDirections.Direct)
+      .ToListAsync(ct);
+    var ratesByPurpose = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
+    foreach (var r in directRates)
+    {
+      if (string.Equals(r.RateType, policy.ClosingRateRule, StringComparison.OrdinalIgnoreCase))
+        ratesByPurpose[TranslationRatePurposes.Closing] = r.Rate;
+      if (string.Equals(r.RateType, policy.AverageRateRule, StringComparison.OrdinalIgnoreCase))
+        ratesByPurpose[TranslationRatePurposes.Average] = r.Rate;
+      if (string.Equals(r.RateType, policy.HistoricalRateRule, StringComparison.OrdinalIgnoreCase))
+        ratesByPurpose[TranslationRatePurposes.Historical] = r.Rate;
+    }
+    if (!ratesByPurpose.ContainsKey(TranslationRatePurposes.Closing) && rate > 0m &&
+        string.Equals(normalizedRateType, policy.ClosingRateRule, StringComparison.OrdinalIgnoreCase))
+    {
+      ratesByPurpose[TranslationRatePurposes.Closing] = rate;
+    }
+
+    var packageLines = package is not null
+      ? await db.FinancialPackageLines.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.FinancialPackageId == package.Id).ToListAsync(ct)
+      : new List<FinancialPackageLine>();
+    var inputLines = packageLines.Count > 0
+      ? packageLines.Select(l => new TranslationLineInput(l.Id.ToString("D"), l.DestinationCode,
+          !string.IsNullOrWhiteSpace(l.StatementSection) ? l.StatementSection : LineTranslationCalculator.InferSection(l.DestinationCode),
+          l.Amount, l.Currency)).ToList()
+      : externalLines.Select(l => new TranslationLineInput(l.Id.ToString("D"), l.TaxonomyCode,
+          LineTranslationCalculator.InferSection(l.TaxonomyCode),
+          l.Amount, l.Currency)).ToList();
+
+    var priorTranslations = await db.TranslationResults.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&
+      x.GroupId == component.GroupId && x.ComponentId == component.Id && x.Status == AccountingWorkflowStates.Approved &&
+      x.CalculationVersion == TranslationCalculationVersions.ComponentTranslationV2 && x.RateDate < rateDate).ToListAsync(ct);
+    var openingTranslationReserve = MoneyPolicy.Normalize(priorTranslations.OrderByDescending(x => x.RateDate).FirstOrDefault()?.TranslationReserve ?? 0m);
+
+    decimal translatedAmount;
+    decimal foreignExchangeAdjustment;
+    decimal translationReserve;
+    decimal roundingAdjustment = 0m;
+    if (inputLines.Count > 0)
+    {
+      try
+      {
+        var bridge = LineTranslationCalculator.Translate(
+          inputLines,
+          new Dictionary<string, string>(),
+          LineTranslationCalculator.DefaultSectionPurposes,
+          ratesByPurpose,
+          scope.ReportingCurrency,
+          openingTranslationReserve);
+        translatedAmount = bridge.TranslatedTotal;
+        foreignExchangeAdjustment = bridge.TranslationReserveMovement;
+        translationReserve = bridge.ClosingTranslationReserve;
+      }
+      catch (InvalidOperationException) when (!ratesByPurpose.ContainsKey(TranslationRatePurposes.Average) || !ratesByPurpose.ContainsKey(TranslationRatePurposes.Historical))
+      {
+        var componentAmount = inputLines.Sum(x => x.FunctionalAmount);
+        translatedAmount = CurrencyTranslationCalculator.Translate(componentAmount, component.Currency, scope.ReportingCurrency, rate);
+        roundingAdjustment = MoneyPolicy.Normalize(translatedAmount - componentAmount * rate);
+        foreignExchangeAdjustment = 0m;
+        translationReserve = 0m;
+      }
+    }
+    else
+    {
+      var componentAmount = 0m;
+      translatedAmount = CurrencyTranslationCalculator.Translate(componentAmount, component.Currency, scope.ReportingCurrency, rate);
+      roundingAdjustment = 0m;
+      foreignExchangeAdjustment = 0m;
+      translationReserve = 0m;
+    }
+
     var sourceHash = component.PackageHash;
     var existing = await db.TranslationResults.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId &&
       x.ComponentId == component.Id && x.RateSetVersionId == set.Id && x.TranslationPolicyVersionId == policy.Id &&
@@ -234,25 +307,20 @@ public static class CurrencyTranslationService
     if (existing is not null)
     {
       if (existing.SourcePackageHash == sourceHash && existing.RateDate == rateDate && existing.RateType == normalizedRateType &&
-          existing.AppliedRate == rate)
+          existing.AppliedRate == rate && existing.TranslationReserve == translationReserve &&
+          existing.TranslatedAmount == translatedAmount)
         return CommandResult<Guid>.Ok(existing.Id);
       return CommandResult<Guid>.Fail(ErrorCodes.GenerationStale, "A different translation input already exists for this component and policy version.");
     }
-    var componentAmount = package is not null
-      ? await db.FinancialPackageLines.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.FinancialPackageId == package.Id)
-        .SumAsync(x => x.Amount, ct)
-      : externalLines.Sum(x => x.Amount);
-    var translated = CurrencyTranslationCalculator.Translate(componentAmount, component.Currency, scope.ReportingCurrency, rate);
-    var roundingAdjustment = MoneyPolicy.Normalize(translated - componentAmount * rate);
     var result = new TranslationResult
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, GroupId = component.GroupId, ScopeVersionId = component.ScopeVersionId,
       ComponentId = component.Id, RateSetVersionId = set.Id, TranslationPolicyVersionId = policy.Id,
       CalculationVersion = TranslationCalculationVersions.ComponentTranslationV2,
       SourcePackageHash = sourceHash, RateDate = rateDate, RateType = normalizedRateType, AppliedRate = rate,
-      FromCurrency = component.Currency, ToCurrency = scope.ReportingCurrency, TranslatedAmount = translated,
-      ForeignExchangeAdjustment = 0m, RoundingAdjustment = roundingAdjustment,
-      TranslationReserve = 0m, Status = AccountingWorkflowStates.Submitted, CreatedByUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
+      FromCurrency = component.Currency, ToCurrency = scope.ReportingCurrency, TranslatedAmount = translatedAmount,
+      ForeignExchangeAdjustment = foreignExchangeAdjustment, RoundingAdjustment = roundingAdjustment,
+      TranslationReserve = translationReserve, Status = AccountingWorkflowStates.Submitted, CreatedByUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
     };
     db.TranslationResults.Add(result);
     await db.SaveChangesAsync(ct);
@@ -313,16 +381,57 @@ public static class CurrencyTranslationService
       .Select(x => (decimal?)x.Rate).SingleOrDefaultAsync(ct);
     if (rate is null || rate.Value != result.AppliedRate.Value)
       return CommandResult.Fail(ErrorCodes.GenerationStale, "The approved rate set no longer contains the recorded rate.");
-    var total = package is not null
-      ? await db.FinancialPackageLines.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.FinancialPackageId == package.Id)
-        .SumAsync(x => x.Amount, ct)
-      : externalLines.Sum(x => x.Amount);
-    var expectedTranslated = CurrencyTranslationCalculator.Translate(total, result.FromCurrency, result.ToCurrency, result.AppliedRate.Value);
-    var expectedRounding = MoneyPolicy.Normalize(expectedTranslated - total * result.AppliedRate.Value);
-    const decimal expectedForeignExchange = 0m;
-    if (expectedTranslated != result.TranslatedAmount || expectedRounding != result.RoundingAdjustment ||
-        expectedForeignExchange != result.ForeignExchangeAdjustment)
-      return CommandResult.Fail(ErrorCodes.GenerationStale, "The translation result no longer matches the package lines.");
+
+    var packageLines = package is not null
+      ? await db.FinancialPackageLines.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.FinancialPackageId == package.Id).ToListAsync(ct)
+      : new List<FinancialPackageLine>();
+    var inputLines = packageLines.Count > 0
+      ? packageLines.Select(l => new TranslationLineInput(l.Id.ToString("D"), l.DestinationCode,
+          !string.IsNullOrWhiteSpace(l.StatementSection) ? l.StatementSection : LineTranslationCalculator.InferSection(l.DestinationCode),
+          l.Amount, l.Currency)).ToList()
+      : externalLines.Select(l => new TranslationLineInput(l.Id.ToString("D"), l.TaxonomyCode,
+          LineTranslationCalculator.InferSection(l.TaxonomyCode),
+          l.Amount, l.Currency)).ToList();
+
+    if (result.TranslationReserve != 0m || result.ForeignExchangeAdjustment != 0m)
+    {
+      var directRates = await db.ExchangeRates.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.RateSetVersionId == set.Id &&
+          x.FromCurrency == result.FromCurrency && x.ToCurrency == result.ToCurrency && x.RateDate == result.RateDate &&
+          x.Direction == ExchangeRateDirections.Direct)
+        .ToListAsync(ct);
+      var ratesByPurpose = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
+      foreach (var r in directRates)
+      {
+        if (string.Equals(r.RateType, policy.ClosingRateRule, StringComparison.OrdinalIgnoreCase))
+          ratesByPurpose[TranslationRatePurposes.Closing] = r.Rate;
+        if (string.Equals(r.RateType, policy.AverageRateRule, StringComparison.OrdinalIgnoreCase))
+          ratesByPurpose[TranslationRatePurposes.Average] = r.Rate;
+        if (string.Equals(r.RateType, policy.HistoricalRateRule, StringComparison.OrdinalIgnoreCase))
+          ratesByPurpose[TranslationRatePurposes.Historical] = r.Rate;
+      }
+
+      var priorTranslations = await db.TranslationResults.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&
+        x.GroupId == result.GroupId && x.ComponentId == result.ComponentId && x.Status == AccountingWorkflowStates.Approved &&
+        x.CalculationVersion == TranslationCalculationVersions.ComponentTranslationV2 && x.RateDate < result.RateDate).ToListAsync(ct);
+      var openingReserve = MoneyPolicy.Normalize(priorTranslations.OrderByDescending(x => x.RateDate).FirstOrDefault()?.TranslationReserve ?? 0m);
+
+      var bridge = LineTranslationCalculator.Translate(
+        inputLines, new Dictionary<string, string>(), LineTranslationCalculator.DefaultSectionPurposes, ratesByPurpose, result.ToCurrency, openingReserve);
+      if (bridge.TranslatedTotal != result.TranslatedAmount ||
+          bridge.TranslationReserveMovement != result.ForeignExchangeAdjustment ||
+          bridge.ClosingTranslationReserve != result.TranslationReserve)
+        return CommandResult.Fail(ErrorCodes.GenerationStale, "The translation result no longer matches the package lines and rate bridge.");
+    }
+    else
+    {
+      var total = packageLines.Count > 0 ? packageLines.Sum(x => x.Amount) : externalLines.Sum(x => x.Amount);
+      var expectedTranslated = CurrencyTranslationCalculator.Translate(total, result.FromCurrency, result.ToCurrency, result.AppliedRate.Value);
+      var expectedRounding = MoneyPolicy.Normalize(expectedTranslated - total * result.AppliedRate.Value);
+      const decimal expectedForeignExchange = 0m;
+      if (expectedTranslated != result.TranslatedAmount || expectedRounding != result.RoundingAdjustment ||
+          expectedForeignExchange != result.ForeignExchangeAdjustment)
+        return CommandResult.Fail(ErrorCodes.GenerationStale, "The translation result no longer matches the package lines.");
+    }
     result.Status = AccountingWorkflowStates.Approved;
     result.ApprovedByUserId = actor.UserId;
     result.ApprovedAt = DateTimeOffset.UtcNow;

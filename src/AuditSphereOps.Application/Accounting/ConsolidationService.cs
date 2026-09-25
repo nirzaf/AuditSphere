@@ -1471,14 +1471,18 @@ public static class ConsolidationService
         x.RateType == scope.TranslationRateType && x.Status == AccountingWorkflowStates.Approved &&
         x.CalculationVersion == TranslationCalculationVersions.ComponentTranslationV2).ToListAsync(ct);
     }
+    var directRates = scope.ExchangeRateSetVersionId is { } rateSetId && scope.TranslationRateDate is { } rateDate
+      ? await db.ExchangeRates.AsNoTracking().Where(x => x.FirmId == firmId &&
+          x.RateSetVersionId == rateSetId && x.RateDate == rateDate && x.Direction == ExchangeRateDirections.Direct).ToListAsync(ct)
+      : new List<ExchangeRate>();
     var packageLines = await db.FinancialPackageLines.AsNoTracking().Where(x => x.FirmId == firmId &&
       packageIds.Contains(x.FinancialPackageId)).ToListAsync(ct);
     var componentByPackage = packageComponents.ToDictionary(x => x.PackageId!.Value);
     var componentByExternalPack = externalComponents.ToDictionary(x => x.ExternalComponentPackId!.Value);
-    var balances = new List<ConsolidationComponentBalance>(packageLines.Count + externalLines.Count);
+    var balances = new List<ConsolidationComponentBalance>(packageLines.Count + externalLines.Count + components.Count);
     try
     {
-      void AddBalance(ConsolidationComponent component, string destinationCode, decimal amount, string currency, Guid lineId)
+      void AddBalance(ConsolidationComponent component, string destinationCode, decimal amount, string currency, Guid lineId, string section = "")
       {
         if (currency != component.Currency)
           throw new InvalidOperationException("A component line changed currency or no longer belongs to the selected component.");
@@ -1494,26 +1498,71 @@ public static class ConsolidationService
           x.ToCurrency == scope.ReportingCurrency && x.AppliedRate is > 0m);
         if (translation is null || translationPolicy is null || translationPolicy.FunctionalCurrency != component.Currency)
           throw new InvalidOperationException("A foreign component is missing its current approved translation result.");
+
+        var appliedRate = translation.AppliedRate!.Value;
+        if (translation.TranslationReserve != 0m)
+        {
+          var ratesByPurpose = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
+          foreach (var r in directRates.Where(x => x.FromCurrency == component.Currency && x.ToCurrency == scope.ReportingCurrency))
+          {
+            if (string.Equals(r.RateType, translationPolicy.ClosingRateRule, StringComparison.OrdinalIgnoreCase))
+              ratesByPurpose[TranslationRatePurposes.Closing] = r.Rate;
+            if (string.Equals(r.RateType, translationPolicy.AverageRateRule, StringComparison.OrdinalIgnoreCase))
+              ratesByPurpose[TranslationRatePurposes.Average] = r.Rate;
+            if (string.Equals(r.RateType, translationPolicy.HistoricalRateRule, StringComparison.OrdinalIgnoreCase))
+              ratesByPurpose[TranslationRatePurposes.Historical] = r.Rate;
+          }
+          var effectiveSection = !string.IsNullOrWhiteSpace(section) ? section : LineTranslationCalculator.InferSection(destinationCode);
+          var purpose = LineTranslationCalculator.ResolvePurpose(
+            new TranslationLineInput(lineId.ToString("D"), destinationCode, effectiveSection, amount, currency),
+            new Dictionary<string, string>(),
+            LineTranslationCalculator.DefaultSectionPurposes);
+          if (purpose == TranslationRatePurposes.Average && ratesByPurpose.TryGetValue(TranslationRatePurposes.Average, out var avgRate))
+            appliedRate = avgRate;
+          else if (purpose == TranslationRatePurposes.Historical && ratesByPurpose.TryGetValue(TranslationRatePurposes.Historical, out var histRate))
+            appliedRate = histRate;
+          else if (ratesByPurpose.TryGetValue(TranslationRatePurposes.Closing, out var closeRate))
+            appliedRate = closeRate;
+        }
+
         var translated = CurrencyTranslationCalculator.Translate(amount, component.Currency, scope.ReportingCurrency,
-          translation.AppliedRate!.Value);
+          appliedRate);
         balances.Add(new ConsolidationComponentBalance(component.Id, component.ClientId, destinationCode,
           translated, scope.ReportingCurrency, component.OwnershipPercent, component.ControlMethod, component.PackageHash,
           component.PeriodBasis, component.TaxonomyVersion, component.MappingVersion, lineId, component.Currency,
           translation.Id, translation.RateSetVersionId, translation.TranslationPolicyVersionId, translation.RateDate,
-          translation.RateType, translation.AppliedRate.Value));
+          translation.RateType, appliedRate));
       }
 
       foreach (var line in packageLines)
       {
         if (!componentByPackage.TryGetValue(line.FinancialPackageId, out var component))
           throw new InvalidOperationException("A component package line no longer belongs to the selected component.");
-        AddBalance(component, line.DestinationCode, line.Amount, line.Currency, line.Id);
+        AddBalance(component, line.DestinationCode, line.Amount, line.Currency, line.Id, line.StatementSection);
       }
       foreach (var line in externalLines)
       {
         if (!componentByExternalPack.TryGetValue(line.ExternalComponentPackId, out var component))
           throw new InvalidOperationException("An external component line no longer belongs to the selected component.");
         AddBalance(component, line.TaxonomyCode, line.Amount, line.Currency, line.Id);
+      }
+
+      foreach (var component in components.Where(x => x.Currency != scope.ReportingCurrency))
+      {
+        var translation = translationResults.SingleOrDefault(x => x.ComponentId == component.Id &&
+          x.SourcePackageHash == component.PackageHash && x.FromCurrency == component.Currency &&
+          x.ToCurrency == scope.ReportingCurrency);
+        if (translation is not null && translation.TranslationReserve != 0m)
+        {
+          var ctaLineId = Guid.CreateVersion7();
+          balances.Add(new ConsolidationComponentBalance(
+            component.Id, component.ClientId, AccountingDefaults.CumulativeTranslationReserveSection,
+            translation.TranslationReserve, scope.ReportingCurrency, component.OwnershipPercent, component.ControlMethod,
+            component.PackageHash, component.PeriodBasis, component.TaxonomyVersion, component.MappingVersion,
+            ctaLineId, component.Currency,
+            translation.Id, translation.RateSetVersionId, translation.TranslationPolicyVersionId,
+            translation.RateDate, translation.RateType, translation.AppliedRate!.Value));
+        }
       }
     }
     catch (InvalidOperationException ex)

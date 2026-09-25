@@ -4,13 +4,13 @@
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-18.6-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 [![EF Core](https://img.shields.io/badge/EF%20Core-10.0-0078D4?logo=nuget&logoColor=white)](https://learn.microsoft.com/ef/core/)
 [![Blazor](https://img.shields.io/badge/Blazor-Interactive%20Server-512BD4?logo=blazor&logoColor=white)](https://dotnet.microsoft.com/apps/aspnet/web-apps/blazor)
-[![Tests](https://img.shields.io/badge/Tests-333%20Cases-brightgreen)](tests/)
+[![Tests](https://img.shields.io/badge/Tests-334%20Cases-brightgreen)](tests/)
 [![Migrations](https://img.shields.io/badge/Migrations-96%20Applied-blue)](src/AuditSphereOps.Infrastructure/Persistence/Migrations/)
 [![License](https://img.shields.io/badge/License-Informational-lightgrey)](LICENSE)
 
 **AuditSphereOps** is a professional audit, accounting, and assurance operations platform — an enterprise **.NET 10 modular monolith** built for accounting practices, CPA firms, audit engagements, and multi-entity group consolidation. It governs the entire engagement lifecycle: lead qualification, proposal generation, client acceptance, practice time and billing, trial-balance and general-ledger intake, financial statement production, audit fieldwork, review, controlled package signing/release, records retention, and multi-currency consolidation.
 
-> **Status: Specification-Driven Modular Monolith.** Core domain modules, practice management, period/book/basis-bound trial balance intake, bounded resumable GL intake, client-scoped accounting dimensions, chart/taxonomy hierarchy controls, QAR setup defaults, GL service-date lineage, opening/movement completeness, deterministic journal-risk indicators, exact-journal difference-impact classification, governed difference correction states, audit planning, bank reconciliation proofs, package production, archive lineage, provider safety fences, recovery quarantine, queued-operation cancellation, governed financial-package review decisions, exact-byte reviewed package artifacts, deterministic formula-free XLSX/DOCX exports, safe legacy period/chart backfill, package-bound release candidates, source-bound accounting-evidence freshness, typed specialist schedules, explicit asset-schedule methodology, client-safe management views, authorized review queues, source-bound reconciliation-item aging, durable GL/package processing, context-bound adjustment journals, analytical-review replay lineage, valuation differences linked to scoped adjustments, versioned FX ranges and approved rate-rule enforcement, deterministic advanced-consolidation safety cores, and sealed GL source-bound schedule control totals are implemented and verified locally (**333 test cases, 0 EF Core model drift across 96 migrations against PostgreSQL 18.6**). Live external gates (Entra OIDC, live SharePoint/Graph, live Purview compliance, and cryptographic signing) require production infrastructure and remain recorded as `BLOCKED_EXTERNAL`, never fake-passed.
+> **Status: Specification-Driven Modular Monolith.** Core domain modules, practice management, period/book/basis-bound trial balance intake, bounded resumable GL intake, client-scoped accounting dimensions, chart/taxonomy hierarchy controls, QAR setup defaults, GL service-date lineage, opening/movement completeness, deterministic journal-risk indicators, exact-journal difference-impact classification, governed difference correction states, audit planning, bank reconciliation proofs, package production, archive lineage, provider safety fences, recovery quarantine, queued-operation cancellation, governed financial-package review decisions, exact-byte reviewed package artifacts, deterministic formula-free XLSX/DOCX exports, safe legacy period/chart backfill, package-bound release candidates, source-bound accounting-evidence freshness, typed specialist schedules, explicit asset-schedule methodology, client-safe management views, authorized review queues, source-bound reconciliation-item aging, durable GL/package processing, context-bound adjustment journals, analytical-review replay lineage, valuation differences linked to scoped adjustments, versioned FX ranges and approved rate-rule enforcement, deterministic advanced-consolidation safety cores, and sealed GL source-bound schedule control totals are implemented and verified locally (**334 test cases, 0 EF Core model drift across 96 migrations against PostgreSQL 18.6**). Production external gates (Entra OIDC, selected-resource SharePoint/Graph, and live release checkpoint) require live infrastructure and remain recorded as `BLOCKED_EXTERNAL`, never fake-passed. Purview and eSignature provider integrations are out of product scope: exact uploaded signed-document evidence, SHA-256 identities, human decisions, and release manifests are preserved without claiming provider acceptance.
 
 ---
 
@@ -41,7 +41,7 @@
 2. **Dual-Scope Professional Capability:** Full support for both **Client Accounting Services (CAS / Record-to-Report)** and **Financial-Statement Assurance Audits** within a single unified workspace.
 3. **Exact-Version Approvals and Release Safety:** Synchronous, release-safe generation; version-bound document approvals; durable operations with at-most-once external effects, reconciliation, and recovery quarantine.
 4. **Native Practice Management:** Integrated CRM (leads, proposals, acceptance), staff time budgets, billing artifacts (invoices, credit notes, receipts, allocations), and an immutable firm financial ledger — without converting the platform into an operational client ERP.
-5. **Microsoft 365 as Managed Dependencies:** Microsoft Entra ID (identity), Microsoft Graph + SharePoint Online (documents), and Microsoft Purview (retention/records) remain external boundaries governed by safety fences.
+5. **Microsoft 365 Dependencies & Preserved Evidence:** Microsoft Entra ID (identity) and Microsoft Graph + SharePoint Online (selected-resource documents) remain external boundaries governed by safety fences. Purview and eSignature provider integrations are out of product scope: exact uploaded signed-document evidence, SHA-256 identities, human decisions, and release manifests are preserved without claiming provider acceptance.
 6. **Honest Evidence:** Every claim maps directly to executed test evidence in `docs/execution/status.json`; external blockers are recorded as blocked, never simulated.
 
 ---
@@ -116,7 +116,7 @@ AuditSphereOps is structured as a **clean-architecture modular monolith** on ASP
            ════════════════════════════╪════════════════════════════
                      EXTERNAL GATED BOUNDARIES (FAIL-CLOSED)
            Microsoft Entra ID · Microsoft Graph · SharePoint Online
-                     Microsoft Purview · Hardware Signing
+           Exact Signed-Document Evidence · SHA-256 Release Manifests
 ```
 
 ### Domain Modules
@@ -129,7 +129,7 @@ AuditSphereOps is structured as a **clean-architecture modular monolith** on ASP
 - **Audit:** Fieldwork, audit programs, procedures, testing workpapers, sample selection, journal-risk indicators, bank reconciliations, and audit differences.
 - **Reviews:** Stage-bound financial package reviews, partner review decisions, and review point governance.
 - **Completion:** Representation letters, audit sign-offs, and controlled package release handoffs.
-- **Documents & Records:** Document metadata, upload/download fences, Microsoft 365 onboarding, and Purview-compliant immutable archives.
+- **Documents & Records:** Document metadata, upload/download fences, Microsoft 365 onboarding, exact uploaded signed-document evidence, SHA-256 identities, and immutable archive manifests.
 
 ---
 
@@ -185,7 +185,7 @@ The Blazor Interactive Server front-end (`src/AuditSphereOps.Web`) delivers role
 - **Document & Export Integrity:** Exported spreadsheets are OpenXML formula-free and macro-free; generated PDFs use PDFsharp/MigraDoc with OFL Noto Sans and byte-stable layout; CSV exports neutralize formulas (`=`, `+`, `-`, `@`) to prevent CSV injection.
 - **Fail-Closed Methodology:** Missing exchange rates, unsupported valuation methods, unapproved perimeters, or stale source inputs fail closed and block release. Never default to zero or arbitrary assumptions.
 - **No Autonomous Audit Opinions:** The platform computes differences, evaluates risk indicators, and enforces gates; human practitioners make professional conclusions and sign-offs.
-- **Never-Fake External Effects:** `ExternalEffects.Enabled=false` locally; simulation handlers exist for unit/integration tests only (`AllowSimulationAdapters=true`). Live external providers (Entra, SharePoint, Purview) are recorded as `BLOCKED_EXTERNAL`.
+- **Never-Fake External Effects:** `ExternalEffects.Enabled=false` locally; simulation handlers exist for unit/integration tests only (`AllowSimulationAdapters=true`). Live external gates (Entra OIDC, selected-resource SharePoint/Graph, and live release checkpoints) require production infrastructure and remain recorded as `BLOCKED_EXTERNAL`. Purview and eSignature provider integrations are out of product scope: exact uploaded signed-document evidence, SHA-256 identities, human decisions, and release manifests are preserved without claiming provider acceptance.
 
 ---
 
@@ -214,7 +214,7 @@ AuditSphere/
 │   ├── AuditSphereOps.Web/             # Blazor Web App (Interactive Server), workbenches, client portal, health probes
 │   └── AuditSphereOps.Worker/          # Durable-operation background worker (general, processing, records)
 ├── tests/
-│   ├── AuditSphereOps.Domain.Tests/    # 267 integration tests against isolated PostgreSQL schemas
+│   ├── AuditSphereOps.Domain.Tests/    # 268 integration tests against isolated PostgreSQL schemas
 │   ├── AuditSphereOps.Api.Tests/       # 6 HTTP API & transfer security tests
 │   └── AuditSphereOps.E2E.Tests/       # 60 Playwright end-to-end user journeys & grant revocation tests
 ├── docs/
@@ -351,8 +351,8 @@ Work is sequenced in dependency-ordered work packages (P0–P10 per [docs/execut
 | **P1** | Live Entra OIDC Authentication | `BLOCKED_EXTERNAL` | Requires live Azure AD / Entra ID tenant registration. |
 | **P2** | Live SharePoint/Graph Documents | `BLOCKED_EXTERNAL` | Requires live Microsoft 365 tenant with selected-resource scopes. |
 | **P3** | External Release Checkpoint Store | `BLOCKED_EXTERNAL` | Requires production cryptographic checkpoint infrastructure. |
-| **P4** | Purview Records Retention | `BLOCKED_EXTERNAL` | Requires live Microsoft Purview compliance profile. |
-| **P5** | Hardware Cryptographic Signing | `BLOCKED_EXTERNAL` | Requires approved HSM / cryptographic signing certificate. |
+| **P4** | Records Retention & Manifest Lineage | `LOCAL_VERIFIED` | Preserves exact uploaded document evidence, SHA-256 identities, and immutable archive manifests (Purview provider integration excluded from product scope). |
+| **P5** | Document Signing Evidence Lineage | `LOCAL_VERIFIED` | Preserves exact uploaded signed-document evidence, SHA-256 identities, and human decisions without claiming external eSignature provider integration (excluded from product scope). |
 | **P6** | Records / Archive Residual Hardening | `LOCAL_VERIFIED` | Immutable archive schema, lineage manifests, and structured exports. |
 | **P7** | Cross-Store Recovery (RPO/RTO) | `BLOCKED_EXTERNAL` | Requires multi-region cloud backup infrastructure. |
 | **P8** | Production Observability & Secrets | `BLOCKED_EXTERNAL` | Requires Azure Key Vault and production OpenTelemetry collector. |
