@@ -27,6 +27,8 @@ public interface IAuditSphereDbContext : IAsyncDisposable
   DbSet<TrialBalanceDataset> TrialBalanceDatasets { get; }
   DbSet<SourceAcceptanceDecision> SourceAcceptanceDecisions { get; }
   DbSet<TrialBalanceValidationIssue> TrialBalanceValidationIssues { get; }
+  DbSet<StatementLayoutVersion> StatementLayoutVersions { get; }
+  DbSet<StatementLayoutLine> StatementLayoutLines { get; }
   DbSet<TrialBalanceImportBatch> TrialBalanceImportBatches { get; }
   DbSet<TrialBalanceRow> TrialBalanceRows { get; }
   DbSet<MappingVersion> MappingVersions { get; }

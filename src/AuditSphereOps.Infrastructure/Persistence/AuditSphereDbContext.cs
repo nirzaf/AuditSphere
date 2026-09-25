@@ -75,6 +75,8 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
   public DbSet<TrialBalanceDataset> TrialBalanceDatasets => Set<TrialBalanceDataset>();
   public DbSet<SourceAcceptanceDecision> SourceAcceptanceDecisions => Set<SourceAcceptanceDecision>();
   public DbSet<TrialBalanceValidationIssue> TrialBalanceValidationIssues => Set<TrialBalanceValidationIssue>();
+  public DbSet<StatementLayoutVersion> StatementLayoutVersions => Set<StatementLayoutVersion>();
+  public DbSet<StatementLayoutLine> StatementLayoutLines => Set<StatementLayoutLine>();
   public DbSet<TrialBalanceImportBatch> TrialBalanceImportBatches => Set<TrialBalanceImportBatch>();
   public DbSet<TrialBalanceRow> TrialBalanceRows => Set<TrialBalanceRow>();
   public DbSet<MappingRule> MappingRules => Set<MappingRule>();
@@ -1369,6 +1371,41 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
     tbIssue.Property(x => x.Code).HasMaxLength(100);
     tbIssue.Property(x => x.Message).HasMaxLength(1000);
     tbIssue.HasIndex(x => new { x.FirmId, x.DatasetId, x.Severity }).HasDatabaseName("ix_tb_validation_issues");
+
+    var layoutVersion = b.Entity<StatementLayoutVersion>();
+    layoutVersion.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.Id }).HasName("AK_statement_layout_versions_scope_id");
+    layoutVersion.Property(x => x.FrameworkPolicy).HasMaxLength(100);
+    layoutVersion.Property(x => x.Name).HasMaxLength(200);
+    layoutVersion.Property(x => x.Status).HasMaxLength(30);
+    layoutVersion.Property(x => x.LayoutHash).HasMaxLength(64);
+    layoutVersion.Property(x => x.ValidationSummary).HasMaxLength(4000);
+    layoutVersion.Property(x => x.PublishReason).HasMaxLength(2000);
+    layoutVersion.HasIndex(x => new { x.FirmId, x.ClientId, x.FrameworkPolicy, x.Name, x.VersionNumber }).IsUnique()
+      .HasDatabaseName("ux_statement_layout_version_identity");
+    layoutVersion.ToTable("statement_layout_versions", t => t.HasCheckConstraint("ck_statement_layout_version_values",
+      "version_number >= 1 AND line_count >= 0 AND status IN ('DRAFT','VALIDATED','PUBLISHED') " +
+      "AND ((status = 'PUBLISHED' AND published_by_user_id IS NOT NULL AND published_at IS NOT NULL) " +
+      "OR (status <> 'PUBLISHED' AND published_by_user_id IS NULL AND published_at IS NULL))"));
+    layoutVersion.HasOne<PracticeClient>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var layoutLine = b.Entity<StatementLayoutLine>();
+    layoutLine.Property(x => x.LineCode).HasMaxLength(60);
+    layoutLine.Property(x => x.Label).HasMaxLength(300);
+    layoutLine.Property(x => x.LineKind).HasMaxLength(40);
+    layoutLine.Property(x => x.Section).HasMaxLength(40);
+    layoutLine.Property(x => x.DisplaySign).HasMaxLength(20);
+    layoutLine.Property(x => x.TaxonomyNodeCode).HasMaxLength(100);
+    layoutLine.Property(x => x.DenominatorLineCode).HasMaxLength(60);
+    layoutLine.HasIndex(x => new { x.FirmId, x.LayoutVersionId, x.LineCode }).IsUnique()
+      .HasDatabaseName("ux_statement_layout_line_code");
+    layoutLine.ToTable("statement_layout_lines", t => t.HasCheckConstraint("ck_statement_layout_line_values",
+      "line_order >= 0 AND length(trim(line_code)) > 0 AND length(trim(label)) > 0 " +
+      "AND line_kind IN ('HEADING','MAPPED_TAXONOMY_BALANCE','SUM_CHILD_LINES','TOTAL_REFERENCED_LINES','RATIO') " +
+      "AND section IN ('FINANCIAL_POSITION','PROFIT_OR_LOSS','OCI','CHANGES_IN_EQUITY','CASH_FLOWS','NOTES')"));
+    layoutLine.HasOne<StatementLayoutVersion>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.LayoutVersionId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
 
     var mapping = b.Entity<MappingVersion>();
     mapping.HasAlternateKey(x => new { x.FirmId, x.Id })

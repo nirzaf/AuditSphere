@@ -423,6 +423,8 @@ public sealed class AuthorizationDecisionTests
     public DbSet<AuditSphereOps.Domain.Accounting.TrialBalanceRow> TrialBalanceRows => db.TrialBalanceRows;
     public DbSet<AuditSphereOps.Domain.Accounting.SourceAcceptanceDecision> SourceAcceptanceDecisions => db.SourceAcceptanceDecisions;
     public DbSet<AuditSphereOps.Domain.Accounting.TrialBalanceValidationIssue> TrialBalanceValidationIssues => db.TrialBalanceValidationIssues;
+    public DbSet<AuditSphereOps.Domain.Accounting.StatementLayoutVersion> StatementLayoutVersions => db.StatementLayoutVersions;
+    public DbSet<AuditSphereOps.Domain.Accounting.StatementLayoutLine> StatementLayoutLines => db.StatementLayoutLines;
     public DbSet<AuditSphereOps.Domain.Accounting.MappingRule> MappingRules => db.MappingRules;
     public DbSet<AuditSphereOps.Domain.Accounting.MappingVersion> MappingVersions => db.MappingVersions;
     public DbSet<AuditSphereOps.Domain.Accounting.MappingAllocation> MappingAllocations => db.MappingAllocations;
