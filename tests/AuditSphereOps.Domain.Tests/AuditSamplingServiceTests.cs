@@ -179,3 +179,83 @@ public sealed class AuditSamplingServiceTests
     }
   }
 }
+
+/// <summary>T059 completion: batched confirmation creation and the confirmation summary view.</summary>
+[Trait("Profile", "Database")]
+public sealed class AuditConfirmationBatchTests
+{
+  [Fact(DisplayName = "Confirmation batch creates the area register atomically and the summary reports it")]
+  public async Task ConfirmationBatch_IsAtomicAndSummarised()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await PlanningSeed.CreateAsync(pg, role: "Partner");
+    var scope = fixture.Primary;
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var program = await AuditProgramService.PublishAsync(db, scope.Actor,
+        new PublishAuditProgramRequest("2026.4", AuditProgramCatalog.SourceHash));
+      Assert.True((await AuditProgramService.AdoptAsync(db, scope.Actor,
+        new AdoptAuditProgramRequest(scope.EngagementId, program.Value!.ProgramVersionId))).Succeeded);
+      var procedure = await db.AuditProcedures.SingleAsync(x =>
+        x.EngagementId == scope.EngagementId && x.SourceProcedureId == "AWP-03-04");
+      Assert.True((await AuditProgramService.DecideApplicabilityAsync(db, scope.Actor,
+        new DecideProcedureApplicabilityRequest(procedure.Id, AuditApplicabilityStatuses.Applicable, null))).Succeeded);
+
+      // A duplicate source record rejects the whole batch: no partial register.
+      var duplicate = await AuditConfirmationBatchService.CreateConfirmationBatchAsync(db, scope.Actor,
+        new ConfirmationBatchRequest(scope.EngagementId, procedure.Id, AuditAreaCodes.Receivables, "QAR",
+          new DateOnly(2026, 12, 31),
+          [
+            new("CUST-001", 500m, "Customer A finance lead", "Signed contract contact list reviewed by partner."),
+            new("CUST-001", 300m, "Customer A finance lead", "Signed contract contact list reviewed by partner.")
+          ]));
+      Assert.False(duplicate.Succeeded);
+      Assert.Empty(await db.AuditConfirmationCases.ToListAsync());
+
+      // An invalid currency is refused before any insert.
+      var badCurrency = await AuditConfirmationBatchService.CreateConfirmationBatchAsync(db, scope.Actor,
+        new ConfirmationBatchRequest(scope.EngagementId, procedure.Id, AuditAreaCodes.Receivables, "Q1",
+          new DateOnly(2026, 12, 31),
+          [new("CUST-001", 500m, "Customer A finance lead", "Signed contract contact list.")]));
+      Assert.False(badCurrency.Succeeded);
+
+      var batch = await AuditConfirmationBatchService.CreateConfirmationBatchAsync(db, scope.Actor,
+        new ConfirmationBatchRequest(scope.EngagementId, procedure.Id, AuditAreaCodes.Receivables, "QAR",
+          new DateOnly(2026, 12, 31),
+          [
+            new("CUST-001", 500m, "Customer A finance lead", "Signed contract contact list reviewed by partner."),
+            new("CUST-002", 300m, "Customer B finance lead", "Signed contract contact list reviewed by partner."),
+            new("CUST-003", 150m, "Customer C finance lead", "Signed contract contact list reviewed by partner.")
+          ]));
+      Assert.True(batch.Succeeded, batch.Message);
+      Assert.Equal(3, batch.Value!.CreatedCount);
+      Assert.Equal(950m, batch.Value.TotalBookedAmount);
+      Assert.Equal(AuditAreaCodes.Receivables, batch.Value.AreaCode);
+      Assert.All(batch.Value.Cases, x => Assert.Equal(AuditConfirmationStatuses.Draft, x.Status));
+      Assert.Equal(3, await db.AuditConfirmationCases.CountAsync());
+    }
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var summary = await AuditConfirmationBatchService.GetConfirmationSummaryAsync(db, scope.Actor, scope.EngagementId);
+      Assert.True(summary.Succeeded, summary.Message);
+      Assert.Equal(3, summary.Value!.TotalCases);
+      Assert.Equal(950m, summary.Value.TotalBookedAmount);
+      Assert.Equal("QAR", summary.Value.Currency);
+      Assert.Equal(3, summary.Value.Draft);
+      Assert.Equal(0, summary.Value.Dispatched);
+      Assert.Equal(0, summary.Value.RecomputedDifferenceCases);
+      Assert.All(summary.Value.Items, x => Assert.Equal("QAR", x.Currency));
+
+      // The area filter narrows the register; an unknown area returns nothing rather than all.
+      var filtered = await AuditConfirmationBatchService.GetConfirmationSummaryAsync(db, scope.Actor,
+        scope.EngagementId, areaCode: AuditAreaCodes.Payables);
+      Assert.True(filtered.Succeeded);
+      Assert.Equal(0, filtered.Value!.TotalCases);
+      var wrongArea = await AuditConfirmationBatchService.GetConfirmationSummaryAsync(db, scope.Actor,
+        scope.EngagementId, areaCode: AuditAreaCodes.Receivables);
+      Assert.Equal(3, wrongArea.Value!.TotalCases);
+    }
+  }
+}
