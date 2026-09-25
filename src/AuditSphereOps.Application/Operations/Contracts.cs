@@ -78,6 +78,8 @@ public interface IAuditSphereDbContext : IAsyncDisposable
   DbSet<AuditSelectionItem> AuditSelectionItems { get; }
   DbSet<AuditItemTest> AuditItemTests { get; }
   DbSet<AuditItemTestReview> AuditItemTestReviews { get; }
+  DbSet<AuditCutOffTestRecord> AuditCutOffTestRecords { get; }
+  DbSet<AuditSubsequentMatchRecord> AuditSubsequentMatchRecords { get; }
   DbSet<AuditConfirmationCase> AuditConfirmationCases { get; }
   DbSet<AuditConfirmationResponse> AuditConfirmationResponses { get; }
   DbSet<AuditAlternativeProcedure> AuditAlternativeProcedures { get; }

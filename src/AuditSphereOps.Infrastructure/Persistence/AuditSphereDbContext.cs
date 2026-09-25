@@ -169,6 +169,8 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
   public DbSet<AuditSelectionItem> AuditSelectionItems => Set<AuditSelectionItem>();
   public DbSet<AuditItemTest> AuditItemTests => Set<AuditItemTest>();
   public DbSet<AuditItemTestReview> AuditItemTestReviews => Set<AuditItemTestReview>();
+  public DbSet<AuditCutOffTestRecord> AuditCutOffTestRecords => Set<AuditCutOffTestRecord>();
+  public DbSet<AuditSubsequentMatchRecord> AuditSubsequentMatchRecords => Set<AuditSubsequentMatchRecord>();
   public DbSet<AuditConfirmationCase> AuditConfirmationCases => Set<AuditConfirmationCase>();
   public DbSet<AuditConfirmationResponse> AuditConfirmationResponses => Set<AuditConfirmationResponse>();
   public DbSet<AuditAlternativeProcedure> AuditAlternativeProcedures => Set<AuditAlternativeProcedure>();
@@ -2968,6 +2970,38 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
       .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     itemTestReview.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.ReviewerUserId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var cutOff = b.Entity<AuditCutOffTestRecord>();
+    cutOff.HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_audit_cut_off_tests_firm_id_id");
+    cutOff.Property(x => x.PeriodEndIndicator).HasMaxLength(30);
+    cutOff.Property(x => x.WorkPerformed).HasMaxLength(20000);
+    cutOff.Property(x => x.EvidenceReferencesJson).HasMaxLength(20000);
+    cutOff.HasIndex(x => new { x.FirmId, x.EngagementId, x.SelectionItemId }).IsUnique()
+      .HasDatabaseName("ux_audit_cut_off_test_item");
+    cutOff.ToTable("audit_cut_off_test_records", t => t.HasCheckConstraint("ck_audit_cut_off_test_values",
+      "revision > 0 AND period_end_indicator IN ('BEFORE_PERIOD_END','AFTER_PERIOD_END')"));
+    ScopeToEngagement(cutOff, nameof(AuditCutOffTestRecord.FirmId), nameof(AuditCutOffTestRecord.ClientId), nameof(AuditCutOffTestRecord.EngagementId));
+    cutOff.HasOne<AuditSelectionItem>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.SelectionItemId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    cutOff.HasOne<AuditSelection>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.SelectionId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var subsequent = b.Entity<AuditSubsequentMatchRecord>();
+    subsequent.HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_audit_subsequent_matches_firm_id_id");
+    subsequent.Property(x => x.Currency).HasMaxLength(3).IsFixedLength();
+    subsequent.Property(x => x.SubsequentSourceReference).HasMaxLength(200);
+    subsequent.Property(x => x.State).HasMaxLength(30);
+    subsequent.Property(x => x.UnmatchedReason).HasMaxLength(2000);
+    subsequent.Property(x => x.EvidenceReference).HasMaxLength(2000);
+    subsequent.HasIndex(x => new { x.FirmId, x.EngagementId, x.SelectionItemId }).IsUnique()
+      .HasDatabaseName("ux_audit_subsequent_match_item");
+    subsequent.ToTable("audit_subsequent_match_records", t => t.HasCheckConstraint("ck_audit_subsequent_match_values",
+      "revision > 0 AND currency ~ '^[A-Z]{3}$' AND matched_amount >= 0 AND state IN ('MATCHED','PARTIALLY_MATCHED','UNMATCHED')"));
+    ScopeToEngagement(subsequent, nameof(AuditSubsequentMatchRecord.FirmId), nameof(AuditSubsequentMatchRecord.ClientId), nameof(AuditSubsequentMatchRecord.EngagementId));
+    subsequent.HasOne<AuditSelectionItem>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.SelectionItemId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    subsequent.HasOne<AuditSelection>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.SelectionId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
 
     var confirmation = b.Entity<AuditConfirmationCase>();
     confirmation.HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_audit_confirmation_cases_firm_id_id");

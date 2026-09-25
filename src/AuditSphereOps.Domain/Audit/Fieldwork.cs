@@ -435,3 +435,69 @@ public static class AuditDifferenceCorrectionStates
   public const string ReportedPostedExternally = "REPORTED_POSTED_EXTERNALLY";
   public const string VerifiedReflected = "VERIFIED_REFLECTED";
 }
+
+public static class AuditCutOffDirections
+{
+  public const string BeforePeriodEnd = "BEFORE_PERIOD_END";
+  public const string AfterPeriodEnd = "AFTER_PERIOD_END";
+}
+
+/// <summary>Cut-off test evidence for one sampled transaction (T058): the transaction,
+/// document and shipping/receiving dates are recorded together with the period-end
+/// indicator so revenue and inventory cut-off can be assessed deterministically.</summary>
+public sealed class AuditCutOffTestRecord
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public Guid EngagementId { get; set; }
+  public Guid SelectionId { get; set; }
+  public Guid SelectionItemId { get; set; }
+  public Guid ProcedureId { get; set; }
+  public DateOnly PeriodEndDate { get; set; }
+  public DateOnly TransactionDate { get; set; }
+  public DateOnly? DocumentDate { get; set; }
+  public DateOnly? ShipReceiveDate { get; set; }
+  /// <summary>Recorded vs the period end: BEFORE_PERIOD_END or AFTER_PERIOD_END.</summary>
+  public string PeriodEndIndicator { get; set; } = string.Empty;
+  /// <summary>True when the recorded dates place the item in a different period than booked.</summary>
+  public bool IsCutOffException { get; set; }
+  public string WorkPerformed { get; set; } = string.Empty;
+  public string EvidenceReferencesJson { get; set; } = "[]";
+  public long Revision { get; set; } = 1;
+  public Guid RecordedByUserId { get; set; }
+  public DateTimeOffset RecordedAt { get; set; }
+}
+
+public static class AuditSubsequentMatchStates
+{
+  public const string Matched = "MATCHED";
+  public const string PartiallyMatched = "PARTIALLY_MATCHED";
+  public const string Unmatched = "UNMATCHED";
+}
+
+/// <summary>Subsequent-settlement matching for one sampled item (T058): links the item to
+/// a post-year-end bank/GL entry. A partial or absent match stays visible rather than
+/// being treated as settled.</summary>
+public sealed class AuditSubsequentMatchRecord
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public Guid EngagementId { get; set; }
+  public Guid SelectionId { get; set; }
+  public Guid SelectionItemId { get; set; }
+  public Guid ProcedureId { get; set; }
+  public decimal ItemSignedAmount { get; set; }
+  public decimal MatchedAmount { get; set; }
+  public string Currency { get; set; } = string.Empty;
+  /// <summary>Reference to the post-year-end bank/GL entry that settles the item.</summary>
+  public string SubsequentSourceReference { get; set; } = string.Empty;
+  public DateOnly? SubsequentDate { get; set; }
+  public string State { get; set; } = AuditSubsequentMatchStates.Unmatched;
+  public string? UnmatchedReason { get; set; }
+  public string EvidenceReference { get; set; } = string.Empty;
+  public long Revision { get; set; } = 1;
+  public Guid RecordedByUserId { get; set; }
+  public DateTimeOffset RecordedAt { get; set; }
+}
