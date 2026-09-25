@@ -50,6 +50,8 @@ public static class AuditBankReconciliationItemTypes
   public const string Timing = "TIMING";
   public const string ProposedCorrection = "PROPOSED_CORRECTION";
 
+
+
   public static readonly IReadOnlySet<string> All = new HashSet<string>(StringComparer.Ordinal)
   {
     Ledger, Statement, Timing, ProposedCorrection
@@ -370,6 +372,20 @@ public static class AuditAreaCodes
   public const string SubsequentEvents = "SUBSEQUENT_EVENTS";
   public const string FinancialStatements = "FINANCIAL_STATEMENTS";
   public const string AuditDifferences = "AUDIT_DIFFERENCES";
+
+  /// <summary>Source section number for each area code (T061-T072 map to the 18
+  /// substantive sections of the 20-section source working process).</summary>
+  public static readonly IReadOnlyDictionary<string, int> SectionByArea =
+    new Dictionary<string, int>(StringComparer.Ordinal)
+    {
+      [AuditAreaCodes.CashBank] = 2, [AuditAreaCodes.Receivables] = 3, [AuditAreaCodes.Inventory] = 4,
+      [AuditAreaCodes.Revenue] = 5, [AuditAreaCodes.Payables] = 6, [AuditAreaCodes.FixedAssets] = 7,
+      [AuditAreaCodes.Expenses] = 8, [AuditAreaCodes.Payroll] = 9, [AuditAreaCodes.Loans] = 10,
+      [AuditAreaCodes.Equity] = 11, [AuditAreaCodes.RelatedParties] = 12, [AuditAreaCodes.TaxStatutory] = 13,
+      [AuditAreaCodes.JournalsFraud] = 14, [AuditAreaCodes.AnalyticalReview] = 15,
+      [AuditAreaCodes.GoingConcern] = 16, [AuditAreaCodes.SubsequentEvents] = 17,
+      [AuditAreaCodes.FinancialStatements] = 18, [AuditAreaCodes.AuditDifferences] = 19
+    };
 
   public static readonly IReadOnlySet<string> All = new HashSet<string>(StringComparer.Ordinal)
   {
