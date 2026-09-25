@@ -23,7 +23,7 @@ updated_at: ""
 
 ## Outcome
 
-Execute Section 15 Analytical Review: calculate standard financial ratios (liquidity, profitability, leverage, turnover) (`AWP-15-01`), compare current period figures and ratios against prior year and budgets (`AWP-15-02`), identify significant unexpected fluctuations exceeding materiality thresholds (`AWP-15-03`), document auditor expectations, management explanations, and corroborating evidence (`AWP-15-04`), evaluate overall reasonableness of the financial statements (`AWP-15-05`).
+Execute Section 15 Analytical Review through the preserved source procedures: Compare current-year results with prior year (`AWP-15-01`), Analyse monthly revenue and expense trends (`AWP-15-02`), Compare gross profit and net profit margins (`AWP-15-03`), Analyse significant movements in major accounts (`AWP-15-04`), Calculate relevant ratios and key performance indicators (`AWP-15-05`), and Review receivable, payable and inventory days where applicable (`AWP-15-06`). Investigate significant or unexpected fluctuations (`AWP-15-07`) and Obtain management explanations and supporting evidence (`AWP-15-08`), then evaluate overall reasonableness of the financial statements as a professional judgement.
 
 ## Before starting
 
@@ -40,11 +40,15 @@ Hard dependencies must be COMPLETED, with reviewed handoff evidence:
 
 ## Sequential work
 
-1. Compute standard financial ratios (Current Ratio, Quick Ratio, Gross Margin, Operating Margin, Debt-to-Equity, Asset Turnover, Debtor Days, Creditor Days, Stock Days) from financial statements (`AWP-15-01`).
-2. Generate period-over-period variance analysis and budget variance analysis across all statement lines and ratios (`AWP-15-02`).
-3. Apply threshold rules to automatically identify significant variances exceeding materiality percentage/amount limits (`AWP-15-03`).
-4. Document auditor expectations, management inquiry explanations, and corroborating audit evidence for each significant variance (`AWP-15-04`).
-5. Formulate overall conclusion on whether financial statements as a whole are consistent with auditor's knowledge of the entity (`AWP-15-05`).
+1. Compare current-year results with prior year across statement lines and ratios (`AWP-15-01`).
+2. Analyse monthly revenue and expense trends and period-over-period movements (`AWP-15-02`).
+3. Compare gross profit and net profit margins against prior year and budget (`AWP-15-03`).
+4. Analyse significant movements in major accounts (`AWP-15-04`).
+5. Calculate relevant ratios and key performance indicators (Current Ratio, Quick Ratio, Gross Margin, Operating Margin, Debt-to-Equity, Asset Turnover) from the financial statements (`AWP-15-05`).
+6. Review receivable, payable and inventory days where applicable (`AWP-15-06`).
+7. Investigate significant or unexpected fluctuations exceeding approved materiality thresholds (`AWP-15-07`).
+8. Obtain management explanations and supporting evidence for each investigated fluctuation (`AWP-15-08`).
+9. Formulate the overall reasonableness conclusion on the financial statements as a human professional judgement.
 
 ## 1. Domain Modeling (`.Domain`)
 

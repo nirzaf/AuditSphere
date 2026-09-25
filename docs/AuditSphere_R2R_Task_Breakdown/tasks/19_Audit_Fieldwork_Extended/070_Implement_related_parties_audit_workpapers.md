@@ -95,6 +95,16 @@ Related Parties view under `/app/audit/fieldwork/related-parties` with entity re
 | AWP-12-06 | Covered |
 | AWP-12-07 | Covered |
 
+Source procedures (preserved wording):
+
+- `AWP-12-01` Obtain management's related-party listing.
+- `AWP-12-02` Check directors, shareholders and key management records.
+- `AWP-12-03` Review related-party transactions during the year.
+- `AWP-12-04` Review significant related-party balances.
+- `AWP-12-05` Confirm significant balances where appropriate.
+- `AWP-12-06` Check whether transactions are properly recorded.
+- `AWP-12-07` Verify required related-party disclosures in the financial statements.
+
 ## Completion checklist
 
 <!-- COMPLETION-CHECKLIST -->

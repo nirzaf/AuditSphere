@@ -146,6 +146,15 @@ Use pure xUnit for deterministic rules, real PostgreSQL for persistence/concurre
 | AWP-20-09 | Covered |
 | AWP-20-10 | Covered |
 
+Source procedures (preserved wording):
+
+- `AWP-20-01` Ensure all audit sections are completed and cross-referenced.
+- `AWP-20-02` Ensure all review points have been cleared.
+- `AWP-20-05` Complete going-concern and subsequent-event procedures.
+- `AWP-20-07` Obtain signed management representation letter.
+- `AWP-20-09` Complete senior/manager/partner review.
+- `AWP-20-10` Finalize the auditor's report and signed financial statements.
+
 ## Completion checklist
 
 <!-- COMPLETION-CHECKLIST -->

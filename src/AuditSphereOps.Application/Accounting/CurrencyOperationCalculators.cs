@@ -256,6 +256,10 @@ public static class LineTranslationCalculator
 
   private static string NormalizeSection(string section) => (section ?? string.Empty).Trim().ToUpperInvariant();
 
+  /// <summary>Whether a statement section is a recognized rate classification. A presentation
+  /// label that carries no rate classification must not classify a line on its own.</summary>
+  public static bool IsKnownSection(string section) => DefaultSectionPurposes.ContainsKey(NormalizeSection(section));
+
   public static bool IsEquity(string section) => NormalizeSection(section) is
     "EQUITY" or "CAPITAL" or "RESERVES" or "RETAINED_EARNINGS" or "OCI" or "CHANGES_IN_EQUITY";
 
@@ -263,9 +267,17 @@ public static class LineTranslationCalculator
     "INCOME" or "EXPENSE" or "REVENUE" or "PROFIT_LOSS" or "PL" or "COST_OF_SALES" or
     "OPERATING_EXPENSES" or "FINANCE_COSTS" or "TAX" or "TAXATION";
 
-  public static string InferSection(string taxonomyCodeOrAccount)
+  /// <summary>Strict classification: an unclassifiable code is an error, never a default section.</summary>
+  public static string InferSection(string taxonomyCodeOrAccount) =>
+    TryInferSection(taxonomyCodeOrAccount) ?? throw new InvalidOperationException(
+      $"Taxonomy code '{taxonomyCodeOrAccount}' has no recognized statement section; approve a mapping for it before translation.");
+
+  /// <summary>Resolves a statement section from a taxonomy or account code by documented prefix
+  /// rules. Returns <c>null</c> when the code cannot be classified: an unknown code must be an
+  /// explicit unmapped issue rather than silently defaulting to assets.</summary>
+  public static string? TryInferSection(string taxonomyCodeOrAccount)
   {
-    if (string.IsNullOrWhiteSpace(taxonomyCodeOrAccount)) return "ASSETS";
+    if (string.IsNullOrWhiteSpace(taxonomyCodeOrAccount)) return null;
     var normalized = NormalizeSection(taxonomyCodeOrAccount);
     if (IsEquity(normalized)) return "EQUITY";
     if (IsProfitOrLoss(normalized)) return "EXPENSE";
@@ -310,6 +322,6 @@ public static class LineTranslationCalculator
         normalized.StartsWith("FEE", StringComparison.Ordinal) ||
         normalized.StartsWith("RENT", StringComparison.Ordinal))
       return "EXPENSE";
-    return "ASSETS";
+    return null;
   }
 }

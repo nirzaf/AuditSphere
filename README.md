@@ -312,6 +312,8 @@ dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj
   --filter 'FullyQualifiedName~AccountingBenchmarkTests'
 ```
 
+The hosted GitHub Actions workflow is a **mandatory build gate only**: pinned SDK check, locked restore, Release build and `dotnet ef migrations has-pending-model-changes`. It does not execute the test suites, so a green CI badge is not test acceptance — the PostgreSQL-backed suites above are the test evidence and run locally (or in an explicitly configured test runner) against a real PostgreSQL 18.6 instance.
+
 ### Database Test Isolation
 
 The integration test suite connects to `127.0.0.1:5433` and the `auditsphere_tests` database. Every test dynamically provisions a **uniquely named disposable PostgreSQL schema**, applies all migrations, runs assertions, and drops the schema upon completion. There is **no InMemory provider fallback**; every query and trigger runs against genuine PostgreSQL.

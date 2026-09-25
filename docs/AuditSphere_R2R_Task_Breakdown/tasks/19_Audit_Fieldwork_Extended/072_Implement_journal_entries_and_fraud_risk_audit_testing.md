@@ -96,6 +96,17 @@ Journal Entries audit view under `/app/audit/fieldwork/journals` with risk crite
 | AWP-14-07 | Covered |
 | AWP-14-08 | Covered |
 
+Source procedures (preserved wording):
+
+- `AWP-14-01` Obtain journal entry listing for the audit period.
+- `AWP-14-02` Identify unusual, manual and high-value journal entries.
+- `AWP-14-03` Focus on journals posted close to year-end.
+- `AWP-14-04` Select samples based on risk.
+- `AWP-14-05` Check supporting documents and authorization.
+- `AWP-14-06` Review unusual journals affecting revenue, expenses or reserves.
+- `AWP-14-07` Check reversed or unusual post-year-end journals.
+- `AWP-14-08` Document any fraud indicators or management override concerns.
+
 ## Completion checklist
 
 <!-- COMPLETION-CHECKLIST -->

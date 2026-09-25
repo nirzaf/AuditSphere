@@ -94,6 +94,16 @@ Tax & Statutory Liabilities view under `/app/audit/fieldwork/tax` with tax compu
 | AWP-13-06 | Covered |
 | AWP-13-07 | Covered |
 
+Source procedures (preserved wording):
+
+- `AWP-13-01` Obtain tax returns and tax computations.
+- `AWP-13-02` Reconcile tax balances with the GL/TB.
+- `AWP-13-03` Check tax payments against bank statements.
+- `AWP-13-04` Review outstanding tax liabilities and penalties.
+- `AWP-13-05` Review correspondence with tax authorities.
+- `AWP-13-06` Check tax provisions and current-year tax expense.
+- `AWP-13-07` Check relevant tax disclosures in the financial statements.
+
 ## Completion checklist
 
 <!-- COMPLETION-CHECKLIST -->

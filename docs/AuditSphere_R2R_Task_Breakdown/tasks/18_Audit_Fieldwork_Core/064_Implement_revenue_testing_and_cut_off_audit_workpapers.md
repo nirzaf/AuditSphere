@@ -95,6 +95,17 @@ Revenue audit view under `/app/audit/fieldwork/revenue` with revenue streams bre
 | AWP-05-07 | Covered |
 | AWP-05-08 | Covered |
 
+Source procedures (preserved wording):
+
+- `AWP-05-01` Obtain sales listing and reconcile total revenue to GL/TB.
+- `AWP-05-02` Perform analytical review of monthly and annual sales.
+- `AWP-05-03` Select sales samples based on value and risk.
+- `AWP-05-04` Check invoices to customer orders/delivery documents.
+- `AWP-05-05` Verify quantity, price, calculation and accounting entry.
+- `AWP-05-06` Check selected subsequent receipts where relevant.
+- `AWP-05-07` Review significant credit notes after year-end.
+- `AWP-05-08` Perform revenue cut-off testing before and after year-end.
+
 ## Completion checklist
 
 <!-- COMPLETION-CHECKLIST -->

@@ -133,6 +133,11 @@ Use pure xUnit for deterministic rules, real PostgreSQL for persistence/concurre
 | AWP-20-03 | Covered |
 | AWP-20-04 | Covered |
 
+Source procedures (preserved wording):
+
+- `AWP-20-03` Confirm all significant risks have been addressed.
+- `AWP-20-04` Review audit differences and final materiality assessment.
+
 ## Completion checklist
 
 <!-- COMPLETION-CHECKLIST -->

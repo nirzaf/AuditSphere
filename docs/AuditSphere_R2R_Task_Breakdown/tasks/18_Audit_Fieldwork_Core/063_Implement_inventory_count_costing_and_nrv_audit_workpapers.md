@@ -97,6 +97,17 @@ Inventory audit view under `/app/audit/fieldwork/inventory` with count attendanc
 | AWP-04-07 | Covered |
 | AWP-04-08 | Covered |
 
+Source procedures (preserved wording):
+
+- `AWP-04-01` Obtain the year-end inventory listing and agree it to the GL.
+- `AWP-04-02` Attend/observe physical inventory count where applicable.
+- `AWP-04-03` Perform auditor test counts and reconcile differences.
+- `AWP-04-04` Check inventory quantities against count sheets/final listing.
+- `AWP-04-05` Test inventory costs to purchase invoices or supporting records.
+- `AWP-04-06` Review slow-moving, damaged and obsolete inventory.
+- `AWP-04-07` Compare cost with NRV where applicable.
+- `AWP-04-08` Test purchases and goods received around year-end for cut-off.
+
 ## Completion checklist
 
 <!-- COMPLETION-CHECKLIST -->

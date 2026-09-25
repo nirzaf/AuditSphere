@@ -23,7 +23,7 @@ updated_at: ""
 
 ## Outcome
 
-Execute Section 17 ISA 560 Subsequent Events review up to the report date: management inquiries regarding post-balance-sheet events (`AWP-17-01`), review of subsequent board minutes, interim accounts, and legal correspondence (`AWP-17-02`), review of subsequent cash receipts and disbursements (`AWP-17-03`), classify identified events as Adjusting or Non-Adjusting (`AWP-17-04`), verify appropriate adjustments or footnote disclosures in the financial statements (`AWP-17-05`), and record audit acceptance, execution/traceability reconciliation and operator handover (`AS-AUD-028-AC10`).
+Execute Section 17 Subsequent Events review up to the audit report date through the preserved source procedures: Review post-year-end bank statements and transactions (`AWP-17-01`), Review significant sales, purchases and payments after year-end (`AWP-17-02`), Review board/management meeting minutes (`AWP-17-03`), Check new loans, investments or major asset purchases (`AWP-17-04`), Review litigation and significant legal developments (`AWP-17-05`), and Discuss significant events with management (`AWP-17-06`). From that evidence, Determine whether events require adjustment or disclosure (`AWP-17-07`) and Ensure relevant events are reflected in the financial statements (`AWP-17-08`), then record audit acceptance, execution/traceability reconciliation and operator handover (`AS-AUD-028-AC10`) against the declared acceptance inputs in the audit acceptance and handover gate below.
 
 ## Before starting
 
@@ -40,12 +40,30 @@ Hard dependencies must be COMPLETED, with reviewed handoff evidence:
 
 ## Sequential work
 
-1. Record management inquiries regarding events after the reporting period up to the audit report date (`AWP-17-01`).
-2. Inspect post-balance-sheet minutes of meetings of directors and shareholders, latest interim financial statements, and lawyer inquiry letters (`AWP-17-02`).
-3. Review subsequent cash receipts, disbursements, and journal entries for unrecorded liabilities or asset impairments (`AWP-17-03`).
-4. Classify identified subsequent events: Type 1 (Adjusting — conditions existing at balance sheet date) vs Type 2 (Non-adjusting — conditions arising subsequent to balance sheet date) (`AWP-17-04`).
-5. Verify that adjusting events are reflected in the financial statements and non-adjusting events are adequately disclosed in notes (`AWP-17-05`).
-6. Enforce reviewed-through-date coverage matching the planned audit report date (`AWP-17-06`).
+1. Review post-year-end bank statements and transactions (`AWP-17-01`).
+2. Review significant sales, purchases and payments after year-end (`AWP-17-02`).
+3. Review board/management meeting minutes (`AWP-17-03`).
+4. Check new loans, investments or major asset purchases (`AWP-17-04`).
+5. Review litigation and significant legal developments (`AWP-17-05`).
+6. Discuss significant events with management (`AWP-17-06`).
+7. Classify each identified event from those procedures as Adjusting (Type 1 — conditions existing at the balance sheet date) or Non-Adjusting (Type 2 — conditions arising after it), and Determine whether events require adjustment or disclosure (`AWP-17-07`).
+8. Ensure relevant events are reflected in the financial statements: adjusting events in the reported amounts, non-adjusting events in the note disclosures (`AWP-17-08`).
+9. Enforce reviewed-through-date coverage matching the planned audit report date, then record audit acceptance, execution/traceability reconciliation and operator handover (`AS-AUD-028-AC10`) under the gate below.
+
+## Audit acceptance and handover gate
+
+Final audit acceptance (`AS-AUD-028-AC10`) is a human professional decision. The software records it only when every declared acceptance input is present and evidenced; a missing input blocks the gate and no acceptance is implied.
+
+| Declared acceptance input | Required evidence |
+|---|---|
+| Reviewed-through date equals the planned audit report date | Reviewed-through-date record agreed to the engagement's planned report date |
+| Procedures `AWP-17-01`…`AWP-17-06` executed and dispositioned | Per-procedure result with evidence reference and preparer |
+| Event classification decisions recorded (`AWP-17-07`) | Adjusting / Non-Adjusting decision per identified event, with the deciding practitioner |
+| Financial-statement reflection verified (`AWP-17-08`) | Adjusting entries present in the reported amounts, or non-adjusting disclosure evidence |
+| Execution/traceability reconciliation | Every claimed source ID mapped to an observed result in the traceability ledger |
+| Operator handover record | Named receiving operator, date, and the exact accepted artifact set |
+
+Dependencies: [T073](../../00_INDEX.md) and [T074](../../00_INDEX.md) must be COMPLETED with reviewed handoff evidence before this gate is attempted. Unresolved or unverified inputs fail closed; the platform never forms the audit conclusion.
 
 ## 1. Domain Modeling (`.Domain`)
 

@@ -98,6 +98,18 @@ Fixed Assets audit view under `/app/audit/fieldwork/fixed-assets` with FAR roll-
 | AWP-07-08 | Covered |
 | AWP-07-09 | Covered |
 
+Source procedures (preserved wording):
+
+- `AWP-07-01` Obtain the fixed asset register and reconcile it to the GL.
+- `AWP-07-02` Agree opening balances with prior-year audited balances.
+- `AWP-07-03` Test additions to invoices, payment records and approvals.
+- `AWP-07-04` Determine whether expenditure is correctly capitalized.
+- `AWP-07-05` Physically verify significant additions/assets where appropriate.
+- `AWP-07-06` Test disposals to disposal documents and sale proceeds.
+- `AWP-07-07` Recalculate depreciation for selected assets.
+- `AWP-07-08` Check useful lives and depreciation method.
+- `AWP-07-09` Review assets for impairment, damage or obsolescence.
+
 ## Completion checklist
 
 <!-- COMPLETION-CHECKLIST -->

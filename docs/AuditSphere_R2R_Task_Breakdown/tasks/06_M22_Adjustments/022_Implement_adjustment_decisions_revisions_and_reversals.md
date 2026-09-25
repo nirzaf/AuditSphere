@@ -153,6 +153,13 @@ Use pure xUnit for deterministic rules, real PostgreSQL for persistence/concurre
 | AWP-19-05 | Covered |
 | AWP-19-06 | Covered |
 
+Source procedures (preserved wording):
+
+- `AWP-19-02` Obtain management's response to proposed adjustments.
+- `AWP-19-03` Recalculate the financial statement impact of each difference.
+- `AWP-19-04` Update the adjusted and unadjusted misstatement schedule.
+- `AWP-19-05` Compare total unadjusted differences with materiality.
+
 ## Completion checklist
 
 <!-- COMPLETION-CHECKLIST -->

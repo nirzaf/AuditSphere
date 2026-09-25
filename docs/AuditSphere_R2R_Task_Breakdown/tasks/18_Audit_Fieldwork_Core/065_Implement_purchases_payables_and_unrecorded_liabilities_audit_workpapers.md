@@ -96,6 +96,17 @@ Purchases & Payables audit view under `/app/audit/fieldwork/payables` with suppl
 | AWP-06-07 | Covered |
 | AWP-06-08 | Covered |
 
+Source procedures (preserved wording):
+
+- `AWP-06-01` Obtain supplier ageing and reconcile it to the GL/TB.
+- `AWP-06-02` Review significant, old and unusual supplier balances.
+- `AWP-06-03` Obtain supplier confirmations and investigate differences.
+- `AWP-06-04` Compare supplier statements with the company's payable ledger.
+- `AWP-06-05` Test selected purchases to invoices, GRNs and purchase orders.
+- `AWP-06-06` Check subsequent payments to identify outstanding liabilities.
+- `AWP-06-07` Perform search for unrecorded liabilities.
+- `AWP-06-08` Test purchase and payable cut-off around year-end.
+
 ## Completion checklist
 
 <!-- COMPLETION-CHECKLIST -->

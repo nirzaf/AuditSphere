@@ -141,6 +141,11 @@ Use pure xUnit for deterministic rules, real PostgreSQL for persistence/concurre
 | AWP-20-06 | Covered |
 | AWP-20-08 | Covered |
 
+Source procedures (preserved wording):
+
+- `AWP-20-06` Complete financial statement disclosure checklist.
+- `AWP-20-08` Perform final analytical review.
+
 ## Completion checklist
 
 <!-- COMPLETION-CHECKLIST -->

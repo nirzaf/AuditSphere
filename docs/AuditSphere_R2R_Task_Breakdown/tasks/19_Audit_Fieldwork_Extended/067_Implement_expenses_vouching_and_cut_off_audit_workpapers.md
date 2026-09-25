@@ -98,6 +98,17 @@ Expenses audit view under `/app/audit/fieldwork/expenses` with variance analytic
 | AWP-08-08 | Covered |
 | AWP-08-09 | Covered |
 
+Source procedures (preserved wording):
+
+- `AWP-08-01` Obtain detailed expense listing and reconcile to GL/TB.
+- `AWP-08-02` Perform analytical review against prior year and budget where available.
+- `AWP-08-03` Identify significant and unusual expense movements.
+- `AWP-08-04` Select samples based on value and risk.
+- `AWP-08-05` Check invoices and supporting documentation.
+- `AWP-08-06` Check management approval and payment evidence.
+- `AWP-08-07` Verify correct accounting classification.
+- `AWP-08-08` Check whether any capital expenditure has been incorrectly expensed.
+
 ## Completion checklist
 
 <!-- COMPLETION-CHECKLIST -->

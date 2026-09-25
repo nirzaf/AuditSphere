@@ -231,32 +231,19 @@ public static class CurrencyTranslationService
         x.FromCurrency == component.Currency && x.ToCurrency == scope.ReportingCurrency && x.RateDate == rateDate &&
         x.Direction == ExchangeRateDirections.Direct)
       .ToListAsync(ct);
-    var ratesByPurpose = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
-    foreach (var r in directRates)
-    {
-      if (string.Equals(r.RateType, policy.ClosingRateRule, StringComparison.OrdinalIgnoreCase))
-        ratesByPurpose[TranslationRatePurposes.Closing] = r.Rate;
-      if (string.Equals(r.RateType, policy.AverageRateRule, StringComparison.OrdinalIgnoreCase))
-        ratesByPurpose[TranslationRatePurposes.Average] = r.Rate;
-      if (string.Equals(r.RateType, policy.HistoricalRateRule, StringComparison.OrdinalIgnoreCase))
-        ratesByPurpose[TranslationRatePurposes.Historical] = r.Rate;
-    }
-    if (!ratesByPurpose.ContainsKey(TranslationRatePurposes.Closing) && rate > 0m &&
-        string.Equals(normalizedRateType, policy.ClosingRateRule, StringComparison.OrdinalIgnoreCase))
-    {
-      ratesByPurpose[TranslationRatePurposes.Closing] = rate;
-    }
+    var ratesByPurpose = TranslationInputResolution.BuildRatesByPurpose(policy, directRates, normalizedRateType, rate);
 
     var packageLines = package is not null
       ? await db.FinancialPackageLines.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.FinancialPackageId == package.Id).ToListAsync(ct)
       : new List<FinancialPackageLine>();
-    var inputLines = packageLines.Count > 0
-      ? packageLines.Select(l => new TranslationLineInput(l.Id.ToString("D"), l.DestinationCode,
-          !string.IsNullOrWhiteSpace(l.StatementSection) ? l.StatementSection : LineTranslationCalculator.InferSection(l.DestinationCode),
-          l.Amount, l.Currency)).ToList()
-      : externalLines.Select(l => new TranslationLineInput(l.Id.ToString("D"), l.TaxonomyCode,
-          LineTranslationCalculator.InferSection(l.TaxonomyCode),
-          l.Amount, l.Currency)).ToList();
+    var inputCodes = packageLines.Count > 0
+      ? packageLines.Select(l => l.DestinationCode)
+      : externalLines.Select(l => l.TaxonomyCode);
+    var approvedSections = await TranslationInputResolution.LoadApprovedSectionsAsync(db, actor.FirmId, component.ClientId, inputCodes, ct);
+    var builtLines = TranslationInputResolution.BuildInputLines(packageLines, externalLines, approvedSections);
+    if (!builtLines.Succeeded)
+      return CommandResult<Guid>.Fail(builtLines.ErrorCode!, builtLines.Message!);
+    var inputLines = builtLines.Value!;
 
     var priorTranslations = await db.TranslationResults.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&
       x.GroupId == component.GroupId && x.ComponentId == component.Id && x.Status == AccountingWorkflowStates.Approved &&
@@ -269,27 +256,27 @@ public static class CurrencyTranslationService
     decimal roundingAdjustment = 0m;
     if (inputLines.Count > 0)
     {
+      LineTranslationBridge bridge;
       try
       {
-        var bridge = LineTranslationCalculator.Translate(
+        bridge = LineTranslationCalculator.Translate(
           inputLines,
           new Dictionary<string, string>(),
           LineTranslationCalculator.DefaultSectionPurposes,
           ratesByPurpose,
           scope.ReportingCurrency,
           openingTranslationReserve);
-        translatedAmount = bridge.TranslatedTotal;
-        foreignExchangeAdjustment = bridge.TranslationReserveMovement;
-        translationReserve = bridge.ClosingTranslationReserve;
       }
-      catch (InvalidOperationException) when (!ratesByPurpose.ContainsKey(TranslationRatePurposes.Average) || !ratesByPurpose.ContainsKey(TranslationRatePurposes.Historical))
+      catch (Exception ex) when (ex is InvalidOperationException or ArgumentException)
       {
-        var componentAmount = inputLines.Sum(x => x.FunctionalAmount);
-        translatedAmount = CurrencyTranslationCalculator.Translate(componentAmount, component.Currency, scope.ReportingCurrency, rate);
-        roundingAdjustment = MoneyPolicy.Normalize(translatedAmount - componentAmount * rate);
-        foreignExchangeAdjustment = 0m;
-        translationReserve = 0m;
+        // A rate purpose the lines require but the approved rate set does not supply is a
+        // missing input: no translation is produced, so nothing approvable exists to build on.
+        return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
+          $"The approved rate set cannot translate this component: {ex.Message}");
       }
+      translatedAmount = bridge.TranslatedTotal;
+      foreignExchangeAdjustment = bridge.TranslationReserveMovement;
+      translationReserve = bridge.ClosingTranslationReserve;
     }
     else
     {
@@ -385,38 +372,41 @@ public static class CurrencyTranslationService
     var packageLines = package is not null
       ? await db.FinancialPackageLines.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.FinancialPackageId == package.Id).ToListAsync(ct)
       : new List<FinancialPackageLine>();
-    var inputLines = packageLines.Count > 0
-      ? packageLines.Select(l => new TranslationLineInput(l.Id.ToString("D"), l.DestinationCode,
-          !string.IsNullOrWhiteSpace(l.StatementSection) ? l.StatementSection : LineTranslationCalculator.InferSection(l.DestinationCode),
-          l.Amount, l.Currency)).ToList()
-      : externalLines.Select(l => new TranslationLineInput(l.Id.ToString("D"), l.TaxonomyCode,
-          LineTranslationCalculator.InferSection(l.TaxonomyCode),
-          l.Amount, l.Currency)).ToList();
+    var inputCodes = packageLines.Count > 0
+      ? packageLines.Select(l => l.DestinationCode)
+      : externalLines.Select(l => l.TaxonomyCode);
+    var approvedSections = await TranslationInputResolution.LoadApprovedSectionsAsync(db, actor.FirmId, component!.ClientId, inputCodes, ct);
+    var builtLines = TranslationInputResolution.BuildInputLines(packageLines, externalLines, approvedSections);
+    if (!builtLines.Succeeded)
+      return CommandResult.Fail(builtLines.ErrorCode!, builtLines.Message!);
+    var inputLines = builtLines.Value!;
 
-    if (result.TranslationReserve != 0m || result.ForeignExchangeAdjustment != 0m)
+    // The approved translation method decides how a result is revalidated. A zero reserve or a
+    // zero exchange effect never decides which method applies.
+    if (result.CalculationVersion == TranslationCalculationVersions.ComponentTranslationV2 && inputLines.Count > 0)
     {
       var directRates = await db.ExchangeRates.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.RateSetVersionId == set.Id &&
           x.FromCurrency == result.FromCurrency && x.ToCurrency == result.ToCurrency && x.RateDate == result.RateDate &&
           x.Direction == ExchangeRateDirections.Direct)
         .ToListAsync(ct);
-      var ratesByPurpose = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
-      foreach (var r in directRates)
-      {
-        if (string.Equals(r.RateType, policy.ClosingRateRule, StringComparison.OrdinalIgnoreCase))
-          ratesByPurpose[TranslationRatePurposes.Closing] = r.Rate;
-        if (string.Equals(r.RateType, policy.AverageRateRule, StringComparison.OrdinalIgnoreCase))
-          ratesByPurpose[TranslationRatePurposes.Average] = r.Rate;
-        if (string.Equals(r.RateType, policy.HistoricalRateRule, StringComparison.OrdinalIgnoreCase))
-          ratesByPurpose[TranslationRatePurposes.Historical] = r.Rate;
-      }
+      var ratesByPurpose = TranslationInputResolution.BuildRatesByPurpose(policy, directRates, result.RateType, result.AppliedRate!.Value);
 
       var priorTranslations = await db.TranslationResults.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&
         x.GroupId == result.GroupId && x.ComponentId == result.ComponentId && x.Status == AccountingWorkflowStates.Approved &&
         x.CalculationVersion == TranslationCalculationVersions.ComponentTranslationV2 && x.RateDate < result.RateDate).ToListAsync(ct);
       var openingReserve = MoneyPolicy.Normalize(priorTranslations.OrderByDescending(x => x.RateDate).FirstOrDefault()?.TranslationReserve ?? 0m);
 
-      var bridge = LineTranslationCalculator.Translate(
-        inputLines, new Dictionary<string, string>(), LineTranslationCalculator.DefaultSectionPurposes, ratesByPurpose, result.ToCurrency, openingReserve);
+      LineTranslationBridge bridge;
+      try
+      {
+        bridge = LineTranslationCalculator.Translate(
+          inputLines, new Dictionary<string, string>(), LineTranslationCalculator.DefaultSectionPurposes, ratesByPurpose, result.ToCurrency, openingReserve);
+      }
+      catch (Exception ex) when (ex is InvalidOperationException or ArgumentException)
+      {
+        return CommandResult.Fail(ErrorCodes.GateBlocked,
+          $"The approved rate set can no longer translate these lines: {ex.Message}");
+      }
       if (bridge.TranslatedTotal != result.TranslatedAmount ||
           bridge.TranslationReserveMovement != result.ForeignExchangeAdjustment ||
           bridge.ClosingTranslationReserve != result.TranslationReserve)

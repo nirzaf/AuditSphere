@@ -148,6 +148,16 @@ Use pure xUnit for deterministic rules, real PostgreSQL for persistence/concurre
 | AWP-11-06 | Covered |
 | AWP-11-07 | Covered |
 
+Source procedures (preserved wording):
+
+- `AWP-11-01` Obtain share capital and equity movement schedule.
+- `AWP-11-02` Agree opening balances with prior-year audited FS.
+- `AWP-11-03` Agree share capital to company/CR records.
+- `AWP-11-04` Check additions, transfers or changes in shareholding.
+- `AWP-11-05` Check dividend declarations and payments.
+- `AWP-11-06` Reconcile retained earnings movement with profit/loss.
+- `AWP-11-07` Agree closing equity balances to financial statements.
+
 ## Completion checklist
 
 <!-- COMPLETION-CHECKLIST -->

@@ -62,6 +62,12 @@ Current `ClientAccountingService.RollForwardPeriodAsync` and consolidation membe
 
 Pipeline order: correlation/diagnostics → authenticated actor resolution → structural `ValidateAsync` → coarse capability check → appropriate transaction owner → fresh in-transaction scope/state/version checks → domain change → atomic evidence/outbox write → commit → response. Database-dependent validation is advisory until rechecked inside the authoritative transaction. Run validators sharing a context sequentially, not concurrently.
 
+### 2.3.1 Recorded architecture variation: static application services, no bUnit project
+
+Recorded 2026-09-25 as the decision against [R2R-ADR-02](#section-2-4). The shipped application layer resolves commands and queries through static service classes returning `CommandResult`/`CommandResult<T>` (for example `AuditSphereOps.Application.Accounting.ClientAccountingService`, `CurrencyTranslationService`, `ConsolidationService`), not MediatR handlers, and the solution has no component-test project: `Directory.Packages.props` pins neither MediatR nor bUnit. Component behaviour is verified by the PostgreSQL-backed xUnit suites (`tests/AuditSphereOps.Domain.Tests`) and the Playwright journeys (`tests/AuditSphereOps.E2E.Tests`).
+
+This is an explicit recorded variation, not a silent omission. The transaction-ownership registry rules in §2.3 apply unchanged to these static services: each command that writes opens exactly one transaction and no nested service opens another, and long-running work stays in the local durable operation workers. Introducing MediatR or bUnit later is a separate reviewed package change under R2R-ADR-02, not a prerequisite for the delivered slices. Task cards keep the original `XxxCommand`/`XxxQuery` contract rows as preserved source wording; each implementation maps those requests to these services by behaviour and evidence.
+
 <a id="section-2-4"></a>
 ### 2.4 Required architecture decisions before feature construction
 

@@ -1480,6 +1480,25 @@ public static class ConsolidationService
     var componentByPackage = packageComponents.ToDictionary(x => x.PackageId!.Value);
     var componentByExternalPack = externalComponents.ToDictionary(x => x.ExternalComponentPackId!.Value);
     var balances = new List<ConsolidationComponentBalance>(packageLines.Count + externalLines.Count + components.Count);
+    // Statement sections of foreign-component lines are resolved once from approved evidence and
+    // reused, so group calculation, translation and approval revalidation always classify one
+    // line the same way.
+    var sectionByLineId = new Dictionary<Guid, string>();
+    foreach (var component in components.Where(x => x.Currency != scope.ReportingCurrency))
+    {
+      var componentPackageLines = packageLines
+        .Where(l => componentByPackage.TryGetValue(l.FinancialPackageId, out var owner) && owner.Id == component.Id).ToList();
+      var componentExternalLines = externalLines
+        .Where(l => componentByExternalPack.TryGetValue(l.ExternalComponentPackId, out var owner) && owner.Id == component.Id).ToList();
+      var codes = componentPackageLines.Select(l => l.DestinationCode)
+        .Concat(componentExternalLines.Select(l => l.TaxonomyCode));
+      var approvedSections = await TranslationInputResolution.LoadApprovedSectionsAsync(db, firmId, component.ClientId, codes, ct);
+      var builtLines = TranslationInputResolution.BuildInputLines(componentPackageLines, componentExternalLines, approvedSections);
+      if (!builtLines.Succeeded)
+        return CommandResult<ConsolidationBuild>.Fail(builtLines.ErrorCode!, builtLines.Message!);
+      foreach (var line in builtLines.Value!)
+        sectionByLineId[Guid.Parse(line.SourceLineId)] = line.Section;
+    }
     try
     {
       void AddBalance(ConsolidationComponent component, string destinationCode, decimal amount, string currency, Guid lineId, string section = "")
@@ -1499,30 +1518,23 @@ public static class ConsolidationService
         if (translation is null || translationPolicy is null || translationPolicy.FunctionalCurrency != component.Currency)
           throw new InvalidOperationException("A foreign component is missing its current approved translation result.");
 
+        // The approved translation method decides which rate each line carries. A zero reserve or
+        // a zero exchange effect never collapses per-line rate purposes into one header rate.
         var appliedRate = translation.AppliedRate!.Value;
-        if (translation.TranslationReserve != 0m)
+        var appliedPurpose = string.Empty;
+        if (translation.CalculationVersion == TranslationCalculationVersions.ComponentTranslationV2)
         {
-          var ratesByPurpose = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
-          foreach (var r in directRates.Where(x => x.FromCurrency == component.Currency && x.ToCurrency == scope.ReportingCurrency))
-          {
-            if (string.Equals(r.RateType, translationPolicy.ClosingRateRule, StringComparison.OrdinalIgnoreCase))
-              ratesByPurpose[TranslationRatePurposes.Closing] = r.Rate;
-            if (string.Equals(r.RateType, translationPolicy.AverageRateRule, StringComparison.OrdinalIgnoreCase))
-              ratesByPurpose[TranslationRatePurposes.Average] = r.Rate;
-            if (string.Equals(r.RateType, translationPolicy.HistoricalRateRule, StringComparison.OrdinalIgnoreCase))
-              ratesByPurpose[TranslationRatePurposes.Historical] = r.Rate;
-          }
-          var effectiveSection = !string.IsNullOrWhiteSpace(section) ? section : LineTranslationCalculator.InferSection(destinationCode);
+          var ratesByPurpose = TranslationInputResolution.BuildRatesByPurpose(translationPolicy,
+            directRates.Where(x => x.FromCurrency == component.Currency && x.ToCurrency == scope.ReportingCurrency).ToList(),
+            translation.RateType, appliedRate);
           var purpose = LineTranslationCalculator.ResolvePurpose(
-            new TranslationLineInput(lineId.ToString("D"), destinationCode, effectiveSection, amount, currency),
+            new TranslationLineInput(lineId.ToString("D"), destinationCode, section, amount, currency),
             new Dictionary<string, string>(),
             LineTranslationCalculator.DefaultSectionPurposes);
-          if (purpose == TranslationRatePurposes.Average && ratesByPurpose.TryGetValue(TranslationRatePurposes.Average, out var avgRate))
-            appliedRate = avgRate;
-          else if (purpose == TranslationRatePurposes.Historical && ratesByPurpose.TryGetValue(TranslationRatePurposes.Historical, out var histRate))
-            appliedRate = histRate;
-          else if (ratesByPurpose.TryGetValue(TranslationRatePurposes.Closing, out var closeRate))
-            appliedRate = closeRate;
+          if (!ratesByPurpose.TryGetValue(purpose, out appliedRate))
+            throw new InvalidOperationException(
+              $"The approved rate set has no {purpose} rate for line {destinationCode}; a missing rate can never be substituted.");
+          appliedPurpose = purpose;
         }
 
         var translated = CurrencyTranslationCalculator.Translate(amount, component.Currency, scope.ReportingCurrency,
@@ -1531,20 +1543,22 @@ public static class ConsolidationService
           translated, scope.ReportingCurrency, component.OwnershipPercent, component.ControlMethod, component.PackageHash,
           component.PeriodBasis, component.TaxonomyVersion, component.MappingVersion, lineId, component.Currency,
           translation.Id, translation.RateSetVersionId, translation.TranslationPolicyVersionId, translation.RateDate,
-          translation.RateType, appliedRate));
+          translation.RateType, appliedRate, appliedPurpose));
       }
 
       foreach (var line in packageLines)
       {
         if (!componentByPackage.TryGetValue(line.FinancialPackageId, out var component))
           throw new InvalidOperationException("A component package line no longer belongs to the selected component.");
-        AddBalance(component, line.DestinationCode, line.Amount, line.Currency, line.Id, line.StatementSection);
+        AddBalance(component, line.DestinationCode, line.Amount, line.Currency, line.Id,
+          sectionByLineId.GetValueOrDefault(line.Id, line.StatementSection));
       }
       foreach (var line in externalLines)
       {
         if (!componentByExternalPack.TryGetValue(line.ExternalComponentPackId, out var component))
           throw new InvalidOperationException("An external component line no longer belongs to the selected component.");
-        AddBalance(component, line.TaxonomyCode, line.Amount, line.Currency, line.Id);
+        AddBalance(component, line.TaxonomyCode, line.Amount, line.Currency, line.Id,
+          sectionByLineId.GetValueOrDefault(line.Id, string.Empty));
       }
 
       foreach (var component in components.Where(x => x.Currency != scope.ReportingCurrency))
@@ -1554,14 +1568,21 @@ public static class ConsolidationService
           x.ToCurrency == scope.ReportingCurrency);
         if (translation is not null && translation.TranslationReserve != 0m)
         {
-          var ctaLineId = Guid.CreateVersion7();
+          var ctaRates = TranslationInputResolution.BuildRatesByPurpose(translationPolicy!,
+            directRates.Where(x => x.FromCurrency == component.Currency && x.ToCurrency == scope.ReportingCurrency).ToList(),
+            translation.RateType, translation.AppliedRate!.Value);
+          if (!ctaRates.TryGetValue(TranslationRatePurposes.Closing, out var closingRate))
+            throw new InvalidOperationException(
+              $"The approved rate set has no closing rate to carry the cumulative translation reserve of component {component.Id:D}.");
           balances.Add(new ConsolidationComponentBalance(
             component.Id, component.ClientId, AccountingDefaults.CumulativeTranslationReserveSection,
             translation.TranslationReserve, scope.ReportingCurrency, component.OwnershipPercent, component.ControlMethod,
             component.PackageHash, component.PeriodBasis, component.TaxonomyVersion, component.MappingVersion,
-            ctaLineId, component.Currency,
+            // Identity is owned by the immutable translation snapshot, so replay and currentness
+            // checks reuse it instead of minting a new line on every recalculation.
+            TranslationIdentities.CumulativeTranslationReserveLineId(translation.Id), component.Currency,
             translation.Id, translation.RateSetVersionId, translation.TranslationPolicyVersionId,
-            translation.RateDate, translation.RateType, translation.AppliedRate!.Value));
+            translation.RateDate, translation.RateType, closingRate, TranslationRatePurposes.Closing));
         }
       }
     }

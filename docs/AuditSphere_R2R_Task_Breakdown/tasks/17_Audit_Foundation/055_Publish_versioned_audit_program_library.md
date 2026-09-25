@@ -86,6 +86,11 @@ Audit library management view in `/app/audit/library` with version selector, sec
 | AS-AUD-002-AC07 | Covered |
 | AS-AUD-002-AC08 | Covered |
 
+Source procedures (preserved wording):
+
+- `AWP-01-01` Obtain company registration documents and basic company information.
+- `AWP-20-10` Finalize the auditor's report and signed financial statements.
+
 ## Completion checklist
 
 <!-- COMPLETION-CHECKLIST -->

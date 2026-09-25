@@ -106,6 +106,18 @@ Trade Receivables workbench under `/app/audit/fieldwork/receivables` with aged p
 | AWP-03-08 | Covered |
 | AWP-03-09 | Covered |
 
+Source procedures (preserved wording):
+
+- `AWP-03-01` Obtain the year-end receivable ageing report.
+- `AWP-03-02` Agree total receivables and ageing to the GL/TB.
+- `AWP-03-03` Review significant and overdue customer balances.
+- `AWP-03-04` Send customer balance confirmations and investigate differences.
+- `AWP-03-05` Perform alternative procedures for non-confirmed balances.
+- `AWP-03-06` Test selected sales invoices to delivery documents and ledger.
+- `AWP-03-07` Check subsequent customer collections through bank statements.
+- `AWP-03-08` Perform/recalculate ECL and assess adequacy of provision.
+- `AWP-03-09` Test sales and receivable cut-off around year-end.
+
 ## Completion checklist
 
 <!-- COMPLETION-CHECKLIST -->

@@ -98,6 +98,18 @@ Audit planning workbench under `/app/audit/planning` with interactive materialit
 | AWP-01-08 | Covered |
 | AWP-01-09 | Covered |
 
+Source procedures (preserved wording):
+
+- `AWP-01-01` Obtain company registration documents and basic company information.
+- `AWP-01-02` Obtain prior-year audited financial statements and audit report.
+- `AWP-01-03` Obtain current-year Trial Balance and draft financial statements.
+- `AWP-01-04` Agree opening balances with prior-year audited balances.
+- `AWP-01-05` Understand the nature of business, major revenue streams and accounting system.
+- `AWP-01-06` Identify significant account balances and transaction classes.
+- `AWP-01-07` Identify significant audit risks, fraud risks and areas involving management judgement.
+- `AWP-01-08` Determine materiality and performance materiality.
+- `AWP-01-09` Prepare the audit strategy and audit program.
+
 ## Completion checklist
 
 <!-- COMPLETION-CHECKLIST -->

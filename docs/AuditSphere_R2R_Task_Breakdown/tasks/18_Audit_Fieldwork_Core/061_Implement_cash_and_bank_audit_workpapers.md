@@ -97,6 +97,17 @@ Cash & Bank audit view under `/app/audit/fieldwork/cash` with bank account tab s
 | AWP-02-07 | Covered |
 | AWP-02-08 | Covered |
 
+Source procedures (preserved wording):
+
+- `AWP-02-01` Obtain bank reconciliation for all bank accounts at year-end.
+- `AWP-02-02` Agree bank ledger balances with the Trial Balance.
+- `AWP-02-03` Agree bank reconciliation balances with year-end bank statements.
+- `AWP-02-04` Obtain direct bank confirmations and reconcile confirmed balances.
+- `AWP-02-05` Check outstanding cheques, deposits and other reconciling items.
+- `AWP-02-06` Investigate old or unusual outstanding items.
+- `AWP-02-07` Test selected bank transactions to supporting documents.
+- `AWP-02-08` Review subsequent bank statements for unusual transactions.
+
 ## Completion checklist
 
 <!-- COMPLETION-CHECKLIST -->

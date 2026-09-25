@@ -96,6 +96,17 @@ Payroll audit view under `/app/audit/fieldwork/payroll` with payroll reconciliat
 | AWP-09-07 | Covered |
 | AWP-09-08 | Covered |
 
+Source procedures (preserved wording):
+
+- `AWP-09-01` Obtain annual/monthly payroll summary and reconcile to GL.
+- `AWP-09-02` Select employees for detailed testing.
+- `AWP-09-03` Check employment contracts and salary details.
+- `AWP-09-04` Recalculate gross salary, allowances and deductions.
+- `AWP-09-05` Agree selected salary payments to bank statements.
+- `AWP-09-06` Test new employees and supporting employment documents.
+- `AWP-09-07` Check terminated employees and final payments.
+- `AWP-09-08` Review unusual changes in payroll or employee numbers.
+
 ## Completion checklist
 
 <!-- COMPLETION-CHECKLIST -->

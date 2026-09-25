@@ -98,6 +98,18 @@ Loans & Borrowings view under `/app/audit/fieldwork/loans` with debt facility re
 | AWP-10-08 | Covered |
 | AWP-10-09 | Covered |
 
+Source procedures (preserved wording):
+
+- `AWP-10-01` Obtain loan/borrowing schedule and agree it to GL.
+- `AWP-10-02` Agree opening balances to prior-year financial statements.
+- `AWP-10-03` Obtain bank/financier confirmation.
+- `AWP-10-04` Check new loans against agreements and bank receipts.
+- `AWP-10-05` Check repayments against bank statements.
+- `AWP-10-06` Recalculate interest expense and accrued interest.
+- `AWP-10-07` Check current and non-current classification.
+- `AWP-10-08` Review loan terms, security and covenant requirements where applicable.
+- `AWP-10-09` Check subsequent repayments.
+
 ## Completion checklist
 
 <!-- COMPLETION-CHECKLIST -->

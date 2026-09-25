@@ -23,7 +23,7 @@ updated_at: ""
 
 ## Outcome
 
-Execute Section 16 ISA 570 Going Concern assessment: evaluate management's 12-month future cash flow forecast (`AWP-16-01`), perform sensitivity analysis on key forecast assumptions (`AWP-16-02`), assess liquidity position and debt covenant compliance (`AWP-16-03`), identify financial, operating, and other going concern risk indicators (`AWP-16-04`), document auditor's evaluation of mitigating factors and professional conclusion on material uncertainty (`AWP-16-05`), review going concern disclosures (`AWP-16-06`).
+Execute Section 16 ISA 570 Going Concern evaluation through the preserved source procedures: Obtain management's going-concern assessment (`AWP-16-01`), Review current financial position and working capital (`AWP-16-02`), Review cash flow forecasts (`AWP-16-03`), Check expected cash inflows and major payments (`AWP-16-04`), Review loan repayments and financing facilities (`AWP-16-05`), Review losses, negative cash flows and overdue liabilities (`AWP-16-06`), Assess significant assumptions used in forecasts (`AWP-16-07`), and Consider subsequent trading performance (`AWP-16-08`), then Document the auditor's conclusion (`AWP-16-09`).
 
 ## Before starting
 
@@ -40,12 +40,15 @@ Hard dependencies must be COMPLETED, with reviewed handoff evidence:
 
 ## Sequential work
 
-1. Review management's going concern assessment covering at least 12 months from the financial statements date (`AWP-16-01`).
-2. Evaluate future cash flow forecasts, test mathematical accuracy, and perform sensitivity analysis on revenue and cost assumptions (`AWP-16-02`).
-3. Assess current liquidity position, borrowing facilities, and covenant compliance (linking to T069) (`AWP-16-03`).
-4. Screen for ISA 570 risk indicators: negative operating cash flows, adverse key financial ratios, loss of key customers, legal claims (`AWP-16-04`).
-5. Document auditor's evaluation of management's mitigating plans and record partner conclusion: no material uncertainty, material uncertainty identified, or going concern basis inappropriate (`AWP-16-05`).
-6. Review adequacy of going concern disclosures in the notes and determine impact on auditor's report (`AWP-16-06`).
+1. Obtain management's going-concern assessment covering at least 12 months from the financial statements date (`AWP-16-01`).
+2. Review current financial position and working capital (`AWP-16-02`).
+3. Review cash flow forecasts and test their mathematical accuracy (`AWP-16-03`).
+4. Check expected cash inflows and major payments (`AWP-16-04`).
+5. Review loan repayments and financing facilities, including covenant compliance (linking to T069) (`AWP-16-05`).
+6. Review losses, negative cash flows and overdue liabilities (`AWP-16-06`).
+7. Assess significant assumptions used in forecasts, including sensitivity analysis on revenue and cost assumptions (`AWP-16-07`).
+8. Consider subsequent trading performance (`AWP-16-08`).
+9. Document the auditor's conclusion as a human professional judgement: no material uncertainty, material uncertainty identified, or going concern basis inappropriate (`AWP-16-09`).
 
 ## 1. Domain Modeling (`.Domain`)
 

@@ -154,6 +154,10 @@ Use pure xUnit for deterministic rules, real PostgreSQL for persistence/concurre
 | AWP-18-05 | Covered |
 | AWP-18-07 | Covered |
 
+Source procedures (preserved wording):
+
+- `AWP-18-01` Agree final financial statements to the audited Trial Balance.
+
 ## Completion checklist
 
 <!-- COMPLETION-CHECKLIST -->

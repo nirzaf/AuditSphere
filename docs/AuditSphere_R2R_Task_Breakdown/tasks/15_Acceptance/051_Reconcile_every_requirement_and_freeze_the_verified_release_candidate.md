@@ -167,6 +167,11 @@ Use pure xUnit for deterministic rules, real PostgreSQL for persistence/concurre
 | AS-AUD-028-AC02 | Covered |
 | All 165 AWPs (`AWP-01-01`–`AWP-20-10`) | Cross-cutting coverage reference |
 
+Source procedures (preserved wording):
+
+- `AWP-01-01` Obtain company registration documents and basic company information.
+- `AWP-20-10` Finalize the auditor's report and signed financial statements.
+
 ## Completion checklist
 
 <!-- COMPLETION-CHECKLIST -->

@@ -22,7 +22,8 @@ public sealed record ConsolidationComponentBalance(
   Guid TranslationPolicyVersionId = default,
   DateOnly? TranslationRateDate = null,
   string TranslationRateType = "",
-  decimal TranslationRate = 0m);
+  decimal TranslationRate = 0m,
+  string TranslationRatePurpose = "");
 
 public sealed record ConsolidationElimination(
   Guid MatchId,
@@ -138,6 +139,7 @@ public static class ConsolidationCalculator
     if (signedTotal != 0m)
       throw new InvalidOperationException("The consolidated working trial balance is not balanced.");
 
+    var balanceByLine = components.ToDictionary(x => (x.ComponentId, x.SourceLineId), x => x);
     var manifest = string.Join('\n', new[]
     {
       EngineVersion, method, openingBasis, reportingCurrency, scopeGroupRevision.ToString(CultureInfo.InvariantCulture)
@@ -146,7 +148,13 @@ public static class ConsolidationCalculator
       .ThenBy(x => x.MatchId)
       .Select(x =>
       {
-        var component = components.FirstOrDefault(c => c.ComponentId == x.ComponentId);
+        // Each manifest row carries the exact balance behind this line: its own source line and
+        // its own consumed rate purpose, rate type, rate and date. Another line's rate metadata
+        // is never a substitute for the line being hashed.
+        var component = x.ComponentId is { } componentId && x.SourceLineId is { } sourceLineId &&
+          balanceByLine.TryGetValue((componentId, sourceLineId), out var balance)
+          ? balance
+          : null;
         return string.Join('|', x.ComponentId?.ToString("D") ?? string.Empty,
           x.MatchId?.ToString("D") ?? string.Empty, x.TaxonomyCode,
           x.SourceLineId?.ToString("D") ?? string.Empty,
@@ -159,6 +167,7 @@ public static class ConsolidationCalculator
           component?.RateSetVersionId.ToString("D") ?? string.Empty, component?.TranslationPolicyVersionId.ToString("D") ?? string.Empty,
           component?.TranslationRateDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? string.Empty,
           component?.TranslationRateType ?? string.Empty,
+          component?.TranslationRatePurpose ?? string.Empty,
           component?.TranslationRate.ToString("0.000000", CultureInfo.InvariantCulture) ?? string.Empty);
       })));
     return new ConsolidationCalculation(totals, lines, signedTotal, manifest, Hashing.Sha256Hex(manifest));

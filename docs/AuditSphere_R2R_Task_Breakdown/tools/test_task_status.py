@@ -151,5 +151,30 @@ class TaskStatusTests(unittest.TestCase):
         p.write_text(text,encoding='utf-8')
         errors,_=helper.validate()
         self.assertTrue(any('Traceability summary mismatch for MERGE_EXISTING' in x for x in errors))
+    def test_source_ids_preserve_original_procedure_meaning(self):
+        errors,_=helper.validate()
+        self.assertEqual([],[x for x in errors if 'source procedure meaning drift' in x])
+        p=self.root/'tasks'/'20_Audit_Completion'/'075_Implement_subsequent_events_audit_review.md'
+        text=p.read_text(encoding='utf-8')
+        # Reassigning a source ID's meaning removes its preserved wording and must be reported.
+        tampered=text.replace('Review post-year-end bank statements and transactions',
+                              'Record management inquiries about later events')
+        self.assertNotEqual(text,tampered)
+        p.write_text(tampered,encoding='utf-8')
+        errors,_=helper.validate()
+        self.assertTrue(any('source procedure meaning drift' in x and 'AWP-17-01' in x for x in errors),errors)
+    def test_audit_handover_requires_declared_acceptance_inputs(self):
+        p=self.root/'tasks'/'20_Audit_Completion'/'075_Implement_subsequent_events_audit_review.md'
+        text=p.read_text(encoding='utf-8')
+        missing_input=text.replace('Operator handover record','handover stuff')
+        self.assertNotEqual(text,missing_input)
+        p.write_text(missing_input,encoding='utf-8')
+        errors,_=helper.validate()
+        self.assertTrue(any('audit handover gate missing declared inputs' in x and 'Operator handover record' in x for x in errors),errors)
+        p.write_text(text,encoding='utf-8')
+        no_gate=text.split('## Audit acceptance and handover gate')[0]+text.split('## Audit acceptance and handover gate',1)[1].split('\n## ',1)[1]
+        p.write_text(no_gate,encoding='utf-8')
+        errors,_=helper.validate()
+        self.assertTrue(any('audit acceptance and handover gate must declare its acceptance inputs' in x for x in errors),errors)
 
 if __name__=='__main__':unittest.main(verbosity=2)

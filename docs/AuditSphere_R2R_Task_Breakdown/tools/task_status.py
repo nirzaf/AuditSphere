@@ -240,6 +240,29 @@ def validate_audit_workflow(manifest, tasks):
                 local_awps = set(re.findall(r"\|\s*(AWP-\d{2}-\d{2})\s*\|\s*Covered\s*\|", sec_text))
                 if local_acs or local_awps:
                     errors.append(f"{tid}: claims unmapped audit ACs={local_acs}, AWPs={local_awps}")
+    # Source IDs must preserve the original procedure meaning: every AWP ID a task card cites is
+    # anchored to the exact preserved source wording, so a card cannot silently reassign meaning.
+    source_procedures = {m.group(1): m.group(2).strip() for m in
+                         re.finditer(r'^\| `(AWP-\d{2}-\d{2})` \| ([^|]+?) \|', audit_text, re.M)}
+    required_handover_inputs = ['Reviewed-through date', 'Execution/traceability reconciliation', 'Operator handover record']
+    for tid, (row, m, body) in tasks.items():
+        cited_awps = set(re.findall(r'\b(AWP-\d{2}-\d{2})\b', body))
+        drifting = sorted(a for a in cited_awps
+                          if a in source_procedures and source_procedures[a].rstrip('.').strip() not in body)
+        if drifting:
+            errors.append(f"{tid}: source procedure meaning drift for {drifting}")
+        # The final audit handover is a human decision gate: it must declare the acceptance
+        # inputs it depends on instead of claiming acceptance without evidence.
+        if 'AS-AUD-028-AC10' in body:
+            gate = re.search(r'## Audit acceptance and handover gate(.*?)(?=\n## |\Z)', body, re.DOTALL)
+            if not gate:
+                errors.append(f"{tid}: audit acceptance and handover gate must declare its acceptance inputs")
+            else:
+                missing_inputs = [i for i in required_handover_inputs if i not in gate.group(1)]
+                if missing_inputs:
+                    errors.append(f"{tid}: audit handover gate missing declared inputs: {missing_inputs}")
+                if 'Dependencies:' not in gate.group(1):
+                    errors.append(f"{tid}: audit handover gate must declare its dependency gate")
     stats = {
         'audit_source_sha256': actual_sha,
         'audit_stories': len(src_stories),
