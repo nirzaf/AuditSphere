@@ -1,3 +1,9 @@
+> STATUS: HISTORICAL_SOURCE
+>
+> This document preserves original requirements. It is not an architectural
+> implementation authority. Current architecture decisions are defined by
+> AGENTS.md and docs/architecture/CURRENT_ARCHITECTURE.md at the repository root.
+
 # STEAuditSphere — Record-to-Report Implementation Blueprint
 ## Modules 20–26 · Principal architecture review draft
 

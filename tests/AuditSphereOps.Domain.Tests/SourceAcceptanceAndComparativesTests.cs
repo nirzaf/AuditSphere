@@ -15,7 +15,7 @@ namespace AuditSphereOps.Domain.Tests;
 /// <summary>Pass-three R2R contract slices: independent source acceptance selects the
 /// reporting source and bumps the input generation; rejected TB imports persist typed
 /// row-level issues; chart publication re-validates the full hierarchy under a lock.</summary>
-public sealed class R2RPassThreeTests
+public sealed class SourceAcceptanceAndComparativesTests
 {
   private sealed record Fixture(Guid FirmId, Guid ClientId, Guid EngagementId, Guid DatasetId,
     AppUser Preparer, AppUser Reviewer, AppUser Outsider);

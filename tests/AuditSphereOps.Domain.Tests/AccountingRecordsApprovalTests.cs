@@ -16,7 +16,7 @@ namespace AuditSphereOps.Domain.Tests;
 /// reversals cannot be duplicated, adjustment journals carry technical submit/return
 /// states, restatements carry supported IAS 8 change types, and group journals can be
 /// returned with a mandatory reason and resubmitted.</summary>
-public sealed class R2RPassTwoTests
+public sealed class AccountingRecordsApprovalTests
 {
   private sealed record Fixture(Guid FirmId, Guid ClientId, Guid EngagementId, Guid DatasetId,
     AppUser Preparer, AppUser Reviewer, AppUser Partner);  // ---- M23: persisted reconciliation proof -----------------------------------------

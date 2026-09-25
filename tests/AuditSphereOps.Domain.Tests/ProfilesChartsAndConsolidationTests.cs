@@ -13,7 +13,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AuditSphereOps.Domain.Tests;
 
-public sealed class R2RRemainingModulesTests
+public sealed class ProfilesChartsAndConsolidationTests
 {
   private sealed record TestScope(
     Guid FirmId,

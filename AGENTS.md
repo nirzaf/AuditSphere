@@ -42,6 +42,9 @@ AuditSphereOps is an audit, accounting, and assurance operations platform built 
 - **Durable Operations:** Use the local durable operation infrastructure for long-running work (GL completeness, financial package calculation, rendering) with source/mapping revision fencing, idempotent retries, and explicit cancellation dispositions.
 - **Fail-Closed Methodology:** Missing exchange rates, unsupported valuation methods, unapproved perimeters, or stale source inputs must fail closed and block approval/release. Never default to zero or arbitrary values.
 - **No Autonomous Audit Opinions:** The platform computes differences, evaluates risk indicators, and enforces gates; human practitioners make professional conclusions and sign-offs.
+- **Code Map & Documentation Authority:** Before changing a business capability, consult `docs/architecture/CODE_MAP.md`; `docs/architecture/CURRENT_ARCHITECTURE.md` is the implementation-authority companion to this file. Preserved requirement/blueprint sources under `docs/AuditSphere_R2R_Task_Breakdown/source/` are `HISTORICAL_SOURCE` and never implementation authority. Volatile project facts (test counts, verified SHA, migration count, blockers) live only in `docs/execution/status.json`.
+- **Capability-Focused Files:** Large services and the `AuditSphereDbContext` are partial classes split into capability files (`ConsolidationService.<Capability>.cs`, `AuditSphereDbContext.<Module>.cs`, `ClientAccountingTests.<Capability>.cs`). Keep public APIs stable and put new operations in the matching capability file; use business-semantic file names.
+- **Web Composes Application:** Razor components compose Application commands/queries; do not add new business-state mutations directly through `DbContext`. When substantially modifying an existing page, move complex reads or business operations into a named Application query/service if that reduces page responsibility. Do not bulk-refactor unaffected pages.
 
 ---
 

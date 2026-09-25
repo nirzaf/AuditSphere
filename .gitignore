@@ -76,7 +76,7 @@ desktop.ini
 .claude/
 .graphify_*
 graphify-out/
-docs/architecture/
+docs/architecture/auditsphere-dependencies*
 *.log
 tmp/go-build/
 tmp/go-mod/

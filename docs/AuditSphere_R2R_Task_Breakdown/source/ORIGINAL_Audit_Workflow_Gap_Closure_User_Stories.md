@@ -1,3 +1,9 @@
+> STATUS: HISTORICAL_SOURCE
+>
+> This document preserves original requirements. It is not an architectural
+> implementation authority. Current architecture decisions are defined by
+> AGENTS.md and docs/architecture/CURRENT_ARCHITECTURE.md at the repository root.
+
 # AuditSphere — Audit Workflow Gap Closure
 ## Epic and detailed implementation user stories
 

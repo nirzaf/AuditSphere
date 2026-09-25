@@ -510,7 +510,7 @@ Fresh Release discovery on 2026-09-24 reconciles 260 Domain + 6 API + 55 E2E = 3
 [AuditScopeIntegrityTests]: ../../tests/AuditSphereOps.Domain.Tests/AuditScopeIntegrityTests.cs
 [AuthorizationDecisionTests]: ../../tests/AuditSphereOps.Domain.Tests/AuthorizationDecisionTests.cs
 [BillingTests]: ../../tests/AuditSphereOps.Domain.Tests/BillingTests.cs
-[ClientAccountingTests]: ../../tests/AuditSphereOps.Domain.Tests/ClientAccountingTests.cs
+[ClientAccountingTests]: ../../tests/AuditSphereOps.Domain.Tests/ClientAccountingTests/
 [CoreEntityCatalogTests]: ../../tests/AuditSphereOps.Domain.Tests/CoreEntityCatalogTests.cs
 [DocumentSnapshotTests]: ../../tests/AuditSphereOps.Domain.Tests/DocumentSnapshotTests.cs
 [DurableOutboxTests]: ../../tests/AuditSphereOps.Domain.Tests/DurableOutboxTests.cs
@@ -533,4 +533,4 @@ Fresh Release discovery on 2026-09-24 reconciles 260 Domain + 6 API + 55 E2E = 3
 [RouteCatalogTests]: ../../tests/AuditSphereOps.Domain.Tests/RouteCatalogTests.cs
 [TrialBalanceWorkerTests]: ../../tests/AuditSphereOps.Domain.Tests/TrialBalanceWorkerTests.cs
 [TrialBalanceXlsxImporterTests]: ../../tests/AuditSphereOps.Domain.Tests/TrialBalanceXlsxImporterTests.cs
-[TrialBalanceCalculatorTests]: ../../tests/AuditSphereOps.Domain.Tests/UnitTest1.cs
+[TrialBalanceCalculatorTests]: ../../tests/AuditSphereOps.Domain.Tests/TrialBalanceCalculatorTests.cs

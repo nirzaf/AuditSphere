@@ -18,6 +18,27 @@ import sys
 from urllib.parse import unquote, urlparse
 
 ROOT = Path(__file__).resolve().parents[1]
+
+STATUS_BANNER = '> STATUS: HISTORICAL_SOURCE'
+
+
+def strip_status_banner(data: bytes) -> bytes:
+    """Return the preserved-source payload without its approved status banner.
+
+    The pinned source hashes cover the original requirement text byte-for-byte;
+    a visible HISTORICAL_SOURCE banner is approved metadata in front of it and is
+    excluded from the hash so the requirement-text pin keeps its meaning.
+    """
+    text = data.decode('utf-8')
+    if not text.startswith(STATUS_BANNER):
+        return data
+    lines = text.splitlines(keepends=True)
+    i = 0
+    while i < len(lines) and lines[i].startswith('>'):
+        i += 1
+    if i < len(lines) and lines[i].strip() == '':
+        i += 1
+    return ''.join(lines[i:]).encode('utf-8')
 STATES = {'NOT_STARTED','IN_PROGRESS','BLOCKED','IN_REVIEW','COMPLETED','REOPENED'}
 TRANSITIONS = {
  'NOT_STARTED': {'IN_PROGRESS','BLOCKED'},
@@ -161,7 +182,9 @@ def validate_audit_workflow(manifest, tasks):
         errors.append(f"Audit source file missing: {audit_meta['file']}")
         return errors, stats
     audit_bytes = audit_file.read_bytes()
-    actual_sha = hashlib.sha256(audit_bytes).hexdigest()
+    if not audit_bytes.decode('utf-8').startswith(STATUS_BANNER):
+        errors.append(f"{audit_file.name}: preserved source must start with the HISTORICAL_SOURCE status banner")
+    actual_sha = hashlib.sha256(strip_status_banner(audit_bytes)).hexdigest()
     if actual_sha != audit_meta['sha256']:
         errors.append(f"Audit source hash mismatch: expected {audit_meta['sha256']}, got {actual_sha}")
     audit_text = audit_file.read_text(encoding='utf-8')
@@ -279,7 +302,9 @@ def validate():
     ids=[r['id'] for r in manifest['tasks']]
     if len(ids)!=len(manifest['tasks']) or len(set(ids))!=len(manifest['tasks']):errors.append(f"Task inventory must contain exactly {len(manifest['tasks'])} distinct IDs")
     source=ROOT/'source/ORIGINAL_R2R_Blueprint_Modules_20-26.md'
-    if hashlib.sha256(source.read_bytes()).hexdigest()!=manifest['source_sha256']:errors.append('Original source hash mismatch')
+    source_bytes=source.read_bytes()
+    if not source_bytes.decode('utf-8').startswith(STATUS_BANNER):errors.append('ORIGINAL_R2R_Blueprint_Modules_20-26.md: preserved source must start with the HISTORICAL_SOURCE status banner')
+    if hashlib.sha256(strip_status_banner(source_bytes)).hexdigest()!=manifest['source_sha256']:errors.append('Original source hash mismatch')
     source_text=source.read_text(encoding='utf-8')
     source_commands=set(re.findall(r'^\| `(\w+(?:Command|Query))\(',source_text,re.M))
     source_rows={re.match(r'^\| `(\w+(?:Command|Query))\(',line)[1]: line for line in source_text.splitlines() if re.match(r'^\| `(\w+(?:Command|Query))\(',line)}

@@ -120,7 +120,7 @@ The `ccb01ea` web slice initially scoped Portfolio counters and release/package 
 
 **C2 — RESOLVED locally.** Import records keep raw-file SHA-256 separate from the versioned normalized-data digest and distinguish byte-identical from normalized-equivalent inputs. `Import_EquivalentNormalizedContent_IsExplainedAsDuplicate` verifies the duplicate explanation for distinct raw bytes with equivalent normalized content. [R11–R12; `tests/AuditSphereOps.Domain.Tests/ClientAccountingTests.cs`]
 
-**C3 — RESOLVED locally.** A dataset must contain exactly one legal entity; controlled multi-entity batches produce separate entity-scoped datasets, and direct mixed-entity promotion is rejected. PostgreSQL regressions cover both successful split batching and mixed-entity rejection. [R7, R11–R12; `tests/AuditSphereOps.Domain.Tests/ClientAccountingTests.cs`]
+**C3 — RESOLVED locally.** A dataset must contain exactly one legal entity; controlled multi-entity batches produce separate entity-scoped datasets, and direct mixed-entity promotion is rejected. PostgreSQL regressions cover both successful split batching and mixed-entity rejection. [R7, R11–R12; `tests/AuditSphereOps.Domain.Tests/`]
 
 **C4 — RESOLVED locally.** Mapping approval denies the creating user even when that actor also holds a reviewer role; the PostgreSQL mapping/package review regression exercises the denial alongside scope and stale-state checks. [R6; `tests/AuditSphereOps.Domain.Tests/FinancialStatementTests.cs`]
 
@@ -930,10 +930,10 @@ Repository sources below were inspected at the pinned commit. File paths plus na
 - **R3:** `src/AuditSphereOps.Domain/Practice/FirmLedger.cs`: firm-only accounting boundary.
 - **R4:** `src/AuditSphereOps.Domain/Practice/Crm.cs`: canonical client and contact model.
 - **R5:** `src/AuditSphereOps.Domain/Accounting/Accounting.cs`: datasets, rows, maps, journals and entity packages.
-- **R6:** `src/AuditSphereOps.Application/Accounting/FinancialStatementService.cs`, `CreateMappingVersionAsync`, `ApproveMappingAsync`, `BuildFinancialPackageAsync`.
+- **R6:** `src/AuditSphereOps.Application/Accounting/FinancialStatements/FinancialStatementService.Mapping.cs` (`CreateMappingVersionAsync`, `ApproveMappingAsync`) and `.Package.cs` (`BuildFinancialPackageAsync`).
 - **R7:** Same file, `ValidateAllocations`, `ValidateSupplementaryInformation`, `CalculateAdjustedBalancesAsync`, rendering methods.
 - **R8:** `src/AuditSphereOps.Domain/Audit/Fieldwork.cs`: schedules, tests, confirmations, assessments and differences.
-- **R9:** `src/AuditSphereOps.Application/Audit/AuditFieldworkService.cs`, request contracts and schedule creation/review.
+- **R9:** `src/AuditSphereOps.Application/Audit/Fieldwork/AuditFieldworkServiceContracts.cs` (request contracts) and `AuditFieldworkService.Schedules.cs` (schedule creation/review).
 - **R10:** Same file, `EvaluateDifferenceAsync`, `EvaluateCompletionAsync`.
 - **R11:** `src/AuditSphereOps.Application/Accounting/TrialBalanceCsvImporter.cs`.
 - **R12:** `src/AuditSphereOps.Application/Accounting/TrialBalanceImportService.cs`.
