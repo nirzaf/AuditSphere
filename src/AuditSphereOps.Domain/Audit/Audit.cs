@@ -355,3 +355,43 @@ public static class FindingStatuses
   public const string Corrected = "CORRECTED";
   public const string Evaluated = "EVALUATED";
 }
+
+public static class OpeningBalanceVerificationConclusions
+{
+  public const string Agreed = "AGREED";
+  public const string DifferencesResolved = "DIFFERENCES_RESOLVED";
+  public const string DifferencesUnresolved = "DIFFERENCES_UNRESOLVED";
+  public const string NotVerifiable = "NOT_VERIFIABLE";
+}
+
+/// <summary>
+/// ISA 510 opening-balance verification: the prior-year closing figures, the consistency
+/// of accounting policies and the resolution of any difference are recorded with the
+/// evidence that supports the conclusion. An unresolved difference stays visible and
+/// blocks reliance rather than being absorbed silently.
+/// </summary>
+public sealed class OpeningBalanceVerification
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public Guid EngagementId { get; set; }
+  public Guid? ProcedureId { get; set; }
+  /// <summary>Prior reporting period whose closing balances become the opening balances.</summary>
+  public Guid? PriorPeriodId { get; set; }
+  public string PriorReference { get; set; } = string.Empty;
+  public DateOnly AsOfDate { get; set; }
+  public string Currency { get; set; } = string.Empty;
+  public decimal OpeningSignedTotal { get; set; }
+  public decimal AgreedSignedTotal { get; set; }
+  public decimal DifferenceAmount { get; set; }
+  public bool AccountingPoliciesConsistent { get; set; }
+  public string Conclusion { get; set; } = OpeningBalanceVerificationConclusions.NotVerifiable;
+  public string Rationale { get; set; } = string.Empty;
+  public string EvidenceReferencesJson { get; set; } = "[]";
+  public long Revision { get; set; } = 1;
+  public Guid RecordedByUserId { get; set; }
+  public Guid? ReviewedByUserId { get; set; }
+  public DateTimeOffset RecordedAt { get; set; }
+  public DateTimeOffset? ReviewedAt { get; set; }
+}

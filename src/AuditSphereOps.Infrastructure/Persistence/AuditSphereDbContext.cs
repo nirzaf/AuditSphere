@@ -170,6 +170,7 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
   public DbSet<AuditItemTest> AuditItemTests => Set<AuditItemTest>();
   public DbSet<AuditItemTestReview> AuditItemTestReviews => Set<AuditItemTestReview>();
   public DbSet<AuditCutOffTestRecord> AuditCutOffTestRecords => Set<AuditCutOffTestRecord>();
+  public DbSet<OpeningBalanceVerification> OpeningBalanceVerifications => Set<OpeningBalanceVerification>();
   public DbSet<AuditSubsequentMatchRecord> AuditSubsequentMatchRecords => Set<AuditSubsequentMatchRecord>();
   public DbSet<AuditConfirmationCase> AuditConfirmationCases => Set<AuditConfirmationCase>();
   public DbSet<AuditConfirmationResponse> AuditConfirmationResponses => Set<AuditConfirmationResponse>();
@@ -3002,6 +3003,20 @@ public sealed class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> 
       .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     subsequent.HasOne<AuditSelection>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.SelectionId })
       .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var openingBalance = b.Entity<OpeningBalanceVerification>();
+    openingBalance.HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_opening_balance_verifications_firm_id_id");
+    openingBalance.Property(x => x.PriorReference).HasMaxLength(200);
+    openingBalance.Property(x => x.Currency).HasMaxLength(3).IsFixedLength();
+    openingBalance.Property(x => x.Conclusion).HasMaxLength(30);
+    openingBalance.Property(x => x.Rationale).HasMaxLength(2000);
+    openingBalance.Property(x => x.EvidenceReferencesJson).HasMaxLength(20000);
+    openingBalance.HasIndex(x => new { x.FirmId, x.EngagementId, x.AsOfDate }).IsUnique()
+      .HasDatabaseName("ux_opening_balance_verification_engagement");
+    openingBalance.ToTable("opening_balance_verifications", t => t.HasCheckConstraint("ck_opening_balance_verification_values",
+      "revision > 0 AND length(trim(prior_reference)) > 0 AND currency ~ '^[A-Z]{3}$' " +
+      "AND conclusion IN ('AGREED','DIFFERENCES_RESOLVED','DIFFERENCES_UNRESOLVED','NOT_VERIFIABLE')"));
+    ScopeToEngagement(openingBalance, nameof(OpeningBalanceVerification.FirmId), nameof(OpeningBalanceVerification.ClientId), nameof(OpeningBalanceVerification.EngagementId));
 
     var confirmation = b.Entity<AuditConfirmationCase>();
     confirmation.HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_audit_confirmation_cases_firm_id_id");
