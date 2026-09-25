@@ -1,6 +1,6 @@
 # AuditSphereOps Agent Instructions
 
-Short pointer; full authoritative contracts live in `docs/SPECIFICATION.md` (v5.0) and `docs/AuditSphere_Accounting_module.md`. Do not paste the full specification into this file.
+Short pointer; full authoritative contracts live in `docs/auditsphere-requirements-system-specification-current.md` (v5.0) and `docs/auditsphere-accounting-module-requirements-current.md`. Do not paste the full specification into this file.
 
 ---
 
@@ -43,7 +43,7 @@ AuditSphereOps is an audit, accounting, and assurance operations platform built 
 - **Durable Operations:** Use the local durable operation infrastructure for long-running work (GL completeness, financial package calculation, rendering) with source/mapping revision fencing, idempotent retries, and explicit cancellation dispositions.
 - **Fail-Closed Methodology:** Missing exchange rates, unsupported valuation methods, unapproved perimeters, or stale source inputs must fail closed and block approval/release. Never default to zero or arbitrary values.
 - **No Autonomous Audit Opinions:** The platform computes differences, evaluates risk indicators, and enforces gates; human practitioners make professional conclusions and sign-offs.
-- **Code Map & Documentation Authority:** Before changing a business capability, consult `docs/architecture/CODE_MAP.md`; `docs/architecture/CURRENT_ARCHITECTURE.md` is the implementation-authority companion to this file. Preserved requirement/blueprint sources under `docs/AuditSphere_R2R_Task_Breakdown/source/` are `HISTORICAL_SOURCE` and never implementation authority. Volatile project facts (test counts, verified SHA, migration count, blockers) live only in `docs/execution/status.json`.
+- **Code Map & Documentation Authority:** Before changing a business capability, consult `docs/architecture/auditsphere-architecture-code-map.md`; `docs/architecture/auditsphere-architecture-current-architecture.md` is the implementation-authority companion to this file. Preserved requirement/blueprint sources under `docs/AuditSphere_R2R_Task_Breakdown/source/` are `HISTORICAL_SOURCE` and never implementation authority. Volatile project facts (test counts, verified SHA, migration count, blockers) live only in `docs/execution/status.json`.
 - **Capability-Focused Files:** Large services and the `AuditSphereDbContext` are partial classes split into capability files (`ConsolidationService.<Capability>.cs`, `AuditSphereDbContext.<Module>.cs`, `ClientAccountingTests.<Capability>.cs`). Keep public APIs stable and put new operations in the matching capability file; use business-semantic file names.
 - **Web Composes Application:** Razor components compose Application commands/queries; do not add new business-state mutations directly through `DbContext`. When substantially modifying an existing page, move complex reads or business operations into a named Application query/service if that reduces page responsibility. Do not bulk-refactor unaffected pages.
 
@@ -61,7 +61,7 @@ AuditSphereOps is an audit, accounting, and assurance operations platform built 
 
 ## 5. Development & Verification Workflow
 
-Per change: deliver the smallest coherent vertical slice with guarded transactions and scope-checked authorization. Update `docs/execution/status.json` and `docs/execution/current-slice.md` only with observed facts.
+Per change: deliver the smallest coherent vertical slice with guarded transactions and scope-checked authorization. Update `docs/execution/status.json` and `docs/execution/auditsphere-execution-current-slice.md` only with observed facts.
 
 ### Standard Verification Sequence
 ```bash
@@ -85,9 +85,9 @@ scripts/db/restore-drill.sh
 
 ## 6. Authoritative Reference Pointers
 
-- **Authoritative System Spec:** `docs/SPECIFICATION.md` (v5.0 build contract). Read intro + §§1–12, 22, 24, 27–33, 41–47 first; then specific sections for the active issue.
-- **Accounting & Consolidation Roadmap:** `docs/AuditSphere_Accounting_module.md` (detailed gap analysis, AC-01 to AC-28 user stories, and implementation roadmap).
-- **Execution Ledger:** `docs/execution/status.json` & `docs/execution/current-slice.md` (pointers to active slice, local verified evidence, and external blockers; re-read repo reality on resume).
+- **Authoritative System Spec:** `docs/auditsphere-requirements-system-specification-current.md` (v5.0 build contract). Read intro + §§1–12, 22, 24, 27–33, 41–47 first; then specific sections for the active issue.
+- **Accounting & Consolidation Roadmap:** `docs/auditsphere-accounting-module-requirements-current.md` (detailed gap analysis, AC-01 to AC-28 user stories, and implementation roadmap).
+- **Execution Ledger:** `docs/execution/status.json` & `docs/execution/auditsphere-execution-current-slice.md` (pointers to active slice, local verified evidence, and external blockers; re-read repo reality on resume).
 
 ---
 
@@ -97,7 +97,7 @@ scripts/db/restore-drill.sh
 
 - Use the [repository GitHub Wiki](https://github.com/nirzaf/AuditSphere/wiki) for operator-facing deployment guidance. Read its current index and relevant pages before editing; update the existing canonical page in place. Create a page only for a genuinely missing topic, then link it from the existing index. Do not create per-release copies or duplicate instructions across Wiki pages, repository docs, or `AGENTS.md`; link to the authoritative detail instead.
 - Check documentation impact when prerequisites, configuration keys/defaults, deployment commands, migrations, setup screens, permissions, verification, backup/recovery, or upgrade procedures change. Update only affected sections when the existing guidance becomes inaccurate or incomplete. If it remains correct, make no Wiki edit; avoid cosmetic rewrites, timestamp-only changes, and repeated changelog entries.
-- Verify guidance against the current checkout, especially `docs/SPECIFICATION.md` §§30 and 45, `src/AuditSphereOps.Web/appsettings.json`, `src/AuditSphereOps.Web/Components/Pages/Microsoft365Setup.razor`, and the actual startup, worker, and deployment scripts. `docs/AuditSphere_M365_Simple_Onboarding_User_Story.md` describes proposed requirements: check implementation before presenting any step as available. Link to the applicable source revision; do not copy the specification or configuration files wholesale.
+- Verify guidance against the current checkout, especially `docs/auditsphere-requirements-system-specification-current.md` §§30 and 45, `src/AuditSphereOps.Web/appsettings.json`, `src/AuditSphereOps.Web/Components/Pages/Microsoft365Setup.razor`, and the actual startup, worker, and deployment scripts. `docs/auditsphere-m365-onboarding-user-stories.md` describes proposed requirements: check implementation before presenting any step as available. Link to the applicable source revision; do not copy the specification or configuration files wholesale.
 
 ### Make deployment easy to follow
 

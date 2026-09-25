@@ -218,10 +218,10 @@ AuditSphere/
 │   ├── AuditSphereOps.Api.Tests/       # HTTP API & transfer security tests
 │   └── AuditSphereOps.E2E.Tests/       # Playwright end-to-end user journeys & grant revocation tests
 ├── docs/
-│   ├── SPECIFICATION.md                # Authoritative v5.0 build contract
-│   ├── AuditSphere_Accounting_module.md# AC-01 to AC-28 user stories & gap analysis
+│   ├── auditsphere-requirements-system-specification-current.md                # Authoritative v5.0 build contract
+│   ├── auditsphere-accounting-module-requirements-current.md# AC-01 to AC-28 user stories & gap analysis
 │   ├── AuditSphere_R2R_Task_Breakdown/ # Record-to-Report detailed task breakdowns (Modules 20–26)
-│   └── execution/                      # status.json and current-slice.md execution ledgers
+│   └── execution/                      # status.json and auditsphere-execution-current-slice.md execution ledgers
 ├── scripts/db/                         # Database lifecycle scripts (start, stop, status, restore-drill)
 ├── global.json                         # SDK version pin (10.0.300, rollForward=disable)
 └── Directory.Packages.props            # Central Package Management (CPM)
@@ -338,14 +338,14 @@ Background and long-running operations are processed via the outbox pattern in `
 AuditSphereOps operates under strict evidence-driven development principles:
 
 - **`docs/execution/status.json`:** The single source of truth for repository reality: specification SHA-256 hash, baseline commit, active slice, verified test evidence, external blockers, and permitted actions.
-- **`docs/execution/current-slice.md`:** Concise serialization of the active vertical slice, verified local state, and operational runbook.
+- **`docs/execution/auditsphere-execution-current-slice.md`:** Concise serialization of the active vertical slice, verified local state, and operational runbook.
 - **Zero-Warning Tolerance:** All code compiles with `0 Warning(s)` and `0 Error(s)` in Release mode under .NET 10.
 
 ---
 
 ## Implementation Roadmap & External Gates
 
-Work is sequenced in dependency-ordered work packages (P0–P10 per [docs/execution/pending-tasks.md](docs/execution/pending-tasks.md)):
+Work is sequenced in dependency-ordered work packages (P0–P10 per [docs/execution/auditsphere-execution-pending-tasks.md](docs/execution/auditsphere-execution-pending-tasks.md)):
 
 | Phase | Gate / Objective | Status | Description |
 |---|---|---|---|
@@ -367,11 +367,14 @@ Work is sequenced in dependency-ordered work packages (P0–P10 per [docs/execut
 
 | Document | Description |
 |---|---|
-| [docs/SPECIFICATION.md](docs/SPECIFICATION.md) | **Authoritative v5.0 Build Contract** — complete architecture, data models, and acceptance tests. |
-| [docs/AuditSphere_Accounting_module.md](docs/AuditSphere_Accounting_module.md) | **Accounting & Consolidation Roadmap** — gap analysis, AC-01 to AC-28 user stories, and acceptance criteria. |
+| [docs/auditsphere-requirements-system-specification-current.md](docs/auditsphere-requirements-system-specification-current.md) | **Authoritative v5.0 Build Contract** — complete architecture, data models, and acceptance tests. |
+| [docs/auditsphere-accounting-module-requirements-current.md](docs/auditsphere-accounting-module-requirements-current.md) | **Accounting & Consolidation Roadmap** — gap analysis, AC-01 to AC-28 user stories, and acceptance criteria. |
+| [docs/architecture/auditsphere-architecture-current-architecture.md](docs/architecture/auditsphere-architecture-current-architecture.md) | **Current Architecture** — modular monolith structure, boundaries, and dependency guards. |
+| [docs/architecture/auditsphere-architecture-code-map.md](docs/architecture/auditsphere-architecture-code-map.md) | **Architecture Code Map** — capability map and documentation authority index. |
+| [docs/architecture/auditsphere-architecture-document-naming-policy.md](docs/architecture/auditsphere-architecture-document-naming-policy.md) | **Document Naming Policy** — naming conventions and rules for repository documentation. |
 | [docs/AuditSphere_R2R_Task_Breakdown/](docs/AuditSphere_R2R_Task_Breakdown/) | **R2R Task Breakdown** — detailed task definitions and technical contracts for Modules 20–26. |
 | [docs/execution/status.json](docs/execution/status.json) | **Execution Ledger** — live machine-readable progress pointer and verification evidence. |
-| [docs/execution/current-slice.md](docs/execution/current-slice.md) | **Active Slice Runbook** — verified local state, tested SHA, and execution notes. |
+| [docs/execution/auditsphere-execution-current-slice.md](docs/execution/auditsphere-execution-current-slice.md) | **Active Slice Runbook** — verified local state, tested SHA, and execution notes. |
 | [AGENTS.md](AGENTS.md) | **Engineering Instructions & Invariants** — boundaries, safety rules, and development guidelines. |
 
 ---
@@ -380,8 +383,8 @@ Work is sequenced in dependency-ordered work packages (P0–P10 per [docs/execut
 
 All contributions follow the specification execution protocol:
 
-1. **Consult the Spec First:** Review `docs/SPECIFICATION.md` (§§1–12, 22, 24, 27–33, 41–47) and `AGENTS.md` before making changes.
+1. **Consult the Spec First:** Review `docs/auditsphere-requirements-system-specification-current.md` (§§1–12, 22, 24, 27–33, 41–47) and `AGENTS.md` before making changes.
 2. **One Vertical Slice at a Time:** Deliver the smallest coherent vertical slice in dependency order. Never weaken an existing authorization check or mandatory security control.
 3. **Prove with Evidence:** Code must build with `0 Warning(s)` and pass targeted tests against the local PostgreSQL 18.6 cluster. Migrations must preserve append-only history.
-4. **Honest Recording:** Update `docs/execution/status.json` and `docs/execution/current-slice.md` with observed facts only. Never record an external gate as passed without live evidence.
+4. **Honest Recording:** Update `docs/execution/status.json` and `docs/execution/auditsphere-execution-current-slice.md` with observed facts only. Never record an external gate as passed without live evidence.
 5. **Respect Architecture Prohibitions:** Never introduce MediatR, Frappe, ERPNext, Python backends, React frontends, message brokers, or autonomous audit decision engines.

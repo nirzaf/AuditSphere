@@ -81,7 +81,7 @@ class TaskStatusTests(unittest.TestCase):
         errors,_=helper.validate();self.assertTrue(any('Index' in x for x in errors))
         helper.refresh();errors,_=helper.validate();self.assertEqual([],errors)
     def test_original_source_tampering_is_detected(self):
-        p=self.root/'source/ORIGINAL_R2R_Blueprint_Modules_20-26.md'
+        p=self.root/'source/auditsphere-r2r-source-blueprint-modules-20-26-historical.md'
         p.write_text(p.read_text()+'\nSynthetic tamper.\n')
         errors,_=helper.validate();self.assertIn('Original source hash mismatch',errors)
     def test_missing_link_is_detected(self):
@@ -104,40 +104,40 @@ class TaskStatusTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'reason'):
             helper.set_status(self.arguments('T001','BLOCKED'))
     def test_audit_source_tampering_is_detected(self):
-        p=self.root/'source/ORIGINAL_Audit_Workflow_Gap_Closure_User_Stories.md'
+        p=self.root/'source/auditsphere-audit-source-workflow-gap-closure-user-stories-historical.md'
         p.write_text(p.read_text(encoding='utf-8')+'\nSynthetic tamper.\n',encoding='utf-8')
         errors,_=helper.validate()
         self.assertTrue(any('Audit source hash mismatch' in x for x in errors))
     def test_missing_audit_ac_is_detected(self):
-        p=self.root/'tracking/AUDIT_WORKFLOW_TRACEABILITY.md'
+        p=self.root/'tracking/auditsphere-audit-tracker-workflow-traceability.md'
         lines=p.read_text(encoding='utf-8').splitlines()
         new_lines=[l for l in lines if not l.startswith('| AS-AUD-001 | `AS-AUD-001-AC01`')]
         p.write_text('\n'.join(new_lines)+'\n',encoding='utf-8')
         errors,_=helper.validate()
         self.assertTrue(any('Traceability ledger must contain 258 AC rows' in x for x in errors))
     def test_duplicate_audit_ac_is_detected(self):
-        p=self.root/'tracking/AUDIT_WORKFLOW_TRACEABILITY.md'
+        p=self.root/'tracking/auditsphere-audit-tracker-workflow-traceability.md'
         text=p.read_text(encoding='utf-8')
         text=text.replace('`AS-AUD-001-AC02`','`AS-AUD-001-AC01`',1)
         p.write_text(text,encoding='utf-8')
         errors,_=helper.validate()
         self.assertTrue(any('Duplicate AC rows' in x for x in errors))
     def test_missing_awp_is_detected(self):
-        p=self.root/'tracking/AUDIT_WORKFLOW_TRACEABILITY.md'
+        p=self.root/'tracking/auditsphere-audit-tracker-workflow-traceability.md'
         lines=p.read_text(encoding='utf-8').splitlines()
         new_lines=[l for l in lines if not l.startswith('| `AWP-01-01`')]
         p.write_text('\n'.join(new_lines)+'\n',encoding='utf-8')
         errors,_=helper.validate()
         self.assertTrue(any('Traceability ledger must contain 165 AWP rows' in x for x in errors))
     def test_duplicate_awp_owner_is_detected(self):
-        p=self.root/'tracking/AUDIT_WORKFLOW_TRACEABILITY.md'
+        p=self.root/'tracking/auditsphere-audit-tracker-workflow-traceability.md'
         text=p.read_text(encoding='utf-8')
         text=text.replace('\n| `AWP-01-02` |','\n| `AWP-01-01` |',1)
         p.write_text(text,encoding='utf-8')
         errors,_=helper.validate()
         self.assertTrue(any('Duplicate AWP rows' in x for x in errors))
     def test_task_local_traceability_mismatch_is_detected(self):
-        p=self.root/'tracking/AUDIT_WORKFLOW_TRACEABILITY.md'
+        p=self.root/'tracking/auditsphere-audit-tracker-workflow-traceability.md'
         text=p.read_text(encoding='utf-8')
         text=text.replace('| `AWP-01-01` | 1. Planning & Risk Assessment | Obtain company registration documents and basic company information. | AS-AUD-007 | `AS-AUD-007-AC01` | **T060** |',
                            '| `AWP-01-01` | 1. Planning & Risk Assessment | Obtain company registration documents and basic company information. | AS-AUD-007 | `AS-AUD-007-AC01` | **T061** |')
@@ -145,7 +145,7 @@ class TaskStatusTests(unittest.TestCase):
         errors,_=helper.validate()
         self.assertTrue(any('local primary AWP traceability drift' in x for x in errors))
     def test_disposition_summary_drift_is_detected(self):
-        p=self.root/'tracking/AUDIT_WORKFLOW_TRACEABILITY.md'
+        p=self.root/'tracking/auditsphere-audit-tracker-workflow-traceability.md'
         text=p.read_text(encoding='utf-8')
         text=text.replace('`MERGE_EXISTING`: 59','`MERGE_EXISTING`: 58')
         p.write_text(text,encoding='utf-8')
@@ -154,7 +154,7 @@ class TaskStatusTests(unittest.TestCase):
     def test_source_ids_preserve_original_procedure_meaning(self):
         errors,_=helper.validate()
         self.assertEqual([],[x for x in errors if 'source procedure meaning drift' in x])
-        p=self.root/'tasks'/'20_Audit_Completion'/'075_Implement_subsequent_events_audit_review.md'
+        p=self.root/'tasks'/'20_Audit_Completion'/'auditsphere-audit-task-t075-subsequent-events-review.md'
         text=p.read_text(encoding='utf-8')
         # Reassigning a source ID's meaning removes its preserved wording and must be reported.
         tampered=text.replace('Review post-year-end bank statements and transactions',
@@ -164,7 +164,7 @@ class TaskStatusTests(unittest.TestCase):
         errors,_=helper.validate()
         self.assertTrue(any('source procedure meaning drift' in x and 'AWP-17-01' in x for x in errors),errors)
     def test_audit_handover_requires_declared_acceptance_inputs(self):
-        p=self.root/'tasks'/'20_Audit_Completion'/'075_Implement_subsequent_events_audit_review.md'
+        p=self.root/'tasks'/'20_Audit_Completion'/'auditsphere-audit-task-t075-subsequent-events-review.md'
         text=p.read_text(encoding='utf-8')
         missing_input=text.replace('Operator handover record','handover stuff')
         self.assertNotEqual(text,missing_input)

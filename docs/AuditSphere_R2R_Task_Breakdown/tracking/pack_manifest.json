@@ -1,19 +1,19 @@
 {
   "pack_version": "1.0",
-  "scope": "R2R Modules 20–26 plus integrated Audit Workflow Gap Closure",
+  "scope": "R2R Modules 20\u201326 plus integrated Audit Workflow Gap Closure",
   "source_filename": "STEAuditSphere_R2R_Implementation_Blueprint_Modules_20-26.md",
   "source_sha256": "3847e73e50cb6c9971281e8d1b8660ced437c00fbac377b2c5c6f7053a0bb2ed",
   "source_lines": 1664,
   "source_baseline": "ba1a3ec23335b40667b679e4f0cd5f66b9e723b9",
   "sources": {
     "r2r": {
-      "file": "source/ORIGINAL_R2R_Blueprint_Modules_20-26.md",
+      "file": "source/auditsphere-r2r-source-blueprint-modules-20-26-historical.md",
       "sha256": "3847e73e50cb6c9971281e8d1b8660ced437c00fbac377b2c5c6f7053a0bb2ed",
       "lines": 1664,
       "role": "R2R accounting/reporting implementation source"
     },
     "audit_workflow": {
-      "file": "source/ORIGINAL_Audit_Workflow_Gap_Closure_User_Stories.md",
+      "file": "source/auditsphere-audit-source-workflow-gap-closure-user-stories-historical.md",
       "sha256": "c05b20c9dd90c1c90360bda463e2a95000ba26d07f6d07d41247e02af0273895",
       "lines": 2060,
       "role": "Audit workflow requirement source",
@@ -26,7 +26,7 @@
   "tasks": [
     {
       "id": "T001",
-      "file": "tasks/00_Baseline/001_Approve_scope_and_inventory_the_current_implementation.md",
+      "file": "tasks/00_Baseline/auditsphere-r2r-task-t001-baseline-current-state-inventory.md",
       "work_package": "R2R-00",
       "module_ids": [],
       "depends_on": [],
@@ -34,7 +34,7 @@
     },
     {
       "id": "T002",
-      "file": "tasks/00_Baseline/002_Approve_architecture_contracts_and_transaction_ownership.md",
+      "file": "tasks/00_Baseline/auditsphere-r2r-task-t002-architecture-contracts-transaction-ownership.md",
       "work_package": "R2R-00",
       "module_ids": [],
       "depends_on": [
@@ -44,7 +44,7 @@
     },
     {
       "id": "T003",
-      "file": "tasks/00_Baseline/003_Approve_accounting_policies_resource_bounds_and_golden_fixtures.md",
+      "file": "tasks/00_Baseline/auditsphere-r2r-task-t003-accounting-policies-resource-bounds-golden-fixtures.md",
       "work_package": "R2R-00",
       "module_ids": [],
       "depends_on": [
@@ -54,7 +54,7 @@
     },
     {
       "id": "T004",
-      "file": "tasks/01_CQRS/004_Introduce_MediatR_facades_without_changing_transaction_behavior.md",
+      "file": "tasks/01_CQRS/auditsphere-r2r-task-t004-command-query-boundary.md",
       "work_package": "R2R-01",
       "module_ids": [],
       "depends_on": [
@@ -64,7 +64,7 @@
     },
     {
       "id": "T005",
-      "file": "tasks/01_CQRS/005_Implement_asynchronous_validation_and_explicit_DTO_mapping.md",
+      "file": "tasks/01_CQRS/auditsphere-r2r-task-t005-asynchronous-validation-dto-mapping.md",
       "work_package": "R2R-01",
       "module_ids": [],
       "depends_on": [
@@ -74,7 +74,7 @@
     },
     {
       "id": "T006",
-      "file": "tasks/01_CQRS/006_Establish_bUnit_and_the_layered_verification_harness.md",
+      "file": "tasks/01_CQRS/auditsphere-r2r-task-t006-bunit-verification-harness.md",
       "work_package": "R2R-01",
       "module_ids": [],
       "depends_on": [
@@ -84,7 +84,7 @@
     },
     {
       "id": "T007",
-      "file": "tasks/02_Shared_Foundation/007_Enforce_reporting_scope_current_actor_and_shared_identities.md",
+      "file": "tasks/02_Shared_Foundation/auditsphere-r2r-task-t007-reporting-scope-actor-shared-identities.md",
       "work_package": "R2R-02",
       "module_ids": [],
       "depends_on": [
@@ -94,7 +94,7 @@
     },
     {
       "id": "T008",
-      "file": "tasks/02_Shared_Foundation/008_Implement_exact_dependency_manifests_and_atomic_stale_propagation.md",
+      "file": "tasks/02_Shared_Foundation/auditsphere-r2r-task-t008-dependency-manifests-atomic-stale-propagation.md",
       "work_package": "R2R-02",
       "module_ids": [],
       "depends_on": [
@@ -104,7 +104,7 @@
     },
     {
       "id": "T009",
-      "file": "tasks/02_Shared_Foundation/009_Implement_idempotency_concurrency_and_persistence_discipline.md",
+      "file": "tasks/02_Shared_Foundation/auditsphere-r2r-task-t009-idempotency-concurrency-persistence-discipline.md",
       "work_package": "R2R-02",
       "module_ids": [],
       "depends_on": [
@@ -114,7 +114,7 @@
     },
     {
       "id": "T010",
-      "file": "tasks/02_Shared_Foundation/010_Build_shared_Blazor_forms_state_dirty_guards_and_conflict_UI.md",
+      "file": "tasks/02_Shared_Foundation/auditsphere-r2r-task-t010-shared-blazor-forms-state-dirty-guards.md",
       "work_package": "R2R-02",
       "module_ids": [],
       "depends_on": [
@@ -124,7 +124,7 @@
     },
     {
       "id": "T011",
-      "file": "tasks/03_M20_Setup/011_Build_accounting_profiles_fiscal_periods_and_reporting_books.md",
+      "file": "tasks/03_M20_Setup/auditsphere-r2r-task-t011-accounting-profiles-fiscal-periods-books.md",
       "work_package": "R2R-03",
       "module_ids": [
         20
@@ -142,7 +142,7 @@
     },
     {
       "id": "T012",
-      "file": "tasks/03_M20_Setup/012_Build_chart_and_taxonomy_revision_authoring.md",
+      "file": "tasks/03_M20_Setup/auditsphere-r2r-task-t012-chart-taxonomy-revision-authoring.md",
       "work_package": "R2R-03",
       "module_ids": [
         20
@@ -158,7 +158,7 @@
     },
     {
       "id": "T013",
-      "file": "tasks/03_M20_Setup/013_Build_multidimensional_accounting_schema_revisions.md",
+      "file": "tasks/03_M20_Setup/auditsphere-r2r-task-t013-multidimensional-accounting-schema-revisions.md",
       "work_package": "R2R-03",
       "module_ids": [
         20
@@ -172,7 +172,7 @@
     },
     {
       "id": "T014",
-      "file": "tasks/03_M20_Setup/014_Activate_exact_reporting_contexts_and_verify_Module_20_setup.md",
+      "file": "tasks/03_M20_Setup/auditsphere-r2r-task-t014-reporting-contexts-module-20-setup.md",
       "work_package": "R2R-03",
       "module_ids": [
         20
@@ -187,7 +187,7 @@
     },
     {
       "id": "T015",
-      "file": "tasks/04_M21_TB/015_Build_bounded_import_receipts_chunks_and_column_profiles.md",
+      "file": "tasks/04_M21_TB/auditsphere-r2r-task-t015-import-receipts-chunks-column-profiles.md",
       "work_package": "R2R-04",
       "module_ids": [
         21
@@ -205,7 +205,7 @@
     },
     {
       "id": "T016",
-      "file": "tasks/04_M21_TB/016_Implement_CSV_and_genuine_XLSX_validation_with_safe_previews.md",
+      "file": "tasks/04_M21_TB/auditsphere-r2r-task-t016-csv-xlsx-validation-safe-previews.md",
       "work_package": "R2R-04",
       "module_ids": [
         21
@@ -220,7 +220,7 @@
     },
     {
       "id": "T017",
-      "file": "tasks/04_M21_TB/017_Seal_and_accept_TB_revisions_with_replacement_protection.md",
+      "file": "tasks/04_M21_TB/auditsphere-r2r-task-t017-seal-accept-tb-revisions.md",
       "work_package": "R2R-04",
       "module_ids": [
         21
@@ -236,7 +236,7 @@
     },
     {
       "id": "T018",
-      "file": "tasks/05_M21_GL_Mapping/018_Build_resumable_GL_intake_and_journal_drill_down.md",
+      "file": "tasks/05_M21_GL_Mapping/auditsphere-r2r-task-t018-resumable-gl-intake-journal-drilldown.md",
       "work_package": "R2R-05",
       "module_ids": [
         21
@@ -251,7 +251,7 @@
     },
     {
       "id": "T019",
-      "file": "tasks/05_M21_GL_Mapping/019_Build_versioned_account_mappings_manual_splits_and_review.md",
+      "file": "tasks/05_M21_GL_Mapping/auditsphere-r2r-task-t019-versioned-account-mappings-splits-review.md",
       "work_package": "R2R-05",
       "module_ids": [
         21
@@ -268,7 +268,7 @@
     },
     {
       "id": "T020",
-      "file": "tasks/05_M21_GL_Mapping/020_Build_opening_completeness_proofs_and_scoped_source_exports.md",
+      "file": "tasks/05_M21_GL_Mapping/auditsphere-r2r-task-t020-opening-completeness-proofs-scoped-exports.md",
       "work_package": "R2R-05",
       "module_ids": [
         21
@@ -284,7 +284,7 @@
     },
     {
       "id": "T021",
-      "file": "tasks/06_M22_Adjustments/021_Build_arbitrary_line_adjustment_drafts_and_submission.md",
+      "file": "tasks/06_M22_Adjustments/auditsphere-r2r-task-t021-arbitrary-line-adjustment-drafts-submission.md",
       "work_package": "R2R-06",
       "module_ids": [
         22
@@ -302,7 +302,7 @@
     },
     {
       "id": "T022",
-      "file": "tasks/06_M22_Adjustments/022_Implement_adjustment_decisions_revisions_and_reversals.md",
+      "file": "tasks/06_M22_Adjustments/auditsphere-r2r-task-t022-adjustment-decisions-revisions-reversals.md",
       "work_package": "R2R-06",
       "module_ids": [
         22
@@ -319,7 +319,7 @@
     },
     {
       "id": "T023",
-      "file": "tasks/06_M22_Adjustments/023_Build_reflection_treatment_sealed_plans_and_adjusted_TB_snapshots.md",
+      "file": "tasks/06_M22_Adjustments/auditsphere-r2r-task-t023-reflection-treatment-adjusted-tb-snapshots.md",
       "work_package": "R2R-06",
       "module_ids": [
         22
@@ -337,7 +337,7 @@
     },
     {
       "id": "T024",
-      "file": "tasks/07_M23_Reconciliations/024_Build_reconciliation_schedules_and_typed_source_items.md",
+      "file": "tasks/07_M23_Reconciliations/auditsphere-r2r-task-t024-reconciliation-schedules-typed-source-items.md",
       "work_package": "R2R-07",
       "module_ids": [
         23
@@ -355,7 +355,7 @@
     },
     {
       "id": "T025",
-      "file": "tasks/07_M23_Reconciliations/025_Implement_reconciliation_proof_and_correction_journal_handoff.md",
+      "file": "tasks/07_M23_Reconciliations/auditsphere-r2r-task-t025-reconciliation-proof-correction-journals.md",
       "work_package": "R2R-07",
       "module_ids": [
         23
@@ -370,7 +370,7 @@
     },
     {
       "id": "T026",
-      "file": "tasks/07_M23_Reconciliations/026_Implement_reconciliation_review_rework_and_export.md",
+      "file": "tasks/07_M23_Reconciliations/auditsphere-r2r-task-t026-reconciliation-review-rework-export.md",
       "work_package": "R2R-07",
       "module_ids": [
         23
@@ -388,7 +388,7 @@
     },
     {
       "id": "T027",
-      "file": "tasks/08_M24_Statements/027_Build_bounded_statement_layout_definitions_and_publication.md",
+      "file": "tasks/08_M24_Statements/auditsphere-r2r-task-t027-statement-layout-definitions-publication.md",
       "work_package": "R2R-08",
       "module_ids": [
         24
@@ -403,7 +403,7 @@
     },
     {
       "id": "T028",
-      "file": "tasks/08_M24_Statements/028_Implement_comparative_basis_selection_and_historical_differences.md",
+      "file": "tasks/08_M24_Statements/auditsphere-r2r-task-t028-comparative-basis-selection-differences.md",
       "work_package": "R2R-08",
       "module_ids": [
         24
@@ -418,7 +418,7 @@
     },
     {
       "id": "T029",
-      "file": "tasks/08_M24_Statements/029_Build_canonical_statement_sets_and_exact_line_drill_down.md",
+      "file": "tasks/08_M24_Statements/auditsphere-r2r-task-t029-canonical-statement-sets-line-drilldown.md",
       "work_package": "R2R-08",
       "module_ids": [
         24
@@ -435,7 +435,7 @@
     },
     {
       "id": "T030",
-      "file": "tasks/09_M24_Supplements/030_Build_source_backed_cash_flow_schedules.md",
+      "file": "tasks/09_M24_Supplements/auditsphere-r2r-task-t030-source-backed-cash-flow-schedules.md",
       "work_package": "R2R-09",
       "module_ids": [
         24
@@ -449,7 +449,7 @@
     },
     {
       "id": "T031",
-      "file": "tasks/09_M24_Supplements/031_Build_equity_movement_schedules.md",
+      "file": "tasks/09_M24_Supplements/auditsphere-r2r-task-t031-equity-movement-schedules.md",
       "work_package": "R2R-09",
       "module_ids": [
         24
@@ -463,7 +463,7 @@
     },
     {
       "id": "T032",
-      "file": "tasks/09_M24_Supplements/032_Build_disclosure_notes_and_reviewed_applicability.md",
+      "file": "tasks/09_M24_Supplements/auditsphere-r2r-task-t032-disclosure-notes-reviewed-applicability.md",
       "work_package": "R2R-09",
       "module_ids": [
         24
@@ -478,7 +478,7 @@
     },
     {
       "id": "T033",
-      "file": "tasks/09_M24_Supplements/033_Complete_statement_review_and_restatement_lifecycle.md",
+      "file": "tasks/09_M24_Supplements/auditsphere-r2r-task-t033-statement-review-restatement-lifecycle.md",
       "work_package": "R2R-09",
       "module_ids": [
         24
@@ -497,7 +497,7 @@
     },
     {
       "id": "T034",
-      "file": "tasks/10_M25_Packages/034_Persist_financial_package_composition_and_revisions.md",
+      "file": "tasks/10_M25_Packages/auditsphere-r2r-task-t034-financial-package-composition-revisions.md",
       "work_package": "R2R-10",
       "module_ids": [
         25
@@ -513,7 +513,7 @@
     },
     {
       "id": "T035",
-      "file": "tasks/10_M25_Packages/035_Render_genuine_XLSX_DOCX_and_PDF_with_durable_operations.md",
+      "file": "tasks/10_M25_Packages/auditsphere-r2r-task-t035-render-xlsx-docx-pdf-durable-operations.md",
       "work_package": "R2R-10",
       "module_ids": [
         25
@@ -528,7 +528,7 @@
     },
     {
       "id": "T036",
-      "file": "tasks/10_M25_Packages/036_Validate_artifact_sets_and_atomically_seal_packages.md",
+      "file": "tasks/10_M25_Packages/auditsphere-r2r-task-t036-validate-artifact-sets-seal-packages.md",
       "work_package": "R2R-10",
       "module_ids": [
         25
@@ -544,7 +544,7 @@
     },
     {
       "id": "T037",
-      "file": "tasks/10_M25_Packages/037_Implement_exact_package_decisions_downloads_and_release_readiness.md",
+      "file": "tasks/10_M25_Packages/auditsphere-r2r-task-t037-package-decisions-downloads-release-readiness.md",
       "work_package": "R2R-10",
       "module_ids": [
         25
@@ -561,7 +561,7 @@
     },
     {
       "id": "T038",
-      "file": "tasks/11_Entity_Close/038_Implement_close_readiness_and_controlled_period_close.md",
+      "file": "tasks/11_Entity_Close/auditsphere-r2r-task-t038-close-readiness-controlled-period-close.md",
       "work_package": "R2R-11",
       "module_ids": [
         20
@@ -578,7 +578,7 @@
     },
     {
       "id": "T039",
-      "file": "tasks/11_Entity_Close/039_Implement_period_amendments_and_controlled_opening_roll_forward.md",
+      "file": "tasks/11_Entity_Close/auditsphere-r2r-task-t039-period-amendments-opening-rollforward.md",
       "work_package": "R2R-11",
       "module_ids": [
         20,
@@ -595,7 +595,7 @@
     },
     {
       "id": "T040",
-      "file": "tasks/11_Entity_Close/040_Integrate_entity_package_release_and_logical_archive_handoffs.md",
+      "file": "tasks/11_Entity_Close/auditsphere-r2r-task-t040-entity-package-release-logical-archive.md",
       "work_package": "R2R-11",
       "module_ids": [
         20,
@@ -608,7 +608,7 @@
     },
     {
       "id": "T041",
-      "file": "tasks/12_M26_Perimeter/041_Build_controlled_group_perimeters_and_group_authorization.md",
+      "file": "tasks/12_M26_Perimeter/auditsphere-r2r-task-t041-group-perimeters-authorization.md",
       "work_package": "R2R-12",
       "module_ids": [
         26
@@ -625,7 +625,7 @@
     },
     {
       "id": "T042",
-      "file": "tasks/12_M26_Perimeter/042_Pin_and_replace_approved_component_packages.md",
+      "file": "tasks/12_M26_Perimeter/auditsphere-r2r-task-t042-pin-replace-component-packages.md",
       "work_package": "R2R-12",
       "module_ids": [
         26
@@ -641,7 +641,7 @@
     },
     {
       "id": "T043",
-      "file": "tasks/13_M26_FX/043_Implement_rate_policies_and_reproducible_FX_translation.md",
+      "file": "tasks/13_M26_FX/auditsphere-r2r-task-t043-rate-policies-reproducible-fx-translation.md",
       "work_package": "R2R-13",
       "module_ids": [
         26
@@ -659,7 +659,7 @@
     },
     {
       "id": "T044",
-      "file": "tasks/13_M26_FX/044_Implement_manual_intercompany_pair_review_and_exceptions.md",
+      "file": "tasks/13_M26_FX/auditsphere-r2r-task-t044-manual-intercompany-pair-review-exceptions.md",
       "work_package": "R2R-13",
       "module_ids": [
         26
@@ -674,7 +674,7 @@
     },
     {
       "id": "T045",
-      "file": "tasks/14_M26_Output/045_Build_balanced_elimination_journals_and_independent_review.md",
+      "file": "tasks/14_M26_Output/auditsphere-r2r-task-t045-balanced-elimination-journals-review.md",
       "work_package": "R2R-14",
       "module_ids": [
         26
@@ -690,7 +690,7 @@
     },
     {
       "id": "T046",
-      "file": "tasks/14_M26_Output/046_Build_deterministic_consolidation_results_and_independent_review.md",
+      "file": "tasks/14_M26_Output/auditsphere-r2r-task-t046-deterministic-consolidation-results-review.md",
       "work_package": "R2R-14",
       "module_ids": [
         26
@@ -707,7 +707,7 @@
     },
     {
       "id": "T047",
-      "file": "tasks/14_M26_Output/047_Assemble_reviewed_group_packages_through_the_shared_artifact_kernel.md",
+      "file": "tasks/14_M26_Output/auditsphere-r2r-task-t047-assemble-group-packages-artifact-kernel.md",
       "work_package": "R2R-14",
       "module_ids": [
         25,
@@ -722,7 +722,7 @@
     },
     {
       "id": "T048",
-      "file": "tasks/15_Acceptance/048_Verify_cross_module_authority_replay_and_race_conditions.md",
+      "file": "tasks/15_Acceptance/auditsphere-r2r-task-t048-cross-module-authority-replay-race-conditions.md",
       "work_package": "R2R-15",
       "module_ids": [
         20,
@@ -741,7 +741,7 @@
     },
     {
       "id": "T049",
-      "file": "tasks/15_Acceptance/049_Execute_complete_entity_and_group_accounting_acceptance_journeys.md",
+      "file": "tasks/15_Acceptance/auditsphere-r2r-task-t049-entity-group-accounting-acceptance-journeys.md",
       "work_package": "R2R-15",
       "module_ids": [
         20,
@@ -759,7 +759,7 @@
     },
     {
       "id": "T050",
-      "file": "tasks/15_Acceptance/050_Verify_schema_upgrades_restore_bounded_performance_and_output_safety.md",
+      "file": "tasks/15_Acceptance/auditsphere-r2r-task-t050-schema-upgrades-restore-bounded-performance.md",
       "work_package": "R2R-15",
       "module_ids": [
         20,
@@ -777,7 +777,7 @@
     },
     {
       "id": "T051",
-      "file": "tasks/15_Acceptance/051_Reconcile_every_requirement_and_freeze_the_verified_release_candidate.md",
+      "file": "tasks/15_Acceptance/auditsphere-r2r-task-t051-freeze-verified-release-candidate.md",
       "work_package": "R2R-15",
       "module_ids": [
         20,
@@ -795,7 +795,7 @@
     },
     {
       "id": "T052",
-      "file": "tasks/16_Deployment/052_Rehearse_staged_deployment_and_migrations.md",
+      "file": "tasks/16_Deployment/auditsphere-r2r-task-t052-rehearse-staged-deployment-migrations.md",
       "work_package": "R2R-16",
       "module_ids": [
         20,
@@ -813,7 +813,7 @@
     },
     {
       "id": "T053",
-      "file": "tasks/16_Deployment/053_Verify_enabled_Microsoft_dependencies_and_complete_operator_handover.md",
+      "file": "tasks/16_Deployment/auditsphere-r2r-task-t053-verify-microsoft-dependencies-operator-handover.md",
       "work_package": "R2R-16",
       "module_ids": [
         20,
@@ -831,7 +831,7 @@
     },
     {
       "id": "T054",
-      "file": "tasks/16_Deployment/054_Obtain_final_production_acceptance_and_record_the_handover.md",
+      "file": "tasks/16_Deployment/auditsphere-r2r-task-t054-production-acceptance-handover.md",
       "work_package": "R2R-16",
       "module_ids": [
         20,
@@ -849,7 +849,7 @@
     },
     {
       "id": "T055",
-      "file": "tasks/17_Audit_Foundation/055_Publish_versioned_audit_program_library.md",
+      "file": "tasks/17_Audit_Foundation/auditsphere-audit-task-t055-audit-program-library.md",
       "work_package": "AUD-17",
       "module_ids": [],
       "depends_on": [
@@ -859,7 +859,7 @@
     },
     {
       "id": "T056",
-      "file": "tasks/17_Audit_Foundation/056_Instantiate_and_tailor_engagement_audit_programs.md",
+      "file": "tasks/17_Audit_Foundation/auditsphere-audit-task-t056-engagement-audit-programs.md",
       "work_package": "AUD-17",
       "module_ids": [],
       "depends_on": [
@@ -870,7 +870,7 @@
     },
     {
       "id": "T057",
-      "file": "tasks/17_Audit_Foundation/057_Reconcile_audit_lead_schedules_and_source_populations.md",
+      "file": "tasks/17_Audit_Foundation/auditsphere-audit-task-t057-lead-schedules-source-populations.md",
       "work_package": "AUD-17",
       "module_ids": [],
       "depends_on": [
@@ -881,7 +881,7 @@
     },
     {
       "id": "T058",
-      "file": "tasks/17_Audit_Foundation/058_Implement_audit_sampling_item_testing_and_subsequent_matching.md",
+      "file": "tasks/17_Audit_Foundation/auditsphere-audit-task-t058-sampling-item-testing.md",
       "work_package": "AUD-17",
       "module_ids": [],
       "depends_on": [
@@ -891,7 +891,7 @@
     },
     {
       "id": "T059",
-      "file": "tasks/17_Audit_Foundation/059_Manage_audit_confirmations_and_alternative_procedures.md",
+      "file": "tasks/17_Audit_Foundation/auditsphere-audit-task-t059-confirmations-alternative-procedures.md",
       "work_package": "AUD-17",
       "module_ids": [],
       "depends_on": [
@@ -901,7 +901,7 @@
     },
     {
       "id": "T060",
-      "file": "tasks/18_Audit_Fieldwork_Core/060_Implement_audit_planning_materiality_and_risk_assessment.md",
+      "file": "tasks/18_Audit_Fieldwork_Core/auditsphere-audit-task-t060-opening-balance-verification.md",
       "work_package": "AUD-18",
       "module_ids": [],
       "depends_on": [
@@ -912,7 +912,7 @@
     },
     {
       "id": "T061",
-      "file": "tasks/18_Audit_Fieldwork_Core/061_Implement_cash_and_bank_audit_workpapers.md",
+      "file": "tasks/18_Audit_Fieldwork_Core/auditsphere-audit-task-t061-cash-bank-workpapers.md",
       "work_package": "AUD-18",
       "module_ids": [],
       "depends_on": [
@@ -924,7 +924,7 @@
     },
     {
       "id": "T062",
-      "file": "tasks/18_Audit_Fieldwork_Core/062_Implement_trade_receivables_and_allowance_audit_workpapers.md",
+      "file": "tasks/18_Audit_Fieldwork_Core/auditsphere-audit-task-t062-receivables-allowance-workpapers.md",
       "work_package": "AUD-18",
       "module_ids": [],
       "depends_on": [
@@ -936,7 +936,7 @@
     },
     {
       "id": "T063",
-      "file": "tasks/18_Audit_Fieldwork_Core/063_Implement_inventory_count_costing_and_nrv_audit_workpapers.md",
+      "file": "tasks/18_Audit_Fieldwork_Core/auditsphere-audit-task-t063-inventory-count-costing-nrv.md",
       "work_package": "AUD-18",
       "module_ids": [],
       "depends_on": [
@@ -947,7 +947,7 @@
     },
     {
       "id": "T064",
-      "file": "tasks/18_Audit_Fieldwork_Core/064_Implement_revenue_testing_and_cut_off_audit_workpapers.md",
+      "file": "tasks/18_Audit_Fieldwork_Core/auditsphere-audit-task-t064-revenue-testing-cutoff.md",
       "work_package": "AUD-18",
       "module_ids": [],
       "depends_on": [
@@ -958,7 +958,7 @@
     },
     {
       "id": "T065",
-      "file": "tasks/18_Audit_Fieldwork_Core/065_Implement_purchases_payables_and_unrecorded_liabilities_audit_workpapers.md",
+      "file": "tasks/18_Audit_Fieldwork_Core/auditsphere-audit-task-t065-payables-unrecorded-liabilities.md",
       "work_package": "AUD-18",
       "module_ids": [],
       "depends_on": [
@@ -970,7 +970,7 @@
     },
     {
       "id": "T066",
-      "file": "tasks/19_Audit_Fieldwork_Extended/066_Implement_fixed_assets_audit_workpapers.md",
+      "file": "tasks/19_Audit_Fieldwork_Extended/auditsphere-audit-task-t066-fixed-assets-workpapers.md",
       "work_package": "AUD-19",
       "module_ids": [],
       "depends_on": [
@@ -981,7 +981,7 @@
     },
     {
       "id": "T067",
-      "file": "tasks/19_Audit_Fieldwork_Extended/067_Implement_expenses_vouching_and_cut_off_audit_workpapers.md",
+      "file": "tasks/19_Audit_Fieldwork_Extended/auditsphere-audit-task-t067-expenses-vouching-cutoff.md",
       "work_package": "AUD-19",
       "module_ids": [],
       "depends_on": [
@@ -993,7 +993,7 @@
     },
     {
       "id": "T068",
-      "file": "tasks/19_Audit_Fieldwork_Extended/068_Implement_payroll_audit_workpapers.md",
+      "file": "tasks/19_Audit_Fieldwork_Extended/auditsphere-audit-task-t068-payroll-workpapers.md",
       "work_package": "AUD-19",
       "module_ids": [],
       "depends_on": [
@@ -1004,7 +1004,7 @@
     },
     {
       "id": "T069",
-      "file": "tasks/19_Audit_Fieldwork_Extended/069_Implement_loans_borrowings_and_covenant_audit_workpapers.md",
+      "file": "tasks/19_Audit_Fieldwork_Extended/auditsphere-audit-task-t069-loans-borrowings-covenants.md",
       "work_package": "AUD-19",
       "module_ids": [],
       "depends_on": [
@@ -1015,7 +1015,7 @@
     },
     {
       "id": "T070",
-      "file": "tasks/19_Audit_Fieldwork_Extended/070_Implement_related_parties_audit_workpapers.md",
+      "file": "tasks/19_Audit_Fieldwork_Extended/auditsphere-audit-task-t070-related-parties-workpapers.md",
       "work_package": "AUD-19",
       "module_ids": [],
       "depends_on": [
@@ -1025,7 +1025,7 @@
     },
     {
       "id": "T071",
-      "file": "tasks/19_Audit_Fieldwork_Extended/071_Implement_tax_and_statutory_liabilities_audit_workpapers.md",
+      "file": "tasks/19_Audit_Fieldwork_Extended/auditsphere-audit-task-t071-tax-statutory-liabilities.md",
       "work_package": "AUD-19",
       "module_ids": [],
       "depends_on": [
@@ -1035,7 +1035,7 @@
     },
     {
       "id": "T072",
-      "file": "tasks/19_Audit_Fieldwork_Extended/072_Implement_journal_entries_and_fraud_risk_audit_testing.md",
+      "file": "tasks/19_Audit_Fieldwork_Extended/auditsphere-audit-task-t072-journal-entries-fraud-risk.md",
       "work_package": "AUD-19",
       "module_ids": [],
       "depends_on": [
@@ -1047,7 +1047,7 @@
     },
     {
       "id": "T073",
-      "file": "tasks/20_Audit_Completion/073_Implement_substantive_and_final_analytical_review.md",
+      "file": "tasks/20_Audit_Completion/auditsphere-audit-task-t073-substantive-final-analytical-review.md",
       "work_package": "AUD-20",
       "module_ids": [],
       "depends_on": [
@@ -1058,7 +1058,7 @@
     },
     {
       "id": "T074",
-      "file": "tasks/20_Audit_Completion/074_Implement_going_concern_audit_evaluation.md",
+      "file": "tasks/20_Audit_Completion/auditsphere-audit-task-t074-going-concern-evaluation.md",
       "work_package": "AUD-20",
       "module_ids": [],
       "depends_on": [
@@ -1069,7 +1069,7 @@
     },
     {
       "id": "T075",
-      "file": "tasks/20_Audit_Completion/075_Implement_subsequent_events_audit_review.md",
+      "file": "tasks/20_Audit_Completion/auditsphere-audit-task-t075-subsequent-events-review.md",
       "work_package": "AUD-20",
       "module_ids": [],
       "depends_on": [
@@ -1132,7 +1132,7 @@
       "id": "R2R-08",
       "description": "M24 versioned layout, current/prior balances, line drill-down and statement-set snapshots",
       "depends": "R2R-07",
-      "exit": "Approved mapping → exact current/prior lines; no parent/child double count; missing prior visible."
+      "exit": "Approved mapping \u2192 exact current/prior lines; no parent/child double count; missing prior visible."
     },
     {
       "id": "R2R-09",
@@ -1148,7 +1148,7 @@
     },
     {
       "id": "R2R-11",
-      "description": "M20 close/amendment and entity package→review→release/archive boundary integration",
+      "description": "M20 close/amendment and entity package\u2192review\u2192release/archive boundary integration",
       "depends": "R2R-10",
       "exit": "End-to-end entity lifecycle, fresh amendment and prior-period opening bridge without historical mutation."
     },
@@ -1599,7 +1599,7 @@
     {
       "id": "VP-043-AC03",
       "story": "VP-043",
-      "wording": "Adding a component does not expand the operator’s access to its unrelated engagements; narrow group access exposes only approved component projections.",
+      "wording": "Adding a component does not expand the operator\u2019s access to its unrelated engagements; narrow group access exposes only approved component projections.",
       "original_status": "Planned; exact production test/run evidence required",
       "owner": 42
     },
@@ -1627,7 +1627,7 @@
     {
       "id": "VP-044-AC03",
       "story": "VP-044",
-      "wording": "The fixture’s translated values and rounding reconcile to published test expectations; every rate and translation difference is traceable.",
+      "wording": "The fixture\u2019s translated values and rounding reconcile to published test expectations; every rate and translation difference is traceable.",
       "original_status": "Planned; exact production test/run evidence required",
       "owner": 43
     },
@@ -1699,7 +1699,7 @@
     {
       "id": "R2R-AT-01",
       "n": 1,
-      "scenario": "New entity context → TB/GL → mapping → AJE → reconciliation → statements → package → close",
+      "scenario": "New entity context \u2192 TB/GL \u2192 mapping \u2192 AJE \u2192 reconciliation \u2192 statements \u2192 package \u2192 close",
       "expected": "Every displayed/exported amount reconciles to the same scope and exact inputs; no draft step is silently skipped."
     },
     {
@@ -1881,63 +1881,63 @@
     {
       "id": "GOLD-R2R-01",
       "n": 1,
-      "title": "GOLD-R2R-01 — raw/adjusted TB",
-      "inputs": "Signed raw rows: Cash 10,000; AR 3,000; Equipment 5,000; AP −4,000; Share capital −10,000; Revenue −8,000; Expense 4,000. AJE: Dr depreciation expense 100, Cr accumulated depreciation 100.",
+      "title": "GOLD-R2R-01 \u2014 raw/adjusted TB",
+      "inputs": "Signed raw rows: Cash 10,000; AR 3,000; Equipment 5,000; AP \u22124,000; Share capital \u221210,000; Revenue \u22128,000; Expense 4,000. AJE: Dr depreciation expense 100, Cr accumulated depreciation 100.",
       "expected": "Raw signed total 0; delta total 0; adjusted signed total 0. Raw assets 18,000/profit 4,000; adjusted assets 17,900/profit 3,900/equity 13,900/liabilities 4,000. Raw rows unchanged."
     },
     {
       "id": "GOLD-R2R-02",
       "n": 2,
-      "title": "GOLD-R2R-02 — mapping micro-unit",
+      "title": "GOLD-R2R-02 \u2014 mapping micro-unit",
       "inputs": "Amount 0.010000 split by 0.333333, 0.333333, 0.333334, stable target order; six-decimal ToEven and last-destination residual.",
       "expected": "Allocated 0.003333, 0.003333, 0.003334; sum 0.010000. No unexplained account or loss of 0.000001."
     },
     {
       "id": "GOLD-R2R-03",
       "n": 3,
-      "title": "GOLD-R2R-03 — bank proof",
-      "inputs": "Ledger 10,000; supporting bank statement 10,200; deposit in transit +500; outstanding cheque −800; accepted unreflected ledger bank fee −100.",
+      "title": "GOLD-R2R-03 \u2014 bank proof",
+      "inputs": "Ledger 10,000; supporting bank statement 10,200; deposit in transit +500; outstanding cheque \u2212800; accepted unreflected ledger bank fee \u2212100.",
       "expected": "Explained ledger 9,900; explained support 9,900; residual 0. If ledger basis is already adjusted to 9,900, fee is not added again."
     },
     {
       "id": "GOLD-R2R-04",
       "n": 4,
-      "title": "GOLD-R2R-04 — cash flow",
-      "inputs": "Opening cash 1,000; operating +200; investing −300; financing +100; FX cash effect +10; separate noncash lease 500.",
+      "title": "GOLD-R2R-04 \u2014 cash flow",
+      "inputs": "Opening cash 1,000; operating +200; investing \u2212300; financing +100; FX cash effect +10; separate noncash lease 500.",
       "expected": "Closing cash 1,010; noncash lease excluded from cash arithmetic and separately disclosed."
     },
     {
       "id": "GOLD-R2R-05",
       "n": 5,
-      "title": "GOLD-R2R-05 — equity",
-      "inputs": "Opening 5,000 + profit 900 + OCI 50 + contributions 400 − distributions 200 − approved opening error adjustment 100.",
+      "title": "GOLD-R2R-05 \u2014 equity",
+      "inputs": "Opening 5,000 + profit 900 + OCI 50 + contributions 400 \u2212 distributions 200 \u2212 approved opening error adjustment 100.",
       "expected": "Closing equity 6,050; error adjustment is not current profit."
     },
     {
       "id": "GOLD-R2R-06",
       "n": 6,
-      "title": "GOLD-R2R-06 — whole-owned group",
-      "inputs": "Parent: Cash 5,000; IC AR 1,000; Investment 2,000; capital/retained equity −8,000. Subsidiary: Cash 1,500; inventory 1,500; IC AP −1,000; capital −2,000.",
+      "title": "GOLD-R2R-06 \u2014 whole-owned group",
+      "inputs": "Parent: Cash 5,000; IC AR 1,000; Investment 2,000; capital/retained equity \u22128,000. Subsidiary: Cash 1,500; inventory 1,500; IC AP \u22121,000; capital \u22122,000.",
       "expected": "Combined assets 11,000. Eliminate IC AR/AP 1,000 and investment/subsidiary equity 2,000: group assets 8,000, liabilities 0, parent equity 8,000. Both source TBs unchanged."
     },
     {
       "id": "GOLD-R2R-07",
       "n": 7,
-      "title": "GOLD-R2R-07 — FX bridge",
-      "inputs": "Synthetic foreign entity: cash 100; capital −80; revenue −40; expense 20. Closing rate 4, historical capital rate 3.5, representative income/expense rate 3.6. These rates are test values, not market quotations.",
-      "expected": "Cash 400; capital −280; revenue −144; expense 72; calculated translation reserve −48; signed sum 0. Equity = capital 280 + profit 72 + reserve 48 = 400. A universal closing rate would give a different and prohibited treatment."
+      "title": "GOLD-R2R-07 \u2014 FX bridge",
+      "inputs": "Synthetic foreign entity: cash 100; capital \u221280; revenue \u221240; expense 20. Closing rate 4, historical capital rate 3.5, representative income/expense rate 3.6. These rates are test values, not market quotations.",
+      "expected": "Cash 400; capital \u2212280; revenue \u2212144; expense 72; calculated translation reserve \u221248; signed sum 0. Equity = capital 280 + profit 72 + reserve 48 = 400. A universal closing rate would give a different and prohibited treatment."
     },
     {
       "id": "GOLD-R2R-08",
       "n": 8,
-      "title": "GOLD-R2R-08 — source reflection",
+      "title": "GOLD-R2R-08 \u2014 source reflection",
       "inputs": "New accepted raw TB contains GOLD-01's 100 depreciation AJE; exact reflection evidence says Reflected.",
       "expected": "Reporting delta for that journal is 0, assets/profit remain 17,900/3,900, not 17,800/3,800. Old raw and adjusted snapshots remain available."
     }
   ],
   "source_reference_ranges": [
     {
-      "file": "reference/00_Scope_and_Evidence_Boundaries.md",
+      "file": "reference/auditsphere-r2r-reference-scope-and-evidence-boundaries.md",
       "ranges": [
         [
           35,
@@ -1946,7 +1946,7 @@
       ]
     },
     {
-      "file": "reference/01_Baseline_Architecture_and_ADRs.md",
+      "file": "reference/auditsphere-r2r-reference-baseline-architecture-and-adrs.md",
       "ranges": [
         [
           79,
@@ -1955,7 +1955,7 @@
       ]
     },
     {
-      "file": "reference/02_Standards_and_Source_Register.md",
+      "file": "reference/auditsphere-r2r-reference-standards-and-source-register.md",
       "ranges": [
         [
           151,
@@ -1968,7 +1968,7 @@
       ]
     },
     {
-      "file": "reference/03_Shared_Domain_Persistence_CQRS_Blazor.md",
+      "file": "reference/auditsphere-r2r-reference-shared-domain-persistence-cqrs-blazor.md",
       "ranges": [
         [
           177,
@@ -1977,7 +1977,7 @@
       ]
     },
     {
-      "file": "reference/04_Lifecycle_Lineage_and_Module_Ports.md",
+      "file": "reference/auditsphere-r2r-reference-lifecycle-lineage-and-module-ports.md",
       "ranges": [
         [
           286,
@@ -1990,7 +1990,7 @@
       ]
     },
     {
-      "file": "reference/05_Execution_Coordination_and_Handover.md",
+      "file": "reference/auditsphere-r2r-reference-execution-coordination-and-handover.md",
       "ranges": [
         [
           1221,
@@ -2007,7 +2007,7 @@
       ]
     },
     {
-      "file": "reference/06_Contract_Clarifications_and_Resource_Limits.md",
+      "file": "reference/auditsphere-r2r-reference-contract-clarifications-and-resource-limits.md",
       "ranges": [
         [
           1475,
@@ -2016,7 +2016,7 @@
       ]
     },
     {
-      "file": "reference/07_Golden_Fixtures_and_Integration_Journeys.md",
+      "file": "reference/auditsphere-r2r-reference-golden-fixtures-and-integration-journeys.md",
       "ranges": [
         [
           1309,
@@ -2025,7 +2025,7 @@
       ]
     },
     {
-      "file": "reference/08_Original_52_Acceptance_Criteria.md",
+      "file": "reference/auditsphere-r2r-reference-original-52-acceptance-criteria.md",
       "ranges": [
         [
           1519,
@@ -2034,7 +2034,7 @@
       ]
     },
     {
-      "file": "modules/20_Accounting_Contract.md",
+      "file": "modules/auditsphere-r2r-module-20-accounting-workspace-contract.md",
       "ranges": [
         [
           349,
@@ -2043,7 +2043,7 @@
       ]
     },
     {
-      "file": "modules/21_Trial_Balance_and_GL_Contract.md",
+      "file": "modules/auditsphere-r2r-module-21-trial-balance-gl-contract.md",
       "ranges": [
         [
           479,
@@ -2052,7 +2052,7 @@
       ]
     },
     {
-      "file": "modules/22_Adjustments_and_Journals_Contract.md",
+      "file": "modules/auditsphere-r2r-module-22-adjustments-journals-contract.md",
       "ranges": [
         [
           615,
@@ -2061,7 +2061,7 @@
       ]
     },
     {
-      "file": "modules/23_Reconciliations_Contract.md",
+      "file": "modules/auditsphere-r2r-module-23-reconciliations-specialist-schedules-contract.md",
       "ranges": [
         [
           730,
@@ -2070,7 +2070,7 @@
       ]
     },
     {
-      "file": "modules/24_Financial_Statements_Contract.md",
+      "file": "modules/auditsphere-r2r-module-24-financial-statements-contract.md",
       "ranges": [
         [
           841,
@@ -2079,7 +2079,7 @@
       ]
     },
     {
-      "file": "modules/25_Financial_Packages_Contract.md",
+      "file": "modules/auditsphere-r2r-module-25-financial-packages-contract.md",
       "ranges": [
         [
           965,
@@ -2088,7 +2088,7 @@
       ]
     },
     {
-      "file": "modules/26_Consolidation_Contract.md",
+      "file": "modules/auditsphere-r2r-module-26-consolidation-contract.md",
       "ranges": [
         [
           1081,

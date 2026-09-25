@@ -119,7 +119,7 @@ def generated_blocks(tasks,manifest):
 
 def refresh():
     manifest=load_manifest();tasks=load_tasks(manifest)
-    path=ROOT/'00_INDEX.md';text=path.read_text(encoding='utf-8')
+    path=ROOT/'auditsphere-r2r-index-task-breakdown.md';text=path.read_text(encoding='utf-8')
     for name,new in generated_blocks(tasks,manifest).items():
         pattern=rf'<!-- BEGIN {name} -->\n.*?<!-- END {name} -->'
         replacement=f'<!-- BEGIN {name} -->\n{new}\n<!-- END {name} -->'
@@ -149,9 +149,9 @@ def completion_errors(task_id,tasks):
     for d in m['depends_on']:
         if tasks[d][1]['status']!='COMPLETED':errors.append(f'{task_id}: dependency {d} is not COMPLETED')
     if task_id in {'T051','T054'}:
-        ac=(ROOT/'coverage/02_Acceptance_Criteria_Tracking.md').read_text(encoding='utf-8')
-        at=(ROOT/'coverage/03_Integration_Journey_Tracking.md').read_text(encoding='utf-8')
-        fx=(ROOT/'coverage/04_Golden_Fixture_Tracking.md').read_text(encoding='utf-8')
+        ac=(ROOT/'coverage/auditsphere-r2r-tracker-acceptance-criteria.md').read_text(encoding='utf-8')
+        at=(ROOT/'coverage/auditsphere-r2r-tracker-integration-journeys.md').read_text(encoding='utf-8')
+        fx=(ROOT/'coverage/auditsphere-r2r-tracker-golden-fixtures.md').read_text(encoding='utf-8')
         if len(re.findall(r'^\| PASS \|',ac,re.M))!=52:errors.append(f'{task_id}: all 52 criteria need separately recorded PASS evidence')
         if len(re.findall(r'^\| PASS \|',at,re.M))!=30:errors.append(f'{task_id}: all 30 journeys need separately recorded PASS evidence')
         if len(re.findall(r'^\| APPROVED \| PASS \|',fx,re.M))!=8:errors.append(f'{task_id}: all 8 fixtures need approved policy and observed PASS evidence')
@@ -194,7 +194,7 @@ def validate_audit_workflow(manifest, tasks):
     if len(src_stories) != 28: errors.append(f"Audit source must contain 28 stories, found {len(src_stories)}")
     if len(src_acs) != 258: errors.append(f"Audit source must contain 258 acceptance criteria, found {len(src_acs)}")
     if len(src_awps) != 165: errors.append(f"Audit source must contain 165 AWP procedures, found {len(src_awps)}")
-    trace_file = ROOT / 'tracking/AUDIT_WORKFLOW_TRACEABILITY.md'
+    trace_file = ROOT / 'tracking/auditsphere-audit-tracker-workflow-traceability.md'
     if not trace_file.is_file():
         errors.append('Audit traceability ledger missing')
         return errors, stats
@@ -301,9 +301,9 @@ def validate():
     errors=[];manifest=load_manifest();tasks=load_tasks(manifest)
     ids=[r['id'] for r in manifest['tasks']]
     if len(ids)!=len(manifest['tasks']) or len(set(ids))!=len(manifest['tasks']):errors.append(f"Task inventory must contain exactly {len(manifest['tasks'])} distinct IDs")
-    source=ROOT/'source/ORIGINAL_R2R_Blueprint_Modules_20-26.md'
+    source=ROOT/'source/auditsphere-r2r-source-blueprint-modules-20-26-historical.md'
     source_bytes=source.read_bytes()
-    if not source_bytes.decode('utf-8').startswith(STATUS_BANNER):errors.append('ORIGINAL_R2R_Blueprint_Modules_20-26.md: preserved source must start with the HISTORICAL_SOURCE status banner')
+    if not source_bytes.decode('utf-8').startswith(STATUS_BANNER):errors.append('auditsphere-r2r-source-blueprint-modules-20-26-historical.md: preserved source must start with the HISTORICAL_SOURCE status banner')
     if hashlib.sha256(strip_status_banner(source_bytes)).hexdigest()!=manifest['source_sha256']:errors.append('Original source hash mismatch')
     source_text=source.read_text(encoding='utf-8')
     source_commands=set(re.findall(r'^\| `(\w+(?:Command|Query))\(',source_text,re.M))
@@ -367,8 +367,8 @@ def validate():
             if not dest.is_file():errors.append(f'{path.name}: missing link target: {target}')
             elif fragment and unquote(fragment) not in anchors.get(dest,set()):errors.append(f'{path.name}: missing anchor: {target}')
     for x in manifest['criteria']:
-        if x['wording'] not in (ROOT/'coverage/02_Acceptance_Criteria_Tracking.md').read_text(encoding='utf-8'):errors.append(f'{x["id"]}: original wording missing')
-    index=(ROOT/'00_INDEX.md').read_text(encoding='utf-8')
+        if x['wording'] not in (ROOT/'coverage/auditsphere-r2r-tracker-acceptance-criteria.md').read_text(encoding='utf-8'):errors.append(f'{x["id"]}: original wording missing')
+    index=(ROOT/'auditsphere-r2r-index-task-breakdown.md').read_text(encoding='utf-8')
     for name,expected in generated_blocks(tasks,manifest).items():
         current=re.search(rf'<!-- BEGIN {name} -->\n(.*?)\n<!-- END {name} -->',index,re.S)
         if not current or current[1]!=expected:errors.append(f'Index {name} is stale; run refresh')
@@ -392,7 +392,7 @@ def validate():
 def log_change(task_id,old,new,actor,reason):
     stamp=dt.datetime.now(dt.timezone.utc).isoformat(timespec='seconds')
     clean=lambda x:str(x).replace('|','/').replace('\n',' ')
-    with (ROOT/'tracking/STATUS_HISTORY.md').open('a',encoding='utf-8') as f:
+    with (ROOT/'tracking/auditsphere-r2r-tracker-status-history.md').open('a',encoding='utf-8') as f:
         f.write(f'| {stamp} | {task_id} | {old} | {new} | {clean(actor)} | {clean(reason)} |\n')
 
 

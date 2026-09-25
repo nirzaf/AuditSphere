@@ -5,7 +5,7 @@ using AuditSphereOps.Domain.Shared;
 namespace AuditSphereOps.Domain.Tests;
 
 /// <summary>
-/// Lightweight architecture guards (docs/architecture/CURRENT_ARCHITECTURE.md): the
+/// Lightweight architecture guards (docs/architecture/auditsphere-architecture-current-architecture.md): the
 /// dependency direction between projects is enforced as executable assertions, without
 /// an architecture-test framework. Add new rules here rather than introducing a package.
 /// </summary>
