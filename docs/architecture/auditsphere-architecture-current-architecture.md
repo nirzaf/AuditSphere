@@ -2,7 +2,7 @@
 
 **Status: CURRENT.** This document and [`AGENTS.md`](../../AGENTS.md) are the architectural
 implementation authority for this repository. Requirement sources preserved under
-`docs/AuditSphere_R2R_Task_Breakdown/source/` are `HISTORICAL_SOURCE` and never override this
+`docs/task_breakdown/source/` are `HISTORICAL_SOURCE` and never override this
 document. Verified project state (test counts, verified SHA, migration count, external blockers)
 is recorded only in [`docs/execution/status.json`](../execution/status.json).
 
@@ -48,7 +48,7 @@ this document wins and the source text remains a historical requirement record.
 - **Commands and queries are static capability services** returning `CommandResult` /
   `CommandResult<T>`. There is no MediatR/Wolverine handler layer; neither package is pinned.
   This is a recorded variation from R2R-ADR-02 (see
-  `docs/AuditSphere_R2R_Task_Breakdown/reference/auditsphere-r2r-reference-baseline-architecture-and-adrs.md` §2.3.1).
+  `docs/task_breakdown/reference/auditsphere-r2r-reference-baseline-architecture-and-adrs.md` §2.3.1).
 - **One `AuditSphereDbContext`**, physically split into capability partial files
   (`AuditSphereDbContext.<Module>.cs`), with `OnModelCreating` calling `Configure<Module>(b)`
   methods. No DbContext-per-module.

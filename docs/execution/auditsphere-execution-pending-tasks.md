@@ -1,151 +1,167 @@
-# AuditSphereOps — pending work checklist
+# AuditSphereOps — Pending Work & Unresolved Backlog
 
-**Repository:** `nirzaf/AuditSphere`
-**Authoritative specification:** [`docs/auditsphere-requirements-system-specification-current.md`](../auditsphere-requirements-system-specification-current.md) v5.0
-**Accounting module contract:** [`docs/auditsphere-accounting-module-requirements-current.md`](../auditsphere-accounting-module-requirements-current.md)
-**Requirements backlog:** [`docs/AuditSphere_R2R_Task_Breakdown/source/auditsphere-audit-source-workflow-gap-closure-user-stories-historical.md`](../AuditSphere_R2R_Task_Breakdown/source/auditsphere-audit-source-workflow-gap-closure-user-stories-historical.md)
-**Source implementation checkpoint:** `codex/m365-simple-onboarding@cad3f85`
 
-This is a resume checklist, not an acceptance certificate. Tenant identifiers, credentials, tokens, secret values, and private-provider URLs are deliberately absent from the public repository.
 
-## Verified local baseline
+**Status:** CURRENT
 
-- [x] .NET 10 solution builds with zero warnings/errors.
-- [x] PostgreSQL 18.6 development profile is used on loopback port 5433.
-- [x] 246/246 PostgreSQL-backed tests pass with 0 skipped at `cad3f85`; the full solution Release build passes with zero warnings/errors.
-- [x] 91 migrations are applied; latest is `20260922140527_M365InvitationEvidenceAction`.
-- [x] EF model has no pending migration changes.
-- [x] Loopback restore drill passes and writes secret-free evidence to `docs/evidence/restore-drill-latest.json`.
-- [x] Generated Graphify output and local agent state are ignored and removed from Git tracking.
-- [x] Public documentation no longer stores tenant-specific identity, site, app, or account identifiers.
-- [x] Seeded built-in-browser acceptance covers a QAR SME, unrelated colliding-code clients, a basic QAR group, the enabled USD-to-QAR profile and all five advanced profiles without changing production authentication. Each advanced fixture completes preparer submission, administrator schedule review, balanced verified execution and independent execution approval; each reads `1 / 1` and `APPROVED` in the workbench. Evidence: [`accounting-browser-advanced-gates-latest.json`](../evidence/accounting-browser-advanced-gates-latest.json).
+**Purpose:** Canonical inventory of open local tasks, unresolved decisions, technical debt, and blocked external gates.
 
-## Microsoft 365 onboarding local foundation
+**Authority:** Implementation backlog authority for unfinished work. Observed verification state and volatile metrics belong exclusively to [`docs/execution/status.json`](status.json).
 
-- [x] Protected `/setup/microsoft365` claim/resume flow stores only a hashed, short-lived bootstrap capability and persists resumable non-secret draft state.
-- [x] Configuration-required UI, optional mail/records `NOT_CONFIGURED` states and no-fabrication messaging are present.
-- [x] Exact `(tid, oid)` roster/pending-sign-in role assignment supports explicit scopes, atomic validation, revocation, session-epoch invalidation, evidence and last-administrator protection.
-- [x] Acceptance persistence creates one append-only decision and one client-level `WAITING_FOR_INTEGRATION` workspace intent without calling SharePoint.
-- [x] Client workspace views enforce scope before loading metadata and never expose an unverified SharePoint URL.
-- [x] Client and engagement folder templates are immutable, allowlisted, deterministic and locally approvable.
-- [x] Connection revisions require exact tenant/site/library/root and consent evidence plus an approved template before activation; migration `20260922115824_BindM365VerificationRevisions` is applied.
-- [ ] Resolve DEC-01 and prove live Entra OIDC/directory behavior against the approved EasyGuide tenant; local roster behavior is not live Graph evidence.
-- [ ] Implement and verify the selected-resource SharePoint/Graph provider, durable client-root worker, engagement provisioning and uncertain-outcome reconciliation.
-- [ ] Prove optional direct staff ACL behavior, mailbox delivery and Purview label/records behavior with the exact tenant resources.
+**Audience:** Coding agents and developers.
 
-## Local accounting and workflow follow-up
 
-- [x] Client accounting profiles, periods, books, COA mappings and versioned TB profiles.
-- [x] Capability profiles enforce supported service kinds and matching client/group scopes.
-- [x] Atomic multi-entity TB batches, typed GL imports and bounded completeness bridges.
-- [x] TB CSV/XLSX imports persist the selected reporting period, optional book and basis and reject mismatched context at import, completeness and reconciliation boundaries.
-- [x] Reconciliation, ECL, inventory, specialist, analytical and journal-risk workbenches.
-- [x] Analytical reviews preserve QAR-defaulted reporting currency, deterministic input snapshots/replay hashes, movement and seasonality flags; journal-risk evidence preserves sample selection, management explanation and corroboration fields, and bounded analysis returns criteria-versioned explainable review indicators without automatic fraud findings.
-- [x] Linked differences retain exact journal revision and approved mapping lineage with account/statement effects, profit/equity totals, disclosure buckets, explicit unmapped status and a `journal-impact.v2` hash.
-- [x] Difference corrections retain optional materiality/qualitative metadata, enforce reviewer-governed proposed/agreed/rejected/applied/reported states, and reject stale or hash-mismatched impact evidence before verified-reflected status.
-- [x] Bank reconciliation binds independently approved ledger and statement schedules, typed timing and proposed-correction items, exact source/evidence references and reviewer conclusions; unreconciled residuals block approval and completion.
-- [x] Analytical-review aggregate summaries enforce client/engagement or explicit group scope, honor effective membership dates, and omit client/component identifiers.
-- [x] ECL differences are calculated against an explicit booked amount; ECL and inventory assessments retain same-engagement proposed-journal lineage, with approved local golden fixtures and boundary cases for the enabled methods.
-- [x] Analytical-review approvals require a persisted reviewer conclusion linked to the exact replay snapshot/hash; missing conclusions are rejected after freshness checks.
-- [x] Entity package projections, equity, notes, comparatives, restatement lineage and bounded same-currency consolidation.
-- [x] Queued durable operations support an explicit administrator cancellation disposition; cancelled work is excluded from claims and cannot publish a partial local result, while active work remains subject to lease/reconciliation handling.
-- [x] Journal lineage, close checks and immutable management/accounting/partner package-review decisions.
-- [x] Persist exact rendered package bytes with framework/template versions and SHA-256 lineage; require the matching artifact before recording management, accounting or partner package review.
-- [x] Produce deterministic XLSX and formula-free DOCX exports from the exact canonical package artifact; persist each renderer version and SHA-256 against the package revision/generation/hash and expose scoped downloads.
-- [x] Produce a deterministic, inactive PDF from the exact canonical package through PDFsharp/MigraDoc; embed the OFL font, canonicalize generated identifiers, persist exact bytes/SHA-256 and expose the scoped download.
-- [x] Preserve exactly one renderer-owned workbook formula, neutralize formula-shaped client text and reject unexpected formulas, VBA projects and external workbook parts at runtime.
-- [x] Record Firm Methodology Owner approval `STE-METH-APP-001` for Financial Statement Template v1.0, Audit Program Template v1.0 and ECL Provision Matrix v1.0; live provider, signing and records acceptance remain independent.
-- [x] Map Financial Statement Template v1.0 to the exact controlled `financial-package-xlsx-controlled.v1`, `financial-package-docx.v1` and `financial-package-pdf.v1` renderer profiles; Audit Program and ECL approvals remain methodology/template-family records without financial-package renderer enablement.
-- [x] Backfill legacy dataset periods and mapping charts only from one exact candidate; preserve ambiguous null links and append immutable quarantine evidence.
-- [x] Require an independently accepted group capability profile before approving a consolidation perimeter.
-- [x] Require current management, accounting and partner package reviews before approving a consolidation component.
-- [x] Bind each consolidation component to the exact package period basis, taxonomy version and mapping-version lineage and include it in the deterministic run manifest.
-- [x] Recompute consolidation inputs at run approval and require a new run when a component, match or group journal changes.
-- [x] Pin each consolidation scope to the group-membership revision and reject approval/calculation after a perimeter change without rewriting historical scopes or runs.
-- [x] Reject component, translation, intercompany-match and group-journal writes after a pinned group revision changes.
-- [x] Preserve group perimeter, consolidation, exchange-rate and translation dependencies in structured records exports.
-- [x] Carry approved group opening run, FX and recurring-elimination lineage to a new scope without auto-applying prior journals.
-- [x] Add the bounded approved foreign-operation translation profile with pinned rate/policy inputs, maker/checker review, source/FX lineage and stale-input blocking.
-- [x] Reject unsupported FX rate directions in the enabled bounded translation profile.
-- [x] Persist exchange-rate-set version/source/approval/effective-range metadata, reject observations outside the declared range, and require scope/translation rate types to be declared by the approved policy.
-- [x] Persist separate foreign-exchange and rounding adjustments and recompute them during translation approval.
-- [x] Add deterministic calculation cores for currency remeasurement/translation separation, acquisition/NCI, ownership changes, nested double-count rejection and asset-transfer/tax elimination; approved method-specific fixtures remain pending before enabling those profiles.
-- [x] Add bounded, resumable GL chunk intake with canonical digest, idempotent retry and contiguous finalization.
-- [x] Bind source-bound GL reconciliations to the selected reporting period and currency; reject cross-period or cross-currency batches.
-- [x] Bind GL-backed bank-ledger schedule control totals to a sealed, scoped, hash-matching GL import batch and reject caller-supplied total mismatches.
-- [x] Bind reconciliation items to the selected source currency; reject future dates and missing dispositions while preserving explicit as-of date, date basis, bucket rule/bucket, credit treatment and paired settlement links for receivable/payable ageing.
-- [x] Route GL completeness calculation through the existing durable operation infrastructure with source revision fencing and idempotent retries.
-- [x] Route financial-package builds through the existing durable operation infrastructure with mapping/plan fencing and idempotent retries.
-- [x] Bind context-bound financial packages to the selected client reporting period, optional book, basis and currency, including period-date validation and deterministic hash lineage.
-- [x] Bind context-bound adjustment journals to the validated client reporting period, optional book, basis and currency; reject cross-period books and preserve journal context lineage.
-- [x] Route financial-package rendering through the existing durable operation infrastructure with exact package-revision fencing and deterministic artifact-digest verification.
-- [x] Require financial-package mappings to match the approved taxonomy statement section; persist individual statement cross-cast, accounting-equation, equity/profit, comparative-consistency and note-to-face validation results and render key package-lineage identifiers.
-- [x] Benchmark representative accounting workloads before production acceptance; the current test covers four clients, 2,000 transactions, 8,000 GL lines, two concurrent workers, a 32-line group calculation, six-decimal/high-magnitude amounts and paged reads. Observed timings are local capacity evidence only.
-- [x] Add a client-safe validated-package view and signed-in management acknowledgement route with cross-client denial coverage.
-- [x] Add an authorized staff package-review queue with exact-version stage status and direct package handoff.
-- [x] Bind validated financial-package release candidates to current management, accounting and partner decisions through the existing guarded approval/release path.
-- [x] Add the completion-screen action that prepares a package-bound release candidate only after current package reviews are approved.
-- [x] Bind ECL and inventory review decisions to the exact reconciliation source hash and client input generation.
-- [x] Bind specialist and analytical review decisions to the exact client input generation.
-- [x] Require explicit depreciation method/useful life and persist the calculated closing balance for asset schedules.
-- [x] Add typed payroll, loan, equity, related-party, tax and going-concern forecast inputs with evidence-bound approval.
-- [x] Link typed accounting evidence to reviewed audit procedure results, expose the scoped evidence queue and archive accounting lineage.
-- [x] Gate period close on current package reviews and persist immutable authorized reopen/amendment revisions.
-- [x] Add controlled entity-period roll-forward with draft book copies and explicit opening-balance evidence.
-- [x] Client-scoped GL dimension definitions validate nonblank branch/cost-centre/department/project/intercompany values; blank accounting setup/reporting currency defaults to QAR while source/import currency remains explicit.
-- [x] Direct and streaming GL imports preserve optional service dates through canonical digests and archive lineage.
-- [x] GL completeness bridges optionally bind the approved prior-period TB, persist per-account opening-plus-movement residuals and disclose missing opening or malformed journal evidence.
-- [x] Zero-adjustment/source-reflection plans preserve source balances, apply posted journals exactly once by reflection state, and stale when a source decision changes.
-- [x] Source-bound reconciliation approval re-checks source digest and client generation and marks changed inputs stale.
-- [x] Expose scoped audit-difference summaries with gross, signed/net, corrected and unadjusted totals by currency; offsetting differences remain visible.
-- [x] Chart hierarchy parent lookups are scoped to the target chart version and reject cross-version and posting-account parents.
-- [x] Draft taxonomy nodes support incremental same-version parents and reject cross-version parents/cycles.
-- [x] Link accounting evidence to reviewed audit workpapers and expose accounting period handoffs from the dashboard.
-- [x] Add a fixed candidate fixture that combines FX reserve, acquisition goodwill, NCI, nested-scope uniqueness and asset-transfer elimination into balanced QAR current and comparative statements.
-- [x] Record the IFRS advanced-method scope extension in `STE-METH-APP-001-addendum` for FX reserves, acquisition/goodwill, NCI, ownership changes/disposals, nested groups and asset-transfer/tax eliminations.
-- [x] Persist approved source-bound advanced-method schedules with canonical source/input digests, idempotent retry, maker/checker approval and group-revision fencing.
-- [x] Validate method-specific advanced schedule inputs at approval using the deterministic calculators and reject incomplete or contradictory JSON.
-- [x] Wire persisted schedules into guarded advanced profile execution with balanced current/comparative statement evidence, method output manifests/digests, current component and group-revision fencing, component revalidation before reviewer approval and idempotent retry; PostgreSQL coverage passes at `da1f38b`.
-- [x] Add method-specific golden execution fixtures and fail-closed browser gate journeys for all five advanced profiles; keep unsupported or unproven methods visibly `REQUIRED`.
-- [x] Complete source-bound method schedules, reviewed journal evidence and execution journeys for all five advanced profiles in PostgreSQL; keep them fail-closed until browser acceptance.
-- [x] Add a scope-bound browser workflow for advanced schedule/input drafting, guarded submission, maker/checker approval and verified-execution actions; no automatic profile enablement is exposed.
-- [x] Complete full end-to-end browser acceptance with an approved component/journal fixture for `ACQUISITION_NCI_V1`; the local flow ends with independent execution approval and does not enable the profile automatically.
-- [x] Repeat full end-to-end browser acceptance for `FOREIGN_CURRENCY_RESERVE_V1`, `OWNERSHIP_CHANGE_V1`, `NESTED_GROUP_V1` and `ASSET_TRANSFER_ELIMINATION_V1`; each uses its approved source/journal or FX fixture, separate schedule/execution approval and balanced output. No production or professional gate is enabled by local evidence.
-- [x] Add deeper accounting evidence/workpaper links and account-area UI around the typed specialist schedules.
-- [x] Add the accounting dashboard and cross-workflow navigation around accounting, roll-forward and release workflows.
-- [x] Re-run focused tests, full tests, build, migration drift and restore drill for the current coherent slice; repeat for the next slice.
 
-## External gates
+---
 
-These items cannot be closed by local mocks, documentation, a browser login, or a developer-only simulation:
 
-| Gate | Checklist | Status |
-|---|---|---|
-| P1 | [ ] Live Entra OIDC, runtime identity fixtures, wrong-tenant and disabled/revoked denial | `BLOCKED_EXTERNAL` |
-| P2 | [ ] Selected-resource SharePoint/Graph upload, download, versioning, isolation and reconciliation | `BLOCKED_EXTERNAL` |
-| P3 | [ ] Independently administered release checkpoint store, capability evidence and digest mismatch blocking | `BLOCKED_EXTERNAL` |
-| P4 | [ ] Approved Purview records profile, reviewer fixtures, label application and protection/readback behavior | `BLOCKED_EXTERNAL` |
-| P5 | [ ] Approved signing methodology, custody and exact-byte signature lineage | `BLOCKED_EXTERNAL` |
-| P6 | [x] Records/archive residual hardening and evidence-safe downgrade behavior locally verified | `LOCAL_VERIFIED` |
-| P7 | [ ] Custodially separate cross-store restore rehearsal with measured production RPO/RTO | `BLOCKED_EXTERNAL` |
-| P8 | [ ] Production secret custody, observability, capacity and sensitive-log review | `BLOCKED_EXTERNAL` |
-| P9 | [ ] Independent human review of the current head and protected-merge evidence | `BLOCKED_EXTERNAL` |
-| P10 | [ ] Full §47 real-tenant acceptance cycle and professional sign-off | `BLOCKED_EXTERNAL` |
 
-## Evidence boundaries
+## 1. Verified Local Baseline Summary
 
-- Local PostgreSQL proves local persistence, constraints, migrations and deterministic behavior only.
-- The loopback restore drill is not custodially separate and does not prove production RPO/RTO.
-- Simulation adapters remain disabled for production configuration; no external effect is claimed from them.
-- Professional conclusions, methodology approval, signing approval and independent review belong to named human owners.
-- Do not add tenant-specific evidence to this repository. Store any authorized private evidence outside the public Git tree and record only a redacted status and retrieval procedure.
 
-## Resume procedure
 
-1. Re-read `AGENTS.md`, `docs/auditsphere-requirements-system-specification-current.md`, this checklist and the current GitHub head.
-2. Inspect the worktree before editing; preserve unrelated dirty files.
-3. Select one unchecked local item whose dependencies are satisfied.
-4. Implement the smallest complete vertical slice with scope checks, immutable evidence and PostgreSQL tests.
-5. Run build, focused tests, full tests, migration drift and restore drill as applicable.
-6. Update `auditsphere-execution-current-slice.md` and `status.json` with observed facts.
-7. Commit and push the verified slice; do not rewrite history or claim an external gate.
+The core modular monolith, Practice Management, Client Accounting Workspace (TB/GL intake, reconciliations, adjustments, financial statements, packages, multi-rate IAS 21 currency translation, and group consolidation), Audit Fieldwork foundations, and local M365 control-plane draft persistence are locally verified.
+
+
+
+- **Observed Metrics & Proofs:** For current test counts, migration counts, verified commit SHA, and active slice evidence, consult [`docs/execution/status.json`](status.json).
+
+- **Completed Capabilities (WP 1–18):** Full capability implementation is verified in local PostgreSQL suites; historical completed item checklists are preserved in Git history and structured execution records.
+
+- **Architectural Reference:** Implemented modular monolith rules and project references are governed by [`docs/architecture/auditsphere-architecture-current-architecture.md`](../architecture/auditsphere-architecture-current-architecture.md).
+
+
+
+---
+
+
+
+## 2. Open Local Work & Unresolved Decisions
+
+
+
+The following local tasks, architectural decisions, and follow-ups are open for implementation:
+
+
+
+### 2.1 Microsoft 365 Onboarding & Selected-Resource Integration
+
+- **DEC-01 (Live Entra OIDC):** Prove live Entra OIDC and directory behavior against the approved tenant. Local roster assignment and invitation persistence are verified locally, but live Graph interaction remains pending live tenant access.
+
+- **Selected-Resource SharePoint/Graph Provider:** Implement and verify the production selected-resource SharePoint/Graph provider, durable client-root worker, engagement folder provisioning, and uncertain-outcome reconciliation.
+
+- **Staff ACLs & Mailbox Delivery:** Implement optional direct staff ACL behavior, Microsoft Graph mailbox delivery, and Purview label/records classification with authorized tenant resources.
+
+
+
+### 2.2 Audit & Accounting Parity Follow-ups (AS-PAR-002)
+
+- **Route & Query Revocation Audit:** Continue the whole-application route, query, search, count, export, and direct-command audit to ensure protected projections clear immediately upon role-grant revocation.
+
+- **G16 Period-End Open-Item Methodology:** Formalize and record methodology approval for period-end open-item classification and carrying-amount evidence before enabling automated open-item remeasurement workflows.
+
+- **Stale Content & Parameter Reauthorization:** Verify route-parameter change behavior across all remaining specialized workbench screens.
+
+
+
+### 2.3 Technical Debt & Bounded Hardening
+
+- **Automated Documentation Health:** Maintain automated tests for documentation naming, link integrity, and exclusion of volatile metrics from narrative files.
+
+- **Benchmark Baselines:** Maintain local benchmark verification for high-magnitude accounting datasets and concurrent worker operations.
+
+
+
+---
+
+
+
+## 3. External Gates (P1–P10)
+
+
+
+These production milestones require live external infrastructure, tenant credentials, or human partner authorization. They **cannot** be closed by local mocks, simulation adapters, portal screenshots, or documentation claims:
+
+
+
+| Phase | Gate / Objective | Status | Blocking Condition |
+
+|---|---|---|---|
+
+| **P1** | Live Entra OIDC Authentication | `BLOCKED_EXTERNAL` | Requires live Azure AD / Entra ID tenant registration with configured client credentials. |
+
+| **P2** | Selected-Resource SharePoint/Graph | `BLOCKED_EXTERNAL` | Requires live Microsoft 365 tenant with approved selected-resource application permissions. |
+
+| **P3** | External Release Checkpoint Store | `BLOCKED_EXTERNAL` | Requires production cryptographic checkpoint infrastructure and immutable remote store. |
+
+| **P4** | Purview Records Profile Integration | `BLOCKED_EXTERNAL` | Purview integration is excluded from core application scope; live tenant label application requires live tenant. |
+
+| **P5** | Document Signing Methodology Lineage | `BLOCKED_EXTERNAL` | eSignature provider integration is excluded from core scope; live custody requires external signing authority. |
+
+| **P6** | Records / Archive Residual Hardening | `LOCAL_VERIFIED` | Immutable archive schema, lineage manifests, and structured exports are locally verified. |
+
+| **P7** | Cross-Store Recovery (RPO/RTO) | `BLOCKED_EXTERNAL` | Requires custodially separate, multi-region cloud backup infrastructure and measured restore drills. |
+
+| **P8** | Production Observability & Secrets | `BLOCKED_EXTERNAL` | Requires Azure Key Vault mount, production OpenTelemetry collector, and sensitive log scrubbing review. |
+
+| **P9** | Independent Review & Protected Merge | `BLOCKED_EXTERNAL` | Requires independent partner sign-off and branch protections. |
+
+| **P10**| Real-Tenant Acceptance (§47) | `BLOCKED_EXTERNAL` | Full operational pilot on customer-authorized live production tenant. |
+
+
+
+---
+
+
+
+## 4. Required Evidence for Every Local Slice
+
+
+
+Every local implementation slice must adhere to the following verification standards:
+
+
+
+1. **In-Core Scope Authorization:** Enforce explicit `RoleGrant` scope inside Application commands and queries, never exclusively in Blazor UI components.
+
+2. **Immutability & Lineage:** Produce immutable, version-bound evidence for submitted professional conclusions; never provide an update path for sealed datasets.
+
+3. **PostgreSQL-Backed Testing:** Pass targeted and full test suites against the local PostgreSQL 18.6 cluster on port 5433.
+
+4. **Zero Warnings & Migration Drift:** Solution must build with `0 Warning(s)` and `0 Error(s)` in Release mode; EF Core model must have no pending migration changes (`dotnet ef migrations has-pending-model-changes`).
+
+5. **Truthful Ledger Recording:** Update `docs/execution/status.json` and `docs/execution/auditsphere-execution-current-slice.md` strictly with observed facts.
+
+
+
+---
+
+
+
+## 5. External Acceptance Rule
+
+
+
+Do not convert `BLOCKED_EXTERNAL` to `LOCAL_VERIFIED` or `APPROVED` from local tests, simulation fixtures, simulation adapters, portal screenshots, or status declarations. Each external gate requires its named human owner, authorized environment, exact observed evidence, and independent review.
+
+
+
+---
+
+
+
+## 6. Resume Procedure
+
+
+
+1. Read [`AGENTS.md`](../../AGENTS.md), [`docs/auditsphere-docs-index.md`](../auditsphere-docs-index.md), and [`docs/architecture/auditsphere-architecture-current-architecture.md`](../architecture/auditsphere-architecture-current-architecture.md).
+
+2. Consult [`docs/execution/status.json`](status.json) for current verified commit, active slice, and known blockers.
+
+3. Select one eligible open item from Section 2 whose dependencies are satisfied.
+
+4. Deliver the smallest coherent vertical slice with guarded transactions and scope-checked authorization.
+
+5. Verify via standard build, test, and EF migration checks.
+
+6. Record observed facts in `docs/execution/status.json` and [`docs/execution/auditsphere-execution-current-slice.md`](auditsphere-execution-current-slice.md).
