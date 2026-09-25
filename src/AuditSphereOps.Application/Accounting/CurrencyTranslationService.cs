@@ -204,11 +204,16 @@ public static class CurrencyTranslationService
     var normalizedRateType = rateType.Trim().ToUpperInvariant();
     if (!TranslationPolicyRules.AllowsRateType(policy, normalizedRateType))
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The requested rate type is not part of the approved translation policy.");
-    var rate = await db.ExchangeRates.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.RateSetVersionId == set.Id &&
-        x.FromCurrency == component.Currency && x.ToCurrency == scope.ReportingCurrency && x.RateDate == rateDate && x.RateType == normalizedRateType &&
-        x.Direction == ExchangeRateDirections.Direct)
-      .Select(x => (decimal?)x.Rate).SingleOrDefaultAsync(ct) ?? 0m;
-    if (rate <= 0m)
+    // Same functional and presentation currency is identity, not a missing rate: every line
+    // carries rate 1 and no rate observation is required or consumed.
+    var identityTranslation = component.Currency == scope.ReportingCurrency;
+    var rate = identityTranslation
+      ? 1m
+      : await db.ExchangeRates.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.RateSetVersionId == set.Id &&
+          x.FromCurrency == component.Currency && x.ToCurrency == scope.ReportingCurrency && x.RateDate == rateDate && x.RateType == normalizedRateType &&
+          x.Direction == ExchangeRateDirections.Direct)
+        .Select(x => (decimal?)x.Rate).SingleOrDefaultAsync(ct) ?? 0m;
+    if (!identityTranslation && rate <= 0m)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "No approved rate exists for the requested date and type.");
     var package = component.SourceType == ConsolidationComponentSources.InternalPackage && component.PackageId is { } packageId
       ? await db.FinancialPackages.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == packageId &&
@@ -362,10 +367,15 @@ public static class CurrencyTranslationService
         scope.TranslationRateType != result.RateType || policy.FunctionalCurrency != result.FromCurrency ||
         policy.PresentationCurrency != result.ToCurrency || !TranslationPolicyRules.AllowsRateType(policy, result.RateType))
       return CommandResult.Fail(ErrorCodes.GenerationStale, "The translation input is no longer the current approved scope input.");
-    var rate = await db.ExchangeRates.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.RateSetVersionId == set.Id &&
-      x.FromCurrency == result.FromCurrency && x.ToCurrency == result.ToCurrency && x.RateDate == result.RateDate && x.RateType == result.RateType &&
-      x.Direction == ExchangeRateDirections.Direct)
-      .Select(x => (decimal?)x.Rate).SingleOrDefaultAsync(ct);
+    // Same functional and presentation currency is identity: the recorded rate is exactly 1 and
+    // no rate observation backs it.
+    var identityTranslation = result.FromCurrency == result.ToCurrency;
+    var rate = identityTranslation
+      ? 1m
+      : await db.ExchangeRates.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.RateSetVersionId == set.Id &&
+          x.FromCurrency == result.FromCurrency && x.ToCurrency == result.ToCurrency && x.RateDate == result.RateDate && x.RateType == result.RateType &&
+          x.Direction == ExchangeRateDirections.Direct)
+        .Select(x => (decimal?)x.Rate).SingleOrDefaultAsync(ct);
     if (rate is null || rate.Value != result.AppliedRate.Value)
       return CommandResult.Fail(ErrorCodes.GenerationStale, "The approved rate set no longer contains the recorded rate.");
 

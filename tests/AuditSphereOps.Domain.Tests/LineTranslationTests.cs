@@ -134,7 +134,7 @@ public sealed class LineTranslationTests
     Assert.Equal(35m, prepay.TranslatedAmount);
   }
 
-  [Fact(DisplayName = "Missing, zero and unspecified rates fail closed")]
+  [Fact(DisplayName = "Missing, zero, negative and unspecified rates fail closed")]
   public void MissingRatesFailClosed()
   {
     // No average rate supplied for an income line.
@@ -146,10 +146,15 @@ public sealed class LineTranslationTests
     Assert.Throws<InvalidOperationException>(() =>
       LineTranslationCalculator.Translate(Lines, new Dictionary<string, string>(), SectionPurposes, withoutAverage, "QAR"));
 
-    // A zero or negative rate is refused.
-    var nonPositive = new Dictionary<string, decimal>(Rates) { [TranslationRatePurposes.Average] = 0m };
+    // A zero rate is refused.
+    var zero = new Dictionary<string, decimal>(Rates) { [TranslationRatePurposes.Average] = 0m };
     Assert.Throws<InvalidOperationException>(() =>
-      LineTranslationCalculator.Translate(Lines, new Dictionary<string, string>(), SectionPurposes, nonPositive, "QAR"));
+      LineTranslationCalculator.Translate(Lines, new Dictionary<string, string>(), SectionPurposes, zero, "QAR"));
+
+    // A negative rate is refused the same way: nothing approvable may rest on it.
+    var negative = new Dictionary<string, decimal>(Rates) { [TranslationRatePurposes.Average] = -3.6m };
+    Assert.Throws<InvalidOperationException>(() =>
+      LineTranslationCalculator.Translate(Lines, new Dictionary<string, string>(), SectionPurposes, negative, "QAR"));
 
     // A line whose section has no purpose defined fails closed rather than defaulting.
     var unknownSection = new List<TranslationLineInput> { new("X", "OTHER", "SOMETHING_ELSE", 10m, "USD") };

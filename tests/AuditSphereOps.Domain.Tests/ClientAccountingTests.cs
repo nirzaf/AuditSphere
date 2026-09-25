@@ -3034,13 +3034,15 @@ public sealed class ClientAccountingTests
   /// Builds the reviewed foreign-operation fixture up to an approved component: group with one
   /// controlled member, approved rate set and translation policy, draft scope, and one package
   /// whose management, accounting and partner reviews are complete. Translation and scope
-  /// approval stay in the test so each case can pin its own inputs and expectations.
+  /// approval stay in the test so each case can pin its own inputs and expectations. The rate
+  /// rows are always USD-to-QAR observations that populate the set for approval; a same-currency
+  /// component (functionalCurrency "QAR") consumes none of them because identity needs no rate.
   /// </summary>
   private static async Task<ForeignOperationFixture> SeedForeignOperationAsync(
     AuditSphereDbContext db, Scope scope,
     IReadOnlyList<(string Destination, string Section, decimal Amount)> lines,
     IReadOnlyList<(string RateType, decimal Rate)> rates,
-    string suffix, DateOnly rateDate)
+    string suffix, DateOnly rateDate, string functionalCurrency = "USD")
   {
     var preparer = Actor(scope.Preparer, "AccountingPreparer");
     var reviewer = Actor(scope.Reviewer, "Partner");
@@ -3069,14 +3071,14 @@ public sealed class ClientAccountingTests
     Assert.True((await CurrencyTranslationService.ApproveRateSetAsync(db, partner, rateSetId)).Succeeded);
 
     var policyId = (await CurrencyTranslationService.CreatePolicyAsync(db, reviewer,
-      new TranslationPolicyRequest($"FX-POL-{suffix}", "USD", "QAR", "CLOSING", "AVERAGE", "HISTORICAL"))).Value;
+      new TranslationPolicyRequest($"FX-POL-{suffix}", functionalCurrency, "QAR", "CLOSING", "AVERAGE", "HISTORICAL"))).Value;
     Assert.True((await CurrencyTranslationService.ApprovePolicyAsync(db, partner, policyId)).Succeeded);
 
     var scopeId = (await ConsolidationService.CreateScopeAsync(db, reviewer,
       new ConsolidationScopeRequest(groupId, Guid.NewGuid(), "QAR", ConsolidationCalculator.ForeignOperationMethod,
         $"OPENING-{suffix}", rateSetId, policyId, rateDate, "CLOSING"))).Value;
 
-    var packageId = await AddMultiLinePackageAsync(db, scope, scope.ClientA, scope.EngagementA, lines, suffix);
+    var packageId = await AddMultiLinePackageAsync(db, scope, scope.ClientA, scope.EngagementA, lines, suffix, functionalCurrency);
     await db.SaveChangesAsync();
     var mappingId = await db.FinancialPackages.Where(x => x.Id == packageId).Select(x => x.MappingVersionId).SingleAsync();
 
@@ -3241,6 +3243,24 @@ public sealed class ClientAccountingTests
     Assert.Equal(504m, runLines.Single(x => x.TaxonomyCode == "EXPENSE").ConsolidatedAmount);
     Assert.DoesNotContain(runLines, x => x.TaxonomyCode == AccountingDefaults.CumulativeTranslationReserveSection);
     Assert.Equal(0m, runLines.Sum(x => x.ConsolidatedAmount));
+
+    // The same per-line values survive group approval and report readback: a zero reserve
+    // movement never collapses equity and profit lines onto one header closing rate.
+    var partner = Actor(scope.Partner, "Partner");
+    var approveRun = await ConsolidationService.ApproveRunAsync(db, partner, run.Value);
+    Assert.True(approveRun.Succeeded, approveRun.Message);
+    var report = await ConsolidationService.GetLatestReportAsync(db, preparer, fixture.ScopeId);
+    Assert.True(report.Succeeded, report.Message);
+    Assert.Equal("CURRENT_APPROVED", report.Value!.State);
+    Assert.Equal(run.Value, report.Value!.RunId);
+    Assert.NotNull(report.Value!.ApprovedAt);
+    Assert.Equal(400m, report.Value!.Lines.Single(x => x.TaxonomyCode == "CASH").ConsolidatedAmount);
+    Assert.Equal(-480m, report.Value!.Lines.Single(x => x.TaxonomyCode == "PAYABLES").ConsolidatedAmount);
+    Assert.Equal(-280m, report.Value!.Lines.Single(x => x.TaxonomyCode == "CAPITAL").ConsolidatedAmount);
+    Assert.Equal(-144m, report.Value!.Lines.Single(x => x.TaxonomyCode == "REVENUE").ConsolidatedAmount);
+    Assert.Equal(504m, report.Value!.Lines.Single(x => x.TaxonomyCode == "EXPENSE").ConsolidatedAmount);
+    Assert.DoesNotContain(report.Value!.Lines, x => x.TaxonomyCode == AccountingDefaults.CumulativeTranslationReserveSection);
+    Assert.Equal(0m, report.Value!.Lines.Sum(x => x.ConsolidatedAmount));
   }
 
   [Fact(DisplayName = "An unknown taxonomy code is an explicit unmapped issue resolved only by an approved mapping")]
@@ -3406,6 +3426,101 @@ public sealed class ClientAccountingTests
       var afterLineChange = await ConsolidationService.GetLatestReportAsync(db, preparer, fixture.ScopeId);
       Assert.Equal("STALE", afterLineChange.Value!.State);
     }
+  }
+
+  [Fact(DisplayName = "Zero, negative and same-currency rate observations are refused at the rate-set boundary")]
+  [Trait("Profile", "Database")]
+  public async Task RateSet_RejectsZeroNegativeAndSameCurrencyObservations()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var scope = await SeedAsync(pg);
+    var reviewer = Actor(scope.Reviewer, "Partner");
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var rateSetId = (await CurrencyTranslationService.CreateRateSetAsync(db, reviewer,
+      new ExchangeRateSetRequest("FX-RATES-REJECTED", "Central Bank", new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31), 1))).Value;
+    var rateDate = new DateOnly(2026, 12, 31);
+    // A zero rate, a negative rate and a same-currency observation are all refused before any
+    // row exists: nothing approvable may ever rest on them.
+    foreach (var (from, to, rate) in new[] { ("USD", "QAR", 0m), ("USD", "QAR", -3.6m), ("QAR", "QAR", 1m) })
+    {
+      var refused = await CurrencyTranslationService.AddRateAsync(db, reviewer, rateSetId,
+        new ExchangeRateInput(from, to, rateDate, "AVERAGE", rate, "DIRECT"));
+      Assert.False(refused.Succeeded);
+      Assert.Equal(ErrorCodes.GateBlocked, refused.ErrorCode);
+      Assert.Contains("Only positive DIRECT rate-set entries are supported by this profile.", refused.Message);
+    }
+    Assert.Empty(await db.ExchangeRates.Where(x => x.RateSetVersionId == rateSetId).ToListAsync());
+
+    // The only accepted shape is a positive DIRECT observation between two distinct currencies.
+    var accepted = await CurrencyTranslationService.AddRateAsync(db, reviewer, rateSetId,
+      new ExchangeRateInput("USD", "QAR", rateDate, "AVERAGE", 3.6m, "DIRECT"));
+    Assert.True(accepted.Succeeded, accepted.Message);
+    var observation = Assert.Single(await db.ExchangeRates.Where(x => x.RateSetVersionId == rateSetId).ToListAsync());
+    Assert.Equal(3.6m, observation.Rate);
+    Assert.Equal(ExchangeRateDirections.Direct, observation.Direction);
+  }
+
+  [Fact(DisplayName = "A same-currency component is identity rate 1 and consumes no rate observation")]
+  [Trait("Profile", "Database")]
+  public async Task ForeignOperation_SameCurrencyComponentTranslatesAsIdentity()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var scope = await SeedAsync(pg);
+    var preparer = Actor(scope.Preparer, "AccountingPreparer");
+    var reviewer = Actor(scope.Reviewer, "Partner");
+    var rateDate = new DateOnly(2026, 12, 31);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var fixture = await SeedForeignOperationAsync(db, scope, Gold07Lines, Gold07Rates, "gold7-identity", rateDate, "QAR");
+    var translate = await CurrencyTranslationService.TranslateComponentAsync(db, preparer, fixture.ComponentId,
+      fixture.RateSetId, fixture.PolicyId, rateDate, "CLOSING");
+    Assert.True(translate.Succeeded, translate.Message);
+    var translation = await db.TranslationResults.SingleAsync(x => x.Id == translate.Value);
+    Assert.Equal("QAR", translation.FromCurrency);
+    Assert.Equal(translation.FromCurrency, translation.ToCurrency);
+    // Identity is rate exactly 1: the approved set holds no same-currency observation and none
+    // may be added, yet the translation is complete.
+    Assert.Equal(1m, translation.AppliedRate);
+    Assert.Empty(await db.ExchangeRates.Where(x => x.RateSetVersionId == fixture.RateSetId &&
+      x.FromCurrency == x.ToCurrency).ToListAsync());
+    Assert.Equal(0m, translation.TranslatedAmount);
+    Assert.Equal(0m, translation.ForeignExchangeAdjustment);
+    Assert.Equal(0m, translation.TranslationReserve);
+
+    // Approval revalidates the same identity instead of hunting for a missing rate observation.
+    Assert.True((await CurrencyTranslationService.ApproveTranslationAsync(db, reviewer, translate.Value)).Succeeded);
+    Assert.Equal(AccountingWorkflowStates.Approved,
+      (await db.TranslationResults.SingleAsync(x => x.Id == translate.Value)).Status);
+  }
+
+  [Fact(DisplayName = "A valid asset-only profile translates with the closing rate alone and zero reserve")]
+  [Trait("Profile", "Database")]
+  public async Task ForeignOperation_AssetOnlyProfileNeedsOnlyClosingRate()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var scope = await SeedAsync(pg);
+    var preparer = Actor(scope.Preparer, "AccountingPreparer");
+    var reviewer = Actor(scope.Reviewer, "Partner");
+    var rateDate = new DateOnly(2026, 12, 31);
+    IReadOnlyList<(string Destination, string Section, decimal Amount)> lines =
+    [
+      ("CASH", "ASSETS", 100m),
+      ("ACCUMULATED-DEPRECIATION", "ASSETS", -100m)
+    ];
+    await using var db = new AuditSphereDbContext(pg.Options);
+    // The rate set carries only the closing observation this profile can consume: no average or
+    // historical rate exists, and asset lines legitimately require none. A missing rate blocks
+    // only when a line's own purpose actually needs it.
+    var fixture = await SeedForeignOperationAsync(db, scope, lines,
+      Gold07Rates.Where(x => x.RateType == "CLOSING").ToList(), "gold7-assetonly", rateDate);
+    var translate = await CurrencyTranslationService.TranslateComponentAsync(db, preparer, fixture.ComponentId,
+      fixture.RateSetId, fixture.PolicyId, rateDate, "CLOSING");
+    Assert.True(translate.Succeeded, translate.Message);
+    var translation = await db.TranslationResults.SingleAsync(x => x.Id == translate.Value);
+    Assert.Equal(4.0m, translation.AppliedRate);
+    Assert.Equal(0m, translation.TranslatedAmount);
+    Assert.Equal(0m, translation.ForeignExchangeAdjustment);
+    Assert.Equal(0m, translation.TranslationReserve);
+    Assert.True((await CurrencyTranslationService.ApproveTranslationAsync(db, reviewer, translate.Value)).Succeeded);
   }
 
   [Fact]
