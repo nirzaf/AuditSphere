@@ -16,7 +16,7 @@
 
 | Writing operation | Current owner | Transaction boundary | Follow-up |
 |---|---|---|---|
-| `ConsolidationService.CreateGroupAsync` | `ConsolidationService.Groups` | One EF `SaveChangesAsync` persists group and creator grant atomically; no facade transaction. | Guard against concurrent role revocation in the wider group-authorization audit. |
+| `ConsolidationService.CreateGroupAsync` | `ConsolidationService.Groups` | One EF `SaveChangesAsync` persists group and creator grant atomically; no facade transaction. | Decide whether later firm-role revocation must also revoke an independently stored group grant, and fence concurrent changes accordingly. |
 | `ConsolidationService.AddMembershipAsync` | `ConsolidationService.Groups` | Service opens one database transaction, locks group row, writes membership and revision, commits. | Verify every early return rolls back through disposal. |
 | `FinancialStatementService` package operations | `FinancialStatementService.Package` | Existing code conditionally opens a transaction only if `CurrentTransaction` is null. | Trace callers before declaring the exact package operation ownership settled; no nested wrapper should be added. |
 | General-ledger writes | `ClientAccountingService.GeneralLedger` | An inspected mutation path opens an explicit service transaction. | Map the preserved request names to concrete methods; inspect durable worker stages separately. |
