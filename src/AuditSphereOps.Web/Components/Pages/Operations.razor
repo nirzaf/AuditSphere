@@ -8,6 +8,7 @@
 <PageTitle>Operations</PageTitle>
 <MudLink Href="/app" Class="back-link mb-2 d-inline-block">← Back to portfolio</MudLink>
 <PageHeader Title="Operations" Description="Redacted operational evidence for the current firm only: classification codes and durable state, never payloads, request bytes or lease owner identities. A re-armed operation re-runs through the same guarded validation as a first attempt. Only queued work without a worker lease can be cancelled safely." />
+<MudButton Color="Color.Primary" Variant="Variant.Outlined" Class="button-secondary" OnClick="LoadOperationsAsync" Disabled="@(_loading || _busy)">Refresh operations</MudButton>
 
 @if (_loading)
 {
@@ -93,39 +94,77 @@ else
   private string _cancelDisposition = string.Empty;
   private bool _loading = true;
   private bool _busy;
+  private long _loadGeneration;
 
-  protected override async Task OnInitializedAsync()
+  protected override Task OnInitializedAsync() => LoadOperationsAsync();
+
+  private void ClearProtectedState()
   {
-    _actor = await ActorResolver.ResolveAsync();
-    if (_actor is not null)
+    _actor = null;
+    _isAdmin = false;
+    _operatingMode = null;
+    _operations = [];
+    _result = null;
+    _successMessage = null;
+    _cancelDisposition = string.Empty;
+  }
+
+  private async Task LoadOperationsAsync()
+  {
+    var generation = ++_loadGeneration;
+    _loading = true;
+    ClearProtectedState();
+    try
     {
+      var actor = await ActorResolver.ResolveAsync();
+      if (actor is null || generation != _loadGeneration) return;
       await using var db = await DbFactory.CreateDbContextAsync();
-      var mode = await OperationRecoveryService.GetFirmOperatingModeAsync(db, _actor);
-      if (mode.Succeeded)
-      {
-        _isAdmin = true;
-        _operatingMode = mode.Value;
-        var listed = await OperationRecoveryService.ListAsync(db, _actor);
-        if (listed.Succeeded)
-          _operations = listed.Value!.ToList();
-      }
+      var mode = await OperationRecoveryService.GetFirmOperatingModeAsync(db, actor);
+      if (!mode.Succeeded || generation != _loadGeneration) return;
+      var listed = await OperationRecoveryService.ListAsync(db, actor);
+      if (!listed.Succeeded || generation != _loadGeneration) return;
+      var currentMode = await OperationRecoveryService.GetFirmOperatingModeAsync(db, actor);
+      var currentActor = await ActorResolver.ResolveAsync();
+      if (!currentMode.Succeeded || currentActor is null ||
+          currentActor.UserId != actor.UserId || currentActor.FirmId != actor.FirmId ||
+          currentActor.SessionEpoch != actor.SessionEpoch || generation != _loadGeneration) return;
+      _actor = currentActor;
+      _isAdmin = true;
+      _operatingMode = currentMode.Value;
+      _operations = listed.Value!.ToList();
     }
-    _loading = false;
+    finally { if (generation == _loadGeneration) _loading = false; }
+  }
+
+  private async Task<ActorContext?> CurrentAdminAsync()
+  {
+    if (_actor is null) return null;
+    var current = await ActorResolver.ResolveAsync();
+    if (current is null || current.UserId != _actor.UserId ||
+        current.FirmId != _actor.FirmId || current.SessionEpoch != _actor.SessionEpoch)
+    {
+      ClearProtectedState();
+      return null;
+    }
+    return current;
   }
 
   private async Task LiftQuarantineAsync()
   {
-    if (_actor is null || _busy) return;
+    if (_busy) return;
     _busy = true;
     try
     {
+      var actor = await CurrentAdminAsync();
+      if (actor is null) return;
       await using var db = await DbFactory.CreateDbContextAsync();
-      _result = await OperationRecoveryService.LiftQuarantineAsync(db, _actor);
-      if (_result.Succeeded)
+      var result = await OperationRecoveryService.LiftQuarantineAsync(db, actor);
+      await LoadOperationsAsync();
+      if (_isAdmin)
       {
-        _successMessage = "Recovery quarantine was lifted; operating mode is now LOCAL_ONLY.";
-        var mode = await OperationRecoveryService.GetFirmOperatingModeAsync(db, _actor);
-        if (mode.Succeeded) _operatingMode = mode.Value;
+        _result = result;
+        if (result.Succeeded)
+          _successMessage = "Recovery quarantine was lifted; operating mode is now LOCAL_ONLY.";
       }
     }
     finally { _busy = false; }
@@ -133,38 +172,44 @@ else
 
   private async Task RetryAsync(OperationProjection op)
   {
-    if (_actor is null || _busy) return;
+    if (_busy) return;
     _busy = true;
     try
     {
+      var actor = await CurrentAdminAsync();
+      if (actor is null) return;
       await using var db = await DbFactory.CreateDbContextAsync();
-      _result = await OperationRecoveryService.RetryAsync(db, _actor, new OperationRecoveryRequest(op.Id));
-      if (_result.Succeeded)
-        _successMessage = "The operation was re-armed for retry; the worker picks it up on its next attempt window.";
-      var listed = await OperationRecoveryService.ListAsync(db, _actor);
-      if (listed.Succeeded)
-        _operations = listed.Value!.ToList();
+      var result = await OperationRecoveryService.RetryAsync(db, actor, new OperationRecoveryRequest(op.Id));
+      await LoadOperationsAsync();
+      if (_isAdmin)
+      {
+        _result = result;
+        if (result.Succeeded)
+          _successMessage = "The operation was re-armed for retry; the worker picks it up on its next attempt window.";
+      }
     }
     finally { _busy = false; }
   }
 
   private async Task CancelAsync(OperationProjection op)
   {
-    if (_actor is null || _busy) return;
+    if (_busy) return;
     _busy = true;
     try
     {
+      var actor = await CurrentAdminAsync();
+      if (actor is null) return;
+      var disposition = _cancelDisposition;
       await using var db = await DbFactory.CreateDbContextAsync();
-      _result = await OperationRecoveryService.CancelAsync(db, _actor,
-        new OperationCancellationRequest(op.Id, _cancelDisposition));
-      if (_result.Succeeded)
+      var result = await OperationRecoveryService.CancelAsync(db, actor,
+        new OperationCancellationRequest(op.Id, disposition));
+      await LoadOperationsAsync();
+      if (_isAdmin)
       {
-        _successMessage = "The queued operation was cancelled and cannot be claimed by a worker.";
-        _cancelDisposition = string.Empty;
+        _result = result;
+        if (result.Succeeded)
+          _successMessage = "The queued operation was cancelled and cannot be claimed by a worker.";
       }
-      var listed = await OperationRecoveryService.ListAsync(db, _actor);
-      if (listed.Succeeded)
-        _operations = listed.Value!.ToList();
     }
     finally { _busy = false; }
   }

@@ -28,6 +28,18 @@
 
 ---
 
+## AS-PAR-002 Operations current-access refresh
+
+The Operations workbench now clears its redacted ledger, operating mode,
+command result, and cancellation draft before an explicit refresh checks the
+current firm-wide administrator grant. A second access check and session-epoch
+check fence late reads. Recovery commands resolve the current actor and reload
+the protected view after the guarded Application command. A browser regression
+revokes the administrator grant and confirms that a same-document refresh
+removes the previously visible operation. This is a bounded authorization
+slice, not completion of the whole-application audit. Exact verification is in
+`status.json`.
+
 ## R2R baseline scope and inventory
 
 The owner approved the STE-R2R-ARCH-001 seven-module scope. T001 now has a

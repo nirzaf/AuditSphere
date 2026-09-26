@@ -353,6 +353,57 @@ public sealed class ClientScopeJourneyTests
   }
 
   [Fact]
+  [Trait("CaseId", "AS-PAR-002-OPERATIONS-REVOKE-01")]
+  public async Task OperationsRefreshClearsLedgerAfterAdminGrantRevocation()
+  {
+    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false,
+      caseId: "AS-PAR-002-OPERATIONS-REVOKE-01");
+    var operatorUser = PbcSeed.User(host.Fixture.FirmId, "Staff");
+    const string privateKind = "SYN-PAR-002-PRIVATE-OPERATION";
+    Guid grantId;
+    await using (var db = host.CreateDbContext())
+    {
+      db.Users.Add(operatorUser);
+      var grant = PbcSeed.Grant(host.Fixture.FirmId, operatorUser, "Administrator");
+      grantId = grant.Id;
+      db.RoleGrants.Add(grant);
+      db.DurableOperations.Add(new DurableOperation
+      {
+        Id = Guid.NewGuid(), FirmId = host.Fixture.FirmId, OperationKind = privateKind,
+        TargetId = Guid.NewGuid(), CorrelationId = Guid.NewGuid(), ExpectedRevision = 1,
+        IdempotencyKey = Guid.NewGuid().ToString("N"), RequestDigest = new string('a', 64), RequestBytes = [1],
+        Status = OperationState.DEAD_LETTER, CreatedAt = DateTimeOffset.UtcNow,
+        NextAttemptAt = DateTimeOffset.UtcNow
+      });
+      await db.SaveChangesAsync();
+    }
+
+    var origin = await host.StartWebForIdentityAsync(operatorUser);
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    await using var context = await browser.NewContextAsync();
+    var page = await context.NewPageAsync();
+    var diagnostics = new List<string>();
+    var connected = WaitForCircuitConnectionAsync(page, diagnostics);
+    await page.GotoAsync(SignInUrl(origin, "/app/operations"));
+    await page.GetByText(privateKind, new() { Exact = true }).WaitForAsync();
+    await connected;
+    var documentToken = await page.EvaluateAsync<string>("window.__operationsToken = crypto.randomUUID()");
+
+    await using (var db = host.CreateDbContext())
+    {
+      var revoked = await RoleAdministrationService.RevokeRoleGrantAsync(db,
+        PbcSeed.Actor(host.Fixture.Admin, "Administrator"), new RevokeRoleGrantRequest(grantId));
+      Assert.True(revoked.Succeeded, revoked.Message);
+    }
+    await page.GetByRole(AriaRole.Button, new() { Name = "Refresh operations" }).ClickAsync();
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable" }).WaitForAsync();
+    Assert.DoesNotContain(privateKind, await page.Locator("body").InnerTextAsync());
+    Assert.Equal(documentToken, await page.EvaluateAsync<string>("window.__operationsToken"));
+    Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
+  }
+
+  [Fact]
   [Trait("CaseId", "AS-PAR-002-PORTFOLIO-READ-01")]
   public async Task ClientIdentityWithErroneousFirmWideStaffGrantCannotViewPortfolio()
   {
