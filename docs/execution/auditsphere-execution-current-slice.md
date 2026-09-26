@@ -521,13 +521,11 @@ review and explicit merge authorization before advancing acceptance.
 
 ### 2.10 Benchmark Baseline Verification
 
-- **Explicit focused run recorded:** AccountingBenchmarkTests passed on local
-  PostgreSQL 18.6 (clients=4, transactions=2000, lines=8000, enqueue 180.3ms,
-  worker 225.1ms, first page 49.5ms, group 32 lines / 4.9ms), evidencing
-  high-magnitude intake, durable outbox enqueue/worker publication and
-  consolidated group readback; concurrent worker-operation coverage remains in
-  DurableOutboxTests. Recorded in `status.json` localEvidence; the
-  pending-work inventory item now carries the dated observation.
+- **Explicit focused run recorded:** AccountingBenchmarkTests passed on the
+  local PostgreSQL profile, covering intake, durable outbox enqueue/worker
+  publication and consolidated group readback. Concurrent worker-operation
+  coverage remains in DurableOutboxTests. Exact measurements and the observed
+  date are recorded in `status.json`.
 - **State:** documentation/ledger change only; no production acceptance
   claimed for local-loopback measurements.
 
