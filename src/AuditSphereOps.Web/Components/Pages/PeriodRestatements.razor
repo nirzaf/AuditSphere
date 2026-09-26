@@ -9,7 +9,7 @@
 <MudLink Href="/app/accounting" Class="back-link mb-2 d-inline-block">← Back to accounting workspace</MudLink>
 <PageHeader Title="Period restatements" Description="Authorized post-close amendments recorded with immutable lineage; issued packages are never rewritten." />
 
-@if (_loading)
+@if (_loading || _selectionBusy)
 {
   <LoadingState IsLoading="true" LoadingMessage="Loading scoped restatements…" />
 }
@@ -124,13 +124,20 @@ else
 
   private async Task LoadDataAsync()
   {
-    if (_actor is null) return;
+    _actor = null;
+    _isStaff = false;
     _clients = [];
     _periods = [];
     _packages = [];
     _restatements = [];
     _reviewClientIds = [];
     _reviewFirmWide = false;
+    _actor = await ActorResolver.ResolveAsync();
+    if (_actor is null)
+    {
+      ClearScope();
+      return;
+    }
     await using var db = await DbFactory.CreateDbContextAsync();
     var authorization = await AuthorizationDecision.AuthorizeAsync(db, _actor,
       new AuthorizationRequest(_actor.FirmId, RequiredRoles: AccountingRoles, InternalOnly: true));
@@ -148,7 +155,11 @@ else
     _reviewClientIds = grants.Where(x => ReviewerRoles.Contains(x.Role) && x.ClientId.HasValue && x.EngagementId is null)
       .Select(x => x.ClientId!.Value).Distinct().ToArray();
     _isStaff = firmWide || scopedClientIds.Length > 0;
-    if (!_isStaff) return;
+    if (!_isStaff)
+    {
+      ClearScope();
+      return;
+    }
     var clients = await db.PracticeClients.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
       (firmWide || scopedClientIds.Contains(x.Id))).OrderBy(x => x.LegalName).ToListAsync();
     var periods = await db.ClientReportingPeriods.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
@@ -168,14 +179,14 @@ else
     _selectionBusy = true;
     try
     {
+      await LoadDataAsync();
+      if (_actor is null || !_isStaff) return;
       await using var db = await DbFactory.CreateDbContextAsync();
       var authorization = await AuthorizationDecision.AuthorizeAsync(db, _actor,
         new AuthorizationRequest(_actor.FirmId, ClientId: clientId, RequiredRoles: AccountingRoles, InternalOnly: true));
       if (!authorization.Succeeded)
       {
-        _periods = [];
-        _packages = [];
-        _selectedPeriodId = _selectedOriginalPackageId = _selectedRevisedPackageId = string.Empty;
+        ClearScope();
         return;
       }
       var periods = await db.ClientReportingPeriods.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && x.ClientId == clientId && x.Status == AccountingWorkflowStates.Closed)
@@ -223,6 +234,8 @@ else
         _successMessage = "Restatement request created; an independent reviewer must approve it.";
         await LoadDataAsync();
       }
+      else if (created.ErrorCode is ErrorCodes.ScopeDenied or ErrorCodes.GenerationStale)
+        ClearScope();
       else
         _result = CommandResult.Fail(created.ErrorCode ?? ErrorCodes.Accounting.ReconciliationRejected, created.Message ?? "Restatement request was blocked.");
     }
@@ -242,6 +255,8 @@ else
         _successMessage = "Restatement independently approved.";
         await LoadDataAsync();
       }
+      else if (_result.ErrorCode is ErrorCodes.ScopeDenied or ErrorCodes.GenerationStale)
+        ClearScope();
     }
     finally { _busy = false; }
   }
@@ -258,5 +273,10 @@ else
     _periods = [];
     _packages = [];
     _restatements = [];
+    _selectedClientId = _selectedPeriodId = _selectedOriginalPackageId = _selectedRevisedPackageId = string.Empty;
+    _revisedBasis = _changeType = _affectedPeriods = _reason = _evidenceReference = string.Empty;
+    _result = null;
+    _successMessage = null;
+    ++_selectionGeneration;
   }
 }

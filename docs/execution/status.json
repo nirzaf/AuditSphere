@@ -29,7 +29,19 @@
     "migrations": "Added 20260924070028_AddCurrencyRemeasurementWorkpaper after 20260924062848_CurrencyTranslationCalculationVersion. Focused PostgreSQL integration applied and verified the schema, evidence constraints and append-only triggers. The existing local auditsphere database remains at 91 migrations through 20260922140527_M365InvitationEvidenceAction; no local/production database migration was run outside isolated tests.",
     "pendingModelChanges": "PASS at 2026-09-26 for code identical to pushed SHA 3d449fb45489b7095343a2de59df0de238629718: dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Web --configuration Release; no pending model changes. No migration added.",
     "restoreDrill": "PASS at 2026-09-23T15:20:43Z: loopback restore reconciled the existing auditsphere database at 91 migrations through 20260922140527_M365InvitationEvidenceAction, including checkpoint/accounting/group manifests and release-delivery identities. Evidence was redirected to a temporary path. The local source DB was not migrated to the new proposal migration; production custody/RPO/RTO remain unverified.",
-    "database": "127.0.0.1:5433 development only"
+    "database": "127.0.0.1:5433 development only",
+    "periodWorkbenchAccessRefresh": {
+      "baseCommit": "f2eab0b368851ad2afb69fde3a70d21a18cd8f6d",
+      "branch": "codex/period-workbench-revocation",
+      "observedAt": "2026-09-26T11:40:01.796173+00:00",
+      "sourceState": "Verified working-tree implementation against baseCommit; historical verifiedCommit entries remain historical evidence.",
+      "build": "PASS: dotnet build AuditSphereOps.slnx --no-restore --configuration Release; 0 warnings/errors.",
+      "focusedTests": "PASS: PeriodWorkbenchScopeJourneyTests, 4/4, 0 skipped. Initial test fixture CaseId capitalization was corrected; an initial click/init timing race was corrected by waiting for interactive render before changing access.",
+      "fullSuite": "PASS: dotnet test AuditSphereOps.slnx --no-build --configuration Release; Domain 338/338, API 6/6, E2E 65/65, aggregate 409/409 with 0 skipped.",
+      "modelDrift": "PASS: dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Web --configuration Release; no pending model changes.",
+      "documentation": "Task-pack validation passed; task-status self-tests 21/21; markdown filename validation, edited handoff relative links and git diff --check passed.",
+      "boundary": "No schema/configuration/provider changes, Wiki publication, production deployment, professional approval or complete-story acceptance. Independent review and merge authorization remain required."
+    }
   },
   "documentationWork": {
     "e2eAutomationBlueprint": {
@@ -56,10 +68,10 @@
   },
   "active": {
     "packageId": "Audit workflow gap-closure and client accounting implementation",
-    "implementationStatus": "IN_PROGRESS",
+    "implementationStatus": "IMPLEMENTED",
     "acceptanceStatus": "LOCAL_VERIFIED",
-    "scope": "Local audit workflow, client accounting, scoped client file-request threads/uploads/downloads, GL intake, completeness, package, Office/PDF export, restatement, consolidation, journal-lineage, close-check, package-review and Microsoft 365 onboarding control-plane slices.",
-    "nextAction": "Continue the AC-01–AC-28 source-to-acceptance audit and remaining AS-PAR-002 route/query/search/count/export/direct-command and stale-content review in bounded slices; verify hosted CI against each pushed SHA. G16 period-end open-item methodology approval and applicable live integration evidence remain separate gates."
+    "scope": "AS-PAR-002 AC02–AC03 / AC-24: restatement and period roll-forward current-access reload and stale-content clearing. Broader story backlog remains open.",
+    "nextAction": "Open the period-workbench repair PR and obtain independent review plus explicit merge authorization under specification §46. The broader AC/parity/onboarding audit, methodology approvals and live acceptance gates remain open."
   },
   "localEvidence": [
     {
