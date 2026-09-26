@@ -448,6 +448,38 @@ review and explicit merge authorization before advancing acceptance.
   `81d4c1b` pushed to `master`. The parallel session's in-flight PBC work was
   left untouched and excluded from this commit.
 
+### 2.7 Documentation Health Gate (CI)
+
+- **Automated documentation health wired into CI:** a new `docs-health` job in
+  `ci.yml` runs the Markdown health validator (canonical links, basenames,
+  HISTORICAL_SOURCE banners) and the filename-policy validator on every push
+  and pull request — pure stdlib Python, no .NET or database needed, completing
+  the first "Automated Documentation Health" item from the pending-work
+  inventory. The build job is unchanged; hosted test execution remains the
+  retained blueprint.
+- **Wording synced:** the README and testing-strategy CI-contract sentences now
+  describe the gate as build plus documentation health checks; the pending-work
+  inventory marks the item complete with the volatile-metrics guard remaining.
+- **Observed:** both validators pass locally on the changed tree; the workflow
+  parses with both jobs; no .NET suite rerun (workflow + docs change only).
+
+### 2.8 Workpaper Revocation-Refresh (AS-PAR-002)
+
+- **Reload affordance added:** the workpaper draft toolbar's "Reload current
+  target" button was previously rendered only during draft conflicts; it is now
+  always available, so a user (or the audit) can re-run the reauthorizing load at
+  any time. `ReloadCurrentTargetAsync` already clears the protected projection
+  and re-checks scope and grants on every use.
+- **New journey:** `ReloadCurrentTargetClearsWorkpaperAfterGrantRevocation` —
+  opens an authorized workpaper, revokes the Partner and Staff grants via
+  `RoleAdministrationService.RevokeRoleGrantAsync`, clicks "Reload current
+  target", and asserts the fail-closed "Workpaper unavailable" state with the
+  title, index and work-performed markers fully cleared.
+- **Observed:** the focused journey passes; the complete suite passes Domain
+  348/348, Api 7/7, E2E 80/80 with 0 skipped on the shared tree. No business
+  rule, authorization decision or persistence change; the reload path simply
+  makes the existing fail-closed reauthorization reachable at any time.
+
 ### 2.4 Documentation Reality Audit
 
 - **Scope:** descriptive/current Markdown reconciled against implementation and

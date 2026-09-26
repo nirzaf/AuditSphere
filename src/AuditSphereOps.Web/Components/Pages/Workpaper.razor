@@ -107,10 +107,7 @@ else
                     <MudButton Variant="Variant.Outlined" Class="btn-secondary" OnClick="SaveDraftAsync" Disabled="@(_busy || _draftConflict || _saving)">Save draft</MudButton>
                     <MudButton Variant="Variant.Outlined" Class="btn-secondary" OnClick="DiscardDraftAsync" Disabled="@(_busy || _draftConflict || _saving || _draftRevision < 1)">Discard draft</MudButton>
                     <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="btn-primary" OnClick="SubmitAsync" Disabled="@(_busy || _draftConflict)">Submit for review</MudButton>
-                    @if (_draftConflict)
-                    {
-                        <MudButton Variant="Variant.Outlined" Class="btn-secondary" OnClick="ReloadCurrentTargetAsync" Disabled="@(_busy || _saving)">Reload current target</MudButton>
-                    }
+                    <MudButton Variant="Variant.Outlined" Class="btn-secondary" OnClick="ReloadCurrentTargetAsync" Disabled="@(_busy || _saving)">Reload current target</MudButton>
                 </div>
                 <p class="notice-text" role="status" aria-live="polite">@_draftStatus</p>
                 <p class="notice-text">

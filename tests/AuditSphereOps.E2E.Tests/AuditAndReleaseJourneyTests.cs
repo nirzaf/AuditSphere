@@ -440,6 +440,65 @@ public sealed class AuditAndReleaseJourneyTests
   }
 
   [Fact]
+  [Trait("CaseId", "AS-PAR-002-WORKPAPER-REFRESH-REVOKED-01")]
+  public async Task ReloadCurrentTargetClearsWorkpaperAfterGrantRevocation()
+  {
+    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false,
+      caseId: "AS-PAR-002-WORKPAPER-REFRESH-REVOKED-01");
+    var workpaperId = Guid.NewGuid();
+    await using (var db = host.CreateDbContext())
+    {
+      db.RoleGrants.Add(PbcSeed.Grant(host.Fixture.FirmId, host.Fixture.Staff, "Partner",
+        host.Fixture.ClientId, host.Fixture.EngagementId));
+      db.Workpapers.Add(new Workpaper
+      {
+        Id = workpaperId, FirmId = host.Fixture.FirmId, ClientId = host.Fixture.ClientId,
+        EngagementId = host.Fixture.EngagementId, ActorId = host.Fixture.Staff.Id,
+        Index = "R-E2E-REVOKE-A", Title = "Synthetic revoked-grant workpaper",
+        Objective = "Exercise fail-closed reload after revocation",
+        TemplateVersion = "SYNTHETIC-v1", Procedure = "Synthetic procedure",
+        WorkPerformed = "Revoked-grant work performed marker",
+        Status = WorkpaperStatuses.Working, CreatedAt = DateTimeOffset.UtcNow
+      });
+      await db.SaveChangesAsync();
+    }
+
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    await using var context = await browser.NewContextAsync();
+    var page = await context.NewPageAsync();
+    var diagnostics = new List<string>();
+    var connected = WaitForCircuitConnectionAsync(page, diagnostics);
+    await page.GotoAsync(SignInUrl(host.StaffUrl, $"/app/audit/workpapers/{workpaperId:D}"));
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Workpaper: Synthetic revoked-grant workpaper" }).WaitForAsync();
+    await connected;
+    await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new() { Timeout = 5000 });
+    await Assertions.Expect(page.GetByText("Workpaper Details")).ToBeVisibleAsync();
+
+    await using (var db = host.CreateDbContext())
+    {
+      var grants = await db.RoleGrants.Where(x => x.FirmId == host.Fixture.FirmId &&
+        x.UserId == host.Fixture.Staff.Id && x.RevokedAt == null &&
+        (x.Role == "Partner" || x.Role == "Staff")).ToListAsync();
+      Assert.NotEmpty(grants);
+      foreach (var grant in grants)
+      {
+        var revoked = await RoleAdministrationService.RevokeRoleGrantAsync(db,
+          PbcSeed.Actor(host.Fixture.Admin, "Administrator"), new RevokeRoleGrantRequest(grant.Id));
+        Assert.True(revoked.Succeeded, revoked.Message);
+      }
+    }
+
+    await page.GetByRole(AriaRole.Button, new() { Name = "Reload current target" }).ClickAsync();
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Workpaper unavailable" }).WaitForAsync();
+    var body = await page.Locator("body").InnerTextAsync();
+    Assert.DoesNotContain("Synthetic revoked-grant workpaper", body);
+    Assert.DoesNotContain("R-E2E-REVOKE-A", body);
+    Assert.DoesNotContain("Revoked-grant work performed marker", body);
+    Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
+  }
+
+  [Fact]
   [Trait("CaseId", "AS-PAR-009-AGGREGATE-DIFFERENCES-UI-01")]
   public async Task AuditFieldworkRecordsHumanAggregateConclusionBoundToDifferenceSchedule()
   {
