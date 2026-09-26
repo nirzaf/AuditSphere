@@ -14,6 +14,29 @@ namespace AuditSphereOps.Domain.Tests;
 [Trait("Profile", "Database")]
 public sealed class PbcTransferTests
 {
+  [Theory]
+  [InlineData("", 12, null)]
+  [InlineData("provider://other", 12, "provider://expected")]
+  [InlineData("provider://expected", 11, "provider://expected")]
+  public async Task Reconciliation_RejectsIncompleteOrChangedProviderReceipt(
+    string identity, long byteCount, string? knownIdentity)
+  {
+    var digest = new string('a', 64);
+    var intentId = Guid.NewGuid();
+    var receipt = new PbcProviderReceipt(identity, digest, byteCount);
+    var handler = new PbcDocumentTransferHandler(null!, new ReceiptOnlySink(receipt));
+    var operation = new DurableOperation
+    {
+      FirmId = Guid.NewGuid(), ClientId = Guid.NewGuid(), EngagementId = Guid.NewGuid(),
+      TargetId = intentId, ExpectedRevision = 1, ResultIdentity = knownIdentity,
+      PayloadJson = $$"""{"uploadIntentId":"{{intentId:D}}","intentRevision":1,"finalSha256Hex":"{{digest}}","declaredByteCount":12}"""
+    };
+
+    var error = await Assert.ThrowsAsync<OperationBlockedException>(() =>
+      handler.ReconcileAsync(operation, CancellationToken.None));
+    Assert.Equal("provider-receipt-conflict", error.Code);
+  }
+
   [Fact]
   public async Task ProviderHandoff_UsesTheTrustedClientAndEngagementScope()
   {
@@ -298,5 +321,17 @@ public sealed class PbcTransferTests
 
     public Task<PbcProviderReceipt?> ProbeAsync(PbcTransferScope scope, CancellationToken ct) =>
       Inner!.ProbeAsync(scope, ct);
+  }
+
+  private sealed class ReceiptOnlySink(PbcProviderReceipt receipt) : IPbcProviderSink
+  {
+    public Task<PbcProviderReceipt> UploadAsync(PbcTransferPlan plan, CancellationToken ct) =>
+      throw new NotSupportedException();
+
+    public Task<PbcProviderReceipt?> VerifyAsync(PbcTransferScope scope, string identity, CancellationToken ct) =>
+      Task.FromResult<PbcProviderReceipt?>(receipt);
+
+    public Task<PbcProviderReceipt?> ProbeAsync(PbcTransferScope scope, CancellationToken ct) =>
+      Task.FromResult<PbcProviderReceipt?>(receipt);
   }
 }

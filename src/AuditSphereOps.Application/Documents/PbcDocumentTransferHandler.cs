@@ -116,8 +116,12 @@ public sealed class PbcDocumentTransferHandler(
       : await sink.VerifyAsync(scope, op.ResultIdentity, ct);
     if (receipt is null)
       throw new SafeRetryException(TimeSpan.FromSeconds(5));
-    if (!IsSha256(receipt.ContentSha256Hex) ||
-        !string.Equals(receipt.ContentSha256Hex, payload.FinalSha256Hex, StringComparison.OrdinalIgnoreCase))
+    if (string.IsNullOrWhiteSpace(receipt.Identity) ||
+        (!string.IsNullOrWhiteSpace(op.ResultIdentity) &&
+          !string.Equals(receipt.Identity, op.ResultIdentity, StringComparison.Ordinal)) ||
+        !IsSha256(receipt.ContentSha256Hex) ||
+        !string.Equals(receipt.ContentSha256Hex, payload.FinalSha256Hex, StringComparison.OrdinalIgnoreCase) ||
+        receipt.ByteCount != payload.DeclaredByteCount)
       throw new OperationBlockedException("provider-receipt-conflict");
     return new(receipt.Identity, receipt.ContentSha256Hex);
   }
