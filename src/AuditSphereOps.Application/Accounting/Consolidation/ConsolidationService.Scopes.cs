@@ -120,6 +120,9 @@ public static partial class ConsolidationService
       return auth;
     if (scope.Status != AccountingWorkflowStates.Draft)
       return CommandResult.Fail(ErrorCodes.ProtectedState, "Only a draft perimeter can be approved.");
+    if (scope.CreatedByUserId == actor.UserId)
+      return CommandResult.Fail(ErrorCodes.Accounting.MappingInvalid,
+        "Only a separate reviewer can approve a consolidation perimeter.");
     var currentGroupRevision = await db.ClientGroups.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.Id == scope.GroupId)
       .Select(x => (long?)x.Revision).SingleOrDefaultAsync(ct);
     if (currentGroupRevision is null || currentGroupRevision.Value != scope.GroupRevision)

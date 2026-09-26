@@ -289,7 +289,7 @@ public sealed partial class ClientAccountingTests
           Role = "Partner", GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = fixture.Reviewer.Id
         });
       await db.SaveChangesAsync();
-      scopeId = (await ConsolidationService.CreateScopeAsync(db, reviewer,
+      scopeId = (await ConsolidationService.CreateScopeAsync(db, preparer,
         new ConsolidationScopeRequest(groupId, Guid.NewGuid(), "QAR", AdvancedConsolidationMethods.AcquisitionNci,
           "OPENING-2026"))).Value;
       profileId = (await ClientAccountingService.CreateCapabilityProfileAsync(db, reviewer,
@@ -362,7 +362,7 @@ public sealed partial class ClientAccountingTests
         Role = "Partner", GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = fixture.Reviewer.Id });
     await db.SaveChangesAsync();
 
-    var targetScopeId = (await ConsolidationService.CreateScopeAsync(db, reviewer,
+    var targetScopeId = (await ConsolidationService.CreateScopeAsync(db, preparer,
       new ConsolidationScopeRequest(groupId, Guid.NewGuid(), "QAR", AdvancedConsolidationMethods.NestedGroup,
         "OPENING-2026"))).Value;
     var profileId = (await ClientAccountingService.CreateCapabilityProfileAsync(db, reviewer,
@@ -470,7 +470,7 @@ public sealed partial class ClientAccountingTests
       new TranslationPolicyRequest("ADV-FX-POLICY", "USD", "QAR", "CLOSING", "AVERAGE", "HISTORICAL"))).Value;
     Assert.True((await CurrencyTranslationService.ApprovePolicyAsync(db, methodOwner, policyId)).Succeeded);
 
-    var scopeId = (await ConsolidationService.CreateScopeAsync(db, reviewer,
+    var scopeId = (await ConsolidationService.CreateScopeAsync(db, preparer,
       new ConsolidationScopeRequest(groupId, Guid.NewGuid(), "QAR", AdvancedConsolidationMethods.ForeignCurrencyReserve,
         "OPENING-2026", rateSetId, policyId, rateDate, "CLOSING"))).Value;
     var profileId = (await ClientAccountingService.CreateCapabilityProfileAsync(db, reviewer,
@@ -545,7 +545,7 @@ public sealed partial class ClientAccountingTests
           Role = "Partner", GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = fixture.Reviewer.Id });
       await db.SaveChangesAsync();
 
-      scopeId = (await ConsolidationService.CreateScopeAsync(db, reviewer,
+      scopeId = (await ConsolidationService.CreateScopeAsync(db, preparer,
         new ConsolidationScopeRequest(groupId, Guid.NewGuid(), "QAR", AdvancedConsolidationMethods.AcquisitionNci,
           "OPENING-2026"))).Value;
       var packId = (await ConsolidationService.SubmitExternalComponentPackAsync(db, preparer,
@@ -690,7 +690,7 @@ public sealed partial class ClientAccountingTests
     db.RoleGrants.Add(Grant(fixture.FirmId, fixture.Preparer, "Partner"));
     await db.SaveChangesAsync();
 
-    var scopeId = (await ConsolidationService.CreateScopeAsync(db, reviewer,
+    var scopeId = (await ConsolidationService.CreateScopeAsync(db, preparer,
       new ConsolidationScopeRequest(groupId, Guid.NewGuid(), "QAR", method, "OPENING-2026"))).Value;
     var profileId = (await ClientAccountingService.CreateCapabilityProfileAsync(db, reviewer,
       new CapabilityProfileRequest(null, groupId, AccountingCapabilityServiceKinds.GroupReporting, "IFRS", "2026",

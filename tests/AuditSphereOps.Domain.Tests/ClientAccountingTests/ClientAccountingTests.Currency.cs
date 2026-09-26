@@ -314,7 +314,7 @@ public sealed partial class ClientAccountingTests
       Assert.False(unsupportedPolicyRateScope.Succeeded);
       Assert.Equal(ErrorCodes.GateBlocked, unsupportedPolicyRateScope.ErrorCode);
 
-      consolidationScopeId = (await ConsolidationService.CreateScopeAsync(db, reviewer,
+      consolidationScopeId = (await ConsolidationService.CreateScopeAsync(db, preparer,
         new ConsolidationScopeRequest(groupId, Guid.NewGuid(), "QAR", ConsolidationCalculator.ForeignOperationMethod, "OPENING-FX-2026",
           rateSetId, policyId, rateDate, "CLOSING"))).Value;
       packageUsd = await AddPackageAsync(db, scope, scope.ClientA, scope.EngagementA, 100m, "CASH", "foreign-usd", "USD");
@@ -426,7 +426,7 @@ public sealed partial class ClientAccountingTests
       Assert.Equal(100m, await db.FinancialPackageLines.Where(x => x.FinancialPackageId == packageUsd).Select(x => x.Amount).SingleAsync());
       Assert.Equal("USD", await db.FinancialPackageLines.Where(x => x.FinancialPackageId == packageUsd).Select(x => x.Currency).SingleAsync());
 
-      var nextScopeId = (await ConsolidationService.CreateScopeAsync(db, reviewer,
+      var nextScopeId = (await ConsolidationService.CreateScopeAsync(db, preparer,
         new ConsolidationScopeRequest(groupId, Guid.NewGuid(), "QAR", ConsolidationCalculator.ForeignOperationMethod,
           "OPENING-FX-2027", rateSetId, policyId, rateDate.AddYears(1), "CLOSING", consolidationScopeId))).Value;
       var nextScope = await db.ConsolidationScopeVersions.AsNoTracking().SingleAsync(x => x.Id == nextScopeId);
@@ -509,7 +509,7 @@ public sealed partial class ClientAccountingTests
         new TranslationPolicyRequest("FX-POL-GOLD7", "USD", "QAR", "CLOSING", "AVERAGE", "HISTORICAL"))).Value;
       Assert.True((await CurrencyTranslationService.ApprovePolicyAsync(db, methodOwner, policyId)).Succeeded);
 
-      consolidationScopeId = (await ConsolidationService.CreateScopeAsync(db, reviewer,
+      consolidationScopeId = (await ConsolidationService.CreateScopeAsync(db, preparer,
         new ConsolidationScopeRequest(groupId, Guid.NewGuid(), "QAR", ConsolidationCalculator.ForeignOperationMethod,
           "OPENING-GOLD7", rateSetId, policyId, rateDate, "CLOSING"))).Value;
 
@@ -663,7 +663,7 @@ public sealed partial class ClientAccountingTests
       new TranslationPolicyRequest($"FX-POL-{suffix}", functionalCurrency, "QAR", "CLOSING", "AVERAGE", "HISTORICAL"))).Value;
     Assert.True((await CurrencyTranslationService.ApprovePolicyAsync(db, partner, policyId)).Succeeded);
 
-    var scopeId = (await ConsolidationService.CreateScopeAsync(db, reviewer,
+    var scopeId = (await ConsolidationService.CreateScopeAsync(db, preparer,
       new ConsolidationScopeRequest(groupId, Guid.NewGuid(), "QAR", ConsolidationCalculator.ForeignOperationMethod,
         $"OPENING-{suffix}", rateSetId, policyId, rateDate, "CLOSING"))).Value;
 

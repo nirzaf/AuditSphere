@@ -52,6 +52,17 @@
       "documentation": "PASS: task-pack validation and git diff --check.",
       "boundary": "This closes the concurrent group-creation/revocation race only. Historical group grants, later firm-role revocation policy, T002 handoff completion and production authorization acceptance remain open."
     },
+    "r2rPerimeterCreatorReviewGuard": {
+      "observedAt": "2026-09-26T19:26:51Z",
+      "behavior": "ConsolidationService.ApproveScopeAsync refuses approval when the current authorized group reviewer is the exact ConsolidationScopeVersion.CreatedByUserId. Existing perimeter fixtures now create the draft as a distinct group preparer and retain reviewer acceptance on the same scope version.",
+      "focusedTests": "PASS: GroupWorkflow_UsesApprovedComponentPackagesWithoutMutatingThem, AdvancedForeignSchedule_BindsApprovedRateEvidenceAndReserve, and ForeignOperation_Gold07_ReplayApprovalAndReadbackAreStable, 3/3 against PostgreSQL 18.6. The group workflow asserts creator approval is refused before a separate reviewer approves after its capability gate.",
+      "build": "PASS: Release Web build, 0 warnings/errors.",
+      "domainSuite": "PASS: Release Domain suite 341/341, 0 skipped.",
+      "apiSuite": "PASS: Release API suite 7/7, 0 skipped.",
+      "modelDrift": "PASS: EF reports no pending model changes.",
+      "browserSuite": "NOT_RUN at observation: another active task is editing and executing the shared E2E suite; this slice has not claimed browser acceptance.",
+      "boundary": "This is one current-code separation-of-duties guard. It does not complete T002, T041, all group review predicates, independent non-owner repository review or production authorization acceptance."
+    },
     "restoreDrill": "PASS at 2026-09-23T15:20:43Z: loopback restore reconciled the existing auditsphere database at 91 migrations through 20260922140527_M365InvitationEvidenceAction, including checkpoint/accounting/group manifests and release-delivery identities. Evidence was redirected to a temporary path. The local source DB was not migrated to the new proposal migration; production custody/RPO/RTO remain unverified.",
     "database": "127.0.0.1:5433 development only",
     "periodWorkbenchAccessRefresh": {

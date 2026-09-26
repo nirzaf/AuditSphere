@@ -260,7 +260,7 @@ public sealed partial class ClientAccountingTests
         Role = "AccountingReviewer", GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = scope.Reviewer.Id
       });
       await db.SaveChangesAsync();
-      consolidationScopeId = (await ConsolidationService.CreateScopeAsync(db, reviewer,
+      consolidationScopeId = (await ConsolidationService.CreateScopeAsync(db, preparer,
         new ConsolidationScopeRequest(groupId, Guid.NewGuid(), "", ConsolidationCalculator.RestrictedMethod, "OPENING-2026"))).Value;
       Assert.Equal(AccountingDefaults.DefaultCurrency,
         await db.ConsolidationScopeVersions.Where(x => x.Id == consolidationScopeId).Select(x => x.ReportingCurrency).SingleAsync());
@@ -307,6 +307,9 @@ public sealed partial class ClientAccountingTests
       }
       foreach (var componentId in components)
         Assert.True((await ConsolidationService.ApproveComponentAsync(db, reviewer, componentId)).Succeeded);
+      var creatorApproval = await ConsolidationService.ApproveScopeAsync(db, preparer, consolidationScopeId);
+      Assert.False(creatorApproval.Succeeded);
+      Assert.Equal(ErrorCodes.Accounting.MappingInvalid, creatorApproval.ErrorCode);
       var missingCapability = await ConsolidationService.ApproveScopeAsync(db, reviewer, consolidationScopeId);
       Assert.False(missingCapability.Succeeded);
       Assert.Equal(ErrorCodes.GateBlocked, missingCapability.ErrorCode);

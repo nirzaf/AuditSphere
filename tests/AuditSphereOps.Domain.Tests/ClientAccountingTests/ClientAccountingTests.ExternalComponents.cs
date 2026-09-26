@@ -57,7 +57,7 @@ public sealed partial class ClientAccountingTests
       });
       db.RoleGrants.Add(Grant(scope.FirmId, scope.Preparer, "Partner"));
       await db.SaveChangesAsync();
-      scopeId = (await ConsolidationService.CreateScopeAsync(db, reviewer,
+      scopeId = (await ConsolidationService.CreateScopeAsync(db, preparer,
         new ConsolidationScopeRequest(groupId, Guid.NewGuid(), "QAR", ConsolidationCalculator.RestrictedMethod,
           "OPENING-2026"))).Value;
 
