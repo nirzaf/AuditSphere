@@ -150,6 +150,15 @@ then reauthorize before displaying refreshed conversation or transfer state.
 This slice does not close the whole-application AS-PAR-002 audit. Exact local
 verification is in `status.json`.
 
+## P1 production OIDC startup guard
+
+The Production Web host now refuses startup when OIDC is absent altogether,
+including when no `Identity` section is supplied. Development and Test retain
+their supported local profiles. The Production cookie-policy test uses synthetic
+OIDC settings to exercise the cookie behavior without a live sign-in. The full
+local suite and EF model check passed; this closes a configuration gap but not
+the live P1 identity fixture cycle. Exact evidence is in `status.json`.
+
 ## P1 incomplete OIDC configuration guard
 
 The Web host now refuses startup when any `Identity` setting is supplied without
