@@ -28,6 +28,17 @@
 
 ---
 
+## Client portal landing access refresh
+
+The portal landing page now clears its assigned request and package lists before
+an explicit refresh resolves the current client identity and active grants. It
+builds the new projection from an actor-local query, rechecks the session epoch
+before publishing the result, and fences overlapping loads. The existing
+engagement-scope browser journey now revokes the client's grant and verifies
+that refresh removes the authorized request in the same document. This remains
+a bounded AS-PAR-002 read/revocation slice; exact checks and source identity
+are recorded in `status.json`.
+
 ## Client financial-package access refresh
 
 The management-review page now reloads on package route changes and offers an

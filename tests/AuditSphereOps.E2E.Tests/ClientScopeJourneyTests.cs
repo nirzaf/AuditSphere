@@ -1837,6 +1837,21 @@ public sealed class ClientScopeJourneyTests
 
     var body = await page.Locator("body").InnerTextAsync();
     Assert.DoesNotContain(siblingMarker, body);
+    var documentToken = await page.EvaluateAsync<string>("window.__clientPortalRefreshToken = crypto.randomUUID()");
+    await using (var db = host.CreateDbContext())
+    {
+      var grant = await db.RoleGrants.SingleAsync(x => x.FirmId == host.Fixture.FirmId &&
+        x.UserId == host.Fixture.Client.Id && x.Role == "ClientUser" && x.RevokedAt == null);
+      var revoked = await RoleAdministrationService.RevokeRoleGrantAsync(db,
+        PbcSeed.Actor(host.Fixture.Admin, "Administrator"), new RevokeRoleGrantRequest(grant.Id));
+      Assert.True(revoked.Succeeded, revoked.Message);
+    }
+    await page.GetByRole(AriaRole.Button, new() { Name = "Refresh portal" }).ClickAsync();
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Portal unavailable" }).WaitForAsync();
+    body = await page.Locator("body").InnerTextAsync();
+    Assert.DoesNotContain("Cash", body);
+    Assert.DoesNotContain(siblingMarker, body);
+    Assert.Equal(documentToken, await page.EvaluateAsync<string>("window.__clientPortalRefreshToken"));
     Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
   }
 

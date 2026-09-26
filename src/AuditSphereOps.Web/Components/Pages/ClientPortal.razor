@@ -6,6 +6,7 @@
 
 <PageTitle>Client portal</PageTitle>
 <PageHeader Title="Client portal" Description="Restricted client workspace. This view contains assigned PBC requests and transfer receipts only. Internal risk, review and workpaper content is not exposed." />
+<MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button-secondary" OnClick="LoadPortalAsync" Disabled="@_loading">Refresh portal</MudButton>
 
 @if (_loading)
 {
@@ -87,36 +88,64 @@ else
   private List<PbcRequest> _requests = [];
   private List<ClientPackageRow> _packages = [];
   private bool _loading = true;
+  private long _loadGeneration;
 
-  protected override async Task OnInitializedAsync()
+  protected override Task OnInitializedAsync() => LoadPortalAsync();
+
+  private async Task LoadPortalAsync()
   {
-    _actor = await ActorResolver.ResolveAsync();
-    if (_actor is not null)
+    var generation = ++_loadGeneration;
+    _loading = true;
+    _actor = null;
+    _clientIds = [];
+    _requests = [];
+    _packages = [];
+    try
     {
+      var actor = await ActorResolver.ResolveAsync();
+      if (actor is null || generation != _loadGeneration)
+        return;
       await using var db = await DbFactory.CreateDbContextAsync();
       var grants = db.RoleGrants.AsNoTracking().Where(x =>
-        x.FirmId == _actor.FirmId && x.UserId == _actor.UserId && x.Role == "ClientUser" &&
+        x.FirmId == actor.FirmId && x.UserId == actor.UserId && x.Role == "ClientUser" &&
         x.ClientId.HasValue && x.RevokedAt == null);
       var grantScopes = await grants.Select(x => new { x.ClientId, x.EngagementId }).ToListAsync();
-      _clientIds = grantScopes.Select(x => x.ClientId!.Value).Distinct().ToList();
-      if (_clientIds.Count > 0)
+      var clientIds = grantScopes.Select(x => x.ClientId!.Value).Distinct().ToList();
+      var requests = new List<PbcRequest>();
+      var packageRows = new List<ClientPackageRow>();
+      if (clientIds.Count > 0)
       {
-        _requests = await db.PbcRequests.AsNoTracking().Where(x =>
-          x.FirmId == _actor.FirmId && x.ClientOwnerUserId == _actor.UserId &&
+        requests = await db.PbcRequests.AsNoTracking().Where(x =>
+          x.FirmId == actor.FirmId && x.ClientOwnerUserId == actor.UserId &&
           grants.Any(g => g.ClientId == x.ClientId &&
             (!g.EngagementId.HasValue || g.EngagementId == x.EngagementId)))
           .OrderBy(x => x.DueDate).ThenBy(x => x.Area).ToListAsync();
         var packages = await db.FinancialPackages.AsNoTracking().Where(x =>
-          x.FirmId == _actor.FirmId && x.Status == AccountingPackageStates.PackageValidated &&
+          x.FirmId == actor.FirmId && x.Status == AccountingPackageStates.PackageValidated &&
           grants.Any(g => g.ClientId == x.ClientId &&
             (!g.EngagementId.HasValue || g.EngagementId == x.EngagementId)))
           .OrderByDescending(x => x.CreatedAt).Take(100).ToListAsync();
-        _packages = packages.Select(package => new ClientPackageRow(package.Id, package.Framework, package.PeriodStart,
+        packageRows = packages.Select(package => new ClientPackageRow(package.Id, package.Framework, package.PeriodStart,
             package.PeriodEnd, package.Currency))
           .ToList();
       }
+      if (generation != _loadGeneration)
+        return;
+      var currentActor = await ActorResolver.ResolveAsync();
+      if (currentActor is null || currentActor.UserId != actor.UserId ||
+          currentActor.FirmId != actor.FirmId || currentActor.SessionEpoch != actor.SessionEpoch ||
+          generation != _loadGeneration)
+        return;
+      _actor = actor;
+      _clientIds = clientIds;
+      _requests = requests;
+      _packages = packageRows;
     }
-    _loading = false;
+    finally
+    {
+      if (generation == _loadGeneration)
+        _loading = false;
+    }
   }
 
   private sealed record ClientPackageRow(Guid Id, string Framework, string PeriodStart, string PeriodEnd, string Currency);
