@@ -3,7 +3,9 @@ using System.Text;
 using AuditSphereOps.Domain.Microsoft365;
 using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Shared;
+using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
+using AuditSphereOps.Application.Security;
 using Microsoft.EntityFrameworkCore;
 
 namespace AuditSphereOps.Application.Microsoft365;
@@ -127,7 +129,8 @@ public static class Microsoft365OnboardingService
     DateTimeOffset now,
     CancellationToken ct = default,
     string? authenticatedTenantId = null,
-    string? authenticatedObjectId = null)
+    string? authenticatedObjectId = null,
+    ActorContext? authenticatedActor = null)
   {
     if (firmId == Guid.Empty || string.IsNullOrWhiteSpace(installationId) ||
         string.IsNullOrWhiteSpace(bootstrapProof) || !IsSha256(configuredProofHash))
@@ -146,13 +149,21 @@ public static class Microsoft365OnboardingService
       if (existing.State == Microsoft365SetupStates.Active || existing.ConsumedAt is not null || existing.ClaimedByUserId is not null)
       {
         var canResume = existing.ClaimedByUserId is { } claimedId &&
+          existing.State == Microsoft365SetupStates.Claimed &&
+          authenticatedActor is not null && authenticatedActor.UserId == claimedId &&
+          authenticatedActor.FirmId == firmId &&
           !string.IsNullOrWhiteSpace(authenticatedTenantId) && !string.IsNullOrWhiteSpace(authenticatedObjectId) &&
           await db.Users.AsNoTracking().AnyAsync(x => x.Id == claimedId && x.FirmId == firmId &&
             x.TenantId == authenticatedTenantId.Trim() && x.Subject == authenticatedObjectId.Trim(), ct);
         if (!canResume)
           return CommandResult<SetupClaim>.Fail("m365.setup.consumed", "Initial setup has already been claimed; resume requires the bound Microsoft identity.");
+        var authorization = await AuthorizationDecision.AuthorizeAsync(db, authenticatedActor!,
+          new AuthorizationRequest(firmId, RequiredRoles: ["Administrator"], InternalOnly: true,
+            RequireFirmWide: true), ct);
+        if (!authorization.Succeeded)
+          return CommandResult<SetupClaim>.Fail("m365.setup.denied", "Current administrator access is required to resume setup.");
         if (existing.ExpiresAt <= now)
-          return CommandResult<SetupClaim>.Fail("m365.setup.expired", "The setup authorization expired; issue a new bootstrap proof.");
+          existing.ExpiresAt = now.AddMinutes(30);
         var resumedCapability = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
         existing.CapabilityHash = Hash(resumedCapability);
         existing.Revision++;

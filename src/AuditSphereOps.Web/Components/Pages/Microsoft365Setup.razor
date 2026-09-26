@@ -259,7 +259,8 @@
         Configuration["Setup:InstallationId"] ?? Configuration["Application:InstallationId"]!, _bootstrapProof,
         Configuration["Setup:BootstrapProofHash"]!, DateTimeOffset.UtcNow,
         authenticatedTenantId: principal.FindFirst("tid")?.Value,
-        authenticatedObjectId: principal.FindFirst("oid")?.Value);
+        authenticatedObjectId: principal.FindFirst("oid")?.Value,
+        authenticatedActor: _actor);
       if (!result.Succeeded) { _error = result.Message ?? "Setup could not be claimed."; return; }
       _claim = result.Value; _bootstrapProof = string.Empty; await Reload();
       _message = "Setup claimed. Microsoft verification and activation are separate steps.";

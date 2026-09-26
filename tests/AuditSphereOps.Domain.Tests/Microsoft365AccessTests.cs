@@ -43,9 +43,40 @@ public sealed class Microsoft365AccessTests
 
     var unauthorisedResume = await Microsoft365OnboardingService.ClaimAsync(db, firmId, "install-bootstrap", "proof", Hash("proof"), now.AddSeconds(2));
     Assert.False(unauthorisedResume.Succeeded);
+    var boundUser = await db.Users.AsNoTracking().SingleAsync(x => x.Id == first.Value);
+    var actor = new ActorContext(boundUser.Id, firmId, boundUser.SessionEpoch, ["Administrator"]);
     var authorisedResume = await Microsoft365OnboardingService.ClaimAsync(db, firmId, "install-bootstrap", "proof", Hash("proof"), now.AddSeconds(2),
-      authenticatedTenantId: "tenant", authenticatedObjectId: "approved-oid");
+      authenticatedTenantId: "tenant", authenticatedObjectId: "approved-oid", authenticatedActor: actor);
     Assert.True(authorisedResume.Succeeded);
+
+    var expiredResumeWithoutCurrentActor = await Microsoft365OnboardingService.ClaimAsync(db, firmId,
+      "install-bootstrap", "proof", Hash("proof"), now.AddMinutes(31),
+      authenticatedTenantId: "tenant", authenticatedObjectId: "approved-oid");
+    Assert.False(expiredResumeWithoutCurrentActor.Succeeded);
+    var expiredResume = await Microsoft365OnboardingService.ClaimAsync(db, firmId,
+      "install-bootstrap", "proof", Hash("proof"), now.AddMinutes(31),
+      authenticatedTenantId: "tenant", authenticatedObjectId: "approved-oid", authenticatedActor: actor);
+    Assert.True(expiredResume.Succeeded);
+    Assert.NotEqual(authorisedResume.Value!.Capability, expiredResume.Value!.Capability);
+    Assert.True((await db.Microsoft365SetupSessions.AsNoTracking().SingleAsync(x => x.Id == claim.Value.SessionId))
+      .ExpiresAt > now.AddMinutes(31));
+
+    var changedEpochUser = await db.Users.SingleAsync(x => x.Id == first.Value);
+    changedEpochUser.SessionEpoch++;
+    await db.SaveChangesAsync();
+    var staleActorResume = await Microsoft365OnboardingService.ClaimAsync(db, firmId,
+      "install-bootstrap", "proof", Hash("proof"), now.AddMinutes(31).AddSeconds(1),
+      authenticatedTenantId: "tenant", authenticatedObjectId: "approved-oid", authenticatedActor: actor);
+    Assert.False(staleActorResume.Succeeded);
+
+    var currentActor = actor with { SessionEpoch = changedEpochUser.SessionEpoch };
+    var grant = await db.RoleGrants.SingleAsync(x => x.FirmId == firmId && x.UserId == first.Value);
+    grant.RevokedAt = now.AddMinutes(31);
+    await db.SaveChangesAsync();
+    var revokedAdministratorResume = await Microsoft365OnboardingService.ClaimAsync(db, firmId,
+      "install-bootstrap", "proof", Hash("proof"), now.AddMinutes(31).AddSeconds(2),
+      authenticatedTenantId: "tenant", authenticatedObjectId: "approved-oid", authenticatedActor: currentActor);
+    Assert.False(revokedAdministratorResume.Succeeded);
   }
 
   [Fact]
