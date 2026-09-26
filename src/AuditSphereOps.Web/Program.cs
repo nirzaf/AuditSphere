@@ -273,7 +273,7 @@ if (oidcConfigured || developmentIdentityEnabled)
   {
     if (http.User.Identity?.IsAuthenticated != true)
       return Results.Redirect("/app");
-    var subject = http.User.FindFirstValue("oid") ?? http.User.FindFirstValue("sub");
+    var subject = http.User.FindFirstValue("oid");
     var tenant = http.User.FindFirstValue("tid");
     if (string.IsNullOrWhiteSpace(subject) || string.IsNullOrWhiteSpace(tenant))
       return Results.Redirect("/auth/access-not-assigned");

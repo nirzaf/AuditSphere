@@ -15,9 +15,7 @@ public sealed class TrustedActorResolver(IDbContextFactory<AuditSphereDbContext>
     if (principal.Identity?.IsAuthenticated != true)
       return null;
 
-    var subject = principal.FindFirstValue("oid") ??
-                  principal.FindFirstValue(ClaimTypes.NameIdentifier) ??
-                  principal.FindFirstValue("sub");
+    var subject = principal.FindFirstValue("oid");
     var tenant = principal.FindFirstValue("tid");
     var epochClaims = principal.FindAll(SessionEpochClaimType).ToArray();
     if (string.IsNullOrWhiteSpace(subject) || string.IsNullOrWhiteSpace(tenant) ||
