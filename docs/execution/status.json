@@ -34,13 +34,16 @@
       "baseCommit": "f2eab0b368851ad2afb69fde3a70d21a18cd8f6d",
       "branch": "codex/period-workbench-revocation",
       "observedAt": "2026-09-26T11:40:01.796173+00:00",
-      "sourceState": "Verified working-tree implementation against baseCommit; historical verifiedCommit entries remain historical evidence.",
+      "sourceState": "Runtime and test sources verified in sourceCommit; subsequent ledger-only updates do not change the tested implementation.",
       "build": "PASS: dotnet build AuditSphereOps.slnx --no-restore --configuration Release; 0 warnings/errors.",
       "focusedTests": "PASS: PeriodWorkbenchScopeJourneyTests, 4/4, 0 skipped. Initial test fixture CaseId capitalization was corrected; an initial click/init timing race was corrected by waiting for interactive render before changing access.",
       "fullSuite": "PASS: dotnet test AuditSphereOps.slnx --no-build --configuration Release; Domain 338/338, API 6/6, E2E 65/65, aggregate 409/409 with 0 skipped.",
       "modelDrift": "PASS: dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Web --configuration Release; no pending model changes.",
       "documentation": "Task-pack validation passed; task-status self-tests 21/21; markdown filename validation, edited handoff relative links and git diff --check passed.",
-      "boundary": "No schema/configuration/provider changes, Wiki publication, production deployment, professional approval or complete-story acceptance. Independent review and merge authorization remain required."
+      "boundary": "No schema/configuration/provider changes, Wiki publication, production deployment, professional approval or complete-story acceptance. Independent review and merge authorization remain required.",
+      "sourceCommit": "488976e2b0ba672c9811b29c0511f4a9aed171c2",
+      "pullRequest": "https://github.com/nirzaf/AuditSphere/pull/28",
+      "hostedChecks": "Observed at sourceCommit: Build · Release IN_PROGRESS; GitGuardian Security Checks SUCCESS. No independent reviews recorded. Hosted build is not test acceptance."
     }
   },
   "documentationWork": {
@@ -68,10 +71,12 @@
   },
   "active": {
     "packageId": "Audit workflow gap-closure and client accounting implementation",
-    "implementationStatus": "IMPLEMENTED",
+    "implementationStatus": "PR_OPEN",
     "acceptanceStatus": "LOCAL_VERIFIED",
     "scope": "AS-PAR-002 AC02–AC03 / AC-24: restatement and period roll-forward current-access reload and stale-content clearing. Broader story backlog remains open.",
-    "nextAction": "Open the period-workbench repair PR and obtain independent review plus explicit merge authorization under specification §46. The broader AC/parity/onboarding audit, methodology approvals and live acceptance gates remain open."
+    "nextAction": "Obtain independent review and explicit merge authorization for PR #28 under specification §46 before advancing the next slice. Broader story reconciliation, AS-PAR-002 coverage, methodology approvals and applicable live acceptance remain open.",
+    "pullRequest": "https://github.com/nirzaf/AuditSphere/pull/28",
+    "branch": "codex/period-workbench-revocation"
   },
   "localEvidence": [
     {
