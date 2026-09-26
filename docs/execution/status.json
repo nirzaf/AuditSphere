@@ -4,7 +4,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "592d6146aea0f5c35141556ab9d24218783cdfd7",
+  "headCommit": "27b49eecec0d314d494b3ae3cdd4224a786594f0",
   "verifiedCommit": "80db56af6b6d844c1f6ef9c4dcc848a6aef7c09e",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": false,
@@ -285,6 +285,18 @@
       "modelDrift": "PASS: EF has-pending-model-changes; no pending model changes.",
       "documentation": "PASS: task-pack validation, Markdown documentation health (123 files, 2344 links), filename policy and git diff --check.",
       "delivery": "Code and handoff commit pushed directly to origin/master and exact remote source SHA confirmed. Hosted CI run 36259554920 was in progress at observation. Whole AS-PAR-002 remains partial; no tenant write, production deployment or independent review is claimed."
+    },
+    "r2rChartVersionAllocation": {
+      "sourceCommit": "ce30d17e77e9a887a01f50194b0c46f11dc9a7ac",
+      "observedAt": "2026-09-26T20:44:41Z",
+      "behavior": "CreateChartVersionAsync opens a service-owned transaction, locks the scoped PracticeClient row, rechecks authority, allocates Max(Version)+1, saves and commits under that lock. Concurrent valid creators allocate successive versions.",
+      "focusedTests": "PASS: PostgreSQL ChartVersionCreation_SerializesClientVersionAllocation 1/1; targeted chart and GL filter 5/5, 0 skipped.",
+      "build": "PASS: Release solution build, 0 warnings/errors.",
+      "fullSuite": "PASS: local Release solution run with concurrent working-tree E2E changes: Domain 348/348, API 7/7, Playwright E2E 80/80; 435/435, 0 skipped. These test binaries include another task's in-progress E2E edits, so this is working-tree evidence rather than a claim that the exact source commit alone produced all 435 tests.",
+      "modelDrift": "PASS: EF reports no pending model changes; no migration added.",
+      "hostedCiRun": "PASS: run 36270015967 at descendant 5beeb81 and run 36270227546 at descendant 7a1f8ad, both containing chart allocation source. Hosted CI runs Release build, EF model drift and documentation health; it does not run PostgreSQL/browser suites.",
+      "documentation": "PASS: task-pack validation (75 tasks, 111 requests), Markdown health, narrative-metrics guard and git diff --check. The T002 ledger names all 111 preserved requests while marking missing or partial contracts explicitly.",
+      "boundary": "This closes the current chart-version allocation race only. T012 contract completion, T002 independent review, live Graph/Entra gates and production acceptance remain open."
     }
   },
   "documentationWork": {
