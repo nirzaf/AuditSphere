@@ -373,7 +373,8 @@
       "fullSuite": "PASS: local PostgreSQL-backed Release suite Domain 349/349, API 11/11, E2E 83/83, aggregate 443/443, 0 skipped.",
       "modelDrift": "PASS: EF found no pending model changes; no migration added.",
       "hostedCiRun": "PASS: hosted CI run 36277360656 at exact source commit; hosted CI excludes PostgreSQL/browser suites.",
-      "boundary": "Non-production local renewal only. No SharePoint access, live provider, selected-site consent, mail, records, release or production acceptance is established. The broader P1 identity fixture cycle and independent acceptance remain open."
+      "boundary": "Non-production local renewal only. No SharePoint access, live provider, selected-site consent, mail, records, release or production acceptance is established. The broader P1 identity fixture cycle and independent acceptance remain open.",
+      "operatorGuide": "Published minimal corrections to the existing Production Entra ID Configuration and Production Configuration Guide Wiki pages at Wiki commit 76870a539b6b4b0c656775fa39ce74ed1cdcd609. Both pages and Wiki navigation rendered with the renewal guard, and the complete changed content passed diff/identifier checks before publication."
     }
   },
   "documentationWork": {
