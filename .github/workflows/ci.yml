@@ -100,6 +100,11 @@ jobs:
           set -euo pipefail
           python3 scripts/docs/validate-markdown-filenames.py
 
+      - name: Validate narrative documents for volatile metrics
+        run: |
+          set -euo pipefail
+          python3 scripts/docs/validate-narrative-metrics.py
+
       - name: Summarize
         if: ${{ always() }}
         env:

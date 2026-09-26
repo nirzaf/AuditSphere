@@ -1260,7 +1260,7 @@ dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj
 
 
 
-The hosted GitHub Actions workflow is a **mandatory build gate plus documentation health checks**: pinned SDK check, locked restore, Release build, `dotnet ef migrations has-pending-model-changes`, and the Markdown health/filename validators (`docs-health` job). It does not execute the test suites, so a green CI badge is not test acceptance — the PostgreSQL-backed suites above are the test evidence and run locally (or in an explicitly configured test runner) against a real PostgreSQL 18.6 instance.
+The hosted GitHub Actions workflow is a **mandatory build gate plus documentation health checks**: pinned SDK check, locked restore, Release build, `dotnet ef migrations has-pending-model-changes`, and the Markdown health/filename validators plus the narrative volatile-metrics guard (`docs-health` job). It does not execute the test suites, so a green CI badge is not test acceptance — the PostgreSQL-backed suites above are the test evidence and run locally (or in an explicitly configured test runner) against a real PostgreSQL 18.6 instance.
 
 
 

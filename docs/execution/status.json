@@ -373,6 +373,18 @@
         "python3 docs/task_breakdown/tools/task_status.py validate: 0 errors; git diff --check clean."
       ],
       "notPerformed": "No .NET/PostgreSQL suite rerun (documentation-only changes; volatile verification facts unchanged and still owned by the verification section). Historical sources, evidence, tracking ledgers and generated task state untouched; the pre-existing uncommitted consolidation-guard work in the working tree was left exactly as found."
+    },
+    "narrativeMetricsGuard": {
+      "observedAt": "2026-09-26",
+      "scope": "Implemented the remaining \"Automated Documentation Health\" item: a narrative volatile-metrics guard keeping exact test counts, migration counts, full SHAs and long run identifiers out of the top-of-authority narrative documents (README, AGENTS, docs index, the three architecture authority documents).",
+      "deliverable": "scripts/docs/validate-narrative-metrics.py, wired as a third step in the ci.yml docs-health job.",
+      "observedChecks": [
+        "Pattern self-test: seven curated samples (volatile counts, 40-hex SHA, run identifier, version numbers, dates, route paths) all classify exactly as designed.",
+        "Guard run on the current tree: PASS for all 6 protected narrative documents.",
+        "Markdown health PASS; filename policy PASS; git diff --check clean.",
+        "ci.yml parses with the four-step docs-health job."
+      ],
+      "notPerformed": "No .NET/PostgreSQL suite rerun (script + workflow + docs change only). Dated checkpoint journals (docs/execution, docs/testing, task_breakdown coverage) remain deliberately outside the guard because recording observed, dated evidence is their responsibility."
     }
   },
   "active": {
