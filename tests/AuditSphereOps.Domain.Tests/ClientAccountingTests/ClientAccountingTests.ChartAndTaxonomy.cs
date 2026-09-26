@@ -26,6 +26,46 @@ public sealed partial class ClientAccountingTests
 {
   [Fact]
   [Trait("Profile", "Database")]
+  public async Task ChartVersionCreation_SerializesClientVersionAllocation()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var scope = await SeedAsync(pg);
+    var preparer = Actor(scope.Preparer, "AccountingPreparer");
+    var pause = new PauseChartSave();
+    var firstOptions = new DbContextOptionsBuilder<AuditSphereDbContext>()
+      .UseNpgsql(pg.ConnectionString).AddInterceptors(pause).Options;
+    await using var first = new AuditSphereDbContext(firstOptions);
+    await using var second = new AuditSphereDbContext(pg.Options);
+    var firstCreate = ClientAccountingService.CreateChartVersionAsync(first, preparer,
+      scope.ClientA, "LEDGER-A", new DateOnly(2026, 1, 1));
+    try
+    {
+      await pause.Entered.WaitAsync(TimeSpan.FromSeconds(10));
+      var secondCreate = ClientAccountingService.CreateChartVersionAsync(second, preparer,
+        scope.ClientA, "LEDGER-B", new DateOnly(2027, 1, 1));
+      await Task.Delay(200);
+      Assert.False(secondCreate.IsCompleted);
+      pause.Release();
+      var firstResult = await firstCreate.WaitAsync(TimeSpan.FromSeconds(10));
+      var secondResult = await secondCreate.WaitAsync(TimeSpan.FromSeconds(10));
+      Assert.True(firstResult.Succeeded, firstResult.Message);
+      Assert.True(secondResult.Succeeded, secondResult.Message);
+      Assert.NotEqual(firstResult.Value, secondResult.Value);
+    }
+    finally
+    {
+      pause.Release();
+    }
+
+    await using var verify = new AuditSphereDbContext(pg.Options);
+    var versions = await verify.ClientChartVersions
+      .Where(x => x.FirmId == scope.FirmId && x.ClientId == scope.ClientA)
+      .OrderBy(x => x.Version).Select(x => x.Version).ToArrayAsync();
+    Assert.Equal(new[] { 1, 2 }, versions);
+  }
+
+  [Fact]
+  [Trait("Profile", "Database")]
   public async Task ChartPublication_HoldsRevisionLockUntilDecisionIsSaved()
   {
     await using var pg = await PgTestSchema.CreateAsync();

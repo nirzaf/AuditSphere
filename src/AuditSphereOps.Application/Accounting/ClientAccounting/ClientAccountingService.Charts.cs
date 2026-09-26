@@ -16,11 +16,22 @@ public static partial class ClientAccountingService
     IClientAccountingDbContext db, ActorContext actor, Guid clientId,
     string sourceScope, DateOnly effectiveFrom, CancellationToken ct = default)
   {
+    if (string.IsNullOrWhiteSpace(sourceScope))
+      return CommandResult<Guid>.Fail(ErrorCodes.Accounting.MappingInvalid, "A chart source scope is required.");
+    var initialAuth = await AuthorizeClientAsync(db, actor, clientId, PreparerRoles, ct);
+    if (!initialAuth.Succeeded)
+      return CommandResult<Guid>.Fail(initialAuth.ErrorCode!, initialAuth.Message!);
+    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    // Serialize version allocation for this client. The unique index remains a final
+    // integrity guard, but a concurrent valid request must not race on Max + 1.
+    var clients = await db.PracticeClients
+      .FromSqlInterpolated($"SELECT * FROM practice_clients WHERE id = {clientId} AND firm_id = {actor.FirmId} FOR UPDATE")
+      .ToListAsync(ct);
+    if (clients.Count != 1)
+      return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var auth = await AuthorizeClientAsync(db, actor, clientId, PreparerRoles, ct);
     if (!auth.Succeeded)
       return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
-    if (string.IsNullOrWhiteSpace(sourceScope))
-      return CommandResult<Guid>.Fail(ErrorCodes.Accounting.MappingInvalid, "A chart source scope is required.");
     var version = (await db.ClientChartVersions.Where(x => x.FirmId == actor.FirmId && x.ClientId == clientId)
       .Select(x => (int?)x.Version).MaxAsync(ct) ?? 0) + 1;
     var chart = new ClientChartVersion
@@ -31,6 +42,7 @@ public static partial class ClientAccountingService
     };
     db.ClientChartVersions.Add(chart);
     await db.SaveChangesAsync(ct);
+    await tx.CommitAsync(ct);
     return CommandResult<Guid>.Ok(chart.Id);
   }
 
