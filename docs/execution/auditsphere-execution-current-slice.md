@@ -144,8 +144,9 @@ does not accept that incomplete handoff.
 
 Perimeter approval now refuses a review by the scope version's creator, even
 when that person has a current group reviewer grant. PostgreSQL fixtures use a
-distinct preparer and reviewer; focused and complete Domain/API results are
-recorded in `status.json`. This closes one current-code independence gap, not
+distinct preparer and reviewer; focused and complete Domain/API results plus
+the later standalone 75/75 browser suite are recorded in `status.json`. This
+closes one current-code independence gap, not
 the T041 task or the separate non-owner repository review gate.
 
 ## P1 development OIDC credential store
