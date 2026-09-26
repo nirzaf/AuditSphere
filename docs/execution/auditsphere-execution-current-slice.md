@@ -30,6 +30,12 @@
 
 ## AS-PAR-002 staff portfolio refresh and export
 
+The portfolio CSV now prefixes spreadsheet-formula-shaped text with an apostrophe
+before CSV escaping; the existing browser export regression uses a synthetic
+client name beginning with `=` to verify the downloaded payload. Numeric
+metrics remain display-only and no source identifier is rewritten. Exact
+verification is in `status.json`.
+
 The staff portfolio now clears cached clients, metrics, release candidates, and
 financial packages before an explicit scope refresh. CSV download performs a
 fresh scoped read and current-grant check before creating the file, so an open

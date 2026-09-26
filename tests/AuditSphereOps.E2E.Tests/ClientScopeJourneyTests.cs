@@ -321,7 +321,7 @@ public sealed class ClientScopeJourneyTests
   {
     await using var host = await OwnedBlazorHost.StartAsync(startWorker: false,
       caseId: "AS-PAR-002-PORTFOLIO-EXPORT-REVOCATION-01");
-    const string privateClientName = "SYN-PAR-002-PORTFOLIO-REVOKED-CLIENT";
+    const string privateClientName = "=SYN-PAR-002-PORTFOLIO-REVOKED-CLIENT";
     var staff = PbcSeed.User(host.Fixture.FirmId, "Staff");
     var clientId = Guid.NewGuid();
     await using (var db = host.CreateDbContext())
@@ -354,7 +354,7 @@ public sealed class ClientScopeJourneyTests
     await page.GetByRole(AriaRole.Button, new() { Name = "Download scoped CSV" }).ClickAsync();
     await page.WaitForFunctionAsync("window.__portfolioDownloads.length === 1");
     var csv = await page.EvaluateAsync<string>("window.__portfolioDownloads[0].text");
-    Assert.Contains(privateClientName, csv);
+    Assert.Contains($"\"'{privateClientName}\"", csv);
     Assert.Equal("auditsphere-portfolio.csv", await page.EvaluateAsync<string>("window.__portfolioDownloads[0].name"));
     await using (var db = host.CreateDbContext())
     {

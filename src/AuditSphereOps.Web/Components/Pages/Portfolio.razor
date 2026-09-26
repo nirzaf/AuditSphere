@@ -322,5 +322,12 @@ else
     return string.Join('\n', lines);
   }
 
-  private static string Csv(string value) => $"\"{value.Replace("\"", "\"\"")}\"";
+  private static string Csv(string value)
+  {
+    var firstContent = value.AsSpan().TrimStart();
+    var formula = firstContent.Length > 0 && firstContent[0] is '=' or '+' or '-' or '@';
+    var controlPrefix = value.Length > 0 && value[0] is '\t' or '\r' or '\n';
+    var safeValue = formula || controlPrefix ? "'" + value : value;
+    return $"\"{safeValue.Replace("\"", "\"\"")}\"";
+  }
 }
