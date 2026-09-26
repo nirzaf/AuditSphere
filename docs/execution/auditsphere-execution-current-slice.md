@@ -157,6 +157,19 @@
   `status.json`); commit `dc43bc0` pushed; no tenant operation or production
   effect.
 
+### 2.3 MudBlazor Migration Final Reconciliation (slice 5)
+
+- **Verified counts recorded:** 42 page components declaring 49 routes,
+  zero native `<button>`, 39 intentional native controls across 9 pages, and
+  5 native tables (previously recorded as "47 routes / 6 tables" — corrected).
+  See `docs/auditsphere-ui-mudblazor-conventions-migration-current.md` §8.
+- **Last cleanup:** StatusChip now maps `POSTED`/`RECONCILED`/`ACCEPTED` to
+  success and `RESUBMITTED` to info; the dead `.field-label`/`.context-bar`
+  CSS rules were removed. `MainLayout`, `AuditSphereTheme`, `PageHeader`,
+  `LoadingState`, `ScopeBanner` and `ConfirmDialog` reviewed and unchanged.
+- **State:** Domain 338/338, Api 6/6, E2E 61/61, no EF model drift; commit
+  `3d449fb` pushed; no tenant operation or production effect.
+
 
 ### 2.1 Documentation Standardization & AI Navigability Refactor
 
