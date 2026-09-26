@@ -135,6 +135,28 @@
 - **State:** full Release suite green (counts in `status.json`), no EF model
   drift, no schema migration, tenant operation or production effect.
 
+### 2.2 MudBlazor Migration Completion (slice 4)
+
+- **Last two select exceptions closed at full assertion strength:** the
+  `FinancialPackage` Stage select is `MudSelect`, driven by a new
+  `SelectMudOptionAsync` journey helper (open the labelled select, click the
+  exact option) choosing the same value with unchanged downstream assertions;
+  the `AssessmentDecision` `#decision-outcome` id moved to the visible MudSelect
+  wrapper `div`, so the partner visibility and unauthorized-manager absence
+  checks needed no test change. The Microsoft 365 capability selects stay
+  native permanently (raw-value `InputValueAsync` contract).
+- **`draft-state.js` guard:** `<input type="hidden">` composite-widget internals
+  (MudSelect combobox mirrors) are excluded from draft discovery and
+  collection; visible draft-field semantics unchanged; `pbc-upload.js`
+  byte-identical.
+- **Route-render guarantee:** `RouteRenderSmokeTests` visits every
+  parameterless inventoried route (19 staff routes plus the client portal)
+  asserting heading render with zero page errors; detail routes keep their
+  seeded journeys.
+- **State:** Domain 338/338, Api 6/6, E2E 61/61, no EF model drift (counts in
+  `status.json`); commit `dc43bc0` pushed; no tenant operation or production
+  effect.
+
 
 ### 2.1 Documentation Standardization & AI Navigability Refactor
 
