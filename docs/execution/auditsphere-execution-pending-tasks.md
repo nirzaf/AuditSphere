@@ -90,7 +90,7 @@ The following local tasks, architectural decisions, and follow-ups are open for 
 
 ### 2.3 Technical Debt & Bounded Hardening
 
-- **Automated Documentation Health:** Maintain automated tests for documentation naming, link integrity, and exclusion of volatile metrics from narrative files.
+- **Automated Documentation Health:** Complete for naming and link integrity: the Markdown health and filename validators run in hosted CI (`ci.yml` "docs-health" job). Remaining: an automated guard that excludes volatile metrics (exact test counts, SHAs) from narrative files.
 
 - **Benchmark Baselines:** Maintain local benchmark verification for high-magnitude accounting datasets and concurrent worker operations.
 

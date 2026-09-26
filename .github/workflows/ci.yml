@@ -20,7 +20,7 @@ env:
   DevelopmentIdentity__Enabled: 'false'
 
 jobs:
-  # Mandatory gate only: pinned-SDK locked restore, Release build, and EF model drift.
+  # Mandatory gate: pinned-SDK locked restore, Release build, EF model drift, plus the documentation health checks.
   # The PostgreSQL-backed Domain/Api/E2E suites are intentionally not run here because
   # they take 10+ minutes per project; run them locally (see docs/testing).
   build-test-ready:
@@ -74,4 +74,36 @@ jobs:
           RESULT: ${{ job.status }}
         run: |
           printf 'CI outcome: %s\nCommit: %s\nRun: %s / attempt %s\n' \
+            "$RESULT" "$GITHUB_SHA" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" >> "$GITHUB_STEP_SUMMARY"
+
+  # Documentation health gate: canonical-link integrity, naming policy and
+  # HISTORICAL_SOURCE banners. Pure stdlib Python; no .NET or database needed.
+  docs-health:
+    name: Docs · Health
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Validate Markdown documentation health
+        run: |
+          set -euo pipefail
+          python3 scripts/docs/validate-markdown-documentation.py
+
+      - name: Validate Markdown filenames
+        run: |
+          set -euo pipefail
+          python3 scripts/docs/validate-markdown-filenames.py
+
+      - name: Summarize
+        if: ${{ always() }}
+        env:
+          RESULT: ${{ job.status }}
+        run: |
+          printf 'Docs health outcome: %s\nCommit: %s\nRun: %s / attempt %s\n' \
             "$RESULT" "$GITHUB_SHA" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" >> "$GITHUB_STEP_SUMMARY"
