@@ -252,6 +252,16 @@ revocation and refresh without a document reload. This is a bounded AS-PAR-002
 read and revocation repair; the whole-application authorization audit remains open.
 Exact verification and source identity are recorded in `status.json`.
 
+## Staff PBC inbox route transition
+
+The staff PBC inbox now clears rendered request metadata as soon as navigation
+leaves its current engagement route and renders a loading state before an
+asynchronous actor/scope reload. A sibling-engagement route cannot leave the
+previous request visible while the new authorization decision is pending. The
+existing browser regression passed after the repair; the initial full run's
+failure and the later standalone browser result are recorded separately in
+`status.json`.
+
 ## Release candidate access refresh
 
 The release workbench clears its candidate, checkpoint, attestation, signature

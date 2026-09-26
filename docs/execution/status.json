@@ -4,7 +4,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "4f8e31dc486f9a16145e6207615b618800d24aab",
+  "headCommit": "209ecfbbf37c6849baf652110cb7d63da5866b33",
   "verifiedCommit": "c9241b4a5a75ab720de087954dcfd48aca9d3df2",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": false,
@@ -18,7 +18,7 @@
     "postgres": "18.6 loopback development profile"
   },
   "verification": {
-    "ciLatestHostedRun": "PASS: AuditSphereOps CI run 36271244445 at exact immutable-oid source commit c9241b4a5a75ab720de087954dcfd48aca9d3df2; follow-up documentation run 36271485581 at 4f8e31dc486f9a16145e6207615b618800d24aab also passed. Hosted CI verifies Release build, EF model drift and documentation health; it does not run PostgreSQL/browser suites or establish production acceptance.",
+    "ciLatestHostedRun": "PASS: AuditSphereOps CI run 36273795928 at exact PBC render-refinement commit 209ecfbbf37c6849baf652110cb7d63da5866b33. Hosted CI verifies Release build, EF model drift and documentation health; it does not run PostgreSQL/browser suites or establish production acceptance.",
     "ciLockedRestore": "PASS locally: SDK policy regression check rejected latestPatch and passed after global.json required rollForward=disable for SDK 10.0.300. CI now installs from global.json and checks SDK selection before locked restore. dotnet tool restore; dotnet restore AuditSphereOps.slnx --locked-mode; dotnet build AuditSphereOps.slnx --no-restore --configuration Release all passed. Actionlint v1.7.7 passed with ShellCheck/Pyflakes disabled. Package lock files unchanged. Addresses run 35920521850 NU1004 for SDK-injected Microsoft.AspNetCore.App.Internal.Assets 10.0.11 versus locked 10.0.8; local SDK 10.0.300 evaluates 10.0.8. Full tests and hosted execution of this fix not rerun.",
     "ciWorkflowValidation": "PASS locally: actionlint v1.7.7 reproduced the forbidden runner context in job-level env, then exited 0 after E2E_RUN_ROOT initialization moved to a step using RUNNER_TEMP and GITHUB_ENV. Command: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7 -shellcheck= -pyflakes= .github/workflows/ci.yml. Bash assertion also passed for a temporary path containing spaces and run/attempt suffix 393-2. ShellCheck/Pyflakes disabled; full .NET suite and hosted GitHub Actions not rerun for this workflow-only fix.",
     "build": "PASS at immutable-oid source commit c9241b4a5a75ab720de087954dcfd48aca9d3df2: Release Web build, 0 warnings/errors; hosted CI Release build passed.",
@@ -309,6 +309,32 @@
       "hostedCiRun": "PASS: 36271244445 at exact source commit; 36271485581 at documentation descendant. CI does not run PostgreSQL/browser suites.",
       "tenantObservation": "Read-only: approved EasyGuide developer app registration already displayed the local Web redirect http://localhost:5099/signin-oidc. No tenant configuration was changed.",
       "boundary": "P1 remains BLOCKED_EXTERNAL for actual OIDC credential custody, provisioned identity fixtures and live positive/negative acceptance. A portal redirect and local API regression are not live sign-in evidence."
+    },
+    "p1ProductionCookiePolicy": {
+      "sourceCommit": "219ea6f59a794f5f932225e24b9a5e2cdbc8017a",
+      "observedAt": "2026-09-26T21:43:57Z",
+      "behavior": "Production OIDC authentication cookie is explicitly HttpOnly and Secure; Development and Test preserve the local HTTP SameAsRequest profile. Existing database session-epoch checks remain the revocation boundary.",
+      "focusedTests": "PASS: two cookie-option policy cases, 2/2.",
+      "build": "PASS: Release solution build, 0 warnings/errors.",
+      "fullSuite": "Initial local Release solution run: Domain 348/348 and API 10/10 passed; E2E 82/83 exposed the separate stale PBC inbox route regression. This was not a full-suite pass.",
+      "modelDrift": "PASS: EF found no pending model changes; no migration added.",
+      "hostedCiRun": "PASS: hosted CI at descendant 4f9f400, run 36272392569 (Release build, EF and docs health; no PostgreSQL/browser suite).",
+      "boundary": "Local cookie hardening only. P1 live OIDC credentials, tenant identity fixtures and positive/negative acceptance remain BLOCKED_EXTERNAL."
+    },
+    "staffPbcInboxRouteTransition": {
+      "sourceCommits": [
+        "5a4cb4a13b8a268def32d33f01b5a71d96b74000",
+        "209ecfbbf37c6849baf652110cb7d63da5866b33"
+      ],
+      "observedAt": "2026-09-26T21:43:57Z",
+      "behavior": "Staff PBC inbox clears protected request metadata on navigation away from its engagement route and renders the cleared loading state before awaiting the next actor/scope check.",
+      "initialFullSuite": "Local Release run: Domain 348/348 and API 10/10 passed; E2E 82/83 failed ClientScopeJourneyTests.PbcInboxClearsRenderedStateWhenNavigatingToUnauthorizedSiblingEngagement before repair.",
+      "focusedTests": "PASS: exact PostgreSQL/Playwright route regression 4/4 repeated after the navigation handler; 1/1 after the loading-render refinement.",
+      "standaloneE2E": "PASS: E2E project 83/83, 0 skipped after the navigation handler and before the final one-line render refinement. A full solution suite was not rerun after repair.",
+      "build": "PASS: Release Web build, 0 warnings/errors after navigation handler; focused test rebuilt and passed after final refinement.",
+      "modelDrift": "PASS: EF found no pending model changes after navigation handler; no migration added.",
+      "hostedCiRun": "PASS: hosted CI run 36273291664 at navigation-handler commit 5a4cb4a and run 36273795928 at final render-refinement commit 209ecfb. CI does not run PostgreSQL/browser suites.",
+      "boundary": "This repairs observed rendered stale content on sibling-route navigation; it does not establish whole-application AS-PAR-002 closure or live production revocation acceptance."
     }
   },
   "documentationWork": {
