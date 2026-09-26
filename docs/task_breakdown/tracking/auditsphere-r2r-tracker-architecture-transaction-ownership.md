@@ -65,6 +65,16 @@ These are observations from `AuthorizationDecision`, `ClientAccountingService.Au
 
 **Proposed person-bound decision rule for review:** Existing consolidation scope, journal, component, intercompany, run and schedule review methods record `actor.UserId` in their approval/review fields. The perimeter path now rejects its creator before approval. The owning task must verify the current actor identity and independent reviewer constraint for each other action, persist the person and exact reviewed revision, and reject self-review where required. A generic role grant, historical owner approval, or generated calculation cannot be substituted for that person's decision. The exact predicates and missing independent-review cases remain task-level proof obligations; this paragraph is not a claim that all review paths are compliant.
 
+### Inspected group-review person mapping
+
+| Current review methods | Preparation identity compared with `actor.UserId` | Persisted reviewer identity | Remaining task-level proof |
+|---|---|---|---|
+| `ConsolidationService.ApproveScopeAsync`, `.ApproveConsolidationJournalAsync`, `.ApproveIntercompanyMatchAsync`, `.ApproveRunAsync`, `.ApproveAdvancedExecutionAsync`, `.ApproveAdvancedMethodScheduleAsync` | Each method rejects its row's `CreatedByUserId`; the scope guard was added in source commit `8c0b644398ab4680e15dd3724a58b5704bb6451a`. | `ApprovedByUserId` except intercompany `ReviewedByUserId`. | Owning T041–T046 tasks must test exact revision/currentness and concurrent grant changes for their paths. |
+| `ConsolidationService.ApproveComponentAsync`, `.ApproveExternalComponentPackAsync` | Each rejects `SubmittedByUserId`; external pack reconciliation also rejects its submitter. | `ApprovedByUserId`; a pending compatibility bridge also records `CompatibilityBridgeApprovedByUserId`. | T042 must prove source digest and version pinning, bridge authority and subsequent staleness behavior. |
+| `CurrencyTranslationService.ApproveRateSetAsync`, `.ApprovePolicyAsync`, `.ApproveTranslationAsync` | Each rejects `CreatedByUserId`. | `ApprovedByUserId`. | T043 must prove method-owner policy, exact rate/source pinning and fail-closed translation under concurrent changes. |
+
+This table is a source inspection of person fields and self-review predicates, not evidence that every professional gate has an accepted method policy or production reviewer fixture.
+
 ## Contract ownership rule for the remaining R2R tasks
 
 The [request registry](../coverage/auditsphere-r2r-tracker-command-query-ownership.md) names exactly one task for every preserved request. The table below assigns its existing Application capability boundary; an owning task must record the concrete method and transaction boundary before claiming that request implemented. A `NEW/DECISION` request does not acquire a transaction merely by appearing in the registry.
