@@ -9,6 +9,7 @@
 <PageTitle>Firm ledger</PageTitle>
 <MudLink Href="/app" Class="back-link mb-2 d-inline-block">← Back to portfolio</MudLink>
 <PageHeader Title="Firm ledger &amp; financial operations" Description="Restricted firm-ledger operations (§41.3). Firm accounts, balanced postings, and period close decisions enforce exact monetary balance and strict immutability." />
+<MudButton Color="Color.Primary" Variant="Variant.Outlined" Class="button-secondary" OnClick="LoadFinanceDataAsync" Disabled="@(_loading || _busy)">Refresh firm ledger</MudButton>
 
 @if (_loading)
 {
@@ -142,9 +143,6 @@ else
 }
 
 @code {
-  private static readonly string[] FinanceRoles = ["FinanceManager", "FinanceReviewer"];
-  private const string PeriodCloseRole = "FinanceReviewer";
-
   private ActorContext? _actor;
   private bool _isAuthorized;
   private bool _canClosePeriod;
@@ -157,45 +155,62 @@ else
   private string? _successMessage;
   private bool _loading = true;
   private bool _busy;
+  private long _loadGeneration;
 
-  protected override async Task OnInitializedAsync()
+  protected override Task OnInitializedAsync() => LoadFinanceDataAsync();
+
+  private void ClearProtectedState()
   {
-    _actor = await ActorResolver.ResolveAsync();
-    await LoadFinanceDataAsync();
-    _loading = false;
+    _actor = null;
+    _isAuthorized = false;
+    _canClosePeriod = false;
+    _periods = [];
+    _accounts = [];
+    _postings = [];
+    _selectedPeriodIdToClose = null;
+    _closeReason = "Standard accounting period close";
+    _result = null;
+    _successMessage = null;
   }
 
   private async Task LoadFinanceDataAsync()
   {
-    _periods = [];
-    _accounts = [];
-    _postings = [];
-    _isAuthorized = false;
-    _canClosePeriod = false;
-    if (_actor is null) return;
-    await using var db = await DbFactory.CreateDbContextAsync();
-    var authorization = await AuthorizationDecision.AuthorizeAsync(db, _actor,
-      new AuthorizationRequest(_actor.FirmId, RequiredRoles: FinanceRoles, InternalOnly: true, RequireFirmWide: true));
-    if (!authorization.Succeeded) return;
-    _isAuthorized = true;
-    _canClosePeriod = await db.RoleGrants.AsNoTracking().AnyAsync(x => x.FirmId == _actor.FirmId &&
-      x.UserId == _actor.UserId && x.RevokedAt == null && x.Role == PeriodCloseRole &&
-      x.ClientId == null && x.EngagementId == null);
-    _periods = await db.FirmPeriods.AsNoTracking()
-      .Where(x => x.FirmId == _actor.FirmId)
-      .OrderByDescending(x => x.PeriodCode)
-      .ToListAsync();
+    var generation = ++_loadGeneration;
+    _loading = true;
+    ClearProtectedState();
+    try
+    {
+      var actor = await ActorResolver.ResolveAsync();
+      if (actor is null || generation != _loadGeneration) return;
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var result = await FirmFinanceQuery.GetAsync(db, actor);
+      if (!result.Succeeded || generation != _loadGeneration) return;
+      var currentActor = await ActorResolver.ResolveAsync();
+      if (currentActor is null || currentActor.UserId != actor.UserId ||
+          currentActor.FirmId != actor.FirmId || currentActor.SessionEpoch != actor.SessionEpoch ||
+          generation != _loadGeneration) return;
+      var snapshot = result.Value!;
+      _actor = currentActor;
+      _isAuthorized = true;
+      _canClosePeriod = snapshot.CanClosePeriod;
+      _periods = snapshot.Periods;
+      _accounts = snapshot.Accounts;
+      _postings = snapshot.RecentPostings;
+    }
+    finally { if (generation == _loadGeneration) _loading = false; }
+  }
 
-    _accounts = await db.FirmAccounts.AsNoTracking()
-      .Where(x => x.FirmId == _actor.FirmId)
-      .OrderBy(x => x.Code)
-      .ToListAsync();
-
-    _postings = await db.FirmPostings.AsNoTracking()
-      .Where(x => x.FirmId == _actor.FirmId)
-      .OrderByDescending(x => x.PostedAt)
-      .Take(25)
-      .ToListAsync();
+  private async Task<ActorContext?> CurrentFinanceActorAsync()
+  {
+    if (_actor is null) return null;
+    var current = await ActorResolver.ResolveAsync();
+    if (current is null || current.UserId != _actor.UserId ||
+        current.FirmId != _actor.FirmId || current.SessionEpoch != _actor.SessionEpoch)
+    {
+      ClearProtectedState();
+      return null;
+    }
+    return current;
   }
 
   private void PromptClosePeriod(Guid periodId)
@@ -206,30 +221,30 @@ else
 
   private async Task ExecuteClosePeriodAsync()
   {
-    if (_actor is null || !_selectedPeriodIdToClose.HasValue || _busy) return;
+    if (!_selectedPeriodIdToClose.HasValue || _busy) return;
     _busy = true;
     _result = null;
     try
     {
+      var actor = await CurrentFinanceActorAsync();
+      if (actor is null) return;
+      var periodId = _selectedPeriodIdToClose.Value;
+      var reason = _closeReason;
       await using var db = await DbFactory.CreateDbContextAsync();
-      var res = await LedgerService.CloseFiscalPeriodAsync(db, _actor, _selectedPeriodIdToClose.Value, _closeReason);
-      _result = res;
+      var res = await LedgerService.CloseFiscalPeriodAsync(db, actor, periodId, reason);
       if (res.Succeeded)
       {
-        _successMessage = "Fiscal period successfully closed.";
-        _selectedPeriodIdToClose = null;
         await LoadFinanceDataAsync();
+        if (_isAuthorized)
+        {
+          _result = res;
+          _successMessage = "Fiscal period successfully closed.";
+        }
       }
       else if (res.ErrorCode is ErrorCodes.ScopeDenied or ErrorCodes.GenerationStale)
-      {
-        _actor = null;
-        _isAuthorized = false;
-        _canClosePeriod = false;
-        _periods = [];
-        _accounts = [];
-        _postings = [];
-        _selectedPeriodIdToClose = null;
-      }
+        ClearProtectedState();
+      else
+        _result = res;
     }
     finally { _busy = false; }
   }

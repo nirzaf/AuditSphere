@@ -453,6 +453,55 @@ public sealed class ClientScopeJourneyTests
   }
 
   [Fact]
+  [Trait("CaseId", "AS-PAR-002-FINANCE-REVOKE-01")]
+  public async Task FirmFinanceRefreshClearsLedgerAfterGrantRevocation()
+  {
+    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false,
+      caseId: "AS-PAR-002-FINANCE-REVOKE-01");
+    var financeUser = PbcSeed.User(host.Fixture.FirmId, "Staff");
+    const string privateAccount = "SYN-PAR-002-PRIVATE-FIRM-ACCOUNT";
+    Guid grantId;
+    await using (var db = host.CreateDbContext())
+    {
+      db.Users.Add(financeUser);
+      var grant = PbcSeed.Grant(host.Fixture.FirmId, financeUser, "FinanceReviewer");
+      grantId = grant.Id;
+      db.RoleGrants.Add(grant);
+      db.FirmAccounts.Add(new FirmAccount
+      {
+        Id = Guid.NewGuid(), FirmId = host.Fixture.FirmId, Code = "SYN-PAR-002-FINANCE-REVOKE",
+        Name = privateAccount, AccountType = LedgerStates.AccountAsset,
+        NormalSide = LedgerStates.Debit
+      });
+      await db.SaveChangesAsync();
+    }
+
+    var origin = await host.StartWebForIdentityAsync(financeUser);
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    await using var context = await browser.NewContextAsync();
+    var page = await context.NewPageAsync();
+    var diagnostics = new List<string>();
+    var connected = WaitForCircuitConnectionAsync(page, diagnostics);
+    await page.GotoAsync(SignInUrl(origin, "/app/finance"));
+    await page.GetByText(privateAccount, new() { Exact = true }).WaitForAsync();
+    await connected;
+    var documentToken = await page.EvaluateAsync<string>("window.__financeToken = crypto.randomUUID()");
+
+    await using (var db = host.CreateDbContext())
+    {
+      var revoked = await RoleAdministrationService.RevokeRoleGrantAsync(db,
+        PbcSeed.Actor(host.Fixture.Admin, "Administrator"), new RevokeRoleGrantRequest(grantId));
+      Assert.True(revoked.Succeeded, revoked.Message);
+    }
+    await page.GetByRole(AriaRole.Button, new() { Name = "Refresh firm ledger" }).ClickAsync();
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable" }).WaitForAsync();
+    Assert.DoesNotContain(privateAccount, await page.Locator("body").InnerTextAsync());
+    Assert.Equal(documentToken, await page.EvaluateAsync<string>("window.__financeToken"));
+    Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
+  }
+
+  [Fact]
   [Trait("CaseId", "AS-PAR-002-PORTFOLIO-READ-01")]
   public async Task ClientIdentityWithErroneousFirmWideStaffGrantCannotViewPortfolio()
   {

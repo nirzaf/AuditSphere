@@ -28,6 +28,17 @@
 
 ---
 
+## AS-PAR-002 firm Finance current-access refresh
+
+The firm Finance workbench now reads periods, accounts, recent postings, and
+close-period capability through `FirmFinanceQuery`, which authorizes before and
+after the scoped read. Explicit refresh clears the old ledger and close draft,
+then rechecks actor/session epoch and fences late reads. Period close continues
+through its guarded Application command and reloads current access after a
+successful decision. A browser regression covers same-document grant revocation
+and row removal. This remains one bounded authorization slice; exact checks are
+in `status.json`.
+
 ## AS-PAR-002 practice lead current-access refresh
 
 The practice-leads workbench now reads a bounded firm-wide commercial list
