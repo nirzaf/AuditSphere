@@ -98,19 +98,30 @@ else
   private string _clientName = "Client";
   private List<EngagementHold> _holds = [];
   private bool _loading = true;
+  private Guid _loadedEngagementId;
 
-  protected override async Task OnInitializedAsync()
+  // Loading happens per parameter set (not only at initialization) so a same-document
+  // route change to another engagement reauthorizes and clears the prior projection.
+  protected override async Task OnParametersSetAsync()
   {
+    if (_loadedEngagementId == EngagementId && !_loading) return;
+    _loadedEngagementId = EngagementId;
+    _loading = true;
+    ClearEngagement();
     _actor = await ActorResolver.ResolveAsync();
-    if (_actor is not null)
+    _isStaff = _actor is not null && _actor.Roles.Any(x => x is "Administrator" or "Partner" or "Manager" or "Staff" or "EngagementLeader" or "Auditor");
+    if (_actor is not null && _isStaff)
     {
-      _isStaff = _actor.Roles.Any(x => x is "Administrator" or "Partner" or "Manager" or "Staff" or "EngagementLeader" or "Auditor");
-      if (_isStaff)
-      {
-        await LoadEngagementAsync();
-      }
+      await LoadEngagementAsync();
     }
     _loading = false;
+  }
+
+  private void ClearEngagement()
+  {
+    _engagement = null;
+    _clientName = "Client";
+    _holds = [];
   }
 
   private async Task LoadEngagementAsync()

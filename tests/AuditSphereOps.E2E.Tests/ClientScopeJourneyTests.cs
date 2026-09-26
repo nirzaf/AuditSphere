@@ -1195,6 +1195,58 @@ public sealed class ClientScopeJourneyTests
   }
 
   [Fact]
+  [Trait("CaseId", "AS-PAR-002-ENGAGEMENT-STALE-ROUTE-01")]
+  public async Task EngagementDetailClearsPriorEngagementWhenRouteChangesInPlace()
+  {
+    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false,
+      caseId: "AS-PAR-002-ENGAGEMENT-STALE-ROUTE-01");
+    var siblingEngagementId = Guid.NewGuid();
+    await using (var db = host.CreateDbContext())
+    {
+      db.RoleGrants.Add(PbcSeed.Grant(host.Fixture.FirmId, host.Fixture.Staff, "Partner",
+        host.Fixture.ClientId, host.Fixture.EngagementId));
+      db.Engagements.Add(new AuditSphereOps.Domain.Engagements.Engagement
+      {
+        Id = siblingEngagementId, FirmId = host.Fixture.FirmId,
+        PracticeClientId = host.Fixture.ClientId, Status = "Active", CreatedAt = DateTimeOffset.UtcNow
+      });
+      await db.SaveChangesAsync();
+    }
+
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    await using var context = await browser.NewContextAsync();
+    var page = await context.NewPageAsync();
+    var diagnostics = new List<string>();
+    var connected = WaitForCircuitConnectionAsync(page, diagnostics);
+    await page.GotoAsync(SignInUrl(host.StaffUrl, $"/app/engagements/{host.Fixture.EngagementId:D}"));
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Engagement details" }).WaitForAsync();
+    await connected;
+    await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new() { Timeout = 5000 });
+    await page.GetByText(host.Fixture.EngagementId.ToString("D")).WaitForAsync(new() { Timeout = 15000 });
+    var authorizedBody = await page.Locator("body").InnerTextAsync();
+    Assert.Contains(host.Fixture.EngagementId.ToString("D"), authorizedBody);
+
+    var documentToken = Guid.NewGuid().ToString("N");
+    await page.EvaluateAsync("token => window.__testDocumentToken = token", documentToken);
+    await page.EvaluateAsync("path => { history.pushState({}, '', path); dispatchEvent(new PopStateEvent('popstate')); }",
+      $"/app/engagements/{siblingEngagementId:D}");
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Engagement unavailable" }).WaitForAsync();
+    var deniedBody = await page.Locator("body").InnerTextAsync();
+    Assert.DoesNotContain(host.Fixture.EngagementId.ToString("D"), deniedBody);
+    Assert.DoesNotContain(siblingEngagementId.ToString("D"), deniedBody);
+    Assert.Equal(documentToken, await page.EvaluateAsync<string>("window.__testDocumentToken"));
+
+    await page.EvaluateAsync("path => { history.pushState({}, '', path); dispatchEvent(new PopStateEvent('popstate')); }",
+      $"/app/engagements/{host.Fixture.EngagementId:D}");
+    await page.GetByText(host.Fixture.EngagementId.ToString("D")).WaitForAsync(new() { Timeout = 15000 });
+    var restoredBody = await page.Locator("body").InnerTextAsync();
+    Assert.Contains(host.Fixture.EngagementId.ToString("D"), restoredBody);
+    Assert.Equal(documentToken, await page.EvaluateAsync<string>("window.__testDocumentToken"));
+    Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
+  }
+
+  [Fact]
   [Trait("CaseId", "AS-PAR-002-COMP-01")]
   public async Task CompletionChecklistDeniesSiblingEngagementAndKeepsRepresentationPrivate()
   {

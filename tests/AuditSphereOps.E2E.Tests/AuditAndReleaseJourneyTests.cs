@@ -246,6 +246,200 @@ public sealed class AuditAndReleaseJourneyTests
   }
 
   [Fact]
+  [Trait("CaseId", "AS-PAR-002-AUDIT-PLAN-STALE-ROUTE-01")]
+  public async Task AuditPlanClearsPriorEngagementWhenRouteChangesInPlace()
+  {
+    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false,
+      caseId: "AS-PAR-002-AUDIT-PLAN-STALE-ROUTE-01");
+    var siblingEngagementId = Guid.NewGuid();
+    var assessmentId = Guid.NewGuid();
+    await using (var db = host.CreateDbContext())
+    {
+      db.RoleGrants.Add(PbcSeed.Grant(host.Fixture.FirmId, host.Fixture.Staff, "Partner",
+        host.Fixture.ClientId, host.Fixture.EngagementId));
+      db.Engagements.Add(new AuditSphereOps.Domain.Engagements.Engagement
+      {
+        Id = siblingEngagementId, FirmId = host.Fixture.FirmId,
+        PracticeClientId = host.Fixture.ClientId, Status = "Active", CreatedAt = DateTimeOffset.UtcNow
+      });
+      db.MaterialityAssessments.Add(new MaterialityAssessment
+      {
+        Id = assessmentId, FirmId = host.Fixture.FirmId, ClientId = host.Fixture.ClientId,
+        EngagementId = host.Fixture.EngagementId, ActorId = host.Fixture.Staff.Id,
+        BenchmarkSource = "Total assets", BenchmarkVersion = "AFS-v1", Rationale = "Synthetic stale-route fixture",
+        BenchmarkAmount = 1_000_000m, RateApplied = 0.05m, OverallMateriality = 50_000m,
+        PerformanceMateriality = 37_500m, ClearlyTrivialThreshold = 2_500m, Status = MaterialityStatuses.Draft,
+        CreatedAt = DateTimeOffset.UtcNow
+      });
+      await db.SaveChangesAsync();
+    }
+
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    await using var context = await browser.NewContextAsync();
+    var page = await context.NewPageAsync();
+    var diagnostics = new List<string>();
+    var connected = WaitForCircuitConnectionAsync(page, diagnostics);
+    await page.GotoAsync(SignInUrl(host.StaffUrl, $"/app/audit/plans/{host.Fixture.EngagementId:D}"));
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Audit Plan & Strategy" }).WaitForAsync();
+    await connected;
+    await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new() { Timeout = 5000 });
+    await Assertions.Expect(page.GetByText("Total assets")).ToBeVisibleAsync();
+
+    var documentToken = Guid.NewGuid().ToString("N");
+    await page.EvaluateAsync("token => window.__testDocumentToken = token", documentToken);
+    await page.EvaluateAsync("path => { history.pushState({}, '', path); dispatchEvent(new PopStateEvent('popstate')); }",
+      $"/app/audit/plans/{siblingEngagementId:D}");
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable" }).WaitForAsync();
+    var deniedBody = await page.Locator("body").InnerTextAsync();
+    Assert.DoesNotContain("Total assets", deniedBody);
+    Assert.DoesNotContain("1,000,000.00", deniedBody);
+    Assert.Equal(documentToken, await page.EvaluateAsync<string>("window.__testDocumentToken"));
+
+    await page.EvaluateAsync("path => { history.pushState({}, '', path); dispatchEvent(new PopStateEvent('popstate')); }",
+      $"/app/audit/plans/{host.Fixture.EngagementId:D}");
+    await Assertions.Expect(page.GetByText("Total assets")).ToBeVisibleAsync();
+    Assert.Equal(documentToken, await page.EvaluateAsync<string>("window.__testDocumentToken"));
+    Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
+  }
+
+  [Fact]
+  [Trait("CaseId", "AS-PAR-002-POPULATION-STALE-ROUTE-01")]
+  public async Task AuditPopulationClearsPriorPopulationWhenRouteChangesInPlace()
+  {
+    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false,
+      caseId: "AS-PAR-002-POPULATION-STALE-ROUTE-01");
+    var siblingEngagementId = Guid.NewGuid();
+    var authorizedPopulationId = Guid.NewGuid();
+    var siblingPopulationId = Guid.NewGuid();
+    await using (var db = host.CreateDbContext())
+    {
+      db.RoleGrants.Add(PbcSeed.Grant(host.Fixture.FirmId, host.Fixture.Staff, "Partner",
+        host.Fixture.ClientId, host.Fixture.EngagementId));
+      db.Engagements.Add(new AuditSphereOps.Domain.Engagements.Engagement
+      {
+        Id = siblingEngagementId, FirmId = host.Fixture.FirmId,
+        PracticeClientId = host.Fixture.ClientId, Status = "Active", CreatedAt = DateTimeOffset.UtcNow
+      });
+      db.PopulationVersions.Add(new PopulationVersion
+      {
+        Id = authorizedPopulationId, FirmId = host.Fixture.FirmId, ClientId = host.Fixture.ClientId,
+        EngagementId = host.Fixture.EngagementId, ActorId = host.Fixture.Staff.Id,
+        Purpose = "Synthetic stale-route population", Assertion = "Existence and accuracy",
+        SourceReceiptReference = "SYN-POP-RECEIPT", ExtractionParameters = "synthetic",
+        RowCount = 12000, MonetaryControlTotal = 4_800_000m, Currency = "QAR",
+        Status = PopulationStatuses.PendingApproval, CreatedAt = DateTimeOffset.UtcNow
+      });
+      db.PopulationVersions.Add(new PopulationVersion
+      {
+        Id = siblingPopulationId, FirmId = host.Fixture.FirmId, ClientId = host.Fixture.ClientId,
+        EngagementId = siblingEngagementId, ActorId = host.Fixture.Staff.Id,
+        Purpose = "Sibling population must never leak", Assertion = "Existence and accuracy",
+        SourceReceiptReference = "SYN-POP-SIBLING", ExtractionParameters = "synthetic",
+        RowCount = 1, MonetaryControlTotal = 1m, Currency = "QAR",
+        Status = PopulationStatuses.PendingApproval, CreatedAt = DateTimeOffset.UtcNow
+      });
+      await db.SaveChangesAsync();
+    }
+
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    await using var context = await browser.NewContextAsync();
+    var page = await context.NewPageAsync();
+    var diagnostics = new List<string>();
+    var connected = WaitForCircuitConnectionAsync(page, diagnostics);
+    await page.GotoAsync(SignInUrl(host.StaffUrl, $"/app/audit/populations/{authorizedPopulationId:D}"));
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Population Record" }).WaitForAsync();
+    await connected;
+    await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new() { Timeout = 5000 });
+    await Assertions.Expect(page.GetByText("Synthetic stale-route population")).ToBeVisibleAsync();
+
+    var documentToken = Guid.NewGuid().ToString("N");
+    await page.EvaluateAsync("token => window.__testDocumentToken = token", documentToken);
+    await page.EvaluateAsync("path => { history.pushState({}, '', path); dispatchEvent(new PopStateEvent('popstate')); }",
+      $"/app/audit/populations/{siblingPopulationId:D}");
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Population unavailable" }).WaitForAsync();
+    var deniedBody = await page.Locator("body").InnerTextAsync();
+    Assert.DoesNotContain("Synthetic stale-route population", deniedBody);
+    Assert.DoesNotContain("Sibling population must never leak", deniedBody);
+    Assert.DoesNotContain("12,000", deniedBody);
+    Assert.Equal(documentToken, await page.EvaluateAsync<string>("window.__testDocumentToken"));
+
+    await page.EvaluateAsync("path => { history.pushState({}, '', path); dispatchEvent(new PopStateEvent('popstate')); }",
+      $"/app/audit/populations/{authorizedPopulationId:D}");
+    await Assertions.Expect(page.GetByText("Synthetic stale-route population")).ToBeVisibleAsync();
+    Assert.Equal(documentToken, await page.EvaluateAsync<string>("window.__testDocumentToken"));
+    Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
+  }
+
+  [Fact]
+  [Trait("CaseId", "AS-PAR-002-RELEASE-STALE-ROUTE-01")]
+  public async Task ReleaseClearsPriorCandidateWhenRouteChangesInPlace()
+  {
+    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false,
+      caseId: "AS-PAR-002-RELEASE-STALE-ROUTE-01");
+    var workpaperId = Guid.NewGuid();
+    Guid candidateId;
+    var reviewer = PbcSeed.Actor(host.Fixture.Reviewer, "Reviewer");
+    var partner = PbcSeed.Actor(host.Fixture.Admin, "Administrator");
+    await using (var db = host.CreateDbContext())
+    {
+      db.RoleGrants.Add(PbcSeed.Grant(host.Fixture.FirmId, host.Fixture.Staff, "Partner",
+        host.Fixture.ClientId, host.Fixture.EngagementId));
+      db.Workpapers.Add(new Workpaper
+      {
+        Id = workpaperId, FirmId = host.Fixture.FirmId, ClientId = host.Fixture.ClientId,
+        EngagementId = host.Fixture.EngagementId, ActorId = host.Fixture.Staff.Id, Index = "R-E2E-STALE-REL",
+        Title = "Synthetic stale-route release workpaper", Objective = "Exercise release route reauthorization",
+        TemplateVersion = "SYNTHETIC-v1", Procedure = "Synthetic procedure", Status = WorkpaperStatuses.Working,
+        CreatedAt = DateTimeOffset.UtcNow
+      });
+      await db.SaveChangesAsync();
+      var artifact = "synthetic-stale-route-release"u8.ToArray();
+      var digest = Hashing.Sha256Hex(artifact);
+      var approval = await ApprovalService.CreateAsync(db, reviewer,
+        new CreateApprovalRequest("WORKPAPER", workpaperId, 1, 1, 1, digest));
+      Assert.True(approval.Succeeded, approval.Message);
+      var candidate = await ReleaseService.CreateCandidateAsync(db, partner,
+        new CreateReleaseCandidateRequest(approval.Value!, "WORKPAPER", workpaperId, 1, 1, 1, digest));
+      Assert.True(candidate.Succeeded, candidate.Message);
+      candidateId = candidate.Value;
+    }
+
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    await using var context = await browser.NewContextAsync();
+    var page = await context.NewPageAsync();
+    var diagnostics = new List<string>();
+    var connected = WaitForCircuitConnectionAsync(page, diagnostics);
+    await page.GotoAsync(SignInUrl(host.StaffUrl, $"/app/releases/{candidateId:D}"));
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Release candidate" }).WaitForAsync();
+    await connected;
+    await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new() { Timeout = 5000 });
+    await page.GetByText(candidateId.ToString("D")).WaitForAsync(new() { Timeout = 15000 });
+    var authorizedBody = await page.Locator("body").InnerTextAsync();
+    Assert.Contains(candidateId.ToString("D"), authorizedBody);
+
+    var missingCandidateId = Guid.NewGuid();
+    var documentToken = Guid.NewGuid().ToString("N");
+    await page.EvaluateAsync("token => window.__testDocumentToken = token", documentToken);
+    await page.EvaluateAsync("path => { history.pushState({}, '', path); dispatchEvent(new PopStateEvent('popstate')); }",
+      $"/app/releases/{missingCandidateId:D}");
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Candidate unavailable" }).WaitForAsync();
+    var deniedBody = await page.Locator("body").InnerTextAsync();
+    Assert.DoesNotContain(candidateId.ToString("D"), deniedBody);
+    Assert.Equal(documentToken, await page.EvaluateAsync<string>("window.__testDocumentToken"));
+
+    await page.EvaluateAsync("path => { history.pushState({}, '', path); dispatchEvent(new PopStateEvent('popstate')); }",
+      $"/app/releases/{candidateId:D}");
+    await page.GetByText(candidateId.ToString("D")).WaitForAsync(new() { Timeout = 15000 });
+    var restoredBody = await page.Locator("body").InnerTextAsync();
+    Assert.Contains(candidateId.ToString("D"), restoredBody);
+    Assert.Equal(documentToken, await page.EvaluateAsync<string>("window.__testDocumentToken"));
+    Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
+  }
+
+  [Fact]
   [Trait("CaseId", "AS-PAR-009-AGGREGATE-DIFFERENCES-UI-01")]
   public async Task AuditFieldworkRecordsHumanAggregateConclusionBoundToDifferenceSchedule()
   {
