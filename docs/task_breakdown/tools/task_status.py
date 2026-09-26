@@ -84,7 +84,9 @@ def readiness(task_id,tasks):
     if m['status']=='COMPLETED':return 'COMPLETED'
     if missing:return 'WAITING: '+', '.join(missing)
     if m['status']=='BLOCKED':return 'BLOCKED: '+m.get('blocked_reason','Reason required')
-    return 'READY FOR OWNER REVIEW' if task_id=='T001' else 'READY'
+    if task_id=='T001':
+        return 'READY FOR OWNER REVIEW' if m['status']=='NOT_STARTED' else m['status']
+    return 'READY'
 
 
 def task_link(task_id,tasks):

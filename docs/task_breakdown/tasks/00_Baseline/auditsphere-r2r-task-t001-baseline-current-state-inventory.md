@@ -2,18 +2,18 @@
 id: "T001"
 work_package: "R2R-00"
 modules: []
-status: "NOT_STARTED"
+status: "IN_PROGRESS"
 depends_on: []
-owner: ""
+owner: "Codex implementation coordinator"
 reviewer: ""
 review_decision: ""
 reviewed_commit: ""
-evidence_ref: ""
-approval_ref: ""
+evidence_ref: "tracking/auditsphere-r2r-tracker-current-baseline-inventory.md"
+approval_ref: "Owner response in current Codex task, 2026-09-26: Approve the seven-module blueprint scope"
 blocked_reason: ""
-branch: ""
+branch: "master"
 issue_pr: ""
-updated_at: ""
+updated_at: "2026-09-26T16:34:00+00:00"
 ---
 # T001 — Approve scope and inventory the current implementation
 
@@ -127,12 +127,12 @@ Use pure xUnit for deterministic rules, real PostgreSQL for persistence/concurre
 
 | Field | Value to record |
 |---|---|
-| Inspected baseline and reused symbols | Not recorded |
-| Code commit / schema / deployed build if applicable | Not recorded |
-| Requirement → assertion → command/run → observed result | Not recorded |
-| Policy / scope approval reference | Not recorded |
-| Known limitations / exact blocker | Not recorded |
-| Exported contract / manifest / artifact references for consumers | Not recorded |
-| Reviewer and acceptance decision | Not recorded |
+| Inspected baseline and reused symbols | [Current-code inventory and conflict register](../../tracking/auditsphere-r2r-tracker-current-baseline-inventory.md); exact inspected source SHA in `docs/execution/status.json` |
+| Code commit / schema / deployed build if applicable | Documentation inventory only; no schema, deployment, or business-code change. Commit and check results are tracked in `docs/execution/status.json`. |
+| Requirement → assertion → command/run → observed result | Seven-module owner scope decision recorded; source-symbol and route searches located existing M20–M26 candidates. Task-pack validation and documentation checks are recorded in `docs/execution/status.json`. No new full-suite execution is claimed for this documentation slice. |
+| Policy / scope approval reference | Owner response in current Codex task on 2026-09-26: “Approve the seven-module blueprint scope.” |
+| Known limitations / exact blocker | Proposed shared-contract equivalence and transaction ownership remain T002 decisions. Independent T001 review and exact reviewed-commit acceptance are outstanding; external live gates remain separate. |
+| Exported contract / manifest / artifact references for consumers | [Current-code inventory](../../tracking/auditsphere-r2r-tracker-current-baseline-inventory.md) and [command/query ownership registry](../../coverage/auditsphere-r2r-tracker-command-query-ownership.md); no new public contract exported. |
+| Reviewer and acceptance decision | Pending independent review; T001 remains IN_PROGRESS. |
 
 **Tracking-only note:** filling these fields or running the status helper is not proof that tests ran, a professional approval, merge authorization or permission to perform a tenant operation.

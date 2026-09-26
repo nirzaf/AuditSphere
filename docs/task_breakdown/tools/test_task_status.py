@@ -23,6 +23,13 @@ class TaskStatusTests(unittest.TestCase):
         shutil.copytree(ORIGINAL,self.root,ignore=shutil.ignore_patterns('__pycache__','*.pyc'))
         helper.ROOT=self.root
         (self.root/'tracking/test_evidence.md').write_text('Synthetic evidence for helper self-test only. Not application evidence.\n')
+        # Lifecycle tests start from the original transition state even after the
+        # live task pack advances. Only the disposable fixture is reset.
+        tasks=helper.load_tasks()
+        row,metadata,body=tasks['T001']
+        metadata['status']='NOT_STARTED'
+        helper.write_task(self.root/row['file'],metadata,body)
+        helper.refresh()
     def tearDown(self):
         helper.ROOT=ORIGINAL
         self.temp.cleanup()
