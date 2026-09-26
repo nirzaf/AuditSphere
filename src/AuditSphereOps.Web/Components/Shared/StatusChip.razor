@@ -6,9 +6,9 @@
 
   private Color ChipColor => Status.ToUpperInvariant() switch
   {
-    "DRAFT" or "LEADNEW" or "NEW" or "PENDING" or "OPEN" or "SUBMITTED" or "AWAITING REVIEW" or "IN PROGRESS" or "INPROGRESS"
+    "DRAFT" or "LEADNEW" or "NEW" or "PENDING" or "OPEN" or "SUBMITTED" or "RESUBMITTED" or "AWAITING REVIEW" or "IN PROGRESS" or "INPROGRESS"
       => Color.Info,
-    "APPROVED" or "ACTIVE" or "READY" or "ISSUED" or "COMPLETED" or "QUALIFIED" or "VERIFIED" or "REVIEW COMPLETE"
+    "APPROVED" or "ACTIVE" or "READY" or "ISSUED" or "COMPLETED" or "QUALIFIED" or "VERIFIED" or "REVIEW COMPLETE" or "POSTED" or "RECONCILED" or "ACCEPTED"
       => Color.Success,
     "REJECTED" or "BLOCKED" or "CANCELLED" or "VOID" or "FAILED" or "DENIED" or "UNAVAILABLE"
       => Color.Error,
@@ -19,7 +19,7 @@
 
   private string ChipIcon => Status.ToUpperInvariant() switch
   {
-    "APPROVED" or "ACTIVE" or "READY" or "ISSUED" or "COMPLETED" or "QUALIFIED" or "VERIFIED" or "REVIEW COMPLETE"
+    "APPROVED" or "ACTIVE" or "READY" or "ISSUED" or "COMPLETED" or "QUALIFIED" or "VERIFIED" or "REVIEW COMPLETE" or "POSTED" or "RECONCILED" or "ACCEPTED"
       => Icons.Material.Filled.CheckCircle,
     "REJECTED" or "BLOCKED" or "CANCELLED" or "VOID" or "FAILED" or "DENIED" or "UNAVAILABLE"
       => Icons.Material.Filled.Block,

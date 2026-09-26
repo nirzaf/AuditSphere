@@ -1,6 +1,6 @@
 # AuditSphere — MudBlazor UI Conventions & Migration Status
 
-**Status:** CURRENT (slice 3 — form controls, accounting navigation and CSS consolidation)
+**Status:** CURRENT — migration complete (slices 1–4 reconciled; final state)
 
 ## 1. Selected version
 
@@ -38,7 +38,11 @@
   #0E7490, surface/background aligned with existing `app.css`; compact
   radius; enterprise typography.
 - `Components/Shared/StatusChip.razor`: color + icon so status is never
-  color-only.
+  color-only. The variant map covers the Domain workflow vocabulary observed
+  at the call sites (`DRAFT`/`SUBMITTED`/`RESUBMITTED` → info,
+  `APPROVED`/`ACTIVE`/`POSTED`/`RECONCILED`/`ACCEPTED`/`ISSUED`/… → success,
+  `REJECTED`/… → error, `LOCKED`/`STALE`/… → warning); any future status
+  falls back to a neutral chip with text and icon, never color alone.
 - `Components/Shared/PageHeader.razor`: native `h1` (keeps
   `FocusOnNavigate` + Playwright `GetByRole(Heading)` selectors stable).
 - `Components/Shared/LoadingState.razor`: loading / error(h2) / empty /
@@ -129,7 +133,7 @@ break. Selects under any of these contracts stay native; everything else convert
   styles replace it (see §6b).
 
 
-## 5. Per-route completion (47 inventoried routes)
+## 5. Per-route completion (42 page components, 49 inventoried routes)
 
 - **Content-migrated**: every inventoried route now renders through the
   MudBlazor shell and MudBlazor content primitives (`PageHeader`,
@@ -180,10 +184,13 @@ break. Selects under any of these contracts stay native; everything else convert
   carries an inline HTML comment documenting any retained native element and
   why.
 - **Deliberate exceptions, each with a technical reason:**
-  1. **6 tables stay native `<table>`** (inside `MudPaper`): totals rows
-     (`<tfoot>`) in `Journals`, `InvoiceDetail`, `FinancialPackage`,
-     `Consolidation` and row-spanning status rows (`colspan`) in
-     `FinancialPackage` and `PbcRequests` have no `MudTable` equivalent.
+  1. **5 tables stay native `<table>`** (inside `MudPaper`) — reconciled count
+     against the current tree: totals rows (`<tfoot>`) in `Journals`,
+     `InvoiceDetail` and `Consolidation`, and row-spanning rows (`colspan`,
+     e.g. the empty-state row spanning five columns in `FinancialPackage` and
+     the status rows in `Consolidation`/`PbcRequests`) have no `MudTable`
+     equivalent; `PbcRequests` and `FinancialPackage` also keep their
+     `sr-only` table captions through the native element.
   2. **Browser-draft boundary elements stay native** (`PracticeTime` both
      forms, `AccountingWorkspace` context selector,
      `AdvancedConsolidationWorkflow` schedule scope, `PbcRequests` new
@@ -294,6 +301,39 @@ MudBlazor components as surface tokens (`.btn-primary`/`.btn-secondary`/
 `.accounting-nav`/`.accounting-nav-link` rules. Removed as obsolete:
 `.accounting-tabs` (replaced by `.accounting-nav`), `.button`
 (native-button styling; no references remain), `.card-grid`
-(no references remain), and `button:disabled` (MudBlazor owns disabled
-buttons). No second CSS component framework was introduced; reusable visual
+(no references remain), `button:disabled` (MudBlazor owns disabled
+buttons), and — in the final reconciliation — `.field-label` and
+`.context-bar` (zero references in markup, code and scripts; note that
+`.required-label`/`.optional-label` stay because `draft-state.js` applies
+them at runtime). No second CSS component framework was introduced; reusable visual
 tokens remain in `Components/Theme/AuditSphereTheme.cs`.
+
+## 8. Final reconciliation (verified against the current tree)
+
+- **42 page components** under `src/AuditSphereOps.Web/Components/Pages`
+  declaring **49 `@page` routes** (six pages carry a second/third route alias:
+  `AccountingRecords` x3, `AssessmentDetail`, `AuditPlan`, `Completion`,
+  `Microsoft365Setup`, `Portfolio` x2). All routes live in `Pages/`.
+- **Zero native `<button>` elements** remain; every action renders through
+  `MudButton`/`MudIconButton`.
+- **39 native `input`/`select`/`textarea` controls remain across 9 pages**, each
+  an intentional exception with an inline comment and a documented reason:
+  `draft-state.js` boundaries (PracticeTime 10, PbcRequests 6,
+  ClientPbcRequest 6, FinancialPackageReviews 2, AdvancedConsolidationWorkflow 2,
+  AccountingWorkspace 1), `draft-state.js` value contracts plus E2E value pins
+  (CurrencyRemeasurement 5 selects + 1 ISO date input), raw-value
+  `InputValueAsync()` contracts (Microsoft365Setup 4), and server-managed
+  autosave interop (Workpaper 2).
+- **5 native `<table>` elements remain** (`Journals`, `InvoiceDetail`,
+  `FinancialPackage`, `Consolidation`, `PbcRequests`), each kept for `<tfoot>`
+  totals, `colspan` row structures or `sr-only` captions that `MudTable` cannot
+  express.
+- **MudBlazor is referenced only by
+  `src/AuditSphereOps.Web/AuditSphereOps.Web.csproj`** (centrally versioned
+  9.10.0 in `Directory.Packages.props`); a source scan finds no reference in
+  Domain, Application, Infrastructure, Worker or the test projects, and
+  `ArchitectureGuardTests` enforces the project-reference direction.
+- Every page's primary UI system is MudBlazor (shell via `MainLayout` +
+  `MudThemeProvider`, headings via `PageHeader`, notices via `MudAlert`,
+  containers via `MudPaper`, tables via `MudTable` where semantic, controls via
+  MudBlazor inputs, statuses via `StatusChip`, loading via `LoadingState`).

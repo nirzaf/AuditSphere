@@ -33,7 +33,6 @@ h2 { margin-top: 0; }
 .workspace-tab-grid article { border: 1px solid #d8e0e7; border-radius: .45rem; padding: 1rem; background: #fbfcfd; }
 .workspace-tab-grid h3 { margin: 0 0 .4rem; }
 .workspace-tab-grid p { color: #5b6b7a; min-height: 2.8rem; margin: 0 0 .75rem; }
-.context-bar { position: sticky; top: .5rem; z-index: 1; }
 .table-wrap { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; }
 th, td { text-align: left; padding: .7rem; border-bottom: 1px solid #e1e7eb; vertical-align: top; }
@@ -51,7 +50,6 @@ label, .form-group { display: grid; gap: .35rem; }
 .form-group { margin: 1rem 0; max-width: 34rem; }
 fieldset { border: 1px solid #d8e0e7; border-radius: .45rem; padding: 1rem; }
 legend { padding: 0 .35rem; font-weight: 700; }
-.field-label { font-weight: 650; }
 .required-label { font-weight: 650; }
 .required-label::after { content: " *"; color: #b91c1c; }
 .optional-label::after { content: " (optional)"; color: #5b6b7a; font-weight: 400; }
