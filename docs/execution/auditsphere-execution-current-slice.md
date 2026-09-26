@@ -34,6 +34,27 @@
 
 
 
+## Period workbench access refresh
+
+The restatement and roll-forward selection loaders clear prior projections and resolve
+current actor/grant state before rebuilding scoped choices and history. Revoked client
+access and disabled users clear client names, periods, package choices, draft values and
+review actions. An engagement-only grant cannot restore client-level period access.
+Scope/session-denied command results also clear the protected view. A stale source
+package or restatement lineage now remains a visible service error when a fresh
+client-scoped authorization check confirms the session is still valid.
+
+`PeriodWorkbenchScopeJourneyTests` exercises the two screens with revoked grants and
+disabled identities in an existing browser document and verifies no period/restatement
+mutation. This is a bounded AS-PAR-002 AC02–AC03 / AC-24 repair; the whole-application
+query, export, command and revocation audit remains open. Verification results and the
+source baseline are recorded in `status.json`. Deployment guidance is unaffected.
+
+The pending-work handoff links every story family and preserves optional professional
+profile gates and root product exclusions. Follow specification §46 for independent
+review and explicit merge authorization before advancing acceptance.
+
+
 ## 1. Active Implementation Scope
 
 

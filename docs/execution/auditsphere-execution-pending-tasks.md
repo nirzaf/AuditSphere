@@ -36,6 +36,30 @@ The core modular monolith, Practice Management, Client Accounting Workspace (TB/
 
 
 
+## Story coverage and completion boundaries
+
+This handoff is not an exhaustive list of unfinished user stories. Continue from the
+[accounting stories AC-01–AC-28](../auditsphere-accounting-module-requirements-current.md),
+[prototype parity stories AS-PAR-001–AS-PAR-062](../auditsphere-audit-user-stories-prototype-gap-closure-proposed.md),
+[Microsoft 365 onboarding story](../auditsphere-m365-onboarding-user-stories.md), and
+[R2R/audit task index](../task_breakdown/auditsphere-r2r-index-task-breakdown.md).
+Checked accounting criteria and historical prototype baselines must be reconciled with
+current code and exact acceptance assertions before changing story status. A passing
+regression for one screen does not complete the whole AS-PAR-002 authorization audit.
+
+The optional service profiles AS-PAR-046–AS-PAR-062 retain their stated professional
+methodology and scope approval dependencies. They do not authorize client operational
+ERP, payroll execution, Purview integration, or eSignature provider integration, which
+root `AGENTS.md` excludes. Preserve uploaded signed evidence and human decisions.
+External validation and independent review remain separate from local implementation.
+
+Follow the system specification §46 work loop: one reviewable slice and PR at a time;
+obtain the required independent review and explicit merge authorization before advancing
+through acceptance gates. Do not mark the entire documentation backlog complete from
+local test results.
+
+---
+
 ## 2. Open Local Work & Unresolved Decisions
 
 
@@ -50,7 +74,7 @@ The following local tasks, architectural decisions, and follow-ups are open for 
 
 - **Selected-Resource SharePoint/Graph Provider:** Implement and verify the production selected-resource SharePoint/Graph provider, durable client-root worker, engagement folder provisioning, and uncertain-outcome reconciliation.
 
-- **Staff ACLs & Mailbox Delivery:** Implement optional direct staff ACL behavior, Microsoft Graph mailbox delivery, and Purview label/records classification with authorized tenant resources.
+- **Staff ACLs & Mailbox Delivery:** Implement optional direct staff ACL behavior and Microsoft Graph mailbox delivery only with authorized tenant resources. Purview provider integration is excluded by root `AGENTS.md`; it is not an eligible local implementation task.
 
 
 
