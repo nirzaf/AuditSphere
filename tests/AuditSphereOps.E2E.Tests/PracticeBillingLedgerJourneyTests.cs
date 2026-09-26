@@ -222,6 +222,72 @@ public sealed class PracticeBillingLedgerJourneyTests
   }
 
   [Fact]
+  [Trait("CaseId", "AS-PAR-002-INVOICE-STALE-ROUTE-01")]
+  public async Task InvoiceDetailClearsPriorInvoiceWhenRouteChangesInPlace()
+  {
+    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false,
+      caseId: "AS-PAR-002-INVOICE-STALE-ROUTE-01");
+    var invoiceId = Guid.NewGuid();
+    var missingInvoiceId = Guid.NewGuid();
+    await using (var db = host.CreateDbContext())
+    {
+      db.RoleGrants.Add(PbcSeed.Grant(host.Fixture.FirmId, host.Fixture.Staff, "FinanceManager",
+        host.Fixture.ClientId));
+      var account = new BillingAccount
+      {
+        Id = Guid.NewGuid(), FirmId = host.Fixture.FirmId, PracticeClientId = host.Fixture.ClientId,
+        Currency = "QAR", CreatedAt = DateTimeOffset.UtcNow
+      };
+      db.BillingAccounts.Add(account);
+      db.Invoices.Add(new Invoice
+      {
+        Id = invoiceId, FirmId = host.Fixture.FirmId, BillingAccountId = account.Id,
+        InvoiceNumber = "SYN-E2E-STALE-INV-001", Currency = "QAR",
+        Subtotal = 1000m, Tax = 0m, Total = 1000m, Status = BillingStates.InvoiceSent,
+        CreatedByUserId = host.Fixture.Staff.Id, CreatedAt = DateTimeOffset.UtcNow
+      });
+      db.InvoiceLines.Add(new InvoiceLine
+      {
+        Id = Guid.NewGuid(), FirmId = host.Fixture.FirmId, InvoiceId = invoiceId,
+        Description = "Synthetic stale-route line", Quantity = 1m, UnitPrice = 1000m,
+        LineTotal = 1000m
+      });
+      await db.SaveChangesAsync();
+    }
+
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    await using var context = await browser.NewContextAsync();
+    var page = await context.NewPageAsync();
+    var diagnostics = new List<string>();
+    var connected = WaitForCircuitConnectionAsync(page, diagnostics);
+    await page.GotoAsync(SignInUrl(host.StaffUrl, $"/app/practice/invoices/{invoiceId:D}"));
+    await page.GetByText("SYN-E2E-STALE-INV-001", new() { Exact = true }).WaitForAsync();
+    await connected;
+    await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new() { Timeout = 5000 });
+    var authorizedBody = await page.Locator("body").InnerTextAsync();
+    Assert.Contains("Status: SENT", authorizedBody, StringComparison.OrdinalIgnoreCase);
+
+    var documentToken = Guid.NewGuid().ToString("N");
+    await page.EvaluateAsync("token => window.__testDocumentToken = token", documentToken);
+    await page.EvaluateAsync("path => { history.pushState({}, '', path); dispatchEvent(new PopStateEvent('popstate')); }",
+      $"/app/practice/invoices/{missingInvoiceId:D}");
+    // The page clears the resolved actor with the invoice, so an unavailable invoice
+    // renders the same fail-closed "Access unavailable" state as a denial.
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable" }).WaitForAsync();
+    var deniedBody = await page.Locator("body").InnerTextAsync();
+    Assert.DoesNotContain("SYN-E2E-STALE-INV-001", deniedBody);
+    Assert.DoesNotContain("Synthetic stale-route line", deniedBody);
+    Assert.Equal(documentToken, await page.EvaluateAsync<string>("window.__testDocumentToken"));
+
+    await page.EvaluateAsync("path => { history.pushState({}, '', path); dispatchEvent(new PopStateEvent('popstate')); }",
+      $"/app/practice/invoices/{invoiceId:D}");
+    await page.GetByText("SYN-E2E-STALE-INV-001", new() { Exact = true }).WaitForAsync();
+    Assert.Equal(documentToken, await page.EvaluateAsync<string>("window.__testDocumentToken"));
+    Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
+  }
+
+  [Fact]
   [Trait("CaseId", "AS-PAR-009-PROPOSAL-READ-01")]
   public async Task ProposalDetailShowsPersistedFirmWideProposalAndDeniesScopedIdentity()
   {

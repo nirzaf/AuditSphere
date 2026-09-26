@@ -109,6 +109,143 @@ public sealed class AuditAndReleaseJourneyTests
   }
 
   [Fact]
+  [Trait("CaseId", "AS-PAR-002-WORKPAPER-STALE-ROUTE-01")]
+  public async Task WorkpaperClearsPriorWorkpaperWhenRouteChangesInPlace()
+  {
+    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false,
+      caseId: "AS-PAR-002-WORKPAPER-STALE-ROUTE-01");
+    var siblingEngagementId = Guid.NewGuid();
+    var authorizedWorkpaperId = Guid.NewGuid();
+    var siblingWorkpaperId = Guid.NewGuid();
+    await using (var db = host.CreateDbContext())
+    {
+      db.RoleGrants.Add(PbcSeed.Grant(host.Fixture.FirmId, host.Fixture.Staff, "Partner",
+        host.Fixture.ClientId, host.Fixture.EngagementId));
+      db.Engagements.Add(new AuditSphereOps.Domain.Engagements.Engagement
+      {
+        Id = siblingEngagementId, FirmId = host.Fixture.FirmId,
+        PracticeClientId = host.Fixture.ClientId, Status = "Active", CreatedAt = DateTimeOffset.UtcNow
+      });
+      db.Workpapers.Add(new Workpaper
+      {
+        Id = authorizedWorkpaperId, FirmId = host.Fixture.FirmId, ClientId = host.Fixture.ClientId,
+        EngagementId = host.Fixture.EngagementId, ActorId = host.Fixture.Staff.Id, Index = "R-E2E-STALE-A",
+        Title = "Synthetic stale-route workpaper", Objective = "Authorize the first workpaper read",
+        TemplateVersion = "SYNTHETIC-v1", Procedure = "Synthetic procedure",
+        WorkPerformed = "Authorized work performed marker", Status = WorkpaperStatuses.Working,
+        CreatedAt = DateTimeOffset.UtcNow
+      });
+      db.Workpapers.Add(new Workpaper
+      {
+        Id = siblingWorkpaperId, FirmId = host.Fixture.FirmId, ClientId = host.Fixture.ClientId,
+        EngagementId = siblingEngagementId, ActorId = host.Fixture.Staff.Id, Index = "R-E2E-STALE-B",
+        Title = "Sibling engagement workpaper", Objective = "Must never leak across engagements",
+        TemplateVersion = "SYNTHETIC-v1", Procedure = "Synthetic procedure",
+        WorkPerformed = "Sibling work performed marker", Status = WorkpaperStatuses.Working,
+        CreatedAt = DateTimeOffset.UtcNow
+      });
+      await db.SaveChangesAsync();
+    }
+
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    await using var context = await browser.NewContextAsync();
+    var page = await context.NewPageAsync();
+    var diagnostics = new List<string>();
+    var connected = WaitForCircuitConnectionAsync(page, diagnostics);
+    await page.GotoAsync(SignInUrl(host.StaffUrl, $"/app/audit/workpapers/{authorizedWorkpaperId:D}"));
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Workpaper: Synthetic stale-route workpaper" }).WaitForAsync();
+    await connected;
+    await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new() { Timeout = 5000 });
+    await Assertions.Expect(page.GetByText("Workpaper Details")).ToBeVisibleAsync();
+    await Assertions.Expect(page.GetByText("R-E2E-STALE-A")).ToBeVisibleAsync();
+
+    var documentToken = Guid.NewGuid().ToString("N");
+    await page.EvaluateAsync("token => window.__testDocumentToken = token", documentToken);
+    await page.EvaluateAsync("path => { history.pushState({}, '', path); dispatchEvent(new PopStateEvent('popstate')); }",
+      $"/app/audit/workpapers/{siblingWorkpaperId:D}");
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Workpaper unavailable" }).WaitForAsync();
+    var deniedBody = await page.Locator("body").InnerTextAsync();
+    Assert.DoesNotContain("Synthetic stale-route workpaper", deniedBody);
+    Assert.DoesNotContain("R-E2E-STALE-A", deniedBody);
+    Assert.DoesNotContain("Sibling engagement workpaper", deniedBody);
+    Assert.DoesNotContain("R-E2E-STALE-B", deniedBody);
+    Assert.Equal(documentToken, await page.EvaluateAsync<string>("window.__testDocumentToken"));
+
+    await page.EvaluateAsync("path => { history.pushState({}, '', path); dispatchEvent(new PopStateEvent('popstate')); }",
+      $"/app/audit/workpapers/{authorizedWorkpaperId:D}");
+    await Assertions.Expect(page.GetByText("R-E2E-STALE-A")).ToBeVisibleAsync();
+    Assert.Equal(documentToken, await page.EvaluateAsync<string>("window.__testDocumentToken"));
+    Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
+  }
+
+  [Fact]
+  [Trait("CaseId", "AS-PAR-002-FINDING-STALE-ROUTE-01")]
+  public async Task FindingClearsPriorFindingWhenRouteChangesInPlace()
+  {
+    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false,
+      caseId: "AS-PAR-002-FINDING-STALE-ROUTE-01");
+    var siblingEngagementId = Guid.NewGuid();
+    var authorizedFindingId = Guid.NewGuid();
+    var siblingFindingId = Guid.NewGuid();
+    await using (var db = host.CreateDbContext())
+    {
+      db.RoleGrants.Add(PbcSeed.Grant(host.Fixture.FirmId, host.Fixture.Staff, "Partner",
+        host.Fixture.ClientId, host.Fixture.EngagementId));
+      db.Engagements.Add(new AuditSphereOps.Domain.Engagements.Engagement
+      {
+        Id = siblingEngagementId, FirmId = host.Fixture.FirmId,
+        PracticeClientId = host.Fixture.ClientId, Status = "Active", CreatedAt = DateTimeOffset.UtcNow
+      });
+      db.Findings.Add(new Finding
+      {
+        Id = authorizedFindingId, FirmId = host.Fixture.FirmId, ClientId = host.Fixture.ClientId,
+        EngagementId = host.Fixture.EngagementId, ActorId = host.Fixture.Staff.Id,
+        FindingType = "Understated revenue", ImpactDescription = "Synthetic stale-route finding impact",
+        Status = FindingStatuses.Open, CreatedAt = DateTimeOffset.UtcNow
+      });
+      db.Findings.Add(new Finding
+      {
+        Id = siblingFindingId, FirmId = host.Fixture.FirmId, ClientId = host.Fixture.ClientId,
+        EngagementId = siblingEngagementId, ActorId = host.Fixture.Staff.Id,
+        FindingType = "Sibling engagement finding", ImpactDescription = "Sibling impact must never leak",
+        Status = FindingStatuses.Open, CreatedAt = DateTimeOffset.UtcNow
+      });
+      await db.SaveChangesAsync();
+    }
+
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    await using var context = await browser.NewContextAsync();
+    var page = await context.NewPageAsync();
+    var diagnostics = new List<string>();
+    var connected = WaitForCircuitConnectionAsync(page, diagnostics);
+    await page.GotoAsync(SignInUrl(host.StaffUrl, $"/app/findings/{authorizedFindingId:D}"));
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Audit Finding" }).WaitForAsync();
+    await connected;
+    await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new() { Timeout = 5000 });
+    await Assertions.Expect(page.GetByText("Synthetic stale-route finding impact")).ToBeVisibleAsync();
+
+    var documentToken = Guid.NewGuid().ToString("N");
+    await page.EvaluateAsync("token => window.__testDocumentToken = token", documentToken);
+    await page.EvaluateAsync("path => { history.pushState({}, '', path); dispatchEvent(new PopStateEvent('popstate')); }",
+      $"/app/findings/{siblingFindingId:D}");
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Finding unavailable" }).WaitForAsync();
+    var deniedBody = await page.Locator("body").InnerTextAsync();
+    Assert.DoesNotContain("Understated revenue", deniedBody);
+    Assert.DoesNotContain("Synthetic stale-route finding impact", deniedBody);
+    Assert.DoesNotContain("Sibling engagement finding", deniedBody);
+    Assert.DoesNotContain("Sibling impact must never leak", deniedBody);
+    Assert.Equal(documentToken, await page.EvaluateAsync<string>("window.__testDocumentToken"));
+
+    await page.EvaluateAsync("path => { history.pushState({}, '', path); dispatchEvent(new PopStateEvent('popstate')); }",
+      $"/app/findings/{authorizedFindingId:D}");
+    await Assertions.Expect(page.GetByText("Synthetic stale-route finding impact")).ToBeVisibleAsync();
+    Assert.Equal(documentToken, await page.EvaluateAsync<string>("window.__testDocumentToken"));
+    Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
+  }
+
+  [Fact]
   [Trait("CaseId", "AS-PAR-009-AGGREGATE-DIFFERENCES-UI-01")]
   public async Task AuditFieldworkRecordsHumanAggregateConclusionBoundToDifferenceSchedule()
   {
