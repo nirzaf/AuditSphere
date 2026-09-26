@@ -5,11 +5,11 @@ modules: []
 status: "IN_REVIEW"
 depends_on: ["T001"]
 owner: "Codex implementation coordinator"
-reviewer: ""
-review_decision: ""
-reviewed_commit: ""
+reviewer: "Repository owner (current Codex task)"
+review_decision: "ARCHITECTURE_DIRECTION_APPROVED; TASK_HANDOFF_PENDING"
+reviewed_commit: "779480c613b49f0e6ee1a818864ef48b5b8bd607"
 evidence_ref: "tracking/auditsphere-r2r-tracker-architecture-transaction-ownership.md"
-approval_ref: ""
+approval_ref: "Owner replied 'approved and continue' to exact-commit T002 architecture review in current Codex task on 2026-09-26; completion remains gated by the ledger's explicit open items"
 blocked_reason: ""
 branch: "master"
 issue_pr: ""
@@ -115,9 +115,9 @@ Use pure xUnit for deterministic rules, real PostgreSQL for persistence/concurre
 | Inspected baseline and reused symbols | [Architecture, transaction, shared-contract and role review ledger](../../tracking/auditsphere-r2r-tracker-architecture-transaction-ownership.md); accepted T001 inventory consumed. |
 | Code commit / schema / deployed build if applicable | Group-authority source `11b3f3779866a34146980da9e9b942e10846adc6`; no schema or deployment change. Final review-ledger commit to be pinned at handoff. |
 | Requirement → assertion → command/run → observed result | ADR-10 no implicit Partner promotion → PostgreSQL `CreateGroup_GrantsCreatorOnlyTheirFirmWideRole` passed 1/1; Release web build passed with 0 warnings/errors; full Release suite passed 418/418 (339 Domain, 7 API, 72 E2E); EF model check found no pending changes; task-pack validation and 21/21 helper self-tests passed. Exact observations are in `docs/execution/status.json`. |
-| Policy / scope approval reference | Repository owner accepted T001 seven-module scope and exact inventory commit `042611a70afdc97c006bf9b75ba58037cc0654a3`; T002 architectural disposition is proposed for independent review, not yet approved. |
-| Known limitations / exact blocker | Preserved request names are not all current code classes. Each downstream task must prove its concrete service, transaction, authorization, source fence and tests; task-owned shared types and legacy role variation remain for their owning tasks. Live tenant and production gates remain external. Independent T002 acceptance is pending. |
+| Policy / scope approval reference | Repository owner accepted T001 seven-module scope and exact inventory commit `042611a70afdc97c006bf9b75ba58037cc0654a3`; owner approved the T002 architectural direction at reviewed commit `779480c613b49f0e6ee1a818864ef48b5b8bd607`. This does not close the ledger's open implementation-owner and role decisions. |
+| Known limitations / exact blocker | Preserved request names are not all current code classes. The transaction-owner registry, shared contract disposition, role variation and person-based professional acceptance mapping still need an approved handoff. Each downstream task must prove its concrete service, transaction, authorization, source fence and tests. Live tenant and production gates remain external. |
 | Exported contract / manifest / artifact references for consumers | [T002 review ledger](../../tracking/auditsphere-r2r-tracker-architecture-transaction-ownership.md) and [111-request task ownership registry](../../coverage/auditsphere-r2r-tracker-command-query-ownership.md). |
-| Reviewer and acceptance decision | Pending independent exact-commit review. |
+| Reviewer and acceptance decision | Repository owner approved the direction at exact commit `779480c613b49f0e6ee1a818864ef48b5b8bd607` in the current Codex task on 2026-09-26; T002 remains IN_REVIEW until the stated handoff gaps are closed and independently accepted. |
 
 **Tracking-only note:** filling these fields or running the status helper is not proof that tests ran, a professional approval, merge authorization or permission to perform a tenant operation.

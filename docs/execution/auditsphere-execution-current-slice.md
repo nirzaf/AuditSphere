@@ -124,14 +124,18 @@ production identity acceptance is claimed. Exact verification is in
 
 ## R2R architecture and group authority
 
-T002 is in review. Its [architecture and transaction ledger](../task_breakdown/tracking/auditsphere-r2r-tracker-architecture-transaction-ownership.md)
+T002 remains in review. The repository owner approved the architectural
+direction at exact commit `779480c613b49f0e6ee1a818864ef48b5b8bd607`.
+Its [architecture and transaction ledger](../task_breakdown/tracking/auditsphere-r2r-tracker-architecture-transaction-ownership.md)
 records the current static-service design, preliminary transaction owners and
 shared contract candidates. Group creation now derives the creator's group role
 from an active firm-wide grant, preventing a Manager creator from receiving an
 implicit Partner group grant. The exact test and model results are in
 `status.json`. The 111-request registry assigns one owning task per request;
 each downstream task must prove its concrete method and transaction. T002
-independent acceptance remains pending.
+completion still requires the ledger's explicit transaction-owner,
+shared-contract and professional-role decisions; the owner's direction approval
+does not accept that incomplete handoff.
 
 ## P1 development OIDC credential store
 

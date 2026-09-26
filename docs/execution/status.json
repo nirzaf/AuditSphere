@@ -250,14 +250,14 @@
       "observedAt": "2026-09-26T17:57:30Z",
       "sourceCommit": "11b3f3779866a34146980da9e9b942e10846adc6",
       "remoteHeadConfirmed": true,
-      "taskState": "T002 IN_REVIEW. The architecture, capability transaction-owner, shared-contract and role ledger is proposed for owner review; the 111 preserved requests each have one owning task, while concrete implemented-method proof remains with downstream tasks. Independent T002 acceptance remains pending.",
+      "taskState": "T002 IN_REVIEW. Repository owner approved architectural direction at exact reviewed commit 779480c613b49f0e6ee1a818864ef48b5b8bd607 in the current Codex task on 2026-09-26. The ledger still requires a complete transaction-owner handoff, shared-contract disposition, role-variation and person-based professional acceptance mapping before task completion; the 111 preserved requests each have one owning task, while downstream tasks must prove concrete implemented methods.",
       "behavior": "CreateGroupAsync derives the creator's group role from an active firm-wide Manager, Partner or Administrator RoleGrant instead of always granting Partner; a missing active role fails closed. Existing group and grant persist in one EF SaveChanges operation.",
       "focusedTest": "PASS: CreateGroup_GrantsCreatorOnlyTheirFirmWideRole, 1/1 against PostgreSQL 18.6; Manager creator received Manager and no Partner grant.",
       "build": "PASS: Release web build, 0 warnings/errors.",
       "fullSuite": "PASS: Release solution run, Domain 339/339, API 7/7, Playwright E2E 72/72; 418/418 total, 0 skipped.",
       "modelDrift": "PASS: EF has-pending-model-changes reports no pending model changes.",
       "documentation": "PASS: task-pack validation (75 tasks, 111 commands/queries), task-status self-tests 21/21, Markdown documentation health (123 files, 2345 links), filename policy, JSON parse and git diff --check.",
-      "boundary": "No T002 architecture approval, whole R2R completion, live provider verification, production deployment, or new tenant write is claimed. The code change does not remediate historical group grants already persisted."
+      "boundary": "Owner approval records T002 architectural direction only, not completed T002 handoff, whole R2R completion, live provider verification, production deployment, or a new tenant write. The code change does not remediate historical group grants already persisted."
     },
     "r2rT001CurrentBaseline": {
       "observedAt": "2026-09-26T16:34:14Z",

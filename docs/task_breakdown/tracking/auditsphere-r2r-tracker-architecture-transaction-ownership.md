@@ -1,6 +1,6 @@
 # T002 architecture and transaction ownership review ledger
 
-**State:** IN_REVIEW. These are proposed coordination decisions and inspected implementation evidence, not an accepted T002 handoff. [T001's accepted inventory](auditsphere-r2r-tracker-current-baseline-inventory.md) is the source baseline; `docs/architecture/auditsphere-architecture-current-architecture.md` and `docs/architecture/auditsphere-architecture-code-map.md` govern implementation. The preserved [reference ADRs](../reference/auditsphere-r2r-reference-baseline-architecture-and-adrs.md#section-2-4) supply requirements to reconcile, not an instruction to replace the current stack.
+**State:** IN_REVIEW. The repository owner approved the architectural direction at exact commit `779480c613b49f0e6ee1a818864ef48b5b8bd607` in the current Codex task on 2026-09-26. The explicit open items below still prevent a completed T002 handoff. [T001's accepted inventory](auditsphere-r2r-tracker-current-baseline-inventory.md) is the source baseline; `docs/architecture/auditsphere-architecture-current-architecture.md` and `docs/architecture/auditsphere-architecture-code-map.md` govern implementation. The preserved [reference ADRs](../reference/auditsphere-r2r-reference-baseline-architecture-and-adrs.md#section-2-4) supply requirements to reconcile, not an instruction to replace the current stack.
 
 | Decision | Current implementation position | Remaining decision or proof |
 |---|---|---|
