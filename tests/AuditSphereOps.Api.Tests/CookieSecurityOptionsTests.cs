@@ -13,12 +13,19 @@ public sealed class CookieSecurityOptionsTests
   public void AuthenticationCookie_RequiresHttpsOutsideLocalProfiles(
     string environmentName, CookieSecurePolicy expectedPolicy)
   {
-    using var factory = new ApiWebApplicationFactory(new Dictionary<string, string?>
+    var settings = new Dictionary<string, string?>
     {
       ["DevelopmentIdentity:Enabled"] = "false",
       ["Application:AllowSimulationAdapters"] = "false",
       ["ExternalEffects:Enabled"] = "false"
-    }, environmentName);
+    };
+    if (environmentName == "Production")
+    {
+      settings["Identity:TenantId"] = Guid.NewGuid().ToString("D");
+      settings["Identity:ClientId"] = Guid.NewGuid().ToString("D");
+      settings["Identity:ClientSecret"] = "synthetic-test-secret";
+    }
+    using var factory = new ApiWebApplicationFactory(settings, environmentName);
 
     var options = factory.Services.GetRequiredService<IOptionsMonitor<CookieAuthenticationOptions>>()
       .Get(CookieAuthenticationDefaults.AuthenticationScheme);

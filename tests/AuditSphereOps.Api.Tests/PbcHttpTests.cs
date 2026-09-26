@@ -383,6 +383,13 @@ public sealed class PbcHttpTests
       Assert.Contains("Development identity is allowed only", error.ToString());
     }
 
+    productionSettings["DevelopmentIdentity:Enabled"] = "false";
+    using (var missingOidc = new ApiWebApplicationFactory(productionSettings, "Production"))
+    {
+      var error = Assert.ThrowsAny<Exception>(() => missingOidc.CreateClient());
+      Assert.Contains("Production identity requires configured OIDC", error.ToString());
+    }
+
     var oidcSettings = new Dictionary<string, string?>(productionSettings)
     {
       ["DevelopmentIdentity:Enabled"] = "true",

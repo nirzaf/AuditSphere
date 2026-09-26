@@ -89,6 +89,8 @@ if (developmentIdentityEnabled && oidcConfigured)
   throw new InvalidOperationException("Development identity cannot be enabled with OIDC.");
 if (identity.Exists() && !oidcConfigured)
   throw new InvalidOperationException("Identity configuration requires TenantId, ClientId and ClientSecret together.");
+if (!builder.Environment.IsDevelopment() && !builder.Environment.IsEnvironment("Test") && !oidcConfigured)
+  throw new InvalidOperationException("Production identity requires configured OIDC.");
 var authentication = builder.Services.AddAuthentication(options =>
 {
   options.DefaultAuthenticateScheme = CookieAuthenticationDefaults.AuthenticationScheme;
