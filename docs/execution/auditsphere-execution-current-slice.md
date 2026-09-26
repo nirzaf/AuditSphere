@@ -87,6 +87,15 @@ exact results are in `status.json`. The T002 ledger now identifies this owner
 and maps current setup and intake methods through T020 while leaving proposed
 contracts and independent review explicitly open.
 
+## R2R chart-version allocation and ownership map
+
+Chart-version creation now locks the client row through version allocation and
+save, so concurrent requests receive successive versions. A PostgreSQL race
+test proves the ordering. The T002 ledger now names a current Application owner
+or an explicit new-contract decision for every preserved request; that mapping
+does not prove the proposed contracts are implemented. T002 remains in review
+until its outstanding contract choices and independent acceptance are resolved.
+
 ## AS-PAR-002 firm administration current access
 
 Firm administration now loads its grant directory, invitation evidence, directory
