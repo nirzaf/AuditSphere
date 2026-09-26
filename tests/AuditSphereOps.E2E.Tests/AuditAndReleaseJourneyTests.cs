@@ -1,6 +1,7 @@
 using AuditSphereOps.Application.Audit;
 using AuditSphereOps.Application.Completion;
 using AuditSphereOps.Application.Reviews;
+using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Audit;
 using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Engagements;
@@ -389,11 +390,41 @@ public sealed class AuditAndReleaseJourneyTests
     await connected;
     var body = await page.Locator("body").InnerTextAsync();
     Assert.Contains("expired — Profile AUDITSPHERE-SYNTHETIC-RECORD", body);
-    Assert.Contains("No live Microsoft records action is observed", body);
+    Assert.Contains("No external records-provider acceptance is claimed", body);
     Assert.DoesNotContain("verified — Profile AUDITSPHERE-SYNTHETIC-RECORD", body);
     Assert.False(await page.GetByRole(AriaRole.Button, new() { Name = "Issue release" }).IsEnabledAsync());
     await using var verify = host.CreateDbContext();
     Assert.Empty(await verify.Releases.AsNoTracking().Where(x => x.ReleaseCandidateId == candidateId).ToListAsync());
+
+    var documentToken = Guid.NewGuid().ToString("N");
+    await page.EvaluateAsync("token => window.__releaseRouteToken = token", documentToken);
+    await page.EvaluateAsync("path => { history.pushState({}, '', path); dispatchEvent(new PopStateEvent('popstate')); }",
+      $"/app/releases/{Guid.NewGuid():D}");
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Candidate unavailable" }).WaitForAsync();
+    body = await page.Locator("body").InnerTextAsync();
+    Assert.DoesNotContain(digest, body);
+    Assert.DoesNotContain("AUDITSPHERE-SYNTHETIC-RECORD", body);
+    Assert.DoesNotContain("synthetic-local-release-checkpoint", body);
+    Assert.Equal(documentToken, await page.EvaluateAsync<string>("window.__releaseRouteToken"));
+
+    await page.EvaluateAsync("path => { history.pushState({}, '', path); dispatchEvent(new PopStateEvent('popstate')); }",
+      $"/app/releases/{candidateId:D}");
+    await page.GetByText(digest, new() { Exact = true }).WaitForAsync();
+    await using (var db = host.CreateDbContext())
+    {
+      var grant = await db.RoleGrants.SingleAsync(x => x.UserId == host.Fixture.Staff.Id &&
+        x.Role == "Staff" && x.RevokedAt == null);
+      var revoked = await RoleAdministrationService.RevokeRoleGrantAsync(db, partner,
+        new RevokeRoleGrantRequest(grant.Id));
+      Assert.True(revoked.Succeeded, revoked.Message);
+    }
+    await page.GetByRole(AriaRole.Button, new() { Name = "Refresh candidate" }).ClickAsync();
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable" }).WaitForAsync();
+    body = await page.Locator("body").InnerTextAsync();
+    Assert.DoesNotContain(digest, body);
+    Assert.DoesNotContain("AUDITSPHERE-SYNTHETIC-RECORD", body);
+    Assert.DoesNotContain("synthetic-local-release-checkpoint", body);
+    Assert.Equal(documentToken, await page.EvaluateAsync<string>("window.__releaseRouteToken"));
   }
 
   private static string SignInUrl(string origin, string returnUrl) =>
