@@ -13,6 +13,7 @@
 @inject IDbContextFactory<AuditSphereDbContext> DbFactory
 @inject IConfiguration Configuration
 @inject AuthenticationStateProvider AuthenticationState
+@inject NavigationManager Navigation
 
 <PageTitle>Microsoft 365 setup — AuditSphereOps</PageTitle>
 
@@ -185,10 +186,9 @@
         Configuration["Setup:InitialAdministratorObjectId"] ?? string.Empty,
         DateTimeOffset.UtcNow);
       if (!result.Succeeded) { _error = result.Message ?? "The initial administrator could not be bound."; return; }
-      _message = "Initial administrator bound from the exact Microsoft identity. Continue with the separate connection verification steps.";
-      _actor = await ActorResolver.ResolveAsync();
-      _isFirmAdministrator = true;
-      await LoadTemplates();
+      // The setup-only cookie has no session epoch. A fresh OIDC callback binds the new
+      // local epoch before any Administrator workbench access is available.
+      Navigation.NavigateTo("/auth/sign-in?returnUrl=%2Fapp%2Fadministration%2Fmicrosoft365", forceLoad: true);
     }
     finally { _busy = false; }
   }

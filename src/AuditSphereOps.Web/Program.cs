@@ -157,6 +157,13 @@ if (oidcConfigured)
         await using var db = await dbFactory.CreateDbContextAsync(context.HttpContext.RequestAborted);
         var user = await db.Users.AsNoTracking().SingleOrDefaultAsync(x =>
           x.TenantId == tokenTenant && x.Subject == objectId, context.HttpContext.RequestAborted);
+        if (user is null && InitialAdministratorSignIn.AllowsUnmappedIdentity(
+              builder.Configuration, tokenTenant, objectId))
+        {
+          // Only proof-backed setup can use this Microsoft identity. Without an epoch claim,
+          // TrustedActorResolver denies every protected application actor and role.
+          return;
+        }
         if (user is null || user.Disabled)
         {
           context.Fail("The identity is not assigned or is disabled.");
