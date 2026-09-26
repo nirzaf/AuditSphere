@@ -169,6 +169,7 @@ else
   private bool _loading = true;
   private bool _busy;
   private bool _denied;
+  private long _routeGeneration;
   private static readonly string[] StaffRoles = [
     "Administrator", "Partner", "Manager", "Reviewer", "Staff", "Auditor", "Accountant", "AccountingPreparer", "AccountingReviewer"
   ];
@@ -186,6 +187,7 @@ else
       parts[3] == "pbc" && Guid.TryParse(parts[2], out var routeId) ? routeId : null;
     if (targetId == EngagementId)
       return;
+    Interlocked.Increment(ref _routeGeneration);
 
     _ = InvokeAsync(() =>
     {
@@ -203,6 +205,8 @@ else
 
   protected override async Task OnParametersSetAsync()
   {
+    var generation = Interlocked.Increment(ref _routeGeneration);
+    var engagementId = EngagementId;
     _loading = true;
     _actor = null;
     _engagement = null;
@@ -211,69 +215,95 @@ else
     StateHasChanged();
     try
     {
-      _actor = await ActorResolver.ResolveAsync();
+      var actor = await ActorResolver.ResolveAsync();
+      if (!IsCurrentRoute(generation, engagementId)) return;
+      _actor = actor;
       if (_actor is not null && IsStaff)
       {
         await using var db = await DbFactory.CreateDbContextAsync();
-        _engagement = await db.Engagements.AsNoTracking().SingleOrDefaultAsync(x =>
-          x.Id == EngagementId && x.FirmId == _actor.FirmId);
+        var engagement = await db.Engagements.AsNoTracking().SingleOrDefaultAsync(x =>
+          x.Id == engagementId && x.FirmId == actor!.FirmId);
+        if (!IsCurrentRoute(generation, engagementId)) return;
+        _engagement = engagement;
         if (_engagement is not null)
         {
-          var auth = await AuthorizationDecision.AuthorizeAsync(db, _actor,
-            new AuthorizationRequest(_actor.FirmId, _engagement.PracticeClientId, _engagement.Id,
+          var auth = await AuthorizationDecision.AuthorizeAsync(db, actor!,
+            new AuthorizationRequest(actor!.FirmId, engagement!.PracticeClientId, engagement.Id,
               RequiredRoles: StaffRoles, InternalOnly: true));
+          if (!IsCurrentRoute(generation, engagementId)) return;
           _denied = !auth.Succeeded;
           if (!_denied)
           {
-            await LoadPeopleAsync(db);
-            await LoadAsync(db);
+            await LoadPeopleAsync(db, generation, engagementId);
+            if (!IsCurrentRoute(generation, engagementId)) return;
+            await LoadAsync(db, generation, engagementId);
           }
         }
       }
     }
-    finally { _loading = false; }
+    finally { if (IsCurrentRoute(generation, engagementId)) _loading = false; }
   }
 
-  private async Task LoadAsync(IAuditSphereDbContext db)
+  private bool IsCurrentRoute(long generation, Guid engagementId) =>
+    Interlocked.Read(ref _routeGeneration) == generation && EngagementId == engagementId;
+
+  private async Task LoadAsync(IAuditSphereDbContext db, long generation, Guid engagementId)
   {
-    var actor = _actor!;
-    var engagement = _engagement!;
-    _requests = await db.PbcRequests.AsNoTracking().Where(x =>
+    var actor = _actor;
+    var engagement = _engagement;
+    if (actor is null || engagement is null || !IsCurrentRoute(generation, engagementId)) return;
+    var requests = await db.PbcRequests.AsNoTracking().Where(x =>
       x.FirmId == actor.FirmId && x.ClientId == engagement.PracticeClientId &&
-      x.EngagementId == EngagementId)
+      x.EngagementId == engagementId)
       .OrderBy(x => x.DueDate).ThenBy(x => x.Area).ToListAsync();
-    var requestIds = _requests.Select(x => x.Id).ToArray();
+    if (!IsCurrentRoute(generation, engagementId)) return;
+    var requestIds = requests.Select(x => x.Id).ToArray();
     var intents = await db.PbcUploadIntents.AsNoTracking()
       .Where(x => x.FirmId == actor.FirmId && requestIds.Contains(x.PbcRequestId))
       .OrderByDescending(x => x.CreatedAt).ToListAsync();
-    _intents = intents.GroupBy(x => x.PbcRequestId).ToDictionary(g => g.Key, g => g.ToList());
+    if (!IsCurrentRoute(generation, engagementId)) return;
     var operationIds = intents.Where(x => x.TransferOperationId.HasValue)
       .Select(x => x.TransferOperationId!.Value).Distinct().ToArray();
-    _operations = await db.DurableOperations.AsNoTracking()
+    var operations = await db.DurableOperations.AsNoTracking()
       .Where(o => o.FirmId == actor.FirmId && operationIds.Contains(o.Id))
       .ToDictionaryAsync(o => o.Id);
+    if (!IsCurrentRoute(generation, engagementId)) return;
     var communications = await db.PbcCommunications.AsNoTracking()
       .Where(x => x.FirmId == actor.FirmId && requestIds.Contains(x.PbcRequestId))
       .OrderBy(x => x.CreatedAt).ToListAsync();
-    _communications = communications.GroupBy(x => x.PbcRequestId).ToDictionary(g => g.Key, g => g.ToList());
+    if (!IsCurrentRoute(generation, engagementId)) return;
     var userIds = communications.Select(x => x.AuthorUserId).Distinct().ToArray();
-    _userNames = await db.Users.AsNoTracking().Where(x => x.FirmId == actor.FirmId && userIds.Contains(x.Id))
+    var userNames = await db.Users.AsNoTracking().Where(x => x.FirmId == actor.FirmId && userIds.Contains(x.Id))
       .ToDictionaryAsync(x => x.Id, x => string.IsNullOrWhiteSpace(x.DisplayName) ? x.Email : x.DisplayName);
+    if (!IsCurrentRoute(generation, engagementId)) return;
+    _requests = requests;
+    _intents = intents.GroupBy(x => x.PbcRequestId).ToDictionary(g => g.Key, g => g.ToList());
+    _operations = operations;
+    _communications = communications.GroupBy(x => x.PbcRequestId).ToDictionary(g => g.Key, g => g.ToList());
+    _userNames = userNames;
   }
 
-  private async Task LoadPeopleAsync(IAuditSphereDbContext db)
+  private async Task LoadPeopleAsync(IAuditSphereDbContext db, long generation, Guid engagementId)
   {
-    var actor = _actor!;
-    var clientId = _engagement!.PracticeClientId;
+    var actor = _actor;
+    var engagement = _engagement;
+    if (actor is null || engagement is null || !IsCurrentRoute(generation, engagementId)) return;
+    var clientId = engagement.PracticeClientId;
     var clientIds = await db.RoleGrants.AsNoTracking().Where(g => g.FirmId == actor.FirmId &&
-      g.Role == "ClientUser" && g.ClientId == clientId && g.EngagementId == EngagementId && g.RevokedAt == null)
+      g.Role == "ClientUser" && g.ClientId == clientId && g.EngagementId == engagementId && g.RevokedAt == null)
       .Select(g => g.UserId).Distinct().ToArrayAsync();
+    if (!IsCurrentRoute(generation, engagementId)) return;
     var reviewerIds = await db.RoleGrants.AsNoTracking().Where(g => g.FirmId == actor.FirmId &&
       new[] { "Reviewer", "Manager", "Partner", "AccountingReviewer" }.Contains(g.Role) &&
-      (g.ClientId == null || g.ClientId == clientId) && (g.EngagementId == null || g.EngagementId == EngagementId) && g.RevokedAt == null)
+      (g.ClientId == null || g.ClientId == clientId) && (g.EngagementId == null || g.EngagementId == engagementId) && g.RevokedAt == null)
       .Select(g => g.UserId).Distinct().ToArrayAsync();
-    _clientOwners = await db.Users.AsNoTracking().Where(x => x.FirmId == actor.FirmId && clientIds.Contains(x.Id) && !x.Disabled).OrderBy(x => x.DisplayName).ToListAsync();
-    _reviewers = await db.Users.AsNoTracking().Where(x => x.FirmId == actor.FirmId && reviewerIds.Contains(x.Id) && !x.Disabled).OrderBy(x => x.DisplayName).ToListAsync();
+    if (!IsCurrentRoute(generation, engagementId)) return;
+    var clientOwners = await db.Users.AsNoTracking().Where(x => x.FirmId == actor.FirmId && clientIds.Contains(x.Id) && !x.Disabled).OrderBy(x => x.DisplayName).ToListAsync();
+    if (!IsCurrentRoute(generation, engagementId)) return;
+    var reviewers = await db.Users.AsNoTracking().Where(x => x.FirmId == actor.FirmId && reviewerIds.Contains(x.Id) && !x.Disabled).OrderBy(x => x.DisplayName).ToListAsync();
+    if (!IsCurrentRoute(generation, engagementId)) return;
+    _clientOwners = clientOwners;
+    _reviewers = reviewers;
     if (_clientOwners.Count == 1) _clientOwnerId = _clientOwners[0].Id;
     if (_reviewers.Count == 1) _reviewerId = _reviewers[0].Id;
   }
@@ -302,7 +332,7 @@ else
         await DenyAndClearAsync();
         return;
       }
-      await LoadAsync(db);
+      await LoadAsync(db, Interlocked.Read(ref _routeGeneration), EngagementId);
       if (_createResult.Succeeded)
       {
         _description = string.Empty;
@@ -328,7 +358,7 @@ else
         return;
       }
       if (_messageResults[requestId].Succeeded) _messages[requestId] = string.Empty;
-      await LoadAsync(db);
+      await LoadAsync(db, Interlocked.Read(ref _routeGeneration), EngagementId);
     }
     finally { _busy = false; }
   }
@@ -398,7 +428,7 @@ else
         await DenyAndClearAsync();
         return;
       }
-      await LoadAsync(db);
+      await LoadAsync(db, Interlocked.Read(ref _routeGeneration), EngagementId);
     }
     finally { _busy = false; }
   }
