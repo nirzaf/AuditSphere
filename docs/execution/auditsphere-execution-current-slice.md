@@ -412,6 +412,23 @@ review and explicit merge authorization before advancing acceptance.
 - **State:** Domain 338/338, Api 6/6, E2E 61/61, no EF model drift; commit
   `3d449fb` pushed; no tenant operation or production effect.
 
+### 2.6 Stale-Route Audit Completion (engagement detail fix + four journeys)
+
+- **Real leak fixed:** `EngagementDetail` loaded only during initialization, so a
+  same-document route change to another engagement kept the previous engagement's
+  details, client name and holds on screen without reauthorization. Loading now
+  runs per parameter set with a per-parameter guard and clear step; an
+  unauthorized engagement renders "Engagement unavailable" with all prior
+  markers cleared.
+- **Four new same-document journeys** record the reauthorization contract for the
+  remaining detail screens (engagement detail, audit plan materiality, audit
+  population, release candidate) using the established authorized-read →
+  out-of-scope pushState → cleared-projection → return → document-token pattern.
+- **Observed:** the four focused cases pass 4/4; the complete suite passes
+  Domain 344/344, Api 7/7, E2E 79/79 with 0 skipped on the shared tree. Commit
+  `81d4c1b` pushed to `master`. The parallel session's in-flight PBC work was
+  left untouched and excluded from this commit.
+
 ### 2.4 Documentation Reality Audit
 
 - **Scope:** descriptive/current Markdown reconciled against implementation and
