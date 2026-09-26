@@ -14,9 +14,9 @@ public sealed class GraphPbcProviderSink : IPbcProviderSink
   public Task<PbcProviderReceipt> UploadAsync(PbcTransferPlan plan, CancellationToken ct) =>
     Task.FromException<PbcProviderReceipt>(Block());
 
-  public Task<PbcProviderReceipt?> VerifyAsync(string identity, CancellationToken ct) =>
+  public Task<PbcProviderReceipt?> VerifyAsync(PbcTransferScope scope, string identity, CancellationToken ct) =>
     Task.FromException<PbcProviderReceipt?>(Block());
 
-  public Task<PbcProviderReceipt?> ProbeAsync(Guid uploadIntentId, CancellationToken ct) =>
+  public Task<PbcProviderReceipt?> ProbeAsync(PbcTransferScope scope, CancellationToken ct) =>
     Task.FromException<PbcProviderReceipt?>(Block());
 }

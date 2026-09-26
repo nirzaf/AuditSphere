@@ -149,6 +149,16 @@ The signed-in EasyGuide directory currently shows no Azure subscriptions
 accessible to this account, so subscription-backed development infrastructure
 cannot be provisioned there yet. Entra app configuration remains separate.
 
+## P2 provider transfer scope
+
+The durable PBC transfer handoff now carries the operation's firm, client,
+engagement and upload-intent IDs into upload and reconciliation provider calls.
+Staged chunks are selected using the same scope, and the simulation adapter
+rejects a receipt identity for a different intent. This prepares a bounded
+selected-resource adapter without enabling a live Graph effect. The live
+adapter, approved binding and tenant isolation evidence remain open under P2;
+exact local checks are in `status.json`.
+
 ## Client portal landing access refresh
 
 The portal landing page now clears its assigned request and package lists before

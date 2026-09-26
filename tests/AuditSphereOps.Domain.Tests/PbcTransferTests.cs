@@ -15,6 +15,28 @@ namespace AuditSphereOps.Domain.Tests;
 public sealed class PbcTransferTests
 {
   [Fact]
+  public async Task ProviderHandoff_UsesTheTrustedClientAndEngagementScope()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var scripted = new ScriptedSink();
+    var transfer = await CreateTransferWorkerAsync(pg, scripted);
+    scripted.OnUpload(async plan =>
+    {
+      Assert.Equal(transfer.Fixture.FirmId, plan.FirmId);
+      Assert.Equal(transfer.Fixture.ClientId, plan.ClientId);
+      Assert.Equal(transfer.Fixture.EngagementId, plan.EngagementId);
+      Assert.Equal(transfer.Staged.UploadIntentId, plan.UploadIntentId);
+      return await scripted.Inner!.UploadAsync(plan, CancellationToken.None);
+    });
+
+    Assert.True(await transfer.Worker.ProcessNextAsync());
+    await using var verify = new AuditSphereDbContext(pg.Options);
+    Assert.Equal(PbcUploadStates.Received, (await verify.PbcUploadIntents.AsNoTracking()
+      .SingleAsync(x => x.Id == transfer.Staged.UploadIntentId)).State);
+    PbcSeed.DeleteDirectory(transfer.Staged.StagingRoot);
+  }
+
+  [Fact]
   public async Task StagedTransfer_CompletesThroughWorker_AndMarksReceivedOnlyThen()
   {
     await using var pg = await PgTestSchema.CreateAsync();
@@ -53,6 +75,14 @@ public sealed class PbcTransferTests
       Assert.True(File.Exists(Path.Combine(transfer.ProviderRoot,
         transfer.Staged.UploadIntentId.ToString("N"))));
     }
+
+    var sink = new SimulationPbcProviderSink(transfer.ProviderRoot);
+    var scope = new PbcTransferScope(transfer.Fixture.FirmId, transfer.Fixture.ClientId,
+      transfer.Fixture.EngagementId, transfer.Staged.UploadIntentId);
+    var wrongIdentity = "sim://pbc/" + Guid.NewGuid().ToString("D");
+    var mismatch = await Assert.ThrowsAsync<OperationBlockedException>(() =>
+      sink.VerifyAsync(scope, wrongIdentity, CancellationToken.None));
+    Assert.Equal("provider-receipt-conflict", mismatch.Code);
 
     PbcSeed.DeleteDirectory(transfer.Staged.StagingRoot);
   }
@@ -263,10 +293,10 @@ public sealed class PbcTransferTests
       return await behavior(plan);
     }
 
-    public Task<PbcProviderReceipt?> VerifyAsync(string identity, CancellationToken ct) =>
-      Inner!.VerifyAsync(identity, ct);
+    public Task<PbcProviderReceipt?> VerifyAsync(PbcTransferScope scope, string identity, CancellationToken ct) =>
+      Inner!.VerifyAsync(scope, identity, ct);
 
-    public Task<PbcProviderReceipt?> ProbeAsync(Guid uploadIntentId, CancellationToken ct) =>
-      Inner!.ProbeAsync(uploadIntentId, ct);
+    public Task<PbcProviderReceipt?> ProbeAsync(PbcTransferScope scope, CancellationToken ct) =>
+      Inner!.ProbeAsync(scope, ct);
   }
 }

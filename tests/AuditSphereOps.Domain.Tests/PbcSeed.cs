@@ -227,11 +227,11 @@ internal static class PbcSeed
       return await behavior(plan);
     }
 
-    public Task<PbcProviderReceipt?> VerifyAsync(string identity, CancellationToken ct) =>
-      Inner!.VerifyAsync(identity, ct);
+    public Task<PbcProviderReceipt?> VerifyAsync(PbcTransferScope scope, string identity, CancellationToken ct) =>
+      Inner!.VerifyAsync(scope, identity, ct);
 
-    public Task<PbcProviderReceipt?> ProbeAsync(Guid uploadIntentId, CancellationToken ct) =>
-      Inner!.ProbeAsync(uploadIntentId, ct);
+    public Task<PbcProviderReceipt?> ProbeAsync(PbcTransferScope scope, CancellationToken ct) =>
+      Inner!.ProbeAsync(scope, ct);
   }
 
   internal static void DeleteDirectory(string path)

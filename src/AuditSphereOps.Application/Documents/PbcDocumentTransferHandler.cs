@@ -14,23 +14,29 @@ public sealed record PbcProviderReceipt(string Identity, string ContentSha256Hex
 /// <summary>
 /// Trusted provider boundary for staged PBC bytes (spec section 43.5 item 6). Implementations
 /// stream staged bytes into the selected provider target and return verified registration
-/// evidence. No implementation may report success without a verified digest.
+/// evidence. Every effect and reconciliation read receives the trusted operation scope;
+/// provider targets must be resolved from its approved binding, never from browser input.
+/// No implementation may report success without a verified digest.
 /// </summary>
 public interface IPbcProviderSink
 {
   Task<PbcProviderReceipt> UploadAsync(PbcTransferPlan plan, CancellationToken ct);
 
   /// <summary>Re-reads a previously reported registration; null when no effect is observable.</summary>
-  Task<PbcProviderReceipt?> VerifyAsync(string identity, CancellationToken ct);
+  Task<PbcProviderReceipt?> VerifyAsync(PbcTransferScope scope, string identity, CancellationToken ct);
 
   /// <summary>Probes the intent target registration after an unknown outcome; returns verified
   /// registration evidence, or null when no effect is observable.</summary>
-  Task<PbcProviderReceipt?> ProbeAsync(Guid uploadIntentId, CancellationToken ct);
+  Task<PbcProviderReceipt?> ProbeAsync(PbcTransferScope scope, CancellationToken ct);
 }
+
+/// <summary>Trusted database operation scope required for every provider read or effect.</summary>
+public sealed record PbcTransferScope(Guid FirmId, Guid ClientId, Guid EngagementId, Guid UploadIntentId);
 
 /// <summary>The verified staged-byte plan a worker transfers: ordered chunk paths with digests.</summary>
 public sealed record PbcTransferPlan(
-  Guid FirmId, Guid UploadIntentId, long DeclaredByteCount, string FinalSha256Hex,
+  Guid FirmId, Guid ClientId, Guid EngagementId, Guid UploadIntentId,
+  long DeclaredByteCount, string FinalSha256Hex,
   IReadOnlyList<PbcTransferChunk> Chunks);
 
 public sealed record PbcTransferChunk(int ChunkIndex, long Offset, int ByteCount, string Sha256Hex, string StagedPath);
@@ -100,11 +106,14 @@ public sealed class PbcDocumentTransferHandler(
   public async Task<OperationResult> ReconcileAsync(DurableOperation op, CancellationToken ct)
   {
     var payload = ReadPayload(op.PayloadJson, op.TargetId, op.ExpectedRevision);
+    if (op.ClientId is null || op.EngagementId is null)
+      throw new OperationBlockedException("transfer-scope-or-revision-conflict", authorization: true);
+    var scope = new PbcTransferScope(op.FirmId, op.ClientId.Value, op.EngagementId.Value, payload.UploadIntentId);
     // Unknown outcome: probe the intent target instead of trusting the operation row; a known
     // identity is re-read exactly as reported.
     var receipt = string.IsNullOrWhiteSpace(op.ResultIdentity)
-      ? await sink.ProbeAsync(payload.UploadIntentId, ct)
-      : await sink.VerifyAsync(op.ResultIdentity, ct);
+      ? await sink.ProbeAsync(scope, ct)
+      : await sink.VerifyAsync(scope, op.ResultIdentity, ct);
     if (receipt is null)
       throw new SafeRetryException(TimeSpan.FromSeconds(5));
     if (!IsSha256(receipt.ContentSha256Hex) ||
@@ -167,9 +176,12 @@ public sealed class PbcDocumentTransferHandler(
   private async Task<PbcTransferPlan> LoadPlanAsync(
     DurableOperation op, PbcTransferPayload payload, CancellationToken ct)
   {
+    if (op.ClientId is null || op.EngagementId is null)
+      throw new OperationBlockedException("transfer-scope-or-revision-conflict", authorization: true);
     await using var db = await factory.CreateAsync(ct);
     var chunks = await db.PbcUploadChunks.AsNoTracking()
-      .Where(x => x.FirmId == op.FirmId && x.PbcUploadIntentId == op.TargetId)
+      .Where(x => x.FirmId == op.FirmId && x.ClientId == op.ClientId &&
+        x.EngagementId == op.EngagementId && x.PbcUploadIntentId == op.TargetId)
       .OrderBy(x => x.ChunkIndex).ToListAsync(ct);
     if (chunks.Count == 0 || chunks.Sum(x => (long)x.ByteCount) != payload.DeclaredByteCount ||
         chunks[0].Offset != 0)
@@ -181,7 +193,8 @@ public sealed class PbcDocumentTransferHandler(
           string.IsNullOrWhiteSpace(chunks[i].StagedPath))
         throw new OperationBlockedException("staged-evidence-incomplete");
     }
-    return new(op.FirmId, op.TargetId, payload.DeclaredByteCount, payload.FinalSha256Hex,
+    return new(op.FirmId, op.ClientId.Value, op.EngagementId.Value, op.TargetId,
+      payload.DeclaredByteCount, payload.FinalSha256Hex,
       chunks.Select(x => new PbcTransferChunk(x.ChunkIndex, x.Offset, x.ByteCount, x.Sha256Hex, x.StagedPath!)).ToArray());
   }
 
@@ -299,14 +312,15 @@ public sealed class SimulationPbcProviderSink : IPbcProviderSink
       plan.FinalSha256Hex.ToLowerInvariant(), plan.DeclaredByteCount);
   }
 
-  public Task<PbcProviderReceipt?> ProbeAsync(Guid uploadIntentId, CancellationToken ct) =>
-    VerifyAsync("sim://pbc/" + uploadIntentId.ToString("D"), ct);
+  public Task<PbcProviderReceipt?> ProbeAsync(PbcTransferScope scope, CancellationToken ct) =>
+    VerifyAsync(scope, "sim://pbc/" + scope.UploadIntentId.ToString("D"), ct);
 
-  public async Task<PbcProviderReceipt?> VerifyAsync(string identity, CancellationToken ct)
+  public async Task<PbcProviderReceipt?> VerifyAsync(PbcTransferScope scope, string identity, CancellationToken ct)
   {
     const string prefix = "sim://pbc/";
     if (!identity.StartsWith(prefix, StringComparison.Ordinal) ||
-        !Guid.TryParseExact(identity[prefix.Length..], "D", out var intentId))
+        !Guid.TryParseExact(identity[prefix.Length..], "D", out var intentId) ||
+        intentId != scope.UploadIntentId)
       throw new OperationBlockedException("provider-receipt-conflict");
     var path = Path.Combine(ProviderRoot, intentId.ToString("N"));
     if (!File.Exists(path)) return null;

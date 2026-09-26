@@ -12,7 +12,8 @@ public sealed class ProviderBoundaryTests
   {
     var pbc = new GraphPbcProviderSink();
     var pbcError = await Assert.ThrowsAsync<OperationBlockedException>(() => pbc.UploadAsync(
-      new PbcTransferPlan(Guid.NewGuid(), Guid.NewGuid(), 0, new string('a', 64), []),
+      new PbcTransferPlan(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
+        0, new string('a', 64), []),
       CancellationToken.None));
     Assert.Equal("live-provider-not-approved", pbcError.Code);
 
