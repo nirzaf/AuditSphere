@@ -118,9 +118,9 @@ These production milestones require live external infrastructure, tenant credent
 
 | **P3** | External Release Checkpoint Store | `BLOCKED_EXTERNAL` | Requires production cryptographic checkpoint infrastructure and immutable remote store. |
 
-| **P4** | Purview Records Profile Integration | `BLOCKED_EXTERNAL` | Purview integration is excluded from core application scope; live tenant label application requires live tenant. |
+| **P4** | Purview Records Profile Integration | `OUT_OF_SCOPE` | Owner retained the product exclusion; provider issues #17 and #18 were closed as not planned. |
 
-| **P5** | Document Signing Methodology Lineage | `BLOCKED_EXTERNAL` | eSignature provider integration is excluded from core scope; live custody requires external signing authority. |
+| **P5** | Document Signing Methodology Lineage | `OUT_OF_SCOPE` | Owner retained the product exclusion; provider issue #19 was closed as not planned. Exact uploaded signed-document evidence and human decisions remain in scope. |
 
 | **P6** | Records / Archive Residual Hardening | `LOCAL_VERIFIED` | Immutable archive schema, lineage manifests, and structured exports are locally verified. |
 

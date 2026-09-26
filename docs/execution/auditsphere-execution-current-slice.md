@@ -28,6 +28,27 @@
 
 ---
 
+## P1 local identity session binding
+
+OIDC sign-in now requires a mapped, enabled local `(tenantId, objectId)` identity and
+records its current local session epoch in the protected authentication ticket. The
+development sign-in records the same epoch. Current-actor resolution rejects a ticket
+whose epoch no longer matches the local user, so an old cookie cannot acquire the new
+epoch after role revocation. The browser regression verifies that a refreshed journal
+and review queue clear protected data when that happens. This corrects the earlier
+review-ledger inference that incrementing the database epoch alone invalidated an
+open circuit; the ticket needed to retain its sign-in epoch.
+
+This is local P1 hardening, not live Entra acceptance. Approved runtime credentials,
+tenant authorization, identity fixtures and observed live sign-in behavior remain
+external prerequisites under issue #13. Downstream live-provider issues remain gated
+by that acceptance. Exact checks and source identity are in `status.json`.
+
+The owner kept the Purview and eSignature provider exclusions. The dedicated
+provider issues #17–#19 were closed as not planned, and the recovery, operations,
+and final-acceptance issues retain their in-scope work without those provider
+prerequisites. The issue closures do not establish live records or signing acceptance.
+
 
 
 
