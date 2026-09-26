@@ -411,6 +411,73 @@ public sealed partial class ClientAccountingTests
 
   [Fact]
   [Trait("Profile", "Database")]
+  public async Task ChartValidation_RejectsDuplicateCodesCyclesPostingParentsAndInvalidDateRanges()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var scope = await SeedAsync(pg);
+    var preparer = Actor(scope.Preparer, "AccountingPreparer");
+    await using var db = new AuditSphereDbContext(pg.Options);
+    Assert.True((await ClientAccountingService.CreateProfileAsync(db, preparer,
+      new ClientAccountingProfileRequest(scope.ClientA, "QA", "QAR", 1, 1, "LEDGER-A", "A-1"))).Succeeded);
+
+    // Invalid date range on the period settings is rejected outright.
+    var invalidPeriod = await ClientAccountingService.CreatePeriodAsync(db, preparer,
+      new ReportingPeriodRequest(scope.ClientA, "2026", new DateOnly(2026, 12, 31), new DateOnly(2026, 1, 1), "STATUTORY", "QAR"));
+    Assert.False(invalidPeriod.Succeeded);
+    Assert.Equal(ErrorCodes.Accounting.MappingInvalid, invalidPeriod.ErrorCode);
+
+    var periodId = (await ClientAccountingService.CreatePeriodAsync(db, preparer,
+      new ReportingPeriodRequest(scope.ClientA, "2026", new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31), "STATUTORY", "QAR"))).Value;
+    Assert.True(periodId != Guid.Empty);
+    var chartId = (await ClientAccountingService.CreateChartVersionAsync(db, preparer, scope.ClientA, "LEDGER-A", new DateOnly(2026, 1, 1))).Value;
+
+    // Duplicate account codes within one batch are rejected.
+    var duplicates = await ClientAccountingService.AddAccountsAsync(db, preparer, chartId, [
+      new("dup-a", "1000", "Cash A", "ASSET", "DEBIT", true),
+      new("dup-b", "1000", "Cash B", "ASSET", "DEBIT", true)
+    ]);
+    Assert.False(duplicates.Succeeded);
+    Assert.Contains("unique within a chart version", duplicates.Message);
+
+    // A posting account cannot be a chart parent.
+    var postingParent = await ClientAccountingService.AddAccountsAsync(db, preparer, chartId, [
+      new("p", "1300", "Parent posting account", "ASSET", "DEBIT", true),
+      new("c", "1400", "Child of a posting account", "ASSET", "DEBIT", true, "p")
+    ]);
+    Assert.False(postingParent.Succeeded);
+    Assert.Contains("posting account cannot be a chart parent", postingParent.Message);
+
+    // A parent cycle within one batch is rejected.
+    var cycle = await ClientAccountingService.AddAccountsAsync(db, preparer, chartId, [
+      new("cyc-a", "1100", "Cycle A", "ASSET", "DEBIT", false, "cyc-b"),
+      new("cyc-b", "1200", "Cycle B", "ASSET", "DEBIT", false, "cyc-a")
+    ]);
+    Assert.False(cycle.Succeeded);
+    Assert.Contains("parent cycle", cycle.Message);
+
+    // Valid accounts, then the same code again in a later batch is rejected.
+    Assert.True((await ClientAccountingService.AddAccountsAsync(db, preparer, chartId, [
+      new("cash", "1000", "Cash", "ASSET", "DEBIT", true),
+      new("control", "1500", "Control account", "ASSET", "DEBIT", false)
+    ])).Succeeded);
+    var existingCode = await ClientAccountingService.AddAccountsAsync(db, preparer, chartId, [
+      new("cash-two", "1000", "Second cash", "ASSET", "DEBIT", true)
+    ]);
+    Assert.False(existingCode.Succeeded);
+    Assert.Equal(ErrorCodes.IdempotencyConflict, existingCode.ErrorCode);
+
+    // Publishing freezes the version: revisions create new versions, never overwrites.
+    var reviewer = Actor(scope.Reviewer, "AccountingReviewer");
+    Assert.True((await ClientAccountingService.PublishChartVersionAsync(db, reviewer, chartId)).Succeeded);
+    var mutatePublished = await ClientAccountingService.AddAccountsAsync(db, preparer, chartId, [
+      new("late", "1600", "Late account", "ASSET", "DEBIT", true)
+    ]);
+    Assert.False(mutatePublished.Succeeded);
+    Assert.Equal(ErrorCodes.ProtectedState, mutatePublished.ErrorCode);
+  }
+
+  [Fact]
+  [Trait("Profile", "Database")]
   public async Task TaxonomyNodes_AllowIncrementalParentsOnlyWithinVersion()
   {
     await using var pg = await PgTestSchema.CreateAsync();

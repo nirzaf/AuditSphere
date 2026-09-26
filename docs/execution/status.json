@@ -1084,6 +1084,11 @@
       "item": "Benchmark baselines - explicit focused run (2026-09-27)",
       "status": "LOCAL_VERIFIED",
       "details": "Ran AccountingBenchmarkTests.RepresentativeAccountingWorkload_CompletesDurablyAndReportsMeasurements focused against local PostgreSQL 18.6 on the current tree: passed in 15s with the reported measurement line clients=4, transactions=2000, lines=8000, enqueue_ms=180.3, worker_ms=225.1, first_page_ms=49.5, group_lines=32, group_ms=4.9 - covering high-magnitude dataset intake, durable outbox enqueue/worker publication and consolidated group readback. Concurrent worker-operation coverage remains in DurableOutboxTests (Domain suite, passing in the ledger-recorded full runs). The benchmark is also part of every complete Domain suite run (348/348 at the last full run). No production acceptance is claimed; measurements are local-loopback observations only."
+    },
+    {
+      "item": "Acceptance-criteria reconciliation phase 1 - VP-034 rows (2026-09-27)",
+      "status": "LOCAL_VERIFIED",
+      "details": "Reconciled the VP-034 acceptance-criteria rows against named Domain evidence. New test ChartValidation_RejectsDuplicateCodesCyclesPostingParentsAndInvalidDateRanges proves the chart/period guards: inverted period date range rejected, duplicate account codes rejected within a batch and across batches, a posting account used as a chart parent rejected, a parent cycle rejected, and a published chart immutable under mutation attempts (ProtectedState). VP-034-AC01 and VP-034-AC02 rows in the coverage ledger moved to PASS with the named tests (ClientChartsPeriodsAndGlImport_AreTypedScopedAndClosedSafely evidences AC01 context binding and sibling-scope denial); VP-034-AC03 stays NOT_RUN with its immutability leg noted as partially evidenced; VP-034-AC04 remains NOT_RUN (UI-level). Observed: focused test passes; complete Domain suite 349/349 with 0 skips; task-pack validate 0 errors."
     }
   ],
   "remainingLocalWork": [

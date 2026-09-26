@@ -529,6 +529,21 @@ review and explicit merge authorization before advancing acceptance.
 - **State:** documentation/ledger change only; no production acceptance
   claimed for local-loopback measurements.
 
+### 2.11 Acceptance-Criteria Reconciliation Phase 1 (VP-034)
+
+- **New Domain test:** `ChartValidation_RejectsDuplicateCodesCyclesPostingParentsAndInvalidDateRanges`
+  proves the chart/period guards named by VP-034-AC02: inverted period date
+  ranges, duplicate account codes (within a batch and across batches), a
+  posting account used as a chart parent, parent cycles, and published-chart
+  immutability under mutation (`ProtectedState`).
+- **Coverage ledger reconciled:** VP-034-AC01 and VP-034-AC02 moved to PASS
+  with named test evidence (`ClientChartsPeriodsAndGlImport_AreTypedScopedAndClosedSafely`
+  for the context-binding and sibling-scope denial); VP-034-AC03 records its
+  partially evidenced legs and stays NOT_RUN pending a package-staleness case;
+  VP-034-AC04 remains NOT_RUN (UI-level verification). 47 NOT_RUN rows remain.
+- **Observed:** focused test passes; complete Domain suite 349/349 with 0
+  skips; task-pack validate 0 errors.
+
 ### 2.4 Documentation Reality Audit
 
 - **Scope:** descriptive/current Markdown reconciled against implementation and
