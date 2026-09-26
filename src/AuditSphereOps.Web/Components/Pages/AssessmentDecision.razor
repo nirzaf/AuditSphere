@@ -18,7 +18,7 @@
         <a href="/app/assessments/@Id">Assessment</a> /
         <span>Decision</span>
     </nav>
-    <h1>Partner Acceptance / Continuance Decision</h1>
+    <PageHeader Title="Partner Acceptance / Continuance Decision" Description="Independent partner decision recorded against the exact assessment revision and risk evidence." />
 </div>
 
 @if (_loading)
@@ -27,17 +27,17 @@
 }
 else if (_scopeDenied)
 {
-    <section class="notice" role="alert">
+    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="notice my-4" role="alert">
         <h2>Decision unavailable</h2>
         <p>The current identity is not authorized to record a partner decision for this client.</p>
-    </section>
+    </MudAlert>
 }
 else if (_expectedGeneration is null)
 {
-    <section class="notice" role="alert">
+    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="notice my-4" role="alert">
         <h2>Decision unavailable</h2>
         <p>The current client evaluation is unavailable. No decision was recorded.</p>
-    </section>
+    </MudAlert>
 }
 else
 {
@@ -79,9 +79,9 @@ else
     }
 
     <div class="action-bar">
-        <button class="btn-primary" @onclick="RecordDecision" disabled="@(_submitting || _expectedGeneration is null)" title="Persist the guarded decision and, for effective acceptance, one waiting client-workspace intent">
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="btn-primary" OnClick="RecordDecision" Disabled="@(_submitting || _expectedGeneration is null)">
             @(_submitting ? "Recording…" : "Record Partner Decision")
-        </button>
+        </MudButton>
         <a class="btn-secondary" href="/app/assessments/@Id">Cancel</a>
     </div>
 </div>

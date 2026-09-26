@@ -78,6 +78,28 @@
 
 
 
+### 2.0 MudBlazor UI Content Migration (uncommitted working tree)
+
+- **All inventoried routes migrated:** every AuditSphereOps route renders its content
+  through MudBlazor 9.10.0 primitives (`PageHeader`, `MudPaper`, `MudAlert`, `MudTable`,
+  `MudButton`, `MudLink`, `StatusChip`, `LoadingState`, `MudGrid`) inside the existing
+  Blazor Interactive Server boundaries. No authorization, revision-fencing or
+  persistence behaviour changed.
+- **Contracts preserved:** native `h1`/`h2`, `id`, `aria-labelledby`, `role`,
+  `data-draft-*`, form `id`s and `.command-result` status text are retained;
+  `draft-state.js` and `pbc-upload.js` are byte-identical to `master`.
+- **Two E2E regressions found and fixed in the UI layer:** the contiguous
+  `Status: SENT` invoice text, and the `GetByRole(AriaRole.Region)` lookup of the
+  time form (labelled cards now carry an explicit `role="region"`).
+- **Documented exceptions** in
+  [`docs/auditsphere-ui-mudblazor-conventions-migration-current.md`](../auditsphere-ui-mudblazor-conventions-migration-current.md):
+  6 native tables (`tfoot`/`colspan`), 8 native browser-draft boundary `<section>`
+  elements, and `/app/accounting/remeasurement` left at its master markup because
+  its browser-draft reload journey is sensitive to the MudBlazor render path.
+- **State:** uncommitted working-tree changes. No hosted CI run, tenant operation
+  or production effect.
+
+
 ### 2.1 Documentation Standardization & AI Navigability Refactor
 
 

@@ -9,6 +9,7 @@ using AuditSphereOps.Application.Documents;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Domain.Shared;
 using Microsoft.EntityFrameworkCore;
+using MudBlazor.Services;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
@@ -62,6 +63,9 @@ builder.Services.AddRazorComponents()
   .AddInteractiveServerComponents();
 builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddHttpContextAccessor();
+// Presentation layer only: MudBlazor 9.10.0 (net8.0 target, compatible with net10.0).
+// No Domain/Application/Infrastructure project references MudBlazor (see ArchitectureGuardTests).
+builder.Services.AddMudServices();
 
 // PostgreSQL: single AuditSphere connection string; startup validates, never auto-applies destructive DDL (§45.6).
 var connectionString = builder.Configuration.GetConnectionString("AuditSphere")

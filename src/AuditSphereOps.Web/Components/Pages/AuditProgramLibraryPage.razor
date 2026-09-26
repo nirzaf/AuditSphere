@@ -7,32 +7,32 @@
 @inject IDbContextFactory<AuditSphereDbContext> DbFactory
 
 <PageTitle>Audit program library — AuditSphereOps</PageTitle>
-<a class="back-link" href="/app">← Back to portfolio</a>
-<h1>Audit program library</h1>
+<MudLink Href="/app" Class="back-link mb-2 d-inline-block">← Back to portfolio</MudLink>
+<PageHeader Title="Audit program library" Description="The controlled versioned program template library. Published versions are immutable; changes require a new version." />
 <p class="scope-note">The controlled, versioned template library preserves the exact source wording of @AuditProgramCatalog.Items.Count procedures across 20 audit sections. Published versions are immutable; a change requires a new version.</p>
 
 @if (_loading)
 {
-  <p role="status">Loading the audit program library…</p>
+  <LoadingState IsLoading="true" LoadingMessage="Loading the audit program library…" />
 }
 else if (_actor is null)
 {
-  <section class="notice" role="alert"><h2>Access unavailable</h2><p>Sign in with an authorized internal staff identity to view the audit program library.</p></section>
+  <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="notice my-4" role="alert"><h2>Access unavailable</h2><p>Sign in with an authorized internal staff identity to view the audit program library.</p></MudAlert>
 }
 else if (_result is not null && !_result.Succeeded)
 {
-  <section class="notice" role="alert"><h2>Access blocked</h2><p>@(_result.ErrorCode)</p></section>
+  <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="notice my-4" role="alert"><h2>Access blocked</h2><p>@(_result.ErrorCode)</p></MudAlert>
 }
 else if (_library is null || _library.Versions.Count == 0)
 {
-  <section class="notice" role="status">
+  <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="notice my-4" role="status">
     <h2>No published library version</h2>
     <p>No audit program library version exists for this firm yet. Publishing is performed from an engagement's fieldwork workspace, which adopts the exact published version.</p>
-  </section>
+  </MudAlert>
 }
 else
 {
-  <section class="card" aria-labelledby="version-heading">
+  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="version-heading" role="region">
     <h2 id="version-heading">Library versions</h2>
     <label>
       Version
@@ -53,44 +53,34 @@ else
         <dt>Published</dt><dd>@(selected.ApprovedAt?.ToString("yyyy-MM-dd HH:mm") ?? "Not published")</dd>
       </dl>
     }
-  </section>
+  </MudPaper>
 
-  <section class="card" aria-labelledby="sections-heading">
+  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="sections-heading" role="region">
     <h2 id="sections-heading">Sections</h2>
     <div class="table-wrap">
-      <table class="data-table">
-        <caption class="sr-only">Audit sections in this library version</caption>
-        <thead>
-          <tr><th scope="col">#</th><th scope="col">Section</th><th scope="col">Procedures</th><th scope="col"><span class="sr-only">Action</span></th></tr>
-        </thead>
-        <tbody>
-        @foreach (var section in _library.Sections)
-        {
-          <tr>
-            <td>@section.SectionNumber</td>
-            <td>@section.SectionTitle</td>
-            <td>@section.ProcedureCount</td>
-            <td><button class="button small" @onclick="() => OpenSectionAsync(section.SectionNumber)" disabled="@_busy">Browse</button></td>
-          </tr>
-        }
-        </tbody>
-      </table>
+      <MudTable Items="_library.Sections" Dense="true" Hover="true" Elevation="0" Class="data-table">
+  <HeaderContent><MudTh scope="col">#</MudTh><MudTh scope="col">Section</MudTh><MudTh scope="col">Procedures</MudTh><MudTh scope="col"><span class="sr-only">Action</span></MudTh></HeaderContent>
+  <RowTemplate>            <MudTd>@context.SectionNumber</MudTd>
+            <MudTd>@context.SectionTitle</MudTd>
+            <MudTd>@context.ProcedureCount</MudTd>
+            <MudTd><MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button small" OnClick="() => OpenSectionAsync(context.SectionNumber)" Disabled="@_busy" Size="Size.Small">Browse</MudButton></MudTd></RowTemplate>
+</MudTable>
     </div>
-  </section>
+  </MudPaper>
 
   @if (_sectionPage is not null)
   {
-    <section class="card" aria-labelledby="procedures-heading">
+    <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="procedures-heading" role="region">
       <h2 id="procedures-heading">Section @_sectionPage.SectionNumber — @_sectionPage.SectionTitle</h2>
       <form @onsubmit="SearchAsync" @onsubmit:preventDefault="true" style="display: flex; gap: 0.75rem; align-items: flex-end; flex-wrap: wrap;">
         <label style="flex: 1; min-width: 16rem;">
           Search procedures
           <input class="input" @bind="_search" placeholder="AWP-02 or confirmations" data-optional="true" disabled="@_busy" />
         </label>
-        <button class="button" type="submit" disabled="@_busy">Search</button>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button" ButtonType="ButtonType.Submit" Disabled="@_busy">Search</MudButton>
         @if (!string.IsNullOrWhiteSpace(_search))
         {
-          <button class="button" type="button" @onclick="ClearSearchAsync" disabled="@_busy">Clear</button>
+          <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button" OnClick="ClearSearchAsync" Disabled="@_busy">Clear</MudButton>
         }
       </form>
       @if (_sectionPage.Items.Count == 0)
@@ -100,25 +90,15 @@ else
       else
       {
         <div class="table-wrap">
-          <table class="data-table">
-            <caption class="sr-only">Source procedures in section @_sectionPage.SectionNumber</caption>
-            <thead>
-              <tr><th scope="col">Source ID</th><th scope="col">Exact source procedure</th></tr>
-            </thead>
-            <tbody>
-            @foreach (var procedure in _sectionPage.Items)
-            {
-              <tr>
-                <td><code>@procedure.SourceProcedureId</code></td>
-                <td>@procedure.SourceWording</td>
-              </tr>
-            }
-            </tbody>
-          </table>
+          <MudTable Items="_sectionPage.Items" Dense="true" Hover="true" Elevation="0" Class="data-table">
+  <HeaderContent><MudTh scope="col">Source ID</MudTh><MudTh scope="col">Exact source procedure</MudTh></HeaderContent>
+  <RowTemplate>                <MudTd><code>@context.SourceProcedureId</code></MudTd>
+                <MudTd>@context.SourceWording</MudTd></RowTemplate>
+</MudTable>
         </div>
         <p class="muted">Showing @_sectionPage.Items.Count of @_sectionPage.TotalCount procedures.</p>
       }
-    </section>
+    </MudPaper>
   }
 }
 

@@ -7,9 +7,9 @@
 @inject IJSRuntime JS
 
 <PageTitle>Financial statement package</PageTitle>
-<a class="back-link" href="/app">← Back to portfolio</a>
-<h1>Financial statement package</h1>
-<button class="button-secondary" title="Clear this package and verify your current client and engagement grants before reloading it." @onclick="LoadPackageAsync" disabled="@_loading">Refresh package</button>
+<MudLink Href="/app" Class="back-link mb-2 d-inline-block">← Back to portfolio</MudLink>
+<PageHeader Title="Financial statement package" Description="Deterministic package calculations, validation status, immutable review decisions, and artifact outputs." />
+<MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button-secondary" OnClick="LoadPackageAsync" Disabled="@_loading">Refresh package</MudButton>
 @if (_loadError is not null)
 {
   <p class="notice-text" role="status">@_loadError</p>
@@ -17,20 +17,26 @@
 
 @if (_loading)
 {
-  <p role="status">Loading the scoped package…</p>
+  <LoadingState IsLoading="true" LoadingMessage="Loading the scoped package…" />
 }
 else if (_denied || _actor is null || !IsStaff)
 {
-  <section class="notice" role="alert"><h2>Access unavailable</h2><p>Sign in with an authorized staff identity to view this package.</p></section>
+  <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="notice my-4" role="alert">
+    <h2>Access unavailable</h2>
+    <MudText Typo="Typo.body2">Sign in with an authorized staff identity to view this package.</MudText>
+  </MudAlert>
 }
 else if (_package is null)
 {
-  <section class="notice" role="alert"><h2>Package unavailable</h2><p>The package is not available in the current firm scope.</p></section>
+  <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="notice my-4" role="alert">
+    <h2>Package unavailable</h2>
+    <MudText Typo="Typo.body2">The package is not available in the current firm scope.</MudText>
+  </MudAlert>
 }
 else
 {
-  <section class="card" aria-labelledby="package-heading">
-    <p class="eyebrow">@_package.Status</p>
+  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="package-heading" role="region">
+    <p class="eyebrow"><StatusChip Status="@_package.Status" /></p>
     <h2 id="package-heading"><code>@_package.Id</code></h2>
     <dl class="details">
       <dt>Framework</dt><dd>@_package.Framework</dd>
@@ -43,34 +49,34 @@ else
         <dt>Supplementary hash</dt><dd><code>@_package.SupplementaryHash</code></dd>
       }
     </dl>
-  </section>
+  </MudPaper>
 
   @if (_package.Status == AccountingPackageStates.PackageReviewRequired)
   {
-    <section class="notice" role="status"><h2>Review required</h2><p>Cash-flow workings and disclosure responses are not part of this package. It cannot satisfy a complete financial-statement gate.</p></section>
+    <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="notice my-4" role="status">
+      <h2>Review required</h2>
+      <MudText Typo="Typo.body2">Cash-flow workings and disclosure responses are not part of this package. It cannot satisfy a complete financial-statement gate.</MudText>
+    </MudAlert>
   }
   else
   {
-    <section class="notice success" role="status"><h2>Inputs validated</h2><p>Supplementary information reconciles deterministically. Accounting and management approval are still separate decisions.</p></section>
+    <MudAlert Severity="Severity.Success" Variant="Variant.Outlined" Class="notice success my-4" role="status">
+      <h2>Inputs validated</h2>
+      <MudText Typo="Typo.body2">Supplementary information reconciles deterministically. Accounting and management approval are still separate decisions.</MudText>
+    </MudAlert>
   }
 
-  <section class="card" aria-labelledby="validation-heading">
+  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="validation-heading" role="region">
     <h2 id="validation-heading">Validation results</h2>
-    <div class="table-wrap"><table>
-      <caption class="sr-only">Financial statement package validation results</caption>
-      <thead><tr><th scope="col">Check</th><th scope="col">Result</th><th scope="col">Detail</th></tr></thead>
-      <tbody>
-      @foreach (var validation in _validations)
-      {
-        <tr><td>@validation.Code</td><td><span class="status">@(validation.Passed ? "PASS" : "REVIEW")</span></td><td>@validation.Detail</td></tr>
-      }
-      </tbody>
-    </table></div>
-  </section>
+    <MudTable Items="_validations" Dense="true" Hover="true" Elevation="0">
+  <HeaderContent><MudTh scope="col">Check</MudTh><MudTh scope="col">Result</MudTh><MudTh scope="col">Detail</MudTh></HeaderContent>
+  <RowTemplate>        <MudTd>@context.Code</MudTd><MudTd><span class="status">@(context.Passed ? "PASS" : "REVIEW")</span></MudTd><MudTd>@context.Detail</MudTd></RowTemplate>
+</MudTable>
+  </MudPaper>
 
   @if (_canReview)
   {
-    <section class="card" aria-labelledby="review-heading">
+    <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="review-heading" role="region">
       <h2 id="review-heading">Package review decisions</h2>
       <p class="scope-note">Every decision is recorded against this package's exact revision, generation and calculation hash. Decisions are append-only; a changed package must be reviewed again.</p>
       @if (_package.Status == AccountingPackageStates.PackageValidated)
@@ -96,7 +102,7 @@ else
         </div>
         <label>Comment<textarea @bind="_reviewComment" maxlength="4000" rows="3" data-optional="true"></textarea></label>
         <div style="display:flex;gap:.75rem;align-items:center;margin-top:1rem;flex-wrap:wrap">
-          <button class="button" title="Record this decision against the exact package revision, generation and hash." @onclick="RecordReviewAsync" disabled="@_reviewBusy">@(_reviewBusy ? "Recording…" : "Record decision")</button>
+          <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button" OnClick="RecordReviewAsync" Disabled="@_reviewBusy">@(_reviewBusy ? "Recording…" : "Record decision")</MudButton>
           <span class="muted">Management approval uses offline evidence on this staff surface; signed-in management approval must be completed by the authorized client-user surface.</span>
         </div>
       }
@@ -122,67 +128,59 @@ else
         {
           @foreach (var review in _reviews)
           {
-            <tr><td>@review.Stage</td><td><span class="status">@review.Decision</span></td><td>@review.EvidenceMode: @review.EvidenceReference</td><td><code>@review.PackageHash[..Math.Min(12, review.PackageHash.Length)]</code></td><td>@review.DecidedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</td></tr>
+            <tr><td>@review.Stage</td><td><StatusChip Status="@review.Decision" /></td><td>@review.EvidenceMode: @review.EvidenceReference</td><td><code>@review.PackageHash[..Math.Min(12, review.PackageHash.Length)]</code></td><td>@review.DecidedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</td></tr>
           }
         }
         </tbody>
       </table></div>
-    </section>
+    </MudPaper>
   }
 
-  <section class="card" aria-labelledby="statement-heading">
+  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="statement-heading" role="region">
     <h2 id="statement-heading">Mapped statement totals</h2>
-    <div class="table-wrap"><table>
-      <caption class="sr-only">Statement section totals</caption>
-      <thead><tr><th scope="col">Section</th><th scope="col">Amount</th></tr></thead>
-      <tbody>
-      @foreach (var total in _statementTotals)
-      {
-        <tr><td>@total.Key</td><td>@total.Value.ToString("N2") @_package.Currency</td></tr>
-      }
-      </tbody>
-    </table></div>
-  </section>
+    <MudTable Items="_statementTotals" Dense="true" Hover="true" Elevation="0">
+  <HeaderContent><MudTh scope="col">Section</MudTh><MudTh scope="col">Amount</MudTh></HeaderContent>
+  <RowTemplate>        <MudTd>@context.Key</MudTd><MudTd>@context.Value.ToString("N2") @_package.Currency</MudTd></RowTemplate>
+</MudTable>
+  </MudPaper>
 
   @if (_cashFlowLines.Count > 0)
   {
-    <section class="card" aria-labelledby="cash-flow-heading">
+    <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="cash-flow-heading" role="region">
       <h2 id="cash-flow-heading">Cash-flow workings</h2>
       <p class="scope-note">Opening @_package.CashBeginning?.ToString("N2") @_package.Currency; closing @_package.CashEnding?.ToString("N2") @_package.Currency.</p>
-      <div class="table-wrap"><table>
-        <caption class="sr-only">Cash-flow working lines</caption>
-        <thead><tr><th scope="col">Section</th><th scope="col">Description</th><th scope="col">Amount</th></tr></thead>
-        <tbody>@foreach (var line in _cashFlowLines) { <tr><td>@line.Section</td><td>@line.Description</td><td>@line.Amount.ToString("N2") @_package.Currency</td></tr> }</tbody>
-      </table></div>
-    </section>
+      <MudTable Items="_cashFlowLines" Dense="true" Hover="true" Elevation="0">
+  <HeaderContent><MudTh scope="col">Section</MudTh><MudTh scope="col">Description</MudTh><MudTh scope="col">Amount</MudTh></HeaderContent>
+  <RowTemplate> <MudTd>@context.Section</MudTd><MudTd>@context.Description</MudTd><MudTd>@context.Amount.ToString("N2") @_package.Currency</MudTd> </RowTemplate>
+</MudTable>
+    </MudPaper>
   }
 
   @if (_disclosures.Count > 0)
   {
-    <section class="card" aria-labelledby="disclosure-heading">
+    <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="disclosure-heading" role="region">
       <h2 id="disclosure-heading">Disclosure responses</h2>
-      <div class="table-wrap"><table>
-        <caption class="sr-only">Structured disclosure responses</caption>
-        <thead><tr><th scope="col">Code</th><th scope="col">Response</th><th scope="col">Status</th></tr></thead>
-        <tbody>@foreach (var disclosure in _disclosures) { <tr><td>@disclosure.Code</td><td>@(disclosure.NotApplicable ? disclosure.Rationale : disclosure.Response)</td><td>@(disclosure.NotApplicable ? "Not applicable" : "Answered")</td></tr> }</tbody>
-      </table></div>
-    </section>
+      <MudTable Items="_disclosures" Dense="true" Hover="true" Elevation="0">
+  <HeaderContent><MudTh scope="col">Code</MudTh><MudTh scope="col">Response</MudTh><MudTh scope="col">Status</MudTh></HeaderContent>
+  <RowTemplate> <MudTd>@context.Code</MudTd><MudTd>@(context.NotApplicable ? context.Rationale : context.Response)</MudTd><MudTd>@(context.NotApplicable ? "Not applicable" : "Answered")</MudTd> </RowTemplate>
+</MudTable>
+    </MudPaper>
   }
 
   @if (_artifact is not null)
   {
-    <section class="card" aria-labelledby="artifact-heading">
+    <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="artifact-heading" role="region">
       <h2 id="artifact-heading">Deterministic package artifact</h2>
       <p class="scope-note">This is the persisted artifact for the exact package revision and template. Downloading it does not release or deliver the package.</p>
       <dl class="details">
         <dt>Artifact SHA-256</dt><dd><code>@_artifact.ArtifactSha256Hex</code></dd>
         <dt>Artifact size</dt><dd>@_artifact.ArtifactBytes.Length bytes</dd>
       </dl>
-      <button class="button" title="Download the persisted exact package artifact as text; this does not release or deliver the package." @onclick="DownloadArtifactAsync" disabled="@_artifactBusy">@(_artifactBusy ? "Preparing…" : "Download artifact")</button>
-      <button class="button" title="Create and download a formula-free XLSX bound to this exact package revision and template." @onclick="() => DownloadOfficeArtifactAsync(FinancialPackageArtifactVersions.Workbook)" disabled="@_artifactBusy">Download workbook</button>
-      <button class="button" title="Create a controlled XLSX with one application-owned line-count formula. Package values remain literal text and no client formula or macro is executed." @onclick="() => DownloadOfficeArtifactAsync(FinancialPackageArtifactVersions.ControlledWorkbook)" disabled="@_artifactBusy">Download controlled workbook</button>
-      <button class="button" title="Create and download a macro-free DOCX bound to this exact package revision and template." @onclick="() => DownloadOfficeArtifactAsync(FinancialPackageArtifactVersions.Word)" disabled="@_artifactBusy">Download Word document</button>
-      <button class="button" title="Create and download a deterministic, inactive Unicode PDF bound to this exact package revision and template." @onclick="() => DownloadOfficeArtifactAsync(FinancialPackageArtifactVersions.Pdf)" disabled="@_artifactBusy">Download PDF</button>
+      <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button" OnClick="DownloadArtifactAsync" Disabled="@_artifactBusy">@(_artifactBusy ? "Preparing…" : "Download artifact")</MudButton>
+      <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button" OnClick="() => DownloadOfficeArtifactAsync(FinancialPackageArtifactVersions.Workbook)" Disabled="@_artifactBusy">Download workbook</MudButton>
+      <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button" OnClick="() => DownloadOfficeArtifactAsync(FinancialPackageArtifactVersions.ControlledWorkbook)" Disabled="@_artifactBusy">Download controlled workbook</MudButton>
+      <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button" OnClick="() => DownloadOfficeArtifactAsync(FinancialPackageArtifactVersions.Word)" Disabled="@_artifactBusy">Download Word document</MudButton>
+      <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button" OnClick="() => DownloadOfficeArtifactAsync(FinancialPackageArtifactVersions.Pdf)" Disabled="@_artifactBusy">Download PDF</MudButton>
       @if (!string.IsNullOrWhiteSpace(_artifactStatus))
       {
         <p class="notice-text" role="status" aria-live="polite">@_artifactStatus</p>
@@ -191,7 +189,7 @@ else
         <summary>View canonical artifact text</summary>
         <pre class="code-block" style="white-space: pre-wrap; font-family: monospace; background: var(--bg-surface-secondary, #f4f4f5); padding: 1rem; border-radius: 4px; overflow-x: auto;"><code>@_artifact.RenderedText</code></pre>
       </details>
-    </section>
+    </MudPaper>
   }
 }
 

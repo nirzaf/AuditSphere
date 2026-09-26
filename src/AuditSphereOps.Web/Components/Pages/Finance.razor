@@ -7,16 +7,19 @@
 @inject IDbContextFactory<AuditSphereDbContext> DbFactory
 
 <PageTitle>Firm ledger</PageTitle>
-<a class="back-link" href="/app">← Back to portfolio</a>
-<h1>Firm ledger & financial operations</h1>
+<MudLink Href="/app" Class="back-link mb-2 d-inline-block">← Back to portfolio</MudLink>
+<PageHeader Title="Firm ledger &amp; financial operations" Description="Restricted firm-ledger operations (§41.3). Firm accounts, balanced postings, and period close decisions enforce exact monetary balance and strict immutability." />
 
 @if (_loading)
 {
-  <p role="status">Loading firm finance records…</p>
+  <LoadingState IsLoading="true" LoadingMessage="Loading firm finance records…" />
 }
 else if (_actor is null || !_isAuthorized)
 {
-  <section class="notice" role="alert"><h2>Access unavailable</h2><p>Sign in with an authorized finance identity to access the firm ledger.</p></section>
+  <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="notice my-4" role="alert">
+    <h2>Access unavailable</h2>
+    <MudText Typo="Typo.body2">Sign in with an authorized finance identity to access the firm ledger.</MudText>
+  </MudAlert>
 }
 else
 {
@@ -29,137 +32,113 @@ else
     </p>
   }
 
-  <section class="card" aria-labelledby="periods-heading">
+  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="periods-heading" role="region">
     <h2 id="periods-heading">Fiscal periods</h2>
     @if (_periods.Count == 0)
     {
-      <p class="muted">No fiscal periods are configured for this firm.</p>
+      <MudText Typo="Typo.body2" Color="Color.Secondary" Class="muted">No fiscal periods are configured for this firm.</MudText>
     }
     else
     {
-      <div class="table-wrap">
-        <table>
-          <caption class="sr-only">Fiscal periods</caption>
-          <thead>
-            <tr>
-              <th scope="col">Period Code</th>
-              <th scope="col">Status</th>
-              <th scope="col">Revision</th>
-              <th scope="col">Closed Date</th>
-              <th scope="col"><span class="sr-only">Actions</span></th>
-            </tr>
-          </thead>
-          <tbody>
-          @foreach (var period in _periods)
-          {
-            <tr>
-              <td><strong>@period.PeriodCode</strong></td>
-              <td><span class="status">@period.Status</span></td>
-              <td>Rev @period.Revision</td>
-              <td>@(period.ClosedAt.HasValue ? period.ClosedAt.Value.ToString("yyyy-MM-dd HH:mm") : "—")</td>
-              <td>
-                @if (period.Status == LedgerStates.PeriodOpen && _canClosePeriod)
-                {
-                  <button class="button small" @onclick="() => PromptClosePeriod(period.Id)" disabled="@_busy">Close period</button>
-                }
-              </td>
-            </tr>
-          }
-          </tbody>
-        </table>
-      </div>
+      <MudTable Items="_periods" Dense="true" Hover="true" Elevation="0">
+        <HeaderContent>
+          <MudTh>Period Code</MudTh>
+          <MudTh>Status</MudTh>
+          <MudTh>Revision</MudTh>
+          <MudTh>Closed Date</MudTh>
+          <MudTh><span class="sr-only">Actions</span></MudTh>
+        </HeaderContent>
+        <RowTemplate>
+          <MudTd DataLabel="Period Code"><strong>@context.PeriodCode</strong></MudTd>
+          <MudTd DataLabel="Status"><StatusChip Status="@context.Status" /></MudTd>
+          <MudTd DataLabel="Revision">Rev @context.Revision</MudTd>
+          <MudTd DataLabel="Closed Date">@(context.ClosedAt.HasValue ? context.ClosedAt.Value.ToString("yyyy-MM-dd HH:mm") : "—")</MudTd>
+          <MudTd DataLabel="Actions">
+            @if (context.Status == LedgerStates.PeriodOpen && _canClosePeriod)
+            {
+              <MudButton Color="Color.Primary" Variant="Variant.Filled" Size="Size.Small" Class="button small" OnClick="() => PromptClosePeriod(context.Id)" Disabled="@_busy">Close period</MudButton>
+            }
+          </MudTd>
+        </RowTemplate>
+        <PagerContent>
+          <MudTablePager PageSizeOptions="new int[] { 10, 25, 50 }" />
+        </PagerContent>
+      </MudTable>
     }
 
     @if (_selectedPeriodIdToClose.HasValue)
     {
-      <div style="margin-top: 1rem; padding: 1rem; border: 1px solid var(--border-color, #ccc); border-radius: 4px;">
+      <MudPaper Class="pa-4 mt-4" Outlined="true">
         <h3>Confirm period close</h3>
         <p class="scope-note">Closing a fiscal period freezes it. All journals within the period must be posted prior to close.</p>
-        <label>
-          Close reason
-          <input class="input" @bind="_closeReason" placeholder="e.g. Year-end financial close" disabled="@_busy" required />
-        </label>
+        <MudTextField @bind-Value="_closeReason" Label="Close reason" Placeholder="e.g. Year-end financial close" Disabled="@_busy" Required="true" Class="my-2" />
         <div style="margin-top: 0.5rem; display: flex; gap: 0.5rem;">
-          <button class="button" @onclick="ExecuteClosePeriodAsync" disabled="@_busy">Confirm close</button>
-          <button class="button" style="background: transparent; color: inherit;" @onclick="() => _selectedPeriodIdToClose = null" disabled="@_busy">Cancel</button>
+          <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="ExecuteClosePeriodAsync" Disabled="@_busy">Confirm close</MudButton>
+          <MudButton Variant="Variant.Text" OnClick="() => _selectedPeriodIdToClose = null" Disabled="@_busy">Cancel</MudButton>
         </div>
-      </div>
+      </MudPaper>
     }
-  </section>
+  </MudPaper>
 
-  <section class="card" aria-labelledby="accounts-heading">
+  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="accounts-heading" role="region">
     <h2 id="accounts-heading">Chart of firm accounts</h2>
     @if (_accounts.Count == 0)
     {
-      <p class="muted">No firm posting accounts are configured.</p>
+      <MudText Typo="Typo.body2" Color="Color.Secondary" Class="muted">No firm posting accounts are configured.</MudText>
     }
     else
     {
-      <div class="table-wrap">
-        <table>
-          <caption class="sr-only">Firm posting accounts</caption>
-          <thead>
-            <tr>
-              <th scope="col">Code</th>
-              <th scope="col">Account Name</th>
-              <th scope="col">Type</th>
-              <th scope="col">Normal Side</th>
-              <th scope="col">Posting Allowed</th>
-            </tr>
-          </thead>
-          <tbody>
-          @foreach (var account in _accounts)
-          {
-            <tr>
-              <td><code>@account.Code</code></td>
-              <td>@account.Name</td>
-              <td>@account.AccountType</td>
-              <td>@account.NormalSide</td>
-              <td>@(account.PostingAllowed ? "Yes" : "No")</td>
-            </tr>
-          }
-          </tbody>
-        </table>
-      </div>
+      <MudTable Items="_accounts" Dense="true" Hover="true" Elevation="0">
+        <HeaderContent>
+          <MudTh>Code</MudTh>
+          <MudTh>Account Name</MudTh>
+          <MudTh>Type</MudTh>
+          <MudTh>Normal Side</MudTh>
+          <MudTh>Posting Allowed</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+          <MudTd DataLabel="Code"><code>@context.Code</code></MudTd>
+          <MudTd DataLabel="Account Name">@context.Name</MudTd>
+          <MudTd DataLabel="Type">@context.AccountType</MudTd>
+          <MudTd DataLabel="Normal Side">@context.NormalSide</MudTd>
+          <MudTd DataLabel="Posting Allowed">@(context.PostingAllowed ? "Yes" : "No")</MudTd>
+        </RowTemplate>
+        <PagerContent>
+          <MudTablePager PageSizeOptions="new int[] { 10, 25, 50 }" />
+        </PagerContent>
+      </MudTable>
     }
-  </section>
+  </MudPaper>
 
-  <section class="card" aria-labelledby="postings-heading">
+  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="postings-heading" role="region">
     <h2 id="postings-heading">Recent firm postings</h2>
     @if (_postings.Count == 0)
     {
-      <p class="muted">No immutable postings recorded in the firm ledger yet.</p>
+      <MudText Typo="Typo.body2" Color="Color.Secondary" Class="muted">No immutable postings recorded in the firm ledger yet.</MudText>
     }
     else
     {
-      <div class="table-wrap">
-        <table>
-          <caption class="sr-only">Firm ledger postings</caption>
-          <thead>
-            <tr>
-              <th scope="col">Posting ID</th>
-              <th scope="col">Posted Date</th>
-              <th scope="col">Currency</th>
-              <th scope="col">Posted By</th>
-              <th scope="col">Reversal</th>
-            </tr>
-          </thead>
-          <tbody>
-          @foreach (var post in _postings)
-          {
-            <tr>
-              <td><code>@post.Id</code></td>
-              <td>@post.PostedAt.ToString("yyyy-MM-dd HH:mm") UTC</td>
-              <td>@post.Currency</td>
-              <td><code>@post.PostedByUserId</code></td>
-              <td>@(post.ReversalOfPostingId.HasValue ? $"Reversal of {post.ReversalOfPostingId.Value}" : "—")</td>
-            </tr>
-          }
-          </tbody>
-        </table>
-      </div>
+      <MudTable Items="_postings" Dense="true" Hover="true" Elevation="0">
+        <HeaderContent>
+          <MudTh>Posting ID</MudTh>
+          <MudTh>Posted Date</MudTh>
+          <MudTh>Currency</MudTh>
+          <MudTh>Posted By</MudTh>
+          <MudTh>Reversal</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+          <MudTd DataLabel="Posting ID"><code>@context.Id</code></MudTd>
+          <MudTd DataLabel="Posted Date">@context.PostedAt.ToString("yyyy-MM-dd HH:mm") UTC</MudTd>
+          <MudTd DataLabel="Currency">@context.Currency</MudTd>
+          <MudTd DataLabel="Posted By"><code>@context.PostedByUserId</code></MudTd>
+          <MudTd DataLabel="Reversal">@(context.ReversalOfPostingId.HasValue ? $"Reversal of {context.ReversalOfPostingId.Value}" : "—")</MudTd>
+        </RowTemplate>
+        <PagerContent>
+          <MudTablePager PageSizeOptions="new int[] { 10, 25, 50 }" />
+        </PagerContent>
+      </MudTable>
     }
-  </section>
+  </MudPaper>
 }
 
 @code {

@@ -22,31 +22,31 @@
         }
         <span>Audit Fieldwork</span>
     </nav>
-    <h1>Controlled Audit Fieldwork</h1>
+    <PageHeader Title="Controlled Audit Fieldwork" Description="Fieldwork procedures, differences, and aggregate conclusion on this engagement." />
 </div>
 
 @if (_loading)
 {
-    <p role="status">Loading fieldwork coverage…</p>
+    <LoadingState IsLoading="true" LoadingMessage="Loading fieldwork coverage…" />
 }
 else if (_actor is null || _engagement is null)
 {
-    <section class="notice" role="alert"><h2>Fieldwork unavailable</h2><p>An authorized internal engagement scope is required.</p></section>
+    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="notice my-4" role="alert"><h2>Fieldwork unavailable</h2><p>An authorized internal engagement scope is required.</p></MudAlert>
 }
 else if (_authorizationMessage is not null)
 {
-    <section class="notice" role="alert"><h2>Access blocked</h2><p>@_authorizationMessage</p></section>
+    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="notice my-4" role="alert"><h2>Access blocked</h2><p>@_authorizationMessage</p></MudAlert>
 }
 else
 {
     <div class="plan-shell">
-        <section class="card" aria-labelledby="program-heading">
+        <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="program-heading" role="region">
             <h2 id="program-heading">Versioned audit program</h2>
             <p class="info-text">The controlled source catalog contains @AuditProgramCatalog.Items.Count procedures across 20 sections. Applicability and evidence status are persisted per engagement.</p>
             @if (_programVersion is null)
             {
                 <p class="empty-state">No published program has been adopted for this engagement.</p>
-                <button class="btn-small" @onclick="PublishAndAdoptAsync" disabled="@_busy">Publish and adopt @(_version)</button>
+                <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="btn-small" OnClick="PublishAndAdoptAsync" Disabled="@_busy">Publish and adopt @(_version)</MudButton>
             }
             else
             {
@@ -58,24 +58,18 @@ else
                 </dl>
                 <p><a class="btn-secondary" href="@($"/app/engagements/{EngagementId}/audit-plan")">Open planning</a> <a class="btn-secondary" href="@($"/app/engagements/{EngagementId}/completion")">Open completion</a></p>
             }
-        </section>
+        </MudPaper>
 
         @if (_differenceSummaries.Count > 0)
         {
-            <section class="card" aria-labelledby="difference-summary-heading">
+            <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="difference-summary-heading" role="region">
                     <h2 id="difference-summary-heading">Aggregate differences and reporting assessment</h2>
                     <p class="info-text">Review gross and signed amounts separately by currency. These totals do not determine materiality or an audit opinion; the engagement team records the professional conclusion.</p>
                     <div class="table-wrap">
-                        <table class="data-table">
-                            <caption class="sr-only">Audit differences by currency</caption>
-                            <thead><tr><th scope="col">Currency</th><th scope="col">Count</th><th scope="col">Gross</th><th scope="col">Signed/net</th><th scope="col">Unadjusted gross</th><th scope="col">Unadjusted net</th><th scope="col">Corrected gross</th></tr></thead>
-                            <tbody>
-                                @foreach (var summary in _differenceSummaries)
-                                {
-                                    <tr><td>@summary.Currency</td><td>@summary.DifferenceCount</td><td>@summary.GrossAmount.ToString("N2")</td><td>@summary.SignedNetAmount.ToString("N2")</td><td>@summary.UnadjustedGrossAmount.ToString("N2")</td><td>@summary.UnadjustedSignedNetAmount.ToString("N2")</td><td>@summary.CorrectedGrossAmount.ToString("N2")</td></tr>
-                                }
-                            </tbody>
-                        </table>
+                        <MudTable Items="_differenceSummaries" Dense="true" Hover="true" Elevation="0" Class="data-table">
+  <HeaderContent><MudTh scope="col">Currency</MudTh><MudTh scope="col">Count</MudTh><MudTh scope="col">Gross</MudTh><MudTh scope="col">Signed/net</MudTh><MudTh scope="col">Unadjusted gross</MudTh><MudTh scope="col">Unadjusted net</MudTh><MudTh scope="col">Corrected gross</MudTh></HeaderContent>
+  <RowTemplate>                                    <MudTd>@context.Currency</MudTd><MudTd>@context.DifferenceCount</MudTd><MudTd>@context.GrossAmount.ToString("N2")</MudTd><MudTd>@context.SignedNetAmount.ToString("N2")</MudTd><MudTd>@context.UnadjustedGrossAmount.ToString("N2")</MudTd><MudTd>@context.UnadjustedSignedNetAmount.ToString("N2")</MudTd><MudTd>@context.CorrectedGrossAmount.ToString("N2")</MudTd></RowTemplate>
+</MudTable>
                     </div>
                     @if (_aggregateAssessment is not null)
                     {
@@ -87,42 +81,37 @@ else
                         @if (_aggregateAssessment.Status != AuditAreaAssessmentStatuses.Reviewed &&
                             _aggregateAssessment.CreatedByUserId != _actor.UserId)
                         {
-                            <button class="btn-small" title="Independently review this conclusion against the current schedule and approved materiality" @onclick="ReviewAggregateAssessmentAsync" disabled="@_busy">Review aggregate conclusion</button>
+                            <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="btn-small" OnClick="ReviewAggregateAssessmentAsync" Disabled="@_busy">Review aggregate conclusion</MudButton>
                         }
                     }
                     <form @onsubmit="RecordAggregateAssessmentAsync" @onsubmit:preventDefault>
                         <label for="aggregate-conclusion">Required: professional aggregate conclusion and reporting impact</label>
                         <textarea id="aggregate-conclusion" @bind="_aggregateConclusion" @bind:event="oninput" required maxlength="4000" rows="4" title="Explain the aggregate evaluation by currency, qualitative factors, unadjusted/corrected status, and reporting implications. Totals do not make the professional decision."></textarea>
-                        <button class="btn-small" type="submit" disabled="@(_busy || string.IsNullOrWhiteSpace(_aggregateConclusion))" title="Save a conclusion bound to the current differences and independently approved materiality">Record aggregate conclusion</button>
+                        <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="btn-small" ButtonType="ButtonType.Submit" Disabled="@(_busy || string.IsNullOrWhiteSpace(_aggregateConclusion))">Record aggregate conclusion</MudButton>
                     </form>
-            </section>
+            </MudPaper>
         }
 
         @if (_programVersion is not null)
         {
-            <section class="card" aria-labelledby="coverage-heading">
+            <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="coverage-heading" role="region">
                 <h2 id="coverage-heading">Procedure applicability and evidence coverage</h2>
                 <p class="notice-text">An applicable procedure cannot be completed from a title alone. Submit work, evidence and a current independent review through the guarded commands.</p>
                 <div class="table-wrap">
-                    <table class="data-table">
-                        <caption class="sr-only">Controlled procedure coverage</caption>
-                        <thead><tr><th scope="col">Source</th><th scope="col">Section</th><th scope="col">Procedure</th><th scope="col">Applicability</th><th scope="col">Evidence</th><th scope="col">Action</th></tr></thead>
-                        <tbody>
-                            @foreach (var procedure in _procedures)
-                            {
-                                <tr>
-                                    <td><code>@procedure.SourceProcedureId</code></td>
-                                    <td>@procedure.SourceSectionTitle</td>
-                                    <td>@procedure.Title</td>
-                                    <td>@procedure.ApplicabilityStatus</td>
-                                    <td>@procedure.Status</td>
-                                    <td>
-                                        @if (procedure.ApplicabilityStatus == AuditApplicabilityStatuses.Pending)
+                    <MudTable Items="_procedures" Dense="true" Hover="true" Elevation="0" Class="data-table">
+  <HeaderContent><MudTh scope="col">Source</MudTh><MudTh scope="col">Section</MudTh><MudTh scope="col">Procedure</MudTh><MudTh scope="col">Applicability</MudTh><MudTh scope="col">Evidence</MudTh><MudTh scope="col">Action</MudTh></HeaderContent>
+  <RowTemplate>                                    <MudTd><code>@context.SourceProcedureId</code></MudTd>
+                                    <MudTd>@context.SourceSectionTitle</MudTd>
+                                    <MudTd>@context.Title</MudTd>
+                                    <MudTd>@context.ApplicabilityStatus</MudTd>
+                                    <MudTd>@context.Status</MudTd>
+                                    <MudTd>
+                                        @if (context.ApplicabilityStatus == AuditApplicabilityStatuses.Pending)
                                         {
-                                            <button class="btn-small" @onclick="() => DecideApplicabilityAsync(procedure.Id, AuditApplicabilityStatuses.Applicable)" disabled="@_busy">Applicable</button>
-                                            <button class="btn-small" @onclick="() => DecideApplicabilityAsync(procedure.Id, AuditApplicabilityStatuses.NotApplicablePendingReview)" disabled="@_busy">N/A for review</button>
+                                            <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="btn-small" OnClick="() => DecideApplicabilityAsync(context.Id, AuditApplicabilityStatuses.Applicable)" Disabled="@_busy">Applicable</MudButton>
+                                            <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="btn-small" OnClick="() => DecideApplicabilityAsync(context.Id, AuditApplicabilityStatuses.NotApplicablePendingReview)" Disabled="@_busy">N/A for review</MudButton>
                                         }
-                                        else if (procedure.ApplicabilityStatus == AuditApplicabilityStatuses.Applicable)
+                                        else if (context.ApplicabilityStatus == AuditApplicabilityStatuses.Applicable)
                                         {
                                             <span class="muted">Execute from source workflow</span>
                                         }
@@ -130,13 +119,10 @@ else
                                         {
                                             <span class="muted">Reviewer disposition required</span>
                                         }
-                                    </td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
+                                    </MudTd></RowTemplate>
+</MudTable>
                 </div>
-            </section>
+            </MudPaper>
         }
 
         @if (_result is not null)

@@ -6,27 +6,30 @@
 @inject IDbContextFactory<AuditSphereDbContext> DbFactory
 
 <PageTitle>Operations</PageTitle>
-<a class="back-link" href="/app">← Back to portfolio</a>
-<h1>Operations</h1>
+<MudLink Href="/app" Class="back-link mb-2 d-inline-block">← Back to portfolio</MudLink>
+<PageHeader Title="Operations" Description="Redacted operational evidence for the current firm only: classification codes and durable state, never payloads, request bytes or lease owner identities. A re-armed operation re-runs through the same guarded validation as a first attempt. Only queued work without a worker lease can be cancelled safely." />
 
 @if (_loading)
 {
-  <p role="status">Loading the durable operation ledger…</p>
+  <LoadingState IsLoading="true" LoadingMessage="Loading the durable operation ledger…" />
 }
 else if (_actor is null || !_isAdmin)
 {
-  <section class="notice" role="alert"><h2>Access unavailable</h2><p>Sign in with an authorized administrator identity to view operations.</p></section>
+  <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="notice my-4" role="alert">
+    <h2>Access unavailable</h2>
+    <MudText Typo="Typo.body2">Sign in with an authorized administrator identity to view operations.</MudText>
+  </MudAlert>
 }
 else
 {
     <p class="scope-note">Redacted operational evidence for the current firm only: classification codes and durable state, never payloads, request bytes or lease owner identities. A re-armed operation re-runs through the same guarded validation as a first attempt. Only queued work without a worker lease can be cancelled safely.</p>
     @if (_operatingMode == "RECOVERY_QUARANTINE")
     {
-      <section class="notice warning" role="alert">
+      <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="notice warning my-4" role="alert">
         <h2>Recovery Quarantine Active</h2>
-        <p>Firm operating mode is quarantined. Side effects and operations are fenced until authorized recovery is lifted.</p>
-        <button class="button" @onclick="LiftQuarantineAsync" disabled="@_busy">Lift recovery quarantine</button>
-      </section>
+        <MudText Typo="Typo.body2">Firm operating mode is quarantined. Side effects and operations are fenced until authorized recovery is lifted.</MudText>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button mt-2" OnClick="LiftQuarantineAsync" Disabled="@_busy">Lift recovery quarantine</MudButton>
+      </MudAlert>
     }
     @if (_result is not null)
     {
@@ -36,42 +39,47 @@ else
     }
   @if (_operations.Count == 0)
   {
-    <section class="card"><p class="muted">No durable operations are recorded for this firm.</p></section>
+    <MudPaper Class="pa-4 my-4" Elevation="1"><MudText Typo="Typo.body2" Color="Color.Secondary" Class="muted">No durable operations are recorded for this firm.</MudText></MudPaper>
   }
   else
   {
-    <section class="card" aria-labelledby="operations-heading">
+    <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="operations-heading" role="region">
       <h2 id="operations-heading">Latest 50 durable operations</h2>
       <label for="cancel-disposition">Cancellation disposition</label>
       <input id="cancel-disposition" @bind="_cancelDisposition" maxlength="2000" placeholder="Why is the queued operation being cancelled?" required title="Explain why this queued operation is being cancelled; the disposition is stored with the operation event." />
-      <div class="table-wrap"><table>
-        <caption class="sr-only">Durable operations in the current firm scope</caption>
-        <thead><tr><th scope="col">Kind</th><th scope="col">Status</th><th scope="col">Attempts</th><th scope="col">Next attempt</th><th scope="col">Code</th><th scope="col">Disposition</th><th scope="col">Action</th></tr></thead>
-        <tbody>
-        @foreach (var op in _operations)
-        {
-          <tr>
-            <td>@op.Kind</td>
-            <td><span class="status">@op.Status</span></td>
-            <td>@op.AttemptCount</td>
-            <td>@(op.NextAttemptAt == null ? "—" : op.NextAttemptAt.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm"))</td>
-            <td>@(op.ErrorCode ?? "—")</td>
-            <td>@(op.CancellationDisposition ?? "—")</td>
-            <td>
-              @if (op.Status is "PENDING" or "RETRY_WAIT")
-              {
-                <button class="button" @onclick="() => CancelAsync(op)" disabled="@_busy">Cancel queued work</button>
-              }
-              @if (OperationRecoveryService.RetryableStates.Contains(Enum.Parse<OperationState>(op.Status)))
-              {
-                <button class="button" @onclick="() => RetryAsync(op)" disabled="@_busy">Re-arm for retry</button>
-              }
-            </td>
-          </tr>
-        }
-        </tbody>
-      </table></div>
-    </section>
+      <MudTable Items="_operations" Dense="true" Hover="true" Elevation="0" Class="mt-3">
+        <HeaderContent>
+          <MudTh>Kind</MudTh>
+          <MudTh>Status</MudTh>
+          <MudTh>Attempts</MudTh>
+          <MudTh>Next attempt</MudTh>
+          <MudTh>Code</MudTh>
+          <MudTh>Disposition</MudTh>
+          <MudTh>Action</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+          <MudTd DataLabel="Kind">@context.Kind</MudTd>
+          <MudTd DataLabel="Status"><StatusChip Status="@context.Status" /></MudTd>
+          <MudTd DataLabel="Attempts">@context.AttemptCount</MudTd>
+          <MudTd DataLabel="Next attempt">@(context.NextAttemptAt == null ? "—" : context.NextAttemptAt.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm"))</MudTd>
+          <MudTd DataLabel="Code">@(context.ErrorCode ?? "—")</MudTd>
+          <MudTd DataLabel="Disposition">@(context.CancellationDisposition ?? "—")</MudTd>
+          <MudTd DataLabel="Action">
+            @if (context.Status is "PENDING" or "RETRY_WAIT")
+            {
+              <MudButton Color="Color.Error" Variant="Variant.Outlined" Size="Size.Small" Class="button me-1" OnClick="() => CancelAsync(context)" Disabled="@_busy">Cancel queued work</MudButton>
+            }
+            @if (OperationRecoveryService.RetryableStates.Contains(Enum.Parse<OperationState>(context.Status)))
+            {
+              <MudButton Color="Color.Primary" Variant="Variant.Filled" Size="Size.Small" Class="button" OnClick="() => RetryAsync(context)" Disabled="@_busy">Re-arm for retry</MudButton>
+            }
+          </MudTd>
+        </RowTemplate>
+        <PagerContent>
+          <MudTablePager PageSizeOptions="new int[] { 10, 25, 50 }" />
+        </PagerContent>
+      </MudTable>
+    </MudPaper>
   }
 }
 

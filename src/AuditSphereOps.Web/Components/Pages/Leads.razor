@@ -4,94 +4,101 @@
 @using AuditSphereOps.Domain.Practice
 @inject CurrentActorResolver ActorResolver
 @inject IDbContextFactory<AuditSphereDbContext> DbFactory
+@inject ISnackbar Snackbar
+@inject IDialogService Dialogs
 
 <PageTitle>Practice leads</PageTitle>
-<a class="back-link" href="/app">← Back to portfolio</a>
-<h1>Practice leads</h1>
+<MudLink Href="/app">← Back to portfolio</MudLink>
+<PageHeader Title="Practice leads" Description="Commercial opportunity progression for the current firm scope only. Converting a qualified lead requires separate client acceptance and credit decisions." />
 
 @if (_loading)
 {
-  <p role="status">Loading practice leads…</p>
+  <MudProgressLinear Color="Color.Primary" Indeterminate="true" aria-label="Loading practice leads" />
+  <LoadingState IsLoading="true" LoadingMessage="Loading practice leads…" />
 }
 else if (_actor is null || !_isAuthorized)
 {
-  <section class="notice" role="alert"><h2>Access unavailable</h2><p>Sign in with an authorized commercial identity to view practice leads.</p></section>
+  <MudAlert Severity="Severity.Error" Dense="true"><h2>Access unavailable</h2>Sign in with an authorized commercial identity to view practice leads.</MudAlert>
 }
 else
 {
-  <p class="scope-note">Commercial opportunity progression for the current firm scope only. Converting a qualified lead requires separate client acceptance and credit decisions.</p>
-
   @if (_result is not null)
   {
-    <p class="command-result @(_result.Succeeded ? "success-text" : "error-text")" role="status">
+    <MudAlert Severity="@(_result.Succeeded ? Severity.Success : Severity.Error)" Dense="true">
       @(_result.Succeeded ? (_successMessage ?? "Action completed successfully.") : "Blocked: " + _result.ErrorCode)
-    </p>
+    </MudAlert>
   }
 
-  <section class="card" aria-labelledby="new-lead-heading">
-    <h2 id="new-lead-heading">Record new lead</h2>
-    <form @onsubmit="CreateLeadAsync" @onsubmit:preventDefault="true" style="display: grid; gap: 0.75rem; max-width: 32rem;">
-      <label>
-        Lead / organization name
-        <input class="input" @bind="_newName" placeholder="e.g. Acme Corp" required disabled="@_busy" />
-      </label>
-      <label>
-        Source
-        <input class="input" @bind="_newSource" placeholder="e.g. Referral, Website" required disabled="@_busy" />
-      </label>
-      <label>
-        Primary contact name (optional)
-        <input class="input" @bind="_newContactName" placeholder="e.g. Jane Doe" disabled="@_busy" data-optional="true" />
-      </label>
-      <label>
-        Primary contact email (optional)
-        <input class="input" type="email" @bind="_newContactEmail" placeholder="e.g. jane@example.com" disabled="@_busy" data-optional="true" />
-      </label>
-      <button class="button" type="submit" disabled="@_busy">Create lead</button>
-    </form>
-  </section>
+  <MudCard Class="mb-4" data-draft-scope="practice-lead-new">
+    <MudCardHeader><h2 id="new-lead-heading">Record new lead</h2></MudCardHeader>
+    <MudCardContent>
+      <MudGrid>
+        <MudItem xs="12" sm="6">
+          <MudTextField T="string" Label="Lead / organization name" @bind-Value="_newName"
+                        Placeholder="e.g. Acme Corp" Required="true" RequiredError="Lead name is required."
+                        Disabled="_busy" data-draft-field="new-lead-name" />
+        </MudItem>
+        <MudItem xs="12" sm="6">
+          <MudTextField T="string" Label="Source" @bind-Value="_newSource"
+                        Placeholder="e.g. Referral, Website" Required="true" RequiredError="Source is required."
+                        Disabled="_busy" data-draft-field="new-lead-source" />
+        </MudItem>
+        <MudItem xs="12" sm="6">
+          <MudTextField T="string" Label="Primary contact name (optional)" @bind-Value="_newContactName"
+                        Placeholder="e.g. Jane Doe" Disabled="_busy" data-draft-field="new-lead-contact" />
+        </MudItem>
+        <MudItem xs="12" sm="6">
+          <MudTextField T="string" Label="Primary contact email (optional)" @bind-Value="_newContactEmail"
+                        Placeholder="e.g. jane@example.com" InputType="InputType.Email"
+                        Disabled="_busy" data-draft-field="new-lead-email" />
+        </MudItem>
+      </MudGrid>
+      <p class="draft-status" data-draft-status role="status" aria-live="polite"></p>
+    </MudCardContent>
+    <MudCardActions>
+      <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="CreateLeadAsync" Disabled="_busy">Create lead</MudButton>
+    </MudCardActions>
+  </MudCard>
 
-  @if (_leads.Count == 0)
-  {
-    <section class="card"><p class="muted">No commercial leads are currently recorded for this firm.</p></section>
-  }
-  else
-  {
-    <section class="card" aria-labelledby="leads-table-heading">
-      <h2 id="leads-table-heading">Active leads (@_leads.Count)</h2>
-      <div class="table-wrap"><table>
-        <caption class="sr-only">Practice leads in the current firm scope</caption>
-        <thead>
-          <tr>
-            <th scope="col">Name</th>
-            <th scope="col">Source</th>
-            <th scope="col">Contact</th>
-            <th scope="col">Status</th>
-            <th scope="col">Recorded</th>
-            <th scope="col">Action</th>
-          </tr>
-        </thead>
-        <tbody>
-        @foreach (var lead in _leads)
-        {
-          <tr>
-            <td><strong>@lead.Name</strong></td>
-            <td>@lead.Source</td>
-            <td>@(lead.PrimaryContactName ?? "—") @(lead.PrimaryContactEmail != null ? $"({lead.PrimaryContactEmail})" : "")</td>
-            <td><span class="status">@lead.Status</span></td>
-            <td>@lead.CreatedAt.ToString("yyyy-MM-dd")</td>
-            <td>
-              @if (lead.Status == CrmStates.LeadNew)
+  <MudCard>
+    <MudCardHeader><h2 id="leads-table-heading">Active leads (@_leads.Count)</h2></MudCardHeader>
+    <MudCardContent>
+      @if (_leads.Count == 0)
+      {
+        <MudAlert Severity="Severity.Info" Dense="true">No commercial leads are currently recorded for this firm.</MudAlert>
+      }
+      else
+      {
+        <MudTable Items="_leads" Hover="true" Dense="true" Striped="true" Breakpoint="Breakpoint.Sm">
+          <HeaderContent>
+            <MudTh>Name</MudTh>
+            <MudTh>Source</MudTh>
+            <MudTh>Contact</MudTh>
+            <MudTh>Status</MudTh>
+            <MudTh>Recorded</MudTh>
+            <MudTh>Action</MudTh>
+          </HeaderContent>
+          <RowTemplate>
+            <MudTd DataLabel="Name"><strong>@context.Name</strong></MudTd>
+            <MudTd DataLabel="Source">@context.Source</MudTd>
+            <MudTd DataLabel="Contact">@(context.PrimaryContactName ?? "—") @(context.PrimaryContactEmail != null ? $"({context.PrimaryContactEmail})" : "")</MudTd>
+            <MudTd DataLabel="Status"><StatusChip Status="@context.Status" /></MudTd>
+            <MudTd DataLabel="Recorded">@context.CreatedAt.ToString("yyyy-MM-dd")</MudTd>
+            <MudTd DataLabel="Action">
+              @if (context.Status == CrmStates.LeadNew)
               {
-                <button class="button" @onclick="() => QualifyLeadAsync(lead.Id)" disabled="@_busy">Qualify</button>
+                <MudButton Color="Color.Primary" Variant="Variant.Filled" Size="Size.Small"
+                           OnClick="@(() => ConfirmQualifyAsync(context))" Disabled="_busy">Qualify</MudButton>
               }
-            </td>
-          </tr>
-        }
-        </tbody>
-      </table></div>
-    </section>
-  }
+            </MudTd>
+          </RowTemplate>
+          <PagerContent>
+            <MudTablePager PageSizeOptions="[10, 25]" />
+          </PagerContent>
+        </MudTable>
+      }
+    </MudCardContent>
+  </MudCard>
 }
 
 @code {
@@ -136,6 +143,11 @@ else
   private async Task CreateLeadAsync()
   {
     if (_actor is null || _busy) return;
+    if (string.IsNullOrWhiteSpace(_newName) || string.IsNullOrWhiteSpace(_newSource))
+    {
+      _result = CommandResult.Fail("leads.validation", "Lead name and source are required.");
+      return;
+    }
     _busy = true;
     try
     {
@@ -148,6 +160,7 @@ else
       if (res.Succeeded)
       {
         _successMessage = "The lead was recorded successfully.";
+        Snackbar.Add(_successMessage, Severity.Success);
         _newName = string.Empty;
         _newSource = string.Empty;
         _newContactName = null;
@@ -164,6 +177,20 @@ else
     finally { _busy = false; }
   }
 
+  private async Task ConfirmQualifyAsync(Lead lead)
+  {
+    var parameters = new DialogParameters<ConfirmDialog>
+    {
+      { x => x.Message, $"Qualify lead '{lead.Name}'? Qualification continues to separate client acceptance and credit decisions." },
+      { x => x.RecordIdentity, $"{lead.Name} ({lead.Id:D})" },
+      { x => x.ConfirmText, "Qualify" },
+    };
+    var dialog = await Dialogs.ShowAsync<ConfirmDialog>("Qualify lead", parameters);
+    var result = await dialog.Result;
+    if (result is null || result.Canceled) return;
+    await QualifyLeadAsync(lead.Id);
+  }
+
   private async Task QualifyLeadAsync(Guid leadId)
   {
     if (_actor is null || _busy) return;
@@ -176,6 +203,7 @@ else
       if (res.Succeeded)
       {
         _successMessage = "The lead was qualified.";
+        Snackbar.Add(_successMessage, Severity.Success);
         await LoadLeadsAsync();
       }
       else if (res.ErrorCode is ErrorCodes.ScopeDenied or ErrorCodes.GenerationStale)

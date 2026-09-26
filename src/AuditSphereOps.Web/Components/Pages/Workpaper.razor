@@ -25,33 +25,33 @@
         }
         <span>Workpaper</span>
     </nav>
-    <h1>Workpaper: @_workpaper?.Title</h1>
+    <PageHeader Title="@($"Workpaper: {_workpaper?.Title}")" Description="Scoped workpaper detail, procedure linkage, preparer notes, and review status." />
     <span class="status-badge @(_workpaper?.Status == WorkpaperStatuses.SubmittedSnapshot ? "badge-blue" : "badge-yellow")">@(_workpaper?.Status)</span>
 </div>
 
 @if (_loading)
 {
-    <p role="status">Loading workpaper…</p>
+    <LoadingState IsLoading="true" LoadingMessage="Loading workpaper…" />
 }
 else if (_actor is null)
 {
-    <section class="notice" role="alert">
+    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="notice my-4" role="alert">
         <h2>Sign in required</h2>
         <p>An authenticated staff session is required to open a workpaper.</p>
-    </section>
+    </MudAlert>
 }
 else if (_workpaper is null)
 {
-    <section class="notice" role="alert">
+    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="notice my-4" role="alert">
         <h2>Workpaper unavailable</h2>
         <p>The requested workpaper is unavailable in your current scope.</p>
-    </section>
+    </MudAlert>
 }
 else
 {
     <div class="workpaper-shell">
 
-        <section class="card">
+        <MudPaper Class="pa-4 my-4" Elevation="1">
             <h2>Workpaper Details</h2>
             <dl class="detail-grid">
                 <dt>Index</dt><dd>@_workpaper.Index</dd>
@@ -62,10 +62,10 @@ else
                 <dt>Current revision</dt><dd>@_workpaper.Revision</dd>
                 <dt>Created</dt><dd>@_workpaper.CreatedAt.ToUniversalTime().ToString("yyyy-MM-dd HH:mm") UTC</dd>
             </dl>
-        </section>
+        </MudPaper>
 
         <!-- Submission history -->
-        <section class="card">
+        <MudPaper Class="pa-4 my-4" Elevation="1">
             <h2>Submission History</h2>
             <p class="notice-text">
                 Submission freezes the content into an immutable snapshot: the reviewer sees exactly
@@ -78,29 +78,19 @@ else
             }
             else
             {
-                <table class="data-table">
-                    <caption class="sr-only">Immutable submissions of this workpaper</caption>
-                    <thead>
-                        <tr><th scope="col">Rev</th><th scope="col">Submitted at (UTC)</th><th scope="col">Conclusion</th></tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var sub in _submissions)
-                        {
-                            <tr>
-                                <td>@sub.Revision</td>
-                                <td>@sub.SubmittedAt.ToUniversalTime().ToString("yyyy-MM-dd HH:mm")</td>
-                                <td>@sub.Conclusion</td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
+                <MudTable Items="_submissions" Dense="true" Hover="true" Elevation="0" Class="data-table">
+  <HeaderContent><MudTh scope="col">Rev</MudTh><MudTh scope="col">Submitted at (UTC)</MudTh><MudTh scope="col">Conclusion</MudTh></HeaderContent>
+  <RowTemplate>                                <MudTd>@context.Revision</MudTd>
+                                <MudTd>@context.SubmittedAt.ToUniversalTime().ToString("yyyy-MM-dd HH:mm")</MudTd>
+                                <MudTd>@context.Conclusion</MudTd></RowTemplate>
+</MudTable>
             }
-        </section>
+        </MudPaper>
 
         <!-- Working draft -->
         @if (_workpaper.Status == WorkpaperStatuses.Working)
         {
-            <section class="card">
+            <MudPaper Class="pa-4 my-4" Elevation="1">
                 <h2>Working Content</h2>
                 <div class="form-group">
                     <label for="wp-work">Work performed</label>
@@ -113,12 +103,12 @@ else
                               disabled="@(_busy || _draftConflict)" />
                 </div>
                 <div class="action-bar">
-                    <button class="btn-secondary" title="Persist the current workpaper draft without submitting it." @onclick="SaveDraftAsync" disabled="@(_busy || _draftConflict || _saving)">Save draft</button>
-                    <button class="btn-secondary" title="Discard the server-backed draft and restore the last acknowledged target." @onclick="DiscardDraftAsync" disabled="@(_busy || _draftConflict || _saving || _draftRevision < 1)">Discard draft</button>
-                    <button class="btn-primary" title="Submit the last acknowledged draft as an immutable review snapshot." @onclick="SubmitAsync" disabled="@(_busy || _draftConflict)">Submit for review</button>
+                    <MudButton Variant="Variant.Outlined" Class="btn-secondary" OnClick="SaveDraftAsync" Disabled="@(_busy || _draftConflict || _saving)">Save draft</MudButton>
+                    <MudButton Variant="Variant.Outlined" Class="btn-secondary" OnClick="DiscardDraftAsync" Disabled="@(_busy || _draftConflict || _saving || _draftRevision < 1)">Discard draft</MudButton>
+                    <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="btn-primary" OnClick="SubmitAsync" Disabled="@(_busy || _draftConflict)">Submit for review</MudButton>
                     @if (_draftConflict)
                     {
-                        <button class="btn-secondary" title="Reload the current target after a stale-draft conflict; unsaved local text will be replaced." @onclick="ReloadCurrentTargetAsync" disabled="@(_busy || _saving)">Reload current target</button>
+                        <MudButton Variant="Variant.Outlined" Class="btn-secondary" OnClick="ReloadCurrentTargetAsync" Disabled="@(_busy || _saving)">Reload current target</MudButton>
                     }
                 </div>
                 <p class="notice-text" role="status" aria-live="polite">@_draftStatus</p>
@@ -127,11 +117,11 @@ else
                     waits for the last acknowledged draft and freezes that exact content; a changed target is
                     refused without overwriting anything.
                 </p>
-            </section>
+            </MudPaper>
         }
         else
         {
-            <section class="card">
+            <MudPaper Class="pa-4 my-4" Elevation="1">
                 <h2>Submitted Content</h2>
                 <dl class="detail-grid">
                     <dt>Work performed</dt><dd>@_workpaper.WorkPerformed</dd>
@@ -139,7 +129,7 @@ else
                     <dt>Submitted at</dt><dd>@_workpaper.SubmittedAt?.ToUniversalTime().ToString("yyyy-MM-dd HH:mm") UTC</dd>
                 </dl>
                 <p class="notice-text">A frozen submission is immutable; review targets this exact revision.</p>
-            </section>
+            </MudPaper>
         }
 
         @if (_result is not null)

@@ -18,10 +18,10 @@
 
 <div class="page-header">
   <nav class="breadcrumb-nav"><a href="/">Home</a> / <span>Microsoft 365 setup</span></nav>
-  <h1>Microsoft 365 onboarding</h1>
+  <PageHeader Title="Microsoft 365 onboarding" Description="Protected, resumable Microsoft 365 setup draft. A saved draft is not Microsoft consent or verified tenant access." />
 </div>
 
-<section class="card" aria-labelledby="setup-heading">
+<MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="setup-heading" role="region">
   <h2 id="setup-heading">Protected first-run configuration</h2>
   <p class="scope-note">This route only creates a resumable local draft. It does not authenticate to Microsoft, grant permissions, or create SharePoint content.</p>
   <p class="field-help"><span class="required-marker">*</span> Required. Bootstrap proof is held only in this server circuit and is never saved to browser storage or the database.</p>
@@ -37,7 +37,7 @@
         <input id="bootstrap-proof" type="password" @bind="_bootstrapProof" autocomplete="off" required title="Enter the short-lived proof delivered by the installation owner." />
       </label>
     </div>
-    <button class="btn-primary" @onclick="Claim" disabled="@_busy" title="Claim the single-use setup session and load its server-persisted draft">@(_busy ? "Checking…" : "Claim setup")</button>
+    <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="btn-primary" OnClick="Claim" Disabled="@_busy">@(_busy ? "Checking…" : "Claim setup")</MudButton>
   }
   else if (_draft is null)
   {
@@ -46,17 +46,17 @@
   else
   {
     <dl class="details">
-      <dt>Draft state</dt><dd><span class="status">@_draft.State</span></dd>
+      <dt>Draft state</dt><dd><StatusChip Status="@_draft.State" /></dd>
       <dt>Draft revision</dt><dd>@_draft.Revision</dd>
       <dt>Session expiry</dt><dd>@_sessionExpiry?.ToLocalTime().ToString("yyyy-MM-dd HH:mm zzz")</dd>
     </dl>
     @if (_bootstrapEligible)
     {
-      <section class="notice" aria-labelledby="bootstrap-admin-heading">
+      <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="notice my-4" aria-labelledby="bootstrap-admin-heading">
         <h2 id="bootstrap-admin-heading">Bind the approved Microsoft administrator</h2>
         <p class="field-help">The current Microsoft-only sign-in matches the deployment-approved initial administrator. This one-time action creates only the local Administrator grant; it does not grant Entra or SharePoint administration.</p>
-        <button class="btn-primary" @onclick="CompleteBootstrap" disabled="@_busy" title="Consume the claimed setup capability for the exact authenticated Microsoft identity">Bind initial administrator</button>
-      </section>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="btn-primary" OnClick="CompleteBootstrap" Disabled="@_busy">Bind initial administrator</MudButton>
+      </MudAlert>
     }
     else if (_microsoftAuthenticated)
     {
@@ -84,7 +84,7 @@
       <select id="records-state" @bind="_recordsState" title="A saved records profile is not protection verification; observed behavior is required later."><option value="NOT_CONFIGURED">Not configured</option><option value="CONFIGURED">Configured (verification required)</option></select></label></div>
     @if (_isFirmAdministrator)
     {
-      <section class="card" aria-labelledby="template-heading">
+      <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="template-heading" role="region">
         <h2 id="template-heading">Versioned folder template</h2>
         <p class="field-help">Templates are local immutable manifests. They do not create folders or verify SharePoint access. Existing client trees remain pinned to their previous version.</p>
         <div class="form-group"><label for="template-purpose">Template purpose <span class="required-marker">*</span>
@@ -94,41 +94,33 @@
           </select></label></div>
         <div class="form-group"><label for="template-manifest">Allowlisted folder manifest <span class="required-marker">*</span>
           <textarea id="template-manifest" @bind="_templateManifest" rows="12" maxlength="20000" required title="JSON containing only nodes with key, name and optional children. Folder names support the documented tokens only."></textarea></label></div>
-        <button class="btn-secondary" @onclick="SaveTemplate" disabled="@_templateBusy" title="Validate and save a new immutable local template version">@(_templateBusy ? "Saving…" : "Save template version")</button>
+        <MudButton Variant="Variant.Outlined" Class="btn-secondary" OnClick="SaveTemplate" Disabled="@_templateBusy">@(_templateBusy ? "Saving…" : "Save template version")</MudButton>
         @if (_templateVersions.Count > 0)
         {
           <div class="table-wrap">
-            <table>
-              <caption class="sr-only">Saved folder template versions</caption>
-              <thead><tr><th scope="col">Purpose</th><th scope="col">Version</th><th scope="col">Digest</th><th scope="col">Approval</th><th scope="col">Provider state</th></tr></thead>
-              <tbody>
-              @foreach (var template in _templateVersions)
-              {
-                <tr>
-                  <td>@template.Purpose</td><td>@template.Version</td><td><code>@template.ManifestDigest[..12]</code></td>
-                  <td>
-                    @if (template.ApprovedAt is null)
-                    { <button class="button" @onclick="() => ApproveTemplate(template.Id)" disabled="@_templateBusy" title="Approve this immutable template for a later verified connection activation">Approve</button> }
+            <MudTable Items="_templateVersions" Dense="true" Hover="true" Elevation="0">
+  <HeaderContent><MudTh scope="col">Purpose</MudTh><MudTh scope="col">Version</MudTh><MudTh scope="col">Digest</MudTh><MudTh scope="col">Approval</MudTh><MudTh scope="col">Provider state</MudTh></HeaderContent>
+  <RowTemplate>                  <MudTd>@context.Purpose</MudTd><MudTd>@context.Version</MudTd><MudTd><code>@context.ManifestDigest[..12]</code></MudTd>
+                  <MudTd>
+                    @if (context.ApprovedAt is null)
+                    { <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button" OnClick="() => ApproveTemplate(context.Id)" Disabled="@_templateBusy">Approve</MudButton> }
                     else
-                    { <span class="success-text">Approved @template.ApprovedAt.Value.ToString("yyyy-MM-dd")</span> }
-                  </td>
-                  <td>Local only — SharePoint verification required</td>
-                </tr>
-              }
-              </tbody>
-            </table>
+                    { <span class="success-text">Approved @context.ApprovedAt.Value.ToString("yyyy-MM-dd")</span> }
+                  </MudTd>
+                  <MudTd>Local only — SharePoint verification required</MudTd></RowTemplate>
+</MudTable>
           </div>
         }
-      </section>
+      </MudPaper>
     }
     <div class="action-bar">
-      <button class="btn-primary" @onclick="Save" disabled="@_busy" title="Persist this non-secret setup draft with an optimistic revision check">@(_busy ? "Saving…" : "Save draft")</button>
-      <button class="btn-secondary" @onclick="Reload" disabled="@_busy" title="Reload the latest server-side draft and discard only unsaved circuit values">Reload</button>
+      <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="btn-primary" OnClick="Save" Disabled="@_busy">@(_busy ? "Saving…" : "Save draft")</MudButton>
+      <MudButton Variant="Variant.Outlined" Class="btn-secondary" OnClick="Reload" Disabled="@_busy">Reload</MudButton>
     </div>
   }
   @if (!string.IsNullOrWhiteSpace(_message)) { <div class="notice" role="status">@_message</div> }
   @if (!string.IsNullOrWhiteSpace(_error)) { <div class="notice error" role="alert">@_error</div> }
-</section>
+</MudPaper>
 
 @code {
   private SetupClaim? _claim;

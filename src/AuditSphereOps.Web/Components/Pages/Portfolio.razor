@@ -7,164 +7,139 @@
 @inject IConfiguration Configuration
 
 <PageTitle>Portfolio</PageTitle>
-<h1>Portfolio</h1>
+<PageHeader Title="Portfolio" Description="Staff portfolio overview. Live projections for the current explicit scope; counts are read from PostgreSQL." />
 
 @if (_loading)
 {
-  <p role="status">Loading current scope…</p>
+  <MudProgressLinear Color="Color.Primary" Indeterminate="true" aria-label="Loading current scope" />
+  <LoadingState IsLoading="true" LoadingMessage="Loading current scope…" />
 }
 else if (_actor is null)
 {
-  <section class="notice" role="alert">
-    <h2>Sign-in required</h2>
-    <p>This staff view needs an authenticated identity mapped to an active AuditSphereOps user. No local demo actor is available.</p>
-    @if (OidcConfigured)
-    {
-      <a class="button" href="/auth/sign-in?returnUrl=%2Fauth%2Flanding" title="Use the existing Microsoft 365 identity and route to the correct staff or client area">Sign in with Entra</a>
-    }
-    else
-    {
-      <p class="muted">Entra OIDC is not configured in this environment.</p>
-    }
-  </section>
+  <MudAlert Severity="Severity.Warning" Dense="true"><h2>Sign-in required</h2>This staff view needs an authenticated identity mapped to an active AuditSphereOps user. No local demo actor is available.</MudAlert>
+  @if (OidcConfigured)
+  {
+    <MudButton Color="Color.Primary" Variant="Variant.Filled" Href="/auth/sign-in?returnUrl=%2Fauth%2Flanding">Sign in with Entra</MudButton>
+  }
+  else
+  {
+    <MudAlert Severity="Severity.Info" Dense="true">Entra OIDC is not configured in this environment.</MudAlert>
+  }
 }
 else if (!IsStaff)
 {
-  <section class="notice" role="alert">
-    <h2>Access unavailable</h2>
-    <p>This staff shell is not available for the current role.</p>
-  </section>
+  <MudAlert Severity="Severity.Error" Dense="true"><h2>Access unavailable</h2>This staff shell is not available for the current role.</MudAlert>
 }
 else if (_error is not null)
 {
-  <section class="notice error" role="alert"><h2>Unable to load portfolio</h2><p>@_error</p></section>
+  <MudAlert Severity="Severity.Error" Dense="true"><h2>Unable to load portfolio</h2>@_error</MudAlert>
 }
 else
 {
-  <p class="scope-note">Live projections for the current explicit scope in firm <code>@_actor.FirmId</code>. Counts are read from PostgreSQL and are not synthetic.</p>
   @if (!_m365Ready)
   {
-    <section class="notice" role="status"><h2>Microsoft 365 configuration required</h2><p>SharePoint-backed workspace effects remain disabled until an authorized administrator verifies and activates a configuration revision.</p><a href="/app/administration/microsoft365">Review Microsoft 365 setup</a></section>
+    <MudAlert Severity="Severity.Warning" Dense="true"><h2>Microsoft 365 configuration required</h2>SharePoint-backed workspace effects remain disabled until an authorized administrator verifies and activates a configuration revision. <MudLink Href="/app/administration/microsoft365">Review Microsoft 365 setup</MudLink></MudAlert>
   }
   @if (!_hasScope)
   {
-    <section class="notice" role="status"><h2>No firm, client or engagement scope</h2><p>Ask a firm administrator for an active grant before using the portfolio. No firm data is shown without an explicit scope.</p></section>
+    <MudAlert Severity="Severity.Info" Dense="true"><h2>No firm, client or engagement scope</h2>Ask a firm administrator for an active grant before using the portfolio. No firm data is shown without an explicit scope.</MudAlert>
   }
-  <section class="metric-grid" aria-label="Portfolio metrics">
-    <article class="metric card"><span class="metric-label">Clients</span><strong class="metric-value">@_metrics.Clients</strong></article>
-    <article class="metric card"><span class="metric-label">Engagements</span><strong class="metric-value">@_metrics.Engagements</strong></article>
-    <article class="metric card"><span class="metric-label">Open holds</span><strong class="metric-value">@_metrics.OpenHolds</strong></article>
-    <article class="metric card"><span class="metric-label">Pending operations</span><strong class="metric-value">@_metrics.PendingOperations</strong></article>
-    <article class="metric card"><span class="metric-label">Ready candidates</span><strong class="metric-value">@_metrics.ReadyCandidates</strong></article>
-    <article class="metric card"><span class="metric-label">Issued releases</span><strong class="metric-value">@_metrics.IssuedReleases</strong></article>
-  </section>
+  <MudGrid Spacing="2" Class="mb-4">
+    <MudItem xs="6" sm="4" md="2"><MudPaper Class="pa-3"><MudText Typo="Typo.overline">Clients</MudText><MudText Typo="Typo.h4">@_metrics.Clients</MudText></MudPaper></MudItem>
+    <MudItem xs="6" sm="4" md="2"><MudPaper Class="pa-3"><MudText Typo="Typo.overline">Engagements</MudText><MudText Typo="Typo.h4">@_metrics.Engagements</MudText></MudPaper></MudItem>
+    <MudItem xs="6" sm="4" md="2"><MudPaper Class="pa-3"><MudText Typo="Typo.overline">Open holds</MudText><MudText Typo="Typo.h4">@_metrics.OpenHolds</MudText></MudPaper></MudItem>
+    <MudItem xs="6" sm="4" md="2"><MudPaper Class="pa-3"><MudText Typo="Typo.overline">Pending ops</MudText><MudText Typo="Typo.h4">@_metrics.PendingOperations</MudText></MudPaper></MudItem>
+    <MudItem xs="6" sm="4" md="2"><MudPaper Class="pa-3"><MudText Typo="Typo.overline">Ready</MudText><MudText Typo="Typo.h4">@_metrics.ReadyCandidates</MudText></MudPaper></MudItem>
+    <MudItem xs="6" sm="4" md="2"><MudPaper Class="pa-3"><MudText Typo="Typo.overline">Issued</MudText><MudText Typo="Typo.h4">@_metrics.IssuedReleases</MudText></MudPaper></MudItem>
+  </MudGrid>
 
   @if (_hasScope)
   {
-    <section class="card" aria-labelledby="scope-search-heading">
+    <MudPaper Class="pa-4 mb-4">
       <h2 id="scope-search-heading">Scoped client search and export</h2>
-      <p class="field-help">Search is limited to the current explicit grant scope. The download contains only the filtered client, release-candidate and package rows visible below.</p>
-      <div class="action-bar">
-        <label class="field">
-          Search current scope (optional)
-          <input class="input" @bind="_search" @bind:event="oninput" placeholder="Client name, ID or status" data-optional="true" title="Filter the currently authorized portfolio rows without changing their scope." />
-        </label>
-        <a class="button" href="@PortfolioCsvHref" download="auditsphere-portfolio.csv" title="Download the currently filtered, scope-bound portfolio rows as CSV">Download scoped CSV</a>
-      </div>
+      <MudText Typo="Typo.body2">Search is limited to the current explicit grant scope.</MudText>
+      <MudStack Row="true" Spacing="2" Class="mt-2">
+        <MudTextField T="string" Label="Search current scope (optional)" @bind-Value="_search" Immediate="true"
+                      Placeholder="Client name, ID or status" />
+        <MudButton Color="Color.Secondary" Variant="Variant.Outlined" Href="@PortfolioCsvHref" download="auditsphere-portfolio.csv">Download scoped CSV</MudButton>
+      </MudStack>
       @if (!VisibleClients.Any())
       {
-        <p class="muted">No clients match the current search.</p>
+        <MudAlert Severity="Severity.Info" Dense="true" Class="mt-2">No clients match the current search.</MudAlert>
       }
       else
       {
-        <div class="table-wrap">
-          <table>
-            <caption class="sr-only">Clients in the current explicit scope</caption>
-            <thead><tr><th scope="col">Client</th><th scope="col">Client ID</th><th scope="col">Visible engagements</th></tr></thead>
-            <tbody>
-            @foreach (var client in VisibleClients)
-            {
-              <tr><td><strong>@client.Name</strong></td><td><code>@client.Id</code></td><td>@client.Engagements</td></tr>
-            }
-            </tbody>
-          </table>
-        </div>
+        <MudTable Items="VisibleClients.ToList()" Hover="true" Dense="true" Striped="true" Breakpoint="Breakpoint.Sm" Class="mt-2">
+          <HeaderContent><MudTh>Client</MudTh><MudTh>Client ID</MudTh><MudTh>Visible engagements</MudTh></HeaderContent>
+          <RowTemplate>
+            <MudTd DataLabel="Client"><strong>@context.Name</strong></MudTd>
+            <MudTd DataLabel="Client ID"><code>@context.Id</code></MudTd>
+            <MudTd DataLabel="Visible engagements">@context.Engagements</MudTd>
+          </RowTemplate>
+          <PagerContent><MudTablePager PageSizeOptions="[10, 25]" /></PagerContent>
+        </MudTable>
       }
-    </section>
+    </MudPaper>
   }
 
-  <section class="card" aria-labelledby="quick-routes-heading">
+  <MudPaper Class="pa-4 mb-4">
     <h2 id="quick-routes-heading">Practice & operational surfaces</h2>
-    <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
-      <a class="button" href="/app/practice/leads">Practice leads</a>
-      <a class="button" href="/app/practice/time">Time tracking & approvals</a>
-      <a class="button" href="/app/finance">Firm ledger & periods</a>
-      <a class="button" href="/app/accounting">Client accounting workspace</a>
-      <a class="button" href="/app/consolidation">Group consolidation</a>
-      <a class="button" href="/app/operations">Durable operations & recovery</a>
-      <a class="button" href="/app/administration">Firm administration</a>
-    </div>
-  </section>
+    <MudStack Row="true" Wrap="Wrap.Wrap" Spacing="2" Class="mt-2">
+      <MudButton Color="Color.Primary" Variant="Variant.Filled" Href="/app/practice/leads">Practice leads</MudButton>
+      <MudButton Color="Color.Primary" Variant="Variant.Filled" Href="/app/practice/time">Time tracking & approvals</MudButton>
+      <MudButton Color="Color.Primary" Variant="Variant.Filled" Href="/app/finance">Firm ledger & periods</MudButton>
+      <MudButton Color="Color.Primary" Variant="Variant.Filled" Href="/app/accounting">Client accounting workspace</MudButton>
+      <MudButton Color="Color.Primary" Variant="Variant.Filled" Href="/app/consolidation">Group consolidation</MudButton>
+      <MudButton Color="Color.Primary" Variant="Variant.Filled" Href="/app/operations">Durable operations & recovery</MudButton>
+      <MudButton Color="Color.Primary" Variant="Variant.Filled" Href="/app/administration">Firm administration</MudButton>
+    </MudStack>
+  </MudPaper>
 
-  <section class="card" aria-labelledby="candidate-title">
+  <MudPaper Class="pa-4 mb-4">
     <h2 id="candidate-title">Release candidates</h2>
     @if (!VisibleCandidates.Any())
     {
-      <p class="muted">No release candidates match the current scope and search.</p>
+      <MudAlert Severity="Severity.Info" Dense="true">No release candidates match the current scope and search.</MudAlert>
     }
     else
     {
-      <div class="table-wrap">
-        <table>
-          <caption class="sr-only">Release candidates in the current firm scope</caption>
-          <thead><tr><th scope="col">Client</th><th scope="col">Candidate</th><th scope="col">Revision</th><th scope="col">Status</th><th scope="col">Created</th><th scope="col"><span class="sr-only">Action</span></th></tr></thead>
-          <tbody>
-          @foreach (var candidate in VisibleCandidates)
-          {
-            <tr>
-              <td>@candidate.ClientName</td>
-              <td><code>@candidate.Id</code></td>
-              <td>@candidate.TargetRevision</td>
-              <td><span class="status">@candidate.Status</span></td>
-              <td>@candidate.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</td>
-              <td><a href="/app/releases/@candidate.Id">Open</a></td>
-            </tr>
-          }
-          </tbody>
-        </table>
-      </div>
+      <MudTable Items="VisibleCandidates.ToList()" Hover="true" Dense="true" Striped="true" Breakpoint="Breakpoint.Sm">
+        <HeaderContent><MudTh>Client</MudTh><MudTh>Candidate</MudTh><MudTh>Revision</MudTh><MudTh>Status</MudTh><MudTh>Created</MudTh><MudTh>Action</MudTh></HeaderContent>
+        <RowTemplate>
+          <MudTd DataLabel="Client">@context.ClientName</MudTd>
+          <MudTd DataLabel="Candidate"><code>@context.Id</code></MudTd>
+          <MudTd DataLabel="Revision">@context.TargetRevision</MudTd>
+          <MudTd DataLabel="Status"><StatusChip Status="@context.Status" /></MudTd>
+          <MudTd DataLabel="Created">@context.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</MudTd>
+          <MudTd DataLabel="Action"><MudLink Href="@($"/app/releases/{context.Id}")">Open</MudLink></MudTd>
+        </RowTemplate>
+        <PagerContent><MudTablePager PageSizeOptions="[10, 25]" /></PagerContent>
+      </MudTable>
     }
-  </section>
+  </MudPaper>
 
-  <section class="card" aria-labelledby="package-title">
+  <MudPaper Class="pa-4 mb-4">
     <h2 id="package-title">Financial-statement packages</h2>
     @if (!VisiblePackages.Any())
     {
-      <p class="muted">No financial-statement packages match the current scope and search.</p>
+      <MudAlert Severity="Severity.Info" Dense="true">No financial-statement packages match the current scope and search.</MudAlert>
     }
     else
     {
-      <div class="table-wrap">
-        <table>
-          <caption class="sr-only">Financial-statement packages in the current firm scope</caption>
-          <thead><tr><th scope="col">Client</th><th scope="col">Package</th><th scope="col">Framework</th><th scope="col">Period</th><th scope="col">Status</th><th scope="col"><span class="sr-only">Action</span></th></tr></thead>
-          <tbody>
-          @foreach (var package in VisiblePackages)
-          {
-            <tr>
-              <td>@package.ClientName</td>
-              <td><code>@package.Id</code></td>
-              <td>@package.Framework</td>
-              <td>@package.PeriodStart to @package.PeriodEnd</td>
-              <td><span class="status">@package.Status</span></td>
-              <td><a href="/app/accounting/packages/@package.Id">Open</a></td>
-            </tr>
-          }
-          </tbody>
-        </table>
-      </div>
+      <MudTable Items="VisiblePackages.ToList()" Hover="true" Dense="true" Striped="true" Breakpoint="Breakpoint.Sm">
+        <HeaderContent><MudTh>Client</MudTh><MudTh>Package</MudTh><MudTh>Framework</MudTh><MudTh>Period</MudTh><MudTh>Status</MudTh><MudTh>Action</MudTh></HeaderContent>
+        <RowTemplate>
+          <MudTd DataLabel="Client">@context.ClientName</MudTd>
+          <MudTd DataLabel="Package"><code>@context.Id</code></MudTd>
+          <MudTd DataLabel="Framework">@context.Framework</MudTd>
+          <MudTd DataLabel="Period">@context.PeriodStart to @context.PeriodEnd</MudTd>
+          <MudTd DataLabel="Status"><StatusChip Status="@context.Status" /></MudTd>
+          <MudTd DataLabel="Action"><MudLink Href="@($"/app/accounting/packages/{context.Id}")">Open</MudLink></MudTd>
+        </RowTemplate>
+        <PagerContent><MudTablePager PageSizeOptions="[10, 25]" /></PagerContent>
+      </MudTable>
     }
-  </section>
+  </MudPaper>
 }
 
 @code {

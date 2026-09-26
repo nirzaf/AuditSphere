@@ -8,16 +8,19 @@
 @inject IDbContextFactory<AuditSphereDbContext> DbFactory
 
 <PageTitle>Time & work records</PageTitle>
-<a class="back-link" href="/app">← Back to portfolio</a>
-<h1>Practice time & task records</h1>
+<MudLink Href="/app" Class="back-link mb-2 d-inline-block">← Back to portfolio</MudLink>
+<PageHeader Title="Practice time &amp; task records" Description="Time entries are recorded against assigned firm tasks with exact integer minutes, immutable rate snapshots, and independent approval segregation." />
 
 @if (_loading)
 {
-  <p role="status">Loading time records…</p>
+  <LoadingState IsLoading="true" LoadingMessage="Loading time records…" />
 }
 else if (_actor is null || !_isStaff)
 {
-  <section class="notice" role="alert"><h2>Access unavailable</h2><p>Sign in with an authorized internal staff identity to view and record time.</p></section>
+  <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="notice my-4" role="alert">
+    <h2>Access unavailable</h2>
+    <MudText Typo="Typo.body2">Sign in with an authorized internal staff identity to view and record time.</MudText>
+  </MudAlert>
 }
 else
 {
@@ -52,11 +55,11 @@ else
         Due date <span class="optional-label">(optional)</span>
         <input class="input" type="date" @bind="_taskDueDate" data-optional="true" disabled="@_busy" title="Persist the agreed deadline; leave blank when no deadline has been recorded." />
       </label>
-      <button class="button" type="submit" disabled="@_busy">Create task</button>
+      <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button" ButtonType="ButtonType.Submit" Disabled="@_busy">Create task</MudButton>
     </form>
   </section>
 
-  <section class="card" aria-labelledby="log-heading">
+  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="log-heading" role="region">
     <h2 id="log-heading">Record time draft</h2>
     @if (_availableTasks.Count == 0)
     {
@@ -102,106 +105,84 @@ else
           Narrative (optional)
           <textarea class="input" @bind="_narrative" rows="2" placeholder="Summary of work performed" disabled="@_busy" data-optional="true"></textarea>
         </label>
-        <button class="button" type="submit" disabled="@_busy">Save time draft</button>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button" ButtonType="ButtonType.Submit" Disabled="@_busy">Save time draft</MudButton>
       </form>
     }
-  </section>
+  </MudPaper>
 
-  <section class="card" aria-labelledby="my-time-heading">
+  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="my-time-heading" role="region">
     <h2 id="my-time-heading">My recorded time</h2>
     @if (_myEntries.Count == 0)
     {
-      <p class="muted">You have not recorded any time entries in the current firm scope.</p>
+      <MudText Typo="Typo.body2" Color="Color.Secondary" Class="muted">You have not recorded any time entries in the current firm scope.</MudText>
     }
     else
     {
       <div class="table-wrap">
-        <table>
-          <caption class="sr-only">My recorded time entries</caption>
-          <thead>
-            <tr>
-              <th scope="col">Date</th>
-              <th scope="col">Task</th>
-              <th scope="col">Duration</th>
-              <th scope="col">Classification</th>
-              <th scope="col">Status</th>
-              <th scope="col"><span class="sr-only">Actions</span></th>
-            </tr>
-          </thead>
-          <tbody>
-          @foreach (var entry in _myEntries)
-          {
-            var taskTitle = _taskMap.TryGetValue(entry.TaskId, out var t) ? t : entry.TaskId.ToString();
-            <tr>
-              <td>@entry.WorkDate.ToString("yyyy-MM-dd")</td>
-              <td>@taskTitle</td>
-              <td>@(entry.DurationMinutes)m (@((entry.DurationMinutes / 60.0).ToString("0.0"))h)</td>
-              <td>@entry.BillableClassification</td>
-              <td><span class="status">@entry.Status</span></td>
-              <td>
-                @if (entry.Status == PracticeTimeStates.TimeDraft)
+        <MudTable Items="_myEntries" Dense="true" Hover="true" Elevation="0">
+  <HeaderContent><MudTh scope="col">Date</MudTh>
+              <MudTh scope="col">Task</MudTh>
+              <MudTh scope="col">Duration</MudTh>
+              <MudTh scope="col">Classification</MudTh>
+              <MudTh scope="col">Status</MudTh>
+              <MudTh scope="col"><span class="sr-only">Actions</span></MudTh></HeaderContent>
+  <RowTemplate>
+            @{ var taskTitle = _taskMap.TryGetValue(context.TaskId, out var t) ? t : context.TaskId.ToString(); }
+              <MudTd>@context.WorkDate.ToString("yyyy-MM-dd")</MudTd>
+              <MudTd>@taskTitle</MudTd>
+              <MudTd>@(context.DurationMinutes)m (@((context.DurationMinutes / 60.0).ToString("0.0"))h)</MudTd>
+              <MudTd>@context.BillableClassification</MudTd>
+              <MudTd><StatusChip Status="@context.Status" /></MudTd>
+              <MudTd>
+                @if (context.Status == PracticeTimeStates.TimeDraft)
                 {
-                  <button class="button small" @onclick="() => SubmitTimeAsync(entry.Id)" disabled="@_busy">Submit</button>
+                  <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button small" OnClick="() => SubmitTimeAsync(context.Id)" Disabled="@_busy" Size="Size.Small">Submit</MudButton>
                 }
                 else
                 {
-                  <span class="muted">@entry.Status</span>
+                  <span class="muted">@context.Status</span>
                 }
-              </td>
-            </tr>
-          }
-          </tbody>
-        </table>
+              </MudTd></RowTemplate>
+</MudTable>
       </div>
     }
-  </section>
+  </MudPaper>
 
   @if (_isApprover)
   {
-    <section class="card" aria-labelledby="queue-heading">
+    <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="queue-heading" role="region">
       <h2 id="queue-heading">Time approval queue</h2>
       <p class="scope-note">Independent approval segregation: managers and partners cannot approve their own time entries.</p>
       @if (_submittedEntries.Count == 0)
       {
-        <p class="muted">No pending submitted time entries awaiting approval.</p>
+        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="muted">No pending submitted time entries awaiting approval.</MudText>
       }
       else
       {
         <div class="table-wrap">
-          <table>
-            <caption class="sr-only">Submitted time entries awaiting approval</caption>
-            <thead>
-              <tr>
-                <th scope="col">Date</th>
-                <th scope="col">Staff User</th>
-                <th scope="col">Task</th>
-                <th scope="col">Duration</th>
-                <th scope="col">Activity</th>
-                <th scope="col">Narrative</th>
-                <th scope="col"><span class="sr-only">Action</span></th>
-              </tr>
-            </thead>
-            <tbody>
-            @foreach (var entry in _submittedEntries)
-            {
-              var taskTitle = _taskMap.TryGetValue(entry.TaskId, out var t) ? t : entry.TaskId.ToString();
-              <tr>
-                <td>@entry.WorkDate.ToString("yyyy-MM-dd")</td>
-                <td><code>@entry.UserId</code></td>
-                <td>@taskTitle</td>
-                <td>@(entry.DurationMinutes)m</td>
-                <td>@entry.Activity</td>
-                <td>@entry.Narrative</td>
-                <td>
-                  <button class="button small" @onclick="() => ApproveTimeAsync(entry.Id)" disabled="@_busy">Approve</button>
-                </td>
-              </tr>
-            }
-            </tbody>
-          </table>
+          <MudTable Items="_submittedEntries" Dense="true" Hover="true" Elevation="0">
+  <HeaderContent><MudTh scope="col">Date</MudTh>
+                <MudTh scope="col">Staff User</MudTh>
+                <MudTh scope="col">Task</MudTh>
+                <MudTh scope="col">Duration</MudTh>
+                <MudTh scope="col">Activity</MudTh>
+                <MudTh scope="col">Narrative</MudTh>
+                <MudTh scope="col"><span class="sr-only">Action</span></MudTh></HeaderContent>
+  <RowTemplate>
+            @{ var taskTitle = _taskMap.TryGetValue(context.TaskId, out var t) ? t : context.TaskId.ToString(); }
+                <MudTd>@context.WorkDate.ToString("yyyy-MM-dd")</MudTd>
+                <MudTd><code>@context.UserId</code></MudTd>
+                <MudTd>@taskTitle</MudTd>
+                <MudTd>@(context.DurationMinutes)m</MudTd>
+                <MudTd>@context.Activity</MudTd>
+                <MudTd>@context.Narrative</MudTd>
+                <MudTd>
+                  <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button small" OnClick="() => ApproveTimeAsync(context.Id)" Disabled="@_busy" Size="Size.Small">Approve</MudButton>
+                </MudTd></RowTemplate>
+</MudTable>
         </div>
       }
-    </section>
+    </MudPaper>
   }
 }
 

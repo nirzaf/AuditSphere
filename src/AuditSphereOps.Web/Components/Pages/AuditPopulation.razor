@@ -15,32 +15,32 @@
         <a href="/app">Portfolio</a> /
         <span>Population</span>
     </nav>
-    <h1>Population Record</h1>
+    <PageHeader Title="Population Record" Description="Scoped audit population rows, sampling evidence, and objective-level progression." />
     <span class="status-badge badge-blue">@(_population?.Status)</span>
 </div>
 
 @if (_loading)
 {
-    <p role="status">Loading…</p>
+    <LoadingState IsLoading="true" LoadingMessage="Loading…" />
 }
 else if (_actor is null)
 {
-    <section class="notice" role="alert">
+    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="notice my-4" role="alert">
         <h2>Sign in required</h2>
         <p>An authenticated staff session is required to view a population.</p>
-    </section>
+    </MudAlert>
 }
 else if (_population is null)
 {
-    <section class="notice" role="alert">
+    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="notice my-4" role="alert">
         <h2>Population unavailable</h2>
         <p>The requested population is unavailable in your current scope.</p>
-    </section>
+    </MudAlert>
 }
 else
 {
     <div class="population-shell">
-        <section class="card">
+        <MudPaper Class="pa-4 my-4" Elevation="1">
             <h2>Population Details (§20.1)</h2>
             <dl class="detail-grid">
                 <dt>Purpose</dt><dd>@_population.Purpose</dd>
@@ -53,9 +53,9 @@ else
                 <dt>Status</dt><dd>@_population.Status</dd>
                 <dt>Extracted</dt><dd>@_population.CreatedAt.ToUniversalTime().ToString("yyyy-MM-dd HH:mm") UTC</dd>
             </dl>
-        </section>
+        </MudPaper>
 
-        <section class="card">
+        <MudPaper Class="pa-4 my-4" Elevation="1">
             <h2>Selections and test results</h2>
             @if (_selections.Count == 0)
             {
@@ -64,30 +64,20 @@ else
             else
             {
                 <div class="table-wrap">
-                    <table class="data-table">
-                        <caption class="sr-only">Selections and item-test review status</caption>
-                        <thead>
-                            <tr><th scope="col">Method</th><th scope="col">Status</th><th scope="col">Items</th><th scope="col">Tests</th><th scope="col">Reviewed tests</th><th scope="col">Rationale</th></tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var selection in _selections)
-                            {
-                                <tr>
-                                    <td>@selection.Method</td>
-                                    <td>@selection.Status</td>
-                                    <td>@selection.ItemCount</td>
-                                    <td>@selection.TestCount</td>
-                                    <td>@selection.ReviewedTestCount</td>
-                                    <td>@selection.Rationale</td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
+                    <MudTable Items="_selections" Dense="true" Hover="true" Elevation="0" Class="data-table">
+  <HeaderContent><MudTh scope="col">Method</MudTh><MudTh scope="col">Status</MudTh><MudTh scope="col">Items</MudTh><MudTh scope="col">Tests</MudTh><MudTh scope="col">Reviewed tests</MudTh><MudTh scope="col">Rationale</MudTh></HeaderContent>
+  <RowTemplate>                                    <MudTd>@context.Method</MudTd>
+                                    <MudTd>@context.Status</MudTd>
+                                    <MudTd>@context.ItemCount</MudTd>
+                                    <MudTd>@context.TestCount</MudTd>
+                                    <MudTd>@context.ReviewedTestCount</MudTd>
+                                    <MudTd>@context.Rationale</MudTd></RowTemplate>
+</MudTable>
                 </div>
             }
-        </section>
+        </MudPaper>
 
-        <section class="card">
+        <MudPaper Class="pa-4 my-4" Elevation="1">
             <h2>Linked evidence</h2>
             @if (_evidence.Count == 0)
             {
@@ -105,7 +95,7 @@ else
                     }
                 </ul>
             }
-        </section>
+        </MudPaper>
     </div>
 }
 

@@ -1,15 +1,31 @@
 @page "/"
 
 <PageTitle>AuditSphereOps</PageTitle>
-<section class="hero" aria-labelledby="home-title">
-  <p class="eyebrow">Audit, accounting &amp; assurance operations</p>
+<MudContainer MaxWidth="MaxWidth.Large" Class="hero py-8" aria-labelledby="home-title">
+  <MudText Typo="Typo.overline" Color="Color.Secondary" Class="font-weight-bold">Audit, accounting &amp; assurance operations</MudText>
   <h1 id="home-title">Controlled work, visible evidence.</h1>
-  <p class="lede">A scoped professional operations shell. Identity, database state, approvals and release gates are checked at the command boundary.</p>
-  <a class="button" href="/app">Open portfolio</a>
-</section>
+  <MudText Typo="Typo.body1" Class="lede mb-4">A scoped professional operations shell. Identity, database state, approvals and release gates are checked at the command boundary.</MudText>
+  <MudButton Color="Color.Primary" Variant="Variant.Filled" Href="/app">Open portfolio</MudButton>
+</MudContainer>
 
-<section class="card-grid" aria-label="Operating principles">
-  <article class="card"><h2>Scoped</h2><p>Firm, client and engagement context is resolved from authenticated records.</p></article>
-  <article class="card"><h2>Version-bound</h2><p>Approvals and releases reference exact revisions, generations and manifests.</p></article>
-  <article class="card"><h2>Fail closed</h2><p>Missing identity, stale inputs and unverified external state block protected commands.</p></article>
-</section>
+<MudGrid Spacing="3" aria-label="Operating principles" Class="mt-4">
+  <MudItem xs="12" md="4">
+    <MudPaper Class="pa-4 h-100" Elevation="1">
+      <h2>Scoped</h2>
+      <MudText Typo="Typo.body2">Firm, client and engagement context is resolved from authenticated records.</MudText>
+    </MudPaper>
+  </MudItem>
+  <MudItem xs="12" md="4">
+    <MudPaper Class="pa-4 h-100" Elevation="1">
+      <h2>Version-bound</h2>
+      <MudText Typo="Typo.body2">Approvals and releases reference exact revisions, generations and manifests.</MudText>
+    </MudPaper>
+  </MudItem>
+  <MudItem xs="12" md="4">
+    <MudPaper Class="pa-4 h-100" Elevation="1">
+      <h2>Fail closed</h2>
+      <MudText Typo="Typo.body2">Missing identity, stale inputs and unverified external state block protected commands.</MudText>
+    </MudPaper>
+  </MudItem>
+</MudGrid>
+

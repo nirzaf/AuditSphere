@@ -1,39 +1,56 @@
 @inherits LayoutComponentBase
 
+<MudThemeProvider Theme="@_theme" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
 <a class="skip-link" href="#main-content">Skip to main content</a>
-<div class="shell">
-  <header class="topbar">
-    <a class="brand" href="/">AuditSphereOps</a>
-    <span class="environment">@EnvironmentLabel</span>
-  </header>
-  <div class="shell-body">
-    <nav aria-label="Primary navigation" class="sidebar">
-      <a href="/app">Portfolio</a>
-      <a href="/app/practice/leads">Leads</a>
-      <a href="/app/practice/time">Time</a>
-      <a href="/app/finance">Finance</a>
-      <a href="/app/accounting">Accounting workspace</a>
-      <a href="/app/accounting/evidence">Accounting evidence</a>
-      <a href="/app/accounting/mappings">COA and mappings</a>
-      <a href="/app/accounting/journals">Adjustments</a>
-      <a href="/app/accounting/differences">Differences</a>
-      <a href="/app/accounting/rollforward">Period roll-forward</a>
-      <a href="/app/accounting/reviews">Package reviews</a>
-      <a href="/app/accounting/restatements">Period restatements</a>
-      <a href="/app/consolidation">Consolidation</a>
-      <a href="/app/operations">Operations</a>
-      <a href="/app/administration">Administration</a>
-      <a href="/portal">Client portal</a>
-      <a href="/health/ready">Readiness</a>
-    </nav>
-    <main class="content" id="main-content">
-      <AccountingNavigation />
-      @Body
-    </main>
-  </div>
-</div>
+<MudLayout>
+  <MudAppBar Elevation="1">
+    <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start"
+                   OnClick="@ToggleDrawer" aria-label="Toggle navigation" />
+    <MudLink Href="/" Color="Color.Inherit" Typo="Typo.h6" Underline="Underline.None">AuditSphereOps</MudLink>
+    <MudText Typo="Typo.body2" Class="ml-2" Style="opacity:.75">@EnvironmentLabel</MudText>
+  </MudAppBar>
+  <MudDrawer @bind-Open="_drawerOpen" ClipMode="DrawerClipMode.Always" Elevation="1" Variant="DrawerVariant.Responsive">
+    <MudNavMenu aria-label="Primary navigation">
+      <MudNavLink Href="/app" Match="NavLinkMatch.Prefix">Portfolio</MudNavLink>
+      <MudNavLink Href="/app/practice/leads">Leads</MudNavLink>
+      <MudNavLink Href="/app/practice/time">Time</MudNavLink>
+      <MudNavLink Href="/app/finance">Finance</MudNavLink>
+      <MudNavGroup Title="Accounting" Expanded="false">
+        <MudNavLink Href="/app/accounting">Accounting workspace</MudNavLink>
+        <MudNavLink Href="/app/accounting/evidence">Accounting evidence</MudNavLink>
+        <MudNavLink Href="/app/accounting/mappings">COA and mappings</MudNavLink>
+        <MudNavLink Href="/app/accounting/journals">Adjustments</MudNavLink>
+        <MudNavLink Href="/app/accounting/differences">Differences</MudNavLink>
+        <MudNavLink Href="/app/accounting/rollforward">Period roll-forward</MudNavLink>
+        <MudNavLink Href="/app/accounting/reviews">Package reviews</MudNavLink>
+        <MudNavLink Href="/app/accounting/restatements">Period restatements</MudNavLink>
+      </MudNavGroup>
+      <MudNavLink Href="/app/consolidation">Consolidation</MudNavLink>
+      <MudNavLink Href="/app/operations">Operations</MudNavLink>
+      <MudNavLink Href="/app/administration">Administration</MudNavLink>
+      <MudNavLink Href="/portal">Client portal</MudNavLink>
+      <MudNavLink Href="/health/ready">Readiness</MudNavLink>
+    </MudNavMenu>
+  </MudDrawer>
+  <MudMainContent>
+    <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="py-6">
+      <main id="main-content">
+        <AccountingNavigation />
+        @Body
+      </main>
+    </MudContainer>
+  </MudMainContent>
+</MudLayout>
 
 @code {
   [Inject] private IConfiguration Configuration { get; set; } = default!;
+  private readonly MudTheme _theme = Theme.AuditSphereTheme.Create();
+  private bool _drawerOpen = true;
   private string EnvironmentLabel => Configuration["ASPNETCORE_ENVIRONMENT"] ?? "Development";
+  private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
 }
+

@@ -5,76 +5,80 @@
 @inject IDbContextFactory<AuditSphereDbContext> DbFactory
 
 <PageTitle>Client portal</PageTitle>
-<h1>Client portal</h1>
+<PageHeader Title="Client portal" Description="Restricted client workspace. This view contains assigned PBC requests and transfer receipts only. Internal risk, review and workpaper content is not exposed." />
 
 @if (_loading)
 {
-  <p role="status">Loading assigned requests…</p>
+  <LoadingState IsLoading="true" LoadingMessage="Loading assigned requests…" />
 }
 else if (_actor is null || !_clientIds.Any())
 {
-  <section class="notice" role="alert"><h2>Portal unavailable</h2><p>An authenticated client identity with an active assigned engagement is required.</p></section>
+  <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="notice my-4" role="alert">
+    <h2>Portal unavailable</h2>
+    <MudText Typo="Typo.body2">An authenticated client identity with an active assigned engagement is required.</MudText>
+  </MudAlert>
 }
 else
 {
   <p class="scope-note">This restricted view contains assigned PBC requests and transfer receipts only. Internal risk, review and workpaper content is not exposed.</p>
-  <section class="card" aria-labelledby="client-pbc-heading">
+  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="client-pbc-heading" role="region">
     <h2 id="client-pbc-heading">Requests</h2>
     @if (_requests.Count == 0)
     {
-      <p class="muted">No requests are assigned to this client identity.</p>
+      <MudText Typo="Typo.body2" Color="Color.Secondary" Class="muted">No requests are assigned to this client identity.</MudText>
     }
     else
     {
-      <div class="table-wrap">
-        <table>
-          <caption class="sr-only">Assigned PBC requests</caption>
-          <thead><tr><th scope="col">Area</th><th scope="col">Period</th><th scope="col">Due</th><th scope="col">State</th><th scope="col"><span class="sr-only">Action</span></th></tr></thead>
-          <tbody>
-          @foreach (var request in _requests)
-          {
-            <tr>
-              <td>@request.Area</td>
-              <td>@request.PeriodStart to @request.PeriodEnd</td>
-              <td>@request.DueDate</td>
-              <td><span class="status">@request.State</span></td>
-              <td><a href="/portal/requests/@request.Id">Open</a></td>
-            </tr>
-          }
-          </tbody>
-        </table>
-      </div>
+      <MudTable Items="_requests" Dense="true" Hover="true" Elevation="0">
+        <HeaderContent>
+          <MudTh>Area</MudTh>
+          <MudTh>Period</MudTh>
+          <MudTh>Due</MudTh>
+          <MudTh>State</MudTh>
+          <MudTh><span class="sr-only">Action</span></MudTh>
+        </HeaderContent>
+        <RowTemplate>
+          <MudTd DataLabel="Area">@context.Area</MudTd>
+          <MudTd DataLabel="Period">@context.PeriodStart to @context.PeriodEnd</MudTd>
+          <MudTd DataLabel="Due">@context.DueDate</MudTd>
+          <MudTd DataLabel="State"><StatusChip Status="@context.State" /></MudTd>
+          <MudTd DataLabel="Action"><MudLink Href="@($"/portal/requests/{context.Id}")">Open</MudLink></MudTd>
+        </RowTemplate>
+        <PagerContent>
+          <MudTablePager PageSizeOptions="new int[] { 10, 25, 50 }" />
+        </PagerContent>
+      </MudTable>
     }
-  </section>
+  </MudPaper>
 
-  <section class="card" aria-labelledby="client-packages-heading">
+  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="client-packages-heading" role="region">
     <h2 id="client-packages-heading">Financial packages for management review</h2>
     <p class="scope-note">These are validated packages explicitly shared with this client identity. This view does not expose internal audit workpapers or review decisions.</p>
     @if (_packages.Count == 0)
     {
-      <p class="muted">No validated financial packages are available for this identity.</p>
+      <MudText Typo="Typo.body2" Color="Color.Secondary" Class="muted">No validated financial packages are available for this identity.</MudText>
     }
     else
     {
-      <div class="table-wrap">
-        <table>
-          <caption class="sr-only">Validated financial packages available for management review</caption>
-          <thead><tr><th scope="col">Framework</th><th scope="col">Period</th><th scope="col">Currency</th><th scope="col"><span class="sr-only">Action</span></th></tr></thead>
-          <tbody>
-          @foreach (var package in _packages)
-          {
-            <tr>
-              <td>@package.Framework</td>
-              <td>@package.PeriodStart to @package.PeriodEnd</td>
-              <td><code>@package.Currency</code></td>
-              <td><a href="/portal/accounting/packages/@package.Id">Open package</a></td>
-            </tr>
-          }
-          </tbody>
-        </table>
-      </div>
+      <MudTable Items="_packages" Dense="true" Hover="true" Elevation="0">
+        <HeaderContent>
+          <MudTh>Framework</MudTh>
+          <MudTh>Period</MudTh>
+          <MudTh>Currency</MudTh>
+          <MudTh><span class="sr-only">Action</span></MudTh>
+        </HeaderContent>
+        <RowTemplate>
+          <MudTd DataLabel="Framework">@context.Framework</MudTd>
+          <MudTd DataLabel="Period">@context.PeriodStart to @context.PeriodEnd</MudTd>
+          <MudTd DataLabel="Currency"><code>@context.Currency</code></MudTd>
+          <MudTd DataLabel="Action"><MudLink Href="@($"/portal/accounting/packages/{context.Id}")">Open package</MudLink></MudTd>
+        </RowTemplate>
+        <PagerContent>
+          <MudTablePager PageSizeOptions="new int[] { 10, 25, 50 }" />
+        </PagerContent>
+      </MudTable>
     }
-  </section>
+  </MudPaper>
 }
 
 @code {

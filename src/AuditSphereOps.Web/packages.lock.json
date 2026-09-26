@@ -34,6 +34,12 @@
           "Newtonsoft.Json": "13.0.4"
         }
       },
+      "MudBlazor": {
+        "type": "Direct",
+        "requested": "[9.10.0, )",
+        "resolved": "9.10.0",
+        "contentHash": "1TzwlootgzINmTBJn03YAF8GStLz73oLQff383MSDIQexjhPnlryatsynYSvnQ9TJmUfAJo0wsnufyGY76oXOw=="
+      },
       "Npgsql.EntityFrameworkCore.PostgreSQL": {
         "type": "Direct",
         "requested": "[10.0.0, )",

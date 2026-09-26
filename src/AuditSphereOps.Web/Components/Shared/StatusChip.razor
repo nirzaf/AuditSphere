@@ -1,0 +1,30 @@
+@* Centralized status presentation: text + color + icon so status is never color-only. *@
+<MudChip T="string" Color="@ChipColor" Variant="Variant.Outlined" Size="Size.Small" Icon="@ChipIcon">@Status</MudChip>
+
+@code {
+  [Parameter, EditorRequired] public string Status { get; set; } = string.Empty;
+
+  private Color ChipColor => Status.ToUpperInvariant() switch
+  {
+    "DRAFT" or "LEADNEW" or "NEW" or "PENDING" or "OPEN" or "SUBMITTED" or "AWAITING REVIEW" or "IN PROGRESS" or "INPROGRESS"
+      => Color.Info,
+    "APPROVED" or "ACTIVE" or "READY" or "ISSUED" or "COMPLETED" or "QUALIFIED" or "VERIFIED" or "REVIEW COMPLETE"
+      => Color.Success,
+    "REJECTED" or "BLOCKED" or "CANCELLED" or "VOID" or "FAILED" or "DENIED" or "UNAVAILABLE"
+      => Color.Error,
+    "LOCKED" or "SUPERSEDED" or "ON HOLD" or "HOLD" or "STALE" or "EXPIRED"
+      => Color.Warning,
+    _ => Color.Default,
+  };
+
+  private string ChipIcon => Status.ToUpperInvariant() switch
+  {
+    "APPROVED" or "ACTIVE" or "READY" or "ISSUED" or "COMPLETED" or "QUALIFIED" or "VERIFIED" or "REVIEW COMPLETE"
+      => Icons.Material.Filled.CheckCircle,
+    "REJECTED" or "BLOCKED" or "CANCELLED" or "VOID" or "FAILED" or "DENIED" or "UNAVAILABLE"
+      => Icons.Material.Filled.Block,
+    "LOCKED" or "SUPERSEDED" or "ON HOLD" or "HOLD" or "STALE" or "EXPIRED"
+      => Icons.Material.Filled.Lock,
+    _ => Icons.Material.Filled.Info,
+  };
+}

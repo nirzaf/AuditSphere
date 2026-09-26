@@ -18,33 +18,33 @@
         <a href="/app">Portfolio</a> /
         <span>Finding</span>
     </nav>
-    <h1>Audit Finding</h1>
+    <PageHeader Title="Audit Finding" Description="Finding condition, criteria, cause, and effect bound to the exact engagement evidence." />
     <span class="status-badge @(_finding?.Corrected == true ? "badge-green" : "badge-red")">@(_finding?.Status)</span>
 </div>
 
 @if (_loading)
 {
-    <p role="status">Loading…</p>
+    <LoadingState IsLoading="true" LoadingMessage="Loading…" />
 }
 else if (_actor is null)
 {
-    <section class="notice" role="alert">
+    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="notice my-4" role="alert">
         <h2>Sign in required</h2>
         <p>An authenticated staff session is required to view a finding.</p>
-    </section>
+    </MudAlert>
 }
 else if (_finding is null)
 {
-    <section class="notice" role="alert">
+    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="notice my-4" role="alert">
         <h2>Finding unavailable</h2>
         <p>The requested finding is unavailable in your current scope.</p>
-    </section>
+    </MudAlert>
 }
 else
 {
     <div class="finding-shell">
 
-        <section class="card">
+        <MudPaper Class="pa-4 my-4" Elevation="1">
             <h2>Finding Details (§23)</h2>
             <dl class="detail-grid">
                 <dt>Type</dt><dd>@_finding.FindingType</dd>
@@ -54,9 +54,9 @@ else
                 <dt>Status</dt><dd>@_finding.Status</dd>
                 <dt>Raised</dt><dd>@_finding.CreatedAt.ToUniversalTime().ToString("yyyy-MM-dd HH:mm") UTC</dd>
             </dl>
-        </section>
+        </MudPaper>
 
-        <section class="card">
+        <MudPaper Class="pa-4 my-4" Elevation="1">
             <h2>Management Response &amp; Action</h2>
             @if (_finding.ManagementResponse is not null)
             {
@@ -66,9 +66,9 @@ else
             {
                 <p class="empty-state">No management response has been recorded.</p>
             }
-        </section>
+        </MudPaper>
 
-        <section class="card">
+        <MudPaper Class="pa-4 my-4" Elevation="1">
             <h2>Record Management Response</h2>
             <div class="form-group">
                 <label for="mgmt-response">Management response</label>
@@ -78,14 +78,14 @@ else
                 <input type="checkbox" @bind="_draftCorrected" data-optional="true" />
                 Management corrected the matter within the period under audit (optional)
             </label>
-            <button class="btn-primary" @onclick="RecordResponseAsync" disabled="@(_busy || _engagement?.ProfessionalWorkBlocked == true)">
+            <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="btn-primary" OnClick="RecordResponseAsync" Disabled="@(_busy || _engagement?.ProfessionalWorkBlocked == true)">
                 Record response
-            </button>
+            </MudButton>
             <p class="notice-text">
                 Correction inside the audited period and future-period remediation are tracked separately;
                 filing a response here does not state an audit conclusion.
             </p>
-        </section>
+        </MudPaper>
 
         @if (_result is not null)
         {

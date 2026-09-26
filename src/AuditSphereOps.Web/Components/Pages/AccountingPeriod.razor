@@ -9,31 +9,40 @@
 @inject ILogger<AccountingPeriod> Logger
 
 <PageTitle>Accounting period</PageTitle>
-<a class="back-link" href="/app/accounting">← Back to accounting workspace</a>
-<h1>Accounting period</h1>
-<button class="button-secondary" title="Clear this period and verify your current client grant before reloading it." @onclick="LoadPeriodAsync" disabled="@_loading">Refresh period</button>
+<MudLink Href="/app/accounting" Class="back-link mb-2 d-inline-block">← Back to accounting workspace</MudLink>
+<PageHeader Title="Accounting period" Description="This page is a read-only exact-record view. Opening a period does not broaden client or engagement authorization." />
+<MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button-secondary" OnClick="LoadPeriodAsync" Disabled="@_loading">Refresh period</MudButton>
 
 @if (_loading)
 {
-  <p role="status">Loading scoped period…</p>
+  <LoadingState IsLoading="true" LoadingMessage="Loading scoped period…" />
 }
 else if (_error is not null)
 {
-  <section class="notice" role="alert"><h2>Period unavailable</h2><p>@_error</p></section>
+  <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="notice my-4" role="alert">
+    <h2>Period unavailable</h2>
+    <MudText Typo="Typo.body2">@_error</MudText>
+  </MudAlert>
 }
 else if (_actor is null || !_authorized)
 {
-  <section class="notice" role="alert"><h2>Access unavailable</h2><p>This period is not visible under the current accounting grant.</p></section>
+  <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="notice my-4" role="alert">
+    <h2>Access unavailable</h2>
+    <MudText Typo="Typo.body2">This period is not visible under the current accounting grant.</MudText>
+  </MudAlert>
 }
 else if (_period is null)
 {
-  <section class="notice" role="alert"><h2>Period not found</h2><p>The requested period is not available in the current firm scope.</p></section>
+  <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="notice my-4" role="alert">
+    <h2>Period not found</h2>
+    <MudText Typo="Typo.body2">The requested period is not available in the current firm scope.</MudText>
+  </MudAlert>
 }
 else
 {
   <p class="scope-note">This page is a read-only exact-record view. Opening a period does not broaden client or engagement authorization.</p>
 
-  <section class="card" aria-labelledby="period-heading">
+  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="period-heading" role="region">
     <h2 id="period-heading">@_period.ClientName · @_period.PeriodCode</h2>
     <dl class="details">
       <dt>Legal entity</dt><dd>@_period.ClientName</dd>
@@ -42,15 +51,15 @@ else
       <dt>Basis</dt><dd>@_period.Basis</dd>
       <dt>Book</dt><dd>@_period.Book</dd>
       <dt>Currency</dt><dd><code>@_period.Currency</code></dd>
-      <dt>Status</dt><dd><span class="status">@_period.Status</span></dd>
+      <dt>Status</dt><dd><StatusChip Status="@_period.Status" /></dd>
       <dt>Revision</dt><dd>@_period.Revision</dd>
       <dt>Prior period</dt><dd>@(_period.PriorPeriodId?.ToString() ?? "Not recorded")</dd>
       <dt>Latest package</dt><dd>@(_period.PackageLabel ?? "Not recorded")</dd>
       <dt>Latest mapping</dt><dd>@(_period.MappingLabel ?? "Not recorded")</dd>
     </dl>
-  </section>
+  </MudPaper>
 
-  <section class="card" aria-labelledby="workflow-heading">
+  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="workflow-heading" role="region">
     <h2 id="workflow-heading">Workflow handoffs</h2>
     @if (_task is not null)
     {
@@ -62,26 +71,26 @@ else
     }
     else if (_task is null)
     {
-      <p class="muted">No open PBC request is linked to this period. No task owner or due date is invented.</p>
+      <MudText Typo="Typo.body2" Color="Color.Secondary" Class="muted">No open PBC request is linked to this period. No task owner or due date is invented.</MudText>
     }
-    <div class="action-bar">
+    <div class="action-bar" style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
       @if (_period.PackageId is { } packageId)
       {
-        <a class="button" href="@($"/app/accounting/packages/{packageId}")" title="Open the exact financial package for this period">Open package</a>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" Href="@($"/app/accounting/packages/{packageId}")" Class="button">Open package</MudButton>
       }
       @if (_period.MappingId is { } mappingId)
       {
-        <a class="button" href="@($"/app/accounting/mappings/{mappingId}")" title="Open the exact mapping version for this period">Open mapping</a>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" Href="@($"/app/accounting/mappings/{mappingId}")" Class="button">Open mapping</MudButton>
       }
       @if (_pbc is not null)
       {
-        <a class="button" href="@($"/app/engagements/{_pbc.EngagementId}/pbc")" title="Open the persisted PBC request and its evidence handoff">Open PBC request</a>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" Href="@($"/app/engagements/{_pbc.EngagementId}/pbc")" Class="button">Open PBC request</MudButton>
       }
-      <a class="button" href="/app/accounting/evidence" title="Open scoped TB, GL and account-area evidence for this accounting workspace">Open evidence</a>
-      <a class="button" href="/app/accounting/rollforward" title="Create a new draft period with explicit opening-balance evidence">Roll forward</a>
-      <a class="button" href="/app/accounting/restatements" title="Review authorized amendments without rewriting this period's history">Restatements</a>
+      <MudButton Color="Color.Primary" Variant="Variant.Filled" Href="/app/accounting/evidence" Class="button">Open evidence</MudButton>
+      <MudButton Color="Color.Primary" Variant="Variant.Filled" Href="/app/accounting/rollforward" Class="button">Roll forward</MudButton>
+      <MudButton Color="Color.Primary" Variant="Variant.Filled" Href="/app/accounting/restatements" Class="button">Restatements</MudButton>
     </div>
-  </section>
+  </MudPaper>
 }
 
 @code {

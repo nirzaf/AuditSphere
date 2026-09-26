@@ -1,9 +1,10 @@
 @page "/auth/access-not-assigned"
 
 <PageTitle>Access not assigned</PageTitle>
-<section class="notice" role="status" aria-labelledby="access-heading">
+<MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="notice my-4" role="status" aria-labelledby="access-heading">
   <h1 id="access-heading">Access not assigned</h1>
-  <p>Your Microsoft identity was authenticated, but AuditSphere has no active local role for it.</p>
-  <p class="muted">Ask an authorized firm administrator to assign the correct staff or client scope. Forwarding an invitation link cannot grant access.</p>
-  <a class="button" href="/auth/sign-out" title="End the current Microsoft-backed AuditSphere session">Sign out</a>
-</section>
+  <MudText Typo="Typo.body2">Your Microsoft identity was authenticated, but AuditSphere has no active local role for it.</MudText>
+  <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-1">Ask an authorized firm administrator to assign the correct staff or client scope. Forwarding an invitation link cannot grant access.</MudText>
+  <MudButton Color="Color.Primary" Variant="Variant.Filled" Href="/auth/sign-out" Class="mt-3">Sign out</MudButton>
+</MudAlert>
+

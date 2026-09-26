@@ -13,29 +13,38 @@
 @inject IJSRuntime JS
 
 <PageTitle>PBC requests</PageTitle>
-<a class="back-link" href="/app">← Back to portfolio</a>
-<h1>Prepared-by-client requests</h1>
+<MudLink Href="/app" Class="back-link mb-2 d-inline-block">← Back to portfolio</MudLink>
+<PageHeader Title="Prepared-by-client requests" Description="Only request metadata, upload receipts and durable transfer state are shown. A received file is not accepted evidence until the assigned reviewer completes suitability review." />
 
 @if (_loading)
 {
-  <p role="status">Loading the scoped PBC inbox…</p>
+  <LoadingState IsLoading="true" LoadingMessage="Loading the scoped PBC inbox…" />
 }
 else if (_actor is null || !IsStaff)
 {
-  <section class="notice" role="alert"><h2>Access unavailable</h2><p>Sign in with an authorized staff identity to view PBC requests.</p></section>
+  <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="notice my-4" role="alert">
+    <h2>Access unavailable</h2>
+    <MudText Typo="Typo.body2">Sign in with an authorized staff identity to view PBC requests.</MudText>
+  </MudAlert>
 }
 else if (_engagement is null)
 {
-  <section class="notice" role="alert"><h2>Engagement unavailable</h2><p>The engagement is not available in the current firm scope.</p></section>
+  <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="notice my-4" role="alert">
+    <h2>Engagement unavailable</h2>
+    <MudText Typo="Typo.body2">The engagement is not available in the current firm scope.</MudText>
+  </MudAlert>
 }
 else if (_denied)
 {
-  <section class="notice" role="alert"><h2>Access unavailable</h2><p>The current staff assignment does not cover this engagement.</p></section>
+  <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="notice my-4" role="alert">
+    <h2>Access unavailable</h2>
+    <MudText Typo="Typo.body2">The current staff assignment does not cover this engagement.</MudText>
+  </MudAlert>
 }
 else
 {
   <p class="scope-note">Only request metadata, upload receipts and durable transfer state are shown. A received file is not accepted evidence until the assigned reviewer completes suitability review.</p>
-  <section class="card" aria-labelledby="new-request-heading" data-draft-scope="pbc-new-request-@EngagementId">
+  <section class="card" aria-labelledby="new-request-heading" data-draft-scope="@($"pbc-new-request-{EngagementId}")">
     <h2 id="new-request-heading">Request files from the client</h2>
     <p class="muted">The client receives a minimal email notification with this description and an authenticated portal upload link.</p>
     <div class="field"><label for="pbc-description">Files required</label><textarea id="pbc-description" @bind="_description" maxlength="2000" required title="Describe the files the client must upload and the period or details they should cover."></textarea></div>
@@ -43,7 +52,7 @@ else
     <div class="field"><label for="pbc-reviewer">Reviewer</label><select id="pbc-reviewer" @bind="_reviewerId" required title="Choose the staff member responsible for reviewing the uploaded files."><option value="@Guid.Empty">Select reviewer</option>@foreach (var user in _reviewers) { <option value="@user.Id">@user.DisplayName</option> }</select></div>
     <div class="field"><label for="pbc-due">Due date</label><input id="pbc-due" type="date" @bind="_dueDate" required title="Choose when the client should complete this request." /></div>
     <div class="field"><label for="pbc-format">Preferred format <span class="optional-label">optional</span></label><input id="pbc-format" @bind="_requestedFormat" maxlength="200" data-optional="true" title="Optionally name preferred formats such as PDF, XLSX, CSV, or image." /></div>
-    <button class="button" @onclick="CreateAndSendAsync" disabled="@(_busy || _clientOwners.Count == 0 || _reviewers.Count == 0)" title="Create the request, open its portal upload link, and queue the client email.">@(_busy ? "Sending…" : "Send file request")</button>
+    <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button" OnClick="CreateAndSendAsync" Disabled="@(_busy || _clientOwners.Count == 0 || _reviewers.Count == 0)">@(_busy ? "Sending…" : "Send file request")</MudButton>
     @if (_createResult is not null)
     {
       <p class="command-result @(_createResult.Succeeded ? "success-text" : "error-text")" role="status">@(_createResult.Succeeded ? "Request opened and client email queued." : $"Blocked: {_createResult.ErrorCode} — {_createResult.Message}")</p>
@@ -51,18 +60,18 @@ else
   </section>
   @if (_requests.Count == 0)
   {
-    <section class="card" aria-labelledby="pbc-heading">
+    <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="pbc-heading" role="region">
       <h2 id="pbc-heading">@_engagement.ServiceRoute — @_engagement.PeriodStart to @_engagement.PeriodEnd</h2>
-      <p class="muted">No PBC requests are recorded for this engagement.</p>
-    </section>
+      <MudText Typo="Typo.body2" Color="Color.Secondary" Class="muted">No PBC requests are recorded for this engagement.</MudText>
+    </MudPaper>
   }
   else
   {
     @foreach (var request in _requests)
     {
-      <section class="card" aria-labelledby="@HeadingId(request.Id)">
+      <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="@HeadingId(request.Id)" role="region">
         <h2 id="@HeadingId(request.Id)">@request.Area — @request.State</h2>
-        <p class="muted">@request.Objective · due @request.DueDate · revision @request.Revision</p>
+        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="muted">@request.Objective · due @request.DueDate · revision @request.Revision</MudText>
         @if (!_intents.TryGetValue(request.Id, out var intents) || intents.Count == 0)
         {
           <p class="muted">No upload intents are recorded for this request.</p>
@@ -80,22 +89,22 @@ else
               <tr>
                 <td>@intent.FileName</td>
                 <td>@intent.ReceivedByteCount / @intent.DeclaredByteCount</td>
-                <td><span class="status">@intent.State</span></td>
-                <td><span class="status">@transferState</span></td>
+                <td><StatusChip Status="@intent.State" /></td>
+                <td><StatusChip Status="@transferState" /></td>
                 <td>
                   @if (intent.State == PbcUploadStates.Chunking &&
                        intent.ReceivedByteCount == intent.DeclaredByteCount)
                   {
-                    <button class="button" @onclick="() => CompleteUploadAsync(intent)"
-                            disabled="@_busy">Complete staged transfer</button>
+                    <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button" OnClick="() => CompleteUploadAsync(intent)"
+                            Disabled="@_busy">Complete staged transfer</MudButton>
                   }
                   else if (intent.State == PbcUploadStates.Staged)
                   {
-                    <a class="button" href="@DownloadUrl(intent.Id)" title="Download the verified staged client upload through the scoped server route.">Download</a>
+                    <MudButton Color="Color.Primary" Variant="Variant.Filled" Href="@DownloadUrl(intent.Id)" Class="button">Download</MudButton>
                   }
                   else if (intent.State == PbcUploadStates.Received)
                   {
-                    <a class="button" href="@DownloadUrl(intent.Id)" title="Download the verified client upload through the scoped server route.">Download</a>
+                    <MudButton Color="Color.Primary" Variant="Variant.Filled" Href="@DownloadUrl(intent.Id)" Class="button">Download</MudButton>
                   }
                 </td>
               </tr>
@@ -123,13 +132,13 @@ else
         @if (request.State is not (PbcStates.Draft or PbcStates.Accepted or PbcStates.Closed))
         {
           <div class="field"><label for="@MessageId(request.Id)">Request more files</label><textarea id="@MessageId(request.Id)" value="@MessageFor(request.Id)" @oninput="e => _messages[request.Id] = e.Value?.ToString() ?? string.Empty" maxlength="3000" required title="Describe the additional or replacement files required from the client."></textarea></div>
-          <button class="button" @onclick="() => RequestMoreAsync(request.Id)" disabled="@_busy" title="Add this message to the thread and queue another client email.">Request more files</button>
+          <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button" OnClick="() => RequestMoreAsync(request.Id)" Disabled="@_busy">Request more files</MudButton>
           @if (_messageResults.TryGetValue(request.Id, out var messageResult))
           {
             <p class="command-result @(messageResult.Succeeded ? "success-text" : "error-text")" role="status">@(messageResult.Succeeded ? "Additional request recorded and email queued." : $"Blocked: {messageResult.ErrorCode} — {messageResult.Message}")</p>
           }
         }
-      </section>
+      </MudPaper>
     }
   }
 }

@@ -5,20 +5,20 @@
 @using AuditSphereOps.Domain.Shared
 
 <PageTitle>Financial package — management review</PageTitle>
-<a class="back-link" href="/portal">← Back to client portal</a>
-<h1>Financial package</h1>
+<MudLink Href="/portal" Class="back-link mb-2 d-inline-block">← Back to client portal</MudLink>
+<PageHeader Title="Financial package" Description="Client-visible validated package, decisions, and release evidence." />
 
 @if (_loading)
 {
-  <p role="status">Loading the package…</p>
+  <LoadingState IsLoading="true" LoadingMessage="Loading the package…" />
 }
 else if (_actor is null || _view is null)
 {
-  <section class="notice" role="alert"><h2>Package unavailable</h2><p>@(_loadError ?? "This package is not available in the current client scope.")</p></section>
+  <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="notice my-4" role="alert"><h2>Package unavailable</h2><p>@(_loadError ?? "This package is not available in the current client scope.")</p></MudAlert>
 }
 else
 {
-  <section class="card" aria-labelledby="package-heading">
+  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="package-heading" role="region">
     <p class="eyebrow">@_view.ManagementDecision</p>
     <h2 id="package-heading">Management review</h2>
     <p class="scope-note">This is a management acknowledgement of the supplied reporting package. It is not an audit opinion, assurance conclusion or proof that an external ledger has been posted.</p>
@@ -30,25 +30,19 @@ else
       <dt>Package hash</dt><dd><code>@_view.PackageHash</code></dd>
       <dt>Supporting information</dt><dd>@(_view.HasCashFlow && _view.HasDisclosures ? "Cash flow and disclosures supplied" : "Incomplete supporting information")</dd>
     </dl>
-  </section>
+  </MudPaper>
 
-  <section class="card" aria-labelledby="totals-heading">
+  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="totals-heading" role="region">
     <h2 id="totals-heading">Statement totals</h2>
-    <div class="table-wrap"><table>
-      <caption class="sr-only">Client-safe financial package statement totals</caption>
-      <thead><tr><th scope="col">Section</th><th scope="col">Amount</th></tr></thead>
-      <tbody>
-      @foreach (var total in _view.StatementTotals)
-      {
-        <tr><td>@total.StatementSection</td><td>@total.Amount.ToString("N2") @_view.Currency</td></tr>
-      }
-      </tbody>
-    </table></div>
-  </section>
+    <MudTable Items="_view.StatementTotals" Dense="true" Hover="true" Elevation="0">
+  <HeaderContent><MudTh scope="col">Section</MudTh><MudTh scope="col">Amount</MudTh></HeaderContent>
+  <RowTemplate>        <MudTd>@context.StatementSection</MudTd><MudTd>@context.Amount.ToString("N2") @_view.Currency</MudTd></RowTemplate>
+</MudTable>
+  </MudPaper>
 
   @if (_view.ManagementDecision == "PENDING" || _view.ManagementDecision == FinancialPackageReviewDecisions.ChangesRequired)
   {
-    <section class="card" aria-labelledby="decision-heading">
+    <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="decision-heading" role="region">
       <h2 id="decision-heading">Record management decision</h2>
       <p class="muted">Your authenticated client identity records the management decision against this exact package version. A changed package requires a new decision.</p>
       <div class="form-grid">
@@ -61,22 +55,22 @@ else
         <label for="evidence-reference">Evidence reference<input id="evidence-reference" @bind="_evidenceReference" maxlength="2000" autocomplete="off" required /></label>
       </div>
       <label for="management-comment">Comment<textarea id="management-comment" @bind="_comment" maxlength="4000" rows="4" data-optional="true"></textarea></label>
-      <button class="button" @onclick="RecordAsync" disabled="@_busy">@(_busy ? "Recording…" : "Record management decision")</button>
+      <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button" OnClick="RecordAsync" Disabled="@_busy">@(_busy ? "Recording…" : "Record management decision")</MudButton>
       @if (_result is not null)
       {
         <p class="command-result @(_result.Succeeded ? "success-text" : "error-text")" role="status">
           @(_result.Succeeded ? "Management decision recorded." : $"Blocked: {_result.ErrorCode}")
         </p>
       }
-    </section>
+    </MudPaper>
   }
   else if (_view.ManagementDecision == FinancialPackageReviewDecisions.Approved)
   {
-    <section class="notice success" role="status"><h2>Management approval recorded</h2><p>@(_view.ManagementDecidedAt?.ToLocalTime().ToString("yyyy-MM-dd HH:mm") ?? "Current package version")</p></section>
+    <MudAlert Severity="Severity.Success" Variant="Variant.Outlined" Class="notice success my-4" role="status"><h2>Management approval recorded</h2><p>@(_view.ManagementDecidedAt?.ToLocalTime().ToString("yyyy-MM-dd HH:mm") ?? "Current package version")</p></MudAlert>
   }
   else
   {
-    <section class="notice" role="status"><h2>Management changes required</h2><p>Internal staff must issue a new package version before another management decision can be recorded.</p></section>
+    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="notice my-4" role="status"><h2>Management changes required</h2><p>Internal staff must issue a new package version before another management decision can be recorded.</p></MudAlert>
   }
 }
 

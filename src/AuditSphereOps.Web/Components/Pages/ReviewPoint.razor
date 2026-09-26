@@ -21,33 +21,33 @@
         }
         <span>Review @Id</span>
     </nav>
-    <h1>Review Point</h1>
+    <PageHeader Title="Review Point" Description="Review point detail, comment thread, and independent clearing decision." />
     <span class="status-badge @_statusClass">@_status</span>
 </div>
 
 @if (_loading)
 {
-    <p role="status">Loading review point…</p>
+    <LoadingState IsLoading="true" LoadingMessage="Loading review point…" />
 }
 else if (_actor is null || !_isStaff)
 {
-    <section class="notice" role="alert">
+    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="notice my-4" role="alert">
         <h2>Access unavailable</h2>
         <p>Sign in with an authorized internal staff identity to view review points.</p>
-    </section>
+    </MudAlert>
 }
 else if (_point is null)
 {
-    <section class="notice" role="alert">
+    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="notice my-4" role="alert">
         <h2>Review point unavailable</h2>
         <p>The requested review point was not found in the current firm scope.</p>
-    </section>
+    </MudAlert>
 }
 else
 {
     <div class="review-shell">
 
-        <section class="card" aria-labelledby="context-heading">
+        <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="context-heading" role="region">
             <h2 id="context-heading">Review Context</h2>
             <dl class="detail-grid">
                 <dt>Target Kind</dt><dd>@_point.TargetKind</dd>
@@ -58,14 +58,14 @@ else
                 <dt>Blocks gate</dt><dd>@(_point.Significant ? "Yes (Significant)" : "No")</dd>
                 <dt>Status</dt><dd><span class="badge @_statusClass">@_status</span></dd>
             </dl>
-        </section>
+        </MudPaper>
 
-        <section class="card" aria-labelledby="comment-heading">
+        <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="comment-heading" role="region">
             <h2 id="comment-heading">Review Comment</h2>
             <p>@_point.Comment</p>
-        </section>
+        </MudPaper>
 
-        <section class="card" aria-labelledby="actions-heading">
+        <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="actions-heading" role="region">
             <h2 id="actions-heading">Review Disposition</h2>
             @if (_actionSuccess)
             {
@@ -78,15 +78,15 @@ else
             <div class="action-bar" style="display:flex; gap:0.75rem;">
                 @if (!_point.Cleared)
                 {
-                    <button class="btn-primary btn-green" @onclick="ClearPoint" disabled="@_busy">Clear Review Point</button>
+                    <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="btn-primary btn-green" OnClick="ClearPoint" Disabled="@_busy">Clear Review Point</MudButton>
                 }
                 else
                 {
-                    <button class="btn-secondary btn-red" @onclick="ReopenPoint" disabled="@_busy">Reopen Review Point</button>
+                    <MudButton Variant="Variant.Outlined" Class="btn-secondary btn-red" OnClick="ReopenPoint" Disabled="@_busy">Reopen Review Point</MudButton>
                 }
-                <a class="button" href="/app/engagements/@_point.EngagementId">Back to Engagement</a>
+                <MudButton Color="Color.Primary" Variant="Variant.Filled" Href="@($"/app/engagements/{_point.EngagementId}")" Class="button">Back to Engagement</MudButton>
             </div>
-        </section>
+        </MudPaper>
     </div>
 }
 

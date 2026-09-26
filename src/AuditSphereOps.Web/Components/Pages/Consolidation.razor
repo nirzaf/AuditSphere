@@ -6,17 +6,17 @@
 @inject IDbContextFactory<AuditSphereDbContext> DbFactory
 
 <PageTitle>Group consolidation</PageTitle>
-<a class="back-link" href="/app/accounting">← Back to accounting workspace</a>
-<h1>Group consolidation</h1>
+<MudLink Href="/app/accounting" Class="back-link mb-2 d-inline-block">← Back to accounting workspace</MudLink>
+<PageHeader Title="Group consolidation" Description="Approved group perimeters and component packs. Consolidation never mutates component client books." />
 <p class="scope-note">Only explicitly granted group scopes appear here. The enabled first profile is same-currency, fully-owned consolidation; configured foreign-operation translation is shown separately, while advanced methods remain fail-closed until approved source-bound schedules and execution verification are complete.</p>
 
 @if (_loading)
 {
-  <p role="status">Loading approved group scopes…</p>
+  <LoadingState IsLoading="true" LoadingMessage="Loading approved group scopes…" />
 }
 else if (_groups.Count == 0)
 {
-  <section class="notice"><h2>No group access</h2><p>No explicit group access grant is available for the current identity.</p></section>
+  <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="notice my-4"><h2>No group access</h2><p>No explicit group access grant is available for the current identity.</p></MudAlert>
 }
 else
 {
@@ -29,7 +29,7 @@ else
     <a href="#eliminations" title="Review persisted group-only elimination journals and their approval state.">Eliminations</a>
   </nav>
 
-  <section class="card" id="perimeter" aria-labelledby="perimeter-heading">
+  <MudPaper  Class="pa-4 my-4" Elevation="1" id="perimeter" aria-labelledby="perimeter-heading" role="region">
     <h2 id="perimeter-heading">Perimeter</h2>
     @foreach (var group in _groups)
     {
@@ -40,76 +40,60 @@ else
       }
       else
       {
-        <div class="table-wrap"><table>
-          <caption class="sr-only">Consolidation scopes for @group.Name</caption>
-          <thead><tr><th scope="col">Version</th><th scope="col">Method</th><th scope="col">Currency</th><th scope="col" title="Approved ownership relationships pinned to this scope">Ownership edges</th><th scope="col" title="Grouped intercompany rows needing a complete review">Grouped matches</th><th scope="col" title="Related-party reviews retained outside automatic elimination">Outside reviews</th><th scope="col">Perimeter</th><th scope="col">Latest run</th><th scope="col"><span class="sr-only">Workflow</span></th></tr></thead>
-          <tbody>
-          @foreach (var scope in group.Scopes)
-          {
-            <tr><td>v@(scope.Version)</td><td><code>@scope.Method</code></td><td>@scope.Currency</td><td>@scope.OwnershipEdges</td><td>@scope.GroupedMatches</td><td>@scope.OutsideReviews</td><td><span class="status">@scope.Status</span></td><td><span class="status">@scope.RunStatus</span></td><td>@if (AdvancedConsolidationMethods.All.Contains(scope.Method)) { <a href="@($"/app/consolidation/advanced/{scope.Id:D}")" title="Open the guarded schedule, maker/checker approval and execution workflow for this advanced scope">Open workflow</a> }</td></tr>
-          }
-          </tbody>
-        </table></div>
+        <MudTable Items="group.Scopes" Dense="true" Hover="true" Elevation="0">
+  <HeaderContent><MudTh scope="col">Version</MudTh><MudTh scope="col">Method</MudTh><MudTh scope="col">Currency</MudTh><MudTh scope="col" title="Approved ownership relationships pinned to this scope">Ownership edges</MudTh><MudTh scope="col" title="Grouped intercompany rows needing a complete review">Grouped matches</MudTh><MudTh scope="col" title="Related-party reviews retained outside automatic elimination">Outside reviews</MudTh><MudTh scope="col">Perimeter</MudTh><MudTh scope="col">Latest run</MudTh><MudTh scope="col"><span class="sr-only">Workflow</span></MudTh></HeaderContent>
+  <RowTemplate>            <MudTd>v@(context.Version)</MudTd><MudTd><code>@context.Method</code></MudTd><MudTd>@context.Currency</MudTd><MudTd>@context.OwnershipEdges</MudTd><MudTd>@context.GroupedMatches</MudTd><MudTd>@context.OutsideReviews</MudTd><MudTd><StatusChip Status="@context.Status" /></MudTd><MudTd><StatusChip Status="@context.RunStatus" /></MudTd><MudTd>@if (AdvancedConsolidationMethods.All.Contains(context.Method)) { <a href="@($"/app/consolidation/advanced/{context.Id:D}")" title="Open the guarded schedule, maker/checker approval and execution workflow for this advanced context">Open workflow</a> }</MudTd></RowTemplate>
+</MudTable>
       }
     }
-  </section>
+  </MudPaper>
 
-  <section class="card" id="packs" aria-labelledby="packs-heading">
+  <MudPaper  Class="pa-4 my-4" Elevation="1" id="packs" aria-labelledby="packs-heading" role="region">
     <h2 id="packs-heading">Component packs</h2>
     <p class="muted">Counts show what is persisted for each approved scope. Consolidation consumes only approved compatible packs; missing packs are not treated as zero.</p>
-    <div class="table-wrap"><table>
-      <caption class="sr-only">Group component-pack readiness</caption>
-      <thead><tr><th scope="col">Group / scope</th><th scope="col">Components</th><th scope="col">Approved components</th><th scope="col">External packs</th><th scope="col">Approved packs</th></tr></thead>
-      <tbody>@foreach (var scope in AllScopes) { <tr><td>@scope.GroupName · v@(scope.Version)</td><td>@scope.ComponentCount</td><td>@scope.ApprovedComponentCount</td><td>@scope.ExternalPackCount</td><td>@scope.ApprovedExternalPackCount</td></tr> }</tbody>
-    </table></div>
-  </section>
+    <MudTable Items="AllScopes" Dense="true" Hover="true" Elevation="0">
+  <HeaderContent><MudTh scope="col">Group / scope</MudTh><MudTh scope="col">Components</MudTh><MudTh scope="col">Approved components</MudTh><MudTh scope="col">External packs</MudTh><MudTh scope="col">Approved packs</MudTh></HeaderContent>
+  <RowTemplate> <MudTd>@context.GroupName · v@(context.Version)</MudTd><MudTd>@context.ComponentCount</MudTd><MudTd>@context.ApprovedComponentCount</MudTd><MudTd>@context.ExternalPackCount</MudTd><MudTd>@context.ApprovedExternalPackCount</MudTd> </RowTemplate>
+</MudTable>
+  </MudPaper>
 
-  <section class="card" id="fx" aria-labelledby="fx-heading">
+  <MudPaper  Class="pa-4 my-4" Elevation="1" id="fx" aria-labelledby="fx-heading" role="region">
     <h2 id="fx-heading">FX</h2>
     <p class="muted">The enabled first profile is same-currency. Foreign-operation translation is shown only when the scope pins both a rate set and a translation policy; no rate of 1 is inferred.</p>
-    <div class="table-wrap"><table>
-      <caption class="sr-only">Group FX configuration</caption>
-      <thead><tr><th scope="col">Group / scope</th><th scope="col">Reporting currency</th><th scope="col">Rate set</th><th scope="col">Translation policy</th></tr></thead>
-      <tbody>@foreach (var scope in AllScopes) { <tr><td>@scope.GroupName · v@(scope.Version)</td><td><code>@scope.Currency</code></td><td><span class="status">@scope.RateSetStatus</span></td><td><span class="status">@scope.TranslationPolicyStatus</span></td></tr> }</tbody>
-    </table></div>
-  </section>
+    <MudTable Items="AllScopes" Dense="true" Hover="true" Elevation="0">
+  <HeaderContent><MudTh scope="col">Group / scope</MudTh><MudTh scope="col">Reporting currency</MudTh><MudTh scope="col">Rate set</MudTh><MudTh scope="col">Translation policy</MudTh></HeaderContent>
+  <RowTemplate> <MudTd>@context.GroupName · v@(context.Version)</MudTd><MudTd><code>@context.Currency</code></MudTd><MudTd><StatusChip Status="@context.RateSetStatus" /></MudTd><MudTd><StatusChip Status="@context.TranslationPolicyStatus" /></MudTd> </RowTemplate>
+</MudTable>
+  </MudPaper>
 
-  <section class="card" id="advanced" aria-labelledby="advanced-heading">
+  <MudPaper  Class="pa-4 my-4" Elevation="1" id="advanced" aria-labelledby="advanced-heading" role="region">
     <h2 id="advanced-heading">Advanced schedules</h2>
     <p class="muted">Advanced-method schedules are source-bound, maker/checker-reviewed inputs. A complete approved schedule is necessary but does not enable an advanced profile until balanced current/comparative statement evidence is verified and separately approved.</p>
-    <div class="table-wrap"><table>
-      <caption class="sr-only">Advanced consolidation schedule readiness</caption>
-      <thead><tr><th scope="col">Group / scope</th><th scope="col" title="The selected consolidation method for this scope">Method</th><th scope="col" title="Persisted method schedules awaiting independent approval">Submitted</th><th scope="col" title="Schedules approved by a separate reviewer and still pinned to the scope revision">Approved</th><th scope="col" title="Verified and approved statement executions for the pinned schedule">Executions</th><th scope="col" title="Readiness requires the schedule, balanced statements and separate review">Readiness</th></tr></thead>
-      <tbody>
-      @foreach (var scope in AllScopes)
-      {
-        <tr><td>@scope.GroupName · v@(scope.Version)</td><td><code>@scope.Method</code></td><td>@scope.AdvancedScheduleCount</td><td>@scope.ApprovedAdvancedScheduleCount</td><td>@scope.AdvancedExecutionCount / @scope.ApprovedAdvancedExecutionCount</td><td><span class="status" title="@scope.AdvancedScheduleGuidance">@scope.AdvancedScheduleStatus</span></td></tr>
-      }
-      </tbody>
-    </table></div>
-  </section>
+    <MudTable Items="AllScopes" Dense="true" Hover="true" Elevation="0">
+  <HeaderContent><MudTh scope="col">Group / scope</MudTh><MudTh scope="col" title="The selected consolidation method for this scope">Method</MudTh><MudTh scope="col" title="Persisted method schedules awaiting independent approval">Submitted</MudTh><MudTh scope="col" title="Schedules approved by a separate reviewer and still pinned to the scope revision">Approved</MudTh><MudTh scope="col" title="Verified and approved statement executions for the pinned schedule">Executions</MudTh><MudTh scope="col" title="Readiness requires the schedule, balanced statements and separate review">Readiness</MudTh></HeaderContent>
+  <RowTemplate>        <MudTd>@context.GroupName · v@(context.Version)</MudTd><MudTd><code>@context.Method</code></MudTd><MudTd>@context.AdvancedScheduleCount</MudTd><MudTd>@context.ApprovedAdvancedScheduleCount</MudTd><MudTd>@context.AdvancedExecutionCount / @context.ApprovedAdvancedExecutionCount</MudTd><MudTd><span class="status" title="@context.AdvancedScheduleGuidance">@context.AdvancedScheduleStatus</span></MudTd></RowTemplate>
+</MudTable>
+  </MudPaper>
 
-  <section class="card" id="intercompany" aria-labelledby="intercompany-heading">
+  <MudPaper  Class="pa-4 my-4" Elevation="1" id="intercompany" aria-labelledby="intercompany-heading" role="region">
     <h2 id="intercompany-heading">Intercompany</h2>
     <p class="muted">Grouped matches, outside-perimeter reviews and unresolved match rows remain visible before any automatic elimination.</p>
-    <div class="table-wrap"><table>
-      <caption class="sr-only">Group intercompany review counts</caption>
-      <thead><tr><th scope="col">Group / scope</th><th scope="col">Grouped matches</th><th scope="col">Outside reviews</th><th scope="col">Open matches</th></tr></thead>
-      <tbody>@foreach (var scope in AllScopes) { <tr><td>@scope.GroupName · v@(scope.Version)</td><td>@scope.GroupedMatches</td><td>@scope.OutsideReviews</td><td><span class="status">@scope.OpenMatchCount</span></td></tr> }</tbody>
-    </table></div>
-  </section>
+    <MudTable Items="AllScopes" Dense="true" Hover="true" Elevation="0">
+  <HeaderContent><MudTh scope="col">Group / scope</MudTh><MudTh scope="col">Grouped matches</MudTh><MudTh scope="col">Outside reviews</MudTh><MudTh scope="col">Open matches</MudTh></HeaderContent>
+  <RowTemplate> <MudTd>@context.GroupName · v@(context.Version)</MudTd><MudTd>@context.GroupedMatches</MudTd><MudTd>@context.OutsideReviews</MudTd><MudTd><StatusChip Status="@context.OpenMatchCount.ToString()" /></MudTd> </RowTemplate>
+</MudTable>
+  </MudPaper>
 
-  <section class="card" id="eliminations" aria-labelledby="eliminations-heading">
+  <MudPaper  Class="pa-4 my-4" Elevation="1" id="eliminations" aria-labelledby="eliminations-heading" role="region">
     <h2 id="eliminations-heading">Eliminations</h2>
     <p class="muted">Persisted consolidation journals are separate from component books. Unsupported elimination natures fail closed in the calculation service.</p>
-    <div class="table-wrap"><table>
-      <caption class="sr-only">Group elimination journal counts</caption>
-      <thead><tr><th scope="col">Group / scope</th><th scope="col">Journals</th><th scope="col">Approved journals</th><th scope="col">Latest run</th></tr></thead>
-      <tbody>@foreach (var scope in AllScopes) { <tr><td>@scope.GroupName · v@(scope.Version)</td><td>@scope.EliminationJournalCount</td><td>@scope.ApprovedEliminationJournalCount</td><td><span class="status">@scope.RunStatus</span></td></tr> }</tbody>
-    </table></div>
-  </section>
+    <MudTable Items="AllScopes" Dense="true" Hover="true" Elevation="0">
+  <HeaderContent><MudTh scope="col">Group / scope</MudTh><MudTh scope="col">Journals</MudTh><MudTh scope="col">Approved journals</MudTh><MudTh scope="col">Latest run</MudTh></HeaderContent>
+  <RowTemplate> <MudTd>@context.GroupName · v@(context.Version)</MudTd><MudTd>@context.EliminationJournalCount</MudTd><MudTd>@context.ApprovedEliminationJournalCount</MudTd><MudTd><StatusChip Status="@context.RunStatus" /></MudTd> </RowTemplate>
+</MudTable>
+  </MudPaper>
 
-  <section class="card" id="group-report" aria-labelledby="group-report-heading">
+  <MudPaper  Class="pa-4 my-4" Elevation="1" id="group-report" aria-labelledby="group-report-heading" role="region">
     <h2 id="group-report-heading">Approved group reports</h2>
     <p class="muted">Only the latest approved report with inputs that still match its manifest is shown. This group-level summary does not grant access to component workpapers.</p>
     @foreach (var scope in AllScopes)
@@ -143,7 +127,7 @@ else
         <p class="muted">No current approved group report is available. Latest run state: @scope.RunStatus.</p>
       }
     }
-  </section>
+  </MudPaper>
 }
 
 @code {

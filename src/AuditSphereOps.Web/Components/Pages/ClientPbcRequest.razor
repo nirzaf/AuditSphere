@@ -7,21 +7,24 @@
 @inject IJSRuntime JS
 
 <PageTitle>Client request</PageTitle>
-<a class="back-link" href="/portal">← Back to client portal</a>
-<h1>PBC request</h1>
+<MudLink Href="/portal" Class="back-link mb-2 d-inline-block">← Back to client portal</MudLink>
+<PageHeader Title="PBC request" Description="Restricted client upload and conversation surface for this exact assigned request." />
 
 @if (_loading)
 {
-  <p role="status">Loading the request…</p>
+  <LoadingState IsLoading="true" LoadingMessage="Loading the request…" />
 }
 else if (_actor is null || _request is null)
 {
-  <section class="notice" role="alert"><h2>Request unavailable</h2><p>This request is not available in the current client scope.</p></section>
+  <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="notice my-4" role="alert">
+    <h2>Request unavailable</h2>
+    <MudText Typo="Typo.body2">This request is not available in the current client scope.</MudText>
+  </MudAlert>
 }
 else
 {
-  <section class="card" aria-labelledby="request-heading">
-    <p class="eyebrow">@_request.State</p>
+  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="request-heading" role="region">
+    <p class="eyebrow"><StatusChip Status="@_request.State" /></p>
     <h2 id="request-heading">@_request.Area</h2>
     <dl class="details">
       <dt>Objective</dt><dd>@_request.Objective</dd>
@@ -30,9 +33,9 @@ else
       <dt>Due</dt><dd>@_request.DueDate</dd>
       <dt>Acceptance criteria</dt><dd>@_request.AcceptanceCriteria</dd>
     </dl>
-  </section>
+  </MudPaper>
 
-  <section class="card" aria-labelledby="upload-heading" data-draft-scope="pbc-upload-@RequestId">
+  <section class="card" aria-labelledby="upload-heading" data-draft-scope="@($"pbc-upload-{RequestId}")">
     <h2 id="upload-heading">Prepare a controlled upload</h2>
     <p class="muted">This creates a request-bound, expiring transfer intent. Content bytes are not accepted through the interactive circuit and are not marked received until a trusted completion boundary verifies the staged file.</p>
     <div class="field"><label for="@FileInputId">File</label><input id="@FileInputId" type="file" required title="Select the file to transfer; browser security prevents retaining the file itself after navigation." /></div>
@@ -40,7 +43,7 @@ else
     <div class="field"><label for="content-type">Content type</label><input id="content-type" @bind="_contentType" maxlength="200" readonly title="Filled from the selected file before the upload starts." /></div>
     <div class="field"><label for="byte-count">Declared bytes</label><input id="byte-count" type="number" min="1" max="262144000" @bind="_byteCount" readonly title="Filled from the selected file before the upload starts." /></div>
     <div class="field"><label for="content-hash">Declared SHA-256</label><input id="content-hash" data-draft-field="declared-sha256" @bind="_contentHash" @bind:event="oninput" maxlength="64" autocomplete="off" required aria-describedby="content-hash-help content-hash-state" title="Enter the lowercase or uppercase SHA-256 digest used to verify the upload." /><span id="content-hash-help" class="muted">Enter the 64-character digest of the exact file selected above.</span><span id="content-hash-state" class="sr-only" aria-live="polite">@(_contentHash.Length == 64 ? "SHA-256 digest entered." : string.Empty)</span></div>
-    <button class="button" @onclick="StartUploadAsync" disabled="@_busy">@(_busy ? "Preparing…" : "Prepare upload")</button>
+    <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button" OnClick="StartUploadAsync" Disabled="@_busy">@(_busy ? "Preparing…" : "Prepare upload")</MudButton>
     @if (_result is not null)
     {
       <p class="command-result @(_result.Succeeded ? "success-text" : "error-text")" role="status">@(_result.Succeeded ? "Transfer intent created; continue through the approved upload transport." : $"Blocked: {_result.ErrorCode} — {_result.Message}")</p>
@@ -51,7 +54,7 @@ else
     }
   </section>
 
-  <section class="card" aria-labelledby="conversation-heading" data-draft-scope="pbc-client-reply-@RequestId">
+  <section class="card" aria-labelledby="conversation-heading" data-draft-scope="@($"pbc-client-reply-{RequestId}")">
     <h2 id="conversation-heading">Conversation timeline</h2>
     <ol class="timeline">
       @foreach (var item in Timeline())
@@ -62,7 +65,7 @@ else
     @if (_request.State is not (PbcStates.Accepted or PbcStates.Closed))
     {
       <div class="field"><label for="client-reply">Reply to the assigned auditor or accountant</label><textarea id="client-reply" @bind="_reply" maxlength="4000" required title="Add a response or explain the files you uploaded."></textarea></div>
-      <button class="button" @onclick="ReplyAsync" disabled="@_busy" title="Add this response to the request timeline.">Send reply</button>
+      <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button" OnClick="ReplyAsync" Disabled="@_busy">Send reply</MudButton>
       @if (_replyResult is not null)
       {
         <p class="command-result @(_replyResult.Succeeded ? "success-text" : "error-text")" role="status">@(_replyResult.Succeeded ? "Reply added to the request timeline." : $"Blocked: {_replyResult.ErrorCode} — {_replyResult.Message}")</p>
@@ -70,22 +73,20 @@ else
     }
   </section>
 
-  <section class="card" aria-labelledby="receipt-heading">
+  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="receipt-heading" role="region">
     <h2 id="receipt-heading">Transfer receipts</h2>
     @if (_uploads.Count == 0)
     {
-      <p class="muted">No transfer intents are recorded for this request.</p>
+      <MudText Typo="Typo.body2" Color="Color.Secondary" Class="muted">No transfer intents are recorded for this request.</MudText>
     }
     else
     {
-      <div class="table-wrap"><table><caption class="sr-only">PBC upload receipts</caption><thead><tr><th scope="col">File</th><th scope="col">Bytes</th><th scope="col">State</th><th scope="col">Expires</th></tr></thead><tbody>
-      @foreach (var upload in _uploads)
-      {
-        <tr><td>@upload.FileName</td><td>@upload.ReceivedByteCount / @upload.DeclaredByteCount</td><td><span class="status">@upload.State</span></td><td>@upload.ExpiresAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</td></tr>
-      }
-      </tbody></table></div>
+      <MudTable Items="_uploads" Dense="true" Hover="true" Elevation="0">
+  <HeaderContent><MudTh scope="col">File</MudTh><MudTh scope="col">Bytes</MudTh><MudTh scope="col">State</MudTh><MudTh scope="col">Expires</MudTh></HeaderContent>
+  <RowTemplate>        <MudTd>@context.FileName</MudTd><MudTd>@context.ReceivedByteCount / @context.DeclaredByteCount</MudTd><MudTd><StatusChip Status="@context.State" /></MudTd><MudTd>@context.ExpiresAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</MudTd></RowTemplate>
+</MudTable>
     }
-  </section>
+  </MudPaper>
 }
 
 @code {

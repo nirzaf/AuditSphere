@@ -9,24 +9,24 @@
 
 
 <PageTitle>Release candidate</PageTitle>
-<a class="back-link" href="/app">← Back to portfolio</a>
-<h1>Release candidate</h1>
+<MudLink Href="/app" Class="back-link mb-2 d-inline-block">← Back to portfolio</MudLink>
+<PageHeader Title="Release candidate" Description="Release readiness, required gates, and the controlled issue decision for this candidate." />
 
 @if (_loading)
 {
-  <p role="status">Loading current candidate…</p>
+  <LoadingState IsLoading="true" LoadingMessage="Loading current candidate…" />
 }
 else if (_actor is null || !IsStaff)
 {
-  <section class="notice" role="alert"><h2>Access unavailable</h2><p>Sign in with an authorized staff identity to view this candidate.</p></section>
+  <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="notice my-4" role="alert"><h2>Access unavailable</h2><p>Sign in with an authorized staff identity to view this candidate.</p></MudAlert>
 }
 else if (_candidate is null)
 {
-  <section class="notice" role="alert"><h2>Candidate unavailable</h2><p>The candidate is not available in the current firm scope.</p></section>
+  <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="notice my-4" role="alert"><h2>Candidate unavailable</h2><p>The candidate is not available in the current firm scope.</p></MudAlert>
 }
 else
 {
-  <section class="card" aria-labelledby="candidate-heading">
+  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="candidate-heading" role="region">
     <p class="eyebrow">@_candidate.Status</p>
     <h2 id="candidate-heading"><code>@_candidate.Id</code></h2>
     <dl class="details">
@@ -35,15 +35,15 @@ else
       <dt>Manifest digest</dt><dd><code>@_candidate.ManifestDigest</code></dd>
       <dt>Created</dt><dd>@_candidate.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</dd>
     </dl>
-  </section>
+  </MudPaper>
 
   @if (_candidate.Status == ReleaseStates.Issued)
   {
-    <section class="notice success"><h2>Issued</h2><p>This candidate already has an immutable release event. Repeating the same authorized request is idempotent.</p></section>
+    <MudAlert Severity="Severity.Success" Variant="Variant.Outlined" Class="notice success my-4"><h2>Issued</h2><p>This candidate already has an immutable release event. Repeating the same authorized request is idempotent.</p></MudAlert>
   }
   else
   {
-    <section class="card" aria-labelledby="gates-heading">
+    <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="gates-heading" role="region">
       <h2 id="gates-heading">Release evidence gates (§24.4, §25.7)</h2>
       <p class="muted">Every gate requires stored, read-back evidence. Caller assertions are not accepted.</p>
       <dl class="details">
@@ -101,21 +101,21 @@ else
         </dd>
       </dl>
       <p class="notice muted">Notice: No live Microsoft records action is observed. Local development enforces offline verified evidence.</p>
-    </section>
+    </MudPaper>
 
-    <section class="card" aria-labelledby="issue-heading">
+    <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="issue-heading" role="region">
       <h2 id="issue-heading">Issue exact package</h2>
       <p class="muted">This command rechecks current scope, approval applicability, revisions, generations, holds, manifest and recovery mode. It does not sign files or call a provider.</p>
       <div class="field">
         <label for="release-key">Authorized release key</label>
         <input id="release-key" @bind="_releaseKey" maxlength="200" autocomplete="off" required data-draft-skip="true" title="Enter the authorized key only for this release action; it is never stored in browser draft state." />
       </div>
-      <button class="button" @onclick="IssueAsync" disabled="@(!CanIssue || string.IsNullOrWhiteSpace(_releaseKey))">@(_busy ? "Issuing…" : "Issue release")</button>
+      <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button" OnClick="IssueAsync" Disabled="@(!CanIssue || string.IsNullOrWhiteSpace(_releaseKey))">@(_busy ? "Issuing…" : "Issue release")</MudButton>
       @if (_result is not null)
       {
         <p class="command-result @(_result.Succeeded ? "success-text" : "error-text")" role="status">@(_result.Succeeded ? $"Release event: {_result.Value}" : $"Blocked: {_result.ErrorCode}")</p>
       }
-    </section>
+    </MudPaper>
   }
 }
 

@@ -10,22 +10,25 @@
 @inject IJSRuntime JS
 
 <PageTitle>Firm administration</PageTitle>
-<a class="back-link" href="/app">← Back to portfolio</a>
-<h1>Firm administration & security</h1>
+<MudLink Href="/app" Class="back-link mb-2 d-inline-block">← Back to portfolio</MudLink>
+<PageHeader Title="Firm administration &amp; security" Description="System and firm-level administrative configuration (§43.2). Versioned configuration and role grants; direct database manipulation consoles are prohibited." />
 
 @if (_loading)
 {
-  <p role="status">Loading administration details…</p>
+  <LoadingState IsLoading="true" LoadingMessage="Loading administration details…" />
 }
 else if (_actor is null || !_isAdmin)
 {
-  <section class="notice" role="alert"><h2>Access unavailable</h2><p>Sign in with an authorized Administrator or Partner identity to view firm administration.</p></section>
+  <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="notice my-4" role="alert">
+    <h2>Access unavailable</h2>
+    <MudText Typo="Typo.body2">Sign in with an authorized Administrator or Partner identity to view firm administration.</MudText>
+  </MudAlert>
 }
 else
 {
   <p class="scope-note">System and firm-level administrative configuration (§43.2). Versioned configuration and role grants; direct database manipulation consoles are prohibited.</p>
 
-  <section class="card" aria-labelledby="safety-heading">
+  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="safety-heading" role="region">
     <h2 id="safety-heading">Firm safety state</h2>
     <dl class="details">
       <dt>Firm ID</dt><dd><code>@_actor.FirmId</code></dd>
@@ -41,12 +44,12 @@ else
         }
       </dd>
       <dt>Deployment Epoch</dt><dd>@(_safetyState?.DeploymentEpoch ?? 1)</dd>
-      <dt>Operations Panel</dt><dd><a href="/app/operations">Manage durable operations & recovery</a></dd>
+      <dt>Operations Panel</dt><dd><MudLink Href="/app/operations">Manage durable operations &amp; recovery</MudLink></dd>
     </dl>
-  </section>
+  </MudPaper>
 
-  <section class="card" aria-labelledby="env-heading">
-    <h2 id="env-heading">Runtime environment & security fences</h2>
+  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="env-heading" role="region">
+    <h2 id="env-heading">Runtime environment &amp; security fences</h2>
     <dl class="details">
       <dt>Hosting Environment</dt><dd>@Configuration["ASPNETCORE_ENVIRONMENT"]</dd>
       <dt>External Effects Enabled</dt><dd><code>@Configuration["ExternalEffects:Enabled"]</code> (Strictly fenced)</dd>
@@ -54,111 +57,104 @@ else
       <dt>System Liveness</dt><dd><a href="/health/live" target="_blank">Check /health/live</a></dd>
       <dt>System Readiness</dt><dd><a href="/health/ready" target="_blank">Check /health/ready (migration verified)</a></dd>
     </dl>
-  </section>
+  </MudPaper>
 
-  <section class="card" aria-labelledby="m365-heading">
+  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="m365-heading" role="region">
     <h2 id="m365-heading">Microsoft 365 onboarding</h2>
     <p class="field-help">Connection, selected-resource verification, role assignment, and client workspace provisioning are separate revisions. An unconfigured or unverified integration cannot create outward effects.</p>
-    <a class="button" href="/app/administration/microsoft365" title="Open the protected, resumable Microsoft 365 setup draft">Open Microsoft 365 setup</a>
-  </section>
+    <MudButton Color="Color.Primary" Variant="Variant.Filled" Href="/app/administration/microsoft365" Class="button">Open Microsoft 365 setup</MudButton>
+  </MudPaper>
 
-  <section class="card" aria-labelledby="roles-heading">
+  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="roles-heading" role="region">
     <h2 id="roles-heading">Firm role grants</h2>
     @if (_grants.Count == 0)
     {
-      <p class="muted">No role grants found in current firm scope.</p>
+      <MudText Typo="Typo.body2" Color="Color.Secondary" Class="muted">No role grants found in current firm scope.</MudText>
     }
     else
     {
-      <div class="table-wrap">
-        <table>
-          <caption class="sr-only">Firm role grants</caption>
-          <thead>
-            <tr>
-              <th scope="col">Identity</th>
-              <th scope="col">Role</th>
-              <th scope="col">Client Scope</th>
-              <th scope="col">Engagement Scope</th>
-              <th scope="col">Granted</th>
-              <th scope="col">Invitation / evidence</th>
-              <th scope="col">State / action</th>
-            </tr>
-          </thead>
-          <tbody>
-          @foreach (var grant in _grants)
-          {
-            _usersById.TryGetValue(grant.UserId, out var user);
-            _invitationsByGrant.TryGetValue(grant.Id, out var invitation);
+      <MudTable Items="_grants" Dense="true" Hover="true" Elevation="0">
+        <HeaderContent>
+          <MudTh>Identity</MudTh>
+          <MudTh>Role</MudTh>
+          <MudTh>Client Scope</MudTh>
+          <MudTh>Engagement Scope</MudTh>
+          <MudTh>Granted</MudTh>
+          <MudTh>Invitation / evidence</MudTh>
+          <MudTh>State / action</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+          @{
+            _usersById.TryGetValue(context.UserId, out var user);
+            _invitationsByGrant.TryGetValue(context.Id, out var invitation);
             DirectoryUserObservation? observation = null;
             if (user is not null)
               _directoryByIdentity.TryGetValue((user.TenantId, user.Subject), out observation);
-            <tr>
-              <td>
-                @if (user is null)
-                {
-                  <span class="error-text">Identity record unavailable</span>
-                }
-                else
-                {
-                  <strong>@user.DisplayName</strong><br />
-                  <span>@user.Email (@user.UserKind)</span><br />
-                  <code title="Immutable Microsoft identity binding">@user.TenantId / @user.Subject</code>
-                }
-              </td>
-              <td><strong>@grant.Role</strong></td>
-              <td>@(grant.ClientId.HasValue ? grant.ClientId.Value.ToString() : "Firm-wide")</td>
-              <td>@(grant.EngagementId.HasValue ? grant.EngagementId.Value.ToString() : "—")</td>
-              <td>@grant.GrantedAt.ToString("yyyy-MM-dd HH:mm")</td>
-              <td>
-                <div>Invitation: <strong>@(invitation?.DeliveryState ?? "NOT_CREATED")</strong></div>
-                <div>First access: @(invitation?.FirstAccessAt?.ToString("yyyy-MM-dd HH:mm") ?? "Not recorded")</div>
-                <div>Directory: @(observation?.EnabledState ?? "NOT_OBSERVED") @(observation is null ? string.Empty : $"({observation.Source}, {observation.ObservedAt:yyyy-MM-dd HH:mm})")</div>
-                @if (invitation is not null && grant.RevokedAt is null)
-                {
-                  <button class="btn-secondary" @onclick="() => CopyExistingInvitationAsync(invitation)" disabled="@_roleBusy" title="Copy the existing safe landing link and record a new copy-link action">Copy invitation</button>
-                }
-              </td>
-              <td>
-                @if (grant.RevokedAt is null)
-                {
-                  <button class="button" @onclick="() => RevokeRoleAsync(grant.Id)" disabled="@_roleBusy" title="Record an append-only revocation and invalidate the target session">Revoke</button>
-                }
-                else
-                {
-                  <span class="muted">Revoked @grant.RevokedAt.Value.ToString("yyyy-MM-dd HH:mm")</span>
-                }
-                <button class="btn-secondary" @onclick="() => ToggleGrantHistory(grant.Id)" title="Show the append-only evidence for this access assignment">@(_expandedGrantId == grant.Id ? "Hide history" : "View history")</button>
-              </td>
-            </tr>
-            @if (_expandedGrantId == grant.Id)
-            {
-              <tr>
-                <td colspan="7">
-                  <strong>Access history</strong>
-                  @if (!_grantHistoryByGrant.TryGetValue(grant.Id, out var history) || history.Count == 0)
-                  {
-                    <div class="muted">No recorded evidence for this grant.</div>
-                  }
-                  else
-                  {
-                    <ul class="history-list">
-                    @foreach (var evidence in history)
-                    {
-                      <li><strong>@evidence.Action</strong> — @evidence.Source — @evidence.CreatedAt.ToString("yyyy-MM-dd HH:mm") — actor <code>@evidence.ActorUserId</code></li>
-                    }
-                    </ul>
-                  }
-                </td>
-              </tr>
-            }
           }
-          </tbody>
-        </table>
-      </div>
+          <MudTd DataLabel="Identity">
+            @if (user is null)
+            {
+              <span class="error-text">Identity record unavailable</span>
+            }
+            else
+            {
+              <strong>@user.DisplayName</strong><br />
+              <span>@user.Email (@user.UserKind)</span><br />
+              <code title="Immutable Microsoft identity binding">@user.TenantId / @user.Subject</code>
+            }
+          </MudTd>
+          <MudTd DataLabel="Role"><strong>@context.Role</strong></MudTd>
+          <MudTd DataLabel="Client Scope">@(context.ClientId.HasValue ? context.ClientId.Value.ToString() : "Firm-wide")</MudTd>
+          <MudTd DataLabel="Engagement Scope">@(context.EngagementId.HasValue ? context.EngagementId.Value.ToString() : "—")</MudTd>
+          <MudTd DataLabel="Granted">@context.GrantedAt.ToString("yyyy-MM-dd HH:mm")</MudTd>
+          <MudTd DataLabel="Invitation / evidence">
+            <div>Invitation: <strong>@(invitation?.DeliveryState ?? "NOT_CREATED")</strong></div>
+            <div>First access: @(invitation?.FirstAccessAt?.ToString("yyyy-MM-dd HH:mm") ?? "Not recorded")</div>
+            <div>Directory: @(observation?.EnabledState ?? "NOT_OBSERVED") @(observation is null ? string.Empty : $"({observation.Source}, {observation.ObservedAt:yyyy-MM-dd HH:mm})")</div>
+            @if (invitation is not null && context.RevokedAt is null)
+            {
+              <MudButton Variant="Variant.Outlined" Size="Size.Small" Class="btn-secondary" OnClick="() => CopyExistingInvitationAsync(invitation)" Disabled="@_roleBusy">Copy invitation</MudButton>
+            }
+          </MudTd>
+          <MudTd DataLabel="State / action">
+            @if (context.RevokedAt is null)
+            {
+              <MudButton Color="Color.Error" Variant="Variant.Filled" Size="Size.Small" Class="button" OnClick="() => RevokeRoleAsync(context.Id)" Disabled="@_roleBusy">Revoke</MudButton>
+            }
+            else
+            {
+              <span class="muted">Revoked @context.RevokedAt.Value.ToString("yyyy-MM-dd HH:mm")</span>
+            }
+            <MudButton Variant="Variant.Text" Size="Size.Small" Class="btn-secondary" OnClick="() => ToggleGrantHistory(context.Id)">@(_expandedGrantId == context.Id ? "Hide history" : "View history")</MudButton>
+            @if (_expandedGrantId == context.Id)
+            {
+              <div class="mt-2">
+                <strong>Access history</strong>
+                @if (!_grantHistoryByGrant.TryGetValue(context.Id, out var history) || history.Count == 0)
+                {
+                  <div class="muted">No recorded evidence for this grant.</div>
+                }
+                else
+                {
+                  <ul class="history-list">
+                  @foreach (var evidence in history)
+                  {
+                    <li><strong>@evidence.Action</strong> — @evidence.Source — @evidence.CreatedAt.ToString("yyyy-MM-dd HH:mm") — actor <code>@evidence.ActorUserId</code></li>
+                  }
+                  </ul>
+                }
+              </div>
+            }
+          </MudTd>
+        </RowTemplate>
+        <PagerContent>
+          <MudTablePager PageSizeOptions="new int[] { 10, 25, 50 }" />
+        </PagerContent>
+      </MudTable>
     }
-  </section>
+  </MudPaper>
 
-  <section class="card" aria-labelledby="role-change-heading">
+  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="role-change-heading" role="region">
     <h2 id="role-change-heading">Verified roster role administration</h2>
     <p class="field-help">Live Graph directory browsing is blocked until the narrow DEC-01 exception is approved. This local fallback accepts an administrator-provided or exact verified-sign-in identity; email and display name never identify a user.</p>
     <div class="form-group"><label for="roster-tenant">Tenant ID <span class="required-marker">*</span><input id="roster-tenant" @bind="_rosterTenant" maxlength="200" required title="Exact verified Entra tenant ID (tid)." /></label></div>
@@ -167,7 +163,7 @@ else
     <div class="form-group"><label for="roster-name">Display name <span class="required-marker">*</span><input id="roster-name" @bind="_rosterName" maxlength="300" required /></label></div>
     <div class="form-group"><label for="roster-kind">Application identity kind <span class="required-marker">*</span><select id="roster-kind" @bind="_rosterKind" title="Staff and client identities use different landing areas and role policies."><option value="Staff">Staff</option><option value="Client">Client</option></select></label></div>
     <div class="form-group"><label for="roster-source">Identity evidence <span class="required-marker">*</span><select id="roster-source" @bind="_rosterSource" title="Record whether this exact identity came from an approved roster or a verified sign-in."><option value="APPROVED_ROSTER">Approved roster</option><option value="VERIFIED_SIGN_IN">Verified sign-in</option></select></label></div>
-    <button class="button" @onclick="OnboardUserAsync" disabled="@_roleBusy" title="Bind the exact tenant and subject to a local staff user without granting a role">@(_roleBusy ? "Saving…" : "Bind user")</button>
+    <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button" OnClick="OnboardUserAsync" Disabled="@_roleBusy">@(_roleBusy ? "Saving…" : "Bind user")</MudButton>
     @if (_selectedUserId.HasValue)
     {
       <p class="field-help">Selected local user: <code>@_selectedUserId</code>. No role is granted until the explicit plan below is applied.</p>
@@ -177,21 +173,21 @@ else
       { <div class="form-group"><label for="scope-client">Client ID <span class="required-marker">*</span><input id="scope-client" @bind="_scopeClientIdText" maxlength="36" title="Exact client ID in the current firm." /></label></div> }
       @if (_scopeKind == "ENGAGEMENT")
       { <div class="form-group"><label for="scope-engagement">Engagement ID <span class="required-marker">*</span><input id="scope-engagement" @bind="_scopeEngagementIdText" maxlength="36" title="Exact engagement ID; its client relationship is revalidated server-side." /></label></div> }
-      <button class="button" @onclick="ApplyRoleAsync" disabled="@_roleBusy" title="Atomically apply the reviewed scope-bound grant and create a safe Microsoft-only invitation copy link">Save access and create invitation</button>
+      <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button" OnClick="ApplyRoleAsync" Disabled="@_roleBusy">Save access and create invitation</MudButton>
       @if (!string.IsNullOrWhiteSpace(_invitationLink))
       {
         <div class="notice" role="status">
           <strong>Invitation link — not sent by AuditSphere</strong>
           <p class="field-help">This link contains no bearer token or role data. The recipient must authenticate with Microsoft and still pass the local grant check.</p>
           <input readonly value="@_invitationLink" title="Safe application landing path; copy and share only with the confirmed recipient." />
-          <button class="btn-secondary" @onclick="CopyInvitationAsync" disabled="@_roleBusy" title="Copy the safe invitation link and record a local copy-link action">Copy invitation</button>
+          <MudButton Variant="Variant.Outlined" Size="Size.Small" Class="btn-secondary" OnClick="CopyInvitationAsync" Disabled="@_roleBusy">Copy invitation</MudButton>
           @if (!string.IsNullOrWhiteSpace(_invitationMessage)) { <span class="success-text">@_invitationMessage</span> }
         </div>
       }
     }
     @if (!string.IsNullOrWhiteSpace(_roleMessage)) { <p class="notice" role="status">@_roleMessage</p> }
     @if (!string.IsNullOrWhiteSpace(_roleError)) { <p class="notice error" role="alert">@_roleError</p> }
-  </section>
+  </MudPaper>
 }
 
 @code {

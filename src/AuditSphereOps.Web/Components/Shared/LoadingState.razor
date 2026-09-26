@@ -1,0 +1,39 @@
+@* Denied/empty/loading states keep native h2 headings for stable E2E heading selectors. *@
+@if (LoadingEffective)
+{
+  <MudProgressLinear Color="Color.Primary" Indeterminate="true" aria-label="@(LoadingTextEffective ?? "Loading")" />
+  <p role="status">@(LoadingTextEffective ?? "Loading…")</p>
+}
+else if (!string.IsNullOrWhiteSpace(Error))
+{
+  <MudAlert Severity="Severity.Error" Dense="true"><h2>@ErrorTitle</h2>@Error</MudAlert>
+}
+else if (Empty)
+{
+  <MudAlert Severity="Severity.Info" Dense="true">@EmptyText</MudAlert>
+}
+else
+{
+  @ChildContent
+}
+
+@code {
+  [Parameter] public bool Loading { get; set; }
+  [Parameter] public string? LoadingText { get; set; }
+  [Parameter] public string? Error { get; set; }
+  [Parameter] public string ErrorTitle { get; set; } = "Unable to load";
+  [Parameter] public bool Empty { get; set; }
+  [Parameter] public string? EmptyText { get; set; }
+  [Parameter] public RenderFragment? ChildContent { get; set; }
+  [Parameter(CaptureUnmatchedValues = true)] public Dictionary<string, object>? UserAttributes { get; set; }
+
+  /// <summary>Alias used by migrated pages: "IsLoading" maps to Loading.</summary>
+  [Parameter] public bool IsLoading { get; set; }
+
+  /// <summary>Alias used by migrated pages: "LoadingMessage" maps to LoadingText.</summary>
+  [Parameter] public string? LoadingMessage { get; set; }
+
+  private bool LoadingEffective => Loading || IsLoading;
+  private string? LoadingTextEffective => LoadingText ?? LoadingMessage;
+}
+

@@ -6,67 +6,100 @@
 @inject ILogger<AccountingEvidence> Logger
 
 <PageTitle>Accounting evidence queue</PageTitle>
-<a class="back-link" href="/app/accounting">← Back to accounting workspace</a>
-<h1>Accounting evidence queue</h1>
-<button class="button-secondary" title="Clear this queue and check your current client and engagement grants again." @onclick="LoadEvidenceAsync" disabled="@_loading">Refresh queue</button>
+<MudLink Href="/app/accounting" Class="back-link mb-2 d-inline-block">← Back to accounting workspace</MudLink>
+<PageHeader Title="Accounting evidence queue" Description="Only accounting evidence in the authenticated client scope is shown. Approval requires a reviewed audit-procedure result; a free-text reference alone is not approval evidence." />
+<MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button-secondary" OnClick="LoadEvidenceAsync" Disabled="@_loading">Refresh queue</MudButton>
 
 @if (_loading)
 {
-  <p role="status">Loading scoped accounting evidence…</p>
+  <LoadingState IsLoading="true" LoadingMessage="Loading scoped accounting evidence…" />
 }
 else if (_error is not null)
 {
-  <section class="notice" role="alert"><h2>Evidence queue unavailable</h2><p>@_error</p></section>
+  <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="notice my-4" role="alert">
+    <h2>Evidence queue unavailable</h2>
+    <MudText Typo="Typo.body2">@_error</MudText>
+  </MudAlert>
 }
 else if (!_authorized)
 {
-  <section class="notice" role="alert"><h2>Access unavailable</h2><p>This queue requires an authorized internal accounting role and an explicit client scope.</p></section>
+  <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="notice my-4" role="alert">
+    <h2>Access unavailable</h2>
+    <MudText Typo="Typo.body2">This queue requires an authorized internal accounting role and an explicit client scope.</MudText>
+  </MudAlert>
 }
 else
 {
   <p class="scope-note">Only accounting evidence in the authenticated client scope is shown. Approval requires a reviewed audit-procedure result; a free-text reference alone is not approval evidence.</p>
-  <section class="metric-grid" aria-label="Accounting evidence metrics">
-    <article class="metric card"><span class="metric-label">Evidence records</span><strong class="metric-value">@_rows.Count</strong></article>
-    <article class="metric card"><span class="metric-label">Awaiting action</span><strong class="metric-value">@_rows.Count(x => !IsTerminal(x))</strong></article>
-    <article class="metric card"><span class="metric-label">Stale generation</span><strong class="metric-value">@_rows.Count(x => x.IsStale)</strong></article>
-    <article class="metric card"><span class="metric-label">Reviewed result linked</span><strong class="metric-value">@_rows.Count(x => x.LinkStatus == "REVIEWED_RESULT")</strong></article>
-  </section>
+  <MudGrid Spacing="3" Class="metric-grid my-3" aria-label="Accounting evidence metrics">
+    <MudItem xs="12" sm="6" md="3">
+      <MudPaper Class="pa-4 h-100" Elevation="1">
+        <span class="metric-label">Evidence records</span>
+        <strong class="metric-value">@_rows.Count</strong>
+      </MudPaper>
+    </MudItem>
+    <MudItem xs="12" sm="6" md="3">
+      <MudPaper Class="pa-4 h-100" Elevation="1">
+        <span class="metric-label">Awaiting action</span>
+        <strong class="metric-value">@_rows.Count(x => !IsTerminal(x))</strong>
+      </MudPaper>
+    </MudItem>
+    <MudItem xs="12" sm="6" md="3">
+      <MudPaper Class="pa-4 h-100" Elevation="1">
+        <span class="metric-label">Stale generation</span>
+        <strong class="metric-value">@_rows.Count(x => x.IsStale)</strong>
+      </MudPaper>
+    </MudItem>
+    <MudItem xs="12" sm="6" md="3">
+      <MudPaper Class="pa-4 h-100" Elevation="1">
+        <span class="metric-label">Reviewed result linked</span>
+        <strong class="metric-value">@_rows.Count(x => x.LinkStatus == "REVIEWED_RESULT")</strong>
+      </MudPaper>
+    </MudItem>
+  </MudGrid>
   @if (_rows.Count == 0)
   {
-    <section class="notice"><h2>No accounting evidence</h2><p>No ECL, inventory, specialist, analytical or journal-risk records are available in the selected scope.</p></section>
+    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="notice my-4">
+      <h2>No accounting evidence</h2>
+      <MudText Typo="Typo.body2">No ECL, inventory, specialist, analytical or journal-risk records are available in the selected scope.</MudText>
+    </MudAlert>
   }
   else
   {
-    <section class="card" aria-labelledby="evidence-heading">
+    <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="evidence-heading" role="region">
       <h2 id="evidence-heading">Account-area evidence</h2>
-      <div class="table-wrap">
-        <table>
-          <caption class="sr-only">Scoped accounting evidence queue</caption>
-      <thead><tr><th scope="col">Area</th><th scope="col">Client</th><th scope="col">Engagement</th><th scope="col">Period</th><th scope="col">Status</th><th scope="col">Input generation</th><th scope="col">Audit evidence</th><th scope="col">Reference</th></tr></thead>
-          <tbody>
-          @foreach (var row in _rows)
-          {
-            <tr>
-              <td><strong>@row.Kind</strong><br /><span class="muted">@row.Area</span></td>
-              <td>@row.ClientName</td>
-              <td>@row.EngagementName</td>
-              <td>@row.PeriodCode</td>
-              <td><span class="status">@row.Status@(row.IsStale ? " · STALE" : "")</span></td>
-              <td>@row.InputGeneration / @row.CurrentGeneration</td>
-              <td>
-                <span class="status">@row.LinkStatus</span>
-                @if (row.WorkpaperId is { } workpaperId)
-                {
-                  <br /><a href="@($"/app/audit/workpapers/{workpaperId}")">Open linked workpaper</a>
-                }
-              </td>
-              <td><span class="muted">@row.Reference</span></td>
-            </tr>
-          }
-          </tbody>
-        </table>
-      </div>
-    </section>
+      <MudTable Items="_rows" Dense="true" Hover="true" Elevation="0">
+        <HeaderContent>
+          <MudTh>Area</MudTh>
+          <MudTh>Client</MudTh>
+          <MudTh>Engagement</MudTh>
+          <MudTh>Period</MudTh>
+          <MudTh>Status</MudTh>
+          <MudTh>Input generation</MudTh>
+          <MudTh>Audit evidence</MudTh>
+          <MudTh>Reference</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+          <MudTd DataLabel="Area"><strong>@context.Kind</strong><br /><span class="muted">@context.Area</span></MudTd>
+          <MudTd DataLabel="Client">@context.ClientName</MudTd>
+          <MudTd DataLabel="Engagement">@context.EngagementName</MudTd>
+          <MudTd DataLabel="Period">@context.PeriodCode</MudTd>
+          <MudTd DataLabel="Status"><StatusChip Status="@context.Status" />@(context.IsStale ? " · STALE" : "")</MudTd>
+          <MudTd DataLabel="Input generation">@context.InputGeneration / @context.CurrentGeneration</MudTd>
+          <MudTd DataLabel="Audit evidence">
+            <StatusChip Status="@context.LinkStatus" />
+            @if (context.WorkpaperId is { } workpaperId)
+            {
+              <br /><MudLink Href="@($"/app/audit/workpapers/{workpaperId}")">Open linked workpaper</MudLink>
+            }
+          </MudTd>
+          <MudTd DataLabel="Reference"><span class="muted">@context.Reference</span></MudTd>
+        </RowTemplate>
+        <PagerContent>
+          <MudTablePager PageSizeOptions="new int[] { 10, 25, 50 }" />
+        </PagerContent>
+      </MudTable>
+    </MudPaper>
   }
 }
 

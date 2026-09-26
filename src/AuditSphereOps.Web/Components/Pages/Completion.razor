@@ -26,32 +26,32 @@
         }
         <span>Completion</span>
     </nav>
-    <h1>Engagement Completion Checklist</h1>
+    <PageHeader Title="Engagement Completion Checklist" Description="Completion gates, unresolved items, and the exact state required before release." />
 </div>
 
 @if (_loading)
 {
-    <p role="status">Loading completion state…</p>
+    <LoadingState IsLoading="true" LoadingMessage="Loading completion state…" />
 }
 else if (_actor is null || !_isStaff)
 {
-    <section class="notice" role="alert">
+    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="notice my-4" role="alert">
         <h2>Access unavailable</h2>
         <p>Sign in with an authorized internal staff identity to view completion checklists.</p>
-    </section>
+    </MudAlert>
 }
 else if (_engagement is null)
 {
-    <section class="notice" role="alert">
+    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="notice my-4" role="alert">
         <h2>Engagement unavailable</h2>
         <p>The requested engagement was not found in the current firm scope.</p>
-    </section>
+    </MudAlert>
 }
 else
 {
     <div class="completion-shell">
 
-        <section class="card" aria-labelledby="gates-heading">
+        <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="gates-heading" role="region">
             <h2 id="gates-heading">Completion Gates</h2>
             <p class="notice-text">All gates must be satisfied before issuance. Projections reflect persisted commands; a paid invoice cannot clear any professional gate.</p>
             @if (_gates.Count == 0)
@@ -61,27 +61,18 @@ else
             else
             {
                 <div class="table-wrap">
-                    <table class="data-table">
-                        <thead>
-                            <tr><th>Gate</th><th>Status</th><th>Authority</th><th>Date</th></tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var g in _gates)
-                            {
-                                <tr>
-                                    <td>@g.Name</td>
-                                    <td><span class="badge @g.StatusClass">@g.Status</span></td>
-                                    <td>@(g.Authority ?? "—")</td>
-                                    <td>@(g.Date?.ToString("yyyy-MM-dd HH:mm") ?? "—")</td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
+                    <MudTable Items="_gates" Dense="true" Hover="true" Elevation="0" Class="data-table">
+  <HeaderContent><MudTh>Gate</MudTh><MudTh>Status</MudTh><MudTh>Authority</MudTh><MudTh>Date</MudTh></HeaderContent>
+  <RowTemplate>                                    <MudTd>@context.Name</MudTd>
+                                    <MudTd><span class="badge @context.StatusClass">@context.Status</span></MudTd>
+                                    <MudTd>@(context.Authority ?? "—")</MudTd>
+                                    <MudTd>@(context.Date?.ToString("yyyy-MM-dd HH:mm") ?? "—")</MudTd></RowTemplate>
+</MudTable>
                 </div>
             }
-        </section>
+        </MudPaper>
 
-        <section class="card" aria-labelledby="rep-heading">
+        <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="rep-heading" role="region">
             <h2 id="rep-heading">Written Representations</h2>
             <p class="info-text">Management representations are required before the report date. Each representation is version-bound to the exact final package.</p>
             @if (_representations.Count == 0)
@@ -99,9 +90,9 @@ else
                     </div>
                 }
             }
-        </section>
+        </MudPaper>
 
-        <section class="card" aria-labelledby="fs-heading">
+        <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="fs-heading" role="region">
             <h2 id="fs-heading">Final Financial Statements</h2>
             <dl class="detail-grid">
                 <dt>Package ID</dt><dd>@(_packageId?.ToString() ?? "None")</dd>
@@ -109,9 +100,9 @@ else
                 <dt>Partner approval</dt><dd>@(_partnerApproved ? "✓ Approved" : "Pending")</dd>
                 <dt>EQR status</dt><dd>@_eqrStatus</dd>
             </dl>
-        </section>
+        </MudPaper>
 
-        <section class="card" aria-labelledby="actions-heading">
+        <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="actions-heading" role="region">
             <h2 id="actions-heading">Actions</h2>
             <div class="action-bar" style="display:flex; gap:0.75rem; margin-top:0.5rem;">
                 @if (_releaseCandidateId.HasValue)
@@ -120,21 +111,21 @@ else
                 }
                 else if (_canPrepareRelease && _packageReviewsComplete && _packageStatus == AccountingPackageStates.PackageValidated)
                 {
-                    <button class="btn-primary" @onclick="PrepareReleaseCandidateAsync" disabled="@_busy">
+                    <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="btn-primary" OnClick="PrepareReleaseCandidateAsync" Disabled="@_busy">
                         @(_busy ? "Preparing…" : "Prepare Release Candidate")
-                    </button>
+                    </MudButton>
                 }
                 @if (_packageId.HasValue)
                 {
                     <a class="btn-secondary" href="/app/accounting/packages/@_packageId">Open Financial Package</a>
                 }
-                <a class="button" href="/app/engagements/@_engagement.Id">Back to Engagement</a>
+                <MudButton Color="Color.Primary" Variant="Variant.Filled" Href="@($"/app/engagements/{_engagement.Id}")" Class="button">Back to Engagement</MudButton>
             </div>
             @if (_releaseMessage is not null)
             {
                 <p class="command-result @(_releaseSucceeded ? "success-text" : "error-text")" role="status">@_releaseMessage</p>
             }
-        </section>
+        </MudPaper>
     </div>
 }
 

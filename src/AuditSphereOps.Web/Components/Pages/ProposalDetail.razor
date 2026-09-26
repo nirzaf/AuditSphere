@@ -19,24 +19,33 @@
 
 @if (_loading)
 {
-  <p role="status">Loading proposal…</p>
+  <LoadingState IsLoading="true" LoadingMessage="Loading proposal…" />
 }
 else if (_actor is null || !_isAuthorized)
 {
-  <section class="notice" role="alert"><h2>Access unavailable</h2><p>Sign in with an authorized firm-wide commercial identity to view proposals.</p></section>
+  <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="notice my-4" role="alert">
+    <h2>Access unavailable</h2>
+    <MudText Typo="Typo.body2">Sign in with an authorized firm-wide commercial identity to view proposals.</MudText>
+  </MudAlert>
 }
 else if (_loadError is not null)
 {
-  <section class="notice" role="alert"><h2>Proposal could not be loaded</h2><p>@_loadError</p></section>
+  <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="notice my-4" role="alert">
+    <h2>Proposal could not be loaded</h2>
+    <MudText Typo="Typo.body2">@_loadError</MudText>
+  </MudAlert>
 }
 else if (_proposal is null || _opportunity is null)
 {
-  <section class="notice" role="alert"><h2>Proposal unavailable</h2><p>The requested proposal is not available in the current firm scope.</p></section>
+  <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="notice my-4" role="alert">
+    <h2>Proposal unavailable</h2>
+    <MudText Typo="Typo.body2">The requested proposal is not available in the current firm scope.</MudText>
+  </MudAlert>
 }
 else
 {
-  <section class="card" aria-labelledby="proposal-details-heading">
-    <p class="eyebrow">Status: <span class="status">@_proposal.Status</span> · Revision @_proposal.Revision</p>
+  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="proposal-details-heading" role="region">
+    <p class="eyebrow">Status: @_proposal.Status · Revision @_proposal.Revision</p>
     <h2 id="proposal-details-heading">@_clientName</h2>
     <dl class="detail-grid">
       <dt>Proposal ID</dt><dd><code>@_proposal.Id</code></dd>
@@ -62,9 +71,9 @@ else
         <dt>Supersedes</dt><dd><code>@_proposal.SupersedesId</code></dd>
       }
     </dl>
-  </section>
+  </MudPaper>
 
-  <section class="card" aria-labelledby="terms-heading">
+  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="terms-heading" role="region">
     <h2 id="terms-heading">Proposal terms</h2>
     <dl class="detail-grid">
       <dt>Scope</dt><dd>@_proposal.Scope</dd>
@@ -72,37 +81,37 @@ else
       <dt>Deliverables</dt><dd>@_proposal.Deliverables</dd>
       <dt>Dependencies</dt><dd>@(string.IsNullOrWhiteSpace(_proposal.Dependencies) ? "Not specified" : _proposal.Dependencies)</dd>
     </dl>
-  </section>
+  </MudPaper>
 
-  <section class="card" aria-labelledby="versions-heading">
+  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="versions-heading" role="region">
     <h2 id="versions-heading">Proposal versions</h2>
-    <div class="table-wrap">
-      <table>
-        <caption class="sr-only">Persisted versions for this commercial opportunity</caption>
-        <thead>
-          <tr><th scope="col">Revision</th><th scope="col">Status</th><th scope="col">Fee</th><th scope="col">Created</th><th scope="col">Sent</th><th scope="col">Response</th></tr>
-        </thead>
-        <tbody>
-        @foreach (var version in _versions)
-        {
-          <tr>
-            <td>@version.Revision</td>
-            <td>@version.Status</td>
-            <td>@version.Fee.ToString("N2") @version.Currency</td>
-            <td>@version.CreatedAt.ToString("yyyy-MM-dd HH:mm") UTC</td>
-            <td>@(version.SentAt?.ToString("yyyy-MM-dd HH:mm") ?? "—")</td>
-            <td>@(version.ResponseAt?.ToString("yyyy-MM-dd HH:mm") ?? "—")</td>
-          </tr>
-        }
-        </tbody>
-      </table>
-    </div>
-  </section>
+    <MudTable Items="_versions" Dense="true" Hover="true" Elevation="0">
+      <HeaderContent>
+        <MudTh>Revision</MudTh>
+        <MudTh>Status</MudTh>
+        <MudTh>Fee</MudTh>
+        <MudTh>Created</MudTh>
+        <MudTh>Sent</MudTh>
+        <MudTh>Response</MudTh>
+      </HeaderContent>
+      <RowTemplate>
+        <MudTd DataLabel="Revision">@context.Revision</MudTd>
+        <MudTd DataLabel="Status"><StatusChip Status="@context.Status" /></MudTd>
+        <MudTd DataLabel="Fee">@context.Fee.ToString("N2") @context.Currency</MudTd>
+        <MudTd DataLabel="Created">@context.CreatedAt.ToString("yyyy-MM-dd HH:mm") UTC</MudTd>
+        <MudTd DataLabel="Sent">@(context.SentAt?.ToString("yyyy-MM-dd HH:mm") ?? "—")</MudTd>
+        <MudTd DataLabel="Response">@(context.ResponseAt?.ToString("yyyy-MM-dd HH:mm") ?? "—")</MudTd>
+      </RowTemplate>
+      <PagerContent>
+        <MudTablePager PageSizeOptions="new int[] { 10, 25, 50 }" />
+      </PagerContent>
+    </MudTable>
+  </MudPaper>
 
-  <section class="notice" role="status" aria-labelledby="workflow-heading">
+  <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="notice my-4" role="status" aria-labelledby="workflow-heading">
     <h2 id="workflow-heading">Workflow actions unavailable</h2>
-    <p>Independent pricing-review evidence, validity, and outbound delivery receipt are not yet persisted. This page therefore will not change review, sent, or client-response status. No email is sent by opening or refreshing this page.</p>
-  </section>
+    <MudText Typo="Typo.body2">Independent pricing-review evidence, validity, and outbound delivery receipt are not yet persisted. This page therefore will not change review, sent, or client-response status. No email is sent by opening or refreshing this page.</MudText>
+  </MudAlert>
 }
 
 @code {

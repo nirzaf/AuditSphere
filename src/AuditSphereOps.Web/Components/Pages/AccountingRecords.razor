@@ -11,26 +11,32 @@
 @inject ILogger<AccountingRecords> Logger
 
 <PageTitle>@Title</PageTitle>
-<a class="back-link" href="/app/accounting">← Back to accounting workspace</a>
-<h1>@Title</h1>
-<button class="button-secondary" title="Clear this queue and recheck your current accounting grants before loading records." @onclick="LoadCurrentQueueSafelyAsync" disabled="@_loading">Refresh queue</button>
+<MudLink Href="/app/accounting" Class="back-link mb-2 d-inline-block">← Back to accounting workspace</MudLink>
+<PageHeader Title="@Title" Description="Only records in the authenticated client or exact engagement scope are shown. Detail links re-check authorization before displaying the record." />
+<MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button-secondary" OnClick="LoadCurrentQueueSafelyAsync" Disabled="@_loading">Refresh queue</MudButton>
 
 @if (_loading)
 {
-  <p role="status">Loading scoped accounting records…</p>
+  <LoadingState IsLoading="true" LoadingMessage="Loading scoped accounting records…" />
 }
 else if (_loadError is not null)
 {
-  <section class="notice" role="alert"><h2>Records unavailable</h2><p>@_loadError</p></section>
+  <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="notice my-4" role="alert">
+    <h2>Records unavailable</h2>
+    <MudText Typo="Typo.body2">@_loadError</MudText>
+  </MudAlert>
 }
 else if (!_authorized)
 {
-  <section class="notice" role="alert"><h2>Access unavailable</h2><p>This queue requires an authorized internal accounting role and an explicit client scope.</p></section>
+  <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="notice my-4" role="alert">
+    <h2>Access unavailable</h2>
+    <MudText Typo="Typo.body2">This queue requires an authorized internal accounting role and an explicit client scope.</MudText>
+  </MudAlert>
 }
 else
 {
   <p class="scope-note">Only records in the authenticated client or exact engagement scope are shown. Detail links re-check authorization before displaying the record.</p>
-  <nav class="accounting-tabs" aria-label="Accounting record queues">
+  <nav class="accounting-tabs my-3" aria-label="Accounting record queues">
     <a href="/app/accounting/mappings" class="@(Mode == RecordMode.Mappings ? "active" : null)" aria-current="@(Mode == RecordMode.Mappings ? "page" : null)" title="Review immutable client chart and reporting mappings.">COA and mappings</a>
     <a href="/app/accounting/journals" class="@(Mode == RecordMode.Journals ? "active" : null)" aria-current="@(Mode == RecordMode.Journals ? "page" : null)" title="Review scoped adjustment journals and their posting state.">Adjustments</a>
     <a href="/app/accounting/differences" class="@(Mode == RecordMode.Differences ? "active" : null)" aria-current="@(Mode == RecordMode.Differences ? "page" : null)" title="Review scoped audit differences and correction lineage.">Differences</a>
@@ -38,106 +44,121 @@ else
 
   @if (Mode == RecordMode.Mappings)
   {
-    <section class="card" aria-labelledby="mappings-heading">
+    <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="mappings-heading" role="region">
       <h2 id="mappings-heading">Mapping versions</h2>
       @if (_mappings.Count == 0)
       {
-        <p class="muted">No mapping versions are available in the current scope.</p>
+        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="muted">No mapping versions are available in the current scope.</MudText>
       }
       else
       {
-        <div class="table-wrap"><table>
-          <caption class="sr-only">Scoped accounting mapping versions</caption>
-          <thead><tr><th scope="col">Client</th><th scope="col">Engagement</th><th scope="col">Period</th><th scope="col">Version</th><th scope="col">Chart</th><th scope="col">Status</th><th scope="col"><span class="sr-only">Action</span></th></tr></thead>
-          <tbody>
-          @foreach (var mapping in _mappings)
-          {
-            <tr>
-              <td>@mapping.ClientName</td>
-              <td>@mapping.EngagementName</td>
-              <td>@mapping.PeriodStart to @mapping.PeriodEnd</td>
-              <td>v@mapping.Version · gen @mapping.Generation</td>
-              <td>@(mapping.HasChart ? "Bound" : "Legacy/unbound")</td>
-              <td><span class="status">@mapping.Status</span></td>
-              <td><a href="@($"/app/accounting/mappings/{mapping.Id}")" title="Open this immutable mapping version and its allocation lineage">Open mapping</a></td>
-            </tr>
-          }
-          </tbody>
-        </table></div>
+        <MudTable Items="_mappings" Dense="true" Hover="true" Elevation="0">
+          <HeaderContent>
+            <MudTh>Client</MudTh>
+            <MudTh>Engagement</MudTh>
+            <MudTh>Period</MudTh>
+            <MudTh>Version</MudTh>
+            <MudTh>Chart</MudTh>
+            <MudTh>Status</MudTh>
+            <MudTh><span class="sr-only">Action</span></MudTh>
+          </HeaderContent>
+          <RowTemplate>
+            <MudTd DataLabel="Client">@context.ClientName</MudTd>
+            <MudTd DataLabel="Engagement">@context.EngagementName</MudTd>
+            <MudTd DataLabel="Period">@context.PeriodStart to @context.PeriodEnd</MudTd>
+            <MudTd DataLabel="Version">v@context.Version · gen @context.Generation</MudTd>
+            <MudTd DataLabel="Chart">@(context.HasChart ? "Bound" : "Legacy/unbound")</MudTd>
+            <MudTd DataLabel="Status"><StatusChip Status="@context.Status" /></MudTd>
+            <MudTd DataLabel="Action"><MudLink Href="@($"/app/accounting/mappings/{context.Id}")">Open mapping</MudLink></MudTd>
+          </RowTemplate>
+          <PagerContent>
+            <MudTablePager PageSizeOptions="new int[] { 10, 25, 50 }" />
+          </PagerContent>
+        </MudTable>
       }
-    </section>
+    </MudPaper>
   }
   else if (Mode == RecordMode.Journals)
   {
-    <section class="card" aria-labelledby="journals-heading">
+    <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="journals-heading" role="region">
       <h2 id="journals-heading">Adjustment journals</h2>
       @if (_journals.Count == 0)
       {
-        <p class="muted">No adjustment journals are available in the current scope.</p>
+        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="muted">No adjustment journals are available in the current scope.</MudText>
       }
       else
       {
-        <div class="table-wrap"><table>
-          <caption class="sr-only">Scoped adjustment journals</caption>
-          <thead><tr><th scope="col">Journal</th><th scope="col">Client</th><th scope="col">Engagement</th><th scope="col">Purpose</th><th scope="col">Context</th><th scope="col">Status</th><th scope="col"><span class="sr-only">Action</span></th></tr></thead>
-          <tbody>
-          @foreach (var journal in _journals)
-          {
-            <tr>
-              <td><strong>@journal.JournalNumber</strong><br /><span class="muted">rev @journal.Revision</span></td>
-              <td>@journal.ClientName</td>
-              <td>@journal.EngagementName</td>
-              <td>@journal.Purpose</td>
-              <td>@journal.PeriodCode · @(journal.Currency ?? "Currency not recorded")</td>
-              <td><span class="status">@journal.Status</span></td>
-              <td><a href="@($"/app/accounting/journals/{journal.Id}")" title="Open this exact journal revision, posting controls and export gate">Open journal</a></td>
-            </tr>
-          }
-          </tbody>
-        </table></div>
+        <MudTable Items="_journals" Dense="true" Hover="true" Elevation="0">
+          <HeaderContent>
+            <MudTh>Journal</MudTh>
+            <MudTh>Client</MudTh>
+            <MudTh>Engagement</MudTh>
+            <MudTh>Purpose</MudTh>
+            <MudTh>Context</MudTh>
+            <MudTh>Status</MudTh>
+            <MudTh><span class="sr-only">Action</span></MudTh>
+          </HeaderContent>
+          <RowTemplate>
+            <MudTd DataLabel="Journal"><strong>@context.JournalNumber</strong><br /><span class="muted">rev @context.Revision</span></MudTd>
+            <MudTd DataLabel="Client">@context.ClientName</MudTd>
+            <MudTd DataLabel="Engagement">@context.EngagementName</MudTd>
+            <MudTd DataLabel="Purpose">@context.Purpose</MudTd>
+            <MudTd DataLabel="Context">@context.PeriodCode · @(context.Currency ?? "Currency not recorded")</MudTd>
+            <MudTd DataLabel="Status"><StatusChip Status="@context.Status" /></MudTd>
+            <MudTd DataLabel="Action"><MudLink Href="@($"/app/accounting/journals/{context.Id}")">Open journal</MudLink></MudTd>
+          </RowTemplate>
+          <PagerContent>
+            <MudTablePager PageSizeOptions="new int[] { 10, 25, 50 }" />
+          </PagerContent>
+        </MudTable>
       }
-    </section>
+    </MudPaper>
   }
   else
   {
-    <section class="card" aria-labelledby="differences-heading">
+    <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="differences-heading" role="region">
       <h2 id="differences-heading">Audit differences</h2>
       <p class="muted">Differences remain separate from journal posting. A proposed journal link is shown only when one is persisted for the exact difference.</p>
       @if (_differences.Count == 0)
       {
-        <p class="muted">No audit differences are available in the current scope.</p>
+        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="muted">No audit differences are available in the current scope.</MudText>
       }
       else
       {
-        <div class="table-wrap"><table>
-          <caption class="sr-only">Scoped audit differences</caption>
-          <thead><tr><th scope="col">Area</th><th scope="col">Client</th><th scope="col">Engagement</th><th scope="col">Amount</th><th scope="col">Status</th><th scope="col">Correction</th><th scope="col"><span class="sr-only">Action</span></th></tr></thead>
-          <tbody>
-          @foreach (var difference in _differences)
-          {
-            <tr>
-              <td><strong>@difference.AccountArea</strong><br /><span class="muted">@difference.DifferenceType</span></td>
-              <td>@difference.ClientName</td>
-              <td>@difference.EngagementName</td>
-              <td>@difference.Amount.ToString("N2") @difference.Currency</td>
-              <td><span class="status">@difference.Status</span></td>
-              <td>@(difference.CorrectionState ?? "Not recorded")</td>
-              <td>
-                @if (difference.ProposedJournalId is { } journalId)
-                {
-                  <a href="@($"/app/accounting/journals/{journalId}")" title="Open the proposed journal linked to this exact difference">Open linked journal</a>
-                }
-                else
-                {
-                  <span class="muted">No journal linked</span>
-                }
-              </td>
-            </tr>
-          }
-          </tbody>
-        </table></div>
+        <MudTable Items="_differences" Dense="true" Hover="true" Elevation="0">
+          <HeaderContent>
+            <MudTh>Area</MudTh>
+            <MudTh>Client</MudTh>
+            <MudTh>Engagement</MudTh>
+            <MudTh>Amount</MudTh>
+            <MudTh>Status</MudTh>
+            <MudTh>Correction</MudTh>
+            <MudTh><span class="sr-only">Action</span></MudTh>
+          </HeaderContent>
+          <RowTemplate>
+            <MudTd DataLabel="Area"><strong>@context.AccountArea</strong><br /><span class="muted">@context.DifferenceType</span></MudTd>
+            <MudTd DataLabel="Client">@context.ClientName</MudTd>
+            <MudTd DataLabel="Engagement">@context.EngagementName</MudTd>
+            <MudTd DataLabel="Amount">@context.Amount.ToString("N2") @context.Currency</MudTd>
+            <MudTd DataLabel="Status"><StatusChip Status="@context.Status" /></MudTd>
+            <MudTd DataLabel="Correction">@(context.CorrectionState ?? "Not recorded")</MudTd>
+            <MudTd DataLabel="Action">
+              @if (context.ProposedJournalId is { } journalId)
+              {
+                <MudLink Href="@($"/app/accounting/journals/{journalId}")">Open linked journal</MudLink>
+              }
+              else
+              {
+                <span class="muted">No journal linked</span>
+              }
+            </MudTd>
+          </RowTemplate>
+          <PagerContent>
+            <MudTablePager PageSizeOptions="new int[] { 10, 25, 50 }" />
+          </PagerContent>
+        </MudTable>
       }
-    </section>
+    </MudPaper>
   }
 }
 

@@ -9,20 +9,20 @@
 @inject IDbContextFactory<AuditSphereDbContext> DbFactory
 
 <PageTitle>Advanced consolidation workflow</PageTitle>
-<a class="back-link" href="/app/consolidation">← Back to consolidation</a>
+<MudLink Href="/app/consolidation" Class="back-link mb-2 d-inline-block">← Back to consolidation</MudLink>
 
 @if (_loading)
 {
-  <p role="status">Loading the advanced consolidation workflow…</p>
+  <LoadingState IsLoading="true" LoadingMessage="Loading the advanced consolidation workflow…" />
 }
 else if (_actor is null || _scope is null)
 {
-  <section class="notice" role="alert"><h1>Access unavailable</h1><p>The requested consolidation scope is not available in the current firm and group grant.</p></section>
+  <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="notice my-4" role="alert"><h1>Access unavailable</h1><p>The requested consolidation scope is not available in the current firm and group grant.</p></MudAlert>
 }
 else
 {
-  <h1>Advanced consolidation workflow</h1>
-  <section class="card" aria-labelledby="scope-heading">
+  <PageHeader Title="Advanced consolidation workflow" Description="Exact approved group perimeter, schedule inputs, and consolidation execution state for this scope." />
+  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="scope-heading" role="region">
     <h2 id="scope-heading">@_scope.GroupName · v@_scope.Version</h2>
     <dl class="details">
       <dt>Method</dt><dd><code>@_scope.Method</code></dd>
@@ -32,14 +32,14 @@ else
       <dt>Approved reviewed journals</dt><dd>@_scope.ApprovedReviewedJournalCount</dd>
     </dl>
     <p class="scope-note">This workflow calls the existing scope-checked commands. Approval remains maker/checker separated, source and method evidence are re-read server-side, and no action enables a professional or external release gate.</p>
-  </section>
+  </MudPaper>
 
   @if (!string.IsNullOrWhiteSpace(_message))
   {
     <p class="command-result @(_messageSucceeded ? "success-text" : "error-text")" role="status" aria-live="polite">@_message</p>
   }
 
-  <section class="card" aria-labelledby="schedule-submit-heading" data-draft-scope="advanced-schedule-@ScopeId:D">
+  <section class="card" aria-labelledby="schedule-submit-heading" data-draft-scope="@($"advanced-schedule-{ScopeId:D}")">
     <h2 id="schedule-submit-heading">Submit source-bound schedule</h2>
     <p class="muted">Required inputs are saved as a browser draft. The server canonicalizes the JSON, validates the selected method and creates a submitted schedule only; it never accepts client-supplied approval state.</p>
     <div class="form-grid">
@@ -58,7 +58,7 @@ else
     </details>
     @if (_canPrepare)
     {
-      <button type="button" class="button" title="Submit this source-bound schedule for independent review; it does not approve or execute the schedule." @onclick="SubmitScheduleAsync" disabled="@_busy">@(_busy ? "Submitting…" : "Submit schedule")</button>
+      <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button" OnClick="SubmitScheduleAsync" Disabled="@_busy">@(_busy ? "Submitting…" : "Submit schedule")</MudButton>
     }
     else
     {
@@ -66,7 +66,7 @@ else
     }
   </section>
 
-  <section class="card" aria-labelledby="schedule-list-heading">
+  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="schedule-list-heading" role="region">
     <h2 id="schedule-list-heading">Schedules</h2>
     @if (_schedules.Count == 0)
     {
@@ -74,43 +74,35 @@ else
     }
     else
     {
-      <div class="table-wrap"><table>
-        <caption class="sr-only">Advanced method schedules</caption>
-        <thead><tr><th scope="col">Created</th><th scope="col">Status</th><th scope="col">Schedule</th><th scope="col"><span class="sr-only">Action</span></th></tr></thead>
-        <tbody>
-        @foreach (var schedule in _schedules)
-        {
-          <tr>
-            <td>@schedule.CreatedAt.ToString("yyyy-MM-dd HH:mm") UTC<br /><span class="muted"><code>@schedule.CreatedByUserId</code></span></td>
-            <td><span class="status">@schedule.Status</span></td>
-            <td><code>@schedule.Id</code><br /><span class="muted">input @schedule.InputDigest[..Math.Min(12, schedule.InputDigest.Length)]…</span></td>
-            <td>
-              @if (schedule.Status == AdvancedConsolidationMethodScheduleStates.Submitted && _canReview)
+      <MudTable Items="_schedules" Dense="true" Hover="true" Elevation="0">
+  <HeaderContent><MudTh scope="col">Created</MudTh><MudTh scope="col">Status</MudTh><MudTh scope="col">Schedule</MudTh><MudTh scope="col"><span class="sr-only">Action</span></MudTh></HeaderContent>
+  <RowTemplate>            <MudTd>@context.CreatedAt.ToString("yyyy-MM-dd HH:mm") UTC<br /><span class="muted"><code>@context.CreatedByUserId</code></span></MudTd>
+            <MudTd><StatusChip Status="@context.Status" /></MudTd>
+            <MudTd><code>@context.Id</code><br /><span class="muted">input @context.InputDigest[..Math.Min(12, context.InputDigest.Length)]…</span></MudTd>
+            <MudTd>
+              @if (context.Status == AdvancedConsolidationMethodScheduleStates.Submitted && _canReview)
               {
-                <button type="button" class="button" title="Revalidate this submitted schedule and record separate reviewer approval." @onclick="() => ApproveScheduleAsync(schedule.Id)" disabled="@_busy">Approve schedule</button>
+                <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button" OnClick="() => ApproveScheduleAsync(context.Id)" Disabled="@_busy">Approve context</MudButton>
               }
-              else if (schedule.Status == AdvancedConsolidationMethodScheduleStates.Submitted)
+              else if (context.Status == AdvancedConsolidationMethodScheduleStates.Submitted)
               {
                 <span class="muted">Waiting for an independent reviewer</span>
               }
               else
               {
-                <span class="muted">Approved @schedule.ApprovedAt?.ToString("yyyy-MM-dd HH:mm") UTC</span>
+                <span class="muted">Approved @context.ApprovedAt?.ToString("yyyy-MM-dd HH:mm") UTC</span>
               }
-            </td>
-          </tr>
-        }
-        </tbody>
-      </table></div>
+            </MudTd></RowTemplate>
+</MudTable>
     }
-  </section>
+  </MudPaper>
 
-  <section class="card" aria-labelledby="execution-heading">
+  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="execution-heading" role="region">
     <h2 id="execution-heading">Verified executions</h2>
     <p class="muted">Execution recalculates from the current approved schedule, components and group revision. Separate approval is required before the result is treated as ready.</p>
     @if (_canPrepare && _schedules.Any(x => x.Status == AdvancedConsolidationMethodScheduleStates.Approved))
     {
-      <button type="button" class="button" title="Run the approved schedule through the guarded local calculation path; no external provider is called." @onclick="RunExecutionAsync" disabled="@_busy">@(_busy ? "Running…" : "Run verified execution")</button>
+      <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button" OnClick="RunExecutionAsync" Disabled="@_busy">@(_busy ? "Running…" : "Run verified execution")</MudButton>
     }
     @if (_executions.Count == 0)
     {
@@ -118,37 +110,29 @@ else
     }
     else
     {
-      <div class="table-wrap"><table>
-        <caption class="sr-only">Advanced consolidation executions</caption>
-        <thead><tr><th scope="col">Created</th><th scope="col">Status</th><th scope="col">Balances</th><th scope="col">Execution</th><th scope="col"><span class="sr-only">Action</span></th></tr></thead>
-        <tbody>
-        @foreach (var execution in _executions)
-        {
-          <tr>
-            <td>@execution.CreatedAt.ToString("yyyy-MM-dd HH:mm") UTC<br /><span class="muted"><code>@execution.CreatedByUserId</code></span></td>
-            <td><span class="status">@execution.Status</span></td>
-            <td>Comparative @execution.ComparativeSignedTotal.ToString("N2")<br />Current @execution.CurrentSignedTotal.ToString("N2")</td>
-            <td><code>@execution.Id</code><br /><span class="muted">output @execution.OutputDigest[..Math.Min(12, execution.OutputDigest.Length)]…</span></td>
-            <td>
-              @if (execution.Status == AdvancedConsolidationExecutionStates.Verified && _canReview)
+      <MudTable Items="_executions" Dense="true" Hover="true" Elevation="0">
+  <HeaderContent><MudTh scope="col">Created</MudTh><MudTh scope="col">Status</MudTh><MudTh scope="col">Balances</MudTh><MudTh scope="col">Execution</MudTh><MudTh scope="col"><span class="sr-only">Action</span></MudTh></HeaderContent>
+  <RowTemplate>            <MudTd>@context.CreatedAt.ToString("yyyy-MM-dd HH:mm") UTC<br /><span class="muted"><code>@context.CreatedByUserId</code></span></MudTd>
+            <MudTd><StatusChip Status="@context.Status" /></MudTd>
+            <MudTd>Comparative @context.ComparativeSignedTotal.ToString("N2")<br />Current @context.CurrentSignedTotal.ToString("N2")</MudTd>
+            <MudTd><code>@context.Id</code><br /><span class="muted">output @context.OutputDigest[..Math.Min(12, context.OutputDigest.Length)]…</span></MudTd>
+            <MudTd>
+              @if (context.Status == AdvancedConsolidationExecutionStates.Verified && _canReview)
               {
-                <button type="button" class="button" title="Revalidate current inputs and separately approve this verified execution." @onclick="() => ApproveExecutionAsync(execution.Id)" disabled="@_busy">Approve execution</button>
+                <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button" OnClick="() => ApproveExecutionAsync(context.Id)" Disabled="@_busy">Approve context</MudButton>
               }
-              else if (execution.Status == AdvancedConsolidationExecutionStates.Verified)
+              else if (context.Status == AdvancedConsolidationExecutionStates.Verified)
               {
                 <span class="muted">Waiting for an independent reviewer</span>
               }
               else
               {
-                <span class="muted">Approved @execution.ApprovedAt?.ToString("yyyy-MM-dd HH:mm") UTC</span>
+                <span class="muted">Approved @context.ApprovedAt?.ToString("yyyy-MM-dd HH:mm") UTC</span>
               }
-            </td>
-          </tr>
-        }
-        </tbody>
-      </table></div>
+            </MudTd></RowTemplate>
+</MudTable>
     }
-  </section>
+  </MudPaper>
 }
 
 @code {

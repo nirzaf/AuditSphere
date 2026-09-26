@@ -696,6 +696,11 @@
       "item": "Accounting — preserve source currency in GL imports",
       "status": "LOCAL_VERIFIED",
       "details": "Direct and streamed GL import now retain normalized per-line original currency, original amount and functional posting; shared validation rejects inconsistent functional values and canonical digests bind source amounts/currency. Focused PostgreSQL regressions passed 2/2; full Domain passed 261/261; API 6/6; E2E 56/56; Release solution build passed with 0 warnings/errors; EF reports no pending model changes. Commit 1b63f275f49f39bafa4e2a5f57c4ea66a7b6f1c3 is pushed to master and exact remote SHA confirmed. Hosted run 35981469838 is pending. Open-item status/classification/carrying amount remain preparer-substantiated; imported journal lines are not automatically treated as period-end open balances. No external tenant or production effect."
+    },
+    {
+      "item": "Web UI — MudBlazor content migration across all inventoried routes",
+      "status": "LOCAL_VERIFIED",
+      "details": "All 47 inventoried AuditSphereOps routes now render their content through MudBlazor 9.10.0 primitives (PageHeader, MudPaper, MudAlert, MudTable, MudButton, MudLink, StatusChip, LoadingState, MudGrid) inside the existing Blazor Interactive Server boundaries. Authorization checks, revision fencing, draft-state attributes and E2E selectors are unchanged; draft-state.js and pbc-upload.js are byte-identical to master. Observed locally against PostgreSQL 18.6 on 127.0.0.1:5433: Release web build 0 warnings/0 errors; dotnet ef migrations has-pending-model-changes reports no changes; Domain 338/338 passed with 0 skipped (including the three ArchitectureGuardTests); Api 6/6 passed; E2E Playwright 60/60 passed with 0 skipped. Two E2E regressions were found and fixed in the UI layer: the contiguous 'Status: SENT' invoice text and the GetByRole(AriaRole.Region) time form lookup. Documented exceptions: 6 native tables (tfoot/colspan), 8 native browser-draft boundary sections, and /app/accounting/remeasurement left at its master markup because its browser-draft reload journey is sensitive to the MudBlazor render path. Changes are uncommitted working-tree state; no hosted CI run, tenant operation or production effect is claimed."
     }
   ],
   "remainingLocalWork": [

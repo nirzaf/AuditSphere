@@ -16,7 +16,7 @@
         <a href="/app">Portfolio</a> /
         <span>Archive @Id</span>
     </nav>
-    <h1>Records Archive</h1>
+    <PageHeader Title="Records Archive" Description="Immutable archive manifests, entry hashes, and transfer evidence for this archive." />
     @if (_archive is not null)
     {
         <span class="status-badge @_statusClass">@_archive.Status</span>
@@ -25,26 +25,26 @@
 
 @if (_loading)
 {
-    <p role="status">Loading archive…</p>
+    <LoadingState IsLoading="true" LoadingMessage="Loading archive…" />
 }
 else if (_accessDenied)
 {
-    <section class="notice" role="alert">
+    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="notice my-4" role="alert">
         <h2>Archive unavailable</h2>
         <p>The archive is not available in the current firm and engagement scope.</p>
-    </section>
+    </MudAlert>
 }
 else if (_archive is null)
 {
-    <section class="notice" role="alert">
+    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="notice my-4" role="alert">
         <h2>Archive unavailable</h2>
         <p>The requested archive was not found.</p>
-    </section>
+    </MudAlert>
 }
 else
 {
     <div class="archive-shell">
-        <section class="card" aria-labelledby="archive-summary">
+        <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="archive-summary" role="region">
             <h2 id="archive-summary">Archive Manifest</h2>
             <dl class="detail-grid">
                 <dt>Archive ID</dt><dd><code>@_archive.Id</code></dd>
@@ -63,9 +63,9 @@ else
             {
                 <p class="notice-text">Records action requested; this is not evidence of Purview protection.</p>
             }
-        </section>
+        </MudPaper>
 
-        <section class="card" aria-labelledby="archive-contents">
+        <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="archive-contents" role="region">
             <h2 id="archive-contents">Archive Contents</h2>
             @if (_entries.Count == 0)
             {
@@ -74,26 +74,19 @@ else
             else
             {
                 <div class="table-wrap">
-                    <table class="data-table">
-                        <thead><tr><th>Index</th><th>Kind</th><th>Source</th><th>Hash</th><th>Bytes</th></tr></thead>
-                        <tbody>
-                            @foreach (var entry in _entries)
-                            {
-                                <tr>
-                                    <td>@entry.Ordinal</td>
-                                    <td>@entry.EntryKind</td>
-                                    <td>@entry.RelativeName</td>
-                                    <td><code class="hash-snippet">@entry.ContentHash</code></td>
-                                    <td>@entry.ByteCount</td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
+                    <MudTable Items="_entries" Dense="true" Hover="true" Elevation="0" Class="data-table">
+  <HeaderContent><MudTh>Index</MudTh><MudTh>Kind</MudTh><MudTh>Source</MudTh><MudTh>Hash</MudTh><MudTh>Bytes</MudTh></HeaderContent>
+  <RowTemplate>                                    <MudTd>@context.Ordinal</MudTd>
+                                    <MudTd>@context.EntryKind</MudTd>
+                                    <MudTd>@context.RelativeName</MudTd>
+                                    <MudTd><code class="hash-snippet">@context.ContentHash</code></MudTd>
+                                    <MudTd>@context.ByteCount</MudTd></RowTemplate>
+</MudTable>
                 </div>
             }
-        </section>
+        </MudPaper>
 
-        <section class="card" aria-labelledby="records-evidence">
+        <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="records-evidence" role="region">
             <h2 id="records-evidence">Records Evidence</h2>
             <dl class="detail-grid">
                 <dt>Desired label</dt><dd>@(_action?.DesiredLabel ?? "Not requested")</dd>
@@ -103,7 +96,7 @@ else
                 <dt>Hold evidence</dt><dd>@(_activeHoldCount > 0 ? "Observed active hold" : "No active local hold")</dd>
             </dl>
             <p class="notice-text">A local action or legal hold records the requested/observed evidence only; it does not assert Microsoft Purview behavior without an external observation.</p>
-        </section>
+        </MudPaper>
     </div>
 }
 

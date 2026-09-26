@@ -1,0 +1,47 @@
+@* Consequential-action confirmation: consequence explained, record identified,
+   duplicate submission disabled, no success implied before the command completes. *@
+<MudDialog>
+  <DialogContent>
+    <MudText Typo="Typo.body1">@Message</MudText>
+    @if (!string.IsNullOrWhiteSpace(RecordIdentity))
+    {
+      <MudText Typo="Typo.body2" Class="mud-text-secondary">Record: @RecordIdentity</MudText>
+    }
+    @if (RequireReason)
+    {
+      <MudTextField T="string" Label="Reason (required)" @bind-Value="Reason"
+                    Required="true" RequiredError="A reason is required." Lines="2" />
+    }
+    @if (!string.IsNullOrWhiteSpace(ServerError))
+    {
+      <MudAlert Severity="Severity.Error" Dense="true">@ServerError</MudAlert>
+    }
+  </DialogContent>
+  <DialogActions>
+    <MudButton OnClick="Cancel" Disabled="_busy">Cancel</MudButton>
+    <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="ConfirmAsync" Disabled="_busy">@ConfirmText</MudButton>
+  </DialogActions>
+</MudDialog>
+
+@code {
+  [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+  [Parameter] public string Message { get; set; } = "Are you sure you want to continue?";
+  [Parameter] public string? RecordIdentity { get; set; }
+  [Parameter] public bool RequireReason { get; set; }
+  [Parameter] public string ConfirmText { get; set; } = "Confirm";
+  [Parameter] public string? ServerError { get; set; }
+
+  private bool _busy;
+  private string Reason { get; set; } = string.Empty;
+
+  private void Cancel() => MudDialog.Cancel();
+
+  private async Task ConfirmAsync()
+  {
+    if (_busy) return;
+    if (RequireReason && string.IsNullOrWhiteSpace(Reason)) return;
+    _busy = true;
+    try { MudDialog.Close(DialogResult.Ok(Reason)); }
+    finally { _busy = false; await Task.CompletedTask; }
+  }
+}

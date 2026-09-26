@@ -24,40 +24,40 @@
         }
         <span>Assessment</span>
     </nav>
-    <h1>Client Evaluation &amp; Continuance Assessment</h1>
+    <PageHeader Title="Client Evaluation &amp; Continuance Assessment" Description="Client acceptance and continuance assessment records bound to the exact client and engagement scope." />
 </div>
 
 @if (_loading)
 {
-    <p role="status">Loading assessment…</p>
+    <LoadingState IsLoading="true" LoadingMessage="Loading assessment…" />
 }
 else if (_actor is null || !_isStaff)
 {
-    <section class="notice" role="alert">
+    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="notice my-4" role="alert">
         <h2>Access unavailable</h2>
         <p>Sign in with an authorized internal staff identity to view assessments.</p>
-    </section>
+    </MudAlert>
 }
 else if (_scopeDenied)
 {
-    <section class="notice" role="alert">
+    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="notice my-4" role="alert">
         <h2>Access unavailable</h2>
         <p>The current identity does not have an active grant covering this client. No assessment or workspace metadata is shown.</p>
-    </section>
+    </MudAlert>
 }
 else if (_client is null)
 {
-    <section class="notice" role="alert">
+    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="notice my-4" role="alert">
         <h2>Client unavailable</h2>
         <p>The client or assessment was not found in the current firm scope.</p>
-    </section>
+    </MudAlert>
 }
 else
 {
     <div class="assessment-shell">
 
         <!-- Assessment summary -->
-        <section class="card" aria-labelledby="summary-heading">
+        <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="summary-heading" role="region">
             <h2 id="summary-heading">Assessment Profile</h2>
             <dl class="detail-grid">
                 <dt>Client</dt><dd>@_client.LegalName</dd>
@@ -66,9 +66,9 @@ else
                 <dt>Acceptance Status</dt><dd>@(_decision?.Decision ?? "Pending Evaluation")</dd>
                 <dt>Decision Generation</dt><dd>@(_decision?.Generation.ToString() ?? "—")</dd>
             </dl>
-        </section>
+        </MudPaper>
 
-        <section class="card" aria-labelledby="workspace-heading">
+        <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="workspace-heading" role="region">
             <h2 id="workspace-heading">Client workspace</h2>
             @if (_workspace is null)
             {
@@ -78,7 +78,7 @@ else
             {
                 <dl class="detail-grid">
                     <dt>Logical workspace</dt><dd><code>@_workspace.LogicalKey</code></dd>
-                    <dt>State</dt><dd><span class="status">@_workspace.State</span></dd>
+                    <dt>State</dt><dd><StatusChip Status="@_workspace.State" /></dd>
                     <dt>Access profile</dt><dd>Application mediated until direct access is separately verified.</dd>
                 </dl>
                 @if (_workspace.State == ClientWorkspaceStates.WaitingForIntegration)
@@ -90,10 +90,10 @@ else
                     <p class="notice" role="status">Workspace is not verified yet. Remote identifiers and links remain hidden until provider reconciliation succeeds.</p>
                 }
             }
-        </section>
+        </MudPaper>
 
         <!-- CE / RV question sections -->
-        <section class="card" aria-labelledby="sections-heading">
+        <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="sections-heading" role="region">
             <h2 id="sections-heading">Question Sections (§13, §14)</h2>
             @if (_sections.Count == 0)
             {
@@ -117,10 +117,10 @@ else
                     }
                 </div>
             }
-        </section>
+        </MudPaper>
 
         <!-- Clearances / holds -->
-        <section class="card" aria-labelledby="clearances-heading">
+        <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="clearances-heading" role="region">
             <h2 id="clearances-heading">Specialist Clearances (§13.3)</h2>
             @if (_clearances.Count == 0)
             {
@@ -129,31 +129,20 @@ else
             else
             {
                 <div class="table-wrap">
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>Area</th><th>Specialist</th><th>Status</th><th>Evidence Ref</th><th>Date</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var c in _clearances)
-                            {
-                                <tr>
-                                    <td><strong>@c.Area</strong></td>
-                                    <td>@c.Specialist</td>
-                                    <td><span class="badge @c.StatusClass">@c.Status</span></td>
-                                    <td>@(c.EvidenceRef ?? "—")</td>
-                                    <td>@(c.Date?.ToString("yyyy-MM-dd") ?? "—")</td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
+                    <MudTable Items="_clearances" Dense="true" Hover="true" Elevation="0" Class="data-table">
+  <HeaderContent><MudTh>Area</MudTh><MudTh>Specialist</MudTh><MudTh>Status</MudTh><MudTh>Evidence Ref</MudTh><MudTh>Date</MudTh></HeaderContent>
+  <RowTemplate>                                    <MudTd><strong>@context.Area</strong></MudTd>
+                                    <MudTd>@context.Specialist</MudTd>
+                                    <MudTd><span class="badge @context.StatusClass">@context.Status</span></MudTd>
+                                    <MudTd>@(context.EvidenceRef ?? "—")</MudTd>
+                                    <MudTd>@(context.Date?.ToString("yyyy-MM-dd") ?? "—")</MudTd></RowTemplate>
+</MudTable>
                 </div>
             }
-        </section>
+        </MudPaper>
 
         <!-- Partner Decision -->
-        <section class="card" aria-labelledby="decision-heading">
+        <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="decision-heading" role="region">
             <h2 id="decision-heading">Partner Decision</h2>
             @if (_decision is not null && _decision.Decision != "Pending")
             {
@@ -169,7 +158,7 @@ else
             {
                 <p class="warn-text">Outstanding questionnaire responses or pending specialist clearances block acceptance decision.</p>
             }
-        </section>
+        </MudPaper>
     </div>
 }
 

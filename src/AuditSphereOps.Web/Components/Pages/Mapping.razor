@@ -6,26 +6,32 @@
 @inject IDbContextFactory<AuditSphereDbContext> DbFactory
 
 <PageTitle>Accounting mapping</PageTitle>
-<a class="back-link" href="/app">← Back to portfolio</a>
-<h1>Accounting mapping</h1>
-<button class="button-secondary" title="Clear this mapping and verify your current client and engagement grants before reloading it." @onclick="LoadMappingAsync" disabled="@_loading">Refresh mapping</button>
+<MudLink Href="/app" Class="back-link mb-2 d-inline-block">← Back to portfolio</MudLink>
+<PageHeader Title="Accounting mapping" Description="Client chart and reporting taxonomy mappings, lineage, validation, and report impact." />
+<MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button-secondary" OnClick="LoadMappingAsync" Disabled="@_loading">Refresh mapping</MudButton>
 
 @if (_loading)
 {
-  <p role="status">Loading the scoped mapping…</p>
+  <LoadingState IsLoading="true" LoadingMessage="Loading the scoped mapping…" />
 }
 else if (_actor is null || !IsStaff)
 {
-  <section class="notice" role="alert"><h2>Access unavailable</h2><p>Sign in with an authorized staff identity to view this mapping.</p></section>
+  <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="notice my-4" role="alert">
+    <h2>Access unavailable</h2>
+    <MudText Typo="Typo.body2">Sign in with an authorized staff identity to view this mapping.</MudText>
+  </MudAlert>
 }
 else if (_mapping is null)
 {
-  <section class="notice" role="alert"><h2>Mapping unavailable</h2><p>The mapping is not available in the current firm scope.</p></section>
+  <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="notice my-4" role="alert">
+    <h2>Mapping unavailable</h2>
+    <MudText Typo="Typo.body2">The mapping is not available in the current firm scope.</MudText>
+  </MudAlert>
 }
 else
 {
-  <section class="card" aria-labelledby="mapping-heading">
-    <p class="eyebrow">@_mapping.Status</p>
+  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="mapping-heading" role="region">
+    <p class="eyebrow"><StatusChip Status="@_mapping.Status" /></p>
     <h2 id="mapping-heading"><code>@_mapping.Id</code></h2>
     <dl class="details">
       <dt>Dataset</dt><dd><code>@_mapping.DatasetId</code></dd>
@@ -36,16 +42,36 @@ else
       <dt>Version</dt><dd>@_mapping.Version</dd>
       <dt>Generation</dt><dd>@_mapping.Generation</dd>
     </dl>
-  </section>
+  </MudPaper>
 
-  <section class="metric-grid" aria-label="Mapping workbench counts">
-    <article class="metric card"><span class="metric-label">Source accounts</span><strong class="metric-value">@_sourceAccounts.Count</strong></article>
-    <article class="metric card"><span class="metric-label">Unmapped</span><strong class="metric-value">@_unmappedAccounts.Count</strong></article>
-    <article class="metric card"><span class="metric-label">Split accounts</span><strong class="metric-value">@_splitAccounts.Count</strong></article>
-    <article class="metric card"><span class="metric-label">Report destinations</span><strong class="metric-value">@_reportImpacts.Count</strong></article>
-  </section>
+  <MudGrid Spacing="3" Class="metric-grid my-3" aria-label="Mapping workbench counts">
+    <MudItem xs="12" sm="6" md="3">
+      <MudPaper Class="pa-4 h-100" Elevation="1">
+        <span class="metric-label">Source accounts</span>
+        <strong class="metric-value">@_sourceAccounts.Count</strong>
+      </MudPaper>
+    </MudItem>
+    <MudItem xs="12" sm="6" md="3">
+      <MudPaper Class="pa-4 h-100" Elevation="1">
+        <span class="metric-label">Unmapped</span>
+        <strong class="metric-value">@_unmappedAccounts.Count</strong>
+      </MudPaper>
+    </MudItem>
+    <MudItem xs="12" sm="6" md="3">
+      <MudPaper Class="pa-4 h-100" Elevation="1">
+        <span class="metric-label">Split accounts</span>
+        <strong class="metric-value">@_splitAccounts.Count</strong>
+      </MudPaper>
+    </MudItem>
+    <MudItem xs="12" sm="6" md="3">
+      <MudPaper Class="pa-4 h-100" Elevation="1">
+        <span class="metric-label">Report destinations</span>
+        <strong class="metric-value">@_reportImpacts.Count</strong>
+      </MudPaper>
+    </MudItem>
+  </MudGrid>
 
-  <section class="card" aria-labelledby="lineage-heading">
+  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="lineage-heading" role="region">
     <h2 id="lineage-heading">Mapping lineage</h2>
     <p class="muted">Mappings are immutable versions. A new source dataset, chart or taxonomy requires a new applicability decision.</p>
     @if (_priorMapping is null)
@@ -58,9 +84,9 @@ else
         <span class="muted">(@_priorMapping.Status, @_priorAllocationCount allocations)</span></p>
     }
     <p class="status" title="Applicability is bound to this immutable dataset and approved taxonomy version">@(_mapping.Status == AccountingPackageStates.MappingApproved ? "APPLICABLE: exact dataset and taxonomy approved" : "APPLICABILITY PENDING: independent mapping approval required")</p>
-  </section>
+  </MudPaper>
 
-  <section class="card" aria-labelledby="comparison-heading">
+  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="comparison-heading" role="region">
     <h2 id="comparison-heading">Current and prior allocation comparison</h2>
     <p class="muted">This comparison is read-only. A changed source, chart or taxonomy must be reviewed in a new mapping version; prior allocations are never silently reused.</p>
     @if (_comparison.Count == 0)
@@ -69,20 +95,14 @@ else
     }
     else
     {
-      <div class="table-wrap"><table>
-        <caption class="sr-only">Current and prior mapping allocation comparison</caption>
-        <thead><tr><th scope="col">Source account</th><th scope="col">Prior allocation</th><th scope="col">Current allocation</th><th scope="col">Change</th></tr></thead>
-        <tbody>
-        @foreach (var row in _comparison)
-        {
-          <tr><td><code>@row.SourceAccountCode</code></td><td>@row.Prior</td><td>@row.Current</td><td><span class="status">@row.Status</span></td></tr>
-        }
-        </tbody>
-      </table></div>
+      <MudTable Items="_comparison" Dense="true" Hover="true" Elevation="0">
+  <HeaderContent><MudTh scope="col">Source account</MudTh><MudTh scope="col">Prior allocation</MudTh><MudTh scope="col">Current allocation</MudTh><MudTh scope="col">Change</MudTh></HeaderContent>
+  <RowTemplate>          <MudTd><code>@context.SourceAccountCode</code></MudTd><MudTd>@context.Prior</MudTd><MudTd>@context.Current</MudTd><MudTd><StatusChip Status="@context.Status" /></MudTd></RowTemplate>
+</MudTable>
     }
-  </section>
+  </MudPaper>
 
-  <section class="card" aria-labelledby="unmapped-heading">
+  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="unmapped-heading" role="region">
     <h2 id="unmapped-heading">Unmapped source accounts</h2>
     @if (_unmappedAccounts.Count == 0)
     {
@@ -91,20 +111,14 @@ else
     else
     {
       <p class="muted">These accounts must be resolved in a new mapping version before the package can be built.</p>
-      <div class="table-wrap"><table>
-        <caption class="sr-only">Unmapped source accounts</caption>
-        <thead><tr><th scope="col">Account</th><th scope="col">Name</th><th scope="col">Balance</th><th scope="col">Currency</th></tr></thead>
-        <tbody>
-        @foreach (var row in _unmappedAccounts)
-        {
-          <tr><td><code>@row.AccountCode</code></td><td>@row.AccountName</td><td>@row.Amount.ToString("N2")</td><td>@row.Currency</td></tr>
-        }
-        </tbody>
-      </table></div>
+      <MudTable Items="_unmappedAccounts" Dense="true" Hover="true" Elevation="0">
+  <HeaderContent><MudTh scope="col">Account</MudTh><MudTh scope="col">Name</MudTh><MudTh scope="col">Balance</MudTh><MudTh scope="col">Currency</MudTh></HeaderContent>
+  <RowTemplate>          <MudTd><code>@context.AccountCode</code></MudTd><MudTd>@context.AccountName</MudTd><MudTd>@context.Amount.ToString("N2")</MudTd><MudTd>@context.Currency</MudTd></RowTemplate>
+</MudTable>
     }
-  </section>
+  </MudPaper>
 
-  <section class="card" aria-labelledby="suggestions-heading">
+  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="suggestions-heading" role="region">
     <h2 id="suggestions-heading">Review-only mapping suggestions</h2>
     <p class="muted">Suggestions use account-name tokens only. They are not allocations and must be independently reviewed before anyone creates a new mapping version.</p>
     @if (_suggestions.Count == 0)
@@ -113,24 +127,16 @@ else
     }
     else
     {
-      <div class="table-wrap"><table>
-        <caption class="sr-only">Review-only suggestions for unmapped accounts</caption>
-        <thead><tr><th scope="col">Account</th><th scope="col">Candidate destinations</th><th scope="col">Review state</th></tr></thead>
-        <tbody>
-        @foreach (var suggestion in _suggestions)
-        {
-          <tr>
-            <td><code>@suggestion.AccountCode</code><br /><span class="muted">@suggestion.AccountName</span></td>
-            <td>@string.Join(", ", suggestion.Candidates.Select(x => $"{x.Code} ({x.Name})"))</td>
-            <td><span class="status" title="A suggestion never changes the immutable mapping">@suggestion.State</span></td>
-          </tr>
-        }
-        </tbody>
-      </table></div>
+      <MudTable Items="_suggestions" Dense="true" Hover="true" Elevation="0">
+  <HeaderContent><MudTh scope="col">Account</MudTh><MudTh scope="col">Candidate destinations</MudTh><MudTh scope="col">Review state</MudTh></HeaderContent>
+  <RowTemplate>            <MudTd><code>@context.AccountCode</code><br /><span class="muted">@context.AccountName</span></MudTd>
+            <MudTd>@string.Join(", ", context.Candidates.Select(x => $"{x.Code} ({x.Name})"))</MudTd>
+            <MudTd><span class="status" title="A context never changes the immutable mapping">@context.State</span></MudTd></RowTemplate>
+</MudTable>
     }
-  </section>
+  </MudPaper>
 
-  <section class="card" aria-labelledby="split-heading">
+  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="split-heading" role="region">
     <h2 id="split-heading">Split and ambiguous allocations</h2>
     @if (_splitAccounts.Count == 0)
     {
@@ -139,71 +145,51 @@ else
     else
     {
       <p class="muted">Splits are deliberate allocations and must total 100%; review the rationale before approval.</p>
-      <div class="table-wrap"><table>
-        <caption class="sr-only">Split source allocations</caption>
-        <thead><tr><th scope="col">Account</th><th scope="col">Destinations</th><th scope="col">Total fraction</th></tr></thead>
-        <tbody>
-        @foreach (var row in _splitAccounts)
-        {
-          <tr><td><code>@row.AccountCode</code></td><td>@row.DestinationCount</td><td>@row.TotalFraction.ToString("P2")</td></tr>
-        }
-        </tbody>
-      </table></div>
+      <MudTable Items="_splitAccounts" Dense="true" Hover="true" Elevation="0">
+  <HeaderContent><MudTh scope="col">Account</MudTh><MudTh scope="col">Destinations</MudTh><MudTh scope="col">Total fraction</MudTh></HeaderContent>
+  <RowTemplate>          <MudTd><code>@context.AccountCode</code></MudTd><MudTd>@context.DestinationCount</MudTd><MudTd>@context.TotalFraction.ToString("P2")</MudTd></RowTemplate>
+</MudTable>
     }
     <p class="muted">Automatic suggestions are not treated as approved mappings; unresolved suggestions remain visible as unmapped accounts.</p>
-  </section>
+  </MudPaper>
 
-  <section class="card" aria-labelledby="impact-heading">
+  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="impact-heading" role="region">
     <h2 id="impact-heading">Report impact</h2>
-    <div class="table-wrap"><table>
-      <caption class="sr-only">Mapped report destination impact</caption>
-      <thead><tr><th scope="col">Destination</th><th scope="col">Statement section</th><th scope="col">Source accounts</th><th scope="col">Amount</th></tr></thead>
-      <tbody>
-      @foreach (var row in _reportImpacts)
-      {
-        <tr><td>@row.DestinationCode</td><td>@row.StatementSection</td><td>@row.SourceCount</td><td>@row.Amount.ToString("N2")</td></tr>
-      }
-      </tbody>
-    </table></div>
-  </section>
+    <MudTable Items="_reportImpacts" Dense="true" Hover="true" Elevation="0">
+  <HeaderContent><MudTh scope="col">Destination</MudTh><MudTh scope="col">Statement section</MudTh><MudTh scope="col">Source accounts</MudTh><MudTh scope="col">Amount</MudTh></HeaderContent>
+  <RowTemplate>        <MudTd>@context.DestinationCode</MudTd><MudTd>@context.StatementSection</MudTd><MudTd>@context.SourceCount</MudTd><MudTd>@context.Amount.ToString("N2")</MudTd></RowTemplate>
+</MudTable>
+  </MudPaper>
 
-  <section class="card" aria-labelledby="allocation-heading">
+  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="allocation-heading" role="region">
     <h2 id="allocation-heading">Allocations</h2>
     <div class="table-wrap">
-      <table>
-        <caption class="sr-only">Immutable mapping allocations</caption>
-        <thead><tr><th scope="col">Source account</th><th scope="col">Destination</th><th scope="col">Statement section</th><th scope="col">Fraction</th><th scope="col">Rationale</th></tr></thead>
-        <tbody>
-        @foreach (var allocation in _allocations)
-        {
-          <tr>
-            <td><code>@allocation.SourceAccountCode</code></td>
-            <td>@allocation.DestinationCode</td>
-            <td>@allocation.StatementSection</td>
-            <td>@allocation.Fraction.ToString("P2")</td>
-            <td>@allocation.Rationale</td>
-          </tr>
-        }
-        </tbody>
-      </table>
+      <MudTable Items="_allocations" Dense="true" Hover="true" Elevation="0">
+  <HeaderContent><MudTh scope="col">Source account</MudTh><MudTh scope="col">Destination</MudTh><MudTh scope="col">Statement section</MudTh><MudTh scope="col">Fraction</MudTh><MudTh scope="col">Rationale</MudTh></HeaderContent>
+  <RowTemplate>            <MudTd><code>@context.SourceAccountCode</code></MudTd>
+            <MudTd>@context.DestinationCode</MudTd>
+            <MudTd>@context.StatementSection</MudTd>
+            <MudTd>@context.Fraction.ToString("P2")</MudTd>
+            <MudTd>@context.Rationale</MudTd></RowTemplate>
+</MudTable>
     </div>
-  </section>
+  </MudPaper>
 
   @if (_mapping.Status == AccountingPackageStates.MappingDraft)
   {
-    <section class="card" aria-labelledby="approve-heading">
+    <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="approve-heading" role="region">
       <h2 id="approve-heading">Approve mapping</h2>
       <p class="muted">Approval rechecks the accepted dataset, full allocation and current firm/client generation.</p>
-      <button class="button" title="Recheck the exact dataset, allocations and current client generation before approval" @onclick="ApproveAsync" disabled="@_busy">@(_busy ? "Approving…" : "Approve mapping")</button>
+      <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button" OnClick="ApproveAsync" Disabled="@_busy">@(_busy ? "Approving…" : "Approve mapping")</MudButton>
       @if (_result is not null)
       {
         <p class="command-result @(_result.Succeeded ? "success-text" : "error-text")" role="status">@(_result.Succeeded ? "Mapping approved." : $"Blocked: {_result.ErrorCode}")</p>
       }
-    </section>
+    </MudPaper>
   }
   else
   {
-    <section class="notice success" role="status"><h2>Reviewed mapping</h2><p>This version is immutable and can be used by a package build.</p></section>
+    <MudAlert Severity="Severity.Success" Variant="Variant.Outlined" Class="notice success my-4" role="status"><h2>Reviewed mapping</h2><p>This version is immutable and can be used by a package build.</p></MudAlert>
   }
 }
 

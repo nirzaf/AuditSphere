@@ -9,73 +9,122 @@
 @inject ILogger<AccountingWorkspace> Logger
 
 <PageTitle>Client accounting workspace</PageTitle>
-<a class="back-link" href="/app">← Back to portfolio</a>
-<h1>Client accounting workspace</h1>
-<button class="button-secondary" title="Clear this dashboard and reload only client and engagement scopes you can access now." @onclick="LoadAccountingContextAsync" disabled="@_loading">Refresh workspace</button>
+<MudLink Href="/app" Class="back-link mb-2 d-inline-block">← Back to portfolio</MudLink>
+<PageHeader Title="Client accounting workspace" Description="Explicitly granted legal entity accounting contexts, periods, and workflow dashboard." />
+<MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button-secondary" OnClick="LoadAccountingContextAsync" Disabled="@_loading">Refresh workspace</MudButton>
 
 @if (_loading)
 {
-  <p role="status">Loading accounting context…</p>
+  <LoadingState IsLoading="true" LoadingMessage="Loading accounting context…" />
 }
 else if (_error is not null)
 {
-  <section class="notice" role="alert"><h2>Accounting workspace unavailable</h2><p>@_error</p></section>
+  <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="notice my-4" role="alert">
+    <h2>Accounting workspace unavailable</h2>
+    <MudText Typo="Typo.body2">@_error</MudText>
+  </MudAlert>
 }
 else if (!_authorized)
 {
-  <section class="notice" role="alert"><h2>Access unavailable</h2><p>This workspace requires an authorized accounting role.</p></section>
+  <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="notice my-4" role="alert">
+    <h2>Access unavailable</h2>
+    <MudText Typo="Typo.body2">This workspace requires an authorized accounting role.</MudText>
+  </MudAlert>
 }
 else
 {
-  <section class="card" aria-labelledby="workspace-context-heading">
+  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="workspace-context-heading" role="region">
     <h2 id="workspace-context-heading">Active accounting context</h2>
     <p class="scope-note">Firm <code>@_actor!.FirmId</code> · Group <strong>none</strong> · @_scopeDescription · @_clients.Count legal entities in the current grant scope. Group navigation does not grant sibling-company access.</p>
-    <p class="muted">Each row below pins the legal entity, engagement, period, book, currency and latest package version. Select a handoff only after confirming this context.</p>
-  </section>
-  <section class="card" id="dashboard" aria-labelledby="dashboard-heading">
+    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="muted">Each row below pins the legal entity, engagement, period, book, currency and latest package version. Select a handoff only after confirming this context.</MudText>
+  </MudPaper>
+  <MudPaper  Class="pa-4 my-4" Elevation="1" id="dashboard" aria-labelledby="dashboard-heading" role="region">
     <h2 id="dashboard-heading">Workflow dashboard</h2>
     <p class="muted">Counts are derived from the visible period and package records. No due date is invented: until a task or PBC due date is linked, the dashboard shows <strong>Not recorded</strong>.</p>
-    <div class="metric-grid" aria-label="Accounting workflow counts">
-      <article class="metric card"><span class="metric-label">Required</span><strong class="metric-value">@_requiredCount</strong></article>
-      <article class="metric card"><span class="metric-label">Complete</span><strong class="metric-value">@_completeCount</strong></article>
-      <article class="metric card"><span class="metric-label">Stale</span><strong class="metric-value">@_staleCount</strong></article>
-      <article class="metric card"><span class="metric-label">Blocked</span><strong class="metric-value">@_blockedCount</strong></article>
-    </div>
+    <MudGrid Spacing="3" Class="metric-grid my-3" aria-label="Accounting workflow counts">
+      <MudItem xs="12" sm="6" md="3">
+        <MudPaper Class="pa-4 h-100" Elevation="1">
+          <span class="metric-label">Required</span>
+          <strong class="metric-value">@_requiredCount</strong>
+        </MudPaper>
+      </MudItem>
+      <MudItem xs="12" sm="6" md="3">
+        <MudPaper Class="pa-4 h-100" Elevation="1">
+          <span class="metric-label">Complete</span>
+          <strong class="metric-value">@_completeCount</strong>
+        </MudPaper>
+      </MudItem>
+      <MudItem xs="12" sm="6" md="3">
+        <MudPaper Class="pa-4 h-100" Elevation="1">
+          <span class="metric-label">Stale</span>
+          <strong class="metric-value">@_staleCount</strong>
+        </MudPaper>
+      </MudItem>
+      <MudItem xs="12" sm="6" md="3">
+        <MudPaper Class="pa-4 h-100" Elevation="1">
+          <span class="metric-label">Blocked</span>
+          <strong class="metric-value">@_blockedCount</strong>
+        </MudPaper>
+      </MudItem>
+    </MudGrid>
     @if (_dashboardRows.Count == 0)
     {
-      <p class="muted">No period workflow items are available in the current scope.</p>
+      <MudText Typo="Typo.body2" Color="Color.Secondary" Class="muted">No period workflow items are available in the current scope.</MudText>
     }
     else
     {
-      <div class="table-wrap"><table>
-        <caption class="sr-only">Accounting workflow dashboard</caption>
-        <thead><tr><th scope="col">Client / period</th><th scope="col">State</th><th scope="col">Next owner</th><th scope="col">Due date</th><th scope="col"><span class="sr-only">Action</span></th></tr></thead>
-        <tbody>
-        @foreach (var item in _dashboardRows)
-        {
-          <tr>
-            <td><strong>@item.ClientName</strong><br /><span class="muted">@item.PeriodCode</span></td>
-            <td><span class="status">@item.State</span></td>
-            <td>@item.NextOwner</td>
-            <td><span title="A due date is shown only when a persisted accounting task or PBC request supplies one.">@item.DueDate</span></td>
-            <td><a href="@item.Href" title="@item.Action">@item.Action</a></td>
-          </tr>
-        }
-        </tbody>
-      </table></div>
+      <MudTable Items="_dashboardRows" Dense="true" Hover="true" Elevation="0">
+        <HeaderContent>
+          <MudTh>Client / period</MudTh>
+          <MudTh>State</MudTh>
+          <MudTh>Next owner</MudTh>
+          <MudTh>Due date</MudTh>
+          <MudTh><span class="sr-only">Action</span></MudTh>
+        </HeaderContent>
+        <RowTemplate>
+          <MudTd DataLabel="Client / period"><strong>@context.ClientName</strong><br /><span class="muted">@context.PeriodCode</span></MudTd>
+          <MudTd DataLabel="State"><StatusChip Status="@context.State" /></MudTd>
+          <MudTd DataLabel="Next owner">@context.NextOwner</MudTd>
+          <MudTd DataLabel="Due date"><span title="A due date is shown only when a persisted accounting task or PBC request supplies one.">@context.DueDate</span></MudTd>
+          <MudTd DataLabel="Action"><MudLink Href="@context.Href">@context.Action</MudLink></MudTd>
+        </RowTemplate>
+        <PagerContent>
+          <MudTablePager PageSizeOptions="new int[] { 10, 25, 50 }" />
+        </PagerContent>
+      </MudTable>
     }
-  </section>
-  <section class="metric-grid" aria-label="Accounting workspace source counts">
-    <article class="metric card"><span class="metric-label">Client profiles</span><strong class="metric-value">@_profileCount</strong></article>
-    <article class="metric card"><span class="metric-label">Open periods</span><strong class="metric-value">@_openPeriodCount</strong></article>
-    <article class="metric card"><span class="metric-label">Sealed imports</span><strong class="metric-value">@_sealedImportCount</strong></article>
-    <article class="metric card"><span class="metric-label">Blocked/stale work</span><strong class="metric-value">@_blockedCount</strong></article>
-  </section>
+  </MudPaper>
+  <MudGrid Spacing="3" Class="metric-grid my-3" aria-label="Accounting workspace source counts">
+    <MudItem xs="12" sm="6" md="3">
+      <MudPaper Class="pa-4 h-100" Elevation="1">
+        <span class="metric-label">Client profiles</span>
+        <strong class="metric-value">@_profileCount</strong>
+      </MudPaper>
+    </MudItem>
+    <MudItem xs="12" sm="6" md="3">
+      <MudPaper Class="pa-4 h-100" Elevation="1">
+        <span class="metric-label">Open periods</span>
+        <strong class="metric-value">@_openPeriodCount</strong>
+      </MudPaper>
+    </MudItem>
+    <MudItem xs="12" sm="6" md="3">
+      <MudPaper Class="pa-4 h-100" Elevation="1">
+        <span class="metric-label">Sealed imports</span>
+        <strong class="metric-value">@_sealedImportCount</strong>
+      </MudPaper>
+    </MudItem>
+    <MudItem xs="12" sm="6" md="3">
+      <MudPaper Class="pa-4 h-100" Elevation="1">
+        <span class="metric-label">Blocked/stale work</span>
+        <strong class="metric-value">@_blockedCount</strong>
+      </MudPaper>
+    </MudItem>
+  </MudGrid>
   @if (!_hasClientScope)
   {
-    <section class="notice" role="status"><h2>No client scope assigned</h2><p>Ask a firm administrator for an active client or engagement grant before using this workspace. No firm data is shown without an explicit scope.</p></section>
+    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="notice my-4" role="status"><h2>No client scope assigned</h2><p>Ask a firm administrator for an active client or engagement grant before using this workspace. No firm data is shown without an explicit scope.</p></MudAlert>
   }
-  <section class="card context-bar" aria-labelledby="selected-context-heading" data-draft-scope="accounting-context">
+  <section class="card" aria-labelledby="selected-context-heading" data-draft-scope="accounting-context">
     <h2 id="selected-context-heading">Selected accounting context</h2>
     <label class="field">
       Context (optional)
@@ -117,7 +166,7 @@ else
       <p class="muted">Choose a visible period to pin its reporting context here. This selection does not broaden access.</p>
     }
   </section>
-  <section class="card" aria-labelledby="workspaces-heading">
+  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="workspaces-heading" role="region">
     <h2 id="workspaces-heading">Client accounting tabs</h2>
     <p class="muted">Each tab keeps the current client scope. Detail pages are available only when an exact persisted record exists.</p>
     <div class="workspace-tab-grid">
@@ -130,23 +179,17 @@ else
       <article id="statements"><h3>Statements</h3><p>Open the exact package when the selected period has one.</p>@if (SelectedContext?.PackageId is { } selectedPackageId) { <a href="@($"/app/accounting/packages/{selectedPackageId}")" title="Open the exact selected financial statement package">Open selected package</a> } else { <a href="/app/accounting/reviews" title="Open the package review queue when no package is selected">Open package queue</a> }</article>
       <article id="approval-history"><h3>Approval history</h3><p>Review exact package-stage decisions and current applicability.</p><a href="/app/accounting/reviews" title="Open package approval history">Open approvals</a></article>
     </div>
-  </section>
-  <section class="card" aria-labelledby="context-heading">
+  </MudPaper>
+  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="context-heading" role="region">
     <h2 id="context-heading">Current accounting context</h2>
     <div class="table-wrap">
-      <table>
-        <caption class="sr-only">Accounting client context</caption>
-        <thead><tr><th scope="col">Legal entity</th><th scope="col">Currency</th><th scope="col">Periods</th><th scope="col">Latest chart</th><th scope="col">Latest import</th></tr></thead>
-        <tbody>
-        @foreach (var row in _clients)
-        {
-          <tr><td><strong>@row.Name</strong></td><td><code>@row.Currency</code></td><td>@row.Periods</td><td>@row.ChartStatus</td><td>@row.ImportStatus</td></tr>
-        }
-        </tbody>
-      </table>
+      <MudTable Items="_clients" Dense="true" Hover="true" Elevation="0">
+  <HeaderContent><MudTh scope="col">Legal entity</MudTh><MudTh scope="col">Currency</MudTh><MudTh scope="col">Periods</MudTh><MudTh scope="col">Latest chart</MudTh><MudTh scope="col">Latest import</MudTh></HeaderContent>
+  <RowTemplate>          <MudTd><strong>@context.Name</strong></MudTd><MudTd><code>@context.Currency</code></MudTd><MudTd>@context.Periods</MudTd><MudTd>@context.ChartStatus</MudTd><MudTd>@context.ImportStatus</MudTd></RowTemplate>
+</MudTable>
     </div>
-  </section>
-  <section class="card" aria-labelledby="period-control-heading">
+  </MudPaper>
+  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="period-control-heading" role="region">
     <h2 id="period-control-heading">Period control and handoffs</h2>
     @if (_periods.Count == 0)
     {
@@ -155,57 +198,49 @@ else
     else
     {
       <div class="table-wrap">
-        <table>
-          <caption class="sr-only">Scoped client reporting periods</caption>
-        <thead><tr><th scope="col">Legal entity</th><th scope="col">Engagement</th><th scope="col">Period</th><th scope="col">Book</th><th scope="col">Currency</th><th scope="col">Package</th><th scope="col">Status</th><th scope="col">Handoffs</th></tr></thead>
-          <tbody>
-          @foreach (var period in _periods)
-          {
-            <tr>
-              <td><strong>@period.ClientName</strong></td>
-              <td>@period.Engagement</td>
-              <td>@period.PeriodCode · @period.Basis<br /><span class="muted">@period.StartDate.ToString("yyyy-MM-dd") — @period.EndDate.ToString("yyyy-MM-dd")</span></td>
-              <td>@period.Book</td>
-              <td><code>@period.Currency</code></td>
-              <td>
-                @if (period.PackageId is { } packageId)
+        <MudTable Items="_periods" Dense="true" Hover="true" Elevation="0">
+  <HeaderContent><MudTh scope="col">Legal entity</MudTh><MudTh scope="col">Engagement</MudTh><MudTh scope="col">Period</MudTh><MudTh scope="col">Book</MudTh><MudTh scope="col">Currency</MudTh><MudTh scope="col">Package</MudTh><MudTh scope="col">Status</MudTh><MudTh scope="col">Handoffs</MudTh></HeaderContent>
+  <RowTemplate>              <MudTd><strong>@context.ClientName</strong></MudTd>
+              <MudTd>@context.Engagement</MudTd>
+              <MudTd>@context.PeriodCode · @context.Basis<br /><span class="muted">@context.StartDate.ToString("yyyy-MM-dd") — @context.EndDate.ToString("yyyy-MM-dd")</span></MudTd>
+              <MudTd>@context.Book</MudTd>
+              <MudTd><code>@context.Currency</code></MudTd>
+              <MudTd>
+                @if (context.PackageId is { } packageId)
                 {
-                  <a href="@($"/app/accounting/packages/{packageId}")" title="Open the exact package version for this period">@period.Package</a>
+                  <a href="@($"/app/accounting/packages/{packageId}")" title="Open the exact package version for this context">@context.Package</a>
                 }
                 else
                 {
-                  @period.Package
+                  @context.Package
                 }
-              </td>
-              <td><span class="status">@period.Status</span></td>
-              <td>
-                @if (period.MappingId is { } mappingId)
+              </MudTd>
+              <MudTd><StatusChip Status="@context.Status" /></MudTd>
+              <MudTd>
+                @if (context.MappingId is { } mappingId)
                 {
                   <a href="@($"/app/accounting/mappings/{mappingId}")" title="Open the exact mapping version used by this package">Mapping</a><span aria-hidden="true"> · </span>
                 }
-                <a href="/app/accounting/rollforward" title="Create a new draft period from this scoped period">Roll forward</a><span aria-hidden="true"> · </span><a href="/app/accounting/restatements" title="Review an authorized amendment without rewriting the issued package">Restatements</a>
-              </td>
-            </tr>
-          }
-          </tbody>
-        </table>
+                <a href="/app/accounting/rollforward" title="Create a new draft context from this scoped context">Roll forward</a><span aria-hidden="true"> · </span><a href="/app/accounting/restatements" title="Review an authorized amendment without rewriting the issued package">Restatements</a>
+              </MudTd></RowTemplate>
+</MudTable>
       </div>
     }
-  </section>
-  <section class="card" aria-labelledby="routes-heading">
+  </MudPaper>
+  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="routes-heading" role="region">
     <h2 id="routes-heading">Accounting workbenches</h2>
     <div style="display:flex;gap:.75rem;flex-wrap:wrap">
-      <a class="button" href="/app/consolidation" title="Review explicitly granted group perimeters and approved consolidation scopes">Group consolidation</a>
-      <a class="button" href="/app/accounting/evidence" title="Review scoped ECL, inventory, specialist, analytical and journal-risk evidence">Account-area evidence</a>
-      <a class="button" href="/app/accounting/rollforward" title="Create a draft reporting period with explicit opening-balance evidence">Period roll-forward</a>
-      <a class="button" href="/app/accounting/mappings" title="Review immutable client-chart and reporting-mapping versions">COA and mappings</a>
-      <a class="button" href="/app/accounting/journals" title="Review proposed accounting and reporting adjustments">Adjustments and journals</a>
-      <a class="button" href="/app/accounting/differences" title="Review scoped audit differences and correction lineage">Differences</a>
-      <a class="button" href="/app/accounting/reviews" title="Review package stages and current applicability">Package review queue</a>
-      <a class="button" href="/app/accounting/restatements" title="Record an authorized post-close amendment with immutable lineage">Period restatements</a>
-      <a class="button" href="/app/accounting/remeasurement" title="Prepare source-evidence-linked currency remeasurement workpapers for independent review">Currency remeasurement</a>
+      <MudButton Color="Color.Primary" Variant="Variant.Filled" Href="/app/consolidation" Class="button">Group consolidation</MudButton>
+      <MudButton Color="Color.Primary" Variant="Variant.Filled" Href="/app/accounting/evidence" Class="button">Account-area evidence</MudButton>
+      <MudButton Color="Color.Primary" Variant="Variant.Filled" Href="/app/accounting/rollforward" Class="button">Period roll-forward</MudButton>
+      <MudButton Color="Color.Primary" Variant="Variant.Filled" Href="/app/accounting/mappings" Class="button">COA and mappings</MudButton>
+      <MudButton Color="Color.Primary" Variant="Variant.Filled" Href="/app/accounting/journals" Class="button">Adjustments and journals</MudButton>
+      <MudButton Color="Color.Primary" Variant="Variant.Filled" Href="/app/accounting/differences" Class="button">Differences</MudButton>
+      <MudButton Color="Color.Primary" Variant="Variant.Filled" Href="/app/accounting/reviews" Class="button">Package review queue</MudButton>
+      <MudButton Color="Color.Primary" Variant="Variant.Filled" Href="/app/accounting/restatements" Class="button">Period restatements</MudButton>
+      <MudButton Color="Color.Primary" Variant="Variant.Filled" Href="/app/accounting/remeasurement" Class="button">Currency remeasurement</MudButton>
     </div>
-  </section>
+  </MudPaper>
 }
 
 @code {
