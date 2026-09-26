@@ -39,6 +39,16 @@
       "documentation": "PASS: task-pack validation, Markdown documentation health and git diff --check.",
       "boundary": "P2 live Graph/SharePoint adapter, binding approval, tenant isolation and provider reconciliation are not implemented or accepted; this is the local trusted-scope contract only."
     },
+    "p2ReconciledReceiptValidation": {
+      "sourceCommit": "2c09efc8e33d3d147260a069cff0690f027077f9",
+      "observedAt": "2026-09-26T20:01:12Z",
+      "behavior": "The durable PBC reconciliation path now rejects a provider receipt with an empty registration identity, an identity different from the known operation result, or a byte count different from the staged upload declaration. It still requires the exact SHA-256 digest. No live Graph provider is enabled.",
+      "focusedTests": "PASS: Release PbcTransferTests 11/11, including three incomplete or changed reconciliation receipt cases.",
+      "build": "PASS: Release Web build, 0 warnings/errors.",
+      "modelDrift": "PASS: EF reports no pending model changes; no migration added.",
+      "fullSuite": "Attempted Release solution run: API 7/7 passed; a browser test under concurrent edits in another task failed at AuditAndReleaseJourneyTests.ReleaseClearsPriorCandidateWhenRouteChangesInPlace. The run was cancelled after that failure while a second full solution run was competing for the same local services. No clean full-suite result is claimed for this source commit.",
+      "boundary": "This is local receipt validation only. P2 live Graph/SharePoint adapter, selected binding approval and tenant/provider acceptance remain open."
+    },
     "r2rT002GroupRoleRevocationFence": {
       "sourceCommit": "08baf8c1cb0abab76e1769118710abe005e7d07a",
       "remoteHeadConfirmedAt": "2026-09-26T19:07:51Z",

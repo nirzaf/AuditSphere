@@ -175,6 +175,14 @@ selected-resource adapter without enabling a live Graph effect. The live
 adapter, approved binding and tenant isolation evidence remain open under P2;
 exact local checks are in `status.json`.
 
+Reconciliation now applies the initial transfer's receipt checks to a retried
+provider result: the registration identity must be present and match any
+previously known identity, and the reported byte count must equal the staged
+declaration alongside the existing SHA-256 comparison. The focused PBC tests,
+Release build and EF model check passed. A concurrent full solution run had an
+unrelated browser failure in a test under active edits and was cancelled; the
+exact limitation is recorded in `status.json`.
+
 ## Client portal landing access refresh
 
 The portal landing page now clears its assigned request and package lists before
