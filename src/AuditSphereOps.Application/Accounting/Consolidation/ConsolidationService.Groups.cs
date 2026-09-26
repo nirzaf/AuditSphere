@@ -20,6 +20,14 @@ public static partial class ConsolidationService
     var auth = await FirmAuthAsync(db, actor, ["Manager", "Partner", "Administrator"], ct);
     if (!auth.Succeeded)
       return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+    var activeRoles = await db.RoleGrants.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && x.UserId == actor.UserId &&
+                  x.ClientId == null && x.EngagementId == null && x.RevokedAt == null)
+      .Select(x => x.Role).ToListAsync(ct);
+    var creatorRole = new[] { "Manager", "Partner", "Administrator" }
+      .FirstOrDefault(role => activeRoles.Contains(role, StringComparer.OrdinalIgnoreCase));
+    if (creatorRole is null)
+      return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Firm-wide group authority is no longer active.");
     var code = request.Code.Trim();
     if (await db.ClientGroups.AnyAsync(x => x.FirmId == actor.FirmId && x.Code == code, ct))
       return CommandResult<Guid>.Fail(ErrorCodes.IdempotencyConflict, "The group code already exists.");
@@ -32,7 +40,7 @@ public static partial class ConsolidationService
     db.GroupAccessGrants.Add(new GroupAccessGrant
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, GroupId = group.Id, UserId = actor.UserId,
-      Role = "Partner", GrantedAt = group.CreatedAt, GrantedByUserId = actor.UserId
+      Role = creatorRole, GrantedAt = group.CreatedAt, GrantedByUserId = actor.UserId
     });
     await db.SaveChangesAsync(ct);
     return CommandResult<Guid>.Ok(group.Id);

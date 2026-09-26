@@ -25,6 +25,29 @@ public sealed partial class ClientAccountingTests
 {
   [Fact]
   [Trait("Profile", "Database")]
+  public async Task CreateGroup_GrantsCreatorOnlyTheirFirmWideRole()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var scope = await SeedAsync(pg);
+    var manager = User(scope.FirmId, "group-manager");
+    var actor = Actor(manager, "Manager");
+    await using var db = new AuditSphereDbContext(pg.Options);
+    db.Users.Add(manager);
+    db.RoleGrants.Add(Grant(scope.FirmId, manager, "Manager"));
+    await db.SaveChangesAsync();
+
+    var created = await ConsolidationService.CreateGroupAsync(db, actor,
+      new ClientGroupRequest("MANAGER-GROUP", "Manager-owned group"));
+
+    Assert.True(created.Succeeded, created.Message);
+    var grant = await db.GroupAccessGrants.SingleAsync(x => x.GroupId == created.Value && x.UserId == manager.Id);
+    Assert.Equal("Manager", grant.Role);
+    Assert.DoesNotContain(await db.GroupAccessGrants.Where(x => x.GroupId == created.Value).ToListAsync(),
+      x => x.Role == "Partner");
+  }
+
+  [Fact]
+  [Trait("Profile", "Database")]
   public async Task GroupCapabilityAuthorization_RejectsStaleDisabledAndClientActors()
   {
     await using var pg = await PgTestSchema.CreateAsync();

@@ -2,18 +2,18 @@
 id: "T002"
 work_package: "R2R-00"
 modules: []
-status: "NOT_STARTED"
+status: "IN_PROGRESS"
 depends_on: ["T001"]
-owner: ""
+owner: "Codex implementation coordinator"
 reviewer: ""
 review_decision: ""
 reviewed_commit: ""
-evidence_ref: ""
+evidence_ref: "tracking/auditsphere-r2r-tracker-architecture-transaction-ownership.md"
 approval_ref: ""
 blocked_reason: ""
-branch: ""
+branch: "master"
 issue_pr: ""
-updated_at: ""
+updated_at: "2026-09-26T17:42:09+00:00"
 ---
 # T002 — Approve architecture, contracts and transaction ownership
 
@@ -110,11 +110,11 @@ Use pure xUnit for deterministic rules, real PostgreSQL for persistence/concurre
 
 | Field | Value to record |
 |---|---|
-| Inspected baseline and reused symbols | Not recorded |
+| Inspected baseline and reused symbols | [Working architecture and transaction ledger](../../tracking/auditsphere-r2r-tracker-architecture-transaction-ownership.md); T001 accepted inventory consumed. |
 | Code commit / schema / deployed build if applicable | Not recorded |
 | Requirement → assertion → command/run → observed result | Not recorded |
 | Policy / scope approval reference | Not recorded |
-| Known limitations / exact blocker | Not recorded |
+| Known limitations / exact blocker | 111 preserved requests have not all been mapped to concrete transaction owners; shared DTO/port and capability-to-role ledgers and independent review remain open. |
 | Exported contract / manifest / artifact references for consumers | Not recorded |
 | Reviewer and acceptance decision | Not recorded |
 

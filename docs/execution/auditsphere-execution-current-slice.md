@@ -122,6 +122,16 @@ This is local fail-closed configuration behavior; no live Entra sign-in or
 production identity acceptance is claimed. Exact verification is in
 `status.json`.
 
+## R2R architecture and group authority
+
+T002 is in progress. Its [working architecture and transaction ledger](../task_breakdown/tracking/auditsphere-r2r-tracker-architecture-transaction-ownership.md)
+records the current static-service design, preliminary transaction owners and
+shared contract candidates. Group creation now derives the creator's group role
+from an active firm-wide grant, preventing a Manager creator from receiving an
+implicit Partner group grant. The exact test and model results are in
+`status.json`. The complete 111-request transaction mapping, shared-contract
+dispositions and independent T002 review remain open.
+
 ## P1 development OIDC credential store
 
 The Web project now declares a stable .NET user-secrets ID, so an approved
