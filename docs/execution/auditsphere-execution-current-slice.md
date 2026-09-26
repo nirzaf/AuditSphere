@@ -28,6 +28,18 @@
 
 ---
 
+## Release candidate access refresh
+
+The release workbench clears its candidate, checkpoint, attestation, signature
+projection and release key before a route change or explicit refresh rechecks the
+current actor and exact candidate scope. A late read from an older route cannot
+restore its prior evidence. Scope/session denial on issue reloads the protected
+view. The release page describes provider evidence without claiming Purview
+acceptance, which is outside the approved product scope. A browser regression
+covers a same-document route change and a revoked staff grant. Exact verification
+results are in `status.json`; this is a bounded AS-PAR-002 authorization repair,
+not complete whole-application acceptance.
+
 ## P1 local identity session binding
 
 OIDC sign-in now requires a mapped, enabled local `(tenantId, objectId)` identity and
