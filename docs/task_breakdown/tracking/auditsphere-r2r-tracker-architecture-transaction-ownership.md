@@ -35,3 +35,15 @@ The [111 preserved command/query names](../coverage/auditsphere-r2r-tracker-comm
 | DbContext configuration, model snapshot and migrations | One existing EF Core context; no T002 model change | Coordinator serializes changes and checks for model drift; individual feature task supplies schema/backfill evidence. |
 
 The transaction-owner rule for future writing operations is the named Application command/service or durable worker stage that performs the write. A caller may invoke it but may not add a second transaction around a service-owned transaction. Read-only queries do not own a write transaction. These are implementation rules for the remaining request mapping, not proof that all preserved requests already have implementations.
+
+## Current capability-to-role mapping inspected
+
+| Boundary | Active roles required in the current Application authorization code | Additional condition |
+|---|---|---|
+| Client accounting setup, analysis, statements and consolidation preparation | `AccountingPreparer`, `AccountingReviewer`, `Manager`, `Partner`, or `Administrator` | Client operations require a covering client/engagement `RoleGrant`; firm configuration requires a firm-wide grant; group operations require an active `GroupAccessGrant`. |
+| Review actions in those capabilities | `AccountingReviewer`, `Manager`, `Partner`, or `Administrator` | Matching scope and action-specific independence/currentness gates still apply. A role alone is not approval evidence. |
+| Legacy adjustment-journal preparation | `AccountingPreparer`, `Staff`, `Partner`, or `Manager` | Explicit dataset client/engagement scope. This differs from the broader current-service preparer array and needs per-operation reconciliation before a unified role policy is claimed. |
+| Legacy adjustment-journal review | `AccountingReviewer`, `Partner`, or `Manager` | Explicit journal client/engagement scope and review restrictions. |
+| Group creation | Firm-wide `Manager`, `Partner`, or `Administrator` | Creator receives the matching active role as a group grant. Existing group grants are independently stored; the effect of later firm-role revocation on those grants remains a policy decision. |
+
+These are observations from `AuthorizationDecision`, `ClientAccountingService.Authorization`, `AccountingAnalysisService.Authorization`, `FinancialStatementService.Authorization`, `ConsolidationService.Authorization`, and `AdjustmentJournalService`. They do not replace each command's exact authorization predicate. The T002 handoff still needs an approved disposition for the role-array variation and explicit person-based professional acceptance mapping.
