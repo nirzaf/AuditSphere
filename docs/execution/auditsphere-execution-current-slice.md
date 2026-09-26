@@ -150,6 +150,15 @@ then reauthorize before displaying refreshed conversation or transfer state.
 This slice does not close the whole-application AS-PAR-002 audit. Exact local
 verification is in `status.json`.
 
+## P1 explicit Microsoft account selection
+
+The OIDC sign-in route now accepts an opt-in account-choice flag for testing
+separate tenant fixtures in a browser that already has an administrator Microsoft
+session. The default challenge remains unchanged. The live local flow reached
+Microsoft’s account picker, but no staff or client fixture login or local grant
+has been accepted yet. The operator Wiki explains the optional route; exact
+checks and source identity are in `status.json`.
+
 ## P1 production OIDC startup guard
 
 The Production Web host now refuses startup when OIDC is absent altogether,
