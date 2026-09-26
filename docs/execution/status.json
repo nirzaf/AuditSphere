@@ -399,6 +399,17 @@
       "operatorGuide": "Published the optional account-picker instruction to the existing Production Entra ID Configuration Wiki page at Wiki commit d1f503cf8d9f3f460d064b430ce4ce733b2aaa44. Rendered page and Wiki navigation were observed; no tenant or credential values were published.",
       "boundary": "This is an account-choice prompt only. It does not provision tenant identities, grant application roles, prove a fixture login or enable a provider. P1 remains open.",
       "hostedCiRun": "PASS: hosted CI run 36280238694 at exact source commit; hosted CI excludes PostgreSQL/browser suites."
+    },
+    "localDevelopmentMigrationPreparation": {
+      "observedAt": "2026-09-26T23:50:00Z",
+      "sourceDatabase": "Loopback PostgreSQL 18.6 auditsphere development database",
+      "appliedMigrations": 91,
+      "latestAppliedMigration": "20260922140527_M365InvitationEvidenceAction",
+      "pendingMigrations": 18,
+      "backup": "A mode-0600 local custom-format dump was created in a mode-0700 user-private backup directory before any migration; pg_restore listed the archive. The dump is outside the repository and is not published.",
+      "restoreRehearsal": "PASS: scripts/db/restore-drill.sh restored a temporary loopback database and matched migration history, release checkpoint evidence and accounting/group manifests. Evidence was written only to the user-private backup directory.",
+      "migrationScriptReview": "Generated SQL from the latest applied migration to the current model. Searched for table/column drops, DELETE, UPDATE and TRUNCATE; none found. One index drop and one check-constraint replacement were present. This is a review observation, not proof of application.",
+      "readiness": "The current persistent development database /health/ready returned 503 due to pending migrations. The migration has not been applied. Browser-based sign-in and isolated PostgreSQL test databases are separate from this readiness result."
     }
   },
   "documentationWork": {
