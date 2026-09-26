@@ -39,6 +39,12 @@ authorized tenant and already contains the local web callback; no tenant
 setting was changed. This is a local identity boundary, not live OIDC or
 production acceptance. Exact verification is in `status.json`.
 
+The application cookie now requires the Secure flag outside Development/Test,
+and remains HttpOnly. The local profiles retain request-matched cookie security
+for the supported HTTP test harness. The production deployment Wiki already
+requires an HTTPS hostname and exact HTTPS callback, so its operator steps
+remain accurate.
+
 ## AS-PAR-002 firm Finance current-access refresh
 
 The firm Finance workbench now reads periods, accounts, recent postings, and
@@ -512,6 +518,18 @@ review and explicit merge authorization before advancing acceptance.
   is the documented intermittent-under-load pattern and passes in isolation
   and together with both new invoice journeys. No business rule, authorization
   decision or persistence change.
+
+### 2.10 Benchmark Baseline Verification
+
+- **Explicit focused run recorded:** AccountingBenchmarkTests passed on local
+  PostgreSQL 18.6 (clients=4, transactions=2000, lines=8000, enqueue 180.3ms,
+  worker 225.1ms, first page 49.5ms, group 32 lines / 4.9ms), evidencing
+  high-magnitude intake, durable outbox enqueue/worker publication and
+  consolidated group readback; concurrent worker-operation coverage remains in
+  DurableOutboxTests. Recorded in `status.json` localEvidence; the
+  pending-work inventory item now carries the dated observation.
+- **State:** documentation/ledger change only; no production acceptance
+  claimed for local-loopback measurements.
 
 ### 2.4 Documentation Reality Audit
 
