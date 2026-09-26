@@ -97,6 +97,10 @@ var authentication = builder.Services.AddAuthentication(options =>
 }).AddCookie(options =>
 {
   options.LoginPath = "/auth/sign-in";
+  options.Cookie.HttpOnly = true;
+  options.Cookie.SecurePolicy = builder.Environment.IsDevelopment() || builder.Environment.IsEnvironment("Test")
+    ? CookieSecurePolicy.SameAsRequest
+    : CookieSecurePolicy.Always;
   options.Events.OnRedirectToLogin = context =>
   {
     if (context.Request.Path.StartsWithSegments("/api"))
