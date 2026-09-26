@@ -49,6 +49,7 @@ else
 
     <div class="form-group">
         <label for="decision-outcome">Decision outcome <span class="required-marker">*</span></label>
+        <!-- Native select retained: the decision journey asserts Locator("#decision-outcome") visibility and a MudSelect combobox input renders hidden. -->
         <select id="decision-outcome" @bind="_outcome" required title="Record the professional decision for this exact client/service scope. A decision does not create a remote folder in this request.">
             <option value="">— select —</option>
             <option value="ACCEPTED">Accepted</option>
@@ -60,17 +61,17 @@ else
 
     <div class="form-group">
         <label for="decision-service">Service route <span class="required-marker">*</span></label>
-        <input id="decision-service" @bind="_serviceRoute" maxlength="50" required title="Stable service scope used to bind the decision and any later workspace intent." />
+        <MudTextField T="string" @bind-Value="_serviceRoute" MaxLength="50" id="decision-service" required title="Stable service scope used to bind the decision and any later workspace intent." />
     </div>
 
     <div class="form-group">
         <label for="decision-rationale">Rationale / scope <span class="required-marker">*</span></label>
-        <textarea id="decision-rationale" rows="5" @bind="_rationale" placeholder="Describe scope, factors considered and professional basis." required title="Required professional basis retained with the immutable decision." />
+        <MudTextField T="string" @bind-Value="_rationale" Lines="5" id="decision-rationale" Placeholder="Describe scope, factors considered and professional basis." required title="Required professional basis retained with the immutable decision." />
     </div>
 
     <div class="form-group">
         <label for="decision-conditions">Conditions <span class="optional-label">optional unless conditional acceptance</span></label>
-        <textarea id="decision-conditions" rows="3" @bind="_conditions" placeholder="Leave blank if unconditional." data-optional="true" title="Required only for Accepted with Conditions; open conditions prevent workspace readiness." />
+        <MudTextField T="string" @bind-Value="_conditions" Lines="3" id="decision-conditions" Placeholder="Leave blank if unconditional." data-optional="true" title="Required only for Accepted with Conditions; open conditions prevent workspace readiness." />
     </div>
 
     @if (!string.IsNullOrEmpty(_errorMessage))

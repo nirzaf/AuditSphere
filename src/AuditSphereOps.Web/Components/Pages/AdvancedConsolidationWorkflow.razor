@@ -45,6 +45,7 @@ else
     <div class="form-grid">
       <label class="field" for="advanced-source-manifest">
         Source manifest JSON <span aria-hidden="true">*</span>
+<!-- Native textareas retained: data-draft-field JSON inputs inside the schedule-scope draft boundary; draft-state.js reads control.value and restores via dispatched events. -->
         <textarea id="advanced-source-manifest" data-draft-field="source-manifest" @bind="_sourceManifestJson" @bind:event="oninput" rows="10" maxlength="20000" required title="Identify every approved component source exactly once. Method-specific journal, FX or nested-run evidence belongs here when required."></textarea>
       </label>
       <label class="field" for="advanced-input-snapshot">

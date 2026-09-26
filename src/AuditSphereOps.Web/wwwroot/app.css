@@ -18,20 +18,17 @@ h1 { margin: .25rem 0 1rem; font-size: clamp(2rem, 5vw, 3.5rem); }
 h2 { margin-top: 0; }
 .lede { font-size: 1.2rem; line-height: 1.6; }
 .eyebrow, .metric-label { color: #5b6b7a; text-transform: uppercase; letter-spacing: .08em; font-size: .75rem; font-weight: 700; }
-.card-grid, .metric-grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); }
+.metric-grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); }
 .card, .notice { background: #fff; border: 1px solid #d8e0e7; border-radius: .55rem; padding: 1.25rem; margin: 1rem 0; box-shadow: 0 2px 8px #18344a0d; }
 .notice { border-left: .35rem solid #0e7490; }
 .notice.error, .error-text { border-color: #b91c1c; color: #991b1b; }
 .notice.success, .success-text { border-color: #15803d; color: #166534; }
 .metric { margin: 0; }
 .metric-value { display: block; font-size: 2rem; margin-top: .35rem; }
-.button { display: inline-block; border: 0; border-radius: .35rem; padding: .7rem 1rem; background: #075985; color: #fff; font-weight: 700; cursor: pointer; text-decoration: none; }
-.button:hover, .button:focus-visible { background: #0c4a6e; }
-button:disabled { opacity: .55; cursor: not-allowed; }
 .scope-note, .muted { color: #5b6b7a; }
-.accounting-tabs { display: flex; flex-wrap: wrap; gap: .35rem; margin: -0.5rem 0 1.25rem; padding-bottom: .75rem; border-bottom: 1px solid #d8e0e7; }
-.accounting-tabs a { padding: .45rem .65rem; border-radius: .3rem; color: #123047; text-decoration: none; font-weight: 650; }
-.accounting-tabs a:hover, .accounting-tabs a:focus-visible, .accounting-tabs a.active { background: #d1e4ef; color: #075985; }
+.accounting-nav { display: flex; flex-wrap: wrap; gap: .35rem; align-items: center; }
+.accounting-nav-link { padding: .45rem .65rem; border-radius: .3rem; color: #123047; text-decoration: none; font-weight: 650; }
+.accounting-nav-link:hover, .accounting-nav-link:focus-visible, .accounting-nav-link.active { background: #d1e4ef; color: #075985; }
 .workspace-tab-grid { display: grid; gap: .75rem; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); }
 .workspace-tab-grid article { border: 1px solid #d8e0e7; border-radius: .45rem; padding: 1rem; background: #fbfcfd; }
 .workspace-tab-grid h3 { margin: 0 0 .4rem; }

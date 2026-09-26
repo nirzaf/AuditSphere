@@ -36,12 +36,12 @@ else
     <h2 id="version-heading">Library versions</h2>
     <label>
       Version
-      <select class="input" @bind="_selectedVersion" @bind:after="LoadAsync" disabled="@_busy">
+      <MudSelect T="string" @bind-Value="_selectedVersion" @bind-Value:after="LoadAsync" Disabled="@_busy">
         @foreach (var version in _library.Versions)
         {
-          <option value="@version.Version">@version.ProgramCode v@version.Version · @version.Status · @version.ProcedureCount procedures</option>
+          <MudSelectItem Value="@version.Version.ToString()">@version.ProgramCode v@version.Version · @version.Status · @version.ProcedureCount procedures</MudSelectItem>
         }
-      </select>
+      </MudSelect>
     </label>
     @if (_library.SelectedVersion is { } selected)
     {
@@ -75,7 +75,7 @@ else
       <form @onsubmit="SearchAsync" @onsubmit:preventDefault="true" style="display: flex; gap: 0.75rem; align-items: flex-end; flex-wrap: wrap;">
         <label style="flex: 1; min-width: 16rem;">
           Search procedures
-          <input class="input" @bind="_search" placeholder="AWP-02 or confirmations" data-optional="true" disabled="@_busy" />
+          <MudTextField T="string" @bind-Value="_search" Placeholder="AWP-02 or confirmations" data-optional="true" Disabled="@_busy" />
         </label>
         <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button" ButtonType="ButtonType.Submit" Disabled="@_busy">Search</MudButton>
         @if (!string.IsNullOrWhiteSpace(_search))

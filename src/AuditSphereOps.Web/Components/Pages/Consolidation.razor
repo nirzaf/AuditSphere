@@ -20,13 +20,15 @@ else if (_groups.Count == 0)
 }
 else
 {
-  <nav class="accounting-tabs" aria-label="Group consolidation tabs">
-    <a href="#perimeter" title="Review versioned group membership, method and reporting currency.">Perimeter</a>
-    <a href="#packs" title="Review internal and external component-pack counts and approval readiness.">Component packs</a>
-    <a href="#fx" title="Review explicitly pinned rate-set and translation-policy state; missing or stale rates block calculation.">FX</a>
-    <a href="#advanced" title="Review method-specific advanced schedules and whether a gated profile has approved inputs.">Advanced schedules</a>
-    <a href="#intercompany" title="Review grouped matches, outside-perimeter reviews and unresolved differences.">Intercompany</a>
-    <a href="#eliminations" title="Review persisted group-only elimination journals and their approval state.">Eliminations</a>
+  <nav aria-label="Group consolidation tabs">
+    <MudPaper Elevation="0" Class="accounting-nav pa-1 my-4">
+    <a href="#perimeter" class="accounting-nav-link" title="Review versioned group membership, method and reporting currency.">Perimeter</a>
+    <a href="#packs" class="accounting-nav-link" title="Review internal and external component-pack counts and approval readiness.">Component packs</a>
+    <a href="#fx" class="accounting-nav-link" title="Review explicitly pinned rate-set and translation-policy state; missing or stale rates block calculation.">FX</a>
+    <a href="#advanced" class="accounting-nav-link" title="Review method-specific advanced schedules and whether a gated profile has approved inputs.">Advanced schedules</a>
+    <a href="#intercompany" class="accounting-nav-link" title="Review grouped matches, outside-perimeter reviews and unresolved differences.">Intercompany</a>
+    <a href="#eliminations" class="accounting-nav-link" title="Review persisted group-only elimination journals and their approval state.">Eliminations</a>
+    </MudPaper>
   </nav>
 
   <MudPaper  Class="pa-4 my-4" Elevation="1" id="perimeter" aria-labelledby="perimeter-heading" role="region">

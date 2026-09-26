@@ -46,15 +46,15 @@ else
       <h2 id="decision-heading">Record management decision</h2>
       <p class="muted">Your authenticated client identity records the management decision against this exact package version. A changed package requires a new decision.</p>
       <div class="form-grid">
-        <label for="management-decision">Decision<select id="management-decision" @bind="_decision" required>
+        <label for="management-decision">Decision<MudSelect T="string" @bind-Value="_decision" id="management-decision" required>
           @foreach (var decision in FinancialPackageReviewDecisions.All)
           {
-            <option value="@decision">@decision</option>
+            <MudSelectItem Value="@decision">@decision</MudSelectItem>
           }
-        </select></label>
-        <label for="evidence-reference">Evidence reference<input id="evidence-reference" @bind="_evidenceReference" maxlength="2000" autocomplete="off" required /></label>
+        </MudSelect></label>
+        <label for="evidence-reference">Evidence reference<MudTextField T="string" @bind-Value="_evidenceReference" MaxLength="2000" id="evidence-reference" autocomplete="off" required /></label>
       </div>
-      <label for="management-comment">Comment<textarea id="management-comment" @bind="_comment" maxlength="4000" rows="4" data-optional="true"></textarea></label>
+      <label for="management-comment">Comment<MudTextField T="string" @bind-Value="_comment" MaxLength="4000" Lines="4" id="management-comment" data-optional="true" /></label>
       <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button" OnClick="RecordAsync" Disabled="@_busy">@(_busy ? "Recording…" : "Record management decision")</MudButton>
       @if (_result is not null)
       {

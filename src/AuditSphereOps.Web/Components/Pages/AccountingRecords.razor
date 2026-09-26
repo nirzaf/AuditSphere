@@ -36,10 +36,12 @@ else if (!_authorized)
 else
 {
   <p class="scope-note">Only records in the authenticated client or exact engagement scope are shown. Detail links re-check authorization before displaying the record.</p>
-  <nav class="accounting-tabs my-3" aria-label="Accounting record queues">
-    <a href="/app/accounting/mappings" class="@(Mode == RecordMode.Mappings ? "active" : null)" aria-current="@(Mode == RecordMode.Mappings ? "page" : null)" title="Review immutable client chart and reporting mappings.">COA and mappings</a>
-    <a href="/app/accounting/journals" class="@(Mode == RecordMode.Journals ? "active" : null)" aria-current="@(Mode == RecordMode.Journals ? "page" : null)" title="Review scoped adjustment journals and their posting state.">Adjustments</a>
-    <a href="/app/accounting/differences" class="@(Mode == RecordMode.Differences ? "active" : null)" aria-current="@(Mode == RecordMode.Differences ? "page" : null)" title="Review scoped audit differences and correction lineage.">Differences</a>
+  <nav aria-label="Accounting record queues">
+    <MudPaper Elevation="0" Class="accounting-nav pa-1 my-3">
+    <a href="/app/accounting/mappings" class="accounting-nav-link @(Mode == RecordMode.Mappings ? "active" : null)" aria-current="@(Mode == RecordMode.Mappings ? "page" : null)" title="Review immutable client chart and reporting mappings.">COA and mappings</a>
+    <a href="/app/accounting/journals" class="accounting-nav-link @(Mode == RecordMode.Journals ? "active" : null)" aria-current="@(Mode == RecordMode.Journals ? "page" : null)" title="Review scoped adjustment journals and their posting state.">Adjustments</a>
+    <a href="/app/accounting/differences" class="accounting-nav-link @(Mode == RecordMode.Differences ? "active" : null)" aria-current="@(Mode == RecordMode.Differences ? "page" : null)" title="Review scoped audit differences and correction lineage.">Differences</a>
+    </MudPaper>
   </nav>
 
   @if (Mode == RecordMode.Mappings)

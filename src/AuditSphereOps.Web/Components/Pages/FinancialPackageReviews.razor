@@ -51,6 +51,7 @@ else
     else
     {
       <MudTable Items="_queue" Dense="true" Hover="true" Elevation="0">
+<!-- Native checkboxes retained: data-draft-field selection state inside a draft boundary, bound with explicit checked/onchange inside the MudTable header/rows. -->
   <HeaderContent><MudTh scope="col"><label title="Select all visible package stages for a preview."><input id="select-all-packages" type="checkbox" data-draft-field="select-all-packages" checked="@AllSelected" @onchange="ToggleAll" /> <span class="sr-only">Select all visible packages</span></label></MudTh><MudTh scope="col">Package</MudTh><MudTh scope="col">Period</MudTh><MudTh scope="col">Management</MudTh><MudTh scope="col">Accounting</MudTh><MudTh scope="col">Partner</MudTh><MudTh scope="col">Next action</MudTh><MudTh scope="col"><span class="sr-only">Action</span></MudTh></HeaderContent>
   <RowTemplate>            <MudTd><input id="select-package-@context.PackageId" type="checkbox" data-draft-field="package-@context.PackageId" checked="@IsSelected(context.PackageId)" @onchange="eventArgs => TogglePackage(context.PackageId, eventArgs)" title="Select this exact package review stage for a preview." /></MudTd>
             <MudTd><code>@context.PackageId</code><br /><span class="muted">@context.Framework · @context.Currency</span></MudTd>

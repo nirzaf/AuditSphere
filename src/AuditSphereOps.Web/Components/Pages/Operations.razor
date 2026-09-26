@@ -46,7 +46,7 @@ else
     <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="operations-heading" role="region">
       <h2 id="operations-heading">Latest 50 durable operations</h2>
       <label for="cancel-disposition">Cancellation disposition</label>
-      <input id="cancel-disposition" @bind="_cancelDisposition" maxlength="2000" placeholder="Why is the queued operation being cancelled?" required title="Explain why this queued operation is being cancelled; the disposition is stored with the operation event." />
+      <MudTextField T="string" @bind-Value="_cancelDisposition" MaxLength="2000" id="cancel-disposition" Placeholder="Why is the queued operation being cancelled?" required title="Explain why this queued operation is being cancelled; the disposition is stored with the operation event." />
       <MudTable Items="_operations" Dense="true" Hover="true" Elevation="0" Class="mt-3">
         <HeaderContent>
           <MudTh>Kind</MudTh>

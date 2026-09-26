@@ -36,6 +36,7 @@ else
   <section class="card" aria-labelledby="task-heading" data-draft-scope="practice-task">
     <h2 id="task-heading">Create work task</h2>
     <p class="scope-note">Link an optional accounting period when the task belongs to a client reporting workflow. Due dates are optional and are never inferred.</p>
+<!-- Native controls retained: both <form> elements are draft-state.js boundaries (auto-discovered form scopes; the "Record time draft" region is E2E-pinned) and the script reads/writes control.value + checked with change-event restore. -->
     <form @onsubmit="CreateTaskAsync" @onsubmit:preventDefault="true" style="display: grid; gap: 0.75rem; max-width: 32rem;">
       <label>
         Task title <span class="required-marker" aria-hidden="true">*</span>

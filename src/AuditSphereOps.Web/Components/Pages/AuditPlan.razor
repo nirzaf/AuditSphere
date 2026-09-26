@@ -92,35 +92,35 @@ else
                 <legend>Record a materiality assessment</legend>
                 <div class="form-group">
                     <label for="mat-benchmark">Benchmark source</label>
-                    <input id="mat-benchmark" @bind="_matBenchmark" maxlength="200" required />
+                    <MudTextField T="string" @bind-Value="_matBenchmark" MaxLength="200" id="mat-benchmark" required />
                 </div>
                 <div class="form-group">
                     <label for="mat-version">Benchmark version</label>
-                    <input id="mat-version" @bind="_matVersion" maxlength="100" required />
+                    <MudTextField T="string" @bind-Value="_matVersion" MaxLength="100" id="mat-version" required />
                 </div>
                 <div class="form-group">
                     <label for="mat-amount">Benchmark amount</label>
-                    <input id="mat-amount" type="number" step="0.000001" @bind="_matAmount" required />
+                    <MudNumericField T="decimal" @bind-Value="_matAmount" Step="0.000001m" id="mat-amount" required />
                 </div>
                 <div class="form-group">
                     <label for="mat-rate">Applied rate (0–1)</label>
-                    <input id="mat-rate" type="number" step="0.0001" @bind="_matRate" required />
+                    <MudNumericField T="decimal" @bind-Value="_matRate" Step="0.0001m" id="mat-rate" required />
                 </div>
                 <div class="form-group">
                     <label for="mat-overall">Overall materiality</label>
-                    <input id="mat-overall" type="number" step="0.000001" @bind="_matOverall" required />
+                    <MudNumericField T="decimal" @bind-Value="_matOverall" Step="0.000001m" id="mat-overall" required />
                 </div>
                 <div class="form-group">
                     <label for="mat-performance">Performance materiality</label>
-                    <input id="mat-performance" type="number" step="0.000001" @bind="_matPerformance" required />
+                    <MudNumericField T="decimal" @bind-Value="_matPerformance" Step="0.000001m" id="mat-performance" required />
                 </div>
                 <div class="form-group">
                     <label for="mat-trivial">Clearly trivial threshold</label>
-                    <input id="mat-trivial" type="number" step="0.000001" @bind="_matTrivial" required />
+                    <MudNumericField T="decimal" @bind-Value="_matTrivial" Step="0.000001m" id="mat-trivial" required />
                 </div>
                 <div class="form-group">
                     <label for="mat-rationale">Rationale</label>
-                    <textarea id="mat-rationale" rows="2" @bind="_matRationale" required></textarea>
+                    <MudTextField T="string" @bind-Value="_matRationale" Lines="2" id="mat-rationale" required />
                 </div>
                 <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="btn-small" OnClick="CreateMaterialityAsync" Disabled="@(_busy || _engagement.ProfessionalWorkBlocked)">Record assessment</MudButton>
             </fieldset>
@@ -149,30 +149,30 @@ else
                 <legend>Record an identified risk</legend>
                 <div class="form-group">
                     <label for="risk-area">Account or disclosure area</label>
-                    <input id="risk-area" @bind="_riskArea" maxlength="200" required />
+                    <MudTextField T="string" @bind-Value="_riskArea" MaxLength="200" id="risk-area" required />
                 </div>
                 <div class="form-group">
                     <label for="risk-assertion">Assertion</label>
-                    <input id="risk-assertion" @bind="_riskAssertion" maxlength="100" required />
+                    <MudTextField T="string" @bind-Value="_riskAssertion" MaxLength="100" id="risk-assertion" required />
                 </div>
                 <div class="form-group">
                     <label for="risk-description">Risk description</label>
-                    <textarea id="risk-description" rows="2" @bind="_riskDescription" required></textarea>
+                    <MudTextField T="string" @bind-Value="_riskDescription" Lines="2" id="risk-description" required />
                 </div>
                 <div class="form-group">
                     <label for="risk-drivers">Drivers</label>
-                    <textarea id="risk-drivers" rows="2" @bind="_riskDrivers" required></textarea>
+                    <MudTextField T="string" @bind-Value="_riskDrivers" Lines="2" id="risk-drivers" required />
                 </div>
                 <div class="form-group">
                     <label for="risk-significance">Significance decision</label>
-                    <select id="risk-significance" @bind="_riskSignificance" required>
-                        <option value="@SignificanceDecisions.Normal">@SignificanceDecisions.Normal</option>
-                        <option value="@SignificanceDecisions.Significant">@SignificanceDecisions.Significant</option>
-                    </select>
+                    <MudSelect T="string" @bind-Value="_riskSignificance" id="risk-significance" required>
+                        <MudSelectItem Value="@SignificanceDecisions.Normal">@SignificanceDecisions.Normal</MudSelectItem>
+                        <MudSelectItem Value="@SignificanceDecisions.Significant">@SignificanceDecisions.Significant</MudSelectItem>
+                    </MudSelect>
                 </div>
                 <div class="form-group">
                     <label for="risk-response">Planned response</label>
-                    <textarea id="risk-response" rows="2" @bind="_riskResponse" required></textarea>
+                    <MudTextField T="string" @bind-Value="_riskResponse" Lines="2" id="risk-response" required />
                 </div>
                 <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="btn-small" OnClick="CreateRiskAsync" Disabled="@(_busy || _engagement.ProfessionalWorkBlocked)">Record risk</MudButton>
             </fieldset>
@@ -201,31 +201,31 @@ else
                 <legend>Record a population version</legend>
                 <div class="form-group">
                     <label for="pop-purpose">Purpose</label>
-                    <input id="pop-purpose" @bind="_popPurpose" maxlength="300" required />
+                    <MudTextField T="string" @bind-Value="_popPurpose" MaxLength="300" id="pop-purpose" required />
                 </div>
                 <div class="form-group">
                     <label for="pop-assertion">Assertion</label>
-                    <input id="pop-assertion" @bind="_popAssertion" maxlength="100" required />
+                    <MudTextField T="string" @bind-Value="_popAssertion" MaxLength="100" id="pop-assertion" required />
                 </div>
                 <div class="form-group">
                     <label for="pop-receipt">Source receipt reference</label>
-                    <input id="pop-receipt" @bind="_popReceiptRef" maxlength="200" required />
+                    <MudTextField T="string" @bind-Value="_popReceiptRef" MaxLength="200" id="pop-receipt" required />
                 </div>
                 <div class="form-group">
                     <label for="pop-extraction">Extraction parameters</label>
-                    <textarea id="pop-extraction" rows="2" @bind="_popExtraction" required></textarea>
+                    <MudTextField T="string" @bind-Value="_popExtraction" Lines="2" id="pop-extraction" required />
                 </div>
                 <div class="form-group">
                     <label for="pop-rows">Row count</label>
-                    <input id="pop-rows" type="number" min="0" @bind="_popRows" required />
+                    <MudNumericField T="int" @bind-Value="_popRows" Min="0" id="pop-rows" required />
                 </div>
                 <div class="form-group">
                     <label for="pop-total">Monetary control total</label>
-                    <input id="pop-total" type="number" step="0.000001" min="0" @bind="_popTotal" required />
+                    <MudNumericField T="decimal" @bind-Value="_popTotal" Step="0.000001m" Min="0m" id="pop-total" required />
                 </div>
                 <div class="form-group">
                     <label for="pop-currency">Currency (ISO 4217)</label>
-                    <input id="pop-currency" @bind="_popCurrency" maxlength="3" required />
+                    <MudTextField T="string" @bind-Value="_popCurrency" MaxLength="3" id="pop-currency" required />
                 </div>
                 <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="btn-small" OnClick="CreatePopulationAsync" Disabled="@(_busy || _engagement.ProfessionalWorkBlocked)">Record population</MudButton>
             </fieldset>
@@ -256,15 +256,15 @@ else
                 <legend>Record a finding</legend>
                 <div class="form-group">
                     <label for="find-type">Finding type</label>
-                    <input id="find-type" @bind="_findingType" maxlength="100" required />
+                    <MudTextField T="string" @bind-Value="_findingType" MaxLength="100" id="find-type" required />
                 </div>
                 <div class="form-group">
                     <label for="find-impact">Impact description</label>
-                    <textarea id="find-impact" rows="2" @bind="_findingImpact" required></textarea>
+                    <MudTextField T="string" @bind-Value="_findingImpact" Lines="2" id="find-impact" required />
                 </div>
                 <div class="form-group">
                     <label for="find-amount">Monetary amount (optional)</label>
-                    <input id="find-amount" type="number" step="0.000001" min="0" @bind="_findingAmount" data-optional="true" />
+                    <MudNumericField T="decimal" @bind-Value="_findingAmount" Step="0.000001m" Min="0m" id="find-amount" data-optional="true" />
                 </div>
                 <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="btn-small" OnClick="CreateFindingAsync" Disabled="@(_busy || _engagement.ProfessionalWorkBlocked)">Record finding</MudButton>
             </fieldset>

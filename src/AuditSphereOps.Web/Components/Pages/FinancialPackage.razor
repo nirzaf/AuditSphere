@@ -82,25 +82,26 @@ else
       @if (_package.Status == AccountingPackageStates.PackageValidated)
       {
         <div class="form-grid">
+          <!-- Native select retained: the review journey drives this control with Playwright SelectOptionAsync, which only works on a native <select>. -->
           <label>Stage<select @bind="_reviewStage" required>
             @foreach (var stage in ReviewStages)
             {
               <option value="@stage">@stage</option>
             }
           </select></label>
-          <label>Decision<select @bind="_reviewDecision" required>
+          <label>Decision<MudSelect T="string" @bind-Value="_reviewDecision" required>
             @foreach (var decision in FinancialPackageReviewDecisions.All)
             {
-              <option value="@decision">@decision</option>
+              <MudSelectItem Value="@decision">@decision</MudSelectItem>
             }
-          </select></label>
-          <label>Evidence mode<select @bind="_reviewEvidenceMode" required>
-            <option value="@FinancialPackageReviewEvidenceModes.SignedIn">SIGNED_IN</option>
-            <option value="@FinancialPackageReviewEvidenceModes.Offline">OFFLINE</option>
-          </select></label>
-          <label>Evidence reference<input @bind="_reviewEvidenceReference" maxlength="2000" required /></label>
+          </MudSelect></label>
+          <label>Evidence mode<MudSelect T="string" @bind-Value="_reviewEvidenceMode" required>
+            <MudSelectItem Value="@FinancialPackageReviewEvidenceModes.SignedIn">SIGNED_IN</MudSelectItem>
+            <MudSelectItem Value="@FinancialPackageReviewEvidenceModes.Offline">OFFLINE</MudSelectItem>
+          </MudSelect></label>
+          <label>Evidence reference<MudTextField T="string" @bind-Value="_reviewEvidenceReference" MaxLength="2000" required /></label>
         </div>
-        <label>Comment<textarea @bind="_reviewComment" maxlength="4000" rows="3" data-optional="true"></textarea></label>
+        <label>Comment<MudTextField T="string" @bind-Value="_reviewComment" MaxLength="4000" Lines="3" data-optional="true" /></label>
         <div style="display:flex;gap:.75rem;align-items:center;margin-top:1rem;flex-wrap:wrap">
           <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button" OnClick="RecordReviewAsync" Disabled="@_reviewBusy">@(_reviewBusy ? "Recording…" : "Record decision")</MudButton>
           <span class="muted">Management approval uses offline evidence on this staff surface; signed-in management approval must be completed by the authorized client-user surface.</span>

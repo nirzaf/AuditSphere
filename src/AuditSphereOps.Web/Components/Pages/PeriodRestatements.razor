@@ -24,22 +24,22 @@ else
   <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="create-heading" role="region">
     <h2 id="create-heading">Request a restatement</h2>
     <div class="form-grid">
-      <label>Client<select @bind="_selectedClientId" required disabled="@(_busy || _selectionBusy)" title="Choose the client whose closed reporting period is being restated."><option value="">Select a client</option>@foreach (var client in _clients) { <option value="@client.Id">@client.Name</option> }</select></label>
-      <label>Closed period<select @bind="_selectedPeriodId" required title="Choose the closed period that both immutable packages belong to."><option value="">Select a period</option>@foreach (var period in _periods) { <option value="@period.Id">@period.Label</option> }</select></label>
-      <label>Original package<select @bind="_selectedOriginalPackageId" required title="Choose the original validated package version."><option value="">Select package</option>@foreach (var package in _packages) { <option value="@package.Id">@package.Label</option> }</select></label>
-      <label>Revised package<select @bind="_selectedRevisedPackageId" required title="Choose the revised validated package version; it must differ from the original."><option value="">Select package</option>@foreach (var package in _packages) { <option value="@package.Id">@package.Label</option> }</select></label>
-      <label>Revised basis<input @bind="_revisedBasis" maxlength="200" required /></label>
-      <label>Change type<select @bind="_changeType" required title="Supported IAS 8 treatment; estimate changes use prospective treatment and never silently restate prior periods.">
-        <option value="">Select change type</option>
-        <option value="@PeriodRestatementChangeTypes.Reclassified">Reclassified presentation</option>
-        <option value="@PeriodRestatementChangeTypes.RestatedError">Prior-period error restated</option>
-        <option value="@PeriodRestatementChangeTypes.PolicyTransition">Accounting policy transition</option>
-        <option value="@PeriodRestatementChangeTypes.ProspectiveEstimateChange">Prospective estimate change</option>
-      </select></label>
-      <label>Affected periods (comma-separated codes)<input @bind="_affectedPeriods" maxlength="500" title="Period codes the approved treatment affects; required for prospective estimate changes." /></label>
-      <label>Evidence reference<input @bind="_evidenceReference" maxlength="2000" required /></label>
+      <label>Client<MudSelect T="string" @bind-Value="_selectedClientId" required Disabled="@(_busy || _selectionBusy)" title="Choose the client whose closed reporting period is being restated."><MudSelectItem Value="@string.Empty">Select a client</MudSelectItem>@foreach (var client in _clients) { <MudSelectItem Value="@client.Id.ToString()">@client.Name</MudSelectItem> }</MudSelect></label>
+      <label>Closed period<MudSelect T="string" @bind-Value="_selectedPeriodId" required title="Choose the closed period that both immutable packages belong to."><MudSelectItem Value="@string.Empty">Select a period</MudSelectItem>@foreach (var period in _periods) { <MudSelectItem Value="@period.Id.ToString()">@period.Label</MudSelectItem> }</MudSelect></label>
+      <label>Original package<MudSelect T="string" @bind-Value="_selectedOriginalPackageId" required title="Choose the original validated package version."><MudSelectItem Value="@string.Empty">Select package</MudSelectItem>@foreach (var package in _packages) { <MudSelectItem Value="@package.Id.ToString()">@package.Label</MudSelectItem> }</MudSelect></label>
+      <label>Revised package<MudSelect T="string" @bind-Value="_selectedRevisedPackageId" required title="Choose the revised validated package version; it must differ from the original."><MudSelectItem Value="@string.Empty">Select package</MudSelectItem>@foreach (var package in _packages) { <MudSelectItem Value="@package.Id.ToString()">@package.Label</MudSelectItem> }</MudSelect></label>
+      <label>Revised basis<MudTextField T="string" @bind-Value="_revisedBasis" MaxLength="200" required /></label>
+      <label>Change type<MudSelect T="string" @bind-Value="_changeType" required title="Supported IAS 8 treatment; estimate changes use prospective treatment and never silently restate prior periods.">
+        <MudSelectItem Value="@string.Empty">Select change type</MudSelectItem>
+        <MudSelectItem Value="@PeriodRestatementChangeTypes.Reclassified">Reclassified presentation</MudSelectItem>
+        <MudSelectItem Value="@PeriodRestatementChangeTypes.RestatedError">Prior-period error restated</MudSelectItem>
+        <MudSelectItem Value="@PeriodRestatementChangeTypes.PolicyTransition">Accounting policy transition</MudSelectItem>
+        <MudSelectItem Value="@PeriodRestatementChangeTypes.ProspectiveEstimateChange">Prospective estimate change</MudSelectItem>
+      </MudSelect></label>
+      <label>Affected periods (comma-separated codes)<MudTextField T="string" @bind-Value="_affectedPeriods" MaxLength="500" title="Period codes the approved treatment affects; required for prospective estimate changes." /></label>
+      <label>Evidence reference<MudTextField T="string" @bind-Value="_evidenceReference" MaxLength="2000" required /></label>
     </div>
-    <label>Reason<textarea @bind="_reason" maxlength="4000" rows="3" required></textarea></label>
+    <label>Reason<MudTextField T="string" @bind-Value="_reason" MaxLength="4000" Lines="3" required /></label>
     <div style="display:flex;gap:.75rem;align-items:center;margin-top:1rem;flex-wrap:wrap">
       <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button" OnClick="LoadSelectionAsync" Disabled="@(_busy || _selectionBusy)">@(_selectionBusy ? "Loading…" : "Load closed-period packages")</MudButton>
       <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button" OnClick="CreateAsync" Disabled="@(_busy || _selectionBusy)">@(_busy ? "Saving…" : "Create restatement request")</MudButton>

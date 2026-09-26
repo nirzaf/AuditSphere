@@ -38,6 +38,7 @@ else
   <section class="card" aria-labelledby="upload-heading" data-draft-scope="@($"pbc-upload-{RequestId}")">
     <h2 id="upload-heading">Prepare a controlled upload</h2>
     <p class="muted">This creates a request-bound, expiring transfer intent. Content bytes are not accepted through the interactive circuit and are not marked received until a trusted completion boundary verifies the staged file.</p>
+<!-- Native controls retained: pbc-upload.js owns the file input (browser FileList API) and writes the readonly name/type/size fields by id; the SHA-256 field and reply box are draft-state.js boundary fields. -->
     <div class="field"><label for="@FileInputId">File</label><input id="@FileInputId" type="file" required title="Select the file to transfer; browser security prevents retaining the file itself after navigation." /></div>
     <div class="field"><label for="file-name">File name</label><input id="file-name" @bind="_fileName" maxlength="255" readonly title="Filled from the selected file before the upload starts." /></div>
     <div class="field"><label for="content-type">Content type</label><input id="content-type" @bind="_contentType" maxlength="200" readonly title="Filled from the selected file before the upload starts." /></div>

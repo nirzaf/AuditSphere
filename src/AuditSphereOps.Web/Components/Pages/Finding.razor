@@ -72,10 +72,10 @@ else
             <h2>Record Management Response</h2>
             <div class="form-group">
                 <label for="mgmt-response">Management response</label>
-                <textarea id="mgmt-response" rows="4" @bind="_draftResponse" required />
+                <MudTextField T="string" @bind-Value="_draftResponse" Lines="4" id="mgmt-response" required />
             </div>
             <label class="check">
-                <input type="checkbox" @bind="_draftCorrected" data-optional="true" />
+                <MudCheckBox T="bool" @bind-Value="_draftCorrected" data-optional="true" />
                 Management corrected the matter within the period under audit (optional)
             </label>
             <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="btn-primary" OnClick="RecordResponseAsync" Disabled="@(_busy || _engagement?.ProfessionalWorkBlocked == true)">

@@ -117,18 +117,18 @@ else
       <form @onsubmit="CreateContactAsync" @onsubmit:preventDefault="true" style="display: grid; gap: 0.75rem; max-width: 28rem;">
         <label>
           Full name
-          <input class="input" @bind="_contactName" placeholder="e.g. Alex Morgan" required disabled="@_busy" />
+          <MudTextField T="string" @bind-Value="_contactName" Placeholder="e.g. Alex Morgan" required Disabled="@_busy" />
         </label>
         <label>
           Email address
-          <input class="input" type="email" @bind="_contactEmail" placeholder="e.g. alex@example.com" required disabled="@_busy" />
+          <MudTextField T="string" @bind-Value="_contactEmail" InputType="InputType.Email" Placeholder="e.g. alex@example.com" required Disabled="@_busy" />
         </label>
         <label>
           Role / title
-          <input class="input" @bind="_contactRole" placeholder="e.g. CFO, Finance Director" required disabled="@_busy" />
+          <MudTextField T="string" @bind-Value="_contactRole" Placeholder="e.g. CFO, Finance Director" required Disabled="@_busy" />
         </label>
         <label style="display: flex; align-items: center; gap: 0.5rem;">
-          <input type="checkbox" @bind="_contactPrimary" disabled="@_busy" data-optional="true" />
+          <MudCheckBox T="bool" @bind-Value="_contactPrimary" Disabled="@_busy" data-optional="true" />
           Set as primary contact (optional)
         </label>
         <MudButton Color="Color.Primary" Variant="Variant.Filled" ButtonType="ButtonType.Submit" Class="button" Disabled="@_busy">Save contact</MudButton>

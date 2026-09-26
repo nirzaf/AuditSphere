@@ -1,13 +1,18 @@
 @inject NavigationManager Navigation
 
+@* Route navigation, not tab panels: links keep aria-current="page" (the correct ARIA for
+   route links), native keyboard focus, and every existing route. The bar and links are
+   MudBlazor primitives; active styling stays in app.css under .accounting-nav. *@
 @if (IsAccountingArea)
 {
-  <nav class="accounting-tabs" aria-label="Accounting workspaces">
-    @foreach (var item in Items)
-    {
-      <a href="@item.Href" class="@(IsCurrent(item.Href) ? "active" : null)"
-         aria-current="@(IsCurrent(item.Href) ? "page" : null)" title="@item.Title">@item.Label</a>
-    }
+  <nav aria-label="Accounting workspaces">
+    <MudPaper Elevation="0" Class="accounting-nav pa-1 my-4">
+      @foreach (var item in Items)
+      {
+        <a href="@item.Href" class="accounting-nav-link @(IsCurrent(item.Href) ? "active" : null)"
+           aria-current="@(IsCurrent(item.Href) ? "page" : null)" title="@item.Title">@item.Label</a>
+      }
+    </MudPaper>
   </nav>
 }
 
@@ -40,8 +45,12 @@
   {
     var current = Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', 2)[0].TrimEnd('/');
     var target = href.TrimStart('/').TrimEnd('/');
-    return current.Equals(target, StringComparison.OrdinalIgnoreCase)
-        || current.StartsWith(target + "/", StringComparison.OrdinalIgnoreCase);
+    if (current.Equals(target, StringComparison.OrdinalIgnoreCase)) return true;
+    // Only the home entry suffered broad matching: a detail route such as
+    // /app/accounting/journals/{id} may activate its section entry, but the
+    // "Accounting home" entry must be active on /app/accounting alone.
+    return !target.Equals("app/accounting", StringComparison.OrdinalIgnoreCase) &&
+           current.StartsWith(target + "/", StringComparison.OrdinalIgnoreCase);
   }
 
   private sealed record NavigationItem(string Href, string Label, string Title);

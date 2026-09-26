@@ -128,6 +128,7 @@ else
     <h2 id="selected-context-heading">Selected accounting context</h2>
     <label class="field">
       Context (optional)
+<!-- Native select retained: the context selector is a draft-state.js boundary field (data-draft-scope) read from control.value. -->
       <select id="accounting-context-selector" @bind="_selectedContextKey" data-optional="true" title="Choose a visible client period to keep its legal entity, engagement, book, currency and package context together.">
         <option value="">No period selected</option>
         @foreach (var periodContext in _periods)

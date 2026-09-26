@@ -26,18 +26,18 @@ else
   <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="rollforward-heading" role="region">
     <h2 id="rollforward-heading">Create next period</h2>
     <div class="form-grid">
-      <label>Client<select @bind="_selectedClientId" required disabled="@(_busy || _selectionBusy)" title="Choose the client whose closed period is being carried forward."><option value="">Select a client</option>@foreach (var client in _clients) { <option value="@client.Id">@client.Name</option> }</select></label>
-      <label>Closed prior period<select @bind="_selectedPriorPeriodId" required title="Choose a closed period; the new period must follow it."><option value="">Select a period</option>@foreach (var period in _closedPeriods) { <option value="@period.Id">@period.Label</option> }</select></label>
-      <label>New period code<input @bind="_periodCode" maxlength="50" required /></label>
-      <label>Start date (yyyy-MM-dd)<input @bind="_startDate" inputmode="numeric" maxlength="10" required /></label>
-      <label>End date (yyyy-MM-dd)<input @bind="_endDate" inputmode="numeric" maxlength="10" required /></label>
-      <label>Basis<input @bind="_basis" maxlength="50" required /></label>
-      <label>Currency<input @bind="_currency" maxlength="3" required /></label>
-      <label>Validated source package (optional)<select @bind="_selectedSourcePackageId" data-optional="true"><option value="">Use external source evidence</option>@foreach (var package in _sourcePackages) { <option value="@package.Id">@package.Label</option> }</select></label>
-      <label>Prior closing amount<input @bind="_priorClosingAmount" inputmode="decimal" required /></label>
-      <label>Current opening amount<input @bind="_currentOpeningAmount" inputmode="decimal" required /></label>
-      <label>Source SHA-256<input @bind="_sourceHash" maxlength="64" required /></label>
-      <label>Evidence reference<input @bind="_evidenceReference" maxlength="2000" required /></label>
+      <label>Client<MudSelect T="string" @bind-Value="_selectedClientId" required Disabled="@(_busy || _selectionBusy)" title="Choose the client whose closed period is being carried forward."><MudSelectItem Value="@string.Empty">Select a client</MudSelectItem>@foreach (var client in _clients) { <MudSelectItem Value="@client.Id.ToString()">@client.Name</MudSelectItem> }</MudSelect></label>
+      <label>Closed prior period<MudSelect T="string" @bind-Value="_selectedPriorPeriodId" required title="Choose a closed period; the new period must follow it."><MudSelectItem Value="@string.Empty">Select a period</MudSelectItem>@foreach (var period in _closedPeriods) { <MudSelectItem Value="@period.Id.ToString()">@period.Label</MudSelectItem> }</MudSelect></label>
+      <label>New period code<MudTextField T="string" @bind-Value="_periodCode" MaxLength="50" required /></label>
+      <label>Start date (yyyy-MM-dd)<MudTextField T="string" @bind-Value="_startDate" MaxLength="10" inputmode="@InputMode.numeric" required /></label>
+      <label>End date (yyyy-MM-dd)<MudTextField T="string" @bind-Value="_endDate" MaxLength="10" inputmode="@InputMode.numeric" required /></label>
+      <label>Basis<MudTextField T="string" @bind-Value="_basis" MaxLength="50" required /></label>
+      <label>Currency<MudTextField T="string" @bind-Value="_currency" MaxLength="3" required /></label>
+      <label>Validated source package (optional)<MudSelect T="string" @bind-Value="_selectedSourcePackageId" data-optional="true"><MudSelectItem Value="@string.Empty">Use external source evidence</MudSelectItem>@foreach (var package in _sourcePackages) { <MudSelectItem Value="@package.Id.ToString()">@package.Label</MudSelectItem> }</MudSelect></label>
+      <label>Prior closing amount<MudTextField T="string" @bind-Value="_priorClosingAmount" inputmode="@InputMode.numeric" required /></label>
+      <label>Current opening amount<MudTextField T="string" @bind-Value="_currentOpeningAmount" inputmode="@InputMode.numeric" required /></label>
+      <label>Source SHA-256<MudTextField T="string" @bind-Value="_sourceHash" MaxLength="64" required /></label>
+      <label>Evidence reference<MudTextField T="string" @bind-Value="_evidenceReference" MaxLength="2000" required /></label>
     </div>
     <div style="display:flex;gap:.75rem;align-items:center;margin-top:1rem;flex-wrap:wrap">
       <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button" OnClick="LoadClientAsync" Disabled="@(_busy || _selectionBusy)">@(_selectionBusy ? "Loading…" : "Load closed periods")</MudButton>

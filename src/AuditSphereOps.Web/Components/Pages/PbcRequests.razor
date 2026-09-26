@@ -47,6 +47,7 @@ else
   <section class="card" aria-labelledby="new-request-heading" data-draft-scope="@($"pbc-new-request-{EngagementId}")">
     <h2 id="new-request-heading">Request files from the client</h2>
     <p class="muted">The client receives a minimal email notification with this description and an authenticated portal upload link.</p>
+<!-- Native controls retained: the new-request section is a draft-state.js boundary; the per-request reply textareas bind value+oninput with dynamic per-request ids (message state without row re-render). -->
     <div class="field"><label for="pbc-description">Files required</label><textarea id="pbc-description" @bind="_description" maxlength="2000" required title="Describe the files the client must upload and the period or details they should cover."></textarea></div>
     <div class="field"><label for="pbc-client-owner">Client recipient</label><select id="pbc-client-owner" @bind="_clientOwnerId" required title="Choose the assigned client portal user who will receive the request."><option value="@Guid.Empty">Select client user</option>@foreach (var user in _clientOwners) { <option value="@user.Id">@user.DisplayName (@user.Email)</option> }</select></div>
     <div class="field"><label for="pbc-reviewer">Reviewer</label><select id="pbc-reviewer" @bind="_reviewerId" required title="Choose the staff member responsible for reviewing the uploaded files."><option value="@Guid.Empty">Select reviewer</option>@foreach (var user in _reviewers) { <option value="@user.Id">@user.DisplayName</option> }</select></div>

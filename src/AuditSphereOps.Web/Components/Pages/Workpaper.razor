@@ -94,6 +94,7 @@ else
                 <h2>Working Content</h2>
                 <div class="form-group">
                     <label for="wp-work">Work performed</label>
+<!-- Native textareas retained: data-draft-skip + value/oninput feed the server-side working-draft autosave interop, not MudBlazor binding. -->
                     <textarea id="wp-work" rows="5" value="@_draftWork" @oninput="OnWorkInputAsync" data-draft-skip="true" required title="Describe the procedures performed and evidence obtained; this working draft is autosaved on the server."
                               disabled="@(_busy || _draftConflict)" />
                 </div>

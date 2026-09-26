@@ -8,20 +8,24 @@
 @inject IJSRuntime JS
 
 <PageTitle>Currency remeasurement</PageTitle>
-<a class="back-link" href="/app/accounting">← Back to accounting workspace</a>
-<h1>Currency remeasurement workpapers</h1>
+<MudLink Href="/app/accounting" Class="back-link mb-2 d-inline-block">← Back to accounting workspace</MudLink>
+<PageHeader Title="Currency remeasurement workpapers" />
 
 @if (_loading)
 {
-  <p role="status">Loading scoped periods and approved inputs…</p>
+  <LoadingState IsLoading="true" LoadingMessage="Loading scoped periods and approved inputs…" />
 }
 else if (!_authorized)
 {
-  <section class="notice" role="alert"><h2>Access unavailable</h2><p>An explicitly scoped internal accounting-preparer or reviewer grant is required.</p></section>
+  <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="notice my-4" role="alert"><h2>Access unavailable</h2><MudText Typo="Typo.body2">An explicitly scoped internal accounting-preparer or reviewer grant is required.</MudText></MudAlert>
 }
 else
 {
   <p class="scope-note">Create a source-evidence-linked calculation using an approved rate set and translation policy. Independent approval rechecks the source, policy, rate and totals. Approval records a workpaper only; it does not post an adjustment journal or clear any release/records gate.</p>
+  @* draft-state.js boundary: the section element and the draft-tracked select/date controls stay native
+     because the script reads control.value of [data-draft-field] input/select/textarea nodes and the
+     restore journey re-reads these exact GUID/ISO values after reload. Text and numeric fields are
+     MudBlazor controls whose inner input carries the forwarded data-draft-field attribute. *@
   <section class="card" aria-labelledby="prepare-heading" data-draft-scope="@DraftScope" data-draft-server-managed>
     <h2 id="prepare-heading">Prepare workpaper</h2>
     <p class="muted"><span class="required-mark">*</span> Required. Link each item to an imported GL line and an evidence snapshot. The GL link is corroborating lineage only; it does not prove the amount is still outstanding. Confirm open-item status, amount and classification against period-end evidence. Historical rate date is required for non-monetary historical-cost items.</p>
@@ -47,8 +51,16 @@ else
       <fieldset class="card" @key="line">
         <legend>Item @(index + 1)</legend>
         <div class="form-grid">
-          <label>Stable source reference <span class="required-mark">*</span><input data-draft-field="reference-@index" @bind="line.Reference" @bind:event="oninput" maxlength="200" required title="Use a stable transaction or balance reference from the cited evidence." /></label>
-          <label>Evidence snapshot ID <span class="required-mark">*</span><input data-draft-field="snapshot-@index" @bind="line.SnapshotId" @bind:event="oninput" required inputmode="text" title="Paste the exact snapshot ID from the scoped source document. The service verifies firm, client and engagement ownership." /></label>
+          <label>Stable source reference <span class="required-mark">*</span>
+            <MudTextField T="string" Immediate="true" @bind-Value="line.Reference" MaxLength="200"
+              data-draft-field="@($"reference-{index}")" required inputmode="@InputMode.text"
+              title="Use a stable transaction or balance reference from the cited evidence." />
+          </label>
+          <label>Evidence snapshot ID <span class="required-mark">*</span>
+            <MudTextField T="string" Immediate="true" @bind-Value="line.SnapshotId"
+              data-draft-field="@($"snapshot-{index}")" required
+              title="Paste the exact snapshot ID from the scoped source document. The service verifies firm, client and engagement ownership." />
+          </label>
           <label>Imported GL source line <span class="required-mark">*</span>
             <select data-draft-field="source-line-@index" @bind="line.SourceLineId" @bind:after="() => SourceLineChangedAsync(line)" required title="Choose a sealed foreign-currency GL line from this exact engagement and period. The linked source is revalidated at approval.">
               <option value="">Select a sealed GL line</option>
@@ -60,57 +72,93 @@ else
             <p class="muted">GL source: @selectedSource.Currency @selectedSource.OriginalAmount · functional @selectedSource.FunctionalAmount @_functionalCurrency · @selectedSource.Label. Enter the independently confirmed open balance below.</p>
           }
           <label>Classification <span class="required-mark">*</span><select data-draft-field="monetary-@index" @bind="line.IsMonetary" title="Monetary items use the policy closing rate; historical-cost non-monetary items use the historical rate."><option value="true">Monetary — closing rate</option><option value="false">Non-monetary — historical cost</option></select></label>
-          <label>Foreign currency <span class="required-mark">*</span><input data-draft-field="currency-@index" @bind="line.Currency" @bind:event="oninput" maxlength="3" minlength="3" required pattern="[A-Za-z]{3}" title="Three-letter ISO currency code, different from the functional currency." /></label>
-          <label>Foreign-currency amount <span class="required-mark">*</span><input data-draft-field="foreign-amount-@index" @bind="line.ForeignAmount" @bind:event="oninput" type="number" step="0.000001" required title="Amount in the item's foreign currency, as shown in the source evidence." /></label>
-          <label>Prior functional carrying amount <span class="required-mark">*</span><input data-draft-field="prior-carrying-@index" @bind="line.PriorCarrying" @bind:event="oninput" type="number" step="0.000001" required title="Prior carrying value already expressed in the client's functional currency." /></label>
-          <label>Historical rate date @if (!line.IsMonetary) { <span class="required-mark">*</span> } else { <span class="muted">optional for monetary items</span> }
-            <input data-draft-field="historical-date-@index" @bind="line.HistoricalRateDate" type="date" required="@(!line.IsMonetary)" title="Required only for non-monetary historical-cost items; must be on or before period end." />
+          <label>Foreign currency <span class="required-mark">*</span>
+            <MudTextField T="string" Immediate="true" @bind-Value="line.Currency" MaxLength="3"
+              data-draft-field="@($"currency-{index}")" required pattern="[A-Za-z]{3}"
+              title="Three-letter ISO currency code, different from the functional currency." />
           </label>
-        <div><button type="button" class="button" @onclick="() => RemoveLineAsync(line)" title="Remove this unsubmitted line from the current workpaper." disabled="@_busy">Remove item</button></div>
+          <label>Foreign-currency amount <span class="required-mark">*</span>
+            <MudNumericField T="decimal?" Immediate="true" @bind-Value="line.ForeignAmount" Step="0.000001m"
+              data-draft-field="@($"foreign-amount-{index}")" required
+              title="Amount in the item's foreign currency, as shown in the source evidence." />
+          </label>
+          <label>Prior functional carrying amount <span class="required-mark">*</span>
+            <MudNumericField T="decimal?" Immediate="true" @bind-Value="line.PriorCarrying" Step="0.000001m"
+              data-draft-field="@($"prior-carrying-{index}")" required
+              title="Prior carrying value already expressed in the client's functional currency." />
+          </label>
+          <label>Historical rate date @if (!line.IsMonetary) { <span class="required-mark">*</span> } else { <span class="muted">optional for monetary items</span> }
+            <input data-draft-field="@($"historical-date-{index}")" @bind="line.HistoricalRateDate" type="date" required="@(!line.IsMonetary)" title="Required only for non-monetary historical-cost items; must be on or before period end." />
+          </label>
+        <div><MudButton Variant="Variant.Text" Color="Color.Error" OnClick="() => RemoveLineAsync(line)" title="Remove this unsubmitted line from the current workpaper." Disabled="@_busy">Remove item</MudButton></div>
         </div>
       </fieldset>
     }
-    <div style="display:flex;gap:.75rem;flex-wrap:wrap">
-      <button class="button" @onclick="AddLineAsync" disabled="@(_busy || _contextId.Length == 0 || _lines.Count >= 500)" title="Add another evidence-linked calculation line, up to 500 per schedule.">Add item</button>
-      <button class="button" @onclick="PrepareAsync" disabled="@_busy" title="Validate exact source snapshot ownership and approved rates, calculate, then persist an immutable submitted schedule.">@(_busy ? "Saving…" : "Prepare workpaper")</button>
+    <div class="action-bar">
+      <MudButton Variant="Variant.Outlined" OnClick="AddLineAsync" Disabled="@(_busy || _contextId.Length == 0 || _lines.Count >= 500)" title="Add another evidence-linked calculation line, up to 500 per schedule.">Add item</MudButton>
+      <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="PrepareAsync" Disabled="@_busy" title="Validate exact source snapshot ownership and approved rates, calculate, then persist an immutable submitted schedule.">@(_busy ? "Saving…" : "Prepare workpaper")</MudButton>
     </div>
   </section>
 
   @if (_message is not null) { <p class="command-result @(_error ? "error-text" : "success-text")" role="status">@_message</p> }
   @if (_schedule is not null)
   {
-    <section class="card" aria-labelledby="schedule-heading">
+    <MudPaper Class="pa-4 my-4" Elevation="1" aria-labelledby="schedule-heading" role="region">
       <h2 id="schedule-heading">Workpaper · @_schedule.Status</h2>
       <p>As of @_schedule.AsOfDate · functional currency @_schedule.FunctionalCurrency · @_schedule.ItemCount item(s) · FX adjustment <strong>@_schedule.TotalForeignExchangeAdjustment.ToString("0.000000") @_schedule.FunctionalCurrency</strong></p>
       <p>Manifest <code>@_schedule.InputHash</code></p>
-      <div class="table-wrap"><table><caption class="sr-only">Currency remeasurement item calculations</caption><thead><tr><th>Reference</th><th>Evidence snapshot / SHA-256</th><th>Imported GL line / digest</th><th>Classification</th><th>Rate</th><th>Remeasured</th><th>FX adjustment</th></tr></thead><tbody>
-        @foreach (var item in _schedule.Items)
-        {
-          <tr><td>@item.StableItemReference</td><td><code>@item.EvidenceSnapshotId</code><br /><code>@item.EvidenceSha256</code></td><td><code>@item.SourceGeneralLedgerLineId</code><br /><code>@item.SourceGlLineDigest</code></td><td>@(item.IsMonetary ? "Monetary" : "Historical-cost non-monetary")</td><td>@item.RateType · @item.RateDate · @item.AppliedRate</td><td>@item.RemeasuredFunctionalAmount</td><td>@item.ForeignExchangeAdjustment</td></tr>
-        }
-      </tbody></table></div>
+      <MudTable T="CurrencyRemeasurementItemView" Items="_schedule.Items" Hover="false" Breakpoint="Breakpoint.None" Class="table-wrap" aria-label="Currency remeasurement item calculations">
+        <HeaderContent>
+          <MudTh>Reference</MudTh>
+          <MudTh>Evidence snapshot / SHA-256</MudTh>
+          <MudTh>Imported GL line / digest</MudTh>
+          <MudTh>Classification</MudTh>
+          <MudTh>Rate</MudTh>
+          <MudTh>Remeasured</MudTh>
+          <MudTh>FX adjustment</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+          <MudTd DataLabel="Reference">@context.StableItemReference</MudTd>
+          <MudTd DataLabel="Evidence snapshot"><code>@context.EvidenceSnapshotId</code><br /><code>@context.EvidenceSha256</code></MudTd>
+          <MudTd DataLabel="Imported GL line"><code>@context.SourceGeneralLedgerLineId</code><br /><code>@context.SourceGlLineDigest</code></MudTd>
+          <MudTd DataLabel="Classification">@(context.IsMonetary ? "Monetary" : "Historical-cost non-monetary")</MudTd>
+          <MudTd DataLabel="Rate">@context.RateType · @context.RateDate · @context.AppliedRate</MudTd>
+          <MudTd DataLabel="Remeasured">@context.RemeasuredFunctionalAmount</MudTd>
+          <MudTd DataLabel="FX adjustment">@context.ForeignExchangeAdjustment</MudTd>
+        </RowTemplate>
+      </MudTable>
       @if (_schedule.Status == AccountingWorkflowStates.Submitted && _schedule.CreatedByUserId != _actor!.UserId)
       {
-        <button class="button" @onclick="ApproveAsync" disabled="@_busy" title="Independently revalidate current source evidence, approved rate/policy and calculations before approving this workpaper.">Approve independently</button>
+        <div class="action-bar">
+          <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="ApproveAsync" Disabled="@_busy" title="Independently revalidate current source evidence, approved rate/policy and calculations before approving this workpaper.">Approve independently</MudButton>
+        </div>
       }
       <p class="muted">Prepared by <code>@_schedule.CreatedByUserId</code>@if (_schedule.ApprovedByUserId is { } approvedBy) { <span> · Approved by <code>@approvedBy</code></span> }</p>
-    </section>
+    </MudPaper>
   }
-  <section class="card" aria-labelledby="history-heading">
+  <MudPaper Class="pa-4 my-4" Elevation="1" aria-labelledby="history-heading" role="region">
     <h2 id="history-heading">Recent scoped workpapers</h2>
     @if (_history.Count == 0) { <p class="muted">No saved workpapers are available in the current scope.</p> }
     else
     {
-      <div class="table-wrap"><table><caption class="sr-only">Recent scoped currency remeasurement workpapers</caption>
-        <thead><tr><th>Client</th><th>Period</th><th>Status</th><th>Created</th><th>Action</th></tr></thead>
-        <tbody>@foreach (var row in _history)
-        {
-          <tr><td>@row.ClientName</td><td>@row.PeriodCode</td><td><span class="status">@row.Status</span></td><td>@row.CreatedAt.ToString("yyyy-MM-dd HH:mm 'UTC'")</td>
-            <td><button class="button" @onclick="() => OpenScheduleAsync(row.Id)" title="Load this schedule only if the current exact client and engagement grant allows access.">Open / review</button></td></tr>
-        }</tbody>
-      </table></div>
+      <MudTable T="ScheduleRow" Items="_history" Hover="false" Breakpoint="Breakpoint.None" Class="table-wrap" aria-label="Recent scoped currency remeasurement workpapers">
+        <HeaderContent>
+          <MudTh>Client</MudTh>
+          <MudTh>Period</MudTh>
+          <MudTh>Status</MudTh>
+          <MudTh>Created</MudTh>
+          <MudTh>Action</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+          <MudTd DataLabel="Client">@context.ClientName</MudTd>
+          <MudTd DataLabel="Period">@context.PeriodCode</MudTd>
+          <MudTd DataLabel="Status"><StatusChip Status="@context.Status" /></MudTd>
+          <MudTd DataLabel="Created">@context.CreatedAt.ToString("yyyy-MM-dd HH:mm 'UTC'")</MudTd>
+          <MudTd DataLabel="Action"><MudButton Variant="Variant.Text" OnClick="() => OpenScheduleAsync(context.Id)" title="Load this schedule only if the current exact client and engagement grant allows access.">Open / review</MudButton></MudTd>
+        </RowTemplate>
+      </MudTable>
     }
-  </section>
+  </MudPaper>
 }
 
 @code {

@@ -108,7 +108,7 @@ else
       <p class="muted">This command rechecks current scope, approval applicability, revisions, generations, holds, manifest and recovery mode. It does not sign files or call a provider.</p>
       <div class="field">
         <label for="release-key">Authorized release key</label>
-        <input id="release-key" @bind="_releaseKey" maxlength="200" autocomplete="off" required data-draft-skip="true" title="Enter the authorized key only for this release action; it is never stored in browser draft state." />
+        <MudTextField T="string" @bind-Value="_releaseKey" MaxLength="200" id="release-key" autocomplete="off" required data-draft-skip="true" title="Enter the authorized key only for this release action; it is never stored in browser draft state." />
       </div>
       <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button" OnClick="IssueAsync" Disabled="@(!CanIssue || string.IsNullOrWhiteSpace(_releaseKey))">@(_busy ? "Issuing…" : "Issue release")</MudButton>
       @if (_result is not null)

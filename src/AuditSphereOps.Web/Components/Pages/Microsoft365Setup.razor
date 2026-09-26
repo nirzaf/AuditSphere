@@ -34,7 +34,7 @@
   {
     <div class="form-group">
       <label for="bootstrap-proof">Bootstrap proof <span class="required-marker">*</span>
-        <input id="bootstrap-proof" type="password" @bind="_bootstrapProof" autocomplete="off" required title="Enter the short-lived proof delivered by the installation owner." />
+        <MudTextField T="string" @bind-Value="_bootstrapProof" InputType="InputType.Password" id="bootstrap-proof" autocomplete="off" required title="Enter the short-lived proof delivered by the installation owner." />
       </label>
     </div>
     <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="btn-primary" OnClick="Claim" Disabled="@_busy">@(_busy ? "Checking…" : "Claim setup")</MudButton>
@@ -63,17 +63,18 @@
       <p class="notice warning" role="status">Microsoft sign-in is present, but this identity is not the deployment-approved initial administrator. No bootstrap grant is available.</p>
     }
     <div class="form-group"><label for="tenant-id">Expected tenant ID <span class="required-marker">*</span>
-      <input id="tenant-id" @bind="_tenantId" maxlength="200" required title="The verified Entra tenant identifier; this is metadata until live sign-in verification is completed." /></label></div>
+      <MudTextField T="string" @bind-Value="_tenantId" MaxLength="200" id="tenant-id" required title="The verified Entra tenant identifier; this is metadata until live sign-in verification is completed." /></label></div>
     <div class="form-group"><label for="tenant-name">Tenant display name <span class="optional-label">optional</span>
-      <input id="tenant-name" @bind="_tenantName" maxlength="300" data-optional="true" title="Friendly label only; it is not used for identity or authorization." /></label></div>
+      <MudTextField T="string" @bind-Value="_tenantName" MaxLength="300" id="tenant-name" data-optional="true" title="Friendly label only; it is not used for identity or authorization." /></label></div>
     <div class="form-group"><label for="site-url">Working SharePoint site URL <span class="optional-label">optional until live verification</span>
-      <input id="site-url" type="url" @bind="_siteUrl" maxlength="2000" data-optional="true" title="A verified HTTPS SharePoint site URL; a SitePages URL is resolved later to its site identity." /></label></div>
+      <MudTextField T="string" @bind-Value="_siteUrl" InputType="InputType.Url" MaxLength="2000" id="site-url" data-optional="true" title="A verified HTTPS SharePoint site URL; a SitePages URL is resolved later to its site identity." /></label></div>
     <div class="form-group"><label for="site-id">Site ID <span class="optional-label">optional until live verification</span>
-      <input id="site-id" @bind="_siteId" maxlength="2000" data-optional="true" title="Stable SharePoint site ID returned by the approved resource-resolution step." /></label></div>
+      <MudTextField T="string" @bind-Value="_siteId" MaxLength="2000" id="site-id" data-optional="true" title="Stable SharePoint site ID returned by the approved resource-resolution step." /></label></div>
     <div class="form-group"><label for="drive-id">Document library/drive ID <span class="optional-label">optional until live verification</span>
-      <input id="drive-id" @bind="_driveId" maxlength="2000" data-optional="true" title="Stable document-library drive ID; do not use a browser path as the ownership key." /></label></div>
+      <MudTextField T="string" @bind-Value="_driveId" MaxLength="2000" id="drive-id" data-optional="true" title="Stable document-library drive ID; do not use a browser path as the ownership key." /></label></div>
     <div class="form-group"><label for="root-id">Root folder ID <span class="optional-label">optional until live verification</span>
-      <input id="root-id" @bind="_rootFolderId" maxlength="2000" data-optional="true" title="Stable verified folder ID under the selected library." /></label></div>
+      <MudTextField T="string" @bind-Value="_rootFolderId" MaxLength="2000" id="root-id" data-optional="true" title="Stable verified folder ID under the selected library." /></label></div>
+    <!-- Native select retained: the setup journey asserts raw option values via Locator("#id").InputValueAsync(); a MudSelect input mirror exposes display text, not the stored value. -->
     <div class="form-group"><label for="access-profile">Storage access profile <span class="required-marker">*</span>
       <select id="access-profile" @bind="_accessProfile" required title="App mediated is the secure default; direct collaboration stays disabled until human ACL verification passes.">
         <option value="APP_MEDIATED">App mediated</option><option value="DIRECT_STAFF_COLLABORATION">Direct staff collaboration</option>
@@ -93,7 +94,7 @@
             <option value="ENGAGEMENT_WORKSPACE">Engagement workspace</option>
           </select></label></div>
         <div class="form-group"><label for="template-manifest">Allowlisted folder manifest <span class="required-marker">*</span>
-          <textarea id="template-manifest" @bind="_templateManifest" rows="12" maxlength="20000" required title="JSON containing only nodes with key, name and optional children. Folder names support the documented tokens only."></textarea></label></div>
+          <MudTextField T="string" @bind-Value="_templateManifest" Lines="12" MaxLength="20000" id="template-manifest" required title="JSON containing only nodes with key, name and optional children. Folder names support the documented tokens only." /></label></div>
         <MudButton Variant="Variant.Outlined" Class="btn-secondary" OnClick="SaveTemplate" Disabled="@_templateBusy">@(_templateBusy ? "Saving…" : "Save template version")</MudButton>
         @if (_templateVersions.Count > 0)
         {
