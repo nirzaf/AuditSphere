@@ -28,6 +28,17 @@
 
 ---
 
+## Client PBC request access refresh
+
+The client request page now clears its request, transfer receipts, conversation,
+and action results before an explicit refresh resolves the current identity and
+reauthorizes the exact assigned request. Denied refresh also removes browser-saved
+reply and upload drafts. A browser journey exercises same-document navigation to
+another recipient's request, return to the assigned request, then role-grant
+revocation and refresh without a document reload. This is a bounded AS-PAR-002
+read and revocation repair; the whole-application authorization audit remains open.
+Exact verification and source identity are recorded in `status.json`.
+
 ## Release candidate access refresh
 
 The release workbench clears its candidate, checkpoint, attestation, signature

@@ -9,6 +9,7 @@
 <PageTitle>Client request</PageTitle>
 <MudLink Href="/portal" Class="back-link mb-2 d-inline-block">← Back to client portal</MudLink>
 <PageHeader Title="PBC request" Description="Restricted client upload and conversation surface for this exact assigned request." />
+<MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button-secondary" OnClick="RefreshRequestAsync" Disabled="@(_loading || _busy)">Refresh request</MudButton>
 
 @if (_loading)
 {
@@ -109,28 +110,46 @@ else
   private bool _loading = true;
   private bool _busy;
 
-  protected override async Task OnInitializedAsync()
+  protected override Task OnInitializedAsync() => LoadRequestAsync(clearDraftsOnDenied: false);
+
+  private Task RefreshRequestAsync() => LoadRequestAsync(clearDraftsOnDenied: true);
+
+  private async Task LoadRequestAsync(bool clearDraftsOnDenied)
   {
-    _actor = await ActorResolver.ResolveAsync();
-    if (_actor is not null)
+    _loading = true;
+    _actor = null;
+    _request = null;
+    _uploads.Clear();
+    _communications.Clear();
+    _userNames.Clear();
+    _result = null;
+    _replyResult = null;
+    _uploadMessage = null;
+    try
     {
-      await using var db = await DbFactory.CreateDbContextAsync();
-      var candidate = await db.PbcRequests.AsNoTracking().Where(x =>
-          x.Id == RequestId && x.FirmId == _actor.FirmId && x.ClientOwnerUserId == _actor.UserId)
-        .Select(x => new { x.ClientId, x.EngagementId })
-        .SingleOrDefaultAsync();
-      if (candidate is not null)
+      _actor = await ActorResolver.ResolveAsync();
+      if (_actor is not null)
       {
-        var authorization = await AuthorizationDecision.AuthorizeAsync(db, _actor,
-          new AuthorizationRequest(_actor.FirmId, candidate.ClientId, candidate.EngagementId, ["ClientUser"]));
-        if (authorization.Succeeded)
-          _request = await db.PbcRequests.AsNoTracking().SingleOrDefaultAsync(x =>
-            x.Id == RequestId && x.FirmId == _actor.FirmId && x.ClientOwnerUserId == _actor.UserId);
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var candidate = await db.PbcRequests.AsNoTracking().Where(x =>
+            x.Id == RequestId && x.FirmId == _actor.FirmId && x.ClientOwnerUserId == _actor.UserId)
+          .Select(x => new { x.ClientId, x.EngagementId })
+          .SingleOrDefaultAsync();
+        if (candidate is not null)
+        {
+          var authorization = await AuthorizationDecision.AuthorizeAsync(db, _actor,
+            new AuthorizationRequest(_actor.FirmId, candidate.ClientId, candidate.EngagementId, ["ClientUser"]));
+          if (authorization.Succeeded)
+            _request = await db.PbcRequests.AsNoTracking().SingleOrDefaultAsync(x =>
+              x.Id == RequestId && x.FirmId == _actor.FirmId && x.ClientOwnerUserId == _actor.UserId);
+        }
+        if (_request is not null)
+          await LoadThreadAsync(db);
       }
-      if (_request is not null)
-        await LoadThreadAsync(db);
+      if (_request is null && clearDraftsOnDenied)
+        await DenyAndClearAsync();
     }
-    _loading = false;
+    finally { _loading = false; }
   }
 
   private async Task StartUploadAsync()
@@ -224,6 +243,7 @@ else
 
   private async Task DenyAndClearAsync()
   {
+    _actor = null;
     _request = null;
     _uploads.Clear();
     _communications.Clear();

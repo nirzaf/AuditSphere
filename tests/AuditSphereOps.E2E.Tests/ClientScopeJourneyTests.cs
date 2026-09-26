@@ -1899,6 +1899,29 @@ public sealed class ClientScopeJourneyTests
     Assert.DoesNotContain(privateMarker, body);
     Assert.DoesNotContain(otherRecipientMarker, body);
     Assert.Equal(documentToken, await page.EvaluateAsync<string>("window.__testDocumentToken"));
+
+    await page.EvaluateAsync("path => { history.pushState({}, '', path); dispatchEvent(new PopStateEvent('popstate')); }",
+      $"/portal/requests/{host.RequestId:D}");
+    await page.GetByRole(AriaRole.Heading, new() { Name = privateMarker }).WaitForAsync();
+    const string privateDraft = "SYN-PAR-002-CLIENT-PBC-REVOKED-DRAFT";
+    await page.GetByLabel("Reply to the assigned auditor or accountant").FillAsync(privateDraft);
+    var storageKey = $"auditsphere:draft:v1:{Uri.EscapeDataString($"pbc-client-reply-{host.RequestId}")}";
+    await page.WaitForFunctionAsync("key => localStorage.getItem(key) !== null", storageKey);
+    await using (var db = host.CreateDbContext())
+    {
+      var grant = await db.RoleGrants.SingleAsync(x => x.FirmId == host.Fixture.FirmId &&
+        x.UserId == host.Fixture.Client.Id && x.Role == "ClientUser" && x.RevokedAt == null);
+      var revoked = await RoleAdministrationService.RevokeRoleGrantAsync(db,
+        PbcSeed.Actor(host.Fixture.Admin, "Administrator"), new RevokeRoleGrantRequest(grant.Id));
+      Assert.True(revoked.Succeeded, revoked.Message);
+    }
+    await page.GetByRole(AriaRole.Button, new() { Name = "Refresh request" }).ClickAsync();
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Request unavailable" }).WaitForAsync();
+    body = await page.Locator("body").InnerTextAsync();
+    Assert.DoesNotContain(privateMarker, body);
+    Assert.DoesNotContain(privateDraft, body);
+    Assert.Null(await page.EvaluateAsync<string?>("key => localStorage.getItem(key)", storageKey));
+    Assert.Equal(documentToken, await page.EvaluateAsync<string>("window.__testDocumentToken"));
     Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
   }
 
