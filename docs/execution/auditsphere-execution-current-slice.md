@@ -28,6 +28,16 @@
 
 ---
 
+## P1 incomplete OIDC configuration guard
+
+The Web host now refuses startup when any `Identity` setting is supplied without
+the tenant ID, client ID, and client secret together. This prevents a partial
+development or deployment configuration from silently selecting the no-OIDC
+sign-in path. A focused API host regression covers each missing-key shape.
+This is local fail-closed configuration behavior; no live Entra sign-in or
+production identity acceptance is claimed. Exact verification is in
+`status.json`.
+
 ## P1 development OIDC credential store
 
 The Web project now declares a stable .NET user-secrets ID, so an approved

@@ -397,6 +397,19 @@ public sealed class PbcHttpTests
       Assert.Contains("Development identity cannot be enabled with OIDC", error.ToString());
     }
 
+    foreach (var partialIdentity in new[]
+    {
+      new Dictionary<string, string?> { ["Identity:TenantId"] = "synthetic-tenant" },
+      new Dictionary<string, string?> { ["Identity:ClientId"] = Guid.NewGuid().ToString("D") },
+      new Dictionary<string, string?> { ["Identity:ClientSecret"] = "synthetic-test-secret" }
+    })
+    {
+      partialIdentity["ConnectionStrings:AuditSphere"] = noDatabase;
+      using var incomplete = new ApiWebApplicationFactory(partialIdentity);
+      var error = Assert.ThrowsAny<Exception>(() => incomplete.CreateClient());
+      Assert.Contains("Identity configuration requires TenantId, ClientId and ClientSecret together", error.ToString());
+    }
+
     await using var pg = await OwnedPostgresDatabase.CreateAsync("PROP-API-06");
     var seeded = await PbcSeed.SeedAsync(pg);
     var missingIdentity = PbcSeed.User(seeded.FirmId, "Staff");
