@@ -230,10 +230,20 @@ else
       var created = await ClientAccountingService.RollForwardPeriodAsync(db, _actor,
         new RollForwardPeriodRequest(clientId, priorPeriodId, _periodCode, startDate, endDate, _basis, _currency,
           _sourceHash, priorClosing, currentOpening, _evidenceReference, sourcePackageId));
-      if (created.ErrorCode is ErrorCodes.ScopeDenied or ErrorCodes.GenerationStale)
+      if (created.ErrorCode == ErrorCodes.ScopeDenied)
       {
         ClearScope();
         return;
+      }
+      if (created.ErrorCode == ErrorCodes.GenerationStale)
+      {
+        var currentAccess = await AuthorizationDecision.AuthorizeAsync(db, _actor,
+          new AuthorizationRequest(_actor.FirmId, ClientId: clientId, RequiredRoles: AccountingRoles, InternalOnly: true));
+        if (!currentAccess.Succeeded)
+        {
+          ClearScope();
+          return;
+        }
       }
       _result = created.Succeeded ? CommandResult.Ok() : CommandResult.Fail(created.ErrorCode ?? ErrorCodes.Accounting.ReconciliationRejected, created.Message ?? "Roll-forward was blocked.");
       if (created.Succeeded)

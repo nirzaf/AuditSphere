@@ -68,7 +68,7 @@ else
             <MudTd>@context.RevisedBasis</MudTd>
             <MudTd><StatusChip Status="@context.Status" /></MudTd>
             <MudTd><code>@context.EvidenceReference</code></MudTd>
-            <MudTd>@if (context.Status == AccountingWorkflowStates.Submitted && CanReview(context.ClientId)) { <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button" OnClick="() => ApproveAsync(context.Id)" Disabled="@(_busy || _selectionBusy)">Approve independently</MudButton> } else { <span class="muted">—</span> }</MudTd></RowTemplate>
+            <MudTd>@if (context.Status == AccountingWorkflowStates.Submitted && CanReview(context.ClientId)) { <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button" OnClick="() => ApproveAsync(context.Id, context.ClientId)" Disabled="@(_busy || _selectionBusy)">Approve independently</MudButton> } else { <span class="muted">—</span> }</MudTd></RowTemplate>
 </MudTable>
     }
   </MudPaper>
@@ -234,15 +234,24 @@ else
         _successMessage = "Restatement request created; an independent reviewer must approve it.";
         await LoadDataAsync();
       }
-      else if (created.ErrorCode is ErrorCodes.ScopeDenied or ErrorCodes.GenerationStale)
+      else if (created.ErrorCode == ErrorCodes.ScopeDenied)
         ClearScope();
+      else if (created.ErrorCode == ErrorCodes.GenerationStale)
+      {
+        var currentAccess = await AuthorizationDecision.AuthorizeAsync(db, _actor,
+          new AuthorizationRequest(_actor.FirmId, ClientId: clientId, RequiredRoles: AccountingRoles, InternalOnly: true));
+        if (!currentAccess.Succeeded)
+          ClearScope();
+        else
+          _result = CommandResult.Fail(created.ErrorCode, created.Message ?? "Restatement request was blocked.");
+      }
       else
         _result = CommandResult.Fail(created.ErrorCode ?? ErrorCodes.Accounting.ReconciliationRejected, created.Message ?? "Restatement request was blocked.");
     }
     finally { _busy = false; }
   }
 
-  private async Task ApproveAsync(Guid restatementId)
+  private async Task ApproveAsync(Guid restatementId, Guid clientId)
   {
     if (_actor is null || _busy) return;
     _busy = true;
@@ -255,8 +264,15 @@ else
         _successMessage = "Restatement independently approved.";
         await LoadDataAsync();
       }
-      else if (_result.ErrorCode is ErrorCodes.ScopeDenied or ErrorCodes.GenerationStale)
+      else if (_result.ErrorCode == ErrorCodes.ScopeDenied)
         ClearScope();
+      else if (_result.ErrorCode == ErrorCodes.GenerationStale)
+      {
+        var currentAccess = await AuthorizationDecision.AuthorizeAsync(db, _actor,
+          new AuthorizationRequest(_actor.FirmId, ClientId: clientId, RequiredRoles: ReviewerRoles, InternalOnly: true));
+        if (!currentAccess.Succeeded)
+          ClearScope();
+      }
     }
     finally { _busy = false; }
   }

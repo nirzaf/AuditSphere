@@ -44,6 +44,17 @@
       "sourceCommit": "488976e2b0ba672c9811b29c0511f4a9aed171c2",
       "pullRequest": "https://github.com/nirzaf/AuditSphere/pull/28",
       "hostedChecks": "Observed at sourceCommit: Build · Release IN_PROGRESS; GitGuardian Security Checks SUCCESS. No independent reviews recorded. Hosted build is not test acceptance."
+    },
+    "periodWorkbenchReviewRepair": {
+      "baseCommit": "01bca34d735cdb6b1320bfe325be390edec152c0",
+      "observedAt": "2026-09-26T12:03:15.574328+00:00",
+      "review": "Codex review on source commit 488976e2b0ba672c9811b29c0511f4a9aed171c2 identified two P2 suggestions. The stale package/lineage conflict finding is repaired by rechecking client-scoped authorization before clearing a generation.stale result. The selected-client partial-revocation suggestion does not apply to the supported RevokeRoleGrantAsync path: it increments the target SessionEpoch, invalidating the open circuit even if another grant remains. A new current-head independent review is required.",
+      "cubic": "Cubic check on PR head 01bca34d735cdb6b1320bfe325be390edec152c0 completed NEUTRAL with AI review line limit reached, not a review. Reported monthly review resumption is 2026-10-01. No owner-approved replacement review policy observed.",
+      "focusedTests": "PASS: StaleSourcePackageLeavesAuthorizedWorkbenchAvailable 1/1 after waiting for interactive render. The initial prerender-click attempt failed before this test harness correction.",
+      "fullSuite": "PASS: dotnet test AuditSphereOps.slnx --no-build --configuration Release; Domain 338/338, API 6/6, E2E 66/66, aggregate 410/410, 0 skipped.",
+      "build": "PASS: dotnet build AuditSphereOps.slnx --no-restore --configuration Release; 0 warnings/errors.",
+      "modelDrift": "PASS: dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Web --configuration Release; no pending model changes.",
+      "merge": "BLOCKED: current-head independent reviews are incomplete; Cubic usage limit is an external review blocker. No merge performed."
     }
   },
   "documentationWork": {
@@ -74,7 +85,7 @@
     "implementationStatus": "PR_OPEN",
     "acceptanceStatus": "LOCAL_VERIFIED",
     "scope": "AS-PAR-002 AC02–AC03 / AC-24: restatement and period roll-forward current-access reload and stale-content clearing. Broader story backlog remains open.",
-    "nextAction": "Obtain independent review and explicit merge authorization for PR #28 under specification §46 before advancing the next slice. Broader story reconciliation, AS-PAR-002 coverage, methodology approvals and applicable live acceptance remain open.",
+    "nextAction": "PR #28 review repair is locally verified. Obtain independent Codex and Cubic reviews on the eventual current PR head, or an owner-approved legitimate replacement for unavailable Cubic, then recheck GitHub gates before the user-authorized merge. No production deployment is implied.",
     "pullRequest": "https://github.com/nirzaf/AuditSphere/pull/28",
     "branch": "codex/period-workbench-revocation"
   },

@@ -40,7 +40,9 @@ The restatement and roll-forward selection loaders clear prior projections and r
 current actor/grant state before rebuilding scoped choices and history. Revoked client
 access and disabled users clear client names, periods, package choices, draft values and
 review actions. An engagement-only grant cannot restore client-level period access.
-Scope/session-denied command results also clear the protected view.
+Scope/session-denied command results also clear the protected view. A stale source
+package or restatement lineage now remains a visible service error when a fresh
+client-scoped authorization check confirms the session is still valid.
 
 `PeriodWorkbenchScopeJourneyTests` exercises the two screens with revoked grants and
 disabled identities in an existing browser document and verifies no period/restatement
