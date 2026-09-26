@@ -201,16 +201,17 @@ The signed-in EasyGuide directory currently shows no Azure subscriptions
 accessible to this account, so subscription-backed development infrastructure
 cannot be provisioned there yet. Entra app configuration remains separate.
 
-The first-administrator OIDC callback now admits only the exact configured
+The first-administrator OIDC callback admits only the exact configured
 tenant/object identity to proof-backed setup before a local user exists. That
 setup-only cookie has no session epoch and cannot resolve a protected application
-actor. The live developer-tenant sign-in reached the setup proof form, while
-the portfolio remained locked. A fresh OIDC sign-in follows successful local
-binding so the new user receives its current epoch. A separate non-production
-credential is held in private local user secrets; the proof has not been
-submitted and the local Administrator grant has not been created. The complete
-fixture cycle and production P1 acceptance remain open. Exact verification and
-source identity are in `status.json`.
+actor. After explicit owner confirmation, the private proof was submitted to
+the local setup route and the initial firm-wide Administrator was bound. A
+fresh Microsoft sign-in then reached the portfolio and administration views
+with the current session epoch. The setup page reports the binding as complete.
+The saved tenant draft remains inactive and unverified, with no selected
+SharePoint binding or external effects. The complete identity fixture cycle and
+production P1 acceptance remain open. Exact verification and source identity
+are in `status.json`.
 
 ## P2 provider transfer scope
 
