@@ -295,6 +295,27 @@
       "validationLimits": "Actionlint and ShellCheck were unavailable; editor diagnostics were unavailable while the language server initialized. Parser/source checks are not hosted-workflow or browser execution.",
       "notPerformed": "No new full-suite execution, model-drift run, restore drill, browser journey, live-provider operation, notification, Wiki publication, commit or push in this documentation task.",
       "activationBoundary": "At the time of this documentation-only task, API/E2E projects and CI activation were proposals. They have since been implemented locally; a dedicated shard-manifest/orchestrator script and cryptographic per-host Data Protection isolation remain absent. External acceptance still requires separately approved runners, provider composition, grants and professional decisions."
+    },
+    "documentationRealityAudit": {
+      "observedAt": "2026-09-26",
+      "scope": "Repository-wide descriptive documentation reality audit on master at 12d58c3; authority order followed (AGENTS.md, docs index, architecture authority, code map, naming policy, requirements documents, then implementation and tests).",
+      "updatedDocuments": [
+        "README.md",
+        "docs/auditsphere-requirements-system-specification-current.md",
+        "docs/architecture/auditsphere-architecture-current-architecture.md",
+        "docs/testing/auditsphere-testing-e2e-automation-strategy.md",
+        "docs/testing/auditsphere-testing-test-case-catalog.md"
+      ],
+      "observedChecks": [
+        "Route/component re-scan: 42 page components declaring 49 @page routes; zero native <button> elements; 39 intentional native controls across 9 pages; 5 native tables with tfoot/colspan/caption reasons.",
+        "MudBlazor 9.10.0 referenced only by AuditSphereOps.Web.csproj (source scan across Domain/Application/Infrastructure/Worker/tests plus ArchitectureGuardTests).",
+        "dotnet test --list-tests discovery on the current tree: Domain 341, API 7, E2E 72 (420 total); last full executed run recorded in this ledger at 7b4b679 as Domain 340/340, API 7/7, E2E 72/72.",
+        "Code-map file references resolve against src/ with project prefixes; docs-index catalog links resolve.",
+        "python3 scripts/docs/validate-markdown-documentation.py: PASS (124 files, 2354 relative links, 0 deleted-path references).",
+        "python3 scripts/docs/validate-markdown-filenames.py: PASS (124 conform, 2 conventional exceptions).",
+        "python3 docs/task_breakdown/tools/task_status.py validate: 0 errors; git diff --check clean."
+      ],
+      "notPerformed": "No .NET/PostgreSQL suite rerun (documentation-only changes; volatile verification facts unchanged and still owned by the verification section). Historical sources, evidence, tracking ledgers and generated task state untouched; the pre-existing uncommitted consolidation-guard work in the working tree was left exactly as found."
     }
   },
   "active": {

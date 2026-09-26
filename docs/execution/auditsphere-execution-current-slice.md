@@ -392,6 +392,22 @@ review and explicit merge authorization before advancing acceptance.
 - **State:** Domain 338/338, Api 6/6, E2E 61/61, no EF model drift; commit
   `3d449fb` pushed; no tenant operation or production effect.
 
+### 2.4 Documentation Reality Audit
+
+- **Scope:** descriptive/current Markdown reconciled against implementation and
+  the authority order; historical sources, evidence, tracking ledgers and
+  generated task state untouched.
+- **Corrections:** README (GROUP scope restored to the data-flow diagram,
+  MudBlazor 9.10.0 Web-only row in the technology baseline, four missing
+  routes in the workbench directory, solution-tree fixes); system
+  specification §4.1/NET19 (MudBlazor pinned 9.10.0 recorded as implemented
+  instead of "verify during bootstrap"); current-architecture doc (MudBlazor
+  Web-only baseline bullet); testing strategy + catalog (discovery counts
+  refreshed to the observed 420: Domain 341, API 7, E2E 72, dated, with the
+  build-gate-only CI contract stated next to the retained pipeline blueprint).
+- **State:** markdown health PASS (124 files, 2354 links), naming policy PASS,
+  task pack 0 errors; no .NET suite rerun (documentation-only).
+
 
 ### 2.1 Documentation Standardization & AI Navigability Refactor
 
