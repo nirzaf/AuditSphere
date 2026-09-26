@@ -319,7 +319,7 @@ Simulation and production implement the same contracts but have different eviden
 | Runtime and language | .NET 10 LTS; C# supported by the selected .NET 10 SDK | Target `net10.0`; no preview language features |
 | Backend | ASP.NET Core 10 | One web host, cookie/OIDC authentication and explicit endpoint mappings |
 | UI | Blazor Web App, Interactive Server | Static SSR only where appropriate for sign-in/error/public/low-interaction pages; no WASM or React dependency |
-| Component library | MudBlazor, one stable .NET-compatible release | Verify and pin during bootstrap; built-in Razor/HTML for gaps; do not mix multiple UI suites |
+| Component library | MudBlazor, one stable .NET-compatible release | Pinned: MudBlazor 9.10.0 in `Directory.Packages.props`, referenced only by `AuditSphereOps.Web.csproj` and enforced by the architecture guard tests; built-in Razor/HTML for gaps; do not mix multiple UI suites |
 | Persistence | EF Core 10 and `Npgsql.EntityFrameworkCore.PostgreSQL` 10 | Resolve a compatible stable patch set; do not assume all packages share the runtime patch number |
 | Database | PostgreSQL 18 | One private database per firm installation, logical schemas; pin minor and image digest |
 | Human identity | Microsoft.Identity.Web + ASP.NET Core OIDC/cookies | Exact supported stable package, identity scopes only in web login registration |
@@ -2871,7 +2871,7 @@ Sources below are technical references, not evidence that the application or a t
 | NET16 | [Open XML SDK](https://learn.microsoft.com/en-us/office/open-xml/open-xml-sdk) | Consulted; Office package manipulation, not a complete PDF/formula engine |
 | NET17 | [Blazor server hosting](https://learn.microsoft.com/en-us/aspnet/core/blazor/host-and-deploy/server?view=aspnetcore-10.0) | Implementation reference; full page retrieval failed in preparation, so no deployment behavior is marked proven from this link |
 | NET18 | [CsvHelper documentation](https://joshclose.github.io/CsvHelper/) | Consulted; exact dependency/version/locale behavior to be tested |
-| NET19 | [MudBlazor installation](https://mudblazor.com/getting-started/installation) | Candidate component-suite reference; retrieved page lacked useful text, so compatibility is a bootstrap proof, not verified here |
+| NET19 | [MudBlazor installation](https://mudblazor.com/getting-started/installation) | Candidate component-suite reference; retrieved page lacked useful text, so compatibility was recorded as a bootstrap proof. That proof is now complete: MudBlazor 9.10.0 is pinned via central package management and verified by the Release build and the PostgreSQL-backed E2E suite (see `docs/auditsphere-ui-mudblazor-conventions-migration-current.md`) |
 
 ### 36.3 Retained source references
 

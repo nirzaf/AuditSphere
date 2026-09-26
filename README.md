@@ -366,7 +366,7 @@ AuditSphereOps is structured as a **clean-architecture modular monolith** on ASP
 
 
 
-│  ActorContext · RoleGrant Scope Authorization (FIRM_WIDE/CLIENT/ENGAGEMENT) │
+│   ActorContext · RoleGrant Scope Authorization (FIRM_WIDE/CLIENT/ENGAGEMENT/GROUP) │
 
 
 
@@ -671,6 +671,7 @@ The Blazor Interactive Server front-end (`src/AuditSphereOps.Web`) delivers role
 
 
 | `/app/accounting/restatements`| **Period Restatements** | Retrospective accounting restatement drafts, version comparison, and restatement journals. |
+| `/app/accounting/remeasurement` | **Currency Remeasurement** | Source-evidence-linked remeasurement workpapers with browser draft autosave and independent approval. |
 
 
 
@@ -686,6 +687,9 @@ The Blazor Interactive Server front-end (`src/AuditSphereOps.Web`) delivers role
 
 
 
+| `/app/audit/library` | **Audit Program Library** | Versioned audit program library with procedure counts and per-version readback. |
+| `/setup/microsoft365` | **Microsoft 365 Setup** | Bootstrap-claim onboarding draft (Entra/SharePoint verification remains externally gated). |
+| `/auth/access-not-assigned` | **Access Not Assigned** | Explicit boundary page for authenticated users without an applicable role grant. |
 | `/portal` | **Client Portal** | Restricted client-facing portal for PBC file uploads, review status, and draft representations. |
 
 
@@ -787,6 +791,7 @@ The Blazor Interactive Server front-end (`src/AuditSphereOps.Web`) delivers role
 
 
 | **Web Framework** | ASP.NET Core Blazor (Interactive Server) | Enterprise web application & client portal |
+| **UI Component Library** | MudBlazor 9.10.0 (Web project only) | Primary component system for workbenches and portal; enforced Web-only by the architecture guard tests |
 
 
 
@@ -882,10 +887,11 @@ AuditSphere/
 
 
 
-│   ├── auditsphere-accounting-module-requirements-current.md# AC-01 to AC-28 user stories & gap analysis
+│   ├── auditsphere-accounting-module-requirements-current.md  # AC-01 to AC-28 user stories & gap analysis
 
 
 
+│   ├── architecture/                   # Current architecture authority, code map, naming policy
 │   ├── task_breakdown/                 # Record-to-Report detailed task breakdowns (Modules 20–26)
 
 

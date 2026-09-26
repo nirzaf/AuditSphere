@@ -57,6 +57,12 @@ this document wins and the source text remains a historical requirement record.
   calculators) contain no EF Core, network, clock or random-ID dependencies.
 - **Durable work** (GL completeness, package build/render) runs through the local durable
   operation infrastructure with revision fencing and idempotent retries.
+- **UI component library: MudBlazor 9.10.0, Web project only.** Pinned in
+  `Directory.Packages.props` central package management and referenced solely by
+  `AuditSphereOps.Web.csproj`; `ArchitectureGuardTests` enforce the reference direction.
+  Intentional native HTML exceptions (browser-draft boundaries, raw-value and file-input
+  contracts, `<tfoot>`/`colspan` tables) are recorded in
+  `docs/auditsphere-ui-mudblazor-conventions-migration-current.md`.
 
 ## Physical organization rules
 
