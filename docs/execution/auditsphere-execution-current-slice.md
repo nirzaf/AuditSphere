@@ -150,6 +150,16 @@ then reauthorize before displaying refreshed conversation or transfer state.
 This slice does not close the whole-application AS-PAR-002 audit. Exact local
 verification is in `status.json`.
 
+## Local development schema readiness
+
+The persistent loopback development database was backed up and restored in a
+temporary rehearsal before its pending repository migrations were applied. The
+Web host was stopped for the migration and restarted afterward. Its readiness
+endpoint is healthy, the original administrator binding and inactive setup
+draft remain intact, and a second restore rehearsal passed against the updated
+schema. This is local development readiness, not production migration or
+provider acceptance. Exact schema and verification facts are in `status.json`.
+
 ## P1 explicit Microsoft account selection
 
 The OIDC sign-in route now accepts an opt-in account-choice flag for testing
