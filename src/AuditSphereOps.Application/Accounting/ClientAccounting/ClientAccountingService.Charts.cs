@@ -42,7 +42,11 @@ public static partial class ClientAccountingService
         string.IsNullOrWhiteSpace(x.AccountCode) || string.IsNullOrWhiteSpace(x.AccountName) ||
         string.IsNullOrWhiteSpace(x.AccountType) || string.IsNullOrWhiteSpace(x.NormalBalance)))
       return CommandResult.Fail(ErrorCodes.Accounting.MappingInvalid, "Every client account needs typed identity and classification.");
-    var chart = await db.ClientChartVersions.SingleOrDefaultAsync(x => x.Id == chartVersionId && x.FirmId == actor.FirmId, ct);
+    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    var charts = await db.ClientChartVersions
+      .FromSqlInterpolated($"SELECT * FROM client_chart_versions WHERE id = {chartVersionId} AND firm_id = {actor.FirmId} FOR UPDATE")
+      .ToListAsync(ct);
+    var chart = charts.SingleOrDefault(x => x.Id == chartVersionId && x.FirmId == actor.FirmId);
     if (chart is null)
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var auth = await AuthorizeClientAsync(db, actor, chart.ClientId, PreparerRoles, ct);
@@ -100,6 +104,7 @@ public static partial class ClientAccountingService
           ? newParent.Id : byStable[parent.Trim()].Id;
     db.ClientAccounts.AddRange(added);
     await db.SaveChangesAsync(ct);
+    await tx.CommitAsync(ct);
     return CommandResult.Ok();
   }
 
@@ -110,7 +115,11 @@ public static partial class ClientAccountingService
     if (inputs.Count == 0 || inputs.Any(x => x.ClientAccountId == Guid.Empty ||
         string.IsNullOrWhiteSpace(x.SourceSystem) || string.IsNullOrWhiteSpace(x.AliasCode)))
       return CommandResult.Fail(ErrorCodes.Accounting.MappingInvalid, "Every source alias needs a client account, source system and code.");
-    var chart = await db.ClientChartVersions.SingleOrDefaultAsync(x => x.Id == chartVersionId && x.FirmId == actor.FirmId, ct);
+    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    var charts = await db.ClientChartVersions
+      .FromSqlInterpolated($"SELECT * FROM client_chart_versions WHERE id = {chartVersionId} AND firm_id = {actor.FirmId} FOR UPDATE")
+      .ToListAsync(ct);
+    var chart = charts.SingleOrDefault(x => x.Id == chartVersionId && x.FirmId == actor.FirmId);
     if (chart is null)
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var auth = await AuthorizeClientAsync(db, actor, chart.ClientId, PreparerRoles, ct);
@@ -142,6 +151,7 @@ public static partial class ClientAccountingService
       AliasCode = x.AliasCode, AliasName = x.AliasName, CreatedAt = DateTimeOffset.UtcNow
     }));
     await db.SaveChangesAsync(ct);
+    await tx.CommitAsync(ct);
     return CommandResult.Ok();
   }
 
@@ -149,7 +159,9 @@ public static partial class ClientAccountingService
     IClientAccountingDbContext db, ActorContext actor, Guid chartVersionId,
     CancellationToken ct = default)
   {
-    // Serialize concurrent publishers on the chart revision row before validation.
+    // Hold the chart row lock through validation and publication. Without an explicit
+    // transaction PostgreSQL releases FOR UPDATE when the SELECT statement ends.
+    await using var tx = await db.Database.BeginTransactionAsync(ct);
     var charts = await db.ClientChartVersions
       .FromSqlInterpolated($"SELECT * FROM client_chart_versions WHERE id = {chartVersionId} AND firm_id = {actor.FirmId} FOR UPDATE")
       .ToListAsync(ct);
@@ -198,6 +210,7 @@ public static partial class ClientAccountingService
     chart.PublishedByUserId = actor.UserId;
     chart.PublishedAt = DateTimeOffset.UtcNow;
     await db.SaveChangesAsync(ct);
+    await tx.CommitAsync(ct);
     return CommandResult.Ok();
   }
 

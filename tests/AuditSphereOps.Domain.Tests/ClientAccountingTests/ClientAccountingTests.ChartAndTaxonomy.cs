@@ -15,6 +15,7 @@ using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 using WorkerHost = AuditSphereOps.Worker.Worker;
@@ -23,6 +24,119 @@ namespace AuditSphereOps.Domain.Tests;
 
 public sealed partial class ClientAccountingTests
 {
+  [Fact]
+  [Trait("Profile", "Database")]
+  public async Task ChartPublication_HoldsRevisionLockUntilDecisionIsSaved()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var scope = await SeedAsync(pg);
+    var preparer = Actor(scope.Preparer, "AccountingPreparer");
+    var reviewer = Actor(scope.Reviewer, "AccountingReviewer");
+    Guid chartId;
+    await using (var setup = new AuditSphereDbContext(pg.Options))
+    {
+      chartId = (await ClientAccountingService.CreateChartVersionAsync(setup, preparer,
+        scope.ClientA, "LEDGER-A", new DateOnly(2026, 1, 1))).Value;
+      Assert.True((await ClientAccountingService.AddAccountsAsync(setup, preparer, chartId,
+        [new("cash", "1000", "Cash", "ASSET", "DEBIT", true)])).Succeeded);
+    }
+
+    var pause = new PauseChartSave();
+    var firstOptions = new DbContextOptionsBuilder<AuditSphereDbContext>()
+      .UseNpgsql(pg.ConnectionString).AddInterceptors(pause).Options;
+    await using var first = new AuditSphereDbContext(firstOptions);
+    await using var second = new AuditSphereDbContext(pg.Options);
+    var firstDecision = ClientAccountingService.PublishChartVersionAsync(first, reviewer, chartId);
+    try
+    {
+      await pause.Entered.WaitAsync(TimeSpan.FromSeconds(10));
+      var secondDecision = ClientAccountingService.PublishChartVersionAsync(second, reviewer, chartId);
+      await Task.Delay(200);
+      Assert.False(secondDecision.IsCompleted);
+      pause.Release();
+      Assert.True((await firstDecision.WaitAsync(TimeSpan.FromSeconds(10))).Succeeded);
+      var stale = await secondDecision.WaitAsync(TimeSpan.FromSeconds(10));
+      Assert.False(stale.Succeeded);
+      Assert.Equal(ErrorCodes.ProtectedState, stale.ErrorCode);
+    }
+    finally
+    {
+      pause.Release();
+    }
+  }
+
+  [Theory]
+  [InlineData(false)]
+  [InlineData(true)]
+  [Trait("Profile", "Database")]
+  public async Task ChartDraftWrite_HoldsRevisionLockUntilSave(bool addAlias)
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var scope = await SeedAsync(pg);
+    var preparer = Actor(scope.Preparer, "AccountingPreparer");
+    var reviewer = Actor(scope.Reviewer, "AccountingReviewer");
+    Guid chartId, cashId;
+    await using (var setup = new AuditSphereDbContext(pg.Options))
+    {
+      chartId = (await ClientAccountingService.CreateChartVersionAsync(setup, preparer,
+        scope.ClientA, "LEDGER-A", new DateOnly(2026, 1, 1))).Value;
+      Assert.True((await ClientAccountingService.AddAccountsAsync(setup, preparer, chartId,
+        [new("cash", "1000", "Cash", "ASSET", "DEBIT", true)])).Succeeded);
+      cashId = await setup.ClientAccounts.Where(x => x.ChartVersionId == chartId)
+        .Select(x => x.Id).SingleAsync();
+    }
+
+    var pause = new PauseChartSave();
+    var writerOptions = new DbContextOptionsBuilder<AuditSphereDbContext>()
+      .UseNpgsql(pg.ConnectionString).AddInterceptors(pause).Options;
+    await using var writer = new AuditSphereDbContext(writerOptions);
+    await using var publisher = new AuditSphereDbContext(pg.Options);
+    var write = addAlias
+      ? ClientAccountingService.AddSourceAccountAliasesAsync(writer, preparer, chartId,
+        [new SourceAccountAliasInput(cashId, "LEDGER-A", "CASH_MAIN", "Main cash")])
+      : ClientAccountingService.AddAccountsAsync(writer, preparer, chartId,
+        [new("revenue", "4000", "Revenue", "INCOME", "CREDIT", true)]);
+    try
+    {
+      await pause.Entered.WaitAsync(TimeSpan.FromSeconds(10));
+      var publish = ClientAccountingService.PublishChartVersionAsync(publisher, reviewer, chartId);
+      await Task.Delay(200);
+      Assert.False(publish.IsCompleted);
+      pause.Release();
+      Assert.True((await write.WaitAsync(TimeSpan.FromSeconds(10))).Succeeded);
+      Assert.True((await publish.WaitAsync(TimeSpan.FromSeconds(10))).Succeeded);
+    }
+    finally
+    {
+      pause.Release();
+    }
+
+    await using var verify = new AuditSphereDbContext(pg.Options);
+    Assert.Equal(AccountingWorkflowStates.Approved,
+      (await verify.ClientChartVersions.SingleAsync(x => x.Id == chartId)).Status);
+    if (addAlias)
+      Assert.Equal(1, await verify.SourceAccountAliases.CountAsync(x => x.ChartVersionId == chartId));
+    else
+      Assert.Equal(2, await verify.ClientAccounts.CountAsync(x => x.ChartVersionId == chartId));
+  }
+
+  private sealed class PauseChartSave : SaveChangesInterceptor
+  {
+    private readonly TaskCompletionSource entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    public Task Entered => entered.Task;
+    public void Release() => release.TrySetResult();
+
+    public override async ValueTask<InterceptionResult<int>> SavingChangesAsync(
+      DbContextEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken = default)
+    {
+      entered.TrySetResult();
+      await release.Task.WaitAsync(cancellationToken);
+      return result;
+    }
+  }
+
   [Fact]
   [Trait("Profile", "Database")]
   public async Task ClientChartsPeriodsAndGlImport_AreTypedScopedAndClosedSafely()
