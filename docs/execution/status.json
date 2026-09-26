@@ -1079,6 +1079,11 @@
       "item": "AS-PAR-002 — firm administration current-access refresh and invitation copy",
       "status": "LOCAL_VERIFIED",
       "details": "At source commit 818c60a8753bf50e9dce2debd14481730c6dccab pushed to origin/master, scoped administration reads reauthorize the current firm-wide Administrator before and after loading. Explicit refresh clears protected data and private drafts, and invitation copy rechecks current administrator access plus the exact active grant. Browser regression covers revoked invitation copy denial and same-document directory clearing after administrator revocation; an existing accounting-record selector ambiguity was corrected. Release Web build passed with 0 warnings/errors; full PostgreSQL-backed Release suite passed 414/414 with 0 skipped (Domain 338, API 7, E2E 69); EF found no pending model changes; documentation validators passed. Hosted CI run 36255149079 is in progress. No tenant or production effect; AS-PAR-002 remains partial."
+    },
+    {
+      "item": "Benchmark baselines - explicit focused run (2026-09-27)",
+      "status": "LOCAL_VERIFIED",
+      "details": "Ran AccountingBenchmarkTests.RepresentativeAccountingWorkload_CompletesDurablyAndReportsMeasurements focused against local PostgreSQL 18.6 on the current tree: passed in 15s with the reported measurement line clients=4, transactions=2000, lines=8000, enqueue_ms=180.3, worker_ms=225.1, first_page_ms=49.5, group_lines=32, group_ms=4.9 - covering high-magnitude dataset intake, durable outbox enqueue/worker publication and consolidated group readback. Concurrent worker-operation coverage remains in DurableOutboxTests (Domain suite, passing in the ledger-recorded full runs). The benchmark is also part of every complete Domain suite run (348/348 at the last full run). No production acceptance is claimed; measurements are local-loopback observations only."
     }
   ],
   "remainingLocalWork": [
