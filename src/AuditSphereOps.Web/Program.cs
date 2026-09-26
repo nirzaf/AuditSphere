@@ -245,9 +245,13 @@ app.MapHealthChecks("/health/live", new() { Predicate = r => r.Name == "self" })
 app.MapHealthChecks("/health/ready", new() { Predicate = r => r.Tags.Contains("ready") });
 if (oidcConfigured)
 {
-  app.MapGet("/auth/sign-in", (HttpContext http, string? returnUrl) =>
+  app.MapGet("/auth/sign-in", (HttpContext http, string? returnUrl, bool selectAccount = false) =>
   {
-    return Results.Challenge(new AuthenticationProperties { RedirectUri = LocalDestination(returnUrl) }, ["Entra"]);
+    return Results.Challenge(new OpenIdConnectChallengeProperties
+    {
+      RedirectUri = LocalDestination(returnUrl),
+      Prompt = selectAccount ? "select_account" : null
+    }, ["Entra"]);
   });
 }
 else if (developmentIdentityEnabled)
