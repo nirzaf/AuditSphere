@@ -419,6 +419,27 @@ review and explicit merge authorization before advancing acceptance.
 - **State:** markdown health PASS (124 files, 2354 links), naming policy PASS,
   task pack 0 errors; no .NET suite rerun (documentation-only).
 
+### 2.5 AS-PAR-002 Stale-Route Reauthorization (workpaper, finding, invoice detail)
+
+- **Three new same-document journeys** extend the route-parameter
+  reauthorization audit to the remaining audit/practice detail screens:
+  `WorkpaperClearsPriorWorkpaperWhenRouteChangesInPlace` (sibling-engagement
+  workpaper never leaks; "Workpaper unavailable" with all markers cleared),
+  `FindingClearsPriorFindingWhenRouteChangesInPlace` (same contract for the
+  finding detail) and `InvoiceDetailClearsPriorInvoiceWhenRouteChangesInPlace`
+  (an unavailable invoice renders the fail-closed "Access unavailable" state —
+  the page clears the resolved actor with the invoice — with the invoice
+  number and line description fully cleared).
+- **No UI code changed:** all three pages already reauthorize on parameter
+  change; the journeys record the verified behavior with the identical
+  document-token and zero-page-error assertions used by the existing cases.
+- **Observed:** the three focused cases pass 3/3 repeatedly; complete E2E
+  project 74/75 on a shared busy tree with the single failure being the
+  previously documented intermittent AccountingPeriod case, which passes in
+  isolation; Domain 341/341 and Api 7/7 on the same tree. Commit `aaa7bad`
+  pushed to `master`. Work-tree changes from the parallel consolidation-guard
+  session were left untouched and excluded from this commit.
+
 
 ### 2.1 Documentation Standardization & AI Navigability Refactor
 
