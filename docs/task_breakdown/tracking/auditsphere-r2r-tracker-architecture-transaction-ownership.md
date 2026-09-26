@@ -25,6 +25,16 @@
 
 The [111 preserved command/query names](../coverage/auditsphere-r2r-tracker-command-query-ownership.md) are task ownership, not evidence that 111 handler classes or transaction boundaries exist. Mapping each writing request to an implemented static service method or a named `NEW/DECISION` item remains open. Shared DTO/port ownership, migration serialization and capability-to-role mapping likewise remain incomplete; T002 must not be marked complete on this working ledger alone.
 
+## Request-to-method mappings inspected
+
+| Preserved request | Present method and write owner | Disposition for owning task |
+|---|---|---|
+| `CreateConsolidationGroupCommand` (T041) | `ConsolidationService.CreateGroupAsync` is the current group-create method and owns its firm-guard transaction. | `EXTEND`: T041 must prove the full proposed perimeter and group authorization contract; T002 proves only current group creation and revocation serialization. |
+| `RequestPackageRenderingCommand` (T035) | `FinancialStatementService.EnqueueFinancialPackageRenderAsync` owns the enqueue transaction; `PostgresOperationStore.CompleteAsync` owns later durable publication. | `EXTEND/DECISION`: T035 must reconcile its proposed Module 25 rendering contract with the existing package render operation; the method name alone is not full artifact-set equivalence. |
+| `CreatePackageDefinitionCommand` (T034) | `BuildFinancialPackageAsync` builds a financial result from mapping and adjustment inputs; no current method has been proven to author the proposed independent Module 25 package-definition revision. | `NEW/DECISION`: do not mislabel a calculated Module 24 package as the Module 25 composition definition. |
+
+These mappings identify a candidate method and the current write boundary, then explicitly leave broader contract equivalence with the owning task. They do not turn every preserved request into a current implementation.
+
 ## Shared contract candidates and serialized files
 
 | Candidate from the approved blueprint | Current classification | Proposed owner; disposition still needed |
@@ -48,7 +58,11 @@ The transaction-owner rule for future writing operations is the named Applicatio
 | Legacy adjustment-journal review | `AccountingReviewer`, `Partner`, or `Manager` | Explicit journal client/engagement scope and review restrictions. |
 | Group creation | Firm-wide `Manager`, `Partner`, or `Administrator` | Creator receives the matching active role as a group grant. Existing group grants are independently stored; the effect of later firm-role revocation on those grants remains a policy decision. |
 
-These are observations from `AuthorizationDecision`, `ClientAccountingService.Authorization`, `AccountingAnalysisService.Authorization`, `FinancialStatementService.Authorization`, `ConsolidationService.Authorization`, and `AdjustmentJournalService`. They do not replace each command's exact authorization predicate. The T002 handoff still needs an approved disposition for the role-array variation and explicit person-based professional acceptance mapping.
+These are observations from `AuthorizationDecision`, `ClientAccountingService.Authorization`, `AccountingAnalysisService.Authorization`, `FinancialStatementService.Authorization`, `ConsolidationService.Authorization`, and `AdjustmentJournalService`. They do not replace each command's exact authorization predicate.
+
+**Proposed role-variation disposition for review:** Preserve the narrower `AdjustmentJournalService` preparer/reviewer arrays at their existing endpoints. Do not infer that its `Staff` preparation role applies to the broader accounting services, or that `Administrator` automatically gains legacy journal-review authority. Each owning task must reconcile its exact command with the current `AuthorizationDecision` scope check and record any deliberate role expansion as a separate policy change. A successful role check is permission to attempt an action, not a professional acceptance decision.
+
+**Proposed person-bound decision rule for review:** Existing consolidation scope, journal, component, intercompany, run and schedule review methods record `actor.UserId` in their approval/review fields. The owning task must verify the current actor identity and independent reviewer constraint for each action, persist the person and exact reviewed revision, and reject self-review where required. A generic role grant, historical owner approval, or generated calculation cannot be substituted for that person's decision. The exact predicates and missing independent-review cases remain task-level proof obligations; this paragraph is not a claim that all review paths are compliant.
 
 ## Contract ownership rule for the remaining R2R tasks
 

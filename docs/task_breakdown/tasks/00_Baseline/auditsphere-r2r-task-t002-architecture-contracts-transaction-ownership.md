@@ -13,7 +13,7 @@ approval_ref: "Owner replied 'approved and continue' to exact-commit T002 archit
 blocked_reason: ""
 branch: "master"
 issue_pr: ""
-updated_at: "2026-09-26T18:08:35+00:00"
+updated_at: "2026-09-26T19:02:18+00:00"
 ---
 # T002 — Approve architecture, contracts and transaction ownership
 
@@ -113,8 +113,8 @@ Use pure xUnit for deterministic rules, real PostgreSQL for persistence/concurre
 | Field | Value to record |
 |---|---|
 | Inspected baseline and reused symbols | [Architecture, transaction, shared-contract and role review ledger](../../tracking/auditsphere-r2r-tracker-architecture-transaction-ownership.md); accepted T001 inventory consumed. |
-| Code commit / schema / deployed build if applicable | Group-authority source `11b3f3779866a34146980da9e9b942e10846adc6`; no schema or deployment change. Final review-ledger commit to be pinned at handoff. |
-| Requirement → assertion → command/run → observed result | ADR-10 no implicit Partner promotion → PostgreSQL `CreateGroup_GrantsCreatorOnlyTheirFirmWideRole` passed 1/1; Release web build passed with 0 warnings/errors; full Release suite passed 418/418 (339 Domain, 7 API, 72 E2E); EF model check found no pending changes; task-pack validation and 21/21 helper self-tests passed. Exact observations are in `docs/execution/status.json`. |
+| Code commit / schema / deployed build if applicable | Group-authority source `11b3f3779866a34146980da9e9b942e10846adc6` and revocation fence source `08baf8c1cb0abab76e1769118710abe005e7d07a`; no schema or deployment change. Final review-ledger commit to be pinned at handoff. |
+| Requirement → assertion → command/run → observed result | ADR-10 no implicit Partner promotion → PostgreSQL `CreateGroup_GrantsCreatorOnlyTheirFirmWideRole` passed. Concurrent role revocation must win before group publication → `CreateGroup_WaitsForFirmRoleRevocationAndRejectsStaleAuthority` passed; focused 2/2. Release web build passed with 0 warnings/errors; Domain 341/341 and API 7/7 passed in the parallel full run. Browser suite had one unrelated visibility timeout at 71/72 in that run; the case passed 1/1 alone and the standalone E2E suite passed 72/72. EF found no pending changes; hosted CI run `36264703507` passed Release build/model checks at exact source commit. Task-pack validation passed. Exact observations are in `docs/execution/status.json`. |
 | Policy / scope approval reference | Repository owner accepted T001 seven-module scope and exact inventory commit `042611a70afdc97c006bf9b75ba58037cc0654a3`; owner approved the T002 architectural direction at reviewed commit `779480c613b49f0e6ee1a818864ef48b5b8bd607`. This does not close the ledger's open implementation-owner and role decisions. |
 | Known limitations / exact blocker | Preserved request names are not all current code classes. The transaction-owner registry, shared contract disposition, role variation and person-based professional acceptance mapping still need an approved handoff. Each downstream task must prove its concrete service, transaction, authorization, source fence and tests. Live tenant and production gates remain external. |
 | Exported contract / manifest / artifact references for consumers | [T002 review ledger](../../tracking/auditsphere-r2r-tracker-architecture-transaction-ownership.md) and [111-request task ownership registry](../../coverage/auditsphere-r2r-tracker-command-query-ownership.md). |
