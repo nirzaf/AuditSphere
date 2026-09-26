@@ -289,6 +289,17 @@ covers a same-document route change and a revoked staff grant. Exact verificatio
 results are in `status.json`; this is a bounded AS-PAR-002 authorization repair,
 not complete whole-application acceptance.
 
+## P1 bound setup session renewal
+
+The first administrator can resume an expired, bound Microsoft 365 setup session
+with the original private proof. The Application service rechecks the exact bound
+Microsoft identity, current local session epoch, and active firm-wide Administrator
+grant before rotating the setup capability. Missing or stale authority remains denied.
+A live check in the local development app resumed an expired session and preserved
+the inactive draft without adding another user or grant. This establishes local
+recovery behavior only; provider and production acceptance remain open. Exact
+verification and source identity are in `status.json`.
+
 ## P1 local identity session binding
 
 OIDC sign-in now requires a mapped, enabled local `(tenantId, objectId)` identity and
