@@ -282,6 +282,77 @@ public sealed class ClientScopeJourneyTests
   }
 
   [Fact]
+  [Trait("CaseId", "AS-PAR-002-FIRM-ADMIN-REVOKE-01")]
+  public async Task FirmAdministrationRefreshClearsDirectoryAfterAdminGrantRevocation()
+  {
+    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false,
+      caseId: "AS-PAR-002-FIRM-ADMIN-REVOKE-01");
+    var administrator = PbcSeed.User(host.Fixture.FirmId, "Staff");
+    Guid invitationGrantId;
+    Guid invitationId;
+    await using (var db = host.CreateDbContext())
+    {
+      db.Users.Add(administrator);
+      db.RoleGrants.Add(PbcSeed.Grant(host.Fixture.FirmId, administrator, "Administrator"));
+      await db.SaveChangesAsync();
+      var invitation = await RoleAdministrationService.ApplyRoleGrantAndInvitationAsync(db,
+        PbcSeed.Actor(host.Fixture.Admin, "Administrator"),
+        new ApplyRoleGrantAndInvitationRequest(host.Fixture.Staff.Id, "Staff", "CLIENT", host.Fixture.ClientId));
+      Assert.True(invitation.Succeeded, invitation.Message);
+      invitationGrantId = invitation.Value!.RoleGrantId;
+      invitationId = invitation.Value.InvitationId;
+    }
+
+    var origin = await host.StartWebForIdentityAsync(administrator);
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    await using var context = await browser.NewContextAsync();
+    var page = await context.NewPageAsync();
+    var diagnostics = new List<string>();
+    var connected = WaitForCircuitConnectionAsync(page, diagnostics);
+    await page.GotoAsync(SignInUrl(origin, "/app/administration"));
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Firm role grants" }).WaitForAsync();
+    await connected;
+    Assert.Contains(host.Fixture.Client.Email, await page.Locator("body").InnerTextAsync());
+    var documentToken = await page.EvaluateAsync<string>("window.__adminRevocationToken = crypto.randomUUID()");
+    var copyPage = await context.NewPageAsync();
+    var copyConnected = WaitForCircuitConnectionAsync(copyPage, diagnostics);
+    await copyPage.GotoAsync(SignInUrl(origin, "/app/administration"));
+    await copyPage.GetByRole(AriaRole.Button, new() { Name = "Copy invitation" }).WaitForAsync();
+    await copyConnected;
+    await copyPage.EvaluateAsync("() => { window.__adminCopyCount = 0; window.auditSphereExports.copyText = () => { window.__adminCopyCount += 1; }; }");
+
+    await using (var db = host.CreateDbContext())
+    {
+      var revoked = await RoleAdministrationService.RevokeRoleGrantAsync(db,
+        PbcSeed.Actor(host.Fixture.Admin, "Administrator"), new RevokeRoleGrantRequest(invitationGrantId));
+      Assert.True(revoked.Succeeded, revoked.Message);
+      var staleCopy = await FirmAdministrationQuery.GetCopyableInvitationAsync(db,
+        PbcSeed.Actor(administrator, "Administrator"), invitationId);
+      Assert.False(staleCopy.Succeeded);
+    }
+    await copyPage.EvaluateAsync("() => { const button = [...document.querySelectorAll('button')].find(x => x.textContent?.trim() === 'Copy invitation'); button?.click(); }");
+    await copyPage.GetByRole(AriaRole.Button, new() { Name = "Copy invitation" }).WaitForAsync(new() { State = WaitForSelectorState.Detached });
+    Assert.Equal(0, await copyPage.EvaluateAsync<int>("window.__adminCopyCount"));
+
+    await using (var db = host.CreateDbContext())
+    {
+      var grant = await db.RoleGrants.SingleAsync(x => x.UserId == administrator.Id &&
+        x.Role == "Administrator" && x.RevokedAt == null);
+      var revoked = await RoleAdministrationService.RevokeRoleGrantAsync(db,
+        PbcSeed.Actor(host.Fixture.Admin, "Administrator"), new RevokeRoleGrantRequest(grant.Id));
+      Assert.True(revoked.Succeeded, revoked.Message);
+    }
+    await page.GetByRole(AriaRole.Button, new() { Name = "Refresh administration" }).ClickAsync();
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable" }).WaitForAsync();
+    var body = await page.Locator("body").InnerTextAsync();
+    Assert.DoesNotContain(host.Fixture.Client.Email, body);
+    Assert.DoesNotContain("Firm role grants", body);
+    Assert.Equal(documentToken, await page.EvaluateAsync<string>("window.__adminRevocationToken"));
+    Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
+  }
+
+  [Fact]
   [Trait("CaseId", "AS-PAR-002-PORTFOLIO-READ-01")]
   public async Task ClientIdentityWithErroneousFirmWideStaffGrantCannotViewPortfolio()
   {

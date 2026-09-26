@@ -570,7 +570,7 @@ public sealed class FinancialArtifactJourneyTests
     await adjustmentTab.WaitForAsync();
     await connected;
     await WaitForInteractiveRenderAsync(page, prerenderedHeading);
-    await page.GetByText("Only records in the authenticated client or exact engagement scope are shown.").WaitForAsync();
+    await page.Locator("p.scope-note").GetByText("Only records in the authenticated client or exact engagement scope are shown.").WaitForAsync();
     var documentToken = await page.EvaluateAsync<string>("""
       () => {
         window.__accountingQueueRouteTestToken ??= crypto.randomUUID();

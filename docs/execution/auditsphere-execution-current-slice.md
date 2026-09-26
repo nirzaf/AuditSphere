@@ -28,6 +28,20 @@
 
 ---
 
+## AS-PAR-002 firm administration current access
+
+Firm administration now loads its grant directory, invitation evidence, directory
+observations, access history, and safety state through a named Application query
+that checks the current firm-wide Administrator grant before and after the read.
+Explicit refresh clears the prior projection and private form values before
+reauthorizing; late reads cannot republish an older result. Invitation copying
+also rechecks both current administrator access and the invitation's active
+grant before using the clipboard. The browser regression revokes the invitation
+grant and verifies that a stale copy action does not reach the clipboard; it
+then revokes the administrator grant and verifies that the same document clears
+its private directory on refresh. This is a bounded AS-PAR-002
+slice; exact verification is in `status.json`.
+
 ## AS-PAR-002 staff portfolio refresh and export
 
 The portfolio CSV now prefixes spreadsheet-formula-shaped text with an apostrophe

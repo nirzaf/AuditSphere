@@ -12,6 +12,7 @@
 <PageTitle>Firm administration</PageTitle>
 <MudLink Href="/app" Class="back-link mb-2 d-inline-block">← Back to portfolio</MudLink>
 <PageHeader Title="Firm administration &amp; security" Description="System and firm-level administrative configuration (§43.2). Versioned configuration and role grants; direct database manipulation consoles are prohibited." />
+<MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button-secondary" OnClick="RefreshAdministrationAsync" Disabled="@(_loading || _roleBusy)">Refresh administration</MudButton>
 
 @if (_loading)
 {
@@ -209,58 +210,73 @@ else
   private Guid? _invitationId;
   private string _invitationLink = string.Empty, _invitationMessage = string.Empty;
   private string _roleMessage = string.Empty, _roleError = string.Empty;
+  private long _loadGeneration;
 
-  protected override async Task OnInitializedAsync()
+  protected override Task OnInitializedAsync() => LoadAdministrationAsync();
+
+  private Task RefreshAdministrationAsync() => LoadAdministrationAsync();
+
+  private void ClearProtectedState(bool clearForms)
   {
-    _actor = await ActorResolver.ResolveAsync();
-    if (_actor is not null)
+    _actor = null;
+    _isAdmin = false;
+    _safetyState = null;
+    _grants = [];
+    _usersById = [];
+    _invitationsByGrant = [];
+    _directoryByIdentity = [];
+    _grantHistoryByGrant = [];
+    _expandedGrantId = null;
+    if (clearForms)
     {
-      await using var db = await DbFactory.CreateDbContextAsync();
-      _isAdmin = (await AuthorizationDecision.AuthorizeAsync(db, _actor,
-        new AuthorizationRequest(_actor.FirmId, RequiredRoles: ["Administrator"],
-          InternalOnly: true, RequireFirmWide: true))).Succeeded;
-      if (_isAdmin)
-      {
-        await LoadAdminDataAsync();
-      }
+      _selectedUserId = null;
+      _rosterTenant = _rosterSubject = _rosterEmail = _rosterName = string.Empty;
+      _rosterSource = "APPROVED_ROSTER";
+      _rosterKind = "Staff";
+      _roleName = "Staff";
+      _scopeKind = "FIRM_WIDE";
+      _scopeClientIdText = _scopeEngagementIdText = string.Empty;
+      _invitationId = null;
+      _invitationLink = _invitationMessage = string.Empty;
+      _roleMessage = _roleError = string.Empty;
     }
-    _loading = false;
   }
 
-  private async Task LoadAdminDataAsync()
+  private async Task LoadAdministrationAsync(bool clearForms = true)
   {
-    if (_actor is null) return;
-    await using var db = await DbFactory.CreateDbContextAsync();
-    _safetyState = await db.FirmSafetyStates.AsNoTracking()
-      .SingleOrDefaultAsync(x => x.Id == _actor.FirmId);
-
-    _grants = await db.RoleGrants.AsNoTracking()
-      .Where(x => x.FirmId == _actor.FirmId)
-      .OrderBy(x => x.Role)
-      .ThenBy(x => x.UserId)
-      .ToListAsync();
-    var userIds = _grants.Select(x => x.UserId).Distinct().ToArray();
-    _usersById = await db.Users.AsNoTracking()
-      .Where(x => x.FirmId == _actor.FirmId && userIds.Contains(x.Id))
-      .ToDictionaryAsync(x => x.Id);
-    var grantIds = _grants.Select(x => x.Id).ToArray();
-    _invitationsByGrant = await db.UserAccessInvitations.AsNoTracking()
-      .Where(x => x.FirmId == _actor.FirmId && grantIds.Contains(x.RoleGrantId))
-      .ToDictionaryAsync(x => x.RoleGrantId);
-    var observations = await db.DirectoryUserObservations.AsNoTracking()
-      .Where(x => x.FirmId == _actor.FirmId)
-      .OrderByDescending(x => x.ObservedAt)
-      .ToListAsync();
-    _directoryByIdentity = observations
-      .GroupBy(x => (x.TenantId, x.ObjectId))
-      .ToDictionary(x => x.Key, x => x.First());
-    var grantHistory = await db.RoleGrantChangeEvidences.AsNoTracking()
-      .Where(x => x.FirmId == _actor.FirmId && x.RoleGrantId.HasValue && grantIds.Contains(x.RoleGrantId.Value))
-      .OrderByDescending(x => x.CreatedAt)
-      .ToListAsync();
-    _grantHistoryByGrant = grantHistory
-      .GroupBy(x => x.RoleGrantId!.Value)
-      .ToDictionary(x => x.Key, x => x.ToList());
+    var generation = ++_loadGeneration;
+    _loading = true;
+    ClearProtectedState(clearForms);
+    try
+    {
+      var actor = await ActorResolver.ResolveAsync();
+      if (actor is null || generation != _loadGeneration) return;
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var result = await FirmAdministrationQuery.GetAsync(db, actor);
+      if (!result.Succeeded || generation != _loadGeneration)
+      {
+        if (generation == _loadGeneration) ClearProtectedState(clearForms: true);
+        return;
+      }
+      var currentActor = await ActorResolver.ResolveAsync();
+      if (currentActor is null || currentActor.UserId != actor.UserId ||
+          currentActor.FirmId != actor.FirmId || currentActor.SessionEpoch != actor.SessionEpoch ||
+          generation != _loadGeneration)
+      {
+        if (generation == _loadGeneration) ClearProtectedState(clearForms: true);
+        return;
+      }
+      var snapshot = result.Value!;
+      _actor = currentActor;
+      _isAdmin = true;
+      _safetyState = snapshot.SafetyState;
+      _grants = snapshot.Grants;
+      _usersById = snapshot.UsersById;
+      _invitationsByGrant = snapshot.InvitationsByGrant;
+      _directoryByIdentity = snapshot.DirectoryByIdentity;
+      _grantHistoryByGrant = snapshot.GrantHistoryByGrant;
+    }
+    finally { if (generation == _loadGeneration) _loading = false; }
   }
 
   private void ToggleGrantHistory(Guid grantId) => _expandedGrantId = _expandedGrantId == grantId ? null : grantId;
@@ -278,7 +294,7 @@ else
       _selectedUserId = result.Value;
       _invitationId = null; _invitationLink = string.Empty; _invitationMessage = string.Empty;
       _roleMessage = "Exact identity bound. Review the explicit role and scope before applying it.";
-      await LoadAdminDataAsync();
+      await LoadAdministrationAsync(clearForms: false);
     }
     finally { _roleBusy = false; }
   }
@@ -307,39 +323,51 @@ else
       _invitationId = result.Value!.InvitationId;
       _invitationLink = BuildInvitationLink(result.Value.DestinationPath);
       _roleMessage = "Role grant and invitation intent saved atomically; target sessions were invalidated.";
-      await LoadAdminDataAsync();
+      await LoadAdministrationAsync(clearForms: false);
     }
     finally { _roleBusy = false; }
   }
 
-  private async Task CopyInvitationAsync()
-  {
-    if (_actor is null || !_invitationId.HasValue || string.IsNullOrWhiteSpace(_invitationLink)) return;
-    _roleBusy = true; _invitationMessage = string.Empty;
-    try
-    {
-      await JS.InvokeVoidAsync("auditSphereExports.copyText", _invitationLink);
-      await using var db = await DbFactory.CreateDbContextAsync();
-      var result = await RoleAdministrationService.MarkInvitationCopiedAsync(db, _actor, _invitationId.Value);
-      _invitationMessage = result.Succeeded ? "Copied and recorded." : result.Message ?? "Copied locally; the status could not be recorded.";
-    }
-    catch (JSException) { _invitationMessage = "Copy was unavailable; select the link and copy it manually."; }
-    finally { _roleBusy = false; }
-  }
+  private Task CopyInvitationAsync() => _invitationId.HasValue
+    ? CopyInvitationCoreAsync(_invitationId.Value, existing: false) : Task.CompletedTask;
 
-  private async Task CopyExistingInvitationAsync(UserAccessInvitation invitation)
+  private Task CopyExistingInvitationAsync(UserAccessInvitation invitation) =>
+    CopyInvitationCoreAsync(invitation.Id, existing: true);
+
+  private async Task CopyInvitationCoreAsync(Guid invitationId, bool existing)
   {
     if (_actor is null) return;
+    var actor = _actor;
     _roleBusy = true; _invitationMessage = string.Empty; _roleError = string.Empty;
     try
     {
-      await JS.InvokeVoidAsync("auditSphereExports.copyText", BuildInvitationLink(invitation.DestinationPath));
+      var currentActor = await ActorResolver.ResolveAsync();
+      if (currentActor is null || currentActor.UserId != actor.UserId ||
+          currentActor.FirmId != actor.FirmId || currentActor.SessionEpoch != actor.SessionEpoch)
+      {
+        await LoadAdministrationAsync();
+        return;
+      }
       await using var db = await DbFactory.CreateDbContextAsync();
-      var result = await RoleAdministrationService.MarkInvitationCopiedAsync(db, _actor, invitation.Id);
-      _invitationMessage = result.Succeeded ? $"Copied invitation for {invitation.RecipientEmail}." : result.Message ?? "Copied locally; the status could not be recorded.";
-      await LoadAdminDataAsync();
+      var copyable = await FirmAdministrationQuery.GetCopyableInvitationAsync(db, currentActor, invitationId);
+      if (!copyable.Succeeded)
+      {
+        await LoadAdministrationAsync();
+        return;
+      }
+      await JS.InvokeVoidAsync("auditSphereExports.copyText", BuildInvitationLink(copyable.Value!.DestinationPath));
+      var result = await RoleAdministrationService.MarkInvitationCopiedAsync(db, currentActor, invitationId);
+      var message = result.Succeeded
+        ? existing ? $"Copied invitation for {copyable.Value.RecipientEmail}." : "Copied and recorded."
+        : result.Message ?? "Copied locally; the status could not be recorded.";
+      await LoadAdministrationAsync(clearForms: false);
+      if (_isAdmin) _invitationMessage = message;
     }
-    catch (JSException) { _invitationMessage = "Copy was unavailable; select the link and copy it manually."; }
+    catch (JSException)
+    {
+      await LoadAdministrationAsync(clearForms: false);
+      if (_isAdmin) _invitationMessage = "Copy was unavailable; select the link and copy it manually.";
+    }
     finally { _roleBusy = false; }
   }
 
@@ -361,7 +389,7 @@ else
       var result = await RoleAdministrationService.RevokeRoleGrantAsync(db, _actor, new(grantId));
       if (!result.Succeeded) { _roleError = result.Message ?? "The role grant could not be revoked."; return; }
       _roleMessage = "Role grant revoked and the target session epoch was invalidated.";
-      await LoadAdminDataAsync();
+      await LoadAdministrationAsync(clearForms: false);
     }
     finally { _roleBusy = false; }
   }
