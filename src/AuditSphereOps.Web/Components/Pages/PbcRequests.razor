@@ -4,6 +4,8 @@
 @using AuditSphereOps.Domain.Completion
 @using AuditSphereOps.Domain.Shared
 @using AuditSphereOps.Domain.Security
+@using Microsoft.AspNetCore.Components.Routing
+@implements IDisposable
 @inject CurrentActorResolver ActorResolver
 @inject IDbContextFactory<AuditSphereDbContext> DbFactory
 @inject IOperationStore OperationStore
@@ -174,6 +176,30 @@ else
     StaffRoles.Contains(role, StringComparer.OrdinalIgnoreCase));
 
   private static string HeadingId(Guid requestId) => "pbc-" + requestId.ToString("N");
+
+  protected override void OnInitialized() => Navigation.LocationChanged += OnLocationChanged;
+
+  private void OnLocationChanged(object? sender, LocationChangedEventArgs args)
+  {
+    var parts = new Uri(args.Location).AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+    Guid? targetId = parts.Length == 4 && parts[0] == "app" && parts[1] == "engagements" &&
+      parts[3] == "pbc" && Guid.TryParse(parts[2], out var routeId) ? routeId : null;
+    if (targetId == EngagementId)
+      return;
+
+    _ = InvokeAsync(() =>
+    {
+      if (targetId == EngagementId) return;
+      _actor = null;
+      _engagement = null;
+      _denied = true;
+      _loading = false;
+      ClearInboxState();
+      StateHasChanged();
+    });
+  }
+
+  public void Dispose() => Navigation.LocationChanged -= OnLocationChanged;
 
   protected override async Task OnParametersSetAsync()
   {
