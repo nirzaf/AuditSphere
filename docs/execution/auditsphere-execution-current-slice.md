@@ -78,7 +78,7 @@
 
 
 
-### 2.0 MudBlazor UI Content Migration (uncommitted working tree)
+### 2.0 MudBlazor UI Content Migration (commit `e66bc49`)
 
 - **All inventoried routes migrated:** every AuditSphereOps route renders its content
   through MudBlazor 9.10.0 primitives (`PageHeader`, `MudPaper`, `MudAlert`, `MudTable`,
@@ -93,11 +93,47 @@
   time form (labelled cards now carry an explicit `role="region"`).
 - **Documented exceptions** in
   [`docs/auditsphere-ui-mudblazor-conventions-migration-current.md`](../auditsphere-ui-mudblazor-conventions-migration-current.md):
-  6 native tables (`tfoot`/`colspan`), 8 native browser-draft boundary `<section>`
-  elements, and `/app/accounting/remeasurement` left at its master markup because
-  its browser-draft reload journey is sensitive to the MudBlazor render path.
-- **State:** uncommitted working-tree changes. No hosted CI run, tenant operation
-  or production effect.
+  6 native tables (`tfoot`/`colspan`) and the native browser-draft boundary
+  elements. `/app/accounting/remeasurement` was left at its master markup in
+  this slice because its browser-draft reload journey was sensitive to the
+  MudBlazor render path; slice 3 migrated it (see 2.1).
+- **State:** committed and pushed as `e66bc49`. No tenant operation or
+  production effect.
+
+### 2.1 MudBlazor Form Controls, Navigation & CSS (slice 3)
+
+- **Lockfile health fixed:** the MudBlazor commit left
+  `tests/AuditSphereOps.Api.Tests/packages.lock.json` and
+  `tests/AuditSphereOps.E2E.Tests/packages.lock.json` stale (`NU1004` in locked
+  mode). Both were regenerated with `dotnet restore --force-evaluate` on the
+  repository-pinned SDK; locked-mode restore now passes with 0 errors and no
+  unrelated package changed.
+- **`CurrencyRemeasurement.razor` migrated:** MudBlazor shell (`PageHeader`,
+  `MudLink`, `LoadingState`, `MudAlert`, `MudPaper`, `MudTable`, `MudButton`,
+  `StatusChip`) with `MudTextField`/`MudNumericField` line fields whose inner
+  inputs carry the forwarded `data-draft-field` attributes. The draft boundary
+  section, its five selects and the date input stay native because
+  `draft-state.js` reads GUID/bool/ISO values from `control.value` and the E2E
+  journey asserts those exact values after reload. The draft-restore journey
+  `CurrencyRemeasurementWorkbenchRestrictsContextAndRestoresBrowserDraft` passed
+  9/9 explicit runs plus the full-suite runs (previously flaky).
+- **Form controls migrated on 15 pages** with typed components
+  (`MudTextField`, `MudNumericField<T>`, `MudSelect`, `MudCheckBox`); no native
+  `<button>` remains anywhere. Two selects reverted back to native after the
+  full suite exposed hard contracts (Playwright `SelectOptionAsync` on the
+  package-review Stage select; `Locator("#decision-outcome")` visibility on the
+  assessment decision page; raw-value `InputValueAsync` on the M365 capability
+  selects) — documented in the migration document and in inline comments.
+- **Accounting navigation standardized:** `AccountingNavigation.razor` and the
+  `Consolidation`/`AccountingRecords` page tab rows now use a `MudPaper` bar of
+  `aria-current`-carrying links (`.accounting-nav`); the broad `/app/accounting`
+  prefix bug is fixed so only the correct entry is active.
+- **CSS consolidated:** `.accounting-tabs`, `.button`, `.card-grid` and
+  `button:disabled` removed; `.accounting-nav` rules added; no second CSS
+  component framework. Shared components reviewed; MudBlazor remains Web-only
+  (`ArchitectureGuardTests`).
+- **State:** full Release suite green (counts in `status.json`), no EF model
+  drift, no schema migration, tenant operation or production effect.
 
 
 ### 2.1 Documentation Standardization & AI Navigability Refactor
