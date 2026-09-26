@@ -28,6 +28,17 @@
 
 ---
 
+## Client financial-package access refresh
+
+The management-review page now reloads on package route changes and offers an
+explicit refresh. Each load clears the prior package, actor, decision fields and
+result before resolving current identity and querying the exact package scope;
+an older asynchronous route read cannot repopulate the new view. A browser
+regression covers grant revocation followed by read-only refresh, alongside
+the existing route-isolation and denied-decision journeys. This is a bounded
+AS-PAR-002 repair, not complete client-portal or whole-application acceptance.
+Exact verification and source identity are recorded in `status.json`.
+
 ## Client PBC request access refresh
 
 The client request page now clears its request, transfer receipts, conversation,

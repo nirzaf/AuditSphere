@@ -7,6 +7,7 @@
 <PageTitle>Financial package — management review</PageTitle>
 <MudLink Href="/portal" Class="back-link mb-2 d-inline-block">← Back to client portal</MudLink>
 <PageHeader Title="Financial package" Description="Client-visible validated package, decisions, and release evidence." />
+<MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button-secondary" OnClick="RefreshAsync" Disabled="@(_loading || _busy)">Refresh package</MudButton>
 
 @if (_loading)
 {
@@ -85,49 +86,79 @@ else
   private string _comment = string.Empty;
   private bool _loading = true;
   private bool _busy;
+  private Guid? _loadedPackageId;
+  private long _loadGeneration;
 
-  protected override async Task OnInitializedAsync()
+  protected override Task OnParametersSetAsync()
   {
-    _actor = await ActorResolver.ResolveAsync();
-    await LoadAsync();
-    _loading = false;
+    if (_loadedPackageId == PackageId)
+      return Task.CompletedTask;
+    _loadedPackageId = PackageId;
+    return RefreshAsync();
   }
 
-  private async Task LoadAsync()
+  private async Task RefreshAsync()
   {
+    var generation = ++_loadGeneration;
+    var packageId = PackageId;
+    _actor = null;
     _view = null;
+    _result = null;
     _loadError = null;
+    _decision = FinancialPackageReviewDecisions.Approved;
+    _evidenceReference = string.Empty;
+    _comment = string.Empty;
     _loading = true;
     try
     {
-      if (_actor is null)
+      var actor = await ActorResolver.ResolveAsync();
+      if (generation != _loadGeneration || packageId != PackageId)
+        return;
+      if (actor is null)
       {
         _loadError = "This package is not available in the current client scope.";
         return;
       }
       await using var db = await DbFactory.CreateDbContextAsync();
-      var view = await FinancialPackageReviewService.GetClientViewAsync(db, _actor, PackageId);
+      var view = await FinancialPackageReviewService.GetClientViewAsync(db, actor, packageId);
+      if (generation != _loadGeneration || packageId != PackageId)
+        return;
       if (view.Succeeded && view.Value is not null)
       {
+        _actor = actor;
         _view = view.Value;
         return;
       }
-      _actor = null;
       _loadError = view.Message;
     }
-    finally { _loading = false; }
+    finally
+    {
+      if (generation == _loadGeneration)
+        _loading = false;
+    }
   }
 
   private async Task RecordAsync()
   {
     if (_actor is null || _view is null || _busy) return;
+    var actor = _actor;
+    var packageId = PackageId;
+    var generation = _loadGeneration;
+    var decision = _decision;
+    var evidenceReference = _evidenceReference;
+    var comment = _comment;
     _busy = true;
     try
     {
       await using var db = await DbFactory.CreateDbContextAsync();
-      _result = await FinancialPackageReviewService.RecordAsync(db, _actor,
-        new FinancialPackageReviewRequest(PackageId, FinancialPackageReviewStages.ManagementApproval,
-          _decision, FinancialPackageReviewEvidenceModes.SignedIn, _evidenceReference, _comment));
+      if (generation != _loadGeneration || packageId != PackageId)
+        return;
+      var result = await FinancialPackageReviewService.RecordAsync(db, actor,
+        new FinancialPackageReviewRequest(packageId, FinancialPackageReviewStages.ManagementApproval,
+          decision, FinancialPackageReviewEvidenceModes.SignedIn, evidenceReference, comment));
+      if (generation != _loadGeneration || packageId != PackageId)
+        return;
+      _result = result;
       if (!_result.Succeeded && _result.ErrorCode is (ErrorCodes.ScopeDenied or ErrorCodes.GenerationStale))
       {
         _actor = null;
@@ -143,7 +174,7 @@ else
       {
         _evidenceReference = string.Empty;
         _comment = string.Empty;
-        await LoadAsync();
+        await RefreshAsync();
       }
     }
     finally { _busy = false; }

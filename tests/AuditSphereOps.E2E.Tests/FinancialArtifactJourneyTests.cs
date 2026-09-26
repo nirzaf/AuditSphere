@@ -464,6 +464,45 @@ public sealed class FinancialArtifactJourneyTests
   }
 
   [Fact]
+  [Trait("CaseId", "AS-PAR-002-CLIENT-FS-REFRESH-REVOKE-01")]
+  public async Task ClientFinancialPackageRefreshRemovesRevokedPackageWithoutAction()
+  {
+    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false,
+      caseId: "AS-PAR-002-CLIENT-FS-REFRESH-REVOKE-01");
+    var (packageId, _) = await CreatePackageAsync(host);
+    string packageHash;
+    await using (var db = host.CreateDbContext())
+      packageHash = await db.FinancialPackages.AsNoTracking()
+        .Where(x => x.Id == packageId).Select(x => x.CalculationHash).SingleAsync();
+
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    var page = await browser.NewPageAsync();
+    var diagnostics = new List<string>();
+    var connected = WaitForCircuitConnectionAsync(page, diagnostics);
+    await page.GotoAsync(SignInUrl(host.ClientUrl, $"/portal/accounting/packages/{packageId:D}"));
+    await page.GetByText(packageHash, new() { Exact = true }).WaitForAsync();
+    await connected;
+    var documentToken = await page.EvaluateAsync<string>("window.__clientPackageRefreshToken = crypto.randomUUID()");
+    await using (var db = host.CreateDbContext())
+    {
+      var grant = await db.RoleGrants.SingleAsync(x => x.UserId == host.Fixture.Client.Id &&
+        x.Role == "ClientUser" && x.RevokedAt == null);
+      var revoked = await RoleAdministrationService.RevokeRoleGrantAsync(db,
+        PbcSeed.Actor(host.Fixture.Admin, "Administrator"), new RevokeRoleGrantRequest(grant.Id));
+      Assert.True(revoked.Succeeded, revoked.Message);
+    }
+
+    await page.GetByRole(AriaRole.Button, new() { Name = "Refresh package" }).ClickAsync();
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Package unavailable" }).WaitForAsync();
+    var body = await page.Locator("body").InnerTextAsync();
+    Assert.DoesNotContain(packageHash, body);
+    Assert.DoesNotContain("Statement totals", body);
+    Assert.Equal(documentToken, await page.EvaluateAsync<string>("window.__clientPackageRefreshToken"));
+    Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
+  }
+
+  [Fact]
   [Trait("CaseId", "AS-PAR-002-FS-QUEUE-REVOKE-01")]
   public async Task FinancialPackageReviewQueueClearsAfterGrantRevocationAndRefresh()
   {
