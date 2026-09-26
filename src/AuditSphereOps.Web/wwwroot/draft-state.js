@@ -5,7 +5,9 @@ window.auditSphereExports.downloadText = (filename, text, contentType = 'text/pl
   const anchor = document.createElement('a');
   anchor.href = url;
   anchor.download = filename;
+  document.body.appendChild(anchor);
   anchor.click();
+  anchor.remove();
   setTimeout(() => URL.revokeObjectURL(url), 0);
 };
 window.auditSphereExports.downloadBytes = (filename, bytes, contentType) => {
@@ -14,7 +16,9 @@ window.auditSphereExports.downloadBytes = (filename, bytes, contentType) => {
   const anchor = document.createElement('a');
   anchor.href = url;
   anchor.download = filename;
+  document.body.appendChild(anchor);
   anchor.click();
+  anchor.remove();
   setTimeout(() => URL.revokeObjectURL(url), 0);
 };
 window.auditSphereExports.copyText = async text => {

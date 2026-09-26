@@ -28,6 +28,23 @@
 
 ---
 
+## AS-PAR-002 staff portfolio refresh and export
+
+The staff portfolio now clears cached clients, metrics, release candidates, and
+financial packages before an explicit scope refresh. CSV download performs a
+fresh scoped read and current-grant check before creating the file, so an open
+page cannot export its previously rendered rows after local grant revocation.
+Overlapping reads cannot republish an older result. The browser regression
+checks the authorized CSV payload and then revokes the grant in the same
+document; the next export command clears the private row and sends no second
+download payload. The existing client PBC same-document route regression also
+exposed a missing parameter-change reload; the request page now reloads by
+route parameter and fences late reads before publishing protected content.
+Upload and reply commands pin their starting request and page generation,
+then reauthorize before displaying refreshed conversation or transfer state.
+This slice does not close the whole-application AS-PAR-002 audit. Exact local
+verification is in `status.json`.
+
 ## P1 incomplete OIDC configuration guard
 
 The Web host now refuses startup when any `Identity` setting is supplied without

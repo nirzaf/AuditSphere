@@ -109,56 +109,107 @@ else
   private string _reply = string.Empty;
   private bool _loading = true;
   private bool _busy;
+  private long _loadGeneration;
 
-  protected override Task OnInitializedAsync() => LoadRequestAsync(clearDraftsOnDenied: false);
+  protected override Task OnParametersSetAsync() => LoadRequestAsync(clearDraftsOnDenied: false);
 
   private Task RefreshRequestAsync() => LoadRequestAsync(clearDraftsOnDenied: true);
 
   private async Task LoadRequestAsync(bool clearDraftsOnDenied)
   {
+    var generation = ++_loadGeneration;
+    var requestId = RequestId;
     _loading = true;
     _actor = null;
     _request = null;
-    _uploads.Clear();
-    _communications.Clear();
-    _userNames.Clear();
+    _uploads = [];
+    _communications = [];
+    _userNames = [];
     _result = null;
     _replyResult = null;
     _uploadMessage = null;
+    _reply = string.Empty;
+    _fileName = string.Empty;
+    _contentType = "application/octet-stream";
+    _byteCount = 0;
+    _contentHash = string.Empty;
     try
     {
-      _actor = await ActorResolver.ResolveAsync();
-      if (_actor is not null)
+      var actor = await ActorResolver.ResolveAsync();
+      if (generation != _loadGeneration || requestId != RequestId) return;
+      if (actor is null)
       {
-        await using var db = await DbFactory.CreateDbContextAsync();
-        var candidate = await db.PbcRequests.AsNoTracking().Where(x =>
-            x.Id == RequestId && x.FirmId == _actor.FirmId && x.ClientOwnerUserId == _actor.UserId)
-          .Select(x => new { x.ClientId, x.EngagementId })
-          .SingleOrDefaultAsync();
-        if (candidate is not null)
-        {
-          var authorization = await AuthorizationDecision.AuthorizeAsync(db, _actor,
-            new AuthorizationRequest(_actor.FirmId, candidate.ClientId, candidate.EngagementId, ["ClientUser"]));
-          if (authorization.Succeeded)
-            _request = await db.PbcRequests.AsNoTracking().SingleOrDefaultAsync(x =>
-              x.Id == RequestId && x.FirmId == _actor.FirmId && x.ClientOwnerUserId == _actor.UserId);
-        }
-        if (_request is not null)
-          await LoadThreadAsync(db);
+        if (clearDraftsOnDenied) await DenyAndClearAsync();
+        return;
       }
-      if (_request is null && clearDraftsOnDenied)
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var candidate = await db.PbcRequests.AsNoTracking().Where(x =>
+          x.Id == requestId && x.FirmId == actor.FirmId && x.ClientOwnerUserId == actor.UserId)
+        .Select(x => new { x.ClientId, x.EngagementId })
+        .SingleOrDefaultAsync();
+      if (candidate is not null)
+      {
+        var authorization = await AuthorizationDecision.AuthorizeAsync(db, actor,
+          new AuthorizationRequest(actor.FirmId, candidate.ClientId, candidate.EngagementId, ["ClientUser"]));
+        if (authorization.Succeeded)
+        {
+          var request = await db.PbcRequests.AsNoTracking().SingleOrDefaultAsync(x =>
+            x.Id == requestId && x.FirmId == actor.FirmId && x.ClientOwnerUserId == actor.UserId);
+          if (request is not null)
+          {
+            var uploads = await db.PbcUploadIntents.AsNoTracking().Where(x =>
+              x.FirmId == actor.FirmId && x.PbcRequestId == requestId).OrderByDescending(x => x.CreatedAt).ToListAsync();
+            var communications = await db.PbcCommunications.AsNoTracking().Where(x =>
+              x.FirmId == actor.FirmId && x.PbcRequestId == requestId).OrderBy(x => x.CreatedAt).ToListAsync();
+            var userIds = communications.Select(x => x.AuthorUserId).Distinct().ToArray();
+            var userNames = await db.Users.AsNoTracking().Where(x => x.FirmId == actor.FirmId && userIds.Contains(x.Id))
+              .ToDictionaryAsync(x => x.Id, x => string.IsNullOrWhiteSpace(x.DisplayName) ? x.Email : x.DisplayName);
+            if (generation != _loadGeneration || requestId != RequestId) return;
+            var currentActor = await ActorResolver.ResolveAsync();
+            if (currentActor is null || currentActor.UserId != actor.UserId ||
+                currentActor.FirmId != actor.FirmId || currentActor.SessionEpoch != actor.SessionEpoch ||
+                generation != _loadGeneration || requestId != RequestId)
+            {
+              if (clearDraftsOnDenied && generation == _loadGeneration && requestId == RequestId)
+                await DenyAndClearAsync();
+              return;
+            }
+            var currentAuthorization = await AuthorizationDecision.AuthorizeAsync(db, currentActor,
+              new AuthorizationRequest(actor.FirmId, candidate.ClientId, candidate.EngagementId, ["ClientUser"]));
+            if (!currentAuthorization.Succeeded || generation != _loadGeneration || requestId != RequestId)
+            {
+              if (clearDraftsOnDenied && generation == _loadGeneration && requestId == RequestId)
+                await DenyAndClearAsync();
+              return;
+            }
+            _actor = currentActor;
+            _request = request;
+            _uploads = uploads;
+            _communications = communications;
+            _userNames = userNames;
+            return;
+          }
+        }
+      }
+      if (clearDraftsOnDenied && generation == _loadGeneration && requestId == RequestId)
         await DenyAndClearAsync();
     }
-    finally { _loading = false; }
+    finally { if (generation == _loadGeneration) _loading = false; }
   }
 
   private async Task StartUploadAsync()
   {
     if (_actor is null || _request is null || _busy) return;
+    var actor = _actor;
+    var requestId = _request.Id;
+    var generation = _loadGeneration;
+    var fileInputId = FileInputId;
+    var contentHash = _contentHash;
     _busy = true;
     try
     {
-      var metadata = await JS.InvokeAsync<PbcFileMetadata?>("auditSpherePbc.readFileMetadata", FileInputId);
+      var metadata = await JS.InvokeAsync<PbcFileMetadata?>("auditSpherePbc.readFileMetadata", fileInputId);
+      if (generation != _loadGeneration || requestId != RequestId) return;
       if (metadata is null)
       {
         _result = CommandResult<PbcUploadReceipt>.Fail("pbc.file-required", "Select a file before preparing the upload.");
@@ -167,27 +218,36 @@ else
       _fileName = metadata.Name;
       _contentType = metadata.Type;
       _byteCount = metadata.Size;
+      CommandResult<PbcUploadReceipt> result;
       await using (var db = await DbFactory.CreateDbContextAsync())
       {
-        _result = await PbcService.StartUploadAsync(db, _actor,
-          new StartPbcUploadRequest(_request.Id, _fileName, _contentType, _byteCount, _contentHash));
+        result = await PbcService.StartUploadAsync(db, actor,
+          new StartPbcUploadRequest(requestId, metadata.Name, metadata.Type, metadata.Size, contentHash));
       }
-      if (_result.Succeeded)
+      if (generation != _loadGeneration || requestId != RequestId) return;
+      _result = result;
+      if (result.Succeeded)
       {
-        _uploadMessage = await JS.InvokeAsync<string>("auditSpherePbc.uploadChunks", FileInputId,
-          _result.Value!.UploadIntentId, _result.Value.Capability!);
-        await JS.InvokeVoidAsync("auditSphereDrafts.clear", $"pbc-upload-{RequestId}");
-        await using var refreshDb = await DbFactory.CreateDbContextAsync();
-        await LoadThreadAsync(refreshDb);
+        var message = await JS.InvokeAsync<string>("auditSpherePbc.uploadChunks", fileInputId,
+          result.Value!.UploadIntentId, result.Value.Capability!);
+        if (generation != _loadGeneration || requestId != RequestId) return;
+        await JS.InvokeVoidAsync("auditSphereDrafts.clear", $"pbc-upload-{requestId}");
+        await LoadRequestAsync(clearDraftsOnDenied: true);
+        if (_actor is not null && _request?.Id == requestId)
+        {
+          _result = result;
+          _uploadMessage = message;
+        }
       }
-      else if (IsAuthorizationFailure(_result.ErrorCode))
+      else if (IsAuthorizationFailure(result.ErrorCode))
       {
         await DenyAndClearAsync();
       }
     }
     catch (JSException ex)
     {
-      _uploadMessage = $"Transfer stopped before trusted completion: {ex.Message}";
+      if (generation == _loadGeneration && requestId == RequestId)
+        _uploadMessage = $"Transfer stopped before trusted completion: {ex.Message}";
     }
     finally { _busy = false; }
   }
@@ -195,37 +255,30 @@ else
   private async Task ReplyAsync()
   {
     if (_actor is null || _request is null || _busy) return;
+    var actor = _actor;
+    var requestId = _request.Id;
+    var generation = _loadGeneration;
+    var reply = _reply;
     _busy = true;
     try
     {
       await using var db = await DbFactory.CreateDbContextAsync();
-      _replyResult = await PbcService.ReplyAsync(db, _actor, _request.Id, _reply);
-      if (_replyResult.Succeeded)
+      var result = await PbcService.ReplyAsync(db, actor, requestId, reply);
+      if (generation != _loadGeneration || requestId != RequestId) return;
+      _replyResult = result;
+      if (result.Succeeded)
       {
         _reply = string.Empty;
-        _request = await db.PbcRequests.AsNoTracking().SingleAsync(x =>
-          x.FirmId == _actor.FirmId && x.Id == RequestId);
-        await LoadThreadAsync(db);
-        await JS.InvokeVoidAsync("auditSphereDrafts.clear", $"pbc-client-reply-{RequestId}");
+        await JS.InvokeVoidAsync("auditSphereDrafts.clear", $"pbc-client-reply-{requestId}");
+        await LoadRequestAsync(clearDraftsOnDenied: true);
+        if (_actor is not null && _request?.Id == requestId) _replyResult = result;
       }
-      else if (IsAuthorizationFailure(_replyResult.ErrorCode))
+      else if (IsAuthorizationFailure(result.ErrorCode))
       {
         await DenyAndClearAsync();
       }
     }
     finally { _busy = false; }
-  }
-
-  private async Task LoadThreadAsync(IAuditSphereDbContext db)
-  {
-    var actor = _actor!;
-    _uploads = await db.PbcUploadIntents.AsNoTracking().Where(x =>
-      x.FirmId == actor.FirmId && x.PbcRequestId == RequestId).OrderByDescending(x => x.CreatedAt).ToListAsync();
-    _communications = await db.PbcCommunications.AsNoTracking().Where(x =>
-      x.FirmId == actor.FirmId && x.PbcRequestId == RequestId).OrderBy(x => x.CreatedAt).ToListAsync();
-    var userIds = _communications.Select(x => x.AuthorUserId).Distinct().ToArray();
-    _userNames = await db.Users.AsNoTracking().Where(x => x.FirmId == actor.FirmId && userIds.Contains(x.Id))
-      .ToDictionaryAsync(x => x.Id, x => string.IsNullOrWhiteSpace(x.DisplayName) ? x.Email : x.DisplayName);
   }
 
   private IEnumerable<TimelineItem> Timeline() => _communications.Select(x => new TimelineItem(

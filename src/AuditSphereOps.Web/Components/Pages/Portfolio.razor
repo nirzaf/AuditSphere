@@ -5,9 +5,11 @@
 @inject CurrentActorResolver ActorResolver
 @inject IDbContextFactory<AuditSphereDbContext> DbFactory
 @inject IConfiguration Configuration
+@inject IJSRuntime JS
 
 <PageTitle>Portfolio</PageTitle>
 <PageHeader Title="Portfolio" Description="Staff portfolio overview. Live projections for the current explicit scope; counts are read from PostgreSQL." />
+<MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button-secondary" OnClick="LoadPortfolioAsync" Disabled="@_loading">Refresh portfolio</MudButton>
 
 @if (_loading)
 {
@@ -61,7 +63,7 @@ else
       <MudStack Row="true" Spacing="2" Class="mt-2">
         <MudTextField T="string" Label="Search current scope (optional)" @bind-Value="_search" Immediate="true"
                       Placeholder="Client name, ID or status" />
-        <MudButton Color="Color.Secondary" Variant="Variant.Outlined" Href="@PortfolioCsvHref" download="auditsphere-portfolio.csv">Download scoped CSV</MudButton>
+        <MudButton Color="Color.Secondary" Variant="Variant.Outlined" OnClick="DownloadPortfolioCsvAsync" Disabled="@_loading">Download scoped CSV</MudButton>
       </MudStack>
       @if (!VisibleClients.Any())
       {
@@ -153,32 +155,49 @@ else
   private bool _hasScope;
   private string _search = string.Empty;
   private string? _error;
+  private long _loadGeneration;
   private static readonly string[] PortfolioRoles = ["Administrator", "Partner", "Manager", "Reviewer", "Staff"];
 
   private IEnumerable<ClientRow> VisibleClients => Filter(_clients, x => $"{x.Name} {x.Id}");
   private IEnumerable<CandidateRow> VisibleCandidates => Filter(_candidates, x => $"{x.ClientName} {x.Id} {x.Status}");
   private IEnumerable<PackageRow> VisiblePackages => Filter(_packages, x => $"{x.ClientName} {x.Id} {x.Framework} {x.Status} {x.PeriodStart} {x.PeriodEnd}");
-  private string PortfolioCsvHref => "data:text/csv;charset=utf-8," + Uri.EscapeDataString(BuildPortfolioCsv());
 
   private bool OidcConfigured => !string.IsNullOrWhiteSpace(Configuration["Identity:TenantId"]) &&
                                  !string.IsNullOrWhiteSpace(Configuration["Identity:ClientId"]);
   private bool IsStaff => _actor is not null && _actor.Roles.Any(PortfolioRoles.Contains);
 
-  protected override async Task OnInitializedAsync()
+  protected override Task OnInitializedAsync() => LoadPortfolioAsync();
+
+  private async Task LoadPortfolioAsync()
   {
+    var generation = ++_loadGeneration;
+    _loading = true;
+    _actor = null;
+    _metrics = default;
+    _candidates = [];
+    _packages = [];
+    _clients = [];
+    _hasScope = false;
+    _m365Ready = false;
+    _error = null;
     try
     {
-      _actor = await ActorResolver.ResolveAsync();
-      if (_actor is null || !IsStaff) return;
+      var actor = await ActorResolver.ResolveAsync();
+      if (actor is null || generation != _loadGeneration) return;
+      if (!actor.Roles.Any(PortfolioRoles.Contains))
+      {
+        _actor = actor;
+        return;
+      }
       await using var db = await DbFactory.CreateDbContextAsync();
-      var grantScopes = await db.RoleGrants.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
-          x.UserId == _actor.UserId && x.RevokedAt == null && PortfolioRoles.Contains(x.Role))
+      var grantScopes = await db.RoleGrants.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&
+          x.UserId == actor.UserId && x.RevokedAt == null && PortfolioRoles.Contains(x.Role))
         .Select(x => new { x.ClientId, x.EngagementId }).Distinct().ToListAsync();
       var authorizedScopes = new List<(Guid? ClientId, Guid? EngagementId)>();
       foreach (var scope in grantScopes)
       {
-        var authorization = await AuthorizationDecision.AuthorizeAsync(db, _actor,
-          new AuthorizationRequest(_actor.FirmId, scope.ClientId, scope.EngagementId, PortfolioRoles,
+        var authorization = await AuthorizationDecision.AuthorizeAsync(db, actor,
+          new AuthorizationRequest(actor.FirmId, scope.ClientId, scope.EngagementId, PortfolioRoles,
             InternalOnly: true, RequireFirmWide: scope.ClientId is null && scope.EngagementId is null));
         if (authorization.Succeeded) authorizedScopes.Add((scope.ClientId, scope.EngagementId));
       }
@@ -192,52 +211,89 @@ else
         .Select(x => x.ClientId!.Value).Distinct().ToArray();
       var clientIds = directClientIds.Concat(engagementClientIds).Distinct().ToArray();
       var scopedEngagementIds = firmWide ? Array.Empty<Guid>() : await db.Engagements.AsNoTracking()
-        .Where(x => x.FirmId == _actor.FirmId &&
+        .Where(x => x.FirmId == actor.FirmId &&
           (directClientIds.Contains(x.PracticeClientId) ||
            (grantedEngagementIds.Contains(x.Id) && clientIds.Contains(x.PracticeClientId))))
         .Select(x => x.Id).ToArrayAsync();
-      _hasScope = firmWide || directClientIds.Length > 0 || scopedEngagementIds.Length > 0;
-      if (!_hasScope) return;
-      _m365Ready = await db.Microsoft365ConnectionRevisions.AsNoTracking()
-        .AnyAsync(x => x.FirmId == _actor.FirmId && x.State == Domain.Microsoft365.Microsoft365RevisionStates.Active);
+      var hasScope = firmWide || directClientIds.Length > 0 || scopedEngagementIds.Length > 0;
+      if (!hasScope)
+      {
+        if (generation == _loadGeneration) _actor = actor;
+        return;
+      }
+      var m365Ready = await db.Microsoft365ConnectionRevisions.AsNoTracking()
+        .AnyAsync(x => x.FirmId == actor.FirmId && x.State == Domain.Microsoft365.Microsoft365RevisionStates.Active);
       var clients = await db.PracticeClients.AsNoTracking()
-        .Where(x => x.FirmId == _actor.FirmId && (firmWide || clientIds.Contains(x.Id)))
+        .Where(x => x.FirmId == actor.FirmId && (firmWide || clientIds.Contains(x.Id)))
         .Select(x => new { x.Id, x.LegalName }).ToDictionaryAsync(x => x.Id, x => x.LegalName);
       var engagementCounts = await db.Engagements.AsNoTracking()
-        .Where(x => x.FirmId == _actor.FirmId && (firmWide || scopedEngagementIds.Contains(x.Id)))
+        .Where(x => x.FirmId == actor.FirmId && (firmWide || scopedEngagementIds.Contains(x.Id)))
         .GroupBy(x => x.PracticeClientId).ToDictionaryAsync(x => x.Key, x => x.Count());
-      _clients = clients.OrderBy(x => x.Value)
+      var clientRows = clients.OrderBy(x => x.Value)
         .Select(x => new ClientRow(x.Key, x.Value, engagementCounts.GetValueOrDefault(x.Key))).ToList();
-      _metrics = new PortfolioMetrics(
-        await db.PracticeClients.CountAsync(x => x.FirmId == _actor.FirmId && (firmWide || clientIds.Contains(x.Id))),
-        await db.Engagements.CountAsync(x => x.FirmId == _actor.FirmId && (firmWide || scopedEngagementIds.Contains(x.Id))),
-        await db.EngagementHolds.CountAsync(x => x.FirmId == _actor.FirmId && !x.Released && (firmWide || scopedEngagementIds.Contains(x.EngagementId))),
-        await db.DurableOperations.CountAsync(x => x.FirmId == _actor.FirmId &&
+      var metrics = new PortfolioMetrics(
+        await db.PracticeClients.CountAsync(x => x.FirmId == actor.FirmId && (firmWide || clientIds.Contains(x.Id))),
+        await db.Engagements.CountAsync(x => x.FirmId == actor.FirmId && (firmWide || scopedEngagementIds.Contains(x.Id))),
+        await db.EngagementHolds.CountAsync(x => x.FirmId == actor.FirmId && !x.Released && (firmWide || scopedEngagementIds.Contains(x.EngagementId))),
+        await db.DurableOperations.CountAsync(x => x.FirmId == actor.FirmId &&
           (firmWide ||
            (x.ClientId.HasValue && directClientIds.Contains(x.ClientId.Value)) ||
            (x.EngagementId.HasValue && scopedEngagementIds.Contains(x.EngagementId.Value))) &&
           x.Status != Domain.Completion.OperationState.COMPLETED && x.Status != Domain.Completion.OperationState.CANCELLED_WITH_DISPOSITION),
-        await db.ReleaseCandidates.CountAsync(x => x.FirmId == _actor.FirmId &&
+        await db.ReleaseCandidates.CountAsync(x => x.FirmId == actor.FirmId &&
           (firmWide || directClientIds.Contains(x.ClientId) || scopedEngagementIds.Contains(x.EngagementId)) && x.Status == ReleaseStates.Ready),
-        await db.Releases.CountAsync(x => x.FirmId == _actor.FirmId &&
+        await db.Releases.CountAsync(x => x.FirmId == actor.FirmId &&
           (firmWide || directClientIds.Contains(x.ClientId) || scopedEngagementIds.Contains(x.EngagementId))));
-      _candidates = await db.ReleaseCandidates.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
+      var candidates = await db.ReleaseCandidates.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&
         (firmWide || directClientIds.Contains(x.ClientId) || scopedEngagementIds.Contains(x.EngagementId)))
         .OrderByDescending(x => x.CreatedAt).Take(25)
         .Select(x => new CandidateRow(x.Id, x.ClientId, x.TargetRevision, x.Status, x.CreatedAt)).ToListAsync();
-      _packages = await db.FinancialPackages.AsNoTracking().Where(x => x.FirmId == _actor.FirmId &&
+      var packages = await db.FinancialPackages.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&
         (firmWide || directClientIds.Contains(x.ClientId) || scopedEngagementIds.Contains(x.EngagementId)))
         .OrderByDescending(x => x.CreatedAt).Take(25)
         .Select(x => new PackageRow(x.Id, x.ClientId, x.Framework, x.PeriodStart, x.PeriodEnd, x.Status)).ToListAsync();
-      _candidates = _candidates.Select(x => x with { ClientName = clients.GetValueOrDefault(x.ClientId, "Scoped client") }).ToList();
-      _packages = _packages.Select(x => x with { ClientName = clients.GetValueOrDefault(x.ClientId, "Scoped client") }).ToList();
+      if (generation != _loadGeneration) return;
+      var currentActor = await ActorResolver.ResolveAsync();
+      if (currentActor is null || currentActor.UserId != actor.UserId ||
+          currentActor.FirmId != actor.FirmId || currentActor.SessionEpoch != actor.SessionEpoch ||
+          generation != _loadGeneration) return;
+      foreach (var scope in authorizedScopes)
+      {
+        var currentGrant = await AuthorizationDecision.AuthorizeAsync(db, currentActor,
+          new AuthorizationRequest(actor.FirmId, scope.ClientId, scope.EngagementId, PortfolioRoles,
+            InternalOnly: true, RequireFirmWide: scope.ClientId is null && scope.EngagementId is null));
+        if (!currentGrant.Succeeded || generation != _loadGeneration) return;
+      }
+      _actor = currentActor;
+      _hasScope = hasScope;
+      _m365Ready = m365Ready;
+      _clients = clientRows;
+      _metrics = metrics;
+      _candidates = candidates.Select(x => x with { ClientName = clients.GetValueOrDefault(x.ClientId, "Scoped client") }).ToList();
+      _packages = packages.Select(x => x with { ClientName = clients.GetValueOrDefault(x.ClientId, "Scoped client") }).ToList();
     }
     catch (Exception ex)
     {
-      _error = "The scoped portfolio could not be loaded.";
+      if (generation == _loadGeneration)
+        _error = "The scoped portfolio could not be loaded.";
       Console.Error.WriteLine($"Portfolio load failed: {ex.GetType().Name}");
     }
-    finally { _loading = false; }
+    finally { if (generation == _loadGeneration) _loading = false; }
+  }
+
+  private async Task DownloadPortfolioCsvAsync()
+  {
+    await LoadPortfolioAsync();
+    if (_actor is null || !_hasScope || _error is not null) return;
+    try
+    {
+      await JS.InvokeVoidAsync("auditSphereExports.downloadText", "auditsphere-portfolio.csv",
+        BuildPortfolioCsv(), "text/csv;charset=utf-8");
+    }
+    catch (JSException)
+    {
+      _error = "The scoped portfolio CSV could not be downloaded.";
+    }
   }
 
   private readonly record struct PortfolioMetrics(int Clients, int Engagements, int OpenHolds, int PendingOperations, int ReadyCandidates, int IssuedReleases);

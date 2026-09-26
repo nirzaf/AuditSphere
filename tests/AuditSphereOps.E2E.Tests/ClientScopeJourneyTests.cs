@@ -316,6 +316,69 @@ public sealed class ClientScopeJourneyTests
   }
 
   [Fact]
+  [Trait("CaseId", "AS-PAR-002-PORTFOLIO-EXPORT-REVOCATION-01")]
+  public async Task PortfolioCsvRechecksGrantAndClearsRowsAfterRevocation()
+  {
+    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false,
+      caseId: "AS-PAR-002-PORTFOLIO-EXPORT-REVOCATION-01");
+    const string privateClientName = "SYN-PAR-002-PORTFOLIO-REVOKED-CLIENT";
+    var staff = PbcSeed.User(host.Fixture.FirmId, "Staff");
+    var clientId = Guid.NewGuid();
+    await using (var db = host.CreateDbContext())
+    {
+      db.Users.Add(staff);
+      db.PracticeClients.Add(new PracticeClient
+      {
+        Id = clientId, FirmId = host.Fixture.FirmId, LegalName = privateClientName,
+        CreatedAt = DateTimeOffset.UtcNow
+      });
+      db.RoleGrants.Add(PbcSeed.Grant(host.Fixture.FirmId, staff, "Staff", clientId: clientId));
+      await db.SaveChangesAsync();
+    }
+
+    var origin = await host.StartWebForIdentityAsync(staff);
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    await using var context = await browser.NewContextAsync();
+    var page = await context.NewPageAsync();
+    var diagnostics = new List<string>();
+    var connected = WaitForCircuitConnectionAsync(page, diagnostics);
+    await page.GotoAsync(SignInUrl(origin, "/app"));
+    await page.GetByText(privateClientName, new() { Exact = true }).WaitForAsync();
+    await connected;
+    await page.GetByRole(AriaRole.Button, new() { Name = "Refresh portfolio" }).ClickAsync();
+    await page.GetByText(privateClientName, new() { Exact = true }).WaitForAsync();
+
+    var documentToken = await page.EvaluateAsync<string>("window.__portfolioRevocationToken = crypto.randomUUID()");
+    await page.EvaluateAsync("() => { window.__portfolioDownloads = []; window.auditSphereExports.downloadText = (name, text, type) => window.__portfolioDownloads.push({ name, text, type }); }");
+    await page.GetByRole(AriaRole.Button, new() { Name = "Download scoped CSV" }).ClickAsync();
+    await page.WaitForFunctionAsync("window.__portfolioDownloads.length === 1");
+    var csv = await page.EvaluateAsync<string>("window.__portfolioDownloads[0].text");
+    Assert.Contains(privateClientName, csv);
+    Assert.Equal("auditsphere-portfolio.csv", await page.EvaluateAsync<string>("window.__portfolioDownloads[0].name"));
+    await using (var db = host.CreateDbContext())
+    {
+      var grant = await db.RoleGrants.SingleAsync(x => x.FirmId == host.Fixture.FirmId &&
+        x.UserId == staff.Id && x.Role == "Staff" && x.RevokedAt == null);
+      var revoked = await RoleAdministrationService.RevokeRoleGrantAsync(db,
+        PbcSeed.Actor(host.Fixture.Admin, "Administrator"), new RevokeRoleGrantRequest(grant.Id));
+      Assert.True(revoked.Succeeded, revoked.Message);
+    }
+
+    await page.GetByRole(AriaRole.Button, new() { Name = "Download scoped CSV" }).ClickAsync();
+    try { await page.GetByText(privateClientName, new() { Exact = true }).WaitForAsync(new() { State = WaitForSelectorState.Hidden, Timeout = 5000 }); }
+    catch (TimeoutException ex)
+    {
+      throw new Xunit.Sdk.XunitException($"Export did not clear revoked portfolio.\n{await page.Locator("body").InnerTextAsync()}\n{string.Join("\n", diagnostics)}\n{ex.Message}");
+    }
+    Assert.Equal(1, await page.EvaluateAsync<int>("window.__portfolioDownloads.length"));
+    Assert.Equal(0, await page.GetByRole(AriaRole.Button, new() { Name = "Download scoped CSV" }).CountAsync());
+    Assert.DoesNotContain(privateClientName, await page.Locator("body").InnerTextAsync());
+    Assert.Equal(documentToken, await page.EvaluateAsync<string>("window.__portfolioRevocationToken"));
+    Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
+  }
+
+  [Fact]
   [Trait("CaseId", "AS-PAR-002-TIME-ENGAGEMENT-SCOPE-01")]
   public async Task EngagementScopedTimeQueueHidesSiblingTasksEntriesAndClientPeriods()
   {
