@@ -2,7 +2,7 @@
 id: "T002"
 work_package: "R2R-00"
 modules: []
-status: "IN_PROGRESS"
+status: "IN_REVIEW"
 depends_on: ["T001"]
 owner: "Codex implementation coordinator"
 reviewer: ""
@@ -13,7 +13,7 @@ approval_ref: ""
 blocked_reason: ""
 branch: "master"
 issue_pr: ""
-updated_at: "2026-09-26T17:42:09+00:00"
+updated_at: "2026-09-26T18:08:35+00:00"
 ---
 # T002 — Approve architecture, contracts and transaction ownership
 
@@ -51,6 +51,8 @@ Hard dependencies must be COMPLETED, with reviewed handoff evidence:
 2. Inspect current transactions and designate one owner per command: compatibility service or migrated unit of work.
 3. Approve compatible pinned MediatR and bUnit dependencies and the MediatR licensing decision; retain unrelated package versions.
 4. Define the DTO/port ledger, migration serialization owner and capability-to-role mapping. Inspect group-creation authority rather than inheriting implicit Partner promotion.
+
+**Current-architecture disposition proposed for review:** The [T002 decision ledger](../../tracking/auditsphere-r2r-tracker-architecture-transaction-ownership.md) retains static Application services and the existing xUnit/Playwright harness. MediatR and bUnit are absent and are not introduced or licensed by this task; a later package change would require its own review. The [111-request registry](../../coverage/auditsphere-r2r-tracker-command-query-ownership.md) assigns each preserved request to one task, while the ledger assigns capability transaction boundaries and requires each owning task to prove the concrete method. No public command/query is added by T002.
 
 ## 1. Domain Modeling (`.Domain`)
 
@@ -98,11 +100,11 @@ Use pure xUnit for deterministic rules, real PostgreSQL for persistence/concurre
 ## Completion checklist
 
 <!-- COMPLETION-CHECKLIST -->
-- [ ] Current checkout, existing symbols and applicable approvals were inspected; scope conflicts are resolved or the task is BLOCKED.
-- [ ] All hard dependencies are COMPLETED and their exact contracts/evidence were consumed.
-- [ ] The task-specific work and every applicable invariant/owned request are implemented or proven already implemented; no placeholder outcome remains.
-- [ ] Applicable migrations, validation, authorization, concurrency and source/history preservation checks have observed results.
-- [ ] Required task-level tests pass with named expected/observed outcomes; future integration tests remain explicitly tracked instead of claimed complete.
+- [x] Current checkout, existing symbols and applicable approvals were inspected; scope conflicts are resolved or the task is BLOCKED.
+- [x] All hard dependencies are COMPLETED and their exact contracts/evidence were consumed.
+- [x] The task-specific work and every applicable invariant/owned request are implemented or proven already implemented; no placeholder outcome remains.
+- [x] Applicable migrations, validation, authorization, concurrency and source/history preservation checks have observed results.
+- [x] Required task-level tests pass with named expected/observed outcomes; future integration tests remain explicitly tracked instead of claimed complete.
 - [ ] The independent reviewer accepted the exact reviewed commit and evidence; downstream owners received the handoff.
 <!-- END-COMPLETION-CHECKLIST -->
 
@@ -110,12 +112,12 @@ Use pure xUnit for deterministic rules, real PostgreSQL for persistence/concurre
 
 | Field | Value to record |
 |---|---|
-| Inspected baseline and reused symbols | [Working architecture and transaction ledger](../../tracking/auditsphere-r2r-tracker-architecture-transaction-ownership.md); T001 accepted inventory consumed. |
-| Code commit / schema / deployed build if applicable | Not recorded |
-| Requirement → assertion → command/run → observed result | Not recorded |
-| Policy / scope approval reference | Not recorded |
-| Known limitations / exact blocker | 111 preserved requests have not all been mapped to concrete transaction owners; shared DTO/port and capability-to-role ledgers and independent review remain open. |
-| Exported contract / manifest / artifact references for consumers | Not recorded |
-| Reviewer and acceptance decision | Not recorded |
+| Inspected baseline and reused symbols | [Architecture, transaction, shared-contract and role review ledger](../../tracking/auditsphere-r2r-tracker-architecture-transaction-ownership.md); accepted T001 inventory consumed. |
+| Code commit / schema / deployed build if applicable | Group-authority source `11b3f3779866a34146980da9e9b942e10846adc6`; no schema or deployment change. Final review-ledger commit to be pinned at handoff. |
+| Requirement → assertion → command/run → observed result | ADR-10 no implicit Partner promotion → PostgreSQL `CreateGroup_GrantsCreatorOnlyTheirFirmWideRole` passed 1/1; Release web build passed with 0 warnings/errors; full Release suite passed 418/418 (339 Domain, 7 API, 72 E2E); EF model check found no pending changes; task-pack validation and 21/21 helper self-tests passed. Exact observations are in `docs/execution/status.json`. |
+| Policy / scope approval reference | Repository owner accepted T001 seven-module scope and exact inventory commit `042611a70afdc97c006bf9b75ba58037cc0654a3`; T002 architectural disposition is proposed for independent review, not yet approved. |
+| Known limitations / exact blocker | Preserved request names are not all current code classes. Each downstream task must prove its concrete service, transaction, authorization, source fence and tests; task-owned shared types and legacy role variation remain for their owning tasks. Live tenant and production gates remain external. Independent T002 acceptance is pending. |
+| Exported contract / manifest / artifact references for consumers | [T002 review ledger](../../tracking/auditsphere-r2r-tracker-architecture-transaction-ownership.md) and [111-request task ownership registry](../../coverage/auditsphere-r2r-tracker-command-query-ownership.md). |
+| Reviewer and acceptance decision | Pending independent exact-commit review. |
 
 **Tracking-only note:** filling these fields or running the status helper is not proof that tests ran, a professional approval, merge authorization or permission to perform a tenant operation.

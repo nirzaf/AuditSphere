@@ -124,13 +124,14 @@ production identity acceptance is claimed. Exact verification is in
 
 ## R2R architecture and group authority
 
-T002 is in progress. Its [working architecture and transaction ledger](../task_breakdown/tracking/auditsphere-r2r-tracker-architecture-transaction-ownership.md)
+T002 is in review. Its [architecture and transaction ledger](../task_breakdown/tracking/auditsphere-r2r-tracker-architecture-transaction-ownership.md)
 records the current static-service design, preliminary transaction owners and
 shared contract candidates. Group creation now derives the creator's group role
 from an active firm-wide grant, preventing a Manager creator from receiving an
 implicit Partner group grant. The exact test and model results are in
-`status.json`. The complete 111-request transaction mapping, shared-contract
-dispositions and independent T002 review remain open.
+`status.json`. The 111-request registry assigns one owning task per request;
+each downstream task must prove its concrete method and transaction. T002
+independent acceptance remains pending.
 
 ## P1 development OIDC credential store
 

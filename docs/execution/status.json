@@ -239,7 +239,7 @@
       "observedAt": "2026-09-26T17:57:30Z",
       "sourceCommit": "11b3f3779866a34146980da9e9b942e10846adc6",
       "remoteHeadConfirmed": true,
-      "taskState": "T002 IN_PROGRESS. Working architecture, transaction-owner and shared-contract ledger recorded; all 111 preserved request mappings and independent review remain open.",
+      "taskState": "T002 IN_REVIEW. The architecture, capability transaction-owner, shared-contract and role ledger is proposed for owner review; the 111 preserved requests each have one owning task, while concrete implemented-method proof remains with downstream tasks. Independent T002 acceptance remains pending.",
       "behavior": "CreateGroupAsync derives the creator's group role from an active firm-wide Manager, Partner or Administrator RoleGrant instead of always granting Partner; a missing active role fails closed. Existing group and grant persist in one EF SaveChanges operation.",
       "focusedTest": "PASS: CreateGroup_GrantsCreatorOnlyTheirFirmWideRole, 1/1 against PostgreSQL 18.6; Manager creator received Manager and no Partner grant.",
       "build": "PASS: Release web build, 0 warnings/errors.",
@@ -290,7 +290,7 @@
     "packageId": "Audit workflow gap-closure and client accounting implementation",
     "implementationStatus": "IN_PROGRESS",
     "acceptanceStatus": "LOCAL_VERIFIED",
-    "scope": "AS-PAR-002 firm-Finance current-access slice locally verified; remaining whole-application authorization audit remains partial. T001 R2R baseline inventory accepted by the owner; T002 group-authority fix locally verified and architecture/transaction ledger in progress. T002 and downstream work remain open. Live P1, P2/P3 and production gates remain external.",
+    "scope": "AS-PAR-002 firm-Finance current-access slice locally verified; remaining whole-application authorization audit remains partial. T001 R2R baseline inventory accepted by the owner; T002 group-authority fix locally verified and architecture/transaction ledger in independent review. T002 and downstream work remain open. Live P1, P2/P3 and production gates remain external.",
     "nextAction": "Continue remaining route/query/search/count/export/direct-command audit and eligible local provider hardening; use approved private credential and named tenant fixtures for live P1 OIDC verification when supplied. Independently review direct-main changes under P9.",
     "branch": "master"
   },

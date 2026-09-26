@@ -1,6 +1,6 @@
-# T002 architecture and transaction ownership working ledger
+# T002 architecture and transaction ownership review ledger
 
-**State:** IN_PROGRESS. This is inspected implementation evidence, not an approved T002 handoff. [T001's accepted inventory](auditsphere-r2r-tracker-current-baseline-inventory.md) is the source baseline; `docs/architecture/auditsphere-architecture-current-architecture.md` and `docs/architecture/auditsphere-architecture-code-map.md` govern implementation. The preserved [reference ADRs](../reference/auditsphere-r2r-reference-baseline-architecture-and-adrs.md#section-2-4) supply requirements to reconcile, not an instruction to replace the current stack.
+**State:** IN_REVIEW. These are proposed coordination decisions and inspected implementation evidence, not an accepted T002 handoff. [T001's accepted inventory](auditsphere-r2r-tracker-current-baseline-inventory.md) is the source baseline; `docs/architecture/auditsphere-architecture-current-architecture.md` and `docs/architecture/auditsphere-architecture-code-map.md` govern implementation. The preserved [reference ADRs](../reference/auditsphere-r2r-reference-baseline-architecture-and-adrs.md#section-2-4) supply requirements to reconcile, not an instruction to replace the current stack.
 
 | Decision | Current implementation position | Remaining decision or proof |
 |---|---|---|
