@@ -39,6 +39,16 @@
       "documentation": "PASS: task-pack validation, Markdown documentation health and git diff --check.",
       "boundary": "P2 live Graph/SharePoint adapter, binding approval, tenant isolation and provider reconciliation are not implemented or accepted; this is the local trusted-scope contract only."
     },
+    "r2rT002GroupRoleRevocationFence": {
+      "observedAt": "2026-09-26T19:02:18Z",
+      "behavior": "CreateGroupAsync now takes the firm safety row lock used by RevokeRoleGrantAsync before rechecking firm-wide Manager, Partner or Administrator authority and publishing the group plus matching creator grant in one transaction. A concurrent revocation that commits first leaves no group.",
+      "focusedTests": "PASS: CreateGroup_GrantsCreatorOnlyTheirFirmWideRole and CreateGroup_WaitsForFirmRoleRevocationAndRejectsStaleAuthority, 2/2 on PostgreSQL 18.6.",
+      "build": "PASS: Release Web build, 0 warnings/errors.",
+      "fullSuite": "Initial parallel Release solution run: Domain 341/341 and API 7/7 passed; E2E 71/72 passed with one 30-second visibility timeout in unrelated FinanceManagerScopedToAnotherClientCannotViewInvoiceOrFallbackBalance. That case passed 1/1 in isolation; standalone E2E suite then passed 72/72, 0 skipped. No claim that the initial parallel run passed.",
+      "modelDrift": "PASS: EF reports no pending model changes.",
+      "documentation": "PASS: task-pack validation and git diff --check.",
+      "boundary": "This closes the concurrent group-creation/revocation race only. Historical group grants, later firm-role revocation policy, T002 handoff completion and production authorization acceptance remain open."
+    },
     "restoreDrill": "PASS at 2026-09-23T15:20:43Z: loopback restore reconciled the existing auditsphere database at 91 migrations through 20260922140527_M365InvitationEvidenceAction, including checkpoint/accounting/group manifests and release-delivery identities. Evidence was redirected to a temporary path. The local source DB was not migrated to the new proposal migration; production custody/RPO/RTO remain unverified.",
     "database": "127.0.0.1:5433 development only",
     "periodWorkbenchAccessRefresh": {

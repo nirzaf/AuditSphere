@@ -17,6 +17,14 @@ public static partial class ConsolidationService
   {
     if (string.IsNullOrWhiteSpace(request.Code) || string.IsNullOrWhiteSpace(request.Name))
       return CommandResult<Guid>.Fail(ErrorCodes.Accounting.MappingInvalid, "Group code and name are required.");
+    // Role administration takes this same guard before revocation. Holding it through
+    // publication prevents a group grant from being derived from a concurrently revoked role.
+    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    var firmGuard = await db.FirmSafetyStates.FromSqlInterpolated(
+      $"SELECT * FROM firm_safety_states WHERE id = {actor.FirmId} FOR UPDATE")
+      .SingleOrDefaultAsync(ct);
+    if (firmGuard is null)
+      return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "The firm safety state is unavailable.");
     var auth = await FirmAuthAsync(db, actor, ["Manager", "Partner", "Administrator"], ct);
     if (!auth.Succeeded)
       return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
@@ -43,6 +51,7 @@ public static partial class ConsolidationService
       Role = creatorRole, GrantedAt = group.CreatedAt, GrantedByUserId = actor.UserId
     });
     await db.SaveChangesAsync(ct);
+    await tx.CommitAsync(ct);
     return CommandResult<Guid>.Ok(group.Id);
   }
 

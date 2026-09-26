@@ -69,8 +69,10 @@ The owner approved the STE-R2R-ARCH-001 seven-module scope. T001 now has a
 that identifies reusable accounting and consolidation symbols, distinguishes
 proposed shared contracts from implemented equivalents, and records the current
 Purview/eSignature exclusion without removing release or records evidence gates.
-The repository owner accepted the exact T001 inventory commit as an independent
-reviewer; T002 transaction and contract decisions have not been accepted. The separate GitHub Wiki deployment
+The repository owner accepted the exact T001 inventory commit; this owner
+decision does not satisfy the separate non-owner independent-review requirement.
+T002 direction is approved, but its transaction and contract handoff remains in
+review. The separate GitHub Wiki deployment
 guidance was published under the owner's authorization and its canonical pages
 were checked after publication. Exact source and Wiki revisions and observed
 checks are in `status.json`.
@@ -130,9 +132,13 @@ Its [architecture and transaction ledger](../task_breakdown/tracking/auditsphere
 records the current static-service design, preliminary transaction owners and
 shared contract candidates. Group creation now derives the creator's group role
 from an active firm-wide grant, preventing a Manager creator from receiving an
-implicit Partner group grant. The exact test and model results are in
-`status.json`. The 111-request registry assigns one owning task per request;
-each downstream task must prove its concrete method and transaction. T002
+implicit Partner group grant. Group creation now also serializes against firm-role revocation through the
+firm safety row lock, so a revoked role cannot be used to create a group after
+the revocation commits. The concurrent PostgreSQL regression and full-suite
+results, including one initial browser timeout and clean standalone browser
+rerun, are recorded in `status.json`. The 111-request registry assigns one
+owning task per request; each downstream task must prove its concrete method
+and transaction. T002
 completion still requires the ledger's explicit transaction-owner,
 shared-contract and professional-role decisions; the owner's direction approval
 does not accept that incomplete handoff.

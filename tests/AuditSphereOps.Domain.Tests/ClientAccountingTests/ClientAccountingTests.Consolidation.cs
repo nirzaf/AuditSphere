@@ -48,6 +48,45 @@ public sealed partial class ClientAccountingTests
 
   [Fact]
   [Trait("Profile", "Database")]
+  public async Task CreateGroup_WaitsForFirmRoleRevocationAndRejectsStaleAuthority()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var scope = await SeedAsync(pg);
+    var manager = User(scope.FirmId, "group-revoked-manager");
+    var actor = Actor(manager, "Manager");
+    await using (var setup = new AuditSphereDbContext(pg.Options))
+    {
+      setup.Users.Add(manager);
+      setup.RoleGrants.Add(Grant(scope.FirmId, manager, "Manager"));
+      await setup.SaveChangesAsync();
+    }
+
+    await using var revocation = new AuditSphereDbContext(pg.Options);
+    await using var tx = await revocation.Database.BeginTransactionAsync();
+    await revocation.FirmSafetyStates.FromSqlInterpolated(
+      $"SELECT * FROM firm_safety_states WHERE id = {scope.FirmId} FOR UPDATE").SingleAsync();
+    var grant = await revocation.RoleGrants.SingleAsync(x => x.FirmId == scope.FirmId && x.UserId == manager.Id);
+    grant.RevokedAt = DateTimeOffset.UtcNow;
+    await revocation.SaveChangesAsync();
+
+    var create = Task.Run(async () =>
+    {
+      await using var db = new AuditSphereDbContext(pg.Options);
+      return await ConsolidationService.CreateGroupAsync(db, actor,
+        new ClientGroupRequest("REVOKED-GROUP", "Must not publish"));
+    });
+    Assert.NotSame(create, await Task.WhenAny(create, Task.Delay(150)));
+    await tx.CommitAsync();
+
+    var result = await create;
+    Assert.False(result.Succeeded);
+    Assert.Equal(ErrorCodes.ScopeDenied, result.ErrorCode);
+    await using var check = new AuditSphereDbContext(pg.Options);
+    Assert.False(await check.ClientGroups.AnyAsync(x => x.FirmId == scope.FirmId && x.Code == "REVOKED-GROUP"));
+  }
+
+  [Fact]
+  [Trait("Profile", "Database")]
   public async Task GroupCapabilityAuthorization_RejectsStaleDisabledAndClientActors()
   {
     await using var pg = await PgTestSchema.CreateAsync();
