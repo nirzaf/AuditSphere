@@ -47,3 +47,22 @@ The transaction-owner rule for future writing operations is the named Applicatio
 | Group creation | Firm-wide `Manager`, `Partner`, or `Administrator` | Creator receives the matching active role as a group grant. Existing group grants are independently stored; the effect of later firm-role revocation on those grants remains a policy decision. |
 
 These are observations from `AuthorizationDecision`, `ClientAccountingService.Authorization`, `AccountingAnalysisService.Authorization`, `FinancialStatementService.Authorization`, `ConsolidationService.Authorization`, and `AdjustmentJournalService`. They do not replace each command's exact authorization predicate. The T002 handoff still needs an approved disposition for the role-array variation and explicit person-based professional acceptance mapping.
+
+## Contract ownership rule for the remaining R2R tasks
+
+The [request registry](../coverage/auditsphere-r2r-tracker-command-query-ownership.md) names exactly one task for every preserved request. The table below assigns its existing Application capability boundary; an owning task must record the concrete method and transaction boundary before claiming that request implemented. A `NEW/DECISION` request does not acquire a transaction merely by appearing in the registry.
+
+| Task range | Existing capability boundary to extend or prove equivalent | Write owner rule |
+|---|---|---|
+| T011–T014, Module 20 setup | `ClientAccountingService` partials for profiles, periods, books, charts and taxonomy | Named setup method owns its write; T014 reporting-context additions require an explicit identity decision first. |
+| T015–T017, Module 21 TB | `TrialBalanceImportService`, `TrialBalanceValidationHandler`, `AccountingSourceAcceptanceService` | Intake/validation stage owns its durable step; source acceptance owns publication. No page-level or facade transaction. |
+| T018–T020, Module 21 GL and mapping | `ClientAccountingService.GeneralLedger`, `GeneralLedgerCompletenessHandler`, `FinancialStatementService.Mapping` | GL intake/completeness and mapping publication each own their distinct persisted boundary. |
+| T021–T023, Module 22 adjustments | `AdjustmentJournalService`, `AdjustmentPlanService` | Journal action or sealed-plan builder owns its own write; cross-service calls must not nest transactions. |
+| T024–T026, Module 23 reconciliations | `AccountingAnalysisService.Reconciliation` | Named reconciliation action owns its write and exact source revision fence. |
+| T027–T033, Module 24 statements | `StatementLayoutService`, `FinancialStatementService`, `ClientAccountingService.Restatements` | Layout publication, statement calculation/review and restatement each have one named write owner; Module 24 alone owns financial calculation. |
+| T034–T037, Module 25 packages | `FinancialPackageBuildHandler`, `FinancialPackageRenderHandler`, `PackageSealService`, `FinancialPackageReviewService` | Durable build/render stage or seal/review command owns the short publication transaction; renderers are not a second financial engine. |
+| T038–T040, entity close and release | `ClientAccountingService.Periods`, `.Restatements`, release/records Application services | Close/amendment command owns local state; external release and records effects retain separate fenced operations. |
+| T041–T047, Module 26 group reporting | `ConsolidationService`, `CurrencyTranslationService`, shared package assembly boundary | Perimeter, FX, journal and run commands own their own group write; group assembly consumes approved component identities without editing client books. |
+| T048–T054, acceptance/deployment | No new business aggregate assigned by the test/deployment tasks | Verify earlier owners; deployment migrations remain coordinator-serialized and live provider acceptance requires observed external evidence. |
+
+This is a capability-level ownership assignment for future work, not a 111-row assertion that current methods already implement all preserved contracts. The owning task's evidence must identify its exact method, authorization scope, transaction and source-revision fence. The coordinator controls shared DTOs, DbContext model/snapshot and migration merges.
