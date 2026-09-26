@@ -8,6 +8,8 @@ namespace AuditSphereOps.Web.Authentication;
 /// <summary>Maps only authenticated Entra claims to current local authorization state.</summary>
 public sealed class TrustedActorResolver(IDbContextFactory<AuditSphereDbContext> factory)
 {
+  public const string SessionEpochClaimType = "auditsphere:session_epoch";
+
   public async Task<ActorContext?> ResolveAsync(ClaimsPrincipal principal, CancellationToken ct = default)
   {
     if (principal.Identity?.IsAuthenticated != true)
@@ -17,13 +19,17 @@ public sealed class TrustedActorResolver(IDbContextFactory<AuditSphereDbContext>
                   principal.FindFirstValue(ClaimTypes.NameIdentifier) ??
                   principal.FindFirstValue("sub");
     var tenant = principal.FindFirstValue("tid");
-    if (string.IsNullOrWhiteSpace(subject) || string.IsNullOrWhiteSpace(tenant))
+    var epochClaims = principal.FindAll(SessionEpochClaimType).ToArray();
+    if (string.IsNullOrWhiteSpace(subject) || string.IsNullOrWhiteSpace(tenant) ||
+        epochClaims.Length != 1 || !long.TryParse(epochClaims[0].Value,
+          System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture,
+          out var signedInEpoch))
       return null;
 
     await using var db = await factory.CreateDbContextAsync(ct);
     var user = await db.Users.AsNoTracking().SingleOrDefaultAsync(x =>
       x.Subject == subject && x.TenantId == tenant, ct);
-    if (user is null || user.Disabled)
+    if (user is null || user.Disabled || user.SessionEpoch != signedInEpoch)
       return null;
     var roles = await db.RoleGrants.AsNoTracking()
       .Where(x => x.FirmId == user.FirmId && x.UserId == user.Id && x.RevokedAt == null)

@@ -326,6 +326,42 @@ public sealed class PbcHttpTests
 
   [Fact]
   [Trait("Category", "HealthAndConfiguration")]
+  [Trait("CaseId", "P1-SESSION-EPOCH-01")]
+  public async Task ExistingSignInCannotAcquireNewSessionEpochAfterRevocation()
+  {
+    await using var pg = await OwnedPostgresDatabase.CreateAsync("P1-SESSION-EPOCH-01");
+    var fixture = await PbcSeed.SeedAsync(pg);
+    using var factory = CreateFactory(pg.ConnectionString, fixture.Client,
+      Path.Combine(Path.GetTempPath(), "AuditSphereOps-api-tests", Guid.NewGuid().ToString("N")));
+    using var client = await SignInAsync(factory, fixture.Client);
+
+    using (var before = await client.GetAsync("/auth/landing"))
+    {
+      Assert.Equal(HttpStatusCode.Redirect, before.StatusCode);
+      Assert.Equal("/portal", before.Headers.Location?.OriginalString);
+    }
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var user = await db.Users.SingleAsync(x => x.Id == fixture.Client.Id);
+      user.SessionEpoch++;
+      await db.SaveChangesAsync();
+    }
+
+    using (var stale = await client.GetAsync("/auth/landing"))
+    {
+      Assert.Equal(HttpStatusCode.Redirect, stale.StatusCode);
+      Assert.Equal("/auth/access-not-assigned", stale.Headers.Location?.OriginalString);
+    }
+
+    using var freshClient = await SignInAsync(factory, fixture.Client);
+    using var fresh = await freshClient.GetAsync("/auth/landing");
+    Assert.Equal(HttpStatusCode.Redirect, fresh.StatusCode);
+    Assert.Equal("/portal", fresh.Headers.Location?.OriginalString);
+  }
+
+  [Fact]
+  [Trait("Category", "HealthAndConfiguration")]
   [Trait("CaseId", "PROP-API-06")]
   public async Task UnsafeTestIdentityProfilesAndReturnUrlsFailClosed()
   {

@@ -136,14 +136,32 @@ if (oidcConfigured)
     options.Scope.Add("email");
     options.Events = new OpenIdConnectEvents
     {
-      OnTokenValidated = context =>
+      OnTokenValidated = async context =>
       {
         var tokenTenant = context.Principal?.FindFirst("tid")?.Value;
         var objectId = context.Principal?.FindFirst("oid")?.Value;
         if (!string.Equals(tokenTenant, tenantId, StringComparison.OrdinalIgnoreCase) ||
             !Guid.TryParse(objectId, out _))
+        {
           context.Fail("The identity is not from the configured workforce tenant or has no immutable object ID.");
-        return Task.CompletedTask;
+          return;
+        }
+
+        var dbFactory = context.HttpContext.RequestServices.GetRequiredService<IDbContextFactory<AuditSphereDbContext>>();
+        await using var db = await dbFactory.CreateDbContextAsync(context.HttpContext.RequestAborted);
+        var user = await db.Users.AsNoTracking().SingleOrDefaultAsync(x =>
+          x.TenantId == tokenTenant && x.Subject == objectId, context.HttpContext.RequestAborted);
+        if (user is null || user.Disabled)
+        {
+          context.Fail("The identity is not assigned or is disabled.");
+          return;
+        }
+        var claimsIdentity = (ClaimsIdentity)context.Principal!.Identity!;
+        foreach (var existing in claimsIdentity.FindAll(TrustedActorResolver.SessionEpochClaimType).ToList())
+          claimsIdentity.RemoveClaim(existing);
+        claimsIdentity.AddClaim(new Claim(
+          TrustedActorResolver.SessionEpochClaimType,
+          user.SessionEpoch.ToString(System.Globalization.CultureInfo.InvariantCulture)));
       }
     };
   });
@@ -236,6 +254,8 @@ else if (developmentIdentityEnabled)
     {
       new Claim("oid", user.Subject),
       new Claim("tid", user.TenantId),
+      new Claim(TrustedActorResolver.SessionEpochClaimType,
+        user.SessionEpoch.ToString(System.Globalization.CultureInfo.InvariantCulture)),
       new Claim(ClaimTypes.Name, user.DisplayName),
       new Claim(ClaimTypes.Email, user.Email)
     };

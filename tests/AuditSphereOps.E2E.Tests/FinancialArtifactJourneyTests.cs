@@ -115,7 +115,7 @@ public sealed class FinancialArtifactJourneyTests
 
   [Fact]
   [Trait("CaseId", "AS-PAR-002-JOURNAL-STALE-01")]
-  public async Task JournalPageRemovesReviewerActionAfterGrantRevocation()
+  public async Task JournalPageClearsPrivateLinesAfterGrantRevocation()
   {
     await using var host = await OwnedBlazorHost.StartAsync(startWorker: false,
       caseId: "AS-PAR-002-JOURNAL-STALE-01");
@@ -162,11 +162,12 @@ public sealed class FinancialArtifactJourneyTests
       Assert.True(revoked.Succeeded, revoked.Message);
     }
 
-    await page.GetByText("You must have the AccountingReviewer, Partner or Manager role", new() { Exact = false }).WaitForAsync();
+    await page.GetByRole(AriaRole.Button, new() { Name = "Refresh journal" }).ClickAsync();
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable" }).WaitForAsync();
     var body = await page.Locator("body").InnerTextAsync();
-    Assert.Contains(journalNumber, body);
-    Assert.Contains(privateAccountCode, body);
-    Assert.Contains("SYN-PRIVATE-OFFSET-LINE", body);
+    Assert.DoesNotContain(journalNumber, body);
+    Assert.DoesNotContain(privateAccountCode, body);
+    Assert.DoesNotContain("SYN-PRIVATE-OFFSET-LINE", body);
     await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Post adjustment journal" })).ToBeHiddenAsync();
     Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
 
@@ -499,7 +500,7 @@ public sealed class FinancialArtifactJourneyTests
     }
 
     await page.GetByRole(AriaRole.Button, new() { Name = "Refresh queue" }).ClickAsync();
-    await page.GetByRole(AriaRole.Heading, new() { Name = "Review queue unavailable" }).WaitForAsync();
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable" }).WaitForAsync();
     var body = await page.Locator("body").InnerTextAsync();
     Assert.DoesNotContain(packageId.ToString("D"), body);
     Assert.DoesNotContain("Action required", body);
