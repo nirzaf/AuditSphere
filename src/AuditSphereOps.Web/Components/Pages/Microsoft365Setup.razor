@@ -59,6 +59,10 @@
         <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="btn-primary" OnClick="CompleteBootstrap" Disabled="@_busy">Bind initial administrator</MudButton>
       </MudAlert>
     }
+    else if (_isFirmAdministrator)
+    {
+      <p class="notice" role="status">The initial administrator is bound locally. Microsoft 365 integration still requires separate verification.</p>
+    }
     else if (_microsoftAuthenticated)
     {
       <p class="notice warning" role="status">Microsoft sign-in is present, but this identity is not the deployment-approved initial administrator. No bootstrap grant is available.</p>
@@ -163,7 +167,10 @@
       new AuthorizationRequest(_actor.FirmId, RequiredRoles: ["Administrator"],
         InternalOnly: true, RequireFirmWide: true))).Succeeded;
     if (_isFirmAdministrator)
+    {
+      _bootstrapEligible = false;
       await LoadTemplates();
+    }
   }
 
   private async Task CompleteBootstrap()
