@@ -28,6 +28,17 @@
 
 ---
 
+## P1 immutable identity lookup
+
+The Web actor resolver and sign-in landing now require the Entra `oid` claim
+alongside `tid` and the signed-in session epoch. A matching `sub` or name
+identifier can no longer substitute for the immutable object ID. A
+PostgreSQL-backed API regression checks missing `oid`, changed email and wrong
+tenant behavior. The development app registration was inspected in the
+authorized tenant and already contains the local web callback; no tenant
+setting was changed. This is a local identity boundary, not live OIDC or
+production acceptance. Exact verification is in `status.json`.
+
 ## AS-PAR-002 firm Finance current-access refresh
 
 The firm Finance workbench now reads periods, accounts, recent postings, and
