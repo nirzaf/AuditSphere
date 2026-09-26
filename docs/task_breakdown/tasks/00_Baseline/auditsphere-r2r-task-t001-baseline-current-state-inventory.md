@@ -2,18 +2,18 @@
 id: "T001"
 work_package: "R2R-00"
 modules: []
-status: "IN_PROGRESS"
+status: "COMPLETED"
 depends_on: []
 owner: "Codex implementation coordinator"
-reviewer: ""
-review_decision: ""
-reviewed_commit: ""
+reviewer: "Repository owner (current Codex task)"
+review_decision: "APPROVED"
+reviewed_commit: "042611a70afdc97c006bf9b75ba58037cc0654a3"
 evidence_ref: "tracking/auditsphere-r2r-tracker-current-baseline-inventory.md"
-approval_ref: "Owner response in current Codex task, 2026-09-26: Approve the seven-module blueprint scope"
+approval_ref: "Owner approved STE-R2R-ARCH-001 scope, then accepted exact T001 inventory commit 042611a70afdc97c006bf9b75ba58037cc0654a3 in current Codex task on 2026-09-26"
 blocked_reason: ""
 branch: "master"
 issue_pr: ""
-updated_at: "2026-09-26T16:34:00+00:00"
+updated_at: "2026-09-26T17:39:32+00:00"
 ---
 # T001 — Approve scope and inventory the current implementation
 
@@ -115,12 +115,12 @@ Use pure xUnit for deterministic rules, real PostgreSQL for persistence/concurre
 ## Completion checklist
 
 <!-- COMPLETION-CHECKLIST -->
-- [ ] Current checkout, existing symbols and applicable approvals were inspected; scope conflicts are resolved or the task is BLOCKED.
-- [ ] All hard dependencies are COMPLETED and their exact contracts/evidence were consumed.
-- [ ] The task-specific work and every applicable invariant/owned request are implemented or proven already implemented; no placeholder outcome remains.
-- [ ] Applicable migrations, validation, authorization, concurrency and source/history preservation checks have observed results.
-- [ ] Required task-level tests pass with named expected/observed outcomes; future integration tests remain explicitly tracked instead of claimed complete.
-- [ ] The independent reviewer accepted the exact reviewed commit and evidence; downstream owners received the handoff.
+- [x] Current checkout, existing symbols and applicable approvals were inspected; the Purview/eSignature conflict has a scoped owner decision.
+- [x] T001 has no hard dependencies; its baseline is the input for T002.
+- [x] The T001 inventory and conflict register are recorded; no public command, schema or business aggregate is assigned to this task.
+- [x] No migration was applicable. Source and authorization boundaries were inspected; task-pack validation and the later no-drift/full-suite results are recorded in `docs/execution/status.json` without claiming live acceptance.
+- [x] Task-pack validation and 21/21 helper self-tests passed for the inventory; future module/integration acceptance remains tracked separately.
+- [x] The repository owner accepted the exact reviewed inventory commit in the current Codex task; T002 consumes the linked handoff.
 <!-- END-COMPLETION-CHECKLIST -->
 
 ## Evidence and handoff record
@@ -128,11 +128,11 @@ Use pure xUnit for deterministic rules, real PostgreSQL for persistence/concurre
 | Field | Value to record |
 |---|---|
 | Inspected baseline and reused symbols | [Current-code inventory and conflict register](../../tracking/auditsphere-r2r-tracker-current-baseline-inventory.md); exact inspected source SHA in `docs/execution/status.json` |
-| Code commit / schema / deployed build if applicable | Documentation inventory only; no schema, deployment, or business-code change. Commit and check results are tracked in `docs/execution/status.json`. |
+| Code commit / schema / deployed build if applicable | Reviewed inventory commit `042611a70afdc97c006bf9b75ba58037cc0654a3`; documentation only, with no schema, deployment, or business-code change. Verification results are tracked in `docs/execution/status.json`. |
 | Requirement → assertion → command/run → observed result | Seven-module owner scope decision recorded; source-symbol and route searches located existing M20–M26 candidates. Task-pack validation and documentation checks are recorded in `docs/execution/status.json`. No new full-suite execution is claimed for this documentation slice. |
 | Policy / scope approval reference | Owner response in current Codex task on 2026-09-26: “Approve the seven-module blueprint scope.” |
-| Known limitations / exact blocker | Proposed shared-contract equivalence and transaction ownership remain T002 decisions. Independent T001 review and exact reviewed-commit acceptance are outstanding; external live gates remain separate. |
+| Known limitations / exact blocker | Proposed shared-contract equivalence and transaction ownership remain T002 decisions. Live provider and production acceptance remain separate external gates. |
 | Exported contract / manifest / artifact references for consumers | [Current-code inventory](../../tracking/auditsphere-r2r-tracker-current-baseline-inventory.md) and [command/query ownership registry](../../coverage/auditsphere-r2r-tracker-command-query-ownership.md); no new public contract exported. |
-| Reviewer and acceptance decision | Pending independent review; T001 remains IN_PROGRESS. |
+| Reviewer and acceptance decision | Repository owner accepted exact inventory commit `042611a70afdc97c006bf9b75ba58037cc0654a3` in the current Codex task. This is T001 architecture-scope acceptance, not production or whole-module acceptance. |
 
 **Tracking-only note:** filling these fields or running the status helper is not proof that tests ran, a professional approval, merge authorization or permission to perform a tenant operation.

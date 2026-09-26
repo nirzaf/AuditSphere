@@ -1,6 +1,6 @@
 # R2R current-code baseline and scope decision
 
-This is the working T001 inventory for the owner-approved STE-R2R-ARCH-001 seven-module scope. The owner approved that scope in the current Codex task. The exact inspected checkout SHA and verification facts are recorded only in `docs/execution/status.json`. This inventory is a locator and decision register, not acceptance of the task pack or a production claim. Independent T001 review remains open.
+This is the T001 inventory for the owner-approved STE-R2R-ARCH-001 seven-module scope. The owner approved that scope and accepted the exact reviewed inventory commit in the current Codex task; the task card records the review identity and decision. The exact inspected checkout SHA and verification facts are recorded only in `docs/execution/status.json`. This inventory is a locator and decision register, not acceptance of the whole task pack or a production claim.
 
 ## Scope and conflict decisions
 
@@ -30,4 +30,4 @@ Each EXISTING entry identifies code that can be reused, not proof that its whole
 
 ## Handoff and open acceptance
 
-T002 should consume this ledger with the [command/query ownership registry](../coverage/auditsphere-r2r-tracker-command-query-ownership.md) and resolve shared-contract/transaction ownership before implementation. The system specification needs a controlled reconciliation of obsolete provider wording without weakening release or records gates. T001 remains in progress until the required checks, exact reviewed commit, and independent reviewer decision are recorded in its task card. Live Microsoft 365, selected-site, and production release acceptance remain external gates.
+T002 should consume this ledger with the [command/query ownership registry](../coverage/auditsphere-r2r-tracker-command-query-ownership.md) and resolve shared-contract/transaction ownership before implementation. The system specification needs a controlled reconciliation of obsolete provider wording without weakening release or records gates. The T001 task card records its independent acceptance and exact reviewed commit. Live Microsoft 365, selected-site, and production release acceptance remain external gates.

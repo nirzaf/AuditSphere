@@ -28,7 +28,9 @@ class TaskStatusTests(unittest.TestCase):
         tasks=helper.load_tasks()
         row,metadata,body=tasks['T001']
         metadata['status']='NOT_STARTED'
-        helper.write_task(self.root/row['file'],metadata,body)
+        for field in ('reviewer','review_decision','reviewed_commit','evidence_ref','approval_ref'):
+            metadata[field]=''
+        helper.write_task(self.root/row['file'],metadata,body.replace('- [x]','- [ ]'))
         helper.refresh()
     def tearDown(self):
         helper.ROOT=ORIGINAL

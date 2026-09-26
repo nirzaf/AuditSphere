@@ -167,9 +167,9 @@ These are separate layers and must not be merged into one module implementation.
 |---|---:|
 | Numbered implementation tasks | 75 |
 | Original work packages | 21 |
-| COMPLETED | 0 |
+| COMPLETED | 1 |
 | IN_REVIEW | 0 |
-| IN_PROGRESS | 1 |
+| IN_PROGRESS | 0 |
 | BLOCKED | 0 |
 | REOPENED | 0 |
 | NOT_STARTED | 74 |
@@ -192,7 +192,7 @@ These are task-tracking totals, not a software-completion percentage or a transf
 
 
 <!-- BEGIN NEXT -->
-No unstarted task is ready. Finish/review active tasks or resolve the recorded blockers.
+- [T002](tasks/00_Baseline/auditsphere-r2r-task-t002-architecture-contracts-transaction-ownership.md) — Approve architecture, contracts and transaction ownership
 <!-- END NEXT -->
 
 
@@ -621,13 +621,13 @@ The following table is the only master navigation/status index. Each task opens 
 <a id="wp-00"></a>
 ### R2R-00 — Pin current SHA; inventory existing models/services/migrations/UI/tests; reconcile ADRs and scope conflicts
 
-**Original dependencies:** Owner review of this draft. **Task gate:** 0/3 COMPLETED.
+**Original dependencies:** Owner review of this draft. **Task gate:** 1/3 COMPLETED.
 **Original exit evidence:** Existing/new symbol ledger, policy approvals, preserved baseline tests and dependency licence decisions.
 
 | Done | Task file | Direct dependencies | Status | Readiness | Owner |
 |---|---|---|---|---|---|
-| [ ] | [T001 — Approve scope and inventory the current implementation](tasks/00_Baseline/auditsphere-r2r-task-t001-baseline-current-state-inventory.md) | Owner/scope review | IN_PROGRESS | IN_PROGRESS | Codex implementation coordinator |
-| [ ] | [T002 — Approve architecture, contracts and transaction ownership](tasks/00_Baseline/auditsphere-r2r-task-t002-architecture-contracts-transaction-ownership.md) | [T001](tasks/00_Baseline/auditsphere-r2r-task-t001-baseline-current-state-inventory.md) | NOT_STARTED | WAITING: T001 | Unassigned |
+| [x] | [T001 — Approve scope and inventory the current implementation](tasks/00_Baseline/auditsphere-r2r-task-t001-baseline-current-state-inventory.md) | Owner/scope review | COMPLETED | COMPLETED | Codex implementation coordinator |
+| [ ] | [T002 — Approve architecture, contracts and transaction ownership](tasks/00_Baseline/auditsphere-r2r-task-t002-architecture-contracts-transaction-ownership.md) | [T001](tasks/00_Baseline/auditsphere-r2r-task-t001-baseline-current-state-inventory.md) | NOT_STARTED | READY | Unassigned |
 | [ ] | [T003 — Approve accounting policies, resource bounds and golden fixtures](tasks/00_Baseline/auditsphere-r2r-task-t003-accounting-policies-resource-bounds-golden-fixtures.md) | [T002](tasks/00_Baseline/auditsphere-r2r-task-t002-architecture-contracts-transaction-ownership.md) | NOT_STARTED | WAITING: T002 | Unassigned |
 
 <a id="wp-01"></a>

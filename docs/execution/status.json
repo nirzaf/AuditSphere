@@ -226,7 +226,7 @@
       "remoteSourceCommit": "13f31321d9abc270703a3d6ac74a2ffe30b2efc3",
       "scopeDecision": "Owner approved STE-R2R-ARCH-001 seven-module scope in the current Codex task. Purview and eSignature provider integration remain excluded by the owner's explicit issue instruction and AGENTS.md; existing exact evidence, release and records gates remain required.",
       "inventory": "docs/task_breakdown/tracking/auditsphere-r2r-tracker-current-baseline-inventory.md",
-      "taskState": "T001 IN_PROGRESS; independent reviewer, exact reviewed commit and acceptance pending. No R2R task or whole module is claimed complete.",
+      "taskState": "T001 COMPLETED after repository-owner independent acceptance of exact inventory commit 042611a70afdc97c006bf9b75ba58037cc0654a3 in the current Codex task. T002 and downstream R2R tasks remain incomplete; no whole module or production acceptance is claimed.",
       "checks": "PASS: task-pack validation (75 task cards and 2477 local links), task-status self-tests 21/21, Markdown documentation health (122 files and 2339 links), filename policy, JSON parse and git diff --check. No new .NET build, suite, EF model or live provider test is claimed."
     },
     "wikiDeploymentScopeUpdate": {
@@ -262,7 +262,7 @@
     "packageId": "Audit workflow gap-closure and client accounting implementation",
     "implementationStatus": "IN_PROGRESS",
     "acceptanceStatus": "LOCAL_VERIFIED",
-    "scope": "AS-PAR-002 firm-Finance current-access slice locally verified; remaining whole-application authorization audit remains partial. T001 R2R baseline scope approved and inventory committed, with independent review pending. Live P1, P2/P3 and production gates remain external.",
+    "scope": "AS-PAR-002 firm-Finance current-access slice locally verified; remaining whole-application authorization audit remains partial. T001 R2R baseline inventory accepted by the owner; T002 and downstream work remain open. Live P1, P2/P3 and production gates remain external.",
     "nextAction": "Continue remaining route/query/search/count/export/direct-command audit and eligible local provider hardening; use approved private credential and named tenant fixtures for live P1 OIDC verification when supplied. Independently review direct-main changes under P9.",
     "branch": "master"
   },

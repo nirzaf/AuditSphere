@@ -69,8 +69,8 @@ The owner approved the STE-R2R-ARCH-001 seven-module scope. T001 now has a
 that identifies reusable accounting and consolidation symbols, distinguishes
 proposed shared contracts from implemented equivalents, and records the current
 Purview/eSignature exclusion without removing release or records evidence gates.
-T001 remains in progress pending independent review; T002 transaction and
-contract decisions have not been accepted. The separate GitHub Wiki deployment
+The repository owner accepted the exact T001 inventory commit as an independent
+reviewer; T002 transaction and contract decisions have not been accepted. The separate GitHub Wiki deployment
 guidance was published under the owner's authorization and its canonical pages
 were checked after publication. Exact source and Wiki revisions and observed
 checks are in `status.json`.
