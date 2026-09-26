@@ -260,6 +260,9 @@ asynchronous actor/scope reload. A sibling-engagement route cannot leave the
 previous request visible while the new authorization decision is pending. The
 existing browser regression passed after the repair; the initial full run's
 failure and the later standalone browser result are recorded separately in
+`status.json`. A route-generation fence also discards late actor, recipient,
+reviewer and request results from an earlier navigation. The complete Release
+suite passed after that follow-up; exact counts and source identity remain in
 `status.json`.
 
 ## Release candidate access refresh
