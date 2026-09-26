@@ -401,7 +401,7 @@
       "hostedCiRun": "PASS: hosted CI run 36280238694 at exact source commit; hosted CI excludes PostgreSQL/browser suites."
     },
     "localDevelopmentMigrationPreparation": {
-      "observedAt": "2026-09-26T23:50:00Z",
+      "observedAt": "2026-09-26T23:46:04Z",
       "sourceDatabase": "Loopback PostgreSQL 18.6 auditsphere development database",
       "appliedMigrations": 91,
       "latestAppliedMigration": "20260922140527_M365InvitationEvidenceAction",
