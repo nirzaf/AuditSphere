@@ -18,7 +18,7 @@
     "postgres": "18.6 loopback development profile"
   },
   "verification": {
-    "ciLatestHostedRun": "IN_PROGRESS at observation: AuditSphereOps CI run 36260843879 targets exact master source SHA 11b3f3779866a34146980da9e9b942e10846adc6. Prior T001 acceptance run 36259885615 succeeded. CI runs build/model checks and does not establish test or production acceptance.",
+    "ciLatestHostedRun": "SUCCESS at observation: AuditSphereOps CI run 36260977433 targets exact master SHA 4cd601bbc39da8dd75dfd783f31cdd067ac92943, including the R2R group-authority source. Earlier source/evidence runs 36260843879 and 36260903773 were cancelled after superseding pushes. CI runs build/model checks and does not establish test or production acceptance.",
     "ciLockedRestore": "PASS locally: SDK policy regression check rejected latestPatch and passed after global.json required rollForward=disable for SDK 10.0.300. CI now installs from global.json and checks SDK selection before locked restore. dotnet tool restore; dotnet restore AuditSphereOps.slnx --locked-mode; dotnet build AuditSphereOps.slnx --no-restore --configuration Release all passed. Actionlint v1.7.7 passed with ShellCheck/Pyflakes disabled. Package lock files unchanged. Addresses run 35920521850 NU1004 for SDK-injected Microsoft.AspNetCore.App.Internal.Assets 10.0.11 versus locked 10.0.8; local SDK 10.0.300 evaluates 10.0.8. Full tests and hosted execution of this fix not rerun.",
     "ciWorkflowValidation": "PASS locally: actionlint v1.7.7 reproduced the forbidden runner context in job-level env, then exited 0 after E2E_RUN_ROOT initialization moved to a step using RUNNER_TEMP and GITHUB_ENV. Command: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7 -shellcheck= -pyflakes= .github/workflows/ci.yml. Bash assertion also passed for a temporary path containing spaces and run/attempt suffix 393-2. ShellCheck/Pyflakes disabled; full .NET suite and hosted GitHub Actions not rerun for this workflow-only fix.",
     "build": "PASS at R2R T002 group-authority source commit 11b3f3779866a34146980da9e9b942e10846adc6: dotnet build src/AuditSphereOps.Web/AuditSphereOps.Web.csproj --no-restore --configuration Release; 0 warnings/errors on SDK 10.0.300.",
@@ -136,6 +136,13 @@
       "modelDrift": "PASS: /usr/local/share/dotnet/dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Web --configuration Release; no pending model changes.",
       "documentation": "PASS: task-pack validation, task-status self-tests 21/21, Markdown filename policy and git diff --check.",
       "delivery": "Code and handoff commit pushed directly to origin/master and remote observed at sourceCommit. P1 remains BLOCKED_EXTERNAL pending approved private credential and identity fixtures."
+    },
+    "developmentTenantSubscriptionObservation": {
+      "observedAt": "2026-09-26T18:05:22Z",
+      "account": "Signed-in EasyGuide development administrator",
+      "surface": "Azure portal Resource Manager > Subscriptions in the EasyGuide directory",
+      "result": "The portal displayed Subscriptions: Filtered (0 of 0) and Showing 0 to 0 of 0. No subscription-backed Azure resource was created or modified.",
+      "boundary": "This observation does not prove whether another directory or account has a subscription, nor does it prevent Entra-only administration. P1 still needs a privately stored OIDC credential and approved identity fixtures. P7/P8 production infrastructure requires a separately accessible approved environment."
     },
     "incompleteOidcConfigurationGuard": {
       "scope": "P1 local OIDC configuration fail-closed startup guard",

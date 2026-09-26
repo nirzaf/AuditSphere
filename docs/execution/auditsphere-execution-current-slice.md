@@ -144,6 +144,9 @@ not a live OIDC login test, a selected-site provider test, or production
 acceptance. A private credential reference and approved staff/client/negative
 identity fixtures are still required before P1 can be exercised. Exact checks
 and external gate state are recorded in `status.json`.
+The signed-in EasyGuide directory currently shows no Azure subscriptions
+accessible to this account, so subscription-backed development infrastructure
+cannot be provisioned there yet. Entra app configuration remains separate.
 
 ## Client portal landing access refresh
 
