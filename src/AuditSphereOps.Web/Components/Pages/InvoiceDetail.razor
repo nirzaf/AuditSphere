@@ -33,6 +33,7 @@ else
   <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="invoice-heading" role="region">
     <p class="eyebrow">Status: @_invoice.Status (Rev @_invoice.Revision)</p>
     <h2 id="invoice-heading">@_invoice.InvoiceNumber</h2>
+    <MudButton Variant="Variant.Outlined" Class="btn-secondary mb-2" OnClick="RefreshInvoiceAsync" Disabled="@_busy">Refresh invoice</MudButton>
     <dl class="details">
       <dt>Invoice ID</dt><dd><code>@_invoice.Id</code></dd>
       <dt>Currency</dt><dd>@(_invoice.Currency ?? "Default")</dd>
@@ -166,6 +167,29 @@ else
     if (_routeInitialized && _loadedInvoiceId == InvoiceId) return;
     _routeInitialized = true;
     _loadedInvoiceId = InvoiceId;
+    var generation = ++_loadGeneration;
+    ClearInvoice();
+    _loading = true;
+    try
+    {
+      _actor = await ActorResolver.ResolveAsync();
+      if (_actor is not null)
+      {
+        _isAuthorized = _actor.Roles.Any(x => x is "FinanceManager" or "FinanceReviewer");
+        _canAct = _isAuthorized;
+        if (_isAuthorized)
+          await LoadInvoiceAsync(InvoiceId, generation);
+      }
+    }
+    finally
+    {
+      if (generation == _loadGeneration) _loading = false;
+    }
+  }
+
+  private async Task RefreshInvoiceAsync()
+  {
+    if (_busy) return;
     var generation = ++_loadGeneration;
     ClearInvoice();
     _loading = true;

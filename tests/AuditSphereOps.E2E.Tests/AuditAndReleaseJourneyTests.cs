@@ -499,6 +499,118 @@ public sealed class AuditAndReleaseJourneyTests
   }
 
   [Fact]
+  [Trait("CaseId", "AS-PAR-002-FINDING-REFRESH-REVOKED-01")]
+  public async Task FindingRefreshClearsAfterGrantRevocation()
+  {
+    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false,
+      caseId: "AS-PAR-002-FINDING-REFRESH-REVOKED-01");
+    var findingId = Guid.NewGuid();
+    await using (var db = host.CreateDbContext())
+    {
+      db.RoleGrants.Add(PbcSeed.Grant(host.Fixture.FirmId, host.Fixture.Staff, "Partner",
+        host.Fixture.ClientId, host.Fixture.EngagementId));
+      db.Findings.Add(new Finding
+      {
+        Id = findingId, FirmId = host.Fixture.FirmId, ClientId = host.Fixture.ClientId,
+        EngagementId = host.Fixture.EngagementId, ActorId = host.Fixture.Staff.Id,
+        FindingType = "Understated revenue", ImpactDescription = "Synthetic revocation finding impact",
+        Status = FindingStatuses.Open, CreatedAt = DateTimeOffset.UtcNow
+      });
+      await db.SaveChangesAsync();
+    }
+
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    await using var context = await browser.NewContextAsync();
+    var page = await context.NewPageAsync();
+    var diagnostics = new List<string>();
+    var connected = WaitForCircuitConnectionAsync(page, diagnostics);
+    await page.GotoAsync(SignInUrl(host.StaffUrl, $"/app/findings/{findingId:D}"));
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Audit Finding" }).WaitForAsync();
+    await connected;
+    await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new() { Timeout = 5000 });
+    await Assertions.Expect(page.GetByText("Synthetic revocation finding impact")).ToBeVisibleAsync();
+
+    await using (var db = host.CreateDbContext())
+    {
+      var grants = await db.RoleGrants.Where(x => x.FirmId == host.Fixture.FirmId &&
+        x.UserId == host.Fixture.Staff.Id && x.RevokedAt == null &&
+        (x.Role == "Partner" || x.Role == "Staff")).ToListAsync();
+      Assert.NotEmpty(grants);
+      foreach (var grant in grants)
+      {
+        var revoked = await RoleAdministrationService.RevokeRoleGrantAsync(db,
+          PbcSeed.Actor(host.Fixture.Admin, "Administrator"), new RevokeRoleGrantRequest(grant.Id));
+        Assert.True(revoked.Succeeded, revoked.Message);
+      }
+    }
+
+    await page.GetByRole(AriaRole.Button, new() { Name = "Refresh finding" }).ClickAsync();
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Finding unavailable" }).WaitForAsync();
+    var body = await page.Locator("body").InnerTextAsync();
+    Assert.DoesNotContain("Understated revenue", body);
+    Assert.DoesNotContain("Synthetic revocation finding impact", body);
+    Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
+  }
+
+  [Fact]
+  [Trait("CaseId", "AS-PAR-002-AUDIT-PLAN-REFRESH-REVOKED-01")]
+  public async Task AuditPlanRefreshClearsAfterGrantRevocation()
+  {
+    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false,
+      caseId: "AS-PAR-002-AUDIT-PLAN-REFRESH-REVOKED-01");
+    var assessmentId = Guid.NewGuid();
+    await using (var db = host.CreateDbContext())
+    {
+      db.RoleGrants.Add(PbcSeed.Grant(host.Fixture.FirmId, host.Fixture.Staff, "Partner",
+        host.Fixture.ClientId, host.Fixture.EngagementId));
+      db.MaterialityAssessments.Add(new MaterialityAssessment
+      {
+        Id = assessmentId, FirmId = host.Fixture.FirmId, ClientId = host.Fixture.ClientId,
+        EngagementId = host.Fixture.EngagementId, ActorId = host.Fixture.Staff.Id,
+        BenchmarkSource = "Total assets", BenchmarkVersion = "AFS-v1", Rationale = "Synthetic revocation fixture",
+        BenchmarkAmount = 1_000_000m, RateApplied = 0.05m, OverallMateriality = 50_000m,
+        PerformanceMateriality = 37_500m, ClearlyTrivialThreshold = 2_500m, Status = MaterialityStatuses.Draft,
+        CreatedAt = DateTimeOffset.UtcNow
+      });
+      await db.SaveChangesAsync();
+    }
+
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    await using var context = await browser.NewContextAsync();
+    var page = await context.NewPageAsync();
+    var diagnostics = new List<string>();
+    var connected = WaitForCircuitConnectionAsync(page, diagnostics);
+    await page.GotoAsync(SignInUrl(host.StaffUrl, $"/app/audit/plans/{host.Fixture.EngagementId:D}"));
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Audit Plan & Strategy" }).WaitForAsync();
+    await connected;
+    await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new() { Timeout = 5000 });
+    await Assertions.Expect(page.GetByText("Total assets")).ToBeVisibleAsync();
+
+    await using (var db = host.CreateDbContext())
+    {
+      var grants = await db.RoleGrants.Where(x => x.FirmId == host.Fixture.FirmId &&
+        x.UserId == host.Fixture.Staff.Id && x.RevokedAt == null &&
+        (x.Role == "Partner" || x.Role == "Staff")).ToListAsync();
+      Assert.NotEmpty(grants);
+      foreach (var grant in grants)
+      {
+        var revoked = await RoleAdministrationService.RevokeRoleGrantAsync(db,
+          PbcSeed.Actor(host.Fixture.Admin, "Administrator"), new RevokeRoleGrantRequest(grant.Id));
+        Assert.True(revoked.Succeeded, revoked.Message);
+      }
+    }
+
+    await page.GetByRole(AriaRole.Button, new() { Name = "Refresh plan" }).ClickAsync();
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable" }).WaitForAsync();
+    var body = await page.Locator("body").InnerTextAsync();
+    Assert.DoesNotContain("Total assets", body);
+    Assert.DoesNotContain("1,000,000.00", body);
+    Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
+  }
+
+  [Fact]
   [Trait("CaseId", "AS-PAR-009-AGGREGATE-DIFFERENCES-UI-01")]
   public async Task AuditFieldworkRecordsHumanAggregateConclusionBoundToDifferenceSchedule()
   {

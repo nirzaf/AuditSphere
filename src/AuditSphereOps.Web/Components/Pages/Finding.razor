@@ -43,6 +43,7 @@ else if (_finding is null)
 else
 {
     <div class="finding-shell">
+        <MudButton Variant="Variant.Outlined" Class="btn-secondary mb-2" OnClick="RefreshFindingAsync" Disabled="@_busy">Refresh finding</MudButton>
 
         <MudPaper Class="pa-4 my-4" Elevation="1">
             <h2>Finding Details (§23)</h2>
@@ -145,6 +146,13 @@ else
         _draftCorrected = _finding.Corrected;
         _engagement = await db.Engagements.AsNoTracking()
             .FirstOrDefaultAsync(e => e.Id == _finding.EngagementId && e.FirmId == actor.FirmId);
+    }
+
+    private async Task RefreshFindingAsync()
+    {
+        if (_busy) return;
+        ClearFinding();
+        await RefreshAsync();
     }
 
     private async Task RecordResponseAsync()

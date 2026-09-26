@@ -288,6 +288,72 @@ public sealed class PracticeBillingLedgerJourneyTests
   }
 
   [Fact]
+  [Trait("CaseId", "AS-PAR-002-INVOICE-REFRESH-REVOKED-01")]
+  public async Task InvoiceRefreshClearsAfterGrantRevocation()
+  {
+    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false,
+      caseId: "AS-PAR-002-INVOICE-REFRESH-REVOKED-01");
+    var invoiceId = Guid.NewGuid();
+    await using (var db = host.CreateDbContext())
+    {
+      db.RoleGrants.Add(PbcSeed.Grant(host.Fixture.FirmId, host.Fixture.Staff, "FinanceManager",
+        host.Fixture.ClientId));
+      var account = new BillingAccount
+      {
+        Id = Guid.NewGuid(), FirmId = host.Fixture.FirmId, PracticeClientId = host.Fixture.ClientId,
+        Currency = "QAR", CreatedAt = DateTimeOffset.UtcNow
+      };
+      db.BillingAccounts.Add(account);
+      db.Invoices.Add(new Invoice
+      {
+        Id = invoiceId, FirmId = host.Fixture.FirmId, BillingAccountId = account.Id,
+        InvoiceNumber = "SYN-E2E-REVOKE-INV-001", Currency = "QAR",
+        Subtotal = 750m, Tax = 0m, Total = 750m, Status = BillingStates.InvoiceSent,
+        CreatedByUserId = host.Fixture.Staff.Id, CreatedAt = DateTimeOffset.UtcNow
+      });
+      db.InvoiceLines.Add(new InvoiceLine
+      {
+        Id = Guid.NewGuid(), FirmId = host.Fixture.FirmId, InvoiceId = invoiceId,
+        Description = "Synthetic revocation line", Quantity = 1m, UnitPrice = 750m,
+        LineTotal = 750m
+      });
+      await db.SaveChangesAsync();
+    }
+
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    await using var context = await browser.NewContextAsync();
+    var page = await context.NewPageAsync();
+    var diagnostics = new List<string>();
+    var connected = WaitForCircuitConnectionAsync(page, diagnostics);
+    await page.GotoAsync(SignInUrl(host.StaffUrl, $"/app/practice/invoices/{invoiceId:D}"));
+    await page.GetByText("SYN-E2E-REVOKE-INV-001", new() { Exact = true }).WaitForAsync();
+    await connected;
+    await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new() { Timeout = 5000 });
+
+    await using (var db = host.CreateDbContext())
+    {
+      var grants = await db.RoleGrants.Where(x => x.FirmId == host.Fixture.FirmId &&
+        x.UserId == host.Fixture.Staff.Id && x.RevokedAt == null &&
+        x.Role == "FinanceManager").ToListAsync();
+      Assert.NotEmpty(grants);
+      foreach (var grant in grants)
+      {
+        var revoked = await RoleAdministrationService.RevokeRoleGrantAsync(db,
+          PbcSeed.Actor(host.Fixture.Admin, "Administrator"), new RevokeRoleGrantRequest(grant.Id));
+        Assert.True(revoked.Succeeded, revoked.Message);
+      }
+    }
+
+    await page.GetByRole(AriaRole.Button, new() { Name = "Refresh invoice" }).ClickAsync();
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable" }).WaitForAsync();
+    var body = await page.Locator("body").InnerTextAsync();
+    Assert.DoesNotContain("SYN-E2E-REVOKE-INV-001", body);
+    Assert.DoesNotContain("Synthetic revocation line", body);
+    Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
+  }
+
+  [Fact]
   [Trait("CaseId", "AS-PAR-009-PROPOSAL-READ-01")]
   public async Task ProposalDetailShowsPersistedFirmWideProposalAndDeniesScopedIdentity()
   {

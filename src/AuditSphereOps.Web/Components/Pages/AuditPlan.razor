@@ -54,6 +54,7 @@ else if (_engagement is null)
 else
 {
     <div class="plan-shell">
+        <MudButton Variant="Variant.Outlined" Class="btn-secondary mb-2" OnClick="RefreshPlanAsync" Disabled="@_loading">Refresh plan</MudButton>
 
         <!-- Materiality -->
         <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="materiality-heading" role="region">
@@ -373,6 +374,28 @@ else
         {
             _actor = await ActorResolver.ResolveAsync();
             if (_actor is not null && requestedEngagementId.HasValue)
+            {
+                _effectiveEngagementId = requestedEngagementId;
+                await RefreshAsync(generation);
+            }
+        }
+        finally
+        {
+            if (generation == _loadGeneration) _loading = false;
+        }
+    }
+
+    private async Task RefreshPlanAsync()
+    {
+        var requestedEngagementId = EngagementId ?? Id;
+        if (!requestedEngagementId.HasValue) return;
+        var generation = ++_loadGeneration;
+        ClearPlan();
+        _loading = true;
+        try
+        {
+            _actor = await ActorResolver.ResolveAsync();
+            if (_actor is not null)
             {
                 _effectiveEngagementId = requestedEngagementId;
                 await RefreshAsync(generation);

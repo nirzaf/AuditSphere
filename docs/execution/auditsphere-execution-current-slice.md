@@ -491,6 +491,28 @@ review and explicit merge authorization before advancing acceptance.
   rule, authorization decision or persistence change; the reload path simply
   makes the existing fail-closed reauthorization reachable at any time.
 
+### 2.9 Revocation-Refresh Completion (finding, audit plan, invoice detail)
+
+- **Refresh affordances added to the last three screens:** "Refresh finding"
+  (`RefreshFindingAsync`: clear + re-run the scope-and-grant-authorizing load),
+  "Refresh plan" (`RefreshPlanAsync`: generation-guarded clear + reload through
+  the same path the route parameters use) and "Refresh invoice"
+  (`RefreshInvoiceAsync`: generation-guarded clear + role re-resolution +
+  scoped load). All three handlers re-resolve the actor and re-run the
+  authorization decision, so a revoked user gets the fail-cleared denial state.
+- **Three new journeys:** `FindingRefreshClearsAfterGrantRevocation`,
+  `AuditPlanRefreshClearsAfterGrantRevocation` and
+  `InvoiceRefreshClearsAfterGrantRevocation` follow the established
+  revoke-while-open pattern (revoke via
+  `RoleAdministrationService.RevokeRoleGrantAsync`, click refresh, assert the
+  denial heading with every projection cleared, zero page errors).
+- **Observed:** the three focused journeys pass 3/3; complete suite Domain
+  348/348, Api 7/7, E2E 82/83 on the shared tree — the single failure
+  (`FinanceManagerScopedToAnotherClientCannotViewInvoiceOrFallbackBalance`)
+  is the documented intermittent-under-load pattern and passes in isolation
+  and together with both new invoice journeys. No business rule, authorization
+  decision or persistence change.
+
 ### 2.4 Documentation Reality Audit
 
 - **Scope:** descriptive/current Markdown reconciled against implementation and
