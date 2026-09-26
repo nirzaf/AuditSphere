@@ -28,6 +28,17 @@
 
 ---
 
+## AS-PAR-002 practice lead current-access refresh
+
+The practice-leads workbench now reads a bounded firm-wide commercial list
+through `PracticeLeadQuery`, which rechecks the grant after reading. Explicit
+refresh clears prior lead rows and form drafts, resolves the current actor,
+and fences older reads by generation and session epoch. Lead commands retain
+the existing guarded Application service and reload the protected view after
+success. A browser regression covers same-document grant revocation and lead
+removal. This is a bounded authorization slice; exact results are in
+`status.json`.
+
 ## AS-PAR-002 Operations current-access refresh
 
 The Operations workbench now clears its redacted ledger, operating mode,

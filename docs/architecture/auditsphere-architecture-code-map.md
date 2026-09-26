@@ -446,7 +446,7 @@ identities; provider acceptance (Purview/eSignature) is never claimed.
 
 
 
-- Application: `Application/Practice/PracticeCrmService.cs` (CRM / proposals), `PracticeTimeService.cs` (time / budgets), `BillingService.cs` (billing), `LedgerService.cs` (firm financial ledger)
+- Application: `Application/Practice/PracticeCrmService.cs` (CRM / proposals), `PracticeLeadQuery.cs` (current-access lead list), `PracticeTimeService.cs` (time / budgets), `BillingService.cs` (billing), `LedgerService.cs` (firm financial ledger)
 
 
 

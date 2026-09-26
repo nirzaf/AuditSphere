@@ -404,6 +404,55 @@ public sealed class ClientScopeJourneyTests
   }
 
   [Fact]
+  [Trait("CaseId", "AS-PAR-002-LEADS-REVOKE-01")]
+  public async Task PracticeLeadsRefreshClearsCommercialRowsAfterGrantRevocation()
+  {
+    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false,
+      caseId: "AS-PAR-002-LEADS-REVOKE-01");
+    var commercialUser = PbcSeed.User(host.Fixture.FirmId, "Staff");
+    const string privateLead = "SYN-PAR-002-PRIVATE-LEAD";
+    Guid grantId;
+    await using (var db = host.CreateDbContext())
+    {
+      db.Users.Add(commercialUser);
+      var grant = PbcSeed.Grant(host.Fixture.FirmId, commercialUser, "RelationshipManager");
+      grantId = grant.Id;
+      db.RoleGrants.Add(grant);
+      db.Leads.Add(new Lead
+      {
+        Id = Guid.NewGuid(), FirmId = host.Fixture.FirmId, Name = privateLead,
+        Source = "Synthetic regression fixture", Status = CrmStates.LeadNew,
+        CreatedAt = DateTimeOffset.UtcNow
+      });
+      await db.SaveChangesAsync();
+    }
+
+    var origin = await host.StartWebForIdentityAsync(commercialUser);
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    await using var context = await browser.NewContextAsync();
+    var page = await context.NewPageAsync();
+    var diagnostics = new List<string>();
+    var connected = WaitForCircuitConnectionAsync(page, diagnostics);
+    await page.GotoAsync(SignInUrl(origin, "/app/practice/leads"));
+    await page.GetByText(privateLead, new() { Exact = true }).WaitForAsync();
+    await connected;
+    var documentToken = await page.EvaluateAsync<string>("window.__leadsToken = crypto.randomUUID()");
+
+    await using (var db = host.CreateDbContext())
+    {
+      var revoked = await RoleAdministrationService.RevokeRoleGrantAsync(db,
+        PbcSeed.Actor(host.Fixture.Admin, "Administrator"), new RevokeRoleGrantRequest(grantId));
+      Assert.True(revoked.Succeeded, revoked.Message);
+    }
+    await page.GetByRole(AriaRole.Button, new() { Name = "Refresh leads" }).ClickAsync();
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable" }).WaitForAsync();
+    Assert.DoesNotContain(privateLead, await page.Locator("body").InnerTextAsync());
+    Assert.Equal(documentToken, await page.EvaluateAsync<string>("window.__leadsToken"));
+    Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
+  }
+
+  [Fact]
   [Trait("CaseId", "AS-PAR-002-PORTFOLIO-READ-01")]
   public async Task ClientIdentityWithErroneousFirmWideStaffGrantCannotViewPortfolio()
   {

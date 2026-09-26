@@ -10,6 +10,7 @@
 <PageTitle>Practice leads</PageTitle>
 <MudLink Href="/app">← Back to portfolio</MudLink>
 <PageHeader Title="Practice leads" Description="Commercial opportunity progression for the current firm scope only. Converting a qualified lead requires separate client acceptance and credit decisions." />
+<MudButton Color="Color.Primary" Variant="Variant.Outlined" Class="button-secondary" OnClick="LoadLeadsAsync" Disabled="@(_loading || _busy)">Refresh leads</MudButton>
 
 @if (_loading)
 {
@@ -102,83 +103,107 @@ else
 }
 
 @code {
-  private static readonly string[] CommercialRoles = ["Administrator", "Partner", "Manager", "RelationshipManager"];
-
   private ActorContext? _actor;
   private bool _isAuthorized;
-  private List<Lead> _leads = [];
+  private List<PracticeLeadListItem> _leads = [];
   private CommandResult? _result;
   private string? _successMessage;
   private bool _loading = true;
   private bool _busy;
+  private long _loadGeneration;
 
   private string _newName = string.Empty;
   private string _newSource = string.Empty;
   private string? _newContactName;
   private string? _newContactEmail;
 
-  protected override async Task OnInitializedAsync()
+  protected override Task OnInitializedAsync() => LoadLeadsAsync();
+
+  private void ClearProtectedState()
   {
-    _actor = await ActorResolver.ResolveAsync();
-    await LoadLeadsAsync();
-    _loading = false;
+    _actor = null;
+    _isAuthorized = false;
+    _leads = [];
+    _result = null;
+    _successMessage = null;
+    _newName = _newSource = string.Empty;
+    _newContactName = _newContactEmail = null;
   }
 
   private async Task LoadLeadsAsync()
   {
-    _leads = [];
-    _isAuthorized = false;
-    if (_actor is null) return;
-    await using var db = await DbFactory.CreateDbContextAsync();
-    var authorization = await AuthorizationDecision.AuthorizeAsync(db, _actor,
-      new AuthorizationRequest(_actor.FirmId, RequiredRoles: CommercialRoles, InternalOnly: true, RequireFirmWide: true));
-    if (!authorization.Succeeded) return;
-    _isAuthorized = true;
-    _leads = await db.Leads.AsNoTracking()
-      .Where(x => x.FirmId == _actor.FirmId)
-      .OrderByDescending(x => x.CreatedAt)
-      .ToListAsync();
+    var generation = ++_loadGeneration;
+    _loading = true;
+    ClearProtectedState();
+    try
+    {
+      var actor = await ActorResolver.ResolveAsync();
+      if (actor is null || generation != _loadGeneration) return;
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var result = await PracticeLeadQuery.ListAsync(db, actor);
+      if (!result.Succeeded || generation != _loadGeneration) return;
+      var currentActor = await ActorResolver.ResolveAsync();
+      if (currentActor is null || currentActor.UserId != actor.UserId ||
+          currentActor.FirmId != actor.FirmId || currentActor.SessionEpoch != actor.SessionEpoch ||
+          generation != _loadGeneration) return;
+      _actor = currentActor;
+      _isAuthorized = true;
+      _leads = result.Value!.ToList();
+    }
+    finally { if (generation == _loadGeneration) _loading = false; }
+  }
+
+  private async Task<ActorContext?> CurrentCommercialActorAsync()
+  {
+    if (_actor is null) return null;
+    var current = await ActorResolver.ResolveAsync();
+    if (current is null || current.UserId != _actor.UserId ||
+        current.FirmId != _actor.FirmId || current.SessionEpoch != _actor.SessionEpoch)
+    {
+      ClearProtectedState();
+      return null;
+    }
+    return current;
   }
 
   private async Task CreateLeadAsync()
   {
-    if (_actor is null || _busy) return;
-    if (string.IsNullOrWhiteSpace(_newName) || string.IsNullOrWhiteSpace(_newSource))
-    {
-      _result = CommandResult.Fail("leads.validation", "Lead name and source are required.");
-      return;
-    }
+    if (_busy) return;
     _busy = true;
     try
     {
+      var actor = await CurrentCommercialActorAsync();
+      if (actor is null) return;
+      if (string.IsNullOrWhiteSpace(_newName) || string.IsNullOrWhiteSpace(_newSource))
+      {
+        _result = CommandResult.Fail("leads.validation", "Lead name and source are required.");
+        return;
+      }
+      var request = new CreateLeadRequest(
+        _newName, _newSource, _newContactName, _newContactEmail, OwnerUserId: actor.UserId);
       await using var db = await DbFactory.CreateDbContextAsync();
-      var req = new CreateLeadRequest(
-        _newName, _newSource, _newContactName, _newContactEmail,
-        OwnerUserId: _actor.UserId);
-      var res = await PracticeCrmService.CreateLeadAsync(db, _actor, req);
-      _result = res.Succeeded ? CommandResult.Ok() : CommandResult.Fail(res.ErrorCode!, res.Message!);
+      var res = await PracticeCrmService.CreateLeadAsync(db, actor, request);
       if (res.Succeeded)
       {
-        _successMessage = "The lead was recorded successfully.";
-        Snackbar.Add(_successMessage, Severity.Success);
-        _newName = string.Empty;
-        _newSource = string.Empty;
-        _newContactName = null;
-        _newContactEmail = null;
         await LoadLeadsAsync();
+        if (_isAuthorized)
+        {
+          _result = CommandResult.Ok();
+          _successMessage = "The lead was recorded successfully.";
+          Snackbar.Add(_successMessage, Severity.Success);
+        }
       }
       else if (res.ErrorCode is ErrorCodes.ScopeDenied or ErrorCodes.GenerationStale)
-      {
-        _actor = null;
-        _isAuthorized = false;
-        _leads = [];
-      }
+        ClearProtectedState();
+      else
+        _result = CommandResult.Fail(res.ErrorCode!, res.Message!);
     }
     finally { _busy = false; }
   }
 
-  private async Task ConfirmQualifyAsync(Lead lead)
+  private async Task ConfirmQualifyAsync(PracticeLeadListItem lead)
   {
+    if (await CurrentCommercialActorAsync() is null) return;
     var parameters = new DialogParameters<ConfirmDialog>
     {
       { x => x.Message, $"Qualify lead '{lead.Name}'? Qualification continues to separate client acceptance and credit decisions." },
@@ -193,25 +218,28 @@ else
 
   private async Task QualifyLeadAsync(Guid leadId)
   {
-    if (_actor is null || _busy) return;
+    if (_busy) return;
     _busy = true;
     try
     {
+      var actor = await CurrentCommercialActorAsync();
+      if (actor is null) return;
       await using var db = await DbFactory.CreateDbContextAsync();
-      var res = await PracticeCrmService.QualifyLeadAsync(db, _actor, leadId);
-      _result = res;
+      var res = await PracticeCrmService.QualifyLeadAsync(db, actor, leadId);
       if (res.Succeeded)
       {
-        _successMessage = "The lead was qualified.";
-        Snackbar.Add(_successMessage, Severity.Success);
         await LoadLeadsAsync();
+        if (_isAuthorized)
+        {
+          _result = res;
+          _successMessage = "The lead was qualified.";
+          Snackbar.Add(_successMessage, Severity.Success);
+        }
       }
       else if (res.ErrorCode is ErrorCodes.ScopeDenied or ErrorCodes.GenerationStale)
-      {
-        _actor = null;
-        _isAuthorized = false;
-        _leads = [];
-      }
+        ClearProtectedState();
+      else
+        _result = res;
     }
     finally { _busy = false; }
   }
