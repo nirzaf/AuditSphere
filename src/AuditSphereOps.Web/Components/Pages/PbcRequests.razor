@@ -208,6 +208,7 @@ else
     _engagement = null;
     _denied = false;
     ClearInboxState();
+    StateHasChanged();
     try
     {
       _actor = await ActorResolver.ResolveAsync();
