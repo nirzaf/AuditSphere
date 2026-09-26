@@ -82,13 +82,12 @@ else
       @if (_package.Status == AccountingPackageStates.PackageValidated)
       {
         <div class="form-grid">
-          <!-- Native select retained: the review journey drives this control with Playwright SelectOptionAsync, which only works on a native <select>. -->
-          <label>Stage<select @bind="_reviewStage" required>
+          <label>Stage<MudSelect T="string" @bind-Value="_reviewStage" required>
             @foreach (var stage in ReviewStages)
             {
-              <option value="@stage">@stage</option>
+              <MudSelectItem Value="@stage">@stage</MudSelectItem>
             }
-          </select></label>
+          </MudSelect></label>
           <label>Decision<MudSelect T="string" @bind-Value="_reviewDecision" required>
             @foreach (var decision in FinancialPackageReviewDecisions.All)
             {

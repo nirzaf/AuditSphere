@@ -173,8 +173,8 @@ break. Selects under any of these contracts stay native; everything else convert
   MudBlazor. Pages migrated in slice 3: `AuditPlan` (24 controls),
   `CurrencyRemeasurement` (10 of 16; see exception 3), `PeriodRollforward`
   (12), `Microsoft365Setup` (8 of 12; see exception 4), `Administration` (11),
-  `PeriodRestatements` (9), `FinancialPackage` (4 of 5; see exception 5),
-  `ClientDetail` (4), `AssessmentDecision` (3 of 4; see exception 5),
+  `PeriodRestatements` (9), `FinancialPackage` (5 of 5),
+  `ClientDetail` (4), `AssessmentDecision` (4 of 4),
   `ClientFinancialPackage` (3), `Finding` (2), `AuditProgramLibraryPage` (2),
   `Operations` (1), `Release` (1), `AuditFieldwork` (1). Each page also
   carries an inline HTML comment documenting any retained native element and
@@ -211,13 +211,12 @@ break. Selects under any of these contracts stay native; everything else convert
      `page.Locator("#mail-state").InputValueAsync()` equal to
      `NOT_CONFIGURED`; a `MudSelect` exposes display text instead. Its text,
      password, URL inputs and manifest textarea are MudBlazor controls.
-  5. **Two selects stay native under interaction contracts:**
-     `FinancialPackage` "Stage" (the package-review journey drives it with
-     Playwright `SelectOptionAsync`) and `AssessmentDecision`
-     `#decision-outcome` (the decision journey asserts
-     `Locator("#decision-outcome")` visibility; a `MudSelect` combobox input
-     renders hidden). Both carry inline comments. Their sibling controls are
-     MudBlazor.
+  5. **`Microsoft365Setup` is the only native-`<select>` page outside draft
+     boundaries**: its journey asserts raw option values with
+     `page.Locator("#mail-state").InputValueAsync()` equal to
+     `NOT_CONFIGURED`. A `MudSelect` combobox holds display text, not the
+     stored value, so converting would weaken a raw-value assertion into a
+     display-text assertion. This is a permanent, contract-based exception.
   6. **`Workpaper` keeps 2 native `<textarea>`** (`data-draft-skip` +
      `value`/`@oninput`) because they feed the server-side working-draft
      autosave interop rather than Blazor binding.
@@ -228,6 +227,15 @@ break. Selects under any of these contracts stay native; everything else convert
      `FileList` API; `pbc-upload.js` also writes the readonly file name,
      content-type and byte-count fields by id) plus its draft-boundary
      SHA-256 field and reply box.
+- **Slice 4 completion of the former select exceptions:** the
+  `FinancialPackage` "Stage" select and the `AssessmentDecision`
+  `#decision-outcome` select are now `MudSelect`. The package-review journey
+  selects the stage through the MudBlazor popover (`SelectMudOptionAsync`:
+  open the labelled select, click the exact option) — the same value is
+  chosen and every downstream assertion is unchanged. The decision journey
+  needed no change: `#decision-outcome` moved to the visible MudSelect
+  wrapper `div`, so the visibility/absence assertions keep their original
+  strength for the partner and unauthorized-manager cases.
 
 
 
@@ -236,8 +244,17 @@ break. Selects under any of these contracts stay native; everything else convert
 - No DB migration, no business-rule/authorization change, no competing UI
   library, no unrelated refactor. MudBlazor stays isolated to
   `AuditSphereOps.Web`.
-- E2E heading/text/role selectors preserved; `draft-state.js` and
-  `pbc-upload.js` are byte-identical to `master`.
+- E2E heading/text/role selectors preserved; `pbc-upload.js` is byte-identical
+  to `master`. `draft-state.js` gained one defensive change in slice 4:
+  composite-widget internals (`<input type="hidden">`, e.g. a `MudSelect`
+  combobox mirror) are excluded from draft discovery and collection, because a
+  hidden input never carries user draft data and auto-enrolling one would
+  pollute the stored draft JSON. Visible draft-field semantics are unchanged.
+- Slice 4 route-render guarantee: `RouteRenderSmokeTests` signs in a dedicated
+  firm-wide staff identity and visits every parameterless inventoried route
+  (19 staff routes plus the client portal), asserting each page's heading
+  renders through the MudBlazor shell with no unhandled page error. Detail
+  routes with route parameters keep their dedicated seeded journeys.
 - Two E2E failures found during this slice were fixed in the UI layer, not in
   the tests:
   - `ProspectTimeBillingAndManualFirmCloseKeepTheirBoundaries` asserted the

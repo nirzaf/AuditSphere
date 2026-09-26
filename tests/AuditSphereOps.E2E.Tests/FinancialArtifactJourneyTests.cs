@@ -766,7 +766,7 @@ public sealed class FinancialArtifactJourneyTests
     await preparerPage.GetByRole(AriaRole.Heading, new() { Name = "Financial statement package" }).WaitForAsync();
     await preparerConnected;
     await preparerPage.WaitForLoadStateAsync(LoadState.NetworkIdle, new() { Timeout = 5000 });
-    await preparerPage.GetByLabel("Stage").SelectOptionAsync(FinancialPackageReviewStages.AccountingReview);
+    await SelectMudOptionAsync(preparerPage, "Stage", FinancialPackageReviewStages.AccountingReview);
     await preparerPage.GetByLabel("Evidence reference").FillAsync("Synthetic preparer must not self-review");
     await preparerPage.GetByRole(AriaRole.Button, new() { Name = "Record decision" }).ClickAsync();
     await Assertions.Expect(preparerPage.Locator(".command-result")).ToContainTextAsync("Blocked:");
@@ -792,7 +792,7 @@ public sealed class FinancialArtifactJourneyTests
     await reviewerPage.GetByRole(AriaRole.Heading, new() { Name = "Financial statement package" }).WaitForAsync();
     await reviewerConnected;
     await reviewerPage.WaitForLoadStateAsync(LoadState.NetworkIdle, new() { Timeout = 5000 });
-    await reviewerPage.GetByLabel("Stage").SelectOptionAsync(FinancialPackageReviewStages.AccountingReview);
+    await SelectMudOptionAsync(reviewerPage, "Stage", FinancialPackageReviewStages.AccountingReview);
     await reviewerPage.GetByLabel("Evidence reference").FillAsync("Synthetic independent reviewer sign-off");
     var recordButton = reviewerPage.GetByRole(AriaRole.Button, new() { Name = "Record decision" });
     Assert.True(await recordButton.IsEnabledAsync());
@@ -1197,6 +1197,18 @@ public sealed class FinancialArtifactJourneyTests
       throw new InvalidOperationException("The page was served without the expected prerendered content.");
     await page.WaitForFunctionAsync("element => !element.isConnected", prerendered,
       new() { PollingInterval = 50, Timeout = 30_000 });
+  }
+
+
+  /// <summary>
+  /// MudBlazor equivalent of SelectOptionAsync at the same strength: opens the
+  /// labelled select and clicks the exact option in the open popover, so the same
+  /// value is chosen and every downstream assertion is unchanged.
+  /// </summary>
+  private static async Task SelectMudOptionAsync(IPage page, string labelText, string optionText)
+  {
+    await page.Locator($"label:has-text('{labelText}') .mud-select").First.ClickAsync();
+    await page.Locator(".mud-popover-open").GetByText(optionText, new() { Exact = true }).ClickAsync();
   }
 
   private static Task WaitForCircuitConnectionAsync(IPage page, List<string> diagnostics)

@@ -47,16 +47,14 @@ else
         A qualified response does not satisfy an unconditional requirement.
     </p>
 
-    <div class="form-group">
-        <label for="decision-outcome">Decision outcome <span class="required-marker">*</span></label>
-        <!-- Native select retained: the decision journey asserts Locator("#decision-outcome") visibility and a MudSelect combobox input renders hidden. -->
-        <select id="decision-outcome" @bind="_outcome" required title="Record the professional decision for this exact client/service scope. A decision does not create a remote folder in this request.">
-            <option value="">— select —</option>
-            <option value="ACCEPTED">Accepted</option>
-            <option value="ACCEPTED_WITH_CONDITIONS">Accepted with Conditions</option>
-            <option value="DECLINED">Declined</option>
-            <option value="DEFERRED">Deferred (additional information required)</option>
-        </select>
+    <div class="form-group" id="decision-outcome">
+        <MudSelect T="string" @bind-Value="_outcome" Label="Decision outcome" required title="Record the professional decision for this exact client/service scope. A decision does not create a remote folder in this request.">
+            <MudSelectItem Value="@string.Empty">— select —</MudSelectItem>
+            <MudSelectItem Value="@("ACCEPTED")">Accepted</MudSelectItem>
+            <MudSelectItem Value="@("ACCEPTED_WITH_CONDITIONS")">Accepted with Conditions</MudSelectItem>
+            <MudSelectItem Value="@("DECLINED")">Declined</MudSelectItem>
+            <MudSelectItem Value="@("DEFERRED")">Deferred (additional information required)</MudSelectItem>
+        </MudSelect>
     </div>
 
     <div class="form-group">

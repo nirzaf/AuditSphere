@@ -50,6 +50,7 @@ window.auditSphereExports.copyText = async text => {
   const controlsFor = (boundary, includeDisabled = false) => [...boundary.querySelectorAll('input, select, textarea')]
     .filter(control =>
       control.dataset.draftField &&
+      control.type !== 'hidden' &&
       (includeDisabled || !control.disabled) &&
       control.type !== 'file' &&
       control.type !== 'password' &&
@@ -294,6 +295,7 @@ window.auditSphereExports.copyText = async text => {
         else boundary.prepend(guidance);
       }
       controls.forEach((control, index) => {
+        if (control.type === 'hidden') return; // composite widget internals (e.g. MudSelect combobox mirrors) are not draft fields
         if (!control.dataset.draftField && control.type !== 'file') {
           control.dataset.draftField = control.name || control.id || `${control.tagName.toLowerCase()}-${index}`;
         }
