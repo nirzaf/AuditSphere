@@ -28,6 +28,19 @@
 
 ---
 
+## P1 development OIDC credential store
+
+The Web project now declares a stable .NET user-secrets ID, so an approved
+non-production `Identity:ClientSecret` can be supplied privately without
+editing `appsettings.json` or committing the value. The developer tenant's
+existing AuditSphereOps Development registration was inspected read-only: it
+has the local `/signin-oidc` web redirect and granted `Sites.Selected`
+application plus `User.Read` delegated permissions. That portal observation is
+not a live OIDC login test, a selected-site provider test, or production
+acceptance. A private credential reference and approved staff/client/negative
+identity fixtures are still required before P1 can be exercised. Exact checks
+and external gate state are recorded in `status.json`.
+
 ## Client portal landing access refresh
 
 The portal landing page now clears its assigned request and package lists before
