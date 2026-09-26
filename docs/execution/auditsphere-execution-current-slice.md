@@ -77,6 +77,16 @@ guidance was published under the owner's authorization and its canonical pages
 were checked after publication. Exact source and Wiki revisions and observed
 checks are in `status.json`.
 
+## R2R chart-revision transaction fence
+
+Chart publication and draft account/alias edits now hold the same chart-version
+row lock through their guarded save. A paused draft edit cannot land after
+publication, and a second publisher sees the committed protected state. The
+PostgreSQL race tests, full solution suite, EF model check and hosted CI passed;
+exact results are in `status.json`. The T002 ledger now identifies this owner
+and maps current setup and intake methods through T020 while leaving proposed
+contracts and independent review explicitly open.
+
 ## AS-PAR-002 firm administration current access
 
 Firm administration now loads its grant directory, invitation evidence, directory
