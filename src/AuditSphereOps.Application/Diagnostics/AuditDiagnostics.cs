@@ -37,12 +37,13 @@ public static class AuditDiagnostics
   public static void RecordCompleted(DurableOperation operation) =>
     OperationsCompleted.Add(1, Tags(operation));
 
-  public static void RecordDispositioned(DurableOperation operation, string disposition) =>
+  public static void RecordDispositioned(DurableOperation operation, OperationState state, string disposition) =>
     OperationsDispositioned.Add(1,
       new KeyValuePair<string, object?>[]
       {
         new("operation.kind", operation.OperationKind),
         new("execution.mode", operation.ExecutionMode.ToString()),
+        new("operation.state", state.ToString()),
         new("disposition", disposition)
       });
 

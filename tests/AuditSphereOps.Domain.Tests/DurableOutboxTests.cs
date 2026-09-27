@@ -1,4 +1,6 @@
+using System.Diagnostics.Metrics;
 using System.Text.Json;
+using AuditSphereOps.Application.Diagnostics;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Shared;
@@ -137,11 +139,15 @@ public sealed class DurableOutboxTests
   [Fact]
   public async Task RemoteSuccessThenLocalRollback_RecreatedWorkerReconcilesOneDurableEffect()
   {
+    var recordedTags = new List<KeyValuePair<string, object?>[]>();
+    using var listener = ListenToDispositions(recordedTags);
     await using var h = await Harness.CreateAsync();
     h.Handler.FailPublication = true;
     var id = (await h.EnqueueAsync()).Value;
     Assert.True(await h.Dispatcher().ProcessNextAsync());
     Assert.Equal(OperationState.RESULT_UNCERTAIN, (await h.OperationAsync(id)).Status);
+    Assert.Single(recordedTags);
+    Assert.Equal("RESULT_UNCERTAIN", recordedTags[0].Single(tag => tag.Key == "operation.state").Value);
     Assert.Equal(1, await h.EffectCountAsync());
     await using (var db = h.Db())
       Assert.DoesNotContain(await db.OperationEvents.ToListAsync(), e => e.Kind == "probe.published.v1");
@@ -181,6 +187,8 @@ public sealed class DurableOutboxTests
   [Fact]
   public async Task SafeRetry_HonorsDelay_AndDeadLettersAtAttemptLimit()
   {
+    var recordedTags = new List<KeyValuePair<string, object?>[]>();
+    using var listener = ListenToDispositions(recordedTags);
     await using var h = await Harness.CreateAsync();
     h.Handler.Fault = "retry";
     var id = (await h.EnqueueAsync()).Value;
@@ -195,6 +203,31 @@ public sealed class DurableOutboxTests
     }
     Assert.Null(await h.ClaimAsync());
     Assert.Equal(0, await h.EffectCountAsync());
+    Assert.All(recordedTags, tags => Assert.Equal(
+      ["operation.kind", "execution.mode", "operation.state", "disposition"],
+      tags.Select(tag => tag.Key).ToArray()));
+    Assert.Equal(["RETRY_WAIT", "RETRY_WAIT", "RETRY_WAIT", "RETRY_WAIT", "DEAD_LETTER"],
+      recordedTags.Select(tags => tags.Single(tag => tag.Key == "operation.state").Value?.ToString()));
+  }
+
+  private static MeterListener ListenToDispositions(List<KeyValuePair<string, object?>[]> recordedTags)
+  {
+    var listener = new MeterListener();
+    listener.InstrumentPublished = (instrument, target) =>
+    {
+      if (instrument.Meter.Name == AuditDiagnostics.MeterName &&
+          instrument.Name == "auditsphere.operations.dispositioned")
+        target.EnableMeasurementEvents(instrument);
+    };
+    listener.SetMeasurementEventCallback<long>((_, count, tags, _) =>
+    {
+      var captured = tags.ToArray();
+      if (count == 1 && captured.Any(tag => tag.Key == "operation.kind" &&
+                                            Equals(tag.Value, "SyntheticEffect.v1")))
+        recordedTags.Add(captured);
+    });
+    listener.Start();
+    return listener;
   }
 
   [Theory]

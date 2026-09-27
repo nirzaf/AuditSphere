@@ -111,7 +111,7 @@ public sealed class OperationDispatcher(IOperationStore store, DurableOperationR
     try
     {
       if (await store.TransitionAsync(op, options, state, code, delay, cleanup.Token))
-        AuditDiagnostics.RecordDispositioned(op, code);
+        AuditDiagnostics.RecordDispositioned(op, state, code);
     }
     catch (Exception)
     {
