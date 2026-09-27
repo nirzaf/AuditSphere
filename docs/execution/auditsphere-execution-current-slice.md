@@ -205,6 +205,13 @@ responses. Existing durable operations retain their separate persisted
 correlation IDs. Propagation into every browser command, audit event, provider
 request, dashboard, and alert remains outside this local slice.
 
+The Web telemetry pipeline now registers the framework's HTTP request meter
+for duration and active-request measurements. A configured OTLP endpoint is
+validated once at Web or Worker startup; malformed or credential-bearing URLs
+refuse startup instead of silently disabling export. An absent endpoint still
+disables export. Local configuration tests do not establish a live collector,
+dashboard, alert threshold, or production telemetry privacy acceptance.
+
 ## P1 production OIDC startup guard
 
 The Production Web host now refuses startup when OIDC is absent altogether,
