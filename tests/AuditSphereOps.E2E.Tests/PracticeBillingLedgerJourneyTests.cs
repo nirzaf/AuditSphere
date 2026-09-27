@@ -428,6 +428,10 @@ public sealed class PracticeBillingLedgerJourneyTests
     Assert.DoesNotContain(scope, unavailableBody);
     Assert.DoesNotContain(proposalId.ToString("D"), unavailableBody);
 
+    await page.EvaluateAsync("path => { history.pushState({}, '', path); dispatchEvent(new PopStateEvent('popstate')); }",
+      $"/app/practice/proposals/{proposalId:D}");
+    await page.GetByText(scope, new() { Exact = true }).WaitForAsync();
+
     await using (var db = host.CreateDbContext())
     {
       var grant = await db.RoleGrants.SingleAsync(x => x.FirmId == host.Fixture.FirmId &&
@@ -436,6 +440,13 @@ public sealed class PracticeBillingLedgerJourneyTests
         new RevokeRoleGrantRequest(grant.Id));
       Assert.True(revoked.Succeeded, revoked.Message);
     }
+
+    await page.GetByRole(AriaRole.Button, new() { Name = "Refresh proposal" }).ClickAsync();
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable" }).WaitForAsync();
+    var refreshedBody = await page.Locator("body").InnerTextAsync();
+    Assert.DoesNotContain(leadName, refreshedBody);
+    Assert.DoesNotContain(scope, refreshedBody);
+    Assert.DoesNotContain(proposalId.ToString("D"), refreshedBody);
 
     await page.EvaluateAsync("path => { history.pushState({}, '', path); dispatchEvent(new PopStateEvent('popstate')); }",
       $"/app/practice/proposals/{firstProposalId:D}");

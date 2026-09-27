@@ -44,6 +44,8 @@ else if (_proposal is null || _opportunity is null)
 }
 else
 {
+  <MudButton Variant="Variant.Outlined" Class="btn-secondary mb-2" OnClick="RefreshProposalAsync">Refresh proposal</MudButton>
+
   <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="proposal-details-heading" role="region">
     <p class="eyebrow">Status: @_proposal.Status · Revision @_proposal.Revision</p>
     <h2 id="proposal-details-heading">@_clientName</h2>
@@ -136,6 +138,8 @@ else
   private sealed record ProposalVersionRow(
     long Revision, string Status, decimal Fee, string Currency,
     DateTimeOffset CreatedAt, DateTimeOffset? SentAt, DateTimeOffset? ResponseAt);
+
+  private Task RefreshProposalAsync() => OnParametersSetAsync();
 
   protected override async Task OnParametersSetAsync()
   {
