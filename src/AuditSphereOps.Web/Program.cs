@@ -180,6 +180,19 @@ if (oidcConfigured)
         claimsIdentity.AddClaim(new Claim(
           TrustedActorResolver.SessionEpochClaimType,
           user.SessionEpoch.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+      },
+      OnRemoteFailure = async context =>
+      {
+        context.HandleResponse();
+        if (context.Failure?.GetBaseException().Message == "The identity is not assigned or is disabled.")
+        {
+          context.Response.Redirect("/auth/access-not-assigned");
+          return;
+        }
+
+        context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+        context.Response.ContentType = "text/plain; charset=utf-8";
+        await context.Response.WriteAsync("Microsoft sign-in could not be completed. Please try again.");
       }
     };
   });
