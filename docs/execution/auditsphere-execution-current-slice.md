@@ -190,6 +190,14 @@ custody, backup, certificate rotation, restore, and production multi-instance
 operation still need deployment evidence; P8a remains open. Exact source,
 local checks, hosted CI, and Wiki revision are in `status.json`.
 
+The production profile now accepts explicitly configured prior certificates
+for decryption while using the current certificate for new key protection.
+An incomplete prior entry refuses startup. A synthetic host test confirms an
+old protected value remains readable through a certificate change, and becomes
+unreadable if its prior certificate is omitted. The Wiki has administrator
+rotation steps. This proves local configuration behavior; no production
+certificate, secret store, key backup, or rotation rehearsal was used.
+
 ## P1 production OIDC startup guard
 
 The Production Web host now refuses startup when OIDC is absent altogether,
