@@ -21,6 +21,7 @@ using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using Serilog;
 using AuditSphereOps.Web.Authentication;
+using AuditSphereOps.Web.Diagnostics;
 using AuditSphereOps.Infrastructure.Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -230,6 +231,7 @@ builder.Services.AddHealthChecks()
   .AddCheck<MigrationCheck>("migrations", tags: ["ready"]);
 
 var app = builder.Build();
+app.UseMiddleware<RequestCorrelationMiddleware>();
 
 if (!app.Environment.IsDevelopment())
 {
