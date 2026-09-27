@@ -4,12 +4,12 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "5157e7707c8ef20c666c340be2c20b4a3452d663",
-  "verifiedCommit": "5157e7707c8ef20c666c340be2c20b4a3452d663",
+  "headCommit": "3a6e98fb6aedda4f69e75ce9b09d1a6411b98e9b",
+  "verifiedCommit": "3a6e98fb6aedda4f69e75ce9b09d1a6411b98e9b",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": true,
   "productionEnabled": false,
-  "verifiedAt": "2026-09-27T02:40:25Z",
+  "verifiedAt": "2026-09-27T18:45:56Z",
   "toolchain": {
     "sdk": ".NET 10",
     "efCore": "10.0.12",
@@ -504,6 +504,18 @@
       "browserObservation": "The signed-in developer administrator tile completed a fresh select_account challenge and Microsoft callback to the local app. Portfolio loaded. Firm administration displayed the previously bound firm-wide Administrator grant, LOCAL_ONLY mode, Development environment and fenced external effects. The Microsoft 365 setup route requested its private bootstrap proof; no setup change was made.",
       "readiness": "PASS: local /health/live and /health/ready returned HTTP 200.",
       "boundary": "Positive administrator authentication and local authorization readback only. The staff fixture remains at the Microsoft password handoff, and no client, wrong-tenant, disabled-user, grant-revocation, production OIDC or provider acceptance was established. P1 remains open."
+    },
+    "p1UnassignedStaffOidcDenial": {
+      "sourceCommit": "3a6e98fb6aedda4f69e75ce9b09d1a6411b98e9b",
+      "observedAt": "2026-09-27T18:45:56Z",
+      "profile": "Local Development Web host, Microsoft OIDC against approved developer tenant; ExternalEffects.Enabled=false.",
+      "browserObservation": "The signed-in staff fixture completed a fresh Microsoft account-choice challenge and returned to the local OIDC callback. The callback found no enabled local user bound to its tenant/object identity and rejected the login. Before the fix this rejection surfaced as a Development 500 exception page; after the fix the same fixture reached /auth/access-not-assigned with no local application access. No role was granted.",
+      "behavior": "Expected unmapped or disabled OIDC identities now redirect to the existing access-not-assigned page. Other remote authentication failures receive a generic HTTP 401 response without exposing exception detail.",
+      "readiness": "PASS: local /health/live and /health/ready returned HTTP 200 after Web host restart.",
+      "build": "PASS: Release Web build, 0 warnings/errors.",
+      "fullSuite": "PASS: local PostgreSQL-backed Debug no-build solution suite Domain 338/338, API 7/7 and E2E 67/67; 412/412 aggregate, 0 skipped. The changed Release Web host was separately exercised through the live browser callback.",
+      "modelDrift": "PASS: EF reports no pending model changes; no migration added.",
+      "boundary": "This is a live negative fixture check on the local Development host, not positive staff authorization or production acceptance. Exact tenant/object binding and a scoped role grant are still needed for a positive staff journey. Client, wrong-tenant, disabled-user, changed-UPN, grant-revocation and independent production acceptance remain open."
     },
     "p8aDurableDispositionStateMetric": {
       "sourceCommit": "5157e7707c8ef20c666c340be2c20b4a3452d663",

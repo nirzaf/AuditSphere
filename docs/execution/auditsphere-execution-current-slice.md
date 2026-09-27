@@ -175,17 +175,15 @@ provider acceptance. Exact schema and verification facts are in `status.json`.
 
 The OIDC sign-in route now accepts an opt-in account-choice flag for testing
 separate tenant fixtures in a browser that already has an administrator Microsoft
-session. The default challenge remains unchanged. The live local flow reached
-Microsoft's account picker, but no staff or client fixture login or local grant
-has been accepted yet. The operator Wiki explains the optional route; exact
-checks and source identity are in `status.json`.
+session. The default challenge remains unchanged. The operator Wiki explains
+the optional route; exact checks and source identity are in `status.json`.
 
 The account picker resumed the existing administrator session when its "Use
 another account" option was chosen. An additional opt-in reauthentication flag
 now asks Microsoft to show a fresh sign-in form. The local browser reached the
 staff fixture's password screen; the fixture credential and any MFA remain with
-the user. Neither the account-choice prompt nor the password screen proves a
-fixture sign-in, local binding, or grant. The operator Wiki describes the fallback,
+the user. Neither the account-choice prompt nor the password screen alone proves
+a fixture sign-in, local binding, or grant. The operator Wiki describes the fallback,
 and exact checks and revisions are in `status.json`.
 
 A fresh browser challenge using the already signed-in developer administrator
@@ -196,6 +194,16 @@ Readiness returned healthy. The protected Microsoft 365 setup page still
 requested its private bootstrap proof, so no setup revision or provider binding
 was changed. This positive local administrator readback does not establish
 staff/client isolation, wrong-tenant denial, or production P1 acceptance.
+
+The staff fixture subsequently completed Microsoft sign-in on the local
+Development host. AuditSphere rejected the unmapped identity, as intended, but
+initially exposed that rejection as a server exception. The callback now shows
+the existing access-not-assigned page for this case and a generic response for
+other remote authentication failures. The same staff fixture reached that page
+after the fix; it has no local role or application access. Positive staff access
+still requires an exact tenant/object binding and explicit scoped grant. The
+remaining P1 fixture cycle and production acceptance remain open; exact checks
+are in `status.json`.
 
 ## P8a production Data Protection key ring
 
