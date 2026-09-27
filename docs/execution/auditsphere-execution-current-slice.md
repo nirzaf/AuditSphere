@@ -232,6 +232,13 @@ refuse startup instead of silently disabling export. An absent endpoint still
 disables export. Local configuration tests do not establish a live collector,
 dashboard, alert threshold, or production telemetry privacy acceptance.
 
+The worker's existing durable-operation disposition counter now includes the
+persisted destination state as a bounded tag. Retry waits, uncertain results,
+and dead letters can be distinguished without using operation, client, or
+correlation identifiers as metric labels. Database-backed regressions cover
+retry and uncertainty transitions. This does not create a dashboard, alert
+policy, live exporter result, or production telemetry acceptance.
+
 ## P1 production OIDC startup guard
 
 The Production Web host now refuses startup when OIDC is absent altogether,
