@@ -177,6 +177,19 @@ the user. Neither the account-choice prompt nor the password screen proves a
 fixture sign-in, local binding, or grant. The operator Wiki describes the fallback,
 and exact checks and revisions are in `status.json`.
 
+## P8a production Data Protection key ring
+
+Production Web startup now also requires a persistent Data Protection key
+directory and a currently usable certificate with a private key. The key ring
+is certificate-protected at rest, survives a Web host restart, and uses the
+configured tenant and installation IDs for application isolation. Synthetic
+production-host regressions cover a missing profile, encrypted key XML,
+restart readback, and cross-installation/tenant rejection. The existing Wiki
+deployment guide names the required private configuration. Actual secret
+custody, backup, certificate rotation, restore, and production multi-instance
+operation still need deployment evidence; P8a remains open. Exact source,
+local checks, hosted CI, and Wiki revision are in `status.json`.
+
 ## P1 production OIDC startup guard
 
 The Production Web host now refuses startup when OIDC is absent altogether,
