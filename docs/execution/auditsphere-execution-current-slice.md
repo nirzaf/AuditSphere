@@ -188,6 +188,15 @@ the user. Neither the account-choice prompt nor the password screen proves a
 fixture sign-in, local binding, or grant. The operator Wiki describes the fallback,
 and exact checks and revisions are in `status.json`.
 
+A fresh browser challenge using the already signed-in developer administrator
+completed Microsoft's OIDC callback into the local Web app. The portfolio and
+firm administration pages loaded, and the latter displayed the bound firm-wide
+Administrator grant, Development environment, and fenced external effects.
+Readiness returned healthy. The protected Microsoft 365 setup page still
+requested its private bootstrap proof, so no setup revision or provider binding
+was changed. This positive local administrator readback does not establish
+staff/client isolation, wrong-tenant denial, or production P1 acceptance.
+
 ## P8a production Data Protection key ring
 
 Production Web startup now also requires a persistent Data Protection key

@@ -496,6 +496,14 @@
       "secretScan": "PASS: gitleaks staged-source scan, no detected leaks.",
       "operatorGuide": "No Wiki change: no deployment prerequisite, setting, command or operator procedure changed.",
       "boundary": "The page clears protected content when the user explicitly refreshes or changes route. No passive mid-circuit revocation push is claimed. AS-PAR-002 whole-application authorization audit and AS-PAR-009 commercial workflow acceptance remain open."
+    },
+    "p1CurrentAdministratorOidcReadback": {
+      "sourceCommit": "b4b3ff38285f377a8289b3b4202ea489b8b99e3d",
+      "observedAt": "2026-09-27T02:17:48Z",
+      "profile": "Local Development Web host, Microsoft OIDC against approved developer tenant; ExternalEffects.Enabled=false.",
+      "browserObservation": "The signed-in developer administrator tile completed a fresh select_account challenge and Microsoft callback to the local app. Portfolio loaded. Firm administration displayed the previously bound firm-wide Administrator grant, LOCAL_ONLY mode, Development environment and fenced external effects. The Microsoft 365 setup route requested its private bootstrap proof; no setup change was made.",
+      "readiness": "PASS: local /health/live and /health/ready returned HTTP 200.",
+      "boundary": "Positive administrator authentication and local authorization readback only. The staff fixture remains at the Microsoft password handoff, and no client, wrong-tenant, disabled-user, grant-revocation, production OIDC or provider acceptance was established. P1 remains open."
     }
   },
   "documentationWork": {
@@ -602,8 +610,8 @@
     "packageId": "Audit workflow gap-closure and client accounting implementation",
     "implementationStatus": "IN_PROGRESS",
     "acceptanceStatus": "LOCAL_VERIFIED",
-    "scope": "P2 trusted PBC provider-scope handoff locally verified; the Graph adapter and live tenant acceptance remain open. AS-PAR-002 whole-application authorization audit remains partial. T001 R2R baseline inventory accepted by the owner; T002 architecture/transaction handoff is in independent review. T002 and downstream work remain open. Live P1, P2/P3 and production gates remain external.",
-    "nextAction": "Continue remaining route/query/search/count/export/direct-command audit and eligible local provider hardening; use approved private credential and named tenant fixtures for live P1 OIDC verification when supplied. Independently review direct-main changes under P9.",
+    "scope": "P2 trusted PBC provider-scope handoff locally verified; the Graph adapter and live tenant acceptance remain open. AS-PAR-002 whole-application authorization audit remains partial. T001 R2R baseline inventory accepted by the owner; T002 architecture/transaction handoff is in independent review. T002 and downstream work remain open. A positive live developer-administrator OIDC readback is observed on the local Development host; remaining P1 fixtures, P2/P3 and production gates remain external.",
+    "nextAction": "Continue remaining route/query/search/count/export/direct-command audit and eligible local provider hardening; complete approved staff/client/wrong-tenant/disabled-user live P1 identity fixtures through private credential handoff. Independently review direct-main changes under P9.",
     "branch": "master"
   },
   "localEvidence": [
@@ -1294,7 +1302,7 @@
     {
       "gate": "P1",
       "status": "BLOCKED_EXTERNAL",
-      "required": "Live Entra OIDC and runtime identity fixtures"
+      "required": "Remaining live Entra staff/client/wrong-tenant/disabled-user identity fixtures and production OIDC acceptance; positive local developer-administrator readback observed."
     },
     {
       "gate": "P2",
