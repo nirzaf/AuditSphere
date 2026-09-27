@@ -35,10 +35,10 @@ Log.Logger = new LoggerConfiguration()
   .CreateLogger();
 builder.Host.UseSerilog();
 
-// Telemetry is independently configurable from ExternalEffects. With no OTLP endpoint the
-// in-process ActivitySource/Meter remain inert; enabling an exporter never participates in a
-// business transaction and therefore cannot roll back durable state.
-var telemetryEndpoint = builder.Configuration["Telemetry:Otlp:Endpoint"];
+// Telemetry is independently configurable from ExternalEffects. With no OTLP endpoint nothing
+// is exported; enabling an exporter never participates in a business transaction and therefore
+// cannot roll back durable state.
+var telemetryEndpoint = TelemetryEndpoint.Parse(builder.Configuration["Telemetry:Otlp:Endpoint"]);
 var telemetry = builder.Services.AddOpenTelemetry()
   .ConfigureResource(resource => resource.AddService("AuditSphereOps.Web"))
   .WithTracing(tracing =>
@@ -47,16 +47,17 @@ var telemetry = builder.Services.AddOpenTelemetry()
       .AddSource("Npgsql")
       .AddAspNetCoreInstrumentation()
       .AddHttpClientInstrumentation();
-    if (Uri.TryCreate(telemetryEndpoint, UriKind.Absolute, out var endpoint))
-      tracing.AddOtlpExporter(options => options.Endpoint = endpoint);
+    if (telemetryEndpoint is not null)
+      tracing.AddOtlpExporter(options => options.Endpoint = telemetryEndpoint);
   })
   .WithMetrics(metrics =>
   {
     metrics.AddMeter(AuditDiagnostics.MeterName)
+      .AddMeter("Microsoft.AspNetCore.Hosting")
       .AddMeter("Npgsql")
       .AddRuntimeInstrumentation();
-    if (Uri.TryCreate(telemetryEndpoint, UriKind.Absolute, out var endpoint))
-      metrics.AddOtlpExporter(options => options.Endpoint = endpoint);
+    if (telemetryEndpoint is not null)
+      metrics.AddOtlpExporter(options => options.Endpoint = telemetryEndpoint);
   });
 
 // Razor components: Interactive Server, no prerender for auth-sensitive shells (§43.4 draft).

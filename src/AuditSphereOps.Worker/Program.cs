@@ -17,23 +17,23 @@ var builder = Host.CreateApplicationBuilder(args);
 
 // Worker telemetry is independent from provider-effect enablement. The exporter is optional,
 // bounded by the OpenTelemetry SDK, and never owns a business transaction or lease decision.
-var telemetryEndpoint = builder.Configuration["Telemetry:Otlp:Endpoint"];
+var telemetryEndpoint = TelemetryEndpoint.Parse(builder.Configuration["Telemetry:Otlp:Endpoint"]);
 builder.Services.AddOpenTelemetry()
   .ConfigureResource(resource => resource.AddService("AuditSphereOps.Worker"))
   .WithTracing(tracing =>
   {
     tracing.AddSource(AuditDiagnostics.ActivitySourceName)
       .AddSource("Npgsql");
-    if (Uri.TryCreate(telemetryEndpoint, UriKind.Absolute, out var endpoint))
-      tracing.AddOtlpExporter(options => options.Endpoint = endpoint);
+    if (telemetryEndpoint is not null)
+      tracing.AddOtlpExporter(options => options.Endpoint = telemetryEndpoint);
   })
   .WithMetrics(metrics =>
   {
     metrics.AddMeter(AuditDiagnostics.MeterName)
       .AddMeter("Npgsql")
       .AddRuntimeInstrumentation();
-    if (Uri.TryCreate(telemetryEndpoint, UriKind.Absolute, out var endpoint))
-      metrics.AddOtlpExporter(options => options.Endpoint = endpoint);
+    if (telemetryEndpoint is not null)
+      metrics.AddOtlpExporter(options => options.Endpoint = telemetryEndpoint);
   });
 var group = builder.Configuration["Worker:Group"] ?? "general";
 var externalEffects = builder.Configuration.GetValue<bool>("ExternalEffects:Enabled");
