@@ -245,12 +245,13 @@ app.MapHealthChecks("/health/live", new() { Predicate = r => r.Name == "self" })
 app.MapHealthChecks("/health/ready", new() { Predicate = r => r.Tags.Contains("ready") });
 if (oidcConfigured)
 {
-  app.MapGet("/auth/sign-in", (HttpContext http, string? returnUrl, bool selectAccount = false) =>
+  app.MapGet("/auth/sign-in", (HttpContext http, string? returnUrl,
+    bool selectAccount = false, bool reauthenticate = false) =>
   {
     return Results.Challenge(new OpenIdConnectChallengeProperties
     {
       RedirectUri = LocalDestination(returnUrl),
-      Prompt = selectAccount ? "select_account" : null
+      Prompt = reauthenticate ? "login" : selectAccount ? "select_account" : null
     }, ["Entra"]);
   });
 }
