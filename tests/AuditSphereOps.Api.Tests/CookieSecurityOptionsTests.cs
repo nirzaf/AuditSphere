@@ -1,3 +1,6 @@
+using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
@@ -25,11 +28,101 @@ public sealed class CookieSecurityOptionsTests
       settings["Identity:ClientId"] = Guid.NewGuid().ToString("D");
       settings["Identity:ClientSecret"] = "synthetic-test-secret";
     }
+    using var keyProfile = environmentName == "Production" ? new ProductionKeyProfile() : null;
+    keyProfile?.Apply(settings);
     using var factory = new ApiWebApplicationFactory(settings, environmentName);
 
     var options = factory.Services.GetRequiredService<IOptionsMonitor<CookieAuthenticationOptions>>()
       .Get(CookieAuthenticationDefaults.AuthenticationScheme);
     Assert.True(options.Cookie.HttpOnly);
     Assert.Equal(expectedPolicy, options.Cookie.SecurePolicy);
+  }
+
+  [Fact]
+  public void ProductionDataProtection_PersistsEncryptedKeysAndIsolatesInstallations()
+  {
+    using var profile = new ProductionKeyProfile();
+    var settings = new Dictionary<string, string?>
+    {
+      ["Identity:TenantId"] = Guid.NewGuid().ToString("D"),
+      ["Identity:ClientId"] = Guid.NewGuid().ToString("D"),
+      ["Identity:ClientSecret"] = "synthetic-test-secret",
+      ["DevelopmentIdentity:Enabled"] = "false",
+      ["Application:AllowSimulationAdapters"] = "false",
+      ["ExternalEffects:Enabled"] = "false"
+    };
+    profile.Apply(settings);
+    string protectedValue;
+    using (var first = new ApiWebApplicationFactory(settings, "Production"))
+      protectedValue = first.Services.GetRequiredService<IDataProtectionProvider>()
+        .CreateProtector("fixture").Protect("test payload");
+
+    var keyXml = string.Join('\n', Directory.GetFiles(profile.KeyDirectory, "*.xml")
+      .Select(File.ReadAllText));
+    Assert.Contains("encryptedSecret", keyXml, StringComparison.Ordinal);
+    Assert.DoesNotContain("<masterKey", keyXml, StringComparison.Ordinal);
+
+    using (var restarted = new ApiWebApplicationFactory(settings, "Production"))
+      Assert.Equal("test payload", restarted.Services.GetRequiredService<IDataProtectionProvider>()
+        .CreateProtector("fixture").Unprotect(protectedValue));
+
+    var originalInstallation = settings["Application:InstallationId"];
+    settings["Application:InstallationId"] = Guid.NewGuid().ToString("D");
+    using (var anotherInstallation = new ApiWebApplicationFactory(settings, "Production"))
+      Assert.Throws<CryptographicException>(() => anotherInstallation.Services
+        .GetRequiredService<IDataProtectionProvider>().CreateProtector("fixture").Unprotect(protectedValue));
+
+    settings["Application:InstallationId"] = originalInstallation;
+    settings["Identity:TenantId"] = Guid.NewGuid().ToString("D");
+    using var anotherTenant = new ApiWebApplicationFactory(settings, "Production");
+    Assert.Throws<CryptographicException>(() => anotherTenant.Services
+      .GetRequiredService<IDataProtectionProvider>().CreateProtector("fixture").Unprotect(protectedValue));
+  }
+
+  [Fact]
+  public void ProductionDataProtection_RejectsMissingKeyConfiguration()
+  {
+    var settings = new Dictionary<string, string?>
+    {
+      ["Identity:TenantId"] = Guid.NewGuid().ToString("D"),
+      ["Identity:ClientId"] = Guid.NewGuid().ToString("D"),
+      ["Identity:ClientSecret"] = "synthetic-test-secret",
+      ["Application:AllowSimulationAdapters"] = "false",
+      ["ExternalEffects:Enabled"] = "false"
+    };
+    using var factory = new ApiWebApplicationFactory(settings, "Production");
+    var error = Assert.ThrowsAny<Exception>(() => factory.CreateClient());
+    Assert.Contains("Production Data Protection requires", error.ToString());
+  }
+
+  private sealed class ProductionKeyProfile : IDisposable
+  {
+    private readonly string password = Guid.NewGuid().ToString("N");
+    private readonly string root = Directory.CreateTempSubdirectory("auditsphere-dp-test-").FullName;
+    public string KeyDirectory { get; }
+    private string CertificatePath { get; }
+
+    public ProductionKeyProfile()
+    {
+      KeyDirectory = Path.Combine(root, "keys");
+      Directory.CreateDirectory(KeyDirectory);
+      CertificatePath = Path.Combine(root, "certificate.pfx");
+      using var rsa = RSA.Create(2048);
+      var request = new CertificateRequest("CN=AuditSphereOps Test", rsa,
+        HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+      using var certificate = request.CreateSelfSigned(
+        DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(1));
+      File.WriteAllBytes(CertificatePath, certificate.Export(X509ContentType.Pfx, password));
+    }
+
+    public void Apply(Dictionary<string, string?> settings)
+    {
+      settings["Application:InstallationId"] = Guid.NewGuid().ToString("D");
+      settings["DataProtection:KeyDirectory"] = KeyDirectory;
+      settings["DataProtection:CertificatePath"] = CertificatePath;
+      settings["DataProtection:CertificatePassword"] = password;
+    }
+
+    public void Dispose() => Directory.Delete(root, recursive: true);
   }
 }
