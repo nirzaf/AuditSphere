@@ -239,6 +239,17 @@ correlation identifiers as metric labels. Database-backed regressions cover
 retry and uncertainty transitions. This does not create a dashboard, alert
 policy, live exporter result, or production telemetry acceptance.
 
+## P8b synthetic accounting workload baseline
+
+The existing PostgreSQL-backed accounting benchmark was run repeatedly against
+its isolated synthetic schema. It exercises concurrent durable enqueue,
+two workers processing completeness operations, a paged general-ledger read,
+and a pure consolidation calculation. Raw measurements and fixture sizes are
+recorded only in `status.json`. This is a local component baseline, not a
+concurrent staff or client-portal load test, a large import/upload test, a
+measured p95 screen target, or production capacity acceptance. The approved
+pilot workload and external-provider failure profile remain outstanding.
+
 ## P1 production OIDC startup guard
 
 The Production Web host now refuses startup when OIDC is absent altogether,

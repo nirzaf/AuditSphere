@@ -517,6 +517,34 @@
       "secretScan": "PASS: gitleaks staged-source scan, no detected leaks.",
       "operatorGuide": "No Wiki change: no deployment setting or operator procedure changed.",
       "boundary": "No live collector, dashboard, alert threshold, quarantine metric completeness or production telemetry privacy acceptance was exercised. P8a remains open."
+    },
+    "p8bSyntheticAccountingBenchmark": {
+      "sourceCommit": "5157e7707c8ef20c666c340be2c20b4a3452d663",
+      "observedAt": "2026-09-27T02:47:24Z",
+      "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-build --configuration Release --filter 'FullyQualifiedName~AccountingBenchmarkTests' --logger 'console;verbosity=detailed'",
+      "profile": "Local macOS Development/Test profile with PostgreSQL 18.6 on loopback; isolated synthetic schema per run, no external provider effects. Existing AccountingBenchmarkTests fixture uses four clients, 2,000 GL transactions, 8,000 GL lines, four completeness operations processed by two workers, one 500-row page, and a 32-line pure consolidation calculation.",
+      "runs": [
+        {
+          "enqueueMs": 159.6,
+          "workerMs": 204.7,
+          "firstPageMs": 56.7,
+          "groupMs": 4.6
+        },
+        {
+          "enqueueMs": 155.5,
+          "workerMs": 196.2,
+          "firstPageMs": 52.5,
+          "groupMs": 4.6
+        },
+        {
+          "enqueueMs": 156.7,
+          "workerMs": 190.1,
+          "firstPageMs": 53.1,
+          "groupMs": 4.1
+        }
+      ],
+      "result": "PASS: benchmark case 1/1 in each of three isolated runs, with all four durable operations completed and expected reconciliation/incomplete-extract results.",
+      "boundary": "Small local component timings only; not a p95 latency distribution, staff/client concurrent session load, 8 MiB upload, 20k-row TB import, archive throughput, Graph throttling exercise, approved workload target or production sizing evidence. P8b remains open."
     }
   },
   "documentationWork": {
