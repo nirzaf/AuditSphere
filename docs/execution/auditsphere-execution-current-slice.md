@@ -198,6 +198,13 @@ unreadable if its prior certificate is omitted. The Wiki has administrator
 rotation steps. This proves local configuration behavior; no production
 certificate, secret store, key backup, or rotation rehearsal was used.
 
+The Web host now gives each HTTP request a server-owned diagnostic ID in its
+response header, Serilog scope, and active trace. It ignores a caller-supplied
+ID; a focused API regression covers distinct IDs on success and missing-route
+responses. Existing durable operations retain their separate persisted
+correlation IDs. Propagation into every browser command, audit event, provider
+request, dashboard, and alert remains outside this local slice.
+
 ## P1 production OIDC startup guard
 
 The Production Web host now refuses startup when OIDC is absent altogether,
