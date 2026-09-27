@@ -150,6 +150,17 @@ then reauthorize before displaying refreshed conversation or transfer state.
 This slice does not close the whole-application AS-PAR-002 audit. Exact local
 verification is in `status.json`.
 
+## AS-PAR-002 proposal current-access refresh
+
+The proposal detail page now offers an explicit refresh of the current proposal.
+It clears the displayed terms and version list before resolving the actor and
+checking the current firm-wide commercial grant again. A browser regression
+loads a proposal, revokes that grant, refreshes in the same document, and
+checks that the prior proposal details disappear. Route-change and scoped-user
+denial checks remain in the same journey. This is a bounded read/revocation
+repair; it does not enable the proposal review, delivery, or client-response
+workflow and does not close the whole-application authorization audit.
+
 ## Local development schema readiness
 
 The persistent loopback development database was backed up and restored in a
