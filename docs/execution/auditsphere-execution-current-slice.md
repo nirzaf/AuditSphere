@@ -28,6 +28,20 @@
 
 ---
 
+## AS-PAR-002 sibling-client differential isolation
+
+A new browser case signs in a user whose grants cover only client A (client- or
+engagement-scoped), records the rendered text of every staff list, queue and
+search route, then gives a sibling client B marker-named practice, PBC and
+accounting records. Every route must render identically and never show the
+marker, and client B's detail routes and PBC download must look exactly like a
+random identifier. The audit found three pages that confirmed a sibling record
+existed by showing "access denied" instead of "not available" (engagement PBC
+inbox, audit fieldwork, staff financial package); they now render one uniform
+unavailable state. Client portal, consolidation group grants and command-level
+isolation are not yet covered by this case, so AS-PAR-002 remains partial.
+Exact verification is in `status.json`.
+
 ## P2 durable worker delivery and P2b isolation matrix
 
 A client portal upload now reaches SharePoint through the real pipeline: in a

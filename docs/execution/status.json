@@ -939,6 +939,15 @@
       "liveObservation": "PASS in Development: LivePbcSelectedSiteAcceptanceTests.LiveWorkerTransfer_AndIsolationMatrix (durable LIVE worker delivered client A and client B documents to RECEIVED with matching SHA-256; each scope read only its own document; guessed identifiers failed closed; local credential fence and Microsoft Entra both refused a foreign tenant; synthetic folders deleted) and LivePbcBrowserJourneyTests (client portal upload in Chromium, staff completion on a LiveProvider web host, separately started Acceptance pbc worker process delivered the document; intent RECEIVED; exact version 1.0 re-read with matching SHA-256; synthetic folder deleted).",
       "fullSuite": "PASS: PostgreSQL-backed solution suite Domain 441/441, API 32/32, E2E 92/92; 565/565 aggregate, 0 skipped (live tests report BLOCKED_EXTERNAL without credentials).",
       "boundary": "Throttling was verified only against the fake Graph drive (it cannot be induced live). Production approval and independent review remain."
+    },
+    "siblingClientDifferentialIsolation": {
+      "scope": "AS-PAR-002 whole-application sibling-client differential isolation (staff routes)",
+      "observedAt": "2026-09-28T19:40:00Z",
+      "behavior": "A user holding only client-A-scoped (CLIENT or ENGAGEMENT) Partner/Manager/Staff/Reviewer/AccountingPreparer/AccountingReviewer grants renders 17 staff list, queue, count and search routes before and after a sibling client B gains marker-named practice, PBC and accounting records; every route renders identical text and the marker never appears. Eleven client B detail routes and the PBC byte endpoint are indistinguishable from a random identifier. The audit found and fixed three existence oracles where an out-of-scope identifier rendered a different state from a non-existent one: engagement PBC inbox, audit fieldwork and staff financial package.",
+      "focusedTests": "PASS: SiblingClientIsolationJourneyTests CLIENT and ENGAGEMENT 2/2; affected ClientScope, AuditAndRelease, FinancialArtifact and PbcUpload journeys 60/60.",
+      "fullSuite": "PASS: PostgreSQL-backed solution suite Domain 441/441, API 32/32, E2E 94/94; 567/567 aggregate, 0 skipped.",
+      "build": "PASS: Release Web build 0 warnings/errors; EF no pending model changes.",
+      "boundary": "Covers staff routes for client- and engagement-scoped users only. Client portal differential, consolidation group-grant differential and Application command-level isolation are not covered by this case; whole AS-PAR-002 remains partial."
     }
   },
   "documentationWork": {
