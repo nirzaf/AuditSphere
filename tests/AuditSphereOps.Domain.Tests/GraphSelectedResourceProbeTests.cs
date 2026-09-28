@@ -4,8 +4,10 @@ using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.Json;
 using AuditSphereOps.Application.Microsoft365;
+using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Domain.Microsoft365;
+using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Infrastructure.Persistence;
 using AuditSphereOps.Infrastructure.Providers;
 using Microsoft.EntityFrameworkCore;
@@ -68,6 +70,30 @@ public sealed class GraphSelectedResourceProbeTests
     var http = new StubGraphHandler();
     var probe = fixture.Probe(http, new SelectedSiteToken("test-token", TenantId,
       new HashSet<string> { "Sites.Selected" }));
+    var adminId = Guid.NewGuid();
+    var actor = new ActorContext(adminId, fixture.FirmId, 1, ["Administrator"]);
+    var service = new Microsoft365SelectedResourceTestService(new TestFactory(fixture.Options), probe);
+    await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+      service.TestDraftAsync(actor, draftId, CancellationToken.None));
+    Assert.Empty(http.Paths);
+    await using (var db = new AuditSphereDbContext(fixture.Options))
+    {
+      db.Users.Add(new AppUser
+      {
+        Id = adminId, FirmId = fixture.FirmId, TenantId = TenantId, Subject = "synthetic-admin",
+        Email = "admin@example.test", DisplayName = "Synthetic administrator", CreatedAt = now,
+        SessionEpoch = 1
+      });
+      db.RoleGrants.Add(new RoleGrant
+      {
+        Id = Guid.NewGuid(), FirmId = fixture.FirmId, UserId = adminId, Role = "Administrator",
+        GrantedAt = now, GrantedByUserId = adminId
+      });
+      await db.SaveChangesAsync();
+    }
+    await service.TestDraftAsync(actor, draftId, CancellationToken.None);
+    Assert.Equal(3, http.Paths.Count);
+    http.Paths.Clear();
     await Assert.ThrowsAsync<OperationBlockedException>(() =>
       probe.ProbeDraftAsync(Guid.NewGuid(), draftId, CancellationToken.None));
     Assert.Empty(http.Paths);

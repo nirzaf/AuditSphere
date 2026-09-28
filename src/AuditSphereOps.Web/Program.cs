@@ -23,6 +23,7 @@ using Serilog;
 using AuditSphereOps.Web.Authentication;
 using AuditSphereOps.Web.Diagnostics;
 using AuditSphereOps.Infrastructure.Persistence;
+using AuditSphereOps.Infrastructure.Providers;
 
 var builder = WebApplication.CreateBuilder(args);
 if (builder.Environment.IsEnvironment("Test")) builder.WebHost.UseStaticWebAssets();
@@ -207,6 +208,20 @@ builder.Services.AddScoped<TrustedActorResolver>();
 // The simulated sink is harmless here: simulated execution requires the Test worker
 // composition, and this host only records queue entries.
 builder.Services.AddSingleton<IAuditSphereDbContextFactory, OperationContextFactory>();
+builder.Services.AddHttpClient();
+builder.Services.AddTransient<ISelectedSiteTokenSource>(services =>
+  new CertificateSelectedSiteTokenSource(services.GetRequiredService<IHttpClientFactory>().CreateClient(),
+    new SelectedSiteCertificateOptions(
+      builder.Configuration["SelectedSite:TenantId"] ?? string.Empty,
+      builder.Configuration["SelectedSite:ClientId"] ?? string.Empty,
+      builder.Configuration["SelectedSite:CredentialReference"] ?? string.Empty,
+      builder.Configuration["SelectedSite:CertificatePath"] ?? string.Empty,
+      builder.Configuration["SelectedSite:PrivateKeyPath"] ?? string.Empty)));
+builder.Services.AddTransient<GraphSelectedResourceProbe>(services =>
+  new GraphSelectedResourceProbe(services.GetRequiredService<IAuditSphereDbContextFactory>(),
+    services.GetRequiredService<IHttpClientFactory>().CreateClient(),
+    services.GetRequiredService<ISelectedSiteTokenSource>()));
+builder.Services.AddTransient<Microsoft365SelectedResourceTestService>();
 builder.Services.AddSingleton<IOperationStore, PostgresOperationStore>();
 builder.Services.AddSingleton<GeneralLedgerCompletenessHandler>();
 builder.Services.AddSingleton<FinancialPackageBuildHandler>();

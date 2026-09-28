@@ -7,6 +7,9 @@
 @using AuditSphereOps.Domain.Microsoft365
 @using AuditSphereOps.Domain.Security
 @using AuditSphereOps.Infrastructure.Persistence
+@using AuditSphereOps.Infrastructure.Providers
+@using AuditSphereOps.Application.Operations
+@using System.Security.Cryptography
 @using Microsoft.EntityFrameworkCore
 @using Microsoft.AspNetCore.Components.Authorization
 @inject CurrentActorResolver ActorResolver
@@ -14,6 +17,7 @@
 @inject IConfiguration Configuration
 @inject AuthenticationStateProvider AuthenticationState
 @inject NavigationManager Navigation
+@inject Microsoft365SelectedResourceTestService SelectedResourceTest
 
 <PageTitle>Microsoft 365 setup — AuditSphereOps</PageTitle>
 
@@ -63,7 +67,7 @@
     {
       <MudPaper Class="pa-4 my-4" Elevation="0" aria-labelledby="setup-progress-heading" role="region">
         <h3 id="setup-progress-heading">Connection progress</h3>
-        <p class="field-help">This checklist reads saved AuditSphere records. It does not test Microsoft access or turn on external effects.</p>
+        <p class="field-help">This checklist reads saved AuditSphere records. The separate test below reads the selected Microsoft resources but does not activate external effects.</p>
         <ol>
           <li>@(_progress.TenantRecorded ? "Tenant recorded from your Microsoft sign-in" : "Record the expected tenant")</li>
           <li>@(_progress.SiteUrlRecorded ? "Working site URL saved" : "Enter the approved SharePoint working site URL and save the draft")</li>
@@ -74,6 +78,7 @@
           <li>@(_progress.WorkspaceActivated ? "Workspace activation recorded" : "Activate only after live provider checks and human review")</li>
         </ol>
         <p class="field-help">For the operator steps, see the <a href="https://github.com/nirzaf/AuditSphere/wiki/Production-Configuration-Guide" target="_blank" rel="noopener noreferrer">production configuration guide</a>. A prepared reference or recorded evidence is not a live provider test.</p>
+        <MudButton Variant="Variant.Outlined" Class="btn-secondary" OnClick="TestConnection" Disabled="@(_busy || _draft.ConnectionRevisionId is null)">@(_busy ? "Testing…" : "Test selected site connection")</MudButton>
       </MudPaper>
     }
     @if (_bootstrapEligible)
@@ -344,6 +349,35 @@
         _tenantId, _tenantName, _siteUrl, _siteId, _driveId, _rootFolderId, _accessProfile, _mailState, _recordsState), DateTimeOffset.UtcNow);
       if (!result.Succeeded) { _error = result.Message ?? "The draft could not be saved."; return; }
       await Reload(); _message = "Draft saved. It is not verified or active.";
+    }
+    finally { _busy = false; }
+  }
+
+  private async Task TestConnection()
+  {
+    _message = _error = string.Empty;
+    if (_actor is null || !_isFirmAdministrator || _draft is null) return;
+    _busy = true;
+    try
+    {
+      await SelectedResourceTest.TestDraftAsync(_actor, _draft.Id, CancellationToken.None);
+      _message = "Read-only Microsoft test passed for the saved site, library and root. No consent evidence was recorded and the workspace is still inactive.";
+    }
+    catch (OperationBlockedException)
+    {
+      _error = "The selected-resource test could not verify the saved target. Check the runtime certificate, selected-site grant and saved resource IDs.";
+    }
+    catch (UnauthorizedAccessException)
+    {
+      _error = "Firm-wide administrator access is required to test this connection.";
+    }
+    catch (SafeRetryException)
+    {
+      _error = "Microsoft temporarily throttled the test. Retry after a short wait.";
+    }
+    catch (Exception ex) when (ex is InvalidOperationException or CryptographicException or HttpRequestException)
+    {
+      _error = "The test could not load or use the configured runtime certificate. Ask the deployment operator to check the private configuration.";
     }
     finally { _busy = false; }
   }

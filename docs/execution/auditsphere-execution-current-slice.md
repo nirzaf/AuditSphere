@@ -89,11 +89,20 @@ runtime credential on the existing application. A live token carried only
 `Sites.Selected`; Graph read the approved site and its site-scoped libraries
 and roots, while an existing synthetic unrelated site returned `403`. The
 observed `Client Content` binding was saved in the local draft, and the
-pre-activation probe passed against that stored binding. The Web and Worker
-still do not compose a live PBC provider or an administrator **Test
-connection** action. No upload, exact-version readback, retry/reconciliation,
-production access, activation, or independent acceptance was observed. The
-precise checks and limits are in `status.json`.
+pre-activation probe passed against that stored binding. No upload,
+exact-version readback, retry/reconciliation, production access, activation,
+or independent acceptance was observed. The Worker still has no live PBC
+provider composition.
+
+The firm-wide administrator's Microsoft 365 setup page now offers **Test
+selected site connection** for a saved draft with a prepared connection.
+The action checks current local authorization before and after a read-only
+Graph probe of the saved site, library and root using the separately configured
+runtime certificate. Its result is a transient screen message: it records no
+consent or selected-resource evidence and does not activate the connection.
+The private Development certificate paths are held in .NET user secrets, not
+repository settings. Exact local verification and remaining P2 gates are in
+`status.json`.
 
 ## P1 immutable identity lookup
 
