@@ -74,6 +74,15 @@ saved SharePoint site, library and root. That screen result is transient: it
 does not record selected-resource capability evidence, activate the workspace,
 or establish production access.
 
+The setup test now also requires a `403` denial from the configured, existing
+synthetic unrelated site after the saved-site read. The Development control
+URL is held in private Web user secrets and its existence was checked in the
+SharePoint admin center. Focused PostgreSQL tests cover an accessible control,
+a denied control and same-site rejection. The updated Web host is healthy, but
+the owner-held setup proof must resume the draft before this revised action
+can be exercised in a live browser session. No durable provider evidence or
+activation follows from this transient test.
+
 ## AS-PAR-002 audit program library access refresh
 
 The audit program library now clears cached versions and procedure text before
