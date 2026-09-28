@@ -228,6 +228,14 @@ Live client sign-in, cross-client denial, negative identity fixtures, and
 production acceptance remain open; the observed grant details are in
 `status.json`.
 
+The owner subsequently completed Client X's Microsoft sign-in and required
+Authenticator registration. The browser reached the restricted client portal;
+the app recorded first access for Client X but not Client Y. Direct navigation
+to operations and firm administration from that client session showed Access
+unavailable. There were no assigned requests or shared packages, so the
+cross-client data-isolation fixture remains untested. Client Y and negative
+identity cases are still pending.
+
 ## P8a production Data Protection key ring
 
 Production Web startup now also requires a persistent Data Protection key
