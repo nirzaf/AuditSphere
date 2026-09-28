@@ -218,6 +218,16 @@ These are local Development UI checks, not complete P1 or production acceptance.
 remaining P1 fixture cycle and production acceptance remain open; exact checks
 are in `status.json`.
 
+Two separate enabled client fixtures are now bound by immutable Microsoft
+tenant/object identity in Development. The firm administration UI saved one
+`ClientUser` grant for each: Client X to the original synthetic client and
+Client Y to the sibling, with unsent invitation intents. Read-only PostgreSQL
+readback found exactly one active grant per fixture and no firm-wide or
+engagement scope. Neither client fixture has a recorded first access yet.
+Live client sign-in, cross-client denial, negative identity fixtures, and
+production acceptance remain open; the observed grant details are in
+`status.json`.
+
 ## P8a production Data Protection key ring
 
 Production Web startup now also requires a persistent Data Protection key

@@ -543,6 +543,12 @@
       "grantReadback": "A prior database readback showed exactly one active Staff grant for the fixture, scoped to the first synthetic client, with no firm-wide or engagement grant.",
       "boundary": "This verifies a positive staff sign-in and these local UI scope checks for synthetic Development clients. It does not verify every command/API path, changed-UPN, wrong-tenant, disabled-user, revocation, production identity, Microsoft 365 provider effects or independent production acceptance. P1 remains open."
     },
+    "p1ClientScopedRosterGrants": {
+      "observedAt": "2026-09-28T05:08:49Z",
+      "profile": "Local Development firm administration and PostgreSQL 18.6; external effects fenced.",
+      "observation": "After owner approval, the administration UI bound two enabled developer-tenant client fixtures by exact immutable tenant/object identity and saved a separate ClientUser grant and unsent invitation intent for each. Client X was scoped only to the first synthetic client; Client Y only to the sibling synthetic client. Both grant rows showed no first access yet. A read-only PostgreSQL query returned exactly one active role grant for each bound local user, each with its matching client ID and no engagement or firm-wide scope.",
+      "boundary": "These are local roster and grant readbacks, not client sign-ins, sibling-denial checks, disabled-user or wrong-tenant tests, provider readiness, or production/independent P1 acceptance. P1 remains open."
+    },
     "p8aDurableDispositionStateMetric": {
       "sourceCommit": "5157e7707c8ef20c666c340be2c20b4a3452d663",
       "observedAt": "2026-09-27T02:40:25Z",

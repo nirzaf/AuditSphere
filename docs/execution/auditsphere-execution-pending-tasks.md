@@ -112,7 +112,7 @@ These production milestones require live external infrastructure, tenant credent
 
 |---|---|---|---|
 
-| **P1** | Live Entra OIDC Authentication | `BLOCKED_EXTERNAL` | Local administrator and scoped-staff sign-ins are observed; client, wrong-tenant, disabled-user and production acceptance fixtures remain. |
+| **P1** | Live Entra OIDC Authentication | `BLOCKED_EXTERNAL` | Local administrator and scoped-staff sign-ins are observed; two client-only fixture grants are configured, but client sign-in, cross-client denial, wrong-tenant, disabled-user and production acceptance remain. |
 
 | **P2** | Selected-Resource SharePoint/Graph | `BLOCKED_EXTERNAL` | Requires live Microsoft 365 tenant with approved selected-resource application permissions. |
 
