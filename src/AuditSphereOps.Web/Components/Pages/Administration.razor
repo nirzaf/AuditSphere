@@ -65,6 +65,30 @@ else
   <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="m365-heading" role="region">
     <h2 id="m365-heading">Microsoft 365 onboarding</h2>
     <p class="field-help">Connection, selected-resource verification, role assignment, and client workspace provisioning are separate revisions. An unconfigured or unverified integration cannot create outward effects.</p>
+    <h3>Administration overview</h3>
+    <dl class="details">
+      <dt>Microsoft tenant</dt><dd>@(_tenantConnection?.ConnectionState ?? "NOT_PREPARED") — local connection revision; live capability checks are separate.</dd>
+      <dt>Users</dt><dd>@_localUserCount active local identities</dd>
+      <dt>Pending invitations</dt><dd>@_pendingInvitationCount active-grant invitations awaiting first access</dd>
+      <dt>AuditSphere administrators</dt><dd>@_administratorCount active local firm-wide grants</dd>
+      <dt>Role grants</dt><dd>@_activeGrantCount active local grants</dd>
+      <dt>Microsoft groups</dt><dd>NOT_CONFIGURED — group administration requires a separately approved provider and permission.</dd>
+      <dt>Selected SharePoint site</dt><dd>@(_setupProgress?.SelectedResourcesEvidenceRecorded == true ? "Evidence recorded for selected site, library and root; verify live access before production use." : "NOT_VERIFIED — verify the selected site, library and root in Microsoft 365 setup.")</dd>
+      <dt>Mail</dt><dd>NOT_VERIFIED — configure and check an approved outbound transport separately.</dd>
+      <dt>External capability health</dt><dd>Directory: @(_tenantConnection?.DirectoryCapabilityState ?? "NOT_VERIFIED") (last check @(_tenantConnection?.DirectoryLastCheckedAt?.ToString("yyyy-MM-dd HH:mm 'UTC'") ?? "never")); consent return: @(_tenantConnection?.LastAttemptState ?? "NOT_STARTED")</dd>
+      <dt>Security warnings</dt><dd>@(_tenantConnection?.ConsentState == "OBSERVED" ? "Consent evidence was recorded locally; an authenticated grantor and Microsoft permission readback are still required." : "Microsoft administrator consent is not independently verified.")</dd>
+    </dl>
+    <h3>Setup progress</h3>
+    <ol>
+      <li>Tenant revision: @(_tenantConnection?.ConnectionState ?? "NOT_PREPARED")</li>
+      <li>Consent: @(_tenantConnection?.ConsentState ?? "NOT_VERIFIED") — callback return alone is unverified</li>
+      <li>Initial administrator: @(_administratorCount > 0 ? "ACTIVE_LOCAL_GRANT" : "MISSING")</li>
+      <li>Directory access: @(_tenantConnection?.DirectoryCapabilityState ?? "NOT_VERIFIED")</li>
+      <li>Selected SharePoint resources: @(_setupProgress?.SelectedResourcesEvidenceRecorded == true ? "EVIDENCE_RECORDED" : "NOT_VERIFIED")</li>
+      <li>Mail configuration: NOT_VERIFIED</li>
+      <li>User assignment: @(_activeGrantCount > 0 ? "ACTIVE_LOCAL_GRANT" : "MISSING")</li>
+    </ol>
+    <p class="field-help">A blocked or stale check requires a firm-wide AuditSphere Administrator to repeat the affected verification. Microsoft tenant consent requires a Microsoft tenant administrator; selected-site access requires its approved Microsoft resource administrator. The last directory check is shown above. No local count proves an external permission.</p>
     <MudButton Color="Color.Primary" Variant="Variant.Filled" Href="/app/administration/microsoft365" Class="button">Continue Microsoft 365 setup</MudButton>
     <MudButton Variant="Variant.Outlined" Href="/app/administration/microsoft365/tenant-connection" Class="btn-secondary ms-2">Tenant connection</MudButton>
   </MudPaper>
@@ -232,6 +256,9 @@ else
   private bool _loading = true;
   private bool _roleBusy;
   private bool _directoryConfigured, _directoryBusy;
+  private TenantConnectionSnapshot? _tenantConnection;
+  private Microsoft365SetupProgress? _setupProgress;
+  private int _localUserCount, _pendingInvitationCount, _administratorCount, _activeGrantCount;
   private string _directoryDomain = string.Empty, _directoryObjectId = string.Empty;
   private string _directoryError = string.Empty;
   private DirectoryCandidatePage? _directoryPage;
@@ -263,6 +290,9 @@ else
     _invitationsByGrant = [];
     _directoryByIdentity = [];
     _grantHistoryByGrant = [];
+    _tenantConnection = null;
+    _setupProgress = null;
+    _localUserCount = _pendingInvitationCount = _administratorCount = _activeGrantCount = 0;
     _expandedGrantId = null;
     if (clearForms)
     {
@@ -314,6 +344,29 @@ else
       _invitationsByGrant = snapshot.InvitationsByGrant;
       _directoryByIdentity = snapshot.DirectoryByIdentity;
       _grantHistoryByGrant = snapshot.GrantHistoryByGrant;
+      _localUserCount = snapshot.LocalUserCount;
+      _pendingInvitationCount = snapshot.PendingInvitationCount;
+      _activeGrantCount = snapshot.Grants.Count(x => x.RevokedAt is null);
+      _administratorCount = snapshot.Grants.Count(x => x.RevokedAt is null &&
+        x.Role == "Administrator" && x.ClientId is null && x.EngagementId is null &&
+        snapshot.UsersById.TryGetValue(x.UserId, out var user) && !user.Disabled);
+      var connectionResult = await TenantConnectionQuery.GetAsync(db, currentActor);
+      _tenantConnection = connectionResult.Succeeded ? connectionResult.Value : null;
+      _setupProgress = null;
+      if (_tenantConnection?.DraftId is { } setupDraftId)
+      {
+        var progressResult = await Microsoft365SetupProgressQuery.GetAsync(db, currentActor, setupDraftId);
+        if (progressResult.Succeeded) _setupProgress = progressResult.Value;
+      }
+      var afterOverviewActor = await ActorResolver.ResolveAsync();
+      if (generation != _loadGeneration || afterOverviewActor is null ||
+          afterOverviewActor.UserId != currentActor.UserId ||
+          afterOverviewActor.FirmId != currentActor.FirmId ||
+          afterOverviewActor.SessionEpoch != currentActor.SessionEpoch)
+      {
+        if (generation == _loadGeneration) ClearProtectedState(clearForms: true);
+        return;
+      }
       _directoryConfigured = Configuration.GetValue<bool>("DirectoryReader:Enabled") &&
         Guid.TryParse(Configuration["DirectoryReader:ClientId"], out _) &&
         string.Equals(Configuration["DirectoryReader:ClientId"], Configuration["TenantConsent:ClientId"], StringComparison.OrdinalIgnoreCase) &&

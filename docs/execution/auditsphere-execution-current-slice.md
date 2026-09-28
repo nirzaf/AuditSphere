@@ -83,12 +83,20 @@ fields remain in a collapsed fallback disclosure. The Development browser
 showed both unfiltered and filtered results, then bound the existing synthetic
 Staff fixture without changing its grant.
 
+The firm administration screen now projects active local user, administrator,
+grant and pending-first-access invitation counts from the current firm. Its
+Microsoft 365 overview keeps the local connection revision, consent record,
+recent directory check, selected-resource evidence, and mail/group blockers
+separate. An unverified consent callback is not shown as a verified grant.
+The current blocked states and test evidence remain in `status.json`.
+
 The owner has requested a tenant-administration experience that supersedes the
 earlier blanket Graph-scope exclusion only for an isolated read-only directory
 reader. The [permission decision](../architecture/auditsphere-m365-tenant-administration-permissions.md)
 records `User.Read.All` as the proposed application permission for that reader,
-separate from the `Sites.Selected` document worker. It has not been configured
-or consented in the tenant. User provisioning, guest invitations and Microsoft
+separate from the `Sites.Selected` document worker. A dedicated Development
+registration has this permission and completed a bounded live read; production
+consent and acceptance remain open. User provisioning, guest invitations and Microsoft
 group changes remain optional, separately gated capabilities. Existing local
 `RoleGrant` administration remains the source of AuditSphere access.
 

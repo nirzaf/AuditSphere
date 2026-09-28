@@ -14,7 +14,9 @@ public sealed record FirmAdministrationSnapshot(
   Dictionary<Guid, AppUser> UsersById,
   Dictionary<Guid, UserAccessInvitation> InvitationsByGrant,
   Dictionary<(string TenantId, string Subject), DirectoryUserObservation> DirectoryByIdentity,
-  Dictionary<Guid, List<RoleGrantChangeEvidence>> GrantHistoryByGrant);
+  Dictionary<Guid, List<RoleGrantChangeEvidence>> GrantHistoryByGrant,
+  int LocalUserCount,
+  int PendingInvitationCount);
 
 /// <summary>Current firm-wide administration projection; every read rechecks the active grant.</summary>
 public static class FirmAdministrationQuery
@@ -74,11 +76,17 @@ public static class FirmAdministrationQuery
       .OrderByDescending(x => x.CreatedAt).ToListAsync(ct);
     var historyByGrant = grantHistory.GroupBy(x => x.RoleGrantId!.Value)
       .ToDictionary(x => x.Key, x => x.ToList());
+    var localUserCount = await db.Users.AsNoTracking().CountAsync(x =>
+      x.FirmId == actor.FirmId && !x.Disabled, ct);
+    var activeGrantIds = grants.Where(x => x.RevokedAt is null).Select(x => x.Id).ToHashSet();
+    var pendingInvitationCount = invitationsByGrant.Values.Count(x =>
+      x.FirstAccessAt is null && activeGrantIds.Contains(x.RoleGrantId));
 
     authorization = await AuthorizationDecision.AuthorizeAsync(db, actor, request, ct);
     if (!authorization.Succeeded)
       return CommandResult<FirmAdministrationSnapshot>.Fail(authorization.ErrorCode!, authorization.Message!);
     return CommandResult<FirmAdministrationSnapshot>.Ok(new(safetyState, grants, usersById,
-      invitationsByGrant, directoryByIdentity, historyByGrant));
+      invitationsByGrant, directoryByIdentity, historyByGrant,
+      localUserCount, pendingInvitationCount));
   }
 }

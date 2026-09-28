@@ -261,6 +261,44 @@ public sealed class TenantConsentServiceTests
     Assert.Single(await db.IntegrationVerificationEvidences.ToListAsync());
   }
 
+  [Fact]
+  public async Task AdministrationOverviewCountsOnlyCurrentFirmAndActiveGrantInvitations()
+  {
+    await using var fixture = await Fixture.CreateAsync();
+    await using var db = new AuditSphereDbContext(fixture.Options);
+    var now = DateTimeOffset.UtcNow;
+    var memberId = Guid.CreateVersion7();
+    var grantId = Guid.CreateVersion7();
+    db.Users.Add(new AppUser
+    {
+      Id = memberId, FirmId = fixture.Actor.FirmId, TenantId = TenantId,
+      Subject = Guid.NewGuid().ToString("D"), Email = "member@example.test",
+      DisplayName = "Member", UserKind = "Staff", CreatedAt = now
+    });
+    db.RoleGrants.Add(new RoleGrant
+    {
+      Id = grantId, FirmId = fixture.Actor.FirmId, UserId = memberId,
+      Role = "Staff", GrantedAt = now, GrantedByUserId = fixture.Actor.UserId
+    });
+    db.UserAccessInvitations.Add(new UserAccessInvitation
+    {
+      Id = Guid.CreateVersion7(), FirmId = fixture.Actor.FirmId, UserId = memberId,
+      RoleGrantId = grantId, RecipientEmail = "member@example.test",
+      CreatedAt = now, UpdatedAt = now
+    });
+    await db.SaveChangesAsync();
+    var overview = (await FirmAdministrationQuery.GetAsync(db, fixture.Actor)).Value!;
+    Assert.Equal(2, overview.LocalUserCount);
+    Assert.Equal(1, overview.PendingInvitationCount);
+
+    (await db.RoleGrants.SingleAsync(x => x.Id == grantId)).RevokedAt = now;
+    await db.SaveChangesAsync();
+    Assert.Equal(0, (await FirmAdministrationQuery.GetAsync(db, fixture.Actor))
+      .Value!.PendingInvitationCount);
+    Assert.False((await FirmAdministrationQuery.GetAsync(db,
+      fixture.Actor with { FirmId = Guid.NewGuid() })).Succeeded);
+  }
+
   private sealed class FakeDirectoryReader(DirectoryCandidatePage page, DirectoryCandidate? exact = null) : IMicrosoftDirectoryReader
   {
     public int Calls { get; private set; }
