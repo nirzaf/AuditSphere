@@ -485,6 +485,7 @@ The Record-to-Report workstream covers Modules 20–26 under `docs/task_breakdow
 
 
 | [`docs/testing/auditsphere-testing-test-case-catalog.md`](testing/auditsphere-testing-test-case-catalog.md) | Inventory of unit, integration, and E2E test suites with category mapping. | `CURRENT` |
+| [`docs/testing/auditsphere-scope-and-tenant-admin-test-cases.md`](testing/auditsphere-scope-and-tenant-admin-test-cases.md) | Proposed scope-isolation and live Development tenant administration acceptance cases; execution results belong in the ledger. | `CURRENT` |
 
 
 
