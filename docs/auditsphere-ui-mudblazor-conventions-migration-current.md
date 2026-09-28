@@ -37,6 +37,12 @@
 
 ## 3. Theme & shared components (presentation only)
 
+The administrator project-progress route now includes every main application
+area. Modules with published task cards show measured completion and pending
+counts; areas outside that task pack show a neutral untracked bar and no
+percentage. This does not derive implementation completion from live business
+records or bypass task-card review gates.
+
 The accounting mapping, journal, difference and package-review queues now
 show compact counts from their already scoped rows. Their local route links,
 exact detail links, native review-selection checkboxes and draft fields remain

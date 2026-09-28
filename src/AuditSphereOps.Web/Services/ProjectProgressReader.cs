@@ -5,6 +5,15 @@ namespace AuditSphereOps.Web.Services;
 /// <summary>Reads the published R2R task-card snapshot; never changes task status or application data.</summary>
 public static class ProjectProgressReader
 {
+  public static IReadOnlyList<ProjectUntrackedArea> UntrackedAreas { get; } =
+  [
+    new("Practice leads", "/app/practice/leads"),
+    new("Time and approvals", "/app/practice/time"),
+    new("Firm finance", "/app/finance"),
+    new("Documents and client portal", null),
+    new("Durable operations", "/app/operations"),
+    new("Firm and Microsoft 365 administration", "/app/administration")
+  ];
   private static readonly IReadOnlyDictionary<int, string> ModuleNames = new Dictionary<int, string>
   {
     [20] = "Accounting setup",
@@ -65,6 +74,7 @@ public static class ProjectProgressReader
     ["NOT_STARTED", "IN_PROGRESS", "IN_REVIEW", "BLOCKED", "COMPLETED", "REOPENED"];
 }
 
+public sealed record ProjectUntrackedArea(string Name, string? Route);
 public sealed record ProjectTaskProgress(string Id, string Title, string Status, string WorkPackage,
   IReadOnlyList<int> Modules, string BlockedReason);
 public sealed record ProjectModuleProgress(int Number, string Name, IReadOnlyList<ProjectTaskProgress> Tasks)

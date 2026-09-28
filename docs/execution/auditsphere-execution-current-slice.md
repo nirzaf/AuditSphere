@@ -94,7 +94,11 @@ audit-workflow and cross-module bars. Each card exposes the source status, with 
 pending and blocked counts. The page is read-only: status transitions and
 evidence remain governed by the task-pack helper and review rules. Its bars
 measure reviewed task-card completion, not implemented software or production
-readiness. The Web publish includes the tracker snapshot, so a new deployment
+readiness. The same dashboard now lists practice leads, time, firm finance,
+documents/client portal, durable operations and administration as untracked
+application areas with neutral, unmeasured bars. The published task pack has no
+dedicated mapping for those areas, so no percentage or invented completion count
+is shown. The Web publish includes the tracker snapshot, so a new deployment
 is needed to show later repository status changes. Exact verification is in
 `status.json`.
 

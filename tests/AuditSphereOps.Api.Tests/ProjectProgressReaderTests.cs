@@ -15,6 +15,7 @@ public sealed class ProjectProgressReaderTests
     Assert.NotEmpty(progress.AuditTasks);
     Assert.NotEmpty(progress.SharedTasks);
     Assert.Equal(progress.Tasks.Count, progress.Completed + progress.Active + progress.Blocked + progress.Pending);
+    Assert.Equal(6, ProjectProgressReader.UntrackedAreas.Count);
   }
 
   [Fact]

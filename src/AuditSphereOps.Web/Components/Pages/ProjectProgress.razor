@@ -9,7 +9,7 @@
 <PageTitle>Project task progress</PageTitle>
 <MudLink Href="/app/administration" Class="back-link mb-2 d-inline-block">← Firm administration</MudLink>
 <PageHeader Title="Project task progress" Eyebrow="Implementation tracker"
-            Description="Completed and pending R2R task cards by module. This is task-card status, not a percentage of working software or production readiness." />
+            Description="Completed and pending implementation task cards by module. Bars report reviewed task-card status, not a percentage of working software or production readiness." />
 
 @if (_loading)
 {
@@ -92,6 +92,22 @@ else if (_progress is not null)
       </ul>
     </details>
   </MudPaper>
+
+  <section aria-labelledby="untracked-modules-heading" class="mt-4">
+    <h2 id="untracked-modules-heading">Other application modules</h2>
+    <p class="muted">These areas have no dedicated module mapping in the published task pack. Their completion cannot be measured here yet; operational records in the app are separate from implementation task status.</p>
+    <div class="audit-module-progress-grid">
+      @foreach (var area in ProjectProgressReader.UntrackedAreas)
+      {
+        <MudPaper Class="audit-workspace-panel pa-4">
+          <div class="audit-module-progress-heading"><h3>@area.Name</h3><strong>Untracked</strong></div>
+          <div class="audit-task-progress audit-task-progress-untracked" role="img" aria-label="@($"{area.Name}: implementation progress not measured")"></div>
+          <p class="audit-progress-counts">No module-specific progress mapping published.</p>
+          @if (area.Route is not null) { <MudLink Href="@area.Route">Open module</MudLink> }
+        </MudPaper>
+      }
+    </div>
+  </section>
 }
 
 @code {
