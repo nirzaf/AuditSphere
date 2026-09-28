@@ -28,6 +28,7 @@ public sealed class GraphTenantConsentVerifier(
   ILogger<GraphTenantConsentVerifier>? logger = null) : IMicrosoftTenantConsentVerifier
 {
   private const string MicrosoftAccountTenant = "9188040d-6c67-4c5b-b112-36a304b66dad";
+  private const string IdentityScopes = "openid profile";
 
   public bool IsConfigured => options.IsComplete;
 
@@ -38,7 +39,7 @@ public sealed class GraphTenantConsentVerifier(
       throw new InvalidOperationException("consent-verifier-not-configured");
     return new Uri($"https://login.microsoftonline.com/{tenant:D}/oauth2/v2.0/authorize" +
       $"?client_id={Uri.EscapeDataString(options.ClientId)}&response_type=code&response_mode=query" +
-      $"&scope={Uri.EscapeDataString("openid")}&prompt=select_account" +
+      $"&scope={Uri.EscapeDataString(IdentityScopes)}&prompt=select_account" +
       $"&redirect_uri={Uri.EscapeDataString(options.IdentityRedirectUri)}" +
       $"&state={Uri.EscapeDataString(state)}&nonce={Uri.EscapeDataString(nonce)}");
   }
@@ -58,7 +59,7 @@ public sealed class GraphTenantConsentVerifier(
         ["grant_type"] = "authorization_code",
         ["code"] = code,
         ["redirect_uri"] = options.IdentityRedirectUri,
-        ["scope"] = "openid",
+        ["scope"] = IdentityScopes,
         ["client_assertion_type"] = "urn:ietf:params:oauth:client-assertion-type:jwt-bearer",
         ["client_assertion"] = GraphCertificateAssertion.Create(certificate, options.ClientId, endpoint)
       })
@@ -87,8 +88,21 @@ public sealed class GraphTenantConsentVerifier(
     // Only the ID token is inspected. Any access/refresh token in the response is discarded unread.
     var idToken = json.RootElement.TryGetProperty("id_token", out var element) ? element.GetString() : null;
     using var claims = idToken is null ? null : GraphJwt.ReadPayload(idToken);
-    if (claims is null) throw new InvalidOperationException("identity-token-missing");
-    return ValidateIdToken(claims.RootElement, options.TenantId, options.ClientId, DateTimeOffset.UtcNow);
+    if (claims is null)
+    {
+      logger?.LogWarning("Microsoft consent identity verification failed: {Code}", "identity-token-missing");
+      throw new InvalidOperationException("identity-token-missing");
+    }
+    try
+    {
+      return ValidateIdToken(claims.RootElement, options.TenantId, options.ClientId, DateTimeOffset.UtcNow);
+    }
+    catch (InvalidOperationException ex) when (ex.Message == "identity-token-invalid")
+    {
+      logger?.LogWarning("Microsoft consent identity verification failed: {Code}",
+        InvalidIdTokenReason(claims.RootElement, options.TenantId, options.ClientId, DateTimeOffset.UtcNow));
+      throw;
+    }
   }
 
   /// <summary>
@@ -114,6 +128,18 @@ public sealed class GraphTenantConsentVerifier(
     var idp = Claim("idp");
     var external = !string.IsNullOrEmpty(idp) && !string.Equals(idp, iss, StringComparison.OrdinalIgnoreCase);
     return new(tenant.ToString("D"), Guid.Parse(oid!).ToString("D"), nonce!, external);
+  }
+
+  private static string InvalidIdTokenReason(JsonElement root, string tenantId, string clientId, DateTimeOffset now)
+  {
+    string? Claim(string name) => root.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
+    if (!string.Equals(Claim("tid"), tenantId, StringComparison.OrdinalIgnoreCase)) return "tenant-mismatch";
+    if (!string.Equals(Claim("aud"), clientId, StringComparison.OrdinalIgnoreCase)) return "audience-mismatch";
+    if (!string.Equals(Claim("iss"), $"https://login.microsoftonline.com/{tenantId}/v2.0", StringComparison.OrdinalIgnoreCase)) return "issuer-mismatch";
+    if (!Guid.TryParse(Claim("oid"), out _)) return "object-id-missing";
+    if (string.IsNullOrEmpty(Claim("nonce"))) return "nonce-missing";
+    if (!root.TryGetProperty("exp", out var exp) || !exp.TryGetInt64(out var seconds) || seconds <= now.ToUnixTimeSeconds()) return "expired";
+    return "invalid-claims";
   }
 
   public async Task<IReadOnlyList<CapabilityProbeResult>> VerifyCapabilitiesAsync(string tenantId,
@@ -154,6 +180,8 @@ public sealed class GraphTenantConsentVerifier(
   private async Task<CapabilityProbeResult> ProbeAsync(string capability, GraphCapabilityToken token, string tenantId,
     CancellationToken ct)
   {
+    if (capability == Microsoft365Capabilities.SelectedSite)
+      return new(capability, CapabilityVerificationStates.BlockedExternal, "selected-site-resource-not-verified");
     string? url = capability switch
     {
       Microsoft365Capabilities.DirectoryRead => $"{GraphCall.Graph}/users?$top=1&$select=id",

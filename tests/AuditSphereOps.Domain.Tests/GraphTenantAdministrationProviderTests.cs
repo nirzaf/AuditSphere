@@ -114,6 +114,35 @@ public sealed class GraphTenantAdministrationProviderTests : IDisposable
   }
 
   [Fact]
+  public void IdentityChallenge_RequestsProfileForImmutableObjectId()
+  {
+    var clientId = Guid.NewGuid().ToString("D");
+    var verifier = new GraphTenantConsentVerifier(new HttpClient(new Stub(_ => Json("{}"))),
+      new TenantConsentVerifierOptions(true, Tenant, clientId,
+        "https://app.example.test/auth/m365-consent/identity-callback", certificatePath, keyPath),
+      new Dictionary<string, GraphCapabilityTokenSource>());
+    var challenge = verifier.BuildIdentityChallenge(Tenant, "state", "nonce");
+    Assert.Contains("scope=openid%20profile", challenge.Query);
+  }
+
+  [Fact]
+  public async Task SelectedSite_AppRoleAloneDoesNotVerifySavedResource()
+  {
+    var verifier = new GraphTenantConsentVerifier(new HttpClient(new Stub(_ => Json("{}"))),
+      new TenantConsentVerifierOptions(true, Tenant, Guid.NewGuid().ToString("D"),
+        "https://app.example.test/auth/m365-consent/identity-callback", certificatePath, keyPath),
+      new Dictionary<string, GraphCapabilityTokenSource>
+      {
+        [Microsoft365Capabilities.SelectedSite] = new(
+          new HttpClient(new Stub(_ => TokenResponse("Sites.Selected"))), Credential("Sites.Selected"))
+      });
+    var result = await verifier.VerifyCapabilitiesAsync(Tenant,
+      [new CapabilityProbe(Microsoft365Capabilities.SelectedSite, "Sites.Selected")], default);
+    Assert.Equal(CapabilityVerificationStates.BlockedExternal, Assert.Single(result).State);
+    Assert.Equal("selected-site-resource-not-verified", result[0].DiagnosticCode);
+  }
+
+  [Fact]
   public void IdToken_ValidationRequiresTenantAudienceIssuerNonceAndWorkIdentity()
   {
     var client = Guid.NewGuid().ToString("D");

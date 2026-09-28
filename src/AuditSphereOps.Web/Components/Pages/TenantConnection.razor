@@ -87,7 +87,7 @@ else
     {
       <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" role="status">Simulation mode: Microsoft pages are simulated for local development and tests. No real tenant is contacted.</MudAlert>
     }
-    <p class="field-help">The Microsoft sign-in and consent screen collects the tenant administrator's credentials; AuditSphere never does. The callback records only a returned claim and cannot identify the person who clicked Grant from that claim alone.</p>
+    <p class="field-help">Microsoft collects the tenant administrator's credentials; AuditSphere never does. A returned consent claim is provisional until the separate, nonce-bound Microsoft sign-in verifies the administrator's tenant and identity. Each capability still needs its own check; a selected-site app role alone does not prove access to the saved SharePoint site.</p>
     @if (!_consentConfigured)
     {
       <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" role="status">
