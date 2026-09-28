@@ -51,12 +51,15 @@ public sealed class SimulatedMicrosoftTenant : IMicrosoftDirectoryReader, IMicro
   }
 
   // --- IMicrosoftDirectoryReader
-  public Task<DirectoryCandidatePage> SearchAsync(string requestedTenant, string prefix, string? pageToken, CancellationToken ct)
+  public Task<DirectoryCandidatePage> SearchAsync(string requestedTenant, string prefix, string? pageToken, CancellationToken ct,
+    string? domain = null)
   {
     RequireTenant(requestedTenant);
     var skip = int.TryParse(pageToken, out var parsed) ? parsed : 0;
-    var matches = users.Values.Where(x => x.DisplayName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) ||
-        x.UserPrincipalName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+    var matches = users.Values.Where(x =>
+        (x.DisplayName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) ||
+         x.UserPrincipalName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) &&
+        (string.IsNullOrEmpty(domain) || x.UserPrincipalName.EndsWith("@" + domain, StringComparison.OrdinalIgnoreCase)))
       .OrderBy(x => x.DisplayName).ToList();
     var page = matches.Skip(skip).Take(25).Select(Candidate).ToList();
     return Task.FromResult(new DirectoryCandidatePage(page, skip + 25 < matches.Count ? (skip + 25).ToString() : null));

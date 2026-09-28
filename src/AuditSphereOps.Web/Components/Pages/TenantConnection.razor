@@ -120,6 +120,7 @@ else
     else
     {
       <MudTextField T="string" Label="Display name or user principal name prefix" @bind-Value="_searchPrefix" Immediate="true" MaxLength="80" />
+      <MudTextField T="string" Label="Filter by user principal name domain (optional)" @bind-Value="_searchDomain" Immediate="true" MaxLength="253" Placeholder="example.com" />
       <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SearchDirectoryAsync" Disabled="@_searchBusy">@(_searchBusy ? "Searching…" : "Search directory")</MudButton>
       @if (!string.IsNullOrEmpty(_searchError))
       {
@@ -181,6 +182,9 @@ else
   private bool _directoryConfigured;
   private string? _error;
   private string _searchPrefix = string.Empty;
+  private string _searchDomain = string.Empty;
+  private string _appliedSearchPrefix = string.Empty;
+  private string _appliedSearchDomain = string.Empty;
   private string? _searchError;
   private DirectoryCandidatePage? _searchPage;
   private bool _searchBusy;
@@ -242,10 +246,24 @@ else
     _bindError = null;
     try
     {
+      var prefix = pageToken is null ? _searchPrefix.Trim() : _appliedSearchPrefix;
+      var domain = pageToken is null ? _searchDomain.Trim() : _appliedSearchDomain;
+      if (string.IsNullOrWhiteSpace(prefix) && string.IsNullOrWhiteSpace(domain))
+      {
+        _searchError = "Enter a name prefix or domain to search the configured directory.";
+        return;
+      }
       await using var db = await DbFactory.CreateDbContextAsync();
-      var result = await DirectoryDiscoveryService.SearchAsync(db, _actor, DirectoryReader,
-        AdminSettings.Options.TenantId, _searchPrefix, pageToken);
-      if (result.Succeeded) _searchPage = result.Value;
+      var result = string.IsNullOrWhiteSpace(prefix)
+        ? await DirectoryDiscoveryService.BrowseActiveAsync(db, _actor, DirectoryReader,
+          AdminSettings.Options.TenantId, domain, pageToken)
+        : await DirectoryDiscoveryService.SearchAsync(db, _actor, DirectoryReader,
+          AdminSettings.Options.TenantId, prefix, pageToken, domain: domain);
+      if (result.Succeeded)
+      {
+        _searchPage = result.Value;
+        if (pageToken is null) { _appliedSearchPrefix = prefix; _appliedSearchDomain = domain; }
+      }
       else _searchError = result.Message ?? "Directory access is unavailable.";
     }
     finally { _searchBusy = false; }

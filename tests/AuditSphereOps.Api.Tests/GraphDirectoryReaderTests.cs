@@ -54,6 +54,25 @@ public sealed class GraphDirectoryReaderTests
   }
 
   [Fact]
+  public async Task PrefixSearchUsesServerSideDomainFilterAndRejectsCrossDomainResponse()
+  {
+    var objectId = Guid.NewGuid();
+    var handler = new StubHandler(request =>
+    {
+      Assert.Equal("eventual", request.Headers.GetValues("ConsistencyLevel").Single());
+      var query = Uri.UnescapeDataString(request.RequestUri!.Query);
+      Assert.Contains("$count=true", query, StringComparison.Ordinal);
+      Assert.Contains("startsWith(displayName,'Green') and endsWith(userPrincipalName,'@example.test')",
+        query, StringComparison.Ordinal);
+      return Json($$"""{"value":[{"id":"{{objectId}}","displayName":"Green","userPrincipalName":"green@other.test","accountEnabled":true,"userType":"Member"}]}""");
+    });
+    var reader = new GraphDirectoryReader(new HttpClient(handler), new StubTokenSource(
+      new("opaque", Tenant, new HashSet<string> { "User.Read.All" })), Options);
+    await Assert.ThrowsAsync<OperationBlockedException>(() =>
+      reader.SearchAsync(Tenant, "Green", null, default, "example.test"));
+  }
+
+  [Fact]
   public async Task ActiveBrowseRejectsDisabledOrCrossDomainResponse()
   {
     var objectId = Guid.NewGuid();

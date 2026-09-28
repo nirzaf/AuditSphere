@@ -72,11 +72,15 @@ public sealed class GraphDirectoryReader(HttpClient http, IDirectoryTokenSource 
   }
 
   public async Task<DirectoryCandidatePage> SearchAsync(string tenantId, string prefix,
-    string? pageToken, CancellationToken ct)
+    string? pageToken, CancellationToken ct, string? domain = null)
   {
     if (!options.Enabled || !Guid.TryParse(tenantId, out var tenant) ||
         !string.Equals(tenant.ToString("D"), options.TenantId, StringComparison.OrdinalIgnoreCase) ||
         string.IsNullOrWhiteSpace(prefix) || prefix.Length > 80 || prefix.Any(char.IsControl) ||
+        domain is { Length: > 253 } ||
+        domain is { Length: > 0 } d &&
+          (!d.Contains('.') || d.StartsWith('.') || d.EndsWith('.') ||
+           d.Any(x => !(char.IsAsciiLetterOrDigit(x) || x is '.' or '-'))) ||
         pageToken is { Length: > 2048 })
       throw new OperationBlockedException("directory-reader-invalid-request", authorization: true);
     var token = await tokens.GetAsync(tenantId, ct);
@@ -86,12 +90,16 @@ public sealed class GraphDirectoryReader(HttpClient http, IDirectoryTokenSource 
       throw new OperationBlockedException("directory-reader-token-invalid", authorization: true);
     var field = prefix.Contains('@') ? "userPrincipalName" : "displayName";
     var escapedPrefix = prefix.Replace("'", "''", StringComparison.Ordinal);
+    var filter = $"startsWith({field},'{escapedPrefix}')" +
+      (string.IsNullOrEmpty(domain) ? "" : $" and endsWith(userPrincipalName,'@{domain}')");
     var url = "https://graph.microsoft.com/v1.0/users?" +
       "$select=id,displayName,userPrincipalName,accountEnabled,userType" +
-      "&$top=25&$filter=" + Uri.EscapeDataString($"startsWith({field},'{escapedPrefix}')") +
+      "&$top=25" + (string.IsNullOrEmpty(domain) ? "" : "&$count=true") +
+      "&$filter=" + Uri.EscapeDataString(filter) +
       (string.IsNullOrWhiteSpace(pageToken) ? "" : "&$skiptoken=" + Uri.EscapeDataString(pageToken));
     using var request = new HttpRequestMessage(HttpMethod.Get, url);
     request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token.AccessToken);
+    if (!string.IsNullOrEmpty(domain)) request.Headers.TryAddWithoutValidation("ConsistencyLevel", "eventual");
     using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
     if (response.StatusCode is HttpStatusCode.TooManyRequests or HttpStatusCode.ServiceUnavailable)
       throw new SafeRetryException(response.Headers.RetryAfter?.Delta);
@@ -110,7 +118,11 @@ public sealed class GraphDirectoryReader(HttpClient http, IDirectoryTokenSource 
       {
         if (users.Count == 25)
           throw new OperationBlockedException("directory-reader-graph-invalid");
-        users.Add(Candidate(item, tenant));
+        var candidate = Candidate(item, tenant);
+        if (domain is { Length: > 0 } suffix &&
+            !candidate.UserPrincipalName.EndsWith("@" + suffix, StringComparison.OrdinalIgnoreCase))
+          throw new OperationBlockedException("directory-reader-graph-invalid");
+        users.Add(candidate);
       }
       string? next = null;
       if (root.TryGetProperty("@odata.nextLink", out var link) &&

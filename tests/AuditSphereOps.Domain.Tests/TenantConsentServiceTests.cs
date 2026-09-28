@@ -113,6 +113,12 @@ public sealed class TenantConsentServiceTests
     Assert.Single(found.Value!.Users);
     Assert.Equal(1, reader.Calls);
 
+    var wrongDomain = await DirectoryDiscoveryService.SearchAsync(db, fixture.Actor, reader,
+      TenantId, "Ad", null, domain: "other.test");
+    Assert.False(wrongDomain.Succeeded);
+    Assert.False((await DirectoryDiscoveryService.SearchAsync(db, fixture.Actor, reader,
+      TenantId, "Ad", null, domain: "bad'example.test")).Succeeded);
+
     var wrongTenantReader = new FakeDirectoryReader(new DirectoryCandidatePage(
       [new(Guid.NewGuid().ToString("D"), Guid.NewGuid().ToString("D"), "Other", "other@example.test", true, "Member")], null));
     Assert.False((await DirectoryDiscoveryService.SearchAsync(db, fixture.Actor,
@@ -122,7 +128,7 @@ public sealed class TenantConsentServiceTests
     await db.SaveChangesAsync();
     Assert.False((await DirectoryDiscoveryService.SearchAsync(db, fixture.Actor, reader,
       TenantId, "Ad", null)).Succeeded);
-    Assert.Equal(1, reader.Calls);
+    Assert.Equal(2, reader.Calls);
   }
 
   [Fact]
@@ -353,7 +359,7 @@ public sealed class TenantConsentServiceTests
     public int Calls { get; private set; }
     public int ExactCalls { get; private set; }
     public Task<DirectoryCandidatePage> SearchAsync(string tenantId, string prefix,
-      string? pageToken, CancellationToken ct)
+      string? pageToken, CancellationToken ct, string? domain = null)
     {
       Calls++;
       return Task.FromResult(page);
