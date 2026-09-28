@@ -536,6 +536,13 @@
       "browserLimit": "The Microsoft account picker offered the staff fixture and the local portfolio showed the synthetic client. However, the same shared browser session also displayed administrator controls on the administration page after account selection. Therefore the portfolio observation cannot be attributed to an isolated staff cookie and is not accepted as a positive staff authorization or isolation test.",
       "boundary": "The scoped grant is configured locally. A clean, independently attributable staff browser session and sibling-client denial still need verification. No production P1 or independent acceptance is claimed."
     },
+    "p1FreshStaffScopeReadback": {
+      "observedAt": "2026-09-28T04:04:04Z",
+      "profile": "Fresh Microsoft login challenge in the local Development browser, completed by the owner for the exact staff fixture; external effects fenced.",
+      "observation": "The owner completed the fixture credential step and reported arrival at the portfolio. The browser then showed a Staff portfolio with the one granted synthetic client. A direct visit to firm administration showed Access unavailable. A second guarded synthetic PROSPECT client and safety state were inserted as an ungranted sibling control; the staff portfolio still counted one client, listed only the granted client, and a search for the sibling returned no matches.",
+      "grantReadback": "A prior database readback showed exactly one active Staff grant for the fixture, scoped to the first synthetic client, with no firm-wide or engagement grant.",
+      "boundary": "This verifies a positive staff sign-in and these local UI scope checks for synthetic Development clients. It does not verify every command/API path, changed-UPN, wrong-tenant, disabled-user, revocation, production identity, Microsoft 365 provider effects or independent production acceptance. P1 remains open."
+    },
     "p8aDurableDispositionStateMetric": {
       "sourceCommit": "5157e7707c8ef20c666c340be2c20b4a3452d663",
       "observedAt": "2026-09-27T02:40:25Z",

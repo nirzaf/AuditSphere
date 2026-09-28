@@ -209,8 +209,12 @@ limited to that client. After exact owner confirmation, the administration UI
 saved one client-scoped Staff grant and a non-sent invitation intent; a database
 readback confirmed no firm-wide or engagement grant for that user. A subsequent
 account-picker attempt showed the synthetic client on the portfolio, but the
-shared browser session also retained administrator controls, so it does not
-prove an isolated staff login or sibling-client denial. The
+shared browser session also retained administrator controls, so that first
+attempt was inconclusive. The owner then completed a fresh Microsoft staff
+credential challenge. The resulting portfolio listed the granted synthetic
+client, firm administration returned Access unavailable, and a separately
+seeded synthetic sibling client remained absent from the portfolio and search.
+These are local Development UI checks, not complete P1 or production acceptance. The
 remaining P1 fixture cycle and production acceptance remain open; exact checks
 are in `status.json`.
 
