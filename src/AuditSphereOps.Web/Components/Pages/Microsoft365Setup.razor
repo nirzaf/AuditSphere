@@ -80,6 +80,12 @@
         <p class="field-help">For the operator steps, see the <a href="https://github.com/nirzaf/AuditSphere/wiki/Production-Configuration-Guide" target="_blank" rel="noopener noreferrer">production configuration guide</a>. A prepared reference or recorded evidence is not a live provider test.</p>
         <MudLink Href="/app/administration/microsoft365/tenant-connection">Review tenant connection and administrator consent</MudLink><br />
         <MudButton Variant="Variant.Outlined" Class="btn-secondary" OnClick="TestConnection" Disabled="@(_busy || _draft.ConnectionRevisionId is null)">@(_busy ? "Testing…" : "Test selected site connection")</MudButton>
+        @if (_progress.ConsentVerified && _progress.SelectedResourcesEvidenceRecorded &&
+             _progress.ClientTemplateApproved && !_progress.WorkspaceActivated)
+        {
+          <p class="field-help">Activate the exact saved site, library and root with the latest approved client folder template. This local binding becomes the default for future client workspaces; mail, records and production release checks remain separate.</p>
+          <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="btn-primary" OnClick="ActivateWorkingSite" Disabled="@_busy">@(_busy ? "Activating…" : "Activate working site")</MudButton>
+        }
       </MudPaper>
     }
     @if (_bootstrapEligible)
@@ -380,6 +386,33 @@
     catch (Exception ex) when (ex is InvalidOperationException or CryptographicException or HttpRequestException)
     {
       _error = "The test could not load or use the configured runtime certificate. Ask the deployment operator to check the private configuration.";
+    }
+    finally { _busy = false; }
+  }
+
+  private async Task ActivateWorkingSite()
+  {
+    _message = _error = string.Empty;
+    if (_actor is null || !_isFirmAdministrator || _draft?.ConnectionRevisionId is not { } connectionId ||
+        _progress is null || !_progress.ConsentVerified || !_progress.SelectedResourcesEvidenceRecorded ||
+        !_progress.ClientTemplateApproved || _progress.WorkspaceActivated) return;
+    _busy = true;
+    try
+    {
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var templateId = await db.FolderTemplateVersions.AsNoTracking()
+        .Where(x => x.FirmId == _actor.FirmId && x.Purpose == FolderTemplatePurposes.ClientWorkspace &&
+          x.ApprovedAt != null)
+        .OrderByDescending(x => x.Version).Select(x => (Guid?)x.Id).FirstOrDefaultAsync();
+      if (templateId is null) { _error = "Approve a client folder template before activation."; return; }
+      var result = await Microsoft365ConfigurationService.ActivateConnectionAsync(db, _actor,
+        new(_draft.Id, connectionId, templateId.Value, _draft.Revision,
+          _draft.SiteId ?? string.Empty, _draft.DriveId ?? string.Empty,
+          _draft.RootFolderId ?? string.Empty, _draft.SiteUrl ?? string.Empty,
+          _draft.AccessProfile), DateTimeOffset.UtcNow);
+      if (!result.Succeeded) { _error = result.Message ?? "The working site could not be activated."; await Reload(); return; }
+      await Reload();
+      _message = "Working-site configuration activated for this firm. Mail, records and production release checks remain separate.";
     }
     finally { _busy = false; }
   }
