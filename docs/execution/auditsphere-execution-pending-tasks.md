@@ -80,11 +80,11 @@ The following local tasks, architectural decisions, and follow-ups are open for 
 
 ### 2.2 Audit & Accounting Parity Follow-ups (AS-PAR-002)
 
-- **Route & Query Revocation Audit:** Continue the whole-application route, query, search, count, export, and direct-command audit to ensure protected projections clear immediately upon role-grant revocation.
+- **Route & Query Revocation Audit:** Sibling-client differential cases now cover staff list/queue/search routes (client- and engagement-scoped users), the client portal, consolidation group grants, sibling detail routes and the PBC byte endpoint, and closed four existence oracles. Remaining: Application command-level isolation (direct commands with out-of-scope identifiers) and export/count paths not rendered on those routes.
 
 - **G16 Period-End Open-Item Methodology:** Formalize and record methodology approval for period-end open-item classification and carrying-amount evidence before enabling automated open-item remeasurement workflows.
 
-- **Stale Content & Parameter Reauthorization:** Verify route-parameter change behavior across all remaining specialized workbench screens.
+- **Stale Content & Parameter Reauthorization:** Every parameterized staff and portal route now has an in-circuit route-change regression (assessment workbenches were the last added). Remaining: independent review of the whole set; no passive mid-circuit revocation push is claimed.
 
 
 
