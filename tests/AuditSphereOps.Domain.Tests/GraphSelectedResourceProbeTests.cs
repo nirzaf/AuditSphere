@@ -108,6 +108,25 @@ public sealed class GraphSelectedResourceProbeTests
       (await readback.Microsoft365SetupDrafts.SingleAsync()).State);
     Assert.Empty(readback.IntegrationVerificationEvidences);
 
+    const string negativeSite = "https://synthetic.sharepoint.com/sites/unrelated-control";
+    http.Paths.Clear();
+    await Assert.ThrowsAsync<OperationBlockedException>(() =>
+      probe.ProbeDraftBoundaryAsync(fixture.FirmId, draftId, negativeSite, CancellationToken.None));
+    Assert.Equal(4, http.Paths.Count); // An accessible control fails closed.
+    http.Paths.Clear();
+    http.DenyNegativeControl = true;
+    var boundaryService = new Microsoft365SelectedResourceTestService(
+      new TestFactory(fixture.Options), probe, negativeSite);
+    await boundaryService.TestDraftBoundaryAsync(actor, draftId, CancellationToken.None);
+    Assert.Equal(4, http.Paths.Count);
+    Assert.All(http.Authenticated, Assert.True);
+    Assert.Equal(0, http.PostCount);
+    Assert.Empty(readback.IntegrationVerificationEvidences);
+    http.Paths.Clear();
+    await Assert.ThrowsAsync<OperationBlockedException>(() =>
+      probe.ProbeDraftBoundaryAsync(fixture.FirmId, draftId, SiteUrl, CancellationToken.None));
+    Assert.Equal(3, http.Paths.Count); // The selected site cannot be its own negative control.
+
     var pending = await readback.Microsoft365ConnectionRevisions.SingleAsync();
     pending.State = Microsoft365RevisionStates.Suspended;
     await readback.SaveChangesAsync();
@@ -272,6 +291,7 @@ public sealed class GraphSelectedResourceProbeTests
     public List<string> Paths { get; } = [];
     public List<bool> Authenticated { get; } = [];
     public int PostCount { get; private set; }
+    public bool DenyNegativeControl { get; set; }
 
     protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
     {
@@ -280,6 +300,8 @@ public sealed class GraphSelectedResourceProbeTests
       Authenticated.Add(request.Headers.Authorization?.Scheme == "Bearer" &&
         request.Headers.Authorization.Parameter == "test-token");
       if (request.Method != HttpMethod.Get) PostCount++;
+      if (DenyNegativeControl && path.Contains("unrelated-control", StringComparison.Ordinal))
+        return Task.FromResult(new HttpResponseMessage(HttpStatusCode.Forbidden));
       var body = path switch
       {
         var p when p.StartsWith("/v1.0/sites/", StringComparison.Ordinal) && p.EndsWith("/drives", StringComparison.Ordinal) =>

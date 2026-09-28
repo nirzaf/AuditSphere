@@ -7,13 +7,22 @@ namespace AuditSphereOps.Infrastructure.Providers;
 /// <summary>Administrator-initiated, read-only test of the saved draft target.</summary>
 public sealed class Microsoft365SelectedResourceTestService(
   AuditSphereOps.Application.Operations.IAuditSphereDbContextFactory factory,
-  GraphSelectedResourceProbe probe)
+  GraphSelectedResourceProbe probe,
+  string? negativeControlSiteUrl = null)
 {
   public async Task TestDraftAsync(ActorContext actor, Guid draftId, CancellationToken ct)
   {
     await AuthorizeAsync(actor, ct);
     await probe.ProbeDraftAsync(actor.FirmId, draftId, ct);
     // A revoked grant during the network read must not return a successful result.
+    await AuthorizeAsync(actor, ct);
+  }
+
+  public async Task TestDraftBoundaryAsync(ActorContext actor, Guid draftId, CancellationToken ct)
+  {
+    await AuthorizeAsync(actor, ct);
+    await probe.ProbeDraftBoundaryAsync(actor.FirmId, draftId, negativeControlSiteUrl ?? string.Empty, ct);
+    // A revoked grant during either network read must not return a successful result.
     await AuthorizeAsync(actor, ct);
   }
 

@@ -20,7 +20,8 @@ public sealed record SelectedResourceObservation(
   Guid WorkspaceId, string TenantId, string SiteId, string DriveId, string RootFolderId);
 
 public sealed record SelectedResourceDraftObservation(
-  Guid DraftId, Guid ConnectionRevisionId, string TenantId, string SiteId, string DriveId, string RootFolderId);
+  Guid DraftId, long DraftRevision, Guid ConnectionRevisionId, string TenantId, string SiteId, string DriveId, string RootFolderId,
+  string SiteUrl);
 
 /// <summary>
 /// Read-only Graph preflight for an already active firm workspace. Target IDs are loaded from
@@ -59,7 +60,60 @@ public sealed class GraphSelectedResourceProbe(
 
     await ProbeResourcesAsync(connection.TenantId, connection.RuntimeCredentialReference,
       draft.SiteId, draft.DriveId, draft.RootFolderId, draft.SiteUrl!, ct);
-    return new(draft.Id, connection.Id, connection.TenantId, draft.SiteId, draft.DriveId, draft.RootFolderId);
+    return new(draft.Id, draft.Revision, connection.Id, connection.TenantId, draft.SiteId, draft.DriveId, draft.RootFolderId,
+      draft.SiteUrl!);
+  }
+
+  /// <summary>
+  /// Positive exact-resource read and negative read of a separately approved synthetic site.
+  /// Both checks are read-only; this observation is not durable activation evidence.
+  /// </summary>
+  public async Task<SelectedResourceDraftObservation> ProbeDraftBoundaryAsync(Guid firmId, Guid draftId,
+    string negativeControlSiteUrl, CancellationToken ct)
+  {
+    if (!ValidSiteUrl(negativeControlSiteUrl))
+      throw new OperationBlockedException("selected-resource-negative-control-invalid", authorization: true);
+    var observed = await ProbeDraftAsync(firmId, draftId, ct);
+    if (!SameSiteHost(negativeControlSiteUrl, observed.SiteUrl) ||
+        SameSiteUrl(negativeControlSiteUrl, observed.SiteUrl))
+      throw new OperationBlockedException("selected-resource-negative-control-invalid", authorization: true);
+
+    await using var db = await factory.CreateAsync(ct);
+    var connection = await db.Microsoft365ConnectionRevisions.AsNoTracking()
+      .SingleOrDefaultAsync(x => x.Id == observed.ConnectionRevisionId && x.FirmId == firmId, ct);
+    if (connection is null || connection.State is not (Microsoft365RevisionStates.ConsentRequired or
+          Microsoft365RevisionStates.Validating or Microsoft365RevisionStates.Verified) ||
+        !string.Equals(connection.TenantId, observed.TenantId, StringComparison.Ordinal))
+      throw new OperationBlockedException("selected-resource-binding-unverified", authorization: true);
+    var token = await tokens.GetAsync(connection.TenantId, connection.RuntimeCredentialReference, ct);
+    if (string.IsNullOrWhiteSpace(token.AccessToken) ||
+        !string.Equals(token.TenantId, observed.TenantId, StringComparison.OrdinalIgnoreCase) ||
+        token.ApplicationRoles.Count != 1 || !token.ApplicationRoles.Contains("Sites.Selected"))
+      throw new OperationBlockedException("selected-resource-token-invalid", authorization: true);
+
+    var control = new Uri(negativeControlSiteUrl);
+    var path = string.Join('/', control.AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries)
+      .Select(Uri.EscapeDataString));
+    using var request = new HttpRequestMessage(HttpMethod.Get,
+      $"{Graph}/sites/{control.Host}:/{path}?$select=id");
+    request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token.AccessToken);
+    using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
+    if (response.StatusCode is HttpStatusCode.TooManyRequests or HttpStatusCode.ServiceUnavailable)
+      throw new SafeRetryException(response.Headers.RetryAfter?.Delta);
+    if (response.StatusCode != HttpStatusCode.Forbidden)
+      throw new OperationBlockedException("selected-resource-negative-control-not-denied", authorization: true);
+    var current = await db.Microsoft365SetupDrafts.AsNoTracking()
+      .SingleOrDefaultAsync(x => x.Id == draftId && x.FirmId == firmId, ct);
+    if (current is null || current.Revision != observed.DraftRevision ||
+        current.ConnectionRevisionId != observed.ConnectionRevisionId ||
+        current.State is not (Microsoft365RevisionStates.ConsentRequired or
+          Microsoft365RevisionStates.Validating or Microsoft365RevisionStates.Verified) ||
+        !string.Equals(current.SiteUrl, observed.SiteUrl, StringComparison.Ordinal) ||
+        !string.Equals(current.SiteId, observed.SiteId, StringComparison.Ordinal) ||
+        !string.Equals(current.DriveId, observed.DriveId, StringComparison.Ordinal) ||
+        !string.Equals(current.RootFolderId, observed.RootFolderId, StringComparison.Ordinal))
+      throw new OperationBlockedException("selected-resource-draft-changed", authorization: true);
+    return observed;
   }
 
   public async Task<SelectedResourceObservation> ProbeAsync(Guid firmId, Guid workspaceId, CancellationToken ct)

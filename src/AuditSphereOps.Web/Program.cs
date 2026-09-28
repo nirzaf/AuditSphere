@@ -242,7 +242,10 @@ builder.Services.AddTransient<GraphSelectedResourceProbe>(services =>
   new GraphSelectedResourceProbe(services.GetRequiredService<IAuditSphereDbContextFactory>(),
     services.GetRequiredService<IHttpClientFactory>().CreateClient(),
     services.GetRequiredService<ISelectedSiteTokenSource>()));
-builder.Services.AddTransient<Microsoft365SelectedResourceTestService>();
+builder.Services.AddTransient<Microsoft365SelectedResourceTestService>(services =>
+  new Microsoft365SelectedResourceTestService(services.GetRequiredService<IAuditSphereDbContextFactory>(),
+    services.GetRequiredService<GraphSelectedResourceProbe>(),
+    builder.Configuration["SelectedSite:NegativeControlSiteUrl"]));
 builder.Services.AddSingleton<IOperationStore, PostgresOperationStore>();
 builder.Services.AddSingleton<GeneralLedgerCompletenessHandler>();
 builder.Services.AddSingleton<FinancialPackageBuildHandler>();

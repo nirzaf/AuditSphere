@@ -361,12 +361,12 @@
     _busy = true;
     try
     {
-      await SelectedResourceTest.TestDraftAsync(_actor, _draft.Id, CancellationToken.None);
-      _message = "Read-only Microsoft test passed for the saved site, library and root. No consent evidence was recorded and the workspace is still inactive.";
+      await SelectedResourceTest.TestDraftBoundaryAsync(_actor, _draft.Id, CancellationToken.None);
+      _message = "Read-only Microsoft test passed for the saved site, library and root, and access to the approved synthetic unrelated site was denied. This transient result is not activation evidence; the workspace remains inactive.";
     }
     catch (OperationBlockedException)
     {
-      _error = "The selected-resource test could not verify the saved target. Check the runtime certificate, selected-site grant and saved resource IDs.";
+      _error = "The selected-resource boundary test could not verify the saved target and denied synthetic control. Check the runtime certificate, selected-site grant, saved resource IDs and configured negative-control site.";
     }
     catch (UnauthorizedAccessException)
     {
