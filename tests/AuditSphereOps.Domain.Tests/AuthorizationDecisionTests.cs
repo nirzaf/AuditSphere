@@ -545,6 +545,7 @@ public sealed class AuthorizationDecisionTests
     public DbSet<RoleGrant> RoleGrants => db.RoleGrants;
     public DbSet<RoleGrantChangeEvidence> RoleGrantChangeEvidences => db.RoleGrantChangeEvidences;
     public DbSet<Microsoft365SetupSession> Microsoft365SetupSessions => db.Microsoft365SetupSessions;
+    public DbSet<TenantConsentAttempt> TenantConsentAttempts => db.TenantConsentAttempts;
     public DbSet<Microsoft365SetupDraft> Microsoft365SetupDrafts => db.Microsoft365SetupDrafts;
     public DbSet<Microsoft365ConnectionRevision> Microsoft365ConnectionRevisions => db.Microsoft365ConnectionRevisions;
     public DbSet<DirectoryUserObservation> DirectoryUserObservations => db.DirectoryUserObservations;

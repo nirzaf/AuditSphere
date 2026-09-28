@@ -78,6 +78,7 @@
           <li>@(_progress.WorkspaceActivated ? "Workspace activation recorded" : "Activate only after live provider checks and human review")</li>
         </ol>
         <p class="field-help">For the operator steps, see the <a href="https://github.com/nirzaf/AuditSphere/wiki/Production-Configuration-Guide" target="_blank" rel="noopener noreferrer">production configuration guide</a>. A prepared reference or recorded evidence is not a live provider test.</p>
+        <MudLink Href="/app/administration/microsoft365/tenant-connection">Review tenant connection and administrator consent</MudLink><br />
         <MudButton Variant="Variant.Outlined" Class="btn-secondary" OnClick="TestConnection" Disabled="@(_busy || _draft.ConnectionRevisionId is null)">@(_busy ? "Testing…" : "Test selected site connection")</MudButton>
       </MudPaper>
     }

@@ -482,7 +482,7 @@ accounting or consolidation workspaces.
 
 
 
-- Application: `Application/Microsoft365/Microsoft365ConfigurationService.cs`, `Application/Security/`
+- Application: `Application/Microsoft365/Microsoft365ConfigurationService.cs`, `TenantConsentService.cs`, `TenantConnectionQuery.cs`, `Application/Security/`
 
 
 
@@ -490,7 +490,7 @@ accounting or consolidation workspaces.
 
 
 
-- UI: `Microsoft365Setup.razor`, `Administration.razor`, `AccessNotAssigned.razor`
+- UI: `Microsoft365Setup.razor`, `TenantConnection.razor`, `Administration.razor`, `AccessNotAssigned.razor`; consent callback in `Web/Program.cs`
 
 
 

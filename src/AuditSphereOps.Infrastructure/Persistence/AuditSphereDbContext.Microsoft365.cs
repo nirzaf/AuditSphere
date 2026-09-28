@@ -29,6 +29,23 @@ public sealed partial class AuditSphereDbContext
     session.ToTable("m365_setup_sessions", t => t.HasCheckConstraint("ck_m365_setup_session_values",
       "length(trim(installation_id)) > 0 AND bootstrap_proof_hash ~ '^[0-9a-f]{64}$' AND capability_hash ~ '^[0-9a-f]{64}$' AND state IN ('UNCLAIMED','CLAIMED','ACTIVE','EXPIRED') AND revision >= 1 AND expires_at > claimed_at"));
 
+    var consentAttempt = b.Entity<TenantConsentAttempt>();
+    consentAttempt.HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_m365_tenant_consent_attempts_firm_id_id");
+    consentAttempt.HasIndex(x => x.StateHash).IsUnique();
+    consentAttempt.HasIndex(x => new { x.FirmId, x.InitiatedByUserId, x.CreatedAt });
+    consentAttempt.Property(x => x.InitiatorObjectId).HasMaxLength(200);
+    consentAttempt.Property(x => x.ExpectedTenantId).HasMaxLength(200);
+    consentAttempt.Property(x => x.ApplicationClientId).HasMaxLength(200);
+    consentAttempt.Property(x => x.StateHash).HasMaxLength(64);
+    consentAttempt.Property(x => x.State).HasMaxLength(30);
+    consentAttempt.Property(x => x.ReturnedTenantId).HasMaxLength(200);
+    consentAttempt.ToTable("m365_tenant_consent_attempts", t => t.HasCheckConstraint("ck_m365_consent_attempt_values",
+      "length(trim(initiator_object_id)) > 0 AND length(trim(expected_tenant_id)) > 0 AND length(trim(application_client_id)) > 0 AND state_hash ~ '^[0-9a-f]{64}$' AND state IN ('PENDING','RETURNED_UNVERIFIED','DENIED','EXPIRED') AND initiating_session_epoch >= 0 AND expires_at > created_at"));
+    consentAttempt.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.InitiatedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    consentAttempt.HasOne<Microsoft365SetupDraft>().WithMany().HasForeignKey(x => new { x.FirmId, x.SetupDraftId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
     var draft = b.Entity<Microsoft365SetupDraft>();
     draft.HasIndex(x => new { x.FirmId, x.SetupSessionId }).IsUnique();
     draft.Property(x => x.State).HasMaxLength(24);

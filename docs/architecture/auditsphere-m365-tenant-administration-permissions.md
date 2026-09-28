@@ -64,6 +64,11 @@ identity and capability evidence with honest provenance; do not label an
 inferred actor as the verified grantor. A saved draft, token role, selected-site
 grant, working endpoint and application activation are separate states.
 
+The current consent slice binds state to the initiating AuditSphere session
+and records only `RETURNED_UNVERIFIED`. It does not yet authenticate the
+consenting Microsoft administrator, acquire a directory-reader credential,
+or verify Graph permissions; those are required before `VERIFIED` status.
+
 Before optional capabilities ship, extend this matrix with the approved
 credential owner, retention, revocation steps, exact endpoint tests, and
 failure/unknown-outcome handling. No broad scope is added to the current app

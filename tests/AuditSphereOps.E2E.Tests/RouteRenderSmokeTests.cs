@@ -21,6 +21,7 @@ public sealed class RouteRenderSmokeTests
     ("/app/finance", "Firm ledger & financial operations"),
     ("/app/operations", "Operations"),
     ("/app/administration", "Firm administration & security"),
+    ("/app/administration/microsoft365/tenant-connection", "Microsoft 365 tenant connection"),
     ("/app/accounting", "Client accounting workspace"),
     ("/app/accounting/evidence", "Accounting evidence queue"),
     ("/app/accounting/mappings", "COA and accounting mappings"),

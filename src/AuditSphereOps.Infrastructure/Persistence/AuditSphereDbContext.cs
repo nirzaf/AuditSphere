@@ -28,6 +28,8 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
 
   public DbSet<Microsoft365SetupSession> Microsoft365SetupSessions => Set<Microsoft365SetupSession>();
 
+  public DbSet<TenantConsentAttempt> TenantConsentAttempts => Set<TenantConsentAttempt>();
+
   public DbSet<Microsoft365SetupDraft> Microsoft365SetupDrafts => Set<Microsoft365SetupDraft>();
 
   public DbSet<Microsoft365ConnectionRevision> Microsoft365ConnectionRevisions => Set<Microsoft365ConnectionRevision>();

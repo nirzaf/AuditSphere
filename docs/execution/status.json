@@ -750,6 +750,15 @@
       "maxMs": [321.7, 336.1, 260.8],
       "verification": "PASS: focused case in three isolated runs; Release Web build 0 warnings/errors; full PostgreSQL-backed Release solution suite Domain 358/358, API 16/16, E2E 83/83 (457/457 aggregate, 0 skipped); EF reports no pending model changes.",
       "boundary": "This is a local application-query sample, not 30 browser sessions, a p95 HTTP/Blazor screen measurement, a sustained load or DB pressure target, live provider throughput, or production capacity acceptance. P8b remains open."
+    },
+    "tenantConsentSession": {
+      "observedAt": "2026-09-28T10:47:23Z",
+      "behavior": "Local protected tenant-connection page creates one-use 10-minute state bound to current firm-wide administrator, session epoch, exact configured tenant, setup draft and separate consent app. Callback consumes state and records only RETURNED_UNVERIFIED; no connection activation or Microsoft capability verification.",
+      "focusedTests": "PASS: PostgreSQL TenantConsentServiceTests 3/3; TenantConsentRedirectTests 7/7; route-render smoke 1/1.",
+      "build": "PASS: Release solution build, 0 warnings/errors.",
+      "fullSuite": "PASS: Release PostgreSQL-backed solution suite Domain 378/378, API 23/23, E2E 86/86; 487/487 aggregate, 0 skipped.",
+      "modelDrift": "PASS: EF reports no pending model changes with new TenantConsentAttempt migration.",
+      "boundary": "No live Microsoft tenant consent, consenting-administrator oid proof, directory reader token, Graph capability verification or production acceptance is claimed."
     }
   },
   "documentationWork": {

@@ -43,6 +43,15 @@ exact verification and remaining limits are in `status.json`.
 
 ## Microsoft 365 setup: one-click administrator resume
 
+The tenant connection page now prepares a one-use, ten-minute consent state
+bound to the current firm-wide Administrator, exact configured tenant, setup
+draft, and session epoch. A separate consent app registration and exact callback
+must be explicitly configured and enabled. The callback consumes the state
+once and records `RETURNED_UNVERIFIED` only after the tenant matches; it does
+not activate a connection or assert Microsoft permissions. Directory provider
+verification and live tenant consent remain pending. The local migration and
+focused PostgreSQL and URL-builder checks are recorded in `status.json`.
+
 The owner has requested a tenant-administration experience that supersedes the
 earlier blanket Graph-scope exclusion only for an isolated read-only directory
 reader. The [permission decision](../architecture/auditsphere-m365-tenant-administration-permissions.md)

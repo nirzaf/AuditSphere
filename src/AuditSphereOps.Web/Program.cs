@@ -6,6 +6,7 @@ using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Application.Completion;
 using AuditSphereOps.Application.Diagnostics;
 using AuditSphereOps.Application.Documents;
+using AuditSphereOps.Application.Microsoft365;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Domain.Shared;
 using Microsoft.EntityFrameworkCore;
@@ -318,6 +319,29 @@ else if (developmentIdentityEnabled)
 }
 if (oidcConfigured || developmentIdentityEnabled)
 {
+  app.MapGet("/auth/m365-consent/callback", async (HttpContext http,
+    TrustedActorResolver actorResolver, IDbContextFactory<AuditSphereDbContext> dbFactory,
+    IConfiguration configuration, CancellationToken ct) =>
+  {
+    http.Response.Headers.CacheControl = "no-store";
+    http.Response.Headers["Referrer-Policy"] = "no-referrer";
+    if (!configuration.GetValue<bool>("TenantConsent:Enabled") ||
+        string.Equals(configuration["TenantConsent:ClientId"], configuration["Identity:ClientId"], StringComparison.OrdinalIgnoreCase))
+      return Results.NotFound();
+    var query = http.Request.Query;
+    if (query["state"].Count != 1 || query["tenant"].Count > 1 ||
+        query["admin_consent"].Count > 1 || query["error"].Count > 1)
+      return Results.Redirect("/app/administration/microsoft365/tenant-connection?result=blocked");
+    var actor = await actorResolver.ResolveAsync(http.User, ct);
+    if (actor is null) return Results.Forbid();
+    await using var db = await dbFactory.CreateDbContextAsync(ct);
+    var result = await TenantConsentService.CompleteCallbackAsync(db, actor,
+      query["state"].ToString(), query["tenant"].ToString(),
+      string.Equals(query["admin_consent"].ToString(), "True", StringComparison.OrdinalIgnoreCase),
+      !string.IsNullOrWhiteSpace(query["error"].ToString()), DateTimeOffset.UtcNow, ct);
+    return Results.Redirect("/app/administration/microsoft365/tenant-connection?result=" +
+      (result.Succeeded ? "returned" : "blocked"));
+  });
   app.MapGet("/auth/landing", async (HttpContext http, TrustedActorResolver actorResolver,
     IDbContextFactory<AuditSphereDbContext> dbFactory, CancellationToken ct) =>
   {

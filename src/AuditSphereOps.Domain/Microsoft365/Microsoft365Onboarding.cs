@@ -41,6 +41,33 @@ public sealed class Microsoft365SetupSession
   public DateTimeOffset? ConsumedAt { get; set; }
 }
 
+public static class TenantConsentAttemptStates
+{
+  public const string Pending = "PENDING";
+  public const string ReturnedUnverified = "RETURNED_UNVERIFIED";
+  public const string Denied = "DENIED";
+  public const string Expired = "EXPIRED";
+}
+
+/// <summary>One-use admin-consent correlation, not proof of a Microsoft grant.</summary>
+public sealed class TenantConsentAttempt
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid SetupDraftId { get; set; }
+  public Guid InitiatedByUserId { get; set; }
+  public long InitiatingSessionEpoch { get; set; }
+  public string InitiatorObjectId { get; set; } = string.Empty;
+  public string ExpectedTenantId { get; set; } = string.Empty;
+  public string ApplicationClientId { get; set; } = string.Empty;
+  public string StateHash { get; set; } = string.Empty;
+  public string State { get; set; } = TenantConsentAttemptStates.Pending;
+  public DateTimeOffset CreatedAt { get; set; }
+  public DateTimeOffset ExpiresAt { get; set; }
+  public DateTimeOffset? ReturnedAt { get; set; }
+  public string? ReturnedTenantId { get; set; }
+}
+
 public sealed class Microsoft365SetupDraft
 {
   public Guid Id { get; set; }
