@@ -242,6 +242,12 @@ builder.Services.AddTransient<GraphSelectedResourceProbe>(services =>
   new GraphSelectedResourceProbe(services.GetRequiredService<IAuditSphereDbContextFactory>(),
     services.GetRequiredService<IHttpClientFactory>().CreateClient(),
     services.GetRequiredService<ISelectedSiteTokenSource>()));
+builder.Services.AddTransient<ISelectedSiteBoundaryProbe>(services =>
+  services.GetRequiredService<GraphSelectedResourceProbe>());
+builder.Services.AddTransient<SelectedSiteBoundaryVerificationService>(services =>
+  new SelectedSiteBoundaryVerificationService(services.GetRequiredService<IAuditSphereDbContextFactory>(),
+    services.GetRequiredService<ISelectedSiteBoundaryProbe>(),
+    builder.Configuration["SelectedSite:NegativeControlSiteUrl"] ?? string.Empty));
 builder.Services.AddTransient<Microsoft365SelectedResourceTestService>(services =>
   new Microsoft365SelectedResourceTestService(services.GetRequiredService<IAuditSphereDbContextFactory>(),
     services.GetRequiredService<GraphSelectedResourceProbe>(),

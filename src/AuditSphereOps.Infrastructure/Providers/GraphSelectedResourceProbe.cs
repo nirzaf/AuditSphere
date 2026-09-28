@@ -29,9 +29,17 @@ public sealed record SelectedResourceDraftObservation(
 /// activation or durable provider evidence.
 /// </summary>
 public sealed class GraphSelectedResourceProbe(
-  IAuditSphereDbContextFactory factory, HttpClient http, ISelectedSiteTokenSource tokens)
+  IAuditSphereDbContextFactory factory, HttpClient http, ISelectedSiteTokenSource tokens) : ISelectedSiteBoundaryProbe
 {
   private const string Graph = "https://graph.microsoft.com/v1.0";
+
+  async Task<SelectedSiteBoundaryObservation> ISelectedSiteBoundaryProbe.ProbeAsync(Guid firmId, Guid draftId,
+    string negativeControlSiteUrl, CancellationToken ct)
+  {
+    var result = await ProbeDraftBoundaryAsync(firmId, draftId, negativeControlSiteUrl, ct);
+    return new(result.DraftId, result.DraftRevision, result.ConnectionRevisionId, result.TenantId,
+      result.SiteId, result.DriveId, result.RootFolderId, result.SiteUrl);
+  }
 
   /// <summary>
   /// Check the exact resources saved in a pending setup draft before workspace activation.

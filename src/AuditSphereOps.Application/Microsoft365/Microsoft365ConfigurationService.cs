@@ -227,6 +227,7 @@ public static class Microsoft365ConfigurationService
         !string.Equals(draft.SiteId, request.SiteId.Trim(), StringComparison.Ordinal) ||
         !string.Equals(draft.DriveId, request.DriveId.Trim(), StringComparison.Ordinal) ||
         !string.Equals(draft.RootFolderId, request.RootFolderId.Trim(), StringComparison.Ordinal) ||
+        !string.Equals(draft.SiteUrl, request.DisplayUrl.Trim(), StringComparison.Ordinal) ||
         !string.Equals(draft.AccessProfile, request.AccessProfile, StringComparison.Ordinal))
       return CommandResult<Guid>.Fail(ErrorCodes.StaleRevision, "The activation binding does not match the verified draft.");
 
@@ -242,6 +243,24 @@ public static class Microsoft365ConfigurationService
     if (!RequiredEvidenceKinds.All(kind => evidence.Any(x => x.ResourceKind == kind && x.ResourceId == requiredIds[kind])) ||
         !evidence.Any(x => x.ResourceKind == "TENANT" && x.Operation == "CONSENT"))
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The exact tenant, site, library, root and consent evidence is incomplete.");
+
+    var latestSite = await db.TenantCapabilityVerifications.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && x.TenantId == connection.TenantId &&
+        x.Capability == Microsoft365Capabilities.SelectedSite)
+      .OrderByDescending(x => x.ObservedAt).ThenByDescending(x => x.Id).FirstOrDefaultAsync(ct);
+    if (latestSite is null || latestSite.ConnectionRevisionId != connection.Id ||
+        latestSite.State != CapabilityVerificationStates.Verified ||
+        latestSite.DiagnosticCode != "exact-resource-and-control-denial" ||
+        latestSite.ObservedAt < now.AddHours(-24) ||
+        !await db.TenantConsentAttempts.AsNoTracking().AnyAsync(x =>
+          x.Id == latestSite.ConsentAttemptId && x.FirmId == actor.FirmId &&
+          x.SetupDraftId == draft.Id && x.ExpectedTenantId == connection.TenantId &&
+          x.State == TenantConsentAttemptStates.ConsentVerified, ct) ||
+        !new[] { "SITE", "DRIVE", "ROOT" }.All(kind => evidence.Any(x =>
+          x.ResourceKind == kind && x.ResourceId == requiredIds[kind] &&
+          x.Operation == "GRAPH_BOUNDARY_READ" && x.ObservedAt == latestSite.ObservedAt)))
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
+        "A current provider-verified selected-site boundary is required before activation.");
 
     var existing = await db.FirmWorkspaceConfigurations.SingleOrDefaultAsync(x =>
       x.FirmId == actor.FirmId && x.ConnectionRevisionId == connection.Id, ct);

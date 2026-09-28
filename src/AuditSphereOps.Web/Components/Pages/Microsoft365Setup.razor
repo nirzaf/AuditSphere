@@ -17,7 +17,7 @@
 @inject IConfiguration Configuration
 @inject AuthenticationStateProvider AuthenticationState
 @inject NavigationManager Navigation
-@inject Microsoft365SelectedResourceTestService SelectedResourceTest
+@inject SelectedSiteBoundaryVerificationService SelectedSiteVerification
 
 <PageTitle>Microsoft 365 setup — AuditSphereOps</PageTitle>
 
@@ -361,8 +361,9 @@
     _busy = true;
     try
     {
-      await SelectedResourceTest.TestDraftBoundaryAsync(_actor, _draft.Id, CancellationToken.None);
-      _message = "Read-only Microsoft test passed for the saved site, library and root, and access to the approved synthetic unrelated site was denied. This transient result is not activation evidence; the workspace remains inactive.";
+      await SelectedSiteVerification.VerifyDraftAsync(_actor, _draft.Id, CancellationToken.None);
+      await Reload();
+      _message = "Microsoft verified the saved site, library and root and denied the approved synthetic unrelated site. Evidence is recorded for this connection revision; the workspace remains inactive until an approved template and activation review.";
     }
     catch (OperationBlockedException)
     {

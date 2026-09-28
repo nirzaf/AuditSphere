@@ -30,10 +30,12 @@ public sealed class TenantAdministrationTests
       x.Operation == "CONSENT" && x.IdentityReference == f.Admin.Subject);
     var statuses = await TenantCapabilityService.StatusesAsync(db, f.FirmId, f.Options, DateTimeOffset.UtcNow);
     foreach (var capability in new[] { Microsoft365Capabilities.DirectoryRead, Microsoft365Capabilities.TenantUserProvisioning,
-               Microsoft365Capabilities.GuestInvitation, Microsoft365Capabilities.GroupMembership, Microsoft365Capabilities.SelectedSite })
+               Microsoft365Capabilities.GuestInvitation, Microsoft365Capabilities.GroupMembership })
       Assert.Equal(CapabilityVerificationStates.Verified, statuses.Single(x => x.Capability == capability).State);
+    Assert.Equal(TenantCapabilityService.NotVerified,
+      statuses.Single(x => x.Capability == Microsoft365Capabilities.SelectedSite).State);
     Assert.Equal(TenantCapabilityService.Disabled, statuses.Single(x => x.Capability == Microsoft365Capabilities.OutboundMail).State);
-    Assert.Equal(5, await db.TenantCapabilityVerifications.CountAsync());
+    Assert.Equal(4, await db.TenantCapabilityVerifications.CountAsync());
   }
 
   [Fact]

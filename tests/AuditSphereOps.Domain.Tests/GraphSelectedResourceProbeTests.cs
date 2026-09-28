@@ -47,6 +47,7 @@ public sealed class GraphSelectedResourceProbeTests
     var now = DateTimeOffset.UtcNow;
     await using (var db = new AuditSphereDbContext(fixture.Options))
     {
+      db.FirmWorkspaceConfigurations.Remove(await db.FirmWorkspaceConfigurations.SingleAsync());
       var connection = await db.Microsoft365ConnectionRevisions.SingleAsync();
       connection.State = Microsoft365RevisionStates.ConsentRequired;
       connection.ConsentState = "REQUIRED";
@@ -127,12 +128,89 @@ public sealed class GraphSelectedResourceProbeTests
       probe.ProbeDraftBoundaryAsync(fixture.FirmId, draftId, SiteUrl, CancellationToken.None));
     Assert.Equal(3, http.Paths.Count); // The selected site cannot be its own negative control.
 
-    var pending = await readback.Microsoft365ConnectionRevisions.SingleAsync();
-    pending.State = Microsoft365RevisionStates.Suspended;
+    var consentConnection = await readback.Microsoft365ConnectionRevisions.SingleAsync();
+    consentConnection.ConsentState = "VERIFIED";
+    var consentId = Guid.CreateVersion7();
+    readback.TenantConsentAttempts.Add(new TenantConsentAttempt
+    {
+      Id = consentId, FirmId = fixture.FirmId, SetupDraftId = draftId,
+      InitiatedByUserId = adminId, InitiatingSessionEpoch = 1,
+      InitiatorObjectId = "synthetic-admin", ExpectedTenantId = TenantId,
+      ApplicationClientId = "synthetic-consent-app", StateHash = new string('c', 64),
+      State = TenantConsentAttemptStates.ConsentVerified,
+      CreatedAt = now, ExpiresAt = now.AddHours(1),
+      ConsentingTenantId = TenantId, ConsentingObjectId = "synthetic-admin",
+      ConsentVerifiedAt = now
+    });
     await readback.SaveChangesAsync();
+    http.Paths.Clear();
+    var recorder = new SelectedSiteBoundaryVerificationService(new TestFactory(fixture.Options), probe, negativeSite);
+    await recorder.VerifyDraftAsync(actor, draftId, CancellationToken.None);
+    await using (var verified = new AuditSphereDbContext(fixture.Options))
+    {
+      Assert.Equal(Microsoft365RevisionStates.Verified,
+        (await verified.Microsoft365ConnectionRevisions.SingleAsync()).State);
+      Assert.Equal(3, await verified.IntegrationVerificationEvidences.CountAsync(x =>
+        x.Operation == "GRAPH_BOUNDARY_READ" && x.Result == "PASS"));
+      var status = await verified.TenantCapabilityVerifications
+        .OrderByDescending(x => x.ObservedAt).FirstAsync(x => x.Capability == Microsoft365Capabilities.SelectedSite);
+      Assert.Equal(CapabilityVerificationStates.Verified, status.State);
+      Assert.Equal(consentId, status.ConsentAttemptId);
+    }
+    http.DenyNegativeControl = false;
+    await Assert.ThrowsAsync<OperationBlockedException>(() =>
+      recorder.VerifyDraftAsync(actor, draftId, CancellationToken.None));
+    await using (var failed = new AuditSphereDbContext(fixture.Options))
+    {
+      var status = await failed.TenantCapabilityVerifications
+        .OrderByDescending(x => x.ObservedAt).FirstAsync(x => x.Capability == Microsoft365Capabilities.SelectedSite);
+      Assert.Equal(CapabilityVerificationStates.BlockedExternal, status.State);
+    }
+    Guid approvedTemplateId;
+    await using (var activation = new AuditSphereDbContext(fixture.Options))
+    {
+      var template = await Microsoft365ConfigurationService.SaveFolderTemplateAsync(activation, actor,
+        new(FolderTemplatePurposes.ClientWorkspace,
+          Microsoft365ConfigurationService.DefaultManifest(FolderTemplatePurposes.ClientWorkspace)), now);
+      Assert.True(template.Succeeded);
+      approvedTemplateId = template.Value!.Id;
+      Assert.True((await Microsoft365ConfigurationService.ApproveFolderTemplateAsync(
+        activation, actor, approvedTemplateId, now)).Succeeded);
+      activation.IntegrationVerificationEvidences.Add(new IntegrationVerificationEvidence
+      {
+        Id = Guid.CreateVersion7(), FirmId = fixture.FirmId, SetupDraftId = draftId,
+        ConnectionRevisionId = consentConnection.Id, ResourceKind = "TENANT",
+        ResourceId = TenantId, Operation = "CONSENT", IdentityReference = "synthetic-admin",
+        Result = "PASS", EvidenceReference = "synthetic trusted consent fixture", ObservedAt = now
+      });
+      await activation.SaveChangesAsync();
+      var current = await activation.Microsoft365SetupDrafts.SingleAsync(x => x.Id == draftId);
+      var request = new ActivateConnectionRequest(draftId, consentConnection.Id, approvedTemplateId,
+        current.Revision, SiteId, "drive-1", "root-1", SiteUrl, Microsoft365AccessProfiles.AppMediated);
+      var blocked = await Microsoft365ConfigurationService.ActivateConnectionAsync(
+        activation, actor, request, DateTimeOffset.UtcNow);
+      Assert.False(blocked.Succeeded); // The failed retry superseded the old provider pass.
+    }
+    http.DenyNegativeControl = true;
+    await recorder.VerifyDraftAsync(actor, draftId, CancellationToken.None);
+    await using (var activation = new AuditSphereDbContext(fixture.Options))
+    {
+      var current = await activation.Microsoft365SetupDrafts.SingleAsync(x => x.Id == draftId);
+      var wrongUrl = await Microsoft365ConfigurationService.ActivateConnectionAsync(activation, actor,
+        new(draftId, consentConnection.Id, approvedTemplateId, current.Revision, SiteId, "drive-1", "root-1",
+          "https://synthetic.sharepoint.com/sites/other", Microsoft365AccessProfiles.AppMediated),
+        DateTimeOffset.UtcNow);
+      Assert.False(wrongUrl.Succeeded);
+      var accepted = await Microsoft365ConfigurationService.ActivateConnectionAsync(activation, actor,
+        new(draftId, consentConnection.Id, approvedTemplateId, current.Revision, SiteId, "drive-1", "root-1",
+          SiteUrl, Microsoft365AccessProfiles.AppMediated), DateTimeOffset.UtcNow);
+      Assert.True(accepted.Succeeded, accepted.Message);
+      Assert.Single(await activation.FirmWorkspaceConfigurations.ToListAsync());
+    }
+    http.Paths.Clear();
     await Assert.ThrowsAsync<OperationBlockedException>(() =>
       probe.ProbeDraftAsync(fixture.FirmId, draftId, CancellationToken.None));
-    Assert.Equal(3, http.Paths.Count);
+    Assert.Empty(http.Paths);
   }
 
   [Theory]

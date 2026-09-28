@@ -63,7 +63,8 @@ public static class TenantCapabilityService
       .OrderByDescending(x => x.ConsentVerifiedAt).FirstOrDefaultAsync(ct);
 
     var probes = Microsoft365PermissionMatrix.Rows
-      .Where(x => x.Capability != Microsoft365Capabilities.SignIn && options.IsEnabled(x.Capability))
+      .Where(x => x.Capability is not (Microsoft365Capabilities.SignIn or Microsoft365Capabilities.SelectedSite) &&
+        options.IsEnabled(x.Capability))
       .Select(x => new CapabilityProbe(x.Capability, x.Permission)).ToList();
     IReadOnlyList<CapabilityProbeResult> results;
     if (!verifier.IsConfigured)
