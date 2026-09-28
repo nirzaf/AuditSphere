@@ -312,16 +312,14 @@ public sealed class ClientScopeJourneyTests
     var connected = WaitForCircuitConnectionAsync(page, diagnostics);
     await page.GotoAsync(SignInUrl(origin, "/app/administration"));
     await connected;
-    await page.GetByRole(AriaRole.Tab, new() { Name = "AuditSphere Roles" }).ClickAsync();
-    await page.GetByRole(AriaRole.Heading, new() { Name = "Firm role grants" }).WaitForAsync();
+    await OpenRolesTabAsync(page, page.GetByRole(AriaRole.Heading, new() { Name = "Firm role grants" }));
     Assert.Contains(host.Fixture.Client.Email, await page.Locator("body").InnerTextAsync());
     var documentToken = await page.EvaluateAsync<string>("window.__adminRevocationToken = crypto.randomUUID()");
     var copyPage = await context.NewPageAsync();
     var copyConnected = WaitForCircuitConnectionAsync(copyPage, diagnostics);
     await copyPage.GotoAsync(SignInUrl(origin, "/app/administration"));
     await copyConnected;
-    await copyPage.GetByRole(AriaRole.Tab, new() { Name = "AuditSphere Roles" }).ClickAsync();
-    await copyPage.GetByRole(AriaRole.Button, new() { Name = "Copy invitation" }).WaitForAsync();
+    await OpenRolesTabAsync(copyPage, copyPage.GetByRole(AriaRole.Button, new() { Name = "Copy invitation" }));
     await copyPage.EvaluateAsync("() => { window.__adminCopyCount = 0; window.auditSphereExports.copyText = () => { window.__adminCopyCount += 1; }; }");
 
     await using (var db = host.CreateDbContext())
@@ -2577,6 +2575,21 @@ public sealed class ClientScopeJourneyTests
     Assert.DoesNotContain("Bank statements", body);
     Assert.DoesNotContain("Cash", body);
     Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
+  }
+
+  /// <summary>
+  /// Selects the AuditSphere Roles tab once the interactive render is live. A click on the static
+  /// prerender is ignored, so the click is retried until the expected element appears.
+  /// </summary>
+  private static async Task OpenRolesTabAsync(IPage page, ILocator expected)
+  {
+    for (var attempt = 0; attempt < 10; attempt++)
+    {
+      await page.GetByRole(AriaRole.Tab, new() { Name = "AuditSphere Roles" }).ClickAsync();
+      try { await expected.WaitForAsync(new() { Timeout = 3000 }); return; }
+      catch (TimeoutException) { }
+    }
+    await expected.WaitForAsync();
   }
 
   private static string SignInUrl(string origin, string returnUrl) =>

@@ -837,6 +837,16 @@
       "modelDrift": "PASS: EF reports no pending model changes.",
       "documentation": "PASS: Markdown health, filename policy, narrative metrics, git diff --check. Canonical Entra Wiki page b18e152 published and rendered; gitleaks found no secrets in that page.",
       "boundary": "Fail-closed safety correction only. Authenticated Microsoft grantor proof, permission readback, live activation, optional provisioning, B2B, groups and production acceptance remain open."
+    },
+    "m365TenantAdministrationCompletion": {
+      "observedAt": "2026-09-28T14:55:00Z",
+      "behavior": "Nonce-bound consenting-administrator identity leg after the state-bound admin-consent return; only this trusted path sets connection ConsentState VERIFIED. Per-capability verification with single-role app identities (VERIFIED/NOT_GRANTED/FAILED/BLOCKED_EXTERNAL, stale after 24h). Optional User.Create provisioning, User.Invite.All guest invitation and allowlisted GroupMember.ReadWrite.All group administration are implemented, disabled by default and gated on verified capability. Microsoft mutations use m365_external_operations (idempotency key, recheck before dispatch, UNKNOWN reconciliation, separate local binding). Append-only m365_administration_events, m365_tenant_capability_verifications and role_grant_change_evidence triggers. Reviewed role assignment with preview, expansion confirmation, GROUP scope, reasons and expiry enforced by revocation. Tabbed Administration workspace with dashboard and progress derived from persisted state.",
+      "focusedTests": "PASS: TenantAdministrationTests, RoleAssignmentTests, GraphTenantAdministrationProviderTests and LiveMicrosoftTenantAcceptanceTests (BLOCKED_EXTERNAL without live credentials); TenantAdministrationJourneyTests 5/5 against the Development/Test simulated tenant.",
+      "build": "PASS: solution build and Release Web build, 0 warnings/errors.",
+      "fullSuite": "PASS: PostgreSQL-backed solution suite after merging master 4f5b0d7: Domain 421/421, API 31/31, E2E 91/91; 543/543 aggregate, 0 skipped.",
+      "modelDrift": "PASS: EF reports no pending model changes with the M365TenantAdministration migration.",
+      "documentation": "PASS: Markdown documentation health, filename policy and narrative metrics.",
+      "boundary": "Simulated-tenant and stubbed-HTTP evidence only. No live tenant consent, live capability verification, live user creation, invitation or group change, production acceptance or GitHub Wiki update is claimed."
     }
   },
   "documentationWork": {
@@ -1681,6 +1691,11 @@
       "gate": "P10",
       "status": "BLOCKED_EXTERNAL",
       "required": "Full §47 real-tenant acceptance and professional sign-off"
+    },
+    {
+      "gate": "M365-ADMIN",
+      "status": "BLOCKED_EXTERNAL",
+      "required": "Separate app registrations and certificates per capability, tenant administrator consent, live capability verification, and live acceptance of optional provisioning, guest invitation and group membership in an approved tenant."
     }
   ],
   "evidenceBoundary": "This public pointer contains no tenant identifiers, user principals, credentials, tokens, secret values or private-provider URLs. Local evidence does not establish production acceptance or professional conclusions."

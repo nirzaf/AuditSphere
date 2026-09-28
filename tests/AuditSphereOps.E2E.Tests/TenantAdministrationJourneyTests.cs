@@ -112,8 +112,7 @@ public sealed class TenantAdministrationJourneyTests
     await page.WaitForURLAsync(url => url.Contains("result=verified"), new() { Timeout = 30000 });
     await page.GetByText("Tenant administrator consent was verified").WaitForAsync();
     await page.GetByText(seeded.Admin.Subject, new() { Exact = false }).WaitForAsync();
-    var body = await page.Locator("body").InnerTextAsync();
-    Assert.Contains("User.Create", body);
+    await page.GetByText("User.Create", new() { Exact = true }).First.WaitForAsync();
 
     await using (var db = host.CreateDbContext())
     {
@@ -125,8 +124,8 @@ public sealed class TenantAdministrationJourneyTests
     }
 
     await page.GotoAsync(origin + "/app/administration");
-    await page.GetByRole(AriaRole.Heading, new() { Name = "Setup progress" }).WaitForAsync();
-    body = await page.Locator("body").InnerTextAsync();
+    await page.GetByText("Consent verified").First.WaitForAsync();
+    var body = await page.Locator("body").InnerTextAsync();
     Assert.DoesNotContain("Tenant administrator consent has not been verified", body);
     Assert.Contains("Consent verified", body);
     Assert.Contains("Microsoft Tenant", body);

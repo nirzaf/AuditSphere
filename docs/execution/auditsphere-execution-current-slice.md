@@ -28,6 +28,39 @@
 
 ---
 
+## Microsoft 365 tenant connection and unified administration
+
+The tenant connection flow now completes the consent contract. After the
+state-bound admin-consent return, a second nonce-bound OIDC sign-in to the
+separate consent app authenticates the consenting tenant administrator; the
+code is redeemed server-side, issuer/audience/tenant/nonce are validated,
+external and personal identities are refused, and only the administrator's
+`tid`/`oid` are stored. This trusted path is the only way to set the
+connection's consent state to `VERIFIED`, which activation already requires.
+Each enabled capability is then verified separately (`VERIFIED`,
+`NOT_GRANTED`, `FAILED`, `BLOCKED_EXTERNAL`; stale after 24 hours) with its own
+single-role app identity.
+
+Optional capabilities are implemented and disabled by default: `User.Create`
+tenant user provisioning (wizard with a one-time, never-stored initial
+password), `User.Invite.All` guest invitation bound only to a CLIENT/ENGAGEMENT
+ClientUser grant, and `GroupMember.ReadWrite.All` administration of allowlisted,
+non-role-assignable groups that never grant AuditSphere access. Every Microsoft
+mutation runs through `m365_external_operations` with an idempotency key,
+recheck before dispatch, UNKNOWN reconciliation by immutable identity and a
+separate local binding transaction; every change writes an append-only
+`m365_administration_events` row. Role assignment now has a reviewed dialog with
+current/proposed access, capability diff, scope expansion/reduction and
+independence impact, explicit expansion confirmation, GROUP scope, reasons and
+expiry enforced by real revocation. The Administration page is a tabbed
+workspace with a dashboard and setup progress derived from persisted state.
+
+CI and local browser journeys use the Development/Test-only simulated tenant.
+Live consent, capability verification and mutations are `BLOCKED_EXTERNAL`
+until separate app registrations and certificates are configured and a tenant
+administrator consents. The GitHub Wiki deployment guide is not updated by this
+change. Exact verification is in `status.json`.
+
 ## AS-PAR-002 audit program library access refresh
 
 The audit program library now clears cached versions and procedure text before
