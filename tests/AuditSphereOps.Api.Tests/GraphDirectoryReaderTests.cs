@@ -35,6 +35,36 @@ public sealed class GraphDirectoryReaderTests
   }
 
   [Fact]
+  public async Task ActiveBrowseUsesBoundedAdvancedDomainFilter()
+  {
+    var objectId = Guid.NewGuid();
+    var handler = new StubHandler(request =>
+    {
+      Assert.Equal("eventual", request.Headers.GetValues("ConsistencyLevel").Single());
+      var query = Uri.UnescapeDataString(request.RequestUri!.Query);
+      Assert.Contains("$count=true", query, StringComparison.Ordinal);
+      Assert.Contains("$top=25", query, StringComparison.Ordinal);
+      Assert.Contains("accountEnabled eq true and endsWith(userPrincipalName,'@example.test')", query,
+        StringComparison.Ordinal);
+      return Json($$"""{"value":[{"id":"{{objectId}}","displayName":"Ada","userPrincipalName":"ada@example.test","accountEnabled":true,"userType":"Member"}]}""");
+    });
+    var reader = new GraphDirectoryReader(new HttpClient(handler), new StubTokenSource(
+      new("opaque", Tenant, new HashSet<string> { "User.Read.All" })), Options);
+    Assert.Single((await reader.BrowseActiveAsync(Tenant, "example.test", null, default)).Users);
+  }
+
+  [Fact]
+  public async Task ActiveBrowseRejectsDisabledOrCrossDomainResponse()
+  {
+    var objectId = Guid.NewGuid();
+    var handler = new StubHandler(_ => Json($$"""{"value":[{"id":"{{objectId}}","displayName":"Ada","userPrincipalName":"ada@other.test","accountEnabled":true,"userType":"Member"}]}"""));
+    var reader = new GraphDirectoryReader(new HttpClient(handler), new StubTokenSource(
+      new("opaque", Tenant, new HashSet<string> { "User.Read.All" })), Options);
+    await Assert.ThrowsAsync<OperationBlockedException>(() =>
+      reader.BrowseActiveAsync(Tenant, "example.test", null, default));
+  }
+
+  [Fact]
   public async Task WrongRoleOrTenantNeverCallsGraph()
   {
     var handler = new StubHandler(_ => throw new Xunit.Sdk.XunitException("Graph must not be called"));

@@ -75,6 +75,13 @@ enabled by this path. A live Development browser check bound the already known
 synthetic Staff fixture and reached the role review form with blank role and
 scope choices. No new grant was applied. The latest browser consent return
 remains unverified; this is not production acceptance.
+The User and role administration screen now offers a paged selector of enabled
+Microsoft users when the separate directory reader is configured. An optional
+domain suffix filter is applied in Graph with an advanced query, and the app
+rechecks tenant, enabled state and exact domain on every page. The roster
+fields remain in a collapsed fallback disclosure. The Development browser
+showed both unfiltered and filtered results, then bound the existing synthetic
+Staff fixture without changing its grant.
 
 The owner has requested a tenant-administration experience that supersedes the
 earlier blanket Graph-scope exclusion only for an isolated read-only directory

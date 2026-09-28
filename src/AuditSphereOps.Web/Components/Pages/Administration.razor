@@ -1,6 +1,7 @@
 @page "/app/administration"
 @rendermode InteractiveServer
 @using AuditSphereOps.Application.Security
+@using AuditSphereOps.Application.Microsoft365
 @using AuditSphereOps.Domain.Microsoft365
 @using AuditSphereOps.Domain.Security
 @using Microsoft.JSInterop
@@ -8,6 +9,7 @@
 @inject IDbContextFactory<AuditSphereDbContext> DbFactory
 @inject IConfiguration Configuration
 @inject IJSRuntime JS
+@inject IMicrosoftDirectoryReader DirectoryReader
 
 <PageTitle>Firm administration</PageTitle>
 <MudLink Href="/app" Class="back-link mb-2 d-inline-block">← Back to portfolio</MudLink>
@@ -158,7 +160,35 @@ else
 
   <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="role-change-heading" role="region">
     <h2 id="role-change-heading">User and role administration</h2>
-    <p class="field-help">The separate read-only directory search is available from Tenant connection when explicitly configured and consented. This local fallback accepts an administrator-provided or exact verified-sign-in identity; email and display name never identify a user.</p>
+    @if (_directoryConfigured)
+    {
+      <p class="field-help">Choose an active Microsoft user from the configured tenant. Pages contain up to 25 users. A domain filter matches the user principal name suffix; selecting a person does not assign an AuditSphere role.</p>
+      <MudTextField T="string" Label="Filter by domain (optional)" Value="_directoryDomain"
+        ValueChanged="OnDirectoryDomainChanged" Immediate="true" MaxLength="253" Placeholder="example.com" />
+      <MudButton Variant="Variant.Outlined" OnClick="() => LoadDirectoryUsersAsync(null)" Disabled="@_directoryBusy">@(_directoryBusy ? "Loading…" : "Load active users")</MudButton>
+      @if (_directoryPage is not null)
+      {
+        <MudSelect T="string" Label="Active Microsoft user" @bind-Value="_directoryObjectId" Clearable="true">
+          @foreach (var person in _directoryPage.Users)
+          {
+            <MudSelectItem Value="@person.ObjectId" Disabled="@(person.UserType != "Member")">@person.DisplayName — @person.UserPrincipalName (@person.UserType)</MudSelectItem>
+          }
+        </MudSelect>
+        @if (_directoryPage.NextPageToken is not null)
+        {
+          <MudButton Variant="Variant.Text" OnClick="() => LoadDirectoryUsersAsync(_directoryPage.NextPageToken)" Disabled="@_directoryBusy">Next 25 users</MudButton>
+        }
+        <p class="field-help">Only enabled accounts are listed. Guest identities require the separate client workflow; this picker binds workforce members only.</p>
+      }
+      <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="BindSelectedDirectoryUserAsync"
+        Disabled="@(_directoryBusy || !SelectedWorkforceMember())">Bind selected Microsoft user</MudButton>
+      @if (!string.IsNullOrWhiteSpace(_directoryError)) { <p class="notice error" role="alert">@_directoryError</p> }
+    }
+    else
+    {
+      <p class="field-help">The read-only Microsoft directory picker is unavailable until the separate reader is configured and consented. This local fallback accepts an administrator-provided or exact verified-sign-in identity; email and display name never identify a user.</p>
+    }
+    <details open="@(!_directoryConfigured)"><summary>Approved-roster identity fields</summary>
     <div class="form-group"><label for="roster-tenant">Tenant ID <span class="required-marker">*</span><MudTextField T="string" @bind-Value="_rosterTenant" MaxLength="200" id="roster-tenant" required title="Exact verified Entra tenant ID (tid)." /></label></div>
     <div class="form-group"><label for="roster-subject">Object ID / subject <span class="required-marker">*</span><MudTextField T="string" @bind-Value="_rosterSubject" MaxLength="200" id="roster-subject" required title="Immutable verified Entra object/subject identifier (oid/sub)." /></label></div>
     <div class="form-group"><label for="roster-email">Email <span class="required-marker">*</span><MudTextField T="string" @bind-Value="_rosterEmail" InputType="InputType.Email" MaxLength="320" id="roster-email" required title="Display/contact data only; it cannot merge identities." /></label></div>
@@ -166,6 +196,7 @@ else
     <div class="form-group"><label for="roster-kind">Application identity kind <span class="required-marker">*</span><MudSelect T="string" @bind-Value="_rosterKind" id="roster-kind" title="Staff and client identities use different landing areas and role policies."><MudSelectItem Value="@("Staff")">Staff</MudSelectItem><MudSelectItem Value="@("Client")">Client</MudSelectItem></MudSelect></label></div>
     <div class="form-group"><label for="roster-source">Identity evidence <span class="required-marker">*</span><MudSelect T="string" @bind-Value="_rosterSource" id="roster-source" title="Record whether this exact identity came from an approved roster or a verified sign-in."><MudSelectItem Value="@("APPROVED_ROSTER")">Approved roster</MudSelectItem><MudSelectItem Value="@("VERIFIED_SIGN_IN")">Verified sign-in</MudSelectItem></MudSelect></label></div>
     <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button" OnClick="OnboardUserAsync" Disabled="@_roleBusy">@(_roleBusy ? "Saving…" : "Bind user")</MudButton>
+    </details>
     @if (_selectedUserId.HasValue)
     {
       <p class="field-help">Selected local user: <code>@_selectedUserId</code>. Binding grants no new role. Review existing grants and choose an explicit role and scope before applying a change.</p>
@@ -200,6 +231,10 @@ else
   private List<RoleGrant> _grants = [];
   private bool _loading = true;
   private bool _roleBusy;
+  private bool _directoryConfigured, _directoryBusy;
+  private string _directoryDomain = string.Empty, _directoryObjectId = string.Empty;
+  private string _directoryError = string.Empty;
+  private DirectoryCandidatePage? _directoryPage;
   private Guid? _selectedUserId;
   private string _rosterTenant = string.Empty, _rosterSubject = string.Empty, _rosterEmail = string.Empty, _rosterName = string.Empty;
   private string _rosterSource = "APPROVED_ROSTER", _rosterKind = "Staff", _roleName = "Staff", _scopeKind = "FIRM_WIDE";
@@ -241,6 +276,8 @@ else
       _invitationId = null;
       _invitationLink = _invitationMessage = string.Empty;
       _roleMessage = _roleError = string.Empty;
+      _directoryPage = null;
+      _directoryObjectId = _directoryDomain = _directoryError = string.Empty;
     }
   }
 
@@ -277,6 +314,13 @@ else
       _invitationsByGrant = snapshot.InvitationsByGrant;
       _directoryByIdentity = snapshot.DirectoryByIdentity;
       _grantHistoryByGrant = snapshot.GrantHistoryByGrant;
+      _directoryConfigured = Configuration.GetValue<bool>("DirectoryReader:Enabled") &&
+        Guid.TryParse(Configuration["DirectoryReader:ClientId"], out _) &&
+        string.Equals(Configuration["DirectoryReader:ClientId"], Configuration["TenantConsent:ClientId"], StringComparison.OrdinalIgnoreCase) &&
+        !string.IsNullOrWhiteSpace(Configuration["DirectoryReader:CertificatePath"]) &&
+        !string.IsNullOrWhiteSpace(Configuration["DirectoryReader:PrivateKeyPath"]);
+      if (_directoryConfigured && _directoryPage is null)
+        await LoadDirectoryUsersAsync(null);
       if (DirectorySelectedUserId is { } selectedId &&
           await db.Users.AsNoTracking().AnyAsync(x => x.Id == selectedId &&
             x.FirmId == currentActor.FirmId && !x.Disabled))
@@ -291,6 +335,64 @@ else
   }
 
   private void ToggleGrantHistory(Guid grantId) => _expandedGrantId = _expandedGrantId == grantId ? null : grantId;
+
+  private bool SelectedWorkforceMember() =>
+    _directoryPage?.Users.Any(x => x.ObjectId == _directoryObjectId &&
+      x.AccountEnabled && x.UserType == "Member") == true;
+
+  private void OnDirectoryDomainChanged(string value)
+  {
+    _directoryDomain = value;
+    _directoryObjectId = string.Empty;
+    _directoryPage = null;
+    _directoryError = string.Empty;
+  }
+
+  private async Task LoadDirectoryUsersAsync(string? pageToken)
+  {
+    if (!_directoryConfigured || _actor is null) return;
+    _directoryBusy = true;
+    _directoryError = string.Empty;
+    _directoryObjectId = string.Empty;
+    _directoryPage = null;
+    try
+    {
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var result = await DirectoryDiscoveryService.BrowseActiveAsync(db, _actor, DirectoryReader,
+        Configuration["Identity:TenantId"] ?? string.Empty, _directoryDomain, pageToken);
+      if (result.Succeeded) _directoryPage = result.Value;
+      else _directoryError = result.Message ?? "Active Microsoft users could not be loaded.";
+    }
+    finally { _directoryBusy = false; }
+  }
+
+  private async Task BindSelectedDirectoryUserAsync()
+  {
+    if (!_directoryConfigured || _actor is null ||
+        !Guid.TryParse(_directoryObjectId, out var objectId) ||
+        _directoryPage?.Users.Any(x => x.ObjectId == objectId.ToString("D") && x.AccountEnabled && x.UserType == "Member") != true)
+      return;
+    _directoryBusy = true;
+    _directoryError = string.Empty;
+    try
+    {
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var result = await DirectoryUserBindingService.BindMemberAsync(db, _actor, DirectoryReader,
+        Configuration["Identity:TenantId"] ?? string.Empty, objectId);
+      if (!result.Succeeded)
+      {
+        _directoryError = result.Message ?? "The Microsoft user could not be bound.";
+        return;
+      }
+      _selectedUserId = result.Value;
+      DirectorySelectedUserId = result.Value;
+      _roleName = _scopeKind = string.Empty;
+      _roleMessage = "Exact Microsoft identity bound. Choose an AuditSphere role and scope explicitly.";
+      _invitationId = null; _invitationLink = string.Empty; _invitationMessage = string.Empty;
+      await LoadAdministrationAsync(clearForms: false);
+    }
+    finally { _directoryBusy = false; }
+  }
 
   private async Task OnboardUserAsync()
   {

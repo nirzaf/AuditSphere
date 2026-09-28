@@ -125,6 +125,27 @@ public sealed class TenantConsentServiceTests
   }
 
   [Fact]
+  public async Task ActiveDirectoryBrowseRequiresAdminAndExactDomain()
+  {
+    await using var fixture = await Fixture.CreateAsync();
+    await using var db = new AuditSphereDbContext(fixture.Options);
+    var person = new DirectoryCandidate(TenantId, Guid.NewGuid().ToString("D"),
+      "Ada", "ada@example.test", true, "Member");
+    var reader = new FakeDirectoryReader(new DirectoryCandidatePage([person], null));
+    Assert.Single((await DirectoryDiscoveryService.BrowseActiveAsync(db, fixture.Actor,
+      reader, TenantId, "@Example.Test", null)).Value!.Users);
+    Assert.False((await DirectoryDiscoveryService.BrowseActiveAsync(db, fixture.Actor,
+      reader, TenantId, "other.test", null)).Succeeded);
+    Assert.False((await DirectoryDiscoveryService.BrowseActiveAsync(db, fixture.Actor,
+      reader, TenantId, "example.test' OR 1=1", null)).Succeeded);
+    var grant = await db.RoleGrants.SingleAsync();
+    grant.RevokedAt = DateTimeOffset.UtcNow;
+    await db.SaveChangesAsync();
+    Assert.False((await DirectoryDiscoveryService.BrowseActiveAsync(db, fixture.Actor,
+      reader, TenantId, "example.test", null)).Succeeded);
+  }
+
+  [Fact]
   public async Task ExactEnabledDirectoryMemberBindsOnceWithoutGrant()
   {
     await using var fixture = await Fixture.CreateAsync();
@@ -255,6 +276,8 @@ public sealed class TenantConsentServiceTests
       ExactCalls++;
       return Task.FromResult(exact ?? throw new InvalidOperationException("No exact user configured."));
     }
+    public Task<DirectoryCandidatePage> BrowseActiveAsync(string tenantId, string? domain,
+      string? pageToken, CancellationToken ct) => Task.FromResult(page);
   }
 
   private sealed class Fixture(PgTestSchema pg) : IAsyncDisposable

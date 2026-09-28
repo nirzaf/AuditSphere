@@ -38,7 +38,7 @@ consent policy and role assignment must be checked at connection time.
 | Capability | Endpoint | Least permission | Type | Why needed | Consent / Microsoft authority | State |
 | --- | --- | --- | --- | --- | --- | --- |
 | Sign-in | Microsoft OIDC | `openid profile email` | Delegated sign-in | Authenticate one work/school identity and bind `tid` + `oid` | Normal OIDC policy; no Graph app role | Existing, separately verified |
-| Directory reader | `GET /users`, `GET /users/{id}` | `User.Read.All` | Application, separate reader identity | Search existing users and re-read an exact enabled object before local binding | Tenant admin consent; Privileged Role Administrator or authorized custom role | Development-only app consented; exact-role token and bounded Graph read observed; no persisted verification revision or production acceptance |
+| Directory reader | `GET /users`, `GET /users/{id}` | `User.Read.All` | Application, separate reader identity | Browse/search active users, filter by UPN domain, and re-read an exact enabled object before local binding | Tenant admin consent; Privileged Role Administrator or authorized custom role | Development-only app consented; bounded Graph read and persisted recent directory check observed; no production acceptance |
 | Selected SharePoint | Exact approved `/sites/{id}` and `/drives/{id}` resources | `Sites.Selected` plus site-specific `write` grant | Application, document-worker identity | Read/write only the selected working site | Tenant admin consent plus separate exact-site grant | Existing Development selected-site read and disposable write checks; no PBC acceptance |
 | Tenant user creation | `POST /users` | `User.Create` | Application, optional separate provisioner | Create a new workforce user only when explicitly enabled | Separate tenant admin consent and provisioning policy | PROPOSED; NOT_CONFIGURED |
 | Guest invitation | `POST /invitations` | `User.Invite.All` | Application, optional separate inviter | Invite an explicitly approved external client identity | Separate tenant admin consent and tenant B2B policy | PROPOSED; NOT_CONFIGURED |
@@ -90,6 +90,12 @@ disabled, guest, changed, or mismatched object is refused. Binding records a
 Graph observation but creates no `RoleGrant`; the administrator must separately
 choose a local role and scope. The general roster endpoint cannot label
 unverified input as `GRAPH`.
+The User and role administration picker pages enabled users in batches of 25.
+Its optional UPN domain suffix filter uses Graph's advanced query requirements
+(`ConsistencyLevel: eventual`, `$count=true`) and rejects results from another
+tenant or domain. A selected workforce member is re-read by exact object ID;
+the picker itself never grants access. Guest entries remain visible but cannot
+be bound through the workforce-member action.
 
 Before optional capabilities ship, extend this matrix with the approved
 credential owner, retention, revocation steps, exact endpoint tests, and
@@ -99,6 +105,7 @@ registration as a shortcut for a picker or a setup badge.
 Sources: [Microsoft admin consent protocol](https://learn.microsoft.com/en-us/entra/identity-platform/v2-admin-consent),
 [tenant admin-consent role prerequisites](https://learn.microsoft.com/en-us/entra/identity/enterprise-apps/grant-admin-consent),
 [list users](https://learn.microsoft.com/en-us/graph/api/user-list?view=graph-rest-1.0),
+[advanced directory filters](https://learn.microsoft.com/en-us/graph/aad-advanced-queries),
 [create user](https://learn.microsoft.com/en-us/graph/api/user-post-users?view=graph-rest-1.0),
 [create invitation](https://learn.microsoft.com/en-us/graph/api/invitation-post?view=graph-rest-1.0),
 and [add group members](https://learn.microsoft.com/en-us/graph/api/group-post-members?view=graph-rest-1.0).

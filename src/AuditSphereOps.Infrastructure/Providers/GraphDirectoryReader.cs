@@ -10,6 +10,67 @@ namespace AuditSphereOps.Infrastructure.Providers;
 public sealed class GraphDirectoryReader(HttpClient http, IDirectoryTokenSource tokens,
   DirectoryCertificateOptions options) : IMicrosoftDirectoryReader
 {
+  public async Task<DirectoryCandidatePage> BrowseActiveAsync(string tenantId, string? domain,
+    string? pageToken, CancellationToken ct)
+  {
+    if (!options.Enabled || !Guid.TryParse(tenantId, out var tenant) ||
+        !string.Equals(tenant.ToString("D"), options.TenantId, StringComparison.OrdinalIgnoreCase) ||
+        domain is { Length: > 253 } ||
+        domain is { Length: > 0 } d &&
+          (!d.Contains('.') || d.Any(x => !(char.IsAsciiLetterOrDigit(x) || x is '.' or '-'))) ||
+        pageToken is { Length: > 2048 })
+      throw new OperationBlockedException("directory-reader-invalid-request", authorization: true);
+    var token = await tokens.GetAsync(tenantId, ct);
+    if (string.IsNullOrWhiteSpace(token.AccessToken) ||
+        !string.Equals(token.TenantId, tenantId, StringComparison.OrdinalIgnoreCase) ||
+        token.ApplicationRoles.Count != 1 || !token.ApplicationRoles.Contains("User.Read.All"))
+      throw new OperationBlockedException("directory-reader-token-invalid", authorization: true);
+    var filter = "accountEnabled eq true" +
+      (string.IsNullOrEmpty(domain) ? "" : $" and endsWith(userPrincipalName,'@{domain}')");
+    var url = "https://graph.microsoft.com/v1.0/users?" +
+      "$select=id,displayName,userPrincipalName,accountEnabled,userType" +
+      "&$top=25&$count=true&$filter=" + Uri.EscapeDataString(filter) +
+      (string.IsNullOrWhiteSpace(pageToken) ? "" : "&$skiptoken=" + Uri.EscapeDataString(pageToken));
+    using var request = new HttpRequestMessage(HttpMethod.Get, url);
+    request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token.AccessToken);
+    request.Headers.TryAddWithoutValidation("ConsistencyLevel", "eventual");
+    using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
+    if (response.StatusCode is HttpStatusCode.TooManyRequests or HttpStatusCode.ServiceUnavailable)
+      throw new SafeRetryException(response.Headers.RetryAfter?.Delta);
+    if (!response.IsSuccessStatusCode || response.Content.Headers.ContentLength is > 262144)
+      throw new OperationBlockedException("directory-reader-graph-rejected",
+        authorization: response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden);
+    try
+    {
+      using var document = await JsonDocument.ParseAsync(
+        await response.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
+      var root = document.RootElement;
+      if (!root.TryGetProperty("value", out var value) || value.ValueKind != JsonValueKind.Array)
+        throw new OperationBlockedException("directory-reader-graph-invalid");
+      var users = new List<DirectoryCandidate>();
+      foreach (var item in value.EnumerateArray())
+      {
+        if (users.Count == 25)
+          throw new OperationBlockedException("directory-reader-graph-invalid");
+        var candidate = Candidate(item, tenant);
+        if (!candidate.AccountEnabled ||
+            domain is { Length: > 0 } suffix &&
+              !candidate.UserPrincipalName.EndsWith("@" + suffix, StringComparison.OrdinalIgnoreCase))
+          throw new OperationBlockedException("directory-reader-graph-invalid");
+        users.Add(candidate);
+      }
+      string? next = null;
+      if (root.TryGetProperty("@odata.nextLink", out var link) &&
+          link.ValueKind == JsonValueKind.String)
+        next = NextToken(link.GetString());
+      return new(users, next);
+    }
+    catch (Exception ex) when (ex is JsonException or InvalidOperationException or FormatException)
+    {
+      throw new OperationBlockedException("directory-reader-graph-invalid");
+    }
+  }
+
   public async Task<DirectoryCandidatePage> SearchAsync(string tenantId, string prefix,
     string? pageToken, CancellationToken ct)
   {

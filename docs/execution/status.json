@@ -787,6 +787,15 @@
       "fullSuite": "PASS: Release solution suite Domain 384/384, API 29/29, E2E 86/86; 499/499 aggregate, 0 skipped.",
       "developmentBrowser": "The Development administrator selected Verify directory access. The live Graph exact-member read completed and the page displayed VERIFIED_RECENT with its check time while consent remained REQUIRED, the last callback RETURNED_UNVERIFIED, and the connection CONSENT_REQUIRED.",
       "boundary": "This is recent read capability evidence in Development, not proof of the Microsoft grantor, a verified consent callback, other Microsoft 365 capabilities, continuing access after the 15-minute window, or production acceptance."
+    },
+    "activeDirectoryPicker": {
+      "observedAt": "2026-09-28T12:27:17Z",
+      "behavior": "User and role administration pages enabled Microsoft users 25 at a time through the separate read-only reader. An optional UPN domain suffix uses Graph advanced query parameters; application and provider both reject tenant, disabled-state and domain mismatches. Choosing a member re-reads its exact object before local binding, leaves role and scope blank, and does not grant access. The approved-roster input remains as a collapsed fallback.",
+      "focusedTests": "PASS: GraphDirectoryReaderTests 8/8 and PostgreSQL TenantConsentServiceTests 10/10.",
+      "build": "PASS: Release solution build, 0 warnings/errors.",
+      "fullSuite": "PASS: Release solution suite Domain 385/385, API 31/31, E2E 86/86; 502/502 aggregate, 0 skipped. A final UI-only refinement cleared stale choices when the domain text changes; Web Release build passed after that refinement.",
+      "developmentBrowser": "The local administration page loaded enabled users from the live Development tenant. Filtering by the configured Development domain removed other-domain accounts. Selecting and binding the already known synthetic Staff fixture refreshed its exact Graph observation and showed blank role and scope controls; no new grant was applied. After the final UI refinement, changing the domain cleared the previous dropdown choices until the new filtered page was loaded.",
+      "boundary": "This is a Development read/bind check. It does not create a Microsoft user, bind a guest, assign an AuditSphere role, verify the consent grantor, or constitute production acceptance."
     }
   },
   "documentationWork": {
