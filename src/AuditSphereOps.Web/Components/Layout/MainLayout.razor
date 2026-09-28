@@ -6,19 +6,21 @@
 <MudSnackbarProvider />
 
 <a class="skip-link" href="#main-content">Skip to main content</a>
-<MudLayout>
-  <MudAppBar Elevation="1">
+<MudLayout Class="audit-shell audit-staff-shell">
+  <MudAppBar Elevation="0" Class="audit-topbar">
     <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start"
                    OnClick="@ToggleDrawer" aria-label="Toggle navigation" />
-    <MudLink Href="/" Color="Color.Inherit" Typo="Typo.h6" Underline="Underline.None">AuditSphereOps</MudLink>
-    <MudText Typo="Typo.body2" Class="ml-2" Style="opacity:.75">@EnvironmentLabel</MudText>
+    <MudLink Href="/app" Color="Color.Inherit" Typo="Typo.subtitle1" Underline="Underline.None" Class="audit-topbar-title">AuditSphereOps</MudLink>
+    <MudText Typo="Typo.caption" Class="audit-environment ml-2">@EnvironmentLabel</MudText>
   </MudAppBar>
-  <MudDrawer @bind-Open="_drawerOpen" ClipMode="DrawerClipMode.Always" Elevation="1" Variant="DrawerVariant.Responsive">
+  <MudDrawer @bind-Open="_drawerOpen" ClipMode="DrawerClipMode.Always" Elevation="0" Variant="DrawerVariant.Responsive" Class="audit-sidebar">
     <MudNavMenu aria-label="Primary navigation">
-      <MudNavLink Href="/app" Match="NavLinkMatch.Prefix">Portfolio</MudNavLink>
+      <p class="audit-nav-label">Practice</p>
+      <MudNavLink Href="/app" Match="NavLinkMatch.All">Portfolio</MudNavLink>
       <MudNavLink Href="/app/practice/leads">Leads</MudNavLink>
       <MudNavLink Href="/app/practice/time">Time</MudNavLink>
       <MudNavLink Href="/app/finance">Finance</MudNavLink>
+      <p class="audit-nav-label">Workspaces</p>
       <MudNavGroup Title="Accounting" Expanded="false">
         <MudNavLink Href="/app/accounting">Accounting workspace</MudNavLink>
         <MudNavLink Href="/app/accounting/evidence">Accounting evidence</MudNavLink>
@@ -31,13 +33,14 @@
       </MudNavGroup>
       <MudNavLink Href="/app/consolidation">Consolidation</MudNavLink>
       <MudNavLink Href="/app/operations">Operations</MudNavLink>
+      <p class="audit-nav-label">Administration</p>
       <MudNavLink Href="/app/administration">Administration</MudNavLink>
       <MudNavLink Href="/portal">Client portal</MudNavLink>
       <MudNavLink Href="/health/ready">Readiness</MudNavLink>
     </MudNavMenu>
   </MudDrawer>
-  <MudMainContent>
-    <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="py-6">
+  <MudMainContent Class="audit-main-content">
+    <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="audit-workspace">
       <main id="main-content">
         <AccountingNavigation />
         @Body
@@ -53,4 +56,3 @@
   private string EnvironmentLabel => Configuration["ASPNETCORE_ENVIRONMENT"] ?? "Development";
   private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
 }
-

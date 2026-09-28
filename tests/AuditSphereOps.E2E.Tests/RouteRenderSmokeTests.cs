@@ -64,12 +64,59 @@ public sealed class RouteRenderSmokeTests
     {
       await page.GotoAsync(SignInUrl(origin, route));
       await page.GetByRole(AriaRole.Heading, new() { Name = heading }).First.WaitForAsync(new() { Timeout = 15000 });
+      if (route == "/")
+        Assert.Equal(0, await page.GetByRole(AriaRole.Navigation, new() { Name = "Primary navigation" }).CountAsync());
+      else if (route == "/app")
+        Assert.Equal(1, await page.GetByRole(AriaRole.Navigation, new() { Name = "Primary navigation" }).CountAsync());
+    }
+
+    await page.GotoAsync(SignInUrl(origin, "/app"));
+    await page.GetByRole(AriaRole.Link, new() { Name = "Client portal" }).ClickAsync();
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Client portal" }).First.WaitForAsync();
+    Assert.Equal(0, await page.GetByRole(AriaRole.Navigation, new() { Name = "Primary navigation" }).CountAsync());
+
+    await page.GotoAsync(SignInUrl(origin, "/app"));
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Portfolio" }).First.WaitForAsync();
+    await page.WaitForFunctionAsync("() => getComputedStyle(document.documentElement).getPropertyValue('--audit-blue').trim() === '#2b6cb0'");
+    Assert.Equal("#2b6cb0", await page.EvaluateAsync<string>("() => getComputedStyle(document.documentElement).getPropertyValue('--audit-blue').trim()"));
+    Assert.Equal("rgb(255, 255, 255)", await page.Locator(".audit-sidebar .mud-nav-link.active").First
+      .EvaluateAsync<string>("element => getComputedStyle(element).color"));
+    if (Environment.GetEnvironmentVariable("AUDITSPHERE_UI_CAPTURE_DIR") is { Length: > 0 } initialCaptureDir)
+    {
+      Directory.CreateDirectory(initialCaptureDir);
+      await page.ScreenshotAsync(new() { Path = Path.Combine(initialCaptureDir, "portfolio-initial.png"), FullPage = true });
+    }
+    foreach (var width in new[] { 320, 390, 760, 1024, 1440, 1920 })
+    {
+      await page.SetViewportSizeAsync(width, 900);
+      if (width < 960)
+        await page.WaitForFunctionAsync("() => getComputedStyle(document.querySelector('.audit-main-content')).marginLeft === '0px'");
+      Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= window.innerWidth + 1"),
+        $"Portfolio overflows the {width}px viewport.");
+      if ((width == 390 || width == 1440) && Environment.GetEnvironmentVariable("AUDITSPHERE_UI_CAPTURE_DIR") is { Length: > 0 } captureDir)
+      {
+        Directory.CreateDirectory(captureDir);
+        await page.ScreenshotAsync(new() { Path = Path.Combine(captureDir, $"portfolio-{width}.png"), FullPage = true });
+      }
     }
 
     // The client portal renders for the client identity through its own started web origin.
     var clientPage = await context.NewPageAsync();
     await clientPage.GotoAsync(SignInUrl(host.ClientUrl, "/portal"));
     await clientPage.GetByRole(AriaRole.Heading, new() { Name = "Client portal" }).First.WaitForAsync(new() { Timeout = 15000 });
+    Assert.Equal(0, await clientPage.GetByRole(AriaRole.Navigation, new() { Name = "Primary navigation" }).CountAsync());
+    Assert.Equal(0, await clientPage.GetByRole(AriaRole.Link, new() { Name = "Firm administration" }).CountAsync());
+    foreach (var width in new[] { 320, 390, 760, 1024, 1440, 1920 })
+    {
+      await clientPage.SetViewportSizeAsync(width, 900);
+      Assert.True(await clientPage.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= window.innerWidth + 1"),
+        $"Client portal overflows the {width}px viewport.");
+      if ((width == 390 || width == 1440) && Environment.GetEnvironmentVariable("AUDITSPHERE_UI_CAPTURE_DIR") is { Length: > 0 } captureDir)
+      {
+        Directory.CreateDirectory(captureDir);
+        await clientPage.ScreenshotAsync(new() { Path = Path.Combine(captureDir, $"client-portal-{width}.png"), FullPage = true });
+      }
+    }
 
     Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
   }

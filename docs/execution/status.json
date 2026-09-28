@@ -1051,14 +1051,19 @@
     }
   },
   "active": {
-    "packageId": "Audit workflow gap-closure and client accounting implementation",
+    "packageId": "Prototype-inspired Blazor UI modernization",
     "implementationStatus": "IN_PROGRESS",
-    "acceptanceStatus": "LOCAL_VERIFIED",
-    "scope": "P2 trusted PBC provider-scope handoff locally verified; the Graph adapter and live tenant acceptance remain open. AS-PAR-002 whole-application authorization audit remains partial. T001 R2R baseline inventory accepted by the owner; T002 architecture/transaction handoff is in independent review. T002 and downstream work remain open. Local developer-administrator, client-scoped staff and two client fixture OIDC sign-ins are observed. Provisional maximum-size local TB/PBC and concurrent staff-query samples are recorded; P1/P8 external and production acceptance remain open.",
-    "nextAction": "Continue remaining route/query/search/count/export/direct-command audit and eligible local provider hardening; complete wrong-tenant and disabled/revoked-user live P1 fixtures through private credential handoff, while preserving the changed-UPN, Sent-request Client X/Client Y Development isolation and Draft visibility results. Measure actual concurrent browser/provider workloads and approved targets for P8b. Independently review direct-main changes under P9.",
+    "acceptanceStatus": "PARTIAL",
+    "scope": "The shared staff/client/public shell, MudBlazor theme, shared surfaces and Portfolio pilot are locally verified on the real Blazor stack. Route-specific page-family visual and accessibility work remains open; no whole-application visual parity or production acceptance is claimed. Earlier AS-PAR-002, Microsoft provider, R2R review and P1/P8/P9 external gates remain recorded below.",
+    "nextAction": "Continue route-family visual passes on the real Blazor pages, starting with client portal request/package detail and then staff practice, finance, accounting, audit and administration views. Preserve native draft/upload contracts and server authorization. Capture matching synthetic before/after evidence, keyboard and state coverage before any full UI acceptance claim.",
     "branch": "master"
   },
   "localEvidence": [
+    {
+      "item": "Prototype-inspired Blazor shell and Portfolio pilot",
+      "status": "PARTIAL",
+      "details": "Starting target checkout 71fe1d4a806199287e02cbff131b2b6b42aa7c89 and read-only visual reference dade5e02c1a36596fd6596878e99a25c78f955ab. Route-selected MainLayout, ClientLayout and PublicLayout keep staff navigation out of portal/public/auth/setup pages. MudBlazor theme and enterprise-ui.css restyle the navy drawer, light top bar, compact heading/panels, semantic chips and Portfolio metrics, search/export and registers without changing Portfolio queries or actions. A synthetic browser route smoke visits parameterless routes, checks in-app staff-to-portal shell separation, and confirms no document overflow at 320, 390, 760, 1024, 1440 and 1920px for Portfolio and client portal. Final focused smoke passed 1/1, including computed active-sidebar white text. Release Web build passed with 0 warnings/errors; full PostgreSQL-backed Release solution suite passed 578/578 with 0 skips (Domain 449, API 32, E2E 97) before the final active-link CSS specificity correction; the final focused browser case passed after that correction. EF found no pending model changes. Markdown filename and task-pack validators passed, and git diff --check was clean. Synthetic after screenshots were inspected; a matching before capture, per-route visual/accessibility work and full parity remain pending. No tenant or production effect."
+    },
     {
       "item": "Re-review repair RR-01..RR-09 - fail-closed FX translation, stable replay identity and evidence reconciliation",
       "status": "LOCAL_VERIFIED",

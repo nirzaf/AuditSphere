@@ -8,8 +8,8 @@
 @inject IJSRuntime JS
 
 <PageTitle>Portfolio</PageTitle>
-<PageHeader Title="Portfolio" Description="Staff portfolio overview. Live projections for the current explicit scope; counts are read from PostgreSQL." />
-<MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button-secondary" OnClick="LoadPortfolioAsync" Disabled="@_loading">Refresh portfolio</MudButton>
+<PageHeader Title="Portfolio" Eyebrow="Practice overview" Description="Staff portfolio overview. Live projections for the current explicit scope; counts are read from PostgreSQL." />
+<MudButton Color="Color.Primary" Variant="Variant.Filled" Class="audit-portfolio-refresh" OnClick="LoadPortfolioAsync" Disabled="@_loading">Refresh portfolio</MudButton>
 
 @if (_loading)
 {
@@ -46,21 +46,21 @@ else
   {
     <MudAlert Severity="Severity.Info" Dense="true"><h2>No firm, client or engagement scope</h2>Ask a firm administrator for an active grant before using the portfolio. No firm data is shown without an explicit scope.</MudAlert>
   }
-  <MudGrid Spacing="2" Class="mb-4">
-    <MudItem xs="6" sm="4" md="2"><MudPaper Class="pa-3"><MudText Typo="Typo.overline">Clients</MudText><MudText Typo="Typo.h4">@_metrics.Clients</MudText></MudPaper></MudItem>
-    <MudItem xs="6" sm="4" md="2"><MudPaper Class="pa-3"><MudText Typo="Typo.overline">Engagements</MudText><MudText Typo="Typo.h4">@_metrics.Engagements</MudText></MudPaper></MudItem>
-    <MudItem xs="6" sm="4" md="2"><MudPaper Class="pa-3"><MudText Typo="Typo.overline">Open holds</MudText><MudText Typo="Typo.h4">@_metrics.OpenHolds</MudText></MudPaper></MudItem>
-    <MudItem xs="6" sm="4" md="2"><MudPaper Class="pa-3"><MudText Typo="Typo.overline">Pending ops</MudText><MudText Typo="Typo.h4">@_metrics.PendingOperations</MudText></MudPaper></MudItem>
-    <MudItem xs="6" sm="4" md="2"><MudPaper Class="pa-3"><MudText Typo="Typo.overline">Ready</MudText><MudText Typo="Typo.h4">@_metrics.ReadyCandidates</MudText></MudPaper></MudItem>
-    <MudItem xs="6" sm="4" md="2"><MudPaper Class="pa-3"><MudText Typo="Typo.overline">Issued</MudText><MudText Typo="Typo.h4">@_metrics.IssuedReleases</MudText></MudPaper></MudItem>
+  <MudGrid Spacing="2" Class="audit-portfolio-metrics mb-4">
+    <MudItem xs="6" sm="4" md="2"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Clients</MudText><MudText Typo="Typo.h4">@_metrics.Clients</MudText></MudPaper></MudItem>
+    <MudItem xs="6" sm="4" md="2"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Engagements</MudText><MudText Typo="Typo.h4">@_metrics.Engagements</MudText></MudPaper></MudItem>
+    <MudItem xs="6" sm="4" md="2"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Open holds</MudText><MudText Typo="Typo.h4">@_metrics.OpenHolds</MudText></MudPaper></MudItem>
+    <MudItem xs="6" sm="4" md="2"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Pending ops</MudText><MudText Typo="Typo.h4">@_metrics.PendingOperations</MudText></MudPaper></MudItem>
+    <MudItem xs="6" sm="4" md="2"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Ready</MudText><MudText Typo="Typo.h4">@_metrics.ReadyCandidates</MudText></MudPaper></MudItem>
+    <MudItem xs="6" sm="4" md="2"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Issued</MudText><MudText Typo="Typo.h4">@_metrics.IssuedReleases</MudText></MudPaper></MudItem>
   </MudGrid>
 
   @if (_hasScope)
   {
-    <MudPaper Class="pa-4 mb-4">
+    <MudPaper Class="audit-workspace-panel pa-4 mb-4">
       <h2 id="scope-search-heading">Scoped client search and export</h2>
       <MudText Typo="Typo.body2">Search is limited to the current explicit grant scope.</MudText>
-      <MudStack Row="true" Spacing="2" Class="mt-2">
+      <MudStack Row="true" Spacing="2" Class="audit-portfolio-search mt-2">
         <MudTextField T="string" Label="Search current scope (optional)" @bind-Value="_search" Immediate="true"
                       Placeholder="Client name, ID or status" />
         <MudButton Color="Color.Secondary" Variant="Variant.Outlined" OnClick="DownloadPortfolioCsvAsync" Disabled="@_loading">Download scoped CSV</MudButton>
@@ -84,7 +84,7 @@ else
     </MudPaper>
   }
 
-  <MudPaper Class="pa-4 mb-4">
+  <MudPaper Class="audit-workspace-panel pa-4 mb-4">
     <h2 id="quick-routes-heading">Practice & operational surfaces</h2>
     <MudStack Row="true" Wrap="Wrap.Wrap" Spacing="2" Class="mt-2">
       <MudButton Color="Color.Primary" Variant="Variant.Filled" Href="/app/practice/leads">Practice leads</MudButton>
@@ -97,7 +97,7 @@ else
     </MudStack>
   </MudPaper>
 
-  <MudPaper Class="pa-4 mb-4">
+  <MudPaper Class="audit-workspace-panel pa-4 mb-4">
     <h2 id="candidate-title">Release candidates</h2>
     @if (!VisibleCandidates.Any())
     {
@@ -120,7 +120,7 @@ else
     }
   </MudPaper>
 
-  <MudPaper Class="pa-4 mb-4">
+  <MudPaper Class="audit-workspace-panel pa-4 mb-4">
     <h2 id="package-title">Financial-statement packages</h2>
     @if (!VisiblePackages.Any())
     {

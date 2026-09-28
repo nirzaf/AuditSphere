@@ -1,5 +1,5 @@
 @* Centralized status presentation: text + color + icon so status is never color-only. *@
-<MudChip T="string" Color="@ChipColor" Variant="Variant.Outlined" Size="Size.Small" Icon="@ChipIcon">@Status</MudChip>
+<MudChip T="string" Color="@ChipColor" Variant="Variant.Outlined" Size="Size.Small" Icon="@ChipIcon" Class="audit-status-chip">@Status</MudChip>
 
 @code {
   [Parameter, EditorRequired] public string Status { get; set; } = string.Empty;

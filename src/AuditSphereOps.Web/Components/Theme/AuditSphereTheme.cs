@@ -4,8 +4,7 @@ namespace AuditSphereOps.Web.Components.Theme;
 
 /// <summary>
 /// Central AuditSphere MudBlazor theme (presentation layer only).
-/// Professional enterprise tokens aligned with the existing app.css palette
-/// (topbar #123047, primary #075985, page #f5f7fa). No business logic here.
+/// Enterprise presentation tokens shared by staff, client and public layouts.
 /// </summary>
 public static class AuditSphereTheme
 {
@@ -13,33 +12,33 @@ public static class AuditSphereTheme
   {
     PaletteLight = new PaletteLight
     {
-      Primary = "#075985",
-      Secondary = "#0E7490",
-      Tertiary = "#123047",
-      Info = "#0E7490",
+      Primary = "#2B6CB0",
+      Secondary = "#0B6B65",
+      Tertiary = "#0F172A",
+      Info = "#2B6CB0",
       Success = "#15803D",
       Warning = "#B45309",
       Error = "#B91C1C",
-      Dark = "#123047",
+      Dark = "#0F172A",
       TextPrimary = "#17212B",
-      TextSecondary = "#5B6B7A",
-      Background = "#F5F7FA",
+      TextSecondary = "#526176",
+      Background = "#F8FAFC",
       Surface = "#FFFFFF",
-      DrawerBackground = "#E8EEF3",
-      DrawerText = "#123047",
-      AppbarBackground = "#123047",
-      AppbarText = "#FFFFFF",
+      DrawerBackground = "#0F172A",
+      DrawerText = "#E2E8F0",
+      AppbarBackground = "#FFFFFF",
+      AppbarText = "#17212B",
     },
     LayoutProperties = new LayoutProperties
     {
       DefaultBorderRadius = "6px",
-      DrawerWidthLeft = "260px",
+      DrawerWidthLeft = "232px",
     },
     Typography = new Typography
     {
-      Default = new DefaultTypography { FontFamily = ["system-ui", "sans-serif"], FontSize = "0.95rem" },
-      H1 = new H1Typography { FontSize = "2rem", FontWeight = "700" },
-      H2 = new H2Typography { FontSize = "1.4rem", FontWeight = "700" },
+      Default = new DefaultTypography { FontFamily = ["system-ui", "sans-serif"], FontSize = "0.875rem" },
+      H1 = new H1Typography { FontSize = "1.75rem", FontWeight = "700" },
+      H2 = new H2Typography { FontSize = "1.25rem", FontWeight = "700" },
       H3 = new H3Typography { FontSize = "1.15rem", FontWeight = "700" },
       Button = new ButtonTypography { TextTransform = "none", FontWeight = "700" },
     },

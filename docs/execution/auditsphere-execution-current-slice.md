@@ -33,6 +33,21 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ---
 
+## UI modernization — shell and Portfolio pilot
+
+The real Blazor app now has a prototype-inspired navy staff drawer, light top
+bar, compact shared theme and workspace surfaces. Route-selected client and
+public layouts keep the staff drawer out of client, home, sign-in and setup
+views. The Portfolio pilot restyles authorized metrics, search/export and
+register panels without changing their queries or actions. The prototype is
+read-only visual reference; no persona, scenario, fake data or browser-local
+business state has been copied. The route smoke check now asserts shell
+separation and responsive document width for Portfolio and the client portal.
+The remaining staff and client page families still need route-specific visual
+and accessibility review. Exact verification outcomes belong in `status.json`.
+
+---
+
 ## AS-PAR-002 portal, group and assessment scope isolation
 
 The sibling-client browser audit now also exercises client portal routes,

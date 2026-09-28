@@ -1,5 +1,5 @@
 @* Semantic page header: native h1 preserved for FocusOnNavigate + E2E heading selectors. *@
-<div class="mb-4">
+<div class="audit-page-header mb-4">
   @if (!string.IsNullOrWhiteSpace(Eyebrow))
   {
     <p class="mud-typography mud-typography-overline">@Eyebrow</p>
@@ -11,7 +11,7 @@
   }
   @if (Actions is not null)
   {
-    <div>@Actions</div>
+    <div class="audit-page-actions">@Actions</div>
   }
 </div>
 

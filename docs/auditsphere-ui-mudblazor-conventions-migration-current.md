@@ -1,6 +1,6 @@
 # AuditSphere — MudBlazor UI Conventions & Migration Status
 
-**Status:** CURRENT — migration complete (slices 1–4 reconciled; final state)
+**Status:** CURRENT — MudBlazor control migration complete; prototype-inspired visual modernization in progress
 
 ## 1. Selected version
 
@@ -26,17 +26,22 @@
   change.
 - `Components/App.razor`: MudBlazor CSS/JS (`_content/MudBlazor/...`)
   after Blazor assets; existing `pbc-upload.js` and `draft-state.js`
-  ordering preserved.
+  ordering preserved. `enterprise-ui.css` loads after MudBlazor CSS for the
+  presentation layer; it does not import the prototype stylesheet.
 - `Components/Layout/MainLayout.razor`: `MudThemeProvider` (AuditSphere
   theme) + `MudPopoverProvider` + `MudDialogProvider` +
-  `MudSnackbarProvider`; responsive `MudDrawer`; skip-link preserved.
+  `MudSnackbarProvider`; responsive `MudDrawer`; skip-link preserved. Route
+  layout selection keeps `/portal` in `ClientLayout` and public/auth/setup
+  routes in `PublicLayout`, without the staff navigation.
 - `Components/_Imports.razor`: `MudBlazor`, `Shared`, `Theme` namespaces.
 
 ## 3. Theme & shared components (presentation only)
 
-- `Components/Theme/AuditSphereTheme.cs`: primary #075985, secondary
-  #0E7490, surface/background aligned with existing `app.css`; compact
-  radius; enterprise typography.
+- `Components/Theme/AuditSphereTheme.cs`: primary #2B6CB0, contrast-safe dark
+  teal #0B6B65 for interactive text and #38B2AC for decorative accents,
+  navy #0F172A drawer, white top bar and surfaces, #F8FAFC page
+  background; compact enterprise typography. `enterprise-ui.css` holds the
+  layout, responsive and shared-surface rules. The prototype remains read-only.
 - `Components/Shared/StatusChip.razor`: color + icon so status is never
   color-only. The variant map covers the Domain workflow vocabulary observed
   at the call sites (`DRAFT`/`SUBMITTED`/`RESUBMITTED` → info,
@@ -306,7 +311,8 @@ buttons), and — in the final reconciliation — `.field-label` and
 `.context-bar` (zero references in markup, code and scripts; note that
 `.required-label`/`.optional-label` stay because `draft-state.js` applies
 them at runtime). No second CSS component framework was introduced; reusable visual
-tokens remain in `Components/Theme/AuditSphereTheme.cs`.
+tokens are shared by `Components/Theme/AuditSphereTheme.cs` and the
+presentation-only `wwwroot/enterprise-ui.css` layer.
 
 ## 8. Final reconciliation (verified against the current tree)
 
@@ -333,7 +339,55 @@ tokens remain in `Components/Theme/AuditSphereTheme.cs`.
   9.10.0 in `Directory.Packages.props`); a source scan finds no reference in
   Domain, Application, Infrastructure, Worker or the test projects, and
   `ArchitectureGuardTests` enforces the project-reference direction.
-- Every page's primary UI system is MudBlazor (shell via `MainLayout` +
+- Every page's primary UI system is MudBlazor (route-selected staff/client/public
+  layout +
   `MudThemeProvider`, headings via `PageHeader`, notices via `MudAlert`,
   containers via `MudPaper`, tables via `MudTable` where semantic, controls via
   MudBlazor inputs, statuses via `StatusChip`, loading via `LoadingState`).
+
+## 9. Prototype-inspired visual modernization
+
+Visual reference: `auditsphere-visual-prototype` source checkout at
+`dade5e02c1a36596fd6596878e99a25c78f955ab`, with CSS loaded in its
+`roles.css` → `styles.css` → `src/host.css` → `src/enterprise.css` order.
+The target checkout started this visual slice at
+`71fe1d4a806199287e02cbff131b2b6b42aa7c89` on `master`.
+The base prototype shell declares a 232px sidebar and 73px top bar; its
+earlier `roles.css` overrides the sidebar to 242px at desktop size. The real
+app uses a 232px staff drawer, 73px desktop top bar and the owner's requested
+navy/blue/teal palette. This is a visual reference, not a behavior source.
+
+The initial implemented slice changes `MainLayout`, `ClientLayout`,
+`PublicLayout`, `AuditSphereTheme`, `PageHeader`, `StatusChip`, the shared
+CSS layer and the Portfolio presentation. `Routes.razor` selects a client-safe
+layout for `/portal` routes and a navigation-free public layout for `/`,
+`/auth/*` and `/setup/*`; `/app/administration/microsoft365` still uses
+the staff layout. Existing accounting navigation and Portfolio data queries,
+scope checks, CSV export, route links and error states remain intact.
+
+| Affordance | Classification | Current disposition |
+| --- | --- | --- |
+| Navy navigation, compact headings, panels, metrics and table styling | `PRESENTATION_ONLY` | Shared CSS/theme and Portfolio pilot implemented; remaining page families need visual review. |
+| Portfolio refresh, scoped search/export, release/package links | `WIRE_EXISTING` | Kept connected to existing Blazor actions and scoped PostgreSQL data. |
+| Prototype global record search, consolidated work queues and lifecycle widgets | `BACKEND_GAP` | No real equivalent exposed by the current shell; do not add decorative controls or local state. |
+| SharePoint-backed workspace effects before exact capability verification | `EXTERNAL_BLOCKED` | Existing Portfolio warning remains visible. |
+| Persona switching, scenario loading, simulated notifications and browser-local business store | `OUT_OF_SCOPE` | Never copied from the prototype. |
+
+Next visual passes need to cover full staff page families and client detail
+views, with authorized seeded browser evidence for route-specific controls,
+long content, dialogs, stale/error states and keyboard operation. This section
+does not claim parity or whole-application acceptance.
+
+| Prototype visual family | Real route family | Visual pass |
+| --- | --- | --- |
+| Practice overview and dashboard | `/app`, `/app/overview` | Portfolio pilot complete; route-specific polish remains. |
+| Practice, client and engagement work | `/app/practice/*`, `/app/clients/*`, `/app/engagements/*` | Pending. |
+| Economics and billing | `/app/finance`, invoice details and practice time | Pending. |
+| Accounting and group workbenches | `/app/accounting/*`, `/app/consolidation/*` | Pending. |
+| Audit, review, completion and records | `/app/audit/*`, `/app/assessments/*`, `/app/reviews/*`, `/app/findings/*`, `/app/completion/*`, `/app/releases/*`, `/app/records/*` | Pending. |
+| Firm administration and Microsoft 365 | `/app/administration*` | Pending. |
+| Client secure portal | `/portal*` | Client-safe shell complete; individual views pending. |
+
+This map groups actual route prefixes, including parameterized detail routes;
+it does not create links to prototype-only modules or treat prototype widgets
+as implemented capabilities.
