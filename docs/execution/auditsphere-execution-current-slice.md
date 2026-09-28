@@ -200,8 +200,13 @@ Development host. AuditSphere rejected the unmapped identity, as intended, but
 initially exposed that rejection as a server exception. The callback now shows
 the existing access-not-assigned page for this case and a generic response for
 other remote authentication failures. The same staff fixture reached that page
-after the fix; it has no local role or application access. Positive staff access
-still requires an exact tenant/object binding and explicit scoped grant. The
+after the fix; it had no local role or application access. The administrator
+subsequently bound the exact enabled Microsoft tenant/object identity through
+the local roster form. A guarded local transaction then created one synthetic
+PROSPECT client and its safety state as a narrow test scope, without fabricating
+a commercial approval. The administration form is prepared for a Staff grant
+limited to that client, but it has not been submitted. The fixture still has no
+active role grant or application access. The
 remaining P1 fixture cycle and production acceptance remain open; exact checks
 are in `status.json`.
 
