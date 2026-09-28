@@ -256,14 +256,17 @@ The Development database now also contains one clearly marked synthetic Draft
 PBC request for Client X, created through the application service under a
 synthetic engagement. No request was sent. Client Y's signed-in portal showed
 no assigned request, and direct navigation to the Client X request returned
-Request unavailable without its details. The browser's shared cookie then
-required a fresh Client X sign-in for the positive visibility check; that
-credential handoff is pending. This is a local negative check only.
+Request unavailable without its details. A fresh Client X Microsoft sign-in
+then returned to that exact Draft request, which displayed the private
+synthetic marker. Read-only database readback matched its owner to Client X's
+active client-scoped grant. This completes the local Development positive and
+negative check for this one synthetic request; P1's other live identity,
+production and independent-review gates remain open.
 
 A focused Release E2E rerun also passed for a synthetic owning client opening
 its assigned PBC request and completing the guarded upload journey (1/1).
-This verifies the local positive browser path but does not substitute for
-Client X viewing the exact Development Draft fixture after Microsoft sign-in.
+This separately verifies the local positive browser path in an isolated test
+database; the Development Draft fixture observation above is distinct.
 
 ## P8a production Data Protection key ring
 

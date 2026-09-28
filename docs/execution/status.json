@@ -571,9 +571,10 @@
     },
     "p1DevelopmentDraftSiblingFixture": {
       "observedAt": "2026-09-28T05:34:23Z",
+      "positiveObservedAt": "2026-09-28T05:45:52Z",
       "profile": "Local Development database, existing synthetic Client X and Client Y identities, external effects fenced.",
-      "observation": "A guarded fixture runner created one clearly marked synthetic Active engagement for synthetic Client X and used PbcService.CreateRequestAsync to create one Draft PBC request owned by Client X. The application did not send the request or queue an external mail effect. Read-only PostgreSQL readback confirmed Draft state, Client X scope and Client X owner. The existing Client Y browser session still showed no assigned requests; a direct visit to the exact request URL displayed Request unavailable and did not render the private request marker or details.",
-      "boundary": "This is a local Development negative browser check for the previously authenticated Client Y session. A fresh Client X credential challenge is pending, so the positive visibility half of this exact fixture is not yet observed. It is not a professional engagement, sent PBC request, live provider effect, production or independent P1 acceptance."
+      "observation": "A guarded fixture runner created one clearly marked synthetic Active engagement for synthetic Client X and used PbcService.CreateRequestAsync to create one Draft PBC request owned by Client X. The application did not send the request or queue an external mail effect. Read-only PostgreSQL readback confirmed Draft state, Client X scope and Client X owner. The existing Client Y browser session still showed no assigned requests; a direct visit to the exact request URL displayed Request unavailable and did not render the private request marker or details. A fresh Microsoft prompt=login flow for Client X then returned to that exact request URL, which rendered its Draft state and private synthetic marker. Read-only PostgreSQL readback matched the request owner to the enabled Client X user and its active client-scoped ClientUser grant.",
+      "boundary": "This is a local Development positive and negative browser check for one synthetic Draft request. It is not a professional engagement, sent PBC request, live provider effect, production or independent P1 acceptance. Real changed-UPN, wrong-tenant and disabled/revoked Microsoft sign-ins remain open."
     },
     "p1SyntheticOwnedRequestBrowserRerun": {
       "observedAt": "2026-09-28T05:41:30Z",
