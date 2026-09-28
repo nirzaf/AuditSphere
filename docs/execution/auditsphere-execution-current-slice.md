@@ -20,6 +20,11 @@
 
 **Audience:** AI coding agents and human developers.
 
+**Chronology:** Sections are newest first. An older section describes the state
+when it was written; where a later section supersedes it, the later section is
+current. The top-level `verifiedCommit` in `status.json` names the last commit on
+which the full suite was run; per-slice records carry their own evidence.
+
 
 
 
@@ -27,6 +32,31 @@
 
 
 ---
+
+## AS-PAR-002 portal, group and assessment scope isolation
+
+The sibling-client browser audit now also exercises client portal routes,
+consolidation group grants and in-circuit navigation across the assessment
+workbenches. The assessment detail route gives an unknown ID and an out-of-scope
+decision the same unavailable state. The tests check that prior client content
+clears, sibling records remain hidden, and a return to the authorized route
+restores its content. Application command isolation and the remaining route
+inventory are still open; this does not complete AS-PAR-002. Exact source and
+verification outcomes are in `status.json`.
+
+## Development tenant administration and Graph query repair
+
+Microsoft Graph member reads now send the required advanced-query count and
+consistency settings, including the user-only member listing. A live invitation
+requires an HTTPS redemption destination; the Graph adapter rejects HTTP before
+dispatch. An opt-in live Development test exercised user provisioning, managed
+group add/remove, guest invitation and the PBC mail worker through the real
+providers. Graph accepted the mail request; recipient inbox delivery is not
+asserted. The synthetic user, guest and temporary group were removed and exact
+tenant reads found none remaining. This is Development evidence, not production
+approval. The configured loopback HTTP guest redirect remains unsuitable for
+live invitations until an approved HTTPS application destination is supplied.
+Exact test and external-gate outcomes are in `status.json`.
 
 ## AS-PAR-002 sibling-client differential isolation
 
@@ -38,8 +68,9 @@ marker, and client B's detail routes and PBC download must look exactly like a
 random identifier. The audit found three pages that confirmed a sibling record
 existed by showing "access denied" instead of "not available" (engagement PBC
 inbox, audit fieldwork, staff financial package); they now render one uniform
-unavailable state. Client portal, consolidation group grants and command-level
-isolation are not yet covered by this case, so AS-PAR-002 remains partial.
+unavailable state. At this slice's time, client portal and consolidation group
+grants were still untested; the newer section above records their differential
+cases. Command-level isolation remains open, so AS-PAR-002 stays partial.
 Exact verification is in `status.json`.
 
 ## P2 durable worker delivery and P2b isolation matrix
@@ -86,9 +117,10 @@ pins the exact folder.
 A live Development run of the new acceptance test provisioned a synthetic
 client and engagement, verified the binding, uploaded one synthetic document with
 a matching exact-version receipt, reconciled it by probe, refused an overwrite and
-deleted the synthetic folders. A real client-staged document has not yet been
-transferred by the durable worker, and P2b isolation and production approval
-remain. Exact verification is in `status.json`.
+deleted the synthetic folders. At the time of this section, a real client-staged
+document had not yet been transferred by the durable worker; that was later
+observed and is recorded in "P2 durable worker delivery and P2b isolation matrix"
+above. Production approval remains. Exact verification is in `status.json`.
 
 ## Microsoft 365 tenant connection and unified administration
 
@@ -277,8 +309,10 @@ through a separate runtime certificate reference, and accepts only a token for
 the expected tenant carrying the single `Sites.Selected` application role.
 It reads the exact site, enumerates libraries only within that site, and checks
 the configured root folder identity and URL. Mismatches and missing bindings
-block before any write; throttling is retryable. This probe is not yet composed
-into the Worker, is not a PBC upload provider, and has no live tenant result.
+block before any write; throttling is retryable. (Historical: at the time of this
+section the probe was not composed into the Worker and had no live tenant result;
+the later "P2 selected-site PBC provider" and "P2 durable worker delivery" sections
+supersede this.)
 The local test evidence and remaining gates are in `status.json`.
 
 The same read-only check can now run against a pending, exact-firm setup draft

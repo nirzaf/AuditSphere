@@ -1728,6 +1728,16 @@
       "item": "Acceptance-criteria reconciliation phase 1 - VP-034 rows (2026-09-27)",
       "status": "LOCAL_VERIFIED",
       "details": "Reconciled the VP-034 acceptance-criteria rows against named Domain evidence. New test ChartValidation_RejectsDuplicateCodesCyclesPostingParentsAndInvalidDateRanges proves the chart/period guards: inverted period date range rejected, duplicate account codes rejected within a batch and across batches, a posting account used as a chart parent rejected, a parent cycle rejected, and a published chart immutable under mutation attempts (ProtectedState). VP-034-AC01 and VP-034-AC02 rows in the coverage ledger moved to PASS with the named tests (ClientChartsPeriodsAndGlImport_AreTypedScopedAndClosedSafely evidences AC01 context binding and sibling-scope denial); VP-034-AC03 stays NOT_RUN with its immutability leg noted as partially evidenced; VP-034-AC04 remains NOT_RUN (UI-level). Observed: focused test passes; complete Domain suite 349/349 with 0 skips; task-pack validate 0 errors."
+    },
+    {
+      "item": "AS-PAR-002 — portal, group and assessment differential isolation (2026-09-28)",
+      "status": "LOCAL_VERIFIED",
+      "details": "Source commit 01e7bb2 adds client-portal and consolidation-group differential browser cases and in-circuit assessment route-change assertions. AssessmentDetail renders the same unavailable state for unknown and out-of-scope decision IDs. The focused assessment browser case passed. A subsequent broad solution run passed Domain 448/448 and API 32/32; E2E passed 96/97 with an unrelated portfolio CSV Playwright wait timeout, and that exact case passed 1/1 when rerun alone. This is a bounded scope slice; Application command and remaining route coverage are open."
+    },
+    {
+      "item": "Microsoft 365 optional tenant administration — advanced Graph queries and Development live acceptance (2026-09-28)",
+      "status": "LOCAL_VERIFIED",
+      "details": "Source commit ec9709a adds $count=true plus ConsistencyLevel eventual for filtered group membership and user-only group listing, treats explicit null isAssignableToRole as ordinary while failing closed on missing/unknown values, and refuses HTTP guest redirect in the live Graph adapter. Focused GraphTenantAdministrationProviderTests passed 22/22. The opt-in live Development test passed 1/1: synthetic member created and bound, group member added and removed, guest invited with HTTPS redemption destination, and Graph sendMail accepted a PBC notification through the durable mail worker. Recipient inbox delivery was not verified. Synthetic user, guest and group were deleted; exact tenant reads returned none. Release Web build passed with 0 warnings/errors and EF model check found no changes. The broad solution run had one unrelated E2E timeout, whose isolated rerun passed. Production acceptance and independent review remain blocked external."
     }
   ],
   "remainingLocalWork": [
@@ -1796,7 +1806,7 @@
     {
       "gate": "M365-ADMIN",
       "status": "BLOCKED_EXTERNAL",
-      "required": "Separate app registrations and certificates per capability, tenant administrator consent, live capability verification, and live acceptance of optional provisioning, guest invitation and group membership in an approved tenant."
+      "required": "Development live acceptance observed for optional provisioning, managed group add/remove, guest invitation with HTTPS redirect and Graph-accepted PBC mail request. Configure an approved reachable HTTPS application guest redirect, confirm mailbox delivery and independent/production acceptance; maintain separate capability credentials and tenant consent."
     },
     {
       "gate": "P2b",
