@@ -908,6 +908,14 @@
       "wiki": "Canonical Production Entra ID Configuration updated in Wiki commits e9c2a36, 9302e25 and 2127d28; rendered page and navigation verified; changed content passed redacted gitleaks and diff checks.",
       "boundary": "This is local Development tenant and database evidence only. Production credential custody, records/mail capabilities and external acceptance remain separate."
     },
+    "m365TenantDirectoryDomainFilter": {
+      "sourceCommit": "bdda26bffea0f025ecb8dd748231bf5ee723a54d",
+      "observedAt": "2026-09-28T16:19:10Z",
+      "behavior": "Tenant connection directory search accepts an optional exact user-principal-name domain. Domain-only input browses enabled users; a name prefix plus domain uses a bounded server-side Microsoft Graph filter with ConsistencyLevel eventual and count. The Application service validates the domain and rejects cross-domain results before offering local binding; pagination retains the submitted filters.",
+      "liveDevelopment": "PASS: the separate Development directory reader returned matching enabled users for the approved tenant domain, the name-plus-domain search returned the expected member, and the same name with a different domain returned no match. Search made no local role grant or Microsoft mutation.",
+      "verification": "PASS: Release Web build 0 warnings/errors; GraphDirectoryReaderTests 9/9 and focused PostgreSQL DirectorySearchRequiresCurrentFirmWideAdministratorAndExactTenant 1/1. The live browser ran against an isolated local Web host on port 5101 because another checkout process occupied 5099. No full solution suite or production acceptance is claimed for this slice.",
+      "wiki": "Canonical Production Entra ID Configuration updated in Wiki commit 21ade15; rendered page and navigation verified; changed content passed redacted gitleaks and diff checks."
+    },
     "m365DevelopmentAdministrationPermissions": {
       "observedAt": "2026-09-28T16:20:00Z",
       "behavior": "Development tenant: Directory Reader manifest declares User.Read.All plus openid/profile with admin consent; new 'AuditSphereOps Development Administration' app holds exactly User.Create, User.Invite.All and GroupMember.ReadWrite.All; new 'AuditSphereOps Development Mail' app holds exactly Mail.Send. Certificates' private keys stay on the operator workstation; paths in .NET user secrets. Code: the shared administration identity is accepted only when every token role is in that approved set; all other identities remain single-role.",

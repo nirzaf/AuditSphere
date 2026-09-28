@@ -59,10 +59,11 @@ CI and local browser journeys also use the Development/Test-only simulated
 tenant. Separately, the authorized Development tenant completed the live
 administrator-consent and nonce-bound identity path with a distinct
 certificate-backed directory-reader registration. Consent and the bounded
-directory capability are `VERIFIED`. The selected-site row is
-`BLOCKED_EXTERNAL` because an app role alone does not verify the saved site,
-library and root. Optional mail, provisioning, guest and group capabilities
-remain disabled; no Microsoft mutation or production acceptance was observed.
+directory capability are `VERIFIED`. The selected-site capability is also
+`VERIFIED` after exact saved site/library/root reads and a denied synthetic
+unrelated-site control; the local working-site binding is `ACTIVE`. Optional
+mail, provisioning, guest and group capabilities remain separately gated; no
+successful Microsoft mutation or production acceptance was observed.
 The canonical GitHub Wiki guide covers both exact callbacks and independent
 capability gates. Exact verification is in `status.json`.
 
@@ -88,6 +89,14 @@ same `ACTIVE` revision 11 and activation checklist after restart and resume.
 Mail, records, production release and independent acceptance remain separate.
 Exact tests, hosted checks and live Development observations are in
 `status.json`.
+
+The tenant-connection directory search now accepts an optional exact
+user-principal-name domain. A domain alone browses enabled users; a name
+prefix plus domain uses one bounded Microsoft Graph query. Server-side domain
+validation and a post-response suffix check prevent a cross-domain result
+from being offered for binding. The Development tenant returned the expected
+member for the combined filter and no match for a different domain. This
+read-only search grants no AuditSphere role.
 
 ## AS-PAR-002 audit program library access refresh
 
