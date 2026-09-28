@@ -252,6 +252,14 @@ live developer-tenant client portals still have no assigned content, and no
 live negative Microsoft fixture was exercised. Exact rerun results and source
 revision are in `status.json`; P1 remains open.
 
+The Development database now also contains one clearly marked synthetic Draft
+PBC request for Client X, created through the application service under a
+synthetic engagement. No request was sent. Client Y's signed-in portal showed
+no assigned request, and direct navigation to the Client X request returned
+Request unavailable without its details. The browser's shared cookie then
+required a fresh Client X sign-in for the positive visibility check; that
+credential handoff is pending. This is a local negative check only.
+
 ## P8a production Data Protection key ring
 
 Production Web startup now also requires a persistent Data Protection key
