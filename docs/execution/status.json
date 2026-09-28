@@ -574,14 +574,21 @@
       "positiveObservedAt": "2026-09-28T05:45:52Z",
       "profile": "Local Development database, existing synthetic Client X and Client Y identities, external effects fenced.",
       "observation": "A guarded fixture runner created one clearly marked synthetic Active engagement for synthetic Client X and used PbcService.CreateRequestAsync to create one Draft PBC request owned by Client X. The application did not send the request or queue an external mail effect. Read-only PostgreSQL readback confirmed Draft state, Client X scope and Client X owner. The existing Client Y browser session still showed no assigned requests; a direct visit to the exact request URL displayed Request unavailable and did not render the private request marker or details. A fresh Microsoft prompt=login flow for Client X then returned to that exact request URL, which rendered its Draft state and private synthetic marker. Read-only PostgreSQL readback matched the request owner to the enabled Client X user and its active client-scoped ClientUser grant.",
-      "boundary": "This is a local Development positive and negative browser check for one synthetic Draft request. It is not a professional engagement, sent PBC request, live provider effect, production or independent P1 acceptance. Real changed-UPN, wrong-tenant and disabled/revoked Microsoft sign-ins remain open."
+      "boundary": "Historical pre-fix observation: the Draft request was client-visible before the Draft visibility correction recorded in p1SentRequestClientIsolationAndDraftVisibility. The request remains unsent and is now hidden. This was not a professional engagement, provider effect, production or independent P1 acceptance."
+    },
+    "p1SentRequestClientIsolationAndDraftVisibility": {
+      "observedAt": "2026-09-28T05:58:06Z",
+      "profile": "Local Development Web host and PostgreSQL 18.6, synthetic Client X and Client Y Entra identities, ExternalEffects.Enabled=false.",
+      "observation": "Client portal and direct request reads now filter out Draft state. After restarting the Web host, Client X's direct URL to its previously visible unsent Draft returned Request unavailable. A separate synthetic request used PbcService.CreateRequestAsync and SendRequestAsync to reach Sent; its email communication remained QUEUED with no delivery timestamp. Client X's authenticated inbox listed only the Sent request and its direct page showed the private marker. Fresh Client Y Microsoft sign-in returned to that Sent request URL, which showed Request unavailable; its inbox showed no assigned requests. Read-only PostgreSQL readback matched the Sent request owner to Client X and found the queued notification without a delivery timestamp.",
+      "focusedTests": "PASS: Release E2E ClientCannotSeeOwnUnsentDraftPbcRequest and UnrelatedClientCannotViewSiblingPbcRequestOrItsDescription, 2/2. Release Web build 0 warnings/errors. EF reports no pending model changes.",
+      "boundary": "This is one synthetic local Development content-isolation fixture and a Draft visibility correction. No notification was delivered and no professional client request was issued. Changed-UPN, wrong-tenant and disabled/revoked live Microsoft fixtures, production OIDC and independent P1 acceptance remain open."
     },
     "p1SyntheticOwnedRequestBrowserRerun": {
       "observedAt": "2026-09-28T05:41:30Z",
       "profile": "Release E2E browser test against an isolated local PostgreSQL 18.6 database and synthetic client identity; no Microsoft sign-in or external effects.",
       "focusedTests": "PASS: PbcUploadJourneyTests.ClientUpload_ReconcilesUncertainProviderResult_AndStaffDownloadsExactBytes, 1/1 after restarting the stopped local PostgreSQL server.",
       "observation": "The synthetic owning client opened its assigned PBC request in the browser and proceeded through request-bound upload preparation and trusted completion; the staff side downloaded the exact staged bytes.",
-      "boundary": "This is a local positive browser regression. The exact Development Client X Draft fixture has not been viewed after a fresh Client X Microsoft sign-in, so that live positive check and broader P1 acceptance remain open."
+      "boundary": "This is a local positive browser regression in an isolated test database. Development Draft visibility was observed before the later correction; the subsequent Sent fixture and broader P1 boundaries are recorded separately."
     },
     "p8aDurableDispositionStateMetric": {
       "sourceCommit": "5157e7707c8ef20c666c340be2c20b4a3452d663",
@@ -756,7 +763,7 @@
     "implementationStatus": "IN_PROGRESS",
     "acceptanceStatus": "LOCAL_VERIFIED",
     "scope": "P2 trusted PBC provider-scope handoff locally verified; the Graph adapter and live tenant acceptance remain open. AS-PAR-002 whole-application authorization audit remains partial. T001 R2R baseline inventory accepted by the owner; T002 architecture/transaction handoff is in independent review. T002 and downstream work remain open. Local developer-administrator, client-scoped staff and two client fixture OIDC sign-ins are observed. Provisional maximum-size local TB/PBC and concurrent staff-query samples are recorded; P1/P8 external and production acceptance remain open.",
-    "nextAction": "Continue remaining route/query/search/count/export/direct-command audit and eligible local provider hardening; complete cross-client content denial, changed-UPN, wrong-tenant and disabled-user live P1 fixtures through private credential handoff. Measure actual concurrent browser/provider workloads and approved targets for P8b. Independently review direct-main changes under P9.",
+    "nextAction": "Continue remaining route/query/search/count/export/direct-command audit and eligible local provider hardening; complete changed-UPN, wrong-tenant and disabled-user live P1 fixtures through private credential handoff, while preserving the Sent-request Client X/Client Y Development isolation result and Draft visibility denial. Measure actual concurrent browser/provider workloads and approved targets for P8b. Independently review direct-main changes under P9.",
     "branch": "master"
   },
   "localEvidence": [
@@ -1447,7 +1454,7 @@
     {
       "gate": "P1",
       "status": "BLOCKED_EXTERNAL",
-      "required": "Remaining live Entra client, wrong-tenant and disabled-user identity fixtures and production OIDC acceptance; positive local developer-administrator and client-scoped staff readbacks observed."
+      "required": "Changed-UPN, wrong-tenant and disabled-user live Entra fixtures plus production OIDC and independent acceptance; local developer-administrator, client-scoped staff, both client sign-ins and one synthetic Sent-request Client X/Client Y content-isolation check with Draft denial observed."
     },
     {
       "gate": "P2",

@@ -112,7 +112,7 @@ These production milestones require live external infrastructure, tenant credent
 
 |---|---|---|---|
 
-| **P1** | Live Entra OIDC Authentication | `BLOCKED_EXTERNAL` | Local administrator, scoped-staff and both client sign-ins are observed; Client Y denied a synthetic Client X Draft request. Fresh Client X positive visibility, changed-UPN, wrong-tenant, disabled-user and production acceptance remain. |
+| **P1** | Live Entra OIDC Authentication | `BLOCKED_EXTERNAL` | Local administrator, scoped-staff and both client sign-ins are observed; an unsent Draft is now hidden, Client X can see one synthetic Sent request, and Client Y is denied it. Changed-UPN, wrong-tenant, disabled-user and production acceptance remain. |
 
 | **P2** | Selected-Resource SharePoint/Graph | `BLOCKED_EXTERNAL` | Requires live Microsoft 365 tenant with approved selected-resource application permissions. |
 

@@ -144,7 +144,8 @@ else
       }
       await using var db = await DbFactory.CreateDbContextAsync();
       var candidate = await db.PbcRequests.AsNoTracking().Where(x =>
-          x.Id == requestId && x.FirmId == actor.FirmId && x.ClientOwnerUserId == actor.UserId)
+          x.Id == requestId && x.FirmId == actor.FirmId && x.ClientOwnerUserId == actor.UserId &&
+          x.State != PbcStates.Draft)
         .Select(x => new { x.ClientId, x.EngagementId })
         .SingleOrDefaultAsync();
       if (candidate is not null)
@@ -154,7 +155,8 @@ else
         if (authorization.Succeeded)
         {
           var request = await db.PbcRequests.AsNoTracking().SingleOrDefaultAsync(x =>
-            x.Id == requestId && x.FirmId == actor.FirmId && x.ClientOwnerUserId == actor.UserId);
+            x.Id == requestId && x.FirmId == actor.FirmId && x.ClientOwnerUserId == actor.UserId &&
+            x.State != PbcStates.Draft);
           if (request is not null)
           {
             var uploads = await db.PbcUploadIntents.AsNoTracking().Where(x =>

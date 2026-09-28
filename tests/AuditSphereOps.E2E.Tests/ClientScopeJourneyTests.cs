@@ -2511,6 +2511,49 @@ public sealed class ClientScopeJourneyTests
   }
 
   [Fact]
+  [Trait("CaseId", "AS-PAR-002-CLIENT-PBC-DRAFT-01")]
+  public async Task ClientCannotSeeOwnUnsentDraftPbcRequest()
+  {
+    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false,
+      caseId: "AS-PAR-002-CLIENT-PBC-DRAFT-01");
+    const string draftMarker = "SYN-PAR-002-UNSENT-CLIENT-DRAFT";
+    var draftId = Guid.NewGuid();
+    await using (var db = host.CreateDbContext())
+    {
+      var now = DateTimeOffset.UtcNow;
+      db.PbcRequests.Add(new PbcRequest
+      {
+        Id = draftId, FirmId = host.Fixture.FirmId, ClientId = host.Fixture.ClientId,
+        EngagementId = host.Fixture.EngagementId, Objective = draftMarker, EntityScope = "Synthetic client",
+        PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31", Area = draftMarker,
+        RequestedFormat = "PDF", ClientOwnerUserId = host.Fixture.Client.Id,
+        FirmOwnerUserId = host.Fixture.Staff.Id, ReviewerUserId = host.Fixture.Reviewer.Id,
+        DueDate = "2026-10-01", Confidentiality = "Confidential", AcceptanceCriteria = draftMarker,
+        State = PbcStates.Draft, CreatedAt = now, CreatedByUserId = host.Fixture.Staff.Id, UpdatedAt = now
+      });
+      await db.SaveChangesAsync();
+    }
+
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    await using var context = await browser.NewContextAsync();
+    var page = await context.NewPageAsync();
+    var diagnostics = new List<string>();
+    var connected = WaitForCircuitConnectionAsync(page, diagnostics);
+    await page.GotoAsync(SignInUrl(host.ClientUrl, "/portal"));
+    await page.GetByText("Cash", new() { Exact = true }).WaitForAsync();
+    await connected;
+    Assert.DoesNotContain(draftMarker, await page.Locator("body").InnerTextAsync());
+
+    await page.GotoAsync($"{host.ClientUrl}/portal/requests/{draftId:D}");
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Request unavailable" }).WaitForAsync();
+    var body = await page.Locator("body").InnerTextAsync();
+    Assert.DoesNotContain(draftMarker, body);
+    Assert.DoesNotContain("Prepare a controlled upload", body);
+    Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
+  }
+
+  [Fact]
   [Trait("CaseId", "PROP-E2E-02")]
   public async Task UnrelatedClientCannotViewSiblingPbcRequestOrItsDescription()
   {

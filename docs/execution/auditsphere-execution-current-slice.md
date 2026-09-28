@@ -248,25 +248,29 @@ Focused PostgreSQL-backed browser tests separately verified local sibling PBC
 denial by direct URL and exclusion from an engagement-scoped portal read.
 Focused identity regressions verified immutable `tid`/`oid` lookup despite a
 changed email, wrong-tenant rejection, and disabled/stale-session denial. The
-live developer-tenant client portals still have no assigned content, and no
-live negative Microsoft fixture was exercised. Exact rerun results and source
-revision are in `status.json`; P1 remains open.
+later Development fixture below adds live client-content checks. Exact rerun
+results and source revision are in `status.json`; P1 remains open.
 
-The Development database now also contains one clearly marked synthetic Draft
-PBC request for Client X, created through the application service under a
-synthetic engagement. No request was sent. Client Y's signed-in portal showed
-no assigned request, and direct navigation to the Client X request returned
-Request unavailable without its details. A fresh Client X Microsoft sign-in
-then returned to that exact Draft request, which displayed the private
-synthetic marker. Read-only database readback matched its owner to Client X's
-active client-scoped grant. This completes the local Development positive and
-negative check for this one synthetic request; P1's other live identity,
-production and independent-review gates remain open.
+The first synthetic Draft PBC request exposed a client-visible gap: before the
+fix, a fresh Client X Microsoft sign-in could open that unsent request. The
+client inbox and direct request page now exclude Draft state. After restarting
+the Development host, Client X's direct Draft URL returned Request unavailable.
+A browser regression also confirms that an owning client cannot find its own
+unsent Draft in the inbox or by direct URL.
+
+A separate clearly marked synthetic request passed the application service's
+Draft-to-Sent transition. Its notification remains queued locally with no
+delivery timestamp; external effects are disabled. Client X's portal displayed
+only this Sent request and opened its details. A fresh Client Y Microsoft
+sign-in showed no assigned request and direct navigation to the Sent request
+returned Request unavailable without its private marker. This completes one
+local Development positive/negative content-isolation fixture, not the other
+live identity, production or independent-review gates of P1.
 
 A focused Release E2E rerun also passed for a synthetic owning client opening
 its assigned PBC request and completing the guarded upload journey (1/1).
 This separately verifies the local positive browser path in an isolated test
-database; the Development Draft fixture observation above is distinct.
+database; the Development Sent fixture observation above is distinct.
 
 ## P8a production Data Protection key ring
 

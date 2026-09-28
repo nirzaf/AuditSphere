@@ -116,7 +116,7 @@ else
       if (clientIds.Count > 0)
       {
         requests = await db.PbcRequests.AsNoTracking().Where(x =>
-          x.FirmId == actor.FirmId && x.ClientOwnerUserId == actor.UserId &&
+          x.FirmId == actor.FirmId && x.ClientOwnerUserId == actor.UserId && x.State != PbcStates.Draft &&
           grants.Any(g => g.ClientId == x.ClientId &&
             (!g.EngagementId.HasValue || g.EngagementId == x.EngagementId)))
           .OrderBy(x => x.DueDate).ThenBy(x => x.Area).ToListAsync();
