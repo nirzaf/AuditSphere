@@ -45,10 +45,11 @@ public static class Microsoft365SetupProgressQuery
       .ToListAsync(ct);
     var consent = evidence.Any(x => x.ResourceKind == "TENANT" && x.Operation == "CONSENT" &&
       x.ResourceId == draft.ExpectedTenantId);
-    var consentVerified = await db.TenantConsentAttempts.AsNoTracking().AnyAsync(x =>
-      x.FirmId == actor.FirmId && x.SetupDraftId == draft.Id &&
-      x.ExpectedTenantId == draft.ExpectedTenantId &&
-      x.State == TenantConsentAttemptStates.ConsentVerified, ct);
+    var consentVerified = connection?.ConsentState == "VERIFIED" &&
+      await db.TenantConsentAttempts.AsNoTracking().AnyAsync(x =>
+        x.FirmId == actor.FirmId && x.SetupDraftId == draft.Id &&
+        x.ExpectedTenantId == draft.ExpectedTenantId &&
+        x.State == TenantConsentAttemptStates.ConsentVerified, ct);
     var resources = new[] { ("SITE", draft.SiteId), ("DRIVE", draft.DriveId), ("ROOT", draft.RootFolderId) }
       .All(required => !string.IsNullOrWhiteSpace(required.Item2) &&
         evidence.Any(x => x.ResourceKind == required.Item1 && x.ResourceId == required.Item2));
