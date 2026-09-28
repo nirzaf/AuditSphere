@@ -244,6 +244,14 @@ fixture, each tied to its own synthetic client. Both portals have no assigned
 records, so cross-client content denial and the remaining negative identity
 fixtures are still pending.
 
+Focused PostgreSQL-backed browser tests separately verified local sibling PBC
+denial by direct URL and exclusion from an engagement-scoped portal read.
+Focused identity regressions verified immutable `tid`/`oid` lookup despite a
+changed email, wrong-tenant rejection, and disabled/stale-session denial. The
+live developer-tenant client portals still have no assigned content, and no
+live negative Microsoft fixture was exercised. Exact rerun results and source
+revision are in `status.json`; P1 remains open.
+
 ## P8a production Data Protection key ring
 
 Production Web startup now also requires a persistent Data Protection key
