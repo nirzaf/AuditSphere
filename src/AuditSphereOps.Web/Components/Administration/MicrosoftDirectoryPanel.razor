@@ -19,6 +19,13 @@
       <MudTextField T="string" Label="Display name or user principal name prefix" @bind-Value="_prefix" MaxLength="80" id="@(GuestsOnly ? "guest-search" : "directory-search")" />
       <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="() => SearchAsync(null)" Disabled="@_busy">@(_busy ? "Searching…" : "Search")</MudButton>
     </div>
+    @if (!GuestsOnly)
+    {
+      <div class="d-flex gap-2 align-end mt-2">
+        <MudTextField T="string" Label="Browse active users — domain filter (optional)" @bind-Value="_domain" MaxLength="253" Placeholder="example.com" id="directory-domain" />
+        <MudButton Variant="Variant.Outlined" OnClick="() => BrowseAsync(null)" Disabled="@_busy">Browse active users</MudButton>
+      </div>
+    }
     @if (!string.IsNullOrWhiteSpace(_error)) { <MudAlert Severity="Severity.Warning" Dense="true" Class="mt-2" role="alert">@_error</MudAlert> }
     @if (_page is not null)
     {
@@ -43,7 +50,7 @@
           </RowTemplate>
         </MudTable>
       }
-      @if (_page.NextPageToken is not null) { <MudButton Variant="Variant.Outlined" OnClick="() => SearchAsync(_page.NextPageToken)" Disabled="@_busy">Next 25</MudButton> }
+      @if (_page.NextPageToken is not null) { <MudButton Variant="Variant.Outlined" OnClick="() => (_browsing ? BrowseAsync(_page.NextPageToken) : SearchAsync(_page.NextPageToken))" Disabled="@_busy">Next 25</MudButton> }
     }
     @if (_bound is { } bound)
     {
@@ -60,15 +67,32 @@
   [Parameter] public EventCallback<(Guid UserId, string Name, bool Client)> AssignRequested { get; set; }
   [Parameter] public EventCallback Changed { get; set; }
 
-  private string _prefix = string.Empty;
+  private string _prefix = string.Empty, _domain = string.Empty;
+  private bool _browsing;
   private DirectoryCandidatePage? _page;
   private (Guid UserId, string Name, bool Client)? _bound;
   private bool _busy;
   private string? _error;
 
+  private async Task BrowseAsync(string? pageToken)
+  {
+    _busy = true; _error = null; _bound = null; _browsing = true;
+    if (pageToken is null) _page = null;
+    try
+    {
+      var actor = await ActorResolver.ResolveAsync();
+      if (actor is null) { _error = "Your session is no longer authorized."; _page = null; return; }
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var result = await DirectoryDiscoveryService.BrowseActiveAsync(db, actor, DirectoryReader, Settings.Options.TenantId,
+        string.IsNullOrWhiteSpace(_domain) ? null : _domain, pageToken);
+      if (result.Succeeded) _page = result.Value; else { _page = null; _error = result.Message; }
+    }
+    finally { _busy = false; }
+  }
+
   private async Task SearchAsync(string? pageToken)
   {
-    _busy = true; _error = null; _bound = null;
+    _busy = true; _error = null; _bound = null; _browsing = false;
     if (pageToken is null) _page = null;
     try
     {

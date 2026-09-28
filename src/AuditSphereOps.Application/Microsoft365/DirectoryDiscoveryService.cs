@@ -15,10 +15,52 @@ public interface IMicrosoftDirectoryReader
   Task<DirectoryCandidatePage> SearchAsync(string tenantId, string prefix,
     string? pageToken, CancellationToken ct);
   Task<DirectoryCandidate> GetByIdAsync(string tenantId, string objectId, CancellationToken ct);
+  Task<DirectoryCandidatePage> BrowseActiveAsync(string tenantId, string? domain,
+    string? pageToken, CancellationToken ct);
 }
 
 public static class DirectoryDiscoveryService
 {
+  public static async Task<CommandResult<DirectoryCandidatePage>> BrowseActiveAsync(
+    IAuditSphereDbContext db, ActorContext actor, IMicrosoftDirectoryReader reader,
+    string configuredTenantId, string? domain, string? pageToken, CancellationToken ct = default)
+  {
+    var request = new AuthorizationRequest(actor.FirmId, RequiredRoles: ["Administrator"],
+      InternalOnly: true, RequireFirmWide: true);
+    if (!(await AuthorizationDecision.AuthorizeAsync(db, actor, request, ct)).Succeeded)
+      return Denied();
+    var normalizedDomain = domain?.Trim().TrimStart('@').ToLowerInvariant();
+    if (!Guid.TryParse(configuredTenantId, out var tenant) ||
+        normalizedDomain is { Length: > 0 } name &&
+          (name.Length > 253 || !name.Contains('.') ||
+           name.StartsWith('.') || name.EndsWith('.') ||
+           name.Any(x => !(char.IsAsciiLetterOrDigit(x) || x is '.' or '-'))) ||
+        pageToken is { Length: > 2048 })
+      return CommandResult<DirectoryCandidatePage>.Fail(ErrorCodes.GateBlocked,
+        "Enter a valid domain name or clear the domain filter.");
+    DirectoryCandidatePage page;
+    try
+    {
+      page = await reader.BrowseActiveAsync(tenant.ToString("D"),
+        string.IsNullOrEmpty(normalizedDomain) ? null : normalizedDomain, pageToken, ct);
+    }
+    catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
+    {
+      return CommandResult<DirectoryCandidatePage>.Fail(ErrorCodes.GateBlocked,
+        "Active Microsoft users could not be loaded for this tenant.");
+    }
+    if (page.Users.Count > 25 || page.Users.Any(x =>
+      !string.Equals(x.TenantId, tenant.ToString("D"), StringComparison.OrdinalIgnoreCase) ||
+      !Guid.TryParse(x.ObjectId, out _) || !x.AccountEnabled ||
+      normalizedDomain is { Length: > 0 } filter &&
+        !x.UserPrincipalName.EndsWith("@" + filter, StringComparison.OrdinalIgnoreCase)))
+      return CommandResult<DirectoryCandidatePage>.Fail(ErrorCodes.GateBlocked,
+        "Directory response could not be verified.");
+    if (!(await AuthorizationDecision.AuthorizeAsync(db, actor, request, ct)).Succeeded)
+      return Denied();
+    return CommandResult<DirectoryCandidatePage>.Ok(page);
+  }
+
   public static async Task<CommandResult<DirectoryCandidatePage>> SearchAsync(
     IAuditSphereDbContext db, ActorContext actor, IMicrosoftDirectoryReader reader,
     string configuredTenantId, string prefix, string? pageToken, CancellationToken ct = default)

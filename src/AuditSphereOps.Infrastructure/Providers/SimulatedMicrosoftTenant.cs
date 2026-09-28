@@ -62,6 +62,17 @@ public sealed class SimulatedMicrosoftTenant : IMicrosoftDirectoryReader, IMicro
     return Task.FromResult(new DirectoryCandidatePage(page, skip + 25 < matches.Count ? (skip + 25).ToString() : null));
   }
 
+  public Task<DirectoryCandidatePage> BrowseActiveAsync(string requestedTenant, string? domain, string? pageToken, CancellationToken ct)
+  {
+    RequireTenant(requestedTenant);
+    var skip = int.TryParse(pageToken, out var parsed) ? parsed : 0;
+    var matches = users.Values.Where(x => x.AccountEnabled &&
+        (string.IsNullOrEmpty(domain) || x.UserPrincipalName.EndsWith("@" + domain, StringComparison.OrdinalIgnoreCase)))
+      .OrderBy(x => x.DisplayName).ToList();
+    var page = matches.Skip(skip).Take(25).Select(Candidate).ToList();
+    return Task.FromResult(new DirectoryCandidatePage(page, skip + 25 < matches.Count ? (skip + 25).ToString() : null));
+  }
+
   public Task<DirectoryCandidate> GetByIdAsync(string requestedTenant, string objectId, CancellationToken ct)
   {
     RequireTenant(requestedTenant);

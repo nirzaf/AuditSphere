@@ -24,11 +24,11 @@ public sealed class AccountingBackfillMigrationTests
 
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
-      db.Users.Add(new AppUser
-      {
-        Id = userId, FirmId = firmId, Subject = "backfill-user", TenantId = "test",
-        Email = "backfill@example.invalid", DisplayName = "Backfill fixture", CreatedAt = DateTimeOffset.UtcNow
-      });
+      // Insert with the legacy column set: the current AppUser model has columns added by later migrations.
+      await db.Database.ExecuteSqlInterpolatedAsync($"""
+        INSERT INTO users (id, firm_id, subject, tenant_id, email, display_name, user_kind, disabled, session_epoch, created_at)
+        VALUES ({userId}, {firmId}, 'backfill-user', 'test', 'backfill@example.invalid', 'Backfill fixture', 'Staff', false, 1, {DateTimeOffset.UtcNow})
+        """);
       Add(db, exact);
       Add(db, ambiguous);
       await db.SaveChangesAsync();

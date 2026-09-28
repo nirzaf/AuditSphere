@@ -100,6 +100,15 @@ append-only `m365_administration_events` row (actor, firm, target, operation,
 old/new state, role/scope change, reason, Microsoft operation and correlation ID,
 result, time).
 
+## Directory picker
+
+The Microsoft Directory panel offers bounded prefix search and a paged
+**Browse active users** list (25 per page) with an optional UPN domain suffix
+filter. The filter uses Graph advanced query requirements
+(`ConsistencyLevel: eventual`, `$count=true`) and rejects results from another
+tenant or domain. A selected member or guest is re-read by exact object ID before
+local binding; neither the picker nor binding grants AuditSphere access.
+
 ## Remaining external gates
 
 Live consent, live capability verification and live mutations are
@@ -113,6 +122,7 @@ or alongside live credentials.
 Sources: [Microsoft admin consent protocol](https://learn.microsoft.com/en-us/entra/identity-platform/v2-admin-consent),
 [tenant admin-consent role prerequisites](https://learn.microsoft.com/en-us/entra/identity/enterprise-apps/grant-admin-consent),
 [list users](https://learn.microsoft.com/en-us/graph/api/user-list?view=graph-rest-1.0),
+[advanced directory filters](https://learn.microsoft.com/en-us/graph/aad-advanced-queries),
 [create user](https://learn.microsoft.com/en-us/graph/api/user-post-users?view=graph-rest-1.0),
 [create invitation](https://learn.microsoft.com/en-us/graph/api/invitation-post?view=graph-rest-1.0),
 and [add group members](https://learn.microsoft.com/en-us/graph/api/group-post-members?view=graph-rest-1.0).

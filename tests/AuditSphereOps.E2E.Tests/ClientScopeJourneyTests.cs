@@ -311,17 +311,17 @@ public sealed class ClientScopeJourneyTests
     var diagnostics = new List<string>();
     var connected = WaitForCircuitConnectionAsync(page, diagnostics);
     await page.GotoAsync(SignInUrl(origin, "/app/administration"));
+    await connected;
     await page.GetByRole(AriaRole.Tab, new() { Name = "AuditSphere Roles" }).ClickAsync();
     await page.GetByRole(AriaRole.Heading, new() { Name = "Firm role grants" }).WaitForAsync();
-    await connected;
     Assert.Contains(host.Fixture.Client.Email, await page.Locator("body").InnerTextAsync());
     var documentToken = await page.EvaluateAsync<string>("window.__adminRevocationToken = crypto.randomUUID()");
     var copyPage = await context.NewPageAsync();
     var copyConnected = WaitForCircuitConnectionAsync(copyPage, diagnostics);
     await copyPage.GotoAsync(SignInUrl(origin, "/app/administration"));
+    await copyConnected;
     await copyPage.GetByRole(AriaRole.Tab, new() { Name = "AuditSphere Roles" }).ClickAsync();
     await copyPage.GetByRole(AriaRole.Button, new() { Name = "Copy invitation" }).WaitForAsync();
-    await copyConnected;
     await copyPage.EvaluateAsync("() => { window.__adminCopyCount = 0; window.auditSphereExports.copyText = () => { window.__adminCopyCount += 1; }; }");
 
     await using (var db = host.CreateDbContext())
