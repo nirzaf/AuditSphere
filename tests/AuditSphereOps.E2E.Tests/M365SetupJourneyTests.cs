@@ -1,4 +1,9 @@
 using Microsoft.Playwright;
+using System.Security.Cryptography;
+using System.Text;
+using AuditSphereOps.Application.Microsoft365;
+using AuditSphereOps.Domain.Security;
+using Microsoft.EntityFrameworkCore;
 
 namespace AuditSphereOps.E2E.Tests;
 
@@ -6,6 +11,51 @@ namespace AuditSphereOps.E2E.Tests;
 public sealed class M365SetupJourneyTests
 {
   internal const string BootstrapProof = "AuditSphere synthetic E2E bootstrap proof";
+
+  [Fact]
+  [Trait("CaseId", "PROP-E2E-05-ADMIN")]
+  public async Task BoundAdministrator_OpensExistingDraftWithOneClick()
+  {
+    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false,
+      enableSetup: true, caseId: "PROP-E2E-05-ADMIN");
+    await using (var db = host.CreateDbContext())
+    {
+      var now = DateTimeOffset.UtcNow;
+      db.RoleGrants.Add(new RoleGrant
+      {
+        Id = Guid.NewGuid(), FirmId = host.Fixture.FirmId, UserId = host.Fixture.Staff.Id,
+        Role = "Administrator", GrantedAt = now, GrantedByUserId = host.Fixture.Staff.Id
+      });
+      var claim = await Microsoft365OnboardingService.ClaimAsync(db, host.Fixture.FirmId,
+        "synthetic-installation", BootstrapProof,
+        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(BootstrapProof))).ToLowerInvariant(), now);
+      Assert.True(claim.Succeeded);
+      var session = await db.Microsoft365SetupSessions.SingleAsync(x => x.Id == claim.Value!.SessionId);
+      session.ClaimedByUserId = host.Fixture.Staff.Id;
+      session.ConsumedAt = now.AddMilliseconds(1);
+      await db.SaveChangesAsync();
+    }
+
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    await using var context = await browser.NewContextAsync();
+    var page = await context.NewPageAsync();
+    var diagnostics = new List<string>();
+    var connected = WaitForCircuitConnectionAsync(page, diagnostics);
+    await page.GotoAsync(SignInUrl(host.StaffUrl, "/app/administration/microsoft365"));
+    await page.GetByRole(AriaRole.Button, new() { Name = "Continue setup with this account" }).WaitForAsync();
+    await connected;
+    await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new() { Timeout = 5000 });
+    Assert.Equal(0, await page.Locator("#bootstrap-proof").CountAsync());
+    await page.GetByRole(AriaRole.Button, new() { Name = "Continue setup with this account" }).ClickAsync();
+    await page.GetByText("Local setup draft opened with your signed-in tenant. Microsoft consent and selected-resource verification are still required.").WaitForAsync();
+    await page.GetByText("Draft revision").WaitForAsync();
+    Assert.Equal(host.Fixture.Staff.TenantId, await page.Locator("#tenant-id").InputValueAsync());
+    Assert.Equal(0, await page.Locator("#bootstrap-proof").CountAsync());
+    await using var readback = host.CreateDbContext();
+    Assert.Equal(host.Fixture.Staff.TenantId,
+      (await readback.Microsoft365SetupDrafts.AsNoTracking().SingleAsync()).ExpectedTenantId);
+  }
 
   [Fact]
   [Trait("CaseId", "PROP-E2E-05")]

@@ -133,13 +133,8 @@ public static class Microsoft365OnboardingService
     ActorContext? authenticatedActor = null)
   {
     if (firmId == Guid.Empty || string.IsNullOrWhiteSpace(installationId) ||
-        string.IsNullOrWhiteSpace(bootstrapProof) || !IsSha256(configuredProofHash))
+        !IsSha256(configuredProofHash))
       return CommandResult<SetupClaim>.Fail("m365.setup.invalid", "The setup proof configuration is incomplete.");
-
-    var actual = Hash(bootstrapProof);
-    if (!CryptographicOperations.FixedTimeEquals(
-          Convert.FromHexString(actual), Convert.FromHexString(configuredProofHash.Trim().ToLowerInvariant())))
-      return CommandResult<SetupClaim>.Fail("m365.setup.denied", "The setup proof is invalid or expired.");
 
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     var existing = await db.Microsoft365SetupSessions
@@ -171,6 +166,8 @@ public static class Microsoft365OnboardingService
         await tx.CommitAsync(ct);
         return CommandResult<SetupClaim>.Ok(new(existing.Id, resumedCapability));
       }
+      if (!ValidBootstrapProof(bootstrapProof, configuredProofHash))
+        return CommandResult<SetupClaim>.Fail("m365.setup.denied", "The setup proof is invalid or expired.");
       if (existing.ExpiresAt <= now)
       {
         existing.State = Microsoft365SetupStates.Expired;
@@ -186,6 +183,9 @@ public static class Microsoft365OnboardingService
       await tx.CommitAsync(ct);
       return CommandResult<SetupClaim>.Ok(new(existing.Id, capability));
     }
+
+    if (!ValidBootstrapProof(bootstrapProof, configuredProofHash))
+      return CommandResult<SetupClaim>.Fail("m365.setup.denied", "The setup proof is invalid or expired.");
 
     var capabilityValue = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
     var session = new Microsoft365SetupSession
@@ -262,4 +262,7 @@ public static class Microsoft365OnboardingService
   private static string Hash(string value) => Hash(Encoding.UTF8.GetBytes(value));
   private static string Hash(byte[] value) => Convert.ToHexString(SHA256.HashData(value)).ToLowerInvariant();
   private static bool IsSha256(string value) => value.Trim().Length == 64 && value.Trim().All(Uri.IsHexDigit);
+  private static bool ValidBootstrapProof(string proof, string configuredHash) =>
+    !string.IsNullOrWhiteSpace(proof) && CryptographicOperations.FixedTimeEquals(
+      Convert.FromHexString(Hash(proof)), Convert.FromHexString(configuredHash.Trim().ToLowerInvariant()));
 }

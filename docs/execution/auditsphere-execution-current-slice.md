@@ -28,6 +28,19 @@
 
 ---
 
+## Microsoft 365 setup: one-click administrator resume
+
+After the initial proof-backed administrator binding, the same currently
+authorized firm-wide administrator can reopen the local Microsoft 365 setup
+draft with **Continue setup with this account**. The button uses the current
+Microsoft `tid`/`oid` and local grant; it does not ask for the bootstrap proof
+again. For an empty tenant field, the authenticated tenant ID is saved to the
+draft automatically. The screen shows the tenant and working-site URL first;
+resource IDs, optional capabilities and folder templates are under advanced
+settings. First-time bootstrap still requires the private proof. This local
+draft action does not grant Microsoft consent, selected-site access, or live
+provider readiness. Exact test evidence is in `status.json`.
+
 ## P1 immutable identity lookup
 
 The Web actor resolver and sign-in landing now require the Entra `oid` claim

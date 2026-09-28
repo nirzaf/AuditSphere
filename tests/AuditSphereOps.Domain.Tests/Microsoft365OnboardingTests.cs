@@ -1,7 +1,9 @@
 using System.Security.Cryptography;
 using System.Text;
 using AuditSphereOps.Application.Microsoft365;
+using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Domain.Microsoft365;
+using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -10,6 +12,61 @@ namespace AuditSphereOps.Domain.Tests;
 [Trait("Profile", "Database")]
 public sealed class Microsoft365OnboardingTests
 {
+  [Fact]
+  public async Task BoundAdministrator_ResumesSetupWithoutRepeatingBootstrapProof()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var firmId = Guid.NewGuid();
+    var now = DateTimeOffset.UtcNow;
+    const string installation = "admin-resume-test";
+    const string tenant = "synthetic-tenant";
+    const string subject = "synthetic-object";
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var first = await Microsoft365OnboardingService.ClaimAsync(db, firmId, installation,
+      "initial-proof", Hash("initial-proof"), now.AddHours(-1));
+    Assert.True(first.Succeeded);
+    var initial = first.Value!;
+    var admin = new AppUser
+    {
+      Id = Guid.NewGuid(), FirmId = firmId, TenantId = tenant, Subject = subject,
+      Email = "admin@example.test", DisplayName = "Synthetic administrator", CreatedAt = now
+    };
+    db.Users.Add(admin);
+    var administratorGrant = new RoleGrant
+    {
+      Id = Guid.NewGuid(), FirmId = firmId, UserId = admin.Id, Role = "Administrator",
+      GrantedAt = now, GrantedByUserId = admin.Id
+    };
+    db.RoleGrants.Add(administratorGrant);
+    var session = await db.Microsoft365SetupSessions.SingleAsync(x => x.Id == initial.SessionId);
+    session.ClaimedByUserId = admin.Id;
+    session.ConsumedAt = now.AddMinutes(-50);
+    await db.SaveChangesAsync();
+
+    var actor = new ActorContext(admin.Id, firmId, admin.SessionEpoch, ["Administrator"]);
+    var deniedWithoutActor = await Microsoft365OnboardingService.ClaimAsync(db, firmId, installation,
+      "", Hash("initial-proof"), now.AddMinutes(1), authenticatedTenantId: tenant,
+      authenticatedObjectId: subject);
+    Assert.False(deniedWithoutActor.Succeeded);
+    var deniedWrongIdentity = await Microsoft365OnboardingService.ClaimAsync(db, firmId, installation,
+      "", Hash("initial-proof"), now.AddMinutes(1), authenticatedTenantId: tenant,
+      authenticatedObjectId: "different-object", authenticatedActor: actor);
+    Assert.False(deniedWrongIdentity.Succeeded);
+    var resumed = await Microsoft365OnboardingService.ClaimAsync(db, firmId, installation,
+      "", Hash("initial-proof"), now.AddMinutes(1), authenticatedTenantId: tenant,
+      authenticatedObjectId: subject, authenticatedActor: actor);
+    Assert.True(resumed.Succeeded);
+    Assert.Equal(initial.SessionId, resumed.Value!.SessionId);
+    Assert.NotEqual(initial.Capability, resumed.Value.Capability);
+    Assert.True((await db.Microsoft365SetupSessions.SingleAsync(x => x.Id == session.Id)).ExpiresAt > now);
+    administratorGrant.RevokedAt = now.AddMinutes(2);
+    await db.SaveChangesAsync();
+    var deniedRevokedGrant = await Microsoft365OnboardingService.ClaimAsync(db, firmId, installation,
+      "", Hash("initial-proof"), now.AddMinutes(3), authenticatedTenantId: tenant,
+      authenticatedObjectId: subject, authenticatedActor: actor);
+    Assert.False(deniedRevokedGrant.Succeeded);
+  }
+
   [Fact]
   public async Task SetupClaim_IsSingleInstallationScoped_AndDraftResumesWithNewCapability()
   {

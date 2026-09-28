@@ -23,7 +23,7 @@
 </div>
 
 <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="setup-heading" role="region">
-  <h2 id="setup-heading">Protected first-run configuration</h2>
+  <h2 id="setup-heading">Microsoft 365 setup</h2>
   <p class="scope-note">This route only creates a resumable local draft. It does not authenticate to Microsoft, grant permissions, or create SharePoint content.</p>
   <p class="field-help"><span class="required-marker">*</span> Required. Bootstrap proof is held only in this server circuit and is never saved to browser storage or the database.</p>
 
@@ -33,12 +33,20 @@
   }
   else if (_claim is null)
   {
-    <div class="form-group">
-      <label for="bootstrap-proof">Bootstrap proof <span class="required-marker">*</span>
-        <MudTextField T="string" @bind-Value="_bootstrapProof" InputType="InputType.Password" id="bootstrap-proof" autocomplete="off" required title="Enter the short-lived proof delivered by the installation owner." />
-      </label>
-    </div>
-    <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="btn-primary" OnClick="Claim" Disabled="@_busy">@(_busy ? "Checking…" : "Claim setup")</MudButton>
+    @if (_isFirmAdministrator)
+    {
+      <p class="field-help">Your Microsoft sign-in is already bound to this installation as a firm-wide administrator. Continue the existing local setup draft without entering the bootstrap proof again.</p>
+      <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="btn-primary" OnClick="Claim" Disabled="@_busy">@(_busy ? "Opening…" : "Continue setup with this account")</MudButton>
+    }
+    else
+    {
+      <div class="form-group">
+        <label for="bootstrap-proof">Bootstrap proof <span class="required-marker">*</span>
+          <MudTextField T="string" @bind-Value="_bootstrapProof" InputType="InputType.Password" id="bootstrap-proof" autocomplete="off" required title="Enter the short-lived proof delivered by the installation owner." />
+        </label>
+      </div>
+      <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="btn-primary" OnClick="Claim" Disabled="@_busy">@(_busy ? "Checking…" : "Claim setup")</MudButton>
+    }
   }
   else if (_draft is null)
   {
@@ -73,6 +81,9 @@
       <MudTextField T="string" @bind-Value="_tenantName" MaxLength="300" id="tenant-name" data-optional="true" title="Friendly label only; it is not used for identity or authorization." /></label></div>
     <div class="form-group"><label for="site-url">Working SharePoint site URL <span class="optional-label">optional until live verification</span>
       <MudTextField T="string" @bind-Value="_siteUrl" InputType="InputType.Url" MaxLength="2000" id="site-url" data-optional="true" title="A verified HTTPS SharePoint site URL; a SitePages URL is resolved later to its site identity." /></label></div>
+    <details class="my-4">
+      <summary>Advanced resource IDs, capabilities and folder templates</summary>
+      <p class="field-help">The defaults are safe for a local draft. Site, library and root IDs still need separate selected-resource verification before activation.</p>
     <div class="form-group"><label for="site-id">Site ID <span class="optional-label">optional until live verification</span>
       <MudTextField T="string" @bind-Value="_siteId" MaxLength="2000" id="site-id" data-optional="true" title="Stable SharePoint site ID returned by the approved resource-resolution step." /></label></div>
     <div class="form-group"><label for="drive-id">Document library/drive ID <span class="optional-label">optional until live verification</span>
@@ -119,6 +130,7 @@
         }
       </MudPaper>
     }
+    </details>
     <div class="action-bar">
       <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="btn-primary" OnClick="Save" Disabled="@_busy">@(_busy ? "Saving…" : "Save draft")</MudButton>
       <MudButton Variant="Variant.Outlined" Class="btn-secondary" OnClick="Reload" Disabled="@_busy">Reload</MudButton>
@@ -263,7 +275,21 @@
         authenticatedActor: _actor);
       if (!result.Succeeded) { _error = result.Message ?? "Setup could not be claimed."; return; }
       _claim = result.Value; _bootstrapProof = string.Empty; await Reload();
-      _message = "Setup claimed. Microsoft verification and activation are separate steps.";
+      var signedInTenant = principal.FindFirst("tid")?.Value;
+      if (_isFirmAdministrator && _draft is not null && string.IsNullOrWhiteSpace(_draft.ExpectedTenantId) &&
+          !string.IsNullOrWhiteSpace(signedInTenant))
+      {
+        var saved = await Microsoft365OnboardingService.SaveDraftAsync(db,
+          new(_claim!.SessionId, _claim.Capability, _draft.Revision, signedInTenant,
+            _draft.TenantDisplayName, _draft.SiteUrl, _draft.SiteId, _draft.DriveId,
+            _draft.RootFolderId, _draft.AccessProfile, _draft.MailState, _draft.RecordsState),
+          DateTimeOffset.UtcNow);
+        if (!saved.Succeeded) { _error = saved.Message ?? "The current tenant could not be saved to the draft."; return; }
+        await Reload();
+      }
+      _message = _isFirmAdministrator
+        ? "Local setup draft opened with your signed-in tenant. Microsoft consent and selected-resource verification are still required."
+        : "Setup claimed. Microsoft verification and activation are separate steps.";
     }
     finally { _busy = false; }
   }
