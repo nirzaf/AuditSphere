@@ -254,11 +254,9 @@ else
           var authorization = await AuthorizationDecision.AuthorizeAsync(db, _actor,
             new AuthorizationRequest(candidate.FirmId, candidate.ClientId, candidate.EngagementId,
               ["Administrator", "Partner", "Manager", "Reviewer", "Staff", "AccountingPreparer", "AccountingReviewer"], InternalOnly: true));
+          // An out-of-scope package renders exactly like a non-existent one so identifiers are not an existence oracle.
           if (!authorization.Succeeded)
-          {
-            _denied = true;
             return;
-          }
           _package = candidate;
           _validations = await db.FinancialPackageValidations.AsNoTracking()
             .Where(x => x.FirmId == _actor.FirmId && x.FinancialPackageId == _package.Id)

@@ -194,7 +194,9 @@ else
         if (generation != _loadGeneration) return;
         if (!authorization.Succeeded)
         {
-            _authorizationMessage = authorization.Message;
+            // Out-of-scope engagements render exactly like non-existent ones; only in-scope gates explain themselves.
+            if (authorization.ErrorCode == AuditSphereOps.Domain.Shared.ErrorCodes.ScopeDenied) _engagement = null;
+            else _authorizationMessage = authorization.Message;
             _loading = false;
             return;
         }

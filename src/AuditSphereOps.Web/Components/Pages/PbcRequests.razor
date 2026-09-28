@@ -29,18 +29,12 @@ else if (_actor is null || !IsStaff)
     <MudText Typo="Typo.body2">Sign in with an authorized staff identity to view PBC requests.</MudText>
   </MudAlert>
 }
-else if (_engagement is null)
+else if (_engagement is null || _denied)
 {
-  <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="notice my-4" role="alert">
-    <h2>Engagement unavailable</h2>
-    <MudText Typo="Typo.body2">The engagement is not available in the current firm scope.</MudText>
-  </MudAlert>
-}
-else if (_denied)
-{
+  @* An unassigned engagement renders exactly like a non-existent one so identifiers are not an existence oracle. *@
   <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="notice my-4" role="alert">
     <h2>Access unavailable</h2>
-    <MudText Typo="Typo.body2">The current staff assignment does not cover this engagement.</MudText>
+    <MudText Typo="Typo.body2">The engagement is not available in your current access scope.</MudText>
   </MudAlert>
 }
 else

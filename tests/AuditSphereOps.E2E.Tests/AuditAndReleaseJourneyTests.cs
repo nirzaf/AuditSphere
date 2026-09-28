@@ -96,7 +96,7 @@ public sealed class AuditAndReleaseJourneyTests
     await page.EvaluateAsync("token => window.__testDocumentToken = token", documentToken);
     await page.EvaluateAsync("path => { history.pushState({}, '', path); dispatchEvent(new PopStateEvent('popstate')); }",
       $"/app/engagements/{unauthorizedEngagementId:D}/audit-fieldwork");
-    await page.GetByRole(AriaRole.Heading, new() { Name = "Access blocked" }).WaitForAsync();
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Fieldwork unavailable" }).WaitForAsync();
     var body = await page.Locator("body").InnerTextAsync();
     Assert.DoesNotContain("AUDIT-WORKING-PROCESS", body);
     Assert.DoesNotContain("165", body);

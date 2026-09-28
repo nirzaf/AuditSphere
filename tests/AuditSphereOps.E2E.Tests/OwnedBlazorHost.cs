@@ -67,6 +67,8 @@ internal sealed class OwnedBlazorHost : IAsyncDisposable
 
   public AuditSphereDbContext CreateDbContext() => new(pg.Options);
 
+  internal ITestPostgresDatabase Database => pg;
+
   public async Task<string> StartUnrelatedClientWebAsync()
   {
     var user = PbcSeed.User(Fixture.FirmId, "Client");
