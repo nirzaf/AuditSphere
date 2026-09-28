@@ -55,11 +55,16 @@ independence impact, explicit expansion confirmation, GROUP scope, reasons and
 expiry enforced by real revocation. The Administration page is a tabbed
 workspace with a dashboard and setup progress derived from persisted state.
 
-CI and local browser journeys use the Development/Test-only simulated tenant.
-Live consent, capability verification and mutations are `BLOCKED_EXTERNAL`
-until separate app registrations and certificates are configured and a tenant
-administrator consents. The GitHub Wiki deployment guide is not updated by this
-change. Exact verification is in `status.json`.
+CI and local browser journeys also use the Development/Test-only simulated
+tenant. Separately, the authorized Development tenant completed the live
+administrator-consent and nonce-bound identity path with a distinct
+certificate-backed directory-reader registration. Consent and the bounded
+directory capability are `VERIFIED`. The selected-site row is
+`BLOCKED_EXTERNAL` because an app role alone does not verify the saved site,
+library and root. Optional mail, provisioning, guest and group capabilities
+remain disabled; no Microsoft mutation or production acceptance was observed.
+The canonical GitHub Wiki guide covers both exact callbacks and independent
+capability gates. Exact verification is in `status.json`.
 
 ## AS-PAR-002 audit program library access refresh
 
@@ -82,8 +87,8 @@ draft, and session epoch. A separate consent app registration and exact callback
 must be explicitly configured and enabled. The callback consumes the state
 once and records `RETURNED_UNVERIFIED` only after the tenant matches; it does
 not activate a connection or assert Microsoft permissions. A bounded
-Development directory check is described below; authenticated grantor proof
-and live tenant consent acceptance remain pending. The local migration and
+Development directory check is described below. The current second sign-in leg
+authenticates the administrator and verifies the consent in Development. The local migration and
 focused PostgreSQL and URL-builder checks are recorded in `status.json`.
 
 The separate directory reader now supports bounded, administrator-only live
@@ -98,8 +103,8 @@ re-reads the selected member before creating or refreshing its local binding.
 In the Development tenant, the dedicated app received the exact permission,
 and a certificate token plus the live page completed bounded Graph reads.
 The consent callback's denied path also returned to the app and consumed its
-attempt without activating a connection. These are Development observations,
-not production acceptance or a successful callback observation.
+attempt without activating a connection. The later verified live callback is
+recorded above; neither observation establishes production acceptance.
 The binding step re-reads a selected Microsoft member by exact object ID.
 Binding is idempotent and records an enabled Graph
 observation without a role grant. The Administration handoff starts with no
@@ -107,8 +112,8 @@ role or scope chosen; the existing scoped role service remains the separate
 access transaction. Guest invitations and tenant user creation are not
 enabled by this path. A live Development browser check bound the already known
 synthetic Staff fixture and reached the role review form with blank role and
-scope choices. No new grant was applied. The latest browser consent return
-remains unverified; this is not production acceptance.
+scope choices. No new grant was applied. The later Development consent return
+is verified as described above; this is not production acceptance.
 The User and role administration screen now offers a paged selector of enabled
 Microsoft users when the separate directory reader is configured. An optional
 domain suffix filter is applied in Graph with an advanced query, and the app
@@ -126,14 +131,16 @@ The current blocked states and test evidence remain in `status.json`.
 The local configuration service now refuses administrator-entered tenant
 consent `PASS` evidence and cannot promote recorded references to a verified
 connection. Activation requires a separately verified consent state, including
-for older revisions with `OBSERVED` evidence. The trusted Microsoft grantor
-and permission-readback path remains pending; the setup page labels historical
-consent rows as unverified.
+for older revisions with `OBSERVED` evidence. The later Development consent
+path verifies the authenticated administrator and independently checks the
+directory reader. The setup page still labels historical provisional consent
+rows as unverified.
 When an exact-app-matched directory reader is configured, a successful
 one-use consent return now runs the bounded exact-member directory check
 before returning to the tenant page. The check records directory capability
-evidence only; the callback remains `RETURNED_UNVERIFIED` and still cannot
-identify the Microsoft grantor or activate the connection. A denied return
+evidence only; the callback was `RETURNED_UNVERIFIED` at that earlier revision
+and could not identify the Microsoft grantor or activate the connection. The
+current second sign-in leg resolves that identity in Development. A denied return
 does not run the check. The callback passes its original setup draft identity
 to the directory check, so a newer draft for the same firm and tenant cannot
 receive evidence from an older consent attempt.
