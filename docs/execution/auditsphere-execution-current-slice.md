@@ -260,6 +260,11 @@ Request unavailable without its details. The browser's shared cookie then
 required a fresh Client X sign-in for the positive visibility check; that
 credential handoff is pending. This is a local negative check only.
 
+A focused Release E2E rerun also passed for a synthetic owning client opening
+its assigned PBC request and completing the guarded upload journey (1/1).
+This verifies the local positive browser path but does not substitute for
+Client X viewing the exact Development Draft fixture after Microsoft sign-in.
+
 ## P8a production Data Protection key ring
 
 Production Web startup now also requires a persistent Data Protection key

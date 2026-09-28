@@ -575,6 +575,13 @@
       "observation": "A guarded fixture runner created one clearly marked synthetic Active engagement for synthetic Client X and used PbcService.CreateRequestAsync to create one Draft PBC request owned by Client X. The application did not send the request or queue an external mail effect. Read-only PostgreSQL readback confirmed Draft state, Client X scope and Client X owner. The existing Client Y browser session still showed no assigned requests; a direct visit to the exact request URL displayed Request unavailable and did not render the private request marker or details.",
       "boundary": "This is a local Development negative browser check for the previously authenticated Client Y session. A fresh Client X credential challenge is pending, so the positive visibility half of this exact fixture is not yet observed. It is not a professional engagement, sent PBC request, live provider effect, production or independent P1 acceptance."
     },
+    "p1SyntheticOwnedRequestBrowserRerun": {
+      "observedAt": "2026-09-28T05:41:30Z",
+      "profile": "Release E2E browser test against an isolated local PostgreSQL 18.6 database and synthetic client identity; no Microsoft sign-in or external effects.",
+      "focusedTests": "PASS: PbcUploadJourneyTests.ClientUpload_ReconcilesUncertainProviderResult_AndStaffDownloadsExactBytes, 1/1 after restarting the stopped local PostgreSQL server.",
+      "observation": "The synthetic owning client opened its assigned PBC request in the browser and proceeded through request-bound upload preparation and trusted completion; the staff side downloaded the exact staged bytes.",
+      "boundary": "This is a local positive browser regression. The exact Development Client X Draft fixture has not been viewed after a fresh Client X Microsoft sign-in, so that live positive check and broader P1 acceptance remain open."
+    },
     "p8aDurableDispositionStateMetric": {
       "sourceCommit": "5157e7707c8ef20c666c340be2c20b4a3452d663",
       "observedAt": "2026-09-27T02:40:25Z",
