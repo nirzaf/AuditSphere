@@ -529,6 +529,13 @@
       "observation": "After the owner selected a narrow test client, a guarded local transaction inserted one clearly named synthetic PROSPECT client and its initial client safety state for the existing firm. A database readback confirmed the client, matching safety state and input generation 1. The administration form was prepared with Staff, Selected client and the new exact client ID for the already-bound staff fixture.",
       "boundary": "This is a local test fixture, not a commercial conversion, approved client onboarding or production data. The prepared form has not been submitted; no staff role grant or invitation was created. Positive staff access, client isolation and production P1 acceptance remain open."
     },
+    "p1ClientScopedStaffGrant": {
+      "observedAt": "2026-09-28T04:01:27Z",
+      "profile": "Local Development installation and approved developer tenant, with external effects fenced.",
+      "observation": "After exact owner confirmation, the firm administration UI saved the bound fixture's Staff role and invitation intent for only the synthetic client. The UI displayed the client ID in the grant row and invitation NOT_SENT. A read-only PostgreSQL query confirmed exactly one active grant for that user: Staff with that client ID, no engagement ID, and no firm-wide grant. The target session epoch advanced.",
+      "browserLimit": "The Microsoft account picker offered the staff fixture and the local portfolio showed the synthetic client. However, the same shared browser session also displayed administrator controls on the administration page after account selection. Therefore the portfolio observation cannot be attributed to an isolated staff cookie and is not accepted as a positive staff authorization or isolation test.",
+      "boundary": "The scoped grant is configured locally. A clean, independently attributable staff browser session and sibling-client denial still need verification. No production P1 or independent acceptance is claimed."
+    },
     "p8aDurableDispositionStateMetric": {
       "sourceCommit": "5157e7707c8ef20c666c340be2c20b4a3452d663",
       "observedAt": "2026-09-27T02:40:25Z",

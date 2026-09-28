@@ -205,8 +205,12 @@ subsequently bound the exact enabled Microsoft tenant/object identity through
 the local roster form. A guarded local transaction then created one synthetic
 PROSPECT client and its safety state as a narrow test scope, without fabricating
 a commercial approval. The administration form is prepared for a Staff grant
-limited to that client, but it has not been submitted. The fixture still has no
-active role grant or application access. The
+limited to that client. After exact owner confirmation, the administration UI
+saved one client-scoped Staff grant and a non-sent invitation intent; a database
+readback confirmed no firm-wide or engagement grant for that user. A subsequent
+account-picker attempt showed the synthetic client on the portfolio, but the
+shared browser session also retained administrator controls, so it does not
+prove an isolated staff login or sibling-client denial. The
 remaining P1 fixture cycle and production acceptance remain open; exact checks
 are in `status.json`.
 
