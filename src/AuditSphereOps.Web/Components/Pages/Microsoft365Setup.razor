@@ -72,7 +72,7 @@
           <li>@(_progress.TenantRecorded ? "Tenant recorded from your Microsoft sign-in" : "Record the expected tenant")</li>
           <li>@(_progress.SiteUrlRecorded ? "Working site URL saved" : "Enter the approved SharePoint working site URL and save the draft")</li>
           <li>@(_progress.ConnectionPrepared ? "Connection reference prepared" : "Deployment operator prepares a separate runtime credential reference")</li>
-          <li>@(_progress.ConsentEvidenceRecorded ? "Historical consent evidence recorded; independent Microsoft verification still required" : "Independent Microsoft consent verification required")</li>
+          <li>@(_progress.ConsentVerified ? "Microsoft administrator consent verified for this draft" : _progress.ConsentEvidenceRecorded ? "Historical consent evidence recorded; independent Microsoft verification still required" : "Independent Microsoft consent verification required")</li>
           <li>@(_progress.SelectedResourcesEvidenceRecorded ? "Selected site, library and root evidence recorded" : "Deployment operator verifies selected site, library and root access")</li>
           <li>@(_progress.ClientTemplateApproved ? "Client folder template approved" : "Approve the client folder template in advanced settings")</li>
           <li>@(_progress.WorkspaceActivated ? "Workspace activation recorded" : "Activate only after live provider checks and human review")</li>

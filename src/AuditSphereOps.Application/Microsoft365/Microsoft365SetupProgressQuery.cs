@@ -12,6 +12,7 @@ public sealed record Microsoft365SetupProgress(
   bool SiteUrlRecorded,
   bool ConnectionPrepared,
   bool ConsentEvidenceRecorded,
+  bool ConsentVerified,
   bool SelectedResourcesEvidenceRecorded,
   bool ClientTemplateApproved,
   bool WorkspaceActivated);
@@ -44,6 +45,10 @@ public static class Microsoft365SetupProgressQuery
       .ToListAsync(ct);
     var consent = evidence.Any(x => x.ResourceKind == "TENANT" && x.Operation == "CONSENT" &&
       x.ResourceId == draft.ExpectedTenantId);
+    var consentVerified = await db.TenantConsentAttempts.AsNoTracking().AnyAsync(x =>
+      x.FirmId == actor.FirmId && x.SetupDraftId == draft.Id &&
+      x.ExpectedTenantId == draft.ExpectedTenantId &&
+      x.State == TenantConsentAttemptStates.ConsentVerified, ct);
     var resources = new[] { ("SITE", draft.SiteId), ("DRIVE", draft.DriveId), ("ROOT", draft.RootFolderId) }
       .All(required => !string.IsNullOrWhiteSpace(required.Item2) &&
         evidence.Any(x => x.ResourceKind == required.Item1 && x.ResourceId == required.Item2));
@@ -58,6 +63,6 @@ public static class Microsoft365SetupProgressQuery
     return CommandResult<Microsoft365SetupProgress>.Ok(new(
       !string.IsNullOrWhiteSpace(draft.ExpectedTenantId),
       !string.IsNullOrWhiteSpace(draft.SiteUrl), connection is not null,
-      consent, resources, template, active));
+      consent, consentVerified, resources, template, active));
   }
 }
