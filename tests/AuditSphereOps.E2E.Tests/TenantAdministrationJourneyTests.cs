@@ -123,6 +123,8 @@ public sealed class TenantAdministrationJourneyTests
         x.Capability != Microsoft365Capabilities.SelectedSite));
     }
 
+    await page.GetByRole(AriaRole.Button, new() { Name = "Verify all capabilities" }).ClickAsync();
+    await page.GetByText("Every enabled capability was verified separately for this tenant.").WaitForAsync();
     await page.GotoAsync(origin + "/app/administration");
     await page.GetByText("Consent verified").First.WaitForAsync();
     var body = await page.Locator("body").InnerTextAsync();

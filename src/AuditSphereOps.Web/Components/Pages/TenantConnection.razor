@@ -12,6 +12,7 @@
 @inject NavigationManager Navigation
 @inject IMicrosoftDirectoryReader DirectoryReader
 @inject TenantAdministrationSettings AdminSettings
+@inject IMicrosoftTenantConsentVerifier ConsentVerifier
 
 <PageTitle>Microsoft 365 tenant connection</PageTitle>
 <MudLink Href="/app/administration" Class="back-link mb-2 d-inline-block">← Firm administration</MudLink>
@@ -100,6 +101,10 @@ else
     </MudButton>
     <MudLink Href="/app/administration/microsoft365" Class="ms-2">Review setup draft</MudLink>
     <div class="mt-3">
+      <MudButton Color="Color.Primary" Variant="Variant.Outlined" OnClick="VerifyAllCapabilitiesAsync" Class="me-2"
+        Disabled="@(_verifyBusy || _snapshot.DraftId is null)">
+        @(_verifyBusy ? "Checking Microsoft…" : "Verify all capabilities")
+      </MudButton>
       <MudButton Variant="Variant.Outlined" OnClick="VerifyDirectoryAsync"
         Disabled="@(_verifyBusy || !_directoryConfigured || _snapshot.DraftId is null)">
         @(_verifyBusy ? "Checking Microsoft…" : "Verify directory access")
@@ -284,6 +289,43 @@ else
       else _bindError = result.Message ?? "The Microsoft identity could not be bound.";
     }
     finally { _bindBusy = false; }
+  }
+
+  /// <summary>
+  /// Checks every enabled capability with its own credential (read-only) and records each result
+  /// separately; also refreshes the exact-member directory check. Selected SharePoint keeps its
+  /// separate exact-site verification.
+  /// </summary>
+  private async Task VerifyAllCapabilitiesAsync()
+  {
+    if (_actor is null) return;
+    _verifyBusy = true;
+    _verifyMessage = null;
+    try
+    {
+      var actor = await ActorResolver.ResolveAsync();
+      if (actor is null) { _verifyPassed = false; _verifyMessage = "Your session is no longer authorized. Sign in again."; return; }
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var now = DateTimeOffset.UtcNow;
+      if (_directoryConfigured)
+        await DirectoryCapabilityVerificationService.VerifyAsync(db, actor, DirectoryReader, AdminSettings.Options.TenantId,
+          AdminSettings.Simulation ? "00000000-0000-0000-0000-00000000c0de" : Configuration["DirectoryReader:ClientId"] ?? string.Empty, now);
+      var result = await TenantCapabilityService.VerifyAsync(db, actor, ConsentVerifier, AdminSettings.Options, now);
+      if (!result.Succeeded) { _verifyPassed = false; _verifyMessage = result.Message ?? "Capabilities could not be verified."; return; }
+      _capabilities = result.Value!;
+      var verified = AuditSphereOps.Domain.Microsoft365.CapabilityVerificationStates.Verified;
+      var selectedSite = _capabilities.Single(x => x.Capability == AuditSphereOps.Domain.Microsoft365.Microsoft365Capabilities.SelectedSite);
+      var pending = _capabilities.Where(x => x.Enabled && x.State != verified && x != selectedSite).ToList();
+      _verifyPassed = pending.Count == 0;
+      _verifyMessage = (pending.Count == 0
+        ? "Every enabled capability was verified separately for this tenant."
+        : "Some capabilities are not verified: " + string.Join(", ", pending.Select(x => $"{x.DisplayName} ({x.State}: {x.DiagnosticCode})")) + ".") +
+        (selectedSite.State == verified ? string.Empty
+          : " Selected SharePoint is verified separately by its exact-site test in Microsoft 365 setup.");
+      var snapshot = await TenantConnectionQuery.GetAsync(db, actor);
+      if (snapshot.Succeeded) _snapshot = snapshot.Value;
+    }
+    finally { _verifyBusy = false; }
   }
 
   private async Task VerifyDirectoryAsync()
