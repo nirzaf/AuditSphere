@@ -49,6 +49,19 @@ saved local record or an outstanding operator action. The checklist links the
 canonical production guide; it never probes Microsoft or reports a prepared
 reference as live access. Exact verification is in `status.json`.
 
+## P2 selected-resource read preflight
+
+The Infrastructure provider now has a read-only Graph probe for an already
+active firm workspace. It loads the target from stored configuration, requires
+the matching active connection and approved client template, obtains a token
+through a separate runtime certificate reference, and accepts only a token for
+the expected tenant carrying the single `Sites.Selected` application role.
+It reads the exact site, enumerates libraries only within that site, and checks
+the configured root folder identity and URL. Mismatches and missing bindings
+block before any write; throttling is retryable. This probe is not yet composed
+into the Worker, is not a PBC upload provider, and has no live tenant result.
+The local test evidence and remaining gates are in `status.json`.
+
 ## P1 immutable identity lookup
 
 The Web actor resolver and sign-in landing now require the Entra `oid` claim
