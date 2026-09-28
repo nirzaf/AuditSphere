@@ -37,6 +37,59 @@ public sealed class GraphSelectedResourceProbeTests
     Assert.Equal(0, http.PostCount);
   }
 
+  [Fact]
+  public async Task PendingDraft_CanBeProbedBeforeActivationWithoutChangingItsState()
+  {
+    await using var fixture = await Fixture.CreateAsync();
+    var draftId = Guid.NewGuid();
+    var now = DateTimeOffset.UtcNow;
+    await using (var db = new AuditSphereDbContext(fixture.Options))
+    {
+      var connection = await db.Microsoft365ConnectionRevisions.SingleAsync();
+      connection.State = Microsoft365RevisionStates.ConsentRequired;
+      connection.ConsentState = "REQUIRED";
+      var sessionId = Guid.NewGuid();
+      db.Microsoft365SetupSessions.Add(new Microsoft365SetupSession
+      {
+        Id = sessionId, FirmId = fixture.FirmId, InstallationId = "probe-test",
+        BootstrapProofHash = new string('a', 64), CapabilityHash = new string('b', 64),
+        ClaimedAt = now, ExpiresAt = now.AddHours(1)
+      });
+      db.Microsoft365SetupDrafts.Add(new Microsoft365SetupDraft
+      {
+        Id = draftId, FirmId = fixture.FirmId, SetupSessionId = sessionId,
+        ConnectionRevisionId = connection.Id, State = Microsoft365RevisionStates.ConsentRequired,
+        ExpectedTenantId = TenantId, SiteUrl = SiteUrl, SiteId = SiteId,
+        DriveId = "drive-1", RootFolderId = "root-1", CreatedAt = now, UpdatedAt = now
+      });
+      await db.SaveChangesAsync();
+    }
+
+    var http = new StubGraphHandler();
+    var probe = fixture.Probe(http, new SelectedSiteToken("test-token", TenantId,
+      new HashSet<string> { "Sites.Selected" }));
+    await Assert.ThrowsAsync<OperationBlockedException>(() =>
+      probe.ProbeDraftAsync(Guid.NewGuid(), draftId, CancellationToken.None));
+    Assert.Empty(http.Paths);
+    var observation = await probe.ProbeDraftAsync(fixture.FirmId, draftId, CancellationToken.None);
+    Assert.Equal(draftId, observation.DraftId);
+    Assert.Equal(SiteId, observation.SiteId);
+    Assert.Equal(3, http.Paths.Count);
+    Assert.All(http.Authenticated, Assert.True);
+    Assert.Equal(0, http.PostCount);
+    await using var readback = new AuditSphereDbContext(fixture.Options);
+    Assert.Equal(Microsoft365RevisionStates.ConsentRequired,
+      (await readback.Microsoft365SetupDrafts.SingleAsync()).State);
+    Assert.Empty(readback.IntegrationVerificationEvidences);
+
+    var pending = await readback.Microsoft365ConnectionRevisions.SingleAsync();
+    pending.State = Microsoft365RevisionStates.Suspended;
+    await readback.SaveChangesAsync();
+    await Assert.ThrowsAsync<OperationBlockedException>(() =>
+      probe.ProbeDraftAsync(fixture.FirmId, draftId, CancellationToken.None));
+    Assert.Equal(3, http.Paths.Count);
+  }
+
   [Theory]
   [InlineData("wrong-site")]
   [InlineData("wrong-drive")]

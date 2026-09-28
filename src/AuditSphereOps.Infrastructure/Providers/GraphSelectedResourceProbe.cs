@@ -19,6 +19,9 @@ public sealed record SelectedSiteToken(string AccessToken, string TenantId, IRea
 public sealed record SelectedResourceObservation(
   Guid WorkspaceId, string TenantId, string SiteId, string DriveId, string RootFolderId);
 
+public sealed record SelectedResourceDraftObservation(
+  Guid DraftId, Guid ConnectionRevisionId, string TenantId, string SiteId, string DriveId, string RootFolderId);
+
 /// <summary>
 /// Read-only Graph preflight for an already active firm workspace. Target IDs are loaded from
 /// the database and never accepted from a browser or caller. It returns an observation, not
@@ -28,6 +31,36 @@ public sealed class GraphSelectedResourceProbe(
   IAuditSphereDbContextFactory factory, HttpClient http, ISelectedSiteTokenSource tokens)
 {
   private const string Graph = "https://graph.microsoft.com/v1.0";
+
+  /// <summary>
+  /// Check the exact resources saved in a pending setup draft before workspace activation.
+  /// This does not record verification evidence or change connection state.
+  /// </summary>
+  public async Task<SelectedResourceDraftObservation> ProbeDraftAsync(Guid firmId, Guid draftId, CancellationToken ct)
+  {
+    if (firmId == Guid.Empty || draftId == Guid.Empty)
+      throw new OperationBlockedException("selected-resource-binding-unavailable", authorization: true);
+    await using var db = await factory.CreateAsync(ct);
+    var draft = await db.Microsoft365SetupDrafts.AsNoTracking()
+      .SingleOrDefaultAsync(x => x.Id == draftId && x.FirmId == firmId, ct);
+    if (draft?.ConnectionRevisionId is not { } connectionId ||
+        draft.State is not (Microsoft365RevisionStates.ConsentRequired or
+          Microsoft365RevisionStates.Validating or Microsoft365RevisionStates.Verified))
+      throw new OperationBlockedException("selected-resource-binding-unverified", authorization: true);
+    var connection = await db.Microsoft365ConnectionRevisions.AsNoTracking()
+      .SingleOrDefaultAsync(x => x.Id == connectionId && x.FirmId == firmId, ct);
+    if (connection is null || connection.State is not (Microsoft365RevisionStates.ConsentRequired or
+          Microsoft365RevisionStates.Validating or Microsoft365RevisionStates.Verified) ||
+        !string.Equals(connection.TenantId, draft.ExpectedTenantId, StringComparison.Ordinal) ||
+        string.IsNullOrWhiteSpace(connection.RuntimeCredentialReference) ||
+        string.IsNullOrWhiteSpace(draft.SiteId) || string.IsNullOrWhiteSpace(draft.DriveId) ||
+        string.IsNullOrWhiteSpace(draft.RootFolderId) || !ValidSiteUrl(draft.SiteUrl ?? string.Empty))
+      throw new OperationBlockedException("selected-resource-binding-unverified", authorization: true);
+
+    await ProbeResourcesAsync(connection.TenantId, connection.RuntimeCredentialReference,
+      draft.SiteId, draft.DriveId, draft.RootFolderId, draft.SiteUrl!, ct);
+    return new(draft.Id, connection.Id, connection.TenantId, draft.SiteId, draft.DriveId, draft.RootFolderId);
+  }
 
   public async Task<SelectedResourceObservation> ProbeAsync(Guid firmId, Guid workspaceId, CancellationToken ct)
   {
@@ -51,37 +84,43 @@ public sealed class GraphSelectedResourceProbe(
         string.IsNullOrWhiteSpace(workspace.RootFolderId) || !ValidSiteUrl(workspace.DisplayUrl))
       throw new OperationBlockedException("selected-resource-binding-unverified", authorization: true);
 
-    var token = await tokens.GetAsync(connection.TenantId, connection.RuntimeCredentialReference, ct);
+    await ProbeResourcesAsync(connection.TenantId, connection.RuntimeCredentialReference,
+      workspace.SiteId, workspace.DriveId, workspace.RootFolderId, workspace.DisplayUrl, ct);
+    return new(workspace.Id, workspace.TenantId, workspace.SiteId, workspace.DriveId, workspace.RootFolderId);
+  }
+
+  private async Task ProbeResourcesAsync(string tenantId, string credentialReference,
+    string siteId, string driveId, string rootFolderId, string siteDisplayUrl, CancellationToken ct)
+  {
+    var token = await tokens.GetAsync(tenantId, credentialReference, ct);
     if (string.IsNullOrWhiteSpace(token.AccessToken) ||
-        !string.Equals(token.TenantId, connection.TenantId, StringComparison.OrdinalIgnoreCase) ||
+        !string.Equals(token.TenantId, tenantId, StringComparison.OrdinalIgnoreCase) ||
         token.ApplicationRoles.Count != 1 || !token.ApplicationRoles.Contains("Sites.Selected"))
       throw new OperationBlockedException("selected-resource-token-invalid", authorization: true);
 
-    using var site = await GetAsync($"{Graph}/sites/{Uri.EscapeDataString(workspace.SiteId)}?$select=id,webUrl", token.AccessToken, ct);
-    if (!Exact(site.RootElement, "id", workspace.SiteId) ||
+    using var site = await GetAsync($"{Graph}/sites/{Uri.EscapeDataString(siteId)}?$select=id,webUrl", token.AccessToken, ct);
+    if (!Exact(site.RootElement, "id", siteId) ||
         !site.RootElement.TryGetProperty("webUrl", out var siteUrl) ||
-        !SameSiteUrl(siteUrl.GetString(), workspace.DisplayUrl))
+        !SameSiteUrl(siteUrl.GetString(), siteDisplayUrl))
       throw new OperationBlockedException("selected-resource-site-mismatch", authorization: true);
 
     // Enumerate only libraries of the exact approved site. If Graph paginates the list,
     // fail closed instead of following an untrusted nextLink to another target.
-    using var drives = await GetAsync($"{Graph}/sites/{Uri.EscapeDataString(workspace.SiteId)}/drives?$select=id&$top=200",
+    using var drives = await GetAsync($"{Graph}/sites/{Uri.EscapeDataString(siteId)}/drives?$select=id&$top=200",
       token.AccessToken, ct);
     if (!drives.RootElement.TryGetProperty("value", out var values) || values.ValueKind != JsonValueKind.Array ||
-        !values.EnumerateArray().Any(x => Exact(x, "id", workspace.DriveId)))
+        !values.EnumerateArray().Any(x => Exact(x, "id", driveId)))
       throw new OperationBlockedException("selected-resource-drive-mismatch", authorization: true);
 
-    using var root = await GetAsync($"{Graph}/drives/{Uri.EscapeDataString(workspace.DriveId)}/items/{Uri.EscapeDataString(workspace.RootFolderId)}?$select=id,folder,parentReference,webUrl",
+    using var root = await GetAsync($"{Graph}/drives/{Uri.EscapeDataString(driveId)}/items/{Uri.EscapeDataString(rootFolderId)}?$select=id,folder,parentReference,webUrl",
       token.AccessToken, ct);
-    if (!Exact(root.RootElement, "id", workspace.RootFolderId) ||
+    if (!Exact(root.RootElement, "id", rootFolderId) ||
         !root.RootElement.TryGetProperty("folder", out var folder) || folder.ValueKind != JsonValueKind.Object ||
         !root.RootElement.TryGetProperty("parentReference", out var parent) ||
-        !Exact(parent, "driveId", workspace.DriveId) ||
+        !Exact(parent, "driveId", driveId) ||
         !root.RootElement.TryGetProperty("webUrl", out var rootUrl) ||
-        !UnderSite(rootUrl.GetString(), workspace.DisplayUrl))
+        !UnderSite(rootUrl.GetString(), siteDisplayUrl))
       throw new OperationBlockedException("selected-resource-root-mismatch", authorization: true);
-
-    return new(workspace.Id, workspace.TenantId, workspace.SiteId, workspace.DriveId, workspace.RootFolderId);
   }
 
   private async Task<JsonDocument> GetAsync(string url, string token, CancellationToken ct)

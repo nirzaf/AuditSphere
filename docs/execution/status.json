@@ -627,6 +627,15 @@
       "fullSuite": "PASS: Release solution build 0 warnings/errors; PostgreSQL-backed Domain 366/366, API 16/16 and E2E 85/85 (467/467 aggregate, 0 skipped). EF reports no pending model changes. Documentation health, filename and narrative-metric validators passed.",
       "boundary": "No runtime certificate is configured in the local Worker, no live Graph call or repository binding acceptance is observed, and the probe is not composed into the Worker. PBC upload, exact version retrieval, receipt reconciliation, live site/drive/root verification and P2 acceptance remain open."
     },
+    "p2PendingDraftReadPreflight": {
+      "observedAt": "2026-09-28T08:51:40Z",
+      "profile": "Synthetic PostgreSQL 18.6 setup draft and mocked Graph HTTP responses; no live Microsoft call or provider effect.",
+      "behavior": "The read-only selected-resource probe now accepts a pending exact-firm setup draft before activation. It loads the linked connection and saved tenant/site/drive/root IDs, requires an eligible pending state and separate runtime credential reference, then applies the same exact-tenant Sites.Selected site/library/root checks. A cross-firm lookup and a suspended revision fail before Graph contact. It does not record verification evidence or change draft state.",
+      "focusedTests": "PASS: Release GraphSelectedResourceProbeTests 8/8 on the final source, including cross-firm, pending-state and read-only assertions.",
+      "fullSuite": "PASS: Release Web build 0 warnings/errors; PostgreSQL-backed Release solution Domain 367/367, API 16/16 and E2E 86/86 (469/469 aggregate, 0 skipped). The final suspended-revision assertion was added after the full suite and passed in the focused 8/8 rerun.",
+      "modelDrift": "PASS: EF reports no pending model changes.",
+      "boundary": "The local development setup remains an inactive draft. No separate runtime certificate is configured in the Worker, no app-specific site grant or Graph resource read was verified live, and the probe is not composed into a setup operator action. Connection activation, PBC provider operations and P2 acceptance remain open."
+    },
     "p1SyntheticOwnedRequestBrowserRerun": {
       "observedAt": "2026-09-28T05:41:30Z",
       "profile": "Release E2E browser test against an isolated local PostgreSQL 18.6 database and synthetic client identity; no Microsoft sign-in or external effects.",

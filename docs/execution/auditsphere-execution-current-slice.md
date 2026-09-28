@@ -75,6 +75,15 @@ block before any write; throttling is retryable. This probe is not yet composed
 into the Worker, is not a PBC upload provider, and has no live tenant result.
 The local test evidence and remaining gates are in `status.json`.
 
+The same read-only check can now run against a pending, exact-firm setup draft
+before workspace activation. It takes the tenant, site, drive and root IDs
+from the saved draft and its separate runtime credential reference, then uses
+the same `Sites.Selected` checks. Suspended, blocked and active revisions are
+not eligible for this pre-activation path. A successful observation does not
+record consent/evidence, activate the workspace or enable external effects.
+It still needs a configured runtime credential and an actual selected-site
+grant for a live tenant result.
+
 ## P1 immutable identity lookup
 
 The Web actor resolver and sign-in landing now require the Entra `oid` claim
