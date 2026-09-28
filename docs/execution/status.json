@@ -778,6 +778,15 @@
       "modelDrift": "PASS: EF reports no pending model changes.",
       "developmentBrowser": "The live local Development page bound the already known synthetic Staff fixture by exact Graph object, then opened role review with role and scope blank. No new role grant was applied. Latest tenant-consent return displayed RETURNED_UNVERIFIED and connection stayed CONSENT_REQUIRED.",
       "boundary": "This is a Development fixture check, not a new tenant-wide user-creation or guest workflow, verified consent grantor, persisted capability-verification revision, or production acceptance."
+    },
+    "directoryCapabilityCheck": {
+      "observedAt": "2026-09-28T12:05:33Z",
+      "behavior": "A firm-wide Administrator can request a bounded exact-user Microsoft Graph read through the separate sole-User.Read.All reader. The app appends a PASS or BLOCKED DIRECTORY/EXACT_USER_READ result for the current connection revision and displays a PASS as VERIFIED_RECENT for 15 minutes, then STALE. This result never marks consent observed or activates the tenant connection.",
+      "focusedTests": "PASS: PostgreSQL TenantConsentServiceTests 9/9, including success, blocked and revoked-administrator cases.",
+      "build": "PASS: Web Release build, 0 warnings/errors.",
+      "fullSuite": "PASS: Release solution suite Domain 384/384, API 29/29, E2E 86/86; 499/499 aggregate, 0 skipped.",
+      "developmentBrowser": "The Development administrator selected Verify directory access. The live Graph exact-member read completed and the page displayed VERIFIED_RECENT with its check time while consent remained REQUIRED, the last callback RETURNED_UNVERIFIED, and the connection CONSENT_REQUIRED.",
+      "boundary": "This is recent read capability evidence in Development, not proof of the Microsoft grantor, a verified consent callback, other Microsoft 365 capabilities, continuing access after the 15-minute window, or production acceptance."
     }
   },
   "documentationWork": {

@@ -193,6 +193,53 @@ public sealed class TenantConsentServiceTests
     Assert.Equal(1, await db.RoleGrants.CountAsync(x => x.UserId == bound.Value));
   }
 
+  [Fact]
+  public async Task DirectoryCapabilityCheckPersistsExactProviderResultWithoutActivatingConsent()
+  {
+    await using var fixture = await Fixture.CreateAsync();
+    await using var db = new AuditSphereDbContext(fixture.Options);
+    var now = DateTimeOffset.UtcNow;
+    var candidate = new DirectoryCandidate(TenantId, fixture.ObjectId,
+      "Synthetic administrator", "consent-admin@example.test", true, "Member");
+    var reader = new FakeDirectoryReader(new DirectoryCandidatePage([], null), candidate);
+    var checkedResult = await DirectoryCapabilityVerificationService.VerifyAsync(db, fixture.Actor,
+      reader, TenantId, ClientId, now);
+    Assert.True(checkedResult.Succeeded);
+    Assert.Equal(1, reader.ExactCalls);
+    db.ChangeTracker.Clear();
+    var evidence = await db.IntegrationVerificationEvidences.SingleAsync();
+    Assert.Equal("DIRECTORY", evidence.ResourceKind);
+    Assert.Equal("EXACT_USER_READ", evidence.Operation);
+    Assert.Equal("PASS", evidence.Result);
+    Assert.Equal(ClientId, evidence.IdentityReference);
+    var snapshot = await TenantConnectionQuery.GetAsync(db, fixture.Actor);
+    Assert.Equal("VERIFIED_RECENT", snapshot.Value!.DirectoryCapabilityState);
+    Assert.Equal(Microsoft365RevisionStates.ConsentRequired, snapshot.Value.ConnectionState);
+    Assert.Equal("REQUIRED", snapshot.Value.ConsentState);
+    Assert.Null((await db.Microsoft365ConnectionRevisions.SingleAsync()).VerifiedAt);
+  }
+
+  [Fact]
+  public async Task FailedOrRevokedDirectoryCheckNeverReportsVerified()
+  {
+    await using var fixture = await Fixture.CreateAsync();
+    await using var db = new AuditSphereDbContext(fixture.Options);
+    var candidate = new DirectoryCandidate(TenantId, fixture.ObjectId,
+      "Synthetic administrator", "consent-admin@example.test", false, "Member");
+    var reader = new FakeDirectoryReader(new DirectoryCandidatePage([], null), candidate);
+    Assert.False((await DirectoryCapabilityVerificationService.VerifyAsync(db, fixture.Actor,
+      reader, TenantId, ClientId, DateTimeOffset.UtcNow)).Succeeded);
+    db.ChangeTracker.Clear();
+    Assert.Equal("BLOCKED", (await TenantConnectionQuery.GetAsync(db, fixture.Actor))
+      .Value!.DirectoryCapabilityState);
+    var grant = await db.RoleGrants.SingleAsync();
+    grant.RevokedAt = DateTimeOffset.UtcNow;
+    await db.SaveChangesAsync();
+    Assert.False((await DirectoryCapabilityVerificationService.VerifyAsync(db, fixture.Actor,
+      reader, TenantId, ClientId, DateTimeOffset.UtcNow)).Succeeded);
+    Assert.Single(await db.IntegrationVerificationEvidences.ToListAsync());
+  }
+
   private sealed class FakeDirectoryReader(DirectoryCandidatePage page, DirectoryCandidate? exact = null) : IMicrosoftDirectoryReader
   {
     public int Calls { get; private set; }

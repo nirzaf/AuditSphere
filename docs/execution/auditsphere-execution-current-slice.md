@@ -55,8 +55,11 @@ focused PostgreSQL and URL-builder checks are recorded in `status.json`.
 The separate directory reader now supports bounded, administrator-only live
 search from the tenant connection page, with a dedicated certificate and
 `User.Read.All` application role fence. It is disabled by default. Search
-returns no local role grant, and the current release does not persist a
-provider-verification revision. A separate explicit Bind exact identity action
+returns no local role grant. A separate **Verify directory access** action
+performs a bounded exact-member provider read and records its result against
+the current connection revision, with a 15-minute recent-check display.
+This does not verify the Microsoft consent grantor, activate the connection,
+or verify any other capability. A separate explicit Bind exact identity action
 re-reads the selected member before creating or refreshing its local binding.
 In the Development tenant, the dedicated app received the exact permission,
 and a certificate token plus the live page completed bounded Graph reads.

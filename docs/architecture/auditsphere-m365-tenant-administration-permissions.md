@@ -79,8 +79,11 @@ certificate, an exact localhost consent callback and only the approved Graph
 application role. A direct certificate token and the AuditSphere browser page
 both completed bounded reads. A separate browser consent attempt was cancelled
 and recorded `DENIED`; this did not revoke the previously observed app-role
-grant. No successful callback or persisted provider-verification state is
-claimed.
+grant. No verified successful consent callback is claimed. A subsequent
+administrator-triggered exact-user Graph read in Development recorded a
+`DIRECTORY` provider check against the current connection revision. Its
+recent-check display expires after 15 minutes; it does not prove the grantor,
+the consent callback, SharePoint, mail, or connection activation.
 Selecting a directory member requires a fresh `GET /users/{id}` read before
 creating or refreshing an exact local `(tenant ID, object ID)` binding. A
 disabled, guest, changed, or mismatched object is refused. Binding records a

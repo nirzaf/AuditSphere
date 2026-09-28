@@ -54,6 +54,7 @@ else
       <dt>Last consent return</dt><dd>@(_snapshot.LastAttemptState ?? "Not started")</dd>
       <dt>Last attempt</dt><dd>@(_snapshot.LastAttemptAt?.ToString("yyyy-MM-dd HH:mm") ?? "—")</dd>
       <dt>Directory reader</dt><dd>@(_directoryConfigured ? "Configured for bounded live search; verify each result before local access assignment." : "Blocked until a separate reader registration, certificate and User.Read.All consent are configured.")</dd>
+      <dt>Directory capability</dt><dd>@_snapshot.DirectoryCapabilityState (last checked @(_snapshot.DirectoryLastCheckedAt?.ToString("yyyy-MM-dd HH:mm 'UTC'") ?? "never"))</dd>
       <dt>Selected SharePoint</dt><dd>Verify the saved site, library and root separately in Microsoft 365 setup.</dd>
     </dl>
     <p class="field-help">The Microsoft sign-in and consent screen collects the tenant administrator's credentials; AuditSphere never does. The callback records only a returned claim and cannot identify the person who clicked Grant from that claim alone.</p>
@@ -68,6 +69,16 @@ else
       @(_busy ? "Opening Microsoft…" : "Connect Microsoft 365 tenant")
     </MudButton>
     <MudLink Href="/app/administration/microsoft365" Class="ms-2">Review setup draft</MudLink>
+    <div class="mt-3">
+      <MudButton Variant="Variant.Outlined" OnClick="VerifyDirectoryAsync"
+        Disabled="@(_verifyBusy || !_directoryConfigured || _snapshot.DraftId is null)">
+        @(_verifyBusy ? "Checking Microsoft…" : "Verify directory access")
+      </MudButton>
+      @if (!string.IsNullOrEmpty(_verifyMessage))
+      {
+        <MudAlert Severity="@(_verifyPassed ? Severity.Success : Severity.Warning)" Variant="Variant.Outlined" role="status">@_verifyMessage</MudAlert>
+      }
+    </div>
   </MudPaper>
   <MudPaper Class="pa-4 my-4" Elevation="1" aria-labelledby="directory-search-heading" role="region">
     <h2 id="directory-search-heading">Microsoft directory search</h2>
@@ -146,6 +157,9 @@ else
   private bool _bindBusy;
   private Guid? _boundUserId;
   private string? _bindError;
+  private bool _verifyBusy;
+  private bool _verifyPassed;
+  private string? _verifyMessage;
 
   protected override async Task OnInitializedAsync()
   {
@@ -210,6 +224,27 @@ else
       else _bindError = result.Message ?? "The Microsoft identity could not be bound.";
     }
     finally { _bindBusy = false; }
+  }
+
+  private async Task VerifyDirectoryAsync()
+  {
+    if (!_directoryConfigured || _actor is null) return;
+    _verifyBusy = true;
+    _verifyMessage = null;
+    try
+    {
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var result = await DirectoryCapabilityVerificationService.VerifyAsync(db, _actor,
+        DirectoryReader, Configuration["Identity:TenantId"] ?? string.Empty,
+        Configuration["DirectoryReader:ClientId"] ?? string.Empty, DateTimeOffset.UtcNow);
+      _verifyPassed = result.Succeeded;
+      _verifyMessage = result.Succeeded
+        ? "A bounded Graph read verified the separate directory reader for this connection revision. Tenant consent and other capabilities remain separate."
+        : result.Message ?? "Directory access could not be verified.";
+      var snapshot = await TenantConnectionQuery.GetAsync(db, _actor);
+      if (snapshot.Succeeded) _snapshot = snapshot.Value;
+    }
+    finally { _verifyBusy = false; }
   }
 
   private async Task ConnectAsync()
