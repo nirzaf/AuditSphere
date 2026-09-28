@@ -875,7 +875,15 @@
       "focusedTests": "PASS: GraphTenantAdministrationProviderTests 14/14, including identity profile scope and selected-site role-only gate.",
       "modelDrift": "PASS: EF reports no pending model changes after applying the local M365TenantAdministration migration.",
       "wiki": "Canonical Production Entra ID Configuration and linked Production Configuration Guide published as Wiki commit 6b001d6; rendered page and navigation verified. Changed pages passed diff check and redacted gitleaks scan.",
-      "boundary": "This is a Development tenant observation only. Saved-site verification, optional capability consent and mutations, connection activation, production secret custody and external/professional acceptance remain open."
+      "boundary": "This is a Development tenant observation only. Persisted saved-site capability evidence, optional capability consent and mutations, connection activation, production secret custody and external/professional acceptance remain open."
+    },
+    "m365SetupVerifiedConsentProgress": {
+      "sourceCommit": "1228f84",
+      "observedAt": "2026-09-28T14:54:00Z",
+      "behavior": "The setup progress query now reads a trusted CONSENT_VERIFIED attempt for the exact firm, draft and tenant separately from historical operator-entered consent evidence. The Development setup checklist displayed 'Microsoft administrator consent verified for this draft' after the code change. The administrator-initiated read-only test of the saved SharePoint site, library and root passed in the same Development session; its result remained transient, recorded no new consent/selected-resource evidence and did not activate the workspace.",
+      "build": "PASS: Release Web build, 0 warnings/errors.",
+      "browser": "PASS: local Development browser rendered the updated checklist and returned the exact saved-site read-only success message.",
+      "boundary": "The selected-site capability row remains BLOCKED_EXTERNAL because the transient saved-site test is not persisted capability evidence. No document upload, workspace activation or production acceptance was observed."
     }
   },
   "documentationWork": {

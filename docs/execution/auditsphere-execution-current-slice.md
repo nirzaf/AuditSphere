@@ -66,6 +66,13 @@ remain disabled; no Microsoft mutation or production acceptance was observed.
 The canonical GitHub Wiki guide covers both exact callbacks and independent
 capability gates. Exact verification is in `status.json`.
 
+The setup progress checklist now shows the trusted verified consent for its
+exact draft instead of treating it as merely historical evidence. An
+administrator-initiated, read-only Development test also passed against the
+saved SharePoint site, library and root. That screen result is transient: it
+does not record selected-resource capability evidence, activate the workspace,
+or establish production access.
+
 ## AS-PAR-002 audit program library access refresh
 
 The audit program library now clears cached versions and procedure text before
