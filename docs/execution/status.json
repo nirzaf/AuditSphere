@@ -636,6 +636,12 @@
       "modelDrift": "PASS: EF reports no pending model changes.",
       "boundary": "The local development setup remains an inactive draft. No separate runtime certificate is configured in the Worker, no app-specific site grant or Graph resource read was verified live, and the probe is not composed into a setup operator action. Connection activation, PBC provider operations and P2 acceptance remain open."
     },
+    "p2DevelopmentTenantSelectedRead": {
+      "observedAt": "2026-09-28T09:13:56Z",
+      "profile": "Authorized non-production EasyGuide Entra/SharePoint tenant, local Development PostgreSQL draft, separate certificate-backed app token; Web and Worker external effects remain fenced.",
+      "observation": "With owner approval, a public runtime certificate was registered on the existing AuditSphereOps Development app. The private key remains outside the repository in a local owner-only file. A certificate-backed token from the exact tenant carried only the Sites.Selected application role. Microsoft Graph returned HTTP 200 for the approved AuditSphere Development site, its site-scoped drive list, and the roots of each listed library. The same token received HTTP 403 for the existing synthetic AuditSphere P0 Unrelated site. The observed site, Client Content drive and root IDs were saved in the local setup draft, a separate runtime credential reference was prepared through the administrator-authorized Application command, and GraphSelectedResourceProbe.ProbeDraftAsync passed against that stored binding. The local setup screen showed the site URL and connection reference as saved records. No token, private key or client content was recorded in the repository.",
+      "boundary": "This is live non-production read and unrelated-site denial evidence, not provider write, upload, version, retry or reconciliation acceptance. The runtime certificate is not composed into the Worker or an administrator Test connection action; no integration-verification evidence was written to the application ledger and the connection remains pending. The setup draft is inactive. Production P2 and independent acceptance remain open."
+    },
     "p1SyntheticOwnedRequestBrowserRerun": {
       "observedAt": "2026-09-28T05:41:30Z",
       "profile": "Release E2E browser test against an isolated local PostgreSQL 18.6 database and synthetic client identity; no Microsoft sign-in or external effects.",

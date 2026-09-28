@@ -81,8 +81,19 @@ from the saved draft and its separate runtime credential reference, then uses
 the same `Sites.Selected` checks. Suspended, blocked and active revisions are
 not eligible for this pre-activation path. A successful observation does not
 record consent/evidence, activate the workspace or enable external effects.
-It still needs a configured runtime credential and an actual selected-site
-grant for a live tenant result.
+Those two prerequisites must be present in each environment before a live
+tenant result can be claimed.
+
+The authorized Development tenant now has a separate certificate-backed
+runtime credential on the existing application. A live token carried only
+`Sites.Selected`; Graph read the approved site and its site-scoped libraries
+and roots, while an existing synthetic unrelated site returned `403`. The
+observed `Client Content` binding was saved in the local draft, and the
+pre-activation probe passed against that stored binding. The Web and Worker
+still do not compose a live PBC provider or an administrator **Test
+connection** action. No upload, exact-version readback, retry/reconciliation,
+production access, activation, or independent acceptance was observed. The
+precise checks and limits are in `status.json`.
 
 ## P1 immutable identity lookup
 
