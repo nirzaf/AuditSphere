@@ -9,7 +9,7 @@ using Microsoft.EntityFrameworkCore;
 namespace AuditSphereOps.Application.Microsoft365;
 
 public sealed record TenantConsentStart(Guid AttemptId, string State);
-public sealed record TenantConsentReturn(Guid AttemptId, string State);
+public sealed record TenantConsentReturn(Guid AttemptId, Guid SetupDraftId, string State);
 
 /// <summary>
 /// One-use correlation for Microsoft admin consent. A callback is only a returned claim;
@@ -102,7 +102,7 @@ public static class TenantConsentService
     await db.SaveChangesAsync(ct);
     await tx.CommitAsync(ct);
     return attempt.State == TenantConsentAttemptStates.ReturnedUnverified
-      ? CommandResult<TenantConsentReturn>.Ok(new(attempt.Id, attempt.State))
+      ? CommandResult<TenantConsentReturn>.Ok(new(attempt.Id, attempt.SetupDraftId, attempt.State))
       : Denied<TenantConsentReturn>();
   }
 

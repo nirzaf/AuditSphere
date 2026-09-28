@@ -101,7 +101,9 @@ one-use consent return now runs the bounded exact-member directory check
 before returning to the tenant page. The check records directory capability
 evidence only; the callback remains `RETURNED_UNVERIFIED` and still cannot
 identify the Microsoft grantor or activate the connection. A denied return
-does not run the check.
+does not run the check. The callback passes its original setup draft identity
+to the directory check, so a newer draft for the same firm and tenant cannot
+receive evidence from an older consent attempt.
 
 The owner has requested a tenant-administration experience that supersedes the
 earlier blanket Graph-scope exclusion only for an isolated read-only directory

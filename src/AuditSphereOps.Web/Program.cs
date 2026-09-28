@@ -365,7 +365,8 @@ if (oidcConfigured || developmentIdentityEnabled)
       // grantor in this callback, so the connection remains unverified.
       await DirectoryCapabilityVerificationService.VerifyAsync(db, actor, directoryReader,
         configuration["Identity:TenantId"] ?? string.Empty,
-        readerClientId.ToString("D"), DateTimeOffset.UtcNow, ct);
+        readerClientId.ToString("D"), DateTimeOffset.UtcNow, ct,
+        expectedDraftId: result.Value!.SetupDraftId);
     }
     return Results.Redirect("/app/administration/microsoft365/tenant-connection?result=" +
       (result.Succeeded ? "returned" : "blocked"));

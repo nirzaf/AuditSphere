@@ -41,6 +41,7 @@ public sealed class TenantConsentServiceTests
     var returned = await TenantConsentService.CompleteCallbackAsync(db, fixture.Actor,
       state, TenantId, true, false, now.AddMinutes(1));
     Assert.True(returned.Succeeded);
+    Assert.Equal(fixture.DraftId, returned.Value!.SetupDraftId);
     Assert.Equal(TenantConsentAttemptStates.ReturnedUnverified, returned.Value!.State);
     Assert.False((await TenantConsentService.CompleteCallbackAsync(db, fixture.Actor,
       state, TenantId, true, false, now.AddMinutes(2))).Succeeded);
@@ -238,6 +239,54 @@ public sealed class TenantConsentServiceTests
     Assert.Equal(Microsoft365RevisionStates.ConsentRequired, snapshot.Value.ConnectionState);
     Assert.Equal("REQUIRED", snapshot.Value.ConsentState);
     Assert.Null((await db.Microsoft365ConnectionRevisions.SingleAsync()).VerifiedAt);
+  }
+
+  [Fact]
+  public async Task ConsentDirectoryCheckStaysOnAttemptDraftWhenNewerDraftExists()
+  {
+    await using var fixture = await Fixture.CreateAsync();
+    await using var db = new AuditSphereDbContext(fixture.Options);
+    var now = DateTimeOffset.UtcNow;
+    var started = (await TenantConsentService.BeginAsync(db, fixture.Actor,
+      fixture.DraftId, TenantId, ClientId, now)).Value!;
+    var newerDraftId = Guid.CreateVersion7();
+    var newerSessionId = Guid.CreateVersion7();
+    var newerRevisionId = Guid.CreateVersion7();
+    db.Microsoft365SetupSessions.Add(new Microsoft365SetupSession
+    {
+      Id = newerSessionId, FirmId = fixture.Actor.FirmId, InstallationId = "newer-consent-test",
+      BootstrapProofHash = new string('c', 64), CapabilityHash = new string('d', 64),
+      ClaimedByUserId = fixture.Actor.UserId, ClaimedAt = now,
+      ExpiresAt = now.AddHours(1)
+    });
+    db.Microsoft365ConnectionRevisions.Add(new Microsoft365ConnectionRevision
+    {
+      Id = newerRevisionId, FirmId = fixture.Actor.FirmId, TenantId = TenantId,
+      Revision = 2,
+      LoginClientIdReference = "slot:login", RuntimeCredentialReference = "slot:reader",
+      State = Microsoft365RevisionStates.ConsentRequired, ConsentState = "REQUIRED", CreatedAt = now
+    });
+    db.Microsoft365SetupDrafts.Add(new Microsoft365SetupDraft
+    {
+      Id = newerDraftId, FirmId = fixture.Actor.FirmId, SetupSessionId = newerSessionId,
+      ConnectionRevisionId = newerRevisionId, State = Microsoft365RevisionStates.ConsentRequired,
+      ExpectedTenantId = TenantId, CreatedAt = now, UpdatedAt = now.AddMinutes(1)
+    });
+    await db.SaveChangesAsync();
+    db.ChangeTracker.Clear();
+
+    var returned = await TenantConsentService.CompleteCallbackAsync(db, fixture.Actor,
+      started.State, TenantId, true, false, now.AddMinutes(2));
+    Assert.True(returned.Succeeded);
+    var reader = new FakeDirectoryReader(new DirectoryCandidatePage([], null),
+      new DirectoryCandidate(TenantId, fixture.ObjectId, "Synthetic administrator",
+        "consent-admin@example.test", true, "Member"));
+    Assert.True((await DirectoryCapabilityVerificationService.VerifyAsync(db, fixture.Actor,
+      reader, TenantId, ClientId, now.AddMinutes(2), expectedDraftId: returned.Value!.SetupDraftId)).Succeeded);
+    db.ChangeTracker.Clear();
+    var evidence = await db.IntegrationVerificationEvidences.SingleAsync();
+    Assert.Equal(fixture.DraftId, evidence.SetupDraftId);
+    Assert.NotEqual(newerRevisionId, evidence.ConnectionRevisionId);
   }
 
   [Fact]
