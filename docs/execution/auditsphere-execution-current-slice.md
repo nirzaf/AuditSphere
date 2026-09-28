@@ -56,12 +56,22 @@ The separate directory reader now supports bounded, administrator-only live
 search from the tenant connection page, with a dedicated certificate and
 `User.Read.All` application role fence. It is disabled by default. Search
 returns no local role grant, and the current release does not persist a
-provider-verification revision or bind the selected result to a local user.
+provider-verification revision. A separate explicit Bind exact identity action
+re-reads the selected member before creating or refreshing its local binding.
 In the Development tenant, the dedicated app received the exact permission,
 and a certificate token plus the live page completed bounded Graph reads.
 The consent callback's denied path also returned to the app and consumed its
 attempt without activating a connection. These are Development observations,
 not production acceptance or a successful callback observation.
+The binding step re-reads a selected Microsoft member by exact object ID.
+Binding is idempotent and records an enabled Graph
+observation without a role grant. The Administration handoff starts with no
+role or scope chosen; the existing scoped role service remains the separate
+access transaction. Guest invitations and tenant user creation are not
+enabled by this path. A live Development browser check bound the already known
+synthetic Staff fixture and reached the role review form with blank role and
+scope choices. No new grant was applied. The latest browser consent return
+remains unverified; this is not production acceptance.
 
 The owner has requested a tenant-administration experience that supersedes the
 earlier blanket Graph-scope exclusion only for an isolated read-only directory

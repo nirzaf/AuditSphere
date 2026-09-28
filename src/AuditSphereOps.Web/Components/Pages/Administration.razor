@@ -157,7 +157,7 @@ else
   </MudPaper>
 
   <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="role-change-heading" role="region">
-    <h2 id="role-change-heading">Verified roster role administration</h2>
+    <h2 id="role-change-heading">User and role administration</h2>
     <p class="field-help">The separate read-only directory search is available from Tenant connection when explicitly configured and consented. This local fallback accepts an administrator-provided or exact verified-sign-in identity; email and display name never identify a user.</p>
     <div class="form-group"><label for="roster-tenant">Tenant ID <span class="required-marker">*</span><MudTextField T="string" @bind-Value="_rosterTenant" MaxLength="200" id="roster-tenant" required title="Exact verified Entra tenant ID (tid)." /></label></div>
     <div class="form-group"><label for="roster-subject">Object ID / subject <span class="required-marker">*</span><MudTextField T="string" @bind-Value="_rosterSubject" MaxLength="200" id="roster-subject" required title="Immutable verified Entra object/subject identifier (oid/sub)." /></label></div>
@@ -168,7 +168,7 @@ else
     <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button" OnClick="OnboardUserAsync" Disabled="@_roleBusy">@(_roleBusy ? "Saving…" : "Bind user")</MudButton>
     @if (_selectedUserId.HasValue)
     {
-      <p class="field-help">Selected local user: <code>@_selectedUserId</code>. No role is granted until the explicit plan below is applied.</p>
+      <p class="field-help">Selected local user: <code>@_selectedUserId</code>. Binding grants no new role. Review existing grants and choose an explicit role and scope before applying a change.</p>
       <div class="form-group"><label for="role-name">Application role <span class="required-marker">*</span><MudSelect T="string" @bind-Value="_roleName" id="role-name" title="Canonical local role only; Entra job title, group and email domain do not grant authority.">@foreach (var roleCode in RoleAdministrationService.RoleCodes) { <MudSelectItem Value="@roleCode">@roleCode</MudSelectItem> }</MudSelect></label></div>
       <div class="form-group"><label for="scope-kind">Scope <span class="required-marker">*</span><MudSelect T="string" @bind-Value="_scopeKind" id="scope-kind" title="An empty scope is never inferred as firm-wide; choose it explicitly."><MudSelectItem Value="@("FIRM_WIDE")">Firm-wide</MudSelectItem><MudSelectItem Value="@("CLIENT")">Selected client</MudSelectItem><MudSelectItem Value="@("ENGAGEMENT")">Selected engagement</MudSelectItem></MudSelect></label></div>
       @if (_scopeKind is "CLIENT" or "ENGAGEMENT")
@@ -193,6 +193,7 @@ else
 }
 
 @code {
+  [SupplyParameterFromQuery(Name = "selectedUserId")] public Guid? DirectorySelectedUserId { get; set; }
   private ActorContext? _actor;
   private bool _isAdmin;
   private FirmSafetyState? _safetyState;
@@ -276,6 +277,15 @@ else
       _invitationsByGrant = snapshot.InvitationsByGrant;
       _directoryByIdentity = snapshot.DirectoryByIdentity;
       _grantHistoryByGrant = snapshot.GrantHistoryByGrant;
+      if (DirectorySelectedUserId is { } selectedId &&
+          await db.Users.AsNoTracking().AnyAsync(x => x.Id == selectedId &&
+            x.FirmId == currentActor.FirmId && !x.Disabled))
+      {
+        _selectedUserId = selectedId;
+        _roleName = string.Empty;
+        _scopeKind = string.Empty;
+        _roleMessage = "Exact directory identity bound. Review the local role and scope before saving access.";
+      }
     }
     finally { if (generation == _loadGeneration) _loading = false; }
   }

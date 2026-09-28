@@ -38,7 +38,7 @@ consent policy and role assignment must be checked at connection time.
 | Capability | Endpoint | Least permission | Type | Why needed | Consent / Microsoft authority | State |
 | --- | --- | --- | --- | --- | --- | --- |
 | Sign-in | Microsoft OIDC | `openid profile email` | Delegated sign-in | Authenticate one work/school identity and bind `tid` + `oid` | Normal OIDC policy; no Graph app role | Existing, separately verified |
-| Directory reader | `GET /users` | `User.Read.All` | Application, separate reader identity | Search existing users and read enabled state | Tenant admin consent; Privileged Role Administrator or authorized custom role | Development-only app consented; exact-role token and bounded Graph read observed; no persisted verification revision or production acceptance |
+| Directory reader | `GET /users`, `GET /users/{id}` | `User.Read.All` | Application, separate reader identity | Search existing users and re-read an exact enabled object before local binding | Tenant admin consent; Privileged Role Administrator or authorized custom role | Development-only app consented; exact-role token and bounded Graph read observed; no persisted verification revision or production acceptance |
 | Selected SharePoint | Exact approved `/sites/{id}` and `/drives/{id}` resources | `Sites.Selected` plus site-specific `write` grant | Application, document-worker identity | Read/write only the selected working site | Tenant admin consent plus separate exact-site grant | Existing Development selected-site read and disposable write checks; no PBC acceptance |
 | Tenant user creation | `POST /users` | `User.Create` | Application, optional separate provisioner | Create a new workforce user only when explicitly enabled | Separate tenant admin consent and provisioning policy | PROPOSED; NOT_CONFIGURED |
 | Guest invitation | `POST /invitations` | `User.Invite.All` | Application, optional separate inviter | Invite an explicitly approved external client identity | Separate tenant admin consent and tenant B2B policy | PROPOSED; NOT_CONFIGURED |
@@ -81,6 +81,12 @@ both completed bounded reads. A separate browser consent attempt was cancelled
 and recorded `DENIED`; this did not revoke the previously observed app-role
 grant. No successful callback or persisted provider-verification state is
 claimed.
+Selecting a directory member requires a fresh `GET /users/{id}` read before
+creating or refreshing an exact local `(tenant ID, object ID)` binding. A
+disabled, guest, changed, or mismatched object is refused. Binding records a
+Graph observation but creates no `RoleGrant`; the administrator must separately
+choose a local role and scope. The general roster endpoint cannot label
+unverified input as `GRAPH`.
 
 Before optional capabilities ship, extend this matrix with the approved
 credential owner, retention, revocation steps, exact endpoint tests, and

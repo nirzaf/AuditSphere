@@ -63,6 +63,36 @@ public sealed class GraphDirectoryReaderTests
     await Assert.ThrowsAsync<OperationBlockedException>(() => reader.SearchAsync(Tenant, "Ad", null, default));
   }
 
+  [Fact]
+  public async Task ExactObjectReadRejectsMismatchedGraphIdentity()
+  {
+    var requestedId = Guid.NewGuid();
+    var wrongId = Guid.NewGuid();
+    Uri? requested = null;
+    var handler = new StubHandler(request =>
+    {
+      requested = request.RequestUri;
+      return Json($$"""{"id":"{{wrongId}}","displayName":"Other","userPrincipalName":"other@example.test","accountEnabled":true,"userType":"Member"}""");
+    });
+    var reader = new GraphDirectoryReader(new HttpClient(handler), new StubTokenSource(
+      new("opaque", Tenant, new HashSet<string> { "User.Read.All" })), Options);
+    await Assert.ThrowsAsync<OperationBlockedException>(() =>
+      reader.GetByIdAsync(Tenant, requestedId.ToString("D"), default));
+    Assert.Equal($"/v1.0/users/{requestedId:D}", requested?.AbsolutePath);
+  }
+
+  [Fact]
+  public async Task ExactObjectReadReturnsEnabledStatusForImmutableIdentity()
+  {
+    var objectId = Guid.NewGuid();
+    var handler = new StubHandler(_ => Json($$"""{"id":"{{objectId}}","displayName":"Ada","userPrincipalName":"ada@example.test","accountEnabled":false,"userType":"Member"}"""));
+    var reader = new GraphDirectoryReader(new HttpClient(handler), new StubTokenSource(
+      new("opaque", Tenant, new HashSet<string> { "User.Read.All" })), Options);
+    var candidate = await reader.GetByIdAsync(Tenant, objectId.ToString("D"), default);
+    Assert.Equal(objectId.ToString("D"), candidate.ObjectId);
+    Assert.False(candidate.AccountEnabled);
+  }
+
   private static HttpResponseMessage Json(string value) => new(HttpStatusCode.OK)
   {
     Content = new StringContent(value, Encoding.UTF8, "application/json")

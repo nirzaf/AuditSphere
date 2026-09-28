@@ -47,14 +47,9 @@ public sealed class GraphDirectoryReader(HttpClient http, IDirectoryTokenSource 
       var users = new List<DirectoryCandidate>();
       foreach (var item in value.EnumerateArray())
       {
-        if (users.Count == 25 || !item.TryGetProperty("id", out var id) ||
-            !Guid.TryParse(id.GetString(), out var objectId) ||
-            !item.TryGetProperty("accountEnabled", out var enabled) ||
-            enabled.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+        if (users.Count == 25)
           throw new OperationBlockedException("directory-reader-graph-invalid");
-        users.Add(new(tenant.ToString("D"), objectId.ToString("D"),
-          Text(item, "displayName"), Text(item, "userPrincipalName"),
-          enabled.GetBoolean(), Text(item, "userType")));
+        users.Add(Candidate(item, tenant));
       }
       string? next = null;
       if (root.TryGetProperty("@odata.nextLink", out var link) &&
@@ -66,6 +61,54 @@ public sealed class GraphDirectoryReader(HttpClient http, IDirectoryTokenSource 
     {
       throw new OperationBlockedException("directory-reader-graph-invalid");
     }
+  }
+
+  public async Task<DirectoryCandidate> GetByIdAsync(string tenantId, string objectId, CancellationToken ct)
+  {
+    if (!options.Enabled || !Guid.TryParse(tenantId, out var tenant) ||
+        !string.Equals(tenant.ToString("D"), options.TenantId, StringComparison.OrdinalIgnoreCase) ||
+        !Guid.TryParse(objectId, out var identity))
+      throw new OperationBlockedException("directory-reader-invalid-request", authorization: true);
+    var token = await tokens.GetAsync(tenantId, ct);
+    if (string.IsNullOrWhiteSpace(token.AccessToken) ||
+        !string.Equals(token.TenantId, tenantId, StringComparison.OrdinalIgnoreCase) ||
+        token.ApplicationRoles.Count != 1 || !token.ApplicationRoles.Contains("User.Read.All"))
+      throw new OperationBlockedException("directory-reader-token-invalid", authorization: true);
+    var url = $"https://graph.microsoft.com/v1.0/users/{identity:D}" +
+      "?$select=id,displayName,userPrincipalName,accountEnabled,userType";
+    using var request = new HttpRequestMessage(HttpMethod.Get, url);
+    request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token.AccessToken);
+    using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
+    if (response.StatusCode is HttpStatusCode.TooManyRequests or HttpStatusCode.ServiceUnavailable)
+      throw new SafeRetryException(response.Headers.RetryAfter?.Delta);
+    if (!response.IsSuccessStatusCode || response.Content.Headers.ContentLength is > 262144)
+      throw new OperationBlockedException("directory-reader-graph-rejected",
+        authorization: response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden);
+    try
+    {
+      using var document = await JsonDocument.ParseAsync(
+        await response.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
+      var candidate = Candidate(document.RootElement, tenant);
+      if (candidate.ObjectId != identity.ToString("D"))
+        throw new OperationBlockedException("directory-reader-identity-mismatch", authorization: true);
+      return candidate;
+    }
+    catch (Exception ex) when (ex is JsonException or InvalidOperationException or FormatException)
+    {
+      throw new OperationBlockedException("directory-reader-graph-invalid");
+    }
+  }
+
+  private static DirectoryCandidate Candidate(JsonElement item, Guid tenant)
+  {
+    if (!item.TryGetProperty("id", out var id) ||
+        !Guid.TryParse(id.GetString(), out var objectId) ||
+        !item.TryGetProperty("accountEnabled", out var enabled) ||
+        enabled.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+      throw new OperationBlockedException("directory-reader-graph-invalid");
+    return new(tenant.ToString("D"), objectId.ToString("D"),
+      Text(item, "displayName"), Text(item, "userPrincipalName"),
+      enabled.GetBoolean(), Text(item, "userType"));
   }
 
   private static string Text(JsonElement item, string name) =>

@@ -56,11 +56,21 @@ public static class RoleAdministrationService
 
   public static async Task<CommandResult<Guid>> EnsureUserAsync(
     IAuditSphereDbContext db, ActorContext actor, EnsureUserRequest request, CancellationToken ct = default)
+    => await EnsureUserCoreAsync(db, actor, request, verifiedGraph: false, ct);
+
+  internal static async Task<CommandResult<Guid>> EnsureVerifiedDirectoryUserAsync(
+    IAuditSphereDbContext db, ActorContext actor, EnsureUserRequest request, CancellationToken ct = default)
+    => await EnsureUserCoreAsync(db, actor, request, verifiedGraph: true, ct);
+
+  private static async Task<CommandResult<Guid>> EnsureUserCoreAsync(
+    IAuditSphereDbContext db, ActorContext actor, EnsureUserRequest request,
+    bool verifiedGraph, CancellationToken ct)
   {
     if (string.IsNullOrWhiteSpace(request.TenantId) || string.IsNullOrWhiteSpace(request.Subject) ||
         string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.DisplayName) ||
         request.UserKind is not ("Staff" or "Client") ||
-        request.Source is not ("APPROVED_ROSTER" or "VERIFIED_SIGN_IN" or "BOOTSTRAP"))
+        !(request.Source is "APPROVED_ROSTER" or "VERIFIED_SIGN_IN" or "BOOTSTRAP" ||
+          verifiedGraph && request.Source == "GRAPH"))
       return CommandResult<Guid>.Fail("roles.invalid", "Tenant, immutable subject, email, user kind and approved identity source are required.");
     if (!EmailLike(request.Email)) return CommandResult<Guid>.Fail("roles.invalid", "The staff email is invalid.");
     var auth = await FirmAdministratorAsync(db, actor, ct);
@@ -76,6 +86,8 @@ public static class RoleAdministrationService
       return CommandResult<Guid>.Fail("roles.identity-conflict", "The email is already bound to a different immutable identity.");
     if (existing is not null)
     {
+      if (verifiedGraph && existing.Disabled)
+        return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The existing AuditSphere identity is disabled.");
       if (!string.Equals(existing.UserKind, request.UserKind, StringComparison.Ordinal))
         return CommandResult<Guid>.Fail("roles.identity-kind-conflict", "The immutable identity is already classified differently; review it before changing classification.");
       existing.Email = request.Email.Trim();
@@ -123,7 +135,9 @@ public static class RoleAdministrationService
 
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     var target = await db.Users.SingleOrDefaultAsync(x => x.Id == request.UserId && x.FirmId == actor.FirmId && x.UserKind == "Staff", ct);
-    if (target is null) return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "The target identity is unavailable.");
+    if (target is null || target.Disabled) return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "The target identity is unavailable.");
+    if (!await RecentGraphObservationAsync(db, target, ct))
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Reverify this Microsoft identity before assigning access.");
     var roleValidation = ValidateRoleForUser(target, role, scopeKind);
     if (roleValidation is not null) return CommandResult<Guid>.Fail("roles.invalid", roleValidation);
     if (request.ClientId.HasValue && !await db.PracticeClients.AsNoTracking().AnyAsync(x => x.Id == request.ClientId && x.FirmId == actor.FirmId, ct))
@@ -175,6 +189,9 @@ public static class RoleAdministrationService
     var target = await db.Users.SingleOrDefaultAsync(x => x.Id == request.UserId && x.FirmId == actor.FirmId, ct);
     if (target is null || target.Disabled)
       return CommandResult<UserAccessAssignmentResult>.Fail(ErrorCodes.ScopeDenied, "The target identity is unavailable.");
+    if (!await RecentGraphObservationAsync(db, target, ct))
+      return CommandResult<UserAccessAssignmentResult>.Fail(ErrorCodes.GateBlocked,
+        "Reverify this Microsoft identity before assigning access.");
     var roleValidation = ValidateRoleForUser(target, role, scopeKind);
     if (roleValidation is not null)
       return CommandResult<UserAccessAssignmentResult>.Fail("roles.invalid", roleValidation);
@@ -338,11 +355,26 @@ public static class RoleAdministrationService
   private static string? CanonicalRole(string? value) =>
     string.IsNullOrWhiteSpace(value) ? null : AllowedRoles.SingleOrDefault(x => x.Equals(value.Trim(), StringComparison.OrdinalIgnoreCase));
 
+  private static async Task<bool> RecentGraphObservationAsync(
+    IAuditSphereDbContext db, AppUser target, CancellationToken ct)
+  {
+    var latest = await db.DirectoryUserObservations.AsNoTracking()
+      .Where(x => x.FirmId == target.FirmId && x.TenantId == target.TenantId &&
+        x.ObjectId == target.Subject)
+      .OrderByDescending(x => x.ObservedAt).ThenByDescending(x => x.Id)
+      .FirstOrDefaultAsync(ct);
+    if (latest?.Source != "GRAPH") return true;
+    var now = DateTimeOffset.UtcNow;
+    return latest.EnabledState == "ENABLED" && latest.ObservedAt >= now.AddMinutes(-5) &&
+      latest.ObservedAt <= now.AddMinutes(1);
+  }
+
   private static DirectoryUserObservation Observation(Guid firmId, EnsureUserRequest request) => new()
   {
     Id = Guid.CreateVersion7(), FirmId = firmId, TenantId = request.TenantId.Trim(), ObjectId = request.Subject.Trim(),
     DisplayName = request.DisplayName.Trim(), Mail = request.Email.Trim(), UserPrincipalName = request.Email.Trim(),
-    EnabledState = request.Source == "VERIFIED_SIGN_IN" ? "ENABLED" : "UNKNOWN", Source = request.Source,
+    EnabledState = request.Source is "VERIFIED_SIGN_IN" or "GRAPH" ? "ENABLED" : "UNKNOWN",
+    UserType = request.Source == "GRAPH" ? "Member" : "UNKNOWN", Source = request.Source,
     ObservedAt = DateTimeOffset.UtcNow
   };
 }

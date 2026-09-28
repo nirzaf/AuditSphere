@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Microsoft365;
+using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Microsoft365;
 using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Infrastructure.Persistence;
@@ -123,14 +124,89 @@ public sealed class TenantConsentServiceTests
     Assert.Equal(1, reader.Calls);
   }
 
-  private sealed class FakeDirectoryReader(DirectoryCandidatePage page) : IMicrosoftDirectoryReader
+  [Fact]
+  public async Task ExactEnabledDirectoryMemberBindsOnceWithoutGrant()
+  {
+    await using var fixture = await Fixture.CreateAsync();
+    await using var db = new AuditSphereDbContext(fixture.Options);
+    var objectId = Guid.NewGuid();
+    var candidate = new DirectoryCandidate(TenantId, objectId.ToString("D"),
+      "Verified member", "verified@example.test", true, "Member");
+    var reader = new FakeDirectoryReader(new DirectoryCandidatePage([candidate], null), candidate);
+    var first = await DirectoryUserBindingService.BindMemberAsync(db, fixture.Actor,
+      reader, TenantId, objectId);
+    Assert.True(first.Succeeded);
+    Assert.NotEqual(Guid.Empty, first.Value);
+    var second = await DirectoryUserBindingService.BindMemberAsync(db, fixture.Actor,
+      reader, TenantId, objectId);
+    Assert.True(second.Succeeded);
+    Assert.Equal(first.Value, second.Value);
+    Assert.Equal(2, reader.ExactCalls);
+    Assert.Equal(0, await db.RoleGrants.CountAsync(x => x.UserId == first.Value));
+    Assert.Equal("GRAPH", (await db.DirectoryUserObservations.OrderByDescending(x => x.ObservedAt)
+      .FirstAsync(x => x.ObjectId == objectId.ToString("D"))).Source);
+    Assert.Equal("ENABLED", (await db.DirectoryUserObservations.OrderByDescending(x => x.ObservedAt)
+      .FirstAsync(x => x.ObjectId == objectId.ToString("D"))).EnabledState);
+    Assert.False((await RoleAdministrationService.EnsureUserAsync(db, fixture.Actor,
+      new(TenantId, objectId.ToString("D"), "verified@example.test", "Verified member", "Staff", "GRAPH"))).Succeeded);
+  }
+
+  [Fact]
+  public async Task DisabledOrWrongDirectoryObjectCannotBind()
+  {
+    await using var fixture = await Fixture.CreateAsync();
+    await using var db = new AuditSphereDbContext(fixture.Options);
+    var objectId = Guid.NewGuid();
+    var disabled = new DirectoryCandidate(TenantId, objectId.ToString("D"),
+      "Disabled member", "disabled@example.test", false, "Member");
+    Assert.False((await DirectoryUserBindingService.BindMemberAsync(db, fixture.Actor,
+      new FakeDirectoryReader(new DirectoryCandidatePage([], null), disabled), TenantId, objectId)).Succeeded);
+    var wrong = disabled with { AccountEnabled = true, ObjectId = Guid.NewGuid().ToString("D") };
+    Assert.False((await DirectoryUserBindingService.BindMemberAsync(db, fixture.Actor,
+      new FakeDirectoryReader(new DirectoryCandidatePage([], null), wrong), TenantId, objectId)).Succeeded);
+    Assert.False(await db.Users.AnyAsync(x => x.Subject == objectId.ToString("D")));
+  }
+
+  [Fact]
+  public async Task StaleGraphObservationBlocksLocalGrantUntilExactReverification()
+  {
+    await using var fixture = await Fixture.CreateAsync();
+    await using var db = new AuditSphereDbContext(fixture.Options);
+    var objectId = Guid.NewGuid();
+    var candidate = new DirectoryCandidate(TenantId, objectId.ToString("D"),
+      "Verified member", "fresh@example.test", true, "Member");
+    var reader = new FakeDirectoryReader(new DirectoryCandidatePage([candidate], null), candidate);
+    var bound = await DirectoryUserBindingService.BindMemberAsync(db, fixture.Actor,
+      reader, TenantId, objectId);
+    Assert.True(bound.Succeeded);
+    var observation = await db.DirectoryUserObservations.SingleAsync(x => x.ObjectId == objectId.ToString("D"));
+    observation.ObservedAt = DateTimeOffset.UtcNow.AddHours(-1);
+    await db.SaveChangesAsync();
+    var proposed = new ApplyRoleGrantAndInvitationRequest(bound.Value, "Staff", "FIRM_WIDE");
+    Assert.False((await RoleAdministrationService.ApplyRoleGrantAndInvitationAsync(db, fixture.Actor,
+      proposed)).Succeeded);
+    Assert.Equal(0, await db.RoleGrants.CountAsync(x => x.UserId == bound.Value));
+    Assert.True((await DirectoryUserBindingService.BindMemberAsync(db, fixture.Actor,
+      reader, TenantId, objectId)).Succeeded);
+    Assert.True((await RoleAdministrationService.ApplyRoleGrantAndInvitationAsync(db, fixture.Actor,
+      proposed)).Succeeded);
+    Assert.Equal(1, await db.RoleGrants.CountAsync(x => x.UserId == bound.Value));
+  }
+
+  private sealed class FakeDirectoryReader(DirectoryCandidatePage page, DirectoryCandidate? exact = null) : IMicrosoftDirectoryReader
   {
     public int Calls { get; private set; }
+    public int ExactCalls { get; private set; }
     public Task<DirectoryCandidatePage> SearchAsync(string tenantId, string prefix,
       string? pageToken, CancellationToken ct)
     {
       Calls++;
       return Task.FromResult(page);
+    }
+    public Task<DirectoryCandidate> GetByIdAsync(string tenantId, string objectId, CancellationToken ct)
+    {
+      ExactCalls++;
+      return Task.FromResult(exact ?? throw new InvalidOperationException("No exact user configured."));
     }
   }
 

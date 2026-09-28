@@ -94,17 +94,36 @@ else
         else
         {
           <MudTable Items="_searchPage.Users" Dense="true" Elevation="0">
-            <HeaderContent><MudTh>Name</MudTh><MudTh>Microsoft identity</MudTh><MudTh>State</MudTh></HeaderContent>
+            <HeaderContent><MudTh>Name</MudTh><MudTh>Microsoft identity</MudTh><MudTh>State</MudTh><MudTh>Local binding</MudTh></HeaderContent>
             <RowTemplate>
               <MudTd DataLabel="Name">@context.DisplayName</MudTd>
               <MudTd DataLabel="Microsoft identity">@context.UserPrincipalName<br /><code>@context.ObjectId</code></MudTd>
               <MudTd DataLabel="State">@(context.AccountEnabled ? "Enabled" : "Disabled") (@context.UserType)</MudTd>
+              <MudTd DataLabel="Local binding">
+                @if (context.AccountEnabled && context.UserType == "Member")
+                {
+                  <MudButton Variant="Variant.Outlined" Size="Size.Small" Disabled="@_bindBusy"
+                    OnClick="() => BindDirectoryMemberAsync(context.ObjectId)">Bind exact identity</MudButton>
+                }
+                else { <span>Unavailable for this account type</span> }
+              </MudTd>
             </RowTemplate>
           </MudTable>
         }
         @if (_searchPage.NextPageToken is not null)
         {
           <MudButton Variant="Variant.Outlined" OnClick="NextDirectoryPageAsync" Disabled="@_searchBusy">Next 25</MudButton>
+        }
+        @if (!string.IsNullOrWhiteSpace(_bindError))
+        {
+          <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" role="alert">@_bindError</MudAlert>
+        }
+        @if (_boundUserId is { } boundUserId)
+        {
+          <MudAlert Severity="Severity.Success" Variant="Variant.Outlined" role="status">
+            Exact Microsoft identity bound locally. No new role has been granted.
+            <MudLink Href="@($"/app/administration?selectedUserId={boundUserId:D}")">Review role and scope</MudLink>
+          </MudAlert>
         }
       }
     }
@@ -124,6 +143,9 @@ else
   private string? _searchError;
   private DirectoryCandidatePage? _searchPage;
   private bool _searchBusy;
+  private bool _bindBusy;
+  private Guid? _boundUserId;
+  private string? _bindError;
 
   protected override async Task OnInitializedAsync()
   {
@@ -160,6 +182,8 @@ else
     _searchBusy = true;
     _searchError = null;
     _searchPage = null;
+    _boundUserId = null;
+    _bindError = null;
     try
     {
       await using var db = await DbFactory.CreateDbContextAsync();
@@ -169,6 +193,23 @@ else
       else _searchError = result.Message ?? "Directory access is unavailable.";
     }
     finally { _searchBusy = false; }
+  }
+
+  private async Task BindDirectoryMemberAsync(string objectId)
+  {
+    if (!_directoryConfigured || _actor is null || !Guid.TryParse(objectId, out var exactId)) return;
+    _bindBusy = true;
+    _bindError = null;
+    _boundUserId = null;
+    try
+    {
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var result = await DirectoryUserBindingService.BindMemberAsync(db, _actor, DirectoryReader,
+        Configuration["Identity:TenantId"] ?? string.Empty, exactId);
+      if (result.Succeeded) _boundUserId = result.Value;
+      else _bindError = result.Message ?? "The Microsoft identity could not be bound.";
+    }
+    finally { _bindBusy = false; }
   }
 
   private async Task ConnectAsync()

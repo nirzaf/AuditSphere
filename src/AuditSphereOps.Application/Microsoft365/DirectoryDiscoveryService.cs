@@ -14,6 +14,7 @@ public interface IMicrosoftDirectoryReader
 {
   Task<DirectoryCandidatePage> SearchAsync(string tenantId, string prefix,
     string? pageToken, CancellationToken ct);
+  Task<DirectoryCandidate> GetByIdAsync(string tenantId, string objectId, CancellationToken ct);
 }
 
 public static class DirectoryDiscoveryService
