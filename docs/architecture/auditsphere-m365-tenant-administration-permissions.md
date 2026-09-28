@@ -41,12 +41,18 @@ consented in a production tenant by this change.
 | Capability | Graph endpoint | Permission | Delegated / Application | Why required | Admin consent | Required Entra role to consent/administer | Configured? (default) |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `SIGN_IN` | Microsoft identity platform OIDC | `openid profile email` | Delegated | Authenticate one work/school identity and bind immutable `tid` + `oid` | Not required for sign-in scopes | None | Existing |
+| Directory consent sign-in | Microsoft admin-consent screen and identity leg | `User.Read` (plus `openid`) | Delegated; Microsoft includes `User.Read` on the initial consent screen | Sign in the tenant administrator for the nonce-bound identity leg; AuditSphere never uses a delegated Graph token for directory access | Shown on the Microsoft consent screen | None beyond the consenting administrator | With `DirectoryReader` |
 | `DIRECTORY_READ` | `GET /users`, `GET /users/{id}` | `User.Read.All` | Application, directory-reader/consent app | Bounded search of existing users; exact `accountEnabled`/`userType` checks; UPN/guest reconciliation reads | Required | Privileged Role Administrator or Global Administrator | Off (`DirectoryReader:Enabled`) |
 | `SELECTED_SITE` | Exact `/sites/{id}`, `/drives/{id}` | `Sites.Selected` + per-site `write` grant | Application, document-worker app | Read/write only the approved working site | Required, plus a separate exact-site grant | Privileged Role Administrator; SharePoint Administrator for the site grant | Existing (`SelectedSite:*`) |
 | `OUTBOUND_MAIL` | `POST /users/{sender}/sendMail` | `Mail.Send` | Application, mail app restricted by an Exchange application access policy | Send AuditSphere notifications from one sender only; no mailbox reading | Required | Privileged Role Administrator; Exchange Administrator for the access policy | Off (`TenantAdministration:OutboundMail`) |
 | `TENANT_USER_PROVISIONING` | `POST /users`; reconciliation via reader `GET /users?$filter=userPrincipalName eq` | `User.Create` | Application, separate provisioner app | Create a workforce user only when explicitly enabled | Required | Privileged Role Administrator or Global Administrator | Off (`TenantAdministration:Provisioning`) |
 | `GUEST_INVITATION` | `POST /invitations`; reconciliation via reader | `User.Invite.All` | Application, separate inviter app | Invite an explicitly approved external client identity; never automatic | Required; tenant B2B policy must allow app-only invitations | Privileged Role Administrator or Global Administrator | Off (`TenantAdministration:GuestInvitation`) |
 | `GROUP_MEMBERSHIP` | `GET /groups/{id}`, `GET /groups/{id}/members`, `POST /groups/{id}/members/$ref`, `DELETE /groups/{id}/members/{id}/$ref` | `GroupMember.ReadWrite.All` | Application, separate group-manager app | Add/remove users only in allowlisted AuditSphere-managed groups | Required | Privileged Role Administrator or Global Administrator | Off (`TenantAdministration:GroupMembership`) |
+
+Microsoft also displays delegated `User.Read` on the initial admin-consent
+screen for the directory app; that sign-in/profile scope is documented because
+the displayed request, not only the registration manifest, defines what an
+administrator is asked to accept.
 
 **Least privilege.** `User.Create` is Microsoft's least-privileged permission for
 `POST /users` (not `User.ReadWrite.All`); `User.Invite.All` for `POST /invitations`;
@@ -131,6 +137,7 @@ or alongside live credentials.
 
 Sources: [Microsoft admin consent protocol](https://learn.microsoft.com/en-us/entra/identity-platform/v2-admin-consent),
 [tenant admin-consent role prerequisites](https://learn.microsoft.com/en-us/entra/identity/enterprise-apps/grant-admin-consent),
+[Microsoft consent types and automatically included scopes](https://learn.microsoft.com/en-us/entra/identity-platform/consent-types-developer),
 [list users](https://learn.microsoft.com/en-us/graph/api/user-list?view=graph-rest-1.0),
 [advanced directory filters](https://learn.microsoft.com/en-us/graph/aad-advanced-queries),
 [create user](https://learn.microsoft.com/en-us/graph/api/user-post-users?view=graph-rest-1.0),

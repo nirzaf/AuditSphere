@@ -9,7 +9,7 @@ using Microsoft.EntityFrameworkCore;
 namespace AuditSphereOps.Application.Microsoft365;
 
 public sealed record TenantConsentStart(Guid AttemptId, string State);
-public sealed record TenantConsentReturn(Guid AttemptId, string State);
+public sealed record TenantConsentReturn(Guid AttemptId, Guid SetupDraftId, string State);
 public sealed record TenantIdentityChallenge(Guid AttemptId, string TenantId, string State, string Nonce);
 
 /// <summary>
@@ -103,7 +103,7 @@ public static class TenantConsentService
     await db.SaveChangesAsync(ct);
     await tx.CommitAsync(ct);
     return attempt.State == TenantConsentAttemptStates.ReturnedUnverified
-      ? CommandResult<TenantConsentReturn>.Ok(new(attempt.Id, attempt.State))
+      ? CommandResult<TenantConsentReturn>.Ok(new(attempt.Id, attempt.SetupDraftId, attempt.State))
       : Denied<TenantConsentReturn>();
   }
 

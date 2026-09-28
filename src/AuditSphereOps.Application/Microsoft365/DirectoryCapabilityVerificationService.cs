@@ -13,8 +13,9 @@ public static class DirectoryCapabilityVerificationService
   public static async Task<CommandResult> VerifyAsync(
     IAuditSphereDbContext db, ActorContext actor, IMicrosoftDirectoryReader reader,
     string configuredTenantId, string readerClientId, DateTimeOffset now,
-    CancellationToken ct = default)
+    CancellationToken ct = default, Guid? expectedDraftId = null)
   {
+    if (expectedDraftId == Guid.Empty) return Denied();
     var auth = new AuthorizationRequest(actor.FirmId, RequiredRoles: ["Administrator"],
       InternalOnly: true, RequireFirmWide: true);
     if (!Guid.TryParse(configuredTenantId, out var tenant) ||
@@ -27,7 +28,8 @@ public static class DirectoryCapabilityVerificationService
         !string.Equals(administrator.TenantId, tenant.ToString("D"), StringComparison.OrdinalIgnoreCase))
       return Denied();
     var draft = await db.Microsoft365SetupDrafts.AsNoTracking()
-      .Where(x => x.FirmId == actor.FirmId && x.ExpectedTenantId == tenant.ToString("D"))
+      .Where(x => x.FirmId == actor.FirmId && x.ExpectedTenantId == tenant.ToString("D") &&
+        (expectedDraftId == null || x.Id == expectedDraftId))
       .OrderByDescending(x => x.UpdatedAt).FirstOrDefaultAsync(ct);
     if (draft?.ConnectionRevisionId is not { } revisionId ||
         !await db.Microsoft365ConnectionRevisions.AsNoTracking().AnyAsync(x =>

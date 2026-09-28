@@ -48,7 +48,7 @@ else
   else if (Result == "returned")
   {
     <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" role="status">
-      Microsoft returned from administrator consent. This is not yet proof that any capability is granted; the separate provider checks remain required.
+      Microsoft returned from administrator consent. This does not identify the grantor or verify the connection. If the separate directory reader is configured, its bounded check ran automatically; review that result below.
     </MudAlert>
   }
   else if (Result == "blocked")
