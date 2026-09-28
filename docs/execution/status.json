@@ -896,13 +896,24 @@
       "boundary": "The selected-site capability remains BLOCKED_EXTERNAL. A transient boundary test is not a persisted, revision-bound provider verification; connection activation, production and independent acceptance remain open."
     },
     "m365SelectedSiteProviderVerification": {
-      "sourceCommits": ["acdf86ecb0550b4b3b4898b45ea9594e36977e30", "cc3d624cce489f870df9d7cb7512a869ee8cc4a1", "be80aad351f5497f3e7408d9e886d994a5bd1c2a"],
+      "sourceCommits": [
+        "acdf86ecb0550b4b3b4898b45ea9594e36977e30",
+        "cc3d624cce489f870df9d7cb7512a869ee8cc4a1",
+        "be80aad351f5497f3e7408d9e886d994a5bd1c2a"
+      ],
       "observedAt": "2026-09-28T15:55:52Z",
       "behavior": "An administrator-initiated provider test first writes a blocked in-progress capability row, performs exact saved site/library/root reads and requires 403 from the approved synthetic unrelated site, rechecks current Administrator authority and draft/connection revision under locks, then appends exact-revision SITE/DRIVE/ROOT evidence and a selected-site VERIFIED capability row. Failed retries supersede earlier passes. Activation requires the latest fresh provider row, matching provider evidence, verified consent, approved template and exact saved URL. The setup page exposes a guarded local working-site activation command.",
       "liveDevelopment": "PASS in the local Development app: the resumed firm-wide administrator ran the updated test, which displayed saved site/library/root verification and denied synthetic control. The setup draft and connection revision became VERIFIED, and the tenant connection page showed Selected SharePoint site VERIFIED at 2026-09-28 15:42 UTC. The default CLIENT_WORKSPACE template version 1 was saved and approved locally. Following the owner's exact activation approval, the administrator used Activate working site; the setup UI displayed draft ACTIVE at revision 11 and Workspace activation recorded at 2026-09-28 15:51 UTC. After the active-session resume fix, the bound administrator reloaded, resumed without a proof, and still saw ACTIVE revision 11 with Save draft disabled. This is a local default binding for future client workspaces, not production acceptance.",
       "verification": "PASS: Release solution build 0 warnings/errors, PostgreSQL-backed focused Domain 27/27 and targeted M365 browser E2E 7/7 at provider-evidence source acdf86e; EF no pending model changes at that source. M365SetupJourneyTests 2/2 at activation UI source cc3d624; hosted CI 36446032819 passed at that source. Active-review source be80aad passed Release Web build 0 warnings/errors, Microsoft365OnboardingTests 5/5, M365SetupJourneyTests 2/2 and live Development browser reload/resume; hosted CI run 36447224902 was cancelled after a separate README push. No full solution suite pass is claimed for these commits.",
       "wiki": "Canonical Production Entra ID Configuration updated in Wiki commits e9c2a36, 9302e25 and 2127d28; rendered page and navigation verified; changed content passed redacted gitleaks and diff checks.",
       "boundary": "This is local Development tenant and database evidence only. Production credential custody, records/mail capabilities and external acceptance remain separate."
+    },
+    "m365DevelopmentAdministrationPermissions": {
+      "observedAt": "2026-09-28T16:20:00Z",
+      "behavior": "Development tenant: Directory Reader manifest declares User.Read.All plus openid/profile with admin consent; new 'AuditSphereOps Development Administration' app holds exactly User.Create, User.Invite.All and GroupMember.ReadWrite.All; new 'AuditSphereOps Development Mail' app holds exactly Mail.Send. Certificates' private keys stay on the operator workstation; paths in .NET user secrets. Code: the shared administration identity is accepted only when every token role is in that approved set; all other identities remain single-role.",
+      "liveObservation": "PASS: LiveMicrosoftTenantAcceptanceTests with live credentials returned VERIFIED for DIRECTORY_READ, TENANT_USER_PROVISIONING, GUEST_INVITATION, GROUP_MEMBERSHIP and OUTBOUND_MAIL (read-only token/role checks and bounded reads).",
+      "focusedTests": "PASS: GraphTenantAdministrationProviderTests (including shared-identity role-set fence), TenantAdministrationTests and LiveMicrosoftTenantAcceptanceTests (offline BLOCKED_EXTERNAL path).",
+      "boundary": "No live user creation, guest invitation, group membership change or mail send was performed. Mail.Send is not yet restricted by an Exchange Online application access policy. Not production acceptance."
     }
   },
   "documentationWork": {

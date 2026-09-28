@@ -8,12 +8,17 @@ namespace AuditSphereOps.Infrastructure.Providers;
 
 /// <summary>
 /// One Microsoft capability = one app identity with one certificate and exactly one Graph application
-/// role. Keeping identities separate means a leaked or misused credential cannot reach another capability.
+/// role, unless the deployment approved a shared identity for a fixed role set (the tenant administration
+/// app: User.Create, User.Invite.All, GroupMember.ReadWrite.All). A token holding any other role is refused.
 /// Certificate/private-key files come from an approved secret store mount; nothing here is persisted.
 /// </summary>
 public sealed record GraphCapabilityCredentialOptions(
-  bool Enabled, string TenantId, string ClientId, string CertificatePath, string PrivateKeyPath, string RequiredRole)
+  bool Enabled, string TenantId, string ClientId, string CertificatePath, string PrivateKeyPath, string RequiredRole,
+  IReadOnlySet<string>? ApprovedRoleSet = null)
 {
+  /// <summary>Roles the identity may hold: the approved shared set, otherwise only the required role.</summary>
+  public IReadOnlySet<string> AllowedRoles => ApprovedRoleSet ?? new HashSet<string>(StringComparer.Ordinal) { RequiredRole };
+
   public bool IsComplete => Enabled && Guid.TryParse(TenantId, out _) && Guid.TryParse(ClientId, out _) &&
     Path.IsPathFullyQualified(CertificatePath) && Path.IsPathFullyQualified(PrivateKeyPath) &&
     !string.IsNullOrWhiteSpace(RequiredRole);
@@ -78,8 +83,8 @@ public sealed class GraphCapabilityTokenSource(HttpClient http, GraphCapabilityC
         : new HashSet<string>(StringComparer.Ordinal);
       if (!roles.Contains(options.RequiredRole))
         throw new GraphCapabilityTokenException("app-role-not-granted", notGranted: true);
-      // Least privilege: the capability identity must not hold any other application role.
-      if (roles.Count != 1)
+      // Least privilege: the identity must not hold any role outside its approved set.
+      if (!roles.All(options.AllowedRoles.Contains))
         throw new GraphCapabilityTokenException("app-role-set-too-broad", notGranted: false);
       return new(token, tid.GetString()!, roles);
     }

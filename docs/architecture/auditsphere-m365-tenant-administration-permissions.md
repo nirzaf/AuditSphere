@@ -19,14 +19,19 @@ document grants consent, turns on external effects or records live acceptance.
   would require a separate Privileged Tenant Administration feature, additional
   consent, step-up authentication and separate acceptance tests.
 - Microsoft group membership is never an AuditSphere authorization source.
-- Web sign-in, the directory reader/consent app, the selected-site document worker
-  and each optional mutation capability use **separate app identities**. A
-  capability token is accepted only when it is for the exact tenant and carries
-  **exactly one** application role — its documented permission
-  (`GraphCapabilityTokenSource`). A credential with extra roles is refused, so the
-  document worker can never gain directory permissions and vice versa. Startup
-  refuses an enabled capability without a complete separate certificate, or one
-  that reuses the sign-in or selected-site app ID.
+- Web sign-in, the directory reader/consent app, the selected-site document worker,
+  the outbound-mail app and the **tenant administration app** are separate app
+  identities. By owner decision the three mutation capabilities (`User.Create`,
+  `User.Invite.All`, `GroupMember.ReadWrite.All`) share one tenant administration
+  app. Every other identity must hold **exactly one** application role. A token is
+  accepted only for the exact tenant, only when it holds the capability's
+  permission, and only when every role it holds is in that identity's approved set
+  (`GraphCapabilityTokenSource`); any extra role, such as `Sites.Selected` or
+  `Directory.ReadWrite.All`, is refused. The document worker therefore never gains
+  directory permissions, and the administration app never gains SharePoint, mail or
+  broader directory roles. Startup refuses an enabled capability without a complete
+  certificate, or one that reuses the sign-in, selected-site or directory-reader
+  app ID, or a mail app shared with the administration app.
 - Tenant credentials, access tokens, refresh tokens, authorization codes and
   initial passwords are never written to database records, logs or audit events.
   Consent `state` and `nonce` are stored only as SHA-256 hashes.
@@ -45,9 +50,9 @@ consented in a production tenant by this change.
 | `DIRECTORY_READ` | `GET /users`, `GET /users/{id}` | `User.Read.All` | Application, directory-reader/consent app | Bounded search of existing users; exact `accountEnabled`/`userType` checks; UPN/guest reconciliation reads | Required | Privileged Role Administrator or Global Administrator | Off (`DirectoryReader:Enabled`) |
 | `SELECTED_SITE` | Exact `/sites/{id}`, `/drives/{id}` | `Sites.Selected` + per-site `write` grant | Application, document-worker app | Read/write only the approved working site | Required, plus a separate exact-site grant | Privileged Role Administrator; SharePoint Administrator for the site grant | Existing (`SelectedSite:*`) |
 | `OUTBOUND_MAIL` | `POST /users/{sender}/sendMail` | `Mail.Send` | Application, mail app restricted by an Exchange application access policy | Send AuditSphere notifications from one sender only; no mailbox reading | Required | Privileged Role Administrator; Exchange Administrator for the access policy | Off (`TenantAdministration:OutboundMail`) |
-| `TENANT_USER_PROVISIONING` | `POST /users`; reconciliation via reader `GET /users?$filter=userPrincipalName eq` | `User.Create` | Application, separate provisioner app | Create a workforce user only when explicitly enabled | Required | Privileged Role Administrator or Global Administrator | Off (`TenantAdministration:Provisioning`) |
-| `GUEST_INVITATION` | `POST /invitations`; reconciliation via reader | `User.Invite.All` | Application, separate inviter app | Invite an explicitly approved external client identity; never automatic | Required; tenant B2B policy must allow app-only invitations | Privileged Role Administrator or Global Administrator | Off (`TenantAdministration:GuestInvitation`) |
-| `GROUP_MEMBERSHIP` | `GET /groups/{id}`, `GET /groups/{id}/members`, `POST /groups/{id}/members/$ref`, `DELETE /groups/{id}/members/{id}/$ref` | `GroupMember.ReadWrite.All` | Application, separate group-manager app | Add/remove users only in allowlisted AuditSphere-managed groups | Required | Privileged Role Administrator or Global Administrator | Off (`TenantAdministration:GroupMembership`) |
+| `TENANT_USER_PROVISIONING` | `POST /users`; reconciliation via reader `GET /users?$filter=userPrincipalName eq` | `User.Create` | Application, shared tenant administration app | Create a workforce user only when explicitly enabled | Required | Privileged Role Administrator or Global Administrator | Off (`TenantAdministration:Provisioning`) |
+| `GUEST_INVITATION` | `POST /invitations`; reconciliation via reader | `User.Invite.All` | Application, shared tenant administration app | Invite an explicitly approved external client identity; never automatic | Required; tenant B2B policy must allow app-only invitations | Privileged Role Administrator or Global Administrator | Off (`TenantAdministration:GuestInvitation`) |
+| `GROUP_MEMBERSHIP` | `GET /groups/{id}`, `GET /groups/{id}/members`, `POST /groups/{id}/members/$ref`, `DELETE /groups/{id}/members/{id}/$ref` | `GroupMember.ReadWrite.All` | Application, shared tenant administration app | Add/remove users only in allowlisted AuditSphere-managed groups | Required | Privileged Role Administrator or Global Administrator | Off (`TenantAdministration:GroupMembership`) |
 
 Microsoft also displays delegated `User.Read` on the initial admin-consent
 screen for the directory app; that sign-in/profile scope is documented because
@@ -124,6 +129,21 @@ filter. The filter uses Graph advanced query requirements
 (`ConsistencyLevel: eventual`, `$count=true`) and rejects results from another
 tenant or domain. A selected member or guest is re-read by exact object ID before
 local binding; neither the picker nor binding grants AuditSphere access.
+
+## Development tenant configuration (observed 2026-09-28)
+
+In the Development tenant the Directory Reader declares `User.Read.All`,
+`openid` and `profile` and holds admin consent for them; the separate
+"AuditSphereOps Development Administration" app holds exactly `User.Create`,
+`User.Invite.All` and `GroupMember.ReadWrite.All`; and the separate
+"AuditSphereOps Development Mail" app holds exactly `Mail.Send`. Each uses a
+certificate whose private key stays on the operator workstation; paths are in
+.NET user secrets. A live, read-only run of `LiveMicrosoftTenantAcceptanceTests`
+returned `VERIFIED` for directory read, user provisioning, guest invitation,
+group membership and outbound mail. `Mail.Send` remains tenant-wide until an
+Exchange Online application access policy restricts it to the approved sender
+mailbox; that policy is an operator action. No live user creation, invitation,
+group change or mail send was performed, and this is not production acceptance.
 
 ## Remaining external gates
 

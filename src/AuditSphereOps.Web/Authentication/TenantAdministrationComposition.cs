@@ -38,6 +38,10 @@ public sealed record TenantAdministrationSettings(
 
 public static class TenantAdministrationComposition
 {
+  /// <summary>The only roles the shared tenant-administration identity may hold.</summary>
+  public static readonly IReadOnlySet<string> TenantAdministrationRoleSet =
+    new HashSet<string>(StringComparer.Ordinal) { "User.Create", "User.Invite.All", "GroupMember.ReadWrite.All" };
+
   public static void Register(WebApplicationBuilder builder)
   {
     var configuration = builder.Configuration;
@@ -67,14 +71,17 @@ public static class TenantAdministrationComposition
     }
     else
     {
-      // Each capability uses its own app identity and must hold exactly its documented permission.
-      GraphCapabilityCredentialOptions Credential(string path, string role, bool enabled) => new(enabled,
+      // Each capability uses its own app identity holding exactly its documented permission. The three
+      // tenant-administration capabilities may share one approved identity limited to exactly their roles.
+      GraphCapabilityCredentialOptions Credential(string path, string role, bool enabled,
+        IReadOnlySet<string>? approved = null) => new(enabled,
         settings.Options.TenantId, configuration[$"{path}:ClientId"] ?? string.Empty,
-        configuration[$"{path}:CertificatePath"] ?? string.Empty, configuration[$"{path}:PrivateKeyPath"] ?? string.Empty, role);
+        configuration[$"{path}:CertificatePath"] ?? string.Empty, configuration[$"{path}:PrivateKeyPath"] ?? string.Empty, role, approved);
+      var administrationRoles = TenantAdministrationRoleSet;
       var reader = Credential("DirectoryReader", "User.Read.All", configuration.GetValue<bool>("DirectoryReader:Enabled"));
-      var provisioning = Credential("TenantAdministration:Provisioning", "User.Create", settings.Options.ProvisioningEnabled);
-      var invitation = Credential("TenantAdministration:GuestInvitation", "User.Invite.All", settings.Options.GuestInvitationEnabled);
-      var groupMembership = Credential("TenantAdministration:GroupMembership", "GroupMember.ReadWrite.All", settings.Options.GroupMembershipEnabled);
+      var provisioning = Credential("TenantAdministration:Provisioning", "User.Create", settings.Options.ProvisioningEnabled, administrationRoles);
+      var invitation = Credential("TenantAdministration:GuestInvitation", "User.Invite.All", settings.Options.GuestInvitationEnabled, administrationRoles);
+      var groupMembership = Credential("TenantAdministration:GroupMembership", "GroupMember.ReadWrite.All", settings.Options.GroupMembershipEnabled, administrationRoles);
       var mail = Credential("TenantAdministration:OutboundMail", "Mail.Send", settings.Options.OutboundMailEnabled);
       var selectedSite = Credential("SelectedSite", "Sites.Selected", !string.IsNullOrWhiteSpace(configuration["SelectedSite:ClientId"]));
       foreach (var (name, credential) in new[] { ("Provisioning", provisioning), ("GuestInvitation", invitation),
@@ -86,10 +93,16 @@ public static class TenantAdministrationComposition
         if (string.Equals(credential.ClientId, configuration["Identity:ClientId"], StringComparison.OrdinalIgnoreCase) ||
             string.Equals(credential.ClientId, configuration["SelectedSite:ClientId"], StringComparison.OrdinalIgnoreCase))
           throw new InvalidOperationException($"TenantAdministration:{name} must use an app identity separate from sign-in and the selected-site worker.");
+        if (string.Equals(credential.ClientId, configuration["DirectoryReader:ClientId"], StringComparison.OrdinalIgnoreCase))
+          throw new InvalidOperationException($"TenantAdministration:{name} must use an app identity separate from the directory reader.");
       }
+      if (mail.Enabled && new[] { provisioning, invitation, groupMembership }.Any(x => x.Enabled &&
+            string.Equals(x.ClientId, mail.ClientId, StringComparison.OrdinalIgnoreCase)))
+        throw new InvalidOperationException("TenantAdministration:OutboundMail must use its own app identity.");
       if (settings.Options.GuestInvitationEnabled &&
-          (!Uri.TryCreate(settings.Options.GuestRedirectUrl, UriKind.Absolute, out var redirect) || redirect.Scheme != Uri.UriSchemeHttps))
-        throw new InvalidOperationException("TenantAdministration:GuestRedirectUrl must be an HTTPS application URL.");
+          (!Uri.TryCreate(settings.Options.GuestRedirectUrl, UriKind.Absolute, out var redirect) ||
+           redirect.Scheme != Uri.UriSchemeHttps && !(builder.Environment.IsDevelopment() && redirect.IsLoopback)))
+        throw new InvalidOperationException("TenantAdministration:GuestRedirectUrl must be an HTTPS application URL (loopback HTTP only in Development).");
 
       GraphCapabilityTokenSource Tokens(IServiceProvider services, GraphCapabilityCredentialOptions options) =>
         new(services.GetRequiredService<IHttpClientFactory>().CreateClient("tenant-admin-token"), options);

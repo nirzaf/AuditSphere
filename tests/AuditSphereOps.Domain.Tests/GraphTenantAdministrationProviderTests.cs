@@ -60,6 +60,26 @@ public sealed class GraphTenantAdministrationProviderTests : IDisposable
     await Assert.ThrowsAsync<GraphCapabilityTokenException>(() => wrongTenant.GetAsync(Guid.NewGuid().ToString("D"), default));
   }
 
+  [Fact]
+  public async Task SharedAdministrationIdentity_AcceptsOnlyTheApprovedRoleSet()
+  {
+    var approved = new HashSet<string>(StringComparer.Ordinal) { "User.Create", "User.Invite.All", "GroupMember.ReadWrite.All" };
+    var shared = new GraphCapabilityTokenSource(new HttpClient(new Stub(_ => TokenResponse("User.Create", "User.Invite.All", "GroupMember.ReadWrite.All"))),
+      Credential("User.Invite.All") with { ApprovedRoleSet = approved });
+    Assert.Equal(3, (await shared.GetAsync(Tenant, default)).ApplicationRoles.Count);
+    foreach (var extra in new[] { "Sites.Selected", "Directory.ReadWrite.All", "RoleManagement.ReadWrite.Directory" })
+    {
+      var widened = new GraphCapabilityTokenSource(new HttpClient(new Stub(_ => TokenResponse("User.Create", "User.Invite.All", extra))),
+        Credential("User.Invite.All") with { ApprovedRoleSet = approved });
+      Assert.Equal("app-role-set-too-broad", (await Assert.ThrowsAsync<GraphCapabilityTokenException>(() => widened.GetAsync(Tenant, default))).Code);
+    }
+    // A shared identity still needs the specific capability role.
+    var missing = new GraphCapabilityTokenSource(new HttpClient(new Stub(_ => TokenResponse("User.Create"))),
+      Credential("User.Invite.All") with { ApprovedRoleSet = approved });
+    Assert.True((await Assert.ThrowsAsync<GraphCapabilityTokenException>(() => missing.GetAsync(Tenant, default))).NotGranted);
+    Assert.DoesNotContain(approved, x => Microsoft365PermissionMatrix.Prohibited.Contains(x));
+  }
+
   [Theory]
   [InlineData(HttpStatusCode.Created, ProviderOutcomes.Accepted)]
   [InlineData(HttpStatusCode.BadRequest, ProviderOutcomes.Failed)]
