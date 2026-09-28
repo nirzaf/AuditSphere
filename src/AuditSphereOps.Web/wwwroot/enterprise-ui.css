@@ -78,6 +78,17 @@ body { background: var(--audit-page); }
 .audit-portfolio-search { align-items: end; min-width: 0; }
 .audit-portfolio-search .mud-input-control { flex: 1 1 auto; min-width: 0; }
 .audit-portfolio-search .mud-button-root { flex: 0 0 auto; }
+.audit-practice-card.mud-card { border: 1px solid var(--audit-line); border-radius: 10px; box-shadow: 0 2px 8px #0f172a08; }
+.audit-practice-card .mud-card-header { padding: 20px 24px 8px; }
+.audit-practice-card .mud-card-content { padding: 12px 24px 20px; }
+.audit-practice-card .mud-card-actions { padding: 0 24px 24px; }
+.audit-practice-card .optional-label::after, .audit-practice-form .optional-label::after,
+.audit-practice-time .optional-label::after { content: none; }
+.audit-practice-form { border: 1px solid var(--audit-line); border-radius: 10px; background: #fff; box-shadow: 0 2px 8px #0f172a08; }
+.audit-practice-form-fields { display: grid; gap: 12px; width: 100%; max-width: 34rem; min-width: 0; }
+.audit-practice-form-fields > label, .audit-practice-form-row > label { display: grid; gap: 4px; min-width: 0; }
+.audit-practice-form-fields :is(input:not([type="checkbox"]), select, textarea) { width: 100%; max-width: 100%; min-width: 0; box-sizing: border-box; }
+.audit-practice-form-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; min-width: 0; }
 .audit-status-chip { font-weight: 700; border-radius: 5px; }
 .mud-dialog { border-radius: 15px; }
 .audit-workspace .mud-button-root { border-radius: 6px; }
@@ -134,6 +145,12 @@ body { background: var(--audit-page); }
   .audit-workspace { padding-inline: 12px; }
   .audit-topbar .mud-toolbar { gap: 3px; }
   .audit-environment { display: none; }
+}
+@media (max-width: 600px) {
+  .audit-practice-form-row { grid-template-columns: minmax(0, 1fr); }
+  .audit-practice-card .mud-card-header { padding: 16px 16px 8px; }
+  .audit-practice-card .mud-card-content { padding: 8px 16px 16px; }
+  .audit-practice-card .mud-card-actions { padding: 0 16px 16px; }
 }
 .audit-progress-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1rem;margin-bottom:1rem}
 .audit-progress-summary>div{display:flex;flex-direction:column;gap:.2rem}

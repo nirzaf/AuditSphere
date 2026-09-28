@@ -86,6 +86,28 @@ public sealed class ClientScopeJourneyTests
         await page.GetByText(marker, new() { Exact = true }).WaitForAsync();
       await connected;
       await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new() { Timeout = 5000 });
+      if (!denied && route is ("/app/finance" or "/app/practice/leads"))
+      {
+        foreach (var width in new[] { 320, 390, 760, 1024, 1440, 1920 })
+        {
+          await page.SetViewportSizeAsync(width, 900);
+          await page.WaitForFunctionAsync("() => document.documentElement.scrollWidth <= window.innerWidth + 1", null, new() { Timeout = 5000 });
+          if (width == 320 && Environment.GetEnvironmentVariable("AUDITSPHERE_UI_CAPTURE_DIR") is { Length: > 0 } narrowCaptureDir)
+          {
+            Directory.CreateDirectory(narrowCaptureDir);
+            await page.ScreenshotAsync(new() { Path = Path.Combine(narrowCaptureDir, $"{(route == "/app/finance" ? "finance" : "leads")}-320.png"), FullPage = true });
+          }
+          var offenders = await page.EvaluateAsync<string[]>("""() => [...document.querySelectorAll('body *')].filter(e => e.getBoundingClientRect().right > window.innerWidth + 1 && getComputedStyle(e).display !== 'none').slice(0, 12).map(e => `${e.tagName}.${e.className?.toString().slice(0, 50)} right=${Math.round(e.getBoundingClientRect().right)}`)""");
+          var metrics = await page.EvaluateAsync<string>("() => `inner=${innerWidth} doc=${document.documentElement.scrollWidth} body=${document.body.scrollWidth}`");
+          Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= window.innerWidth + 1"),
+            $"{route} overflows at {width}px: {metrics}; {string.Join(", ", offenders)}");
+          if ((width == 390 || width == 1440) && Environment.GetEnvironmentVariable("AUDITSPHERE_UI_CAPTURE_DIR") is { Length: > 0 } captureDir)
+          {
+            Directory.CreateDirectory(captureDir);
+            await page.ScreenshotAsync(new() { Path = Path.Combine(captureDir, $"{(route == "/app/finance" ? "finance" : "leads")}-{width}.png"), FullPage = true });
+          }
+        }
+      }
       var body = await page.Locator("body").InnerTextAsync();
       Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
       return body;

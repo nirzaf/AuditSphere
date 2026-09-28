@@ -8,7 +8,7 @@
 
 <PageTitle>Firm ledger</PageTitle>
 <MudLink Href="/app" Class="back-link mb-2 d-inline-block">← Back to portfolio</MudLink>
-<PageHeader Title="Firm ledger &amp; financial operations" Description="Restricted firm-ledger operations (§41.3). Firm accounts, balanced postings, and period close decisions enforce exact monetary balance and strict immutability." />
+<PageHeader Title="Firm ledger &amp; financial operations" Eyebrow="Firm economics" Description="Restricted firm-ledger operations (§41.3). Firm accounts, balanced postings, and period close decisions enforce exact monetary balance and strict immutability." />
 <MudButton Color="Color.Primary" Variant="Variant.Outlined" Class="button-secondary" OnClick="LoadFinanceDataAsync" Disabled="@(_loading || _busy)">Refresh firm ledger</MudButton>
 
 @if (_loading)
@@ -24,7 +24,11 @@ else if (_actor is null || !_isAuthorized)
 }
 else
 {
-  <p class="scope-note">Restricted firm-ledger operations (§41.3). Firm accounts, balanced postings, and period close decisions enforce exact monetary balance and strict immutability.</p>
+  <MudGrid Spacing="2" Class="audit-practice-metrics mb-4">
+    <MudItem xs="6" sm="4"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Fiscal periods</MudText><MudText Typo="Typo.h4">@_periods.Count</MudText></MudPaper></MudItem>
+    <MudItem xs="6" sm="4"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Firm accounts</MudText><MudText Typo="Typo.h4">@_accounts.Count</MudText></MudPaper></MudItem>
+    <MudItem xs="12" sm="4"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Recent postings shown</MudText><MudText Typo="Typo.h4">@_postings.Count</MudText></MudPaper></MudItem>
+  </MudGrid>
 
   @if (_result is not null)
   {

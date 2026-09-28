@@ -33,6 +33,25 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ---
 
+## UI modernization — practice and firm finance
+
+The real `/app/practice/leads`, `/app/practice/time` and `/app/finance` routes
+now use compact, scoped metric strips and a consistent practice panel rhythm.
+Leads and time use the source's pipeline/workbench visual cues without copying
+its fake records, persona controls or browser-local business state. The time
+task and time-entry forms remain native with their existing form and
+`data-draft-scope` boundaries; responsive classes replace only layout styles.
+Firm-ledger counts label the records actually returned by its authorized
+query, including "recent postings shown" rather than an all-time total.
+Repeated explanatory copy was removed where PageHeader already conveys it.
+The draft helper's duplicate optional-marker pseudo-element is suppressed
+only in forms whose labels already spell out "optional". This is
+`PRESENTATION_ONLY` plus `WIRE_EXISTING`; proposal-stage edits, budget impact,
+full lifecycle boards and any provider-dependent behavior remain outside this
+visual slice. Exact verification and remaining UI work are in `status.json`.
+
+---
+
 ## Administrator project task progress
 
 The administrator-only `/app/administration/project-progress` page reads the

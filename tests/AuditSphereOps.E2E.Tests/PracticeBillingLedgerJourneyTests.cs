@@ -99,6 +99,31 @@ public sealed class PracticeBillingLedgerJourneyTests
     await staffPage.GetByRole(AriaRole.Heading, new() { Name = "Practice time & task records" }).WaitForAsync();
     await staffConnected;
     await WaitForInteractiveRenderAsync(staffPage, staffPrerenderedLog);
+    foreach (var width in new[] { 320, 390, 760, 1024, 1440, 1920 })
+    {
+      await staffPage.SetViewportSizeAsync(width, 900);
+      await staffPage.WaitForFunctionAsync("() => document.documentElement.scrollWidth <= window.innerWidth + 1", null, new() { Timeout = 5000 });
+      if (width == 320 && Environment.GetEnvironmentVariable("AUDITSPHERE_UI_CAPTURE_DIR") is { Length: > 0 } narrowCaptureDir)
+      {
+        Directory.CreateDirectory(narrowCaptureDir);
+        await staffPage.ScreenshotAsync(new() { Path = Path.Combine(narrowCaptureDir, "practice-time-320.png"), FullPage = true });
+        Assert.True(await staffPage.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= window.innerWidth + 1"),
+          "Practice time overflowed after the loaded 320px full-page capture.");
+      }
+      var offenders = await staffPage.EvaluateAsync<string[]>("""() => [...document.querySelectorAll('body *')].filter(e => e.getBoundingClientRect().right > window.innerWidth + 1 && getComputedStyle(e).display !== 'none').slice(0, 12).map(e => `${e.tagName}.${e.className?.toString().slice(0, 50)} right=${Math.round(e.getBoundingClientRect().right)}`)""");
+      var metrics = await staffPage.EvaluateAsync<string>("() => `inner=${innerWidth} doc=${document.documentElement.scrollWidth} body=${document.body.scrollWidth}`");
+      Assert.True(await staffPage.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= window.innerWidth + 1"),
+        $"Practice time overflows at {width}px: {metrics}; {string.Join(", ", offenders)}");
+      if ((width == 390 || width == 1440) && Environment.GetEnvironmentVariable("AUDITSPHERE_UI_CAPTURE_DIR") is { Length: > 0 } captureDir)
+      {
+        Directory.CreateDirectory(captureDir);
+        await staffPage.ScreenshotAsync(new() { Path = Path.Combine(captureDir, $"practice-time-{width}.png"), FullPage = true });
+      }
+    }
+    await staffPage.Locator("[data-draft-scope='practice-task'] input").First.FocusAsync();
+    await staffPage.Keyboard.PressAsync("Tab");
+    Assert.Equal("SELECT", await staffPage.EvaluateAsync<string>("() => document.activeElement?.tagName"));
+    Assert.Equal("solid", await staffPage.EvaluateAsync<string>("() => getComputedStyle(document.activeElement).outlineStyle"));
     await staffPage.GetByRole(AriaRole.Region, new() { Name = "Record time draft" })
       .GetByLabel("Work task").SelectOptionAsync(taskId.ToString("D"));
     await staffPage.Locator("input[type='date']").Last.FillAsync("2026-09-10");

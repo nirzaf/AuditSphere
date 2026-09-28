@@ -8,8 +8,8 @@
 @inject IDialogService Dialogs
 
 <PageTitle>Practice leads</PageTitle>
-<MudLink Href="/app">← Back to portfolio</MudLink>
-<PageHeader Title="Practice leads" Description="Commercial opportunity progression for the current firm scope only. Converting a qualified lead requires separate client acceptance and credit decisions." />
+<MudLink Href="/app" Class="back-link mb-2 d-inline-block">← Back to portfolio</MudLink>
+<PageHeader Title="Practice leads" Eyebrow="Practice pipeline" Description="Commercial opportunity progression for the current firm scope only. Converting a qualified lead requires separate client acceptance and credit decisions." />
 <MudButton Color="Color.Primary" Variant="Variant.Outlined" Class="button-secondary" OnClick="LoadLeadsAsync" Disabled="@(_loading || _busy)">Refresh leads</MudButton>
 
 @if (_loading)
@@ -23,6 +23,10 @@ else if (_actor is null || !_isAuthorized)
 }
 else
 {
+  <MudGrid Spacing="2" Class="audit-practice-metrics mb-4">
+    <MudItem xs="6" sm="4"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Active leads shown</MudText><MudText Typo="Typo.h4">@_leads.Count</MudText></MudPaper></MudItem>
+    <MudItem xs="6" sm="4"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Awaiting qualification</MudText><MudText Typo="Typo.h4">@_leads.Count(x => x.Status == CrmStates.LeadNew)</MudText></MudPaper></MudItem>
+  </MudGrid>
   @if (_result is not null)
   {
     <MudAlert Severity="@(_result.Succeeded ? Severity.Success : Severity.Error)" Dense="true">
@@ -30,7 +34,7 @@ else
     </MudAlert>
   }
 
-  <MudCard Class="mb-4" data-draft-scope="practice-lead-new">
+  <MudCard Class="audit-practice-card mb-4" data-draft-scope="practice-lead-new">
     <MudCardHeader><h2 id="new-lead-heading">Record new lead</h2></MudCardHeader>
     <MudCardContent>
       <MudGrid>
@@ -61,7 +65,7 @@ else
     </MudCardActions>
   </MudCard>
 
-  <MudCard>
+  <MudCard Class="audit-practice-card">
     <MudCardHeader><h2 id="leads-table-heading">Active leads (@_leads.Count)</h2></MudCardHeader>
     <MudCardContent>
       @if (_leads.Count == 0)

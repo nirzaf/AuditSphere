@@ -37,6 +37,14 @@
 
 ## 3. Theme & shared components (presentation only)
 
+The practice/firm-finance route family uses authorized collection counts in
+compact metric cards and scoped white panels. Native task/time `<form>`
+boundaries, browser-draft attributes and input values remain intact; their
+layout uses responsive grid classes so paired fields stack at narrow widths.
+The Leads `MudCard` and firm-ledger `MudPaper` surfaces share the palette and
+panel rhythm. The prototype's extra commercial and billing fields are not
+displayed without corresponding backend contracts.
+
 The administrator-only project task-progress route uses native accessible
 `<progress>` elements for reviewed task-card counts across Modules 20–26,
 audit workflow and cross-module foundations. Its labels and expanded

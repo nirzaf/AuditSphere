@@ -9,7 +9,7 @@
 
 <PageTitle>Time & work records</PageTitle>
 <MudLink Href="/app" Class="back-link mb-2 d-inline-block">← Back to portfolio</MudLink>
-<PageHeader Title="Practice time &amp; task records" Description="Time entries are recorded against assigned firm tasks with exact integer minutes, immutable rate snapshots, and independent approval segregation." />
+<PageHeader Title="Practice time &amp; task records" Eyebrow="Work &amp; collaboration" Description="Time entries are recorded against assigned firm tasks with exact integer minutes, immutable rate snapshots, and independent approval segregation." />
 
 @if (_loading)
 {
@@ -24,7 +24,14 @@ else if (_actor is null || !_isStaff)
 }
 else
 {
-  <p class="scope-note">Time entries are recorded against assigned firm tasks with exact integer minutes, immutable rate snapshots, and independent approval segregation.</p>
+  <MudGrid Spacing="2" Class="audit-practice-metrics mb-4">
+    <MudItem xs="6" sm="4"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Open tasks in scope</MudText><MudText Typo="Typo.h4">@_availableTasks.Count</MudText></MudPaper></MudItem>
+    <MudItem xs="6" sm="4"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">My time entries shown</MudText><MudText Typo="Typo.h4">@_myEntries.Count</MudText></MudPaper></MudItem>
+    @if (_isApprover)
+    {
+      <MudItem xs="12" sm="4"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Awaiting my review</MudText><MudText Typo="Typo.h4">@_submittedEntries.Count</MudText></MudPaper></MudItem>
+    }
+  </MudGrid>
 
   @if (_result is not null)
   {
@@ -33,11 +40,11 @@ else
     </p>
   }
 
-  <section class="card" aria-labelledby="task-heading" data-draft-scope="practice-task">
+  <section class="card audit-practice-form" aria-labelledby="task-heading" data-draft-scope="practice-task">
     <h2 id="task-heading">Create work task</h2>
     <p class="scope-note">Link an optional accounting period when the task belongs to a client reporting workflow. Due dates are optional and are never inferred.</p>
 <!-- Native controls retained: both <form> elements are draft-state.js boundaries (auto-discovered form scopes; the "Record time draft" region is E2E-pinned) and the script reads/writes control.value + checked with change-event restore. -->
-    <form @onsubmit="CreateTaskAsync" @onsubmit:preventDefault="true" style="display: grid; gap: 0.75rem; max-width: 32rem;">
+    <form @onsubmit="CreateTaskAsync" @onsubmit:preventDefault="true" class="audit-practice-form-fields">
       <label>
         Task title <span class="required-marker" aria-hidden="true">*</span>
         <input class="input" @bind="_taskTitle" required disabled="@_busy" title="Short description of the work to be completed." autocomplete="off" />
@@ -60,7 +67,7 @@ else
     </form>
   </section>
 
-  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="log-heading" role="region">
+  <MudPaper Class="audit-practice-time pa-4 my-4" Elevation="1" aria-labelledby="log-heading" role="region">
     <h2 id="log-heading">Record time draft</h2>
     @if (_availableTasks.Count == 0)
     {
@@ -68,7 +75,7 @@ else
     }
     else
     {
-      <form @onsubmit="SaveTimeDraftAsync" @onsubmit:preventDefault="true" style="display: grid; gap: 0.75rem; max-width: 32rem;">
+      <form @onsubmit="SaveTimeDraftAsync" @onsubmit:preventDefault="true" class="audit-practice-form-fields">
         <label>
           Work task
           <select class="input" @bind="_selectedTaskId" required disabled="@_busy">
@@ -78,22 +85,22 @@ else
             }
           </select>
         </label>
-        <div style="display: flex; gap: 0.75rem;">
-          <label style="flex: 1;">
+        <div class="audit-practice-form-row">
+          <label>
             Date
             <input class="input" type="date" @bind="_workDate" required disabled="@_busy" />
           </label>
-          <label style="flex: 1;">
+          <label>
             Duration (minutes)
             <input class="input" type="number" min="15" step="15" @bind="_durationMinutes" required disabled="@_busy" />
           </label>
         </div>
-        <div style="display: flex; gap: 0.75rem;">
-          <label style="flex: 1;">
+        <div class="audit-practice-form-row">
+          <label>
             Role
             <input class="input" @bind="_role" placeholder="Staff, Manager, Partner" required disabled="@_busy" />
           </label>
-          <label style="flex: 1;">
+          <label>
             Activity
             <input class="input" @bind="_activity" placeholder="Fieldwork, Review, Planning" required disabled="@_busy" />
           </label>
