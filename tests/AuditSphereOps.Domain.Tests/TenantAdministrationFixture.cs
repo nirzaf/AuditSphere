@@ -15,7 +15,7 @@ namespace AuditSphereOps.Domain.Tests;
 internal sealed class TenantAdministrationFixture : IAsyncDisposable
 {
   public PgTestSchema Pg { get; }
-  public string TenantId { get; } = Guid.NewGuid().ToString("D");
+  public string TenantId { get; private init; } = Guid.NewGuid().ToString("D");
   public Guid FirmId { get; private set; }
   public Guid ClientId { get; private set; }
   public Guid EngagementId { get; private set; }
@@ -48,9 +48,10 @@ internal sealed class TenantAdministrationFixture : IAsyncDisposable
     return db.Users.AsNoTracking().Single(x => x.Id == userId).SessionEpoch;
   }
 
-  public static async Task<TenantAdministrationFixture> CreateAsync()
+  /// <param name="tenantId">A real tenant for separately controlled live acceptance; random otherwise.</param>
+  public static async Task<TenantAdministrationFixture> CreateAsync(string? tenantId = null)
   {
-    var fixture = new TenantAdministrationFixture(await PgTestSchema.CreateAsync());
+    var fixture = new TenantAdministrationFixture(await PgTestSchema.CreateAsync()) { TenantId = tenantId ?? Guid.NewGuid().ToString("D") };
     var (firmId, clientId, engagementId) = await fixture.Pg.SeedScopeAsync();
     fixture.FirmId = firmId;
     fixture.ClientId = clientId;

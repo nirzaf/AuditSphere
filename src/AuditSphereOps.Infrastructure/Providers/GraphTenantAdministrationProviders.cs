@@ -128,6 +128,8 @@ public sealed class GraphGuestInvitationProvider(HttpClient http, GraphCapabilit
 
   public async Task<ProviderMutationResult> InviteAsync(string tenantId, string email, string redirectUrl, CancellationToken ct)
   {
+    if (!Uri.TryCreate(redirectUrl, UriKind.Absolute, out var redirect) || redirect.Scheme != Uri.UriSchemeHttps)
+      return ProviderMutationResult.Failed("invite-redirect-requires-https");
     var token = await invite.GetAsync(tenantId, ct);
     try
     {
@@ -182,8 +184,10 @@ public sealed class GraphGroupMembershipProvider(HttpClient http, GraphCapabilit
     var root = response.Body.RootElement;
     var dynamic = root.TryGetProperty("groupTypes", out var types) && types.ValueKind == JsonValueKind.Array &&
       types.EnumerateArray().Any(x => x.GetString() == "DynamicMembership");
-    // Unknown isAssignableToRole is treated as privileged (fail closed).
-    var assignable = !root.TryGetProperty("isAssignableToRole", out var a) || a.ValueKind != JsonValueKind.False;
+    // Microsoft returns null for ordinary groups (the property is only ever set true at creation), so an explicit
+    // null or false is not role-assignable. An absent property or any other value is treated as privileged (fail closed).
+    var assignable = !root.TryGetProperty("isAssignableToRole", out var a) ||
+      a.ValueKind is not (JsonValueKind.False or JsonValueKind.Null);
     var security = root.TryGetProperty("securityEnabled", out var s) && s.ValueKind == JsonValueKind.True;
     return new(tenantId, GraphCall.Text(root, "id") ?? string.Empty, GraphCall.Text(root, "displayName") ?? string.Empty,
       security, assignable, dynamic);
@@ -193,9 +197,9 @@ public sealed class GraphGroupMembershipProvider(HttpClient http, GraphCapabilit
   {
     var token = await groups.GetAsync(tenantId, ct);
     var id = Guid.Parse(groupObjectId).ToString("D");
-    var url = $"{GraphCall.Graph}/groups/{id}/members/microsoft.graph.user?$select=id,displayName,userPrincipalName&$top=25" +
+    var url = $"{GraphCall.Graph}/groups/{id}/members/microsoft.graph.user?$select=id,displayName,userPrincipalName&$top=25&$count=true" +
       (string.IsNullOrWhiteSpace(pageToken) ? "" : "&$skiptoken=" + Uri.EscapeDataString(pageToken));
-    using var response = await GraphCall.SendAsync(http, token.AccessToken, HttpMethod.Get, url, null, ct);
+    using var response = await GraphCall.SendAsync(http, token.AccessToken, HttpMethod.Get, url, null, ct, eventual: true);
     if (!response.Success || response.Body is null ||
         !response.Body.RootElement.TryGetProperty("value", out var value) || value.ValueKind != JsonValueKind.Array)
       throw new InvalidOperationException("group-members-failed");
@@ -217,7 +221,7 @@ public sealed class GraphGroupMembershipProvider(HttpClient http, GraphCapabilit
     var group = Guid.Parse(groupObjectId).ToString("D");
     var member = Guid.Parse(memberObjectId).ToString("D");
     using var response = await GraphCall.SendAsync(http, token.AccessToken, HttpMethod.Get,
-      $"{GraphCall.Graph}/groups/{group}/members?$select=id&$filter=" + Uri.EscapeDataString($"id eq '{member}'"), null, ct, eventual: true);
+      $"{GraphCall.Graph}/groups/{group}/members?$select=id&$count=true&$filter=" + Uri.EscapeDataString($"id eq '{member}'"), null, ct, eventual: true);
     if (!response.Success || response.Body is null ||
         !response.Body.RootElement.TryGetProperty("value", out var value) || value.ValueKind != JsonValueKind.Array)
       throw new InvalidOperationException("group-membership-read-failed");

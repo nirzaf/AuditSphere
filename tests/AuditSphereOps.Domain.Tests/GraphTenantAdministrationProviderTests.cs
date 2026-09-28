@@ -133,6 +133,65 @@ public sealed class GraphTenantAdministrationProviderTests : IDisposable
     Assert.True(group.IsAssignableToRole);
   }
 
+  [Theory]
+  [InlineData("null", false)]
+  [InlineData("false", false)]
+  [InlineData("true", true)]
+  [InlineData("\"yes\"", true)]
+  public async Task Groups_ExplicitNullRoleAssignabilityIsAnOrdinaryGroup(string value, bool privileged)
+  {
+    // Observed live: Microsoft Graph returns "isAssignableToRole": null for a newly created ordinary security group.
+    var groupId = Guid.NewGuid().ToString("D");
+    var provider = new GraphGroupMembershipProvider(new HttpClient(new Stub(_ =>
+        Json($$"""{"id":"{{groupId}}","displayName":"G","securityEnabled":true,"isAssignableToRole":{{value}},"groupTypes":[]}"""))),
+      new(new HttpClient(new Stub(_ => TokenResponse("GroupMember.ReadWrite.All"))), Credential("GroupMember.ReadWrite.All")));
+    var group = await provider.GetGroupAsync(Tenant, groupId, default);
+    Assert.Equal(privileged, group.IsAssignableToRole);
+  }
+
+  [Fact]
+  public async Task GroupMembershipRead_UsesAdvancedQueryRequirementsAndExactId()
+  {
+    var groupId = Guid.NewGuid().ToString("D");
+    var memberId = Guid.NewGuid().ToString("D");
+    var provider = new GraphGroupMembershipProvider(new HttpClient(new Stub(request =>
+    {
+      Assert.Equal(HttpMethod.Get, request.Method);
+      Assert.Contains($"/groups/{groupId}/members?", request.RequestUri!.ToString());
+      Assert.Contains("$count=true", request.RequestUri.Query);
+      Assert.Contains(Uri.EscapeDataString($"id eq '{memberId}'"), request.RequestUri.Query);
+      Assert.Equal("eventual", Assert.Single(request.Headers.GetValues("ConsistencyLevel")));
+      return Json($$"""{"value":[{"id":"{{memberId}}"}]}""");
+    })), new(new HttpClient(new Stub(_ => TokenResponse("GroupMember.ReadWrite.All"))), Credential("GroupMember.ReadWrite.All")));
+    Assert.True(await provider.IsMemberAsync(Tenant, groupId, memberId, default));
+  }
+
+  [Fact]
+  public async Task GroupMemberListing_UsesAdvancedQueryRequirementsForODataCast()
+  {
+    var groupId = Guid.NewGuid().ToString("D");
+    var provider = new GraphGroupMembershipProvider(new HttpClient(new Stub(request =>
+    {
+      Assert.Equal(HttpMethod.Get, request.Method);
+      Assert.Contains($"/groups/{groupId}/members/microsoft.graph.user?", request.RequestUri!.ToString());
+      Assert.Contains("$count=true", request.RequestUri.Query);
+      Assert.Equal("eventual", Assert.Single(request.Headers.GetValues("ConsistencyLevel")));
+      return Json("""{"value":[]}""");
+    })), new(new HttpClient(new Stub(_ => TokenResponse("GroupMember.ReadWrite.All"))), Credential("GroupMember.ReadWrite.All")));
+    Assert.Empty((await provider.ListMembersAsync(Tenant, groupId, null, default)).Members);
+  }
+
+  [Fact]
+  public async Task LiveGuestProvider_RejectsInsecureRedirectBeforeGraphMutation()
+  {
+    var provider = new GraphGuestInvitationProvider(new HttpClient(new Stub(_ => throw new Xunit.Sdk.XunitException("Graph must not be called"))),
+      new(new HttpClient(new Stub(_ => TokenResponse("User.Invite.All"))), Credential("User.Invite.All")),
+      new(new HttpClient(new Stub(_ => TokenResponse("User.Read.All"))), Credential("User.Read.All")));
+    var result = await provider.InviteAsync(Tenant, "synthetic@example.test", "http://localhost:5099/auth/landing", default);
+    Assert.Equal(ProviderOutcomes.Failed, result.Outcome);
+    Assert.Equal("invite-redirect-requires-https", result.ErrorCode);
+  }
+
   [Fact]
   public void IdentityChallenge_RequestsProfileForImmutableObjectId()
   {
