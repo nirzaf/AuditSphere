@@ -67,7 +67,8 @@ The canonical GitHub Wiki guide covers both exact callbacks and independent
 capability gates. Exact verification is in `status.json`.
 
 The setup progress checklist now shows the trusted verified consent for its
-exact draft instead of treating it as merely historical evidence. An
+exact draft and current verified connection revision instead of treating it as
+merely historical evidence. An
 administrator-initiated, read-only Development test also passed against the
 saved SharePoint site, library and root. That screen result is transient: it
 does not record selected-resource capability evidence, activate the workspace,
