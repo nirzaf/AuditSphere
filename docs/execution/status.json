@@ -662,6 +662,12 @@
       "liveObservation": "In the authorized non-production selected site, Graph createUploadSession returned HTTP 200 for the saved drive/root. The session was canceled with HTTP 204 before bytes were committed. No document or provider receipt was created.",
       "boundary": "A canceled upload session is not a byte upload or exact-version readback. The local resolver is not used by a live provider, and no capability evidence was recorded in the application ledger. P2 provider, client binding, reconciliation, production and independent acceptance remain open."
     },
+    "m365TenantAdministrationPermissionDecision": {
+      "observedAt": "2026-09-28T10:34:56Z",
+      "behavior": "The owner-supplied tenant-administration requirement supersedes the earlier blanket Graph-scope exclusion only through a documented capability matrix. Read-only application User.Read.All is approved for implementation in a separately credentialed directory reader with tenant administrator consent, bounded fields and Administrator-only display. Sites.Selected remains the document-worker boundary. User.Create, User.Invite.All and group membership permissions remain optional and disabled pending separate configuration, consent, verification and acceptance. AuditSphere RoleGrant never assigns Entra administrator roles.",
+      "verification": "PASS: Markdown documentation health, filename policy, narrative metrics and git diff --check. No Graph permission, app registration, credential, database schema, role grant or tenant consent changed in this policy slice.",
+      "boundary": "This is a documented policy decision and permission matrix, not an implemented tenant connection, directory search, optional provisioning, external capability acceptance or production readiness."
+    },
     "p2GraphCapabilityTransport": {
       "observedAt": "2026-09-28T10:16:31Z",
       "behavior": "A dedicated Graph-issued capability URL transport restricts methods and HTTPS SharePoint/OneDrive hosts, sends no Graph bearer token, rejects redirects, suppresses HTTP instrumentation, and masks transport errors that could contain a preauthenticated URL. It is a provider prerequisite and is not composed into the live Worker.",

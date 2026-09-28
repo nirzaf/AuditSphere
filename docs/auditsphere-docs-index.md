@@ -200,6 +200,8 @@ When two documents appear to conflict or contain differing detail, precedence is
 
 | [`docs/architecture/auditsphere-architecture-code-map.md`](architecture/auditsphere-architecture-code-map.md) | Business-capability-to-code directory mapping services, DbContext partials, calculators, UI workbenches, and tests. | `CURRENT` |
 
+| [`docs/architecture/auditsphere-m365-tenant-administration-permissions.md`](architecture/auditsphere-m365-tenant-administration-permissions.md) | Approved narrow directory-reader exception and proposed optional Microsoft administration permission matrix. | `APPROVED` / `PROPOSED` |
+
 
 
 | [`docs/architecture/auditsphere-architecture-document-naming-policy.md`](architecture/auditsphere-architecture-document-naming-policy.md) | Standard markdown naming rules (`auditsphere-<area>-<document-type>-<subject>[-<id>][-<status>].md`) and uniqueness rules. | `CURRENT` |

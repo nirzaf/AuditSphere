@@ -43,6 +43,15 @@ exact verification and remaining limits are in `status.json`.
 
 ## Microsoft 365 setup: one-click administrator resume
 
+The owner has requested a tenant-administration experience that supersedes the
+earlier blanket Graph-scope exclusion only for an isolated read-only directory
+reader. The [permission decision](../architecture/auditsphere-m365-tenant-administration-permissions.md)
+records `User.Read.All` as the proposed application permission for that reader,
+separate from the `Sites.Selected` document worker. It has not been configured
+or consented in the tenant. User provisioning, guest invitations and Microsoft
+group changes remain optional, separately gated capabilities. Existing local
+`RoleGrant` administration remains the source of AuditSphere access.
+
 After the initial proof-backed administrator binding, the same currently
 authorized firm-wide administrator can reopen the local Microsoft 365 setup
 draft with **Continue setup with this account**. The button uses the current

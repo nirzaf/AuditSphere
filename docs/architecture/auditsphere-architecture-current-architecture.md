@@ -45,6 +45,12 @@ this document wins and the source text remains a historical requirement record.
 
 - **One modular monolith**, five projects: `Domain`, `Application`, `Infrastructure`, `Web`,
   `Worker`. No microservices, no message broker, no second ERP.
+- **Microsoft tenant administration** follows the
+  [capability permission decision](auditsphere-m365-tenant-administration-permissions.md):
+  one separately credentialed read-only directory exception is approved for
+  implementation, while optional user, guest and group mutations remain
+  disabled until separately verified. Document effects retain exact-site
+  `Sites.Selected` access. AuditSphere roles never assign Entra administrator roles.
 - **Commands and queries are static capability services** returning `CommandResult` /
   `CommandResult<T>`. There is no MediatR/Wolverine handler layer; neither package is pinned.
   This is a recorded variation from R2R-ADR-02 (see

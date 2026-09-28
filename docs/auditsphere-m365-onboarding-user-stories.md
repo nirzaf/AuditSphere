@@ -1248,6 +1248,12 @@ Application `User.Read.All` is the proposed permission for the `/users` reader. 
 
 ### 7.2 Mandatory policy decision — do not silently change AGENTS.md
 
+The later [tenant administration permission decision](architecture/auditsphere-m365-tenant-administration-permissions.md)
+approves only the separately credentialed, read-only directory-reader exception
+for implementation. Optional user, guest and group mutation permissions remain
+proposed and disabled. The following text preserves the original proposal and
+its rationale; the linked decision is the current policy authority.
+
 
 
 

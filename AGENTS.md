@@ -218,7 +218,7 @@ AuditSphereOps is an audit, accounting, and assurance operations platform built 
 
 
 
-- **Never** request or use tenant-wide Microsoft Graph scopes; use selected-resource permissions only.
+- **Never** request tenant-wide Microsoft Graph scopes outside the narrow, separately credentialed and consented capabilities in [`docs/architecture/auditsphere-m365-tenant-administration-permissions.md`](docs/architecture/auditsphere-m365-tenant-administration-permissions.md). The approved core exception is read-only `User.Read.All` for a directory reader; optional mutations remain disabled pending their separate gates. Document access stays on `Sites.Selected` and exact site grants.
 
 
 
