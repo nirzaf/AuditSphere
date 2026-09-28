@@ -555,6 +555,12 @@
       "observation": "The browser returned to AuditSphere's restricted client portal, and the application recorded first access for the exact Client X fixture while Client Y still had no first access. A direct visit from the client session to the operations and firm administration workbenches showed Access unavailable. The client portal had no assigned PBC requests or shared packages.",
       "boundary": "This is a positive local Client X sign-in and staff-surface denial. Because neither synthetic client has assigned portal content, cross-client data isolation has not been exercised. Client Y sign-in, changed-UPN, wrong-tenant, disabled/revoked identity, production OIDC and independent P1 acceptance remain open."
     },
+    "p1ClientYLocalSignIn": {
+      "observedAt": "2026-09-28T05:19:54Z",
+      "profile": "Fresh Client Y Microsoft credential challenge and Authenticator registration completed by the owner in the local Development browser; external effects fenced.",
+      "observation": "The browser returned to AuditSphere's restricted client portal. A direct visit from that session to firm administration showed Access unavailable. Read-only PostgreSQL readback confirmed first access recorded for both client fixtures, each still enabled with exactly one active ClientUser grant scoped to its own synthetic client and no engagement or firm-wide grant.",
+      "boundary": "The two positive local client sign-ins and staff-surface denials are observed. Neither portal has assigned records, so cross-client content denial is not proven. Changed-UPN, wrong-tenant, disabled/revoked identity, production OIDC and independent P1 acceptance remain open."
+    },
     "p8aDurableDispositionStateMetric": {
       "sourceCommit": "5157e7707c8ef20c666c340be2c20b4a3452d663",
       "observedAt": "2026-09-27T02:40:25Z",
@@ -727,8 +733,8 @@
     "packageId": "Audit workflow gap-closure and client accounting implementation",
     "implementationStatus": "IN_PROGRESS",
     "acceptanceStatus": "LOCAL_VERIFIED",
-    "scope": "P2 trusted PBC provider-scope handoff locally verified; the Graph adapter and live tenant acceptance remain open. AS-PAR-002 whole-application authorization audit remains partial. T001 R2R baseline inventory accepted by the owner; T002 architecture/transaction handoff is in independent review. T002 and downstream work remain open. Local developer-administrator and client-scoped staff OIDC readbacks are observed. Provisional maximum-size local TB/PBC and concurrent staff-query samples are recorded; P1/P8 external and production acceptance remain open.",
-    "nextAction": "Continue remaining route/query/search/count/export/direct-command audit and eligible local provider hardening; complete client, wrong-tenant and disabled-user live P1 identity fixtures through private credential handoff. Measure actual concurrent browser/provider workloads and approved targets for P8b. Independently review direct-main changes under P9.",
+    "scope": "P2 trusted PBC provider-scope handoff locally verified; the Graph adapter and live tenant acceptance remain open. AS-PAR-002 whole-application authorization audit remains partial. T001 R2R baseline inventory accepted by the owner; T002 architecture/transaction handoff is in independent review. T002 and downstream work remain open. Local developer-administrator, client-scoped staff and two client fixture OIDC sign-ins are observed. Provisional maximum-size local TB/PBC and concurrent staff-query samples are recorded; P1/P8 external and production acceptance remain open.",
+    "nextAction": "Continue remaining route/query/search/count/export/direct-command audit and eligible local provider hardening; complete cross-client content denial, changed-UPN, wrong-tenant and disabled-user live P1 fixtures through private credential handoff. Measure actual concurrent browser/provider workloads and approved targets for P8b. Independently review direct-main changes under P9.",
     "branch": "master"
   },
   "localEvidence": [

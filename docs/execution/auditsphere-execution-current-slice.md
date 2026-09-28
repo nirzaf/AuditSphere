@@ -236,6 +236,14 @@ unavailable. There were no assigned requests or shared packages, so the
 cross-client data-isolation fixture remains untested. Client Y and negative
 identity cases are still pending.
 
+The owner also completed Client Y's Microsoft sign-in and Authenticator
+registration. Its browser returned to the restricted client portal, and firm
+administration showed Access unavailable. Database readback now shows first
+access for both client fixtures and exactly one active `ClientUser` grant per
+fixture, each tied to its own synthetic client. Both portals have no assigned
+records, so cross-client content denial and the remaining negative identity
+fixtures are still pending.
+
 ## P8a production Data Protection key ring
 
 Production Web startup now also requires a persistent Data Protection key
