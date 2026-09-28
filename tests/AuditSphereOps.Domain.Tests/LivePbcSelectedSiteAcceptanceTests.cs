@@ -105,4 +105,70 @@ public sealed class LivePbcSelectedSiteAcceptanceTests(ITestOutputHelper output)
         output.WriteLine($"cleanup: synthetic client folder deleted={await drive.DeleteItemAsync(location, clientFolderId, default)}");
     }
   }
+
+  [Fact]
+  public async Task LiveWorkerTransfer_AndIsolationMatrix_OrBlockedExternal()
+  {
+    var options = new SelectedSiteCertificateOptions(Env("TENANT_ID") ?? "", Env("CLIENT_ID") ?? "", Env("CREDENTIAL_REFERENCE") ?? "",
+      Env("CERT") ?? "", Env("KEY") ?? "");
+    if (!(Guid.TryParse(options.TenantId, out _) && Guid.TryParse(options.ClientId, out _) && File.Exists(options.CertificatePath) &&
+          File.Exists(options.PrivateKeyPath) && !string.IsNullOrWhiteSpace(Env("SITE_ID")) && !string.IsNullOrWhiteSpace(Env("DRIVE_ID")) &&
+          !string.IsNullOrWhiteSpace(Env("ROOT_ID"))))
+    {
+      output.WriteLine("BLOCKED_EXTERNAL: live selected-site credential and site identifiers are not available to this run.");
+      return;
+    }
+    using var http = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false }) { Timeout = TimeSpan.FromSeconds(100) };
+    using var transport = new GraphPreauthenticatedTransport();
+    var drive = new GraphSelectedSiteDrive(http, new CertificateSelectedSiteTokenSource(new HttpClient(), options), transport, configured: true);
+    await using var h = await P2PbcHarness.CreateAsync(drive, options.TenantId, options.CredentialReference,
+      Env("SITE_ID")!, Env("DRIVE_ID")!, Env("ROOT_ID")!, clientNamePrefix: "AuditSphere P2b Live");
+    try
+    {
+      await h.ProvisionAsync(h.A);
+      await h.ProvisionAsync(h.B);
+      var stagedA = await h.UploadAsync(h.A, h.RequestA, System.Text.Encoding.UTF8.GetBytes($"Synthetic client A statement {Guid.NewGuid():N}"), "client-a.csv");
+      var stagedB = await h.UploadAsync(h.B, h.RequestB, System.Text.Encoding.UTF8.GetBytes($"Synthetic client B statement {Guid.NewGuid():N}"), "client-b.csv");
+      Assert.True(await h.Worker.ProcessNextAsync());
+      Assert.True(await h.Worker.ProcessNextAsync());
+      await using (var db = h.Db())
+      {
+        var states = await db.PbcUploadIntents.AsNoTracking().Where(x => x.Id == stagedA.UploadIntentId || x.Id == stagedB.UploadIntentId)
+          .Select(x => new { x.State, x.ProviderReceiptDigest, x.DeclaredSha256Hex }).ToListAsync();
+        Assert.All(states, x => Assert.Equal(("RECEIVED", x.DeclaredSha256Hex), (x.State, x.ProviderReceiptDigest)));
+        Assert.Equal(2, await db.PbcRequests.AsNoTracking().CountAsync(x => x.State == "RECEIVED"));
+      }
+      output.WriteLine("durable LIVE pbc worker: client A and client B documents RECEIVED with matching SHA-256 receipts");
+
+      var identityA = (await h.OperationAsync(stagedA.UploadIntentId)).ResultIdentity!;
+      var identityB = (await h.OperationAsync(stagedB.UploadIntentId)).ResultIdentity!;
+      var scopeA = h.Scope(h.A, stagedA.UploadIntentId);
+      var scopeB = h.Scope(h.B, stagedB.UploadIntentId);
+      Assert.NotNull(await h.Sink.VerifyAsync(scopeA, identityA, default));
+      await Assert.ThrowsAsync<AuditSphereOps.Application.Operations.OperationBlockedException>(() => h.Sink.VerifyAsync(scopeB, identityA, default));
+      await Assert.ThrowsAsync<AuditSphereOps.Application.Operations.OperationBlockedException>(() => h.Sink.VerifyAsync(scopeA, identityB, default));
+      output.WriteLine("client A/B separation: each scope reads only its own stored document: PASS");
+
+      var guessed = $"graph-drive-item:{Env("DRIVE_ID")}:01{Guid.NewGuid():N}".ToUpperInvariant()[..40] + ":1.0";
+      var guessedResult = await Record.ExceptionAsync(async () => Assert.Null(await h.Sink.VerifyAsync(scopeA, guessed, default)));
+      Assert.True(guessedResult is null or AuditSphereOps.Application.Operations.OperationBlockedException);
+      await Assert.ThrowsAsync<AuditSphereOps.Application.Operations.OperationBlockedException>(() =>
+        new PbcRepositoryBindingResolver(h.Factory).ResolveAsync(scopeA with { UploadIntentId = Guid.NewGuid() }, default));
+      output.WriteLine("guessed item and intent identifiers: fail closed: PASS");
+
+      var wrongTenant = new CertificateSelectedSiteTokenSource(new HttpClient(), options with { TenantId = Guid.NewGuid().ToString("D") });
+      var tenantError = await Assert.ThrowsAsync<AuditSphereOps.Application.Operations.OperationBlockedException>(() =>
+        wrongTenant.GetAsync(Guid.Parse(options.TenantId).ToString("D"), options.CredentialReference, default));
+      var foreignTenant = new CertificateSelectedSiteTokenSource(new HttpClient(), options with { TenantId = "72f988bf-86f1-41af-91ab-2d7cd011db47" });
+      var entraError = await Assert.ThrowsAsync<AuditSphereOps.Application.Operations.OperationBlockedException>(() =>
+        foreignTenant.GetAsync("72f988bf-86f1-41af-91ab-2d7cd011db47", options.CredentialReference, default));
+      output.WriteLine($"wrong tenant: local fence {tenantError.Code}; Microsoft Entra refused a foreign-tenant token: {entraError.Code}: PASS");
+    }
+    finally
+    {
+      foreach (var client in new[] { h.A.ClientId, h.B.ClientId })
+        if (await h.RemoteItemIdAsync(client) is { } folder)
+          output.WriteLine($"cleanup: synthetic client folder deleted={await drive.DeleteItemAsync(h.Location, folder, default)}");
+    }
+  }
 }

@@ -931,6 +931,14 @@
       "build": "PASS: Release Web build 0 warnings/errors; EF no pending model changes.",
       "boundary": "No real client-staged document was transferred by the durable worker; P2b isolation matrix, throttling behaviour and production approval remain. Not production acceptance.",
       "fullSuite": "PASS: PostgreSQL-backed solution suite Domain 432/432, API 32/32, E2E 91/91; 555/555 aggregate, 0 skipped."
+    },
+    "p2WorkerDeliveryAndP2bIsolation": {
+      "observedAt": "2026-09-28T19:10:00Z",
+      "behavior": "Client-staged documents flow through PbcService completion to a LIVE 'pbc' durable operation claimed by the isolated Acceptance worker; GraphSelectedSiteDrive rejects tokens issued for a tenant other than the binding's.",
+      "focusedTests": "PASS: PbcSelectedSiteWorkerTests 8/8 against the fake Graph drive: durable LIVE worker transfer to RECEIVED; 429 throttling to RETRY_WAIT then COMPLETED without duplicate session; lost final response reconciled by exact name to RECEIVED; failed commit reconciled to PROVIDER_BLOCKED with the request still open; client A/B separation and cross-scope receipt refusal; guessed intent/item/drive/folder/identity refusal; wrong-tenant token and wrong-tenant connection blocked; revoked client user and administrator refused.",
+      "liveObservation": "PASS in Development: LivePbcSelectedSiteAcceptanceTests.LiveWorkerTransfer_AndIsolationMatrix (durable LIVE worker delivered client A and client B documents to RECEIVED with matching SHA-256; each scope read only its own document; guessed identifiers failed closed; local credential fence and Microsoft Entra both refused a foreign tenant; synthetic folders deleted) and LivePbcBrowserJourneyTests (client portal upload in Chromium, staff completion on a LiveProvider web host, separately started Acceptance pbc worker process delivered the document; intent RECEIVED; exact version 1.0 re-read with matching SHA-256; synthetic folder deleted).",
+      "fullSuite": "PASS: PostgreSQL-backed solution suite Domain 441/441, API 32/32, E2E 92/92; 565/565 aggregate, 0 skipped (live tests report BLOCKED_EXTERNAL without credentials).",
+      "boundary": "Throttling was verified only against the fake Graph drive (it cannot be induced live). Production approval and independent review remain."
     }
   },
   "documentationWork": {
@@ -1734,7 +1742,7 @@
     {
       "gate": "P2",
       "status": "BLOCKED_EXTERNAL",
-      "required": "Durable-worker transfer of a real staged document in an authorized environment and production approval; Development live provider evidence (provisioning, verified binding, exact-version upload receipt, probe reconciliation) is recorded."
+      "required": "Production approval and independent review; Development live evidence complete including a client portal upload delivered by the isolated Acceptance pbc worker process."
     },
     {
       "gate": "P3",
@@ -1780,6 +1788,11 @@
       "gate": "M365-ADMIN",
       "status": "BLOCKED_EXTERNAL",
       "required": "Separate app registrations and certificates per capability, tenant administrator consent, live capability verification, and live acceptance of optional provisioning, guest invitation and group membership in an approved tenant."
+    },
+    {
+      "gate": "P2b",
+      "status": "BLOCKED_EXTERNAL",
+      "required": "Production approval and independent review of the isolation matrix; automated matrix and tenant-reachable live cases pass in Development (throttling fake-only)."
     }
   ],
   "evidenceBoundary": "This public pointer contains no tenant identifiers, user principals, credentials, tokens, secret values or private-provider URLs. Local evidence does not establish production acceptance or professional conclusions."

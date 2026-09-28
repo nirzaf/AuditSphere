@@ -28,6 +28,29 @@
 
 ---
 
+## P2 durable worker delivery and P2b isolation matrix
+
+A client portal upload now reaches SharePoint through the real pipeline: in a
+Playwright journey the client staged a synthetic PDF, staff completed it on a web
+host with `PbcTransfer:LiveProvider`, which enqueued a LIVE `pbc` operation, and a
+separately started Acceptance worker process delivered it to the Development
+selected site; the intent became RECEIVED and the exact stored version re-read
+with the staged SHA-256. The drive now also rejects a token issued for a tenant
+other than the binding's.
+
+The P2b matrix runs automatically against the fake Graph drive: client A/B
+documents land in separate client folders and neither scope can read the other's
+receipt; mixed or guessed client, engagement, intent, drive and item identifiers
+fail closed; a wrong-tenant token or connection blocks before any write; revoked
+client and administrator identities are refused; a 429 moves the operation to
+RETRY_WAIT and later completes without duplication; a lost final response is
+reconciled by exact name to RECEIVED; a failed commit reconciles to
+PROVIDER_BLOCKED with the request still open. Live in Development, client A/B
+delivery and separation, guessed identifiers, and both the local and Microsoft
+Entra wrong-tenant refusals passed, and all synthetic folders were deleted.
+Production approval and independent review remain. Exact verification is in
+`status.json`.
+
 ## P2 selected-site PBC provider
 
 A firm-wide Administrator can now provision, from Administration → Microsoft 365

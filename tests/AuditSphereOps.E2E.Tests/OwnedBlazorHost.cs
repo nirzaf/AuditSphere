@@ -180,6 +180,33 @@ internal sealed class OwnedBlazorHost : IAsyncDisposable
     return url;
   }
 
+  /// <summary>
+  /// Starts the isolated live selected-site PBC worker process (Acceptance, external effects, group "pbc").
+  /// Used only by separately controlled live tests with private selected-site credentials.
+  /// </summary>
+  public async Task StartLivePbcWorkerAsync(IReadOnlyDictionary<string, string> selectedSite)
+  {
+    var repo = FindRepositoryRoot();
+    var logPath = Path.Combine(runRoot, "worker-pbc.log");
+    var pairs = new List<string>
+    {
+      "DOTNET_ENVIRONMENT", "Acceptance",
+      "ConnectionStrings__AuditSphere", pg.ConnectionString,
+      "Worker__FirmId", Fixture.FirmId.ToString("D"),
+      "Worker__DeploymentEpoch", "1",
+      "Worker__Group", "pbc",
+      "ExternalEffects__Enabled", "true",
+      "Storage__ReleaseCheckpointRoot", Path.Combine(runRoot, "checkpoints")
+    };
+    foreach (var (key, value) in selectedSite) pairs.AddRange([key, value]);
+    var process = StartDotnet(repo, "src/AuditSphereOps.Worker/AuditSphereOps.Worker.csproj", logPath, [.. pairs]);
+    processes.Add(process);
+    await pg.RecordProcessAsync("worker-pbc", process);
+    await Task.Delay(2000);
+    if (process.HasExited)
+      throw new InvalidOperationException($"The live pbc worker exited with {process.ExitCode}; see {logPath}.");
+  }
+
   private async Task StartWorkerAsync(string repo)
   {
     var logPath = Path.Combine(runRoot, "worker.log");
@@ -237,6 +264,8 @@ internal sealed class OwnedBlazorHost : IAsyncDisposable
       k.StartsWith("ReleaseSafety__", StringComparison.Ordinal) ||
       k.StartsWith("Storage__", StringComparison.Ordinal) ||
       k.StartsWith("TenantAdministration__", StringComparison.Ordinal) ||
+      k.StartsWith("SelectedSite__", StringComparison.Ordinal) ||
+      k.StartsWith("PbcTransfer__", StringComparison.Ordinal) ||
       k.StartsWith("DirectoryReader__", StringComparison.Ordinal) ||
       k.StartsWith("TenantConsent__", StringComparison.Ordinal) ||
       k is "AllowSimulationAdapters" or "ASPNETCORE_ENVIRONMENT" or "ASPNETCORE_URLS" or "DOTNET_ENVIRONMENT").ToArray())

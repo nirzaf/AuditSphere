@@ -26,6 +26,13 @@ internal sealed class FakeGraphDrive : HttpMessageHandler
   public int BearerSentToSharePoint { get; private set; }
   public int FolderCreates { get; private set; }
   public bool FailProbeReadback { get; set; }
+  /// <summary>Number of upcoming createUploadSession calls answered with 429 + Retry-After.</summary>
+  public int ThrottleUploadSessions { get; set; }
+  /// <summary>Commit the final fragment, then answer 500 (effect happened, response lost).</summary>
+  public bool LoseFinalResponseAfterCommit { get; set; }
+  /// <summary>Answer the final fragment with 500 without committing (no effect).</summary>
+  public bool FailFinalFragmentBeforeCommit { get; set; }
+  public int UploadSessionCalls { get; private set; }
 
   public IEnumerable<(string Id, string Name, string ParentId, bool Folder)> Items =>
     nodes.Values.Select(x => (x.Id, x.Name, x.ParentId, x.Folder));
@@ -68,6 +75,14 @@ internal sealed class FakeGraphDrive : HttpMessageHandler
       }
       if (request.Method == HttpMethod.Post && action == "/createUploadSession")
       {
+        UploadSessionCalls++;
+        if (ThrottleUploadSessions > 0)
+        {
+          ThrottleUploadSessions--;
+          var throttled = new HttpResponseMessage(HttpStatusCode.TooManyRequests);
+          throttled.Headers.RetryAfter = new System.Net.Http.Headers.RetryConditionHeaderValue(TimeSpan.FromSeconds(1));
+          return throttled;
+        }
         if (child is not null) return new(HttpStatusCode.Conflict);
         var session = Guid.NewGuid().ToString("N");
         sessions[session] = (parent, name, 0, new MemoryStream());
@@ -111,13 +126,14 @@ internal sealed class FakeGraphDrive : HttpMessageHandler
       var last = range.To + 1 == range.Length;
       if (range.From != s.Buffer.Length || (!last && bytes.Length % (320 * 1024) != 0))
         return new(HttpStatusCode.RequestedRangeNotSatisfiable);
+      if (last && FailFinalFragmentBeforeCommit) return new(HttpStatusCode.InternalServerError);
       s.Buffer.Write(bytes);
       if (!last) return new(HttpStatusCode.Accepted) { Content = new StringContent("{}", Encoding.UTF8, "application/json") };
       var file = new Node(Guid.NewGuid().ToString("N"), s.Name, s.ParentId, false);
       file.Versions.Add(s.Buffer.ToArray());
       nodes[file.Id] = file;
       sessions.TryRemove(sessionId, out _);
-      return Json(Item(file), HttpStatusCode.Created);
+      return LoseFinalResponseAfterCommit ? new(HttpStatusCode.InternalServerError) : Json(Item(file), HttpStatusCode.Created);
     }
     if (segments is ["download", var itemId, var version] && request.Method == HttpMethod.Get && nodes.TryGetValue(itemId, out var n))
     {
@@ -148,8 +164,8 @@ internal sealed class FakeGraphDrive : HttpMessageHandler
   }
 }
 
-internal sealed class FakeSelectedSiteTokens : ISelectedSiteTokenSource
+internal sealed class FakeSelectedSiteTokens(string? issuedTenant = null) : ISelectedSiteTokenSource
 {
   public Task<SelectedSiteToken> GetAsync(string tenantId, string credentialReference, CancellationToken ct) =>
-    Task.FromResult(new SelectedSiteToken("sites-selected-token", tenantId, new HashSet<string> { "Sites.Selected" }));
+    Task.FromResult(new SelectedSiteToken("sites-selected-token", issuedTenant ?? tenantId, new HashSet<string> { "Sites.Selected" }));
 }

@@ -244,8 +244,10 @@ public sealed class GraphSelectedSiteDrive(HttpClient graph, ISelectedSiteTokenS
   {
     if (!configured) throw Blocked("selected-site-credential-unavailable");
     var token = await tokens.GetAsync(location.TenantId, location.CredentialReference, ct);
-    return token.ApplicationRoles.Count == 1 && token.ApplicationRoles.Contains("Sites.Selected")
-      ? token.AccessToken : throw Blocked("selected-site-token-invalid");
+    // Wrong-tenant fence: the token must be for the binding's exact tenant and hold only Sites.Selected.
+    return string.Equals(token.TenantId, location.TenantId, StringComparison.OrdinalIgnoreCase) &&
+      token.ApplicationRoles.Count == 1 && token.ApplicationRoles.Contains("Sites.Selected")
+        ? token.AccessToken : throw new OperationBlockedException("selected-site-token-invalid", authorization: true);
   }
 
   private static HttpRequestMessage Request(HttpMethod method, string url, string token)
