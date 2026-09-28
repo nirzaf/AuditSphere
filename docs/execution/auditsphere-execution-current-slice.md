@@ -28,6 +28,19 @@
 
 ---
 
+## AS-PAR-002 audit program library access refresh
+
+The audit program library now clears cached versions and procedure text before
+an explicit refresh resolves the current actor and grant. Browse and Search
+hide the old projection while reauthorizing and leave it cleared on denial.
+The Application library and section
+queries recheck firm-wide internal authorization after reading, so a grant
+change during a read cannot return the protected result. A PostgreSQL-backed
+browser regression opens a published procedure, revokes the exact Partner
+grant, and confirms Search and Refresh leave no procedure text visible. This
+is one bounded authorization surface, not completion of the whole route audit;
+exact verification and remaining limits are in `status.json`.
+
 ## Microsoft 365 setup: one-click administrator resume
 
 After the initial proof-backed administrator binding, the same currently

@@ -1,0 +1,66 @@
+using AuditSphereOps.Application.Audit;
+using AuditSphereOps.Domain.Tests;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Playwright;
+
+namespace AuditSphereOps.E2E.Tests;
+
+public sealed class AuditProgramLibraryScopeJourneyTests
+{
+  [Fact]
+  [Trait("CaseId", "AS-PAR-002-AUDIT-LIBRARY-01")]
+  public async Task RevokedGrant_ClearsOpenLibraryOnSearchAndRefresh()
+  {
+    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false,
+      caseId: "AS-PAR-002-AUDIT-LIBRARY-01");
+    Guid grantId;
+    await using (var db = host.CreateDbContext())
+    {
+      var grant = PbcSeed.Grant(host.Fixture.FirmId, host.Fixture.Staff, "Partner");
+      grantId = grant.Id;
+      db.RoleGrants.Add(grant);
+      await db.SaveChangesAsync();
+      var published = await AuditProgramService.PublishAsync(db,
+        PbcSeed.Actor(host.Fixture.Staff, "Partner"),
+        new PublishAuditProgramRequest("2026.1", AuditProgramCatalog.SourceHash));
+      Assert.True(published.Succeeded, published.Message);
+    }
+
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    await using var context = await browser.NewContextAsync();
+    var page = await context.NewPageAsync();
+    var diagnostics = new List<string>();
+    var connected = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+    page.Console += (_, message) =>
+    {
+      diagnostics.Add($"console/{message.Type}: {message.Text}");
+      if (message.Text.Contains("WebSocket connected to ws://", StringComparison.Ordinal))
+        connected.TrySetResult();
+    };
+    page.PageError += (_, error) => diagnostics.Add($"page-error: {error}");
+    await page.GotoAsync($"{host.StaffUrl}/auth/sign-in?returnUrl=%2Fapp%2Faudit%2Flibrary");
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Audit program library" }).WaitForAsync();
+    await connected.Task.WaitAsync(TimeSpan.FromSeconds(10));
+    await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new() { Timeout = 5000 });
+    await page.GetByRole(AriaRole.Button, new() { Name = "Browse" }).First.ClickAsync();
+    await page.GetByText("AWP-01-01").WaitForAsync();
+    var openedBody = await page.Locator("body").InnerTextAsync();
+    Assert.True(openedBody.Contains("AWP-01-01", StringComparison.Ordinal),
+      openedBody + "\n" + string.Join("\n", diagnostics));
+
+    await using (var db = host.CreateDbContext())
+    {
+      var grant = await db.RoleGrants.SingleAsync(x => x.Id == grantId);
+      grant.RevokedAt = DateTimeOffset.UtcNow;
+      await db.SaveChangesAsync();
+    }
+    await page.GetByRole(AriaRole.Button, new() { Name = "Search" }).ClickAsync();
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable" }).WaitForAsync();
+    Assert.Equal(0, await page.GetByText("AWP-01-01").CountAsync());
+
+    await page.GetByRole(AriaRole.Button, new() { Name = "Refresh library" }).ClickAsync();
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable" }).WaitForAsync();
+    Assert.Equal(0, await page.GetByText("AWP-01-01").CountAsync());
+  }
+}

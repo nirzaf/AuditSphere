@@ -10,6 +10,7 @@
 <MudLink Href="/app" Class="back-link mb-2 d-inline-block">← Back to portfolio</MudLink>
 <PageHeader Title="Audit program library" Description="The controlled versioned program template library. Published versions are immutable; changes require a new version." />
 <p class="scope-note">The controlled, versioned template library preserves the exact source wording of @AuditProgramCatalog.Items.Count procedures across 20 audit sections. Published versions are immutable; a change requires a new version.</p>
+<MudButton Color="Color.Primary" Variant="Variant.Outlined" OnClick="RefreshAsync" Disabled="@_busy">Refresh library</MudButton>
 
 @if (_loading)
 {
@@ -114,22 +115,40 @@ else
 
   protected override async Task OnInitializedAsync()
   {
-    _actor = await ActorResolver.ResolveAsync();
-    if (_actor is not null)
-      await LoadAsync();
-    else
-      _loading = false;
+    await RefreshAsync();
+  }
+
+  private async Task RefreshAsync()
+  {
+    if (_busy) return;
+    _loading = true;
+    _actor = null;
+    _library = null;
+    _sectionPage = null;
+    _result = null;
+    _selectedVersion = string.Empty;
+    _search = string.Empty;
+    try
+    {
+      _actor = await ActorResolver.ResolveAsync();
+      if (_actor is not null)
+        await LoadAsync();
+    }
+    finally { _loading = false; }
   }
 
   private async Task LoadAsync()
   {
     if (_actor is null || _busy) return;
     _busy = true;
+    var requestedVersion = _selectedVersion;
+    _library = null;
+    _sectionPage = null;
     try
     {
       await using var db = await DbFactory.CreateDbContextAsync();
       var library = await AuditProgramLibraryQuery.GetLibraryAsync(db, _actor,
-        string.IsNullOrWhiteSpace(_selectedVersion) ? null : _selectedVersion);
+        string.IsNullOrWhiteSpace(requestedVersion) ? null : requestedVersion);
       if (!library.Succeeded)
       {
         Clear();
@@ -154,6 +173,9 @@ else
   {
     if (_actor is null || _library?.SelectedVersion is not { } selected || _busy) return;
     _busy = true;
+    var authorizedLibrary = _library;
+    _library = null;
+    _sectionPage = null;
     try
     {
       await using var db = await DbFactory.CreateDbContextAsync();
@@ -162,9 +184,11 @@ else
       _result = page.Succeeded ? null : CommandResult.Fail(page.ErrorCode!, page.Message!);
       if (page.Succeeded)
       {
+        _library = authorizedLibrary;
         _sectionPage = page.Value;
         _search = string.Empty;
       }
+      else Clear();
     }
     finally { _busy = false; }
   }
@@ -174,13 +198,22 @@ else
     if (_sectionPage is null) return;
     if (_actor is null || _library?.SelectedVersion is not { } selected || _busy) return;
     _busy = true;
+    var authorizedLibrary = _library;
+    var sectionNumber = _sectionPage.SectionNumber;
+    _library = null;
+    _sectionPage = null;
     try
     {
       await using var db = await DbFactory.CreateDbContextAsync();
       var page = await AuditProgramLibraryQuery.GetSectionAsync(db, _actor,
-        selected.ProgramVersionId, _sectionPage.SectionNumber, string.IsNullOrWhiteSpace(_search) ? null : _search);
+        selected.ProgramVersionId, sectionNumber, string.IsNullOrWhiteSpace(_search) ? null : _search);
       _result = page.Succeeded ? null : CommandResult.Fail(page.ErrorCode!, page.Message!);
-      if (page.Succeeded) _sectionPage = page.Value;
+      if (page.Succeeded)
+      {
+        _library = authorizedLibrary;
+        _sectionPage = page.Value;
+      }
+      else Clear();
     }
     finally { _busy = false; }
   }

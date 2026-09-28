@@ -51,7 +51,13 @@ public static class AuditProgramLibraryQuery
       .OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id)
       .ToListAsync(ct);
     if (versions.Count == 0)
-      return CommandResult<AuditProgramLibraryView>.Ok(new AuditProgramLibraryView([], null, []));
+    {
+      var current = await AuthorizationDecision.AuthorizeAsync(db, actor,
+        new AuthorizationRequest(actor.FirmId, RequiredRoles: ReadRoles, InternalOnly: true), ct);
+      return current.Succeeded
+        ? CommandResult<AuditProgramLibraryView>.Ok(new AuditProgramLibraryView([], null, []))
+        : CommandResult<AuditProgramLibraryView>.Fail(current.ErrorCode!, current.Message!);
+    }
 
     var selected = !string.IsNullOrWhiteSpace(version)
       ? versions.FirstOrDefault(x => string.Equals(x.Version, version.Trim(), StringComparison.OrdinalIgnoreCase))
@@ -83,6 +89,10 @@ public static class AuditProgramLibraryQuery
       x.Id == selected.Id ? sections.Count : 0,
       x.ApprovedByUserId, x.CreatedAt, x.ApprovedAt)).ToList();
 
+    var recheck = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, RequiredRoles: ReadRoles, InternalOnly: true), ct);
+    if (!recheck.Succeeded)
+      return CommandResult<AuditProgramLibraryView>.Fail(recheck.ErrorCode!, recheck.Message!);
     return CommandResult<AuditProgramLibraryView>.Ok(new AuditProgramLibraryView(
       versionSummaries,
       versionSummaries.First(x => x.ProgramVersionId == selected.Id),
@@ -131,6 +141,10 @@ public static class AuditProgramLibraryQuery
           x.SectionNumber == sectionNumber)
         .Select(x => x.SectionTitle).FirstOrDefaultAsync(ct) ?? string.Empty;
 
+    var recheck = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, RequiredRoles: ReadRoles, InternalOnly: true), ct);
+    if (!recheck.Succeeded)
+      return CommandResult<AuditProgramSectionPage>.Fail(recheck.ErrorCode!, recheck.Message!);
     return CommandResult<AuditProgramSectionPage>.Ok(new AuditProgramSectionPage(
       sectionNumber, title, items, totalCount, page, pageSize));
   }

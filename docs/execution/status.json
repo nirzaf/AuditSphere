@@ -138,6 +138,14 @@
       "boundary": "Local P1 hardening only. Live tenant credentials, authorization, identity fixtures and behavior remain BLOCKED_EXTERNAL. PR #29 was incorporated directly into master on owner instruction; independent current-head reviews were not evidenced. Purview/eSignature provider issues #17-#19 were closed NOT_PLANNED on owner instruction; no provider acceptance implied.",
       "mainDelivery": "Observed origin/master at 40db11ace54ff0b7172584c7129410387115189e after direct push; GitHub marked PR #29 MERGED at 2026-09-26T12:56:57Z."
     },
+    "auditProgramLibraryAccessRefresh": {
+      "scope": "AS-PAR-002 audit program library browse/search and explicit refresh",
+      "observedAt": "2026-09-28T08:05:03Z",
+      "behavior": "The library page clears cached versions and procedure text before resolving the current actor on refresh. Browse and Search hide their previous projection while reauthorizing and leave it cleared on denial. Library and section queries recheck current firm-wide internal authorization after the protected read before returning it.",
+      "focusedTests": "PASS: Release AuditProgramLibraryScopeJourneyTests 1/1 against PostgreSQL and Blazor browser: published procedure visible before revocation, then absent after exact Partner-grant revocation and Search/Refresh. Release AuditProgramWorkflowTests 4/4 passed.",
+      "fullSuite": "PASS: Release solution build 0 warnings/errors; PostgreSQL-backed Domain 366/366, API 16/16 and E2E 86/86 (468/468 aggregate, 0 skipped). EF reports no pending model changes; documentation health, filename, narrative-metric and JSON checks passed.",
+      "boundary": "This is a bounded local authorization repair. Other routes, live provider checks, production acceptance and independent review remain open."
+    },
     "releaseCandidateAccessRefresh": {
       "scope": "AS-PAR-002 AC02-AC03 release candidate view",
       "sourceCommit": "a1e0a7639aa301eb309f27797202dac925a1ef11",
