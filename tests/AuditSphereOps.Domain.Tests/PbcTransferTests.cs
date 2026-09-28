@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Documents;
 using AuditSphereOps.Application.Operations;
@@ -14,6 +15,42 @@ namespace AuditSphereOps.Domain.Tests;
 [Trait("Profile", "Database")]
 public sealed class PbcTransferTests
 {
+  [Fact]
+  public async Task MaximumChunk_TransfersOnceAndReportsMeasurement()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var content = new byte[PbcService.MaxChunkBytes];
+    for (var index = 0; index < content.Length; index++)
+      content[index] = (byte)(index % 251);
+    var started = Stopwatch.GetTimestamp();
+    var transfer = await CreateTransferWorkerAsync(pg, scripted: null, content: content);
+    var stagedElapsed = Stopwatch.GetElapsedTime(started);
+    try
+    {
+      await using (var db = new AuditSphereDbContext(pg.Options))
+      {
+        Assert.Equal(1, await db.PbcUploadChunks.AsNoTracking()
+          .CountAsync(x => x.PbcUploadIntentId == transfer.Staged.UploadIntentId));
+      }
+      started = Stopwatch.GetTimestamp();
+      Assert.True(await transfer.Worker.ProcessNextAsync());
+      var workerElapsed = Stopwatch.GetElapsedTime(started);
+      Assert.False(await transfer.Worker.ProcessNextAsync());
+      await using var verify = new AuditSphereDbContext(pg.Options);
+      var intent = await verify.PbcUploadIntents.AsNoTracking()
+        .SingleAsync(x => x.Id == transfer.Staged.UploadIntentId);
+      Assert.Equal(PbcUploadStates.Received, intent.State);
+      Assert.Equal(transfer.Staged.DeclaredSha256Hex, intent.ProviderReceiptDigest);
+      Assert.Equal(content.Length, new FileInfo(Path.Combine(transfer.ProviderRoot,
+        transfer.Staged.UploadIntentId.ToString("N"))).Length);
+      Assert.Equal(1, await verify.OperationAttempts.AsNoTracking()
+        .CountAsync(x => x.OperationId == intent.TransferOperationId));
+      Console.WriteLine($"PBC_CAPACITY chunk_bytes={content.Length} stage_ms={stagedElapsed.TotalMilliseconds:F1} " +
+        $"worker_ms={workerElapsed.TotalMilliseconds:F1} received=true attempts=1");
+    }
+    finally { PbcSeed.DeleteDirectory(transfer.Staged.StagingRoot); }
+  }
+
   [Theory]
   [InlineData("", 12, null)]
   [InlineData("provider://other", 12, "provider://expected")]
@@ -265,14 +302,14 @@ public sealed class PbcTransferTests
     string ProviderRoot, WorkerHost Worker);
 
   private async Task<TransferContext> CreateTransferWorkerAsync(
-    PgTestSchema pg, ScriptedSink? scripted, bool wrap = true)
+    PgTestSchema pg, ScriptedSink? scripted, bool wrap = true, byte[]? content = null)
   {
     var fixture = await PbcSeed.SeedAsync(pg);
     var staff = PbcSeed.Actor(fixture.Staff, "Staff");
     var client = PbcSeed.Actor(fixture.Client, "ClientUser");
     var requestId = await PbcSeed.CreateSentAcknowledgedRequestAsync(pg, fixture, staff, client);
     var staged = await PbcSeed.StageUploadAsync(pg, fixture, client, requestId,
-      "%PDF-1.7 staged transfer evidence"u8.ToArray());
+      content ?? "%PDF-1.7 staged transfer evidence"u8.ToArray());
     var providerRoot = Path.Combine(staged.StagingRoot, "provider");
     var inner = new SimulationPbcProviderSink(providerRoot);
     if (scripted is not null) scripted.Bind(inner);

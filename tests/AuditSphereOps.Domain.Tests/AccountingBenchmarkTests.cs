@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Application.Documents;
@@ -31,6 +32,80 @@ public sealed class AccountingBenchmarkTests
     : IDbContextFactory<AuditSphereDbContext>
   {
     public AuditSphereDbContext CreateDbContext() => new(options);
+  }
+
+  [Fact]
+  public async Task MaximumTrialBalanceCsv_ImportsExactlyOnceAndReportsMeasurement()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var firmId = Guid.NewGuid();
+    var clientId = Guid.NewGuid();
+    var engagementId = Guid.NewGuid();
+    var periodId = Guid.NewGuid();
+    var bookId = Guid.NewGuid();
+    var preparer = User(firmId, "capacity-tb-preparer");
+    var now = DateTimeOffset.UtcNow;
+    await using (var seed = new AuditSphereDbContext(pg.Options))
+    {
+      seed.FirmSafetyStates.Add(new FirmSafetyState { Id = firmId });
+      seed.Users.Add(preparer);
+      seed.RoleGrants.Add(new RoleGrant
+      {
+        Id = Guid.NewGuid(), FirmId = firmId, UserId = preparer.Id, Role = "AccountingPreparer",
+        ClientId = clientId, GrantedAt = now, GrantedByUserId = preparer.Id
+      });
+      seed.PracticeClients.Add(new PracticeClient
+      {
+        Id = clientId, FirmId = firmId, LegalName = "SYNTHETIC CAPACITY CLIENT", CreatedAt = now
+      });
+      seed.ClientSafetyStates.Add(new ClientSafetyState { Id = clientId, FirmId = firmId });
+      seed.Engagements.Add(new Engagement
+      {
+        Id = engagementId, FirmId = firmId, PracticeClientId = clientId,
+        Status = "Active", ProfessionalWorkBlocked = false, CreatedAt = now
+      });
+      seed.ClientReportingPeriods.Add(new ClientReportingPeriod
+      {
+        Id = periodId, FirmId = firmId, ClientId = clientId, PeriodCode = "2026",
+        StartDate = new DateOnly(2026, 1, 1), EndDate = new DateOnly(2026, 12, 31),
+        Basis = "STATUTORY", Currency = "QAR", Status = AccountingWorkflowStates.Active,
+        CreatedByUserId = preparer.Id, CreatedAt = now
+      });
+      seed.ClientReportingBooks.Add(new ClientReportingBook
+      {
+        Id = bookId, FirmId = firmId, ClientId = clientId, PeriodId = periodId,
+        Code = "STAT", Basis = "STATUTORY", InclusionRule = "STATUTORY_ONLY", Currency = "QAR",
+        Status = AccountingWorkflowStates.Active, CreatedByUserId = preparer.Id, CreatedAt = now
+      });
+      await seed.SaveChangesAsync();
+    }
+
+    var csv = new StringBuilder("AccountCode,AccountName,NetClosingBalance,Currency,Entity,MappingCode\n");
+    for (var index = 0; index < TrialBalanceCsvImporter.MaxRows; index++)
+      csv.Append("A").Append(index.ToString("D5")).Append(",Synthetic account,")
+        .Append(index % 2 == 0 ? "1" : "-1").Append(",QAR,CAPACITY,MAP\n");
+    var source = csv.ToString();
+    var actor = new ActorContext(preparer.Id, firmId, preparer.SessionEpoch, ["AccountingPreparer"]);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var started = Stopwatch.GetTimestamp();
+    var imported = await TrialBalanceImportService.ImportAsync(db, actor, clientId, engagementId,
+      source, new TrialBalanceImportContext(periodId, bookId, "STATUTORY"));
+    var elapsed = Stopwatch.GetElapsedTime(started);
+    Assert.True(imported.Succeeded, imported.Message);
+    var dataset = await db.TrialBalanceDatasets.AsNoTracking().SingleAsync(x => x.Id == imported.Value);
+    Assert.Equal(TrialBalanceImportStates.Sealed, dataset.ImportState);
+    Assert.Equal(TrialBalanceCsvImporter.MaxRows,
+      await db.TrialBalanceRows.AsNoTracking().CountAsync(x => x.DatasetId == dataset.Id));
+    Assert.Equal(0m, await db.TrialBalanceRows.AsNoTracking()
+      .Where(x => x.DatasetId == dataset.Id).SumAsync(x => x.Amount));
+
+    var duplicate = await TrialBalanceImportService.ImportAsync(db, actor, clientId, engagementId,
+      source, new TrialBalanceImportContext(periodId, bookId, "STATUTORY"));
+    Assert.False(duplicate.Succeeded);
+    Assert.Equal(ErrorCodes.Accounting.ImportDuplicate, duplicate.ErrorCode);
+    Assert.Equal(1, await db.TrialBalanceDatasets.AsNoTracking().CountAsync());
+    Console.WriteLine($"TB_CAPACITY rows={TrialBalanceCsvImporter.MaxRows} bytes={Encoding.UTF8.GetByteCount(source)} " +
+      $"import_ms={elapsed.TotalMilliseconds:F1} sealed=true duplicate_blocked=true");
   }
 
   [Fact]
