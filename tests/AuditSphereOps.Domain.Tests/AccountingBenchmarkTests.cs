@@ -109,6 +109,54 @@ public sealed class AccountingBenchmarkTests
   }
 
   [Fact]
+  public async Task ProvisionalStaffMetadataWorkload_UsesThirtyIndependentQueriesAndReportsMeasurements()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var (firmId, fixtures) = await SeedAsync(pg);
+    var users = new List<AppUser> { fixtures[0].Preparer };
+    var now = DateTimeOffset.UtcNow;
+    await using (var seed = new AuditSphereDbContext(pg.Options))
+    {
+      for (var index = 1; index < 15; index++)
+      {
+        var user = User(firmId, $"capacity-query-{index}");
+        users.Add(user);
+        seed.Users.Add(user);
+        seed.RoleGrants.Add(new RoleGrant
+        {
+          Id = Guid.NewGuid(), FirmId = firmId, UserId = user.Id, Role = "AccountingPreparer",
+          GrantedAt = now, GrantedByUserId = fixtures[0].Preparer.Id
+        });
+      }
+      await seed.SaveChangesAsync();
+    }
+
+    var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+    var queries = Enumerable.Range(0, 30).Select(async index =>
+    {
+      await gate.Task;
+      await using var db = new AuditSphereDbContext(pg.Options);
+      var user = users[index % users.Count];
+      var fixture = fixtures[index % fixtures.Count];
+      var actor = new ActorContext(user.Id, firmId, user.SessionEpoch, ["AccountingPreparer"]);
+      var started = Stopwatch.GetTimestamp();
+      var page = await AccountingAnalysisService.GetGeneralLedgerPageAsync(db, actor,
+        fixture.ImportBatchId, 1, 50);
+      var elapsed = Stopwatch.GetElapsedTime(started);
+      Assert.True(page.Succeeded, page.Message);
+      Assert.Equal(50, page.Value!.Rows.Count);
+      Assert.True(page.Value.HasNextPage);
+      return elapsed.TotalMilliseconds;
+    }).ToArray();
+    gate.SetResult();
+    var elapsedMs = (await Task.WhenAll(queries)).Order().ToArray();
+    var p95Ms = elapsedMs[(int)Math.Ceiling(elapsedMs.Length * 0.95) - 1];
+    Console.WriteLine($"STAFF_QUERY_CAPACITY users={users.Count} concurrent_queries={queries.Length} " +
+      $"page_rows=50 p95_ms={p95Ms:F1} max_ms={elapsedMs[^1]:F1} " +
+      "browser_sessions=false production_target=false");
+  }
+
+  [Fact]
   public async Task RepresentativeAccountingWorkload_CompletesDurablyAndReportsMeasurements()
   {
     await using var pg = await PgTestSchema.CreateAsync();
