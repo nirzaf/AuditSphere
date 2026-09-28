@@ -1126,8 +1126,11 @@ public sealed class ClientScopeJourneyTests
       var partnerPage = await partnerContext.NewPageAsync();
       var partnerConnected = WaitForCircuitConnectionAsync(partnerPage, diagnostics);
       await partnerPage.GotoAsync(SignInUrl(partnerUrl, route));
-      await partnerPage.Locator("h1").WaitForAsync();
+      var prerenderedHeading = await partnerPage.QuerySelectorAsync("h1");
       await partnerConnected;
+      if (prerenderedHeading is not null)
+        await partnerPage.WaitForFunctionAsync("element => !element.isConnected", prerenderedHeading);
+      await Assertions.Expect(partnerPage.Locator("body")).ToContainTextAsync(privatePeriodCode);
       if (route.EndsWith("rollforward", StringComparison.Ordinal))
         Assert.Contains(privatePeriodCode, await partnerPage.Locator("body").InnerTextAsync());
       else
