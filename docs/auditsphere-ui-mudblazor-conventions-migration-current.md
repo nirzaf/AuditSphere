@@ -37,6 +37,15 @@
 
 ## 3. Theme & shared components (presentation only)
 
+The administrator-only project task-progress route uses native accessible
+`<progress>` elements for reviewed task-card counts across Modules 20–26,
+audit workflow and cross-module foundations. Its labels and expanded
+task lists remain readable without color. The published task manifest and
+front-matter files are copied into the Web output outside `wwwroot`; the page
+checks current firm-administration authority before loading them. The tracker
+is a read-only implementation ledger, not a live client workflow or software
+readiness percentage.
+
 - `Components/Theme/AuditSphereTheme.cs`: primary #2B6CB0, contrast-safe dark
   teal #0B6B65 for interactive text and #38B2AC for decorative accents,
   navy #0F172A drawer, white top bar and surfaces, #F8FAFC page

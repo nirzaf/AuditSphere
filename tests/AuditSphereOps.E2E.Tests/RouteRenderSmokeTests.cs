@@ -21,6 +21,7 @@ public sealed class RouteRenderSmokeTests
     ("/app/finance", "Firm ledger & financial operations"),
     ("/app/operations", "Operations"),
     ("/app/administration", "Firm administration & security"),
+    ("/app/administration/project-progress", "Project task progress"),
     ("/app/administration/microsoft365/tenant-connection", "Microsoft 365 tenant connection"),
     ("/app/accounting", "Client accounting workspace"),
     ("/app/accounting/evidence", "Accounting evidence queue"),
@@ -64,6 +65,25 @@ public sealed class RouteRenderSmokeTests
     {
       await page.GotoAsync(SignInUrl(origin, route));
       await page.GetByRole(AriaRole.Heading, new() { Name = heading }).First.WaitForAsync(new() { Timeout = 15000 });
+      if (route == "/app/administration/project-progress")
+      {
+        await page.GetByRole(AriaRole.Heading, new() { Name = "Module 20 — Accounting setup" }).WaitForAsync();
+        Assert.Equal(7, await page.Locator(".audit-module-progress-grid progress").CountAsync());
+        await page.SetViewportSizeAsync(320, 900);
+        await page.Locator(".audit-module-progress-grid").WaitForAsync();
+        await page.GetByRole(AriaRole.Heading, new() { Name = "Module 20 — Accounting setup" }).WaitForAsync();
+        Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= window.innerWidth + 1"));
+        if (Environment.GetEnvironmentVariable("AUDITSPHERE_UI_CAPTURE_DIR") is { Length: > 0 } progressCaptureDir)
+        {
+          Directory.CreateDirectory(progressCaptureDir);
+          await page.ScreenshotAsync(new() { Path = Path.Combine(progressCaptureDir, "project-progress-320.png"), FullPage = true });
+        }
+        await page.SetViewportSizeAsync(1280, 900);
+        await page.Locator(".audit-module-progress-grid").WaitForAsync();
+        Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= window.innerWidth + 1"));
+        if (Environment.GetEnvironmentVariable("AUDITSPHERE_UI_CAPTURE_DIR") is { Length: > 0 } desktopProgressCaptureDir)
+          await page.ScreenshotAsync(new() { Path = Path.Combine(desktopProgressCaptureDir, "project-progress-1280.png"), FullPage = true });
+      }
       if (route == "/")
         Assert.Equal(0, await page.GetByRole(AriaRole.Navigation, new() { Name = "Primary navigation" }).CountAsync());
       else if (route == "/app")
@@ -74,6 +94,11 @@ public sealed class RouteRenderSmokeTests
     await page.GetByRole(AriaRole.Link, new() { Name = "Client portal" }).ClickAsync();
     await page.GetByRole(AriaRole.Heading, new() { Name = "Client portal" }).First.WaitForAsync();
     Assert.Equal(0, await page.GetByRole(AriaRole.Navigation, new() { Name = "Primary navigation" }).CountAsync());
+
+    var scopedStaffPage = await context.NewPageAsync();
+    await scopedStaffPage.GotoAsync(SignInUrl(host.StaffUrl, "/app/administration/project-progress"));
+    await scopedStaffPage.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable" }).WaitForAsync();
+    Assert.Equal(0, await scopedStaffPage.Locator(".audit-module-progress-grid").CountAsync());
 
     await page.GotoAsync(SignInUrl(origin, "/app"));
     await page.GetByRole(AriaRole.Heading, new() { Name = "Portfolio" }).First.WaitForAsync();

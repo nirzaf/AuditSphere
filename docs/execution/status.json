@@ -1054,11 +1054,16 @@
     "packageId": "Prototype-inspired Blazor UI modernization",
     "implementationStatus": "IN_PROGRESS",
     "acceptanceStatus": "PARTIAL",
-    "scope": "The shared staff/client/public shell, MudBlazor theme, Portfolio pilot and three current client portal views are locally verified on the real Blazor stack. Staff route-family visual and accessibility work remains open; no whole-application visual parity or production acceptance is claimed. Earlier AS-PAR-002, Microsoft provider, R2R review and P1/P8/P9 external gates remain recorded below.",
+    "scope": "The shared staff/client/public shell, MudBlazor theme, Portfolio pilot, three current client portal views, and administrator implementation task-progress view are locally verified on the real Blazor stack. Staff route-family visual and accessibility work remains open; no whole-application visual parity or production acceptance is claimed. Earlier AS-PAR-002, Microsoft provider, R2R review and P1/P8/P9 external gates remain recorded below.",
     "nextAction": "Continue route-family visual passes on staff practice, finance, accounting, audit and administration views. Preserve native draft/upload contracts and server authorization. Capture matching synthetic before/after evidence, keyboard and state coverage before any full UI acceptance claim.",
     "branch": "master"
   },
   "localEvidence": [
+    {
+      "item": "Administrator implementation task progress by module (2026-09-29)",
+      "status": "LOCAL_VERIFIED",
+      "details": "Added an administrator-only, read-only project-progress route backed by the published R2R task manifest and card front matter outside wwwroot. The overall progress counts each of 75 task cards once; separate bars cover Modules 20-26, audit workflow and shared/cross-module foundations. Current source statuses are 1 COMPLETED, 1 IN_REVIEW and 73 NOT_STARTED, which are task-card statuses rather than software-completion or production-readiness claims. The page refuses a client-scoped Staff identity. Focused reader tests passed 3/3; the parameterless-route browser smoke passed after final changes, including the authorized dashboard, staff denial and no 320px or 1280px document overflow. Loaded mobile and desktop screenshots were inspected. The full Release solution suite passed 581/581 with 0 skips (Domain 449, API 35, E2E 97) before final copy refinements, followed by a zero-warning Release solution rebuild and focused reader/browser reruns. EF found no pending model changes. Markdown health, filename and task-pack validators passed. Release publish copied the manifest and all 75 task cards outside wwwroot. No schema, tenant or production mutation. The other implementation backlogs are not normalized into this task pack and are not represented as completed."
+    },
     {
       "item": "Prototype-inspired client portal views",
       "status": "PARTIAL",

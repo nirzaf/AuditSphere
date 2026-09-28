@@ -16,6 +16,7 @@
 <PageTitle>Firm administration</PageTitle>
 <MudLink Href="/app" Class="back-link mb-2 d-inline-block">← Back to portfolio</MudLink>
 <PageHeader Title="Firm administration &amp; security" Description="System and firm-level administrative configuration (§43.2). Versioned configuration and role grants; direct database manipulation consoles are prohibited." />
+<MudLink Href="/app/administration/project-progress" Class="d-inline-block mb-2">View project task progress →</MudLink>
 <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button-secondary" OnClick="RefreshAdministrationAsync" Disabled="@(_loading || _roleBusy)">Refresh administration</MudButton>
 
 @if (_loading)

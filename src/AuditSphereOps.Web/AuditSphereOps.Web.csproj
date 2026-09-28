@@ -25,4 +25,11 @@
     <ProjectReference Include="..\AuditSphereOps.Infrastructure\AuditSphereOps.Infrastructure.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Include="..\..\docs\task_breakdown\tracking\pack_manifest.json"
+             Link="project-progress\tracking\pack_manifest.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="..\..\docs\task_breakdown\tasks\**\*.md"
+             Link="project-progress\tasks\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

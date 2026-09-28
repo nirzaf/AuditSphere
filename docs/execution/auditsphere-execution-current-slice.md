@@ -33,6 +33,21 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ---
 
+## Administrator project task progress
+
+The administrator-only `/app/administration/project-progress` page reads the
+published R2R task-card front matter and manifest. It shows one overall bar
+counting each task once, seven module cards (Modules 20–26), and separate
+audit-workflow and cross-module bars. Each card exposes the source status, with completed, active,
+pending and blocked counts. The page is read-only: status transitions and
+evidence remain governed by the task-pack helper and review rules. Its bars
+measure reviewed task-card completion, not implemented software or production
+readiness. The Web publish includes the tracker snapshot, so a new deployment
+is needed to show later repository status changes. Exact verification is in
+`status.json`.
+
+---
+
 ## UI modernization — client portal views
 
 The three existing `/portal` views now share a client-safe navy header,
