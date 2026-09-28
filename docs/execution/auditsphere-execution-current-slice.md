@@ -687,6 +687,15 @@ review and explicit merge authorization before advancing acceptance.
 
 ### 2.10 Benchmark Baseline Verification
 
+- **Provisional maximum-input samples:** The owner selected the documented
+  input sizes for local measurements. New PostgreSQL-backed cases import a
+  balanced 20,000-row trial balance through the guarded service and transfer
+  one 8 MiB PBC chunk through the durable worker and simulation sink. Each
+  case verifies final state, exact identity/digest or row count, and duplicate
+  or single-attempt behavior. Both cases passed in three isolated runs; the
+  full Release solution suite, Web build and EF model check passed. Timings and
+  exact checks are in `status.json`. These samples do not establish concurrent
+  workload capacity, live provider behavior, p95 latency or production sizing.
 - **Explicit focused run recorded:** AccountingBenchmarkTests passed on the
   local PostgreSQL profile, covering intake, durable outbox enqueue/worker
   publication and consolidated group readback. Concurrent worker-operation

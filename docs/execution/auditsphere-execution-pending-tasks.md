@@ -92,7 +92,7 @@ The following local tasks, architectural decisions, and follow-ups are open for 
 
 - **Automated Documentation Health:** Complete: the Markdown health and filename validators plus the narrative volatile-metrics guard run in hosted CI (`ci.yml` "docs-health" job), keeping exact test counts, SHAs and run identifiers out of the top-of-authority narrative documents.
 
-- **Benchmark Baselines:** Verified 2026-09-27: AccountingBenchmarkTests passed focused (clients=4, transactions=2000, lines=8000, enqueue 180.3ms, worker 225.1ms, first page 49.5ms, group 32 lines / 4.9ms on local PostgreSQL 18.6) and runs inside every complete Domain suite; concurrent worker-operation coverage lives in DurableOutboxTests. Ongoing maintenance: keep the benchmark in the standard suite and re-record after engine-level changes.
+- **Benchmark Baselines:** The standard Domain suite includes a small accounting benchmark and provisional maximum-size trial-balance and PBC-transfer checks. Exact input sizes, measurements and verification live in `status.json`. Continue with approved concurrent workload targets, provider throttling, archive/rendering throughput and production-like sizing before P8b acceptance.
 
 
 
@@ -112,7 +112,7 @@ These production milestones require live external infrastructure, tenant credent
 
 |---|---|---|---|
 
-| **P1** | Live Entra OIDC Authentication | `BLOCKED_EXTERNAL` | Requires live Azure AD / Entra ID tenant registration with configured client credentials. |
+| **P1** | Live Entra OIDC Authentication | `BLOCKED_EXTERNAL` | Local administrator and scoped-staff sign-ins are observed; client, wrong-tenant, disabled-user and production acceptance fixtures remain. |
 
 | **P2** | Selected-Resource SharePoint/Graph | `BLOCKED_EXTERNAL` | Requires live Microsoft 365 tenant with approved selected-resource application permissions. |
 
@@ -126,7 +126,7 @@ These production milestones require live external infrastructure, tenant credent
 
 | **P7** | Cross-Store Recovery (RPO/RTO) | `BLOCKED_EXTERNAL` | Requires custodially separate, multi-region cloud backup infrastructure and measured restore drills. |
 
-| **P8** | Production Observability & Secrets | `BLOCKED_EXTERNAL` | Requires Azure Key Vault mount, production OpenTelemetry collector, and sensitive log scrubbing review. |
+| **P8** | Production Observability, Secrets & Capacity | `BLOCKED_EXTERNAL` | Local maximum-input samples are recorded; production secret custody, collector/alerts, concurrent load targets and sensitive log review remain. |
 
 | **P9** | Independent Review & Protected Merge | `BLOCKED_EXTERNAL` | Requires independent partner sign-off and branch protections. |
 
