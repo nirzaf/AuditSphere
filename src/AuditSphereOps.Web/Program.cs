@@ -338,7 +338,7 @@ if (oidcConfigured || developmentIdentityEnabled)
 {
   app.MapGet("/auth/m365-consent/callback", async (HttpContext http,
     TrustedActorResolver actorResolver, IDbContextFactory<AuditSphereDbContext> dbFactory,
-    IConfiguration configuration, CancellationToken ct) =>
+    IConfiguration configuration, IMicrosoftDirectoryReader directoryReader, CancellationToken ct) =>
   {
     http.Response.Headers.CacheControl = "no-store";
     http.Response.Headers["Referrer-Policy"] = "no-referrer";
@@ -356,6 +356,17 @@ if (oidcConfigured || developmentIdentityEnabled)
       query["state"].ToString(), query["tenant"].ToString(),
       string.Equals(query["admin_consent"].ToString(), "True", StringComparison.OrdinalIgnoreCase),
       !string.IsNullOrWhiteSpace(query["error"].ToString()), DateTimeOffset.UtcNow, ct);
+    if (result.Succeeded && configuration.GetValue<bool>("DirectoryReader:Enabled") &&
+        Guid.TryParse(configuration["TenantConsent:ClientId"], out var consentClientId) &&
+        Guid.TryParse(configuration["DirectoryReader:ClientId"], out var readerClientId) &&
+        consentClientId == readerClientId)
+    {
+      // This is only a capability check. Microsoft does not identify the consent
+      // grantor in this callback, so the connection remains unverified.
+      await DirectoryCapabilityVerificationService.VerifyAsync(db, actor, directoryReader,
+        configuration["Identity:TenantId"] ?? string.Empty,
+        readerClientId.ToString("D"), DateTimeOffset.UtcNow, ct);
+    }
     return Results.Redirect("/app/administration/microsoft365/tenant-connection?result=" +
       (result.Succeeded ? "returned" : "blocked"));
   });

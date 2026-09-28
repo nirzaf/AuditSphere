@@ -38,6 +38,7 @@ consent policy and role assignment must be checked at connection time.
 | Capability | Endpoint | Least permission | Type | Why needed | Consent / Microsoft authority | State |
 | --- | --- | --- | --- | --- | --- | --- |
 | Sign-in | Microsoft OIDC | `openid profile email` | Delegated sign-in | Authenticate one work/school identity and bind `tid` + `oid` | Normal OIDC policy; no Graph app role | Existing, separately verified |
+| Directory consent sign-in | Microsoft admin-consent screen | `User.Read` | Delegated; Microsoft includes it on the initial consent screen | Sign in the tenant administrator and read that signed-in profile only; the certificate-backed reader does not request a delegated token | Shown on Microsoft consent screen for the separate Development reader | Development screen observed; no grantor proof or production acceptance |
 | Directory reader | `GET /users`, `GET /users/{id}` | `User.Read.All` | Application, separate reader identity | Browse/search active users, filter by UPN domain, and re-read an exact enabled object before local binding | Tenant admin consent; Privileged Role Administrator or authorized custom role | Development-only app consented; bounded Graph read and persisted recent directory check observed; no production acceptance |
 | Selected SharePoint | Exact approved `/sites/{id}` and `/drives/{id}` resources | `Sites.Selected` plus site-specific `write` grant | Application, document-worker identity | Read/write only the selected working site | Tenant admin consent plus separate exact-site grant | Existing Development selected-site read and disposable write checks; no PBC acceptance |
 | Tenant user creation | `POST /users` | `User.Create` | Application, optional separate provisioner | Create a new workforce user only when explicitly enabled | Separate tenant admin consent and provisioning policy | PROPOSED; NOT_CONFIGURED |
@@ -69,6 +70,12 @@ The current consent slice binds state to the initiating AuditSphere session
 and records only `RETURNED_UNVERIFIED`. It does not yet authenticate the
 consenting Microsoft administrator, acquire a directory-reader credential,
 or verify Graph permissions; those are required before `VERIFIED` status.
+The Development registration declares only the Graph `User.Read.All`
+application role. Microsoft also displayed delegated `User.Read` on the
+initial admin-consent screen; that sign-in/profile scope is documented here
+because the displayed request, not just the registration manifest, defines
+what an administrator is asked to accept. The app does not use a delegated
+Graph token for directory browsing.
 The local directory reader is separately disabled by default. When explicitly
 configured with its own certificate, it enforces an exact-tenant app token
 whose sole application role is `User.Read.All`, then reads up to 25 selected
@@ -110,6 +117,7 @@ failure/unknown-outcome handling. No broad scope is added to the current app
 registration as a shortcut for a picker or a setup badge.
 
 Sources: [Microsoft admin consent protocol](https://learn.microsoft.com/en-us/entra/identity-platform/v2-admin-consent),
+[Microsoft consent types and automatically included scopes](https://learn.microsoft.com/en-us/entra/identity-platform/consent-types-developer),
 [tenant admin-consent role prerequisites](https://learn.microsoft.com/en-us/entra/identity/enterprise-apps/grant-admin-consent),
 [list users](https://learn.microsoft.com/en-us/graph/api/user-list?view=graph-rest-1.0),
 [advanced directory filters](https://learn.microsoft.com/en-us/graph/aad-advanced-queries),

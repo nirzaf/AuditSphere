@@ -96,6 +96,12 @@ connection. Activation requires a separately verified consent state, including
 for older revisions with `OBSERVED` evidence. The trusted Microsoft grantor
 and permission-readback path remains pending; the setup page labels historical
 consent rows as unverified.
+When an exact-app-matched directory reader is configured, a successful
+one-use consent return now runs the bounded exact-member directory check
+before returning to the tenant page. The check records directory capability
+evidence only; the callback remains `RETURNED_UNVERIFIED` and still cannot
+identify the Microsoft grantor or activate the connection. A denied return
+does not run the check.
 
 The owner has requested a tenant-administration experience that supersedes the
 earlier blanket Graph-scope exclusion only for an isolated read-only directory
