@@ -150,6 +150,13 @@ public static class Microsoft365ConfigurationService
         string.IsNullOrWhiteSpace(request.IdentityReference) || string.IsNullOrWhiteSpace(request.EvidenceReference) ||
         result is not ("PASS" or "FAIL" or "BLOCKED"))
       return CommandResult.Fail("m365.verification.invalid", "Verification evidence is incomplete or uses an unsupported resource/result.");
+    // This API accepts administrator-entered references. A reference, even one named
+    // "CONSENT", cannot prove Microsoft consent or authenticate its grantor.
+    if (resourceKind == "TENANT" &&
+        string.Equals(request.Operation.Trim(), "CONSENT", StringComparison.OrdinalIgnoreCase) &&
+        result == "PASS")
+      return CommandResult.Fail(ErrorCodes.GateBlocked,
+        "Microsoft administrator consent requires an independent provider verification.");
     var auth = await FirmAdministratorAsync(db, actor, ct);
     if (!auth.Succeeded) return auth;
 
@@ -176,31 +183,8 @@ public static class Microsoft365ConfigurationService
     connection.State = result == "PASS" ? Microsoft365RevisionStates.Validating : Microsoft365RevisionStates.Blocked;
     if (result != "PASS") connection.ConsentState = "BLOCKED";
 
-    if (result == "PASS")
-    {
-      var requiredIds = new Dictionary<string, string?>(StringComparer.Ordinal)
-      {
-        ["TENANT"] = draft.ExpectedTenantId,
-        ["SITE"] = draft.SiteId,
-        ["DRIVE"] = draft.DriveId,
-        ["ROOT"] = draft.RootFolderId
-      };
-      var passes = await db.IntegrationVerificationEvidences.AsNoTracking()
-        .Where(x => x.FirmId == actor.FirmId && x.SetupDraftId == draft.Id &&
-                    x.ConnectionRevisionId == connection.Id && x.Result == "PASS")
-        .ToListAsync(ct);
-      var allResources = RequiredEvidenceKinds.All(kind =>
-        requiredIds[kind] is { Length: > 0 } expected &&
-        passes.Any(x => x.ResourceKind == kind && x.ResourceId == expected));
-      var consentObserved = passes.Any(x => x.ResourceKind == "TENANT" && x.Operation == "CONSENT");
-      if (allResources && consentObserved)
-      {
-        draft.State = Microsoft365RevisionStates.Verified;
-        connection.State = Microsoft365RevisionStates.Verified;
-        connection.ConsentState = "OBSERVED";
-        connection.VerifiedAt = now;
-      }
-    }
+    // Recorded references remain observations. Only a future trusted provider
+    // verification path may mark the connection VERIFIED.
     draft.Revision++;
     draft.UpdatedAt = now;
     await db.SaveChangesAsync(ct);
@@ -236,7 +220,8 @@ public static class Microsoft365ConfigurationService
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "The activation records are unavailable.");
     if (draft.Revision != request.ExpectedDraftRevision)
       return CommandResult<Guid>.Fail(ErrorCodes.StaleRevision, "The setup draft changed; reload before activation.");
-    if (connection.State != Microsoft365RevisionStates.Verified || template.ApprovedAt is null)
+    if (connection.State != Microsoft365RevisionStates.Verified ||
+        connection.ConsentState != "VERIFIED" || template.ApprovedAt is null)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Connection evidence and an approved client template are required before activation.");
     if (!string.Equals(draft.ExpectedTenantId, connection.TenantId, StringComparison.Ordinal) ||
         !string.Equals(draft.SiteId, request.SiteId.Trim(), StringComparison.Ordinal) ||

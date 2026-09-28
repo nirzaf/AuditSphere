@@ -48,8 +48,9 @@ bound to the current firm-wide Administrator, exact configured tenant, setup
 draft, and session epoch. A separate consent app registration and exact callback
 must be explicitly configured and enabled. The callback consumes the state
 once and records `RETURNED_UNVERIFIED` only after the tenant matches; it does
-not activate a connection or assert Microsoft permissions. Directory provider
-verification and live tenant consent remain pending. The local migration and
+not activate a connection or assert Microsoft permissions. A bounded
+Development directory check is described below; authenticated grantor proof
+and live tenant consent acceptance remain pending. The local migration and
 focused PostgreSQL and URL-builder checks are recorded in `status.json`.
 
 The separate directory reader now supports bounded, administrator-only live
@@ -89,6 +90,12 @@ Microsoft 365 overview keeps the local connection revision, consent record,
 recent directory check, selected-resource evidence, and mail/group blockers
 separate. An unverified consent callback is not shown as a verified grant.
 The current blocked states and test evidence remain in `status.json`.
+The local configuration service now refuses administrator-entered tenant
+consent `PASS` evidence and cannot promote recorded references to a verified
+connection. Activation requires a separately verified consent state, including
+for older revisions with `OBSERVED` evidence. The trusted Microsoft grantor
+and permission-readback path remains pending; the setup page labels historical
+consent rows as unverified.
 
 The owner has requested a tenant-administration experience that supersedes the
 earlier blanket Graph-scope exclusion only for an isolated read-only directory

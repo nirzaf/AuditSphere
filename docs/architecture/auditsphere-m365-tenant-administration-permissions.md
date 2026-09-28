@@ -83,6 +83,16 @@ No AuditSphere runtime may request `Directory.ReadWrite.All`, `User.ReadWrite.Al
    Capabilities are not usable without a verified consenting administrator, and a
    verification older than 24 hours is `STALE` and blocks mutations.
 
+Administrator-entered evidence references cannot authenticate a Microsoft
+grantor: `RecordVerificationEvidenceAsync` refuses a manual `TENANT`/`CONSENT`
+pass and never promotes references to a verified connection. Only the
+nonce-bound identity leg above sets the connection's consent state to
+`VERIFIED`. `ActivateConnectionAsync` requires that `VERIFIED` consent state in
+addition to a `VERIFIED` connection revision, so older `OBSERVED` revisions cannot
+activate through historical pass rows. Promoting the connection revision itself to
+`VERIFIED` still requires a trusted selected-site verification path; recorded
+site/library/root references remain observations.
+
 ## External operation lifecycle
 
 Microsoft mutations are never combined with a database transaction as if atomic.

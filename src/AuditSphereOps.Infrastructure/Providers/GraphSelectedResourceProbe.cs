@@ -77,7 +77,7 @@ public sealed class GraphSelectedResourceProbe(
       x.Id == workspace.FolderTemplateVersionId && x.FirmId == firmId &&
       x.Purpose == FolderTemplatePurposes.ClientWorkspace && x.ApprovedAt != null, ct);
     if (connection is null || connection.State != Microsoft365RevisionStates.Active ||
-        connection.ConsentState != "OBSERVED" || !templateApproved ||
+        connection.ConsentState is not ("VERIFIED" or "OBSERVED") || !templateApproved ||
         !string.Equals(connection.TenantId, workspace.TenantId, StringComparison.Ordinal) ||
         string.IsNullOrWhiteSpace(connection.RuntimeCredentialReference) ||
         string.IsNullOrWhiteSpace(workspace.SiteId) || string.IsNullOrWhiteSpace(workspace.DriveId) ||

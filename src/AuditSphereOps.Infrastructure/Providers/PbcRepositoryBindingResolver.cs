@@ -78,7 +78,7 @@ public sealed class PbcRepositoryBindingResolver(IAuditSphereDbContextFactory fa
       throw Block();
     var connection = await db.Microsoft365ConnectionRevisions.AsNoTracking().SingleOrDefaultAsync(x =>
       x.Id == workspace.ConnectionRevisionId && x.FirmId == scope.FirmId &&
-      x.State == Microsoft365RevisionStates.Active && x.ConsentState == "OBSERVED" &&
+      x.State == Microsoft365RevisionStates.Active && (x.ConsentState == "VERIFIED" || x.ConsentState == "OBSERVED") &&
       x.TenantId == binding.TenantId, ct);
     if (connection is null || string.IsNullOrWhiteSpace(connection.RuntimeCredentialReference))
       throw Block();

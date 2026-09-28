@@ -222,7 +222,9 @@ public static class TenantConsentService
         EvidenceReference = $"Admin consent returned for state-bound attempt {current.Id:D}; consenting administrator authenticated by nonce-bound OIDC",
         ObservedAt = now
       });
-      connection.ConsentState = "OBSERVED";
+      // Trusted grantor path: consent returned for the exact tenant and the consenting
+      // administrator authenticated by nonce-bound OIDC. The revision itself is not promoted.
+      connection.ConsentState = "VERIFIED";
     }
     TenantAdministration.AddEvent(db, actor, "TENANT_CONSENT_VERIFIED", now,
       oldState: TenantConsentAttemptStates.IdentityPending, newState: TenantConsentAttemptStates.ConsentVerified,

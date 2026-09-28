@@ -24,7 +24,7 @@ public sealed class TenantAdministrationTests
     Assert.Equal(f.Admin.Subject, attempt.ConsentingObjectId);
     Assert.Equal(64, attempt.NonceHash!.Length);
     var connection = await db.Microsoft365ConnectionRevisions.SingleAsync();
-    Assert.Equal("OBSERVED", connection.ConsentState);
+    Assert.Equal("VERIFIED", connection.ConsentState);
     Assert.NotEqual(Microsoft365RevisionStates.Active, connection.State);
     Assert.Contains(await db.IntegrationVerificationEvidences.ToListAsync(), x => x.ResourceKind == "TENANT" &&
       x.Operation == "CONSENT" && x.IdentityReference == f.Admin.Subject);
