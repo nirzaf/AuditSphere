@@ -662,6 +662,15 @@
       "liveObservation": "In the authorized non-production selected site, Graph createUploadSession returned HTTP 200 for the saved drive/root. The session was canceled with HTTP 204 before bytes were committed. No document or provider receipt was created.",
       "boundary": "A canceled upload session is not a byte upload or exact-version readback. The local resolver is not used by a live provider, and no capability evidence was recorded in the application ledger. P2 provider, client binding, reconciliation, production and independent acceptance remain open."
     },
+    "p2GraphCapabilityTransport": {
+      "observedAt": "2026-09-28T10:16:31Z",
+      "behavior": "A dedicated Graph-issued capability URL transport restricts methods and HTTPS SharePoint/OneDrive hosts, sends no Graph bearer token, rejects redirects, suppresses HTTP instrumentation, and masks transport errors that could contain a preauthenticated URL. It is a provider prerequisite and is not composed into the live Worker.",
+      "focusedTests": "PASS: GraphPreauthenticatedTransportTests 7/7, including rejected destinations, no Authorization header, instrumentation suppression, redirect refusal and error masking.",
+      "fullSuite": "PASS: PostgreSQL-backed Release solution Domain 375/375, API 16/16 and E2E 86/86 (477/477 aggregate, 0 skipped).",
+      "buildAndModel": "PASS: locked restore, Release Web build with 0 warnings/errors, and EF no pending model changes.",
+      "liveObservation": "In the authorized non-production selected site, a disposable synthetic file upload returned HTTP 201 and item metadata; Graph version listing returned HTTP 200 with one version, current-version lookup returned HTTP 200 with an ID, and cleanup returned HTTP 204. No client content was used. No document remains in the active library; deletion may retain a recoverable recycle-bin copy under tenant policy.",
+      "boundary": "This is capability-transport and disposable tenant endpoint evidence, not durable PBC operation success, exact-version content retrieval after mutation, unknown-outcome reconciliation, production acceptance or independent review."
+    },
     "p1SyntheticOwnedRequestBrowserRerun": {
       "observedAt": "2026-09-28T05:41:30Z",
       "profile": "Release E2E browser test against an isolated local PostgreSQL 18.6 database and synthetic client identity; no Microsoft sign-in or external effects.",

@@ -115,6 +115,16 @@ the exact binding fingerprint. It is a local prerequisite component only:
 neither the Worker nor `GraphPbcProviderSink` uses it yet, and no live PBC
 transfer, exact-version readback, or reconciliation is accepted.
 
+The next P2 prerequisite is a restricted transport for Graph-issued
+preauthenticated upload/download URLs. It accepts only HTTPS commercial
+SharePoint/OneDrive hosts and GET, PUT or DELETE; it sends no Graph bearer
+token, rejects redirects, suppresses URL-bearing HTTP telemetry, and replaces
+transport exceptions with a non-sensitive error. A disposable synthetic file
+was uploaded to the approved Development site; Graph returned item metadata
+and a current version record, then the file was deleted. This does not prove
+preserved exact-version retrieval or a durable application receipt. The live
+PBC adapter remains uncomposed.
+
 ## P1 immutable identity lookup
 
 The Web actor resolver and sign-in landing now require the Entra `oid` claim
