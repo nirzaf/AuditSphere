@@ -193,7 +193,7 @@ public sealed class Microsoft365OnboardingTests
   }
 
   [Fact]
-  public async Task ConnectionActivation_RequiresExactObservedEvidenceAndApprovedTemplate()
+  public async Task AdministratorEnteredConsentEvidenceCannotActivateConnection()
   {
     await using var pg = await PgTestSchema.CreateAsync();
     var (firmId, _, _) = await pg.SeedScopeAsync();
@@ -241,10 +241,17 @@ public sealed class Microsoft365OnboardingTests
 
     Assert.True((await Microsoft365ConfigurationService.ApproveFolderTemplateAsync(db, actor, template.Value!.Id, now)).Succeeded);
 
+    var assertedConsent = await Microsoft365ConfigurationService.RecordVerificationEvidenceAsync(db, actor,
+      new(draft.Id, connectionId, "TENANT", "tenant-1", "CONSENT", "runtime:acceptance",
+        "PASS", "evidence:consent"), now);
+    Assert.False(assertedConsent.Succeeded);
+    Assert.Equal("gate.blocked", assertedConsent.ErrorCode);
+    Assert.False(await db.IntegrationVerificationEvidences.AnyAsync(x => x.ResourceKind == "TENANT"));
+
     foreach (var (kind, id, operation) in new[]
     {
-      ("TENANT", "tenant-1", "CONSENT"), ("SITE", "site-1", "READ"),
-      ("DRIVE", "drive-1", "READ"), ("ROOT", "root-1", "READ")
+      ("SITE", "site-1", "READ"), ("DRIVE", "drive-1", "READ"),
+      ("ROOT", "root-1", "READ")
     })
     {
       var evidence = await Microsoft365ConfigurationService.RecordVerificationEvidenceAsync(db, actor,
@@ -256,10 +263,32 @@ public sealed class Microsoft365OnboardingTests
     var activated = await Microsoft365ConfigurationService.ActivateConnectionAsync(db, actor,
       new(draft.Id, connectionId, template.Value!.Id, draft.Revision, "site-1", "drive-1", "root-1",
         "https://easyguide.sharepoint.com/sites/AuditSphere", Microsoft365AccessProfiles.AppMediated), now);
-    Assert.True(activated.Succeeded);
-    Assert.Equal(Microsoft365RevisionStates.Active,
+    Assert.False(activated.Succeeded);
+    Assert.Equal("gate.blocked", activated.ErrorCode);
+    Assert.Equal(Microsoft365RevisionStates.Validating,
       await db.Microsoft365ConnectionRevisions.Where(x => x.Id == connectionId).Select(x => x.State).SingleAsync());
-    Assert.Equal(1, await db.FirmWorkspaceConfigurations.CountAsync(x => x.FirmId == firmId && x.DefaultForFutureClients));
+    Assert.Null(await db.Microsoft365ConnectionRevisions.Where(x => x.Id == connectionId)
+      .Select(x => x.VerifiedAt).SingleAsync());
+    Assert.Equal(0, await db.FirmWorkspaceConfigurations.CountAsync(x => x.FirmId == firmId));
+
+    // Older local revisions could have OBSERVED plus an administrator-entered PASS.
+    // They must not bypass the new trusted-consent activation fence.
+    var connection = await db.Microsoft365ConnectionRevisions.SingleAsync(x => x.Id == connectionId);
+    connection.State = Microsoft365RevisionStates.Verified;
+    connection.ConsentState = "OBSERVED";
+    db.IntegrationVerificationEvidences.Add(new IntegrationVerificationEvidence
+    {
+      Id = Guid.CreateVersion7(), FirmId = firmId, SetupDraftId = draft.Id,
+      ConnectionRevisionId = connectionId, ResourceKind = "TENANT", ResourceId = "tenant-1",
+      Operation = "CONSENT", IdentityReference = "runtime:acceptance", Result = "PASS",
+      EvidenceReference = "legacy-manual", ObservedAt = now
+    });
+    await db.SaveChangesAsync();
+    activated = await Microsoft365ConfigurationService.ActivateConnectionAsync(db, actor,
+      new(draft.Id, connectionId, template.Value!.Id, draft.Revision, "site-1", "drive-1", "root-1",
+        "https://easyguide.sharepoint.com/sites/AuditSphere", Microsoft365AccessProfiles.AppMediated), now);
+    Assert.False(activated.Succeeded);
+    Assert.Equal("gate.blocked", activated.ErrorCode);
   }
 
   private static string Hash(string value) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value))).ToLowerInvariant();

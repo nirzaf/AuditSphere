@@ -74,6 +74,13 @@ configured with its own certificate, it enforces an exact-tenant app token
 whose sole application role is `User.Read.All`, then reads up to 25 selected
 fields per page. A successful search is an ephemeral provider observation,
 not persisted capability evidence or an AuditSphere role grant.
+Administrator-entered evidence references cannot authenticate a Microsoft
+grantor. `RecordVerificationEvidenceAsync` now refuses a manual `TENANT` /
+`CONSENT` pass and no longer promotes such references to a verified connection.
+`ActivateConnectionAsync` also requires a separate `VERIFIED` consent state,
+so older `OBSERVED` revisions cannot activate through their historical pass
+rows. The trusted grantor and permission-readback path is still pending; this
+fail-closed fence does not claim the one-click connection is complete.
 The Development tenant now has a separate reader registration with one
 certificate, an exact localhost consent callback and only the approved Graph
 application role. A direct certificate token and the AuditSphere browser page
