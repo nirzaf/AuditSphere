@@ -311,6 +311,7 @@ public sealed class ClientScopeJourneyTests
     var diagnostics = new List<string>();
     var connected = WaitForCircuitConnectionAsync(page, diagnostics);
     await page.GotoAsync(SignInUrl(origin, "/app/administration"));
+    await page.GetByRole(AriaRole.Tab, new() { Name = "AuditSphere Roles" }).ClickAsync();
     await page.GetByRole(AriaRole.Heading, new() { Name = "Firm role grants" }).WaitForAsync();
     await connected;
     Assert.Contains(host.Fixture.Client.Email, await page.Locator("body").InnerTextAsync());
@@ -318,6 +319,7 @@ public sealed class ClientScopeJourneyTests
     var copyPage = await context.NewPageAsync();
     var copyConnected = WaitForCircuitConnectionAsync(copyPage, diagnostics);
     await copyPage.GotoAsync(SignInUrl(origin, "/app/administration"));
+    await copyPage.GetByRole(AriaRole.Tab, new() { Name = "AuditSphere Roles" }).ClickAsync();
     await copyPage.GetByRole(AriaRole.Button, new() { Name = "Copy invitation" }).WaitForAsync();
     await copyConnected;
     await copyPage.EvaluateAsync("() => { window.__adminCopyCount = 0; window.auditSphereExports.copyText = () => { window.__adminCopyCount += 1; }; }");

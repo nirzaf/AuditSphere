@@ -29,7 +29,7 @@ public sealed record ApplyRoleGrantRequest(
   Guid? ClientId = null,
   Guid? EngagementId = null);
 
-public sealed record RevokeRoleGrantRequest(Guid GrantId, Guid? ReplacementAdministratorUserId = null);
+public sealed record RevokeRoleGrantRequest(Guid GrantId, Guid? ReplacementAdministratorUserId = null, string? Reason = null);
 
 public sealed record ApplyRoleGrantAndInvitationRequest(
   Guid UserId,
@@ -166,6 +166,10 @@ public static class RoleAdministrationService
       Source = "ADMIN_ACTION", ActorUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
     });
     target.SessionEpoch++;
+    Microsoft365.TenantAdministration.AddEvent(db, actor, "ROLE_GRANTED", DateTimeOffset.UtcNow, oldState: "-",
+      newState: $"{role}@{scopeKind}", reason: "Roster role assignment", result: "APPLIED",
+      targetTenantId: target.TenantId, targetObjectId: target.Subject, targetUserId: target.Id,
+      roleScopeChange: $"NONE -> {role}@{scopeKind}");
     await db.SaveChangesAsync(ct);
     await tx.CommitAsync(ct);
     return CommandResult<Guid>.Ok(grant.Id);
@@ -222,6 +226,10 @@ public static class RoleAdministrationService
         Source = "ADMIN_ACTION", ActorUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
       });
       target.SessionEpoch++;
+      Microsoft365.TenantAdministration.AddEvent(db, actor, "ROLE_GRANTED", DateTimeOffset.UtcNow, oldState: "-",
+        newState: $"{role}@{scopeKind}", reason: "Roster role assignment", result: "APPLIED",
+        targetTenantId: target.TenantId, targetObjectId: target.Subject, targetUserId: target.Id,
+        roleScopeChange: $"NONE -> {role}@{scopeKind}");
     }
 
     var invitation = await db.UserAccessInvitations.SingleOrDefaultAsync(x =>
@@ -283,9 +291,14 @@ public static class RoleAdministrationService
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, TargetUserId = target.Id, RoleGrantId = grant.Id,
       Action = "REVOKED", PriorRole = grant.Role, PriorClientId = grant.ClientId, PriorEngagementId = grant.EngagementId,
-      NewRole = "REVOKED", Source = "ADMIN_ACTION", ActorUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
+      NewRole = "REVOKED", Source = "ADMIN_ACTION", Reason = string.IsNullOrWhiteSpace(request.Reason) ? null : request.Reason.Trim(),
+      ActorUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
     });
     target.SessionEpoch++;
+    Microsoft365.TenantAdministration.AddEvent(db, actor, "ROLE_REVOKED", DateTimeOffset.UtcNow,
+      oldState: $"{grant.Role}@{(grant.EngagementId.HasValue ? "ENGAGEMENT:" + grant.EngagementId : grant.ClientId.HasValue ? "CLIENT:" + grant.ClientId : "FIRM_WIDE")}",
+      newState: "REVOKED", reason: request.Reason ?? "Administrator revoked access", result: "APPLIED",
+      targetTenantId: target.TenantId, targetObjectId: target.Subject, targetUserId: target.Id, roleScopeChange: "reduction");
     await db.SaveChangesAsync(ct);
     await tx.CommitAsync(ct);
     return CommandResult.Ok();
@@ -319,11 +332,11 @@ public static class RoleAdministrationService
     return CommandResult.Ok();
   }
 
-  private static Task<CommandResult> FirmAdministratorAsync(IAuditSphereDbContext db, ActorContext actor, CancellationToken ct) =>
+  internal static Task<CommandResult> FirmAdministratorAsync(IAuditSphereDbContext db, ActorContext actor, CancellationToken ct) =>
     AuthorizationDecision.AuthorizeAsync(db, actor,
       new AuthorizationRequest(actor.FirmId, RequiredRoles: ["Administrator"], InternalOnly: true, RequireFirmWide: true), ct);
 
-  private static bool EmailLike(string value)
+  internal static bool EmailLike(string value)
   {
     var trimmed = value.Trim();
     var at = trimmed.IndexOf('@');
@@ -342,7 +355,7 @@ public static class RoleAdministrationService
      scopeKind == "CLIENT" && request.ClientId.HasValue && request.EngagementId is null ||
      scopeKind == "ENGAGEMENT" && request.ClientId.HasValue && request.EngagementId.HasValue);
 
-  private static string? ValidateRoleForUser(AppUser target, string role, string scopeKind)
+  internal static string? ValidateRoleForUser(AppUser target, string role, string scopeKind)
   {
     var clientRole = role.Equals("ClientUser", StringComparison.OrdinalIgnoreCase);
     if (clientRole != target.UserKind.Equals("Client", StringComparison.OrdinalIgnoreCase))
@@ -352,10 +365,10 @@ public static class RoleAdministrationService
     return null;
   }
 
-  private static string? CanonicalRole(string? value) =>
+  internal static string? CanonicalRole(string? value) =>
     string.IsNullOrWhiteSpace(value) ? null : AllowedRoles.SingleOrDefault(x => x.Equals(value.Trim(), StringComparison.OrdinalIgnoreCase));
 
-  private static async Task<bool> RecentGraphObservationAsync(
+  internal static async Task<bool> RecentGraphObservationAsync(
     IAuditSphereDbContext db, AppUser target, CancellationToken ct)
   {
     var latest = await db.DirectoryUserObservations.AsNoTracking()
@@ -374,7 +387,7 @@ public static class RoleAdministrationService
     Id = Guid.CreateVersion7(), FirmId = firmId, TenantId = request.TenantId.Trim(), ObjectId = request.Subject.Trim(),
     DisplayName = request.DisplayName.Trim(), Mail = request.Email.Trim(), UserPrincipalName = request.Email.Trim(),
     EnabledState = request.Source is "VERIFIED_SIGN_IN" or "GRAPH" ? "ENABLED" : "UNKNOWN",
-    UserType = request.Source == "GRAPH" ? "Member" : "UNKNOWN", Source = request.Source,
+    UserType = request.Source == "GRAPH" ? (request.UserKind == "Client" ? "Guest" : "Member") : "UNKNOWN", Source = request.Source,
     ObservedAt = DateTimeOffset.UtcNow
   };
 }

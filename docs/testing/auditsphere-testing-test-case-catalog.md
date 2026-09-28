@@ -207,8 +207,26 @@ Cross-cutting tags: scope, maker/checker, immutable evidence, stale review, migr
 | M365-008 | [AuditPlanningTests.TenantCapability_WithoutConfig_IsBlocked][AuditPlanningTests] | U / D | Missing flags yield BLOCKED with provenance. Display D15. |
 | M365-009 | [AuditPlanningTests.TenantCapability_Partial_StillBlocked][AuditPlanningTests] | U / D | Entra-only flags do not satisfy SharePoint prerequisite. Display D16. |
 | M365-010 | [AuditPlanningTests.TenantCapability_Full_IsReady][AuditPlanningTests] | U / D | Boolean capability helper returns READY, not observed tenant acceptance. Display D17. |
+| M365-011 | [TenantAdministrationTests.ConsentIdentityLeg_BindsExactTenantAdministrator_AndRecordsCapabilitiesIndependently][TenantAdministrationTests] | I / D | Nonce-bound identity leg stores consenting tid/oid; each capability recorded separately; no activation. |
+| M365-012 | [TenantAdministrationTests.ConsentIdentityLeg_RejectsReplayWrongTenantWrongNonceExternalIdentityAndExpiry][TenantAdministrationTests] | I / D | Replay, wrong tenant, wrong nonce, external identity, expiry and other-admin session binding fail closed. |
+| M365-013 | [TenantAdministrationTests.CapabilityVerification_NotGrantedAndStaleStatesBlockMutations][TenantAdministrationTests] | I / D | No consent, NOT_GRANTED, stale and disabled capabilities block mutations. |
+| M365-014 | [TenantAdministrationTests.CapabilityRows_AreAppendOnlyInPostgres][TenantAdministrationTests] | I / D | Capability, administration-event and role-evidence rows reject UPDATE/DELETE. |
+| M365-015 | [TenantAdministrationTests.CreateUser_IsIdempotent_BindsImmutableIdentity_AndNeverPersistsPassword][TenantAdministrationTests] | I / D | Idempotent creation, tid+oid binding, reviewed grant, no password/token persisted. |
+| M365-016 | [TenantAdministrationTests.CreateUser_DuplicateUpnOrLocalEmailIsRefusedBeforeDispatch][TenantAdministrationTests] | I / D | Duplicate UPN/email refused before Microsoft dispatch. |
+| M365-017 | [TenantAdministrationTests.CreateUser_UnknownOutcomeIsReconciledByIdentity_NotBlindlyRetried][TenantAdministrationTests] | I / D | UNKNOWN reconciled by immutable identity with one dispatch. |
+| M365-018 | [TenantAdministrationTests.CreateUser_FailedOutcomeGrantsNothing_AndDisabledCapabilityBlocks][TenantAdministrationTests] | I / D | FAILED grants nothing; disabled capability and ClientUser provisioning refused. |
+| M365-019 | [TenantAdministrationTests.GuestInvitation_BindsClientUserWithClientScopeOnly][TenantAdministrationTests] | I / D | Guest bound as ClientUser in client scope; sibling/firm-wide denied; existing guest not re-invited. |
+| M365-020 | [TenantAdministrationTests.ExistingGuestAndMemberBinding_UseImmutableIdentity_AndRefuseDisabledAccounts][TenantAdministrationTests] | I / D | Member/guest binding by object ID; disabled identities refused; binding grants nothing. |
+| M365-021 | [TenantAdministrationTests.Groups_AllowlistOnly_RefuseRoleAssignableGroups_AndNeverGrantAuditSphereAccess][TenantAdministrationTests] | I / D | Allowlist, role-assignable refusal, add/remove/no-change evidence, no grant change. |
+| M365-022 | [TenantAdministrationTests.OtherFirmsAndNonAdministratorsSeeNothing][TenantAdministrationTests] | I / D | No cross-firm or non-administrator disclosure of users, counts or operations. |
+| M365-023 | [TenantAdministrationTests.Overview_ProgressIsDerivedFromPersistedVerification][TenantAdministrationTests] | I / D | Dashboard progress and warnings derive from persisted state. |
+| M365-024 | [TenantAdministrationTests.PermissionMatrix_DocumentsEveryCapability_AndUsesNoProhibitedPermission][TenantAdministrationTests] | U / D | Every capability documented; no prohibited permission; no Entra role capability. |
+| M365-025 | [RoleAssignmentTests (8 methods)][RoleAssignmentTests] | I / D | Preview diff, explicit expansion confirmation, self-elevation, independence hold, last administrator, CLIENT/ENGAGEMENT/GROUP isolation, revocation session invalidation, stale/disabled directory identity, expiry revocation, no Entra role. |
+| M365-026 | [GraphTenantAdministrationProviderTests (all methods)][GraphTenantAdministrationProviderTests] | C / — | Single-role token fence (selected-site isolation), accepted/failed/unknown classification, ID-token validation, capability mapping, password complexity. |
+| M365-027 | [LiveMicrosoftTenantAcceptanceTests.CapabilityVerification_IsBlockedExternalUnlessLiveCredentialsAreSupplied][LiveMicrosoftTenantAcceptanceTests] | C / — | Live-gated: reports BLOCKED_EXTERNAL per capability without live credentials; read-only when live. |
+| M365-028 | [TenantAdministrationJourneyTests (5 journeys)][TenantAdministrationJourneyTests] | I / — | Playwright browser journeys: connect tenant, assign existing user and revoke, create user with one-time password and UNKNOWN recovery, client-scoped guest isolation, group membership and failure states (simulated tenant). |
 
-Cross-reference SEC-013–014 for roster administration and last-administrator protection. No existing test above performs live OIDC, directory lookup, selected-resource Graph operations, or Purview verification.
+Cross-reference SEC-013–014 for roster administration and last-administrator protection. No test above performs live OIDC, live directory lookup, live Microsoft mutation, selected-resource Graph operations, or Purview verification; M365-011–028 use stubbed HTTP or the Development/Test simulated tenant.
 
 ## 4. Security and authorization tests
 
@@ -520,6 +538,11 @@ Fresh Release discovery on 2026-09-24 reconciles 260 Domain + 6 API + 55 E2E = 3
 [FinancialStatementTests]: ../../tests/AuditSphereOps.Domain.Tests/FinancialStatementTests.cs
 [LedgerTests]: ../../tests/AuditSphereOps.Domain.Tests/LedgerTests.cs
 [Microsoft365AccessTests]: ../../tests/AuditSphereOps.Domain.Tests/Microsoft365AccessTests.cs
+[TenantAdministrationTests]: ../../tests/AuditSphereOps.Domain.Tests/TenantAdministrationTests.cs
+[RoleAssignmentTests]: ../../tests/AuditSphereOps.Domain.Tests/RoleAssignmentTests.cs
+[GraphTenantAdministrationProviderTests]: ../../tests/AuditSphereOps.Domain.Tests/GraphTenantAdministrationProviderTests.cs
+[LiveMicrosoftTenantAcceptanceTests]: ../../tests/AuditSphereOps.Domain.Tests/LiveMicrosoftTenantAcceptanceTests.cs
+[TenantAdministrationJourneyTests]: ../../tests/AuditSphereOps.E2E.Tests/TenantAdministrationJourneyTests.cs
 [Microsoft365OnboardingTests]: ../../tests/AuditSphereOps.Domain.Tests/Microsoft365OnboardingTests.cs
 [OperationRecoveryTests]: ../../tests/AuditSphereOps.Domain.Tests/OperationRecoveryTests.cs
 [OutboxMigrationTests]: ../../tests/AuditSphereOps.Domain.Tests/OutboxMigrationTests.cs

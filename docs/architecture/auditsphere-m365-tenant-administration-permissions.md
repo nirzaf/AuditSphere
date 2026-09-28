@@ -1,100 +1,114 @@
 # Microsoft 365 tenant administration permission decision
 
-**Status: APPROVED for the core directory-reader boundary; PROPOSED for optional mutations.**
+**Status: APPROVED boundary; optional mutation capabilities IMPLEMENTED and disabled by default.**
 The repository owner's tenant-administration request changes the former blanket
 prohibition on tenant-wide Graph scopes. This decision permits only the
-read-only directory exception described below. Each optional mutation remains
-disabled until its separate product/security approval, app configuration,
-administrator consent, provider verification and acceptance tests are recorded.
-This decision does not itself grant consent or turn on external effects.
+capabilities in the matrix below, each with its own app identity, its own
+administrator consent and its own verification. Every optional capability is
+off until a deployment operator enables it, supplies its separate certificate
+through an approved secret store, a tenant administrator consents, and
+AuditSphere records a `VERIFIED` result for that exact tenant. Nothing in this
+document grants consent, turns on external effects or records live acceptance.
 
 ## Security boundary
 
-AuditSphere `RoleGrant` remains the sole source of application roles and scope.
-No AuditSphere role maps to an Entra administrator role. Web sign-in, the
-directory reader, selected-site document worker, and optional mutation
-capabilities use separate app identities or credentials. The existing document
-worker retains `Sites.Selected` with an explicit grant to the approved site;
-directory consent does not widen its SharePoint reach. Tenant credentials and
-tokens are kept in approved private stores, never ordinary database records.
-
-The core directory reader may request application `User.Read.All` for bounded
-`/users` discovery and exact-object status checks, including `accountEnabled`.
-It is tenant-wide **read** access, so the runtime must select only needed
-fields, page results, expose them only to a current firm-wide AuditSphere
-Administrator, and never infer an AuditSphere grant from a directory result.
-The prior approved-roster path remains available when the reader is absent.
+- AuditSphere `RoleGrant` (and `GroupAccessGrant` for consolidation groups) remains
+  the sole source of application roles and scope. No AuditSphere role maps to a
+  Microsoft Entra administrator role, and Entra directory-role assignment is not
+  implemented (`PRIVILEGED_ROLE_ADMINISTRATION` is deliberately absent). Enabling it
+  would require a separate Privileged Tenant Administration feature, additional
+  consent, step-up authentication and separate acceptance tests.
+- Microsoft group membership is never an AuditSphere authorization source.
+- Web sign-in, the directory reader/consent app, the selected-site document worker
+  and each optional mutation capability use **separate app identities**. A
+  capability token is accepted only when it is for the exact tenant and carries
+  **exactly one** application role — its documented permission
+  (`GraphCapabilityTokenSource`). A credential with extra roles is refused, so the
+  document worker can never gain directory permissions and vice versa. Startup
+  refuses an enabled capability without a complete separate certificate, or one
+  that reuses the sign-in or selected-site app ID.
+- Tenant credentials, access tokens, refresh tokens, authorization codes and
+  initial passwords are never written to database records, logs or audit events.
+  Consent `state` and `nonce` are stored only as SHA-256 hashes.
 
 ## Permission matrix
 
-`NOT_CONFIGURED` means no permission is configured for the named optional
-capability. The directory reader has a separate Development registration and
-observed live read, while production remains unverified.
-For Microsoft Graph application permissions, tenant consent requires a
-Privileged Role Administrator or a custom role authorized for the specific
-consent; an AuditSphere Administrator alone is insufficient. The tenant's
-consent policy and role assignment must be checked at connection time.
+"Configured?" and "Verified?" are runtime values shown on
+**Administration → Microsoft 365 → Security & Consent** from persisted
+`m365_tenant_capability_verifications` rows. No permission below has been
+consented in a production tenant by this change.
 
-| Capability | Endpoint | Least permission | Type | Why needed | Consent / Microsoft authority | State |
-| --- | --- | --- | --- | --- | --- | --- |
-| Sign-in | Microsoft OIDC | `openid profile email` | Delegated sign-in | Authenticate one work/school identity and bind `tid` + `oid` | Normal OIDC policy; no Graph app role | Existing, separately verified |
-| Directory reader | `GET /users`, `GET /users/{id}` | `User.Read.All` | Application, separate reader identity | Search existing users and re-read an exact enabled object before local binding | Tenant admin consent; Privileged Role Administrator or authorized custom role | Development-only app consented; exact-role token and bounded Graph read observed; no persisted verification revision or production acceptance |
-| Selected SharePoint | Exact approved `/sites/{id}` and `/drives/{id}` resources | `Sites.Selected` plus site-specific `write` grant | Application, document-worker identity | Read/write only the selected working site | Tenant admin consent plus separate exact-site grant | Existing Development selected-site read and disposable write checks; no PBC acceptance |
-| Tenant user creation | `POST /users` | `User.Create` | Application, optional separate provisioner | Create a new workforce user only when explicitly enabled | Separate tenant admin consent and provisioning policy | PROPOSED; NOT_CONFIGURED |
-| Guest invitation | `POST /invitations` | `User.Invite.All` | Application, optional separate inviter | Invite an explicitly approved external client identity | Separate tenant admin consent and tenant B2B policy | PROPOSED; NOT_CONFIGURED |
-| Managed group members | `GET /groups/{id}/members`, `POST /groups/{id}/members/$ref`, `DELETE /groups/{id}/members/{id}/$ref` | `GroupMember.ReadBasic.All` for bounded member display; `GroupMember.ReadWrite.All` for user membership changes | Application, optional separate group manager | Administer only allowlisted AuditSphere-managed groups | Separate tenant admin consent; role-assignable groups excluded | PROPOSED; NOT_CONFIGURED |
-| Outbound mail | Existing approved sender path | Existing mail-provider scope only | Separate existing delivery provider | Send AuditSphere notifications | Existing provider approval | No new permission |
+| Capability | Graph endpoint | Permission | Delegated / Application | Why required | Admin consent | Required Entra role to consent/administer | Configured? (default) |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `SIGN_IN` | Microsoft identity platform OIDC | `openid profile email` | Delegated | Authenticate one work/school identity and bind immutable `tid` + `oid` | Not required for sign-in scopes | None | Existing |
+| `DIRECTORY_READ` | `GET /users`, `GET /users/{id}` | `User.Read.All` | Application, directory-reader/consent app | Bounded search of existing users; exact `accountEnabled`/`userType` checks; UPN/guest reconciliation reads | Required | Privileged Role Administrator or Global Administrator | Off (`DirectoryReader:Enabled`) |
+| `SELECTED_SITE` | Exact `/sites/{id}`, `/drives/{id}` | `Sites.Selected` + per-site `write` grant | Application, document-worker app | Read/write only the approved working site | Required, plus a separate exact-site grant | Privileged Role Administrator; SharePoint Administrator for the site grant | Existing (`SelectedSite:*`) |
+| `OUTBOUND_MAIL` | `POST /users/{sender}/sendMail` | `Mail.Send` | Application, mail app restricted by an Exchange application access policy | Send AuditSphere notifications from one sender only; no mailbox reading | Required | Privileged Role Administrator; Exchange Administrator for the access policy | Off (`TenantAdministration:OutboundMail`) |
+| `TENANT_USER_PROVISIONING` | `POST /users`; reconciliation via reader `GET /users?$filter=userPrincipalName eq` | `User.Create` | Application, separate provisioner app | Create a workforce user only when explicitly enabled | Required | Privileged Role Administrator or Global Administrator | Off (`TenantAdministration:Provisioning`) |
+| `GUEST_INVITATION` | `POST /invitations`; reconciliation via reader | `User.Invite.All` | Application, separate inviter app | Invite an explicitly approved external client identity; never automatic | Required; tenant B2B policy must allow app-only invitations | Privileged Role Administrator or Global Administrator | Off (`TenantAdministration:GuestInvitation`) |
+| `GROUP_MEMBERSHIP` | `GET /groups/{id}`, `GET /groups/{id}/members`, `POST /groups/{id}/members/$ref`, `DELETE /groups/{id}/members/{id}/$ref` | `GroupMember.ReadWrite.All` | Application, separate group-manager app | Add/remove users only in allowlisted AuditSphere-managed groups | Required | Privileged Role Administrator or Global Administrator | Off (`TenantAdministration:GroupMembership`) |
 
-No normal runtime may request `Directory.ReadWrite.All`,
-`User.ReadWrite.All`, `RoleManagement.ReadWrite.Directory`,
-`Sites.ReadWrite.All`, `Files.ReadWrite.All`, or `Sites.FullControl.All`.
-Entra administrator-role assignment is outside this administration feature.
-Optional user, guest and group mutations require an operation-specific
-idempotency/reconciliation design before their permissions are enabled.
+**Least privilege.** `User.Create` is Microsoft's least-privileged permission for
+`POST /users` (not `User.ReadWrite.All`); `User.Invite.All` for `POST /invitations`;
+`GroupMember.ReadWrite.All` for user membership changes (not `Group.ReadWrite.All`);
+`User.Read.All` is required because `User.ReadBasic.All` does not return
+`accountEnabled`/`userType`. Role-assignable groups need
+`RoleManagement.ReadWrite.Directory`, so AuditSphere refuses them (and treats an
+unknown `isAssignableToRole` as privileged). Dynamic-membership groups are refused.
+
+No AuditSphere runtime may request `Directory.ReadWrite.All`, `User.ReadWrite.All`,
+`RoleManagement.ReadWrite.Directory`, `Sites.ReadWrite.All`, `Sites.FullControl.All`,
+`Files.ReadWrite.All`, `Mail.Read` or `Mail.ReadWrite`
+(`Microsoft365PermissionMatrix.Prohibited`, enforced by tests).
 
 ## Consent and evidence contract
 
-The admin-consent callback supplies `state`, tenant and an outcome; it does
-**not** authenticate the consenting person's `oid`. A tenant connection flow
-must bind the initiating AuditSphere administrator and a separately
-authenticated work/school tenant-admin identity to a short-lived setup
-session, validate state/nonce and exact tenant, then verify each granted
-capability with its own credential and endpoint. Callback flags alone are not
-proof of consent or proof of the consenting actor. Record the observed
-identity and capability evidence with honest provenance; do not label an
-inferred actor as the verified grantor. A saved draft, token role, selected-site
-grant, working endpoint and application activation are separate states.
+1. A current firm-wide AuditSphere Administrator starts **Connect Microsoft 365
+   tenant**. A one-use, ten-minute attempt binds the actor, session epoch, setup
+   draft and configured tenant; only the SHA-256 of `state` is stored.
+2. Microsoft's `/adminconsent` page authenticates the tenant administrator and
+   collects consent; AuditSphere never collects a Microsoft password. The callback
+   must match the hashed state, the same AuditSphere actor and epoch, and the exact
+   tenant; otherwise the attempt is consumed as `DENIED`/`EXPIRED`.
+3. Because the admin-consent callback does not identify the consenting person, a
+   second nonce-bound OIDC authorization-code sign-in to the consent app follows.
+   The code is redeemed server-side with the consent app's certificate; the ID
+   token's issuer, audience, tenant, expiry and nonce are validated, external
+   (`idp` ≠ issuer) and personal-account identities are refused, and only the
+   consenting administrator's `tid`/`oid` are stored (`CONSENT_VERIFIED`).
+   Replays cannot redeem twice: the identity state is consumed before redemption.
+4. Each enabled capability is then verified separately with its own credential
+   (exact single app role, plus a bounded read for directory and group access)
+   and recorded as `VERIFIED`, `NOT_GRANTED`, `FAILED` or `BLOCKED_EXTERNAL`.
+   Capabilities are not usable without a verified consenting administrator, and a
+   verification older than 24 hours is `STALE` and blocks mutations.
 
-The current consent slice binds state to the initiating AuditSphere session
-and records only `RETURNED_UNVERIFIED`. It does not yet authenticate the
-consenting Microsoft administrator, acquire a directory-reader credential,
-or verify Graph permissions; those are required before `VERIFIED` status.
-The local directory reader is separately disabled by default. When explicitly
-configured with its own certificate, it enforces an exact-tenant app token
-whose sole application role is `User.Read.All`, then reads up to 25 selected
-fields per page. A successful search is an ephemeral provider observation,
-not persisted capability evidence or an AuditSphere role grant.
-The Development tenant now has a separate reader registration with one
-certificate, an exact localhost consent callback and only the approved Graph
-application role. A direct certificate token and the AuditSphere browser page
-both completed bounded reads. A separate browser consent attempt was cancelled
-and recorded `DENIED`; this did not revoke the previously observed app-role
-grant. No verified successful consent callback is claimed. A subsequent
-administrator-triggered exact-user Graph read in Development recorded a
-`DIRECTORY` provider check against the current connection revision. Its
-recent-check display expires after 15 minutes; it does not prove the grantor,
-the consent callback, SharePoint, mail, or connection activation.
-Selecting a directory member requires a fresh `GET /users/{id}` read before
-creating or refreshing an exact local `(tenant ID, object ID)` binding. A
-disabled, guest, changed, or mismatched object is refused. Binding records a
-Graph observation but creates no `RoleGrant`; the administrator must separately
-choose a local role and scope. The general roster endpoint cannot label
-unverified input as `GRAPH`.
+## External operation lifecycle
 
-Before optional capabilities ship, extend this matrix with the approved
-credential owner, retention, revocation steps, exact endpoint tests, and
-failure/unknown-outcome handling. No broad scope is added to the current app
-registration as a shortcut for a picker or a setup badge.
+Microsoft mutations are never combined with a database transaction as if atomic.
+`m365_external_operations` records each request with a firm-unique idempotency
+key and request fingerprint: `REQUESTED → AUTHORIZED → DISPATCHING →
+ACCEPTED | FAILED | UNKNOWN → RECONCILED → BOUND` (or `CONFLICT_REQUIRES_REVIEW`).
+Authority is rechecked immediately before dispatch. Only a definite 4xx is
+`FAILED`; timeouts, 429 and 5xx are `UNKNOWN`. An `UNKNOWN` or interrupted
+operation is reconciled by immutable Microsoft identity (UPN/guest lookup with a
+created-after-dispatch check, or membership check) and is never blindly re-sent;
+Microsoft's UPN uniqueness also prevents duplicates. The local `AppUser`,
+`RoleGrant`, evidence and session-epoch change commit in a separate binding
+transaction only after acceptance or reconciliation. Every step writes an
+append-only `m365_administration_events` row (actor, firm, target, operation,
+old/new state, role/scope change, reason, Microsoft operation and correlation ID,
+result, time).
+
+## Remaining external gates
+
+Live consent, live capability verification and live mutations are
+`BLOCKED_EXTERNAL` until an operator configures each separate app registration and
+certificate and a tenant administrator consents. The
+`LiveMicrosoftTenantAcceptanceTests` test reports `BLOCKED_EXTERNAL` per capability
+when live credentials are absent. Local development and CI use the
+`SimulatedMicrosoftTenant` adapter, which startup refuses outside Development/Test
+or alongside live credentials.
 
 Sources: [Microsoft admin consent protocol](https://learn.microsoft.com/en-us/entra/identity-platform/v2-admin-consent),
 [tenant admin-consent role prerequisites](https://learn.microsoft.com/en-us/entra/identity/enterprise-apps/grant-admin-consent),

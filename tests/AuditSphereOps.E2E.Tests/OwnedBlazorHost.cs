@@ -98,8 +98,9 @@ internal sealed class OwnedBlazorHost : IAsyncDisposable
   public Task<string> StartReviewerWebAsync() =>
     StartWebAsync(FindRepositoryRoot(), Fixture.Reviewer, enableSetup: false);
 
-  public Task<string> StartWebForIdentityAsync(AuditSphereOps.Domain.Security.AppUser identity) =>
-    StartWebAsync(FindRepositoryRoot(), identity, enableSetup: false);
+  public Task<string> StartWebForIdentityAsync(AuditSphereOps.Domain.Security.AppUser identity,
+    IReadOnlyDictionary<string, string>? extraSettings = null) =>
+    StartWebAsync(FindRepositoryRoot(), identity, enableSetup: false, extraSettings: extraSettings);
 
   public async Task WaitForReceivedAsync(Guid uploadId)
   {
@@ -140,7 +141,7 @@ internal sealed class OwnedBlazorHost : IAsyncDisposable
   }
 
   private async Task<string> StartWebAsync(string repo, AuditSphereOps.Domain.Security.AppUser identity, bool enableSetup,
-    bool requireProtectionAttestation = false)
+    bool requireProtectionAttestation = false, IReadOnlyDictionary<string, string>? extraSettings = null)
   {
     var url = $"http://127.0.0.1:{ReserveLoopbackPort()}";
     var logPath = Path.Combine(runRoot, $"web-{identity.UserKind}-{identity.Id:N}.log");
@@ -169,6 +170,8 @@ internal sealed class OwnedBlazorHost : IAsyncDisposable
         "Setup__BootstrapProofHash", Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(M365SetupJourneyTests.BootstrapProof))).ToLowerInvariant()
       ]);
     }
+    foreach (var (key, value) in extraSettings ?? new Dictionary<string, string>())
+      settings.AddRange([key, value]);
     var process = StartDotnet(repo, "src/AuditSphereOps.Web/AuditSphereOps.Web.csproj", logPath,
       [.. settings]);
     processes.Add(process);
@@ -233,6 +236,9 @@ internal sealed class OwnedBlazorHost : IAsyncDisposable
       k.StartsWith("Worker__", StringComparison.Ordinal) ||
       k.StartsWith("ReleaseSafety__", StringComparison.Ordinal) ||
       k.StartsWith("Storage__", StringComparison.Ordinal) ||
+      k.StartsWith("TenantAdministration__", StringComparison.Ordinal) ||
+      k.StartsWith("DirectoryReader__", StringComparison.Ordinal) ||
+      k.StartsWith("TenantConsent__", StringComparison.Ordinal) ||
       k is "AllowSimulationAdapters" or "ASPNETCORE_ENVIRONMENT" or "ASPNETCORE_URLS" or "DOTNET_ENVIRONMENT").ToArray())
       info.Environment.Remove(key);
     for (var i = 0; i < pairs.Length; i += 2) info.Environment[pairs[i]] = pairs[i + 1];

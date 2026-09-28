@@ -8,6 +8,10 @@
 @inject IDbContextFactory<AuditSphereDbContext> DbFactory
 @inject IConfiguration Configuration
 @inject IJSRuntime JS
+@inject IDialogService Dialogs
+@inject TenantAdministrationSettings AdminSettings
+@using AuditSphereOps.Application.Microsoft365
+@using AuditSphereOps.Web.Components.Administration
 
 <PageTitle>Firm administration</PageTitle>
 <MudLink Href="/app" Class="back-link mb-2 d-inline-block">← Back to portfolio</MudLink>
@@ -28,46 +32,53 @@ else if (_actor is null || !_isAdmin)
 else
 {
   <p class="scope-note">System and firm-level administrative configuration (§43.2). Versioned configuration and role grants; direct database manipulation consoles are prohibited.</p>
+  @if (_overview is not null) { <AdministrationDashboard Overview="_overview" /> }
+  @if (!string.IsNullOrWhiteSpace(_pageMessage)) { <MudAlert Severity="Severity.Success" Variant="Variant.Outlined" Class="my-2" role="status">@_pageMessage</MudAlert> }
 
-  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="safety-heading" role="region">
-    <h2 id="safety-heading">Firm safety state</h2>
-    <dl class="details">
-      <dt>Firm ID</dt><dd><code>@_actor.FirmId</code></dd>
-      <dt>Operating Mode</dt>
-      <dd>
-        @if (_safetyState?.OperatingMode == "RECOVERY_QUARANTINE")
-        {
-          <span class="error-text"><strong>RECOVERY_QUARANTINE</strong> (New operations halted; manual operator review required)</span>
-        }
-        else
-        {
-          <span class="success-text"><strong>@(_safetyState?.OperatingMode ?? "LOCAL_ONLY")</strong> (Normal operations active)</span>
-        }
-      </dd>
-      <dt>Deployment Epoch</dt><dd>@(_safetyState?.DeploymentEpoch ?? 1)</dd>
-      <dt>Operations Panel</dt><dd><MudLink Href="/app/operations">Manage durable operations &amp; recovery</MudLink></dd>
-    </dl>
-  </MudPaper>
-
-  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="env-heading" role="region">
-    <h2 id="env-heading">Runtime environment &amp; security fences</h2>
-    <dl class="details">
-      <dt>Hosting Environment</dt><dd>@Configuration["ASPNETCORE_ENVIRONMENT"]</dd>
-      <dt>External Effects Enabled</dt><dd><code>@Configuration["ExternalEffects:Enabled"]</code> (Strictly fenced)</dd>
-      <dt>Simulation Adapters Allowed</dt><dd><code>@Configuration["ExternalEffects:AllowSimulationAdapters"]</code></dd>
-      <dt>System Liveness</dt><dd><a href="/health/live" target="_blank">Check /health/live</a></dd>
-      <dt>System Readiness</dt><dd><a href="/health/ready" target="_blank">Check /health/ready (migration verified)</a></dd>
-    </dl>
-  </MudPaper>
-
-  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="m365-heading" role="region">
-    <h2 id="m365-heading">Microsoft 365 onboarding</h2>
-    <p class="field-help">Connection, selected-resource verification, role assignment, and client workspace provisioning are separate revisions. An unconfigured or unverified integration cannot create outward effects.</p>
-    <MudButton Color="Color.Primary" Variant="Variant.Filled" Href="/app/administration/microsoft365" Class="button">Continue Microsoft 365 setup</MudButton>
-    <MudButton Variant="Variant.Outlined" Href="/app/administration/microsoft365/tenant-connection" Class="btn-secondary ms-2">Tenant connection</MudButton>
-  </MudPaper>
-
-  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="roles-heading" role="region">
+  <MudTabs Elevation="1" Rounded="true" ApplyEffectsToContainer="true" @bind-ActivePanelIndex="_topTab">
+    <MudTabPanel Text="Users & Access">
+      <MudTabs Elevation="0" Rounded="true" @bind-ActivePanelIndex="_userTab">
+        <MudTabPanel Text="Users">
+          <MudPaper Class="pa-4 my-3" Elevation="1" role="region" aria-labelledby="users-heading">
+            <h2 id="users-heading">Users</h2>
+            @if (_workspace is null || _workspace.Users.Count == 0)
+            {
+              <MudText Typo="Typo.body2">No active users are bound in this firm.</MudText>
+            }
+            else
+            {
+              <MudTable Items="_workspace.Users" Dense="true" Hover="true" Elevation="0" Filter="FilterUser">
+                <ToolBarContent><MudTextField T="string" @bind-Value="_userFilter" Placeholder="Filter users" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Immediate="true" /></ToolBarContent>
+                <HeaderContent>
+                  <MudTh>Display name</MudTh><MudTh>Microsoft identity</MudTh><MudTh>Account type</MudTh><MudTh>Directory status</MudTh>
+                  <MudTh>AuditSphere status</MudTh><MudTh>AuditSphere roles &amp; scope</MudTh><MudTh>Invitation</MudTh>
+                  <MudTh>Last Microsoft verification</MudTh><MudTh>Last AuditSphere access</MudTh><MudTh>Created</MudTh><MudTh>Action</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                  <MudTd DataLabel="Display name"><strong>@context.DisplayName</strong></MudTd>
+                  <MudTd DataLabel="Microsoft identity">@context.MicrosoftIdentity<br /><code title="Tenant ID / Object ID">@context.TenantId / @context.ObjectId</code></MudTd>
+                  <MudTd DataLabel="Account type">@context.AccountType</MudTd>
+                  <MudTd DataLabel="Directory status"><StatusChip Status="@context.DirectoryStatus" /></MudTd>
+                  <MudTd DataLabel="AuditSphere status"><StatusChip Status="@context.AuditSphereStatus" /></MudTd>
+                  <MudTd DataLabel="AuditSphere roles & scope">
+                    @if (context.Access.Count == 0) { <span class="muted">None</span> }
+                    @foreach (var line in context.Access) { <div>@line.Role — @DescribeScope(line)@(line.ExpiresAt is { } e ? $" (expires {e:yyyy-MM-dd})" : "")</div> }
+                  </MudTd>
+                  <MudTd DataLabel="Invitation"><StatusChip Status="@context.InvitationStatus" /></MudTd>
+                  <MudTd DataLabel="Last Microsoft verification">@(context.LastMicrosoftVerification?.ToString("yyyy-MM-dd HH:mm") ?? "Never")</MudTd>
+                  <MudTd DataLabel="Last AuditSphere access">@(context.LastAuditSphereAccess?.ToString("yyyy-MM-dd HH:mm") ?? "Never")</MudTd>
+                  <MudTd DataLabel="Created">@context.CreatedDate.ToString("yyyy-MM-dd") by @context.CreatedBy</MudTd>
+                  <MudTd DataLabel="Action">
+                    <MudButton Variant="Variant.Outlined" Size="Size.Small" OnClick="() => OpenAssignDialogAsync(context.UserId, context.DisplayName, null, null)" Disabled="@_roleBusy">Assign role</MudButton>
+                  </MudTd>
+                </RowTemplate>
+                <PagerContent><MudTablePager PageSizeOptions="new int[] { 10, 25, 50 }" /></PagerContent>
+              </MudTable>
+            }
+          </MudPaper>
+        </MudTabPanel>
+        <MudTabPanel Text="AuditSphere Roles">
+          <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="roles-heading" role="region">
     <h2 id="roles-heading">Firm role grants</h2>
     @if (_grants.Count == 0)
     {
@@ -106,9 +117,9 @@ else
             }
           </MudTd>
           <MudTd DataLabel="Role"><strong>@context.Role</strong></MudTd>
-          <MudTd DataLabel="Client Scope">@(context.ClientId.HasValue ? context.ClientId.Value.ToString() : "Firm-wide")</MudTd>
+          <MudTd DataLabel="Client Scope">@(context.ClientId.HasValue ? ScopeName(context.ClientId.Value) : "Firm-wide")</MudTd>
           <MudTd DataLabel="Engagement Scope">@(context.EngagementId.HasValue ? context.EngagementId.Value.ToString() : "—")</MudTd>
-          <MudTd DataLabel="Granted">@context.GrantedAt.ToString("yyyy-MM-dd HH:mm")</MudTd>
+          <MudTd DataLabel="Granted">@context.GrantedAt.ToString("yyyy-MM-dd HH:mm")@(context.ExpiresAt is { } expires ? $" · expires {expires:yyyy-MM-dd}" : "")</MudTd>
           <MudTd DataLabel="Invitation / evidence">
             <div>Invitation: <strong>@(invitation?.DeliveryState ?? "NOT_CREATED")</strong></div>
             <div>First access: @(invitation?.FirstAccessAt?.ToString("yyyy-MM-dd HH:mm") ?? "Not recorded")</div>
@@ -121,7 +132,11 @@ else
           <MudTd DataLabel="State / action">
             @if (context.RevokedAt is null)
             {
-              <MudButton Color="Color.Error" Variant="Variant.Filled" Size="Size.Small" Class="button" OnClick="() => RevokeRoleAsync(context.Id)" Disabled="@_roleBusy">Revoke</MudButton>
+              <MudButton Color="Color.Error" Variant="Variant.Filled" Size="Size.Small" Class="button" OnClick="() => ConfirmRevokeAsync(context)" Disabled="@_roleBusy">Revoke</MudButton>
+              @if (user is not null)
+              {
+                <MudButton Variant="Variant.Outlined" Size="Size.Small" Class="btn-secondary" OnClick="() => OpenAssignDialogAsync(user.Id, user.DisplayName, context.Id, context.Role)" Disabled="@_roleBusy">Change</MudButton>
+              }
             }
             else
             {
@@ -155,8 +170,7 @@ else
       </MudTable>
     }
   </MudPaper>
-
-  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="role-change-heading" role="region">
+          <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="role-change-heading" role="region">
     <h2 id="role-change-heading">User and role administration</h2>
     <p class="field-help">The separate read-only directory search is available from Tenant connection when explicitly configured and consented. This local fallback accepts an administrator-provided or exact verified-sign-in identity; email and display name never identify a user.</p>
     <div class="form-group"><label for="roster-tenant">Tenant ID <span class="required-marker">*</span><MudTextField T="string" @bind-Value="_rosterTenant" MaxLength="200" id="roster-tenant" required title="Exact verified Entra tenant ID (tid)." /></label></div>
@@ -190,6 +204,131 @@ else
     @if (!string.IsNullOrWhiteSpace(_roleMessage)) { <p class="notice" role="status">@_roleMessage</p> }
     @if (!string.IsNullOrWhiteSpace(_roleError)) { <p class="notice error" role="alert">@_roleError</p> }
   </MudPaper>
+        </MudTabPanel>
+        <MudTabPanel Text="Microsoft Directory">
+          <MicrosoftDirectoryPanel AssignRequested="OnDirectoryAssignAsync" Changed="ReloadKeepFormsAsync" />
+          <CreateUserWizard Available="@IsVerified(Microsoft365Capabilities.TenantUserProvisioning)" Clients="@(_workspace?.Clients ?? [])" Engagements="@(_workspace?.Engagements ?? [])" Changed="ReloadKeepFormsAsync" />
+          <ExternalOperationsPanel Operations="@(_workspace?.Operations ?? [])" Changed="ReloadKeepFormsAsync" />
+        </MudTabPanel>
+        <MudTabPanel Text="Invitations">
+          <MudPaper Class="pa-4 my-3" Elevation="1" role="region" aria-labelledby="invitations-heading">
+            <h2 id="invitations-heading">Invitations</h2>
+            <MudText Typo="Typo.body2" Class="field-help">An invitation grants nothing by itself; access comes only from the recorded AuditSphere grant.</MudText>
+            @{ var invitationRows = _grants.Where(g => g.RevokedAt is null && _invitationsByGrant.ContainsKey(g.Id)).ToList(); }
+            @if (invitationRows.Count == 0) { <MudText>No active invitations.</MudText> }
+            else
+            {
+              <MudSimpleTable Dense="true">
+                <thead><tr><th>Recipient</th><th>Role</th><th>State</th><th>First access</th></tr></thead>
+                <tbody>
+                  @foreach (var grant in invitationRows)
+                  {
+                    var invitation = _invitationsByGrant[grant.Id];
+                    <tr><td>@invitation.RecipientEmail</td><td>@grant.Role</td><td><StatusChip Status="@(invitation.FirstAccessAt is null ? invitation.DeliveryState : "ACCEPTED")" /></td><td>@(invitation.FirstAccessAt?.ToString("yyyy-MM-dd HH:mm") ?? "Not yet")</td></tr>
+                  }
+                </tbody>
+              </MudSimpleTable>
+            }
+          </MudPaper>
+          <GuestInvitationPanel Available="@IsVerified(Microsoft365Capabilities.GuestInvitation)" Clients="@(_workspace?.Clients ?? [])" Engagements="@(_workspace?.Engagements ?? [])" AssignRequested="OnDirectoryAssignAsync" Changed="ReloadKeepFormsAsync" />
+        </MudTabPanel>
+        <MudTabPanel Text="Groups">
+          <ManagedGroupsPanel Available="@IsVerified(Microsoft365Capabilities.GroupMembership)" Groups="@(_workspace?.Groups ?? [])" Users="@(_workspace?.Users ?? [])" Changed="ReloadKeepFormsAsync" />
+        </MudTabPanel>
+        <MudTabPanel Text="Access History">
+          <MudPaper Class="pa-4 my-3" Elevation="1" role="region" aria-labelledby="access-history-heading">
+            <h2 id="access-history-heading">Access history</h2>
+            <MudTable Items="@(_workspace?.History.Where(x => x.Operation.StartsWith("ROLE_") || x.Operation.StartsWith("GROUP_ROLE")).ToList() ?? [])" Dense="true" Elevation="0">
+              <HeaderContent><MudTh>When</MudTh><MudTh>Operation</MudTh><MudTh>Target</MudTh><MudTh>Change</MudTh><MudTh>Reason</MudTh><MudTh>Actor</MudTh><MudTh>Result</MudTh></HeaderContent>
+              <RowTemplate>
+                <MudTd>@context.At.ToString("yyyy-MM-dd HH:mm")</MudTd><MudTd>@context.Operation</MudTd><MudTd>@context.Target</MudTd>
+                <MudTd>@context.Change</MudTd><MudTd>@context.Reason</MudTd><MudTd>@context.Actor</MudTd><MudTd>@context.Result</MudTd>
+              </RowTemplate>
+              <PagerContent><MudTablePager PageSizeOptions="new int[] { 25, 50, 100 }" /></PagerContent>
+            </MudTable>
+          </MudPaper>
+        </MudTabPanel>
+        <MudTabPanel Text="Disabled / Revoked">
+          <MudPaper Class="pa-4 my-3" Elevation="1" role="region" aria-labelledby="revoked-heading">
+            <h2 id="revoked-heading">Disabled and revoked access</h2>
+            @if (_workspace is null || _workspace.DisabledOrRevoked.Count == 0) { <MudText>No disabled users or revoked grants.</MudText> }
+            else
+            {
+              <MudSimpleTable Dense="true">
+                <thead><tr><th>User</th><th>AuditSphere status</th><th>Directory status</th><th>Revoked grants</th></tr></thead>
+                <tbody>
+                  @foreach (var row in _workspace.DisabledOrRevoked)
+                  {
+                    <tr>
+                      <td>@row.DisplayName<br /><code>@row.TenantId / @row.ObjectId</code></td>
+                      <td><StatusChip Status="@row.AuditSphereStatus" /></td>
+                      <td><StatusChip Status="@row.DirectoryStatus" /></td>
+                      <td>@foreach (var revoked in _grants.Where(g => g.UserId == row.UserId && g.RevokedAt != null)) { <div>@revoked.Role — revoked @revoked.RevokedAt!.Value.ToString("yyyy-MM-dd HH:mm")</div> }</td>
+                    </tr>
+                  }
+                </tbody>
+              </MudSimpleTable>
+            }
+          </MudPaper>
+        </MudTabPanel>
+      </MudTabs>
+    </MudTabPanel>
+    <MudTabPanel Text="Microsoft 365">
+      <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="m365-heading" role="region">
+    <h2 id="m365-heading">Microsoft 365 onboarding</h2>
+    <p class="field-help">Connection, selected-resource verification, role assignment, and client workspace provisioning are separate revisions. An unconfigured or unverified integration cannot create outward effects.</p>
+    <MudButton Color="Color.Primary" Variant="Variant.Filled" Href="/app/administration/microsoft365" Class="button">Continue Microsoft 365 setup</MudButton>
+    <MudButton Variant="Variant.Outlined" Href="/app/administration/microsoft365/tenant-connection" Class="btn-secondary ms-2">Tenant connection</MudButton>
+  </MudPaper>
+      @if (_overview is not null) { <Microsoft365StatusPanel Overview="_overview" Changed="ReloadKeepFormsAsync" /> }
+    </MudTabPanel>
+    <MudTabPanel Text="Firm & Security">
+  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="safety-heading" role="region">
+    <h2 id="safety-heading">Firm safety state</h2>
+    <dl class="details">
+      <dt>Firm ID</dt><dd><code>@_actor.FirmId</code></dd>
+      <dt>Operating Mode</dt>
+      <dd>
+        @if (_safetyState?.OperatingMode == "RECOVERY_QUARANTINE")
+        {
+          <span class="error-text"><strong>RECOVERY_QUARANTINE</strong> (New operations halted; manual operator review required)</span>
+        }
+        else
+        {
+          <span class="success-text"><strong>@(_safetyState?.OperatingMode ?? "LOCAL_ONLY")</strong> (Normal operations active)</span>
+        }
+      </dd>
+      <dt>Deployment Epoch</dt><dd>@(_safetyState?.DeploymentEpoch ?? 1)</dd>
+      <dt>Operations Panel</dt><dd><MudLink Href="/app/operations">Manage durable operations &amp; recovery</MudLink></dd>
+    </dl>
+  </MudPaper>
+  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="env-heading" role="region">
+    <h2 id="env-heading">Runtime environment &amp; security fences</h2>
+    <dl class="details">
+      <dt>Hosting Environment</dt><dd>@Configuration["ASPNETCORE_ENVIRONMENT"]</dd>
+      <dt>External Effects Enabled</dt><dd><code>@Configuration["ExternalEffects:Enabled"]</code> (Strictly fenced)</dd>
+      <dt>Simulation Adapters Allowed</dt><dd><code>@Configuration["ExternalEffects:AllowSimulationAdapters"]</code></dd>
+      <dt>System Liveness</dt><dd><a href="/health/live" target="_blank">Check /health/live</a></dd>
+      <dt>System Readiness</dt><dd><a href="/health/ready" target="_blank">Check /health/ready (migration verified)</a></dd>
+    </dl>
+  </MudPaper>
+    </MudTabPanel>
+    <MudTabPanel Text="Audit History">
+      <MudPaper Class="pa-4 my-3" Elevation="1" role="region" aria-labelledby="audit-history-heading">
+        <h2 id="audit-history-heading">Administration audit history</h2>
+        <MudText Typo="Typo.body2" Class="field-help">Immutable record of every administration change. Secrets, tokens and passwords are never recorded.</MudText>
+        <MudTable Items="@(_workspace?.History ?? [])" Dense="true" Elevation="0">
+          <HeaderContent><MudTh>When</MudTh><MudTh>Operation</MudTh><MudTh>Target</MudTh><MudTh>Change</MudTh><MudTh>Reason</MudTh><MudTh>Actor</MudTh><MudTh>Result</MudTh><MudTh>Microsoft operation</MudTh></HeaderContent>
+          <RowTemplate>
+            <MudTd>@context.At.ToString("yyyy-MM-dd HH:mm")</MudTd><MudTd>@context.Operation</MudTd><MudTd>@context.Target</MudTd>
+            <MudTd>@context.Change</MudTd><MudTd>@context.Reason</MudTd><MudTd>@context.Actor</MudTd><MudTd>@context.Result</MudTd>
+            <MudTd>@if (context.MicrosoftOperation is not null) { <code>@context.MicrosoftOperation</code> }</MudTd>
+          </RowTemplate>
+          <PagerContent><MudTablePager PageSizeOptions="new int[] { 25, 50, 100 }" /></PagerContent>
+        </MudTable>
+      </MudPaper>
+    </MudTabPanel>
+  </MudTabs>
 }
 
 @code {
@@ -213,6 +352,10 @@ else
   private string _invitationLink = string.Empty, _invitationMessage = string.Empty;
   private string _roleMessage = string.Empty, _roleError = string.Empty;
   private long _loadGeneration;
+  private AdministrationOverview? _overview;
+  private UserAccessWorkspace? _workspace;
+  private int _topTab, _userTab;
+  private string _userFilter = string.Empty, _pageMessage = string.Empty;
 
   protected override Task OnInitializedAsync() => LoadAdministrationAsync();
 
@@ -229,6 +372,8 @@ else
     _directoryByIdentity = [];
     _grantHistoryByGrant = [];
     _expandedGrantId = null;
+    _overview = null;
+    _workspace = null;
     if (clearForms)
     {
       _selectedUserId = null;
@@ -277,6 +422,16 @@ else
       _invitationsByGrant = snapshot.InvitationsByGrant;
       _directoryByIdentity = snapshot.DirectoryByIdentity;
       _grantHistoryByGrant = snapshot.GrantHistoryByGrant;
+      var now = DateTimeOffset.UtcNow;
+      var overview = await AdministrationOverviewQuery.GetAsync(db, currentActor, AdminSettings.Options, AdminSettings.MailSender, now);
+      var workspace = await UserAccessWorkspaceQuery.GetAsync(db, currentActor, now);
+      if (!overview.Succeeded || !workspace.Succeeded || generation != _loadGeneration)
+      {
+        if (generation == _loadGeneration) ClearProtectedState(clearForms: true);
+        return;
+      }
+      _overview = overview.Value;
+      _workspace = workspace.Value;
       if (DirectorySelectedUserId is { } selectedId &&
           await db.Users.AsNoTracking().AnyAsync(x => x.Id == selectedId &&
             x.FirmId == currentActor.FirmId && !x.Disabled))
@@ -285,6 +440,7 @@ else
         _roleName = string.Empty;
         _scopeKind = string.Empty;
         _roleMessage = "Exact directory identity bound. Review the local role and scope before saving access.";
+        _userTab = 1;
       }
     }
     finally { if (generation == _loadGeneration) _loading = false; }
@@ -390,14 +546,108 @@ else
     return path;
   }
 
-  private async Task RevokeRoleAsync(Guid grantId)
+  private bool IsVerified(string capability) =>
+    _overview?.Capabilities.FirstOrDefault(x => x.Capability == capability)?.State == Domain.Microsoft365.CapabilityVerificationStates.Verified;
+
+  private bool FilterUser(UserAccessRow row) => string.IsNullOrWhiteSpace(_userFilter) ||
+    row.DisplayName.Contains(_userFilter, StringComparison.OrdinalIgnoreCase) ||
+    row.MicrosoftIdentity.Contains(_userFilter, StringComparison.OrdinalIgnoreCase);
+
+  private string ScopeName(Guid clientId) =>
+    _workspace?.Clients.FirstOrDefault(x => x.Id == clientId)?.Name ?? clientId.ToString();
+
+  private string DescribeScope(AccessLine line) => line.ScopeKind switch
+  {
+    "CLIENT" => "Client: " + ScopeName(line.ClientId!.Value),
+    "ENGAGEMENT" => "Engagement: " + (_workspace?.Engagements.FirstOrDefault(x => x.Id == line.EngagementId)?.Name ?? line.EngagementId.ToString()),
+    "GROUP" => "Group: " + (_workspace?.ClientGroups.FirstOrDefault(x => x.Id == line.GroupId)?.Name ?? line.GroupId.ToString()),
+    _ => "Firm-wide"
+  };
+
+  /// <summary>
+  /// Refresh after a panel action without unmounting the tabs (panels keep their one-time results).
+  /// Authorization is re-checked; any denial clears every protected projection.
+  /// </summary>
+  private async Task ReloadKeepFormsAsync()
+  {
+    var generation = ++_loadGeneration;
+    var actor = await ActorResolver.ResolveAsync();
+    if (actor is null || _actor is null || actor.UserId != _actor.UserId || actor.FirmId != _actor.FirmId)
+    {
+      if (generation == _loadGeneration) ClearProtectedState(clearForms: true);
+      return;
+    }
+    await using var db = await DbFactory.CreateDbContextAsync();
+    var now = DateTimeOffset.UtcNow;
+    var snapshot = await FirmAdministrationQuery.GetAsync(db, actor);
+    var overview = await AdministrationOverviewQuery.GetAsync(db, actor, AdminSettings.Options, AdminSettings.MailSender, now);
+    var workspace = await UserAccessWorkspaceQuery.GetAsync(db, actor, now);
+    if (generation != _loadGeneration) return;
+    if (!snapshot.Succeeded || !overview.Succeeded || !workspace.Succeeded)
+    {
+      ClearProtectedState(clearForms: true);
+      return;
+    }
+    _actor = actor;
+    _safetyState = snapshot.Value!.SafetyState;
+    _grants = snapshot.Value.Grants;
+    _usersById = snapshot.Value.UsersById;
+    _invitationsByGrant = snapshot.Value.InvitationsByGrant;
+    _directoryByIdentity = snapshot.Value.DirectoryByIdentity;
+    _grantHistoryByGrant = snapshot.Value.GrantHistoryByGrant;
+    _overview = overview.Value;
+    _workspace = workspace.Value;
+  }
+
+  private Task OnDirectoryAssignAsync((Guid UserId, string Name, bool Client) bound) =>
+    OpenAssignDialogAsync(bound.UserId, bound.Name, null, bound.Client ? "ClientUser" : null);
+
+  private async Task OpenAssignDialogAsync(Guid userId, string name, Guid? replacesGrantId, string? initialRole)
+  {
+    if (_workspace is null) return;
+    var parameters = new DialogParameters<RoleAssignmentDialog>
+    {
+      { x => x.UserId, userId },
+      { x => x.UserDisplayName, name },
+      { x => x.ReplacesGrantId, replacesGrantId },
+      { x => x.InitialRole, initialRole },
+      { x => x.Clients, _workspace.Clients },
+      { x => x.Engagements, _workspace.Engagements },
+      { x => x.Groups, _workspace.ClientGroups },
+    };
+    var dialog = await Dialogs.ShowAsync<RoleAssignmentDialog>("Assign AuditSphere role", parameters,
+      new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseOnEscapeKey = true });
+    var result = await dialog.Result;
+    if (result is null || result.Canceled) return;
+    await ReloadKeepFormsAsync();
+    if (_isAdmin) _pageMessage = "Access saved. The user's open sessions were invalidated and must sign in again.";
+  }
+
+  private async Task ConfirmRevokeAsync(RoleGrant grant)
+  {
+    if (_actor is null) return;
+    _usersById.TryGetValue(grant.UserId, out var user);
+    var parameters = new DialogParameters<ConfirmDialog>
+    {
+      { x => x.Message, $"Revoke {grant.Role} access? The user's open sessions are invalidated immediately." },
+      { x => x.RecordIdentity, $"{user?.DisplayName ?? "Unknown user"} — {grant.Role}" },
+      { x => x.RequireReason, true },
+      { x => x.ConfirmText, "Revoke access" },
+    };
+    var dialog = await Dialogs.ShowAsync<ConfirmDialog>("Revoke access", parameters);
+    var result = await dialog.Result;
+    if (result is null || result.Canceled) return;
+    await RevokeRoleAsync(grant.Id, result.Data as string);
+  }
+
+  private async Task RevokeRoleAsync(Guid grantId, string? reason = null)
   {
     if (_actor is null) return;
     _roleMessage = _roleError = string.Empty; _roleBusy = true;
     try
     {
       await using var db = await DbFactory.CreateDbContextAsync();
-      var result = await RoleAdministrationService.RevokeRoleGrantAsync(db, _actor, new(grantId));
+      var result = await RoleAdministrationService.RevokeRoleGrantAsync(db, _actor, new(grantId, null, reason));
       if (!result.Succeeded) { _roleError = result.Message ?? "The role grant could not be revoked."; return; }
       _roleMessage = "Role grant revoked and the target session epoch was invalidated.";
       await LoadAdministrationAsync(clearForms: false);

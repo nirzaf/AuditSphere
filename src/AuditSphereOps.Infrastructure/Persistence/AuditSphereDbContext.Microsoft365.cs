@@ -39,8 +39,13 @@ public sealed partial class AuditSphereDbContext
     consentAttempt.Property(x => x.StateHash).HasMaxLength(64);
     consentAttempt.Property(x => x.State).HasMaxLength(30);
     consentAttempt.Property(x => x.ReturnedTenantId).HasMaxLength(200);
+    consentAttempt.Property(x => x.IdentityStateHash).HasMaxLength(64);
+    consentAttempt.Property(x => x.NonceHash).HasMaxLength(64);
+    consentAttempt.Property(x => x.ConsentingTenantId).HasMaxLength(200);
+    consentAttempt.Property(x => x.ConsentingObjectId).HasMaxLength(200);
+    consentAttempt.HasIndex(x => x.IdentityStateHash).IsUnique().HasFilter("identity_state_hash IS NOT NULL");
     consentAttempt.ToTable("m365_tenant_consent_attempts", t => t.HasCheckConstraint("ck_m365_consent_attempt_values",
-      "length(trim(initiator_object_id)) > 0 AND length(trim(expected_tenant_id)) > 0 AND length(trim(application_client_id)) > 0 AND state_hash ~ '^[0-9a-f]{64}$' AND state IN ('PENDING','RETURNED_UNVERIFIED','DENIED','EXPIRED') AND initiating_session_epoch >= 0 AND expires_at > created_at"));
+      "length(trim(initiator_object_id)) > 0 AND length(trim(expected_tenant_id)) > 0 AND length(trim(application_client_id)) > 0 AND state_hash ~ '^[0-9a-f]{64}$' AND state IN ('PENDING','RETURNED_UNVERIFIED','IDENTITY_PENDING','CONSENT_VERIFIED','DENIED','EXPIRED') AND initiating_session_epoch >= 0 AND expires_at > created_at AND (identity_state_hash IS NULL OR identity_state_hash ~ '^[0-9a-f]{64}$') AND (nonce_hash IS NULL OR nonce_hash ~ '^[0-9a-f]{64}$') AND (state <> 'CONSENT_VERIFIED' OR (consenting_object_id IS NOT NULL AND consenting_tenant_id = expected_tenant_id))"));
     consentAttempt.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.InitiatedByUserId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     consentAttempt.HasOne<Microsoft365SetupDraft>().WithMany().HasForeignKey(x => new { x.FirmId, x.SetupDraftId })
@@ -168,6 +173,75 @@ public sealed partial class AuditSphereDbContext
     invitation.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.UserId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     invitation.HasOne<RoleGrant>().WithMany().HasForeignKey(x => new { x.FirmId, x.RoleGrantId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    var capability = b.Entity<TenantCapabilityVerification>();
+    capability.Property(x => x.TenantId).HasMaxLength(200);
+    capability.Property(x => x.Capability).HasMaxLength(60);
+    capability.Property(x => x.Permission).HasMaxLength(200);
+    capability.Property(x => x.State).HasMaxLength(30);
+    capability.Property(x => x.DiagnosticCode).HasMaxLength(100);
+    capability.Property(x => x.ProviderCorrelationId).HasMaxLength(200);
+    capability.HasIndex(x => new { x.FirmId, x.TenantId, x.Capability, x.ObservedAt });
+    capability.ToTable("m365_tenant_capability_verifications", t => t.HasCheckConstraint("ck_m365_capability_values",
+      "length(trim(tenant_id)) > 0 AND capability IN ('SIGN_IN','DIRECTORY_READ','SELECTED_SITE','OUTBOUND_MAIL','TENANT_USER_PROVISIONING','GUEST_INVITATION','GROUP_MEMBERSHIP') AND state IN ('VERIFIED','NOT_GRANTED','FAILED','BLOCKED_EXTERNAL') AND length(trim(permission)) > 0 AND length(trim(diagnostic_code)) > 0"));
+    capability.HasOne<Microsoft365ConnectionRevision>().WithMany().HasForeignKey(x => new { x.FirmId, x.ConnectionRevisionId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    capability.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.ObservedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var group = b.Entity<ManagedDirectoryGroup>();
+    group.HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_m365_managed_groups_firm_id_id");
+    group.HasIndex(x => new { x.FirmId, x.TenantId, x.GroupObjectId }).IsUnique().HasFilter("retired_at IS NULL");
+    group.Property(x => x.TenantId).HasMaxLength(200);
+    group.Property(x => x.GroupObjectId).HasMaxLength(200);
+    group.Property(x => x.DisplayName).HasMaxLength(300);
+    group.Property(x => x.Purpose).HasMaxLength(300);
+    group.Property(x => x.ApprovalReason).HasMaxLength(1000);
+    group.ToTable("m365_managed_directory_groups", t => t.HasCheckConstraint("ck_m365_managed_group_values",
+      "length(trim(tenant_id)) > 0 AND length(trim(group_object_id)) > 0 AND length(trim(display_name)) > 0 AND length(trim(purpose)) > 0 AND length(trim(approval_reason)) > 0 AND (retired_at IS NULL) = (retired_by_user_id IS NULL)"));
+    group.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.ApprovedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var operation = b.Entity<Microsoft365ExternalOperation>();
+    operation.HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_m365_external_operations_firm_id_id");
+    operation.HasIndex(x => new { x.FirmId, x.IdempotencyKey }).IsUnique();
+    operation.HasIndex(x => new { x.FirmId, x.State, x.CreatedAt });
+    operation.Property(x => x.IdempotencyKey).HasMaxLength(100);
+    operation.Property(x => x.Kind).HasMaxLength(40);
+    operation.Property(x => x.State).HasMaxLength(40);
+    operation.Property(x => x.RequestFingerprint).HasMaxLength(64);
+    operation.Property(x => x.TenantId).HasMaxLength(200);
+    operation.Property(x => x.TargetDescriptor).HasMaxLength(640);
+    operation.Property(x => x.DisplayName).HasMaxLength(300);
+    operation.Property(x => x.ResultObjectId).HasMaxLength(200);
+    operation.Property(x => x.ProviderCorrelationId).HasMaxLength(200);
+    operation.Property(x => x.ResultCode).HasMaxLength(100);
+    operation.Property(x => x.ReconciliationResult).HasMaxLength(100);
+    operation.Property(x => x.Reason).HasMaxLength(1000);
+    operation.Property(x => x.RequestedRole).HasMaxLength(100);
+    operation.Property(x => x.RequestedScopeKind).HasMaxLength(20);
+    operation.ToTable("m365_external_operations", t => t.HasCheckConstraint("ck_m365_external_operation_values",
+      "length(trim(idempotency_key)) >= 16 AND kind IN ('CREATE_TENANT_USER','INVITE_GUEST','ADD_GROUP_MEMBER','REMOVE_GROUP_MEMBER') AND state IN ('REQUESTED','AUTHORIZED','DISPATCHING','ACCEPTED','FAILED','UNKNOWN','RECONCILED','BOUND','CONFLICT_REQUIRES_REVIEW') AND request_fingerprint ~ '^[0-9a-f]{64}$' AND length(trim(tenant_id)) > 0 AND length(trim(target_descriptor)) > 0 AND length(trim(reason)) > 0 AND attempt_count >= 0 AND (state <> 'BOUND' OR result_object_id IS NOT NULL)"));
+    operation.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.RequestedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    operation.HasOne<ManagedDirectoryGroup>().WithMany().HasForeignKey(x => new { x.FirmId, x.ManagedGroupId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var adminEvent = b.Entity<Microsoft365AdministrationEvent>();
+    adminEvent.Property(x => x.Operation).HasMaxLength(60);
+    adminEvent.Property(x => x.TargetTenantId).HasMaxLength(200);
+    adminEvent.Property(x => x.TargetObjectId).HasMaxLength(200);
+    adminEvent.Property(x => x.OldState).HasMaxLength(300);
+    adminEvent.Property(x => x.NewState).HasMaxLength(300);
+    adminEvent.Property(x => x.RoleScopeChange).HasMaxLength(600);
+    adminEvent.Property(x => x.Reason).HasMaxLength(1000);
+    adminEvent.Property(x => x.ProviderCorrelationId).HasMaxLength(200);
+    adminEvent.Property(x => x.Result).HasMaxLength(60);
+    adminEvent.HasIndex(x => new { x.FirmId, x.CreatedAt });
+    adminEvent.HasIndex(x => new { x.FirmId, x.TargetUserId, x.CreatedAt });
+    adminEvent.ToTable("m365_administration_events", t => t.HasCheckConstraint("ck_m365_admin_event_values",
+      "length(trim(operation)) > 0 AND length(trim(result)) > 0 AND length(trim(reason)) > 0"));
+    adminEvent.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.ActorUserId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
   }
 }

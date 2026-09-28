@@ -30,6 +30,14 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
 
   public DbSet<TenantConsentAttempt> TenantConsentAttempts => Set<TenantConsentAttempt>();
 
+  public DbSet<TenantCapabilityVerification> TenantCapabilityVerifications => Set<TenantCapabilityVerification>();
+
+  public DbSet<ManagedDirectoryGroup> ManagedDirectoryGroups => Set<ManagedDirectoryGroup>();
+
+  public DbSet<Microsoft365ExternalOperation> Microsoft365ExternalOperations => Set<Microsoft365ExternalOperation>();
+
+  public DbSet<Microsoft365AdministrationEvent> Microsoft365AdministrationEvents => Set<Microsoft365AdministrationEvent>();
+
   public DbSet<Microsoft365SetupDraft> Microsoft365SetupDrafts => Set<Microsoft365SetupDraft>();
 
   public DbSet<Microsoft365ConnectionRevision> Microsoft365ConnectionRevisions => Set<Microsoft365ConnectionRevision>();

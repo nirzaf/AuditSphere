@@ -482,15 +482,15 @@ accounting or consolidation workspaces.
 
 
 
-- Application: `Application/Microsoft365/Microsoft365ConfigurationService.cs`, `TenantConsentService.cs`, `TenantConnectionQuery.cs`, `DirectoryDiscoveryService.cs`, `DirectoryUserBindingService.cs`, `DirectoryCapabilityVerificationService.cs`, `Application/Security/`
+- Application: `Application/Microsoft365/Microsoft365ConfigurationService.cs`, `TenantConsentService.cs`, `TenantConnectionQuery.cs`, `DirectoryDiscoveryService.cs`, `DirectoryUserBindingService.cs`, `DirectoryCapabilityVerificationService.cs`, `TenantAdministrationProviders.cs` (provider interfaces + permission matrix), `TenantCapabilityService.cs`, `DirectoryProvisioningService.cs` (user creation, guest invitation, reconciliation), `ManagedGroupService.cs`, `AdministrationOverviewQuery.cs`; `Application/Security/` (`RoleAssignmentService.cs`, `RoleGrantExpiry.cs`, `UserAccessWorkspaceQuery.cs`)
 
 
 
-- Persistence: `AuditSphereDbContext.Security.cs`, `.Microsoft365.cs`; dedicated certificate and Graph directory reader in `Infrastructure/Providers/`
+- Persistence: `AuditSphereDbContext.Security.cs`, `.Microsoft365.cs`; dedicated certificate and Graph directory reader, `GraphCapabilityCredential.cs`, `GraphTenantAdministrationProviders.cs`, `GraphTenantConsentVerifier.cs` and the Development/Test-only `SimulatedMicrosoftTenant.cs` in `Infrastructure/Providers/`
 
 
 
-- UI: `Microsoft365Setup.razor`, `TenantConnection.razor`, `Administration.razor`, `AccessNotAssigned.razor`; consent callback in `Web/Program.cs`
+- UI: `Microsoft365Setup.razor`, `TenantConnection.razor`, `Administration.razor` (dashboard + Users & Access / Microsoft 365 / Audit History tabs), `Components/Administration/*`, `AccessNotAssigned.razor`; consent callback in `Web/Program.cs`, identity callback and composition in `Web/Authentication/TenantAdministrationComposition.cs`
 
 
 

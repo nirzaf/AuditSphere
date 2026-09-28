@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using AuditSphereOps.Application.Abstractions;
+using AuditSphereOps.Application.Security;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -28,6 +29,9 @@ public sealed class TrustedActorResolver(IDbContextFactory<AuditSphereDbContext>
     var user = await db.Users.AsNoTracking().SingleOrDefaultAsync(x =>
       x.Subject == subject && x.TenantId == tenant, ct);
     if (user is null || user.Disabled || user.SessionEpoch != signedInEpoch)
+      return null;
+    // An expired grant is revoked here; the epoch bump makes this and every open circuit stale.
+    if (await RoleGrantExpiry.RevokeExpiredForUserAsync(db, user.FirmId, user.Id, DateTimeOffset.UtcNow, ct))
       return null;
     var roles = await db.RoleGrants.AsNoTracking()
       .Where(x => x.FirmId == user.FirmId && x.UserId == user.Id && x.RevokedAt == null)

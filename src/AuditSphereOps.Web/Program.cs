@@ -176,6 +176,8 @@ if (oidcConfigured)
           context.Fail("The identity is not assigned or is disabled.");
           return;
         }
+        await db.Users.Where(x => x.Id == user.Id).ExecuteUpdateAsync(x =>
+          x.SetProperty(u => u.LastSignInAt, DateTimeOffset.UtcNow), context.HttpContext.RequestAborted);
         var claimsIdentity = (ClaimsIdentity)context.Principal!.Identity!;
         foreach (var existing in claimsIdentity.FindAll(TrustedActorResolver.SessionEpochClaimType).ToList())
           claimsIdentity.RemoveClaim(existing);
@@ -227,6 +229,7 @@ builder.Services.AddHttpClient("directory-reader").ConfigurePrimaryHttpMessageHa
   new HttpClientHandler { AllowAutoRedirect = false });
 builder.Services.AddHttpClient("directory-reader-token").ConfigurePrimaryHttpMessageHandler(() =>
   new HttpClientHandler { AllowAutoRedirect = false });
+TenantAdministrationComposition.Register(builder);
 builder.Services.AddTransient<ISelectedSiteTokenSource>(services =>
   new CertificateSelectedSiteTokenSource(services.GetRequiredService<IHttpClientFactory>().CreateClient(),
     new SelectedSiteCertificateOptions(
@@ -319,6 +322,8 @@ else if (developmentIdentityEnabled)
       x.Subject == subject && x.TenantId == identityTenantId, http.RequestAborted);
     if (user is null || user.Disabled)
       return Results.Problem("The configured development identity is unavailable.", statusCode: StatusCodes.Status503ServiceUnavailable);
+    await db.Users.Where(x => x.Id == user.Id).ExecuteUpdateAsync(x =>
+      x.SetProperty(u => u.LastSignInAt, DateTimeOffset.UtcNow), http.RequestAborted);
 
     var claims = new[]
     {
@@ -342,8 +347,7 @@ if (oidcConfigured || developmentIdentityEnabled)
   {
     http.Response.Headers.CacheControl = "no-store";
     http.Response.Headers["Referrer-Policy"] = "no-referrer";
-    if (!configuration.GetValue<bool>("TenantConsent:Enabled") ||
-        string.Equals(configuration["TenantConsent:ClientId"], configuration["Identity:ClientId"], StringComparison.OrdinalIgnoreCase))
+    if (!http.RequestServices.GetRequiredService<TenantAdministrationSettings>().ConsentEnabled)
       return Results.NotFound();
     var query = http.Request.Query;
     if (query["state"].Count != 1 || query["tenant"].Count > 1 ||
@@ -356,9 +360,20 @@ if (oidcConfigured || developmentIdentityEnabled)
       query["state"].ToString(), query["tenant"].ToString(),
       string.Equals(query["admin_consent"].ToString(), "True", StringComparison.OrdinalIgnoreCase),
       !string.IsNullOrWhiteSpace(query["error"].ToString()), DateTimeOffset.UtcNow, ct);
-    return Results.Redirect("/app/administration/microsoft365/tenant-connection?result=" +
-      (result.Succeeded ? "returned" : "blocked"));
+    if (!result.Succeeded)
+      return Results.Redirect("/app/administration/microsoft365/tenant-connection?result=blocked");
+    // The consent callback cannot identify who granted consent; a nonce-bound sign-in must follow.
+    var verifier = http.RequestServices.GetRequiredService<IMicrosoftTenantConsentVerifier>();
+    if (!verifier.IsConfigured)
+      return Results.Redirect("/app/administration/microsoft365/tenant-connection?result=returned");
+    var challenge = await TenantConsentService.BeginIdentityVerificationAsync(db, actor,
+      result.Value!.AttemptId, DateTimeOffset.UtcNow, ct);
+    if (!challenge.Succeeded)
+      return Results.Redirect("/app/administration/microsoft365/tenant-connection?result=blocked");
+    return Results.Redirect(verifier.BuildIdentityChallenge(challenge.Value!.TenantId,
+      challenge.Value.State, challenge.Value.Nonce).ToString());
   });
+  TenantAdministrationComposition.MapEndpoints(app);
   app.MapGet("/auth/landing", async (HttpContext http, TrustedActorResolver actorResolver,
     IDbContextFactory<AuditSphereDbContext> dbFactory, CancellationToken ct) =>
   {

@@ -93,8 +93,11 @@ public static class AuthorizationDecision
     // Assignment: at least one active grant must cover the requested scope.
     var grants = await db.RoleGrants.AsNoTracking()
       .Where(g => g.UserId == actor.UserId && g.FirmId == request.FirmId && g.RevokedAt == null)
-      .Select(g => new { g.Role, g.ClientId, g.EngagementId })
+      .Select(g => new { g.Role, g.ClientId, g.EngagementId, g.ExpiresAt })
       .ToListAsync(ct);
+    // Defense in depth: an expired grant never authorizes even before RoleGrantExpiry revokes it.
+    var authorizedAt = DateTimeOffset.UtcNow;
+    grants = grants.Where(g => g.ExpiresAt is null || g.ExpiresAt > authorizedAt).ToList();
     bool CoversScope(Guid? grantClient, Guid? grantEngagement)
     {
       if (request.EngagementId.HasValue)

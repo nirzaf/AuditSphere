@@ -47,6 +47,8 @@ public static class TenantConsentAttemptStates
   public const string ReturnedUnverified = "RETURNED_UNVERIFIED";
   public const string Denied = "DENIED";
   public const string Expired = "EXPIRED";
+  public const string IdentityPending = "IDENTITY_PENDING";
+  public const string ConsentVerified = "CONSENT_VERIFIED";
 }
 
 /// <summary>One-use admin-consent correlation, not proof of a Microsoft grant.</summary>
@@ -66,6 +68,13 @@ public sealed class TenantConsentAttempt
   public DateTimeOffset ExpiresAt { get; set; }
   public DateTimeOffset? ReturnedAt { get; set; }
   public string? ReturnedTenantId { get; set; }
+  // Second leg: a separate OIDC sign-in binds the consenting administrator's immutable identity.
+  public string? IdentityStateHash { get; set; }
+  public string? NonceHash { get; set; }
+  public DateTimeOffset? IdentityExpiresAt { get; set; }
+  public string? ConsentingTenantId { get; set; }
+  public string? ConsentingObjectId { get; set; }
+  public DateTimeOffset? ConsentVerifiedAt { get; set; }
 }
 
 public sealed class Microsoft365SetupDraft

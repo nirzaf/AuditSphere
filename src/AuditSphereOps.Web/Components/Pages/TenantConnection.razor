@@ -11,6 +11,7 @@
 @inject IWebHostEnvironment Environment
 @inject NavigationManager Navigation
 @inject IMicrosoftDirectoryReader DirectoryReader
+@inject TenantAdministrationSettings AdminSettings
 
 <PageTitle>Microsoft 365 tenant connection</PageTitle>
 <MudLink Href="/app/administration" Class="back-link mb-2 d-inline-block">← Firm administration</MudLink>
@@ -32,7 +33,19 @@ else
   {
     <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" role="alert">@_error</MudAlert>
   }
-  @if (Result == "returned")
+  @if (Result == "verified")
+  {
+    <MudAlert Severity="Severity.Success" Variant="Variant.Outlined" role="status">
+      Tenant administrator consent was verified for the configured tenant, and each capability was checked separately. Review the capability results below; one verified capability does not imply the others.
+    </MudAlert>
+  }
+  else if (Result == "identity-blocked")
+  {
+    <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" role="alert">
+      The Microsoft administrator sign-in could not be verified: wrong tenant, external/guest identity, replayed or expired request. No connection state was changed. Start the connection again.
+    </MudAlert>
+  }
+  else if (Result == "returned")
   {
     <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" role="status">
       Microsoft returned from administrator consent. This is not yet proof that any capability is granted; the separate provider checks remain required.
@@ -54,9 +67,26 @@ else
       <dt>Last consent return</dt><dd>@(_snapshot.LastAttemptState ?? "Not started")</dd>
       <dt>Last attempt</dt><dd>@(_snapshot.LastAttemptAt?.ToString("yyyy-MM-dd HH:mm") ?? "—")</dd>
       <dt>Directory reader</dt><dd>@(_directoryConfigured ? "Configured for bounded live search; verify each result before local access assignment." : "Blocked until a separate reader registration, certificate and User.Read.All consent are configured.")</dd>
-      <dt>Directory capability</dt><dd>@_snapshot.DirectoryCapabilityState (last checked @(_snapshot.DirectoryLastCheckedAt?.ToString("yyyy-MM-dd HH:mm 'UTC'") ?? "never"))</dd>
+      <dt>Directory exact-member read check</dt><dd>@_snapshot.DirectoryCapabilityState (last checked @(_snapshot.DirectoryLastCheckedAt?.ToString("yyyy-MM-dd HH:mm 'UTC'") ?? "never"))</dd>
       <dt>Selected SharePoint</dt><dd>Verify the saved site, library and root separately in Microsoft 365 setup.</dd>
+      <dt>Consenting administrator</dt><dd>@(_consentingAdmin ?? "Not verified")</dd>
     </dl>
+    @if (_capabilities.Count > 0)
+    {
+      <MudSimpleTable Dense="true" Class="my-2" aria-label="Capability status">
+        <thead><tr><th>Capability</th><th>Permission</th><th>State</th><th>Last verification</th></tr></thead>
+        <tbody>
+          @foreach (var capability in _capabilities)
+          {
+            <tr><td>@capability.DisplayName</td><td><code>@capability.Permission</code></td><td><StatusChip Status="@capability.State" /></td><td>@(capability.LastVerifiedAt?.ToString("yyyy-MM-dd HH:mm 'UTC'") ?? "Never")</td></tr>
+          }
+        </tbody>
+      </MudSimpleTable>
+    }
+    @if (AdminSettings.Simulation)
+    {
+      <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" role="status">Simulation mode: Microsoft pages are simulated for local development and tests. No real tenant is contacted.</MudAlert>
+    }
     <p class="field-help">The Microsoft sign-in and consent screen collects the tenant administrator's credentials; AuditSphere never does. The callback records only a returned claim and cannot identify the person who clicked Grant from that claim alone.</p>
     @if (!_consentConfigured)
     {
@@ -160,6 +190,8 @@ else
   private bool _verifyBusy;
   private bool _verifyPassed;
   private string? _verifyMessage;
+  private IReadOnlyList<CapabilityStatus> _capabilities = [];
+  private string? _consentingAdmin;
 
   protected override async Task OnInitializedAsync()
   {
@@ -170,12 +202,22 @@ else
       var result = await TenantConnectionQuery.GetAsync(db, _actor);
       if (result.Succeeded) _snapshot = result.Value;
     }
-    _consentConfigured = Configuration.GetValue<bool>("TenantConsent:Enabled") &&
+    if (_actor is not null && _snapshot is not null)
+    {
+      await using var statusDb = await DbFactory.CreateDbContextAsync();
+      _capabilities = await TenantCapabilityService.StatusesAsync(statusDb, _actor.FirmId, AdminSettings.Options, DateTimeOffset.UtcNow);
+      _consentingAdmin = await statusDb.TenantConsentAttempts.AsNoTracking()
+        .Where(x => x.FirmId == _actor.FirmId && x.State == AuditSphereOps.Domain.Microsoft365.TenantConsentAttemptStates.ConsentVerified)
+        .OrderByDescending(x => x.ConsentVerifiedAt)
+        .Select(x => x.ConsentingTenantId + " / " + x.ConsentingObjectId)
+        .FirstOrDefaultAsync();
+    }
+    _consentConfigured = AdminSettings.Simulation || Configuration.GetValue<bool>("TenantConsent:Enabled") &&
       !string.Equals(Configuration["TenantConsent:ClientId"], Configuration["Identity:ClientId"], StringComparison.OrdinalIgnoreCase) &&
       TenantConsentRedirect.Build(
       Configuration["Identity:TenantId"], Configuration["TenantConsent:ClientId"],
       Configuration["TenantConsent:RedirectUri"], "preview", Environment.IsDevelopment()) is not null;
-    _directoryConfigured = Configuration.GetValue<bool>("DirectoryReader:Enabled") &&
+    _directoryConfigured = AdminSettings.Simulation || Configuration.GetValue<bool>("DirectoryReader:Enabled") &&
       Guid.TryParse(Configuration["DirectoryReader:ClientId"], out _) &&
       string.Equals(Configuration["DirectoryReader:ClientId"], Configuration["TenantConsent:ClientId"], StringComparison.OrdinalIgnoreCase) &&
       !string.IsNullOrWhiteSpace(Configuration["DirectoryReader:CertificatePath"]) &&
@@ -202,7 +244,7 @@ else
     {
       await using var db = await DbFactory.CreateDbContextAsync();
       var result = await DirectoryDiscoveryService.SearchAsync(db, _actor, DirectoryReader,
-        Configuration["Identity:TenantId"] ?? string.Empty, _searchPrefix, pageToken);
+        AdminSettings.Options.TenantId, _searchPrefix, pageToken);
       if (result.Succeeded) _searchPage = result.Value;
       else _searchError = result.Message ?? "Directory access is unavailable.";
     }
@@ -219,7 +261,7 @@ else
     {
       await using var db = await DbFactory.CreateDbContextAsync();
       var result = await DirectoryUserBindingService.BindMemberAsync(db, _actor, DirectoryReader,
-        Configuration["Identity:TenantId"] ?? string.Empty, exactId);
+        AdminSettings.Options.TenantId, exactId);
       if (result.Succeeded) _boundUserId = result.Value;
       else _bindError = result.Message ?? "The Microsoft identity could not be bound.";
     }
@@ -235,8 +277,9 @@ else
     {
       await using var db = await DbFactory.CreateDbContextAsync();
       var result = await DirectoryCapabilityVerificationService.VerifyAsync(db, _actor,
-        DirectoryReader, Configuration["Identity:TenantId"] ?? string.Empty,
-        Configuration["DirectoryReader:ClientId"] ?? string.Empty, DateTimeOffset.UtcNow);
+        DirectoryReader, AdminSettings.Options.TenantId,
+        AdminSettings.Simulation ? "00000000-0000-0000-0000-00000000c0de" : Configuration["DirectoryReader:ClientId"] ?? string.Empty,
+        DateTimeOffset.UtcNow);
       _verifyPassed = result.Succeeded;
       _verifyMessage = result.Succeeded
         ? "A bounded Graph read verified the separate directory reader for this connection revision. Tenant consent and other capabilities remain separate."
@@ -256,11 +299,17 @@ else
     {
       await using var db = await DbFactory.CreateDbContextAsync();
       var start = await TenantConsentService.BeginAsync(db, _actor, draftId,
-        Configuration["Identity:TenantId"] ?? string.Empty,
-        Configuration["TenantConsent:ClientId"] ?? string.Empty, DateTimeOffset.UtcNow);
+        AdminSettings.Options.TenantId,
+        AdminSettings.Simulation ? "00000000-0000-0000-0000-00000000c0de" : Configuration["TenantConsent:ClientId"] ?? string.Empty,
+        DateTimeOffset.UtcNow);
       if (!start.Succeeded)
       {
         _error = "Current administrator access and a matching prepared tenant draft are required.";
+        return;
+      }
+      if (AdminSettings.Simulation)
+      {
+        Navigation.NavigateTo($"/auth/m365-consent/simulated-consent?state={Uri.EscapeDataString(start.Value!.State)}", forceLoad: true);
         return;
       }
       var redirect = TenantConsentRedirect.Build(

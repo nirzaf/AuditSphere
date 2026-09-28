@@ -1,0 +1,102 @@
+@* Existing directory user workflow (§8): bounded search → exact tid+oid re-read → local binding → role dialog.
+   Search results are never persisted and never grant access. *@
+@using AuditSphereOps.Application.Microsoft365
+@inject CurrentActorResolver ActorResolver
+@inject IDbContextFactory<AuditSphereDbContext> DbFactory
+@inject IMicrosoftDirectoryReader DirectoryReader
+@inject TenantAdministrationSettings Settings
+
+<MudPaper Class="pa-4 my-3" Elevation="1" role="region" aria-labelledby="directory-panel-heading">
+  <h3 id="directory-panel-heading">@(GuestsOnly ? "Existing guest" : "Microsoft directory")</h3>
+  <MudText Typo="Typo.body2" Class="field-help">Searches at most 25 users per page in the configured tenant. Identity is bound by immutable tenant and object ID, never by email, UPN or name.</MudText>
+  @if (!Settings.Options.DirectoryReadEnabled)
+  {
+    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" role="status">Directory read is not enabled. Use the verified roster fallback under AuditSphere Roles.</MudAlert>
+  }
+  else
+  {
+    <div class="d-flex gap-2 align-end">
+      <MudTextField T="string" Label="Display name or user principal name prefix" @bind-Value="_prefix" MaxLength="80" id="@(GuestsOnly ? "guest-search" : "directory-search")" />
+      <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="() => SearchAsync(null)" Disabled="@_busy">@(_busy ? "Searching…" : "Search")</MudButton>
+    </div>
+    @if (!string.IsNullOrWhiteSpace(_error)) { <MudAlert Severity="Severity.Warning" Dense="true" Class="mt-2" role="alert">@_error</MudAlert> }
+    @if (_page is not null)
+    {
+      var rows = _page.Users.Where(x => GuestsOnly ? x.UserType == "Guest" : true).ToList();
+      @if (rows.Count == 0) { <MudText Class="mt-2">No matching users on this page.</MudText> }
+      else
+      {
+        <MudTable Items="rows" Dense="true" Elevation="0" Class="mt-2">
+          <HeaderContent><MudTh>Name</MudTh><MudTh>Microsoft identity</MudTh><MudTh>Type</MudTh><MudTh>Status</MudTh><MudTh>Action</MudTh></HeaderContent>
+          <RowTemplate>
+            <MudTd DataLabel="Name">@context.DisplayName</MudTd>
+            <MudTd DataLabel="Microsoft identity">@context.UserPrincipalName<br /><code>@context.ObjectId</code></MudTd>
+            <MudTd DataLabel="Type">@context.UserType</MudTd>
+            <MudTd DataLabel="Status"><StatusChip Status="@(context.AccountEnabled ? "ENABLED" : "DISABLED")" /></MudTd>
+            <MudTd DataLabel="Action">
+              @if (context.AccountEnabled && context.UserType is "Member" or "Guest")
+              {
+                <MudButton Variant="Variant.Outlined" Size="Size.Small" Disabled="@_busy" OnClick="() => BindAsync(context)">Verify and select</MudButton>
+              }
+              else { <span>Unavailable</span> }
+            </MudTd>
+          </RowTemplate>
+        </MudTable>
+      }
+      @if (_page.NextPageToken is not null) { <MudButton Variant="Variant.Outlined" OnClick="() => SearchAsync(_page.NextPageToken)" Disabled="@_busy">Next 25</MudButton> }
+    }
+    @if (_bound is { } bound)
+    {
+      <MudAlert Severity="Severity.Success" Variant="Variant.Outlined" role="status" Class="mt-2">
+        Identity verified and bound: <strong>@bound.Name</strong>. No AuditSphere access has been granted yet.
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" Class="ms-2" OnClick="() => AssignRequested.InvokeAsync(bound)">Assign role and scope</MudButton>
+      </MudAlert>
+    }
+  }
+</MudPaper>
+
+@code {
+  [Parameter] public bool GuestsOnly { get; set; }
+  [Parameter] public EventCallback<(Guid UserId, string Name, bool Client)> AssignRequested { get; set; }
+  [Parameter] public EventCallback Changed { get; set; }
+
+  private string _prefix = string.Empty;
+  private DirectoryCandidatePage? _page;
+  private (Guid UserId, string Name, bool Client)? _bound;
+  private bool _busy;
+  private string? _error;
+
+  private async Task SearchAsync(string? pageToken)
+  {
+    _busy = true; _error = null; _bound = null;
+    if (pageToken is null) _page = null;
+    try
+    {
+      var actor = await ActorResolver.ResolveAsync();
+      if (actor is null) { _error = "Your session is no longer authorized."; _page = null; return; }
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var result = await DirectoryDiscoveryService.SearchAsync(db, actor, DirectoryReader, Settings.Options.TenantId, _prefix, pageToken);
+      if (result.Succeeded) _page = result.Value; else { _page = null; _error = result.Message; }
+    }
+    finally { _busy = false; }
+  }
+
+  private async Task BindAsync(DirectoryCandidate candidate)
+  {
+    if (!Guid.TryParse(candidate.ObjectId, out var objectId)) return;
+    _busy = true; _error = null; _bound = null;
+    try
+    {
+      var actor = await ActorResolver.ResolveAsync();
+      if (actor is null) { _error = "Your session is no longer authorized."; return; }
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var guest = candidate.UserType == "Guest";
+      var result = guest
+        ? await DirectoryUserBindingService.BindExistingGuestAsync(db, actor, DirectoryReader, Settings.Options.TenantId, objectId)
+        : await DirectoryUserBindingService.BindMemberAsync(db, actor, DirectoryReader, Settings.Options.TenantId, objectId);
+      if (result.Succeeded) { _bound = (result.Value, candidate.DisplayName, guest); await Changed.InvokeAsync(); }
+      else _error = result.Message;
+    }
+    finally { _busy = false; }
+  }
+}

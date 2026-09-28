@@ -546,6 +546,10 @@ public sealed class AuthorizationDecisionTests
     public DbSet<RoleGrantChangeEvidence> RoleGrantChangeEvidences => db.RoleGrantChangeEvidences;
     public DbSet<Microsoft365SetupSession> Microsoft365SetupSessions => db.Microsoft365SetupSessions;
     public DbSet<TenantConsentAttempt> TenantConsentAttempts => db.TenantConsentAttempts;
+    public DbSet<TenantCapabilityVerification> TenantCapabilityVerifications => db.TenantCapabilityVerifications;
+    public DbSet<ManagedDirectoryGroup> ManagedDirectoryGroups => db.ManagedDirectoryGroups;
+    public DbSet<Microsoft365ExternalOperation> Microsoft365ExternalOperations => db.Microsoft365ExternalOperations;
+    public DbSet<Microsoft365AdministrationEvent> Microsoft365AdministrationEvents => db.Microsoft365AdministrationEvents;
     public DbSet<Microsoft365SetupDraft> Microsoft365SetupDrafts => db.Microsoft365SetupDrafts;
     public DbSet<Microsoft365ConnectionRevision> Microsoft365ConnectionRevisions => db.Microsoft365ConnectionRevisions;
     public DbSet<DirectoryUserObservation> DirectoryUserObservations => db.DirectoryUserObservations;

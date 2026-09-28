@@ -7,12 +7,16 @@
   private Color ChipColor => Status.ToUpperInvariant() switch
   {
     "DRAFT" or "LEADNEW" or "NEW" or "PENDING" or "OPEN" or "SUBMITTED" or "RESUBMITTED" or "AWAITING REVIEW" or "IN PROGRESS" or "INPROGRESS"
+      or "NOT_VERIFIED" or "NOT_OBSERVED" or "PARTIAL" or "INFO" or "AUTHORIZED" or "DISPATCHING" or "REQUESTED" or "NOT_SENT" or "COPIED"
       => Color.Info,
     "APPROVED" or "ACTIVE" or "READY" or "ISSUED" or "COMPLETED" or "QUALIFIED" or "VERIFIED" or "REVIEW COMPLETE" or "POSTED" or "RECONCILED" or "ACCEPTED"
+      or "DONE" or "OK" or "BOUND" or "ENABLED" or "CONFIGURED" or "PROVIDER_ACCEPTED" or "CONSENT_VERIFIED"
       => Color.Success,
     "REJECTED" or "BLOCKED" or "CANCELLED" or "VOID" or "FAILED" or "DENIED" or "UNAVAILABLE"
+      or "NOT_GRANTED" or "BLOCKED_EXTERNAL" or "CONFLICT_REQUIRES_REVIEW" or "DISABLED" or "REVOKED"
       => Color.Error,
     "LOCKED" or "SUPERSEDED" or "ON HOLD" or "HOLD" or "STALE" or "EXPIRED"
+      or "UNKNOWN" or "ATTENTION" or "NOT_CONFIGURED" or "NOT_CONNECTED" or "NO_ACCESS" or "RETURNED_UNVERIFIED" or "IDENTITY_PENDING"
       => Color.Warning,
     _ => Color.Default,
   };
@@ -20,11 +24,15 @@
   private string ChipIcon => Status.ToUpperInvariant() switch
   {
     "APPROVED" or "ACTIVE" or "READY" or "ISSUED" or "COMPLETED" or "QUALIFIED" or "VERIFIED" or "REVIEW COMPLETE" or "POSTED" or "RECONCILED" or "ACCEPTED"
+      or "DONE" or "OK" or "BOUND" or "ENABLED" or "CONFIGURED" or "PROVIDER_ACCEPTED" or "CONSENT_VERIFIED"
       => Icons.Material.Filled.CheckCircle,
     "REJECTED" or "BLOCKED" or "CANCELLED" or "VOID" or "FAILED" or "DENIED" or "UNAVAILABLE"
+      or "NOT_GRANTED" or "BLOCKED_EXTERNAL" or "CONFLICT_REQUIRES_REVIEW" or "DISABLED" or "REVOKED"
       => Icons.Material.Filled.Block,
     "LOCKED" or "SUPERSEDED" or "ON HOLD" or "HOLD" or "STALE" or "EXPIRED"
       => Icons.Material.Filled.Lock,
+    "UNKNOWN" or "ATTENTION" or "NOT_CONFIGURED" or "NOT_CONNECTED" or "NO_ACCESS" or "RETURNED_UNVERIFIED" or "IDENTITY_PENDING"
+      => Icons.Material.Filled.Warning,
     _ => Icons.Material.Filled.Info,
   };
 }

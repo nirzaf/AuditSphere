@@ -51,12 +51,16 @@ public sealed partial class AuditSphereDbContext
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     b.Entity<RoleGrant>().ToTable("role_grants", t =>
       t.HasCheckConstraint("ck_role_grant_scope",
-        "length(role) > 0 AND (engagement_id IS NULL OR client_id IS NOT NULL)"));
+        "length(role) > 0 AND (engagement_id IS NULL OR client_id IS NOT NULL) AND (expires_at IS NULL OR expires_at > granted_at)"));
+    b.Entity<RoleGrant>().Property(x => x.Reason).HasMaxLength(1000);
+    b.Entity<RoleGrant>().HasIndex(x => x.ExpiresAt).HasFilter("revoked_at IS NULL AND expires_at IS NOT NULL")
+      .HasDatabaseName("ix_role_grants_active_expiry");
     var roleEvidence = b.Entity<RoleGrantChangeEvidence>();
     roleEvidence.Property(x => x.Action).HasMaxLength(20);
     roleEvidence.Property(x => x.PriorRole).HasMaxLength(100);
     roleEvidence.Property(x => x.NewRole).HasMaxLength(100);
     roleEvidence.Property(x => x.Source).HasMaxLength(40);
+    roleEvidence.Property(x => x.Reason).HasMaxLength(1000);
     roleEvidence.HasIndex(x => new { x.FirmId, x.TargetUserId, x.CreatedAt });
     roleEvidence.ToTable("role_grant_change_evidence", t => t.HasCheckConstraint("ck_role_grant_evidence_values",
       "action IN ('GRANTED','REVOKED','INVITATION_COPIED') AND length(trim(source)) > 0 AND length(trim(new_role)) > 0 AND length(trim(prior_role)) >= 0"));

@@ -159,6 +159,10 @@ public interface IAuditSphereDbContext : IAsyncDisposable
   DbSet<ClientWorkspace> ClientWorkspaces { get; }
   DbSet<DirectoryUserObservation> DirectoryUserObservations { get; }
   DbSet<UserAccessInvitation> UserAccessInvitations { get; }
+  DbSet<TenantCapabilityVerification> TenantCapabilityVerifications { get; }
+  DbSet<ManagedDirectoryGroup> ManagedDirectoryGroups { get; }
+  DbSet<Microsoft365ExternalOperation> Microsoft365ExternalOperations { get; }
+  DbSet<Microsoft365AdministrationEvent> Microsoft365AdministrationEvents { get; }
   DatabaseFacade Database { get; }
   Task<int> SaveChangesAsync(CancellationToken ct = default);
 }

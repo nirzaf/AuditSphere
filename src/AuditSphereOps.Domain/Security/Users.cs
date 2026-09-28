@@ -15,6 +15,8 @@ public sealed class AppUser
   public bool Disabled { get; set; }
   public long SessionEpoch { get; set; } = 1;           // bumped on disable/role change
   public DateTimeOffset CreatedAt { get; set; }
+  public Guid? CreatedByUserId { get; set; }
+  public DateTimeOffset? LastSignInAt { get; set; }
 }
 
 public sealed class RoleGrantChangeEvidence
@@ -30,7 +32,8 @@ public sealed class RoleGrantChangeEvidence
   public string NewRole { get; set; } = string.Empty;
   public Guid? NewClientId { get; set; }
   public Guid? NewEngagementId { get; set; }
-  public string Source { get; set; } = string.Empty; // APPROVED_ROSTER|VERIFIED_SIGN_IN|ADMIN_ACTION
+  public string Source { get; set; } = string.Empty; // APPROVED_ROSTER|VERIFIED_SIGN_IN|ADMIN_ACTION|EXPIRY|GRAPH_*
+  public string? Reason { get; set; }
   public Guid ActorUserId { get; set; }
   public DateTimeOffset CreatedAt { get; set; }
 }
@@ -47,4 +50,7 @@ public sealed class RoleGrant
   public DateTimeOffset GrantedAt { get; set; }
   public Guid GrantedByUserId { get; set; }
   public DateTimeOffset? RevokedAt { get; set; }
+  /// <summary>Optional end of access. Enforced by revocation (RoleGrantExpiry), never by caller filters.</summary>
+  public DateTimeOffset? ExpiresAt { get; set; }
+  public string? Reason { get; set; }
 }

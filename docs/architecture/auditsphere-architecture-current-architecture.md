@@ -47,10 +47,15 @@ this document wins and the source text remains a historical requirement record.
   `Worker`. No microservices, no message broker, no second ERP.
 - **Microsoft tenant administration** follows the
   [capability permission decision](auditsphere-m365-tenant-administration-permissions.md):
-  one separately credentialed read-only directory exception is approved for
-  implementation, while optional user, guest and group mutations remain
-  disabled until separately verified. Document effects retain exact-site
-  `Sites.Selected` access. AuditSphere roles never assign Entra administrator roles.
+  each Microsoft capability (directory read, optional user creation, guest
+  invitation, managed-group membership, outbound mail) has its own app identity
+  with exactly one Graph role, is disabled by default and is usable only after a
+  nonce-bound consent flow and a recorded `VERIFIED` capability check. Microsoft
+  mutations use the `m365_external_operations` lifecycle (idempotency key,
+  UNKNOWN reconciliation, separate local binding transaction) and append-only
+  `m365_administration_events`. Document effects retain exact-site
+  `Sites.Selected` access. AuditSphere roles never assign Entra administrator roles,
+  and Microsoft group membership never grants AuditSphere access.
 - **Commands and queries are static capability services** returning `CommandResult` /
   `CommandResult<T>`. There is no MediatR/Wolverine handler layer; neither package is pinned.
   This is a recorded variation from R2R-ADR-02 (see
