@@ -84,3 +84,6 @@ tmp/go-mod/
 ## Python cache
 __pycache__/
 *.py[cod]
+
+## Local AI tool planning notes
+.zcode/
