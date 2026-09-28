@@ -66,22 +66,22 @@ remain disabled; no Microsoft mutation or production acceptance was observed.
 The canonical GitHub Wiki guide covers both exact callbacks and independent
 capability gates. Exact verification is in `status.json`.
 
-The setup progress checklist now shows the trusted verified consent for its
-exact draft and current verified connection revision instead of treating it as
-merely historical evidence. An
-administrator-initiated, read-only Development test also passed against the
-saved SharePoint site, library and root. That screen result is transient: it
-does not record selected-resource capability evidence, activate the workspace,
-or establish production access.
+The setup progress checklist now shows trusted consent for the exact draft
+and current connection revision. The administrator resumed the local
+Development draft without reentering the bootstrap proof. The provider test
+read the saved SharePoint site, library and root, then received `403` from
+the separately confirmed synthetic unrelated site using the selected-site
+identity. The negative-control URL is held in private Web user secrets. The
+provider path recorded exact-revision resource evidence and marked the draft,
+connection and selected-site capability `VERIFIED`. A failed recheck now
+supersedes an older pass.
 
-The setup test now also requires a `403` denial from the configured, existing
-synthetic unrelated site after the saved-site read. The Development control
-URL is held in private Web user secrets and its existence was checked in the
-SharePoint admin center. Focused PostgreSQL tests cover an accessible control,
-a denied control and same-site rejection. The updated Web host is healthy, but
-the owner-held setup proof must resume the draft before this revised action
-can be exercised in a live browser session. No durable provider evidence or
-activation follows from this transient test.
+The default client folder template version 1 was saved and approved locally.
+The guarded activation action is visible with the exact saved working site,
+but the workspace remains inactive pending confirmation of the final default
+binding for future client workspaces. Mail, records, production release and
+independent acceptance remain separate. Exact tests, hosted checks and live
+Development observations are in `status.json`.
 
 ## AS-PAR-002 audit program library access refresh
 
