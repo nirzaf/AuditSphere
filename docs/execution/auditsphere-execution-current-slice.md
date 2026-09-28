@@ -33,6 +33,22 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ---
 
+## UI modernization — accounting landing and evidence
+
+The real `/app/accounting` and `/app/accounting/evidence` views now share the
+compact accounting heading, metric cards and white workspace panels. The
+workflow dashboard's progress bar counts complete rows against only the
+authorized visible period rows; required, stale and blocked rows stay open.
+The evidence page does not infer approval from a linked reviewed result. The
+native context selector and draft scope remain in place. The shared responsive
+drawer reopens on a mobile-to-desktop viewport change. These are
+`PRESENTATION_ONLY` and `WIRE_EXISTING` changes; the prototype's additional
+accounting actions are not available from these views without their real
+application contracts. The exact local verification and remaining UI scope are
+recorded in `status.json`.
+
+---
+
 ## UI modernization — practice and firm finance
 
 The real `/app/practice/leads`, `/app/practice/time` and `/app/finance` routes

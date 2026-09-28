@@ -6,6 +6,7 @@
 <MudSnackbarProvider />
 
 <a class="skip-link" href="#main-content">Skip to main content</a>
+<MudBreakpointProvider OnBreakpointChanged="HandleBreakpointChanged">
 <MudLayout Class="audit-shell audit-staff-shell">
   <MudAppBar Elevation="0" Class="audit-topbar">
     <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start"
@@ -49,11 +50,19 @@
     </MudContainer>
   </MudMainContent>
 </MudLayout>
+</MudBreakpointProvider>
 
 @code {
   [Inject] private IConfiguration Configuration { get; set; } = default!;
   private readonly MudTheme _theme = Theme.AuditSphereTheme.Create();
   private bool _drawerOpen = true;
+  private bool _wasDesktop;
   private string EnvironmentLabel => Configuration["ASPNETCORE_ENVIRONMENT"] ?? "Development";
   private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
+  private void HandleBreakpointChanged(Breakpoint breakpoint)
+  {
+    var desktop = breakpoint is Breakpoint.Md or Breakpoint.Lg or Breakpoint.Xl or Breakpoint.Xxl;
+    if (desktop && !_wasDesktop) _drawerOpen = true;
+    _wasDesktop = desktop;
+  }
 }

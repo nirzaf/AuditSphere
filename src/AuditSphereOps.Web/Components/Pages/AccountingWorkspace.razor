@@ -10,7 +10,7 @@
 
 <PageTitle>Client accounting workspace</PageTitle>
 <MudLink Href="/app" Class="back-link mb-2 d-inline-block">← Back to portfolio</MudLink>
-<PageHeader Title="Client accounting workspace" Description="Explicitly granted legal entity accounting contexts, periods, and workflow dashboard." />
+<PageHeader Title="Client accounting workspace" Eyebrow="Client accounting" Description="Explicitly granted legal entity accounting contexts, periods, and workflow dashboard." />
 <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button-secondary" OnClick="LoadAccountingContextAsync" Disabled="@_loading">Refresh workspace</MudButton>
 
 @if (_loading)
@@ -33,39 +33,19 @@ else if (!_authorized)
 }
 else
 {
-  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="workspace-context-heading" role="region">
+  <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" aria-labelledby="workspace-context-heading" role="region">
     <h2 id="workspace-context-heading">Active accounting context</h2>
     <p class="scope-note">Firm <code>@_actor!.FirmId</code> · Group <strong>none</strong> · @_scopeDescription · @_clients.Count legal entities in the current grant scope. Group navigation does not grant sibling-company access.</p>
     <MudText Typo="Typo.body2" Color="Color.Secondary" Class="muted">Each row below pins the legal entity, engagement, period, book, currency and latest package version. Select a handoff only after confirming this context.</MudText>
   </MudPaper>
-  <MudPaper  Class="pa-4 my-4" Elevation="1" id="dashboard" aria-labelledby="dashboard-heading" role="region">
+  <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" id="dashboard" aria-labelledby="dashboard-heading" role="region">
     <h2 id="dashboard-heading">Workflow dashboard</h2>
     <p class="muted">Counts are derived from the visible period and package records. No due date is invented: until a task or PBC due date is linked, the dashboard shows <strong>Not recorded</strong>.</p>
-    <MudGrid Spacing="3" Class="metric-grid my-3" aria-label="Accounting workflow counts">
-      <MudItem xs="12" sm="6" md="3">
-        <MudPaper Class="pa-4 h-100" Elevation="1">
-          <span class="metric-label">Required</span>
-          <strong class="metric-value">@_requiredCount</strong>
-        </MudPaper>
-      </MudItem>
-      <MudItem xs="12" sm="6" md="3">
-        <MudPaper Class="pa-4 h-100" Elevation="1">
-          <span class="metric-label">Complete</span>
-          <strong class="metric-value">@_completeCount</strong>
-        </MudPaper>
-      </MudItem>
-      <MudItem xs="12" sm="6" md="3">
-        <MudPaper Class="pa-4 h-100" Elevation="1">
-          <span class="metric-label">Stale</span>
-          <strong class="metric-value">@_staleCount</strong>
-        </MudPaper>
-      </MudItem>
-      <MudItem xs="12" sm="6" md="3">
-        <MudPaper Class="pa-4 h-100" Elevation="1">
-          <span class="metric-label">Blocked</span>
-          <strong class="metric-value">@_blockedCount</strong>
-        </MudPaper>
-      </MudItem>
+    <MudGrid Spacing="2" Class="audit-accounting-metrics my-3" aria-label="Accounting workflow counts">
+      <MudItem xs="6" sm="3"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Required</MudText><MudText Typo="Typo.h4">@_requiredCount</MudText></MudPaper></MudItem>
+      <MudItem xs="6" sm="3"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Complete</MudText><MudText Typo="Typo.h4">@_completeCount</MudText></MudPaper></MudItem>
+      <MudItem xs="6" sm="3"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Stale</MudText><MudText Typo="Typo.h4">@_staleCount</MudText></MudPaper></MudItem>
+      <MudItem xs="6" sm="3"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Blocked</MudText><MudText Typo="Typo.h4">@_blockedCount</MudText></MudPaper></MudItem>
     </MudGrid>
     @if (_dashboardRows.Count == 0)
     {
@@ -73,6 +53,12 @@ else
     }
     else
     {
+      <div class="audit-accounting-progress" role="group" aria-label="Visible period workflow completion">
+        <div class="audit-accounting-progress-heading"><strong>Visible period workflows complete</strong><span>@_completeCount / @_dashboardRows.Count</span></div>
+        <progress class="audit-task-progress" value="@_completeCount" max="@_dashboardRows.Count"
+                  aria-label="@($"{_completeCount} of {_dashboardRows.Count} visible period workflows complete")">@_completeCount of @_dashboardRows.Count</progress>
+        <p class="muted">Required, stale and blocked rows remain open; this bar reflects only the scoped rows shown below.</p>
+      </div>
       <MudTable Items="_dashboardRows" Dense="true" Hover="true" Elevation="0">
         <HeaderContent>
           <MudTh>Client / period</MudTh>
@@ -94,37 +80,17 @@ else
       </MudTable>
     }
   </MudPaper>
-  <MudGrid Spacing="3" Class="metric-grid my-3" aria-label="Accounting workspace source counts">
-    <MudItem xs="12" sm="6" md="3">
-      <MudPaper Class="pa-4 h-100" Elevation="1">
-        <span class="metric-label">Client profiles</span>
-        <strong class="metric-value">@_profileCount</strong>
-      </MudPaper>
-    </MudItem>
-    <MudItem xs="12" sm="6" md="3">
-      <MudPaper Class="pa-4 h-100" Elevation="1">
-        <span class="metric-label">Open periods</span>
-        <strong class="metric-value">@_openPeriodCount</strong>
-      </MudPaper>
-    </MudItem>
-    <MudItem xs="12" sm="6" md="3">
-      <MudPaper Class="pa-4 h-100" Elevation="1">
-        <span class="metric-label">Sealed imports</span>
-        <strong class="metric-value">@_sealedImportCount</strong>
-      </MudPaper>
-    </MudItem>
-    <MudItem xs="12" sm="6" md="3">
-      <MudPaper Class="pa-4 h-100" Elevation="1">
-        <span class="metric-label">Blocked/stale work</span>
-        <strong class="metric-value">@_blockedCount</strong>
-      </MudPaper>
-    </MudItem>
+  <MudGrid Spacing="2" Class="audit-accounting-metrics my-3" aria-label="Accounting workspace source counts">
+    <MudItem xs="6" sm="3"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Client profiles</MudText><MudText Typo="Typo.h4">@_profileCount</MudText></MudPaper></MudItem>
+    <MudItem xs="6" sm="3"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Open periods</MudText><MudText Typo="Typo.h4">@_openPeriodCount</MudText></MudPaper></MudItem>
+    <MudItem xs="6" sm="3"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Sealed imports</MudText><MudText Typo="Typo.h4">@_sealedImportCount</MudText></MudPaper></MudItem>
+    <MudItem xs="6" sm="3"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Blocked/stale work</MudText><MudText Typo="Typo.h4">@_blockedCount</MudText></MudPaper></MudItem>
   </MudGrid>
   @if (!_hasClientScope)
   {
     <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="notice my-4" role="status"><h2>No client scope assigned</h2><p>Ask a firm administrator for an active client or engagement grant before using this workspace. No firm data is shown without an explicit scope.</p></MudAlert>
   }
-  <section class="card" aria-labelledby="selected-context-heading" data-draft-scope="accounting-context">
+  <section class="card audit-accounting-context" aria-labelledby="selected-context-heading" data-draft-scope="accounting-context">
     <h2 id="selected-context-heading">Selected accounting context</h2>
     <label class="field">
       Context (optional)

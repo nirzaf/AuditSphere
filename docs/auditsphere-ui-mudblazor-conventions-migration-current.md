@@ -37,6 +37,17 @@
 
 ## 3. Theme & shared components (presentation only)
 
+The accounting workspace and evidence queue now use the shared heading,
+metric and white-panel rhythm. The workspace completion bar is a native
+`<progress>` element derived only from its authorized visible period workflow
+rows; it is not a financial-close, review or production-readiness claim. The
+context selector remains native for the `draft-state.js` control-value
+contract. The shared staff drawer reopens when a mobile viewport returns to
+desktop; it still uses MudBlazor's responsive breakpoint and user toggle.
+The prototype's richer accounting forms and lifecycle actions require the
+existing real routes or backend contracts and were not copied into these
+landing views.
+
 The practice/firm-finance route family uses authorized collection counts in
 compact metric cards and scoped white panels. Native task/time `<form>`
 boundaries, browser-draft attributes and input values remain intact; their

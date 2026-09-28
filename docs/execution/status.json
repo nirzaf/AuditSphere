@@ -1054,11 +1054,16 @@
     "packageId": "Prototype-inspired Blazor UI modernization",
     "implementationStatus": "IN_PROGRESS",
     "acceptanceStatus": "PARTIAL",
-    "scope": "The shared staff/client/public shell, MudBlazor theme, Portfolio pilot, three current client portal views, administrator implementation task-progress view, and practice leads/time/firm-finance visual pass are locally verified on the real Blazor stack. Accounting, audit, operations and administration route-family visual and accessibility work remains open; no whole-application visual parity or production acceptance is claimed. Earlier AS-PAR-002, Microsoft provider, R2R review and P1/P8/P9 external gates remain recorded below.",
-    "nextAction": "Continue route-family visual passes on accounting, audit, operations and administration views. Preserve native draft/upload contracts and server authorization. Capture matching synthetic before/after evidence, keyboard and state coverage before any full UI acceptance claim.",
+    "scope": "The shared staff/client/public shell, MudBlazor theme, Portfolio pilot, three current client portal views, administrator implementation task-progress view, practice leads/time/firm-finance visual pass, and accounting landing/evidence visual pass are locally verified on the real Blazor stack. Visual and accessibility work remains open for accounting detail routes, audit, operations and administration; no whole-application visual parity or production acceptance is claimed. Earlier AS-PAR-002, Microsoft provider, R2R review and P1/P8/P9 external gates remain recorded below.",
+    "nextAction": "Continue route-family visual passes on remaining accounting detail, audit, operations and administration views. Preserve native draft/upload contracts and server authorization. Capture matching synthetic before/after evidence, keyboard and state coverage before any full UI acceptance claim.",
     "branch": "master"
   },
   "localEvidence": [
+    {
+      "item": "Prototype-inspired accounting landing and evidence visual pass (2026-09-29)",
+      "status": "PARTIAL",
+      "details": "Starting target source 81e77591f5eaf56f62fe62dc66002078ad2233a2 and read-only prototype dade5e02c1a36596fd6596878e99a25c78f955ab, the authorized /app/accounting and /app/accounting/evidence views now use compact headings, scoped metric cards and white panels. The accounting workflow bar derives complete/total only from visible scoped period dashboard rows, while required, stale and blocked remain open. The native context selector, draft-state boundary, handoff links, role checks and provider boundaries are unchanged. The shared staff drawer reopens on a mobile-to-desktop breakpoint transition. A focused PostgreSQL-backed browser journey passed 1/1 with a scoped one-row progress assertion, role-revocation denial, keyboard focus, no document overflow at 320, 390, 760, 1024, 1440 and 1920px on both routes, and a visible desktop drawer after mobile; synthetic mobile and desktop captures were inspected. Release Web build passed with zero warnings/errors; the full Release solution suite passed 581/581 with no skips (Domain 449, API 35, E2E 97). EF found no pending model changes; Markdown health, filename, task-pack and JSON validation passed. This remains a local visual slice: matching before captures, accounting detail routes, other families, broader accessibility states and production acceptance remain open. No schema, tenant or production mutation."
+    },
     {
       "item": "Prototype-inspired practice leads, time and firm finance visual pass (2026-09-29)",
       "status": "PARTIAL",

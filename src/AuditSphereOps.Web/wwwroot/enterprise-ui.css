@@ -89,6 +89,17 @@ body { background: var(--audit-page); }
 .audit-practice-form-fields > label, .audit-practice-form-row > label { display: grid; gap: 4px; min-width: 0; }
 .audit-practice-form-fields :is(input:not([type="checkbox"]), select, textarea) { width: 100%; max-width: 100%; min-width: 0; box-sizing: border-box; }
 .audit-practice-form-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; min-width: 0; }
+.audit-accounting-progress { border: 1px solid var(--audit-line); border-radius: 10px; padding: 12px 16px; margin: 8px 0 16px; background: #f8fafc; }
+.audit-accounting-progress-heading { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; font-size: 13px; }
+.audit-accounting-progress-heading span { color: var(--audit-muted); font-variant-numeric: tabular-nums; }
+.audit-accounting-progress .audit-task-progress { margin: 8px 0; }
+.audit-accounting-progress .muted { margin: 0; font-size: 12px; }
+.audit-accounting-context { border-color: var(--audit-line); border-radius: 10px; }
+.audit-accounting-context .field { max-width: 34rem; }
+.audit-accounting-context select { max-width: 100%; min-width: 0; }
+.audit-accounting-context .optional-label::after { content: none; }
+.audit-accounting-context .details { grid-template-columns: minmax(110px, max-content) minmax(0, 1fr); }
+.audit-accounting-metrics .audit-metric { min-height: 96px; }
 .audit-status-chip { font-weight: 700; border-radius: 5px; }
 .mud-dialog { border-radius: 15px; }
 .audit-workspace .mud-button-root { border-radius: 6px; }
@@ -148,6 +159,8 @@ body { background: var(--audit-page); }
 }
 @media (max-width: 600px) {
   .audit-practice-form-row { grid-template-columns: minmax(0, 1fr); }
+  .audit-accounting-context .details { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+  .audit-accounting-context .details dd { margin-bottom: 8px; }
   .audit-practice-card .mud-card-header { padding: 16px 16px 8px; }
   .audit-practice-card .mud-card-content { padding: 8px 16px 16px; }
   .audit-practice-card .mud-card-actions { padding: 0 16px 16px; }

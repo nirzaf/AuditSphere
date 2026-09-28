@@ -923,6 +923,31 @@ public sealed class ClientScopeJourneyTests
     Assert.DoesNotContain(privateClientName, body);
     Assert.DoesNotContain(privatePeriodCode, body);
     Assert.Contains(stalePeriodCode, body);
+    var workflowProgress = page.Locator(".audit-accounting-progress progress");
+    Assert.Equal(1, await workflowProgress.CountAsync());
+    Assert.Equal("1", await workflowProgress.GetAttributeAsync("max"));
+    Assert.Equal("0", await workflowProgress.GetAttributeAsync("value"));
+    foreach (var width in new[] { 320, 390, 760, 1024, 1440, 1920 })
+    {
+      await page.SetViewportSizeAsync(width, 900);
+      await page.WaitForFunctionAsync("() => document.documentElement.clientWidth === window.innerWidth");
+      if (width < 960)
+        await page.WaitForFunctionAsync("() => getComputedStyle(document.querySelector('.audit-main-content')).marginLeft === '0px'");
+      if (width == 1440)
+        await page.WaitForFunctionAsync("() => { const drawer = document.querySelector('.audit-sidebar'); const rect = drawer?.getBoundingClientRect(); return rect && rect.width > 200 && rect.left >= -1; }");
+      await page.EvaluateAsync("() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+      if ((width == 320 || width == 390 || width == 1440) && Environment.GetEnvironmentVariable("AUDITSPHERE_UI_CAPTURE_DIR") is { Length: > 0 } captureDir)
+      {
+        Directory.CreateDirectory(captureDir);
+        await page.ScreenshotAsync(new() { Path = Path.Combine(captureDir, $"accounting-workspace-{width}.png"), FullPage = true });
+      }
+      var overflowDetails = await page.EvaluateAsync<string>("""() => JSON.stringify({ viewport: innerWidth, document: document.documentElement.scrollWidth, offenders: [...document.querySelectorAll('body *')].filter(x => x.getBoundingClientRect().right > innerWidth + 1 && getComputedStyle(x).position !== 'fixed').slice(0, 8).map(x => ({ tag: x.tagName, className: typeof x.className === 'string' ? x.className : '', width: Math.round(x.getBoundingClientRect().width), right: Math.round(x.getBoundingClientRect().right) })) })""");
+      Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= window.innerWidth + 1"),
+        $"Accounting workspace overflows the {width}px viewport: {overflowDetails}");
+    }
+    await page.Locator("#accounting-context-selector").FocusAsync();
+    Assert.Equal("solid", await page.Locator("#accounting-context-selector")
+      .EvaluateAsync<string>("element => getComputedStyle(element).outlineStyle"));
     Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
 
     var evidencePage = await context.NewPageAsync();
@@ -931,6 +956,18 @@ public sealed class ClientScopeJourneyTests
     await evidencePage.GetByText("Evidence records", new() { Exact = true }).WaitForAsync();
     await evidenceConnected;
     Assert.DoesNotContain(privateEvidenceReference, await evidencePage.Locator("body").InnerTextAsync());
+    foreach (var width in new[] { 320, 390, 760, 1024, 1440, 1920 })
+    {
+      await evidencePage.SetViewportSizeAsync(width, 900);
+      await evidencePage.WaitForFunctionAsync("() => document.documentElement.clientWidth === window.innerWidth");
+      Assert.True(await evidencePage.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= window.innerWidth + 1"),
+        $"Accounting evidence overflows the {width}px viewport.");
+      if ((width == 390 || width == 1440) && Environment.GetEnvironmentVariable("AUDITSPHERE_UI_CAPTURE_DIR") is { Length: > 0 } captureDir)
+      {
+        Directory.CreateDirectory(captureDir);
+        await evidencePage.ScreenshotAsync(new() { Path = Path.Combine(captureDir, $"accounting-evidence-{width}.png"), FullPage = true });
+      }
+    }
     Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
 
     var recordsPage = await context.NewPageAsync();
