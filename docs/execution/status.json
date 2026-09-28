@@ -586,6 +586,12 @@
       "fullSuite": "PASS: PostgreSQL-backed Release solution Domain 358/358, API 16/16 and E2E 84/84; 458/458 aggregate, 0 skipped.",
       "boundary": "This is one synthetic local Development content-isolation fixture and a Draft visibility correction. No notification was delivered and no professional client request was issued. Changed-UPN, wrong-tenant and disabled/revoked live Microsoft fixtures, production OIDC and independent P1 acceptance remain open."
     },
+    "p1DevelopmentChangedUpnFixture": {
+      "observedAt": "2026-09-28T06:13:51Z",
+      "profile": "Local Development Web host and PostgreSQL 18.6 with the existing synthetic Client Y Entra identity; external effects fenced.",
+      "observation": "The tenant administrator temporarily changed the synthetic Client Y sign-in name in Microsoft 365. The owner completed a fresh Microsoft password challenge for that renamed account. AuditSphere reached the restricted client portal, whose request list remained empty, and direct navigation to Client X's Sent request returned Request unavailable. Read-only PostgreSQL readback showed the same enabled local Client Y user and immutable subject while its stored email still held the original sign-in name. The administrator restored the original tenant sign-in name, and Microsoft 365 showed Username updated for the reverse change.",
+      "boundary": "This verifies one live changed-UPN sign-in against the local Development app and a sibling-content denial. It does not prove wrong-tenant or disabled/revoked live fixtures, production OIDC, provider effects or independent P1 acceptance. The local email display value was not synchronized during this sign-in and should not be treated as authoritative identity."
+    },
     "p1SyntheticOwnedRequestBrowserRerun": {
       "observedAt": "2026-09-28T05:41:30Z",
       "profile": "Release E2E browser test against an isolated local PostgreSQL 18.6 database and synthetic client identity; no Microsoft sign-in or external effects.",
@@ -766,7 +772,7 @@
     "implementationStatus": "IN_PROGRESS",
     "acceptanceStatus": "LOCAL_VERIFIED",
     "scope": "P2 trusted PBC provider-scope handoff locally verified; the Graph adapter and live tenant acceptance remain open. AS-PAR-002 whole-application authorization audit remains partial. T001 R2R baseline inventory accepted by the owner; T002 architecture/transaction handoff is in independent review. T002 and downstream work remain open. Local developer-administrator, client-scoped staff and two client fixture OIDC sign-ins are observed. Provisional maximum-size local TB/PBC and concurrent staff-query samples are recorded; P1/P8 external and production acceptance remain open.",
-    "nextAction": "Continue remaining route/query/search/count/export/direct-command audit and eligible local provider hardening; complete changed-UPN, wrong-tenant and disabled-user live P1 fixtures through private credential handoff, while preserving the Sent-request Client X/Client Y Development isolation result and Draft visibility denial. Measure actual concurrent browser/provider workloads and approved targets for P8b. Independently review direct-main changes under P9.",
+    "nextAction": "Continue remaining route/query/search/count/export/direct-command audit and eligible local provider hardening; complete wrong-tenant and disabled/revoked-user live P1 fixtures through private credential handoff, while preserving the changed-UPN, Sent-request Client X/Client Y Development isolation and Draft visibility results. Measure actual concurrent browser/provider workloads and approved targets for P8b. Independently review direct-main changes under P9.",
     "branch": "master"
   },
   "localEvidence": [

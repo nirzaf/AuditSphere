@@ -272,6 +272,17 @@ its assigned PBC request and completing the guarded upload journey (1/1).
 This separately verifies the local positive browser path in an isolated test
 database; the Development Sent fixture observation above is distinct.
 
+The synthetic Client Y sign-in name was temporarily changed in the developer
+tenant. After the owner completed a fresh Microsoft credential challenge under
+that name, AuditSphere still resolved the same client-scoped identity: its
+portal listed no Client X requests and the direct Client X Sent-request URL
+returned Request unavailable. The administrator restored Client Y's original
+sign-in name and Microsoft 365 confirmed the reverse update. The local user
+email display value did not synchronize during the changed-name sign-in; the
+immutable subject remained the authorization binding. Wrong-tenant and
+disabled/revoked live fixtures, production OIDC and independent P1 acceptance
+remain open. Exact observations are in `status.json`.
+
 ## P8a production Data Protection key ring
 
 Production Web startup now also requires a persistent Data Protection key
