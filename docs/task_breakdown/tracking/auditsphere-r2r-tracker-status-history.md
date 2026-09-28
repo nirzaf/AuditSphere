@@ -2,7 +2,7 @@
 
 [Master index](../auditsphere-r2r-index-task-breakdown.md)
 
-No implementation status updates have been made. All 75 task cards were initialized as NOT_STARTED (T001–T054 baseline R2R, T055–T075 audit workflow gap closure). This is new tracking state, not a claim that existing application code is missing. The status helper appends attributable updates; preserve old evidence when reopening work.
+All task cards were initialized as NOT_STARTED; this did not assert that existing application code was missing. The status helper appends attributable transitions, and old evidence must be preserved if work is reopened. The completed T001 card is retained in [`tasks/archive/`](../tasks/archive/auditsphere-r2r-task-t001-baseline-current-state-inventory.md) as a dependency and evidence handoff; archiving does not change its COMPLETED status.
 
 | UTC timestamp | Task | From | To | Actor / owner | Reason |
 |---|---|---|---|---|---|

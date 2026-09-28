@@ -32,7 +32,7 @@ Freeze the shared architecture decisions and ownership rules agents must use.
 
 Hard dependencies must be COMPLETED, with reviewed handoff evidence:
 
-- [T001 — Approve scope and inventory the current implementation](auditsphere-r2r-task-t001-baseline-current-state-inventory.md)
+- [T001 — Approve scope and inventory the current implementation](../archive/auditsphere-r2r-task-t001-baseline-current-state-inventory.md)
 
 **Shared file ownership:** the coordinator serializes migrations, DbContext snapshots, public DTOs and shared policy edits. A task owns only the requests listed below; consume other requests through their owner.
 

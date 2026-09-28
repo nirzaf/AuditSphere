@@ -3,6 +3,7 @@ id: "T001"
 work_package: "R2R-00"
 modules: []
 status: "COMPLETED"
+archived: true
 depends_on: []
 owner: "Codex implementation coordinator"
 reviewer: "Repository owner (current Codex task)"
@@ -77,7 +78,7 @@ Use predecessor outputs by exact identity/revision/manifest, not by selecting a 
 
 **Direct consumers unlocked by this task:**
 
-- [T002 — Approve architecture, contracts and transaction ownership](auditsphere-r2r-task-t002-architecture-contracts-transaction-ownership.md)
+- [T002 — Approve architecture, contracts and transaction ownership](../00_Baseline/auditsphere-r2r-task-t002-architecture-contracts-transaction-ownership.md)
 
 ## 5. Blazor UI Architecture (`.Web`)
 

@@ -26,7 +26,7 @@
   "tasks": [
     {
       "id": "T001",
-      "file": "tasks/00_Baseline/auditsphere-r2r-task-t001-baseline-current-state-inventory.md",
+      "file": "tasks/archive/auditsphere-r2r-task-t001-baseline-current-state-inventory.md",
       "work_package": "R2R-00",
       "module_ids": [],
       "depends_on": [],

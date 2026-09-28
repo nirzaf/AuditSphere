@@ -626,8 +626,8 @@ The following table is the only master navigation/status index. Each task opens 
 
 | Done | Task file | Direct dependencies | Status | Readiness | Owner |
 |---|---|---|---|---|---|
-| [x] | [T001 — Approve scope and inventory the current implementation](tasks/00_Baseline/auditsphere-r2r-task-t001-baseline-current-state-inventory.md) | Owner/scope review | COMPLETED | COMPLETED | Codex implementation coordinator |
-| [ ] | [T002 — Approve architecture, contracts and transaction ownership](tasks/00_Baseline/auditsphere-r2r-task-t002-architecture-contracts-transaction-ownership.md) | [T001](tasks/00_Baseline/auditsphere-r2r-task-t001-baseline-current-state-inventory.md) | IN_REVIEW | READY | Codex implementation coordinator |
+| [x] | [T001 — Approve scope and inventory the current implementation](tasks/archive/auditsphere-r2r-task-t001-baseline-current-state-inventory.md) | Owner/scope review | COMPLETED | COMPLETED | Codex implementation coordinator |
+| [ ] | [T002 — Approve architecture, contracts and transaction ownership](tasks/00_Baseline/auditsphere-r2r-task-t002-architecture-contracts-transaction-ownership.md) | [T001](tasks/archive/auditsphere-r2r-task-t001-baseline-current-state-inventory.md) | IN_REVIEW | READY | Codex implementation coordinator |
 | [ ] | [T003 — Approve accounting policies, resource bounds and golden fixtures](tasks/00_Baseline/auditsphere-r2r-task-t003-accounting-policies-resource-bounds-golden-fixtures.md) | [T002](tasks/00_Baseline/auditsphere-r2r-task-t002-architecture-contracts-transaction-ownership.md) | NOT_STARTED | WAITING: T002 | Unassigned |
 
 <a id="wp-01"></a>
