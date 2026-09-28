@@ -28,6 +28,31 @@
 
 ---
 
+## P2 selected-site PBC provider
+
+A firm-wide Administrator can now provision, from Administration → Microsoft 365
+→ SharePoint, each accepted client's workspace folder tree and each engagement's
+folder tree inside the approved selected site. The engagement's PBC intake folder
+becomes a `working` repository binding, and its capability row is `VERIFIED`
+only after a disposable upload, exact SHA-256 read-back and delete succeed.
+`GraphPbcProviderSink` now has a live composition: it resolves only that
+verified binding, uploads via a Graph upload session in 320 KiB-aligned
+fragments through the restricted pre-authenticated transport, and issues a
+receipt only after the exact stored version reads back with the staged SHA-256
+and size. Unknown outcomes reconcile by the deterministic per-intent file name;
+a retry never overwrites. The Web host enqueues LIVE transfers only with
+`PbcTransfer:LiveProvider`, and only an isolated Acceptance worker with external
+effects and group `pbc` may claim them. The resolver no longer requires the
+client workspace root to equal the binding root; the tested-binding fingerprint
+pins the exact folder.
+
+A live Development run of the new acceptance test provisioned a synthetic
+client and engagement, verified the binding, uploaded one synthetic document with
+a matching exact-version receipt, reconciled it by probe, refused an overwrite and
+deleted the synthetic folders. A real client-staged document has not yet been
+transferred by the durable worker, and P2b isolation and production approval
+remain. Exact verification is in `status.json`.
+
 ## Microsoft 365 tenant connection and unified administration
 
 The tenant connection flow now completes the consent contract. After the

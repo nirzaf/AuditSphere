@@ -54,7 +54,9 @@ this document wins and the source text remains a historical requirement record.
   mutations use the `m365_external_operations` lifecycle (idempotency key,
   UNKNOWN reconciliation, separate local binding transaction) and append-only
   `m365_administration_events`. Document effects retain exact-site
-  `Sites.Selected` access. AuditSphere roles never assign Entra administrator roles,
+  `Sites.Selected` access; PBC documents are written only into a provisioned, capability-verified
+  engagement repository by the isolated Acceptance `pbc` worker group (LIVE / LIVE_PROVIDER
+  operations), with exact-version SHA-256 read-back receipts. AuditSphere roles never assign Entra administrator roles,
   and Microsoft group membership never grants AuditSphere access.
 - **Commands and queries are static capability services** returning `CommandResult` /
   `CommandResult<T>`. There is no MediatR/Wolverine handler layer; neither package is pinned.

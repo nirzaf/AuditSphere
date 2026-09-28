@@ -67,7 +67,7 @@ public sealed class PbcRepositoryBindingResolverTests
         AcceptanceDecisionId = acceptanceId, LogicalKey = "client-workspace/" + scope.ClientId,
         State = ClientWorkspaceStates.Ready, ConnectionRevisionId = connectionId,
         FolderTemplateVersionId = templateId, TenantId = "synthetic-tenant",
-        SiteId = "site-a", DriveId = "drive-a", RootFolderId = "client-root",
+        SiteId = "site-a", DriveId = "drive-a", RootFolderId = "firm-root", RemoteItemId = "client-root",
         CreatedAt = now, LastVerifiedAt = now
       });
       var binding = new RepositoryBinding

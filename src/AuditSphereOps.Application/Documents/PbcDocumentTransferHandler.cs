@@ -49,10 +49,19 @@ public sealed record PbcTransferChunk(int ChunkIndex, long Offset, int ByteCount
 /// </summary>
 public sealed class PbcDocumentTransferHandler(
   IAuditSphereDbContextFactory factory,
-  IPbcProviderSink sink) : IOperationHandler
+  IPbcProviderSink sink,
+  OperationDefinition? definition = null) : IOperationHandler
 {
   public const string Kind = "TransferPbcDocument.v1";
-  public OperationDefinition Definition { get; } = new(Kind, OperationMode.SIMULATED, OperationAuthority.SIMULATION);
+  public const string LiveGroup = "pbc";
+
+  /// <summary>Simulated transfers (Test composition only).</summary>
+  public static readonly OperationDefinition SimulatedDefinition = new(Kind, OperationMode.SIMULATED, OperationAuthority.SIMULATION);
+
+  /// <summary>Live selected-site transfers, claimed only by the isolated Acceptance "pbc" worker.</summary>
+  public static readonly OperationDefinition LiveDefinition = new(Kind, OperationMode.LIVE, OperationAuthority.LIVE_PROVIDER, Group: LiveGroup);
+
+  public OperationDefinition Definition { get; } = definition ?? SimulatedDefinition;
 
   public string NormalizePayload(OperationRequest request)
   {

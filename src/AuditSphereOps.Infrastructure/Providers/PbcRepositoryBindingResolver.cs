@@ -55,8 +55,10 @@ public sealed class PbcRepositoryBindingResolver(IAuditSphereDbContextFactory fa
     var clientWorkspaces = await db.ClientWorkspaces.AsNoTracking().Where(x =>
       x.FirmId == scope.FirmId && x.PracticeClientId == scope.ClientId &&
       x.State == ClientWorkspaceStates.Ready && x.TenantId == binding.TenantId &&
+      // The binding root is the engagement's PBC folder inside this client's workspace; the tested
+      // binding fingerprint (not a root-folder equality) pins that exact folder.
       x.SiteId == binding.SiteId && x.DriveId == binding.DriveId &&
-      x.RootFolderId == binding.RootFolderId && x.ConnectionRevisionId != null &&
+      x.RemoteItemId != null && x.ConnectionRevisionId != null &&
       x.FolderTemplateVersionId != null && x.LastVerifiedAt != null).Take(2).ToListAsync(ct);
     if (clientWorkspaces.Count != 1) throw Block();
     var clientWorkspace = clientWorkspaces[0];
@@ -87,14 +89,7 @@ public sealed class PbcRepositoryBindingResolver(IAuditSphereDbContextFactory fa
   }
 
   /// <summary>Fingerprint the exact tested target, so changing a binding invalidates its capability row.</summary>
-  public static string BindingDigest(RepositoryBinding binding) =>
-    Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new
-    {
-      binding.FirmId, binding.ClientId, binding.EngagementId, binding.Id,
-      binding.TenantId, binding.SiteId, binding.DriveId, binding.RootFolderId,
-      binding.Classification, binding.DesiredAccess, binding.ObservedAccess,
-      binding.CapabilityProfile
-    }))).ToLowerInvariant();
+  public static string BindingDigest(RepositoryBinding binding) => RepositoryBindingDigest.Compute(binding);
 
   private static bool HasPermissions(string value, string expectedDigest, params string[] required)
   {

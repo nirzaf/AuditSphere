@@ -72,7 +72,7 @@ The following local tasks, architectural decisions, and follow-ups are open for 
 
 - **DEC-01 (Live Entra OIDC):** Prove live Entra OIDC and directory behavior against the approved tenant. Local roster assignment and invitation persistence are verified locally, but live Graph interaction remains pending live tenant access.
 
-- **Selected-Resource SharePoint/Graph Provider:** Implement and verify the production selected-resource SharePoint/Graph provider, durable client-root worker, engagement folder provisioning, and uncertain-outcome reconciliation.
+- **Selected-Resource SharePoint/Graph Provider:** Implemented: administrator-driven client workspace and engagement PBC repository provisioning inside the selected site, binding capability verification by disposable upload and exact read-back, the live `GraphPbcProviderSink` (upload session, exact-version SHA-256 read-back, deterministic-name probe reconciliation, no overwrite on retry) and an isolated Acceptance `pbc` worker composition. Remaining: an end-to-end durable-worker transfer of a real client-staged document in an authorized environment, the P2b isolation matrix, and production approval.
 
 - **Staff ACLs & Mailbox Delivery:** Implement optional direct staff ACL behavior and Microsoft Graph mailbox delivery only with authorized tenant resources. Purview provider integration is excluded by root `AGENTS.md`; it is not an eligible local implementation task.
 
@@ -114,7 +114,7 @@ These production milestones require live external infrastructure, tenant credent
 
 | **P1** | Live Entra OIDC Authentication | `BLOCKED_EXTERNAL` | Local administrator, scoped-staff and both client sign-ins are observed; an unsent Draft is hidden, Client X can see one synthetic Sent request, and Client Y is denied it. A changed-UPN Client Y sign-in also reached the same local client scope. Wrong-tenant, disabled/revoked-user and production acceptance remain. |
 
-| **P2** | Selected-Resource SharePoint/Graph | `BLOCKED_EXTERNAL` | The Development tenant now has trusted consent, exact saved site/library/root read evidence, a denied unrelated-site control, and an active local working-site binding. `GraphPbcProviderSink` still fails closed; authorized upload, version retrieval, receipts, uncertain-outcome reconciliation, and production approval remain. |
+| **P2** | Selected-Resource SharePoint/Graph | `BLOCKED_EXTERNAL` | The Development tenant has trusted consent, exact site/library/root evidence and a denied unrelated-site control. A live Development run provisioned a synthetic client workspace and engagement repository, verified the binding by disposable upload/read-back, uploaded a synthetic document with a matching exact-version SHA-256 receipt, reconciled by probe, refused an overwrite and cleaned up. A durable-worker transfer of a real staged document in an authorized environment, P2b isolation and production approval remain. |
 
 | **P2b** | SharePoint Isolation & Reconciliation | `BLOCKED_EXTERNAL` | The unrelated-site negative control passed in Development. The full client A/B, wrong-tenant, guessed-ID, stale/revoked identity, throttling, and provider-reconciliation matrix remains unobserved. |
 

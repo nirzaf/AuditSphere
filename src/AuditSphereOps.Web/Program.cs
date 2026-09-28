@@ -268,7 +268,28 @@ if (externalEffectsEnabled)
 var simulationSinkRoot = builder.Configuration["Storage:PbcProviderSimulationRoot"]
   ?? Path.Combine(Path.GetTempPath(), "AuditSphereOps", "pbc-provider-simulation");
 builder.Services.AddSingleton<IPbcProviderSink>(new SimulationPbcProviderSink(simulationSinkRoot));
-builder.Services.AddSingleton<PbcDocumentTransferHandler>();
+// The web host only enqueues transfers; the definition decides which worker may claim them.
+// LiveProvider routes them to the isolated Acceptance "pbc" worker; otherwise they stay simulated.
+var livePbcTransfers = builder.Configuration.GetValue<bool>("PbcTransfer:LiveProvider");
+builder.Services.AddSingleton(sp => new PbcDocumentTransferHandler(sp.GetRequiredService<IAuditSphereDbContextFactory>(),
+  sp.GetRequiredService<IPbcProviderSink>(),
+  livePbcTransfers ? PbcDocumentTransferHandler.LiveDefinition : PbcDocumentTransferHandler.SimulatedDefinition));
+// Selected-site workspace provisioning uses the same Sites.Selected runtime credential as the document worker.
+var selectedSiteOptions = new SelectedSiteCertificateOptions(
+  builder.Configuration["SelectedSite:TenantId"] ?? string.Empty, builder.Configuration["SelectedSite:ClientId"] ?? string.Empty,
+  builder.Configuration["SelectedSite:CredentialReference"] ?? string.Empty, builder.Configuration["SelectedSite:CertificatePath"] ?? string.Empty,
+  builder.Configuration["SelectedSite:PrivateKeyPath"] ?? string.Empty);
+var selectedSiteConfigured = Guid.TryParse(selectedSiteOptions.TenantId, out _) && Guid.TryParse(selectedSiteOptions.ClientId, out _) &&
+  !string.IsNullOrWhiteSpace(selectedSiteOptions.CredentialReference) && File.Exists(selectedSiteOptions.CertificatePath) &&
+  File.Exists(selectedSiteOptions.PrivateKeyPath);
+if (livePbcTransfers && !selectedSiteConfigured)
+  throw new InvalidOperationException("PbcTransfer:LiveProvider requires the SelectedSite certificate credential.");
+builder.Services.AddSingleton<GraphPreauthenticatedTransport>();
+builder.Services.AddHttpClient("selected-site-graph", client => client.Timeout = TimeSpan.FromSeconds(100))
+  .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
+builder.Services.AddTransient<ISelectedSiteWorkspaceProvisioner>(sp => new GraphSelectedSiteDrive(
+  sp.GetRequiredService<IHttpClientFactory>().CreateClient("selected-site-graph"), sp.GetRequiredService<ISelectedSiteTokenSource>(),
+  sp.GetRequiredService<GraphPreauthenticatedTransport>(), selectedSiteConfigured));
 
 var checkpointRoot = builder.Configuration["Storage:ReleaseCheckpointRoot"]
   ?? Path.Combine(Path.GetTempPath(), "AuditSphereOps", "release-checkpoints");

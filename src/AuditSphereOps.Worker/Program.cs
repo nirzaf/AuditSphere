@@ -38,7 +38,9 @@ builder.Services.AddOpenTelemetry()
 var group = builder.Configuration["Worker:Group"] ?? "general";
 var externalEffects = builder.Configuration.GetValue<bool>("ExternalEffects:Enabled");
 var liveMail = builder.Environment.IsEnvironment("Acceptance") && externalEffects && group == "mail";
-if (!builder.Environment.IsDevelopment() && !builder.Environment.IsEnvironment("Test") && !liveMail)
+// Live selected-site PBC transfers run only in an isolated Acceptance worker for the "pbc" group.
+var livePbc = builder.Environment.IsEnvironment("Acceptance") && externalEffects && group == PbcDocumentTransferHandler.LiveGroup;
+if (!builder.Environment.IsDevelopment() && !builder.Environment.IsEnvironment("Test") && !liveMail && !livePbc)
   throw new InvalidOperationException("This worker composition is not approved for the current environment.");
 var connection = builder.Configuration.GetConnectionString("AuditSphere");
 if (string.IsNullOrWhiteSpace(connection))
@@ -55,8 +57,8 @@ var workerOptions = new WorkerOptions(firmId, builder.Environment.EnvironmentNam
   builder.Configuration.GetValue<bool>("AllowSimulationAdapters"),
   externalEffects, group,
   DeploymentEpoch: deploymentEpoch);
-if (externalEffects && !liveMail)
-  throw new InvalidOperationException("External effects require the isolated Acceptance mail worker.");
+if (externalEffects && !liveMail && !livePbc)
+  throw new InvalidOperationException("External effects require an isolated Acceptance mail or pbc worker.");
 
 var releaseSafety = builder.Configuration.GetSection(ReleaseSafetyOptions.SectionName).Get<ReleaseSafetyOptions>() ?? new();
 releaseSafety.Validate(
@@ -122,6 +124,30 @@ if (liveMail)
     sp.GetRequiredService<IOperationStore>(),
     sp.GetRequiredService<PbcMailDeliveryHandler>(), workerOptions));
 }
+else if (livePbc)
+{
+  var selectedSite = new SelectedSiteCertificateOptions(
+    builder.Configuration["SelectedSite:TenantId"] ?? string.Empty,
+    builder.Configuration["SelectedSite:ClientId"] ?? string.Empty,
+    builder.Configuration["SelectedSite:CredentialReference"] ?? string.Empty,
+    builder.Configuration["SelectedSite:CertificatePath"] ?? string.Empty,
+    builder.Configuration["SelectedSite:PrivateKeyPath"] ?? string.Empty);
+  selectedSite.Validate();
+  var graphHttp = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false }) { Timeout = TimeSpan.FromSeconds(100) };
+  var tokenHttp = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false }) { Timeout = TimeSpan.FromSeconds(30) };
+  builder.Services.AddSingleton<ISelectedSiteTokenSource>(new CertificateSelectedSiteTokenSource(tokenHttp, selectedSite));
+  builder.Services.AddSingleton<GraphPreauthenticatedTransport>();
+  builder.Services.AddSingleton(sp => new GraphSelectedSiteDrive(graphHttp, sp.GetRequiredService<ISelectedSiteTokenSource>(),
+    sp.GetRequiredService<GraphPreauthenticatedTransport>(), configured: true));
+  builder.Services.AddSingleton<PbcRepositoryBindingResolver>();
+  builder.Services.AddSingleton<IPbcProviderSink>(sp => new GraphPbcProviderSink(sp.GetRequiredService<PbcRepositoryBindingResolver>(),
+    sp.GetRequiredService<GraphSelectedSiteDrive>(), sp.GetRequiredService<IAuditSphereDbContextFactory>()));
+  builder.Services.AddSingleton(sp => new PbcDocumentTransferHandler(sp.GetRequiredService<IAuditSphereDbContextFactory>(),
+    sp.GetRequiredService<IPbcProviderSink>(), PbcDocumentTransferHandler.LiveDefinition));
+  builder.Services.AddSingleton<IPendingOperationDiscovery>(sp => new PbcTransferDiscovery(
+    sp.GetRequiredService<IAuditSphereDbContextFactory>(), sp.GetRequiredService<IOperationStore>(),
+    sp.GetRequiredService<PbcDocumentTransferHandler>(), workerOptions));
+}
 else
 {
   builder.Services.AddSingleton<TrialBalanceValidationHandler>();
@@ -134,7 +160,7 @@ else
 // Simulation adapters compose only in a Test environment with the explicit enablement flag.
 // In Development the PBC transfer operations remain queued pending an approved provider
 // boundary; the durable queue records the truthful pending state instead of executing.
-var simulationAllowed = !liveMail && workerOptions.EnvironmentName == "Test" && workerOptions.AllowSimulationAdapters;
+var simulationAllowed = !liveMail && !livePbc && workerOptions.EnvironmentName == "Test" && workerOptions.AllowSimulationAdapters;
 if (simulationAllowed)
 {
   var providerRoot = builder.Configuration["Storage:PbcProviderSimulationRoot"]
@@ -148,20 +174,21 @@ if (simulationAllowed)
     workerOptions));
 }
 
-if (!liveMail)
+if (!liveMail && !livePbc)
   builder.Services.AddSingleton<IPendingOperationDiscovery>(sp =>
     sp.GetRequiredService<TrialBalanceDiscovery>());
 builder.Services.AddSingleton(sp => new DurableOperationRegistry(
-  ResolveHandlers(sp, simulationAllowed, liveMail), workerOptions));
+  ResolveHandlers(sp, simulationAllowed, liveMail, livePbc), workerOptions));
 builder.Services.AddSingleton<OperationDispatcher>();
 builder.Services.AddHostedService<Worker>();
 
 var host = builder.Build();
 host.Run();
 
-static IOperationHandler[] ResolveHandlers(IServiceProvider sp, bool simulationAllowed, bool liveMail)
+static IOperationHandler[] ResolveHandlers(IServiceProvider sp, bool simulationAllowed, bool liveMail, bool livePbc)
 {
   if (liveMail) return [sp.GetRequiredService<PbcMailDeliveryHandler>()];
+  if (livePbc) return [sp.GetRequiredService<PbcDocumentTransferHandler>()];
   var validation = sp.GetRequiredService<TrialBalanceValidationHandler>();
   var completeness = sp.GetRequiredService<GeneralLedgerCompletenessHandler>();
   var packageBuild = sp.GetRequiredService<FinancialPackageBuildHandler>();

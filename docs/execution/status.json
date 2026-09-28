@@ -922,6 +922,15 @@
       "liveObservation": "PASS: LiveMicrosoftTenantAcceptanceTests with live credentials returned VERIFIED for DIRECTORY_READ, TENANT_USER_PROVISIONING, GUEST_INVITATION, GROUP_MEMBERSHIP and OUTBOUND_MAIL (read-only token/role checks and bounded reads).",
       "focusedTests": "PASS: GraphTenantAdministrationProviderTests (including shared-identity role-set fence), TenantAdministrationTests and LiveMicrosoftTenantAcceptanceTests (offline BLOCKED_EXTERNAL path).",
       "boundary": "No live user creation, guest invitation, group membership change or mail send was performed. Mail.Send is not yet restricted by an Exchange Online application access policy. Not production acceptance."
+    },
+    "p2SelectedSitePbcProvider": {
+      "observedAt": "2026-09-28T17:30:00Z",
+      "behavior": "Administrator provisioning of client workspace and engagement PBC repository folders in the selected site; binding capability VERIFIED only by disposable upload + exact SHA-256 read-back + delete; live GraphPbcProviderSink (upload session with 320 KiB-aligned fragments via the restricted transport, exact-version read-back receipt, deterministic-name probe reconciliation, no overwrite); PbcDocumentTransferHandler LIVE/LIVE_PROVIDER definition in group 'pbc'; isolated Acceptance pbc worker composition; Web PbcTransfer:LiveProvider enqueue switch; resolver root-equality replaced by RemoteItemId + tested-binding fingerprint.",
+      "focusedTests": "PASS: PbcSelectedSiteProviderTests (fake Graph drive: end-to-end provision/resolve/upload/verify/probe/no-overwrite/tamper, idempotency, failed read-back, prerequisites, aligned 21 MiB fragments, naming), PbcRepositoryBindingResolverTests, ProviderBoundaryTests, PBC transfer and architecture tests.",
+      "liveObservation": "PASS: LivePbcSelectedSiteAcceptanceTests against the Development selected site: engagement repository VERIFIED, synthetic 33-byte document uploaded with matching SHA-256 at version 1.0, exact-version verify and probe reconciliation matched, retry refused without overwrite, synthetic folders deleted. The isolated Acceptance pbc worker started and polled without error against the Development database.",
+      "build": "PASS: Release Web build 0 warnings/errors; EF no pending model changes.",
+      "boundary": "No real client-staged document was transferred by the durable worker; P2b isolation matrix, throttling behaviour and production approval remain. Not production acceptance.",
+      "fullSuite": "PASS: PostgreSQL-backed solution suite Domain 432/432, API 32/32, E2E 91/91; 555/555 aggregate, 0 skipped."
     }
   },
   "documentationWork": {
@@ -1725,7 +1734,7 @@
     {
       "gate": "P2",
       "status": "BLOCKED_EXTERNAL",
-      "required": "Selected-resource SharePoint/Graph provider acceptance"
+      "required": "Durable-worker transfer of a real staged document in an authorized environment and production approval; Development live provider evidence (provisioning, verified binding, exact-version upload receipt, probe reconciliation) is recorded."
     },
     {
       "gate": "P3",
