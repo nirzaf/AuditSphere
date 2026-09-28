@@ -696,6 +696,12 @@ review and explicit merge authorization before advancing acceptance.
   full Release solution suite, Web build and EF model check passed. Timings and
   exact checks are in `status.json`. These samples do not establish concurrent
   workload capacity, live provider behavior, p95 latency or production sizing.
+- **Provisional concurrent query sample:** Fifteen explicit local users issued
+  thirty simultaneous first-page GL queries through separate PostgreSQL-backed
+  contexts. Three isolated runs passed, and the full Release solution suite,
+  Web build and EF model check passed. Exact measurements are in `status.json`.
+  This measures application queries rather than browser sessions or sustained
+  HTTP load; it does not close P8b.
 - **Explicit focused run recorded:** AccountingBenchmarkTests passed on the
   local PostgreSQL profile, covering intake, durable outbox enqueue/worker
   publication and consolidated group readback. Concurrent worker-operation

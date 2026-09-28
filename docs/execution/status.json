@@ -4,12 +4,12 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "8475cc6",
-  "verifiedCommit": "8475cc6",
+  "headCommit": "d49df0b",
+  "verifiedCommit": "d49df0b",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": true,
   "productionEnabled": false,
-  "verifiedAt": "2026-09-28T04:25:20Z",
+  "verifiedAt": "2026-09-28T04:53:30Z",
   "toolchain": {
     "sdk": ".NET 10",
     "efCore": "10.0.12",
@@ -599,6 +599,16 @@
       },
       "verification": "PASS: both focused cases in three isolated runs; Release Web build 0 warnings/errors; full PostgreSQL-backed Release solution suite Domain 357/357, API 16/16, E2E 83/83 (456/456 aggregate, 0 skipped); EF reports no pending model changes; test-source gitleaks scan and diff check passed.",
       "boundary": "Only local synthetic maximum-input component samples. No concurrent user/session load, multi-request PBC throughput, p95 distribution, rendering/archive target, live Graph throttle/reconciliation, DB pressure target, or production sizing/acceptance is established. P8b remains open."
+    },
+    "p8bProvisionalStaffQueryBaseline": {
+      "sourceCommit": "d49df0b",
+      "observedAt": "2026-09-28T04:53:30Z",
+      "profile": "Local macOS Release tests on PostgreSQL 18.6 with isolated synthetic schemas. The documented 15-staff/30-session scenario is used as a provisional query-count input, without a browser-session or production latency target.",
+      "input": "15 distinct local users with explicit AccountingPreparer grants, 30 concurrently released first-page GL queries, 50 rows per page, four synthetic clients, and one independent EF context per query.",
+      "p95Ms": [318.6, 336.0, 250.4],
+      "maxMs": [321.7, 336.1, 260.8],
+      "verification": "PASS: focused case in three isolated runs; Release Web build 0 warnings/errors; full PostgreSQL-backed Release solution suite Domain 358/358, API 16/16, E2E 83/83 (457/457 aggregate, 0 skipped); EF reports no pending model changes.",
+      "boundary": "This is a local application-query sample, not 30 browser sessions, a p95 HTTP/Blazor screen measurement, a sustained load or DB pressure target, live provider throughput, or production capacity acceptance. P8b remains open."
     }
   },
   "documentationWork": {
@@ -705,8 +715,8 @@
     "packageId": "Audit workflow gap-closure and client accounting implementation",
     "implementationStatus": "IN_PROGRESS",
     "acceptanceStatus": "LOCAL_VERIFIED",
-    "scope": "P2 trusted PBC provider-scope handoff locally verified; the Graph adapter and live tenant acceptance remain open. AS-PAR-002 whole-application authorization audit remains partial. T001 R2R baseline inventory accepted by the owner; T002 architecture/transaction handoff is in independent review. T002 and downstream work remain open. Local developer-administrator and client-scoped staff OIDC readbacks are observed. Provisional maximum-size local TB/PBC samples are recorded; P1/P8 external and production acceptance remain open.",
-    "nextAction": "Continue remaining route/query/search/count/export/direct-command audit and eligible local provider hardening; complete client, wrong-tenant and disabled-user live P1 identity fixtures through private credential handoff. Measure approved concurrent workloads for P8b. Independently review direct-main changes under P9.",
+    "scope": "P2 trusted PBC provider-scope handoff locally verified; the Graph adapter and live tenant acceptance remain open. AS-PAR-002 whole-application authorization audit remains partial. T001 R2R baseline inventory accepted by the owner; T002 architecture/transaction handoff is in independent review. T002 and downstream work remain open. Local developer-administrator and client-scoped staff OIDC readbacks are observed. Provisional maximum-size local TB/PBC and concurrent staff-query samples are recorded; P1/P8 external and production acceptance remain open.",
+    "nextAction": "Continue remaining route/query/search/count/export/direct-command audit and eligible local provider hardening; complete client, wrong-tenant and disabled-user live P1 identity fixtures through private credential handoff. Measure actual concurrent browser/provider workloads and approved targets for P8b. Independently review direct-main changes under P9.",
     "branch": "master"
   },
   "localEvidence": [

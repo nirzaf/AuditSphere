@@ -92,7 +92,7 @@ The following local tasks, architectural decisions, and follow-ups are open for 
 
 - **Automated Documentation Health:** Complete: the Markdown health and filename validators plus the narrative volatile-metrics guard run in hosted CI (`ci.yml` "docs-health" job), keeping exact test counts, SHAs and run identifiers out of the top-of-authority narrative documents.
 
-- **Benchmark Baselines:** The standard Domain suite includes a small accounting benchmark and provisional maximum-size trial-balance and PBC-transfer checks. Exact input sizes, measurements and verification live in `status.json`. Continue with approved concurrent workload targets, provider throttling, archive/rendering throughput and production-like sizing before P8b acceptance.
+- **Benchmark Baselines:** The standard Domain suite includes a small accounting benchmark, provisional maximum-size trial-balance and PBC-transfer checks, and a 15-user/30-query local PostgreSQL sample. Exact input sizes, measurements and verification live in `status.json`. Continue with actual concurrent browser/session and provider workloads, archive/rendering throughput and production-like sizing before P8b acceptance.
 
 
 
@@ -126,7 +126,7 @@ These production milestones require live external infrastructure, tenant credent
 
 | **P7** | Cross-Store Recovery (RPO/RTO) | `BLOCKED_EXTERNAL` | Requires custodially separate, multi-region cloud backup infrastructure and measured restore drills. |
 
-| **P8** | Production Observability, Secrets & Capacity | `BLOCKED_EXTERNAL` | Local maximum-input samples are recorded; production secret custody, collector/alerts, concurrent load targets and sensitive log review remain. |
+| **P8** | Production Observability, Secrets & Capacity | `BLOCKED_EXTERNAL` | Local maximum-input and concurrent-query samples are recorded; production secret custody, collector/alerts, browser/provider load targets and sensitive log review remain. |
 
 | **P9** | Independent Review & Protected Merge | `BLOCKED_EXTERNAL` | Requires independent partner sign-off and branch protections. |
 
