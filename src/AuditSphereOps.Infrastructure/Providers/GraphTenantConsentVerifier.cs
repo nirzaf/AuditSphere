@@ -3,6 +3,7 @@ using System.Security.Cryptography.X509Certificates;
 using System.Text.Json;
 using AuditSphereOps.Application.Microsoft365;
 using AuditSphereOps.Domain.Microsoft365;
+using Microsoft.Extensions.Logging;
 
 namespace AuditSphereOps.Infrastructure.Providers;
 
@@ -23,7 +24,8 @@ public sealed record TenantConsentVerifierOptions(
 
 public sealed class GraphTenantConsentVerifier(
   HttpClient http, TenantConsentVerifierOptions options,
-  IReadOnlyDictionary<string, GraphCapabilityTokenSource> capabilityTokens) : IMicrosoftTenantConsentVerifier
+  IReadOnlyDictionary<string, GraphCapabilityTokenSource> capabilityTokens,
+  ILogger<GraphTenantConsentVerifier>? logger = null) : IMicrosoftTenantConsentVerifier
 {
   private const string MicrosoftAccountTenant = "9188040d-6c67-4c5b-b112-36a304b66dad";
 
@@ -62,7 +64,25 @@ public sealed class GraphTenantConsentVerifier(
       })
     };
     using var response = await http.SendAsync(request, ct);
-    if (response.StatusCode != HttpStatusCode.OK) throw new InvalidOperationException("identity-code-rejected");
+    if (response.StatusCode != HttpStatusCode.OK)
+    {
+      // Microsoft error descriptions can include request context. Log only the
+      // bounded error code, never the authorization code, token or response body.
+      var error = "unknown";
+      try
+      {
+        using var failure = await JsonDocument.ParseAsync(
+          await response.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
+        if (failure.RootElement.TryGetProperty("error", out var value) &&
+            value.ValueKind == JsonValueKind.String && value.GetString() is { } errorValue &&
+            errorValue.Length is > 0 and <= 64 && errorValue.All(c => c is >= 'a' and <= 'z' or '_'))
+          error = errorValue;
+      }
+      catch (JsonException) { }
+      logger?.LogWarning("Microsoft consent identity redemption failed: HTTP {Status}, code {Code}",
+        (int)response.StatusCode, error);
+      throw new InvalidOperationException("identity-code-rejected");
+    }
     using var json = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
     // Only the ID token is inspected. Any access/refresh token in the response is discarded unread.
     var idToken = json.RootElement.TryGetProperty("id_token", out var element) ? element.GetString() : null;

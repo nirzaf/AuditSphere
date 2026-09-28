@@ -112,7 +112,7 @@ public static class TenantAdministrationComposition
           [Microsoft365Capabilities.GroupMembership] = Tokens(s, groupMembership),
           [Microsoft365Capabilities.OutboundMail] = Tokens(s, mail),
           [Microsoft365Capabilities.SelectedSite] = Tokens(s, selectedSite),
-        }));
+        }, s.GetRequiredService<ILogger<GraphTenantConsentVerifier>>()));
     }
     builder.Services.AddSingleton(settings);
   }
