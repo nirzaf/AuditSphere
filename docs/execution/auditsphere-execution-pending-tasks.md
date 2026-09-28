@@ -114,7 +114,9 @@ These production milestones require live external infrastructure, tenant credent
 
 | **P1** | Live Entra OIDC Authentication | `BLOCKED_EXTERNAL` | Local administrator, scoped-staff and both client sign-ins are observed; an unsent Draft is hidden, Client X can see one synthetic Sent request, and Client Y is denied it. A changed-UPN Client Y sign-in also reached the same local client scope. Wrong-tenant, disabled/revoked-user and production acceptance remain. |
 
-| **P2** | Selected-Resource SharePoint/Graph | `BLOCKED_EXTERNAL` | Requires live Microsoft 365 tenant with approved selected-resource application permissions. |
+| **P2** | Selected-Resource SharePoint/Graph | `BLOCKED_EXTERNAL` | The Development tenant now has trusted consent, exact saved site/library/root read evidence, a denied unrelated-site control, and an active local working-site binding. `GraphPbcProviderSink` still fails closed; authorized upload, version retrieval, receipts, uncertain-outcome reconciliation, and production approval remain. |
+
+| **P2b** | SharePoint Isolation & Reconciliation | `BLOCKED_EXTERNAL` | The unrelated-site negative control passed in Development. The full client A/B, wrong-tenant, guessed-ID, stale/revoked identity, throttling, and provider-reconciliation matrix remains unobserved. |
 
 | **P3** | External Release Checkpoint Store | `BLOCKED_EXTERNAL` | Requires production cryptographic checkpoint infrastructure and immutable remote store. |
 
