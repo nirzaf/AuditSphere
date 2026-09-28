@@ -219,7 +219,12 @@ else
                         .Select(d => (Guid?)d.PracticeClientId).SingleOrDefaultAsync();
                 }
             }
-            if (!resolvedClientId.HasValue) return;
+            // An unknown identifier renders exactly like an out-of-scope one so identifiers are not an existence oracle.
+            if (!resolvedClientId.HasValue)
+            {
+                _scopeDenied = true;
+                return;
+            }
 
             var authorization = await AuthorizationDecision.AuthorizeAsync(db, _actor,
                 new AuthorizationRequest(_actor.FirmId, ClientId: resolvedClientId, InternalOnly: true));

@@ -1,5 +1,7 @@
 using System.Text.RegularExpressions;
+using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Tests;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Playwright;
 using Xunit.Abstractions;
 
@@ -76,22 +78,8 @@ public sealed partial class SiblingClientIsolationJourneyTests(ITestOutputHelper
         $"/app/accounting/mappings/{sibling.MappingId:D}", $"/app/accounting/journals/{sibling.JournalId:D}"
       };
       var siblingIds = new[] { sibling.Fixture.ClientId, engagement, sibling.PeriodId, sibling.PackageId, sibling.MappingId, sibling.JournalId };
-      foreach (var route in detailRoutes)
-      {
-        var id = siblingIds.Single(x => route.Contains(x.ToString("D"), StringComparison.Ordinal));
-        var random = Guid.NewGuid();
-        var real = Normalize(await SnapshotAsync(page, origin + route), id);
-        var guessed = Normalize(await SnapshotAsync(page, origin + route.Replace(id.ToString("D"), random.ToString("D"), StringComparison.Ordinal)), random);
-        if (real.Contains(Marker, StringComparison.OrdinalIgnoreCase)) leaks.Add($"{route}: sibling marker rendered");
-        else if (real != guessed) leaks.Add($"{route}: distinguishable from a random identifier\n  sibling: {Excerpt(real, guessed)}\n  random:  {Excerpt(guessed, real)}");
-      }
-
-      var download = await context.APIRequest.GetAsync($"{origin}/api/pbc/uploads/{sibling.UploadIntentId:D}/download", new() { MaxRedirects = 0 });
-      var guessedDownload = await context.APIRequest.GetAsync($"{origin}/api/pbc/uploads/{Guid.NewGuid():D}/download", new() { MaxRedirects = 0 });
-      var downloadBody = await download.TextAsync();
-      if (download.Status != guessedDownload.Status || downloadBody.Contains(Marker, StringComparison.OrdinalIgnoreCase) ||
-          downloadBody != await guessedDownload.TextAsync())
-        leaks.Add($"download: sibling {download.Status} vs random {guessedDownload.Status}");
+      await CompareDetailRoutesAsync(page, origin, detailRoutes, siblingIds, leaks);
+      await CompareDownloadAsync(context, origin, sibling.UploadIntentId, leaks);
 
       foreach (var leak in leaks) output.WriteLine(leak);
       Assert.Empty(leaks);
@@ -104,10 +92,226 @@ public sealed partial class SiblingClientIsolationJourneyTests(ITestOutputHelper
     }
   }
 
+  [Fact]
+  [Trait("CaseId", "AS-PAR-002-SIBLING-PORTAL-DIFF-01")]
+  public async Task SiblingClientDataNeverChangesWhatAnotherClientSeesInThePortal()
+  {
+    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "AS-PAR-002-SIBLING-PORTAL-DIFF-01");
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    await using var context = await browser.NewContextAsync();
+    var page = await context.NewPageAsync();
+    var diagnostics = new List<string>();
+    page.PageError += (_, error) => diagnostics.Add($"page-error: {error}");
+    var origin = host.ClientUrl;
+    await page.GotoAsync($"{origin}/auth/sign-in?returnUrl={Uri.EscapeDataString("/portal")}");
+    await page.Locator("h1").First.WaitForAsync(new() { Timeout = 15000 });
+    string[] portalRoutes = ["/portal", $"/portal/requests/{host.RequestId:D}"];
+    var before = new Dictionary<string, string>();
+    foreach (var route in portalRoutes) before[route] = await SnapshotAsync(page, origin + route);
+
+    var sibling = await SiblingClientSeed.SeedAsync(host.Database, host.Fixture.FirmId, Marker);
+    try
+    {
+      var leaks = new List<string>();
+      foreach (var route in portalRoutes)
+      {
+        var after = await SnapshotAsync(page, origin + route);
+        if (after.Contains(Marker, StringComparison.OrdinalIgnoreCase)) leaks.Add($"{route}: sibling marker rendered");
+        else if (after != before[route]) leaks.Add($"{route}: rendered text changed\n  before: {Excerpt(before[route], after)}\n  after:  {Excerpt(after, before[route])}");
+      }
+      await CompareDetailRoutesAsync(page, origin,
+        [$"/portal/requests/{sibling.PbcRequestId:D}", $"/portal/accounting/packages/{sibling.PackageId:D}"],
+        [sibling.PbcRequestId, sibling.PackageId], leaks);
+      await CompareDownloadAsync(context, origin, sibling.UploadIntentId, leaks);
+
+      foreach (var leak in leaks) output.WriteLine(leak);
+      Assert.Empty(leaks);
+      Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
+      output.WriteLine("client portal user: portal routes unchanged; sibling request, package and upload bytes indistinguishable from random identifiers");
+    }
+    finally
+    {
+      PbcSeed.DeleteDirectory(sibling.StagingRoot);
+    }
+  }
+
+  [Fact]
+  [Trait("CaseId", "AS-PAR-002-SIBLING-GROUP-DIFF-01")]
+  public async Task SiblingGroupNeverChangesWhatAGroupScopedUserSees()
+  {
+    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "AS-PAR-002-SIBLING-GROUP-DIFF-01");
+    var groupUser = PbcSeed.User(host.Fixture.FirmId, "Staff");
+    var ownGroupId = Guid.NewGuid();
+    var ownScopeId = Guid.NewGuid();
+    var now = DateTimeOffset.UtcNow;
+    await using (var db = host.CreateDbContext())
+    {
+      db.Users.Add(groupUser);
+      db.ClientGroups.Add(new ClientGroup { Id = ownGroupId, FirmId = host.Fixture.FirmId, Code = "OWN-GROUP", Name = "Own reporting group",
+        CreatedByUserId = host.Fixture.Admin.Id, CreatedAt = now });
+      db.ConsolidationScopeVersions.Add(new ConsolidationScopeVersion { Id = ownScopeId, FirmId = host.Fixture.FirmId, GroupId = ownGroupId,
+        PeriodId = Guid.NewGuid(), Method = AdvancedConsolidationMethods.AcquisitionNci, ReportingCurrency = "QAR",
+        OpeningBasis = "OPENING-2026", CreatedByUserId = host.Fixture.Admin.Id });
+      foreach (var role in new[] { "AccountingPreparer", "AccountingReviewer" })
+        db.GroupAccessGrants.Add(new GroupAccessGrant { Id = Guid.NewGuid(), FirmId = host.Fixture.FirmId, GroupId = ownGroupId,
+          UserId = groupUser.Id, Role = role, GrantedAt = now, GrantedByUserId = host.Fixture.Admin.Id });
+      await db.SaveChangesAsync();
+    }
+
+    var origin = await host.StartWebForIdentityAsync(groupUser);
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    await using var context = await browser.NewContextAsync();
+    var page = await context.NewPageAsync();
+    var diagnostics = new List<string>();
+    page.PageError += (_, error) => diagnostics.Add($"page-error: {error}");
+    await page.GotoAsync($"{origin}/auth/sign-in?returnUrl={Uri.EscapeDataString("/app/consolidation")}");
+    await page.Locator("h1").First.WaitForAsync(new() { Timeout = 15000 });
+    string[] groupRoutes = ["/app/consolidation", $"/app/consolidation/advanced/{ownScopeId:D}", "/app"];
+    var before = new Dictionary<string, string>();
+    foreach (var route in groupRoutes) before[route] = await SnapshotAsync(page, origin + route);
+
+    var siblingGroupId = Guid.NewGuid();
+    var siblingScopeId = Guid.NewGuid();
+    await using (var db = host.CreateDbContext())
+    {
+      db.ClientGroups.Add(new ClientGroup { Id = siblingGroupId, FirmId = host.Fixture.FirmId, Code = $"{Marker}-G", Name = $"{Marker} Group",
+        CreatedByUserId = host.Fixture.Admin.Id, CreatedAt = now });
+      db.ConsolidationScopeVersions.Add(new ConsolidationScopeVersion { Id = siblingScopeId, FirmId = host.Fixture.FirmId, GroupId = siblingGroupId,
+        PeriodId = Guid.NewGuid(), Method = AdvancedConsolidationMethods.AcquisitionNci, ReportingCurrency = "QAR",
+        OpeningBasis = $"{Marker}-OPENING", CreatedByUserId = host.Fixture.Admin.Id });
+      await db.SaveChangesAsync();
+    }
+
+    var leaks = new List<string>();
+    foreach (var route in groupRoutes)
+    {
+      var after = await SnapshotAsync(page, origin + route);
+      if (after.Contains(Marker, StringComparison.OrdinalIgnoreCase)) leaks.Add($"{route}: sibling marker rendered");
+      else if (after != before[route]) leaks.Add($"{route}: rendered text changed\n  before: {Excerpt(before[route], after)}\n  after:  {Excerpt(after, before[route])}");
+    }
+    await CompareDetailRoutesAsync(page, origin, [$"/app/consolidation/advanced/{siblingScopeId:D}"], [siblingScopeId], leaks);
+
+    foreach (var leak in leaks) output.WriteLine(leak);
+    Assert.Empty(leaks);
+    Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
+    output.WriteLine("group-scoped user: consolidation routes unchanged; sibling group scope indistinguishable from a random identifier");
+  }
+
+  [Fact]
+  [Trait("CaseId", "AS-PAR-002-ASSESSMENT-STALE-ROUTE-01")]
+  public async Task AssessmentWorkbenchesClearWhenRouteChangesInPlaceToSiblingClient()
+  {
+    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "AS-PAR-002-ASSESSMENT-STALE-ROUTE-01");
+    const string ownPrivate = "OWN-PRIVATE-REGISTRATION-7731";
+    var reviewer = PbcSeed.User(host.Fixture.FirmId, "Staff");
+    var sibling = await SiblingClientSeed.SeedAsync(host.Database, host.Fixture.FirmId, Marker);
+    var ownDecision = Guid.NewGuid();
+    var siblingDecision = Guid.NewGuid();
+    await using (var db = host.CreateDbContext())
+    {
+      (await db.PracticeClients.SingleAsync(x => x.Id == host.Fixture.ClientId)).RegistrationNumber = ownPrivate;
+      (await db.PracticeClients.SingleAsync(x => x.Id == sibling.Fixture.ClientId)).RegistrationNumber = $"{Marker}-REGISTRATION";
+      db.Users.Add(reviewer);
+      foreach (var role in new[] { "Partner", "Manager" })
+        db.RoleGrants.Add(PbcSeed.Grant(host.Fixture.FirmId, reviewer, role, host.Fixture.ClientId));
+      foreach (var (id, clientId) in new[] { (ownDecision, host.Fixture.ClientId), (siblingDecision, sibling.Fixture.ClientId) })
+        db.AcceptanceDecisions.Add(new AuditSphereOps.Domain.Acceptance.AcceptanceDecision
+        {
+          Id = id, FirmId = host.Fixture.FirmId, PracticeClientId = clientId, Decision = "Declined", ServiceRoute = "SyntheticAudit",
+          Generation = 1, Rationale = "Synthetic in-place navigation decision", EvaluationTemplateVersion = "SYNTHETIC-v1",
+          EvaluationSnapshotDigest = new string('a', 64), DecidedByUserId = host.Fixture.Admin.Id, DecidedAt = DateTimeOffset.UtcNow
+        });
+      await db.SaveChangesAsync();
+    }
+
+    var origin = await host.StartWebForIdentityAsync(reviewer);
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    await using var context = await browser.NewContextAsync();
+    var page = await context.NewPageAsync();
+    var diagnostics = new List<string>();
+    page.PageError += (_, error) => diagnostics.Add($"page-error: {error}");
+    var routes = new (string Template, Guid Own, Guid Sibling)[]
+    {
+      ("/app/assessments/{0}", ownDecision, siblingDecision),
+      ("/app/assessments/{0}/decision", host.Fixture.ClientId, sibling.Fixture.ClientId),
+      ("/app/clients/{0}/assessment", host.Fixture.ClientId, sibling.Fixture.ClientId)
+    };
+    var leaks = new List<string>();
+    try
+    {
+      foreach (var (template, own, siblingId) in routes)
+      {
+        string Path(Guid id) => string.Format(System.Globalization.CultureInfo.InvariantCulture, template, id.ToString("D"));
+        await page.GotoAsync($"{origin}/auth/sign-in?returnUrl={Uri.EscapeDataString(Path(own))}");
+        var initial = await SettleAsync(page);
+        var token = Guid.NewGuid().ToString("N");
+        await page.EvaluateAsync("token => window.__testDocumentToken = token", token);
+
+        var toSibling = Normalize(await SnapshotInPlaceAsync(page, Path(siblingId)), siblingId);
+        var random = Guid.NewGuid();
+        var toRandom = Normalize(await SnapshotInPlaceAsync(page, Path(random)), random);
+        var back = await SnapshotInPlaceAsync(page, Path(own));
+
+        if (toSibling.Contains(Marker, StringComparison.OrdinalIgnoreCase)) leaks.Add($"{template}: sibling marker rendered");
+        if (toSibling.Contains(ownPrivate, StringComparison.Ordinal)) leaks.Add($"{template}: prior client content survived in-place navigation");
+        if (toSibling != toRandom) leaks.Add($"{template}: sibling distinguishable from random\n  sibling: {Excerpt(toSibling, toRandom)}\n  random:  {Excerpt(toRandom, toSibling)}");
+        if (back != initial) leaks.Add($"{template}: returning to the authorized record did not restore it\n  initial: {Excerpt(initial, back)}\n  back:    {Excerpt(back, initial)}");
+        if (await page.EvaluateAsync<string>("() => window.__testDocumentToken") != token) leaks.Add($"{template}: navigation was not in-circuit");
+      }
+      foreach (var leak in leaks) output.WriteLine(leak);
+      Assert.Empty(leaks);
+      Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
+      output.WriteLine($"{routes.Length} assessment workbench routes cleared prior content in-circuit and matched a random identifier for the sibling client");
+    }
+    finally
+    {
+      PbcSeed.DeleteDirectory(sibling.StagingRoot);
+    }
+  }
+
+  /// <summary>Each sibling detail route must render exactly what the same route renders for a random identifier.</summary>
+  private static async Task CompareDetailRoutesAsync(IPage page, string origin, IReadOnlyList<string> routes, IReadOnlyList<Guid> ids, List<string> leaks)
+  {
+    foreach (var route in routes)
+    {
+      var id = ids.Single(x => route.Contains(x.ToString("D"), StringComparison.Ordinal));
+      var random = Guid.NewGuid();
+      var real = Normalize(await SnapshotAsync(page, origin + route), id);
+      var guessed = Normalize(await SnapshotAsync(page, origin + route.Replace(id.ToString("D"), random.ToString("D"), StringComparison.Ordinal)), random);
+      if (real.Contains(Marker, StringComparison.OrdinalIgnoreCase)) leaks.Add($"{route}: sibling marker rendered");
+      else if (real != guessed) leaks.Add($"{route}: distinguishable from a random identifier\n  sibling: {Excerpt(real, guessed)}\n  random:  {Excerpt(guessed, real)}");
+    }
+  }
+
+  private static async Task CompareDownloadAsync(IBrowserContext context, string origin, Guid uploadIntentId, List<string> leaks)
+  {
+    var download = await context.APIRequest.GetAsync($"{origin}/api/pbc/uploads/{uploadIntentId:D}/download", new() { MaxRedirects = 0 });
+    var guessed = await context.APIRequest.GetAsync($"{origin}/api/pbc/uploads/{Guid.NewGuid():D}/download", new() { MaxRedirects = 0 });
+    var body = await download.TextAsync();
+    if (download.Status != guessed.Status || body.Contains(Marker, StringComparison.OrdinalIgnoreCase) || body != await guessed.TextAsync())
+      leaks.Add($"download: sibling {download.Status} vs random {guessed.Status}");
+  }
+
   /// <summary>Visible main text once rendering has settled (two equal reads with no loading indicator).</summary>
   private static async Task<string> SnapshotAsync(IPage page, string url)
   {
     await page.GotoAsync(url);
+    return await SettleAsync(page);
+  }
+
+  /// <summary>Same-document (in-circuit) navigation, then the settled main text.</summary>
+  private static async Task<string> SnapshotInPlaceAsync(IPage page, string path)
+  {
+    await page.EvaluateAsync("path => { history.pushState({}, '', path); dispatchEvent(new PopStateEvent('popstate')); }", path);
+    await page.WaitForTimeoutAsync(300);
+    return await SettleAsync(page);
+  }
+
+  private static async Task<string> SettleAsync(IPage page)
+  {
     await page.Locator("h1").First.WaitForAsync(new() { Timeout = 15000 });
     var previous = string.Empty;
     for (var attempt = 0; attempt < 40; attempt++)
