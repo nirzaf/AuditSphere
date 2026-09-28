@@ -77,11 +77,12 @@ connection and selected-site capability `VERIFIED`. A failed recheck now
 supersedes an older pass.
 
 The default client folder template version 1 was saved and approved locally.
-The guarded activation action is visible with the exact saved working site,
-but the workspace remains inactive pending confirmation of the final default
-binding for future client workspaces. Mail, records, production release and
-independent acceptance remain separate. Exact tests, hosted checks and live
-Development observations are in `status.json`.
+After the owner approved the exact Development working-site binding, the
+administrator used the guarded activation action. The setup page displayed
+draft state `ACTIVE`, revision 11, and “Workspace activation recorded.” This
+is the local default binding for future client workspaces. Mail, records,
+production release and independent acceptance remain separate. Exact tests,
+hosted checks and live Development observations are in `status.json`.
 
 ## AS-PAR-002 audit program library access refresh
 
