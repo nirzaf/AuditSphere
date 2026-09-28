@@ -51,6 +51,15 @@ public sealed class M365SetupJourneyTests
     await page.GetByText("Local setup draft opened with your signed-in tenant. Microsoft consent and selected-resource verification are still required.").WaitForAsync();
     await page.GetByText("Draft revision").WaitForAsync();
     Assert.Equal(host.Fixture.Staff.TenantId, await page.Locator("#tenant-id").InputValueAsync());
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Connection progress" }).WaitForAsync();
+    Assert.Contains("Tenant recorded from your Microsoft sign-in", await page.Locator("body").InnerTextAsync());
+    Assert.Contains("Enter the approved SharePoint working site URL and save the draft", await page.Locator("body").InnerTextAsync());
+    Assert.Contains("Activate only after live provider checks and human review", await page.Locator("body").InnerTextAsync());
+    await page.Locator("#site-url").FillAsync("https://synthetic.sharepoint.com/sites/audit");
+    await page.GetByRole(AriaRole.Button, new() { Name = "Save draft" }).ClickAsync();
+    await page.GetByText("Draft saved. It is not verified or active.").WaitForAsync();
+    Assert.Contains("Working site URL saved", await page.Locator("body").InnerTextAsync());
+    Assert.Contains("Deployment operator verifies selected site, library and root access", await page.Locator("body").InnerTextAsync());
     Assert.Equal(0, await page.Locator("#bootstrap-proof").CountAsync());
     await using var readback = host.CreateDbContext();
     Assert.Equal(host.Fixture.Staff.TenantId,

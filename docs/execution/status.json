@@ -602,6 +602,14 @@
       "developmentReadback": "After restarting the local Development Web host, the bound tenant administrator signed in with Microsoft, saw Continue setup with this account instead of the bootstrap-proof field, clicked once, and opened the existing Draft with its tenant metadata and advanced fields collapsed. Readiness returned HTTP 200. No external provider effect was attempted.",
       "boundary": "One click resumes and prepopulates a local draft for a previously bound administrator. It does not create an Entra app, grant consent, resolve selected SharePoint resource IDs, activate a provider, or establish production readiness. First-time installation still requires private deployment configuration and bootstrap proof."
     },
+    "m365LocalConnectionProgress": {
+      "observedAt": "2026-09-28T06:59:35Z",
+      "profile": "Local PostgreSQL 18.6 and synthetic browser setup fixture; external effects remain disabled.",
+      "behavior": "The bound firm-wide Administrator sees local tenant, working site URL, connection reference, recorded tenant consent and exact selected-resource evidence, approved client template and workspace activation as separate checklist steps. The query reads only the actor's firm and linked draft/revision; it does not probe Microsoft or turn saved evidence into live provider acceptance.",
+      "focusedTests": "PASS: Release M365SetupJourneyTests 2/2, including incomplete initial checklist and saved-site transition. Release solution build 0 warnings/errors; EF reports no pending model changes.",
+      "fullSuite": "PASS: PostgreSQL-backed Release solution Domain 359/359, API 16/16 and E2E 85/85 (460/460 aggregate, 0 skipped). After the full run, the template-approval progress refresh was added; a final Release solution build and focused M365SetupJourneyTests 2/2 passed against that last edit. The full suite was not repeated for that one-line refresh.",
+      "boundary": "This is local setup guidance. An Entra app credential, selected-resource provider, consent/resource verification, production deployment and independent acceptance remain open."
+    },
     "p1SyntheticOwnedRequestBrowserRerun": {
       "observedAt": "2026-09-28T05:41:30Z",
       "profile": "Release E2E browser test against an isolated local PostgreSQL 18.6 database and synthetic client identity; no Microsoft sign-in or external effects.",

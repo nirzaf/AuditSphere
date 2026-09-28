@@ -41,6 +41,14 @@ settings. First-time bootstrap still requires the private proof. This local
 draft action does not grant Microsoft consent, selected-site access, or live
 provider readiness. Exact test evidence is in `status.json`.
 
+The resumed draft now displays a compact connection-progress checklist. Its
+Application query checks the current firm-wide Administrator grant, reads only
+this firm's draft, linked connection revision, recorded exact-resource evidence,
+approved client template and workspace activation, and labels each step as a
+saved local record or an outstanding operator action. The checklist links the
+canonical production guide; it never probes Microsoft or reports a prepared
+reference as live access. Exact verification is in `status.json`.
+
 ## P1 immutable identity lookup
 
 The Web actor resolver and sign-in landing now require the Entra `oid` claim

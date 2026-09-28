@@ -59,6 +59,23 @@
       <dt>Draft revision</dt><dd>@_draft.Revision</dd>
       <dt>Session expiry</dt><dd>@_sessionExpiry?.ToLocalTime().ToString("yyyy-MM-dd HH:mm zzz")</dd>
     </dl>
+    @if (_isFirmAdministrator && _progress is not null)
+    {
+      <MudPaper Class="pa-4 my-4" Elevation="0" aria-labelledby="setup-progress-heading" role="region">
+        <h3 id="setup-progress-heading">Connection progress</h3>
+        <p class="field-help">This checklist reads saved AuditSphere records. It does not test Microsoft access or turn on external effects.</p>
+        <ol>
+          <li>@(_progress.TenantRecorded ? "Tenant recorded from your Microsoft sign-in" : "Record the expected tenant")</li>
+          <li>@(_progress.SiteUrlRecorded ? "Working site URL saved" : "Enter the approved SharePoint working site URL and save the draft")</li>
+          <li>@(_progress.ConnectionPrepared ? "Connection reference prepared" : "Deployment operator prepares a separate runtime credential reference")</li>
+          <li>@(_progress.ConsentEvidenceRecorded ? "Consent evidence recorded" : "Deployment operator verifies exact tenant consent")</li>
+          <li>@(_progress.SelectedResourcesEvidenceRecorded ? "Selected site, library and root evidence recorded" : "Deployment operator verifies selected site, library and root access")</li>
+          <li>@(_progress.ClientTemplateApproved ? "Client folder template approved" : "Approve the client folder template in advanced settings")</li>
+          <li>@(_progress.WorkspaceActivated ? "Workspace activation recorded" : "Activate only after live provider checks and human review")</li>
+        </ol>
+        <p class="field-help">For the operator steps, see the <a href="https://github.com/nirzaf/AuditSphere/wiki/Production-Configuration-Guide" target="_blank" rel="noopener noreferrer">production configuration guide</a>. A prepared reference or recorded evidence is not a live provider test.</p>
+      </MudPaper>
+    }
     @if (_bootstrapEligible)
     {
       <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="notice my-4" aria-labelledby="bootstrap-admin-heading">
@@ -143,6 +160,7 @@
 @code {
   private SetupClaim? _claim;
   private Microsoft365SetupDraft? _draft;
+  private Microsoft365SetupProgress? _progress;
   private ActorContext? _actor;
   private bool _isFirmAdministrator;
   private List<FolderTemplateVersion> _templateVersions = [];
@@ -253,6 +271,7 @@
       var result = await Microsoft365ConfigurationService.ApproveFolderTemplateAsync(db, _actor, templateId, DateTimeOffset.UtcNow);
       if (!result.Succeeded) { _error = result.Message ?? "The template could not be approved."; return; }
       await LoadTemplates();
+      await Reload();
       _message = "Template approval recorded locally. It does not verify SharePoint behavior.";
     }
     finally { _templateBusy = false; }
@@ -304,6 +323,12 @@
     _tenantId = _draft.ExpectedTenantId ?? string.Empty; _tenantName = _draft.TenantDisplayName ?? string.Empty;
     _siteUrl = _draft.SiteUrl ?? string.Empty; _siteId = _draft.SiteId ?? string.Empty; _driveId = _draft.DriveId ?? string.Empty; _rootFolderId = _draft.RootFolderId ?? string.Empty;
     _accessProfile = _draft.AccessProfile; _mailState = _draft.MailState; _recordsState = _draft.RecordsState;
+    _progress = null;
+    if (_actor is not null && _isFirmAdministrator)
+    {
+      var progress = await Microsoft365SetupProgressQuery.GetAsync(db, _actor, _draft.Id);
+      if (progress.Succeeded) _progress = progress.Value;
+    }
   }
 
   private async Task Save()
