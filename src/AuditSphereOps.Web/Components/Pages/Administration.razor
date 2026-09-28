@@ -158,7 +158,7 @@ else
 
   <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="role-change-heading" role="region">
     <h2 id="role-change-heading">Verified roster role administration</h2>
-    <p class="field-help">Live Graph directory browsing is blocked until the narrow DEC-01 exception is approved. This local fallback accepts an administrator-provided or exact verified-sign-in identity; email and display name never identify a user.</p>
+    <p class="field-help">The separate read-only directory search is available from Tenant connection when explicitly configured and consented. This local fallback accepts an administrator-provided or exact verified-sign-in identity; email and display name never identify a user.</p>
     <div class="form-group"><label for="roster-tenant">Tenant ID <span class="required-marker">*</span><MudTextField T="string" @bind-Value="_rosterTenant" MaxLength="200" id="roster-tenant" required title="Exact verified Entra tenant ID (tid)." /></label></div>
     <div class="form-group"><label for="roster-subject">Object ID / subject <span class="required-marker">*</span><MudTextField T="string" @bind-Value="_rosterSubject" MaxLength="200" id="roster-subject" required title="Immutable verified Entra object/subject identifier (oid/sub)." /></label></div>
     <div class="form-group"><label for="roster-email">Email <span class="required-marker">*</span><MudTextField T="string" @bind-Value="_rosterEmail" InputType="InputType.Email" MaxLength="320" id="roster-email" required title="Display/contact data only; it cannot merge identities." /></label></div>

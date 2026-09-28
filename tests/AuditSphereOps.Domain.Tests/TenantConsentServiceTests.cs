@@ -98,6 +98,42 @@ public sealed class TenantConsentServiceTests
       (await db.TenantConsentAttempts.SingleAsync()).State);
   }
 
+  [Fact]
+  public async Task DirectorySearchRequiresCurrentFirmWideAdministratorAndExactTenant()
+  {
+    await using var fixture = await Fixture.CreateAsync();
+    await using var db = new AuditSphereDbContext(fixture.Options);
+    var reader = new FakeDirectoryReader(new DirectoryCandidatePage(
+      [new(TenantId, Guid.NewGuid().ToString("D"), "Ada", "ada@example.test", true, "Member")], null));
+    var found = await DirectoryDiscoveryService.SearchAsync(db, fixture.Actor, reader,
+      TenantId, "Ad", null);
+    Assert.True(found.Succeeded);
+    Assert.Single(found.Value!.Users);
+    Assert.Equal(1, reader.Calls);
+
+    var wrongTenantReader = new FakeDirectoryReader(new DirectoryCandidatePage(
+      [new(Guid.NewGuid().ToString("D"), Guid.NewGuid().ToString("D"), "Other", "other@example.test", true, "Member")], null));
+    Assert.False((await DirectoryDiscoveryService.SearchAsync(db, fixture.Actor,
+      wrongTenantReader, TenantId, "Ot", null)).Succeeded);
+    var grant = await db.RoleGrants.SingleAsync();
+    grant.RevokedAt = DateTimeOffset.UtcNow;
+    await db.SaveChangesAsync();
+    Assert.False((await DirectoryDiscoveryService.SearchAsync(db, fixture.Actor, reader,
+      TenantId, "Ad", null)).Succeeded);
+    Assert.Equal(1, reader.Calls);
+  }
+
+  private sealed class FakeDirectoryReader(DirectoryCandidatePage page) : IMicrosoftDirectoryReader
+  {
+    public int Calls { get; private set; }
+    public Task<DirectoryCandidatePage> SearchAsync(string tenantId, string prefix,
+      string? pageToken, CancellationToken ct)
+    {
+      Calls++;
+      return Task.FromResult(page);
+    }
+  }
+
   private sealed class Fixture(PgTestSchema pg) : IAsyncDisposable
   {
     public DbContextOptions<AuditSphereDbContext> Options => pg.Options;

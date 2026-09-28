@@ -210,6 +210,23 @@ builder.Services.AddScoped<TrustedActorResolver>();
 // composition, and this host only records queue entries.
 builder.Services.AddSingleton<IAuditSphereDbContextFactory, OperationContextFactory>();
 builder.Services.AddHttpClient();
+builder.Services.AddSingleton(new DirectoryCertificateOptions(
+  builder.Configuration.GetValue<bool>("DirectoryReader:Enabled"),
+  builder.Configuration["Identity:TenantId"] ?? string.Empty,
+  builder.Configuration["DirectoryReader:ClientId"] ?? string.Empty,
+  builder.Configuration["DirectoryReader:CertificatePath"] ?? string.Empty,
+  builder.Configuration["DirectoryReader:PrivateKeyPath"] ?? string.Empty));
+builder.Services.AddTransient<IDirectoryTokenSource>(services =>
+  new CertificateDirectoryTokenSource(services.GetRequiredService<IHttpClientFactory>().CreateClient("directory-reader-token"),
+    services.GetRequiredService<DirectoryCertificateOptions>()));
+builder.Services.AddTransient<IMicrosoftDirectoryReader>(services =>
+  new GraphDirectoryReader(services.GetRequiredService<IHttpClientFactory>().CreateClient("directory-reader"),
+    services.GetRequiredService<IDirectoryTokenSource>(),
+    services.GetRequiredService<DirectoryCertificateOptions>()));
+builder.Services.AddHttpClient("directory-reader").ConfigurePrimaryHttpMessageHandler(() =>
+  new HttpClientHandler { AllowAutoRedirect = false });
+builder.Services.AddHttpClient("directory-reader-token").ConfigurePrimaryHttpMessageHandler(() =>
+  new HttpClientHandler { AllowAutoRedirect = false });
 builder.Services.AddTransient<ISelectedSiteTokenSource>(services =>
   new CertificateSelectedSiteTokenSource(services.GetRequiredService<IHttpClientFactory>().CreateClient(),
     new SelectedSiteCertificateOptions(

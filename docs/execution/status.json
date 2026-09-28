@@ -759,6 +759,15 @@
       "fullSuite": "PASS: Release PostgreSQL-backed solution suite Domain 378/378, API 23/23, E2E 86/86; 487/487 aggregate, 0 skipped.",
       "modelDrift": "PASS: EF reports no pending model changes with new TenantConsentAttempt migration.",
       "boundary": "No live Microsoft tenant consent, consenting-administrator oid proof, directory reader token, Graph capability verification or production acceptance is claimed."
+    },
+    "directoryReaderSlice": {
+      "observedAt": "2026-09-28T11:06:53Z",
+      "behavior": "Separate disabled-by-default certificate reader requires exact-tenant Graph app token with sole User.Read.All role. Firm-wide Administrator search is bounded to 25 selected fields per page, with a fixed Graph path and same-host pagination token. Search result does not bind a local user or grant access.",
+      "focusedTests": "PASS: GraphDirectoryReaderTests 4/4 and PostgreSQL directory authorization test 1/1.",
+      "build": "PASS: Release solution build, 0 warnings/errors.",
+      "fullSuite": "PASS before the final search-field binding fix: Release solution suite Domain 379/379, API 27/27, E2E 86/86; 492/492 aggregate, 0 skipped. Final UI binding was then rebuilt and checked in a live Development browser.",
+      "developmentTenant": "Observed 2026-09-28T11:28Z: dedicated app has one certificate and sole Microsoft Graph User.Read.All application permission with tenant app-role assignment. Certificate token had the exact tenant and sole role; bounded Graph endpoint returned HTTP 200. AuditSphere browser search returned matching enabled identities with no grant. A separate consent-screen cancellation returned DENIED and left the connection revision CONSENT_REQUIRED.",
+      "boundary": "Development-only live read and denied callback; no successful browser consent callback, persisted capability-verification revision, selected-user binding, or production acceptance is claimed."
     }
   },
   "documentationWork": {

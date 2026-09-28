@@ -482,11 +482,11 @@ accounting or consolidation workspaces.
 
 
 
-- Application: `Application/Microsoft365/Microsoft365ConfigurationService.cs`, `TenantConsentService.cs`, `TenantConnectionQuery.cs`, `Application/Security/`
+- Application: `Application/Microsoft365/Microsoft365ConfigurationService.cs`, `TenantConsentService.cs`, `TenantConnectionQuery.cs`, `DirectoryDiscoveryService.cs`, `Application/Security/`
 
 
 
-- Persistence: `AuditSphereDbContext.Security.cs`, `.Microsoft365.cs`
+- Persistence: `AuditSphereDbContext.Security.cs`, `.Microsoft365.cs`; dedicated certificate and Graph directory reader in `Infrastructure/Providers/`
 
 
 

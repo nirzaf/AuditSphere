@@ -52,6 +52,17 @@ not activate a connection or assert Microsoft permissions. Directory provider
 verification and live tenant consent remain pending. The local migration and
 focused PostgreSQL and URL-builder checks are recorded in `status.json`.
 
+The separate directory reader now supports bounded, administrator-only live
+search from the tenant connection page, with a dedicated certificate and
+`User.Read.All` application role fence. It is disabled by default. Search
+returns no local role grant, and the current release does not persist a
+provider-verification revision or bind the selected result to a local user.
+In the Development tenant, the dedicated app received the exact permission,
+and a certificate token plus the live page completed bounded Graph reads.
+The consent callback's denied path also returned to the app and consumed its
+attempt without activating a connection. These are Development observations,
+not production acceptance or a successful callback observation.
+
 The owner has requested a tenant-administration experience that supersedes the
 earlier blanket Graph-scope exclusion only for an isolated read-only directory
 reader. The [permission decision](../architecture/auditsphere-m365-tenant-administration-permissions.md)

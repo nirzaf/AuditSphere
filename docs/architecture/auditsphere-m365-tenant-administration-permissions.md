@@ -27,8 +27,9 @@ The prior approved-roster path remains available when the reader is absent.
 
 ## Permission matrix
 
-`NOT_CONFIGURED` means no new permission has been added to the Development
-registration or verified for an AuditSphere runtime by this decision.
+`NOT_CONFIGURED` means no permission is configured for the named optional
+capability. The directory reader has a separate Development registration and
+observed live read, while production remains unverified.
 For Microsoft Graph application permissions, tenant consent requires a
 Privileged Role Administrator or a custom role authorized for the specific
 consent; an AuditSphere Administrator alone is insufficient. The tenant's
@@ -37,7 +38,7 @@ consent policy and role assignment must be checked at connection time.
 | Capability | Endpoint | Least permission | Type | Why needed | Consent / Microsoft authority | State |
 | --- | --- | --- | --- | --- | --- | --- |
 | Sign-in | Microsoft OIDC | `openid profile email` | Delegated sign-in | Authenticate one work/school identity and bind `tid` + `oid` | Normal OIDC policy; no Graph app role | Existing, separately verified |
-| Directory reader | `GET /users`, `GET /users/{id}` | `User.Read.All` | Application, separate reader identity | Search existing users and read enabled state | Tenant admin consent; Privileged Role Administrator or authorized custom role | APPROVED policy exception; NOT_CONFIGURED |
+| Directory reader | `GET /users` | `User.Read.All` | Application, separate reader identity | Search existing users and read enabled state | Tenant admin consent; Privileged Role Administrator or authorized custom role | Development-only app consented; exact-role token and bounded Graph read observed; no persisted verification revision or production acceptance |
 | Selected SharePoint | Exact approved `/sites/{id}` and `/drives/{id}` resources | `Sites.Selected` plus site-specific `write` grant | Application, document-worker identity | Read/write only the selected working site | Tenant admin consent plus separate exact-site grant | Existing Development selected-site read and disposable write checks; no PBC acceptance |
 | Tenant user creation | `POST /users` | `User.Create` | Application, optional separate provisioner | Create a new workforce user only when explicitly enabled | Separate tenant admin consent and provisioning policy | PROPOSED; NOT_CONFIGURED |
 | Guest invitation | `POST /invitations` | `User.Invite.All` | Application, optional separate inviter | Invite an explicitly approved external client identity | Separate tenant admin consent and tenant B2B policy | PROPOSED; NOT_CONFIGURED |
@@ -68,6 +69,18 @@ The current consent slice binds state to the initiating AuditSphere session
 and records only `RETURNED_UNVERIFIED`. It does not yet authenticate the
 consenting Microsoft administrator, acquire a directory-reader credential,
 or verify Graph permissions; those are required before `VERIFIED` status.
+The local directory reader is separately disabled by default. When explicitly
+configured with its own certificate, it enforces an exact-tenant app token
+whose sole application role is `User.Read.All`, then reads up to 25 selected
+fields per page. A successful search is an ephemeral provider observation,
+not persisted capability evidence or an AuditSphere role grant.
+The Development tenant now has a separate reader registration with one
+certificate, an exact localhost consent callback and only the approved Graph
+application role. A direct certificate token and the AuditSphere browser page
+both completed bounded reads. A separate browser consent attempt was cancelled
+and recorded `DENIED`; this did not revoke the previously observed app-role
+grant. No successful callback or persisted provider-verification state is
+claimed.
 
 Before optional capabilities ship, extend this matrix with the approved
 credential owner, retention, revocation steps, exact endpoint tests, and
