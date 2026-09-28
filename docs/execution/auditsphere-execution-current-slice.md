@@ -104,6 +104,17 @@ The private Development certificate paths are held in .NET user secrets, not
 repository settings. Exact local verification and remaining P2 gates are in
 `status.json`.
 
+A selected-site application token in the approved Development tenant also
+created an upload session against the saved library and root. The session was
+canceled before any bytes were committed. This confirms one bounded write API
+is available to the existing site grant; it does not verify a document upload.
+The new `PbcRepositoryBindingResolver` refuses an operation unless its trusted
+firm, client, engagement and intent match a single current repository binding,
+ready client workspace, active firm connection and a capability record tied to
+the exact binding fingerprint. It is a local prerequisite component only:
+neither the Worker nor `GraphPbcProviderSink` uses it yet, and no live PBC
+transfer, exact-version readback, or reconciliation is accepted.
+
 ## P1 immutable identity lookup
 
 The Web actor resolver and sign-in landing now require the Entra `oid` claim

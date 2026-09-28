@@ -652,6 +652,16 @@
       "modelDrift": "PASS: EF reports no pending model changes; no migration added.",
       "boundary": "This is a non-production read check, not a selected-site write, durable upload, exact version/reconciliation test, consent evidence, workspace activation, production readiness or independent acceptance. Worker live provider composition remains absent."
     },
+    "p2SelectedBindingReadinessFence": {
+      "observedAt": "2026-09-28T09:57:38Z",
+      "behavior": "A local PBC repository resolver requires a trusted firm/client/engagement/upload-intent scope, a single exact working selected-site binding, a ready matching client workspace, accepted client decision, approved template, active firm connection, and a VERIFIED capability with upload/readback operations bound to the exact binding SHA-256. Missing, cross-client, cross-engagement, revoked and changed-target records block. The Graph sink and Worker remain fail closed and do not compose this resolver.",
+      "focusedTests": "PASS: PostgreSQL-backed PbcRepositoryBindingResolverTests 1/1.",
+      "build": "PASS: Release Web build with 0 warnings/errors.",
+      "fullSuite": "PASS: PostgreSQL-backed Release solution Domain 368/368, API 16/16 and E2E 86/86 (470/470 aggregate, 0 skipped).",
+      "modelDrift": "PASS: EF reports no pending model changes; no migration added.",
+      "liveObservation": "In the authorized non-production selected site, Graph createUploadSession returned HTTP 200 for the saved drive/root. The session was canceled with HTTP 204 before bytes were committed. No document or provider receipt was created.",
+      "boundary": "A canceled upload session is not a byte upload or exact-version readback. The local resolver is not used by a live provider, and no capability evidence was recorded in the application ledger. P2 provider, client binding, reconciliation, production and independent acceptance remain open."
+    },
     "p1SyntheticOwnedRequestBrowserRerun": {
       "observedAt": "2026-09-28T05:41:30Z",
       "profile": "Release E2E browser test against an isolated local PostgreSQL 18.6 database and synthetic client identity; no Microsoft sign-in or external effects.",
