@@ -386,8 +386,19 @@ does not claim parity or whole-application acceptance.
 | Accounting and group workbenches | `/app/accounting/*`, `/app/consolidation/*` | Pending. |
 | Audit, review, completion and records | `/app/audit/*`, `/app/assessments/*`, `/app/reviews/*`, `/app/findings/*`, `/app/completion/*`, `/app/releases/*`, `/app/records/*` | Pending. |
 | Firm administration and Microsoft 365 | `/app/administration*` | Pending. |
-| Client secure portal | `/portal*` | Client-safe shell complete; individual views pending. |
+| Client secure portal | `/portal*` | Client-safe shell and the three current portal views have a local visual pass; deeper state and keyboard coverage remains. |
 
 This map groups actual route prefixes, including parameterized detail routes;
 it does not create links to prototype-only modules or treat prototype widgets
 as implemented capabilities.
+
+The client portal visual pass applies the navy page header to the list,
+request-detail and financial-package views, uses compact white panels and a
+timeline treatment, and stacks definition-list details on narrow screens.
+The request file input is constrained to its card at 320px without changing
+its native `FileList` API, `data-draft-scope` boundary, `data-draft-field`
+attributes or upload transport. The client package decision is shown with
+the shared semantic `StatusChip`; recording the decision is still the same
+server-side command. The portal's duplicated scope note was removed because
+the same restriction remains in its page description. No prototype-only
+invoices, payments, proposal responses or local document registry were added.

@@ -387,6 +387,18 @@ public sealed class FinancialArtifactJourneyTests
     Assert.Contains("not an audit opinion, assurance conclusion or proof that an external ledger has been posted",
       await page.Locator("body").InnerTextAsync(), StringComparison.OrdinalIgnoreCase);
     await connected;
+    foreach (var width in new[] { 320, 390, 760, 1024, 1440, 1920 })
+    {
+      await page.SetViewportSizeAsync(width, 900);
+      await page.GetByRole(AriaRole.Heading, new() { Name = "Management review" }).WaitForAsync();
+      Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= innerWidth + 1"),
+        $"Client financial package overflows the {width}px viewport.");
+      if ((width == 390 || width == 1440) && Environment.GetEnvironmentVariable("AUDITSPHERE_UI_CAPTURE_DIR") is { Length: > 0 } captureDir)
+      {
+        Directory.CreateDirectory(captureDir);
+        await page.ScreenshotAsync(new() { Path = Path.Combine(captureDir, $"client-package-{width}.png"), FullPage = true });
+      }
+    }
     var documentToken = await page.EvaluateAsync<string>("window.__clientPackageRouteToken = crypto.randomUUID()");
 
     var unavailablePackageId = Guid.NewGuid();

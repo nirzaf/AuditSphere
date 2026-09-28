@@ -6,7 +6,7 @@
 
 <PageTitle>Client portal</PageTitle>
 <PageHeader Title="Client portal" Description="Restricted client workspace. This view contains assigned PBC requests and transfer receipts only. Internal risk, review and workpaper content is not exposed." />
-<MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button-secondary" OnClick="LoadPortalAsync" Disabled="@_loading">Refresh portal</MudButton>
+<MudButton Color="Color.Primary" Variant="Variant.Filled" Class="audit-client-refresh" OnClick="LoadPortalAsync" Disabled="@_loading">Refresh portal</MudButton>
 
 @if (_loading)
 {
@@ -21,8 +21,7 @@ else if (_actor is null || !_clientIds.Any())
 }
 else
 {
-  <p class="scope-note">This restricted view contains assigned PBC requests and transfer receipts only. Internal risk, review and workpaper content is not exposed.</p>
-  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="client-pbc-heading" role="region">
+  <MudPaper Class="audit-client-panel pa-4 my-4" Elevation="1" aria-labelledby="client-pbc-heading" role="region">
     <h2 id="client-pbc-heading">Requests</h2>
     @if (_requests.Count == 0)
     {
@@ -52,7 +51,7 @@ else
     }
   </MudPaper>
 
-  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="client-packages-heading" role="region">
+  <MudPaper Class="audit-client-panel pa-4 my-4" Elevation="1" aria-labelledby="client-packages-heading" role="region">
     <h2 id="client-packages-heading">Financial packages for management review</h2>
     <p class="scope-note">These are validated packages explicitly shared with this client identity. This view does not expose internal audit workpapers or review decisions.</p>
     @if (_packages.Count == 0)

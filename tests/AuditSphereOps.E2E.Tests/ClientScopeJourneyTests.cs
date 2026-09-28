@@ -2235,6 +2235,27 @@ public sealed class ClientScopeJourneyTests
     await page.GotoAsync(SignInUrl(host.ClientUrl, $"/portal/requests/{host.RequestId:D}"));
     await page.GetByRole(AriaRole.Heading, new() { Name = privateMarker }).WaitForAsync();
     await connected;
+    foreach (var width in new[] { 320, 390, 760, 1024, 1440, 1920 })
+    {
+      await page.SetViewportSizeAsync(width, 900);
+      await page.GetByRole(AriaRole.Heading, new() { Name = privateMarker }).WaitForAsync();
+      await page.WaitForFunctionAsync("() => { const b = [...document.querySelectorAll('button')].find(x => x.textContent?.includes('Refresh request')); return !!b && !b.disabled && !!document.getElementById('request-heading'); }");
+      Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= innerWidth + 1"),
+        $"Client request overflows the {width}px viewport: " + await page.EvaluateAsync<string>("() => JSON.stringify({scroll:document.documentElement.scrollWidth, offenders:[...document.querySelectorAll('body *')].filter(e => {const r=e.getBoundingClientRect(); return r.right > innerWidth + 1 && r.width > 0 && getComputedStyle(e).position !== 'fixed';}).slice(0,12).map(e => ({tag:e.tagName,class:e.className?.toString().slice(0,70),right:Math.round(e.getBoundingClientRect().right),width:Math.round(e.getBoundingClientRect().width)}))})"));
+      if (width == 1440 && Environment.GetEnvironmentVariable("AUDITSPHERE_UI_CAPTURE_DIR") is { Length: > 0 } captureDir)
+      {
+        Directory.CreateDirectory(captureDir);
+        await page.ScreenshotAsync(new() { Path = Path.Combine(captureDir, $"client-request-{width}.png"), FullPage = true });
+      }
+    }
+    if (Environment.GetEnvironmentVariable("AUDITSPHERE_UI_CAPTURE_DIR") is { Length: > 0 } mobileCaptureDir)
+    {
+      await page.SetViewportSizeAsync(390, 900);
+      await page.GetByRole(AriaRole.Heading, new() { Name = privateMarker }).WaitForAsync();
+      await page.WaitForFunctionAsync("() => !!document.getElementById('request-heading') && !document.body.innerText.includes('Loading the request')");
+      Directory.CreateDirectory(mobileCaptureDir);
+      await page.ScreenshotAsync(new() { Path = Path.Combine(mobileCaptureDir, "client-request-390.png"), FullPage = true });
+    }
 
     var documentToken = Guid.NewGuid().ToString("N");
     await page.EvaluateAsync("token => window.__testDocumentToken = token", documentToken);

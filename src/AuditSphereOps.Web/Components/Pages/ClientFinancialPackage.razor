@@ -19,8 +19,8 @@ else if (_actor is null || _view is null)
 }
 else
 {
-  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="package-heading" role="region">
-    <p class="eyebrow">@_view.ManagementDecision</p>
+  <MudPaper Class="audit-client-panel audit-client-summary pa-4 my-4" Elevation="1" aria-labelledby="package-heading" role="region">
+    <StatusChip Status="@_view.ManagementDecision" />
     <h2 id="package-heading">Management review</h2>
     <p class="scope-note">This is a management acknowledgement of the supplied reporting package. It is not an audit opinion, assurance conclusion or proof that an external ledger has been posted.</p>
     <dl class="details">
@@ -33,7 +33,7 @@ else
     </dl>
   </MudPaper>
 
-  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="totals-heading" role="region">
+  <MudPaper Class="audit-client-panel pa-4 my-4" Elevation="1" aria-labelledby="totals-heading" role="region">
     <h2 id="totals-heading">Statement totals</h2>
     <MudTable Items="_view.StatementTotals" Dense="true" Hover="true" Elevation="0">
   <HeaderContent><MudTh scope="col">Section</MudTh><MudTh scope="col">Amount</MudTh></HeaderContent>
@@ -43,7 +43,7 @@ else
 
   @if (_view.ManagementDecision == "PENDING" || _view.ManagementDecision == FinancialPackageReviewDecisions.ChangesRequired)
   {
-    <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="decision-heading" role="region">
+    <MudPaper Class="audit-client-panel audit-client-decision pa-4 my-4" Elevation="1" aria-labelledby="decision-heading" role="region">
       <h2 id="decision-heading">Record management decision</h2>
       <p class="muted">Your authenticated client identity records the management decision against this exact package version. A changed package requires a new decision.</p>
       <div class="form-grid">

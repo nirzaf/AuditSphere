@@ -33,6 +33,19 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ---
 
+## UI modernization — client portal views
+
+The three existing `/portal` views now share a client-safe navy header,
+compact panels and narrow-screen detail layout. The request detail's native
+file control no longer widens the document at 320px; upload/draft attributes
+and backend effects are unchanged. The package's existing management state
+uses the shared text-and-icon status chip. The client request and package
+route-change browser cases are extended with responsive-width checks and
+synthetic visual capture. Remaining route-family passes and complete UI
+acceptance are still open; exact test outcomes are in `status.json`.
+
+---
+
 ## UI modernization — shell and Portfolio pilot
 
 The real Blazor app now has a prototype-inspired navy staff drawer, light top

@@ -1054,11 +1054,16 @@
     "packageId": "Prototype-inspired Blazor UI modernization",
     "implementationStatus": "IN_PROGRESS",
     "acceptanceStatus": "PARTIAL",
-    "scope": "The shared staff/client/public shell, MudBlazor theme, shared surfaces and Portfolio pilot are locally verified on the real Blazor stack. Route-specific page-family visual and accessibility work remains open; no whole-application visual parity or production acceptance is claimed. Earlier AS-PAR-002, Microsoft provider, R2R review and P1/P8/P9 external gates remain recorded below.",
-    "nextAction": "Continue route-family visual passes on the real Blazor pages, starting with client portal request/package detail and then staff practice, finance, accounting, audit and administration views. Preserve native draft/upload contracts and server authorization. Capture matching synthetic before/after evidence, keyboard and state coverage before any full UI acceptance claim.",
+    "scope": "The shared staff/client/public shell, MudBlazor theme, Portfolio pilot and three current client portal views are locally verified on the real Blazor stack. Staff route-family visual and accessibility work remains open; no whole-application visual parity or production acceptance is claimed. Earlier AS-PAR-002, Microsoft provider, R2R review and P1/P8/P9 external gates remain recorded below.",
+    "nextAction": "Continue route-family visual passes on staff practice, finance, accounting, audit and administration views. Preserve native draft/upload contracts and server authorization. Capture matching synthetic before/after evidence, keyboard and state coverage before any full UI acceptance claim.",
     "branch": "master"
   },
   "localEvidence": [
+    {
+      "item": "Prototype-inspired client portal views",
+      "status": "PARTIAL",
+      "details": "Building on shell source commit 1ad5e7e, the three existing client portal views use a navy page header, compact white panels, responsive detail lists and a styled PBC conversation timeline. The native request file input is constrained within its card at 320px without changing pbc-upload.js, draft-state attributes, FileList access or server operations. The package management-decision state uses the shared semantic StatusChip; the duplicate portal scope paragraph was removed while the same restriction remains in PageHeader. Focused in-place request and package route-change cases passed 2/2 with real loaded views and document-width checks at 320, 390, 760, 1024, 1440 and 1920px. Synthetic mobile/desktop after screenshots were inspected; a matching before capture and broader client state/keyboard acceptance remain open. Release Web build passed with 0 warnings/errors; full PostgreSQL-backed Release solution suite passed 578/578 with 0 skips (Domain 449, API 32, E2E 97). EF found no pending model changes. Markdown filename and task-pack validators passed; git diff --check was clean. No tenant, schema or production effect."
+    },
     {
       "item": "Prototype-inspired Blazor shell and Portfolio pilot",
       "status": "PARTIAL",

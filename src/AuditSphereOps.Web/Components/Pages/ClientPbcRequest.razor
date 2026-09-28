@@ -24,7 +24,7 @@ else if (_actor is null || _request is null)
 }
 else
 {
-  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="request-heading" role="region">
+  <MudPaper Class="audit-client-panel audit-client-summary pa-4 my-4" Elevation="1" aria-labelledby="request-heading" role="region">
     <p class="eyebrow"><StatusChip Status="@_request.State" /></p>
     <h2 id="request-heading">@_request.Area</h2>
     <dl class="details">
@@ -36,7 +36,7 @@ else
     </dl>
   </MudPaper>
 
-  <section class="card" aria-labelledby="upload-heading" data-draft-scope="@($"pbc-upload-{RequestId}")">
+  <section class="card audit-client-card" aria-labelledby="upload-heading" data-draft-scope="@($"pbc-upload-{RequestId}")">
     <h2 id="upload-heading">Prepare a controlled upload</h2>
     <p class="muted">This creates a request-bound, expiring transfer intent. Content bytes are not accepted through the interactive circuit and are not marked received until a trusted completion boundary verifies the staged file.</p>
 <!-- Native controls retained: pbc-upload.js owns the file input (browser FileList API) and writes the readonly name/type/size fields by id; the SHA-256 field and reply box are draft-state.js boundary fields. -->
@@ -56,7 +56,7 @@ else
     }
   </section>
 
-  <section class="card" aria-labelledby="conversation-heading" data-draft-scope="@($"pbc-client-reply-{RequestId}")">
+  <section class="card audit-client-card" aria-labelledby="conversation-heading" data-draft-scope="@($"pbc-client-reply-{RequestId}")">
     <h2 id="conversation-heading">Conversation timeline</h2>
     <ol class="timeline">
       @foreach (var item in Timeline())
@@ -75,7 +75,7 @@ else
     }
   </section>
 
-  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="receipt-heading" role="region">
+  <MudPaper Class="audit-client-panel pa-4 my-4" Elevation="1" aria-labelledby="receipt-heading" role="region">
     <h2 id="receipt-heading">Transfer receipts</h2>
     @if (_uploads.Count == 0)
     {
