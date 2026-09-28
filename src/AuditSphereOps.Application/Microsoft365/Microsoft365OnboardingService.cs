@@ -144,7 +144,7 @@ public static class Microsoft365OnboardingService
       if (existing.State == Microsoft365SetupStates.Active || existing.ConsumedAt is not null || existing.ClaimedByUserId is not null)
       {
         var canResume = existing.ClaimedByUserId is { } claimedId &&
-          existing.State == Microsoft365SetupStates.Claimed &&
+          existing.State is Microsoft365SetupStates.Claimed or Microsoft365SetupStates.Active &&
           authenticatedActor is not null && authenticatedActor.UserId == claimedId &&
           authenticatedActor.FirmId == firmId &&
           !string.IsNullOrWhiteSpace(authenticatedTenantId) && !string.IsNullOrWhiteSpace(authenticatedObjectId) &&

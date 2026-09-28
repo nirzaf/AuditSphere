@@ -161,7 +161,7 @@
     }
     </details>
     <div class="action-bar">
-      <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="btn-primary" OnClick="Save" Disabled="@_busy">@(_busy ? "Saving…" : "Save draft")</MudButton>
+      <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="btn-primary" OnClick="Save" Disabled="@(_busy || _draft.State == Microsoft365SetupStates.Active)">@(_busy ? "Saving…" : "Save draft")</MudButton>
       <MudButton Variant="Variant.Outlined" Class="btn-secondary" OnClick="Reload" Disabled="@_busy">Reload</MudButton>
     </div>
   }
@@ -319,7 +319,9 @@
         await Reload();
       }
       _message = _isFirmAdministrator
-        ? "Local setup draft opened with your signed-in tenant. Microsoft consent and selected-resource verification are still required."
+        ? _draft?.State == Microsoft365SetupStates.Active
+          ? "Active working-site configuration opened for review. A new configuration revision is required to change the saved site."
+          : "Local setup draft opened with your signed-in tenant. Microsoft consent and selected-resource verification are still required."
         : "Setup claimed. Microsoft verification and activation are separate steps.";
     }
     finally { _busy = false; }

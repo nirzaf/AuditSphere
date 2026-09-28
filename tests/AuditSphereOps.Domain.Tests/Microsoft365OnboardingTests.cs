@@ -59,6 +59,14 @@ public sealed class Microsoft365OnboardingTests
     Assert.Equal(initial.SessionId, resumed.Value!.SessionId);
     Assert.NotEqual(initial.Capability, resumed.Value.Capability);
     Assert.True((await db.Microsoft365SetupSessions.SingleAsync(x => x.Id == session.Id)).ExpiresAt > now);
+    session.State = Microsoft365SetupStates.Active;
+    await db.SaveChangesAsync();
+    var activeReview = await Microsoft365OnboardingService.ClaimAsync(db, firmId, installation,
+      "", Hash("initial-proof"), now.AddMinutes(2), authenticatedTenantId: tenant,
+      authenticatedObjectId: subject, authenticatedActor: actor);
+    Assert.True(activeReview.Succeeded);
+    Assert.Equal(initial.SessionId, activeReview.Value!.SessionId);
+    Assert.NotEqual(resumed.Value.Capability, activeReview.Value.Capability);
     administratorGrant.RevokedAt = now.AddMinutes(2);
     await db.SaveChangesAsync();
     var deniedRevokedGrant = await Microsoft365OnboardingService.ClaimAsync(db, firmId, installation,
