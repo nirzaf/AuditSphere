@@ -100,6 +100,10 @@ body { background: var(--audit-page); }
 .audit-accounting-context .optional-label::after { content: none; }
 .audit-accounting-context .details { grid-template-columns: minmax(110px, max-content) minmax(0, 1fr); }
 .audit-accounting-metrics .audit-metric { min-height: 96px; }
+.audit-accounting-review { border-color: var(--audit-line); border-radius: 10px; }
+.audit-accounting-review-actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.audit-accounting-review-actions .notice-text { margin: 0; }
+.audit-accounting-table-wrap { position: relative; max-width: 100%; min-width: 0; }
 .audit-status-chip { font-weight: 700; border-radius: 5px; }
 .mud-dialog { border-radius: 15px; }
 .audit-workspace .mud-button-root { border-radius: 6px; }

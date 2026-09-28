@@ -6,7 +6,7 @@
 
 <PageTitle>Financial package reviews</PageTitle>
 <MudLink Href="/app/accounting" Class="back-link mb-2 d-inline-block">← Back to accounting workspace</MudLink>
-<PageHeader Title="Financial package reviews" Description="Only validated packages in the current client and engagement grants are listed. Every stage is bound to the package's exact revision, generation and hash." />
+<PageHeader Title="Financial package reviews" Eyebrow="Accounting review" Description="Only validated packages in the current client and engagement grants are listed. Every stage is bound to the package's exact revision, generation and hash." />
 <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button-secondary" OnClick="LoadQueueAsync" Disabled="@(_loading || _refreshing)">Refresh queue</MudButton>
 @if (_refreshing)
 {
@@ -33,11 +33,15 @@ else if (_error is not null)
 }
 else
 {
-  <p class="scope-note">Only validated packages in the current client and engagement grants are listed. Every stage is bound to the package's exact revision, generation and hash.</p>
-  <section class="card" aria-labelledby="queue-heading" data-draft-scope="package-review-selection">
+  <MudGrid Spacing="2" Class="audit-accounting-metrics my-3" aria-label="Scoped package review counts">
+    <MudItem xs="6" sm="4"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Stages shown</MudText><MudText Typo="Typo.h4">@_queue.Count</MudText></MudPaper></MudItem>
+    <MudItem xs="6" sm="4"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Partner action required</MudText><MudText Typo="Typo.h4">@_queue.Count(x => x.NextAction == "PARTNER_APPROVAL_REQUIRED")</MudText></MudPaper></MudItem>
+    <MudItem xs="12" sm="4"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Selected for preview</MudText><MudText Typo="Typo.h4">@_selectedPackageIds.Count</MudText></MudPaper></MudItem>
+  </MudGrid>
+  <section class="card audit-accounting-review" aria-labelledby="queue-heading" data-draft-scope="package-review-selection">
     <h2 id="queue-heading">Action required</h2>
     <p class="muted">Selection is optional and is retained as a browser draft. Preview only; no package decision is recorded from this screen.</p>
-    <div class="action-bar" style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+    <div class="action-bar audit-accounting-review-actions">
       <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button" OnClick="PreviewSelection" Disabled="@(_selectedPackageIds.Count == 0)">Preview selected</MudButton>
       @if (!string.IsNullOrWhiteSpace(_selectionPreview))
       {
@@ -46,11 +50,11 @@ else
     </div>
     @if (_queue.Count == 0)
     {
-      <MudText Typo="Typo.body2" Color="Color.Secondary" Class="muted">@(_refreshing ? "Refreshing…" : "No current package review stage is waiting in your authorized scope.")</MudText>
+      <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="my-3" role="status">@(_refreshing ? "Refreshing…" : "No current package review stage is waiting in your authorized scope.")</MudAlert>
     }
     else
     {
-      <MudTable Items="_queue" Dense="true" Hover="true" Elevation="0">
+      <div class="table-wrap audit-accounting-table-wrap"><MudTable Items="_queue" Dense="true" Hover="true" Elevation="0">
 <!-- Native checkboxes retained: data-draft-field selection state inside a draft boundary, bound with explicit checked/onchange inside the MudTable header/rows. -->
   <HeaderContent><MudTh scope="col"><label title="Select all visible package stages for a preview."><input id="select-all-packages" type="checkbox" data-draft-field="select-all-packages" checked="@AllSelected" @onchange="ToggleAll" /> <span class="sr-only">Select all visible packages</span></label></MudTh><MudTh scope="col">Package</MudTh><MudTh scope="col">Period</MudTh><MudTh scope="col">Management</MudTh><MudTh scope="col">Accounting</MudTh><MudTh scope="col">Partner</MudTh><MudTh scope="col">Next action</MudTh><MudTh scope="col"><span class="sr-only">Action</span></MudTh></HeaderContent>
   <RowTemplate>            <MudTd><input id="select-package-@context.PackageId" type="checkbox" data-draft-field="package-@context.PackageId" checked="@IsSelected(context.PackageId)" @onchange="eventArgs => TogglePackage(context.PackageId, eventArgs)" title="Select this exact package review stage for a preview." /></MudTd>
@@ -61,7 +65,7 @@ else
             <MudTd><StatusChip Status="@context.PartnerDecision" /></MudTd>
             <MudTd><strong>@context.NextAction</strong></MudTd>
             <MudTd><MudLink Href="@($"/app/accounting/packages/{context.PackageId}")">Open package</MudLink></MudTd></RowTemplate>
-</MudTable>
+</MudTable></div>
     }
   </section>
 }

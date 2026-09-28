@@ -540,6 +540,24 @@ public sealed class FinancialArtifactJourneyTests
     await page.GotoAsync(SignInUrl(host.StaffUrl, "/app/accounting/reviews"));
     await page.GetByText(packageId.ToString("D"), new() { Exact = true }).WaitForAsync();
     await connected;
+    Assert.Equal("1", await page.Locator(".audit-accounting-metrics .audit-metric .mud-typography-h4").First.InnerTextAsync());
+    foreach (var width in new[] { 320, 390, 760, 1024, 1440, 1920 })
+    {
+      await page.SetViewportSizeAsync(width, 900);
+      if (width < 960)
+        await page.WaitForFunctionAsync("() => getComputedStyle(document.querySelector('.audit-main-content')).marginLeft === '0px'");
+      else if (width == 1440)
+        await page.WaitForFunctionAsync("() => document.querySelector('.audit-sidebar')?.getBoundingClientRect().left >= -1");
+      await page.EvaluateAsync("() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+      if ((width == 390 || width == 760 || width == 1440) && Environment.GetEnvironmentVariable("AUDITSPHERE_UI_CAPTURE_DIR") is { Length: > 0 } reviewCaptureDir)
+      {
+        Directory.CreateDirectory(reviewCaptureDir);
+        await page.ScreenshotAsync(new() { Path = Path.Combine(reviewCaptureDir, $"accounting-reviews-populated-{width}.png"), FullPage = true });
+      }
+      var overflowDetails = await page.EvaluateAsync<string>("""() => JSON.stringify({ viewport: innerWidth, document: document.documentElement.scrollWidth, offenders: [...document.querySelectorAll('body *')].filter(x => x.getBoundingClientRect().right > innerWidth + 1 && getComputedStyle(x).position !== 'fixed').slice(0, 8).map(x => ({ tag: x.tagName, className: typeof x.className === 'string' ? x.className : '', width: Math.round(x.getBoundingClientRect().width), right: Math.round(x.getBoundingClientRect().right) })) })""");
+      Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= window.innerWidth + 1"),
+        $"Populated package review queue overflows the {width}px viewport: {overflowDetails}");
+    }
     var documentToken = Guid.NewGuid().ToString("N");
     await page.EvaluateAsync("token => window.__reviewQueueRouteToken = token", documentToken);
 
@@ -555,6 +573,7 @@ public sealed class FinancialArtifactJourneyTests
     var body = await page.Locator("body").InnerTextAsync();
     Assert.DoesNotContain(packageId.ToString("D"), body);
     Assert.DoesNotContain("Action required", body);
+    Assert.Equal(0, await page.Locator(".audit-accounting-metrics").CountAsync());
     Assert.Equal(documentToken, await page.EvaluateAsync<string>("window.__reviewQueueRouteToken"));
     Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
   }
@@ -582,7 +601,8 @@ public sealed class FinancialArtifactJourneyTests
     await adjustmentTab.WaitForAsync();
     await connected;
     await WaitForInteractiveRenderAsync(page, prerenderedHeading);
-    await page.Locator("p.scope-note").GetByText("Only records in the authenticated client or exact engagement scope are shown.").WaitForAsync();
+    await page.Locator(".audit-page-header p.mud-text-secondary")
+      .GetByText("Only records in the authenticated client or exact engagement scope are shown.").WaitForAsync();
     var documentToken = await page.EvaluateAsync<string>("""
       () => {
         window.__accountingQueueRouteTestToken ??= crypto.randomUUID();
@@ -610,6 +630,24 @@ public sealed class FinancialArtifactJourneyTests
     var body = await page.Locator("body").InnerTextAsync();
     if (!body.Contains("AJ-E2E-001", StringComparison.Ordinal))
       throw new Xunit.Sdk.XunitException($"Journal list missing after tab navigation. URL={page.Url}\n{body}\n{string.Join("\n", diagnostics)}");
+    Assert.Equal("1", await page.Locator(".audit-accounting-metrics .audit-metric .mud-typography-h4").First.InnerTextAsync());
+    foreach (var width in new[] { 320, 390, 760, 1024, 1440, 1920 })
+    {
+      await page.SetViewportSizeAsync(width, 900);
+      if (width < 960)
+        await page.WaitForFunctionAsync("() => getComputedStyle(document.querySelector('.audit-main-content')).marginLeft === '0px'");
+      else if (width == 1440)
+        await page.WaitForFunctionAsync("() => document.querySelector('.audit-sidebar')?.getBoundingClientRect().left >= -1");
+      await page.EvaluateAsync("() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+      if ((width == 390 || width == 760 || width == 1440) && Environment.GetEnvironmentVariable("AUDITSPHERE_UI_CAPTURE_DIR") is { Length: > 0 } journalCaptureDir)
+      {
+        Directory.CreateDirectory(journalCaptureDir);
+        await page.ScreenshotAsync(new() { Path = Path.Combine(journalCaptureDir, $"accounting-journals-populated-{width}.png"), FullPage = true });
+      }
+      var overflowDetails = await page.EvaluateAsync<string>("""() => JSON.stringify({ viewport: innerWidth, document: document.documentElement.scrollWidth, offenders: [...document.querySelectorAll('body *')].filter(x => x.getBoundingClientRect().right > innerWidth + 1 && getComputedStyle(x).position !== 'fixed').slice(0, 8).map(x => ({ tag: x.tagName, className: typeof x.className === 'string' ? x.className : '', width: Math.round(x.getBoundingClientRect().width), right: Math.round(x.getBoundingClientRect().right) })) })""");
+      Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= window.innerWidth + 1"),
+        $"Populated journal queue overflows the {width}px viewport: {overflowDetails}");
+    }
     Assert.Equal(documentToken, await page.EvaluateAsync<string>("window.__accountingQueueRouteTestToken"));
     Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
   }

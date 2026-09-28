@@ -33,6 +33,23 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ---
 
+## UI modernization — accounting record and review queues
+
+The real `/app/accounting/mappings`, `/app/accounting/journals`,
+`/app/accounting/differences` and `/app/accounting/reviews` routes now use a
+compact accounting heading, scoped count cards, white queue surfaces and
+informational empty states. Counts come from each route's existing authorized
+rows. "Linked journals" means a persisted proposed-journal link, not a
+resolved difference; package selection remains an optional browser draft for
+preview only and records no decision. The accounting route navigation, exact
+detail links, native review checkboxes, `data-draft-field` hooks and server
+authorization remain intact. This is `PRESENTATION_ONLY` plus
+`WIRE_EXISTING`; extra prototype review actions and provider-dependent
+behavior were not copied. Exact verification and remaining visual work are in
+`status.json`.
+
+---
+
 ## UI modernization — accounting landing and evidence
 
 The real `/app/accounting` and `/app/accounting/evidence` views now share the

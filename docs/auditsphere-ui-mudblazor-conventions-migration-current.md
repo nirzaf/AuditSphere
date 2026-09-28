@@ -37,6 +37,14 @@
 
 ## 3. Theme & shared components (presentation only)
 
+The accounting mapping, journal, difference and package-review queues now
+show compact counts from their already scoped rows. Their local route links,
+exact detail links, native review-selection checkboxes and draft fields remain
+unchanged. Empty queues use informational alerts rather than color-only text;
+linked-journal and selected-for-preview counts do not imply approval or
+posting. Responsive captures cover the queue routes before and after this
+presentation pass, with keyboard focus on the accounting queue links.
+
 The accounting workspace and evidence queue now use the shared heading,
 metric and white-panel rhythm. The workspace completion bar is a native
 `<progress>` element derived only from its authorized visible period workflow

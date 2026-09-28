@@ -65,6 +65,32 @@ public sealed class RouteRenderSmokeTests
     {
       await page.GotoAsync(SignInUrl(origin, route));
       await page.GetByRole(AriaRole.Heading, new() { Name = heading }).First.WaitForAsync(new() { Timeout = 15000 });
+      if (route is "/app/accounting/mappings" or "/app/accounting/journals" or
+          "/app/accounting/differences" or "/app/accounting/reviews")
+      {
+        var queueSlug = route.Split('/').Last();
+        foreach (var width in new[] { 320, 390, 760, 1024, 1440, 1920 })
+        {
+          await page.SetViewportSizeAsync(width, 900);
+          if (width < 960)
+            await page.WaitForFunctionAsync("() => getComputedStyle(document.querySelector('.audit-main-content')).marginLeft === '0px'");
+          else if (width == 1440)
+            await page.WaitForFunctionAsync("() => document.querySelector('.audit-sidebar')?.getBoundingClientRect().left >= -1");
+          Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= window.innerWidth + 1"),
+            $"Accounting {queueSlug} queue overflows the {width}px viewport.");
+          if ((width == 390 || width == 1440) && Environment.GetEnvironmentVariable("AUDITSPHERE_UI_CAPTURE_DIR") is { Length: > 0 } queueCaptureDir)
+          {
+            Directory.CreateDirectory(queueCaptureDir);
+            await page.ScreenshotAsync(new() { Path = Path.Combine(queueCaptureDir, $"accounting-{queueSlug}-{width}.png"), FullPage = true });
+          }
+        }
+      }
+      if (route == "/app/accounting/mappings")
+      {
+        var queueLink = page.Locator("nav[aria-label='Accounting record queues'] a[href='/app/accounting/journals']");
+        await queueLink.FocusAsync();
+        Assert.Equal("solid", await queueLink.EvaluateAsync<string>("element => getComputedStyle(element).outlineStyle"));
+      }
       if (route == "/app/administration/project-progress")
       {
         await page.GetByRole(AriaRole.Heading, new() { Name = "Module 20 — Accounting setup" }).WaitForAsync();
@@ -72,6 +98,7 @@ public sealed class RouteRenderSmokeTests
         await page.SetViewportSizeAsync(320, 900);
         await page.Locator(".audit-module-progress-grid").WaitForAsync();
         await page.GetByRole(AriaRole.Heading, new() { Name = "Module 20 — Accounting setup" }).WaitForAsync();
+        await page.WaitForFunctionAsync("() => getComputedStyle(document.querySelector('.audit-main-content')).marginLeft === '0px'");
         Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= window.innerWidth + 1"));
         if (Environment.GetEnvironmentVariable("AUDITSPHERE_UI_CAPTURE_DIR") is { Length: > 0 } progressCaptureDir)
         {
@@ -80,6 +107,7 @@ public sealed class RouteRenderSmokeTests
         }
         await page.SetViewportSizeAsync(1280, 900);
         await page.Locator(".audit-module-progress-grid").WaitForAsync();
+        await page.WaitForFunctionAsync("() => document.querySelector('.audit-sidebar')?.getBoundingClientRect().left >= -1");
         Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= window.innerWidth + 1"));
         if (Environment.GetEnvironmentVariable("AUDITSPHERE_UI_CAPTURE_DIR") is { Length: > 0 } desktopProgressCaptureDir)
           await page.ScreenshotAsync(new() { Path = Path.Combine(desktopProgressCaptureDir, "project-progress-1280.png"), FullPage = true });
