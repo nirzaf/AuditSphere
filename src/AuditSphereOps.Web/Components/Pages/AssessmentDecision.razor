@@ -18,12 +18,12 @@
         <a href="/app/assessments/@Id">Assessment</a> /
         <span>Decision</span>
     </nav>
-    <PageHeader Title="Partner Acceptance / Continuance Decision" Description="Independent partner decision recorded against the exact assessment revision and risk evidence." />
+    <PageHeader Title="Partner Acceptance / Continuance Decision" Eyebrow="Professional decision" Description="Independent partner decision recorded against the exact assessment revision and risk evidence." />
 </div>
 
 @if (_loading)
 {
-    <p role="status">Checking decision access…</p>
+    <LoadingState IsLoading="true" LoadingMessage="Checking decision access…" />
 }
 else if (_scopeDenied)
 {
@@ -41,7 +41,7 @@ else if (_expectedGeneration is null)
 }
 else
 {
-<div class="card decision-card">
+<MudPaper Class="audit-workspace-panel audit-assessment-decision-form pa-4 my-4" Elevation="1" aria-label="Partner decision form" role="region">
     <p class="notice-text">
         This decision is <strong>immutable</strong>. The partner records scope, rationale and conditions. 
         A qualified response does not satisfy an unconditional requirement.
@@ -58,12 +58,12 @@ else
     </div>
 
     <div class="form-group">
-        <label for="decision-service">Service route <span class="required-marker">*</span></label>
+        <label for="decision-service" class="required-label">Service route</label>
         <MudTextField T="string" @bind-Value="_serviceRoute" MaxLength="50" id="decision-service" required title="Stable service scope used to bind the decision and any later workspace intent." />
     </div>
 
     <div class="form-group">
-        <label for="decision-rationale">Rationale / scope <span class="required-marker">*</span></label>
+        <label for="decision-rationale" class="required-label">Rationale / scope</label>
         <MudTextField T="string" @bind-Value="_rationale" Lines="5" id="decision-rationale" Placeholder="Describe scope, factors considered and professional basis." required title="Required professional basis retained with the immutable decision." />
     </div>
 
@@ -83,7 +83,7 @@ else
         </MudButton>
         <a class="btn-secondary" href="/app/assessments/@Id">Cancel</a>
     </div>
-</div>
+</MudPaper>
 }
 
 @code {

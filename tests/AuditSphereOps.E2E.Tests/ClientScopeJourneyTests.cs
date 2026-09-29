@@ -756,6 +756,27 @@ public sealed class ClientScopeJourneyTests
         Rationale = "Synthetic scope regression decision", EvaluationTemplateVersion = "SYNTHETIC-v1",
         EvaluationSnapshotDigest = new string('a', 64), DecidedByUserId = partner.Id, DecidedAt = DateTimeOffset.UtcNow
       });
+      var templateId = Guid.NewGuid();
+      db.QuestionnaireTemplates.Add(new QuestionnaireTemplate
+      {
+        Id = templateId, Bank = "CE", Version = "ASSESS-UI-1", Name = "Synthetic assessment UI",
+        IsActive = true, CreatedAt = DateTimeOffset.UtcNow
+      });
+      db.QuestionDefinitions.AddRange(
+        new QuestionDefinition { Id = Guid.NewGuid(), TemplateId = templateId, QuestionCode = "CE-UI-1", Section = "A", Category = "Acceptance", PromptText = "Synthetic question one", SortOrder = 1 },
+        new QuestionDefinition { Id = Guid.NewGuid(), TemplateId = templateId, QuestionCode = "CE-UI-2", Section = "A", Category = "Acceptance", PromptText = "Synthetic question two", SortOrder = 2 });
+      db.EvaluationResponses.Add(new EvaluationResponse
+      {
+        Id = Guid.NewGuid(), FirmId = host.Fixture.FirmId, PracticeClientId = host.Fixture.ClientId,
+        Bank = "CE", QuestionId = "CE-UI-1", Answer = "Yes", AnsweredByUserId = partner.Id,
+        AnsweredAt = DateTimeOffset.UtcNow
+      });
+      db.SpecialistClearances.Add(new SpecialistClearance
+      {
+        Id = Guid.NewGuid(), FirmId = host.Fixture.FirmId, PracticeClientId = host.Fixture.ClientId,
+        Area = "Independence", SpecialistName = "Synthetic specialist", Status = "HOLD",
+        EvidenceReference = "SYNTHETIC-ASSESSMENT-HOLD", CreatedAt = DateTimeOffset.UtcNow
+      });
       await db.SaveChangesAsync();
     }
 
@@ -764,11 +785,38 @@ public sealed class ClientScopeJourneyTests
     var partnerUrl = await host.StartWebForIdentityAsync(partner);
     await using var partnerContext = await browser.NewContextAsync();
     var partnerPage = await partnerContext.NewPageAsync();
+    await partnerPage.SetViewportSizeAsync(390, 900);
     var partnerConnected = WaitForCircuitConnectionAsync(partnerPage, []);
     await partnerPage.GotoAsync(SignInUrl(partnerUrl, $"/app/assessments/{decisionId:D}"));
     await partnerPage.GetByText(privateRegistration).WaitForAsync();
     await partnerPage.GetByText("Decision recorded:").WaitForAsync();
     await partnerConnected;
+    var questionnaireProgress = partnerPage.GetByRole(AriaRole.Progressbar, new() { Name = "Questionnaire responses completed" });
+    Assert.Equal("1", await questionnaireProgress.GetAttributeAsync("value"));
+    Assert.Equal("2", await questionnaireProgress.GetAttributeAsync("max"));
+    await Assertions.Expect(partnerPage.GetByRole(AriaRole.Region, new() { Name = "Evaluation progress" }))
+      .ToContainTextAsync("0 / 1 specialist clearances");
+    var assessmentCaptureDir = Environment.GetEnvironmentVariable("AUDITSPHERE_ASSESSMENT_UI_CAPTURE_DIR");
+    if (!string.IsNullOrWhiteSpace(assessmentCaptureDir)) Directory.CreateDirectory(assessmentCaptureDir);
+    foreach (var width in new[] { 390, 1440, 320, 760, 1024, 1920 })
+    {
+      await partnerPage.SetViewportSizeAsync(width, 900);
+      await partnerPage.WaitForTimeoutAsync(250);
+      await partnerPage.GetByText(privateRegistration).WaitForAsync();
+      await partnerPage.WaitForFunctionAsync("() => document.documentElement.scrollWidth <= window.innerWidth && (window.innerWidth > 760 || document.querySelector('#main-content').getBoundingClientRect().width >= window.innerWidth - 64)");
+      Assert.False(await partnerPage.EvaluateAsync<bool>("document.documentElement.scrollWidth > window.innerWidth"),
+        $"Assessment page overflows at {width}px.");
+      if (width <= 760)
+      {
+        var mainBox = await partnerPage.Locator("#main-content").BoundingBoxAsync();
+        Assert.NotNull(mainBox);
+        Assert.True(mainBox!.Width >= width - 64, $"Assessment workspace is squeezed to {mainBox.Width}px at {width}px.");
+      }
+      if (assessmentCaptureDir is not null && width is 390 or 1440)
+        await partnerPage.ScreenshotAsync(new() { Path = Path.Combine(assessmentCaptureDir, $"assessment-{width}.png"), FullPage = true });
+    }
+    await partnerPage.Keyboard.PressAsync("Tab");
+    Assert.True(await partnerPage.Locator(":focus-visible").CountAsync() > 0);
 
     var managerUrl = await host.StartWebForIdentityAsync(unrelatedManager);
     await using var managerContext = await browser.NewContextAsync();
@@ -782,6 +830,12 @@ public sealed class ClientScopeJourneyTests
     Assert.DoesNotContain(privateRegistration, body);
     Assert.DoesNotContain("Decision recorded:", body);
     Assert.DoesNotContain("Client workspace", body);
+    var deniedMessage = await managerPage.GetByRole(AriaRole.Alert).InnerTextAsync();
+    await managerPage.EvaluateAsync("path => { history.pushState({}, '', path); dispatchEvent(new PopStateEvent('popstate')); }",
+      $"/app/assessments/{Guid.NewGuid():D}");
+    await Assertions.Expect(managerPage.GetByRole(AriaRole.Alert)).ToContainTextAsync("The assessment is not available in the current scope.");
+    Assert.Equal(deniedMessage, await managerPage.GetByRole(AriaRole.Alert).InnerTextAsync());
+    Assert.DoesNotContain(privateRegistration, await managerPage.Locator("body").InnerTextAsync());
     Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
   }
 
@@ -1284,6 +1338,19 @@ public sealed class ClientScopeJourneyTests
     await partnerPage.GotoAsync(SignInUrl(partnerUrl, $"/app/assessments/{host.Fixture.ClientId:D}/decision"));
     await partnerPage.Locator("#decision-outcome").WaitForAsync();
     await partnerConnected;
+    var decisionCaptureDir = Environment.GetEnvironmentVariable("AUDITSPHERE_ASSESSMENT_UI_CAPTURE_DIR");
+    if (!string.IsNullOrWhiteSpace(decisionCaptureDir)) Directory.CreateDirectory(decisionCaptureDir);
+    foreach (var width in new[] { 390, 1440, 320, 760, 1024, 1920 })
+    {
+      await partnerPage.SetViewportSizeAsync(width, 900);
+      await partnerPage.WaitForTimeoutAsync(250);
+      await partnerPage.Locator("#decision-outcome").WaitForAsync();
+      await partnerPage.WaitForFunctionAsync("() => document.documentElement.scrollWidth <= window.innerWidth && (window.innerWidth > 760 || document.querySelector('#main-content').getBoundingClientRect().width >= window.innerWidth - 64)");
+      Assert.False(await partnerPage.EvaluateAsync<bool>("document.documentElement.scrollWidth > window.innerWidth"),
+        $"Decision form overflows at {width}px.");
+      if (decisionCaptureDir is not null && width is 390 or 1440)
+        await partnerPage.ScreenshotAsync(new() { Path = Path.Combine(decisionCaptureDir, $"decision-{width}.png"), FullPage = true });
+    }
 
     await using var managerContext = await browser.NewContextAsync();
     var managerPage = await managerContext.NewPageAsync();

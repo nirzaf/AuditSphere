@@ -33,6 +33,24 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ---
 
+## UI modernization — client assessment and partner decision
+
+The two assessment detail aliases and the partner decision route now use shared
+record headings, scoped status and responsive white panels. Questionnaire
+progress uses the exact authorized answer count and template count; when no
+templates exist, the page shows no completion percentage. Specialist clearances
+and the existing decision are presented without changing their approval rules.
+The partner form retains its immutable Application command, required fields and
+scope checks. A previously squeezed mobile workspace was traced to the staff
+shell's responsive drawer width reservation and corrected for the shared shell.
+The existing PostgreSQL-backed browser journeys verify response progress,
+clearance blockers, staff/partner scope and same-document route isolation at
+six widths; matching synthetic before/after captures were inspected. This is
+`PRESENTATION_ONLY` plus `WIRE_EXISTING`, with an unavailable-state consistency
+fix. Exact verification results are recorded in `status.json`.
+
+---
+
 ## UI modernization — release and archive evidence details
 
 The real release-candidate and records-archive detail routes now use the shared

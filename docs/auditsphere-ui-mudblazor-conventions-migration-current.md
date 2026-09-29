@@ -122,6 +122,15 @@ external protection; long hashes and the entry table reflow on narrow screens.
 An unknown or out-of-scope archive has one unavailable message. Prototype-only
 remote archive, signing and handover controls remain absent.
 
+The client assessment detail and partner decision routes now use the same
+record headings and white panels. Assessment shows a scoped response progress
+bar only when question templates exist, alongside exact specialist-clearance
+counts and current decision status. The clearance table has mobile labels, and
+unknown and out-of-scope assessment IDs share one unavailable state. The partner
+decision form keeps its immutable command and required-field validation. The
+staff shell now gives the main workspace its full available width at mobile
+breakpoints rather than reserving the closed drawer's width.
+
 The administrator-only project task-progress route uses accessible
 four-state progress bars for reviewed task-card counts across Modules 20–26,
 audit workflow and cross-module foundations. Its labels and expanded
