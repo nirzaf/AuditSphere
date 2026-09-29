@@ -102,6 +102,16 @@ public sealed class RouteRenderSmokeTests
         await page.GetByRole(AriaRole.Heading, new() { Name = "Other application modules" }).WaitForAsync();
         await Assertions.Expect(page.Locator(".audit-task-progress-untracked")).ToHaveCountAsync(6);
         Assert.Equal(0, await page.Locator(".audit-task-progress-untracked[value]").CountAsync());
+        var overallBar = page.GetByRole(AriaRole.Progressbar, new() { Name = "Overall task-card progress" });
+        var originalDistribution = await overallBar.GetAttributeAsync("aria-valuetext");
+        var taskFilters = page.GetByRole(AriaRole.Group, new() { Name = "Filter task cards by status" });
+        await taskFilters.GetByRole(AriaRole.Button, new() { Name = "Completed", Exact = true }).ClickAsync();
+        await Assertions.Expect(page.GetByText("Showing 1 of 75 distinct task cards.", new() { Exact = false })).ToBeVisibleAsync();
+        await Assertions.Expect(taskFilters.GetByRole(AriaRole.Button, new() { Name = "Completed", Exact = true }))
+          .ToHaveAttributeAsync("aria-pressed", "true");
+        Assert.Equal(originalDistribution, await overallBar.GetAttributeAsync("aria-valuetext"));
+        await taskFilters.GetByRole(AriaRole.Button, new() { Name = "All", Exact = true }).ClickAsync();
+        await Assertions.Expect(page.GetByText("Showing 75 of 75 distinct task cards.", new() { Exact = false })).ToBeVisibleAsync();
         await page.SetViewportSizeAsync(320, 900);
         await page.Locator(".audit-module-progress-grid").First.WaitForAsync();
         await page.GetByRole(AriaRole.Heading, new() { Name = "Module 20 — Accounting setup" }).WaitForAsync();

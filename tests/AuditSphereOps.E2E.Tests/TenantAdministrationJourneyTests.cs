@@ -104,6 +104,38 @@ public sealed class TenantAdministrationJourneyTests
     await using var session = await BrowserSession.OpenAsync(origin, "/app/administration");
     var page = session.Page;
     await page.GetByRole(AriaRole.Heading, new() { Name = "Setup progress" }).WaitForAsync();
+    async Task CaptureAdministrationAsync(string state)
+    {
+      if (Environment.GetEnvironmentVariable("AUDITSPHERE_ADMIN_UI_CAPTURE_DIR") is not { Length: > 0 } captureDir) return;
+      Directory.CreateDirectory(captureDir);
+      foreach (var width in new[] { 390, 1440 })
+      {
+        await page.SetViewportSizeAsync(width, 900);
+        await page.GetByRole(AriaRole.Heading, new() { Name = "Setup progress" }).WaitForAsync();
+        if (width < 960)
+          await page.WaitForFunctionAsync("() => getComputedStyle(document.querySelector('.audit-main-content')).marginLeft === '0px'");
+        else
+          await page.WaitForFunctionAsync("() => document.querySelector('.audit-sidebar')?.getBoundingClientRect().left >= -1");
+        await page.ScreenshotAsync(new() { Path = Path.Combine(captureDir, $"administration-{state}-{width}.png"), FullPage = true });
+      }
+      await page.SetViewportSizeAsync(1280, 900);
+    }
+    await CaptureAdministrationAsync("before-consent");
+    foreach (var width in new[] { 320, 390, 760, 1024, 1440, 1920 })
+    {
+      await page.SetViewportSizeAsync(width, 900);
+      await page.GetByRole(AriaRole.Heading, new() { Name = "Setup progress" }).WaitForAsync();
+      if (width < 960)
+        await page.WaitForFunctionAsync("() => getComputedStyle(document.querySelector('.audit-main-content')).marginLeft === '0px'");
+      Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= window.innerWidth + 1"),
+        $"Administration overflows the {width}px viewport.");
+    }
+    await page.SetViewportSizeAsync(1440, 900);
+    Assert.True(await page.Locator(".audit-admin-users-table .mud-table-container").EvaluateAsync<bool>(
+      "element => element.scrollWidth > element.clientWidth"), "The wide Users register should scroll within its panel.");
+    var refreshButton = page.GetByRole(AriaRole.Button, new() { Name = "Refresh administration" });
+    await refreshButton.FocusAsync();
+    Assert.True(await refreshButton.EvaluateAsync<bool>("element => document.activeElement === element"));
     var before = await page.Locator("body").InnerTextAsync();
     Assert.Contains("Tenant administrator consent has not been verified", before);
 
@@ -168,12 +200,37 @@ public sealed class TenantAdministrationJourneyTests
       "Tenant directory results overflow the 320px viewport.");
     await page.GotoAsync(origin + "/app/administration");
     await page.GetByText("Consent verified").First.WaitForAsync();
+    await CaptureAdministrationAsync("after-consent");
     var body = await page.Locator("body").InnerTextAsync();
     Assert.DoesNotContain("Tenant administrator consent has not been verified", body);
     Assert.Contains("Consent verified", body);
     Assert.Contains("Microsoft Tenant", body);
+    await page.SetViewportSizeAsync(390, 900);
+    await page.WaitForFunctionAsync("() => getComputedStyle(document.querySelector('.audit-main-content')).marginLeft === '0px'");
+    foreach (var (tabName, heading) in new[] {
+      ("AuditSphere Roles", "User and role administration"),
+      ("Microsoft Directory", "Microsoft directory"),
+      ("Invitations", "Invitations"),
+      ("Groups", "Microsoft groups"),
+      ("Access History", "Access history"),
+      ("Disabled / Revoked", "Disabled and revoked access") })
+    {
+      await page.GetByRole(AriaRole.Tab, new() { Name = tabName }).ClickAsync();
+      await page.GetByRole(AriaRole.Heading, new() { Name = heading, Exact = true }).WaitForAsync();
+      Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= window.innerWidth + 1"),
+        $"Administration {tabName} overflows the 390px viewport.");
+    }
     await page.GetByRole(AriaRole.Tab, new() { Name = "Microsoft 365" }).ClickAsync();
     await page.GetByRole(AriaRole.Heading, new() { Name = "Permission matrix" }).WaitForAsync();
+    Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= window.innerWidth + 1"),
+      "Administration Microsoft 365 overflows the 390px viewport.");
+    foreach (var (tabName, heading) in new[] { ("Firm & Security", "Firm safety state"), ("Audit History", "Administration audit history") })
+    {
+      await page.GetByRole(AriaRole.Tab, new() { Name = tabName }).ClickAsync();
+      await page.GetByRole(AriaRole.Heading, new() { Name = heading, Exact = true }).WaitForAsync();
+      Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= window.innerWidth + 1"),
+        $"Administration {tabName} overflows the 390px viewport.");
+    }
     session.AssertNoPageErrors();
   }
 

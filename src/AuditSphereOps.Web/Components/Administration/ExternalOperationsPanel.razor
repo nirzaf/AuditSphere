@@ -7,7 +7,7 @@
 @inject IMicrosoftGroupMembershipProvider GroupProvider
 @inject TenantAdministrationSettings Settings
 
-<MudPaper Class="pa-4 my-3" Elevation="1" role="region" aria-labelledby="operations-heading">
+<MudPaper Class="audit-workspace-panel audit-admin-panel pa-4 my-3" Elevation="0" role="region" aria-labelledby="operations-heading">
   <h3 id="operations-heading">Microsoft operations</h3>
   @if (Operations.Count == 0)
   {
@@ -15,7 +15,7 @@
   }
   else
   {
-    <MudTable Items="Operations" Dense="true" Elevation="0">
+    <MudTable Items="Operations" Dense="true" Elevation="0" HorizontalScrollbar="true" Class="audit-admin-wide-table">
       <HeaderContent><MudTh>Requested</MudTh><MudTh>Operation</MudTh><MudTh>Target</MudTh><MudTh>State</MudTh><MudTh>Microsoft result</MudTh><MudTh>Action</MudTh></HeaderContent>
       <RowTemplate>
         <MudTd DataLabel="Requested">@context.CreatedAt.ToString("yyyy-MM-dd HH:mm") by @context.RequestedBy</MudTd>

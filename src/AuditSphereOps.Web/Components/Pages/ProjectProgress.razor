@@ -37,6 +37,19 @@ else if (_progress is not null)
     <MudText Typo="Typo.caption">A card becomes complete only after its documented review and evidence gates. The same cross-module card may appear in more than one module below; the total counts each card once.</MudText>
   </MudPaper>
 
+  <MudPaper Class="audit-workspace-panel pa-4 mb-4" aria-label="Task-card filters">
+    <h2>Find task cards</h2>
+    <div class="audit-progress-filters" role="group" aria-label="Filter task cards by status">
+      @foreach (var filter in TaskFilters)
+      {
+        <MudButton Variant="@(_taskFilter == filter.Key ? Variant.Filled : Variant.Outlined)"
+                   Color="Color.Primary" Size="Size.Small" OnClick="@(() => _taskFilter = filter.Key)"
+                   aria-pressed="@(_taskFilter == filter.Key ? "true" : "false")">@filter.Label</MudButton>
+      }
+    </div>
+    <MudText Typo="Typo.caption">Showing @FilterTasks(_progress.Tasks).Count of @_progress.Tasks.Count distinct task cards. Filters change the lists below; bars and counts always show all published cards.</MudText>
+  </MudPaper>
+
   <div class="audit-module-progress-grid">
     @foreach (var module in _progress.Modules)
     {
@@ -48,9 +61,9 @@ else if (_progress is not null)
         <ProjectTaskStatusBar Tasks="module.Tasks" Label="@($"Module {module.Number} task-card progress")" />
         <p class="audit-progress-counts">@module.Active active or in review · @module.Pending pending · @module.Blocked blocked</p>
         <details>
-          <summary>View task cards</summary>
+          <summary>View @FilterTasks(module.Tasks).Count of @module.Tasks.Count task cards</summary>
           <ul class="audit-progress-task-list">
-            @foreach (var task in module.Tasks)
+            @foreach (var task in FilterTasks(module.Tasks))
             {
               <li><span><strong>@task.Id</strong> @task.Title@if (task.Status == "BLOCKED" && !string.IsNullOrWhiteSpace(task.BlockedReason)) { <small class="d-block mud-text-secondary">@task.BlockedReason</small> }</span><StatusChip Status="@task.Status" /></li>
             }
@@ -65,9 +78,9 @@ else if (_progress is not null)
     <ProjectTaskStatusBar Tasks="_progress.AuditTasks" Label="Audit workflow task-card progress" />
     <p class="audit-progress-counts">@_progress.AuditCompleted / @_progress.AuditTasks.Count completed · @CountActive(_progress.AuditTasks) active or in review · @CountPending(_progress.AuditTasks) pending · @CountBlocked(_progress.AuditTasks) blocked</p>
     <details>
-      <summary>View @_progress.AuditTasks.Count task cards</summary>
+      <summary>View @FilterTasks(_progress.AuditTasks).Count of @_progress.AuditTasks.Count task cards</summary>
       <ul class="audit-progress-task-list">
-        @foreach (var task in _progress.AuditTasks)
+        @foreach (var task in FilterTasks(_progress.AuditTasks))
         {
           <li><span><strong>@task.Id</strong> @task.Title@if (task.Status == "BLOCKED" && !string.IsNullOrWhiteSpace(task.BlockedReason)) { <small class="d-block mud-text-secondary">@task.BlockedReason</small> }</span><StatusChip Status="@task.Status" /></li>
         }
@@ -88,9 +101,9 @@ else if (_progress is not null)
           <ProjectTaskStatusBar Tasks="phase.Tasks" Label="@($"{phase.Name} task-card progress")" />
           <p class="audit-progress-counts">@phase.Active active or in review · @phase.Pending pending · @phase.Blocked blocked</p>
           <details>
-            <summary>View @phase.Tasks.Count task cards</summary>
+            <summary>View @FilterTasks(phase.Tasks).Count of @phase.Tasks.Count task cards</summary>
             <ul class="audit-progress-task-list">
-              @foreach (var task in phase.Tasks)
+              @foreach (var task in FilterTasks(phase.Tasks))
               {
                 <li><span><strong>@task.Id</strong> @task.Title@if (task.Status == "BLOCKED" && !string.IsNullOrWhiteSpace(task.BlockedReason)) { <small class="d-block mud-text-secondary">@task.BlockedReason</small> }</span><StatusChip Status="@task.Status" /></li>
               }
@@ -106,9 +119,9 @@ else if (_progress is not null)
     <ProjectTaskStatusBar Tasks="_progress.SharedTasks" Label="Shared foundation task-card progress" />
     <p class="audit-progress-counts">@_progress.SharedCompleted / @_progress.SharedTasks.Count completed · @CountActive(_progress.SharedTasks) active or in review · @CountPending(_progress.SharedTasks) pending · @CountBlocked(_progress.SharedTasks) blocked</p>
     <details>
-      <summary>View @_progress.SharedTasks.Count task cards</summary>
+      <summary>View @FilterTasks(_progress.SharedTasks).Count of @_progress.SharedTasks.Count task cards</summary>
       <ul class="audit-progress-task-list">
-        @foreach (var task in _progress.SharedTasks)
+        @foreach (var task in FilterTasks(_progress.SharedTasks))
         {
           <li><span><strong>@task.Id</strong> @task.Title@if (task.Status == "BLOCKED" && !string.IsNullOrWhiteSpace(task.BlockedReason)) { <small class="d-block mud-text-secondary">@task.BlockedReason</small> }</span><StatusChip Status="@task.Status" /></li>
         }
@@ -135,12 +148,27 @@ else if (_progress is not null)
 
 @code {
   private ProjectProgressSnapshot? _progress;
+  private string _taskFilter = "All";
+  private static readonly (string Key, string Label)[] TaskFilters =
+  [
+    ("All", "All"), ("Completed", "Completed"), ("Active", "Active or in review"),
+    ("Pending", "Pending or reopened"), ("Blocked", "Blocked")
+  ];
   private bool _loading = true;
   private bool _authorized;
   private string? _error;
   private static int CountActive(IReadOnlyList<ProjectTaskProgress> tasks) => tasks.Count(x => x.Status is "IN_PROGRESS" or "IN_REVIEW");
   private static int CountPending(IReadOnlyList<ProjectTaskProgress> tasks) => tasks.Count(x => x.Status is "NOT_STARTED" or "REOPENED");
   private static int CountBlocked(IReadOnlyList<ProjectTaskProgress> tasks) => tasks.Count(x => x.Status == "BLOCKED");
+  private IReadOnlyList<ProjectTaskProgress> FilterTasks(IReadOnlyList<ProjectTaskProgress> tasks) =>
+    tasks.Where(x => _taskFilter switch
+    {
+      "Completed" => x.Status == "COMPLETED",
+      "Active" => x.Status is "IN_PROGRESS" or "IN_REVIEW",
+      "Pending" => x.Status is "NOT_STARTED" or "REOPENED",
+      "Blocked" => x.Status == "BLOCKED",
+      _ => true
+    }).ToArray();
 
   protected override async Task OnInitializedAsync()
   {

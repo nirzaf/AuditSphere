@@ -15,9 +15,11 @@
 
 <PageTitle>Firm administration</PageTitle>
 <MudLink Href="/app" Class="back-link mb-2 d-inline-block">← Back to portfolio</MudLink>
-<PageHeader Title="Firm administration &amp; security" Description="System and firm-level administrative configuration (§43.2). Versioned configuration and role grants; direct database manipulation consoles are prohibited." />
-<MudLink Href="/app/administration/project-progress" Class="d-inline-block mb-2">View project task progress →</MudLink>
-<MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button-secondary" OnClick="RefreshAdministrationAsync" Disabled="@(_loading || _roleBusy)">Refresh administration</MudButton>
+<PageHeader Title="Firm administration &amp; security" Eyebrow="Administration" Description="System and firm-level administrative configuration (§43.2). Versioned configuration and role grants; direct database manipulation consoles are prohibited." />
+<div class="audit-page-actions audit-admin-actions">
+  <MudLink Href="/app/administration/project-progress">View project task progress →</MudLink>
+  <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="RefreshAdministrationAsync" Disabled="@(_loading || _roleBusy)">Refresh administration</MudButton>
+</div>
 
 @if (_loading)
 {
@@ -32,15 +34,14 @@ else if (_actor is null || !_isAdmin)
 }
 else
 {
-  <p class="scope-note">System and firm-level administrative configuration (§43.2). Versioned configuration and role grants; direct database manipulation consoles are prohibited.</p>
   @if (_overview is not null) { <AdministrationDashboard Overview="_overview" /> }
   @if (!string.IsNullOrWhiteSpace(_pageMessage)) { <MudAlert Severity="Severity.Success" Variant="Variant.Outlined" Class="my-2" role="status">@_pageMessage</MudAlert> }
 
-  <MudTabs Elevation="1" Rounded="true" ApplyEffectsToContainer="true" @bind-ActivePanelIndex="_topTab">
+  <MudTabs Class="audit-admin-tabs" Elevation="0" Rounded="true" ApplyEffectsToContainer="true" @bind-ActivePanelIndex="_topTab">
     <MudTabPanel Text="Users & Access">
-      <MudTabs Elevation="0" Rounded="true" @bind-ActivePanelIndex="_userTab">
+      <MudTabs Class="audit-admin-tabs audit-admin-subtabs" Elevation="0" Rounded="true" @bind-ActivePanelIndex="_userTab">
         <MudTabPanel Text="Users">
-          <MudPaper Class="pa-4 my-3" Elevation="1" role="region" aria-labelledby="users-heading">
+          <MudPaper Class="audit-workspace-panel audit-admin-panel pa-4 my-3" Elevation="1" role="region" aria-labelledby="users-heading">
             <h2 id="users-heading">Users</h2>
             @if (_workspace is null || _workspace.Users.Count == 0)
             {
@@ -48,7 +49,7 @@ else
             }
             else
             {
-              <MudTable Items="_workspace.Users" Dense="true" Hover="true" Elevation="0" Filter="FilterUser">
+              <MudTable Items="_workspace.Users" Dense="true" Hover="true" Elevation="0" HorizontalScrollbar="true" Class="audit-admin-wide-table audit-admin-users-table" Filter="FilterUser">
                 <ToolBarContent><MudTextField T="string" @bind-Value="_userFilter" Placeholder="Filter users" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Immediate="true" /></ToolBarContent>
                 <HeaderContent>
                   <MudTh>Display name</MudTh><MudTh>Microsoft identity</MudTh><MudTh>Account type</MudTh><MudTh>Directory status</MudTh>
@@ -79,7 +80,7 @@ else
           </MudPaper>
         </MudTabPanel>
         <MudTabPanel Text="AuditSphere Roles">
-          <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="roles-heading" role="region">
+          <MudPaper  Class="audit-workspace-panel audit-admin-panel pa-4 my-4" Elevation="1" aria-labelledby="roles-heading" role="region">
     <h2 id="roles-heading">Firm role grants</h2>
     @if (_grants.Count == 0)
     {
@@ -87,7 +88,7 @@ else
     }
     else
     {
-      <MudTable Items="_grants" Dense="true" Hover="true" Elevation="0">
+      <MudTable Items="_grants" Dense="true" Hover="true" Elevation="0" HorizontalScrollbar="true" Class="audit-admin-wide-table">
         <HeaderContent>
           <MudTh>Identity</MudTh>
           <MudTh>Role</MudTh>
@@ -171,15 +172,17 @@ else
       </MudTable>
     }
   </MudPaper>
-          <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="role-change-heading" role="region">
+          <MudPaper  Class="audit-workspace-panel audit-admin-panel pa-4 my-4" Elevation="1" aria-labelledby="role-change-heading" role="region">
     <h2 id="role-change-heading">User and role administration</h2>
     <p class="field-help">The separate read-only directory search is available from Tenant connection when explicitly configured and consented. This local fallback accepts an administrator-provided or exact verified-sign-in identity; email and display name never identify a user.</p>
+    <div class="audit-admin-roster-grid">
     <div class="form-group"><label for="roster-tenant">Tenant ID <span class="required-marker">*</span><MudTextField T="string" @bind-Value="_rosterTenant" MaxLength="200" id="roster-tenant" required title="Exact verified Entra tenant ID (tid)." /></label></div>
     <div class="form-group"><label for="roster-subject">Object ID / subject <span class="required-marker">*</span><MudTextField T="string" @bind-Value="_rosterSubject" MaxLength="200" id="roster-subject" required title="Immutable verified Entra object/subject identifier (oid/sub)." /></label></div>
     <div class="form-group"><label for="roster-email">Email <span class="required-marker">*</span><MudTextField T="string" @bind-Value="_rosterEmail" InputType="InputType.Email" MaxLength="320" id="roster-email" required title="Display/contact data only; it cannot merge identities." /></label></div>
     <div class="form-group"><label for="roster-name">Display name <span class="required-marker">*</span><MudTextField T="string" @bind-Value="_rosterName" MaxLength="300" id="roster-name" required /></label></div>
     <div class="form-group"><label for="roster-kind">Application identity kind <span class="required-marker">*</span><MudSelect T="string" @bind-Value="_rosterKind" id="roster-kind" title="Staff and client identities use different landing areas and role policies."><MudSelectItem Value="@("Staff")">Staff</MudSelectItem><MudSelectItem Value="@("Client")">Client</MudSelectItem></MudSelect></label></div>
     <div class="form-group"><label for="roster-source">Identity evidence <span class="required-marker">*</span><MudSelect T="string" @bind-Value="_rosterSource" id="roster-source" title="Record whether this exact identity came from an approved roster or a verified sign-in."><MudSelectItem Value="@("APPROVED_ROSTER")">Approved roster</MudSelectItem><MudSelectItem Value="@("VERIFIED_SIGN_IN")">Verified sign-in</MudSelectItem></MudSelect></label></div>
+    </div>
     <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button" OnClick="OnboardUserAsync" Disabled="@_roleBusy">@(_roleBusy ? "Saving…" : "Bind user")</MudButton>
     @if (_selectedUserId.HasValue)
     {
@@ -212,13 +215,14 @@ else
           <ExternalOperationsPanel Operations="@(_workspace?.Operations ?? [])" Changed="ReloadKeepFormsAsync" />
         </MudTabPanel>
         <MudTabPanel Text="Invitations">
-          <MudPaper Class="pa-4 my-3" Elevation="1" role="region" aria-labelledby="invitations-heading">
+          <MudPaper Class="audit-workspace-panel audit-admin-panel pa-4 my-3" Elevation="1" role="region" aria-labelledby="invitations-heading">
             <h2 id="invitations-heading">Invitations</h2>
             <MudText Typo="Typo.body2" Class="field-help">An invitation grants nothing by itself; access comes only from the recorded AuditSphere grant.</MudText>
             @{ var invitationRows = _grants.Where(g => g.RevokedAt is null && _invitationsByGrant.ContainsKey(g.Id)).ToList(); }
             @if (invitationRows.Count == 0) { <MudText>No active invitations.</MudText> }
             else
             {
+              <div class="audit-admin-table-scroll">
               <MudSimpleTable Dense="true">
                 <thead><tr><th>Recipient</th><th>Role</th><th>State</th><th>First access</th></tr></thead>
                 <tbody>
@@ -229,6 +233,7 @@ else
                   }
                 </tbody>
               </MudSimpleTable>
+              </div>
             }
           </MudPaper>
           <GuestInvitationPanel Available="@IsVerified(Microsoft365Capabilities.GuestInvitation)" Clients="@(_workspace?.Clients ?? [])" Engagements="@(_workspace?.Engagements ?? [])" AssignRequested="OnDirectoryAssignAsync" Changed="ReloadKeepFormsAsync" />
@@ -237,24 +242,25 @@ else
           <ManagedGroupsPanel Available="@IsVerified(Microsoft365Capabilities.GroupMembership)" Groups="@(_workspace?.Groups ?? [])" Users="@(_workspace?.Users ?? [])" Changed="ReloadKeepFormsAsync" />
         </MudTabPanel>
         <MudTabPanel Text="Access History">
-          <MudPaper Class="pa-4 my-3" Elevation="1" role="region" aria-labelledby="access-history-heading">
+          <MudPaper Class="audit-workspace-panel audit-admin-panel pa-4 my-3" Elevation="1" role="region" aria-labelledby="access-history-heading">
             <h2 id="access-history-heading">Access history</h2>
-            <MudTable Items="@(_workspace?.History.Where(x => x.Operation.StartsWith("ROLE_") || x.Operation.StartsWith("GROUP_ROLE")).ToList() ?? [])" Dense="true" Elevation="0">
+            <MudTable Items="@(_workspace?.History.Where(x => x.Operation.StartsWith("ROLE_") || x.Operation.StartsWith("GROUP_ROLE")).ToList() ?? [])" Dense="true" Elevation="0" HorizontalScrollbar="true" Class="audit-admin-wide-table">
               <HeaderContent><MudTh>When</MudTh><MudTh>Operation</MudTh><MudTh>Target</MudTh><MudTh>Change</MudTh><MudTh>Reason</MudTh><MudTh>Actor</MudTh><MudTh>Result</MudTh></HeaderContent>
               <RowTemplate>
-                <MudTd>@context.At.ToString("yyyy-MM-dd HH:mm")</MudTd><MudTd>@context.Operation</MudTd><MudTd>@context.Target</MudTd>
-                <MudTd>@context.Change</MudTd><MudTd>@context.Reason</MudTd><MudTd>@context.Actor</MudTd><MudTd>@context.Result</MudTd>
+                <MudTd DataLabel="When">@context.At.ToString("yyyy-MM-dd HH:mm")</MudTd><MudTd DataLabel="Operation">@context.Operation</MudTd><MudTd DataLabel="Target">@context.Target</MudTd>
+                <MudTd DataLabel="Change">@context.Change</MudTd><MudTd DataLabel="Reason">@context.Reason</MudTd><MudTd DataLabel="Actor">@context.Actor</MudTd><MudTd DataLabel="Result">@context.Result</MudTd>
               </RowTemplate>
               <PagerContent><MudTablePager PageSizeOptions="new int[] { 25, 50, 100 }" /></PagerContent>
             </MudTable>
           </MudPaper>
         </MudTabPanel>
         <MudTabPanel Text="Disabled / Revoked">
-          <MudPaper Class="pa-4 my-3" Elevation="1" role="region" aria-labelledby="revoked-heading">
+          <MudPaper Class="audit-workspace-panel audit-admin-panel pa-4 my-3" Elevation="1" role="region" aria-labelledby="revoked-heading">
             <h2 id="revoked-heading">Disabled and revoked access</h2>
             @if (_workspace is null || _workspace.DisabledOrRevoked.Count == 0) { <MudText>No disabled users or revoked grants.</MudText> }
             else
             {
+              <div class="audit-admin-table-scroll">
               <MudSimpleTable Dense="true">
                 <thead><tr><th>User</th><th>AuditSphere status</th><th>Directory status</th><th>Revoked grants</th></tr></thead>
                 <tbody>
@@ -269,13 +275,14 @@ else
                   }
                 </tbody>
               </MudSimpleTable>
+              </div>
             }
           </MudPaper>
         </MudTabPanel>
       </MudTabs>
     </MudTabPanel>
     <MudTabPanel Text="Microsoft 365">
-      <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="m365-heading" role="region">
+      <MudPaper  Class="audit-workspace-panel audit-admin-panel pa-4 my-4" Elevation="1" aria-labelledby="m365-heading" role="region">
     <h2 id="m365-heading">Microsoft 365 onboarding</h2>
     <p class="field-help">Connection, selected-resource verification, role assignment, and client workspace provisioning are separate revisions. An unconfigured or unverified integration cannot create outward effects.</p>
     <MudButton Color="Color.Primary" Variant="Variant.Filled" Href="/app/administration/microsoft365" Class="button">Continue Microsoft 365 setup</MudButton>
@@ -284,9 +291,9 @@ else
       @if (_overview is not null) { <Microsoft365StatusPanel Overview="_overview" Changed="ReloadKeepFormsAsync" /> }
     </MudTabPanel>
     <MudTabPanel Text="Firm & Security">
-  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="safety-heading" role="region">
+  <MudPaper  Class="audit-workspace-panel audit-admin-panel pa-4 my-4" Elevation="1" aria-labelledby="safety-heading" role="region">
     <h2 id="safety-heading">Firm safety state</h2>
-    <dl class="details">
+    <dl class="details audit-admin-details">
       <dt>Firm ID</dt><dd><code>@_actor.FirmId</code></dd>
       <dt>Operating Mode</dt>
       <dd>
@@ -303,9 +310,9 @@ else
       <dt>Operations Panel</dt><dd><MudLink Href="/app/operations">Manage durable operations &amp; recovery</MudLink></dd>
     </dl>
   </MudPaper>
-  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="env-heading" role="region">
+  <MudPaper  Class="audit-workspace-panel audit-admin-panel pa-4 my-4" Elevation="1" aria-labelledby="env-heading" role="region">
     <h2 id="env-heading">Runtime environment &amp; security fences</h2>
-    <dl class="details">
+    <dl class="details audit-admin-details">
       <dt>Hosting Environment</dt><dd>@Configuration["ASPNETCORE_ENVIRONMENT"]</dd>
       <dt>External Effects Enabled</dt><dd><code>@Configuration["ExternalEffects:Enabled"]</code> (Strictly fenced)</dd>
       <dt>Simulation Adapters Allowed</dt><dd><code>@Configuration["ExternalEffects:AllowSimulationAdapters"]</code></dd>
@@ -315,15 +322,15 @@ else
   </MudPaper>
     </MudTabPanel>
     <MudTabPanel Text="Audit History">
-      <MudPaper Class="pa-4 my-3" Elevation="1" role="region" aria-labelledby="audit-history-heading">
+      <MudPaper Class="audit-workspace-panel audit-admin-panel pa-4 my-3" Elevation="1" role="region" aria-labelledby="audit-history-heading">
         <h2 id="audit-history-heading">Administration audit history</h2>
         <MudText Typo="Typo.body2" Class="field-help">Immutable record of every administration change. Secrets, tokens and passwords are never recorded.</MudText>
-        <MudTable Items="@(_workspace?.History ?? [])" Dense="true" Elevation="0">
+        <MudTable Items="@(_workspace?.History ?? [])" Dense="true" Elevation="0" HorizontalScrollbar="true" Class="audit-admin-wide-table">
           <HeaderContent><MudTh>When</MudTh><MudTh>Operation</MudTh><MudTh>Target</MudTh><MudTh>Change</MudTh><MudTh>Reason</MudTh><MudTh>Actor</MudTh><MudTh>Result</MudTh><MudTh>Microsoft operation</MudTh></HeaderContent>
           <RowTemplate>
-            <MudTd>@context.At.ToString("yyyy-MM-dd HH:mm")</MudTd><MudTd>@context.Operation</MudTd><MudTd>@context.Target</MudTd>
-            <MudTd>@context.Change</MudTd><MudTd>@context.Reason</MudTd><MudTd>@context.Actor</MudTd><MudTd>@context.Result</MudTd>
-            <MudTd>@if (context.MicrosoftOperation is not null) { <code>@context.MicrosoftOperation</code> }</MudTd>
+            <MudTd DataLabel="When">@context.At.ToString("yyyy-MM-dd HH:mm")</MudTd><MudTd DataLabel="Operation">@context.Operation</MudTd><MudTd DataLabel="Target">@context.Target</MudTd>
+            <MudTd DataLabel="Change">@context.Change</MudTd><MudTd DataLabel="Reason">@context.Reason</MudTd><MudTd DataLabel="Actor">@context.Actor</MudTd><MudTd DataLabel="Result">@context.Result</MudTd>
+            <MudTd DataLabel="Microsoft operation">@if (context.MicrosoftOperation is not null) { <code>@context.MicrosoftOperation</code> }</MudTd>
           </RowTemplate>
           <PagerContent><MudTablePager PageSizeOptions="new int[] { 25, 50, 100 }" /></PagerContent>
         </MudTable>

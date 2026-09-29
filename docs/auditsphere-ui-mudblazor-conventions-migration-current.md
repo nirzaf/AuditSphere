@@ -79,6 +79,9 @@ completion and pending counts in a four-state segmented bar; areas outside
 that task pack show a neutral untracked bar and no
 percentage. This does not derive implementation completion from live business
 records or bypass task-card review gates.
+An administrator can filter the task-card lists by completed, active or in
+review, pending or reopened, and blocked status. The filter leaves every
+module bar and its full-source counts unchanged.
 
 The accounting mapping, journal, difference and package-review queues now
 show compact counts from their already scoped rows. Their local route links,
@@ -150,6 +153,15 @@ enabled Microsoft permission capabilities. Sign-in configuration and the
 selected SharePoint site stay outside that count because their evidence and
 verification paths are separate. Consent return, verified consent, directory
 read, local role assignment and production readiness remain distinct states.
+
+The firm-administration workbench now uses the shared compact heading,
+responsive white overview cards and evidence-based setup progress list. The
+role-binding form has a two-column desktop layout without changing its exact
+identity fields or server checks. Wide user, grant, capability, permission
+and history registers scroll within their panels on desktop; mobile tables
+retain labeled rows. All existing administration tabs, role actions, Microsoft
+operations and immutable history remain available. The prototype's demo
+personas, reset action and simulated identity lifecycle were not copied.
 
 The administrator-only project task-progress route uses accessible
 four-state progress bars for reviewed task-card counts across Modules 20–26,
@@ -509,7 +521,7 @@ does not claim parity or whole-application acceptance.
 | Economics and billing | `/app/finance`, invoice details and practice time | Partial: firm finance, time and invoice detail passed; other routes remain. |
 | Accounting and group workbenches | `/app/accounting/*`, `/app/consolidation/*` | Partial: landing, evidence, queues, mapping/journal details and period views passed; group detail work remains. |
 | Audit, review, completion and records | `/app/audit/*`, `/app/assessments/*`, `/app/reviews/*`, `/app/findings/*`, `/app/completion/*`, `/app/releases/*`, `/app/records/*` | Partial: selected audit and detail routes, assessment, release and archive passed; other routes remain. |
-| Firm administration and Microsoft 365 | `/app/administration*`, `/setup/microsoft365` | Partial: task progress, protected setup and tenant-connection presentation passed; the broad administration route-family pass remains. |
+| Firm administration and Microsoft 365 | `/app/administration*`, `/setup/microsoft365` | Partial: overview and tab workbench, task progress, protected setup and tenant-connection presentation passed; dialogs and remaining state/contrast acceptance still require a full route-family audit. |
 | Client secure portal | `/portal*` | Client-safe shell and the three current portal views have a local visual pass; deeper state and keyboard coverage remains. |
 
 This map groups actual route prefixes, including parameterized detail routes;

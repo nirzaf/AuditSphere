@@ -8,15 +8,15 @@
 
 <MudTabs Elevation="0" Rounded="true">
   <MudTabPanel Text="Security & Consent">
-    <MudPaper Class="pa-4" Elevation="1" role="region" aria-labelledby="consent-heading">
+    <MudPaper Class="audit-workspace-panel audit-admin-panel pa-4" Elevation="0" role="region" aria-labelledby="consent-heading">
       <h3 id="consent-heading">Security &amp; consent</h3>
       <MudText Typo="Typo.body2" Class="field-help">Tenant: <code>@(Overview.TenantId ?? "not configured")</code>. Microsoft Entra authenticates identities and controls tenant authority; AuditSphere owns its application roles and scope.</MudText>
-      <div class="d-flex gap-2 my-2">
+      <div class="d-flex flex-wrap gap-2 my-2">
         <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/app/administration/microsoft365/tenant-connection">Tenant connection</MudButton>
         <MudButton Variant="Variant.Outlined" OnClick="VerifyAsync" Disabled="@_busy">@(_busy ? "Checking Microsoft…" : "Verify capabilities")</MudButton>
       </div>
       @if (!string.IsNullOrWhiteSpace(_message)) { <MudAlert Severity="Severity.Info" Dense="true" role="status">@_message</MudAlert> }
-      <MudTable Items="Overview.Capabilities" Dense="true" Elevation="0" Class="mt-2">
+      <MudTable Items="Overview.Capabilities" Dense="true" Elevation="0" HorizontalScrollbar="true" Class="audit-admin-wide-table mt-2">
         <HeaderContent><MudTh>Capability</MudTh><MudTh>Permission</MudTh><MudTh>Enabled</MudTh><MudTh>State</MudTh><MudTh>Last verification</MudTh><MudTh>Diagnostic</MudTh></HeaderContent>
         <RowTemplate>
           <MudTd DataLabel="Capability">@context.DisplayName</MudTd>
@@ -28,7 +28,7 @@
         </RowTemplate>
       </MudTable>
       <h4 class="mt-4">Permission matrix</h4>
-      <MudTable Items="Overview.PermissionMatrix" Dense="true" Elevation="0">
+      <MudTable Items="Overview.PermissionMatrix" Dense="true" Elevation="0" HorizontalScrollbar="true" Class="audit-admin-wide-table audit-admin-permission-table">
         <HeaderContent><MudTh>Capability</MudTh><MudTh>Graph endpoint</MudTh><MudTh>Permission</MudTh><MudTh>Type</MudTh><MudTh>Why required</MudTh><MudTh>Admin consent</MudTh><MudTh>Required Entra role</MudTh><MudTh>Configured?</MudTh><MudTh>Verified?</MudTh></HeaderContent>
         <RowTemplate>
           @{ var status = Overview.Capabilities.Single(x => x.Capability == context.Capability); }
@@ -49,9 +49,9 @@
     </MudPaper>
   </MudTabPanel>
   <MudTabPanel Text="SharePoint">
-    <MudPaper Class="pa-4" Elevation="1" role="region" aria-labelledby="sharepoint-heading">
+    <MudPaper Class="audit-workspace-panel audit-admin-panel pa-4" Elevation="0" role="region" aria-labelledby="sharepoint-heading">
       <h3 id="sharepoint-heading">SharePoint (selected site only)</h3>
-      <dl class="details">
+      <dl class="details audit-admin-details">
         <dt>Selected site</dt><dd>@(Overview.SharePoint.SiteUrl ?? "Not configured")</dd>
         <dt>Library</dt><dd><code>@(Overview.SharePoint.DriveId ?? "—")</code></dd>
         <dt>Root folder</dt><dd><code>@(Overview.SharePoint.RootFolderId ?? "—")</code></dd>
@@ -75,10 +75,10 @@
     </MudPaper>
   </MudTabPanel>
   <MudTabPanel Text="Mail">
-    <MudPaper Class="pa-4" Elevation="1" role="region" aria-labelledby="mail-heading">
+    <MudPaper Class="audit-workspace-panel audit-admin-panel pa-4" Elevation="0" role="region" aria-labelledby="mail-heading">
       <h3 id="mail-heading">Outbound mail</h3>
       <MudText Typo="Typo.body2" Class="field-help">AuditSphere sends notifications only. Mailbox reading, inbox synchronization and tenant mail administration are not available.</MudText>
-      <dl class="details">
+      <dl class="details audit-admin-details">
         <dt>Sender identity</dt><dd>@Overview.Mail.SenderIdentity</dd>
         <dt>Transport state</dt><dd><StatusChip Status="@Overview.Mail.TransportState" /></dd>
         <dt>Permission state</dt><dd><StatusChip Status="@Overview.Mail.PermissionState" /></dd>

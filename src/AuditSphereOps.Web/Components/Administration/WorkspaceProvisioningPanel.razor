@@ -3,7 +3,7 @@
 @inject IDbContextFactory<AuditSphereDbContext> DbFactory
 @inject ISelectedSiteWorkspaceProvisioner Provisioner
 
-<MudPaper Class="pa-4 mt-3" Elevation="1" role="region" aria-labelledby="workspace-provisioning-heading">
+<MudPaper Class="audit-workspace-panel audit-admin-panel pa-4 mt-3" Elevation="0" role="region" aria-labelledby="workspace-provisioning-heading">
   <h3 id="workspace-provisioning-heading">Client workspaces and PBC repositories</h3>
   <MudText Typo="Typo.body2" Class="field-help">Folders are created only inside the approved selected site. An engagement repository accepts PBC uploads only after a disposable upload and exact read-back succeed.</MudText>
   @if (!Provisioner.IsConfigured)
@@ -14,6 +14,7 @@
   else if (_rows.Count == 0) { <MudText Class="mt-2">No accepted clients have a workspace intent yet. Accepting a client creates one.</MudText> }
   else
   {
+    <div class="audit-admin-table-scroll">
     <MudSimpleTable Dense="true" Class="mt-2">
       <thead><tr><th>Client</th><th>Workspace</th><th>Engagement PBC repositories</th></tr></thead>
       <tbody>
@@ -46,6 +47,7 @@
         }
       </tbody>
     </MudSimpleTable>
+    </div>
   }
   @if (!string.IsNullOrWhiteSpace(_message)) { <MudAlert Severity="@(_ok ? Severity.Success : Severity.Warning)" Dense="true" Class="mt-2" role="status">@_message</MudAlert> }
 </MudPaper>

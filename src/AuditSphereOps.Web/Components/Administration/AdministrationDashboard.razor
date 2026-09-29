@@ -1,35 +1,33 @@
 @* Administration overview: status cards and setup progress derived from persisted verified state (§14). *@
 @using AuditSphereOps.Application.Microsoft365
 
-<section aria-labelledby="admin-overview-heading" class="my-4">
+<section aria-labelledby="admin-overview-heading" class="audit-admin-overview my-4">
   <h2 id="admin-overview-heading">Administration overview</h2>
-  <MudGrid Spacing="2">
+  <div class="audit-admin-metrics">
     @foreach (var card in Overview.Cards)
     {
-      <MudItem xs="12" sm="6" md="4" lg="3">
-        <MudPaper Class="pa-3" Elevation="1" role="group" aria-label="@card.Title">
-          <div class="d-flex justify-space-between align-center">
-            <MudText Typo="Typo.subtitle2">@card.Title</MudText>
-            <StatusChip Status="@card.State" />
-          </div>
-          <MudText Typo="Typo.h6" Style="word-break: break-all">@card.Value</MudText>
-          <MudText Typo="Typo.caption">@card.Detail</MudText>
-        </MudPaper>
-      </MudItem>
+      <MudPaper Class="audit-workspace-panel audit-admin-metric pa-3" Elevation="0" role="group" aria-label="@card.Title">
+        <div class="audit-admin-metric-heading">
+          <MudText Typo="Typo.subtitle2">@card.Title</MudText>
+          <StatusChip Status="@card.State" />
+        </div>
+        <MudText Typo="Typo.h6" Class="audit-admin-metric-value">@card.Value</MudText>
+        <MudText Typo="Typo.caption">@card.Detail</MudText>
+      </MudPaper>
     }
-  </MudGrid>
+  </div>
 
-  <MudPaper Class="pa-4 my-4" Elevation="1" role="region" aria-labelledby="setup-progress-heading">
-    <h3 id="setup-progress-heading">Setup progress</h3>
+  <MudPaper Class="audit-workspace-panel audit-admin-setup pa-4 my-4" Elevation="0" role="region" aria-labelledby="setup-progress-heading">
     @{ var done = Overview.Progress.Count(x => x.State == ProgressStates.Done); }
+    <div class="audit-admin-setup-heading"><h3 id="setup-progress-heading">Setup progress</h3><strong>@done / @Overview.Progress.Count</strong></div>
     <MudProgressLinear Color="Color.Primary" Value="@(done * 100.0 / Math.Max(1, Overview.Progress.Count))" Class="my-2" aria-label="Setup progress" />
     <MudText Typo="Typo.caption">@done of @Overview.Progress.Count steps verified. Progress is derived from recorded verification, never assumed.</MudText>
-    <ul class="setup-progress" style="list-style: none; padding-left: 0">
+    <ul class="setup-progress audit-admin-step-list">
       @foreach (var step in Overview.Progress)
       {
         <li class="my-2" data-step="@step.Key">
-          <span aria-hidden="true">@(step.State switch { ProgressStates.Done => "✓", ProgressStates.Partial => "●", ProgressStates.Blocked => "✕", _ => "○" })</span>
-          <strong>@step.Title</strong> <StatusChip Status="@step.State" />
+          <div class="audit-admin-step-heading"><span aria-hidden="true">@(step.State switch { ProgressStates.Done => "✓", ProgressStates.Partial => "●", ProgressStates.Blocked => "✕", _ => "○" })</span>
+            <strong>@step.Title</strong> <StatusChip Status="@step.State" /></div>
           <div class="field-help">@step.Detail @(step.LastVerification is { } at ? $"Last verification {at:yyyy-MM-dd HH:mm} UTC." : "")</div>
           @if (step.WhyBlocked is not null || step.RequiredAction is not null)
           {

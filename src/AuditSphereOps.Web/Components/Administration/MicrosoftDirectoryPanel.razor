@@ -6,7 +6,7 @@
 @inject IMicrosoftDirectoryReader DirectoryReader
 @inject TenantAdministrationSettings Settings
 
-<MudPaper Class="pa-4 my-3" Elevation="1" role="region" aria-labelledby="directory-panel-heading">
+<MudPaper Class="audit-workspace-panel audit-admin-panel pa-4 my-3" Elevation="0" role="region" aria-labelledby="directory-panel-heading">
   <h3 id="directory-panel-heading">@(GuestsOnly ? "Existing guest" : "Microsoft directory")</h3>
   <MudText Typo="Typo.body2" Class="field-help">Searches at most 25 users per page in the configured tenant. Identity is bound by immutable tenant and object ID, never by email, UPN or name.</MudText>
   @if (!Settings.Options.DirectoryReadEnabled)
@@ -15,13 +15,13 @@
   }
   else
   {
-    <div class="d-flex gap-2 align-end">
+    <div class="d-flex flex-wrap gap-2 align-end audit-admin-search-row">
       <MudTextField T="string" Label="Display name or user principal name prefix" @bind-Value="_prefix" MaxLength="80" id="@(GuestsOnly ? "guest-search" : "directory-search")" />
       <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="() => SearchAsync(null)" Disabled="@_busy">@(_busy ? "Searching…" : "Search")</MudButton>
     </div>
     @if (!GuestsOnly)
     {
-      <div class="d-flex gap-2 align-end mt-2">
+      <div class="d-flex flex-wrap gap-2 align-end mt-2 audit-admin-search-row">
         <MudTextField T="string" Label="Browse active users — domain filter (optional)" @bind-Value="_domain" MaxLength="253" Placeholder="example.com" id="directory-domain" />
         <MudButton Variant="Variant.Outlined" OnClick="() => BrowseAsync(null)" Disabled="@_busy">Browse active users</MudButton>
       </div>

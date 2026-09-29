@@ -122,6 +122,49 @@ body { background: var(--audit-page); }
 .audit-tenant-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; }
 .audit-tenant-actions .mud-button-root { margin-right: 0 !important; }
 .audit-tenant-search-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; max-width: 58rem; }
+.audit-admin-actions { align-items: center; margin-bottom: 8px; }
+.audit-admin-overview, .audit-admin-tabs, .audit-admin-tabs .mud-tabs-panels, .audit-admin-panel { min-width: 0; max-width: 100%; }
+.audit-admin-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.audit-admin-metric { min-width: 0; min-height: 116px; }
+.audit-admin-metric-heading { display: flex; align-items: start; justify-content: space-between; flex-wrap: wrap; gap: 4px 8px; }
+.audit-admin-metric-heading .mud-typography { font-weight: 650; }
+.audit-admin-metric-value { display: block; overflow-wrap: anywhere; word-break: break-word; font-variant-numeric: tabular-nums; margin: 8px 0 3px; }
+.audit-admin-metric .mud-typography-caption { color: var(--audit-muted); overflow-wrap: anywhere; }
+.audit-admin-setup-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.audit-admin-setup-heading h3 { margin: 0; }
+.audit-admin-setup-heading strong { color: var(--audit-navy); font-variant-numeric: tabular-nums; }
+.audit-admin-step-list { list-style: none; padding: 0; margin: 12px 0 0; }
+.audit-admin-step-list li { padding: 9px 0; border-top: 1px solid var(--audit-line); margin: 0 !important; }
+.audit-admin-step-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 7px; }
+.audit-admin-step-heading > span:first-child { color: #0b6b65; font-weight: 700; }
+.audit-admin-step-list .field-help { margin: 3px 0 0 21px; overflow-wrap: anywhere; }
+.audit-admin-tabs { background: #fff; border: 1px solid var(--audit-line); border-radius: 10px; box-shadow: 0 2px 8px #0f172a08; }
+.audit-admin-subtabs { border: 0; border-radius: 0; box-shadow: none; }
+.audit-admin-panel code, .audit-admin-panel .mud-table-cell { overflow-wrap: anywhere; word-break: break-word; }
+.audit-admin-table-scroll { width: 100%; max-width: 100%; overflow-x: auto; }
+@media (min-width: 960px) {
+  .audit-admin-wide-table .mud-table-container { overflow-x: auto; }
+  .audit-admin-wide-table .mud-table-root { min-width: 84rem; }
+  .audit-admin-permission-table .mud-table-root { min-width: 110rem; }
+  .audit-admin-users-table .mud-table-root { min-width: 94rem; }
+  .audit-admin-users-table th:nth-child(1), .audit-admin-users-table td:nth-child(1) { min-width: 7rem; }
+  .audit-admin-users-table th:nth-child(2), .audit-admin-users-table td:nth-child(2) { min-width: 15rem; }
+  .audit-admin-users-table th:nth-child(3), .audit-admin-users-table td:nth-child(3) { min-width: 7rem; }
+  .audit-admin-users-table th:nth-child(6), .audit-admin-users-table td:nth-child(6) { min-width: 11rem; }
+}
+.audit-admin-roster-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 16px; max-width: 62rem; }
+.audit-admin-search-row .mud-input-control { flex: 1 1 18rem; min-width: 0; }
+.audit-admin-roster-grid .form-group { min-width: 0; margin: 0; }
+.audit-admin-details { grid-template-columns: minmax(170px,max-content) minmax(0,1fr); }
+@media (max-width: 1100px) { .audit-admin-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 780px) { .audit-admin-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 600px) {
+  .audit-admin-roster-grid, .audit-admin-details { grid-template-columns: minmax(0, 1fr); }
+  .audit-admin-details { gap: 3px; }
+  .audit-admin-details dd { margin-bottom: 10px; }
+  .audit-admin-metric { min-height: 0; }
+}
+@media (max-width: 360px) { .audit-admin-metrics { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 700px) {
   .audit-tenant-details { grid-template-columns: minmax(0, 1fr); gap: 3px; }
   .audit-tenant-details dd { margin-bottom: 10px; }
@@ -290,6 +333,7 @@ body { background: var(--audit-page); }
 .audit-task-status-pending{background:#b8c4d3}
 .audit-task-status-blocked{background:#b74736}
 .audit-progress-legend{display:flex;flex-wrap:wrap;gap:.4rem 1rem;margin:.5rem 0;color:#475569;font-size:.82rem}
+.audit-progress-filters{display:flex;flex-wrap:wrap;gap:.5rem;margin:.75rem 0}
 .audit-progress-legend span{display:inline-flex;align-items:center;gap:.4rem}
 .audit-progress-legend span::before{content:"";display:inline-block;width:.75rem;height:.75rem;border-radius:2px;background:var(--legend-color)}
 .audit-task-key-completed{--legend-color:#0b6b65}

@@ -6,7 +6,7 @@
 @inject IMicrosoftGuestInvitationProvider Invitations
 @inject TenantAdministrationSettings Settings
 
-<MudPaper Class="pa-4 my-3" Elevation="1" role="region" aria-labelledby="guest-heading">
+<MudPaper Class="audit-workspace-panel audit-admin-panel pa-4 my-3" Elevation="0" role="region" aria-labelledby="guest-heading">
   <h3 id="guest-heading">Guest and client users</h3>
   <MudRadioGroup T="string" @bind-Value="_mode">
     <MudRadio T="string" Value="@("EXISTING")">Existing guest</MudRadio>

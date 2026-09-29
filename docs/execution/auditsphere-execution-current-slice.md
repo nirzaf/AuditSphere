@@ -33,6 +33,30 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ---
 
+## UI modernization — firm administration workbench
+
+The authorized `/app/administration` route now groups its existing dashboard
+cards in a compact responsive grid and presents the persisted setup steps with
+clear state, evidence and required-action rows. The page header no longer
+repeats the same scope note. The local exact-identity roster fields use a
+two-column desktop layout and stack on mobile without changing binding,
+grant or invitation commands. Wide user, grant, capability, permission and
+history tables scroll inside their panels at desktop widths; their mobile
+rows retain labels. Nested administration panels use the shared white surface
+style. No Microsoft or local access operation was added or weakened.
+The linked project-progress view now filters the published task-card lists by
+completed, active or in review, pending or reopened, and blocked state while
+its source-backed segmented bars and denominators remain unchanged. Areas
+without a published task mapping stay explicitly unmeasured.
+
+Synthetic mobile/desktop before and after captures were inspected. The
+PostgreSQL-backed administrator journey checks six viewport widths, keyboard
+focus, contained desktop table scrolling and the visible tab families at
+mobile width while preserving the consent and directory flow. Exact final
+verification and remaining dialog/state coverage are in `status.json`.
+
+---
+
 ## UI modernization — Microsoft 365 tenant connection
 
 The administrator tenant-connection page now uses scoped white panels and a
@@ -177,6 +201,9 @@ counts and accessible progress description come from the same published task
 cards; the overall total still counts shared cards once. Areas without a
 published module mapping remain explicitly unmeasured. This is a read-only
 display change and does not advance task status or acceptance gates.
+The task-card lists now have status filters so administrators can find
+completed, active, pending, or blocked cards across modules. The overall and
+module bars retain their full published denominators while a filter is active.
 
 ---
 

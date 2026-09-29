@@ -6,7 +6,7 @@
 @inject IMicrosoftDirectoryUserProvisioner Provisioner
 @inject TenantAdministrationSettings Settings
 
-<MudPaper Class="pa-4 my-3" Elevation="1" role="region" aria-labelledby="create-user-heading">
+<MudPaper Class="audit-workspace-panel audit-admin-panel pa-4 my-3" Elevation="0" role="region" aria-labelledby="create-user-heading">
   <h3 id="create-user-heading">Create Microsoft 365 user</h3>
   @if (!Available)
   {
@@ -62,7 +62,7 @@
         break;
       case 4:
         <MudText Typo="Typo.subtitle1">Review</MudText>
-        <dl class="details">
+        <dl class="details audit-admin-details">
           <dt>Display name</dt><dd>@_displayName</dd>
           <dt>User principal name</dt><dd>@_upn</dd>
           <dt>Mail nickname</dt><dd>@_nickname</dd>

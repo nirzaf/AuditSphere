@@ -5,7 +5,7 @@
 @inject IMicrosoftGroupMembershipProvider GroupProvider
 @inject TenantAdministrationSettings Settings
 
-<MudPaper Class="pa-4 my-3" Elevation="1" role="region" aria-labelledby="groups-heading">
+<MudPaper Class="audit-workspace-panel audit-admin-panel pa-4 my-3" Elevation="0" role="region" aria-labelledby="groups-heading">
   <h3 id="groups-heading">Microsoft groups</h3>
   <MudAlert Severity="Severity.Info" Dense="true" Class="mb-2">Membership in these groups does not grant AuditSphere access. Role-assignable and dynamic groups are refused.</MudAlert>
   @if (!Available)
