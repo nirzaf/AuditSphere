@@ -552,12 +552,116 @@ does not claim parity or whole-application acceptance.
 | Prototype visual family | Real route family | Visual pass |
 | --- | --- | --- |
 | Practice overview and dashboard | `/app`, `/app/overview` | Portfolio pilot complete; route-specific polish remains. |
-| Practice, client and engagement work | `/app/practice/*`, `/app/clients/*`, `/app/engagements/*` | Partial: leads, time, client and engagement details passed; other routes remain. |
-| Economics and billing | `/app/finance`, invoice details and practice time | Partial: firm finance, time and invoice detail passed; other routes remain. |
-| Accounting and group workbenches | `/app/accounting/*`, `/app/consolidation/*` | Partial: accounting landing, evidence, queues, mapping/journal details and period views plus both group consolidation routes passed; other accounting routes remain. |
+| Practice, client and engagement work | `/app/practice/*`, `/app/clients/*`, `/app/engagements/*` | Visual pass on leads, time, client detail, engagement detail and proposal detail (breadcrumb, record toolbar, source-backed counts, shared panels). |
+| Economics and billing | `/app/finance`, invoice details and practice time | Visual pass on firm finance, time and invoice detail (numeric table alignment moved from inline styles to shared classes). |
+| Accounting and group workbenches | `/app/accounting/*`, `/app/consolidation/*` | Visual pass on every current accounting and group route, including package detail and currency remeasurement; remeasurement native selects no longer widen the page. |
 | Audit, review, completion and records | `/app/audit/*`, `/app/assessments/*`, `/app/reviews/*`, `/app/findings/*`, `/app/completion/*`, `/app/releases/*`, `/app/records/*` | Partial: selected audit and detail routes, assessment, release and archive passed; other routes remain. |
 | Firm administration and Microsoft 365 | `/app/administration*`, `/setup/microsoft365` | Partial: overview and tab workbench, task progress, protected setup and tenant-connection presentation passed; dialogs and remaining state/contrast acceptance still require a full route-family audit. |
 | Client secure portal | `/portal*` | Client-safe shell and the three current portal views have a local visual pass; deeper state and keyboard coverage remains. |
+
+Staff navigation follows the reference grouping (Practice & CRM, Economics & billing, Accounting workbench,
+Audit & assurance, Administration) with only real destinations; the audit program library and currency
+remeasurement gained entries. Root links (`/app`, `/app/accounting`, `/app/administration`) match exactly, so a
+descendant never shows two active entries, and detail routes mark their owning section with a quieter
+`audit-nav-section-current` cue (invoices → Finance, proposals → Leads, client/engagement/assessment → Portfolio,
+audit detail routes → Audit & assurance, package detail → Package reviews). This is presentation only and never an
+authorization grant. `ResponsiveShellSweepTests` (AS-UI-RESPONSIVE-SWEEP-01) checks every parameterless staff route
+and ten seeded detail routes at 320/390/760/1024/1440/1920px for page-level overflow, a single exact-active entry
+and the owning section.
+
+| Story | Disposition in this checkout |
+| --- | --- |
+| UX-001 route inventory | Route families above; `RouteRenderSmokeTests` and the responsive sweep enumerate the parameterless routes. |
+| UX-002/003 palette, shell | Implemented; grouped navigation, exact root matching and detail-route sections added. |
+| UX-004/005 context, headers | Breadcrumb + `PageHeader` eyebrow on every staff detail route; scope clearing is covered by the AS-PAR-002 route-change suites. |
+| UX-006–UX-028 page families | Visual pass on every current staff route family and the three portal views; see rows above. |
+| UX-029 global search and tours | `BACKEND_GAP`: no scoped cross-record search service exists; not added as a decorative control. |
+| UX-030 widths | Automated 320–1920px reflow sweep; 200%/400% zoom and manual keyboard walkthrough remain manual review items. |
+| UX-031 acceptance | Local evidence only; independent visual review and before/after reference captures remain open. |
+
+### 9.1 Route inventory (generated from `@page` declarations)
+
+51 route declarations exist in this checkout. `READY_FOR_REVIEW` means a local visual pass with preserved
+functional tests; no route is `ACCEPTED` until independent visual review. Evidence names the E2E test class that
+exercises the route's behavior; it is not a visual-parity claim.
+
+| Route | Component | Audience | Classification | UX status | Evidence (E2E class) | Responsive sweep |
+| --- | --- | --- | --- | --- | --- | --- |
+| `/app/accounting/differences` | `AccountingRecords` | Staff (scoped) | PRESENTATION_ONLY + WIRE_EXISTING | READY_FOR_REVIEW | RouteRenderSmoke width matrix; FinancialArtifact tabs | Yes |
+| `/app/accounting/evidence` | `AccountingEvidence` | Staff (scoped) | PRESENTATION_ONLY + WIRE_EXISTING | READY_FOR_REVIEW | FinancialArtifact; ClientScope queue | Yes |
+| `/app/accounting/journals/{JournalId:guid}` | `Journals` | Staff (scoped) | PRESENTATION_ONLY + WIRE_EXISTING | READY_FOR_REVIEW | FinancialArtifact journal route | Yes |
+| `/app/accounting/journals` | `AccountingRecords` | Staff (scoped) | PRESENTATION_ONLY + WIRE_EXISTING | READY_FOR_REVIEW | RouteRenderSmoke width matrix; FinancialArtifact tabs | Yes |
+| `/app/accounting/mappings/{MappingId:guid}` | `Mapping` | Staff (scoped) | PRESENTATION_ONLY + WIRE_EXISTING | READY_FOR_REVIEW | ClientScope mapping route | Yes |
+| `/app/accounting/mappings` | `AccountingRecords` | Staff (scoped) | PRESENTATION_ONLY + WIRE_EXISTING | READY_FOR_REVIEW | RouteRenderSmoke width matrix; FinancialArtifact tabs | Yes |
+| `/app/accounting/packages/{PackageId:guid}` | `FinancialPackage` | Staff (scoped) | PRESENTATION_ONLY + WIRE_EXISTING | READY_FOR_REVIEW | FinancialArtifact package; SiblingClientIsolation | Yes |
+| `/app/accounting/periods/{PeriodId:guid}` | `AccountingPeriod` | Staff (scoped) | PRESENTATION_ONLY + WIRE_EXISTING | READY_FOR_REVIEW | PeriodWorkbenchScope | Yes |
+| `/app/accounting/remeasurement` | `CurrencyRemeasurement` | Staff (scoped) | PRESENTATION_ONLY + WIRE_EXISTING | READY_FOR_REVIEW | FinancialArtifact draft restore | Yes |
+| `/app/accounting/restatements` | `PeriodRestatements` | Staff (scoped) | PRESENTATION_ONLY + WIRE_EXISTING | READY_FOR_REVIEW | RouteRenderSmoke | Yes |
+| `/app/accounting/reviews` | `FinancialPackageReviews` | Staff (scoped) | PRESENTATION_ONLY + WIRE_EXISTING | READY_FOR_REVIEW | RouteRenderSmoke width matrix | Yes |
+| `/app/accounting/rollforward` | `PeriodRollforward` | Staff (scoped) | PRESENTATION_ONLY + WIRE_EXISTING | READY_FOR_REVIEW | ClientScope roll-forward | Yes |
+| `/app/accounting` | `AccountingWorkspace` | Staff (scoped) | PRESENTATION_ONLY + WIRE_EXISTING | READY_FOR_REVIEW | ClientScope workspace | Yes |
+| `/app/administration/microsoft365/tenant-connection` | `TenantConnection` | Staff (scoped) | PRESENTATION_ONLY + WIRE_EXISTING | READY_FOR_REVIEW | TenantAdministrationJourney | Yes |
+| `/app/administration/microsoft365` (alias) | `Microsoft365Setup` | Staff (scoped) | PRESENTATION_ONLY + WIRE_EXISTING | READY_FOR_REVIEW | M365SetupJourney | Page-specific or not yet |
+| `/app/administration/project-progress` | `ProjectProgress` | Staff (scoped) | PRESENTATION_ONLY + WIRE_EXISTING | READY_FOR_REVIEW | RouteRenderSmoke | Yes |
+| `/app/administration` | `Administration` | Staff (scoped) | PRESENTATION_ONLY + WIRE_EXISTING | READY_FOR_REVIEW | TenantAdministrationJourney; ClientScope admin | Yes |
+| `/app/assessments/{Id:guid}/decision` | `AssessmentDecision` | Staff (scoped) | PRESENTATION_ONLY + WIRE_EXISTING | READY_FOR_REVIEW | SiblingClientIsolation assessment; ClientScope decision | Page-specific or not yet |
+| `/app/assessments/{Id:guid}` | `AssessmentDetail` | Staff (scoped) | PRESENTATION_ONLY + WIRE_EXISTING | READY_FOR_REVIEW | SiblingClientIsolation assessment; ClientScope assess | Page-specific or not yet |
+| `/app/audit/library` | `AuditProgramLibraryPage` | Staff (scoped) | PRESENTATION_ONLY + WIRE_EXISTING | READY_FOR_REVIEW | AuditProgramLibraryScope | Yes |
+| `/app/audit/plans/{Id:guid}` | `AuditPlan` | Staff (scoped) | PRESENTATION_ONLY + WIRE_EXISTING | READY_FOR_REVIEW | AuditAndRelease plan | Page-specific or not yet |
+| `/app/audit/populations/{Id:guid}` | `AuditPopulation` | Staff (scoped) | PRESENTATION_ONLY + WIRE_EXISTING | READY_FOR_REVIEW | AuditAndRelease population | Page-specific or not yet |
+| `/app/audit/workpapers/{Id:guid}` | `Workpaper` | Staff (scoped) | PRESENTATION_ONLY + WIRE_EXISTING | READY_FOR_REVIEW | AuditAndRelease workpaper | Page-specific or not yet |
+| `/app/clients/{ClientId:guid}/assessment` | `AssessmentDetail` | Staff (scoped) | PRESENTATION_ONLY + WIRE_EXISTING | READY_FOR_REVIEW | SiblingClientIsolation assessment; ClientScope assess | Page-specific or not yet |
+| `/app/clients/{ClientId:guid}` | `ClientDetail` | Staff (scoped) | PRESENTATION_ONLY + WIRE_EXISTING | READY_FOR_REVIEW | ClientScope client profile | Yes |
+| `/app/completion/{Id:guid}` | `Completion` | Staff (scoped) | PRESENTATION_ONLY + WIRE_EXISTING | READY_FOR_REVIEW | AuditAndRelease completion | Page-specific or not yet |
+| `/app/consolidation/advanced/{ScopeId:guid}` | `AdvancedConsolidationWorkflow` | Staff (scoped) | PRESENTATION_ONLY + WIRE_EXISTING | READY_FOR_REVIEW | ClientScope advanced (widths, draft, focus) | Page-specific or not yet |
+| `/app/consolidation` | `Consolidation` | Staff (scoped) | PRESENTATION_ONLY + WIRE_EXISTING | READY_FOR_REVIEW | SiblingClientIsolation group; ClientScope advanced | Yes |
+| `/app/engagements/{EngagementId:guid}/audit-fieldwork` | `AuditFieldwork` | Staff (scoped) | PRESENTATION_ONLY + WIRE_EXISTING | READY_FOR_REVIEW | AuditAndRelease fieldwork | Yes |
+| `/app/engagements/{EngagementId:guid}/audit-plan` | `AuditPlan` | Staff (scoped) | PRESENTATION_ONLY + WIRE_EXISTING | READY_FOR_REVIEW | AuditAndRelease plan | Yes |
+| `/app/engagements/{EngagementId:guid}/completion` | `Completion` | Staff (scoped) | PRESENTATION_ONLY + WIRE_EXISTING | READY_FOR_REVIEW | AuditAndRelease completion | Yes |
+| `/app/engagements/{EngagementId:guid}/pbc` | `PbcRequests` | Staff (scoped) | PRESENTATION_ONLY + WIRE_EXISTING | READY_FOR_REVIEW | PbcUploadJourney; ClientScope PBC | Yes |
+| `/app/engagements/{EngagementId:guid}` | `EngagementDetail` | Staff (scoped) | PRESENTATION_ONLY + WIRE_EXISTING | READY_FOR_REVIEW | ClientScope engagement | Yes |
+| `/app/finance` | `Finance` | Staff (scoped) | PRESENTATION_ONLY + WIRE_EXISTING | READY_FOR_REVIEW | PracticeBillingLedger; ClientScope firm read | Yes |
+| `/app/findings/{Id:guid}` | `Finding` | Staff (scoped) | PRESENTATION_ONLY + WIRE_EXISTING | READY_FOR_REVIEW | AuditAndRelease finding | Page-specific or not yet |
+| `/app/operations` | `Operations` | Staff (scoped) | PRESENTATION_ONLY + WIRE_EXISTING | READY_FOR_REVIEW | ClientScope operations revoke | Yes |
+| `/app/overview` (alias) | `Portfolio` | Staff (scoped) | PRESENTATION_ONLY + WIRE_EXISTING | READY_FOR_REVIEW | RouteRenderSmoke; ClientScope portfolio export | Page-specific or not yet |
+| `/app/practice/invoices/{InvoiceId:guid}` | `InvoiceDetail` | Staff (scoped) | PRESENTATION_ONLY + WIRE_EXISTING | READY_FOR_REVIEW | PracticeBillingLedger | Page-specific or not yet |
+| `/app/practice/leads` | `Leads` | Staff (scoped) | PRESENTATION_ONLY + WIRE_EXISTING | READY_FOR_REVIEW | PracticeBillingLedger | Yes |
+| `/app/practice/proposals/{Id:guid}` | `ProposalDetail` | Staff (scoped) | PRESENTATION_ONLY + WIRE_EXISTING | READY_FOR_REVIEW | PracticeBillingLedger | Page-specific or not yet |
+| `/app/practice/time` | `PracticeTime` | Staff (scoped) | PRESENTATION_ONLY + WIRE_EXISTING | READY_FOR_REVIEW | ClientScope time scope | Yes |
+| `/app/records/archives/{Id:guid}` | `RecordsArchive` | Staff (scoped) | PRESENTATION_ONLY + WIRE_EXISTING | READY_FOR_REVIEW | ClientScope archive route | Page-specific or not yet |
+| `/app/releases/{CandidateId:guid}` | `Release` | Staff (scoped) | PRESENTATION_ONLY + WIRE_EXISTING | READY_FOR_REVIEW | AuditAndRelease release | Page-specific or not yet |
+| `/app/reviews/{Id:guid}` | `ReviewPoint` | Staff (scoped) | PRESENTATION_ONLY + WIRE_EXISTING | READY_FOR_REVIEW | ClientScope review point | Page-specific or not yet |
+| `/app` | `Portfolio` | Staff (scoped) | PRESENTATION_ONLY + WIRE_EXISTING | READY_FOR_REVIEW | RouteRenderSmoke; ClientScope portfolio export | Yes |
+| `/auth/access-not-assigned` | `AccessNotAssigned` | Public/auth (public layout) | PRESENTATION_ONLY | READY_FOR_REVIEW | RouteRenderSmoke | Page-specific or not yet |
+| `/portal/accounting/packages/{PackageId:guid}` | `ClientFinancialPackage` | Client (portal layout) | PRESENTATION_ONLY | READY_FOR_REVIEW | FinancialArtifact client package | Page-specific or not yet |
+| `/portal/requests/{RequestId:guid}` | `ClientPbcRequest` | Client (portal layout) | PRESENTATION_ONLY | READY_FOR_REVIEW | PbcUploadJourney; ClientScope client PBC | Page-specific or not yet |
+| `/portal` | `ClientPortal` | Client (portal layout) | PRESENTATION_ONLY | READY_FOR_REVIEW | RouteRenderSmoke portal widths; SiblingClientIsolation portal | Page-specific or not yet |
+| `/setup/microsoft365` | `Microsoft365Setup` | Public/auth (public layout) | PRESENTATION_ONLY | READY_FOR_REVIEW | M365SetupJourney | Page-specific or not yet |
+| `/` | `Home` | Public/auth (public layout) | PRESENTATION_ONLY | READY_FOR_REVIEW | RouteRenderSmoke | Page-specific or not yet |
+
+### 9.2 Story checklist
+
+| Story | Status | Notes |
+| --- | --- | --- |
+| UX-001 Baseline inventory | READY_FOR_REVIEW | Generated route inventory above; reference captures of the prototype remain manual. |
+| UX-002 Tokens/typography | READY_FOR_REVIEW | Theme + `enterprise-ui.css`; the remote Roboto font link was removed (system fonts only). |
+| UX-003 Staff shell | READY_FOR_REVIEW | Grouped navigation, exact root matching, owning-section cue; responsive sweep. |
+| UX-004 Context/navigation | READY_FOR_REVIEW | Breadcrumbs on detail routes; same-document clearing covered by AS-PAR-002 suites. |
+| UX-005 Page headers/actions | READY_FOR_REVIEW | `PageHeader` eyebrow/description on every staff route. |
+| UX-006–UX-011 Registers, detail, lifecycle, rework, forms | READY_FOR_REVIEW | Shared panels/registers; native draft contracts preserved. |
+| UX-012 Dialogs/confirmations | READY_FOR_REVIEW | `ConfirmDialog` closes once per confirm (no double submit) and now shows an adjacent message when a required reason is missing; the revoke-access journey asserts nothing is revoked in that case. Focus trap/restore relies on MudBlazor and still needs a manual keyboard review. |
+| UX-013 Feedback/reconnect | READY_FOR_REVIEW | `App.razor` hosts a custom `components-reconnect-modal` panel (styled in `enterprise-ui.css`, retry/reload in `reconnect-state.js`) stating that an action started before the drop is unconfirmed until its result shows; AS-UI-RECONNECT-STATE-01 drops the live circuit socket and asserts the panel appears and clears. |
+| UX-014–UX-028 Page families | READY_FOR_REVIEW | Every route above has a visual pass. |
+| UX-029 Bounded search/help | BLOCKED | `BACKEND_GAP`: no scoped cross-record search service; not added as a decorative control. |
+| UX-030 Responsive/accessibility | IN_PROGRESS | Automated 320–1920px sweep passes; 200%/400% zoom, contrast audit and manual keyboard walkthrough remain. |
+| UX-031 Visual/functional acceptance | IN_PROGRESS | Local evidence only; reference captures and independent review remain. |
+
+### 9.3 Intentional differences
+
+No persona switcher, simulated superuser, scenario loader, fake notifications, browser-local business store,
+seeded charts, portal payments/signing/proposal acceptance, or global search control. Target-native routes and
+raw-value native controls (draft and upload contracts) are retained. Provider status stays truthful
+(`EXTERNAL_BLOCKED` where unverified). Narrow layouts stack content and scroll wide tables locally.
 
 This map groups actual route prefixes, including parameterized detail routes;
 it does not create links to prototype-only modules or treat prototype widgets

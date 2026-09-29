@@ -14,7 +14,7 @@
     <a href="/app/practice/leads">Leads &amp; Opportunities</a> /
     <span>Proposal</span>
   </nav>
-  <h1>Proposal</h1>
+  <PageHeader Title="Proposal" Eyebrow="Practice commercial" Description="Persisted proposal revision, terms, review and client response recorded for the opportunity." />
 </div>
 
 @if (_loading)
@@ -44,9 +44,18 @@ else if (_proposal is null || _opportunity is null)
 }
 else
 {
+  <div class="audit-record-toolbar" aria-label="Proposal navigation">
+    <StatusChip Status="@_proposal.Status" />
+    <MudLink Href="/app/practice/leads">Leads &amp; opportunities</MudLink>
+  </div>
+  <MudGrid Spacing="2" Class="audit-accounting-metrics my-3" aria-label="Proposal summary">
+    <MudItem xs="6" sm="4"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Revision</MudText><MudText Typo="Typo.h4">@_proposal.Revision</MudText></MudPaper></MudItem>
+    <MudItem xs="6" sm="4"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Proposed fee (@_proposal.Currency)</MudText><MudText Typo="Typo.h4">@_proposal.Fee.ToString("N2")</MudText></MudPaper></MudItem>
+    <MudItem xs="12" sm="4"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Recorded versions</MudText><MudText Typo="Typo.h4">@_versions.Count</MudText></MudPaper></MudItem>
+  </MudGrid>
   <MudButton Variant="Variant.Outlined" Class="btn-secondary mb-2" OnClick="RefreshProposalAsync">Refresh proposal</MudButton>
 
-  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="proposal-details-heading" role="region">
+  <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" aria-labelledby="proposal-details-heading" role="region">
     <p class="eyebrow">Status: @_proposal.Status · Revision @_proposal.Revision</p>
     <h2 id="proposal-details-heading">@_clientName</h2>
     <dl class="detail-grid">
@@ -75,7 +84,7 @@ else
     </dl>
   </MudPaper>
 
-  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="terms-heading" role="region">
+  <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" aria-labelledby="terms-heading" role="region">
     <h2 id="terms-heading">Proposal terms</h2>
     <dl class="detail-grid">
       <dt>Scope</dt><dd>@_proposal.Scope</dd>
@@ -85,7 +94,7 @@ else
     </dl>
   </MudPaper>
 
-  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="versions-heading" role="region">
+  <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" aria-labelledby="versions-heading" role="region">
     <h2 id="versions-heading">Proposal versions</h2>
     <MudTable Items="_versions" Dense="true" Hover="true" Elevation="0">
       <HeaderContent>

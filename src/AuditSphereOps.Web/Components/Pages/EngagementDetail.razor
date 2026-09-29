@@ -7,8 +7,17 @@
 @inject IDbContextFactory<AuditSphereDbContext> DbFactory
 
 <PageTitle>Engagement details</PageTitle>
-<MudLink Href="/app" Class="back-link mb-2 d-inline-block">← Back to portfolio</MudLink>
-<PageHeader Title="Engagement details" Description="Engagement context, authorization scope, holds, and work surface handoffs." />
+<div class="page-header">
+  <nav class="breadcrumb-nav" aria-label="Breadcrumb">
+    <a href="/app">Portfolio</a> /
+    @if (_engagement is not null)
+    {
+      <a href="/app/clients/@_engagement.PracticeClientId">@_clientName</a> <text>/</text>
+    }
+    <span>Engagement</span>
+  </nav>
+  <PageHeader Title="Engagement details" Eyebrow="Engagement" Description="Engagement context, authorization scope, holds, and work surface handoffs." />
+</div>
 
 @if (_loading)
 {
@@ -24,7 +33,18 @@ else if (_engagement is null)
 }
 else
 {
-  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="eng-heading" role="region">
+  <div class="audit-record-toolbar" aria-label="Engagement work surfaces">
+    <StatusChip Status="@_engagement.Status" />
+    <MudLink Href="@($"/app/engagements/{_engagement.Id}/audit-plan")">Audit plan</MudLink>
+    <MudLink Href="@($"/app/engagements/{_engagement.Id}/audit-fieldwork")">Fieldwork</MudLink>
+    <MudLink Href="@($"/app/engagements/{_engagement.Id}/completion")">Completion</MudLink>
+  </div>
+  <MudGrid Spacing="2" Class="audit-accounting-metrics my-3" aria-label="Scoped engagement summary">
+    <MudItem xs="6" sm="4"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Professional work</MudText><MudText Typo="Typo.h4">@(_engagement.ProfessionalWorkBlocked ? "Blocked" : "Clear")</MudText></MudPaper></MudItem>
+    <MudItem xs="6" sm="4"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Active holds</MudText><MudText Typo="Typo.h4">@_holds.Count(x => !x.Released)</MudText></MudPaper></MudItem>
+    <MudItem xs="12" sm="4"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Released holds</MudText><MudText Typo="Typo.h4">@_holds.Count(x => x.Released)</MudText></MudPaper></MudItem>
+  </MudGrid>
+  <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" aria-labelledby="eng-heading" role="region">
     <p class="eyebrow">Status: @_engagement.Status (Generation @_engagement.Generation)</p>
     <h2 id="eng-heading">@_engagement.ServiceRoute — @_clientName</h2>
     <dl class="details">
@@ -47,15 +67,15 @@ else
     </dl>
   </MudPaper>
 
-  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="actions-heading" role="region">
+  <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" aria-labelledby="actions-heading" role="region">
     <h2 id="actions-heading">Work surfaces</h2>
-    <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+    <div class="audit-action-row">
       <MudButton Color="Color.Primary" Variant="Variant.Filled" Href="@($"/app/engagements/{_engagement.Id}/pbc")" Class="button">Open PBC requests</MudButton>
       <MudButton Color="Color.Primary" Variant="Variant.Filled" Href="@($"/app/clients/{_engagement.PracticeClientId}")" Class="button">View client profile</MudButton>
     </div>
   </MudPaper>
 
-  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="holds-heading" role="region">
+  <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" aria-labelledby="holds-heading" role="region">
     <h2 id="holds-heading">Engagement holds & clearance gates</h2>
     @if (_holds.Count == 0)
     {

@@ -11,6 +11,10 @@
     {
       <MudTextField T="string" Label="Reason (required)" @bind-Value="Reason"
                     Required="true" RequiredError="A reason is required." Lines="2" />
+      @if (_reasonMissing)
+      {
+        <MudText Typo="Typo.body2" Class="error-text" role="alert">Enter a reason before confirming. Nothing has been submitted.</MudText>
+      }
     }
     @if (!string.IsNullOrWhiteSpace(ServerError))
     {
@@ -32,6 +36,7 @@
   [Parameter] public string? ServerError { get; set; }
 
   private bool _busy;
+  private bool _reasonMissing;
   private string Reason { get; set; } = string.Empty;
 
   private void Cancel() => MudDialog.Cancel();
@@ -39,7 +44,8 @@
   private async Task ConfirmAsync()
   {
     if (_busy) return;
-    if (RequireReason && string.IsNullOrWhiteSpace(Reason)) return;
+    _reasonMissing = RequireReason && string.IsNullOrWhiteSpace(Reason);
+    if (_reasonMissing) return;
     _busy = true;
     try { MudDialog.Close(DialogResult.Ok(Reason)); }
     finally { _busy = false; await Task.CompletedTask; }

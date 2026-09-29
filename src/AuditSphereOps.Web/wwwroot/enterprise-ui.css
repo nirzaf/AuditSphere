@@ -56,6 +56,8 @@ body { background: var(--audit-page); }
 .audit-sidebar .mud-nav-link.mud-nav-link-active,
 .audit-sidebar .mud-nav-link.mud-nav-link-active * { color: #fff !important; }
 .audit-sidebar .mud-nav-group > .mud-nav-link { color: #dce7f4; }
+/* Owning section of a detail route: a quieter cue than the exact-route active state. */
+.audit-sidebar .audit-nav-section-current .mud-nav-link:not(.active) { background: #1b2e48; color: #fff; box-shadow: inset 3px 0 #2f7d86; }
 .audit-main-content { min-width: 0; }
 .audit-workspace { padding: 28px 30px 40px; max-width: 1600px; }
 .audit-workspace main { min-width: 0; }
@@ -71,6 +73,14 @@ body { background: var(--audit-page); }
   border-radius: 10px;
   box-shadow: 0 2px 8px #0f172a08;
 }
+/* Native draft-tracked controls keep their contract but must not size the page to their longest option. */
+.audit-workspace-panel .form-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr)); min-width: 0; }
+.audit-workspace-panel .form-grid > label { min-width: 0; }
+.audit-workspace-panel .form-grid :is(select, input, textarea) { width: 100%; max-width: 100%; min-width: 0; box-sizing: border-box; text-overflow: ellipsis; }
+section.card.audit-workspace-panel { border-color: var(--audit-line); border-radius: 10px; min-width: 0; }
+.audit-workspace-panel :is(th, td).num { text-align: right; font-variant-numeric: tabular-nums; }
+.audit-workspace-panel tr.total-row td { font-weight: 700; border-top: 1px solid var(--audit-line); }
+.audit-artifact-text { white-space: pre-wrap; overflow-wrap: anywhere; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; background: #f1f5f9; border: 1px solid var(--audit-line); border-radius: 6px; padding: 12px; max-height: 32rem; overflow: auto; }
 .audit-workspace-panel code { overflow-wrap: anywhere; word-break: break-word; }
 .audit-workspace-panel dd { min-width: 0; overflow-wrap: anywhere; }
 .audit-metric { height: 100%; min-height: 104px; min-width: 0; }
@@ -194,6 +204,7 @@ body { background: var(--audit-page); }
 .audit-practice-form-fields { display: grid; gap: 12px; width: 100%; max-width: 34rem; min-width: 0; }
 .audit-practice-form-fields > label, .audit-practice-form-row > label { display: grid; gap: 4px; min-width: 0; }
 .audit-practice-form-fields :is(input:not([type="checkbox"]), select, textarea) { width: 100%; max-width: 100%; min-width: 0; box-sizing: border-box; }
+.audit-practice-form-fields > label.audit-inline-check { display: flex; align-items: center; gap: 8px; }
 .audit-practice-form-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; min-width: 0; }
 .audit-accounting-progress { border: 1px solid var(--audit-line); border-radius: 10px; padding: 12px 16px; margin: 8px 0 16px; background: #f8fafc; }
 .audit-accounting-progress-heading { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; font-size: 13px; }
@@ -276,6 +287,7 @@ body { background: var(--audit-page); }
 .audit-fieldwork-filter { display: flex; align-items: flex-end; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin: 16px 0; }
 .audit-fieldwork-filter > label { min-width: 0; width: min(100%, 28rem); }
 .audit-fieldwork-filter .muted { font-size: 12px; }
+.audit-action-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
 .audit-record-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 12px 0 16px; }
 .audit-record-toolbar .status-badge { display: inline-flex; align-items: center; border: 1px solid #a7b4c4; border-radius: 999px; padding: 4px 9px; background: #f2f5f8; color: #34455a; font-size: 12px; font-weight: 700; letter-spacing: .02em; }
 .audit-record-toolbar .status-badge.badge-green { border-color: #8fc8ad; background: #eaf7f0; color: #14583a; }
@@ -392,3 +404,19 @@ body { background: var(--audit-page); }
 .audit-progress-task-list li{display:flex;align-items:start;justify-content:space-between;gap:1rem;padding:.65rem 0;border-top:1px solid #e2e8f0}
 .audit-progress-task-list li span{overflow-wrap:anywhere}
 @media(max-width:600px){.audit-progress-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.audit-progress-task-list li{flex-wrap:wrap}}
+
+/* Blazor reconnection panel (UX-013): hidden until blazor.web.js adds a components-reconnect-* state class. */
+.audit-reconnect { display: none; }
+.audit-reconnect:is(.components-reconnect-show, .components-reconnect-retrying, .components-reconnect-failed,
+  .components-reconnect-rejected, .components-reconnect-paused, .components-reconnect-resume-failed) {
+  display: grid; place-items: center; position: fixed; inset: 0; z-index: 2000; padding: 16px; background: #0f172a8c;
+}
+.audit-reconnect-panel { max-width: 30rem; width: 100%; background: #fff; border: 1px solid var(--audit-line); border-radius: 15px; padding: 20px 24px; box-shadow: 0 20px 40px #0f172a33; }
+.audit-reconnect-state { display: none; margin: 0 0 8px; color: #0f172a; }
+.audit-reconnect:is(.components-reconnect-show, .components-reconnect-retrying) .audit-reconnect-retrying,
+.audit-reconnect:is(.components-reconnect-failed, .components-reconnect-paused, .components-reconnect-resume-failed) .audit-reconnect-failed,
+.audit-reconnect.components-reconnect-rejected .audit-reconnect-rejected { display: block; }
+.audit-reconnect-note { margin: 0 0 16px; color: var(--audit-muted); font-size: 13px; line-height: 1.5; }
+.audit-reconnect-action { border: 0; border-radius: 6px; padding: 8px 16px; background: var(--audit-blue); color: #fff; font-weight: 700; cursor: pointer; }
+.audit-reconnect-action:focus-visible { outline: 2px solid var(--audit-teal); outline-offset: 2px; }
+.audit-reconnect:is(.components-reconnect-show, .components-reconnect-retrying) .audit-reconnect-action { display: none; }

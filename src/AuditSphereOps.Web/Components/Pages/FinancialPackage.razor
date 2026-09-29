@@ -7,8 +7,15 @@
 @inject IJSRuntime JS
 
 <PageTitle>Financial statement package</PageTitle>
-<MudLink Href="/app" Class="back-link mb-2 d-inline-block">← Back to portfolio</MudLink>
-<PageHeader Title="Financial statement package" Description="Deterministic package calculations, validation status, immutable review decisions, and artifact outputs." />
+<div class="page-header">
+  <nav class="breadcrumb-nav" aria-label="Breadcrumb">
+    <a href="/app">Portfolio</a> /
+    <a href="/app/accounting">Client accounting</a> /
+    <a href="/app/accounting/reviews">Package reviews</a> /
+    <span>Package</span>
+  </nav>
+  <PageHeader Title="Financial statement package" Eyebrow="Client accounting" Description="Deterministic package calculations, validation status, immutable review decisions, and artifact outputs." />
+</div>
 <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button-secondary" OnClick="LoadPackageAsync" Disabled="@_loading">Refresh package</MudButton>
 @if (_loadError is not null)
 {
@@ -35,7 +42,18 @@ else if (_package is null)
 }
 else
 {
-  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="package-heading" role="region">
+  <div class="audit-record-toolbar" aria-label="Package navigation">
+    <StatusChip Status="@_package.Status" />
+    <MudLink Href="@($"/app/engagements/{_package.EngagementId}")">Engagement</MudLink>
+    <MudLink Href="/app/accounting/reviews">Package reviews</MudLink>
+  </div>
+  <MudGrid Spacing="2" Class="audit-accounting-metrics my-3" aria-label="Scoped package summary">
+    <MudItem xs="6" sm="3"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Validations passed</MudText><MudText Typo="Typo.h4">@_validations.Count(x => x.Passed)</MudText></MudPaper></MudItem>
+    <MudItem xs="6" sm="3"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Validations failed</MudText><MudText Typo="Typo.h4">@_validations.Count(x => !x.Passed)</MudText></MudPaper></MudItem>
+    <MudItem xs="6" sm="3"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Review decisions</MudText><MudText Typo="Typo.h4">@_reviews.Count</MudText></MudPaper></MudItem>
+    <MudItem xs="6" sm="3"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Statement lines</MudText><MudText Typo="Typo.h4">@_statementTotals.Count()</MudText></MudPaper></MudItem>
+  </MudGrid>
+  <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" aria-labelledby="package-heading" role="region">
     <p class="eyebrow"><StatusChip Status="@_package.Status" /></p>
     <h2 id="package-heading"><code>@_package.Id</code></h2>
     <dl class="details">
@@ -66,7 +84,7 @@ else
     </MudAlert>
   }
 
-  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="validation-heading" role="region">
+  <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" aria-labelledby="validation-heading" role="region">
     <h2 id="validation-heading">Validation results</h2>
     <MudTable Items="_validations" Dense="true" Hover="true" Elevation="0">
   <HeaderContent><MudTh scope="col">Check</MudTh><MudTh scope="col">Result</MudTh><MudTh scope="col">Detail</MudTh></HeaderContent>
@@ -76,7 +94,7 @@ else
 
   @if (_canReview)
   {
-    <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="review-heading" role="region">
+    <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" aria-labelledby="review-heading" role="region">
       <h2 id="review-heading">Package review decisions</h2>
       <p class="scope-note">Every decision is recorded against this package's exact revision, generation and calculation hash. Decisions are append-only; a changed package must be reviewed again.</p>
       @if (_package.Status == AccountingPackageStates.PackageValidated)
@@ -101,7 +119,7 @@ else
           <label>Evidence reference<MudTextField T="string" @bind-Value="_reviewEvidenceReference" MaxLength="2000" required /></label>
         </div>
         <label>Comment<MudTextField T="string" @bind-Value="_reviewComment" MaxLength="4000" Lines="3" data-optional="true" /></label>
-        <div style="display:flex;gap:.75rem;align-items:center;margin-top:1rem;flex-wrap:wrap">
+        <div class="audit-action-row mt-4">
           <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button" OnClick="RecordReviewAsync" Disabled="@_reviewBusy">@(_reviewBusy ? "Recording…" : "Record decision")</MudButton>
           <span class="muted">Management approval uses offline evidence on this staff surface; signed-in management approval must be completed by the authorized client-user surface.</span>
         </div>
@@ -116,7 +134,7 @@ else
           @(_reviewResult.Succeeded ? (_reviewSuccessMessage ?? "Decision recorded.") : "Blocked: " + _reviewResult.ErrorCode)
         </p>
       }
-      <div class="table-wrap" style="margin-top:1rem"><table>
+      <div class="table-wrap mt-4"><table>
         <caption class="sr-only">Immutable package review decisions</caption>
         <thead><tr><th scope="col">Stage</th><th scope="col">Decision</th><th scope="col">Evidence</th><th scope="col">Package hash</th><th scope="col">Decided at</th></tr></thead>
         <tbody>
@@ -136,7 +154,7 @@ else
     </MudPaper>
   }
 
-  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="statement-heading" role="region">
+  <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" aria-labelledby="statement-heading" role="region">
     <h2 id="statement-heading">Mapped statement totals</h2>
     <MudTable Items="_statementTotals" Dense="true" Hover="true" Elevation="0">
   <HeaderContent><MudTh scope="col">Section</MudTh><MudTh scope="col">Amount</MudTh></HeaderContent>
@@ -146,7 +164,7 @@ else
 
   @if (_cashFlowLines.Count > 0)
   {
-    <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="cash-flow-heading" role="region">
+    <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" aria-labelledby="cash-flow-heading" role="region">
       <h2 id="cash-flow-heading">Cash-flow workings</h2>
       <p class="scope-note">Opening @_package.CashBeginning?.ToString("N2") @_package.Currency; closing @_package.CashEnding?.ToString("N2") @_package.Currency.</p>
       <MudTable Items="_cashFlowLines" Dense="true" Hover="true" Elevation="0">
@@ -158,7 +176,7 @@ else
 
   @if (_disclosures.Count > 0)
   {
-    <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="disclosure-heading" role="region">
+    <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" aria-labelledby="disclosure-heading" role="region">
       <h2 id="disclosure-heading">Disclosure responses</h2>
       <MudTable Items="_disclosures" Dense="true" Hover="true" Elevation="0">
   <HeaderContent><MudTh scope="col">Code</MudTh><MudTh scope="col">Response</MudTh><MudTh scope="col">Status</MudTh></HeaderContent>
@@ -169,7 +187,7 @@ else
 
   @if (_artifact is not null)
   {
-    <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="artifact-heading" role="region">
+    <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" aria-labelledby="artifact-heading" role="region">
       <h2 id="artifact-heading">Deterministic package artifact</h2>
       <p class="scope-note">This is the persisted artifact for the exact package revision and template. Downloading it does not release or deliver the package.</p>
       <dl class="details">
@@ -185,9 +203,9 @@ else
       {
         <p class="notice-text" role="status" aria-live="polite">@_artifactStatus</p>
       }
-      <details style="margin-top: 1rem;">
+      <details class="mt-4">
         <summary>View canonical artifact text</summary>
-        <pre class="code-block" style="white-space: pre-wrap; font-family: monospace; background: var(--bg-surface-secondary, #f4f4f5); padding: 1rem; border-radius: 4px; overflow-x: auto;"><code>@_artifact.RenderedText</code></pre>
+        <pre class="code-block audit-artifact-text"><code>@_artifact.RenderedText</code></pre>
       </details>
     </MudPaper>
   }

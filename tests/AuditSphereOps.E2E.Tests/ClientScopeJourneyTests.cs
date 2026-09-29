@@ -294,9 +294,9 @@ public sealed class ClientScopeJourneyTests
     await page.GetByRole(AriaRole.Heading, new() { Name = privateGroupName }).WaitForAsync();
     await Assertions.Expect(page.Locator("#advanced-source-manifest"))
       .ToHaveValueAsync("{\"sources\":[],\"reviewedJournals\":[],\"note\":\"synthetic draft\"}");
-    await page.GetByRole(AriaRole.Button, new() { Name = "Submit schedule" }).FocusAsync();
-    Assert.Equal("solid", await page.GetByRole(AriaRole.Button, new() { Name = "Submit schedule" })
-      .EvaluateAsync<string>("element => getComputedStyle(element).outlineStyle"));
+    var submitSchedule = page.GetByRole(AriaRole.Button, new() { Name = "Submit schedule" });
+    await submitSchedule.FocusAsync();
+    await Assertions.Expect(submitSchedule).ToHaveCSSAsync("outline-style", "solid");
   }
 
   [Fact]
@@ -1533,7 +1533,7 @@ public sealed class ClientScopeJourneyTests
     var staffDiagnostics = new List<string>();
     var staffConnected = WaitForCircuitConnectionAsync(staffPage, staffDiagnostics);
     await staffPage.GotoAsync(SignInUrl(host.StaffUrl, $"/app/engagements/{host.Fixture.EngagementId:D}"));
-    await staffPage.GetByText("PBC TEST CLIENT", new() { Exact = true }).WaitForAsync();
+    await staffPage.GetByText("PBC TEST CLIENT", new() { Exact = true }).First.WaitForAsync(); // also shown in the breadcrumb
     await staffPage.GetByText(privateHoldReason, new() { Exact = true }).WaitForAsync();
     await staffConnected;
     var documentToken = Guid.NewGuid().ToString("N");
@@ -1551,7 +1551,7 @@ public sealed class ClientScopeJourneyTests
 
     await staffPage.EvaluateAsync("path => { history.pushState({}, '', path); dispatchEvent(new PopStateEvent('popstate')); }",
       $"/app/engagements/{host.Fixture.EngagementId:D}");
-    await staffPage.GetByText("PBC TEST CLIENT", new() { Exact = true }).WaitForAsync();
+    await staffPage.GetByText("PBC TEST CLIENT", new() { Exact = true }).First.WaitForAsync(); // also shown in the breadcrumb
     await staffPage.GetByText(privateHoldReason, new() { Exact = true }).WaitForAsync();
     Assert.DoesNotContain(staffDiagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
 

@@ -368,7 +368,7 @@ public sealed class AuditAndReleaseJourneyTests
     }
     await page.GetByRole(AriaRole.Link, new() { Name = "Fieldwork control center" }).FocusAsync();
     await page.Keyboard.PressAsync("Tab");
-    var programLibraryLink = page.GetByRole(AriaRole.Link, new() { Name = "Program library" });
+    var programLibraryLink = page.GetByRole(AriaRole.Link, new() { Name = "Program library", Exact = true }); // the navigation also lists "Audit program library"
     await Assertions.Expect(programLibraryLink).ToBeFocusedAsync();
     await Assertions.Expect(programLibraryLink).ToHaveCSSAsync("outline-style", "solid");
 

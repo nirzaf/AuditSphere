@@ -8,8 +8,14 @@
 @inject IJSRuntime JS
 
 <PageTitle>Currency remeasurement</PageTitle>
-<MudLink Href="/app/accounting" Class="back-link mb-2 d-inline-block">← Back to accounting workspace</MudLink>
-<PageHeader Title="Currency remeasurement workpapers" />
+<div class="page-header">
+  <nav class="breadcrumb-nav" aria-label="Breadcrumb">
+    <a href="/app">Portfolio</a> /
+    <a href="/app/accounting">Client accounting</a> /
+    <span>Currency remeasurement</span>
+  </nav>
+  <PageHeader Title="Currency remeasurement workpapers" Eyebrow="Client accounting · FX" Description="Source-evidence-linked remeasurement calculations using approved rate sets and translation policies, with independent approval." />
+</div>
 
 @if (_loading)
 {
@@ -21,12 +27,18 @@ else if (!_authorized)
 }
 else
 {
+  <MudGrid Spacing="2" Class="audit-accounting-metrics my-3" aria-label="Scoped remeasurement summary">
+    <MudItem xs="6" sm="3"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Scoped periods</MudText><MudText Typo="Typo.h4">@_contexts.Count</MudText></MudPaper></MudItem>
+    <MudItem xs="6" sm="3"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Awaiting approval</MudText><MudText Typo="Typo.h4">@_history.Count(x => x.Status == AccountingWorkflowStates.Submitted)</MudText></MudPaper></MudItem>
+    <MudItem xs="6" sm="3"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Recent workpapers</MudText><MudText Typo="Typo.h4">@_history.Count</MudText></MudPaper></MudItem>
+    <MudItem xs="6" sm="3"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Approved workpapers</MudText><MudText Typo="Typo.h4">@_history.Count(x => x.Status == AccountingWorkflowStates.Approved)</MudText></MudPaper></MudItem>
+  </MudGrid>
   <p class="scope-note">Create a source-evidence-linked calculation using an approved rate set and translation policy. Independent approval rechecks the source, policy, rate and totals. Approval records a workpaper only; it does not post an adjustment journal or clear any release/records gate.</p>
   @* draft-state.js boundary: the section element and the draft-tracked select/date controls stay native
      because the script reads control.value of [data-draft-field] input/select/textarea nodes and the
      restore journey re-reads these exact GUID/ISO values after reload. Text and numeric fields are
      MudBlazor controls whose inner input carries the forwarded data-draft-field attribute. *@
-  <section class="card" aria-labelledby="prepare-heading" data-draft-scope="@DraftScope" data-draft-server-managed>
+  <section class="card audit-workspace-panel" aria-labelledby="prepare-heading" data-draft-scope="@DraftScope" data-draft-server-managed>
     <h2 id="prepare-heading">Prepare workpaper</h2>
     <p class="muted"><span class="required-mark">*</span> Required. Link each item to an imported GL line and an evidence snapshot. The GL link is corroborating lineage only; it does not prove the amount is still outstanding. Confirm open-item status, amount and classification against period-end evidence. Historical rate date is required for non-monetary historical-cost items.</p>
     <p class="muted">Unsubmitted fields are saved in this browser's local storage for this signed-in user and cleared after a confirmed submission. Do not use a shared browser profile for confidential work.</p>
@@ -103,7 +115,7 @@ else
   @if (_message is not null) { <p class="command-result @(_error ? "error-text" : "success-text")" role="status">@_message</p> }
   @if (_schedule is not null)
   {
-    <MudPaper Class="pa-4 my-4" Elevation="1" aria-labelledby="schedule-heading" role="region">
+    <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" aria-labelledby="schedule-heading" role="region">
       <h2 id="schedule-heading">Workpaper · @_schedule.Status</h2>
       <p>As of @_schedule.AsOfDate · functional currency @_schedule.FunctionalCurrency · @_schedule.ItemCount item(s) · FX adjustment <strong>@_schedule.TotalForeignExchangeAdjustment.ToString("0.000000") @_schedule.FunctionalCurrency</strong></p>
       <p>Manifest <code>@_schedule.InputHash</code></p>
@@ -136,7 +148,7 @@ else
       <p class="muted">Prepared by <code>@_schedule.CreatedByUserId</code>@if (_schedule.ApprovedByUserId is { } approvedBy) { <span> · Approved by <code>@approvedBy</code></span> }</p>
     </MudPaper>
   }
-  <MudPaper Class="pa-4 my-4" Elevation="1" aria-labelledby="history-heading" role="region">
+  <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" aria-labelledby="history-heading" role="region">
     <h2 id="history-heading">Recent scoped workpapers</h2>
     @if (_history.Count == 0) { <p class="muted">No saved workpapers are available in the current scope.</p> }
     else

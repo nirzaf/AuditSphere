@@ -8,8 +8,13 @@
 @inject IDbContextFactory<AuditSphereDbContext> DbFactory
 
 <PageTitle>Client profile</PageTitle>
-<MudLink Href="/app" Class="back-link mb-2 d-inline-block">← Back to portfolio</MudLink>
-<PageHeader Title="Client profile" Description="Client-level master records, configured engagements, and authorized contacts within the authenticated firm scope." />
+<div class="page-header">
+  <nav class="breadcrumb-nav" aria-label="Breadcrumb">
+    <a href="/app">Portfolio</a> /
+    <span>Client profile</span>
+  </nav>
+  <PageHeader Title="Client profile" Eyebrow="Practice client" Description="Client-level master records, configured engagements, and authorized contacts within the authenticated firm scope." />
+</div>
 
 @if (_loading)
 {
@@ -31,7 +36,17 @@ else if (_client is null)
 }
 else
 {
-  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="client-heading" role="region">
+  <div class="audit-record-toolbar" aria-label="Client navigation">
+    <StatusChip Status="@_client.Status" />
+    <MudLink Href="@($"/app/clients/{_client.Id}/assessment")">Client assessment</MudLink>
+    <MudLink Href="/app">Portfolio</MudLink>
+  </div>
+  <MudGrid Spacing="2" Class="audit-accounting-metrics my-3" aria-label="Scoped client summary">
+    <MudItem xs="6" sm="4"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Engagements</MudText><MudText Typo="Typo.h4">@_engagements.Count</MudText></MudPaper></MudItem>
+    <MudItem xs="6" sm="4"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Work blocked</MudText><MudText Typo="Typo.h4">@_engagements.Count(x => x.ProfessionalWorkBlocked)</MudText></MudPaper></MudItem>
+    <MudItem xs="12" sm="4"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Client contacts</MudText><MudText Typo="Typo.h4">@_contacts.Count</MudText></MudPaper></MudItem>
+  </MudGrid>
+  <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" aria-labelledby="client-heading" role="region">
     <p class="eyebrow">Status: @_client.Status</p>
     <h2 id="client-heading">@_client.LegalName</h2>
     @if (!string.IsNullOrWhiteSpace(_client.CommercialName))
@@ -54,7 +69,7 @@ else
     </p>
   }
 
-  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="engagements-heading" role="region">
+  <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" aria-labelledby="engagements-heading" role="region">
     <h2 id="engagements-heading">Associated engagements</h2>
     @if (_engagements.Count == 0)
     {
@@ -84,7 +99,7 @@ else
     }
   </MudPaper>
 
-  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="contacts-heading" role="region">
+  <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" aria-labelledby="contacts-heading" role="region">
     <h2 id="contacts-heading">Client contacts</h2>
     @if (_contacts.Count == 0)
     {
@@ -113,8 +128,8 @@ else
 
     @if (_canManageContacts)
     {
-      <h3 style="margin-top: 1.5rem;">Add client contact</h3>
-      <form @onsubmit="CreateContactAsync" @onsubmit:preventDefault="true" style="display: grid; gap: 0.75rem; max-width: 28rem;">
+      <h3 class="mt-6">Add client contact</h3>
+      <form class="audit-practice-form-fields" @onsubmit="CreateContactAsync" @onsubmit:preventDefault="true">
         <label>
           Full name
           <MudTextField T="string" @bind-Value="_contactName" Placeholder="e.g. Alex Morgan" required Disabled="@_busy" />
@@ -127,7 +142,7 @@ else
           Role / title
           <MudTextField T="string" @bind-Value="_contactRole" Placeholder="e.g. CFO, Finance Director" required Disabled="@_busy" />
         </label>
-        <label style="display: flex; align-items: center; gap: 0.5rem;">
+        <label class="audit-inline-check">
           <MudCheckBox T="bool" @bind-Value="_contactPrimary" Disabled="@_busy" data-optional="true" />
           Set as primary contact (optional)
         </label>

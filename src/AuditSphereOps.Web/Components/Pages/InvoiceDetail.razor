@@ -7,8 +7,14 @@
 @inject IDbContextFactory<AuditSphereDbContext> DbFactory
 
 <PageTitle>Invoice</PageTitle>
-<MudLink Href="/app" Class="back-link mb-2 d-inline-block">← Back to portfolio</MudLink>
-<PageHeader Title="Practice invoice" Description="Client invoice record, line items, and receipt allocations under practice billing controls." />
+<div class="page-header">
+  <nav class="breadcrumb-nav" aria-label="Breadcrumb">
+    <a href="/app">Portfolio</a> /
+    <a href="/app/finance">Firm finance</a> /
+    <span>Invoice</span>
+  </nav>
+  <PageHeader Title="Practice invoice" Eyebrow="Practice billing" Description="Client invoice record, line items, and receipt allocations under practice billing controls." />
+</div>
 
 @if (_loading)
 {
@@ -30,7 +36,16 @@ else if (_invoice is null)
 }
 else
 {
-  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="invoice-heading" role="region">
+  <div class="audit-record-toolbar" aria-label="Invoice navigation">
+    <StatusChip Status="@_invoice.Status" />
+    <MudLink Href="/app/finance">Firm finance</MudLink>
+  </div>
+  <MudGrid Spacing="2" Class="audit-accounting-metrics my-3" aria-label="Invoice summary">
+    <MudItem xs="6" sm="4"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Invoice total</MudText><MudText Typo="Typo.h4">@_invoice.Total.ToString("N2")</MudText></MudPaper></MudItem>
+    <MudItem xs="6" sm="4"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Balance outstanding</MudText><MudText Typo="Typo.h4">@_balance.ToString("N2")</MudText></MudPaper></MudItem>
+    <MudItem xs="12" sm="4"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Receipt allocations</MudText><MudText Typo="Typo.h4">@_allocations.Count</MudText></MudPaper></MudItem>
+  </MudGrid>
+  <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" aria-labelledby="invoice-heading" role="region">
     <p class="eyebrow">Status: @_invoice.Status (Rev @_invoice.Revision)</p>
     <h2 id="invoice-heading">@_invoice.InvoiceNumber</h2>
     <MudButton Variant="Variant.Outlined" Class="btn-secondary mb-2" OnClick="RefreshInvoiceAsync" Disabled="@_busy">Refresh invoice</MudButton>
@@ -56,7 +71,7 @@ else
     </p>
   }
 
-  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="lines-heading" role="region">
+  <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" aria-labelledby="lines-heading" role="region">
     <h2 id="lines-heading">Invoice line items</h2>
     @if (_lines.Count == 0)
     {
@@ -70,9 +85,9 @@ else
           <thead>
             <tr>
               <th scope="col">Description</th>
-              <th scope="col" style="text-align: right;">Quantity</th>
-              <th scope="col" style="text-align: right;">Unit Price</th>
-              <th scope="col" style="text-align: right;">Total</th>
+              <th scope="col" class="num">Quantity</th>
+              <th scope="col" class="num">Unit Price</th>
+              <th scope="col" class="num">Total</th>
             </tr>
           </thead>
           <tbody>
@@ -80,16 +95,16 @@ else
           {
             <tr>
               <td>@line.Description</td>
-              <td style="text-align: right;">@line.Quantity.ToString("N2")</td>
-              <td style="text-align: right;">@line.UnitPrice.ToString("N2")</td>
-              <td style="text-align: right;">@line.LineTotal.ToString("N2")</td>
+              <td class="num">@line.Quantity.ToString("N2")</td>
+              <td class="num">@line.UnitPrice.ToString("N2")</td>
+              <td class="num">@line.LineTotal.ToString("N2")</td>
             </tr>
           }
           </tbody>
           <tfoot>
-            <tr style="font-weight: bold;">
-              <td colspan="3" style="text-align: right;">Total</td>
-              <td style="text-align: right;">@_lines.Sum(x => x.LineTotal).ToString("N2")</td>
+            <tr class="total-row">
+              <td colspan="3" class="num">Total</td>
+              <td class="num">@_lines.Sum(x => x.LineTotal).ToString("N2")</td>
             </tr>
           </tfoot>
         </table>
@@ -97,7 +112,7 @@ else
     }
   </MudPaper>
 
-  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="alloc-heading" role="region">
+  <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" aria-labelledby="alloc-heading" role="region">
     <h2 id="alloc-heading">Receipt allocations</h2>
     @if (_allocations.Count == 0)
     {
@@ -125,7 +140,7 @@ else
 
   @if (_canAct)
   {
-    <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="workflow-heading" role="region">
+    <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" aria-labelledby="workflow-heading" role="region">
       <h2 id="workflow-heading">Invoice workflow actions</h2>
       <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
         @if (_invoice.Status == BillingStates.InvoiceReviewRequired)

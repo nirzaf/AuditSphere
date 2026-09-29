@@ -277,6 +277,11 @@ public sealed class TenantAdministrationJourneyTests
     var row = page.Locator("tr", new() { HasText = "Directory Journey Member" });
     await row.GetByRole(AriaRole.Button, new() { Name = "Revoke" }).ClickAsync();
     var confirm = page.GetByRole(AriaRole.Dialog);
+    // UX-012: confirming without the required reason explains itself and submits nothing.
+    await confirm.GetByRole(AriaRole.Button, new() { Name = "Revoke access" }).ClickAsync();
+    await Assertions.Expect(confirm.GetByRole(AriaRole.Alert)).ToContainTextAsync("Enter a reason before confirming. Nothing has been submitted.");
+    await using (var db = host.CreateDbContext())
+      Assert.Null((await db.RoleGrants.AsNoTracking().SingleAsync(x => x.Id == grantId)).RevokedAt);
     await confirm.GetByLabel("Reason (required)").FillAsync("Left the engagement");
     await confirm.GetByRole(AriaRole.Button, new() { Name = "Revoke access" }).ClickAsync();
     await page.GetByText("Role grant revoked").WaitForAsync();

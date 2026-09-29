@@ -33,6 +33,21 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ---
 
+## UI modernization — remaining detail routes, navigation sections and responsive sweep
+
+Client, engagement, proposal, invoice, financial-package and currency-remeasurement routes now use the shared
+breadcrumb, `PageHeader` eyebrow, record toolbar, source-backed counts and workspace panels; inline layout styles
+moved to `enterprise-ui.css`. The staff navigation follows the reference grouping with only real destinations,
+matches root links exactly and marks the owning section of detail routes. A new responsive sweep over 19
+parameterless and 10 seeded detail routes at 320–1920px found and fixed one real defect: long native select options
+on currency remeasurement widened the page by up to 773px. Commands, draft contracts and authorization are
+unchanged. A custom Blazor reconnect panel now tells users that an action started before a dropped connection is
+unconfirmed until its result shows; the confirm dialog explains a missing required reason instead of silently
+ignoring the click; the unused remote Roboto font link was removed (system fonts only). Global search remains a
+`BACKEND_GAP`; zoom, manual keyboard review and independent visual acceptance remain open. Exact verification is in `status.json`.
+
+---
+
 ## UI modernization — group consolidation routes
 
 The authorized `/app/consolidation` landing route now uses source-backed counts
