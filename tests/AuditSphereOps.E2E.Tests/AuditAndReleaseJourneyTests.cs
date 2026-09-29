@@ -439,6 +439,77 @@ public sealed class AuditAndReleaseJourneyTests
     await connected;
     await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new() { Timeout = 5000 });
     await Assertions.Expect(page.GetByText("Synthetic stale-route population")).ToBeVisibleAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Population Details (§20.1)" })).ToBeVisibleAsync();
+    await Assertions.Expect(page.Locator("[aria-label='Scoped population summary']")).ToBeVisibleAsync();
+    foreach (var width in new[] { 320, 390, 760, 1024, 1440, 1920 })
+    {
+      await page.SetViewportSizeAsync(width, 900);
+      await page.WaitForFunctionAsync("() => document.documentElement.scrollWidth <= window.innerWidth + 1");
+      if ((width is 390 or 1440) &&
+          Environment.GetEnvironmentVariable("AUDITSPHERE_POPULATION_UI_CAPTURE_DIR") is { Length: > 0 } captureDir)
+      {
+        Directory.CreateDirectory(captureDir);
+        await page.ScreenshotAsync(new() { Path = Path.Combine(captureDir, $"population-{width}.png"), FullPage = true });
+      }
+    }
+    var fieldworkLink = page.GetByRole(AriaRole.Link, new() { Name = "Fieldwork control center" });
+    await fieldworkLink.FocusAsync();
+    Assert.Equal("solid", await fieldworkLink.EvaluateAsync<string>("element => getComputedStyle(element).outlineStyle"));
+
+    var procedureId = Guid.NewGuid();
+    var selectionId = Guid.NewGuid();
+    var itemId = Guid.NewGuid();
+    var testId = Guid.NewGuid();
+    var longRationale = "Synthetic sample rationale " + new string('R', 180);
+    await using (var db = host.CreateDbContext())
+    {
+      db.AuditProcedures.Add(new AuditProcedure
+      {
+        Id = procedureId, FirmId = host.Fixture.FirmId, ClientId = host.Fixture.ClientId,
+        EngagementId = host.Fixture.EngagementId, Title = "Synthetic population procedure",
+        Status = AuditProcedureStatuses.Planned, CreatedAt = DateTimeOffset.UtcNow
+      });
+      db.AuditSelections.Add(new AuditSelection
+      {
+        Id = selectionId, FirmId = host.Fixture.FirmId, ClientId = host.Fixture.ClientId,
+        EngagementId = host.Fixture.EngagementId, PopulationVersionId = authorizedPopulationId,
+        ProcedureId = procedureId, Method = "Manual", Rationale = longRationale,
+        SelectedCount = 1, SelectedSignedTotal = 400m, Status = AuditSelectionStatuses.Submitted,
+        CreatedByUserId = host.Fixture.Staff.Id, CreatedAt = DateTimeOffset.UtcNow
+      });
+      db.AuditSelectionItems.Add(new AuditSelectionItem
+      {
+        Id = itemId, FirmId = host.Fixture.FirmId, ClientId = host.Fixture.ClientId,
+        EngagementId = host.Fixture.EngagementId, SelectionId = selectionId,
+        StableRowId = "SYN-ROW-1", SignedAmount = 400m, Currency = "QAR",
+        InclusionReason = "Synthetic scope test", CreatedAt = DateTimeOffset.UtcNow
+      });
+      db.AuditItemTests.Add(new AuditItemTest
+      {
+        Id = testId, FirmId = host.Fixture.FirmId, ClientId = host.Fixture.ClientId,
+        EngagementId = host.Fixture.EngagementId, SelectionId = selectionId,
+        SelectionItemId = itemId, ProcedureId = procedureId, WorkPerformed = "Synthetic item test",
+        Result = AuditItemTestResults.Pass, TestedByUserId = host.Fixture.Staff.Id,
+        TestedAt = DateTimeOffset.UtcNow
+      });
+      db.AuditItemTestReviews.Add(new AuditItemTestReview
+      {
+        Id = Guid.NewGuid(), FirmId = host.Fixture.FirmId, ClientId = host.Fixture.ClientId,
+        EngagementId = host.Fixture.EngagementId, SelectionItemId = itemId,
+        AuditItemTestId = testId, TestRevision = 1,
+        Decision = AuditItemTestReviewDecisions.Reviewed,
+        ReviewerUserId = host.Fixture.Reviewer.Id, CreatedAt = DateTimeOffset.UtcNow
+      });
+      await db.SaveChangesAsync();
+    }
+    await page.ReloadAsync();
+    await Assertions.Expect(page.Locator(".audit-population-table tbody tr")).ToHaveCountAsync(1);
+    await Assertions.Expect(page.Locator("[aria-label='Scoped population summary']")).ToContainTextAsync("Reviewed item tests1");
+    await Assertions.Expect(page.GetByText(longRationale)).ToBeVisibleAsync();
+    await page.SetViewportSizeAsync(390, 900);
+    await page.WaitForFunctionAsync("() => document.documentElement.scrollWidth <= window.innerWidth + 1");
+    if (Environment.GetEnvironmentVariable("AUDITSPHERE_POPULATION_UI_CAPTURE_DIR") is { Length: > 0 } selectionCaptureDir)
+      await page.ScreenshotAsync(new() { Path = Path.Combine(selectionCaptureDir, "population-selection-390.png"), FullPage = true });
 
     var documentToken = Guid.NewGuid().ToString("N");
     await page.EvaluateAsync("token => window.__testDocumentToken = token", documentToken);

@@ -45,6 +45,15 @@ completion blocker. The native workpaper textareas retain their server draft
 autosave contract; no prototype-only upload, assignment or review action was
 copied. Mobile history cells have labels, and long record text wraps.
 
+The audit population detail route now uses the same record toolbar, semantic
+status chip, scoped count cards and white panels. A compact facts grid preserves
+the complete receipt, extraction, exclusion and monetary context. The selection
+table has mobile labels and a contained horizontal scroll area; empty selection
+and evidence states use informational alerts. The counts repeat only authorized
+population and item-test-review rows, with no sampling-sufficiency or audit
+conclusion claim. No import, selection or review action was copied from the
+prototype because this detail route has no such command surface.
+
 Audit planning and completion now use the shared scoped metric, white-panel
 and record-navigation styles. Planning forms retain every real command and
 field while using two columns on wide screens and one on mobile. Completion

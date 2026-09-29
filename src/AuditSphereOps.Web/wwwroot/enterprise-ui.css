@@ -214,6 +214,20 @@ body { background: var(--audit-page); }
 .audit-record-summary { min-width: 0; }
 .audit-record-summary h2, .audit-record-summary code { overflow-wrap: anywhere; }
 .audit-record-summary .details { grid-template-columns: minmax(110px, max-content) minmax(0, 1fr); }
+.population-shell { min-width: 0; max-width: 100%; }
+.audit-population-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; margin: 8px 0 0; }
+.audit-population-facts > div { min-width: 0; padding: 12px 16px 12px 0; border-top: 1px solid var(--audit-line); }
+.audit-population-facts dt { color: var(--audit-muted); font-size: 12px; font-weight: 650; margin-bottom: 4px; }
+.audit-population-facts dd { margin: 0; overflow-wrap: anywhere; }
+.audit-population-table { min-width: 0; }
+.audit-population-table .mud-table-container { max-width: 100%; }
+.audit-population-table .mud-table-cell { overflow-wrap: anywhere; }
+.audit-population-rationale span { display: block; min-width: 0; overflow-wrap: anywhere; }
+@media (max-width: 760px) { .audit-population-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 600px) {
+  .audit-population-facts { grid-template-columns: minmax(0, 1fr); }
+  .audit-population-rationale::before { flex: 0 0 7rem; min-width: 7rem; }
+}
 .audit-record-sections { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 4px; }
 .audit-record-sections a { border: 1px solid var(--audit-line); border-radius: 6px; background: #fff; padding: 6px 10px; color: var(--audit-navy); font-size: 13px; font-weight: 600; }
 .audit-record-sections a:hover, .audit-record-sections a:focus-visible { border-color: var(--audit-teal); background: #e5f1f6; }

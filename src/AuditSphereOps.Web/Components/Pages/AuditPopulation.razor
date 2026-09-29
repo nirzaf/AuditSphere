@@ -13,10 +13,14 @@
 <div class="page-header">
     <nav class="breadcrumb-nav">
         <a href="/app">Portfolio</a> /
+        @if (_population is not null)
+        {
+            <a href="@($"/app/engagements/{_population.EngagementId}/audit-fieldwork")">Fieldwork</a>
+            <span> / </span>
+        }
         <span>Population</span>
     </nav>
-    <PageHeader Title="Population Record" Description="Scoped audit population rows, sampling evidence, and objective-level progression." />
-    <span class="status-badge badge-blue">@(_population?.Status)</span>
+    <PageHeader Title="Population Record" Eyebrow="Audit sampling" Description="Scoped audit population rows, sampling evidence, and objective-level progression." />
 </div>
 
 @if (_loading)
@@ -39,49 +43,60 @@ else if (_population is null)
 }
 else
 {
+    <div class="audit-record-toolbar" aria-label="Population navigation">
+        <StatusChip Status="@_population.Status" />
+        <MudLink Href="@($"/app/engagements/{_population.EngagementId}/audit-fieldwork")">Fieldwork control center</MudLink>
+        <MudLink Href="@($"/app/engagements/{_population.EngagementId}/audit-plan")">Audit plan</MudLink>
+    </div>
+    <MudGrid Spacing="2" Class="audit-accounting-metrics my-3" aria-label="Scoped population summary">
+        <MudItem xs="6" sm="4"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Population rows</MudText><MudText Typo="Typo.h4">@_population.RowCount.ToString("N0")</MudText></MudPaper></MudItem>
+        <MudItem xs="6" sm="4"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Selection sets</MudText><MudText Typo="Typo.h4">@_selections.Count</MudText></MudPaper></MudItem>
+        <MudItem xs="12" sm="4"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Reviewed item tests</MudText><MudText Typo="Typo.h4">@_selections.Sum(x => x.ReviewedTestCount)</MudText></MudPaper></MudItem>
+    </MudGrid>
     <div class="population-shell">
-        <MudPaper Class="pa-4 my-4" Elevation="1">
+        <MudPaper Class="audit-workspace-panel audit-record-summary pa-4 my-4" Elevation="0">
             <h2>Population Details (§20.1)</h2>
-            <dl class="detail-grid">
-                <dt>Purpose</dt><dd>@_population.Purpose</dd>
-                <dt>Assertion</dt><dd>@_population.Assertion</dd>
-                <dt>Source receipt reference</dt><dd>@_population.SourceReceiptReference</dd>
-                <dt>Extraction parameters</dt><dd>@_population.ExtractionParameters</dd>
-                <dt>Row count</dt><dd>@_population.RowCount.ToString("N0")</dd>
-                <dt>Monetary control total</dt><dd>@_population.Currency @_population.MonetaryControlTotal.ToString("N2")</dd>
-                <dt>Exclusions</dt><dd>@(_population.Exclusions ?? "None recorded")</dd>
-                <dt>Status</dt><dd>@_population.Status</dd>
-                <dt>Extracted</dt><dd>@_population.CreatedAt.ToUniversalTime().ToString("yyyy-MM-dd HH:mm") UTC</dd>
+            <dl class="audit-population-facts">
+                <div><dt>Purpose</dt><dd>@_population.Purpose</dd></div>
+                <div><dt>Assertion</dt><dd>@_population.Assertion</dd></div>
+                <div><dt>Source receipt reference</dt><dd>@_population.SourceReceiptReference</dd></div>
+                <div><dt>Extraction parameters</dt><dd>@_population.ExtractionParameters</dd></div>
+                <div><dt>Row count</dt><dd>@_population.RowCount.ToString("N0")</dd></div>
+                <div><dt>Monetary control total</dt><dd>@_population.Currency @_population.MonetaryControlTotal.ToString("N2")</dd></div>
+                <div><dt>Exclusions</dt><dd>@(_population.Exclusions ?? "None recorded")</dd></div>
+                <div><dt>Status</dt><dd>@_population.Status</dd></div>
+                <div><dt>Extracted</dt><dd>@_population.CreatedAt.ToUniversalTime().ToString("yyyy-MM-dd HH:mm") UTC</dd></div>
             </dl>
         </MudPaper>
 
-        <MudPaper Class="pa-4 my-4" Elevation="1">
+        <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="0">
             <h2>Selections and test results</h2>
+            <p class="field-help">Counts repeat recorded selections and item-test reviews for this population version. They do not establish sampling sufficiency or an audit conclusion.</p>
             @if (_selections.Count == 0)
             {
-                <p class="empty-state">No selection has been recorded for this population version.</p>
+                <MudAlert Severity="Severity.Info" Dense="true">No selection has been recorded for this population version.</MudAlert>
             }
             else
             {
                 <div class="table-wrap">
-                    <MudTable Items="_selections" Dense="true" Hover="true" Elevation="0" Class="data-table">
+                    <MudTable Items="_selections" Dense="true" Hover="true" Elevation="0" HorizontalScrollbar="true" Class="data-table audit-population-table">
   <HeaderContent><MudTh scope="col">Method</MudTh><MudTh scope="col">Status</MudTh><MudTh scope="col">Items</MudTh><MudTh scope="col">Tests</MudTh><MudTh scope="col">Reviewed tests</MudTh><MudTh scope="col">Rationale</MudTh></HeaderContent>
-  <RowTemplate>                                    <MudTd>@context.Method</MudTd>
-                                    <MudTd>@context.Status</MudTd>
-                                    <MudTd>@context.ItemCount</MudTd>
-                                    <MudTd>@context.TestCount</MudTd>
-                                    <MudTd>@context.ReviewedTestCount</MudTd>
-                                    <MudTd>@context.Rationale</MudTd></RowTemplate>
+  <RowTemplate>                                    <MudTd DataLabel="Method">@context.Method</MudTd>
+                                    <MudTd DataLabel="Status"><StatusChip Status="@context.Status" /></MudTd>
+                                    <MudTd DataLabel="Items">@context.ItemCount</MudTd>
+                                    <MudTd DataLabel="Tests">@context.TestCount</MudTd>
+                                    <MudTd DataLabel="Reviewed tests">@context.ReviewedTestCount</MudTd>
+                                    <MudTd DataLabel="Rationale" Class="audit-population-rationale"><span>@context.Rationale</span></MudTd></RowTemplate>
 </MudTable>
                 </div>
             }
         </MudPaper>
 
-        <MudPaper Class="pa-4 my-4" Elevation="1">
+        <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="0">
             <h2>Linked evidence</h2>
             @if (_evidence.Count == 0)
             {
-                <p class="empty-state">No source receipts are linked to this engagement as evidence.</p>
+                <MudAlert Severity="Severity.Info" Dense="true">No source receipts are linked to this engagement as evidence.</MudAlert>
             }
             else
             {

@@ -33,6 +33,22 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ---
 
+## UI modernization — audit population detail
+
+The authorized `/app/audit/populations/{Id:guid}` route now uses the shared
+record toolbar, semantic status chip, scoped counts, compact facts grid and
+white panels. Source receipt, extraction parameters, exclusions, monetary
+control total, selection rationale and linked evidence remain visible. The
+selection table keeps its read-only values and has mobile labels; empty
+selection and evidence states use informational alerts. Counts describe only
+persisted authorized rows and do not assert sampling sufficiency or an audit
+conclusion. The existing engagement authorization and in-place route-change
+clearing are unchanged. This slice is `PRESENTATION_ONLY`; prototype import,
+selection and review controls are not offered on this real detail route and
+were not copied. Exact local verification is recorded in `status.json`.
+
+---
+
 ## UI modernization — firm administration workbench
 
 The authorized `/app/administration` route now groups its existing dashboard
