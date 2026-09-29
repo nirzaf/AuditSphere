@@ -33,6 +33,22 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ---
 
+## UI modernization — durable operations
+
+The administrator Operations route now shows the authorized firm operating
+mode and a compact summary of queued, processing, attention, completed and
+cancelled states derived only from the same latest-firm-operation projection
+already displayed in its ledger. The count is explicitly bounded to those
+visible rows; it is not a full backlog or worker-health measure. The page's
+redacted evidence, recovery quarantine warning, cancellation disposition,
+re-arm and cancellation commands, and grant-revocation clearing remain under
+their existing Application service checks. The long duplicate introduction
+was condensed into a record-context panel; the ledger still exposes every
+existing field and action. This slice is `PRESENTATION_ONLY` and
+`WIRE_EXISTING`; local verification is recorded in `status.json`.
+
+---
+
 ## UI modernization — audit record details
 
 The real workpaper, finding and review-point detail routes now use the shared

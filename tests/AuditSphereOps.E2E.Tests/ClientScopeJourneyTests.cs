@@ -410,6 +410,28 @@ public sealed class ClientScopeJourneyTests
     await page.GotoAsync(SignInUrl(origin, "/app/operations"));
     await page.GetByText(privateKind, new() { Exact = true }).WaitForAsync();
     await connected;
+    await Assertions.Expect(page.GetByRole(AriaRole.Region, new() { Name = "Firm operating mode" })).ToContainTextAsync("LOCAL_ONLY");
+    var operationCounts = page.Locator("[aria-label='Latest durable operation counts']");
+    await Assertions.Expect(operationCounts).ToContainTextAsync("Needs attention");
+    await Assertions.Expect(operationCounts.GetByText("1", new() { Exact = true })).ToHaveCountAsync(1);
+    var operationsCaptureDir = Environment.GetEnvironmentVariable("AUDITSPHERE_OPERATIONS_UI_CAPTURE_DIR");
+    if (!string.IsNullOrWhiteSpace(operationsCaptureDir)) Directory.CreateDirectory(operationsCaptureDir);
+    foreach (var width in new[] { 320, 390, 760, 1024, 1440, 1920 })
+    {
+      await page.SetViewportSizeAsync(width, 900);
+      await page.WaitForFunctionAsync("expected => document.documentElement.clientWidth === expected && (expected >= 960 || getComputedStyle(document.querySelector('.audit-main-content')).marginLeft === '0px')", width);
+      await page.GetByText(privateKind, new() { Exact = true }).WaitForAsync();
+      var documentWidth = await page.EvaluateAsync<int>("document.documentElement.scrollWidth");
+      Assert.True(documentWidth <= width + 1, $"Operations document is {documentWidth}px wide at {width}px viewport.");
+      if (operationsCaptureDir is not null && width is 390 or 1440)
+        await page.ScreenshotAsync(new() { Path = Path.Combine(operationsCaptureDir, $"operations-{width}.png"), FullPage = true });
+    }
+    await page.SetViewportSizeAsync(1440, 900);
+    await page.GetByRole(AriaRole.Link, new() { Name = "Back to portfolio" }).FocusAsync();
+    await page.Keyboard.PressAsync("Tab");
+    var refreshButton = page.GetByRole(AriaRole.Button, new() { Name = "Refresh operations" });
+    await Assertions.Expect(refreshButton).ToBeFocusedAsync();
+    await Assertions.Expect(refreshButton).ToHaveCSSAsync("outline-style", "solid");
     var documentToken = await page.EvaluateAsync<string>("window.__operationsToken = crypto.randomUUID()");
 
     await using (var db = host.CreateDbContext())

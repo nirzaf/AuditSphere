@@ -7,7 +7,7 @@
 
 <PageTitle>Operations</PageTitle>
 <MudLink Href="/app" Class="back-link mb-2 d-inline-block">← Back to portfolio</MudLink>
-<PageHeader Title="Operations" Description="Redacted operational evidence for the current firm only: classification codes and durable state, never payloads, request bytes or lease owner identities. A re-armed operation re-runs through the same guarded validation as a first attempt. Only queued work without a worker lease can be cancelled safely." />
+<PageHeader Title="Operations" Eyebrow="Firm recovery" Description="Review the current firm's redacted durable work and take guarded recovery actions." />
 <MudButton Color="Color.Primary" Variant="Variant.Outlined" Class="button-secondary" OnClick="LoadOperationsAsync" Disabled="@(_loading || _busy)">Refresh operations</MudButton>
 
 @if (_loading)
@@ -23,7 +23,11 @@ else if (_actor is null || !_isAdmin)
 }
 else
 {
-    <p class="scope-note">Redacted operational evidence for the current firm only: classification codes and durable state, never payloads, request bytes or lease owner identities. A re-armed operation re-runs through the same guarded validation as a first attempt. Only queued work without a worker lease can be cancelled safely.</p>
+    <MudPaper Class="audit-workspace-panel pa-4 my-4" aria-labelledby="operating-mode-heading" role="region">
+      <h2 id="operating-mode-heading">Firm operating mode</h2>
+      <p class="mb-1"><strong>@_operatingMode</strong></p>
+      <MudText Typo="Typo.body2" Color="Color.Secondary">Only classification codes and durable state are shown here; payloads, request bytes and lease owner identities stay hidden. Re-arming repeats guarded validation. Cancellation is limited to queued work without a worker lease.</MudText>
+    </MudPaper>
     @if (_operatingMode == "RECOVERY_QUARANTINE")
     {
       <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="notice warning my-4" role="alert">
@@ -38,17 +42,25 @@ else
         @(_result.Succeeded ? (_successMessage ?? "The action succeeded.") : "Blocked: " + _result.ErrorCode)
       </p>
     }
+    <MudGrid Spacing="2" Class="audit-accounting-metrics my-3" aria-label="Latest durable operation counts">
+      <MudItem xs="6" sm="4" md="2"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Queued</MudText><MudText Typo="Typo.h4">@QueuedCount</MudText></MudPaper></MudItem>
+      <MudItem xs="6" sm="4" md="2"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Processing</MudText><MudText Typo="Typo.h4">@ProcessingCount</MudText></MudPaper></MudItem>
+      <MudItem xs="6" sm="4" md="2"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Needs attention</MudText><MudText Typo="Typo.h4">@AttentionCount</MudText></MudPaper></MudItem>
+      <MudItem xs="6" sm="4" md="2"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Completed</MudText><MudText Typo="Typo.h4">@CompletedCount</MudText></MudPaper></MudItem>
+      <MudItem xs="6" sm="4" md="2"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Cancelled</MudText><MudText Typo="Typo.h4">@CancelledCount</MudText></MudPaper></MudItem>
+    </MudGrid>
+    <MudText Typo="Typo.caption" Color="Color.Secondary">Counts summarize only the latest @_operations.Count firm operations shown below; they are not a backlog total or worker-health verdict.</MudText>
   @if (_operations.Count == 0)
   {
-    <MudPaper Class="pa-4 my-4" Elevation="1"><MudText Typo="Typo.body2" Color="Color.Secondary" Class="muted">No durable operations are recorded for this firm.</MudText></MudPaper>
+    <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1"><MudText Typo="Typo.body2" Color="Color.Secondary" Class="muted">No durable operations are recorded for this firm.</MudText></MudPaper>
   }
   else
   {
-    <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="operations-heading" role="region">
+    <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" aria-labelledby="operations-heading" role="region">
       <h2 id="operations-heading">Latest 50 durable operations</h2>
       <label for="cancel-disposition">Cancellation disposition</label>
-      <MudTextField T="string" @bind-Value="_cancelDisposition" MaxLength="2000" id="cancel-disposition" Placeholder="Why is the queued operation being cancelled?" required title="Explain why this queued operation is being cancelled; the disposition is stored with the operation event." />
-      <MudTable Items="_operations" Dense="true" Hover="true" Elevation="0" Class="mt-3">
+      <MudTextField T="string" @bind-Value="_cancelDisposition" MaxLength="2000" id="cancel-disposition" Class="audit-operations-disposition" Placeholder="Why is the queued operation being cancelled?" required title="Explain why this queued operation is being cancelled; the disposition is stored with the operation event." />
+      <MudTable Items="_operations" Dense="true" Hover="true" Elevation="0" Class="mt-3 audit-operations-ledger">
         <HeaderContent>
           <MudTh>Kind</MudTh>
           <MudTh>Status</MudTh>
@@ -95,6 +107,11 @@ else
   private bool _loading = true;
   private bool _busy;
   private long _loadGeneration;
+  private int QueuedCount => _operations.Count(x => x.Status is "PENDING" or "RETRY_WAIT");
+  private int ProcessingCount => _operations.Count(x => x.Status is "CLAIMED" or "REMOTE_STARTED" or "VERIFYING" or "CANCEL_REQUESTED");
+  private int AttentionCount => _operations.Count(x => x.Status is "AUTHORIZATION_BLOCKED" or "PROVIDER_BLOCKED" or "RESULT_UNCERTAIN" or "DEAD_LETTER");
+  private int CompletedCount => _operations.Count(x => x.Status == "COMPLETED");
+  private int CancelledCount => _operations.Count(x => x.Status == "CANCELLED_WITH_DISPOSITION");
 
   protected override Task OnInitializedAsync() => LoadOperationsAsync();
 

@@ -106,6 +106,14 @@ The Leads `MudCard` and firm-ledger `MudPaper` surfaces share the palette and
 panel rhythm. The prototype's extra commercial and billing fields are not
 displayed without corresponding backend contracts.
 
+The administrator Operations route now uses the same heading, scoped white
+panels and compact metrics. Its operating mode and state counts repeat only
+the authorized latest-operations projection already loaded by the page; the
+bounded counts do not claim worker health or all-time completion. The existing
+redacted ledger and guarded recovery actions remain unchanged. The table keeps
+mobile cell labels and wraps long classification codes. Matching synthetic
+before/after captures and a six-width browser journey cover this visual pass.
+
 The administrator-only project task-progress route uses accessible
 four-state progress bars for reviewed task-card counts across Modules 20–26,
 audit workflow and cross-module foundations. Its labels and expanded
