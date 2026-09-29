@@ -1,0 +1,254 @@
+@* Engagement acceptance checklist: the path (new client vs continuance) is derived server-side from stored decisions.
+   Answers need evidence where the question requires it, and an adverse answer needs a cleared specialist review.
+   Every command is an Application service that authorizes and enforces these rules; this component edits and shows. *@
+@using AuditSphereOps.Application.Acceptance
+@using AuditSphereOps.Domain.Acceptance
+@inject CurrentActorResolver ActorResolver
+@inject IDbContextFactory<AuditSphereDbContext> DbFactory
+
+<MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" role="region" aria-labelledby="checklist-heading">
+  <h2 id="checklist-heading">Acceptance checklist</h2>
+  @if (_loading && _checklist is null)
+  {
+    <LoadingState IsLoading="true" LoadingMessage="Loading checklist…" />
+  }
+  else if (_checklist is null)
+  {
+    <p class="muted" role="status">The checklist is not available to this identity.</p>
+  }
+  else
+  {
+    var c = _checklist;
+    <div class="audit-record-toolbar" aria-label="Checklist path">
+      <span class="status-badge @(c.Path == AcceptancePaths.Continuance ? "badge-blue" : "badge-yellow")">
+        @(c.Path == AcceptancePaths.Continuance ? "Continuance review (delta)" : "New client onboarding")
+      </span>
+      <span class="muted">Evaluation generation @c.Generation</span>
+    </div>
+    @if (c.Path == AcceptancePaths.Continuance && c.PriorDecision is not null)
+    {
+      <p class="scope-note">
+        Reviewing changes since the prior <strong>@c.PriorDecision.Decision</strong> decision of @(c.PriorDecision.DecidedAt?.ToString("yyyy-MM-dd") ?? "—")
+        (generation @c.PriorDecision.Generation). Only the change questions are asked; a change in management, borrowings, litigation or fraud
+        must be escalated and cleared.
+      </p>
+    }
+    else
+    {
+      <p class="scope-note">Full onboarding: identity and ownership, integrity, AML/sanctions, independence and commercial checks. Questions marked <em>evidence</em> need a supporting document reference.</p>
+    }
+
+    @if (c.CurrentDecision is not null)
+    {
+      <p class="success-text" role="status">A decision (@c.CurrentDecision.Decision) is recorded for this generation; the evaluation is immutable.</p>
+      @if (CanStartNext && c.CurrentDecision.Decision is "Accepted" or "AcceptedWithConditions")
+      {
+        <MudButton Variant="Variant.Outlined" OnClick="StartNextAsync" Disabled="@_busy">Start next continuance review</MudButton>
+        <span class="muted">Advances the evaluation generation; earlier approvals stop being current.</span>
+      }
+    }
+    else if (c.Blockers.Count > 0)
+    {
+      <div class="audit-checklist-blockers" role="status" aria-label="Outstanding acceptance items">
+        <strong>@c.Blockers.Count outstanding before a Partner can accept</strong>
+        <ul>
+          @foreach (var blocker in c.Blockers.Take(8))
+          {
+            <li class="@blocker.Kind">@blocker.Message</li>
+          }
+          @if (c.Blockers.Count > 8) { <li>… and @(c.Blockers.Count - 8) more.</li> }
+        </ul>
+      </div>
+    }
+    else
+    {
+      <p class="success-text" role="status">The checklist is complete and cleared. An authorized Partner may record the decision.</p>
+    }
+
+    @foreach (var section in c.Items.GroupBy(x => x.Question.Section).OrderBy(g => g.Key, StringComparer.Ordinal))
+    {
+      <section class="audit-checklist-section" aria-label="@($"Section {section.Key}")">
+        <h3>@section.Key — @section.First().Question.Category <span class="muted">(@section.Count(x => x.Answer is not null)/@section.Count() answered)</span></h3>
+        @foreach (var item in section)
+        {
+          var qcode = item.Question.Code;
+          <div class="audit-checklist-item @(item.Adverse ? "is-adverse" : null)" data-question="@qcode">
+            <div class="audit-checklist-prompt">
+              <strong>@qcode</strong> @item.Question.Prompt
+              @if (item.Question.RequiresEvidence) { <span class="audit-chip">evidence</span> }
+              @if (item.Question.EscalatesOnChange) { <span class="audit-chip audit-chip-key">key change item</span> }
+              @if (item.Adverse) { <span class="audit-chip audit-chip-adverse">adverse — needs specialist review</span> }
+              @if (item.PriorAnswer is { } prior) { <span class="muted">Prior cycle: @prior.Answer@(prior.EvidenceReference is null ? "" : $" ({prior.EvidenceReference})")</span> }
+            </div>
+            @if (Editable)
+            {
+              <div class="audit-checklist-inputs">
+                <label>
+                  <span class="sr-only">@($"Answer for {qcode}")</span>
+                  <select aria-label="@($"Answer for {qcode}")" value="@AnswerFor(item)" @onchange="e => SetAnswer(qcode, e.Value?.ToString())">
+                    <option value="">Select…</option>
+                    <option value="Yes">Yes</option>
+                    <option value="No">No</option>
+                  </select>
+                </label>
+                <label>
+                  <span class="sr-only">@($"Evidence reference for {qcode}")</span>
+                  <input type="text" maxlength="500" placeholder="@(item.Question.RequiresEvidence ? "Evidence reference (required)" : "Evidence reference (optional)")"
+                         aria-label="@($"Evidence reference for {qcode}")" value="@EvidenceFor(item)" @onchange="e => SetEvidence(qcode, e.Value?.ToString())" />
+                </label>
+                <MudButton Size="Size.Small" Variant="Variant.Outlined" Disabled="@(_busy || string.IsNullOrEmpty(AnswerFor(item)))"
+                           aria-label="@($"Save answer for {qcode}")" OnClick="() => SaveAnswerAsync(item)">Save</MudButton>
+              </div>
+            }
+            @if (item.Answer is not null)
+            {
+              <div class="muted audit-checklist-recorded">Recorded: <strong>@item.Answer.Answer</strong>@(item.Answer.EvidenceReference is null ? "" : $" · {item.Answer.EvidenceReference}") · revision @item.Answer.Revision@(item.AnsweredBy is null ? "" : $" · {item.AnsweredBy}")</div>
+            }
+          </div>
+        }
+      </section>
+    }
+
+    <h3>Specialist reviews</h3>
+    @if (c.Clearances.Count == 0)
+    {
+      <p class="muted">No specialist review has been requested.</p>
+    }
+    else
+    {
+      <div class="table-wrap">
+        <table>
+          <caption class="sr-only">Specialist reviews</caption>
+          <thead><tr><th scope="col">Area</th><th scope="col">Specialist</th><th scope="col">Status</th><th scope="col">Evidence</th><th scope="col">Action</th></tr></thead>
+          <tbody>
+            @foreach (var clearance in c.Clearances)
+            {
+              <tr>
+                <td>@clearance.Area</td><td>@clearance.SpecialistName</td><td><StatusChip Status="@clearance.Status" /></td>
+                <td>@(clearance.EvidenceReference ?? "—")@(clearance.Conditions is null ? "" : $" · {clearance.Conditions}")</td>
+                <td>
+                  @if (Reviewer && clearance.Status != "CLEARED" && Editable)
+                  {
+                    <input type="text" maxlength="500" placeholder="Evidence reference" aria-label="@($"Review evidence for {clearance.Area}")" value="@ReviewEvidence(clearance.Id)" @onchange="e => _reviewEvidence[clearance.Id] = e.Value?.ToString() ?? string.Empty" />
+                    <MudButton Size="Size.Small" Variant="Variant.Outlined" Disabled="@_busy" aria-label="@($"Clear {clearance.Area}")" OnClick="() => RecordReviewAsync(clearance.Id, Cleared)">Clear</MudButton>
+                    <MudButton Size="Size.Small" Variant="Variant.Text" Disabled="@_busy" aria-label="@($"Hold {clearance.Area}")" OnClick="() => RecordReviewAsync(clearance.Id, Hold)">Hold</MudButton>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+    @if (Editable)
+    {
+      <div class="audit-quote-form">
+        <div class="audit-quote-factors">
+          <label>Review area
+            <select aria-label="Review area" @bind="_area">
+              <option value="">Select…</option>
+              @foreach (var area in c.Items.Select(x => x.Question.Category).Distinct().OrderBy(x => x)) { <option value="@area">@area</option> }
+            </select>
+          </label>
+          <label>Specialist
+            <input type="text" maxlength="200" aria-label="Specialist" @bind="_specialist" @bind:event="onchange" />
+          </label>
+        </div>
+        <MudButton Variant="Variant.Outlined" Disabled="@(_busy || string.IsNullOrWhiteSpace(_area) || string.IsNullOrWhiteSpace(_specialist))" OnClick="RequestReviewAsync">Request specialist review</MudButton>
+      </div>
+    }
+  }
+  @if (_message is not null)
+  {
+    <p class="command-result @(_isError ? "error-text" : "success-text")" role="status">@_message</p>
+  }
+</MudPaper>
+
+@code {
+  [Parameter, EditorRequired] public Guid ClientId { get; set; }
+  [Parameter] public EventCallback<string> OnChanged { get; set; }
+
+  private const string Cleared = "CLEARED";
+  private const string Hold = "HOLD";
+  private AcceptanceChecklist? _checklist;
+  private readonly Dictionary<string, string> _answers = [];
+  private readonly Dictionary<string, string> _evidence = [];
+  private readonly Dictionary<Guid, string> _reviewEvidence = [];
+  private string _area = string.Empty, _specialist = string.Empty;
+  private ActorContext? _actor;
+  private bool _loading = true, _busy, _isError;
+  private string? _message;
+  private long _generation;
+
+  private bool Editable => _checklist is { CurrentDecision: null } && _actor is not null && _actor.Roles.Any(x => x is "Partner" or "Manager" or "Staff" or "EngagementLeader" or "Auditor");
+  private bool Reviewer => _actor is not null && _actor.Roles.Any(x => x is "Partner" or "Manager");
+  private bool CanStartNext => Reviewer;
+
+  protected override async Task OnParametersSetAsync() => await LoadAsync();
+
+  private async Task LoadAsync()
+  {
+    var generation = ++_generation;
+    _loading = true;
+    try
+    {
+      _actor = await ActorResolver.ResolveAsync();
+      if (_actor is null) { _checklist = null; return; }
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var result = await AcceptanceChecklistService.GetAsync(db, _actor, ClientId);
+      if (generation != _generation) return;
+      _checklist = result.Succeeded ? result.Value : null;
+    }
+    finally { if (generation == _generation) _loading = false; }
+  }
+
+  private string AnswerFor(ChecklistItem item) => _answers.TryGetValue(item.Question.Code, out var v) ? v : item.Answer?.Answer ?? string.Empty;
+  private string EvidenceFor(ChecklistItem item) => _evidence.TryGetValue(item.Question.Code, out var v) ? v : item.Answer?.EvidenceReference ?? string.Empty;
+  private string ReviewEvidence(Guid id) => _reviewEvidence.GetValueOrDefault(id, string.Empty);
+  private void SetAnswer(string code, string? value) => _answers[code] = value ?? string.Empty;
+  private void SetEvidence(string code, string? value) => _evidence[code] = value ?? string.Empty;
+
+  private Task SaveAnswerAsync(ChecklistItem item) => RunAsync(async (db, actor) =>
+  {
+    var result = await AcceptanceChecklistService.RecordAnswerAsync(db, actor, ClientId, item.Question.Code, AnswerFor(item), EvidenceFor(item));
+    if (result.Succeeded) { _answers.Remove(item.Question.Code); _evidence.Remove(item.Question.Code); }
+    return (result.Succeeded, result.Succeeded ? $"{item.Question.Code} saved." : result.Message);
+  });
+
+  private Task RequestReviewAsync() => RunAsync(async (db, actor) =>
+  {
+    var result = await AcceptanceChecklistService.RequestClearanceAsync(db, actor, ClientId, _area, _specialist);
+    return (result.Succeeded, result.Succeeded ? $"{_area} review requested." : result.Message);
+  });
+
+  private Task RecordReviewAsync(Guid id, string status) => RunAsync(async (db, actor) =>
+  {
+    var result = await AcceptanceChecklistService.RecordClearanceAsync(db, actor, id, status, ReviewEvidence(id), null);
+    return (result.Succeeded, result.Succeeded ? $"Review recorded as {status}." : result.Message);
+  });
+
+  private Task StartNextAsync() => RunAsync(async (db, actor) =>
+  {
+    var result = await AcceptanceChecklistService.StartContinuanceAsync(db, actor, ClientId);
+    return (result.Succeeded, result.Succeeded ? $"Continuance review opened at generation {result.Value}." : result.Message);
+  });
+
+  private async Task RunAsync(Func<AuditSphereDbContext, ActorContext, Task<(bool Ok, string? Message)>> action)
+  {
+    if (_busy) return;
+    _busy = true;
+    _message = null;
+    try
+    {
+      var actor = await ActorResolver.ResolveAsync();
+      if (actor is null) { _isError = true; _message = "Sign in again."; return; }
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var (ok, message) = await action(db, actor);
+      _isError = !ok;
+      _message = message;
+      await LoadAsync();
+      if (ok) await OnChanged.InvokeAsync(message ?? "Saved.");
+    }
+    finally { _busy = false; }
+  }
+}

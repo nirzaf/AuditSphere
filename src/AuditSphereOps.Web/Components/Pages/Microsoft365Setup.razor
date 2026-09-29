@@ -145,6 +145,7 @@
           </select></label></div>
         <div class="form-group"><label for="template-manifest">Allowlisted folder manifest <span class="required-marker">*</span>
           <MudTextField T="string" @bind-Value="_templateManifest" Lines="12" MaxLength="20000" id="template-manifest" required title="JSON containing only nodes with key, name and optional children. Folder names support the documented tokens only." /></label></div>
+        <MudButton Variant="Variant.Text" OnClick="LoadSteLayout" title="Loads the Client Name / Engagement Year / 01–05 layout into the editor; nothing is saved or created until you save a version.">Load STE layout (Client / Year / 01–05)</MudButton>
         <MudButton Variant="Variant.Outlined" Class="btn-secondary" OnClick="SaveTemplate" Disabled="@_templateBusy">@(_templateBusy ? "Saving…" : "Save template version")</MudButton>
         @if (_templateVersions.Count > 0)
         {
@@ -186,6 +187,7 @@
   private string _siteUrl = string.Empty, _siteId = string.Empty, _driveId = string.Empty, _rootFolderId = string.Empty;
   private string _accessProfile = Microsoft365AccessProfiles.AppMediated, _mailState = "NOT_CONFIGURED", _recordsState = "NOT_CONFIGURED";
   private string _templatePurpose = FolderTemplatePurposes.ClientWorkspace;
+  private void LoadSteLayout() => _templateManifest = Microsoft365ConfigurationService.SteManifest(_templatePurpose);
   private string _templateManifest = Microsoft365ConfigurationService.DefaultManifest(FolderTemplatePurposes.ClientWorkspace);
   private string _message = string.Empty, _error = string.Empty;
   private bool _templateBusy;

@@ -1,3 +1,4 @@
+using AuditSphereOps.Domain.Engagements;
 using AuditSphereOps.Domain.Practice;
 using Microsoft.EntityFrameworkCore;
 
@@ -8,6 +9,15 @@ public sealed partial class AuditSphereDbContext
 {
   private static void ConfigureCommercial(ModelBuilder b)
   {
+    b.Entity<EngagementActivation>(e =>
+    {
+      e.HasIndex(x => new { x.FirmId, x.EngagementId }).IsUnique();
+      e.HasOne<Engagement>().WithMany().HasForeignKey(x => x.EngagementId).OnDelete(DeleteBehavior.Restrict);
+      e.HasOne<AuditSphereOps.Domain.Acceptance.AcceptanceDecision>().WithMany()
+        .HasForeignKey(x => new { x.FirmId, x.AcceptanceDecisionId }).HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+      e.ToTable("engagement_activations", t => t.HasCheckConstraint("ck_engagement_activation_values",
+        "client_generation >= 1 AND acceptance_path IN ('NEW_CLIENT','CONTINUANCE')"));
+    });
     b.Entity<QuotationVersion>(e =>
     {
       e.HasIndex(x => new { x.FirmId, x.ProposalId, x.Revision }).IsUnique();

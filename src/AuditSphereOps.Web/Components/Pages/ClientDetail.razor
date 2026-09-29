@@ -4,6 +4,7 @@
 @using AuditSphereOps.Domain.Engagements
 @using AuditSphereOps.Domain.Practice
 @using AuditSphereOps.Domain.Security
+@using AuditSphereOps.Web.Components.Acceptance
 @inject CurrentActorResolver ActorResolver
 @inject IDbContextFactory<AuditSphereDbContext> DbFactory
 
@@ -99,6 +100,11 @@ else
     }
   </MudPaper>
 
+  @if (_canManageContacts)
+  {
+    <EngagementCreatePanel ClientId="_client.Id" OnChanged="ReloadClientAsync" />
+  }
+
   <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" aria-labelledby="contacts-heading" role="region">
     <h2 id="contacts-heading">Client contacts</h2>
     @if (_contacts.Count == 0)
@@ -173,6 +179,13 @@ else
   private string _contactEmail = string.Empty;
   private string _contactRole = string.Empty;
   private bool _contactPrimary;
+
+  private Task ReloadClientAsync(string message)
+  {
+    _successMessage = message;
+    _routeInitialized = false;
+    return OnParametersSetAsync();
+  }
 
   protected override async Task OnParametersSetAsync()
   {

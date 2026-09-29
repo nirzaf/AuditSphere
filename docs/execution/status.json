@@ -956,7 +956,8 @@
       "fullSuite": "PASS: PostgreSQL-backed solution suite Domain 441/441, API 32/32, E2E 94/94; 567/567 aggregate, 0 skipped.",
       "build": "PASS: Release Web build 0 warnings/errors; EF no pending model changes.",
       "boundary": "Covers staff routes for client- and engagement-scoped users only. Client portal differential, consolidation group-grant differential and Application command-level isolation are not covered by this case; whole AS-PAR-002 remains partial."
-    }
+    },
+    "ste2AcceptanceProvisioning": "PASS locally: Release build 0 warnings; EF has-pending-model-changes clean; full suite Api 35/35, Domain 481/481, E2E 101/102 with one load-time failure (FinancialPackagePageClearsPriorPackageWhenRouteChangesToUnavailableId) that passed on isolated rerun. Package 2 partial: acceptance paths/evidence/adverse gating, Partner activation, acceptance-triggered exact tree provisioning against the fake Graph drive. Live SharePoint creation not observed (BLOCKED_EXTERNAL)."
   },
   "documentationWork": {
     "r2rT002WikiDirectionReview": {

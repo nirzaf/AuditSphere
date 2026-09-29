@@ -60,6 +60,8 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
 
   public DbSet<Proposal> Proposals => Set<Proposal>();
 
+  public DbSet<EngagementActivation> EngagementActivations => Set<EngagementActivation>();
+
   public DbSet<QuotationVersion> QuotationVersions => Set<QuotationVersion>();
 
   public DbSet<CommercialApprovalRule> CommercialApprovalRules => Set<CommercialApprovalRule>();

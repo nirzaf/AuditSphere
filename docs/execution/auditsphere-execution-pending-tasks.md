@@ -98,7 +98,7 @@ work-tracking label, not an acceptance claim; evidence lives in `status.json`.
 | Package | Rows | Status |
 | --- | --- | --- |
 | 1 Commercial calculation and document templates | 1.2-01, 1.2-02, 1.2-03, 1.3-03, 1.3-04, 4.1-05 | READY_FOR_REVIEW — versioned quotation from approved rate cards, complexity and risk premium; configurable approval matrix; one-click branded Quotation and Engagement Letter; 50/50 fee cycle with official receipt email and post-release balance invoice. Manual receipt attachment and the drag-and-drop portal rows remain (packages 2). |
-| 2 Onboarding, continuance and commencement | 1.3-01, 1.3-02, 1.3-05, 1.3-T, 2.1-01..03, 2.3-01 | NOT_STARTED |
+| 2 Onboarding, continuance and commencement | 1.3-01, 1.3-02, 1.3-05, 1.3-T, 2.1-01..03, 2.3-01 | PARTIAL — path-aware acceptance checklist with evidence and adverse-answer specialist gating, Partner-only activation from a current unconditional acceptance, and acceptance-triggered exact `/Client/Year/01–05` provisioning (fake-Graph tested; live SharePoint creation remains `BLOCKED_EXTERNAL`). Client delegation by the primary contact, first-login enforcement, drag-and-drop portal upload with client-side SHA-256 and portal provisioning on conversion (1.3-01, 1.3-02, 1.3-05, 1.3-T) remain. |
 | 3 Resource planning and materiality | 2.2-01..03, 2.4-01..03 | NOT_STARTED |
 | 4 End-user fieldwork connections | 3.1-01..04, 3.2-02..06 | NOT_STARTED |
 | 5 Audit completion and final deliverables | 3.3-02..04, 3.4-01..02, 4.1-01..04 | NOT_STARTED |

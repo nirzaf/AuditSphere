@@ -8,6 +8,8 @@
 @using AuditSphereOps.Application.Security
 @using AuditSphereOps.Infrastructure.Persistence
 @using Microsoft.EntityFrameworkCore
+@using AuditSphereOps.Application.Acceptance
+@using AuditSphereOps.Web.Components.Acceptance
 @inject CurrentActorResolver ActorResolver
 @inject IDbContextFactory<AuditSphereDbContext> DbFactory
 @inject NavigationManager Nav
@@ -134,6 +136,12 @@ else
             }
         </MudPaper>
 
+        @if (_flash is not null)
+        {
+            <p class="command-result success-text" role="status">@_flash</p>
+        }
+        <AcceptanceChecklistPanel @key="@($"checklist-{_client.Id}")" ClientId="_client.Id" OnChanged="RefreshAsync" />
+
         <!-- Clearances / holds -->
         <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" aria-labelledby="clearances-heading" role="region">
             <h2 id="clearances-heading">Specialist Clearances (§13.3)</h2>
@@ -201,19 +209,37 @@ else
     int TotalQuestions => _sections.Sum(x => x.Total);
     int ClearedSpecialists => _clearances.Count(x => x.Status == "CLEARED");
 
-    protected override async Task OnParametersSetAsync()
+    string? _flash;
+    Guid? _flashFor;
+
+    // A child's confirmation must survive the reload that follows a successful command.
+    Task RefreshAsync(string message)
     {
-        _loading = true;
-        _actor = null;
-        _isStaff = false;
-        _scopeDenied = false;
-        _allSectionsClear = false;
-        _effectiveClientId = null;
-        _client = null;
-        _decision = null;
-        _workspace = null;
-        _sections.Clear();
-        _clearances.Clear();
+        _flash = message;
+        _flashFor = ClientId ?? Id;
+        return LoadAsync(soft: true);
+    }
+
+    protected override Task OnParametersSetAsync() => LoadAsync(soft: false);
+
+    // A soft reload refreshes the numbers in place without blanking the page, so unsaved input in the checklist survives.
+    async Task LoadAsync(bool soft)
+    {
+        if (!soft)
+        {
+            if (_flashFor != (ClientId ?? Id)) _flash = null;
+            _loading = true;
+            _actor = null;
+            _isStaff = false;
+            _scopeDenied = false;
+            _allSectionsClear = false;
+            _effectiveClientId = null;
+            _client = null;
+            _decision = null;
+            _workspace = null;
+        }
+        _sections = [];
+        _clearances = [];
 
         try
         {
@@ -267,32 +293,22 @@ else
             _workspace = await db.ClientWorkspaces.AsNoTracking()
                 .SingleOrDefaultAsync(x => x.FirmId == _actor.FirmId && x.PracticeClientId == _client.Id && x.Purpose == "PRIMARY");
 
-            var responses = await db.EvaluationResponses.AsNoTracking()
-                .Where(r => r.PracticeClientId == _client.Id && r.FirmId == _actor.FirmId)
-                .ToListAsync();
-            var answeredCodes = responses.Select(r => r.QuestionId).ToHashSet();
-            var questions = await db.QuestionDefinitions.AsNoTracking().OrderBy(q => q.SortOrder).ToListAsync();
-            if (questions.Count > 0)
+            // Progress and clearances reflect the path-specific checklist (new client vs continuance), not every bank.
+            var checklist = await AcceptanceChecklistService.GetAsync(db, _actor, _client.Id);
+            if (checklist.Succeeded)
             {
-                foreach (var group in questions.GroupBy(q => q.Section).OrderBy(g => g.Key))
+                var c = checklist.Value!;
+                foreach (var group in c.Items.GroupBy(q => q.Question.Section).OrderBy(g => g.Key, StringComparer.Ordinal))
                 {
                     var total = group.Count();
-                    var answered = group.Count(q => answeredCodes.Contains(q.QuestionCode));
-                    _sections.Add(new(group.Key, group.First().Category, answered, total, answered == total && total > 0));
+                    var answered = group.Count(q => q.Answer is not null);
+                    _sections.Add(new(group.Key, group.First().Question.Category, answered, total, answered == total && total > 0));
                 }
+                foreach (var clearance in c.Clearances)
+                    _clearances.Add(new(clearance.Area, string.IsNullOrEmpty(clearance.SpecialistName) ? "Unassigned" : clearance.SpecialistName,
+                        clearance.Status, clearance.EvidenceReference, clearance.ClearedAt));
+                _allSectionsClear = c.Ready;
             }
-
-            var clearances = await db.SpecialistClearances.AsNoTracking()
-                .Where(sc => sc.PracticeClientId == _client.Id && sc.FirmId == _actor.FirmId)
-                .ToListAsync();
-            foreach (var clearance in clearances)
-            {
-                _clearances.Add(new(clearance.Area, string.IsNullOrEmpty(clearance.SpecialistName) ? "Unassigned" : clearance.SpecialistName,
-                    clearance.Status, clearance.EvidenceReference, clearance.ClearedAt));
-            }
-
-            _allSectionsClear = (_clearances.Count == 0 || _clearances.All(c => c.Status == "CLEARED")) &&
-                _sections.Count > 0 && _sections.All(s => s.Complete);
         }
         finally { _loading = false; }
     }

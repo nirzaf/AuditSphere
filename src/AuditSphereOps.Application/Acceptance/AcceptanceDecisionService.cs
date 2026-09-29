@@ -75,33 +75,30 @@ public static class AcceptanceDecisionService
         : CommandResult<Guid>.Fail(ErrorCodes.ProtectedState, "A decision already exists for this client generation and service scope.");
     }
 
-    var responses = await db.EvaluationResponses.AsNoTracking()
-      .Where(x => x.FirmId == actor.FirmId && x.PracticeClientId == client.Id)
-      .ToListAsync(ct);
-    var questions = await (from q in db.QuestionDefinitions.AsNoTracking()
-                           join t in db.QuestionnaireTemplates.AsNoTracking() on q.TemplateId equals t.Id
-                           where t.IsActive
-                           select new { q.QuestionCode, t.Bank, t.Version }).ToListAsync(ct);
-    var latestResponses = responses.GroupBy(x => (x.Bank, x.QuestionId))
-      .ToDictionary(x => x.Key, x => x.OrderByDescending(y => y.Revision).First());
-    var evaluationComplete = questions.Count > 0 && questions.All(q =>
-      latestResponses.TryGetValue((q.Bank, q.QuestionCode), out var response) && !string.IsNullOrWhiteSpace(response.Answer));
-    var clearancesComplete = !await db.SpecialistClearances.AsNoTracking().AnyAsync(x =>
-      x.FirmId == actor.FirmId && x.PracticeClientId == client.Id && x.EngagementId == request.EngagementId && x.Status != "CLEARED", ct);
-    if (decision is "Accepted" or "AcceptedWithConditions" && (!evaluationComplete || !clearancesComplete))
-      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "All active evaluation answers and required specialist clearances must be complete before acceptance.");
+    // The path (new client vs continuance), the questions, evidence rules and adverse-answer clearances all come from
+    // stored records at the locked generation; the request carries no path and cannot choose an easier checklist.
+    var checklist = await AcceptanceChecklistService.LoadAsync(db, actor.FirmId, client.Id, request.EngagementId, clientGuard.InputGeneration, ct);
+    if (decision is "Accepted" or "AcceptedWithConditions" && !checklist.Ready)
+    {
+      var shown = string.Join(" ", checklist.Blockers.Take(3).Select(x => x.Message));
+      var more = checklist.Blockers.Count > 3 ? $" (+{checklist.Blockers.Count - 3} more)" : string.Empty;
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
+        $"Acceptance is blocked by {checklist.Blockers.Count} outstanding item(s) on the {(checklist.Path == AcceptancePaths.Continuance ? "continuance" : "new-client")} checklist. {shown}{more}");
+    }
 
-    var templateVersion = questions.Count == 0 ? "NONE" : string.Join("|", questions
-      .Select(x => $"{x.Bank}:{x.Version}").Distinct(StringComparer.Ordinal).OrderBy(x => x, StringComparer.Ordinal));
-    var snapshot = string.Join("|", latestResponses.OrderBy(x => x.Key.Bank, StringComparer.Ordinal)
-      .ThenBy(x => x.Key.QuestionId, StringComparer.Ordinal)
-      .Select(x => $"{x.Key.Bank}:{x.Key.QuestionId}:{x.Value.Revision}:{x.Value.Answer}"));
+    var templateVersion = checklist.Items.Count == 0 ? "NONE" : string.Join("|", checklist.Items
+      .Select(x => $"{x.Question.Bank}:{x.Question.TemplateVersion}").Distinct(StringComparer.Ordinal).OrderBy(x => x, StringComparer.Ordinal)
+      .Append(checklist.Path));
+    var snapshot = string.Join("|", checklist.Items.Where(x => x.Answer is not null)
+      .OrderBy(x => x.Question.Bank, StringComparer.Ordinal).ThenBy(x => x.Question.Code, StringComparer.Ordinal)
+      .Select(x => $"{x.Question.Bank}:{x.Question.Code}:{x.Answer!.Revision}:{x.Answer.Answer}:{x.Answer.EvidenceReference}"));
     var acceptance = new AcceptanceDecision
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, PracticeClientId = client.Id,
       EngagementId = request.EngagementId, Decision = decision, ServiceRoute = serviceRoute,
       Generation = clientGuard.InputGeneration, Rationale = request.Rationale.Trim(),
-      Conditions = TrimOrNull(request.Conditions), EvaluationTemplateVersion = templateVersion,
+      Conditions = TrimOrNull(request.Conditions), Path = checklist.Path, PriorDecisionId = checklist.PriorDecision?.Id,
+      EvaluationTemplateVersion = templateVersion,
       EvaluationSnapshotDigest = Digest(snapshot), DecidedByUserId = actor.UserId, DecidedAt = DateTimeOffset.UtcNow
     };
     db.AcceptanceDecisions.Add(acceptance);

@@ -153,6 +153,13 @@ else if (livePbc)
   builder.Services.AddSingleton<IPendingOperationDiscovery>(sp => new PbcTransferDiscovery(
     sp.GetRequiredService<IAuditSphereDbContextFactory>(), sp.GetRequiredService<IOperationStore>(),
     sp.GetRequiredService<PbcDocumentTransferHandler>(), workerOptions));
+  // Automatic folder provisioning when a Partner activates an engagement (same isolated live group and credential).
+  builder.Services.AddSingleton<ISelectedSiteWorkspaceProvisioner>(sp => sp.GetRequiredService<GraphSelectedSiteDrive>());
+  builder.Services.AddSingleton(sp => new EngagementWorkspaceProvisioningHandler(sp.GetRequiredService<IAuditSphereDbContextFactory>(),
+    sp.GetRequiredService<ISelectedSiteWorkspaceProvisioner>()));
+  builder.Services.AddSingleton<IPendingOperationDiscovery>(sp => new EngagementWorkspaceDiscovery(
+    sp.GetRequiredService<IAuditSphereDbContextFactory>(), sp.GetRequiredService<IOperationStore>(),
+    sp.GetRequiredService<EngagementWorkspaceProvisioningHandler>(), workerOptions));
 }
 else
 {
@@ -194,7 +201,7 @@ host.Run();
 static IOperationHandler[] ResolveHandlers(IServiceProvider sp, bool simulationAllowed, bool liveMail, bool livePbc)
 {
   if (liveMail) return [sp.GetRequiredService<PbcMailDeliveryHandler>(), sp.GetRequiredService<CommercialMailDeliveryHandler>()];
-  if (livePbc) return [sp.GetRequiredService<PbcDocumentTransferHandler>()];
+  if (livePbc) return [sp.GetRequiredService<PbcDocumentTransferHandler>(), sp.GetRequiredService<EngagementWorkspaceProvisioningHandler>()];
   var validation = sp.GetRequiredService<TrialBalanceValidationHandler>();
   var completeness = sp.GetRequiredService<GeneralLedgerCompletenessHandler>();
   var packageBuild = sp.GetRequiredService<FinancialPackageBuildHandler>();

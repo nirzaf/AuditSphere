@@ -159,10 +159,31 @@ public static class PbcRepositoryProvisioningService
 
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     if (!await TenantAdministration.IsCurrentAdministratorAsync(db, actor, ct)) return TenantAdministration.Denied<WorkspaceProvisioningResult>();
+    var applied = await ApplyEngagementBindingAsync(db, actor, engagement, config, pbcFolder.ItemId, test, now,
+      "Administrator provisioned engagement PBC repository", ct);
+    if (!applied.Succeeded) return Fail(applied.ErrorCode!, applied.Message!);
+    await db.SaveChangesAsync(ct);
+    await tx.CommitAsync(ct);
+    return test.Passed
+      ? CommandResult<WorkspaceProvisioningResult>.Ok(new(applied.Value!.Id, "VERIFIED",
+          "Engagement PBC repository created and verified with a disposable upload and exact read-back."))
+      : CommandResult<WorkspaceProvisioningResult>.Ok(new(applied.Value!.Id, "FAILED",
+          "The engagement folders exist, but the upload/read-back test failed; PBC uploads stay blocked.", test.DiagnosticCode));
+  }
+
+  /// <summary>
+  /// Records the engagement's working binding and its capability evidence from a real remote test. Shared by the
+  /// administrator action and the automatic acceptance-triggered provisioning so both write identical evidence.
+  /// The caller owns the transaction and SaveChanges.
+  /// </summary>
+  internal static async Task<CommandResult<RepositoryBinding>> ApplyEngagementBindingAsync(
+    IAuditSphereDbContext db, ActorContext actor, Domain.Engagements.Engagement engagement, FirmWorkspaceConfiguration config,
+    string pbcFolderItemId, RemoteCapabilityTest test, DateTimeOffset now, string reason, CancellationToken ct)
+  {
     var existing = await db.RepositoryBindings.Where(x => x.FirmId == actor.FirmId && x.ClientId == engagement.PracticeClientId &&
       x.EngagementId == engagement.Id && x.Classification == "working" && x.CapabilityProfile == "selected-site").ToListAsync(ct);
-    if (existing.Any(x => x.DriveId != config.DriveId || x.RootFolderId != pbcFolder.ItemId))
-      return Fail("pbc.binding-conflict", "A different working repository binding already exists for this engagement; review it before provisioning.");
+    if (existing.Any(x => x.DriveId != config.DriveId || x.RootFolderId != pbcFolderItemId))
+      return CommandResult<RepositoryBinding>.Fail("pbc.binding-conflict", "A different working repository binding already exists for this engagement; review it before provisioning.");
     var binding = existing.SingleOrDefault();
     var observed = test.Passed ? "read-write" : "none";
     if (binding is null)
@@ -170,7 +191,7 @@ public static class PbcRepositoryProvisioningService
       binding = new RepositoryBinding
       {
         Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = engagement.PracticeClientId, EngagementId = engagement.Id,
-        TenantId = config.TenantId, SiteId = config.SiteId, DriveId = config.DriveId, RootFolderId = pbcFolder.ItemId,
+        TenantId = config.TenantId, SiteId = config.SiteId, DriveId = config.DriveId, RootFolderId = pbcFolderItemId,
         Classification = "working", DesiredAccess = "read-write", ObservedAccess = observed,
         CapabilityProfile = "selected-site", CreatedAt = now
       };
@@ -191,18 +212,12 @@ public static class PbcRepositoryProvisioningService
       correlationId = test.CorrelationId
     });
     TenantAdministration.AddEvent(db, actor, test.Passed ? "PBC_REPOSITORY_VERIFIED" : "PBC_REPOSITORY_TEST_FAILED", now,
-      oldState: "-", newState: capability.HealthStatus, reason: "Administrator provisioned engagement PBC repository",
+      oldState: "-", newState: capability.HealthStatus, reason: reason,
       result: test.DiagnosticCode, correlationId: test.CorrelationId);
-    await db.SaveChangesAsync(ct);
-    await tx.CommitAsync(ct);
-    return test.Passed
-      ? CommandResult<WorkspaceProvisioningResult>.Ok(new(binding.Id, "VERIFIED",
-          "Engagement PBC repository created and verified with a disposable upload and exact read-back."))
-      : CommandResult<WorkspaceProvisioningResult>.Ok(new(binding.Id, "FAILED",
-          "The engagement folders exist, but the upload/read-back test failed; PBC uploads stay blocked.", test.DiagnosticCode));
+    return CommandResult<RepositoryBinding>.Ok(binding);
   }
 
-  private static async Task<CommandResult<(FirmWorkspaceConfiguration Config, Microsoft365ConnectionRevision Connection, FolderTemplateVersion Template)>>
+  internal static async Task<CommandResult<(FirmWorkspaceConfiguration Config, Microsoft365ConnectionRevision Connection, FolderTemplateVersion Template)>>
     ActiveSiteAsync(IAuditSphereDbContext db, Guid firmId, CancellationToken ct)
   {
     var connection = await db.Microsoft365ConnectionRevisions.AsNoTracking()
@@ -221,7 +236,7 @@ public static class PbcRepositoryProvisioningService
   }
 
   /// <summary>Creates every template node under the parent; returns created folders by node key.</summary>
-  private static async Task<Dictionary<string, RemoteFolder>> EnsureTreeAsync(ISelectedSiteWorkspaceProvisioner provider,
+  internal static async Task<Dictionary<string, RemoteFolder>> EnsureTreeAsync(ISelectedSiteWorkspaceProvisioner provider,
     SelectedSiteLocation location, string parentItemId, string manifestJson, CancellationToken ct)
   {
     var created = new Dictionary<string, RemoteFolder>(StringComparer.Ordinal);
@@ -267,7 +282,7 @@ public static class PbcRepositoryProvisioningService
     return $"{(clean.Length == 0 ? "Folder" : clean)} ({id.ToString("N")[..8]})";
   }
 
-  private static string ProviderCode(Exception ex) => ex is OperationBlockedException blocked ? blocked.Code : "provider-request-failed";
+  internal static string ProviderCode(Exception ex) => ex is OperationBlockedException blocked ? blocked.Code : "provider-request-failed";
 
   private static CommandResult<WorkspaceProvisioningResult> Fail(string code, string message) =>
     CommandResult<WorkspaceProvisioningResult>.Fail(code, message);

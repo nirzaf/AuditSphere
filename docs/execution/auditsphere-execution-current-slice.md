@@ -48,6 +48,21 @@ reload. Exact verification is in `status.json`.
 
 ---
 
+## STE specification alignment — package 2 (partial): acceptance paths, activation and workspace provisioning
+
+Acceptance now follows the client's history: a first engagement uses the new-client question bank and a returning
+client the continuance bank. Questions that require evidence refuse a bare answer, an adverse answer blocks the
+Partner until a specialist review in that area is cleared with evidence after the answer, and a decision records its
+path. An engagement is created blocked and only a Partner can activate it, from a current unconditional acceptance
+for the client's generation. Activation queues a durable operation that creates the exact
+`/Client Name/Engagement Year/01–05` tree from approved templates (or the previous layout for existing templates),
+disambiguating duplicates instead of merging, and records the same binding and capability evidence as the
+administrator action. Live SharePoint creation remains `BLOCKED_EXTERNAL`; delegation by the client's primary
+contact, first-login enforcement, drag-and-drop portal upload and portal provisioning at conversion are not yet
+built. Exact verification is in `status.json`.
+
+---
+
 ## Staff navigation search (UX-029)
 
 The staff top bar now has a search field backed by a new Application query. It covers clients, engagements, PBC

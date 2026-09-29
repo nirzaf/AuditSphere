@@ -385,7 +385,8 @@ public sealed partial class AuditSphereDbContext
 
     b.Entity<QuestionDefinition>(entity =>
     {
-      entity.ToTable("question_definitions");
+      entity.ToTable("question_definitions", t => t.HasCheckConstraint("ck_question_adverse_answer",
+        "adverse_answer IS NULL OR adverse_answer IN ('YES','NO')"));
       entity.HasKey(x => x.Id);
       entity.HasIndex(x => new { x.TemplateId, x.QuestionCode }).IsUnique();
       entity.HasOne<QuestionnaireTemplate>().WithMany().HasForeignKey(x => x.TemplateId).OnDelete(DeleteBehavior.Restrict);

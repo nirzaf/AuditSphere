@@ -3,6 +3,7 @@
 @using AuditSphereOps.Domain.Engagements
 @using AuditSphereOps.Domain.Practice
 @using AuditSphereOps.Domain.Security
+@using AuditSphereOps.Web.Components.Acceptance
 @inject CurrentActorResolver ActorResolver
 @inject IDbContextFactory<AuditSphereDbContext> DbFactory
 
@@ -67,6 +68,8 @@ else
     </dl>
   </MudPaper>
 
+  <EngagementActivationPanel @key="@($"activation-{_engagement.Id}-{_engagement.Generation}")" Engagement="_engagement" OnChanged="ReloadAsync" />
+
   <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" aria-labelledby="actions-heading" role="region">
     <h2 id="actions-heading">Work surfaces</h2>
     <div class="audit-action-row">
@@ -119,6 +122,8 @@ else
   private List<EngagementHold> _holds = [];
   private bool _loading = true;
   private Guid _loadedEngagementId;
+
+  private Task ReloadAsync(string message) { _loadedEngagementId = Guid.Empty; return OnParametersSetAsync(); }
 
   // Loading happens per parameter set (not only at initialization) so a same-document
   // route change to another engagement reauthorizes and clears the prior projection.

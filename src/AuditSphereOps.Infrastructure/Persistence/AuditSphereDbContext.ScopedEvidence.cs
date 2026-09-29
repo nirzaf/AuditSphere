@@ -361,6 +361,8 @@ public sealed partial class AuditSphereDbContext
         " AND decision IN ('Pending','Accepted','AcceptedWithConditions','Declined','Deferred')" +
         " AND ((decision IN ('Accepted','AcceptedWithConditions','Declined','Deferred') AND decided_at IS NOT NULL" +
         "        AND decided_by_user_id IS NOT NULL) OR decision = 'Pending')");
+      t.HasCheckConstraint("ck_acceptance_decision_path",
+        "path IN ('NEW_CLIENT','CONTINUANCE') AND (path = 'CONTINUANCE' OR prior_decision_id IS NULL)");
       t.HasCheckConstraint("ck_acceptance_decision_evidence",
         "((decision = 'Pending') OR (length(trim(rationale)) > 0 AND length(trim(evaluation_template_version)) > 0 AND evaluation_snapshot_digest ~ '^[0-9a-f]{64}$'))" +
         " AND ((decision = 'AcceptedWithConditions' AND length(trim(conditions)) > 0) OR decision <> 'AcceptedWithConditions')");
@@ -375,8 +377,9 @@ public sealed partial class AuditSphereDbContext
     evaluation.HasOne<PracticeClient>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.PracticeClientId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    evaluation.Property(x => x.EvidenceReference).HasMaxLength(500);
     evaluation.ToTable("evaluation_responses", t => t.HasCheckConstraint("ck_evaluation_response_values",
-      "bank IN ('CE','RV') AND revision >= 1 AND length(trim(question_id)) > 0 AND length(trim(answer)) > 0"));
+      "bank IN ('CE','RV') AND revision >= 1 AND generation >= 1 AND length(trim(question_id)) > 0 AND length(trim(answer)) > 0"));
 
     var mappingRule = b.Entity<MappingRule>();
     mappingRule.Property(x => x.MappingCode).HasMaxLength(50);

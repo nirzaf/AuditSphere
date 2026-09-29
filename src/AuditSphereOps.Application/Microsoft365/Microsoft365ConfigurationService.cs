@@ -419,6 +419,19 @@ public static class Microsoft365ConfigurationService
     _ => "{\"nodes\":[]}" 
   };
 
+  /// <summary>
+  /// The Audit Management Tool layout: /Client Name/Engagement Year/01-05. The client template has no "engagements"
+  /// node (which is what selects the direct-year layout at provisioning) and the engagement template carries the five
+  /// specified folders with the intake binding on the trial-balance folder.
+  /// </summary>
+  public static string SteManifest(string purpose) => purpose.Trim().ToUpperInvariant() switch
+  {
+    FolderTemplatePurposes.EngagementWorkspace => """
+      {"nodes":[{"key":"admin","name":"01_Administration & Planning"},{"key":"pbc","name":"02_Trial Balance & Schedules"},{"key":"fieldwork","name":"03_Fieldwork & Testing"},{"key":"drafts","name":"04_Drafts & Deliverables"},{"key":"archive","name":"05_Final Signed Archive"}]}
+      """,
+    _ => "{\"nodes\":[]}"
+  };
+
   private static CommandResult ValidateNode(JsonElement node, HashSet<string> keys,
     ref int nodeCount, int depth, int parentPathLength)
   {

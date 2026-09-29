@@ -1,0 +1,63 @@
+@* Partner sign-off gate: an engagement starts blocked and is activated only from the client's current unconditional
+   Accepted decision for the same service route. The Application service enforces this; the button explains a refusal. *@
+@using AuditSphereOps.Application.Acceptance
+@using AuditSphereOps.Domain.Engagements
+@inject CurrentActorResolver ActorResolver
+@inject IDbContextFactory<AuditSphereDbContext> DbFactory
+
+<MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" role="region" aria-labelledby="activation-heading">
+  <h2 id="activation-heading">Engagement activation</h2>
+  @if (Engagement.Status == "Draft" && Engagement.ProfessionalWorkBlocked)
+  {
+    <p class="scope-note">Professional work is <strong>blocked</strong> until a Partner activates this engagement. Activation requires the client's current, unconditional acceptance for the <strong>@Engagement.ServiceRoute</strong> service, with no open hold.</p>
+    <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="ActivateAsync" Disabled="@_busy">Activate engagement (Partner)</MudButton>
+    <a class="audit-inline-link" href="/app/clients/@Engagement.PracticeClientId/assessment">Open the acceptance checklist</a>
+  }
+  else if (_activation is not null)
+  {
+    <p class="success-text" role="status">Activated on @_activation.ActivatedAt.ToString("yyyy-MM-dd HH:mm") UTC against decision <code>@_activation.AcceptanceDecisionId.ToString("D")[..8]</code> (evaluation generation @_activation.ClientGeneration, @(_activation.AcceptancePath == "CONTINUANCE" ? "continuance" : "new-client") path).</p>
+  }
+  else
+  {
+    <p class="muted">Status: @Engagement.Status.</p>
+  }
+  @if (_message is not null)
+  {
+    <p class="command-result @(_isError ? "error-text" : "success-text")" role="status">@_message</p>
+  }
+</MudPaper>
+
+@code {
+  [Parameter, EditorRequired] public Engagement Engagement { get; set; } = default!;
+  [Parameter] public EventCallback<string> OnChanged { get; set; }
+
+  private EngagementActivation? _activation;
+  private bool _busy, _isError;
+  private string? _message;
+
+  protected override async Task OnParametersSetAsync()
+  {
+    var actor = await ActorResolver.ResolveAsync();
+    if (actor is null) return;
+    await using var db = await DbFactory.CreateDbContextAsync();
+    _activation = await db.EngagementActivations.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.EngagementId == Engagement.Id);
+  }
+
+  private async Task ActivateAsync()
+  {
+    if (_busy) return;
+    _busy = true;
+    _message = null;
+    try
+    {
+      var actor = await ActorResolver.ResolveAsync();
+      if (actor is null) { _isError = true; _message = "Sign in again."; return; }
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var result = await EngagementLifecycleService.ActivateAsync(db, actor, Engagement.Id);
+      _isError = !result.Succeeded;
+      _message = result.Succeeded ? "Engagement activated. Professional work is now permitted." : result.Message;
+      if (result.Succeeded) await OnChanged.InvokeAsync(_message);
+    }
+    finally { _busy = false; }
+  }
+}

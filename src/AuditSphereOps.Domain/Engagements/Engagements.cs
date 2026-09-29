@@ -44,3 +44,20 @@ public sealed class EngagementAssignment
   public Guid CreatedByUserId { get; set; }
 }
 
+
+/// <summary>
+/// Immutable record of the Partner sign-off that activated an engagement: which accepted decision, at which client
+/// evaluation generation, by whom. An engagement cannot do professional work without one.
+/// </summary>
+public sealed class EngagementActivation
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid PracticeClientId { get; set; }
+  public Guid EngagementId { get; set; }
+  public Guid AcceptanceDecisionId { get; set; }
+  public long ClientGeneration { get; set; }
+  public string AcceptancePath { get; set; } = string.Empty;
+  public Guid ActivatedByUserId { get; set; }
+  public DateTimeOffset ActivatedAt { get; set; }
+}
