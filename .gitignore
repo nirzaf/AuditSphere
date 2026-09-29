@@ -87,3 +87,6 @@ __pycache__/
 
 ## Local AI tool planning notes
 .zcode/
+
+## Local clone of GitHub Wiki repository (AuditSphere.wiki.git)
+wiki/
