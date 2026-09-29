@@ -9,7 +9,7 @@
 @inject IDbContextFactory<AuditSphereDbContext> DbFactory
 
 <PageTitle>Advanced consolidation workflow</PageTitle>
-<MudLink Href="/app/consolidation" Class="back-link mb-2 d-inline-block">← Back to consolidation</MudLink>
+<nav class="breadcrumb-nav" aria-label="Consolidation location"><MudLink Href="/app/consolidation">Consolidation</MudLink> / <span>Advanced workflow</span></nav>
 
 @if (_loading)
 {
@@ -21,10 +21,19 @@ else if (_actor is null || _scope is null)
 }
 else
 {
-  <PageHeader Title="Advanced consolidation workflow" Description="Exact approved group perimeter, schedule inputs, and consolidation execution state for this scope." />
-  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="scope-heading" role="region">
+  <PageHeader Title="Advanced consolidation workflow" Eyebrow="Group accounting" Description="Exact approved group perimeter, schedule inputs, and consolidation execution state for this scope." />
+  <div class="audit-record-toolbar" aria-label="Consolidation workflow navigation">
+    <MudLink Href="/app/consolidation">Group workspace</MudLink>
+    <StatusChip Status="@_scope.Status" />
+  </div>
+  <MudGrid Spacing="2" Class="audit-accounting-metrics my-3" aria-label="Scoped advanced consolidation counts">
+    <MudItem xs="12" sm="4"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Schedules</MudText><MudText Typo="Typo.h4">@_schedules.Count</MudText></MudPaper></MudItem>
+    <MudItem xs="6" sm="4"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Approved schedules</MudText><MudText Typo="Typo.h4">@_schedules.Count(x => x.Status == AdvancedConsolidationMethodScheduleStates.Approved)</MudText></MudPaper></MudItem>
+    <MudItem xs="6" sm="4"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Executions</MudText><MudText Typo="Typo.h4">@_executions.Count</MudText></MudPaper></MudItem>
+  </MudGrid>
+  <MudPaper Class="audit-workspace-panel audit-advanced-scope pa-4 my-4" Elevation="0" aria-labelledby="scope-heading" role="region">
     <h2 id="scope-heading">@_scope.GroupName · v@_scope.Version</h2>
-    <dl class="details">
+    <dl class="details audit-advanced-facts">
       <dt>Method</dt><dd><code>@_scope.Method</code></dd>
       <dt>Reporting currency</dt><dd><code>@_scope.ReportingCurrency</code></dd>
       <dt>Perimeter</dt><dd>@_scope.Status · group revision @_scope.GroupRevision</dd>
@@ -39,17 +48,18 @@ else
     <p class="command-result @(_messageSucceeded ? "success-text" : "error-text")" role="status" aria-live="polite">@_message</p>
   }
 
-  <section class="card" aria-labelledby="schedule-submit-heading" data-draft-scope="@($"advanced-schedule-{ScopeId:D}")">
+  <section class="card audit-workspace-panel audit-advanced-compose" aria-labelledby="schedule-submit-heading" data-draft-scope="@($"advanced-schedule-{ScopeId:D}")">
     <h2 id="schedule-submit-heading">Submit source-bound schedule</h2>
     <p class="muted">Required inputs are saved as a browser draft. The server canonicalizes the JSON, validates the selected method and creates a submitted schedule only; it never accepts client-supplied approval state.</p>
-    <div class="form-grid">
+    <p id="advanced-draft-guidance" class="field-help" data-draft-guidance>Fields marked * are required. Fields marked optional can be left blank.</p>
+    <div class="form-grid audit-advanced-form-grid">
       <label class="field" for="advanced-source-manifest">
-        Source manifest JSON <span aria-hidden="true">*</span>
+        <span>Source manifest JSON <span aria-hidden="true">*</span></span>
 <!-- Native textareas retained: data-draft-field JSON inputs inside the schedule-scope draft boundary; draft-state.js reads control.value and restores via dispatched events. -->
         <textarea id="advanced-source-manifest" data-draft-field="source-manifest" @bind="_sourceManifestJson" @bind:event="oninput" rows="10" maxlength="20000" required title="Identify every approved component source exactly once. Method-specific journal, FX or nested-run evidence belongs here when required."></textarea>
       </label>
       <label class="field" for="advanced-input-snapshot">
-        Method input and statement JSON <span aria-hidden="true">*</span>
+        <span>Method input and statement JSON <span aria-hidden="true">*</span></span>
         <textarea id="advanced-input-snapshot" data-draft-field="input-snapshot" @bind="_inputSnapshotJson" @bind:event="oninput" rows="14" maxlength="20000" required title="Provide the approved method inputs and balanced comparative/current statementLines required by the selected method."></textarea>
       </label>
     </div>
@@ -67,20 +77,20 @@ else
     }
   </section>
 
-  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="schedule-list-heading" role="region">
+  <MudPaper Class="audit-workspace-panel audit-advanced-register pa-4 my-4" Elevation="0" aria-labelledby="schedule-list-heading" role="region">
     <h2 id="schedule-list-heading">Schedules</h2>
     @if (_schedules.Count == 0)
     {
-      <p class="muted">No method schedule has been submitted for this scope.</p>
+      <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="my-3">No method schedule has been submitted for this scope.</MudAlert>
     }
     else
     {
-      <MudTable Items="_schedules" Dense="true" Hover="true" Elevation="0">
+      <MudTable Items="_schedules" Dense="true" Hover="true" Elevation="0" HorizontalScrollbar="true" Class="audit-advanced-table" aria-label="Advanced consolidation schedules">
   <HeaderContent><MudTh scope="col">Created</MudTh><MudTh scope="col">Status</MudTh><MudTh scope="col">Schedule</MudTh><MudTh scope="col"><span class="sr-only">Action</span></MudTh></HeaderContent>
-  <RowTemplate>            <MudTd>@context.CreatedAt.ToString("yyyy-MM-dd HH:mm") UTC<br /><span class="muted"><code>@context.CreatedByUserId</code></span></MudTd>
-            <MudTd><StatusChip Status="@context.Status" /></MudTd>
-            <MudTd><code>@context.Id</code><br /><span class="muted">input @context.InputDigest[..Math.Min(12, context.InputDigest.Length)]…</span></MudTd>
-            <MudTd>
+  <RowTemplate>            <MudTd DataLabel="Created">@context.CreatedAt.ToString("yyyy-MM-dd HH:mm") UTC<br /><span class="muted"><code>@context.CreatedByUserId</code></span></MudTd>
+            <MudTd DataLabel="Status"><StatusChip Status="@context.Status" /></MudTd>
+            <MudTd DataLabel="Schedule"><code>@context.Id</code><br /><span class="muted">input @context.InputDigest[..Math.Min(12, context.InputDigest.Length)]…</span></MudTd>
+            <MudTd DataLabel="Action">
               @if (context.Status == AdvancedConsolidationMethodScheduleStates.Submitted && _canReview)
               {
                 <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button" OnClick="() => ApproveScheduleAsync(context.Id)" Disabled="@_busy">Approve context</MudButton>
@@ -98,7 +108,7 @@ else
     }
   </MudPaper>
 
-  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="execution-heading" role="region">
+  <MudPaper Class="audit-workspace-panel audit-advanced-register pa-4 my-4" Elevation="0" aria-labelledby="execution-heading" role="region">
     <h2 id="execution-heading">Verified executions</h2>
     <p class="muted">Execution recalculates from the current approved schedule, components and group revision. Separate approval is required before the result is treated as ready.</p>
     @if (_canPrepare && _schedules.Any(x => x.Status == AdvancedConsolidationMethodScheduleStates.Approved))
@@ -107,17 +117,17 @@ else
     }
     @if (_executions.Count == 0)
     {
-      <p class="muted">No verified execution exists for this scope.</p>
+      <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="my-3">No verified execution exists for this scope.</MudAlert>
     }
     else
     {
-      <MudTable Items="_executions" Dense="true" Hover="true" Elevation="0">
+      <MudTable Items="_executions" Dense="true" Hover="true" Elevation="0" HorizontalScrollbar="true" Class="audit-advanced-table" aria-label="Advanced consolidation executions">
   <HeaderContent><MudTh scope="col">Created</MudTh><MudTh scope="col">Status</MudTh><MudTh scope="col">Balances</MudTh><MudTh scope="col">Execution</MudTh><MudTh scope="col"><span class="sr-only">Action</span></MudTh></HeaderContent>
-  <RowTemplate>            <MudTd>@context.CreatedAt.ToString("yyyy-MM-dd HH:mm") UTC<br /><span class="muted"><code>@context.CreatedByUserId</code></span></MudTd>
-            <MudTd><StatusChip Status="@context.Status" /></MudTd>
-            <MudTd>Comparative @context.ComparativeSignedTotal.ToString("N2")<br />Current @context.CurrentSignedTotal.ToString("N2")</MudTd>
-            <MudTd><code>@context.Id</code><br /><span class="muted">output @context.OutputDigest[..Math.Min(12, context.OutputDigest.Length)]…</span></MudTd>
-            <MudTd>
+  <RowTemplate>            <MudTd DataLabel="Created">@context.CreatedAt.ToString("yyyy-MM-dd HH:mm") UTC<br /><span class="muted"><code>@context.CreatedByUserId</code></span></MudTd>
+            <MudTd DataLabel="Status"><StatusChip Status="@context.Status" /></MudTd>
+            <MudTd DataLabel="Balances">Comparative @context.ComparativeSignedTotal.ToString("N2")<br />Current @context.CurrentSignedTotal.ToString("N2")</MudTd>
+            <MudTd DataLabel="Execution"><code>@context.Id</code><br /><span class="muted">output @context.OutputDigest[..Math.Min(12, context.OutputDigest.Length)]…</span></MudTd>
+            <MudTd DataLabel="Action">
               @if (context.Status == AdvancedConsolidationExecutionStates.Verified && _canReview)
               {
                 <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button" OnClick="() => ApproveExecutionAsync(context.Id)" Disabled="@_busy">Approve context</MudButton>

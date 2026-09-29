@@ -33,6 +33,27 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ---
 
+## UI modernization — group consolidation routes
+
+The authorized `/app/consolidation` landing route now uses source-backed counts
+of visible groups, scope versions and approved component pins, with shared
+panels, contained registers and labeled mobile cells across perimeter, packs,
+FX, advanced schedules, intercompany and eliminations. Its report section
+links to an existing guarded advanced workflow. The authorized
+`/app/consolidation/advanced/{ScopeId:guid}` route now uses a
+scoped breadcrumb, record toolbar, status chip, counts of loaded schedules and
+executions, a compact group facts panel, responsive source-bound JSON editors,
+and white schedule/execution registers with contained tables. Empty registers
+have informational states. The native draft boundary and JSON controls retain
+their browser-only recovery behavior; the real submission, independent
+approval, group grant and source-revalidation commands are unchanged. Counts
+do not claim consolidation or release readiness. This is
+`PRESENTATION_ONLY` plus `WIRE_EXISTING` for the direct link; method additions
+and approval shortcuts from the visual prototype were not copied. Exact local
+verification is recorded in `status.json`.
+
+---
+
 ## UI modernization — staff PBC request inbox
 
 The authorized engagement PBC route now has a scoped record breadcrumb,

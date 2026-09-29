@@ -37,6 +37,20 @@
 
 ## 3. Theme & shared components (presentation only)
 
+The group consolidation landing route now uses read-only counts of authorized
+groups, scope versions and approved component pins. Its dense perimeter,
+component, FX, advanced-schedule, intercompany and elimination registers
+remain source-backed and scroll within their panels at wider widths, with
+mobile cell labels at narrow widths. The approved-report area links to the
+existing guarded advanced workflow. The advanced consolidation detail route now has scoped record context,
+semantic perimeter status, read-only schedule/execution counts, compact group
+facts and responsive JSON editors. The native draft controls remain in the
+same draft boundary and their reload recovery is checked in a browser journey.
+Schedule and execution registers use white panels, contained tables, mobile
+cell labels and explicit empty states. These counts are not approval or
+release-readiness signals, and no prototype-only method or business action
+was added.
+
 The staff PBC request inbox now uses the shared scoped record header, links
 and count cards. Its native request form reflows from two columns to one,
 while the upload table scrolls within its panel on narrow screens. Counts
@@ -540,7 +554,7 @@ does not claim parity or whole-application acceptance.
 | Practice overview and dashboard | `/app`, `/app/overview` | Portfolio pilot complete; route-specific polish remains. |
 | Practice, client and engagement work | `/app/practice/*`, `/app/clients/*`, `/app/engagements/*` | Partial: leads, time, client and engagement details passed; other routes remain. |
 | Economics and billing | `/app/finance`, invoice details and practice time | Partial: firm finance, time and invoice detail passed; other routes remain. |
-| Accounting and group workbenches | `/app/accounting/*`, `/app/consolidation/*` | Partial: landing, evidence, queues, mapping/journal details and period views passed; group detail work remains. |
+| Accounting and group workbenches | `/app/accounting/*`, `/app/consolidation/*` | Partial: accounting landing, evidence, queues, mapping/journal details and period views plus both group consolidation routes passed; other accounting routes remain. |
 | Audit, review, completion and records | `/app/audit/*`, `/app/assessments/*`, `/app/reviews/*`, `/app/findings/*`, `/app/completion/*`, `/app/releases/*`, `/app/records/*` | Partial: selected audit and detail routes, assessment, release and archive passed; other routes remain. |
 | Firm administration and Microsoft 365 | `/app/administration*`, `/setup/microsoft365` | Partial: overview and tab workbench, task progress, protected setup and tenant-connection presentation passed; dialogs and remaining state/contrast acceptance still require a full route-family audit. |
 | Client secure portal | `/portal*` | Client-safe shell and the three current portal views have a local visual pass; deeper state and keyboard coverage remains. |

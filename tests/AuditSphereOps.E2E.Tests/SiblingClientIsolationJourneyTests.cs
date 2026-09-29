@@ -196,6 +196,32 @@ public sealed partial class SiblingClientIsolationJourneyTests(ITestOutputHelper
     foreach (var leak in leaks) output.WriteLine(leak);
     Assert.Empty(leaks);
     Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
+    await page.GotoAsync(origin + "/app/consolidation");
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Perimeter", Exact = true }).WaitForAsync();
+    foreach (var width in new[] { 320, 390, 760, 1024, 1440, 1920 })
+    {
+      await page.SetViewportSizeAsync(width, 900);
+      await page.WaitForFunctionAsync(width < 960
+        ? "() => getComputedStyle(document.querySelector('.audit-main-content')).marginLeft === '0px'"
+        : "() => document.querySelector('.audit-sidebar')?.getBoundingClientRect().left >= -1");
+      if (Environment.GetEnvironmentVariable("AUDITSPHERE_GROUP_UI_CAPTURE_DIR") is { Length: > 0 } captureDir &&
+          width is 320 or 390 or 1440)
+      {
+        Directory.CreateDirectory(captureDir);
+        await page.ScreenshotAsync(new() { Path = Path.Combine(captureDir, $"group-{width}.png"), FullPage = true });
+      }
+      var overflowPixels = await page.EvaluateAsync<int>("() => document.documentElement.scrollWidth - window.innerWidth");
+      var overflowing = overflowPixels > 1
+        ? await page.EvaluateAsync<string[]>("() => [...document.querySelectorAll('body *')].filter(x => x.getBoundingClientRect().right > innerWidth + 1).slice(0, 12).map(x => `${x.tagName.toLowerCase()}.${String(x.className).slice(0, 80)}`)")
+        : [];
+      Assert.True(overflowPixels <= 1,
+        $"Group consolidation overflows by {overflowPixels}px at {width}px: {string.Join(", ", overflowing)}.");
+    }
+    var advancedLink = page.GetByRole(AriaRole.Link, new() { Name = "Open advanced workflow" });
+    await advancedLink.FocusAsync();
+    Assert.Equal("solid", await advancedLink.EvaluateAsync<string>("element => getComputedStyle(element).outlineStyle"));
+    await advancedLink.ClickAsync();
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Advanced consolidation workflow" }).WaitForAsync();
     output.WriteLine("group-scoped user: consolidation routes unchanged; sibling group scope indistinguishable from a random identifier");
   }
 

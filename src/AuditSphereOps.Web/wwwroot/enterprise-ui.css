@@ -237,11 +237,26 @@ body { background: var(--audit-page); }
 .audit-pbc-timeline { border-left: 2px solid var(--audit-line); margin: 12px 0 20px 8px; padding-left: 20px; }
 .audit-pbc-timeline li { padding: 0 0 12px 8px; overflow-wrap: anywhere; }
 .audit-pbc-timeline li p { margin: 4px 0 0; }
+.audit-advanced-scope, .audit-advanced-compose, .audit-advanced-register { min-width: 0; max-width: 100%; }
+.audit-advanced-facts { display: grid; grid-template-columns: minmax(9rem, 13rem) minmax(0, 1fr); gap: 8px 16px; }
+.audit-advanced-facts dt, .audit-advanced-facts dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.audit-advanced-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.audit-advanced-form-grid > label { display: block; min-width: 0; max-width: 100%; }
+.audit-advanced-form-grid > label.required-label::after { content: none; }
+.audit-advanced-form-grid textarea { display: block; box-sizing: border-box; width: 100%; min-width: 0; max-width: 100%; }
+.audit-advanced-table { max-width: 100%; }
+.audit-advanced-table .mud-table-cell { overflow-wrap: anywhere; }
+.audit-group-panel { min-width: 0; max-width: 100%; }
+.audit-group-table, .audit-group-table .mud-table-container, .audit-group-report-wrap { min-width: 0; max-width: 100%; }
+.audit-group-table .mud-table-cell, .audit-group-panel code { overflow-wrap: anywhere; word-break: break-word; }
+.audit-group-report-table { min-width: 48rem; }
 @media (max-width: 760px) { .audit-population-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 600px) {
   .audit-population-facts { grid-template-columns: minmax(0, 1fr); }
   .audit-population-rationale::before { flex: 0 0 7rem; min-width: 7rem; }
   .audit-pbc-form-grid { grid-template-columns: minmax(0, 1fr); }
+  .audit-advanced-facts, .audit-advanced-form-grid { grid-template-columns: minmax(0, 1fr); }
+  .audit-advanced-facts dt { font-weight: 700; }
 }
 .audit-record-sections { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 4px; }
 .audit-record-sections a { border: 1px solid var(--audit-line); border-radius: 6px; background: #fff; padding: 6px 10px; color: var(--audit-navy); font-size: 13px; font-weight: 600; }

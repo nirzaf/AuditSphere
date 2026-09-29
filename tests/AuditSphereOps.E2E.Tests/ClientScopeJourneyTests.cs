@@ -260,7 +260,6 @@ public sealed class ClientScopeJourneyTests
     await page.GotoAsync(SignInUrl(host.StaffUrl, $"/app/consolidation/advanced/{authorizedScopeId:D}"));
     await page.GetByRole(AriaRole.Heading, new() { Name = privateGroupName }).WaitForAsync();
     await connected;
-
     var documentToken = Guid.NewGuid().ToString("N");
     await page.EvaluateAsync("token => window.__testDocumentToken = token", documentToken);
     await page.EvaluateAsync("path => { history.pushState({}, '', path); dispatchEvent(new PopStateEvent('popstate')); }",
@@ -272,6 +271,32 @@ public sealed class ClientScopeJourneyTests
     Assert.DoesNotContain(authorizedScopeId.ToString("D"), body);
     Assert.Equal(documentToken, await page.EvaluateAsync<string>("window.__testDocumentToken"));
     Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
+    await page.GotoAsync(SignInUrl(host.StaffUrl, $"/app/consolidation/advanced/{authorizedScopeId:D}"));
+    await page.GetByRole(AriaRole.Heading, new() { Name = privateGroupName }).WaitForAsync();
+    await page.Locator("[aria-label='Scoped advanced consolidation counts']").GetByText("0", new() { Exact = true }).First.WaitForAsync();
+    foreach (var width in new[] { 320, 390, 760, 1024, 1440, 1920 })
+    {
+      await page.SetViewportSizeAsync(width, 900);
+      await page.WaitForFunctionAsync("() => getComputedStyle(document.querySelector('.audit-main-content')).marginLeft === '0px' || document.querySelector('.audit-sidebar')?.getBoundingClientRect().left >= -1");
+      Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= window.innerWidth + 1"),
+        $"Advanced consolidation overflows at {width}px.");
+      if (Environment.GetEnvironmentVariable("AUDITSPHERE_ADVANCED_UI_CAPTURE_DIR") is { Length: > 0 } captureDir &&
+          width is 390 or 1440)
+      {
+        Directory.CreateDirectory(captureDir);
+        await page.ScreenshotAsync(new() { Path = Path.Combine(captureDir, $"advanced-{width}.png"), FullPage = true });
+      }
+    }
+    var manifestEditor = page.Locator("#advanced-source-manifest");
+    await manifestEditor.FillAsync("{\"sources\":[],\"reviewedJournals\":[],\"note\":\"synthetic draft\"}");
+    await page.WaitForFunctionAsync("() => document.querySelector('[data-draft-scope] .draft-status')?.textContent?.includes('Draft saved') === true");
+    await page.ReloadAsync();
+    await page.GetByRole(AriaRole.Heading, new() { Name = privateGroupName }).WaitForAsync();
+    await Assertions.Expect(page.Locator("#advanced-source-manifest"))
+      .ToHaveValueAsync("{\"sources\":[],\"reviewedJournals\":[],\"note\":\"synthetic draft\"}");
+    await page.GetByRole(AriaRole.Button, new() { Name = "Submit schedule" }).FocusAsync();
+    Assert.Equal("solid", await page.GetByRole(AriaRole.Button, new() { Name = "Submit schedule" })
+      .EvaluateAsync<string>("element => getComputedStyle(element).outlineStyle"));
   }
 
   [Fact]
