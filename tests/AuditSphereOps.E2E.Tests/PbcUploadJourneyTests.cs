@@ -78,6 +78,28 @@ public sealed class PbcUploadJourneyTests
     await staffPage.GetByRole(AriaRole.Heading, new() { Name = "Prepared-by-client requests" }).WaitForAsync();
     await staffCircuitConnected;
     await staffPage.WaitForLoadStateAsync(LoadState.NetworkIdle, new() { Timeout = 5000 });
+    foreach (var width in new[] { 320, 390, 760, 1024, 1440, 1920 })
+    {
+      await staffPage.SetViewportSizeAsync(width, 900);
+      await staffPage.WaitForTimeoutAsync(250);
+      var overflow = await staffPage.EvaluateAsync<int>("() => document.documentElement.scrollWidth - window.innerWidth");
+      Assert.True(overflow <= 1, $"PBC inbox overflows by {overflow}px at {width}px.");
+      var recipientBounds = await staffPage.Locator("#pbc-client-owner").BoundingBoxAsync();
+      Assert.NotNull(recipientBounds);
+      Assert.True(recipientBounds.X + recipientBounds.Width <= width + 1,
+        $"PBC recipient selector extends outside the {width}px viewport.");
+      if (Environment.GetEnvironmentVariable("AUDITSPHERE_PBC_UI_CAPTURE_DIR") is { Length: > 0 } captureDir &&
+          width is 390 or 1440)
+      {
+        Directory.CreateDirectory(captureDir);
+        await staffPage.SetViewportSizeAsync(width, 900);
+        await staffPage.ScreenshotAsync(new() { Path = Path.Combine(captureDir, $"pbc-inbox-{width}.png"), FullPage = true });
+      }
+    }
+    var scopedCounts = await staffPage.Locator("[aria-label='Scoped PBC counts']").InnerTextAsync();
+    Assert.Contains("Requests\n1", scopedCounts);
+    Assert.Contains("Upload intents\n1", scopedCounts);
+    Assert.Contains("Received uploads\n0", scopedCounts);
     var completeButton = staffPage.GetByRole(AriaRole.Button, new() { Name = "Complete staged transfer" });
     Assert.True(await completeButton.IsEnabledAsync());
     await completeButton.ClickAsync(new() { Timeout = 5000 });

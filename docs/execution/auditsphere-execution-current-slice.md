@@ -33,6 +33,35 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ---
 
+## UI modernization — staff PBC request inbox
+
+The authorized engagement PBC route now has a scoped record breadcrumb,
+direct links to the engagement and fieldwork, and counts for loaded requests,
+upload intents and received uploads. Its request form uses a responsive
+two-column layout on wider screens and one column on mobile. The recipient
+selector stays inside the form, and the upload table scrolls within its
+panel. Existing request, staged-transfer, timeline, download, native draft
+autosave and scope checks remain unchanged. The counts are record counts,
+not evidence suitability or completion decisions. This slice is
+`PRESENTATION_ONLY`; it adds no provider or approval action. Exact local
+verification is recorded in `status.json`.
+
+---
+
+## Project implementation task progress
+
+The administrator-only project tracker now prints completed-card percentages
+beside its existing source-backed counts and segmented bars for the overall
+pack, Modules 20–26, the four audit phases, audit aggregate and shared
+foundation. The denominator remains the published task-card count; status
+filters affect only visible lists. Practice, time, finance, documents,
+operations and administration still show an unmeasured bar because no
+dedicated task-card mapping is approved for those areas. This percentage is
+not working-software completion or production readiness. Exact verification
+is recorded in `status.json`.
+
+---
+
 ## UI modernization — audit population detail
 
 The authorized `/app/audit/populations/{Id:guid}` route now uses the shared

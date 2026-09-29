@@ -18,6 +18,9 @@ public sealed class ProjectProgressReaderTests
     Assert.Equal(progress.AuditTasks.Count, progress.AuditPhases.Sum(x => x.Tasks.Count));
     Assert.NotEmpty(progress.SharedTasks);
     Assert.Equal(progress.Tasks.Count, progress.Completed + progress.Active + progress.Blocked + progress.Pending);
+    Assert.Equal(progress.Completed * 100 / progress.Tasks.Count, progress.CompletionPercent);
+    Assert.All(progress.Modules, module =>
+      Assert.Equal(module.Completed * 100 / module.Tasks.Count, module.CompletionPercent));
     Assert.Equal(6, ProjectProgressReader.UntrackedAreas.Count);
   }
 
@@ -48,6 +51,7 @@ public sealed class ProjectProgressReaderTests
       Assert.Equal("T003", Assert.Single(progress.SharedTasks).Id);
       Assert.Empty(progress.AuditTasks);
       Assert.All(progress.AuditPhases, phase => Assert.Empty(phase.Tasks));
+      Assert.All(progress.AuditPhases, phase => Assert.Equal(0, phase.CompletionPercent));
       Assert.Equal("Review needed", progress.Tasks.Single(x => x.Id == "T002").BlockedReason);
     }
     finally { Directory.Delete(root, recursive: true); }

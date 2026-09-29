@@ -15,8 +15,10 @@
 @inject IJSRuntime JS
 
 <PageTitle>PBC requests</PageTitle>
-<MudLink Href="/app" Class="back-link mb-2 d-inline-block">← Back to portfolio</MudLink>
-<PageHeader Title="Prepared-by-client requests" Description="Only request metadata, upload receipts and durable transfer state are shown. A received file is not accepted evidence until the assigned reviewer completes suitability review." />
+<nav class="breadcrumb-nav" aria-label="PBC location">
+  <MudLink Href="/app">Portfolio</MudLink> / <span>PBC requests</span>
+</nav>
+<PageHeader Title="Prepared-by-client requests" Eyebrow="Engagement documents" Description="Only request metadata, upload receipts and durable transfer state are shown. A received file is not accepted evidence until the assigned reviewer completes suitability review." />
 
 @if (_loading)
 {
@@ -39,16 +41,26 @@ else if (_engagement is null || _denied)
 }
 else
 {
-  <p class="scope-note">Only request metadata, upload receipts and durable transfer state are shown. A received file is not accepted evidence until the assigned reviewer completes suitability review.</p>
-  <section class="card" aria-labelledby="new-request-heading" data-draft-scope="@($"pbc-new-request-{EngagementId}")">
+  <div class="audit-record-toolbar" aria-label="PBC navigation">
+    <MudLink Href="@($"/app/engagements/{EngagementId}")">Engagement overview</MudLink>
+    <MudLink Href="@($"/app/engagements/{EngagementId}/audit-fieldwork")">Audit fieldwork</MudLink>
+  </div>
+  <MudGrid Spacing="2" Class="audit-accounting-metrics my-3" aria-label="Scoped PBC counts">
+    <MudItem xs="6" sm="4"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Requests</MudText><MudText Typo="Typo.h4">@_requests.Count</MudText></MudPaper></MudItem>
+    <MudItem xs="6" sm="4"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Upload intents</MudText><MudText Typo="Typo.h4">@_intents.Values.Sum(x => x.Count)</MudText></MudPaper></MudItem>
+    <MudItem xs="12" sm="4"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Received uploads</MudText><MudText Typo="Typo.h4">@_intents.Values.Sum(x => x.Count(i => i.State == PbcUploadStates.Received))</MudText></MudPaper></MudItem>
+  </MudGrid>
+  <section class="card audit-workspace-panel audit-pbc-compose" aria-labelledby="new-request-heading" data-draft-scope="@($"pbc-new-request-{EngagementId}")">
     <h2 id="new-request-heading">Request files from the client</h2>
     <p class="muted">The client receives a minimal email notification with this description and an authenticated portal upload link.</p>
 <!-- Native controls retained: the new-request section is a draft-state.js boundary; the per-request reply textareas bind value+oninput with dynamic per-request ids (message state without row re-render). -->
+    <div class="audit-pbc-form-grid">
     <div class="field"><label for="pbc-description">Files required</label><textarea id="pbc-description" @bind="_description" maxlength="2000" required title="Describe the files the client must upload and the period or details they should cover."></textarea></div>
     <div class="field"><label for="pbc-client-owner">Client recipient</label><select id="pbc-client-owner" @bind="_clientOwnerId" required title="Choose the assigned client portal user who will receive the request."><option value="@Guid.Empty">Select client user</option>@foreach (var user in _clientOwners) { <option value="@user.Id">@user.DisplayName (@user.Email)</option> }</select></div>
     <div class="field"><label for="pbc-reviewer">Reviewer</label><select id="pbc-reviewer" @bind="_reviewerId" required title="Choose the staff member responsible for reviewing the uploaded files."><option value="@Guid.Empty">Select reviewer</option>@foreach (var user in _reviewers) { <option value="@user.Id">@user.DisplayName</option> }</select></div>
     <div class="field"><label for="pbc-due">Due date</label><input id="pbc-due" type="date" @bind="_dueDate" required title="Choose when the client should complete this request." /></div>
-    <div class="field"><label for="pbc-format">Preferred format <span class="optional-label">optional</span></label><input id="pbc-format" @bind="_requestedFormat" maxlength="200" data-optional="true" title="Optionally name preferred formats such as PDF, XLSX, CSV, or image." /></div>
+    <div class="field"><label for="pbc-format">Preferred format</label><input id="pbc-format" @bind="_requestedFormat" maxlength="200" data-optional="true" title="Optionally name preferred formats such as PDF, XLSX, CSV, or image." /></div>
+    </div>
     <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button" OnClick="CreateAndSendAsync" Disabled="@(_busy || _clientOwners.Count == 0 || _reviewers.Count == 0)">@(_busy ? "Sending…" : "Send file request")</MudButton>
     @if (_createResult is not null)
     {
@@ -57,7 +69,7 @@ else
   </section>
   @if (_requests.Count == 0)
   {
-    <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="pbc-heading" role="region">
+    <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="0" aria-labelledby="pbc-heading" role="region">
       <h2 id="pbc-heading">@_engagement.ServiceRoute — @_engagement.PeriodStart to @_engagement.PeriodEnd</h2>
       <MudText Typo="Typo.body2" Color="Color.Secondary" Class="muted">No PBC requests are recorded for this engagement.</MudText>
     </MudPaper>
@@ -66,8 +78,8 @@ else
   {
     @foreach (var request in _requests)
     {
-      <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="@HeadingId(request.Id)" role="region">
-        <h2 id="@HeadingId(request.Id)">@request.Area — @request.State</h2>
+      <MudPaper Class="audit-workspace-panel audit-pbc-request pa-4 my-4" Elevation="0" aria-labelledby="@HeadingId(request.Id)" role="region">
+        <div class="audit-pbc-request-heading"><h2 id="@HeadingId(request.Id)">@request.Area</h2><StatusChip Status="@request.State" /></div>
         <MudText Typo="Typo.body2" Color="Color.Secondary" Class="muted">@request.Objective · due @request.DueDate · revision @request.Revision</MudText>
         @if (!_intents.TryGetValue(request.Id, out var intents) || intents.Count == 0)
         {
@@ -75,7 +87,7 @@ else
         }
         else
         {
-          <div class="table-wrap"><table>
+          <div class="table-wrap audit-pbc-upload-wrap"><table class="audit-pbc-upload-table">
             <caption class="sr-only">Upload intents for request @request.Area</caption>
             <thead><tr><th scope="col">File</th><th scope="col">Bytes</th><th scope="col">Intent state</th><th scope="col">Transfer state</th><th scope="col">Action</th></tr></thead>
             <tbody>
@@ -120,7 +132,7 @@ else
           </table></div>
         }
         <h3>Conversation timeline</h3>
-        <ol class="timeline">
+        <ol class="timeline audit-pbc-timeline">
           @foreach (var item in TimelineFor(request.Id))
           {
             <li><strong>@item.Label</strong> <span class="muted">@item.At.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</span><p>@item.Body</p></li>

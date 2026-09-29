@@ -93,6 +93,7 @@ public sealed record ProjectTaskProgress(string Id, string Title, string Status,
 public sealed record ProjectModuleProgress(int Number, string Name, IReadOnlyList<ProjectTaskProgress> Tasks)
 {
   public int Completed => Tasks.Count(x => x.Status == "COMPLETED");
+  public int CompletionPercent => Tasks.Count == 0 ? 0 : Completed * 100 / Tasks.Count;
   public int Active => Tasks.Count(x => x.Status is "IN_PROGRESS" or "IN_REVIEW");
   public int Blocked => Tasks.Count(x => x.Status == "BLOCKED");
   public int Pending => Tasks.Count - Completed - Active - Blocked;
@@ -104,6 +105,7 @@ public sealed record ProjectProgressSnapshot(IReadOnlyList<ProjectTaskProgress> 
   public int AuditCompleted => AuditTasks.Count(x => x.Status == "COMPLETED");
   public int SharedCompleted => SharedTasks.Count(x => x.Status == "COMPLETED");
   public int Completed => Tasks.Count(x => x.Status == "COMPLETED");
+  public int CompletionPercent => Tasks.Count == 0 ? 0 : Completed * 100 / Tasks.Count;
   public int Active => Tasks.Count(x => x.Status is "IN_PROGRESS" or "IN_REVIEW");
   public int Blocked => Tasks.Count(x => x.Status == "BLOCKED");
   public int Pending => Tasks.Count - Completed - Active - Blocked;

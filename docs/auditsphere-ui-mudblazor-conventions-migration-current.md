@@ -37,6 +37,14 @@
 
 ## 3. Theme & shared components (presentation only)
 
+The staff PBC request inbox now uses the shared scoped record header, links
+and count cards. Its native request form reflows from two columns to one,
+while the upload table scrolls within its panel on narrow screens. Counts
+describe only authorized loaded requests and transfer intents; a received
+upload is not an evidence-suitability or completion decision. The existing
+draft autosave scope, upload state transitions, client isolation and download
+authorization remain unchanged.
+
 Workpaper, finding and review-point details now use the shared record context
 and white panels, with scoped status and navigation links. Workpaper revisions
 and frozen-submission counts and finding state are read-only projections from
@@ -88,6 +96,10 @@ completion and pending counts in a four-state segmented bar; areas outside
 that task pack show a neutral untracked bar and no
 percentage. This does not derive implementation completion from live business
 records or bypass task-card review gates.
+Mapped module cards and the overall summary also show the completed-card
+percentage calculated from their published task-card denominator. Audit and
+shared-foundation summaries use the same calculation; a module with no mapped
+cards never receives a fabricated percentage.
 An administrator can filter the task-card lists by completed, active or in
 review, pending or reopened, and blocked status. The filter leaves every
 module bar and its full-source counts unchanged.

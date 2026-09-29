@@ -27,7 +27,7 @@ else if (_progress is not null)
 {
   <MudPaper Class="audit-workspace-panel pa-4 mb-4" aria-label="Task-card totals">
     <div class="audit-progress-summary">
-      <div><strong>@_progress.Completed / @_progress.Tasks.Count</strong><span>Completed</span></div>
+      <div><strong>@_progress.Completed / @_progress.Tasks.Count (@_progress.CompletionPercent%)</strong><span>Completed task cards</span></div>
       <div><strong>@_progress.Active</strong><span>Active or in review</span></div>
       <div><strong>@_progress.Pending</strong><span>Pending or reopened</span></div>
       <div><strong>@_progress.Blocked</strong><span>Blocked</span></div>
@@ -56,7 +56,7 @@ else if (_progress is not null)
       <MudPaper Class="audit-workspace-panel pa-4" aria-labelledby="@($"module-{module.Number}")">
         <div class="audit-module-progress-heading">
           <h2 id="@($"module-{module.Number}")">Module @module.Number — @module.Name</h2>
-          <strong>@module.Completed / @module.Tasks.Count</strong>
+          <strong>@module.Completed / @module.Tasks.Count (@module.CompletionPercent%)</strong>
         </div>
         <ProjectTaskStatusBar Tasks="module.Tasks" Label="@($"Module {module.Number} task-card progress")" />
         <p class="audit-progress-counts">@module.Active active or in review · @module.Pending pending · @module.Blocked blocked</p>
@@ -76,7 +76,7 @@ else if (_progress is not null)
   <MudPaper Class="audit-workspace-panel pa-4 mt-4">
     <h2>Audit workflow</h2>
     <ProjectTaskStatusBar Tasks="_progress.AuditTasks" Label="Audit workflow task-card progress" />
-    <p class="audit-progress-counts">@_progress.AuditCompleted / @_progress.AuditTasks.Count completed · @CountActive(_progress.AuditTasks) active or in review · @CountPending(_progress.AuditTasks) pending · @CountBlocked(_progress.AuditTasks) blocked</p>
+    <p class="audit-progress-counts">@_progress.AuditCompleted / @_progress.AuditTasks.Count completed (@CompletionPercent(_progress.AuditTasks)%) · @CountActive(_progress.AuditTasks) active or in review · @CountPending(_progress.AuditTasks) pending · @CountBlocked(_progress.AuditTasks) blocked</p>
     <details>
       <summary>View @FilterTasks(_progress.AuditTasks).Count of @_progress.AuditTasks.Count task cards</summary>
       <ul class="audit-progress-task-list">
@@ -96,7 +96,7 @@ else if (_progress is not null)
         <MudPaper Class="audit-workspace-panel pa-4" aria-labelledby="@($"audit-phase-{phase.Number}")">
           <div class="audit-module-progress-heading">
             <h3 id="@($"audit-phase-{phase.Number}")">@phase.Name</h3>
-            <strong>@phase.Completed / @phase.Tasks.Count</strong>
+            <strong>@phase.Completed / @phase.Tasks.Count (@phase.CompletionPercent%)</strong>
           </div>
           <ProjectTaskStatusBar Tasks="phase.Tasks" Label="@($"{phase.Name} task-card progress")" />
           <p class="audit-progress-counts">@phase.Active active or in review · @phase.Pending pending · @phase.Blocked blocked</p>
@@ -117,7 +117,7 @@ else if (_progress is not null)
   <MudPaper Class="audit-workspace-panel pa-4 mt-4">
     <h2>Shared and cross-module foundation</h2>
     <ProjectTaskStatusBar Tasks="_progress.SharedTasks" Label="Shared foundation task-card progress" />
-    <p class="audit-progress-counts">@_progress.SharedCompleted / @_progress.SharedTasks.Count completed · @CountActive(_progress.SharedTasks) active or in review · @CountPending(_progress.SharedTasks) pending · @CountBlocked(_progress.SharedTasks) blocked</p>
+    <p class="audit-progress-counts">@_progress.SharedCompleted / @_progress.SharedTasks.Count completed (@CompletionPercent(_progress.SharedTasks)%) · @CountActive(_progress.SharedTasks) active or in review · @CountPending(_progress.SharedTasks) pending · @CountBlocked(_progress.SharedTasks) blocked</p>
     <details>
       <summary>View @FilterTasks(_progress.SharedTasks).Count of @_progress.SharedTasks.Count task cards</summary>
       <ul class="audit-progress-task-list">
@@ -158,6 +158,8 @@ else if (_progress is not null)
   private bool _authorized;
   private string? _error;
   private static int CountActive(IReadOnlyList<ProjectTaskProgress> tasks) => tasks.Count(x => x.Status is "IN_PROGRESS" or "IN_REVIEW");
+  private static int CompletionPercent(IReadOnlyList<ProjectTaskProgress> tasks) =>
+    tasks.Count == 0 ? 0 : tasks.Count(x => x.Status == "COMPLETED") * 100 / tasks.Count;
   private static int CountPending(IReadOnlyList<ProjectTaskProgress> tasks) => tasks.Count(x => x.Status is "NOT_STARTED" or "REOPENED");
   private static int CountBlocked(IReadOnlyList<ProjectTaskProgress> tasks) => tasks.Count(x => x.Status == "BLOCKED");
   private IReadOnlyList<ProjectTaskProgress> FilterTasks(IReadOnlyList<ProjectTaskProgress> tasks) =>
