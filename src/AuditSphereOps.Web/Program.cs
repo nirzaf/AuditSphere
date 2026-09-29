@@ -586,6 +586,26 @@ app.MapGet("/api/pbc/uploads/{uploadId:guid}/download", async (
   return Results.Empty;
 });
 
+// Generated commercial documents (quotation, engagement letter, receipt): same authorization as the service, no
+// existence oracle (unknown and out-of-scope identifiers both refuse), never cached or sniffed.
+app.MapGet("/api/commercial/documents/{documentId:guid}/download", async (
+  Guid documentId,
+  HttpContext http,
+  TrustedActorResolver actorResolver,
+  IDbContextFactory<AuditSphereDbContext> dbFactory,
+  CancellationToken ct) =>
+{
+  var actor = await actorResolver.ResolveAsync(http.User, ct);
+  if (actor is null) return Results.Unauthorized();
+  await using var db = await dbFactory.CreateDbContextAsync(ct);
+  var result = await AuditSphereOps.Application.Practice.CommercialDocumentService.GetAsync(db, actor, documentId, ct);
+  if (!result.Succeeded) return Results.Forbid();
+  var document = result.Value!;
+  http.Response.Headers.CacheControl = "no-store";
+  http.Response.Headers["X-Content-Type-Options"] = "nosniff";
+  return Results.File(document.Bytes, document.ContentType, document.FileName);
+});
+
 app.MapRazorComponents<AuditSphereOps.Web.Components.App>()
   .AddInteractiveServerRenderMode();
 

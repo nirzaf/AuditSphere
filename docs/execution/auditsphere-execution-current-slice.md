@@ -33,6 +33,21 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ---
 
+## STE specification alignment — package 1: commercial calculation and the fee cycle
+
+A proposal is now priced from approved rate cards, hours, a complexity factor and a risk premium; each change is a
+new immutable quotation revision. A configurable approval matrix decides who must approve a discount or
+non-standard terms, and the proposal cannot enter internal review until its calculated quotation is approved and
+equal to the proposal fee. One action produces a branded Quotation and Engagement Letter bound to the approved
+revision. After acceptance and conversion the agreed fee splits into a 50% advance and a balance: the advance
+follows normal invoice review and posting, payments are recorded manually (partial, duplicate and excess amounts
+are handled), and a fully paid advance produces one official receipt and one queued email delivered by the isolated
+mail worker. The balance invoice is issued once, only after the advance is paid and the linked engagement has an
+issued release. The browser journey found and fixed a stale fee preview and a confirmation that disappeared on
+reload. Exact verification is in `status.json`.
+
+---
+
 ## Staff navigation search (UX-029)
 
 The staff top bar now has a search field backed by a new Application query. It covers clients, engagements, PBC

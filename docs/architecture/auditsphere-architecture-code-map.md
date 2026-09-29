@@ -474,6 +474,14 @@ accounting or consolidation workspaces.
 
 
 
+## Commercial quotation, documents and the agreed-fee cycle
+
+- Domain: `Domain/Practice/Commercial.cs` — `QuotationVersion`, `CommercialApprovalRule`, `QuotationApproval`, `FirmCommercialProfile`, `CommercialDocument`, `EngagementFeeAgreement`, `FeeMilestone`, `CommercialNotification`
+- Application: `Application/Practice/QuotationCalculator.cs` (pure fee model: rate × hours → complexity → risk premium → discount), `CommercialApprovalMatrix.cs` (pure rule evaluation with a documented fail-safe default), `QuotationService.cs` (versioning, submit, matrix approvals, rule administration, approved-rate options), `CommercialDocumentRenderer.cs` + `CommercialDocumentService.cs` (branded Quotation, Engagement Letter and receipt as DOCX with template/profile version and SHA-256), `FeeAgreementService.cs` (50% advance and balance milestones over the existing `BillingService` review/post/receipt path), `CommercialMailDeliveryHandler.cs` (isolated `mail` worker delivery of the receipt email). `PracticeCrmService.ApproveProposalAsync` gates internal review on an approved, fee-matching quotation.
+- Persistence: `AuditSphereDbContext.Commercial.cs`, migration `CommercialQuotationsAndFeeAgreements` (check constraints and append-only/field-restricted triggers)
+- UI: `Components/Commercial/QuotationWorkbench.razor`, `FeeAgreementPanel.razor`, `ProposalWorkflowPanel.razor` (hosted by `ProposalDetail.razor`), `Pages/CommercialSettings.razor`; authorized download endpoint `/api/commercial/documents/{id}/download` in `Web/Program.cs`
+- Tests: `QuotationCalculatorTests.cs`, `CommercialWorkflowTests.cs`, `tests/.../CommercialJourneyTests.cs`
+
 ## Microsoft 365 setup, security and administration
 
 

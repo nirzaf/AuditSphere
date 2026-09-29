@@ -17,6 +17,7 @@ public sealed class RouteRenderSmokeTests
     ("/", "Controlled work, visible evidence."),
     ("/app", "Portfolio"),
     ("/app/practice/leads", "Practice leads"),
+    ("/app/practice/commercial-settings", "Commercial settings"),
     ("/app/practice/time", "Practice time & task records"),
     ("/app/finance", "Firm ledger & financial operations"),
     ("/app/operations", "Operations"),

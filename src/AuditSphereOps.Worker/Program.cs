@@ -5,6 +5,7 @@ using AuditSphereOps.Application.Completion;
 using AuditSphereOps.Application.Diagnostics;
 using AuditSphereOps.Application.Documents;
 using AuditSphereOps.Application.Operations;
+using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Infrastructure.Persistence;
 using AuditSphereOps.Infrastructure.Providers;
 using Microsoft.EntityFrameworkCore;
@@ -123,6 +124,11 @@ if (liveMail)
     sp.GetRequiredService<IAuditSphereDbContextFactory>(),
     sp.GetRequiredService<IOperationStore>(),
     sp.GetRequiredService<PbcMailDeliveryHandler>(), workerOptions));
+  builder.Services.AddSingleton<CommercialMailDeliveryHandler>();
+  builder.Services.AddSingleton<IPendingOperationDiscovery>(sp => new CommercialMailDiscovery(
+    sp.GetRequiredService<IAuditSphereDbContextFactory>(),
+    sp.GetRequiredService<IOperationStore>(),
+    sp.GetRequiredService<CommercialMailDeliveryHandler>(), workerOptions));
 }
 else if (livePbc)
 {
@@ -187,7 +193,7 @@ host.Run();
 
 static IOperationHandler[] ResolveHandlers(IServiceProvider sp, bool simulationAllowed, bool liveMail, bool livePbc)
 {
-  if (liveMail) return [sp.GetRequiredService<PbcMailDeliveryHandler>()];
+  if (liveMail) return [sp.GetRequiredService<PbcMailDeliveryHandler>(), sp.GetRequiredService<CommercialMailDeliveryHandler>()];
   if (livePbc) return [sp.GetRequiredService<PbcDocumentTransferHandler>()];
   var validation = sp.GetRequiredService<TrialBalanceValidationHandler>();
   var completeness = sp.GetRequiredService<GeneralLedgerCompletenessHandler>();

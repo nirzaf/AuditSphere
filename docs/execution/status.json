@@ -940,6 +940,14 @@
       "fullSuite": "PASS: PostgreSQL-backed solution suite Domain 441/441, API 32/32, E2E 92/92; 565/565 aggregate, 0 skipped (live tests report BLOCKED_EXTERNAL without credentials).",
       "boundary": "Throttling was verified only against the fake Graph drive (it cannot be induced live). Production approval and independent review remain."
     },
+    "steSpecPackage1CommercialCalculation": {
+      "scope": "STE Audit Management specification alignment, package 1: calculated quotation, approval matrix, branded documents, 50/50 fee cycle",
+      "observedAt": "2026-09-30T00:00:00Z",
+      "behavior": "Quotations are priced from the latest approved rate cards x hours, a complexity factor, a risk premium and a discount by a pure calculator; every recalculation is an immutable revision. A configurable approval matrix (discount bands, non-standard terms, documented Partner default) selects required approvers, blocks insufficient roles and preparers approving their own version, and gates proposal internal review. One action generates a branded Quotation and Engagement Letter (DOCX, template/profile version, SHA-256) from the approved quotation. The accepted proposal yields an agreed-fee agreement with a 50% advance and a balance; invoices follow the existing review/post path; manual advance payments handle partial, duplicate and excess amounts; a fully paid advance produces one official receipt document and one queued email delivered by the isolated mail worker; the balance invoice is issued once, only after the advance is paid and the linked engagement has an issued release. Database triggers make documents, approvals and profiles append-only and restrict agreement, milestone and quotation edits.",
+      "focusedTests": "PASS: QuotationCalculatorTests 11/11; CommercialWorkflowTests 3/3 (versioning, matrix, documents, fee cycle with real invoice posting, mail worker, release-triggered balance); CommercialJourneyTests 1/1 (price, approve, fail-closed without letterhead, download, client refused, internal review).",
+      "fullSuite": "PASS: PostgreSQL-backed solution suite Domain 473/473, API 35/35, E2E 101/101 (609/609), Release build 0 warnings, no pending EF model changes.",
+      "boundary": "Receipt email carries the receipt details in the body; the DOCX is retained on the record but not attached because the mail contract has no attachments. Provider acceptance of the email is not recipient delivery. Portal provisioning on conversion, client delegation, first-login enforcement and drag-and-drop (package 2) are not part of this slice."
+    },
     "siblingClientDifferentialIsolation": {
       "scope": "AS-PAR-002 whole-application sibling-client differential isolation (staff routes)",
       "observedAt": "2026-09-28T19:40:00Z",

@@ -438,7 +438,9 @@ public sealed class PracticeBillingLedgerJourneyTests
     Assert.Contains("Proposal author", body);
     Assert.Contains(host.Fixture.Admin.DisplayName, body);
     Assert.Contains("Validity", body);
-    Assert.Contains("Workflow actions unavailable", body);
+    Assert.Contains("Commercial workflow", body);
+    Assert.Contains("no email is sent by this page", body);
+    Assert.Contains("Calculated quotation", body);
     Assert.DoesNotContain("Acme Holdings W.L.L.", body);
     Assert.DoesNotContain("Senior Manager A", body);
 

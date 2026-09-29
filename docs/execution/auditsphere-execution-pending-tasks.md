@@ -88,6 +88,23 @@ The following local tasks, architectural decisions, and follow-ups are open for 
 
 
 
+### 2.2a STE Audit Management specification alignment
+
+Source: the owner-supplied STE Audit Management Tool specification and its requirement-by-requirement comparison
+against `867061f` (55 traceability rows). Work proceeds in the comparison's seven gap-closure packages; a row is
+closed only with a demonstration that uses real role identities and no direct status edits. Status here is the
+work-tracking label, not an acceptance claim; evidence lives in `status.json`.
+
+| Package | Rows | Status |
+| --- | --- | --- |
+| 1 Commercial calculation and document templates | 1.2-01, 1.2-02, 1.2-03, 1.3-03, 1.3-04, 4.1-05 | READY_FOR_REVIEW — versioned quotation from approved rate cards, complexity and risk premium; configurable approval matrix; one-click branded Quotation and Engagement Letter; 50/50 fee cycle with official receipt email and post-release balance invoice. Manual receipt attachment and the drag-and-drop portal rows remain (packages 2). |
+| 2 Onboarding, continuance and commencement | 1.3-01, 1.3-02, 1.3-05, 1.3-T, 2.1-01..03, 2.3-01 | NOT_STARTED |
+| 3 Resource planning and materiality | 2.2-01..03, 2.4-01..03 | NOT_STARTED |
+| 4 End-user fieldwork connections | 3.1-01..04, 3.2-02..06 | NOT_STARTED |
+| 5 Audit completion and final deliverables | 3.3-02..04, 3.4-01..02, 4.1-01..04 | NOT_STARTED |
+| 6 Scheduled freeze and external enforcement | 4.2-01..03, OV-02 | NOT_STARTED (live SharePoint read-only enforcement stays `BLOCKED_EXTERNAL` until observed) |
+| 7 Firm operations and technical library | OV-05, 4.3-01..03, 4.4-01..02 | NOT_STARTED |
+
 ### 2.3 Technical Debt & Bounded Hardening
 
 - **Automated Documentation Health:** Complete: the Markdown health and filename validators plus the narrative volatile-metrics guard run in hosted CI (`ci.yml` "docs-health" job), keeping exact test counts, SHAs and run identifiers out of the top-of-authority narrative documents.

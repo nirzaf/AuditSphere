@@ -48,6 +48,7 @@ public static class GlobalSearchQuery
   [
     ("Portfolio", "/app", "home overview dashboard clients"),
     ("Practice leads", "/app/practice/leads", "crm opportunities proposals"),
+    ("Commercial settings", "/app/practice/commercial-settings", "letterhead approval matrix discount quotation"),
     ("Practice time & tasks", "/app/practice/time", "timesheet tasks budget"),
     ("Firm finance", "/app/finance", "ledger invoices receipts billing"),
     ("Client accounting workspace", "/app/accounting", "periods books chart"),

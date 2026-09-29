@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @using AuditSphereOps.Application.Security
 @using AuditSphereOps.Domain.Practice
+@using AuditSphereOps.Web.Components.Commercial
 @inject CurrentActorResolver ActorResolver
 @inject IDbContextFactory<AuditSphereDbContext> DbFactory
 @inject ILogger<ProposalDetail> Logger
@@ -119,10 +120,13 @@ else
     </MudTable>
   </MudPaper>
 
-  <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="notice my-4" role="status" aria-labelledby="workflow-heading">
-    <h2 id="workflow-heading">Workflow actions unavailable</h2>
-    <MudText Typo="Typo.body2">Independent pricing-review evidence, validity, and outbound delivery receipt are not yet persisted. This page therefore will not change review, sent, or client-response status. No email is sent by opening or refreshing this page.</MudText>
-  </MudAlert>
+  @if (_flash is not null)
+  {
+    <p class="command-result success-text" role="status">@_flash</p>
+  }
+  <QuotationWorkbench @key="_proposal.Id" Proposal="_proposal" OnChanged="ChangedAsync" />
+  <FeeAgreementPanel @key="@($"fee-{_proposal.Id}")" Proposal="_proposal" OnChanged="ChangedAsync" />
+  <ProposalWorkflowPanel @key="@($"flow-{_proposal.Id}")" Proposal="_proposal" LeadName="@_leadName" OnChanged="ChangedAsync" />
 }
 
 @code {
@@ -150,9 +154,21 @@ else
 
   private Task RefreshProposalAsync() => OnParametersSetAsync();
 
+  // A child's confirmation must survive the reload that follows a successful command, so the parent keeps it.
+  private string? _flash;
+  private Guid _flashFor;
+
+  private async Task ChangedAsync(string message)
+  {
+    _flash = message;
+    _flashFor = Id;
+    await OnParametersSetAsync();
+  }
+
   protected override async Task OnParametersSetAsync()
   {
     var generation = ++_loadGeneration;
+    if (_flashFor != Id) _flash = null;
     var actor = (ActorContext?)null;
     var authorized = false;
     ClearProjection();

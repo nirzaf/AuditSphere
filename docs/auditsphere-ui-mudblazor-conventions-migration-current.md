@@ -627,6 +627,7 @@ exercises the route's behavior; it is not a visual-parity claim.
 | `/app/overview` (alias) | `Portfolio` | Staff (scoped) | PRESENTATION_ONLY + WIRE_EXISTING | READY_FOR_REVIEW | RouteRenderSmoke; ClientScope portfolio export | Page-specific or not yet |
 | `/app/practice/invoices/{InvoiceId:guid}` | `InvoiceDetail` | Staff (scoped) | PRESENTATION_ONLY + WIRE_EXISTING | READY_FOR_REVIEW | PracticeBillingLedger | Page-specific or not yet |
 | `/app/practice/leads` | `Leads` | Staff (scoped) | PRESENTATION_ONLY + WIRE_EXISTING | READY_FOR_REVIEW | PracticeBillingLedger | Yes |
+| `/app/practice/commercial-settings` | `CommercialSettings` | Staff (scoped) | PRESENTATION_ONLY + WIRE_EXISTING | READY_FOR_REVIEW | CommercialJourney; CommercialWorkflow (Domain) | Not yet |
 | `/app/practice/proposals/{Id:guid}` | `ProposalDetail` | Staff (scoped) | PRESENTATION_ONLY + WIRE_EXISTING | READY_FOR_REVIEW | PracticeBillingLedger | Page-specific or not yet |
 | `/app/practice/time` | `PracticeTime` | Staff (scoped) | PRESENTATION_ONLY + WIRE_EXISTING | READY_FOR_REVIEW | ClientScope time scope | Yes |
 | `/app/records/archives/{Id:guid}` | `RecordsArchive` | Staff (scoped) | PRESENTATION_ONLY + WIRE_EXISTING | READY_FOR_REVIEW | ClientScope archive route | Page-specific or not yet |

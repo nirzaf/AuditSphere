@@ -517,6 +517,14 @@ public sealed class AuthorizationDecisionTests
     public DbSet<Lead> Leads => db.Leads;
     public DbSet<Opportunity> Opportunities => db.Opportunities;
     public DbSet<Proposal> Proposals => db.Proposals;
+    public DbSet<QuotationVersion> QuotationVersions => db.QuotationVersions;
+    public DbSet<CommercialApprovalRule> CommercialApprovalRules => db.CommercialApprovalRules;
+    public DbSet<QuotationApproval> QuotationApprovals => db.QuotationApprovals;
+    public DbSet<FirmCommercialProfile> FirmCommercialProfiles => db.FirmCommercialProfiles;
+    public DbSet<CommercialDocument> CommercialDocuments => db.CommercialDocuments;
+    public DbSet<EngagementFeeAgreement> EngagementFeeAgreements => db.EngagementFeeAgreements;
+    public DbSet<FeeMilestone> FeeMilestones => db.FeeMilestones;
+    public DbSet<CommercialNotification> CommercialNotifications => db.CommercialNotifications;
     public DbSet<PracticeClient> PracticeClients => db.PracticeClients;
     public DbSet<ClientContact> ClientContacts => db.ClientContacts;
     public DbSet<WorkTask> WorkTasks => db.WorkTasks;

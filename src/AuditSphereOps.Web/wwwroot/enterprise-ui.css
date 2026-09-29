@@ -448,3 +448,20 @@ section.card.audit-workspace-panel { border-color: var(--audit-line); border-rad
   .audit-search-hint { display: none; }
   .audit-search-panel { position: fixed; left: 12px; right: 12px; top: 110px; width: auto; }
 }
+
+/* Commercial quotation, fee agreement and settings (package 1). */
+.audit-quote-form { border: 1px solid var(--audit-line); border-radius: 10px; padding: 12px 16px 16px; margin: 12px 0; min-width: 0; display: grid; gap: 8px; }
+.audit-quote-form legend { font-weight: 700; padding: 0 6px; font-size: 13px; }
+.audit-quote-line { display: grid; grid-template-columns: minmax(0, 1fr) 8rem auto; gap: 8px; align-items: center; min-width: 0; }
+.audit-quote-factors { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr)); gap: 12px; min-width: 0; }
+.audit-quote-preview { display: grid; gap: 2px; padding: 10px 12px; border-radius: 8px; background: #e5f1f6; border: 1px solid #b7d7e2; overflow-wrap: anywhere; }
+.audit-quote-preview span { font-size: 12px; color: var(--audit-muted); }
+.audit-quote-version { border: 1px solid var(--audit-line); border-radius: 10px; padding: 12px 16px; margin: 12px 0; min-width: 0; }
+.audit-quote-version > header { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 8px; }
+.audit-quote-fee { margin-left: auto; font-weight: 700; font-variant-numeric: tabular-nums; }
+.audit-quote-approvals { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 8px; }
+.audit-quote-approvals li { display: grid; gap: 6px; min-width: 0; overflow-wrap: anywhere; }
+.audit-quote-reason { max-width: 32rem; }
+.audit-document-list { list-style: none; padding: 0; margin: 8px 0 0; display: grid; gap: 6px; }
+.audit-document-list li { display: grid; gap: 2px; overflow-wrap: anywhere; }
+@media (max-width: 599.98px) { .audit-quote-line { grid-template-columns: minmax(0, 1fr) auto; } .audit-quote-line .audit-quote-hours { grid-column: 1 / 2; } }

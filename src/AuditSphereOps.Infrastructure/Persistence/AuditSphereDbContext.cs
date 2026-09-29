@@ -60,6 +60,22 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
 
   public DbSet<Proposal> Proposals => Set<Proposal>();
 
+  public DbSet<QuotationVersion> QuotationVersions => Set<QuotationVersion>();
+
+  public DbSet<CommercialApprovalRule> CommercialApprovalRules => Set<CommercialApprovalRule>();
+
+  public DbSet<QuotationApproval> QuotationApprovals => Set<QuotationApproval>();
+
+  public DbSet<FirmCommercialProfile> FirmCommercialProfiles => Set<FirmCommercialProfile>();
+
+  public DbSet<CommercialDocument> CommercialDocuments => Set<CommercialDocument>();
+
+  public DbSet<EngagementFeeAgreement> EngagementFeeAgreements => Set<EngagementFeeAgreement>();
+
+  public DbSet<FeeMilestone> FeeMilestones => Set<FeeMilestone>();
+
+  public DbSet<CommercialNotification> CommercialNotifications => Set<CommercialNotification>();
+
   public DbSet<PracticeClient> PracticeClients => Set<PracticeClient>();
 
   public DbSet<ClientContact> ClientContacts => Set<ClientContact>();
@@ -431,6 +447,7 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
     }
     ConfigureMoney(b);
     ConfigurePractice(b);
+    ConfigureCommercial(b);
     ConfigureAudit(b);
     ConfigureFieldwork(b);
     ConfigureScopedEvidence(b);

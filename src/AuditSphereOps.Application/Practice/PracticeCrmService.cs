@@ -223,6 +223,11 @@ public static class PracticeCrmService
       return CommandResult.Fail(ErrorCodes.ProtectedState, "A proposal without recorded authorship cannot enter internal review.");
     if (proposal.PreparedByUserId == actor.UserId)
       return CommandResult.Fail(ErrorCodes.ProtectedState, "Proposal preparers cannot approve their own revision.");
+    // A calculated quotation is authoritative for the fee: it must be approved (per the approval matrix) and equal to it.
+    var quotation = await db.QuotationVersions.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ProposalId == proposal.Id)
+      .OrderByDescending(x => x.Revision).FirstOrDefaultAsync(ct);
+    if (quotation is not null && (quotation.Status != QuotationStates.Approved || quotation.Fee != proposal.Fee))
+      return CommandResult.Fail(ErrorCodes.GateBlocked, "The calculated quotation must be approved and match the proposal fee before internal review.");
     proposal.Status = CrmStates.ProposalInternalReview;
     proposal.ApprovedByUserId = actor.UserId;
     proposal.ApprovedAt = DateTimeOffset.UtcNow;
