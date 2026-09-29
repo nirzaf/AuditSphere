@@ -540,7 +540,8 @@ scope checks, CSV export, route links and error states remain intact.
 | --- | --- | --- |
 | Navy navigation, compact headings, panels, metrics and table styling | `PRESENTATION_ONLY` | Shared CSS/theme and Portfolio pilot implemented; remaining page families need visual review. |
 | Portfolio refresh, scoped search/export, release/package links | `WIRE_EXISTING` | Kept connected to existing Blazor actions and scoped PostgreSQL data. |
-| Prototype global record search, consolidated work queues and lifecycle widgets | `BACKEND_GAP` | No real equivalent exposed by the current shell; do not add decorative controls or local state. |
+| Prototype global record search | `WIRE_EXISTING` + new Application query | Staff search over clients, engagements, PBC requests, leads, invoices and pages with per-hit reauthorization. |
+| Prototype consolidated work queues and lifecycle widgets | `BACKEND_GAP` | No real equivalent exposed by the current shell; do not add decorative controls or local state. |
 | SharePoint-backed workspace effects before exact capability verification | `EXTERNAL_BLOCKED` | Existing Portfolio warning remains visible. |
 | Persona switching, scenario loading, simulated notifications and browser-local business store | `OUT_OF_SCOPE` | Never copied from the prototype. |
 
@@ -575,7 +576,7 @@ and the owning section.
 | UX-002/003 palette, shell | Implemented; grouped navigation, exact root matching and detail-route sections added. |
 | UX-004/005 context, headers | Breadcrumb + `PageHeader` eyebrow on every staff detail route; scope clearing is covered by the AS-PAR-002 route-change suites. |
 | UX-006–UX-028 page families | Visual pass on every current staff route family and the three portal views; see rows above. |
-| UX-029 global search and tours | `BACKEND_GAP`: no scoped cross-record search service exists; not added as a decorative control. |
+| UX-029 global search and tours | Scoped staff search implemented (see story checklist); guided tours remain out of scope. |
 | UX-030 widths | Automated 320–1920px reflow sweep; 200%/400% zoom and manual keyboard walkthrough remain manual review items. |
 | UX-031 acceptance | Local evidence only; independent visual review and before/after reference captures remain open. |
 
@@ -652,14 +653,14 @@ exercises the route's behavior; it is not a visual-parity claim.
 | UX-012 Dialogs/confirmations | READY_FOR_REVIEW | `ConfirmDialog` closes once per confirm (no double submit) and now shows an adjacent message when a required reason is missing; the revoke-access journey asserts nothing is revoked in that case. Focus trap/restore relies on MudBlazor and still needs a manual keyboard review. |
 | UX-013 Feedback/reconnect | READY_FOR_REVIEW | `App.razor` hosts a custom `components-reconnect-modal` panel (styled in `enterprise-ui.css`, retry/reload in `reconnect-state.js`) stating that an action started before the drop is unconfirmed until its result shows; AS-UI-RECONNECT-STATE-01 drops the live circuit socket and asserts the panel appears and clears. |
 | UX-014–UX-028 Page families | READY_FOR_REVIEW | Every route above has a visual pass. |
-| UX-029 Bounded search/help | BLOCKED | `BACKEND_GAP`: no scoped cross-record search service; not added as a decorative control. |
+| UX-029 Bounded search/help | READY_FOR_REVIEW | `GlobalSearchQuery` + `GlobalSearch.razor`: clients, engagements, PBC requests, leads, invoices and pages, each hit re-authorized with its destination route's decision; coverage statement always shown; `/` shortcut only outside editable controls and dialogs; stale responses dropped and results cleared on navigation. Documents, evidence and emails remain out of scope; contextual module help is not added. |
 | UX-030 Responsive/accessibility | IN_PROGRESS | Automated 320–1920px sweep passes; 200%/400% zoom, contrast audit and manual keyboard walkthrough remain. |
 | UX-031 Visual/functional acceptance | IN_PROGRESS | Local evidence only; reference captures and independent review remain. |
 
 ### 9.3 Intentional differences
 
 No persona switcher, simulated superuser, scenario loader, fake notifications, browser-local business store,
-seeded charts, portal payments/signing/proposal acceptance, or global search control. Target-native routes and
+seeded charts, portal payments/signing/proposal acceptance, or document/email search. Staff search covers only record types it can re-authorize. Target-native routes and
 raw-value native controls (draft and upload contracts) are retained. Provider status stays truthful
 (`EXTERNAL_BLOCKED` where unverified). Narrow layouts stack content and scroll wide tables locally.
 

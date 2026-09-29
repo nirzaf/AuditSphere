@@ -15,6 +15,7 @@
                    OnClick="@ToggleDrawer" aria-label="Toggle navigation" />
     <MudLink Href="/app" Color="Color.Inherit" Typo="Typo.subtitle1" Underline="Underline.None" Class="audit-topbar-title">AuditSphereOps</MudLink>
     <MudText Typo="Typo.caption" Class="audit-environment ml-2">@EnvironmentLabel</MudText>
+    <GlobalSearch />
   </MudAppBar>
   <MudDrawer @bind-Open="_drawerOpen" ClipMode="DrawerClipMode.Always" Elevation="0" Variant="DrawerVariant.Responsive" Class="audit-sidebar">
     <MudNavMenu aria-label="Primary navigation">

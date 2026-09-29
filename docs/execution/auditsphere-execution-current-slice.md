@@ -33,6 +33,20 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ---
 
+## Staff navigation search (UX-029)
+
+The staff top bar now has a search field backed by a new Application query. It covers clients, engagements, PBC
+requests, leads, invoices and staff pages, and states that coverage in the results. Candidates are prefiltered by
+the actor's current grants for each result kind, then each hit is re-authorized with the same decision its
+destination route applies, so a hit never names, counts or snippets a record its link would refuse; client
+identities and stale sessions get nothing. Input is debounced, superseded responses are dropped and results clear
+on navigation or Escape; `/` focuses search only outside editable controls and dialogs; narrow screens use a
+labelled toggle. The browser journey found and fixed a circuit crash from reusing a disposed cancellation source
+during rapid typing. Document, evidence and email search remain out of scope. Exact verification is in
+`status.json`.
+
+---
+
 ## UI modernization — remaining detail routes, navigation sections and responsive sweep
 
 Client, engagement, proposal, invoice, financial-package and currency-remeasurement routes now use the shared

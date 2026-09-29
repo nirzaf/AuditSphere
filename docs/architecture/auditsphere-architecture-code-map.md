@@ -502,6 +502,12 @@ accounting or consolidation workspaces.
 
 
 
+## Staff navigation search
+
+- Application: `Application/Search/GlobalSearchQuery.cs` — bounded search over clients, engagements, PBC requests, leads, invoices and staff pages. Candidates are prefiltered by the actor's grants for each result kind, then every hit is re-authorized with the decision its destination route applies (`AuthorizationDecision`, `BillingService.CanOpenInvoiceAsync`). Not a document, evidence or email search.
+- UI: `Components/Layout/GlobalSearch.razor` in the staff top bar (`MainLayout.razor`); `wwwroot/search-shortcut.js` (`/` shortcut outside editable controls and dialogs); styles in `wwwroot/enterprise-ui.css`.
+- Tests: `tests/AuditSphereOps.Domain.Tests/GlobalSearchQueryTests.cs`, `tests/AuditSphereOps.E2E.Tests/GlobalSearchJourneyTests.cs`
+
 ## Operations — durable work, worker host
 
 

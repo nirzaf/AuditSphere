@@ -368,6 +368,11 @@ public static class BillingService
       MoneyPolicy.Normalize(invoice.Total - credited - allocated)));
   }
 
+  /// <summary>True only when the invoice detail route would open for this actor (same authorization path).</summary>
+  public static async Task<bool> CanOpenInvoiceAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid invoiceId, CancellationToken ct = default) =>
+    (await ResolveAuthorizedInvoiceAsync(db, actor, invoiceId, ct)).Succeeded;
+
   public static async Task<CommandResult<InvoiceDetailView>> GetInvoiceDetailAsync(
     IAuditSphereDbContext db, ActorContext actor, Guid invoiceId, CancellationToken ct = default)
   {
