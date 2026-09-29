@@ -1120,6 +1120,25 @@ public sealed class ClientScopeJourneyTests
     await connected;
     var assignedBody = await page.Locator("body").InnerTextAsync();
     Assert.Contains(assignedPeriodCode, assignedBody);
+    foreach (var width in new[] { 320, 390, 760, 1024, 1440, 1920 })
+    {
+      await page.SetViewportSizeAsync(width, 900);
+      if (width < 960)
+        await page.WaitForFunctionAsync("() => getComputedStyle(document.querySelector('.audit-main-content')).marginLeft === '0px'");
+      else if (width == 1440)
+        await page.WaitForFunctionAsync("() => document.querySelector('.audit-main-content')?.getBoundingClientRect().left >= 230");
+      await page.EvaluateAsync("() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+      if ((width == 390 || width == 1440) && Environment.GetEnvironmentVariable("AUDITSPHERE_UI_CAPTURE_DIR") is { Length: > 0 } periodCaptureDir)
+      {
+        Directory.CreateDirectory(periodCaptureDir);
+        await page.ScreenshotAsync(new() { Path = Path.Combine(periodCaptureDir, $"period-detail-{width}.png"), FullPage = true });
+      }
+      Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= window.innerWidth + 1"),
+        $"Accounting period overflows the {width}px viewport.");
+    }
+    var periodBackLink = page.GetByRole(AriaRole.Link, new() { Name = "Back to accounting workspace" });
+    await periodBackLink.FocusAsync();
+    Assert.Equal("solid", await periodBackLink.EvaluateAsync<string>("element => getComputedStyle(element).outlineStyle"));
 
     await page.EvaluateAsync("path => { history.pushState({}, '', path); dispatchEvent(new PopStateEvent('popstate')); }",
       $"/app/accounting/periods/{privatePeriodId:D}");

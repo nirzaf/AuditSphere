@@ -10,7 +10,7 @@
 
 <PageTitle>Accounting period</PageTitle>
 <MudLink Href="/app/accounting" Class="back-link mb-2 d-inline-block">← Back to accounting workspace</MudLink>
-<PageHeader Title="Accounting period" Description="This page is a read-only exact-record view. Opening a period does not broaden client or engagement authorization." />
+<PageHeader Title="Accounting period" Eyebrow="Accounting record" Description="This page is a read-only exact-record view. Opening a period does not broaden client or engagement authorization." />
 <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button-secondary" OnClick="LoadPeriodAsync" Disabled="@_loading">Refresh period</MudButton>
 
 @if (_loading)
@@ -40,9 +40,7 @@ else if (_period is null)
 }
 else
 {
-  <p class="scope-note">This page is a read-only exact-record view. Opening a period does not broaden client or engagement authorization.</p>
-
-  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="period-heading" role="region">
+  <MudPaper Class="audit-workspace-panel audit-record-summary pa-4 my-4" Elevation="1" aria-labelledby="period-heading" role="region">
     <h2 id="period-heading">@_period.ClientName · @_period.PeriodCode</h2>
     <dl class="details">
       <dt>Legal entity</dt><dd>@_period.ClientName</dd>
@@ -59,7 +57,7 @@ else
     </dl>
   </MudPaper>
 
-  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="workflow-heading" role="region">
+  <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" aria-labelledby="workflow-heading" role="region">
     <h2 id="workflow-heading">Workflow handoffs</h2>
     @if (_task is not null)
     {
@@ -73,22 +71,22 @@ else
     {
       <MudText Typo="Typo.body2" Color="Color.Secondary" Class="muted">No open PBC request is linked to this period. No task owner or due date is invented.</MudText>
     }
-    <div class="action-bar" style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+    <div class="action-bar audit-accounting-review-actions">
       @if (_period.PackageId is { } packageId)
       {
-        <MudButton Color="Color.Primary" Variant="Variant.Filled" Href="@($"/app/accounting/packages/{packageId}")" Class="button">Open package</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Outlined" Href="@($"/app/accounting/packages/{packageId}")" Class="button">Open package</MudButton>
       }
       @if (_period.MappingId is { } mappingId)
       {
-        <MudButton Color="Color.Primary" Variant="Variant.Filled" Href="@($"/app/accounting/mappings/{mappingId}")" Class="button">Open mapping</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Outlined" Href="@($"/app/accounting/mappings/{mappingId}")" Class="button">Open mapping</MudButton>
       }
       @if (_pbc is not null)
       {
-        <MudButton Color="Color.Primary" Variant="Variant.Filled" Href="@($"/app/engagements/{_pbc.EngagementId}/pbc")" Class="button">Open PBC request</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Outlined" Href="@($"/app/engagements/{_pbc.EngagementId}/pbc")" Class="button">Open PBC request</MudButton>
       }
-      <MudButton Color="Color.Primary" Variant="Variant.Filled" Href="/app/accounting/evidence" Class="button">Open evidence</MudButton>
-      <MudButton Color="Color.Primary" Variant="Variant.Filled" Href="/app/accounting/rollforward" Class="button">Roll forward</MudButton>
-      <MudButton Color="Color.Primary" Variant="Variant.Filled" Href="/app/accounting/restatements" Class="button">Restatements</MudButton>
+      <MudButton Color="Color.Primary" Variant="Variant.Outlined" Href="/app/accounting/evidence" Class="button">Open evidence</MudButton>
+      <MudButton Color="Color.Primary" Variant="Variant.Outlined" Href="/app/accounting/rollforward" Class="button">Roll forward</MudButton>
+      <MudButton Color="Color.Primary" Variant="Variant.Outlined" Href="/app/accounting/restatements" Class="button">Restatements</MudButton>
     </div>
   </MudPaper>
 }

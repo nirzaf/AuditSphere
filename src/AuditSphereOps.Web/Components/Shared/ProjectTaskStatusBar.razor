@@ -1,0 +1,20 @@
+@using AuditSphereOps.Web.Services
+@* A task-card distribution, not an estimate of implementation or production readiness. *@
+<div class="audit-task-status-bar" role="progressbar" aria-label="@Label"
+     aria-valuemin="0" aria-valuemax="@Total" aria-valuenow="@Completed"
+     aria-valuetext="@($"{Completed} completed, {Active} active or in review, {Pending} pending, {Blocked} blocked out of {Total} task cards")">
+  @if (Completed > 0) { <span class="audit-task-status-completed" style="flex-grow:@Completed" aria-hidden="true"></span> }
+  @if (Active > 0) { <span class="audit-task-status-active" style="flex-grow:@Active" aria-hidden="true"></span> }
+  @if (Pending > 0) { <span class="audit-task-status-pending" style="flex-grow:@Pending" aria-hidden="true"></span> }
+  @if (Blocked > 0) { <span class="audit-task-status-blocked" style="flex-grow:@Blocked" aria-hidden="true"></span> }
+</div>
+
+@code {
+  [Parameter, EditorRequired] public string Label { get; set; } = string.Empty;
+  [Parameter, EditorRequired] public IReadOnlyList<ProjectTaskProgress> Tasks { get; set; } = [];
+  private int Completed => Tasks.Count(x => x.Status == "COMPLETED");
+  private int Active => Tasks.Count(x => x.Status is "IN_PROGRESS" or "IN_REVIEW");
+  private int Blocked => Tasks.Count(x => x.Status == "BLOCKED");
+  private int Pending => Total - Completed - Active - Blocked;
+  private int Total => Tasks.Count;
+}

@@ -37,6 +37,12 @@
 
 ## 3. Theme & shared components (presentation only)
 
+Accounting period detail, roll-forward and restatement routes now use the
+shared workbench heading and panel styles. The two maintenance forms adapt
+from three columns to one at narrow widths, and their history tables expose
+mobile cell labels. Counts repeat scoped rows already loaded by each page;
+they do not change period state or review authority.
+
 Mapping and adjustment-journal detail pages now use the established record
 header, metric and panel styles. Their links return to the matching scoped
 queue. Mapping MudTables have `DataLabel` values for narrow-screen stacked
@@ -45,7 +51,7 @@ authorization and evidence boundaries are unchanged.
 
 The administrator project-progress route now includes every main application
 area. Modules with published task cards show measured completion and pending
-counts; areas outside that task pack show a neutral untracked bar and no
+counts in a four-state segmented bar; areas outside that task pack show a neutral untracked bar and no
 percentage. This does not derive implementation completion from live business
 records or bypass task-card review gates.
 

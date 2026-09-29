@@ -33,6 +33,30 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ---
 
+## Project task progress display
+
+The administrator tracker now divides each measured task bar into completed,
+active or in review, pending or reopened, and blocked segments. The visible
+counts and accessible progress description come from the same published task
+cards; the overall total still counts shared cards once. Areas without a
+published module mapping remain explicitly unmeasured. This is a read-only
+display change and does not advance task status or acceptance gates.
+
+---
+
+## UI modernization — accounting period views
+
+The real period detail, roll-forward and restatement routes now use the
+shared accounting heading, white panels and responsive workbench layout.
+Roll-forward and restatement counts come only from their authorized loaded
+rows; their history tables have mobile cell labels. Existing create, reload
+and independent-review actions, immutable period lineage, role checks and
+draft boundaries remain unchanged. This is `PRESENTATION_ONLY` plus
+`WIRE_EXISTING`. Local verification is recorded in `status.json`; the
+remaining accounting routes and wider UI acceptance remain open.
+
+---
+
 ## UI modernization — mapping and adjustment-journal detail
 
 The real `/app/accounting/mappings/{id}` and

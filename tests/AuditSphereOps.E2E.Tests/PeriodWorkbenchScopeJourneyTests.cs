@@ -61,6 +61,30 @@ public sealed class PeriodWorkbenchScopeJourneyTests
     await Assertions.Expect(load).ToBeEnabledAsync();
     await Assertions.Expect(page.Locator("body")).ToContainTextAsync(periodCode);
     await Assertions.Expect(page.Locator("body")).ToContainTextAsync("PBC TEST CLIENT");
+    if (!disableUser)
+    {
+      await Assertions.Expect(page.Locator(".audit-accounting-metrics .mud-typography-h4")).ToHaveCountAsync(3);
+      foreach (var width in new[] { 320, 390, 760, 1024, 1440, 1920 })
+      {
+        await page.SetViewportSizeAsync(width, 900);
+        if (width < 960)
+          await page.WaitForFunctionAsync("() => getComputedStyle(document.querySelector('.audit-main-content')).marginLeft === '0px'");
+        else if (width == 1440)
+          await page.WaitForFunctionAsync("() => document.querySelector('.audit-main-content')?.getBoundingClientRect().left >= 230");
+        await page.EvaluateAsync("() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+        if ((width == 390 || width == 1440) && Environment.GetEnvironmentVariable("AUDITSPHERE_UI_CAPTURE_DIR") is { Length: > 0 } captureDir)
+        {
+          Directory.CreateDirectory(captureDir);
+          await page.ScreenshotAsync(new() { Path = Path.Combine(captureDir, $"{route}-{width}.png"), FullPage = true });
+        }
+        Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= window.innerWidth + 1"),
+          $"{route} overflows the {width}px viewport.");
+      }
+      Assert.True(await page.Locator("td[data-label='Status']").CountAsync() > 0 || route == "restatements");
+      var createAction = page.GetByRole(AriaRole.Button, new() { Name = route == "restatements" ? "Create restatement request" : "Create draft period" });
+      await createAction.FocusAsync();
+      Assert.Equal("solid", await createAction.EvaluateAsync<string>("element => getComputedStyle(element).outlineStyle"));
+    }
     var token = await page.EvaluateAsync<string>("window.__periodScopeToken = crypto.randomUUID()");
 
     await using (var db = host.CreateDbContext())
@@ -83,6 +107,7 @@ public sealed class PeriodWorkbenchScopeJourneyTests
     Assert.DoesNotContain("PBC TEST CLIENT", body);
     Assert.DoesNotContain("Scoped period history", body);
     Assert.DoesNotContain("Restatement history", body);
+    Assert.Equal(0, await page.Locator(".audit-accounting-metrics").CountAsync());
     Assert.Equal(token, await page.EvaluateAsync<string>("window.__periodScopeToken"));
     Assert.Empty(errors);
     await using var verify = host.CreateDbContext();

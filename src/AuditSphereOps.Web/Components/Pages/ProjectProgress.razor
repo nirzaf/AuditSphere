@@ -32,8 +32,8 @@ else if (_progress is not null)
       <div><strong>@_progress.Pending</strong><span>Pending or reopened</span></div>
       <div><strong>@_progress.Blocked</strong><span>Blocked</span></div>
     </div>
-    <progress class="audit-task-progress" value="@_progress.Completed" max="@_progress.Tasks.Count"
-              aria-label="Completed task cards across the tracker">@_progress.Completed of @_progress.Tasks.Count</progress>
+    <ProjectTaskStatusBar Tasks="_progress.Tasks" Label="Overall task-card progress" />
+    <p class="audit-progress-legend" aria-label="Progress bar key"><span class="audit-task-key-completed">Completed</span><span class="audit-task-key-active">Active or in review</span><span class="audit-task-key-pending">Pending or reopened</span><span class="audit-task-key-blocked">Blocked</span></p>
     <MudText Typo="Typo.caption">A card becomes complete only after its documented review and evidence gates. The same cross-module card may appear in more than one module below; the total counts each card once.</MudText>
   </MudPaper>
 
@@ -45,8 +45,7 @@ else if (_progress is not null)
           <h2 id="@($"module-{module.Number}")">Module @module.Number — @module.Name</h2>
           <strong>@module.Completed / @module.Tasks.Count</strong>
         </div>
-        <progress class="audit-task-progress" value="@module.Completed" max="@module.Tasks.Count"
-                  aria-label="@($"Module {module.Number}: {module.Completed} of {module.Tasks.Count} task cards completed")">@module.Completed of @module.Tasks.Count</progress>
+        <ProjectTaskStatusBar Tasks="module.Tasks" Label="@($"Module {module.Number} task-card progress")" />
         <p class="audit-progress-counts">@module.Active active or in review · @module.Pending pending · @module.Blocked blocked</p>
         <details>
           <summary>View task cards</summary>
@@ -63,9 +62,8 @@ else if (_progress is not null)
 
   <MudPaper Class="audit-workspace-panel pa-4 mt-4">
     <h2>Audit workflow</h2>
-    <progress class="audit-task-progress" value="@_progress.AuditCompleted" max="@_progress.AuditTasks.Count"
-              aria-label="@($"Audit workflow: {_progress.AuditCompleted} of {_progress.AuditTasks.Count} task cards completed")"></progress>
-    <p class="audit-progress-counts">@_progress.AuditCompleted / @_progress.AuditTasks.Count completed</p>
+    <ProjectTaskStatusBar Tasks="_progress.AuditTasks" Label="Audit workflow task-card progress" />
+    <p class="audit-progress-counts">@_progress.AuditCompleted / @_progress.AuditTasks.Count completed · @CountActive(_progress.AuditTasks) active or in review · @CountPending(_progress.AuditTasks) pending · @CountBlocked(_progress.AuditTasks) blocked</p>
     <details>
       <summary>View @_progress.AuditTasks.Count task cards</summary>
       <ul class="audit-progress-task-list">
@@ -79,9 +77,8 @@ else if (_progress is not null)
 
   <MudPaper Class="audit-workspace-panel pa-4 mt-4">
     <h2>Shared and cross-module foundation</h2>
-    <progress class="audit-task-progress" value="@_progress.SharedCompleted" max="@_progress.SharedTasks.Count"
-              aria-label="@($"Shared foundation: {_progress.SharedCompleted} of {_progress.SharedTasks.Count} task cards completed")"></progress>
-    <p class="audit-progress-counts">@_progress.SharedCompleted / @_progress.SharedTasks.Count completed</p>
+    <ProjectTaskStatusBar Tasks="_progress.SharedTasks" Label="Shared foundation task-card progress" />
+    <p class="audit-progress-counts">@_progress.SharedCompleted / @_progress.SharedTasks.Count completed · @CountActive(_progress.SharedTasks) active or in review · @CountPending(_progress.SharedTasks) pending · @CountBlocked(_progress.SharedTasks) blocked</p>
     <details>
       <summary>View @_progress.SharedTasks.Count task cards</summary>
       <ul class="audit-progress-task-list">
@@ -115,6 +112,9 @@ else if (_progress is not null)
   private bool _loading = true;
   private bool _authorized;
   private string? _error;
+  private static int CountActive(IReadOnlyList<ProjectTaskProgress> tasks) => tasks.Count(x => x.Status is "IN_PROGRESS" or "IN_REVIEW");
+  private static int CountPending(IReadOnlyList<ProjectTaskProgress> tasks) => tasks.Count(x => x.Status is "NOT_STARTED" or "REOPENED");
+  private static int CountBlocked(IReadOnlyList<ProjectTaskProgress> tasks) => tasks.Count(x => x.Status == "BLOCKED");
 
   protected override async Task OnInitializedAsync()
   {

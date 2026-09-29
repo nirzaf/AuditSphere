@@ -9,7 +9,7 @@
 
 <PageTitle>Period roll-forward</PageTitle>
 <MudLink Href="/app/accounting" Class="back-link mb-2 d-inline-block">← Back to accounting workspace</MudLink>
-<PageHeader Title="Period roll-forward" Description="New draft reporting period created with explicit opening-balance evidence." />
+<PageHeader Title="Period roll-forward" Eyebrow="Accounting period maintenance" Description="New draft reporting period created with explicit opening-balance evidence." />
 
 @if (_loading || _selectionBusy)
 {
@@ -21,9 +21,15 @@ else if (_actor is null || !_isStaff)
 }
 else
 {
-  <p class="scope-note">Roll-forward creates a new draft period and draft books. Prior approvals are not copied; opening balances require explicit source evidence and remain separately reviewable.</p>
+  <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="my-3">Roll-forward creates a new draft period and draft books. Prior approvals are not copied; opening balances require explicit source evidence and remain separately reviewable.</MudAlert>
 
-  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="rollforward-heading" role="region">
+  <MudGrid Spacing="2" Class="audit-accounting-metrics my-3" aria-label="Scoped roll-forward counts">
+    <MudItem xs="6" sm="4"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Clients in scope</MudText><MudText Typo="Typo.h4">@_clients.Count</MudText></MudPaper></MudItem>
+    <MudItem xs="6" sm="4"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Closed periods for client</MudText><MudText Typo="Typo.h4">@_closedPeriods.Count</MudText></MudPaper></MudItem>
+    <MudItem xs="12" sm="4"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Periods in scope</MudText><MudText Typo="Typo.h4">@_history.Count</MudText></MudPaper></MudItem>
+  </MudGrid>
+
+  <MudPaper Class="audit-workspace-panel audit-period-workbench-form pa-4 my-4" Elevation="1" aria-labelledby="rollforward-heading" role="region">
     <h2 id="rollforward-heading">Create next period</h2>
     <div class="form-grid">
       <label>Client<MudSelect T="string" @bind-Value="_selectedClientId" required Disabled="@(_busy || _selectionBusy)" title="Choose the client whose closed period is being carried forward."><MudSelectItem Value="@string.Empty">Select a client</MudSelectItem>@foreach (var client in _clients) { <MudSelectItem Value="@client.Id.ToString()">@client.Name</MudSelectItem> }</MudSelect></label>
@@ -39,8 +45,8 @@ else
       <label>Source SHA-256<MudTextField T="string" @bind-Value="_sourceHash" MaxLength="64" required /></label>
       <label>Evidence reference<MudTextField T="string" @bind-Value="_evidenceReference" MaxLength="2000" required /></label>
     </div>
-    <div style="display:flex;gap:.75rem;align-items:center;margin-top:1rem;flex-wrap:wrap">
-      <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button" OnClick="LoadClientAsync" Disabled="@(_busy || _selectionBusy)">@(_selectionBusy ? "Loading…" : "Load closed periods")</MudButton>
+    <div class="audit-period-workbench-actions">
+      <MudButton Color="Color.Primary" Variant="Variant.Outlined" Class="button" OnClick="LoadClientAsync" Disabled="@(_busy || _selectionBusy)">@(_selectionBusy ? "Loading…" : "Load closed periods")</MudButton>
       <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button" OnClick="RollForwardAsync" Disabled="@(_busy || _selectionBusy)">@(_busy ? "Saving…" : "Create draft period")</MudButton>
     </div>
   </MudPaper>
@@ -52,18 +58,18 @@ else
     </p>
   }
 
-  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="history-heading" role="region">
+  <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" aria-labelledby="history-heading" role="region">
     <h2 id="history-heading">Scoped period history</h2>
     @if (_history.Count == 0)
     {
-      <p class="muted">No reporting periods are available in the current scope.</p>
+      <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="my-3" role="status">No reporting periods are available in the current scope.</MudAlert>
     }
     else
     {
-      <MudTable Items="_history" Dense="true" Hover="true" Elevation="0">
+      <div class="table-wrap audit-accounting-table-wrap"><MudTable Items="_history" Dense="true" Hover="true" Elevation="0">
   <HeaderContent><MudTh scope="col">Client</MudTh><MudTh scope="col">Period</MudTh><MudTh scope="col">Dates</MudTh><MudTh scope="col">Status</MudTh><MudTh scope="col">Revision</MudTh><MudTh scope="col">Prior period</MudTh></HeaderContent>
-  <RowTemplate>          <MudTd>@context.ClientName</MudTd><MudTd>@context.PeriodCode</MudTd><MudTd>@context.StartDate.ToString("yyyy-MM-dd") — @context.EndDate.ToString("yyyy-MM-dd")</MudTd><MudTd><StatusChip Status="@context.Status" /></MudTd><MudTd>@context.Revision</MudTd><MudTd>@context.PriorPeriodCode</MudTd></RowTemplate>
-</MudTable>
+  <RowTemplate>          <MudTd DataLabel="Client">@context.ClientName</MudTd><MudTd DataLabel="Period">@context.PeriodCode</MudTd><MudTd DataLabel="Dates">@context.StartDate.ToString("yyyy-MM-dd") — @context.EndDate.ToString("yyyy-MM-dd")</MudTd><MudTd DataLabel="Status"><StatusChip Status="@context.Status" /></MudTd><MudTd DataLabel="Revision">@context.Revision</MudTd><MudTd DataLabel="Prior period">@context.PriorPeriodCode</MudTd></RowTemplate>
+</MudTable></div>
     }
   </MudPaper>
 }

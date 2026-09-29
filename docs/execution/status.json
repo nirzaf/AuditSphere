@@ -1054,11 +1054,21 @@
     "packageId": "Prototype-inspired Blazor UI modernization",
     "implementationStatus": "IN_PROGRESS",
     "acceptanceStatus": "PARTIAL",
-    "scope": "The shared staff/client/public shell, MudBlazor theme, Portfolio pilot, three current client portal views, administrator implementation task-progress view, practice leads/time/firm-finance visual pass, accounting landing/evidence, accounting record/review queues, and mapping/journal detail visual passes are locally verified on the real Blazor stack. Visual and accessibility work remains open for other accounting detail routes, audit, operations and administration; no whole-application visual parity or production acceptance is claimed. Earlier AS-PAR-002, Microsoft provider, R2R review and P1/P8/P9 external gates remain recorded below.",
+    "scope": "The shared staff/client/public shell, MudBlazor theme, Portfolio pilot, three current client portal views, administrator implementation task-progress view, practice leads/time/firm-finance visual pass, accounting landing/evidence, accounting record/review queues, mapping/journal detail and accounting period visual passes are locally verified on the real Blazor stack. The project task tracker shows completed, active, pending and blocked segments for measured task packs; six other application areas remain explicitly untracked. Visual and accessibility work remains open for other accounting detail routes, audit, operations and administration; no whole-application visual parity or production acceptance is claimed. Earlier AS-PAR-002, Microsoft provider, R2R review and P1/P8/P9 external gates remain recorded below.",
     "nextAction": "Continue route-family visual passes on remaining accounting detail, audit, operations and administration views. Preserve native draft/upload contracts and server authorization. Capture matching synthetic before/after evidence, keyboard and state coverage before any full UI acceptance claim.",
     "branch": "master"
   },
   "localEvidence": [
+    {
+      "item": "Four-state implementation task progress bars (2026-09-29)",
+      "status": "LOCAL_VERIFIED",
+      "details": "The administrator-only project-progress page now renders completed, active/in-review, pending/reopened and blocked segments from the same published task cards as its counts, with a text legend and accessible per-bar description. Overall cards remain distinct; Modules 20-26, audit workflow and shared foundation are measured. Six application areas with no task-card mapping remain untracked, without an invented completion fraction. Release Web build passed with zero warnings/errors. The focused PostgreSQL browser smoke passed 1/1 after the change, including all seven module progress bars, accessible status description, 320px/1280px no-overflow captures and Staff denial. The mobile and desktop captures were inspected. The prior full Release solution run passed 581/581 with zero skips before this display-only change; a final full-suite rerun for the segmented bar is not claimed. EF found no pending model changes before this display-only change. No schema, tenant, task-status or production mutation."
+    },
+    {
+      "item": "Prototype-inspired accounting period detail and maintenance visual pass (2026-09-29)",
+      "status": "PARTIAL",
+      "details": "The authorized period detail, roll-forward and restatement routes use compact record headings, white panels, responsive workbench forms, scoped row counts and mobile history-cell labels. Existing create, reload, independent-review, immutable-lineage and authorization behavior is unchanged. Focused PostgreSQL browser journeys passed 5/5 after the final page and test edits, with no document overflow at 320, 390, 760, 1024, 1440 and 1920px, keyboard focus and scope-revocation clearing. Synthetic before/after screenshots were inspected. Release Web build passed with zero warnings/errors. The full Release solution run passed 581/581 with zero skips (Domain 449, API 35, E2E 97) against this period slice before the subsequent project-progress display-only change. EF found no pending model changes. Markdown health, filename and task-pack validators passed. This is local presentation evidence, not complete route-family, provider or production acceptance."
+    },
     {
       "item": "Prototype-inspired mapping and adjustment-journal detail visual pass (2026-09-29)",
       "status": "PARTIAL",
