@@ -22,7 +22,7 @@
         }
         <span>Audit Fieldwork</span>
     </nav>
-    <PageHeader Title="Controlled Audit Fieldwork" Description="Fieldwork procedures, differences, and aggregate conclusion on this engagement." />
+    <PageHeader Title="Controlled Audit Fieldwork" Eyebrow="Engagement audit" Description="Fieldwork procedures, differences, and aggregate conclusion on this engagement." />
 </div>
 
 @if (_loading)
@@ -39,8 +39,16 @@ else if (_authorizationMessage is not null)
 }
 else
 {
+    @if (_programVersion is not null)
+    {
+        <MudGrid Spacing="2" Class="audit-accounting-metrics my-3" aria-label="Scoped fieldwork counts">
+            <MudItem xs="6" sm="4"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Adopted procedures</MudText><MudText Typo="Typo.h4">@_procedures.Count</MudText></MudPaper></MudItem>
+            <MudItem xs="6" sm="4"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Applicable</MudText><MudText Typo="Typo.h4">@_procedures.Count(x => x.ApplicabilityStatus == AuditApplicabilityStatuses.Applicable)</MudText></MudPaper></MudItem>
+            <MudItem xs="12" sm="4"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Reviewed evidence</MudText><MudText Typo="Typo.h4">@_procedures.Count(x => x.Status == AuditProcedureStatuses.Reviewed)</MudText></MudPaper></MudItem>
+        </MudGrid>
+    }
     <div class="plan-shell">
-        <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="program-heading" role="region">
+        <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" aria-labelledby="program-heading" role="region">
             <h2 id="program-heading">Versioned audit program</h2>
             <p class="info-text">The controlled source catalog contains @AuditProgramCatalog.Items.Count procedures across 20 sections. Applicability and evidence status are persisted per engagement.</p>
             @if (_programVersion is null)
@@ -56,19 +64,19 @@ else
                     <dt>Adopted procedures</dt><dd>@_procedures.Count</dd>
                     <dt>Applicable / reviewed</dt><dd>@_procedures.Count(x => x.ApplicabilityStatus == AuditApplicabilityStatuses.Applicable) / @_procedures.Count(x => x.Status == AuditProcedureStatuses.Reviewed)</dd>
                 </dl>
-                <p><a class="btn-secondary" href="@($"/app/engagements/{EngagementId}/audit-plan")">Open planning</a> <a class="btn-secondary" href="@($"/app/engagements/{EngagementId}/completion")">Open completion</a></p>
+                <div class="audit-fieldwork-links"><MudLink Href="@($"/app/engagements/{EngagementId}/audit-plan")">Open planning</MudLink><MudLink Href="/app/audit/library">Program library</MudLink><MudLink Href="@($"/app/engagements/{EngagementId}/completion")">Open completion</MudLink></div>
             }
         </MudPaper>
 
         @if (_differenceSummaries.Count > 0)
         {
-            <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="difference-summary-heading" role="region">
+            <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" aria-labelledby="difference-summary-heading" role="region">
                     <h2 id="difference-summary-heading">Aggregate differences and reporting assessment</h2>
                     <p class="info-text">Review gross and signed amounts separately by currency. These totals do not determine materiality or an audit opinion; the engagement team records the professional conclusion.</p>
                     <div class="table-wrap">
                         <MudTable Items="_differenceSummaries" Dense="true" Hover="true" Elevation="0" Class="data-table">
   <HeaderContent><MudTh scope="col">Currency</MudTh><MudTh scope="col">Count</MudTh><MudTh scope="col">Gross</MudTh><MudTh scope="col">Signed/net</MudTh><MudTh scope="col">Unadjusted gross</MudTh><MudTh scope="col">Unadjusted net</MudTh><MudTh scope="col">Corrected gross</MudTh></HeaderContent>
-  <RowTemplate>                                    <MudTd>@context.Currency</MudTd><MudTd>@context.DifferenceCount</MudTd><MudTd>@context.GrossAmount.ToString("N2")</MudTd><MudTd>@context.SignedNetAmount.ToString("N2")</MudTd><MudTd>@context.UnadjustedGrossAmount.ToString("N2")</MudTd><MudTd>@context.UnadjustedSignedNetAmount.ToString("N2")</MudTd><MudTd>@context.CorrectedGrossAmount.ToString("N2")</MudTd></RowTemplate>
+  <RowTemplate>                                    <MudTd DataLabel="Currency">@context.Currency</MudTd><MudTd DataLabel="Count">@context.DifferenceCount</MudTd><MudTd DataLabel="Gross">@context.GrossAmount.ToString("N2")</MudTd><MudTd DataLabel="Signed/net">@context.SignedNetAmount.ToString("N2")</MudTd><MudTd DataLabel="Unadjusted gross">@context.UnadjustedGrossAmount.ToString("N2")</MudTd><MudTd DataLabel="Unadjusted net">@context.UnadjustedSignedNetAmount.ToString("N2")</MudTd><MudTd DataLabel="Corrected gross">@context.CorrectedGrossAmount.ToString("N2")</MudTd></RowTemplate>
 </MudTable>
                     </div>
                     @if (_aggregateAssessment is not null)
@@ -94,18 +102,30 @@ else
 
         @if (_programVersion is not null)
         {
-            <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="coverage-heading" role="region">
+            <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" aria-labelledby="coverage-heading" role="region">
                 <h2 id="coverage-heading">Procedure applicability and evidence coverage</h2>
                 <p class="notice-text">An applicable procedure cannot be completed from a title alone. Submit work, evidence and a current independent review through the guarded commands.</p>
+                <div class="audit-fieldwork-filter">
+                    <label>Audit section
+                        <MudSelect T="int" @bind-Value="_selectedSectionNumber" Disabled="@_busy">
+                            <MudSelectItem Value="0">All sections</MudSelectItem>
+                            @foreach (var section in _procedures.GroupBy(x => x.SourceSectionNumber ?? -2).OrderBy(x => x.Key))
+                            {
+                                <MudSelectItem Value="@section.Key">@(section.Key == -2 ? "Unclassified" : $"Section {section.Key}") — @section.First().SourceSectionTitle (@section.Count())</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </label>
+                    <span class="muted">Showing @VisibleProcedures.Count() of @_procedures.Count authorized procedures</span>
+                </div>
                 <div class="table-wrap">
-                    <MudTable Items="_procedures" Dense="true" Hover="true" Elevation="0" Class="data-table">
+                    <MudTable Items="VisibleProcedures" Dense="true" Hover="true" Elevation="0" Class="data-table">
   <HeaderContent><MudTh scope="col">Source</MudTh><MudTh scope="col">Section</MudTh><MudTh scope="col">Procedure</MudTh><MudTh scope="col">Applicability</MudTh><MudTh scope="col">Evidence</MudTh><MudTh scope="col">Action</MudTh></HeaderContent>
-  <RowTemplate>                                    <MudTd><code>@context.SourceProcedureId</code></MudTd>
-                                    <MudTd>@context.SourceSectionTitle</MudTd>
-                                    <MudTd>@context.Title</MudTd>
-                                    <MudTd>@context.ApplicabilityStatus</MudTd>
-                                    <MudTd>@context.Status</MudTd>
-                                    <MudTd>
+  <RowTemplate>                                    <MudTd DataLabel="Source"><code>@context.SourceProcedureId</code></MudTd>
+                                    <MudTd DataLabel="Section">@context.SourceSectionTitle</MudTd>
+                                    <MudTd DataLabel="Procedure">@context.Title</MudTd>
+                                    <MudTd DataLabel="Applicability">@context.ApplicabilityStatus</MudTd>
+                                    <MudTd DataLabel="Evidence">@context.Status</MudTd>
+                                    <MudTd DataLabel="Action">
                                         @if (context.ApplicabilityStatus == AuditApplicabilityStatuses.Pending)
                                         {
                                             <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="btn-small" OnClick="() => DecideApplicabilityAsync(context.Id, AuditApplicabilityStatuses.Applicable)" Disabled="@_busy">Applicable</MudButton>
@@ -151,6 +171,10 @@ else
     private bool _loading = true;
     private bool _busy;
     private int _loadGeneration;
+    private int _selectedSectionNumber = -1;
+    private Guid _sectionEngagementId;
+    private IEnumerable<AuditProcedure> VisibleProcedures => _selectedSectionNumber == 0
+        ? _procedures : _procedures.Where(x => (x.SourceSectionNumber ?? -2) == _selectedSectionNumber);
 
     protected override async Task OnParametersSetAsync() => await LoadAsync();
 
@@ -158,6 +182,11 @@ else
     {
         var generation = ++_loadGeneration;
         var engagementId = EngagementId;
+        if (_sectionEngagementId != engagementId)
+        {
+            _sectionEngagementId = engagementId;
+            _selectedSectionNumber = -1;
+        }
         _loading = true;
         _actor = null;
         _engagement = null;
@@ -175,6 +204,7 @@ else
         _actor = actor;
         if (actor is null)
         {
+            _selectedSectionNumber = -1;
             _loading = false;
             return;
         }
@@ -185,6 +215,7 @@ else
         _engagement = engagement;
         if (engagement is null)
         {
+            _selectedSectionNumber = -1;
             _loading = false;
             return;
         }
@@ -194,6 +225,7 @@ else
         if (generation != _loadGeneration) return;
         if (!authorization.Succeeded)
         {
+            _selectedSectionNumber = -1;
             // Out-of-scope engagements render exactly like non-existent ones; only in-scope gates explain themselves.
             if (authorization.ErrorCode == AuditSphereOps.Domain.Shared.ErrorCodes.ScopeDenied) _engagement = null;
             else _authorizationMessage = authorization.Message;
@@ -215,6 +247,9 @@ else
             if (generation != _loadGeneration) return;
             _programVersion = programVersion;
             _procedures = procedures;
+            if (_selectedSectionNumber < 0 ||
+                (_selectedSectionNumber != 0 && !_procedures.Any(x => (x.SourceSectionNumber ?? -2) == _selectedSectionNumber)))
+                _selectedSectionNumber = _procedures.Count == 0 ? 0 : _procedures[0].SourceSectionNumber ?? -2;
         }
         var differenceResult = await AuditFieldworkService.GetDifferenceSummariesAsync(db, actor, engagement.Id);
         if (generation != _loadGeneration) return;

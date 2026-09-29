@@ -37,6 +37,13 @@
 
 ## 3. Theme & shared components (presentation only)
 
+The audit program library and engagement fieldwork pages now use the compact
+workspace hierarchy, scoped metrics and white panels. Fieldwork's section
+selector initially limits the visible register to the first adopted source
+section while retaining an All sections option; it does not modify persisted
+procedure status or authorization. Library and fieldwork tables have mobile
+cell labels, and long source hashes and version labels reflow within panels.
+
 Accounting period detail, roll-forward and restatement routes now use the
 shared workbench heading and panel styles. The two maintenance forms adapt
 from three columns to one at narrow widths, and their history tables expose
@@ -82,8 +89,8 @@ The Leads `MudCard` and firm-ledger `MudPaper` surfaces share the palette and
 panel rhythm. The prototype's extra commercial and billing fields are not
 displayed without corresponding backend contracts.
 
-The administrator-only project task-progress route uses native accessible
-`<progress>` elements for reviewed task-card counts across Modules 20–26,
+The administrator-only project task-progress route uses accessible
+four-state progress bars for reviewed task-card counts across Modules 20–26,
 audit workflow and cross-module foundations. Its labels and expanded
 task lists remain readable without color. The published task manifest and
 front-matter files are copied into the Web output outside `wwwroot`; the page

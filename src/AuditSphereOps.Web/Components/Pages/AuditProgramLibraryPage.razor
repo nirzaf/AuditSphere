@@ -8,9 +8,8 @@
 
 <PageTitle>Audit program library — AuditSphereOps</PageTitle>
 <MudLink Href="/app" Class="back-link mb-2 d-inline-block">← Back to portfolio</MudLink>
-<PageHeader Title="Audit program library" Description="The controlled versioned program template library. Published versions are immutable; changes require a new version." />
-<p class="scope-note">The controlled, versioned template library preserves the exact source wording of @AuditProgramCatalog.Items.Count procedures across 20 audit sections. Published versions are immutable; a change requires a new version.</p>
-<MudButton Color="Color.Primary" Variant="Variant.Outlined" OnClick="RefreshAsync" Disabled="@_busy">Refresh library</MudButton>
+<PageHeader Title="Audit program library" Eyebrow="Audit methodology" Description="The controlled versioned program template library. Published versions are immutable; changes require a new version." />
+<MudButton Color="Color.Primary" Variant="Variant.Outlined" Class="mt-3" OnClick="RefreshAsync" Disabled="@_busy">Refresh library</MudButton>
 
 @if (_loading)
 {
@@ -33,21 +32,27 @@ else if (_library is null || _library.Versions.Count == 0)
 }
 else
 {
-  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="version-heading" role="region">
+  <MudGrid Spacing="2" Class="audit-accounting-metrics my-3" aria-label="Audit library counts">
+    <MudItem xs="6" sm="4"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Library versions</MudText><MudText Typo="Typo.h4">@_library.Versions.Count</MudText></MudPaper></MudItem>
+    <MudItem xs="6" sm="4"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Procedures in selected version</MudText><MudText Typo="Typo.h4">@(_library.SelectedVersion?.ProcedureCount ?? 0)</MudText></MudPaper></MudItem>
+    <MudItem xs="12" sm="4"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Sections in selected version</MudText><MudText Typo="Typo.h4">@(_library.SelectedVersion?.SectionCount ?? 0)</MudText></MudPaper></MudItem>
+  </MudGrid>
+
+  <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" aria-labelledby="version-heading" role="region">
     <h2 id="version-heading">Library versions</h2>
-    <label>
+    <label class="audit-library-version">
       Version
       <MudSelect T="string" @bind-Value="_selectedVersion" @bind-Value:after="LoadAsync" Disabled="@_busy">
         @foreach (var version in _library.Versions)
         {
-          <MudSelectItem Value="@version.Version.ToString()">@version.ProgramCode v@version.Version · @version.Status · @version.ProcedureCount procedures</MudSelectItem>
+          <MudSelectItem Value="@version.Version.ToString()">@version.ProgramCode v@(version.Version) · @version.Status · @version.ProcedureCount procedures</MudSelectItem>
         }
       </MudSelect>
     </label>
     @if (_library.SelectedVersion is { } selected)
     {
       <dl class="detail-grid">
-        <dt>Status</dt><dd>@selected.Status</dd>
+        <dt>Status</dt><dd><StatusChip Status="@selected.Status" /></dd>
         <dt>Source hash</dt><dd><code>@selected.SourceHash</code></dd>
         <dt>Procedures</dt><dd>@selected.ProcedureCount</dd>
         <dt>Sections</dt><dd>@selected.SectionCount</dd>
@@ -56,45 +61,45 @@ else
     }
   </MudPaper>
 
-  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="sections-heading" role="region">
+  <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" aria-labelledby="sections-heading" role="region">
     <h2 id="sections-heading">Sections</h2>
     <div class="table-wrap">
       <MudTable Items="_library.Sections" Dense="true" Hover="true" Elevation="0" Class="data-table">
   <HeaderContent><MudTh scope="col">#</MudTh><MudTh scope="col">Section</MudTh><MudTh scope="col">Procedures</MudTh><MudTh scope="col"><span class="sr-only">Action</span></MudTh></HeaderContent>
-  <RowTemplate>            <MudTd>@context.SectionNumber</MudTd>
-            <MudTd>@context.SectionTitle</MudTd>
-            <MudTd>@context.ProcedureCount</MudTd>
-            <MudTd><MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button small" OnClick="() => OpenSectionAsync(context.SectionNumber)" Disabled="@_busy" Size="Size.Small">Browse</MudButton></MudTd></RowTemplate>
+  <RowTemplate>            <MudTd DataLabel="#">@context.SectionNumber</MudTd>
+            <MudTd DataLabel="Section">@context.SectionTitle</MudTd>
+            <MudTd DataLabel="Procedures">@context.ProcedureCount</MudTd>
+            <MudTd DataLabel="Action"><MudButton Color="Color.Primary" Variant="Variant.Outlined" Class="button small" OnClick="() => OpenSectionAsync(context.SectionNumber)" Disabled="@_busy" Size="Size.Small">Browse</MudButton></MudTd></RowTemplate>
 </MudTable>
     </div>
   </MudPaper>
 
   @if (_sectionPage is not null)
   {
-    <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="procedures-heading" role="region">
+    <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" aria-labelledby="procedures-heading" role="region">
       <h2 id="procedures-heading">Section @_sectionPage.SectionNumber — @_sectionPage.SectionTitle</h2>
-      <form @onsubmit="SearchAsync" @onsubmit:preventDefault="true" style="display: flex; gap: 0.75rem; align-items: flex-end; flex-wrap: wrap;">
-        <label style="flex: 1; min-width: 16rem;">
+      <form @onsubmit="SearchAsync" @onsubmit:preventDefault="true" class="audit-library-search">
+        <label>
           Search procedures
           <MudTextField T="string" @bind-Value="_search" Placeholder="AWP-02 or confirmations" data-optional="true" Disabled="@_busy" />
         </label>
         <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button" ButtonType="ButtonType.Submit" Disabled="@_busy">Search</MudButton>
         @if (!string.IsNullOrWhiteSpace(_search))
         {
-          <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button" OnClick="ClearSearchAsync" Disabled="@_busy">Clear</MudButton>
+          <MudButton Color="Color.Primary" Variant="Variant.Outlined" Class="button" OnClick="ClearSearchAsync" Disabled="@_busy">Clear</MudButton>
         }
       </form>
       @if (_sectionPage.Items.Count == 0)
       {
-        <p class="muted">No procedures in this section match the search term.</p>
+        <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="my-3" role="status">No procedures in this section match the search term.</MudAlert>
       }
       else
       {
         <div class="table-wrap">
           <MudTable Items="_sectionPage.Items" Dense="true" Hover="true" Elevation="0" Class="data-table">
   <HeaderContent><MudTh scope="col">Source ID</MudTh><MudTh scope="col">Exact source procedure</MudTh></HeaderContent>
-  <RowTemplate>                <MudTd><code>@context.SourceProcedureId</code></MudTd>
-                <MudTd>@context.SourceWording</MudTd></RowTemplate>
+  <RowTemplate>                <MudTd DataLabel="Source ID"><code>@context.SourceProcedureId</code></MudTd>
+                <MudTd DataLabel="Exact source procedure">@context.SourceWording</MudTd></RowTemplate>
 </MudTable>
         </div>
         <p class="muted">Showing @_sectionPage.Items.Count of @_sectionPage.TotalCount procedures.</p>

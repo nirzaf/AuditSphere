@@ -71,6 +71,8 @@ body { background: var(--audit-page); }
   border-radius: 10px;
   box-shadow: 0 2px 8px #0f172a08;
 }
+.audit-workspace-panel code { overflow-wrap: anywhere; word-break: break-word; }
+.audit-workspace-panel dd { min-width: 0; overflow-wrap: anywhere; }
 .audit-metric { height: 100%; min-height: 104px; }
 .audit-metric .mud-typography-overline { color: var(--audit-muted); font-size: 11px; letter-spacing: .06em; }
 .audit-metric .mud-typography-h4 { font-size: 1.8rem; font-weight: 650; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
@@ -114,6 +116,17 @@ body { background: var(--audit-page); }
 .audit-period-workbench-form .form-grid > label { min-width: 0; }
 .audit-period-workbench-form > label { margin-top: 16px; }
 .audit-period-workbench-actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 16px; }
+.audit-library-search { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+.audit-library-search > label { flex: 1 1 18rem; min-width: min(100%, 18rem); }
+.audit-library-version { display: grid; grid-template-columns: minmax(0, 1fr); width: min(100%, 38rem); min-width: 0; }
+.audit-library-version .mud-select, .audit-library-version .mud-input-control, .audit-library-version .mud-input-control-input-container, .audit-library-version .mud-input { min-width: 0; max-width: 100%; }
+.audit-library-version .mud-input-slot { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.audit-fieldwork-links { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.audit-fieldwork-links a { border: 1px solid var(--audit-line); border-radius: 6px; padding: 7px 11px; font-size: 13px; font-weight: 600; }
+.audit-fieldwork-links a:hover, .audit-fieldwork-links a:focus-visible { background: #e5f1f6; }
+.audit-fieldwork-filter { display: flex; align-items: flex-end; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin: 16px 0; }
+.audit-fieldwork-filter > label { min-width: 0; width: min(100%, 28rem); }
+.audit-fieldwork-filter .muted { font-size: 12px; }
 @media (max-width: 1050px) { .audit-period-workbench-form .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 650px) { .audit-period-workbench-form .form-grid { grid-template-columns: minmax(0, 1fr); } }
 .audit-status-chip { font-weight: 700; border-radius: 5px; }
@@ -127,6 +140,7 @@ body { background: var(--audit-page); }
 .accounting-nav-link { color: var(--audit-navy); border-radius: 6px; }
 .accounting-nav-link:hover, .accounting-nav-link:focus-visible, .accounting-nav-link.active { background: #e5f1f6; color: #174e83; }
 .audit-shell :is(a, button, input, select, textarea, [role="button"]):focus-visible { outline: 3px solid var(--audit-teal); outline-offset: 2px; }
+.audit-shell .mud-button-root:focus-visible { outline: 3px solid var(--audit-teal) !important; outline-offset: 2px; }
 .audit-public-shell .audit-workspace, .audit-client-shell .audit-workspace { padding-top: 32px; }
 .audit-client-shell .audit-page-header {
   background: var(--audit-navy);

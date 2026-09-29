@@ -33,6 +33,22 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ---
 
+## UI modernization — audit program and fieldwork
+
+The real audit program library and engagement fieldwork control center now
+use the shared audit heading, compact scoped metrics and white panels. The
+library's selected version label renders its actual version and stays within
+small viewports. Fieldwork initially shows one source section instead of the
+entire adopted procedure catalogue, with an explicit All sections choice and
+visible count; filtering only changes which authorized rows are displayed.
+Published wording, applicability decisions, aggregate conclusions, independent
+review and route-scope clearing remain governed by the existing commands and
+queries. This is `PRESENTATION_ONLY` plus `WIRE_EXISTING`; it does not add the
+prototype's risk-editing or simulated fieldwork actions. Local verification
+is recorded in `status.json`.
+
+---
+
 ## Project task progress display
 
 The administrator tracker now divides each measured task bar into completed,

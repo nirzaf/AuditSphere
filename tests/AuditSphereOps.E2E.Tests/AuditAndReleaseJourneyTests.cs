@@ -90,7 +90,8 @@ public sealed class AuditAndReleaseJourneyTests
     await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new() { Timeout = 5000 });
     await page.GetByRole(AriaRole.Button, new() { Name = "Publish and adopt 2026.1" }).ClickAsync();
     await Assertions.Expect(page.GetByText("AUDIT-WORKING-PROCESS v2026.1")).ToBeVisibleAsync();
-    await Assertions.Expect(page.GetByText("165", new() { Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Region, new() { Name = "Versioned audit program" })
+      .GetByText("165", new() { Exact = true })).ToBeVisibleAsync();
 
     var documentToken = Guid.NewGuid().ToString("N");
     await page.EvaluateAsync("token => window.__testDocumentToken = token", documentToken);
@@ -694,7 +695,66 @@ public sealed class AuditAndReleaseJourneyTests
     await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new() { Timeout = 5000 });
     await page.GetByRole(AriaRole.Button, new() { Name = "Publish and adopt 2026.1" }).ClickAsync();
     await Assertions.Expect(page.GetByText("AUDIT-WORKING-PROCESS v2026.1")).ToBeVisibleAsync();
-    await Assertions.Expect(page.GetByText("165", new() { Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Region, new() { Name = "Versioned audit program" })
+      .GetByText("165", new() { Exact = true })).ToBeVisibleAsync();
+
+    await Assertions.Expect(page.GetByText("Showing 9 of 165 authorized procedures")).ToBeVisibleAsync();
+    var sectionSelector = page.Locator(".audit-fieldwork-filter .mud-select").First;
+    await sectionSelector.ClickAsync();
+    await page.GetByRole(AriaRole.Option, new() { Name = "All sections" }).ClickAsync();
+    await Assertions.Expect(page.GetByText("Showing 165 of 165 authorized procedures")).ToBeVisibleAsync();
+    await sectionSelector.ClickAsync();
+    await page.GetByRole(AriaRole.Option).Filter(new() { HasText = "Section 1 —" }).ClickAsync();
+    await Assertions.Expect(page.GetByText("Showing 9 of 165 authorized procedures")).ToBeVisibleAsync();
+    if (Environment.GetEnvironmentVariable("AUDITSPHERE_AUDIT_UI_CAPTURE_DIR") is { Length: > 0 } auditCaptureDir)
+    {
+      Directory.CreateDirectory(auditCaptureDir);
+      foreach (var width in new[] { 320, 390, 760, 1024, 1440, 1920 })
+      {
+        await page.SetViewportSizeAsync(width, 900);
+        await page.WaitForFunctionAsync("() => innerWidth > 760 || getComputedStyle(document.querySelector('.audit-main-content')).marginLeft === '0px'");
+        await page.EvaluateAsync("() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+        var fieldworkWidth = await page.EvaluateAsync<int>("() => document.documentElement.scrollWidth");
+        var fieldworkOverflow = await page.EvaluateAsync<string>("""
+          () => [...document.querySelectorAll('body *')]
+            .filter(element => { const rect = element.getBoundingClientRect(); return rect.right > innerWidth + 1 && rect.left < innerWidth; })
+            .slice(0, 24).map(element => `${element.tagName}.${element.className?.toString().slice(0, 70)}:${Math.round(element.getBoundingClientRect().right)}`).join(' | ')
+          """);
+        Assert.True(fieldworkWidth <= width + 1, $"Fieldwork document is {fieldworkWidth}px wide at {width}px viewport. {fieldworkOverflow}");
+        if (width is 390 or 1440)
+          await page.ScreenshotAsync(new() { Path = Path.Combine(auditCaptureDir, $"fieldwork-{width}.png"), FullPage = true });
+      }
+    }
+    var libraryConnected = WaitForCircuitConnectionAsync(page, diagnostics);
+    await page.GotoAsync(SignInUrl(host.StaffUrl, "/app/audit/library"));
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Library versions" }).WaitForAsync();
+    await libraryConnected;
+    var refreshLibrary = page.GetByRole(AriaRole.Button, new() { Name = "Refresh library" });
+    await page.GetByRole(AriaRole.Link, new() { Name = "Back to portfolio" }).FocusAsync();
+    await page.Keyboard.PressAsync("Tab");
+    await Assertions.Expect(refreshLibrary).ToBeFocusedAsync();
+    await Assertions.Expect(refreshLibrary).ToHaveCSSAsync("outline-style", "solid");
+    if (Environment.GetEnvironmentVariable("AUDITSPHERE_AUDIT_UI_CAPTURE_DIR") is { Length: > 0 } libraryCaptureDir)
+    {
+      foreach (var width in new[] { 320, 390, 760, 1024, 1440, 1920 })
+      {
+        await page.SetViewportSizeAsync(width, 900);
+        await page.WaitForFunctionAsync("() => innerWidth > 760 || getComputedStyle(document.querySelector('.audit-main-content')).marginLeft === '0px'");
+        await page.EvaluateAsync("() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+        var libraryWidth = await page.EvaluateAsync<int>("() => document.documentElement.scrollWidth");
+        var libraryOverflow = await page.EvaluateAsync<string>("""
+          () => [...document.querySelectorAll('body *')]
+            .filter(element => { const rect = element.getBoundingClientRect(); return rect.right > innerWidth + 1 && rect.left < innerWidth; })
+            .slice(0, 24).map(element => `${element.tagName}.${element.className?.toString().slice(0, 70)}:${Math.round(element.getBoundingClientRect().right)}`).join(' | ')
+          """);
+        Assert.True(libraryWidth <= width + 1, $"Library document is {libraryWidth}px wide at {width}px viewport. {libraryOverflow}");
+        if (width is 390 or 1440)
+          await page.ScreenshotAsync(new() { Path = Path.Combine(libraryCaptureDir, $"library-{width}.png"), FullPage = true });
+      }
+    }
+    await page.GotoAsync(SignInUrl(host.StaffUrl,
+      $"/app/engagements/{host.Fixture.EngagementId:D}/audit-fieldwork"));
+    await Assertions.Expect(page.GetByText("AUDIT-WORKING-PROCESS v2026.1")).ToBeVisibleAsync();
 
     Guid procedureId;
     string sourceProcedureId;
