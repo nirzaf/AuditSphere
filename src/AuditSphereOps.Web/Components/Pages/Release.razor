@@ -11,7 +11,7 @@
 
 <PageTitle>Release candidate</PageTitle>
 <MudLink Href="/app" Class="back-link mb-2 d-inline-block">← Back to portfolio</MudLink>
-<PageHeader Title="Release candidate" Description="Release readiness, required gates, and the controlled issue decision for this candidate." />
+<PageHeader Title="Release candidate" Eyebrow="Controlled release" Description="Review exact candidate evidence and required gates before a human-authorized issue decision." />
 <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button-secondary" OnClick="LoadCandidateAsync" Disabled="@(_loading || _busy)">Refresh candidate</MudButton>
 
 @if (_loading)
@@ -28,8 +28,10 @@ else if (_candidate is null)
 }
 else
 {
-  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="candidate-heading" role="region">
-    <p class="eyebrow">@_candidate.Status</p>
+  <div class="audit-record-toolbar" aria-label="Release candidate status">
+    <StatusChip Status="@_candidate.Status" />
+  </div>
+  <MudPaper Class="audit-workspace-panel audit-record-summary pa-4 my-4" Elevation="1" aria-labelledby="candidate-heading" role="region">
     <h2 id="candidate-heading"><code>@_candidate.Id</code></h2>
     <dl class="details">
       <dt>Target</dt><dd>@_candidate.TargetKind / revision @_candidate.TargetRevision</dd>
@@ -45,7 +47,11 @@ else
   }
   else
   {
-    <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="gates-heading" role="region">
+    @if (!PreflightEvidenceReady)
+    {
+      <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="my-4" role="status">Required preflight evidence is incomplete. The issue action stays unavailable until the configured checks pass; the server rechecks every gate at issuance.</MudAlert>
+    }
+    <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" aria-labelledby="gates-heading" role="region">
       <h2 id="gates-heading">Release evidence gates (§24.4, §25.7)</h2>
       <p class="muted">Every gate requires stored, read-back evidence. Caller assertions are not accepted.</p>
       <dl class="details">
@@ -105,12 +111,12 @@ else
       <p class="notice muted">No external records-provider acceptance is claimed by this workbench.</p>
     </MudPaper>
 
-    <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="issue-heading" role="region">
+    <MudPaper Class="audit-workspace-panel audit-release-issue pa-4 my-4" Elevation="1" aria-labelledby="issue-heading" role="region">
       <h2 id="issue-heading">Issue exact package</h2>
       <p class="muted">This command rechecks current scope, approval applicability, revisions, generations, holds, manifest and recovery mode. It does not sign files or call a provider.</p>
       <div class="field">
         <label for="release-key">Authorized release key</label>
-        <MudTextField T="string" @bind-Value="_releaseKey" MaxLength="200" id="release-key" autocomplete="off" required data-draft-skip="true" title="Enter the authorized key only for this release action; it is never stored in browser draft state." />
+        <MudTextField T="string" @bind-Value="_releaseKey" MaxLength="200" id="release-key" Class="audit-release-key" autocomplete="off" required data-draft-skip="true" title="Enter the authorized key only for this release action; it is never stored in browser draft state." />
       </div>
       <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button" OnClick="IssueAsync" Disabled="@(!CanIssue || string.IsNullOrWhiteSpace(_releaseKey))">@(_busy ? "Issuing…" : "Issue release")</MudButton>
       @if (_result is not null)
@@ -134,10 +140,11 @@ else
   private bool _busy;
   private long _loadGeneration;
   private bool IsStaff => _actor is not null && _actor.Roles.Any(x => x is "Administrator" or "Partner" or "Manager" or "Reviewer" or "Staff");
-  private bool CanIssue => !_busy && _checkpoint?.VerifiedStatus == "VERIFIED" &&
+  private bool PreflightEvidenceReady => _checkpoint?.VerifiedStatus == "VERIFIED" &&
     (!Safety.RequireProtectionAttestation || _attestation is { ObservedState: "PROTECTED" } &&
       (_attestation.ExpiryTime is null || _attestation.ExpiryTime > DateTimeOffset.UtcNow)) &&
     (!Safety.RequireSignatureLineage || _lineage?.VerificationOutcome == "VERIFIED");
+  private bool CanIssue => !_busy && PreflightEvidenceReady;
 
   protected override Task OnParametersSetAsync() => LoadCandidateAsync();
 

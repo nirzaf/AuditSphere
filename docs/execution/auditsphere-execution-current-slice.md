@@ -33,6 +33,24 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ---
 
+## UI modernization — release and archive evidence details
+
+The real release-candidate and records-archive detail routes now use the shared
+record heading, scoped status, white panels and responsive evidence layout.
+Release shows the current candidate status and an explicit blocker when its
+existing preflight evidence is incomplete; its authorized key field, exact
+revision checks and issue command remain unchanged. Archive shows compact
+counts from the authorized manifest and local holds, readable hash/entry rows
+at mobile widths, and a scoped engagement link. An out-of-scope archive and an
+unknown archive display the same unavailable state, while an in-place route
+change still clears the previous archive. Requested records actions and local
+holds continue to be evidence only; the UI does not claim provider protection
+or add prototype-only handover, remote archive or signing controls. This slice
+is `PRESENTATION_ONLY` plus `WIRE_EXISTING`, with a route-denial consistency
+fix. Exact checks are recorded in `status.json`.
+
+---
+
 ## UI modernization — durable operations
 
 The administrator Operations route now shows the authorized firm operating

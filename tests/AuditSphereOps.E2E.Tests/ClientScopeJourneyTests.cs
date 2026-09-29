@@ -1824,6 +1824,27 @@ public sealed class ClientScopeJourneyTests
       throw new Xunit.Sdk.XunitException($"Authorized synthetic archive did not load.\n{await page.Locator("body").InnerTextAsync()}\n{string.Join("\n", diagnostics)}\n{ex.Message}");
     }
     await page.GetByText(entry.RelativeName, new() { Exact = true }).WaitForAsync();
+    var archiveSummary = page.Locator("[aria-label='Scoped archive summary']");
+    await Assertions.Expect(archiveSummary).ToContainTextAsync("Manifest entries");
+    await Assertions.Expect(archiveSummary.GetByText("1", new() { Exact = true })).ToHaveCountAsync(2);
+    var archiveCaptureDir = Environment.GetEnvironmentVariable("AUDITSPHERE_RELEASE_ARCHIVE_UI_CAPTURE_DIR");
+    if (!string.IsNullOrWhiteSpace(archiveCaptureDir)) Directory.CreateDirectory(archiveCaptureDir);
+    foreach (var width in new[] { 320, 390, 760, 1024, 1440, 1920 })
+    {
+      await page.SetViewportSizeAsync(width, 900);
+      await page.WaitForFunctionAsync("expected => document.documentElement.clientWidth === expected && (expected >= 960 || getComputedStyle(document.querySelector('.audit-main-content')).marginLeft === '0px')", width);
+      await page.GetByText(entry.RelativeName, new() { Exact = true }).WaitForAsync();
+      var documentWidth = await page.EvaluateAsync<int>("document.documentElement.scrollWidth");
+      Assert.True(documentWidth <= width + 1, $"Archive document is {documentWidth}px wide at {width}px viewport.");
+      if (archiveCaptureDir is not null && width is 390 or 1440)
+        await page.ScreenshotAsync(new() { Path = Path.Combine(archiveCaptureDir, $"archive-{width}.png"), FullPage = true });
+    }
+    await page.SetViewportSizeAsync(1440, 900);
+    await page.Locator(".breadcrumb-nav").GetByRole(AriaRole.Link, new() { Name = "Portfolio" }).FocusAsync();
+    await page.Keyboard.PressAsync("Tab");
+    var engagementLink = page.Locator("[aria-label='Archive navigation']").GetByRole(AriaRole.Link, new() { Name = "Engagement" });
+    await Assertions.Expect(engagementLink).ToBeFocusedAsync();
+    await Assertions.Expect(engagementLink).ToHaveCSSAsync("outline-style", "solid");
 
     var documentToken = Guid.NewGuid().ToString("N");
     await page.EvaluateAsync("token => window.__recordsArchiveRouteToken = token", documentToken);
@@ -1836,6 +1857,13 @@ public sealed class ClientScopeJourneyTests
     Assert.DoesNotContain(entry.RelativeName, deniedBody);
     Assert.DoesNotContain(manifest.ManifestDigest, deniedBody);
     Assert.DoesNotContain("Archive Manifest", deniedBody);
+    Assert.Equal(documentToken, await page.EvaluateAsync<string>("window.__recordsArchiveRouteToken"));
+
+    var deniedMessage = await page.GetByRole(AriaRole.Alert).InnerTextAsync();
+    await page.EvaluateAsync("path => { history.pushState({}, '', path); dispatchEvent(new PopStateEvent('popstate')); }",
+      $"/app/records/archives/{Guid.NewGuid():D}");
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Archive unavailable" }).WaitForAsync();
+    Assert.Equal(deniedMessage, await page.GetByRole(AriaRole.Alert).InnerTextAsync());
     Assert.Equal(documentToken, await page.EvaluateAsync<string>("window.__recordsArchiveRouteToken"));
 
     await page.EvaluateAsync("path => { history.pushState({}, '', path); dispatchEvent(new PopStateEvent('popstate')); }",

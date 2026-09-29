@@ -78,6 +78,17 @@ body { background: var(--audit-page); }
 .audit-metric .mud-typography-h4 { font-size: 1.8rem; font-weight: 650; letter-spacing: -.03em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .audit-operations-disposition { max-width: 42rem; }
 .audit-operations-ledger .mud-table-cell { overflow-wrap: anywhere; }
+.audit-archive-shell, .audit-archive-shell .table-wrap { min-width: 0; max-width: 100%; }
+.audit-archive-details { grid-template-columns: minmax(110px, max-content) minmax(0, 1fr); }
+.audit-archive-shell code, .audit-archive-shell .mud-table-cell { overflow-wrap: anywhere; word-break: break-word; }
+.audit-release-issue .field { max-width: 34rem; min-width: 0; }
+.audit-release-key { width: 100%; min-width: 0; }
+@media (max-width: 600px) {
+  .audit-archive-details { grid-template-columns: minmax(0, 1fr); gap: 3px; }
+  .audit-archive-details dd { margin-bottom: 10px; }
+  .audit-archive-shell .mud-table-cell { gap: 12px; min-width: 0; }
+  .audit-archive-shell .mud-table-cell::before { flex: 0 0 5.5rem; text-align: left; }
+}
 .audit-portfolio-refresh { margin-bottom: 16px; }
 .audit-portfolio-search { align-items: end; min-width: 0; }
 .audit-portfolio-search .mud-input-control { flex: 1 1 auto; min-width: 0; }
@@ -131,6 +142,10 @@ body { background: var(--audit-page); }
 .audit-fieldwork-filter > label { min-width: 0; width: min(100%, 28rem); }
 .audit-fieldwork-filter .muted { font-size: 12px; }
 .audit-record-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 12px 0 16px; }
+.audit-record-toolbar .status-badge { display: inline-flex; align-items: center; border: 1px solid #a7b4c4; border-radius: 999px; padding: 4px 9px; background: #f2f5f8; color: #34455a; font-size: 12px; font-weight: 700; letter-spacing: .02em; }
+.audit-record-toolbar .status-badge.badge-green { border-color: #8fc8ad; background: #eaf7f0; color: #14583a; }
+.audit-record-toolbar .status-badge.badge-blue { border-color: #a9c8e9; background: #edf5fd; color: #215b94; }
+.audit-record-toolbar .status-badge.badge-yellow { border-color: #dec688; background: #fff8e7; color: #775109; }
 .audit-record-toolbar a { border: 1px solid var(--audit-line); border-radius: 6px; padding: 7px 11px; font-size: 13px; font-weight: 600; }
 .audit-record-toolbar a:hover, .audit-record-toolbar a:focus-visible { background: #e5f1f6; }
 .workpaper-shell, .finding-shell, .review-shell { min-width: 0; max-width: 100%; }

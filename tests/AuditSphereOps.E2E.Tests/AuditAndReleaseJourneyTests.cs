@@ -505,6 +505,26 @@ public sealed class AuditAndReleaseJourneyTests
     await page.GetByText(candidateId.ToString("D")).WaitForAsync(new() { Timeout = 15000 });
     var authorizedBody = await page.Locator("body").InnerTextAsync();
     Assert.Contains(candidateId.ToString("D"), authorizedBody);
+    await Assertions.Expect(page.GetByText("Required preflight evidence is incomplete.", new() { Exact = false })).ToBeVisibleAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Issue release" })).ToBeDisabledAsync();
+    var releaseCaptureDir = Environment.GetEnvironmentVariable("AUDITSPHERE_RELEASE_ARCHIVE_UI_CAPTURE_DIR");
+    if (!string.IsNullOrWhiteSpace(releaseCaptureDir)) Directory.CreateDirectory(releaseCaptureDir);
+    foreach (var width in new[] { 320, 390, 760, 1024, 1440, 1920 })
+    {
+      await page.SetViewportSizeAsync(width, 900);
+      await page.WaitForFunctionAsync("expected => document.documentElement.clientWidth === expected && (expected >= 960 || getComputedStyle(document.querySelector('.audit-main-content')).marginLeft === '0px')", width);
+      await page.GetByText(candidateId.ToString("D")).WaitForAsync();
+      var documentWidth = await page.EvaluateAsync<int>("document.documentElement.scrollWidth");
+      Assert.True(documentWidth <= width + 1, $"Release document is {documentWidth}px wide at {width}px viewport.");
+      if (releaseCaptureDir is not null && width is 390 or 1440)
+        await page.ScreenshotAsync(new() { Path = Path.Combine(releaseCaptureDir, $"release-{width}.png"), FullPage = true });
+    }
+    await page.SetViewportSizeAsync(1440, 900);
+    await page.GetByRole(AriaRole.Link, new() { Name = "Back to portfolio" }).FocusAsync();
+    await page.Keyboard.PressAsync("Tab");
+    var refreshButton = page.GetByRole(AriaRole.Button, new() { Name = "Refresh candidate" });
+    await Assertions.Expect(refreshButton).ToBeFocusedAsync();
+    await Assertions.Expect(refreshButton).ToHaveCSSAsync("outline-style", "solid");
 
     var missingCandidateId = Guid.NewGuid();
     var documentToken = Guid.NewGuid().ToString("N");

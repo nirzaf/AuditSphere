@@ -114,6 +114,14 @@ redacted ledger and guarded recovery actions remain unchanged. The table keeps
 mobile cell labels and wraps long classification codes. Matching synthetic
 before/after captures and a six-width browser journey cover this visual pass.
 
+The release-candidate and records-archive detail routes now share the record
+heading and white-panel layout. Release keeps its exact gate evidence and key
+input, adding only a warning derived from its existing preflight evidence checks.
+Archive shows authorized manifest/version/hold context without asserting
+external protection; long hashes and the entry table reflow on narrow screens.
+An unknown or out-of-scope archive has one unavailable message. Prototype-only
+remote archive, signing and handover controls remain absent.
+
 The administrator-only project task-progress route uses accessible
 four-state progress bars for reviewed task-card counts across Modules 20–26,
 audit workflow and cross-module foundations. Its labels and expanded

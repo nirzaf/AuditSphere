@@ -14,13 +14,9 @@
 <div class="page-header">
     <nav class="breadcrumb-nav">
         <a href="/app">Portfolio</a> /
-        <span>Archive @Id</span>
+        <span>Archive</span>
     </nav>
-    <PageHeader Title="Records Archive" Description="Immutable archive manifests, entry hashes, and transfer evidence for this archive." />
-    @if (_archive is not null)
-    {
-        <span class="status-badge @_statusClass">@_archive.Status</span>
-    }
+    <PageHeader Title="Records Archive" Eyebrow="Records evidence" Description="Immutable manifest entries, hashes, holds and protection observations for the authorized archive." />
 </div>
 
 @if (_loading)
@@ -31,22 +27,31 @@ else if (_accessDenied)
 {
     <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="notice my-4" role="alert">
         <h2>Archive unavailable</h2>
-        <p>The archive is not available in the current firm and engagement scope.</p>
+        <p>The archive is not available in the current scope.</p>
     </MudAlert>
 }
 else if (_archive is null)
 {
     <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="notice my-4" role="alert">
         <h2>Archive unavailable</h2>
-        <p>The requested archive was not found.</p>
+        <p>The archive is not available in the current scope.</p>
     </MudAlert>
 }
 else
 {
-    <div class="archive-shell">
-        <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="archive-summary" role="region">
+    <div class="audit-record-toolbar" aria-label="Archive navigation">
+        <span class="status-badge @_statusClass">@_archive.Status</span>
+        <MudLink Href="@($"/app/engagements/{_archive.EngagementId}")">Engagement</MudLink>
+    </div>
+    <MudGrid Spacing="2" Class="audit-accounting-metrics my-3" aria-label="Scoped archive summary">
+        <MudItem xs="6" sm="4"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Manifest version</MudText><MudText Typo="Typo.h4">@(_manifest?.Version.ToString() ?? "—")</MudText></MudPaper></MudItem>
+        <MudItem xs="6" sm="4"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Manifest entries</MudText><MudText Typo="Typo.h4">@_entries.Count</MudText></MudPaper></MudItem>
+        <MudItem xs="12" sm="4"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Active local holds</MudText><MudText Typo="Typo.h4">@_activeHoldCount</MudText></MudPaper></MudItem>
+    </MudGrid>
+    <div class="archive-shell audit-archive-shell">
+        <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" aria-labelledby="archive-summary" role="region">
             <h2 id="archive-summary">Archive Manifest</h2>
-            <dl class="detail-grid">
+            <dl class="details audit-archive-details">
                 <dt>Archive ID</dt><dd><code>@_archive.Id</code></dd>
                 <dt>Scope</dt><dd><code>@_archive.EngagementId</code></dd>
                 <dt>Created</dt><dd>@_archive.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss zzz")</dd>
@@ -65,7 +70,7 @@ else
             }
         </MudPaper>
 
-        <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="archive-contents" role="region">
+        <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" aria-labelledby="archive-contents" role="region">
             <h2 id="archive-contents">Archive Contents</h2>
             @if (_entries.Count == 0)
             {
@@ -76,19 +81,19 @@ else
                 <div class="table-wrap">
                     <MudTable Items="_entries" Dense="true" Hover="true" Elevation="0" Class="data-table">
   <HeaderContent><MudTh>Index</MudTh><MudTh>Kind</MudTh><MudTh>Source</MudTh><MudTh>Hash</MudTh><MudTh>Bytes</MudTh></HeaderContent>
-  <RowTemplate>                                    <MudTd>@context.Ordinal</MudTd>
-                                    <MudTd>@context.EntryKind</MudTd>
-                                    <MudTd>@context.RelativeName</MudTd>
-                                    <MudTd><code class="hash-snippet">@context.ContentHash</code></MudTd>
-                                    <MudTd>@context.ByteCount</MudTd></RowTemplate>
+  <RowTemplate>                                    <MudTd DataLabel="Index">@context.Ordinal</MudTd>
+                                    <MudTd DataLabel="Kind">@context.EntryKind</MudTd>
+                                    <MudTd DataLabel="Source">@context.RelativeName</MudTd>
+                                    <MudTd DataLabel="Hash"><code class="hash-snippet">@context.ContentHash</code></MudTd>
+                                    <MudTd DataLabel="Bytes">@context.ByteCount</MudTd></RowTemplate>
 </MudTable>
                 </div>
             }
         </MudPaper>
 
-        <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="records-evidence" role="region">
+        <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" aria-labelledby="records-evidence" role="region">
             <h2 id="records-evidence">Records Evidence</h2>
-            <dl class="detail-grid">
+            <dl class="details audit-archive-details">
                 <dt>Desired label</dt><dd>@(_action?.DesiredLabel ?? "Not requested")</dd>
                 <dt>Observed label</dt><dd>@(_action?.ObservedLabel ?? "Not observed")</dd>
                 <dt>Action state</dt><dd>@(_action?.State ?? "Not requested")</dd>
