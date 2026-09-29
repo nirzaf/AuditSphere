@@ -75,6 +75,32 @@ else if (_progress is not null)
     </details>
   </MudPaper>
 
+  <section aria-labelledby="audit-phases-heading" class="mt-4">
+    <h2 id="audit-phases-heading">Audit task phases</h2>
+    <div class="audit-module-progress-grid">
+      @foreach (var phase in _progress.AuditPhases)
+      {
+        <MudPaper Class="audit-workspace-panel pa-4" aria-labelledby="@($"audit-phase-{phase.Number}")">
+          <div class="audit-module-progress-heading">
+            <h3 id="@($"audit-phase-{phase.Number}")">@phase.Name</h3>
+            <strong>@phase.Completed / @phase.Tasks.Count</strong>
+          </div>
+          <ProjectTaskStatusBar Tasks="phase.Tasks" Label="@($"{phase.Name} task-card progress")" />
+          <p class="audit-progress-counts">@phase.Active active or in review · @phase.Pending pending · @phase.Blocked blocked</p>
+          <details>
+            <summary>View @phase.Tasks.Count task cards</summary>
+            <ul class="audit-progress-task-list">
+              @foreach (var task in phase.Tasks)
+              {
+                <li><span><strong>@task.Id</strong> @task.Title@if (task.Status == "BLOCKED" && !string.IsNullOrWhiteSpace(task.BlockedReason)) { <small class="d-block mud-text-secondary">@task.BlockedReason</small> }</span><StatusChip Status="@task.Status" /></li>
+              }
+            </ul>
+          </details>
+        </MudPaper>
+      }
+    </div>
+  </section>
+
   <MudPaper Class="audit-workspace-panel pa-4 mt-4">
     <h2>Shared and cross-module foundation</h2>
     <ProjectTaskStatusBar Tasks="_progress.SharedTasks" Label="Shared foundation task-card progress" />

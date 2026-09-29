@@ -24,6 +24,13 @@ public static class ProjectProgressReader
     [25] = "Financial packages",
     [26] = "Group consolidation"
   };
+  private static readonly IReadOnlyDictionary<int, string> AuditPhaseNames = new Dictionary<int, string>
+  {
+    [17] = "Audit foundation",
+    [18] = "Core fieldwork",
+    [19] = "Extended fieldwork",
+    [20] = "Audit completion"
+  };
 
   public static ProjectProgressSnapshot Read(string contentDirectory)
   {
@@ -59,7 +66,11 @@ public static class ProjectProgressReader
       if (modules.Any(x => !ModuleNames.ContainsKey(x)) || modules.Distinct().Count() != modules.Length ||
           rows.Any(x => x.Id == id))
         throw new InvalidDataException($"Task {id} has inconsistent module or ID tracking metadata.");
-      rows.Add(new(id, title, fields["status"], item.GetProperty("work_package").GetString() ?? "",
+      var workPackage = item.GetProperty("work_package").GetString() ?? "";
+      if (workPackage.StartsWith("AUD-", StringComparison.Ordinal) &&
+          !AuditPhaseNames.Keys.Any(phase => workPackage == $"AUD-{phase}"))
+        throw new InvalidDataException($"Task {id} has an unknown audit phase.");
+      rows.Add(new(id, title, fields["status"], workPackage,
         modules, fields.GetValueOrDefault("blocked_reason") ?? string.Empty));
     }
     return new(rows.OrderBy(x => x.Id, StringComparer.Ordinal).ToArray(),
@@ -67,7 +78,9 @@ public static class ProjectProgressReader
         rows.Where(t => t.Modules.Contains(x.Key)).OrderBy(t => t.Id, StringComparer.Ordinal).ToArray())).ToArray(),
       rows.Where(x => x.WorkPackage.StartsWith("AUD-", StringComparison.Ordinal)).OrderBy(x => x.Id, StringComparer.Ordinal).ToArray(),
       rows.Where(x => x.Modules.Count == 0 && !x.WorkPackage.StartsWith("AUD-", StringComparison.Ordinal))
-        .OrderBy(x => x.Id, StringComparer.Ordinal).ToArray());
+        .OrderBy(x => x.Id, StringComparer.Ordinal).ToArray(),
+      AuditPhaseNames.Select(x => new ProjectModuleProgress(x.Key, x.Value,
+        rows.Where(t => t.WorkPackage == $"AUD-{x.Key}").OrderBy(t => t.Id, StringComparer.Ordinal).ToArray())).ToArray());
   }
 
   private static readonly HashSet<string> TaskStates =
@@ -86,7 +99,7 @@ public sealed record ProjectModuleProgress(int Number, string Name, IReadOnlyLis
 }
 public sealed record ProjectProgressSnapshot(IReadOnlyList<ProjectTaskProgress> Tasks,
   IReadOnlyList<ProjectModuleProgress> Modules, IReadOnlyList<ProjectTaskProgress> AuditTasks,
-  IReadOnlyList<ProjectTaskProgress> SharedTasks)
+  IReadOnlyList<ProjectTaskProgress> SharedTasks, IReadOnlyList<ProjectModuleProgress> AuditPhases)
 {
   public int AuditCompleted => AuditTasks.Count(x => x.Status == "COMPLETED");
   public int SharedCompleted => SharedTasks.Count(x => x.Status == "COMPLETED");

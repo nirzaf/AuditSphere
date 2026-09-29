@@ -249,7 +249,11 @@ visual slice. Exact verification and remaining UI work are in `status.json`.
 The administrator-only `/app/administration/project-progress` page reads the
 published R2R task-card front matter and manifest. It shows one overall bar
 counting each task once, seven module cards (Modules 20–26), and separate
-audit-workflow and cross-module bars. Each card exposes the source status, with completed, active,
+audit-workflow and cross-module bars. The audit workflow is also broken out
+into four bars for its published foundation, core fieldwork, extended
+fieldwork and completion task phases; these are grouped by the manifest's
+`AUD-17` through `AUD-20` work packages and sum to the audit aggregate.
+Each card exposes the source status, with completed, active,
 pending and blocked counts. The page is read-only: status transitions and
 evidence remain governed by the task-pack helper and review rules. Its bars
 measure reviewed task-card completion, not implemented software or production

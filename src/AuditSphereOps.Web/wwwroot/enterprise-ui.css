@@ -281,7 +281,7 @@ body { background: var(--audit-page); }
 .audit-task-key-blocked{--legend-color:#b74736}
 .audit-module-progress-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,22rem),1fr));gap:1rem}
 .audit-module-progress-heading{display:flex;align-items:start;justify-content:space-between;gap:1rem}
-.audit-module-progress-heading h2{font-size:1.1rem;line-height:1.4;margin:0}
+.audit-module-progress-heading h2,.audit-module-progress-heading h3{font-size:1.1rem;line-height:1.4;margin:0}
 .audit-module-progress-heading strong{white-space:nowrap;color:#0b6b65}
 .audit-progress-task-list{padding:0;margin:.75rem 0 0;list-style:none}
 .audit-progress-task-list li{display:flex;align-items:start;justify-content:space-between;gap:1rem;padding:.65rem 0;border-top:1px solid #e2e8f0}

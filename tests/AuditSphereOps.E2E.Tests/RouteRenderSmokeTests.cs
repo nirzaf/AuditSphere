@@ -94,7 +94,9 @@ public sealed class RouteRenderSmokeTests
       if (route == "/app/administration/project-progress")
       {
         await page.GetByRole(AriaRole.Heading, new() { Name = "Module 20 — Accounting setup" }).WaitForAsync();
-        await Assertions.Expect(page.Locator(".audit-module-progress-grid [role='progressbar']")).ToHaveCountAsync(7);
+        await Assertions.Expect(page.GetByRole(AriaRole.Progressbar, new() { Name = "Audit foundation task-card progress" })).ToBeVisibleAsync();
+        await Assertions.Expect(page.GetByRole(AriaRole.Progressbar, new() { Name = "Audit completion task-card progress" })).ToBeVisibleAsync();
+        await Assertions.Expect(page.Locator(".audit-module-progress-grid [role='progressbar']")).ToHaveCountAsync(11);
         await Assertions.Expect(page.GetByRole(AriaRole.Progressbar, new() { Name = "Overall task-card progress" }))
           .ToHaveAttributeAsync("aria-valuetext", new System.Text.RegularExpressions.Regex(@"\d+ completed, \d+ active or in review, \d+ pending, \d+ blocked out of \d+ task cards"));
         await page.GetByRole(AriaRole.Heading, new() { Name = "Other application modules" }).WaitForAsync();

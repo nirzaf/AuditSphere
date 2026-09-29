@@ -74,8 +74,9 @@ cells and scroll containers for wide content; the accounting commands,
 authorization and evidence boundaries are unchanged.
 
 The administrator project-progress route now includes every main application
-area. Modules with published task cards show measured completion and pending
-counts in a four-state segmented bar; areas outside that task pack show a neutral untracked bar and no
+area. Modules 20–26 and the four published audit task phases show measured
+completion and pending counts in a four-state segmented bar; areas outside
+that task pack show a neutral untracked bar and no
 percentage. This does not derive implementation completion from live business
 records or bypass task-card review gates.
 
@@ -142,7 +143,8 @@ mobile table labels.
 
 The administrator-only project task-progress route uses accessible
 four-state progress bars for reviewed task-card counts across Modules 20–26,
-audit workflow and cross-module foundations. Its labels and expanded
+each of the four audit task phases, their audit aggregate and cross-module
+foundations. Its labels and expanded
 task lists remain readable without color. The published task manifest and
 front-matter files are copied into the Web output outside `wwwroot`; the page
 checks current firm-administration authority before loading them. The tracker
