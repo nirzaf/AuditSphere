@@ -100,6 +100,16 @@ body { background: var(--audit-page); }
 .audit-assessment-decision-form .action-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
 .audit-assessment-decision-form .notice-text { color: var(--audit-muted); margin: 0 0 16px; }
 .audit-assessment-decision-form .optional-label::after { content: none; }
+.audit-m365-setup, .audit-m365-progress { min-width: 0; max-width: 100%; }
+.audit-m365-setup .form-group { width: min(100%, 42rem); min-width: 0; }
+.audit-m365-setup .optional-label::after { content: none; }
+.audit-m365-setup .table-wrap { min-width: 0; max-width: 100%; }
+.audit-m365-progress-summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; margin-top: 12px; }
+.audit-m365-progress-summary strong { color: var(--audit-navy); font-size: 15px; font-variant-numeric: tabular-nums; }
+.audit-m365-progress-summary span { color: var(--audit-muted); font-size: 12px; }
+.audit-m365-progress progress { display: block; width: 100%; height: 12px; margin: 10px 0 16px; accent-color: #0b6b65; }
+.audit-m365-steps { margin: 0 0 16px; padding-left: 24px; display: grid; gap: 8px; }
+.audit-m365-steps li { padding-left: 2px; overflow-wrap: anywhere; }
 @media (max-width: 600px) {
   .audit-assessment-details { grid-template-columns: minmax(0, 1fr); gap: 3px; }
   .audit-assessment-details dd { margin-bottom: 10px; }

@@ -33,6 +33,22 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ---
 
+## UI modernization — protected Microsoft 365 setup
+
+The saved-draft route now displays an accessible seven-step local checklist
+bar derived from its existing authorized progress query. An administrator's
+draft moves from 1/7 to 2/7 when the approved site URL is saved in the
+synthetic browser journey; the UI explicitly separates this count from live
+Microsoft consent and selected-resource verification. The form keeps its
+bootstrap proof, native select values, template review and activation gates.
+Optional labels no longer repeat their qualifier, and versioned template
+rows have mobile labels. The journey covers six viewport widths, keyboard
+focus and the expanded advanced settings at 390px; before/after synthetic
+captures were inspected. This slice is `PRESENTATION_ONLY` plus
+`WIRE_EXISTING`; exact test and model-check results are in `status.json`.
+
+---
+
 ## UI modernization — client assessment and partner decision
 
 The two assessment detail aliases and the partner decision route now use shared

@@ -131,6 +131,15 @@ decision form keeps its immutable command and required-field validation. The
 staff shell now gives the main workspace its full available width at mobile
 breakpoints rather than reserving the closed drawer's width.
 
+The protected Microsoft 365 setup route now shows a seven-step bar derived
+only from the saved draft's existing progress query. Its count omits historical
+consent evidence until independent consent verification succeeds, and the UI
+labels it as a local checklist rather than live provider readiness. The
+advanced native selects, bootstrap proof, saved-draft controls and selected-
+resource checks retain their current behavior. Optional labels no longer
+repeat the same qualifier in this form, and versioned-template rows have
+mobile table labels.
+
 The administrator-only project task-progress route uses accessible
 four-state progress bars for reviewed task-card counts across Modules 20–26,
 audit workflow and cross-module foundations. Its labels and expanded
@@ -484,11 +493,11 @@ does not claim parity or whole-application acceptance.
 | Prototype visual family | Real route family | Visual pass |
 | --- | --- | --- |
 | Practice overview and dashboard | `/app`, `/app/overview` | Portfolio pilot complete; route-specific polish remains. |
-| Practice, client and engagement work | `/app/practice/*`, `/app/clients/*`, `/app/engagements/*` | Pending. |
-| Economics and billing | `/app/finance`, invoice details and practice time | Pending. |
-| Accounting and group workbenches | `/app/accounting/*`, `/app/consolidation/*` | Pending. |
-| Audit, review, completion and records | `/app/audit/*`, `/app/assessments/*`, `/app/reviews/*`, `/app/findings/*`, `/app/completion/*`, `/app/releases/*`, `/app/records/*` | Pending. |
-| Firm administration and Microsoft 365 | `/app/administration*` | Pending. |
+| Practice, client and engagement work | `/app/practice/*`, `/app/clients/*`, `/app/engagements/*` | Partial: leads, time, client and engagement details passed; other routes remain. |
+| Economics and billing | `/app/finance`, invoice details and practice time | Partial: firm finance, time and invoice detail passed; other routes remain. |
+| Accounting and group workbenches | `/app/accounting/*`, `/app/consolidation/*` | Partial: landing, evidence, queues, mapping/journal details and period views passed; group detail work remains. |
+| Audit, review, completion and records | `/app/audit/*`, `/app/assessments/*`, `/app/reviews/*`, `/app/findings/*`, `/app/completion/*`, `/app/releases/*`, `/app/records/*` | Partial: selected audit and detail routes, assessment, release and archive passed; other routes remain. |
+| Firm administration and Microsoft 365 | `/app/administration*`, `/setup/microsoft365` | Partial: task progress and protected setup passed; administration and tenant-connection route-family passes remain. |
 | Client secure portal | `/portal*` | Client-safe shell and the three current portal views have a local visual pass; deeper state and keyboard coverage remains. |
 
 This map groups actual route prefixes, including parameterized detail routes;

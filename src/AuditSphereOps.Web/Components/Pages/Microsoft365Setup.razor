@@ -23,10 +23,10 @@
 
 <div class="page-header">
   <nav class="breadcrumb-nav"><a href="/">Home</a> / <span>Microsoft 365 setup</span></nav>
-  <PageHeader Title="Microsoft 365 onboarding" Description="Protected, resumable Microsoft 365 setup draft. A saved draft is not Microsoft consent or verified tenant access." />
+  <PageHeader Title="Microsoft 365 onboarding" Eyebrow="Protected setup" Description="Protected, resumable Microsoft 365 setup draft. A saved draft is not Microsoft consent or verified tenant access." />
 </div>
 
-<MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="setup-heading" role="region">
+<MudPaper Class="audit-workspace-panel audit-m365-setup pa-4 my-4" Elevation="1" aria-labelledby="setup-heading" role="region">
   <h2 id="setup-heading">Microsoft 365 setup</h2>
   <p class="scope-note">This route only creates a resumable local draft. It does not authenticate to Microsoft, grant permissions, or create SharePoint content.</p>
   <p class="field-help"><span class="required-marker">*</span> Required. Bootstrap proof is held only in this server circuit and is never saved to browser storage or the database.</p>
@@ -65,10 +65,15 @@
     </dl>
     @if (_isFirmAdministrator && _progress is not null)
     {
-      <MudPaper Class="pa-4 my-4" Elevation="0" aria-labelledby="setup-progress-heading" role="region">
+      <MudPaper Class="audit-workspace-panel audit-m365-progress pa-4 my-4" Elevation="0" aria-labelledby="setup-progress-heading" role="region">
         <h3 id="setup-progress-heading">Connection progress</h3>
         <p class="field-help">This checklist reads saved AuditSphere records. The separate test below reads the selected Microsoft resources but does not activate external effects.</p>
-        <ol>
+        <div class="audit-m365-progress-summary">
+          <strong>@CompletedSetupSteps / @SetupStepCount recorded</strong>
+          <span>Local checklist progress; live capability verification remains separate.</span>
+        </div>
+        <progress value="@CompletedSetupSteps" max="@SetupStepCount" aria-label="Recorded setup checklist steps"></progress>
+        <ol class="audit-m365-steps">
           <li>@(_progress.TenantRecorded ? "Tenant recorded from your Microsoft sign-in" : "Record the expected tenant")</li>
           <li>@(_progress.SiteUrlRecorded ? "Working site URL saved" : "Enter the approved SharePoint working site URL and save the draft")</li>
           <li>@(_progress.ConnectionPrepared ? "Connection reference prepared" : "Deployment operator prepares a separate runtime credential reference")</li>
@@ -130,7 +135,7 @@
       <select id="records-state" @bind="_recordsState" title="A saved records profile is not protection verification; observed behavior is required later."><option value="NOT_CONFIGURED">Not configured</option><option value="CONFIGURED">Configured (verification required)</option></select></label></div>
     @if (_isFirmAdministrator)
     {
-      <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="template-heading" role="region">
+      <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" aria-labelledby="template-heading" role="region">
         <h2 id="template-heading">Versioned folder template</h2>
         <p class="field-help">Templates are local immutable manifests. They do not create folders or verify SharePoint access. Existing client trees remain pinned to their previous version.</p>
         <div class="form-group"><label for="template-purpose">Template purpose <span class="required-marker">*</span>
@@ -146,14 +151,14 @@
           <div class="table-wrap">
             <MudTable Items="_templateVersions" Dense="true" Hover="true" Elevation="0">
   <HeaderContent><MudTh scope="col">Purpose</MudTh><MudTh scope="col">Version</MudTh><MudTh scope="col">Digest</MudTh><MudTh scope="col">Approval</MudTh><MudTh scope="col">Provider state</MudTh></HeaderContent>
-  <RowTemplate>                  <MudTd>@context.Purpose</MudTd><MudTd>@context.Version</MudTd><MudTd><code>@context.ManifestDigest[..12]</code></MudTd>
-                  <MudTd>
+  <RowTemplate>                  <MudTd DataLabel="Purpose">@context.Purpose</MudTd><MudTd DataLabel="Version">@context.Version</MudTd><MudTd DataLabel="Digest"><code>@context.ManifestDigest[..12]</code></MudTd>
+                  <MudTd DataLabel="Approval">
                     @if (context.ApprovedAt is null)
                     { <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button" OnClick="() => ApproveTemplate(context.Id)" Disabled="@_templateBusy">Approve</MudButton> }
                     else
                     { <span class="success-text">Approved @context.ApprovedAt.Value.ToString("yyyy-MM-dd")</span> }
                   </MudTd>
-                  <MudTd>Local only — SharePoint verification required</MudTd></RowTemplate>
+                  <MudTd DataLabel="Provider state">Local only — SharePoint verification required</MudTd></RowTemplate>
 </MudTable>
           </div>
         }
@@ -186,6 +191,13 @@
   private bool _templateBusy;
   private bool _busy;
   private bool _microsoftAuthenticated, _bootstrapEligible;
+  private const int SetupStepCount = 7;
+  private int CompletedSetupSteps => _progress is null ? 0 : new[]
+  {
+    _progress.TenantRecorded, _progress.SiteUrlRecorded, _progress.ConnectionPrepared,
+    _progress.ConsentVerified, _progress.SelectedResourcesEvidenceRecorded,
+    _progress.ClientTemplateApproved, _progress.WorkspaceActivated
+  }.Count(done => done);
 
   private bool HasDeploymentSetup =>
     Guid.TryParse(Configuration["Setup:FirmId"] ?? Configuration["Application:FirmId"], out _) &&

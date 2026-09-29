@@ -52,6 +52,34 @@ public sealed class M365SetupJourneyTests
     await page.GetByText("Draft revision").WaitForAsync();
     Assert.Equal(host.Fixture.Staff.TenantId, await page.Locator("#tenant-id").InputValueAsync());
     await page.GetByRole(AriaRole.Heading, new() { Name = "Connection progress" }).WaitForAsync();
+    var setupProgress = page.GetByRole(AriaRole.Progressbar, new() { Name = "Recorded setup checklist steps" });
+    Assert.Equal("1", await setupProgress.GetAttributeAsync("value"));
+    Assert.Equal("7", await setupProgress.GetAttributeAsync("max"));
+    await Assertions.Expect(page.GetByRole(AriaRole.Region, new() { Name = "Connection progress" }))
+      .ToContainTextAsync("Local checklist progress; live capability verification remains separate.");
+    var setupCaptureDir = Environment.GetEnvironmentVariable("AUDITSPHERE_M365_UI_CAPTURE_DIR");
+    if (!string.IsNullOrWhiteSpace(setupCaptureDir)) Directory.CreateDirectory(setupCaptureDir);
+    foreach (var width in new[] { 390, 1440, 320, 760, 1024, 1920 })
+    {
+      await page.SetViewportSizeAsync(width, 900);
+      await page.WaitForTimeoutAsync(250);
+      await page.Locator("#tenant-id").WaitForAsync();
+      await page.WaitForFunctionAsync("() => document.documentElement.scrollWidth <= window.innerWidth && (window.innerWidth > 760 || document.querySelector('#main-content').getBoundingClientRect().width >= window.innerWidth - 64)");
+      Assert.False(await page.EvaluateAsync<bool>("document.documentElement.scrollWidth > window.innerWidth"),
+        $"Microsoft 365 setup overflows at {width}px.");
+      if (setupCaptureDir is not null && width is 390 or 1440)
+        await page.ScreenshotAsync(new() { Path = Path.Combine(setupCaptureDir, $"m365-setup-{width}.png"), FullPage = true });
+    }
+    await page.Keyboard.PressAsync("Tab");
+    Assert.True(await page.Locator(":focus-visible").CountAsync() > 0);
+    await page.SetViewportSizeAsync(390, 900);
+    await page.GetByText("Advanced resource IDs, capabilities and folder templates").ClickAsync();
+    await page.Locator("#site-id").WaitForAsync();
+    Assert.False(await page.EvaluateAsync<bool>("document.documentElement.scrollWidth > window.innerWidth"),
+      "Advanced Microsoft 365 setup overflows at 390px.");
+    if (setupCaptureDir is not null)
+      await page.ScreenshotAsync(new() { Path = Path.Combine(setupCaptureDir, "m365-setup-advanced-390.png"), FullPage = true });
+    await page.GetByText("Advanced resource IDs, capabilities and folder templates").ClickAsync();
     Assert.Contains("Tenant recorded from your Microsoft sign-in", await page.Locator("body").InnerTextAsync());
     Assert.Contains("Enter the approved SharePoint working site URL and save the draft", await page.Locator("body").InnerTextAsync());
     Assert.Contains("Activate only after live provider checks and human review", await page.Locator("body").InnerTextAsync());
@@ -59,6 +87,7 @@ public sealed class M365SetupJourneyTests
     await page.GetByRole(AriaRole.Button, new() { Name = "Save draft" }).ClickAsync();
     await page.GetByText("Draft saved. It is not verified or active.").WaitForAsync();
     Assert.Contains("Working site URL saved", await page.Locator("body").InnerTextAsync());
+    Assert.Equal("2", await setupProgress.GetAttributeAsync("value"));
     Assert.Contains("Deployment operator verifies selected site, library and root access", await page.Locator("body").InnerTextAsync());
     Assert.Equal(0, await page.Locator("#bootstrap-proof").CountAsync());
     await using var readback = host.CreateDbContext();
