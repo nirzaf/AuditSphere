@@ -110,6 +110,23 @@ body { background: var(--audit-page); }
 .audit-m365-progress progress { display: block; width: 100%; height: 12px; margin: 10px 0 16px; accent-color: #0b6b65; }
 .audit-m365-steps { margin: 0 0 16px; padding-left: 24px; display: grid; gap: 8px; }
 .audit-m365-steps li { padding-left: 2px; overflow-wrap: anywhere; }
+.audit-tenant-shell { min-width: 0; max-width: 100%; }
+.audit-tenant-details { grid-template-columns: minmax(170px, max-content) minmax(0, 1fr); }
+.audit-tenant-shell code, .audit-tenant-shell .mud-table-cell { overflow-wrap: anywhere; word-break: break-word; }
+.audit-tenant-capabilities { margin: 20px 0; min-width: 0; }
+.audit-tenant-section-heading { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 4px 16px; }
+.audit-tenant-section-heading h3 { font-size: 1.02rem; line-height: 1.35; margin: 0; }
+.audit-tenant-section-heading span { color: var(--audit-muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+.audit-tenant-capabilities progress { display: block; width: 100%; height: 12px; margin: 12px 0; accent-color: #0b6b65; }
+.audit-tenant-table { min-width: 0; max-width: 100%; }
+.audit-tenant-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; }
+.audit-tenant-actions .mud-button-root { margin-right: 0 !important; }
+.audit-tenant-search-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; max-width: 58rem; }
+@media (max-width: 700px) {
+  .audit-tenant-details { grid-template-columns: minmax(0, 1fr); gap: 3px; }
+  .audit-tenant-details dd { margin-bottom: 10px; }
+  .audit-tenant-search-fields { grid-template-columns: minmax(0, 1fr); gap: 0; }
+}
 @media (max-width: 600px) {
   .audit-assessment-details { grid-template-columns: minmax(0, 1fr); gap: 3px; }
   .audit-assessment-details dd { margin-bottom: 10px; }

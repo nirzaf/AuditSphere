@@ -33,6 +33,23 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ---
 
+## UI modernization — Microsoft 365 tenant connection
+
+The administrator tenant-connection page now uses scoped white panels and a
+mobile-stacked summary. Its permission table has labels for mobile cells, and
+directory search fields reflow while retaining their existing domain filter,
+bounded read, and exact identity-binding action. The read-only capability
+bar counts only enabled, fresh, verified permission checks; sign-in setup and
+selected-site verification remain separate and the bar is not a tenant or
+production-readiness claim. Existing consent, capability, directory and role
+boundaries are unchanged. Synthetic before/after mobile captures and desktop
+captures were inspected; the desktop captures have different drawer states,
+so they do not prove a matched desktop visual comparison. The browser journey checks the verified count,
+domain-filtered result, keyboard focus and six viewport widths. Exact final
+verification and remaining administration work are in `status.json`.
+
+---
+
 ## UI modernization — protected Microsoft 365 setup
 
 The saved-draft route now displays an accessible seven-step local checklist

@@ -108,11 +108,45 @@ public sealed class TenantAdministrationJourneyTests
     Assert.Contains("Tenant administrator consent has not been verified", before);
 
     await page.GotoAsync(origin + "/app/administration/microsoft365/tenant-connection");
+    async Task CaptureTenantPageAsync(string state)
+    {
+      if (Environment.GetEnvironmentVariable("AUDITSPHERE_TENANT_UI_CAPTURE_DIR") is not { Length: > 0 } captureDir) return;
+      Directory.CreateDirectory(captureDir);
+      foreach (var width in new[] { 390, 1440 })
+      {
+        await page.SetViewportSizeAsync(width, 900);
+        await page.GetByRole(AriaRole.Heading, new() { Name = "Microsoft 365 tenant connection" }).WaitForAsync();
+        await page.GetByRole(AriaRole.Heading, new() { Name = "Tenant connection", Exact = true }).WaitForAsync();
+        await page.ScreenshotAsync(new() { Path = Path.Combine(captureDir, $"tenant-{state}-{width}.png"), FullPage = true });
+      }
+      await page.SetViewportSizeAsync(1280, 900);
+    }
+    await CaptureTenantPageAsync("before-consent");
+    var permissionProgress = page.GetByRole(AriaRole.Progressbar, new() { Name = "Current enabled Microsoft permission checks verified" });
+    await permissionProgress.WaitForAsync();
+    var verifiedBeforeConsent = int.Parse((await permissionProgress.GetAttributeAsync("value"))!);
     await page.GetByRole(AriaRole.Button, new() { Name = "Connect Microsoft 365 tenant" }).ClickAsync();
     await page.WaitForURLAsync(url => url.Contains("result=verified"), new() { Timeout = 30000 });
     await page.GetByText("Tenant administrator consent was verified").WaitForAsync();
     await page.GetByText(seeded.Admin.Subject, new() { Exact = false }).WaitForAsync();
     await page.GetByText("User.Create", new() { Exact = true }).First.WaitForAsync();
+    await CaptureTenantPageAsync("after-consent");
+    var verifiedAfterConsent = int.Parse((await permissionProgress.GetAttributeAsync("value"))!);
+    var enabledChecks = int.Parse((await permissionProgress.GetAttributeAsync("max"))!);
+    Assert.True(verifiedAfterConsent > verifiedBeforeConsent && verifiedAfterConsent <= enabledChecks);
+    foreach (var width in new[] { 320, 390, 760, 1024, 1440, 1920 })
+    {
+      await page.SetViewportSizeAsync(width, 900);
+      await page.GetByRole(AriaRole.Heading, new() { Name = "Tenant connection", Exact = true }).WaitForAsync();
+      if (width < 960)
+        await page.WaitForFunctionAsync("() => getComputedStyle(document.querySelector('.audit-main-content')).marginLeft === '0px'");
+      var overflow = await page.EvaluateAsync<string>("""() => JSON.stringify({ width: innerWidth, scroll: document.documentElement.scrollWidth, elements: [...document.querySelectorAll('*')].filter(e => e.getBoundingClientRect().right > innerWidth + 1).slice(0, 8).map(e => ({ tag: e.tagName, cls: String(e.className).slice(0, 90), right: Math.round(e.getBoundingClientRect().right) })) })""");
+      Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= window.innerWidth + 1"),
+        $"Tenant connection overflows the {width}px viewport: {overflow}");
+    }
+    var verifyButton = page.GetByRole(AriaRole.Button, new() { Name = "Verify all capabilities" });
+    await verifyButton.FocusAsync();
+    Assert.True(await verifyButton.EvaluateAsync<bool>("element => document.activeElement === element"));
 
     await using (var db = host.CreateDbContext())
     {
@@ -125,6 +159,13 @@ public sealed class TenantAdministrationJourneyTests
 
     await page.GetByRole(AriaRole.Button, new() { Name = "Verify all capabilities" }).ClickAsync();
     await page.GetByText("Every enabled capability was verified separately for this tenant.").WaitForAsync();
+    await page.GetByRole(AriaRole.Textbox, new() { Name = "Filter by user principal name domain (optional)" }).FillAsync("example.test");
+    await page.GetByRole(AriaRole.Button, new() { Name = "Search directory" }).ClickAsync();
+    await page.GetByText("Directory Journey Member").WaitForAsync();
+    await page.SetViewportSizeAsync(320, 900);
+    await page.WaitForFunctionAsync("() => getComputedStyle(document.querySelector('.audit-main-content')).marginLeft === '0px'");
+    Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= window.innerWidth + 1"),
+      "Tenant directory results overflow the 320px viewport.");
     await page.GotoAsync(origin + "/app/administration");
     await page.GetByText("Consent verified").First.WaitForAsync();
     var body = await page.Locator("body").InnerTextAsync();

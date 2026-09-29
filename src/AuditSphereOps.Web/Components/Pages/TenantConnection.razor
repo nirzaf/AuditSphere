@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @using AuditSphereOps.Application.Abstractions
 @using AuditSphereOps.Application.Microsoft365
+@using AuditSphereOps.Domain.Microsoft365
 @using AuditSphereOps.Infrastructure.Persistence
 @using AuditSphereOps.Web.Authentication
 @using Microsoft.EntityFrameworkCore
@@ -16,7 +17,7 @@
 
 <PageTitle>Microsoft 365 tenant connection</PageTitle>
 <MudLink Href="/app/administration" Class="back-link mb-2 d-inline-block">← Firm administration</MudLink>
-<PageHeader Title="Microsoft 365 tenant connection" Description="Connect only the configured tenant through Microsoft administrator consent. Each capability is verified separately." />
+<PageHeader Title="Microsoft 365 tenant connection" Eyebrow="Firm administration" Description="Connect only the configured tenant through Microsoft administrator consent. Each capability is verified separately." />
 
 @if (_loading)
 {
@@ -58,9 +59,9 @@ else
       The consent return was denied or invalid. Check the configured tenant, current administrator session and Microsoft consent policy.
     </MudAlert>
   }
-  <MudPaper Class="pa-4 my-4" Elevation="1" aria-labelledby="tenant-connection-heading" role="region">
+  <MudPaper Class="audit-workspace-panel audit-tenant-shell pa-4 my-4" Elevation="0" aria-labelledby="tenant-connection-heading" role="region">
     <h2 id="tenant-connection-heading">Tenant connection</h2>
-    <dl class="details">
+    <dl class="details audit-tenant-details">
       <dt>Expected tenant</dt><dd>@(_snapshot.ExpectedTenantId ?? "Not saved")</dd>
       <dt>Setup draft</dt><dd>@(_snapshot.DraftState ?? "Not prepared")</dd>
       <dt>Connection revision</dt><dd>@(_snapshot.ConnectionState ?? "Not prepared")</dd>
@@ -74,15 +75,32 @@ else
     </dl>
     @if (_capabilities.Count > 0)
     {
-      <MudSimpleTable Dense="true" Class="my-2" aria-label="Capability status">
-        <thead><tr><th>Capability</th><th>Permission</th><th>State</th><th>Last verification</th></tr></thead>
-        <tbody>
-          @foreach (var capability in _capabilities)
+      <section class="audit-tenant-capabilities" aria-labelledby="capabilities-heading">
+        <div class="audit-tenant-section-heading">
+          <h3 id="capabilities-heading">Capability checks</h3>
+          @if (EnabledPermissionCheckCount > 0)
           {
-            <tr><td>@capability.DisplayName</td><td><code>@capability.Permission</code></td><td><StatusChip Status="@capability.State" /></td><td>@(capability.LastVerifiedAt?.ToString("yyyy-MM-dd HH:mm 'UTC'") ?? "Never")</td></tr>
+            <span>@VerifiedPermissionCheckCount of @EnabledPermissionCheckCount enabled permission checks currently verified</span>
           }
-        </tbody>
-      </MudSimpleTable>
+        </div>
+        @if (EnabledPermissionCheckCount > 0)
+        {
+          <progress value="@VerifiedPermissionCheckCount" max="@EnabledPermissionCheckCount"
+                    aria-label="Current enabled Microsoft permission checks verified">@VerifiedPermissionCheckCount of @EnabledPermissionCheckCount</progress>
+        }
+        <p class="field-help">Sign-in configuration and the selected SharePoint site are reported separately below. This count does not establish tenant or production readiness.</p>
+        <div class="audit-tenant-table">
+          <MudTable Items="_capabilities" Dense="true" Elevation="0" aria-label="Capability status">
+            <HeaderContent><MudTh>Capability</MudTh><MudTh>Permission</MudTh><MudTh>State</MudTh><MudTh>Last verification</MudTh></HeaderContent>
+            <RowTemplate>
+              <MudTd DataLabel="Capability">@context.DisplayName</MudTd>
+              <MudTd DataLabel="Permission"><code>@context.Permission</code></MudTd>
+              <MudTd DataLabel="State"><StatusChip Status="@context.State" /></MudTd>
+              <MudTd DataLabel="Last verification">@(context.LastVerifiedAt?.ToString("yyyy-MM-dd HH:mm 'UTC'") ?? "Never")</MudTd>
+            </RowTemplate>
+          </MudTable>
+        </div>
+      </section>
     }
     @if (AdminSettings.Simulation)
     {
@@ -95,12 +113,14 @@ else
         Tenant consent is not configured. A deployment operator must provide a separate approved directory-reader client ID and exact registered callback URL through private configuration.
       </MudAlert>
     }
-    <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="ConnectAsync"
-      Disabled="@(_busy || !_consentConfigured || _snapshot.DraftId is null)">
-      @(_busy ? "Opening Microsoft…" : "Connect Microsoft 365 tenant")
-    </MudButton>
-    <MudLink Href="/app/administration/microsoft365" Class="ms-2">Review setup draft</MudLink>
-    <div class="mt-3">
+    <div class="audit-tenant-actions">
+      <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="ConnectAsync"
+        Disabled="@(_busy || !_consentConfigured || _snapshot.DraftId is null)">
+        @(_busy ? "Opening Microsoft…" : "Connect Microsoft 365 tenant")
+      </MudButton>
+      <MudLink Href="/app/administration/microsoft365">Review setup draft</MudLink>
+    </div>
+    <div class="audit-tenant-actions mt-3">
       <MudButton Color="Color.Primary" Variant="Variant.Outlined" OnClick="VerifyAllCapabilitiesAsync" Class="me-2"
         Disabled="@(_verifyBusy || _snapshot.DraftId is null)">
         @(_verifyBusy ? "Checking Microsoft…" : "Verify all capabilities")
@@ -115,7 +135,7 @@ else
       }
     </div>
   </MudPaper>
-  <MudPaper Class="pa-4 my-4" Elevation="1" aria-labelledby="directory-search-heading" role="region">
+  <MudPaper Class="audit-workspace-panel audit-tenant-shell pa-4 my-4" Elevation="0" aria-labelledby="directory-search-heading" role="region">
     <h2 id="directory-search-heading">Microsoft directory search</h2>
     <p class="field-help">Searches at most 25 matching users per page from the configured tenant. A search result grants no AuditSphere access.</p>
     @if (!_directoryConfigured)
@@ -124,8 +144,10 @@ else
     }
     else
     {
-      <MudTextField T="string" Label="Display name or user principal name prefix" @bind-Value="_searchPrefix" Immediate="true" MaxLength="80" />
-      <MudTextField T="string" Label="Filter by user principal name domain (optional)" @bind-Value="_searchDomain" Immediate="true" MaxLength="253" Placeholder="example.com" />
+      <div class="audit-tenant-search-fields">
+        <MudTextField T="string" Label="Display name or user principal name prefix" @bind-Value="_searchPrefix" Immediate="true" MaxLength="80" />
+        <MudTextField T="string" Label="Filter by user principal name domain (optional)" @bind-Value="_searchDomain" Immediate="true" MaxLength="253" Placeholder="example.com" />
+      </div>
       <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SearchDirectoryAsync" Disabled="@_searchBusy">@(_searchBusy ? "Searching…" : "Search directory")</MudButton>
       @if (!string.IsNullOrEmpty(_searchError))
       {
@@ -140,7 +162,7 @@ else
         }
         else
         {
-          <MudTable Items="_searchPage.Users" Dense="true" Elevation="0">
+          <MudTable Items="_searchPage.Users" Dense="true" Elevation="0" Class="audit-tenant-table">
             <HeaderContent><MudTh>Name</MudTh><MudTh>Microsoft identity</MudTh><MudTh>State</MudTh><MudTh>Local binding</MudTh></HeaderContent>
             <RowTemplate>
               <MudTd DataLabel="Name">@context.DisplayName</MudTd>
@@ -200,6 +222,11 @@ else
   private bool _verifyPassed;
   private string? _verifyMessage;
   private IReadOnlyList<CapabilityStatus> _capabilities = [];
+  private int EnabledPermissionCheckCount => _capabilities.Count(x => x.Enabled &&
+    x.Capability is not (Microsoft365Capabilities.SignIn or Microsoft365Capabilities.SelectedSite));
+  private int VerifiedPermissionCheckCount => _capabilities.Count(x => x.Enabled &&
+    x.Capability is not (Microsoft365Capabilities.SignIn or Microsoft365Capabilities.SelectedSite) &&
+    x.State == CapabilityVerificationStates.Verified && !x.Stale);
   private string? _consentingAdmin;
 
   protected override async Task OnInitializedAsync()

@@ -141,6 +141,16 @@ resource checks retain their current behavior. Optional labels no longer
 repeat the same qualifier in this form, and versioned-template rows have
 mobile table labels.
 
+The administrator tenant-connection route now uses the shared white-panel
+hierarchy and a mobile-stacked tenant summary. Its capability table retains
+every provider state and shows labeled cells on small screens; the directory
+search fields reflow without changing the bounded provider query or exact
+identity-binding action. A read-only bar counts fresh, verified checks among
+enabled Microsoft permission capabilities. Sign-in configuration and the
+selected SharePoint site stay outside that count because their evidence and
+verification paths are separate. Consent return, verified consent, directory
+read, local role assignment and production readiness remain distinct states.
+
 The administrator-only project task-progress route uses accessible
 four-state progress bars for reviewed task-card counts across Modules 20–26,
 each of the four audit task phases, their audit aggregate and cross-module
@@ -499,7 +509,7 @@ does not claim parity or whole-application acceptance.
 | Economics and billing | `/app/finance`, invoice details and practice time | Partial: firm finance, time and invoice detail passed; other routes remain. |
 | Accounting and group workbenches | `/app/accounting/*`, `/app/consolidation/*` | Partial: landing, evidence, queues, mapping/journal details and period views passed; group detail work remains. |
 | Audit, review, completion and records | `/app/audit/*`, `/app/assessments/*`, `/app/reviews/*`, `/app/findings/*`, `/app/completion/*`, `/app/releases/*`, `/app/records/*` | Partial: selected audit and detail routes, assessment, release and archive passed; other routes remain. |
-| Firm administration and Microsoft 365 | `/app/administration*`, `/setup/microsoft365` | Partial: task progress and protected setup passed; administration and tenant-connection route-family passes remain. |
+| Firm administration and Microsoft 365 | `/app/administration*`, `/setup/microsoft365` | Partial: task progress, protected setup and tenant-connection presentation passed; the broad administration route-family pass remains. |
 | Client secure portal | `/portal*` | Client-safe shell and the three current portal views have a local visual pass; deeper state and keyboard coverage remains. |
 
 This map groups actual route prefixes, including parameterized detail routes;
