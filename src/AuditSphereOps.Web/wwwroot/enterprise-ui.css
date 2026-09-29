@@ -73,8 +73,8 @@ body { background: var(--audit-page); }
 }
 .audit-workspace-panel code { overflow-wrap: anywhere; word-break: break-word; }
 .audit-workspace-panel dd { min-width: 0; overflow-wrap: anywhere; }
-.audit-metric { height: 100%; min-height: 104px; }
-.audit-metric .mud-typography-overline { color: var(--audit-muted); font-size: 11px; letter-spacing: .06em; }
+.audit-metric { height: 100%; min-height: 104px; min-width: 0; }
+.audit-metric .mud-typography-overline { color: var(--audit-muted); font-size: 11px; letter-spacing: .06em; overflow-wrap: anywhere; }
 .audit-metric .mud-typography-h4 { font-size: 1.8rem; font-weight: 650; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
 .audit-portfolio-refresh { margin-bottom: 16px; }
 .audit-portfolio-search { align-items: end; min-width: 0; }
@@ -102,6 +102,7 @@ body { background: var(--audit-page); }
 .audit-accounting-context .optional-label::after { content: none; }
 .audit-accounting-context .details { grid-template-columns: minmax(110px, max-content) minmax(0, 1fr); }
 .audit-accounting-metrics .audit-metric { min-height: 96px; }
+.audit-accounting-metrics .mud-grid-item { min-width: 0; }
 .audit-accounting-review { border-color: var(--audit-line); border-radius: 10px; }
 .audit-accounting-review-actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
 .audit-accounting-review-actions .notice-text { margin: 0; }
@@ -127,8 +128,19 @@ body { background: var(--audit-page); }
 .audit-fieldwork-filter { display: flex; align-items: flex-end; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin: 16px 0; }
 .audit-fieldwork-filter > label { min-width: 0; width: min(100%, 28rem); }
 .audit-fieldwork-filter .muted { font-size: 12px; }
+.audit-record-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 12px 0 16px; }
+.audit-record-toolbar a { border: 1px solid var(--audit-line); border-radius: 6px; padding: 7px 11px; font-size: 13px; font-weight: 600; }
+.audit-record-toolbar a:hover, .audit-record-toolbar a:focus-visible { background: #e5f1f6; }
+.plan-shell, .completion-shell, .plan-shell .table-wrap, .completion-shell .table-wrap { min-width: 0; max-width: 100%; }
+.plan-shell .inline-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 20px; }
+.plan-shell .inline-form > .form-group { min-width: 0; }
+.plan-shell .inline-form > .mud-button-root { grid-column: 1 / -1; justify-self: start; }
+.completion-shell .representation-row { display: grid; grid-template-columns: minmax(5rem, auto) minmax(0, 1fr) auto; gap: 12px; align-items: start; padding: 10px 0; border-bottom: 1px solid var(--audit-line); }
+.completion-shell .rep-text { min-width: 0; overflow-wrap: anywhere; }
+.completion-shell .representation-row .badge { white-space: nowrap; }
+.audit-completion-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 12px; }
 @media (max-width: 1050px) { .audit-period-workbench-form .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 650px) { .audit-period-workbench-form .form-grid { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 650px) { .audit-period-workbench-form .form-grid, .plan-shell .inline-form { grid-template-columns: minmax(0, 1fr); } .completion-shell .representation-row { grid-template-columns: minmax(0, 1fr) auto; } .completion-shell .rep-text { grid-column: 1 / -1; grid-row: 2; } }
 .audit-status-chip { font-weight: 700; border-radius: 5px; }
 .mud-dialog { border-radius: 15px; }
 .audit-workspace .mud-button-root { border-radius: 6px; }

@@ -25,12 +25,7 @@
         }
         <span>Audit Plan</span>
     </nav>
-    <PageHeader Title="Audit Plan &amp; Strategy" Description="Planning, risk assessment, materiality, and program adoption for this engagement." />
-    <span class="status-badge badge-blue">@_status</span>
-    @if (_effectiveEngagementId.HasValue)
-    {
-        <a class="btn-secondary" href="@($"/app/engagements/{_effectiveEngagementId}/audit-fieldwork")">Fieldwork control center</a>
-    }
+    <PageHeader Title="Audit Plan &amp; Strategy" Eyebrow="Engagement audit" Description="Planning, risk assessment, materiality, and program adoption for this engagement." />
 </div>
 
 @if (_loading)
@@ -53,11 +48,23 @@ else if (_engagement is null)
 }
 else
 {
+    <div class="audit-record-toolbar" aria-label="Audit plan navigation">
+        <span class="status-badge @(_engagement.ProfessionalWorkBlocked ? "badge-red" : "badge-blue")">@_status</span>
+        <MudLink Href="@($"/app/engagements/{_engagement.Id}/audit-fieldwork")">Fieldwork control center</MudLink>
+        <MudLink Href="/app/audit/library">Program library</MudLink>
+        <MudLink Href="@($"/app/engagements/{_engagement.Id}/completion")">Completion checklist</MudLink>
+    </div>
+    <MudGrid Spacing="2" Class="audit-accounting-metrics my-3" aria-label="Scoped audit plan counts">
+        <MudItem xs="6" sm="3"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Identified risks</MudText><MudText Typo="Typo.h4">@_risks.Count</MudText></MudPaper></MudItem>
+        <MudItem xs="6" sm="3"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Populations</MudText><MudText Typo="Typo.h4">@_populations.Count</MudText></MudPaper></MudItem>
+        <MudItem xs="6" sm="3"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Findings</MudText><MudText Typo="Typo.h4">@_findings.Count</MudText></MudPaper></MudItem>
+        <MudItem xs="6" sm="3"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Workpapers</MudText><MudText Typo="Typo.h4">@_workpapers.Count</MudText></MudPaper></MudItem>
+    </MudGrid>
     <div class="plan-shell">
         <MudButton Variant="Variant.Outlined" Class="btn-secondary mb-2" OnClick="RefreshPlanAsync" Disabled="@_loading">Refresh plan</MudButton>
 
         <!-- Materiality -->
-        <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="materiality-heading" role="region">
+        <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" aria-labelledby="materiality-heading" role="region">
             <h2 id="materiality-heading">Materiality (§19.2)</h2>
             @if (_materiality is not null)
             {
@@ -128,7 +135,7 @@ else
         </MudPaper>
 
         <!-- Risks -->
-        <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="risks-heading" role="region">
+        <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" aria-labelledby="risks-heading" role="region">
             <h2 id="risks-heading">Identified Risks (§19.3)</h2>
             @if (_risks.Count == 0)
             {
@@ -136,14 +143,14 @@ else
             }
             else
             {
-                <MudTable Items="_risks" Dense="true" Hover="true" Elevation="0" Class="data-table">
+                <div class="table-wrap"><MudTable Items="_risks" Dense="true" Hover="true" Elevation="0" Class="data-table">
   <HeaderContent><MudTh scope="col">Area</MudTh><MudTh scope="col">Description</MudTh><MudTh scope="col">Assertion</MudTh><MudTh scope="col">Severity</MudTh><MudTh scope="col">Status</MudTh></HeaderContent>
-  <RowTemplate>                                <MudTd>@context.AccountArea</MudTd>
-                                <MudTd>@context.Description</MudTd>
-                                <MudTd>@context.Assertion</MudTd>
-                                <MudTd><span class="badge @(context.Severity == RiskSeverities.Significant ? "badge-red" : "badge-yellow")">@context.Severity</span></MudTd>
-                                <MudTd>@context.Status</MudTd></RowTemplate>
-</MudTable>
+  <RowTemplate>                                <MudTd DataLabel="Area">@context.AccountArea</MudTd>
+                                <MudTd DataLabel="Description">@context.Description</MudTd>
+                                <MudTd DataLabel="Assertion">@context.Assertion</MudTd>
+                                <MudTd DataLabel="Severity"><span class="badge @(context.Severity == RiskSeverities.Significant ? "badge-red" : "badge-yellow")">@context.Severity</span></MudTd>
+                                <MudTd DataLabel="Status">@context.Status</MudTd></RowTemplate>
+</MudTable></div>
             }
 
             <fieldset class="inline-form">
@@ -180,7 +187,7 @@ else
         </MudPaper>
 
         <!-- Populations -->
-        <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="populations-heading" role="region">
+        <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" aria-labelledby="populations-heading" role="region">
             <h2 id="populations-heading">Populations (§20.1)</h2>
             @if (_populations.Count == 0)
             {
@@ -188,14 +195,14 @@ else
             }
             else
             {
-                <MudTable Items="_populations" Dense="true" Hover="true" Elevation="0" Class="data-table">
+                <div class="table-wrap"><MudTable Items="_populations" Dense="true" Hover="true" Elevation="0" Class="data-table">
   <HeaderContent><MudTh scope="col">Purpose</MudTh><MudTh scope="col">Assertion</MudTh><MudTh scope="col">Rows</MudTh><MudTh scope="col">Control total</MudTh><MudTh scope="col">Status</MudTh></HeaderContent>
-  <RowTemplate>                                <MudTd><a href="/app/audit/populations/@context.Id">@context.Purpose</a></MudTd>
-                                <MudTd>@context.Assertion</MudTd>
-                                <MudTd>@context.RowCount.ToString("N0")</MudTd>
-                                <MudTd>@context.Currency @context.MonetaryControlTotal.ToString("N2")</MudTd>
-                                <MudTd>@context.Status</MudTd></RowTemplate>
-</MudTable>
+  <RowTemplate>                                <MudTd DataLabel="Purpose"><a href="/app/audit/populations/@context.Id">@context.Purpose</a></MudTd>
+                                <MudTd DataLabel="Assertion">@context.Assertion</MudTd>
+                                <MudTd DataLabel="Rows">@context.RowCount.ToString("N0")</MudTd>
+                                <MudTd DataLabel="Control total">@context.Currency @context.MonetaryControlTotal.ToString("N2")</MudTd>
+                                <MudTd DataLabel="Status">@context.Status</MudTd></RowTemplate>
+</MudTable></div>
             }
 
             <fieldset class="inline-form">
@@ -233,7 +240,7 @@ else
         </MudPaper>
 
         <!-- Findings -->
-        <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="findings-heading" role="region">
+        <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" aria-labelledby="findings-heading" role="region">
             <h2 id="findings-heading">Findings (§23)</h2>
             @if (_findings.Count == 0)
             {
@@ -272,7 +279,7 @@ else
         </MudPaper>
 
         <!-- Programs / Workpapers -->
-        <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="workpapers-heading" role="region">
+        <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" aria-labelledby="workpapers-heading" role="region">
             <h2 id="workpapers-heading">Audit Workpapers (§21.1)</h2>
             @if (_workpapers.Count == 0)
             {

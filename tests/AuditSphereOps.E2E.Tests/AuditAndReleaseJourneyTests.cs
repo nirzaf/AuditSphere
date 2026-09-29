@@ -33,6 +33,12 @@ public sealed class AuditAndReleaseJourneyTests
         Id = unauthorizedEngagementId, FirmId = host.Fixture.FirmId,
         PracticeClientId = host.Fixture.ClientId, Status = "Active", CreatedAt = DateTimeOffset.UtcNow
       });
+      db.WrittenRepresentations.Add(new WrittenRepresentation
+      {
+        Id = Guid.NewGuid(), FirmId = host.Fixture.FirmId, ClientId = host.Fixture.ClientId,
+        EngagementId = host.Fixture.EngagementId, Code = "SYN-LONG-01", Title = "Synthetic representation",
+        Narrative = "Synthetic completion narrative with a long unbroken source reference " + new string('R', 120)
+      });
       await db.SaveChangesAsync();
     }
 
@@ -46,6 +52,30 @@ public sealed class AuditAndReleaseJourneyTests
       $"/app/engagements/{host.Fixture.EngagementId:D}/completion"));
     await page.GetByText(packageId.ToString(), new() { Exact = true }).WaitForAsync();
     await connected;
+    await Assertions.Expect(page.Locator("[aria-label='Scoped completion counts']")).ToContainTextAsync("Representations obtained");
+    await Assertions.Expect(page.GetByText("SYN-LONG-01")).ToBeVisibleAsync();
+    var completionCaptureDir = Environment.GetEnvironmentVariable("AUDITSPHERE_AUDIT_UI_CAPTURE_DIR");
+    if (!string.IsNullOrWhiteSpace(completionCaptureDir)) Directory.CreateDirectory(completionCaptureDir);
+    foreach (var width in new[] { 320, 390, 760, 1024, 1440, 1920 })
+    {
+      await page.SetViewportSizeAsync(width, 900);
+      await page.WaitForFunctionAsync("expected => document.documentElement.clientWidth === expected && (expected >= 960 || getComputedStyle(document.querySelector('.audit-main-content')).marginLeft === '0px')", width);
+      var documentWidth = await page.EvaluateAsync<int>("document.documentElement.scrollWidth");
+      var overflow = await page.EvaluateAsync<string>("""
+        () => [...document.querySelectorAll('body, main, .audit-workspace, .completion-shell, .audit-workspace-panel, .table-wrap, .mud-table-container, .audit-record-toolbar, .mud-grid, .mud-grid-item')]
+          .slice(0, 30).map(element => { const rect = element.getBoundingClientRect(); return `${element.tagName}.${element.className?.toString().slice(0, 32)}:${Math.round(rect.left)}-${Math.round(rect.right)}:${getComputedStyle(element).minWidth}`; }).join(' | ')
+        """);
+      Assert.True(documentWidth <= width + 1, $"Completion document is {documentWidth}px wide at {width}px viewport. {overflow}");
+      if (completionCaptureDir is not null && width is 390 or 1440)
+        await page.ScreenshotAsync(new() { Path = Path.Combine(completionCaptureDir, $"completion-{width}.png"), FullPage = true });
+    }
+    await page.SetViewportSizeAsync(1280, 900);
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Engagement Completion Checklist" })).ToBeVisibleAsync();
+    await page.GetByRole(AriaRole.Link, new() { Name = "Audit plan" }).FocusAsync();
+    await page.Keyboard.PressAsync("Tab");
+    var completionFieldworkLink = page.GetByRole(AriaRole.Link, new() { Name = "Fieldwork control center" });
+    await Assertions.Expect(completionFieldworkLink).ToBeFocusedAsync();
+    await Assertions.Expect(completionFieldworkLink).ToHaveCSSAsync("outline-style", "solid");
     var documentToken = Guid.NewGuid().ToString("N");
     await page.EvaluateAsync("token => window.__testDocumentToken = token", documentToken);
     await page.EvaluateAsync("path => { history.pushState({}, '', path); dispatchEvent(new PopStateEvent('popstate')); }",
@@ -53,6 +83,10 @@ public sealed class AuditAndReleaseJourneyTests
     await page.GetByRole(AriaRole.Heading, new() { Name = "Engagement unavailable" }).WaitForAsync();
     var body = await page.Locator("body").InnerTextAsync();
     Assert.DoesNotContain(packageId.ToString(), body);
+    Assert.Equal(documentToken, await page.EvaluateAsync<string>("window.__testDocumentToken"));
+    await page.EvaluateAsync("path => { history.pushState({}, '', path); dispatchEvent(new PopStateEvent('popstate')); }",
+      $"/app/completion/{host.Fixture.EngagementId:D}");
+    await Assertions.Expect(page.GetByText(packageId.ToString(), new() { Exact = true })).ToBeVisibleAsync();
     Assert.Equal(documentToken, await page.EvaluateAsync<string>("window.__testDocumentToken"));
     Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
   }
@@ -286,6 +320,23 @@ public sealed class AuditAndReleaseJourneyTests
     await connected;
     await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new() { Timeout = 5000 });
     await Assertions.Expect(page.GetByText("Total assets")).ToBeVisibleAsync();
+    await Assertions.Expect(page.Locator("[aria-label='Scoped audit plan counts']")).ToContainTextAsync("Identified risks");
+    var planCaptureDir = Environment.GetEnvironmentVariable("AUDITSPHERE_AUDIT_UI_CAPTURE_DIR");
+    if (!string.IsNullOrWhiteSpace(planCaptureDir)) Directory.CreateDirectory(planCaptureDir);
+    foreach (var width in new[] { 320, 390, 760, 1024, 1440, 1920 })
+    {
+      await page.SetViewportSizeAsync(width, 900);
+      await page.WaitForFunctionAsync("expected => document.documentElement.clientWidth === expected && (expected >= 960 || getComputedStyle(document.querySelector('.audit-main-content')).marginLeft === '0px')", width);
+      var documentWidth = await page.EvaluateAsync<int>("document.documentElement.scrollWidth");
+      Assert.True(documentWidth <= width + 1, $"Audit plan document is {documentWidth}px wide at {width}px viewport.");
+      if (planCaptureDir is not null && width is 390 or 1440)
+        await page.ScreenshotAsync(new() { Path = Path.Combine(planCaptureDir, $"plan-{width}.png"), FullPage = true });
+    }
+    await page.GetByRole(AriaRole.Link, new() { Name = "Fieldwork control center" }).FocusAsync();
+    await page.Keyboard.PressAsync("Tab");
+    var programLibraryLink = page.GetByRole(AriaRole.Link, new() { Name = "Program library" });
+    await Assertions.Expect(programLibraryLink).ToBeFocusedAsync();
+    await Assertions.Expect(programLibraryLink).ToHaveCSSAsync("outline-style", "solid");
 
     var documentToken = Guid.NewGuid().ToString("N");
     await page.EvaluateAsync("token => window.__testDocumentToken = token", documentToken);

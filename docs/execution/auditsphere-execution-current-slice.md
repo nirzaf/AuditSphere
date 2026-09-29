@@ -49,6 +49,23 @@ is recorded in `status.json`.
 
 ---
 
+## UI modernization — audit planning and completion
+
+The real engagement audit plan and completion checklist now use the shared
+record heading, navigation links, compact counts from authorized rows, white
+panels and mobile table labels. The planning forms reflow into two columns on
+wide screens and one on narrow screens without changing their fields or
+commands. The completion view stacks long representation text and wraps
+actions on narrow screens. Its in-place route change now clears the prior
+engagement and reloads authorization and scoped data for the new parameter,
+with a generation fence against an older load finishing late. This is
+`PRESENTATION_ONLY` plus `WIRE_EXISTING` and one route-scope correctness fix;
+the counts do not claim release readiness. Prototype-only planning lifecycle,
+risk editing and professional decisions remain outside this slice. Local
+verification is recorded in `status.json`.
+
+---
+
 ## Project task progress display
 
 The administrator tracker now divides each measured task bar into completed,

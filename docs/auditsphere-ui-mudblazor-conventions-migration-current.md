@@ -37,6 +37,15 @@
 
 ## 3. Theme & shared components (presentation only)
 
+Audit planning and completion now use the shared scoped metric, white-panel
+and record-navigation styles. Planning forms retain every real command and
+field while using two columns on wide screens and one on mobile. Completion
+gate rows have mobile labels and long representation references wrap. The
+completion route also reauthorizes and clears prior data on an in-place
+engagement parameter change; this is a scope-safety repair, not a new
+professional or release decision. Counts repeat authorized loaded rows and
+do not indicate readiness to issue.
+
 The audit program library and engagement fieldwork pages now use the compact
 workspace hierarchy, scoped metrics and white panels. Fieldwork's section
 selector initially limits the visible register to the first adopted source
