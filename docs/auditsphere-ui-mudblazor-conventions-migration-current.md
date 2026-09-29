@@ -37,6 +37,12 @@
 
 ## 3. Theme & shared components (presentation only)
 
+Mapping and adjustment-journal detail pages now use the established record
+header, metric and panel styles. Their links return to the matching scoped
+queue. Mapping MudTables have `DataLabel` values for narrow-screen stacked
+cells and scroll containers for wide content; the accounting commands,
+authorization and evidence boundaries are unchanged.
+
 The administrator project-progress route now includes every main application
 area. Modules with published task cards show measured completion and pending
 counts; areas outside that task pack show a neutral untracked bar and no

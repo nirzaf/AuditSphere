@@ -152,6 +152,26 @@ public sealed class FinancialArtifactJourneyTests
     await page.GetByRole(AriaRole.Heading, new() { Name = journalNumber }).WaitForAsync();
     await page.GetByText(privateAccountCode, new() { Exact = true }).WaitForAsync();
     await connected;
+    Assert.Equal("2", await page.Locator(".audit-accounting-metrics .mud-typography-h4").First.InnerTextAsync());
+    foreach (var width in new[] { 320, 390, 760, 1024, 1440, 1920 })
+    {
+      await page.SetViewportSizeAsync(width, 900);
+      if (width < 960)
+        await page.WaitForFunctionAsync("() => getComputedStyle(document.querySelector('.audit-main-content')).marginLeft === '0px'");
+      else if (width == 1440)
+        await page.WaitForFunctionAsync("() => document.querySelector('.audit-sidebar')?.getBoundingClientRect().left >= -1");
+      await page.EvaluateAsync("() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+      if ((width == 390 || width == 1440) && Environment.GetEnvironmentVariable("AUDITSPHERE_UI_CAPTURE_DIR") is { Length: > 0 } journalCaptureDir)
+      {
+        Directory.CreateDirectory(journalCaptureDir);
+        await page.ScreenshotAsync(new() { Path = Path.Combine(journalCaptureDir, $"journal-detail-{width}.png"), FullPage = true });
+      }
+      Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= window.innerWidth + 1"),
+        $"Journal detail overflows the {width}px viewport.");
+    }
+    var journalBackLink = page.GetByRole(AriaRole.Link, new() { Name = "Adjustment journals" });
+    await journalBackLink.FocusAsync();
+    Assert.Equal("solid", await journalBackLink.EvaluateAsync<string>("element => getComputedStyle(element).outlineStyle"));
 
     await using (var db = host.CreateDbContext())
     {
@@ -1086,6 +1106,27 @@ public sealed class FinancialArtifactJourneyTests
     await page.GotoAsync(SignInUrl(host.StaffUrl, $"/app/accounting/mappings/{mappingId:D}"));
     await page.GetByRole(AriaRole.Heading, new() { Name = "Current and prior allocation comparison" }).WaitForAsync();
     await connected;
+    Assert.Equal(4, await page.Locator(".audit-accounting-metrics .mud-typography-h4").CountAsync());
+    foreach (var width in new[] { 320, 390, 760, 1024, 1440, 1920 })
+    {
+      await page.SetViewportSizeAsync(width, 900);
+      if (width < 960)
+        await page.WaitForFunctionAsync("() => getComputedStyle(document.querySelector('.audit-main-content')).marginLeft === '0px'");
+      else if (width == 1440)
+        await page.WaitForFunctionAsync("() => document.querySelector('.audit-sidebar')?.getBoundingClientRect().left >= -1");
+      await page.EvaluateAsync("() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+      if ((width == 390 || width == 1440) && Environment.GetEnvironmentVariable("AUDITSPHERE_UI_CAPTURE_DIR") is { Length: > 0 } mappingCaptureDir)
+      {
+        Directory.CreateDirectory(mappingCaptureDir);
+        await page.ScreenshotAsync(new() { Path = Path.Combine(mappingCaptureDir, $"mapping-detail-{width}.png"), FullPage = true });
+      }
+      Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= window.innerWidth + 1"),
+        $"Mapping detail overflows the {width}px viewport.");
+    }
+    var mappingSectionLink = page.GetByRole(AriaRole.Link, new() { Name = "Report impact" });
+    await mappingSectionLink.FocusAsync();
+    Assert.Equal("solid", await mappingSectionLink.EvaluateAsync<string>("element => getComputedStyle(element).outlineStyle"));
+    Assert.True(await page.Locator("td[data-label='Amount']").CountAsync() > 0);
 
     await using (var db = host.CreateDbContext())
     {

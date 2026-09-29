@@ -94,10 +94,9 @@ public sealed class RouteRenderSmokeTests
       if (route == "/app/administration/project-progress")
       {
         await page.GetByRole(AriaRole.Heading, new() { Name = "Module 20 — Accounting setup" }).WaitForAsync();
-        Assert.Equal(7, await page.Locator(".audit-module-progress-grid progress").CountAsync());
+        await Assertions.Expect(page.Locator(".audit-module-progress-grid progress")).ToHaveCountAsync(7);
         await page.GetByRole(AriaRole.Heading, new() { Name = "Other application modules" }).WaitForAsync();
-        await page.Locator(".audit-task-progress-untracked").First.WaitForAsync();
-        Assert.Equal(6, await page.Locator(".audit-task-progress-untracked").CountAsync());
+        await Assertions.Expect(page.Locator(".audit-task-progress-untracked")).ToHaveCountAsync(6);
         Assert.Equal(0, await page.Locator(".audit-task-progress-untracked[value]").CountAsync());
         await page.SetViewportSizeAsync(320, 900);
         await page.Locator(".audit-module-progress-grid").First.WaitForAsync();

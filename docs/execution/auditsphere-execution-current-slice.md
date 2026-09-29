@@ -33,6 +33,22 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ---
 
+## UI modernization — mapping and adjustment-journal detail
+
+The real `/app/accounting/mappings/{id}` and
+`/app/accounting/journals/{id}` views now return directly to their matching
+queues and use compact record headings, white summary/workflow panels and
+scoped metric cards. Mapping section links navigate within the existing
+record; each mapping table supplies mobile cell labels. The journal metrics
+repeat the visible line count and debit/credit sums and do not assert external
+posting. The original mapping approval, journal posting and instruction export
+commands, exact record IDs, SoD checks, immutable lineage and scope-revocation
+clearing remain in their existing services and page handlers. This is
+`PRESENTATION_ONLY` plus `WIRE_EXISTING`; exact local test evidence and the
+remaining routes are tracked in `status.json`.
+
+---
+
 ## UI modernization — accounting record and review queues
 
 The real `/app/accounting/mappings`, `/app/accounting/journals`,

@@ -1054,11 +1054,16 @@
     "packageId": "Prototype-inspired Blazor UI modernization",
     "implementationStatus": "IN_PROGRESS",
     "acceptanceStatus": "PARTIAL",
-    "scope": "The shared staff/client/public shell, MudBlazor theme, Portfolio pilot, three current client portal views, administrator implementation task-progress view, practice leads/time/firm-finance visual pass, accounting landing/evidence, and accounting record/review queue visual passes are locally verified on the real Blazor stack. Visual and accessibility work remains open for accounting detail routes, audit, operations and administration; no whole-application visual parity or production acceptance is claimed. Earlier AS-PAR-002, Microsoft provider, R2R review and P1/P8/P9 external gates remain recorded below.",
+    "scope": "The shared staff/client/public shell, MudBlazor theme, Portfolio pilot, three current client portal views, administrator implementation task-progress view, practice leads/time/firm-finance visual pass, accounting landing/evidence, accounting record/review queues, and mapping/journal detail visual passes are locally verified on the real Blazor stack. Visual and accessibility work remains open for other accounting detail routes, audit, operations and administration; no whole-application visual parity or production acceptance is claimed. Earlier AS-PAR-002, Microsoft provider, R2R review and P1/P8/P9 external gates remain recorded below.",
     "nextAction": "Continue route-family visual passes on remaining accounting detail, audit, operations and administration views. Preserve native draft/upload contracts and server authorization. Capture matching synthetic before/after evidence, keyboard and state coverage before any full UI acceptance claim.",
     "branch": "master"
   },
   "localEvidence": [
+    {
+      "item": "Prototype-inspired mapping and adjustment-journal detail visual pass (2026-09-29)",
+      "status": "PARTIAL",
+      "details": "The authorized /app/accounting/mappings/{id} and /app/accounting/journals/{id} routes use scoped record headings, direct queue return links, white panels and read-only metrics from loaded rows. Mapping section links and mobile MudTable labels improve navigation and narrow-screen readability; journal line count and debit/credit totals restate its table values. Existing approval, posting, export, SoD and authorization paths are unchanged. Focused PostgreSQL browser journeys passed 2/2 with before/after synthetic captures, no document overflow at 320, 390, 760, 1024, 1440 and 1920px, keyboard focus and role-revocation clearing. Release Web build passed with zero warnings/errors; EF found no pending model changes. The first parallel Release solution run passed Domain 449/449 and API 35/35 but E2E was 96/97 because the project-progress smoke asserted a count during prerender-to-interactive transition. After replacing that immediate count with a Playwright retrying expectation, focused smoke passed 1/1 and the complete standalone E2E project passed 97/97 with zero skips. All 581 tests passed across these final project runs; a single green combined solution invocation is not claimed. Markdown health, filename, task-pack, JSON and diff checks passed. Neither whole-route-family nor production acceptance is claimed."
+    },
     {
       "item": "Administrator all-module implementation progress view (2026-09-29)",
       "status": "PARTIAL",
