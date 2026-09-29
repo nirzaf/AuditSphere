@@ -1694,6 +1694,24 @@ public sealed class ClientScopeJourneyTests
     await page.GotoAsync(SignInUrl(host.StaffUrl, $"/app/reviews/{authorizedPoint.Id:D}"));
     await page.GetByText(authorizedPoint.Comment, new() { Exact = true }).WaitForAsync();
     await connected;
+    await Assertions.Expect(page.GetByText("This significant review point remains open and blocks the engagement completion gate.")).ToBeVisibleAsync();
+    var reviewCaptureDir = Environment.GetEnvironmentVariable("AUDITSPHERE_DETAIL_UI_CAPTURE_DIR");
+    if (!string.IsNullOrWhiteSpace(reviewCaptureDir)) Directory.CreateDirectory(reviewCaptureDir);
+    foreach (var width in new[] { 320, 390, 760, 1024, 1440, 1920 })
+    {
+      await page.SetViewportSizeAsync(width, 900);
+      await page.WaitForFunctionAsync("expected => document.documentElement.clientWidth === expected && (expected >= 960 || getComputedStyle(document.querySelector('.audit-main-content')).marginLeft === '0px')", width);
+      await Assertions.Expect(page.GetByText(authorizedPoint.Comment, new() { Exact = true })).ToBeVisibleAsync();
+      var documentWidth = await page.EvaluateAsync<int>("document.documentElement.scrollWidth");
+      Assert.True(documentWidth <= width + 1, $"Review point document is {documentWidth}px wide at {width}px viewport.");
+      if (reviewCaptureDir is not null && width is 390 or 1440)
+        await page.ScreenshotAsync(new() { Path = Path.Combine(reviewCaptureDir, $"review-{width}.png"), FullPage = true });
+    }
+    await page.Locator("[aria-label='Review point navigation']").GetByRole(AriaRole.Link, new() { Name = "Engagement" }).FocusAsync();
+    await page.Keyboard.PressAsync("Tab");
+    var completionLink = page.GetByRole(AriaRole.Link, new() { Name = "Completion checklist" });
+    await Assertions.Expect(completionLink).ToBeFocusedAsync();
+    await Assertions.Expect(completionLink).ToHaveCSSAsync("outline-style", "solid");
 
     var documentToken = Guid.NewGuid().ToString("N");
     await page.EvaluateAsync("token => window.__reviewPointRouteToken = token", documentToken);
@@ -2205,7 +2223,6 @@ public sealed class ClientScopeJourneyTests
     Assert.DoesNotContain(privateComment, body);
     Assert.DoesNotContain("BLOCKING", body);
     Assert.DoesNotContain("Clear Review Point", body);
-    Assert.Contains("UNAVAILABLE", body);
     Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
     await using var verify = host.CreateDbContext();
     Assert.False((await verify.ReviewPoints.AsNoTracking().SingleAsync(x => x.Id == point.Id)).Cleared);

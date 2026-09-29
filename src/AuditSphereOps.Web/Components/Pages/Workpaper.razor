@@ -25,8 +25,7 @@
         }
         <span>Workpaper</span>
     </nav>
-    <PageHeader Title="@($"Workpaper: {_workpaper?.Title}")" Description="Scoped workpaper detail, procedure linkage, preparer notes, and review status." />
-    <span class="status-badge @(_workpaper?.Status == WorkpaperStatuses.SubmittedSnapshot ? "badge-blue" : "badge-yellow")">@(_workpaper?.Status)</span>
+    <PageHeader Title="@(_workpaper is null ? "Workpaper" : $"Workpaper: {_workpaper.Title}")" Eyebrow="Audit evidence" Description="Scoped workpaper detail, procedure linkage, preparer notes, and review status." />
 </div>
 
 @if (_loading)
@@ -49,9 +48,19 @@ else if (_workpaper is null)
 }
 else
 {
+    <div class="audit-record-toolbar" aria-label="Workpaper navigation">
+        <span class="status-badge @(_workpaper.Status == WorkpaperStatuses.SubmittedSnapshot ? "badge-blue" : "badge-yellow")">@_workpaper.Status</span>
+        <MudLink Href="@($"/app/engagements/{_workpaper.EngagementId}/audit-plan")">Audit plan</MudLink>
+        <MudLink Href="@($"/app/engagements/{_workpaper.EngagementId}/audit-fieldwork")">Fieldwork control center</MudLink>
+    </div>
+    <MudGrid Spacing="2" Class="audit-accounting-metrics my-3" aria-label="Scoped workpaper summary">
+        <MudItem xs="6" sm="4"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Current revision</MudText><MudText Typo="Typo.h4">@_workpaper.Revision</MudText></MudPaper></MudItem>
+        <MudItem xs="6" sm="4"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Frozen submissions</MudText><MudText Typo="Typo.h4">@_submissions.Count</MudText></MudPaper></MudItem>
+        <MudItem xs="12" sm="4"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Linked planned procedure</MudText><MudText Typo="Typo.h4">@(_procedure is null ? "No" : "Yes")</MudText></MudPaper></MudItem>
+    </MudGrid>
     <div class="workpaper-shell">
 
-        <MudPaper Class="pa-4 my-4" Elevation="1">
+        <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1">
             <h2>Workpaper Details</h2>
             <dl class="detail-grid">
                 <dt>Index</dt><dd>@_workpaper.Index</dd>
@@ -65,7 +74,7 @@ else
         </MudPaper>
 
         <!-- Submission history -->
-        <MudPaper Class="pa-4 my-4" Elevation="1">
+        <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1">
             <h2>Submission History</h2>
             <p class="notice-text">
                 Submission freezes the content into an immutable snapshot: the reviewer sees exactly
@@ -78,19 +87,19 @@ else
             }
             else
             {
-                <MudTable Items="_submissions" Dense="true" Hover="true" Elevation="0" Class="data-table">
+                <div class="table-wrap"><MudTable Items="_submissions" Dense="true" Hover="true" Elevation="0" Class="data-table">
   <HeaderContent><MudTh scope="col">Rev</MudTh><MudTh scope="col">Submitted at (UTC)</MudTh><MudTh scope="col">Conclusion</MudTh></HeaderContent>
-  <RowTemplate>                                <MudTd>@context.Revision</MudTd>
-                                <MudTd>@context.SubmittedAt.ToUniversalTime().ToString("yyyy-MM-dd HH:mm")</MudTd>
-                                <MudTd>@context.Conclusion</MudTd></RowTemplate>
-</MudTable>
+  <RowTemplate>                                <MudTd DataLabel="Rev">@context.Revision</MudTd>
+                                <MudTd DataLabel="Submitted at (UTC)">@context.SubmittedAt.ToUniversalTime().ToString("yyyy-MM-dd HH:mm")</MudTd>
+                                <MudTd DataLabel="Conclusion">@context.Conclusion</MudTd></RowTemplate>
+</MudTable></div>
             }
         </MudPaper>
 
         <!-- Working draft -->
         @if (_workpaper.Status == WorkpaperStatuses.Working)
         {
-            <MudPaper Class="pa-4 my-4" Elevation="1">
+            <MudPaper Class="audit-workspace-panel audit-workpaper-editor pa-4 my-4" Elevation="1">
                 <h2>Working Content</h2>
                 <div class="form-group">
                     <label for="wp-work">Work performed</label>
@@ -103,7 +112,7 @@ else
                     <textarea id="wp-conclusion" rows="3" value="@_draftConclusion" @oninput="OnConclusionInputAsync" data-draft-skip="true" required title="State the evidence-based conclusion for this workpaper; this working draft is autosaved on the server."
                               disabled="@(_busy || _draftConflict)" />
                 </div>
-                <div class="action-bar">
+                <div class="action-bar audit-record-actions">
                     <MudButton Variant="Variant.Outlined" Class="btn-secondary" OnClick="SaveDraftAsync" Disabled="@(_busy || _draftConflict || _saving)">Save draft</MudButton>
                     <MudButton Variant="Variant.Outlined" Class="btn-secondary" OnClick="DiscardDraftAsync" Disabled="@(_busy || _draftConflict || _saving || _draftRevision < 1)">Discard draft</MudButton>
                     <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="btn-primary" OnClick="SubmitAsync" Disabled="@(_busy || _draftConflict)">Submit for review</MudButton>
@@ -119,7 +128,7 @@ else
         }
         else
         {
-            <MudPaper Class="pa-4 my-4" Elevation="1">
+            <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1">
                 <h2>Submitted Content</h2>
                 <dl class="detail-grid">
                     <dt>Work performed</dt><dd>@_workpaper.WorkPerformed</dd>

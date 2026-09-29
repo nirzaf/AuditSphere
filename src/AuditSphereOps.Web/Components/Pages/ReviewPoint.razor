@@ -19,10 +19,9 @@
             <a href="@($"/app/engagements/{_point.EngagementId}")">Engagement</a>
             <span> / </span>
         }
-        <span>Review @Id</span>
+        <span>Review point</span>
     </nav>
-    <PageHeader Title="Review Point" Description="Review point detail, comment thread, and independent clearing decision." />
-    <span class="status-badge @_statusClass">@_status</span>
+    <PageHeader Title="Review Point" Eyebrow="Engagement review" Description="Review point detail, comment thread, and independent clearing decision." />
 </div>
 
 @if (_loading)
@@ -45,9 +44,18 @@ else if (_point is null)
 }
 else
 {
+    <div class="audit-record-toolbar" aria-label="Review point navigation">
+        <span class="status-badge @_statusClass">@_status</span>
+        <MudLink Href="@($"/app/engagements/{_point.EngagementId}")">Engagement</MudLink>
+        <MudLink Href="@($"/app/engagements/{_point.EngagementId}/completion")">Completion checklist</MudLink>
+    </div>
+    @if (_point.Significant && !_point.Cleared)
+    {
+        <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="my-3" role="status">This significant review point remains open and blocks the engagement completion gate.</MudAlert>
+    }
     <div class="review-shell">
 
-        <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="context-heading" role="region">
+        <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" aria-labelledby="context-heading" role="region">
             <h2 id="context-heading">Review Context</h2>
             <dl class="detail-grid">
                 <dt>Target Kind</dt><dd>@_point.TargetKind</dd>
@@ -60,22 +68,22 @@ else
             </dl>
         </MudPaper>
 
-        <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="comment-heading" role="region">
+        <MudPaper Class="audit-workspace-panel audit-review-comment pa-4 my-4" Elevation="1" aria-labelledby="comment-heading" role="region">
             <h2 id="comment-heading">Review Comment</h2>
             <p>@_point.Comment</p>
         </MudPaper>
 
-        <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="actions-heading" role="region">
+        <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" aria-labelledby="actions-heading" role="region">
             <h2 id="actions-heading">Review Disposition</h2>
             @if (_actionSuccess)
             {
-                <div class="alert alert-success" style="margin-bottom:0.75rem;">Disposition updated successfully.</div>
+                <MudAlert Severity="Severity.Success" Variant="Variant.Outlined" Class="mb-3" role="status">Disposition updated successfully.</MudAlert>
             }
             @if (_actionError is not null)
             {
                 <p class="command-result error-text" role="status">Disposition was not updated: @_actionError</p>
             }
-            <div class="action-bar" style="display:flex; gap:0.75rem;">
+            <div class="action-bar audit-record-actions">
                 @if (!_point.Cleared)
                 {
                     <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="btn-primary btn-green" OnClick="ClearPoint" Disabled="@_busy">Clear Review Point</MudButton>

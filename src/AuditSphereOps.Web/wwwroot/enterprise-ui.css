@@ -59,7 +59,7 @@ body { background: var(--audit-page); }
 .audit-main-content { min-width: 0; }
 .audit-workspace { padding: 28px 30px 40px; max-width: 1600px; }
 .audit-workspace main { min-width: 0; }
-.audit-workspace h1 { font-size: clamp(1.5rem, 2.2vw, 1.9rem); line-height: 1.2; letter-spacing: -.025em; margin: 0 0 8px; }
+.audit-workspace h1 { font-size: clamp(1.5rem, 2.2vw, 1.9rem); line-height: 1.2; letter-spacing: -.025em; margin: 0 0 8px; overflow-wrap: anywhere; }
 .audit-workspace h2 { font-size: 1.13rem; line-height: 1.35; letter-spacing: -.01em; }
 .audit-page-header { display: flex; flex-direction: column; gap: 2px; }
 .audit-page-header .mud-typography-overline { color: #075f57; font-size: 11px; font-weight: 700; letter-spacing: .09em; }
@@ -75,7 +75,7 @@ body { background: var(--audit-page); }
 .audit-workspace-panel dd { min-width: 0; overflow-wrap: anywhere; }
 .audit-metric { height: 100%; min-height: 104px; min-width: 0; }
 .audit-metric .mud-typography-overline { color: var(--audit-muted); font-size: 11px; letter-spacing: .06em; overflow-wrap: anywhere; }
-.audit-metric .mud-typography-h4 { font-size: 1.8rem; font-weight: 650; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+.audit-metric .mud-typography-h4 { font-size: 1.8rem; font-weight: 650; letter-spacing: -.03em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .audit-portfolio-refresh { margin-bottom: 16px; }
 .audit-portfolio-search { align-items: end; min-width: 0; }
 .audit-portfolio-search .mud-input-control { flex: 1 1 auto; min-width: 0; }
@@ -131,6 +131,11 @@ body { background: var(--audit-page); }
 .audit-record-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 12px 0 16px; }
 .audit-record-toolbar a { border: 1px solid var(--audit-line); border-radius: 6px; padding: 7px 11px; font-size: 13px; font-weight: 600; }
 .audit-record-toolbar a:hover, .audit-record-toolbar a:focus-visible { background: #e5f1f6; }
+.workpaper-shell, .finding-shell, .review-shell { min-width: 0; max-width: 100%; }
+.audit-record-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-top: 12px; }
+.audit-workpaper-editor .form-group, .audit-finding-response .form-group { max-width: 54rem; min-width: 0; }
+.audit-workpaper-editor textarea { display: block; width: 100%; max-width: 100%; min-width: 0; box-sizing: border-box; }
+.audit-review-comment p, .finding-shell blockquote { overflow-wrap: anywhere; }
 .plan-shell, .completion-shell, .plan-shell .table-wrap, .completion-shell .table-wrap { min-width: 0; max-width: 100%; }
 .plan-shell .inline-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 20px; }
 .plan-shell .inline-form > .form-group { min-width: 0; }

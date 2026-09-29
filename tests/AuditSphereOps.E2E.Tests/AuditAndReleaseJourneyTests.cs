@@ -194,6 +194,23 @@ public sealed class AuditAndReleaseJourneyTests
     await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new() { Timeout = 5000 });
     await Assertions.Expect(page.GetByText("Workpaper Details")).ToBeVisibleAsync();
     await Assertions.Expect(page.GetByText("R-E2E-STALE-A")).ToBeVisibleAsync();
+    await Assertions.Expect(page.Locator("[aria-label='Scoped workpaper summary']")).ToContainTextAsync("Frozen submissions");
+    var workpaperCaptureDir = Environment.GetEnvironmentVariable("AUDITSPHERE_DETAIL_UI_CAPTURE_DIR");
+    if (!string.IsNullOrWhiteSpace(workpaperCaptureDir)) Directory.CreateDirectory(workpaperCaptureDir);
+    foreach (var width in new[] { 320, 390, 760, 1024, 1440, 1920 })
+    {
+      await page.SetViewportSizeAsync(width, 900);
+      await page.WaitForFunctionAsync("expected => document.documentElement.clientWidth === expected && (expected >= 960 || getComputedStyle(document.querySelector('.audit-main-content')).marginLeft === '0px')", width);
+      var documentWidth = await page.EvaluateAsync<int>("document.documentElement.scrollWidth");
+      Assert.True(documentWidth <= width + 1, $"Workpaper document is {documentWidth}px wide at {width}px viewport.");
+      if (workpaperCaptureDir is not null && width is 390 or 1440)
+        await page.ScreenshotAsync(new() { Path = Path.Combine(workpaperCaptureDir, $"workpaper-{width}.png"), FullPage = true });
+    }
+    await page.Locator("[aria-label='Workpaper navigation']").GetByRole(AriaRole.Link, new() { Name = "Audit plan" }).FocusAsync();
+    await page.Keyboard.PressAsync("Tab");
+    var workpaperFieldworkLink = page.GetByRole(AriaRole.Link, new() { Name = "Fieldwork control center" });
+    await Assertions.Expect(workpaperFieldworkLink).ToBeFocusedAsync();
+    await Assertions.Expect(workpaperFieldworkLink).ToHaveCSSAsync("outline-style", "solid");
 
     var documentToken = Guid.NewGuid().ToString("N");
     await page.EvaluateAsync("token => window.__testDocumentToken = token", documentToken);
@@ -260,6 +277,23 @@ public sealed class AuditAndReleaseJourneyTests
     await connected;
     await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new() { Timeout = 5000 });
     await Assertions.Expect(page.GetByText("Synthetic stale-route finding impact")).ToBeVisibleAsync();
+    await Assertions.Expect(page.Locator("[aria-label='Scoped finding summary']")).ToContainTextAsync("Management response recorded");
+    var findingCaptureDir = Environment.GetEnvironmentVariable("AUDITSPHERE_DETAIL_UI_CAPTURE_DIR");
+    if (!string.IsNullOrWhiteSpace(findingCaptureDir)) Directory.CreateDirectory(findingCaptureDir);
+    foreach (var width in new[] { 320, 390, 760, 1024, 1440, 1920 })
+    {
+      await page.SetViewportSizeAsync(width, 900);
+      await page.WaitForFunctionAsync("expected => document.documentElement.clientWidth === expected && (expected >= 960 || getComputedStyle(document.querySelector('.audit-main-content')).marginLeft === '0px')", width);
+      var documentWidth = await page.EvaluateAsync<int>("document.documentElement.scrollWidth");
+      Assert.True(documentWidth <= width + 1, $"Finding document is {documentWidth}px wide at {width}px viewport.");
+      if (findingCaptureDir is not null && width is 390 or 1440)
+        await page.ScreenshotAsync(new() { Path = Path.Combine(findingCaptureDir, $"finding-{width}.png"), FullPage = true });
+    }
+    await page.GetByRole(AriaRole.Link, new() { Name = "Audit plan" }).FocusAsync();
+    await page.Keyboard.PressAsync("Tab");
+    var findingEngagementLink = page.GetByRole(AriaRole.Link, new() { Name = "Engagement" });
+    await Assertions.Expect(findingEngagementLink).ToBeFocusedAsync();
+    await Assertions.Expect(findingEngagementLink).ToHaveCSSAsync("outline-style", "solid");
 
     var documentToken = Guid.NewGuid().ToString("N");
     await page.EvaluateAsync("token => window.__testDocumentToken = token", documentToken);

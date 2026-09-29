@@ -18,8 +18,7 @@
         <a href="/app">Portfolio</a> /
         <span>Finding</span>
     </nav>
-    <PageHeader Title="Audit Finding" Description="Finding condition, criteria, cause, and effect bound to the exact engagement evidence." />
-    <span class="status-badge @(_finding?.Corrected == true ? "badge-green" : "badge-red")">@(_finding?.Status)</span>
+    <PageHeader Title="Audit Finding" Eyebrow="Engagement audit" Description="Finding condition, criteria, cause, and effect bound to the exact engagement evidence." />
 </div>
 
 @if (_loading)
@@ -42,10 +41,20 @@ else if (_finding is null)
 }
 else
 {
+    <div class="audit-record-toolbar" aria-label="Finding navigation">
+        <span class="status-badge @(_finding.Corrected ? "badge-green" : "badge-red")">@_finding.Status</span>
+        <MudLink Href="@($"/app/engagements/{_finding.EngagementId}/audit-plan")">Audit plan</MudLink>
+        <MudLink Href="@($"/app/engagements/{_finding.EngagementId}")">Engagement</MudLink>
+    </div>
+    <MudGrid Spacing="2" Class="audit-accounting-metrics my-3" aria-label="Scoped finding summary">
+        <MudItem xs="6" sm="4"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Amount recorded</MudText><MudText Typo="Typo.h4">@(_finding.MonetaryAmount?.ToString("N2") ?? "—")</MudText></MudPaper></MudItem>
+        <MudItem xs="6" sm="4"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Corrected in period</MudText><MudText Typo="Typo.h4">@(_finding.Corrected ? "Yes" : "No")</MudText></MudPaper></MudItem>
+        <MudItem xs="12" sm="4"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Management response recorded</MudText><MudText Typo="Typo.h4">@(_finding.ManagementResponse is null ? "No" : "Yes")</MudText></MudPaper></MudItem>
+    </MudGrid>
     <div class="finding-shell">
         <MudButton Variant="Variant.Outlined" Class="btn-secondary mb-2" OnClick="RefreshFindingAsync" Disabled="@_busy">Refresh finding</MudButton>
 
-        <MudPaper Class="pa-4 my-4" Elevation="1">
+        <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1">
             <h2>Finding Details (§23)</h2>
             <dl class="detail-grid">
                 <dt>Type</dt><dd>@_finding.FindingType</dd>
@@ -57,7 +66,7 @@ else
             </dl>
         </MudPaper>
 
-        <MudPaper Class="pa-4 my-4" Elevation="1">
+        <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1">
             <h2>Management Response &amp; Action</h2>
             @if (_finding.ManagementResponse is not null)
             {
@@ -69,7 +78,7 @@ else
             }
         </MudPaper>
 
-        <MudPaper Class="pa-4 my-4" Elevation="1">
+        <MudPaper Class="audit-workspace-panel audit-finding-response pa-4 my-4" Elevation="1">
             <h2>Record Management Response</h2>
             <div class="form-group">
                 <label for="mgmt-response">Management response</label>

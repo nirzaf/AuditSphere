@@ -33,6 +33,24 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ---
 
+## UI modernization — audit record details
+
+The real workpaper, finding and review-point detail routes now use the shared
+record heading, scoped status/navigation, white panels and responsive content
+layout. Workpaper summary cards repeat its revision, frozen-submission count
+and authorized planned-procedure linkage; finding cards repeat its amount,
+correction and response state. A significant open review point shows its
+existing completion-blocking consequence. Workpaper submission history has
+mobile cell labels, and long comments and identifiers wrap. The workpaper's
+native server-autosave textareas, finding response command, review disposition
+command, authorization and same-document scope clearing remain intact. This
+slice is `PRESENTATION_ONLY` and `WIRE_EXISTING`; the prototype's extra
+workpaper upload, reassignment and review-desk controls need separate real
+backend contracts and are not presented as available here. Local verification
+is recorded in `status.json`.
+
+---
+
 ## UI modernization — audit program and fieldwork
 
 The real audit program library and engagement fieldwork control center now

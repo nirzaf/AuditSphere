@@ -37,6 +37,14 @@
 
 ## 3. Theme & shared components (presentation only)
 
+Workpaper, finding and review-point details now use the shared record context
+and white panels, with scoped status and navigation links. Workpaper revisions
+and frozen-submission counts and finding state are read-only projections from
+authorized rows. An open significant review point displays its existing
+completion blocker. The native workpaper textareas retain their server draft
+autosave contract; no prototype-only upload, assignment or review action was
+copied. Mobile history cells have labels, and long record text wraps.
+
 Audit planning and completion now use the shared scoped metric, white-panel
 and record-navigation styles. Planning forms retain every real command and
 field while using two columns on wide screens and one on mobile. Completion
