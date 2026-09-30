@@ -15,7 +15,7 @@ public static partial class FinancialStatementService
 
   private static readonly string[] ReviewerRoles = ["AccountingReviewer", "Manager", "Partner", "Administrator"];
 
-  private static readonly string[] PackageReadRoles = ["Administrator", "Partner", "Manager", "Reviewer", "Staff", "AccountingPreparer", "AccountingReviewer"];
+  private static readonly string[] PackageReadRoles = ["Administrator", "Partner", "Manager", "Reviewer", "Senior", "Staff", "AccountingPreparer", "AccountingReviewer"];
 
   private static async Task<CommandResult> AuthorizeAsync(
     IAuditSphereDbContext db, ActorContext actor, Guid firmId, Guid clientId, Guid engagementId,

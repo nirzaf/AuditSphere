@@ -177,7 +177,7 @@ else
   private bool _denied;
   private long _routeGeneration;
   private static readonly string[] StaffRoles = [
-    "Administrator", "Partner", "Manager", "Reviewer", "Staff", "Auditor", "Accountant", "AccountingPreparer", "AccountingReviewer"
+    "Administrator", "Partner", "Manager", "Reviewer", "Senior", "Staff", "Auditor", "Accountant", "AccountingPreparer", "AccountingReviewer"
   ];
   private bool IsStaff => _actor is not null && _actor.Roles.Any(role =>
     StaffRoles.Contains(role, StringComparer.OrdinalIgnoreCase));

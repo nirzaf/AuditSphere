@@ -156,7 +156,7 @@ else
   private string _search = string.Empty;
   private string? _error;
   private long _loadGeneration;
-  private static readonly string[] PortfolioRoles = ["Administrator", "Partner", "Manager", "Reviewer", "Staff"];
+  private static readonly string[] PortfolioRoles = ["Administrator", "Partner", "Manager", "Reviewer", "Senior", "Staff"];
 
   private IEnumerable<ClientRow> VisibleClients => Filter(_clients, x => $"{x.Name} {x.Id}");
   private IEnumerable<CandidateRow> VisibleCandidates => Filter(_candidates, x => $"{x.ClientName} {x.Id} {x.Status}");

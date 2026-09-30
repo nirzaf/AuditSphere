@@ -84,6 +84,9 @@ public static partial class AuditFieldworkService
       if (!reviewedAggregate)
         blockers.Add("difference-aggregate:missing-stale-or-unreviewed");
     }
+    blockers.AddRange(await RiskBandService.BlockersAsync(db, actor.FirmId, engagementId, ct));
+    if (await MaterialityEngineService.GetLatestAsync(db, actor.FirmId, engagementId, ct) is { State: MaterialityCalculationStates.Stale })
+      blockers.Add("materiality:stale");
     var evaluation = new AuditCompletionEvaluation(blockers.Count == 0, procedures.Count, applicable.Length, reviewed, blockers);
     return CommandResult<AuditCompletionEvaluation>.Ok(evaluation);
   }

@@ -4,6 +4,7 @@ using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Acceptance;
 using AuditSphereOps.Domain.Completion;
+using AuditSphereOps.Domain.Documents;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Shared;
 using Microsoft.EntityFrameworkCore;
@@ -383,9 +384,38 @@ public static class PracticeCrmService
         Id = Guid.CreateVersion7(), FirmId = actor.FirmId, PracticeClientId = client.Id,
         Decision = "Pending", ServiceRoute = opportunity.ServiceRoute, Generation = clientGeneration
       });
+    await RecordPortalIntentAsync(db, actor.FirmId, proposal.Id, client.Id, opportunity.LeadId, ct);
     await db.SaveChangesAsync(ct);
     await tx.CommitAsync(ct);
     return CommandResult<Guid>.Ok(client.Id);
+  }
+
+  /// <summary>
+  /// Conversion is the explicit portal trigger: the lead's primary contact becomes the client's primary contact and a
+  /// portal intent is recorded once per client. It grants nothing; activation later marks it ready to invite.
+  /// </summary>
+  private static async Task RecordPortalIntentAsync(
+    IAuditSphereDbContext db, Guid firmId, Guid proposalId, Guid clientId, Guid leadId, CancellationToken ct)
+  {
+    var lead = await db.Leads.AsNoTracking().SingleOrDefaultAsync(x => x.Id == leadId && x.FirmId == firmId, ct);
+    if (lead?.PrimaryContactEmail is not { Length: > 3 } email) return;
+    if (await db.ClientPortalIntents.AnyAsync(x => x.FirmId == firmId && x.PracticeClientId == clientId, ct)) return;
+    var contact = await db.ClientContacts.FirstOrDefaultAsync(x => x.FirmId == firmId && x.PracticeClientId == clientId && x.Primary, ct);
+    if (contact is null)
+    {
+      contact = new ClientContact
+      {
+        Id = Guid.CreateVersion7(), FirmId = firmId, PracticeClientId = clientId,
+        FullName = lead.PrimaryContactName ?? email, Email = email, Role = "Primary contact", Primary = true
+      };
+      db.ClientContacts.Add(contact);
+    }
+    var now = DateTimeOffset.UtcNow;
+    db.ClientPortalIntents.Add(new ClientPortalIntent
+    {
+      Id = Guid.CreateVersion7(), FirmId = firmId, PracticeClientId = clientId, ClientContactId = contact.Id,
+      RecipientEmail = contact.Email, SourceProposalId = proposalId, CreatedAt = now, UpdatedAt = now
+    });
   }
 
   public static async Task<CommandResult<Guid>> CreateClientContactAsync(

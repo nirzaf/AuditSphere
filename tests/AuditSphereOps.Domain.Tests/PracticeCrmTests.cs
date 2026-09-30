@@ -115,6 +115,11 @@ public sealed class PracticeCrmTests
       Assert.True(await db.ClientSafetyStates.AnyAsync(c => c.Id == clientId && c.FirmId == fixture.FirmId));
       Assert.Equal(clientId, (await db.Proposals.SingleAsync(p => p.Id == proposalId)).PracticeClientId);
       Assert.Equal(clientId, (await db.Opportunities.SingleAsync(o => o.Id == opportunityId)).PracticeClientId);
+      // Conversion is the portal trigger: one primary contact and one intent, which grants no access by itself.
+      var intent = await db.ClientPortalIntents.SingleAsync(x => x.PracticeClientId == clientId);
+      Assert.Equal((AuditSphereOps.Domain.Documents.ClientPortalIntentStates.AwaitingAcceptance, "owner@example.test"), (intent.State, intent.RecipientEmail));
+      Assert.True((await db.ClientContacts.SingleAsync(x => x.PracticeClientId == clientId)).Primary);
+      Assert.False(await db.RoleGrants.AnyAsync(x => x.ClientId == clientId && x.Role == "ClientUser"));
     }
   }
 

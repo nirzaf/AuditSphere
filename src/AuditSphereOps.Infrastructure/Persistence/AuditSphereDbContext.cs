@@ -61,6 +61,18 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
   public DbSet<Proposal> Proposals => Set<Proposal>();
 
   public DbSet<EngagementActivation> EngagementActivations => Set<EngagementActivation>();
+  public DbSet<global::AuditSphereOps.Domain.Practice.EngagementStaffAssignment> EngagementStaffAssignments => Set<global::AuditSphereOps.Domain.Practice.EngagementStaffAssignment>();
+  public DbSet<global::AuditSphereOps.Domain.Practice.StaffProfile> StaffProfiles => Set<global::AuditSphereOps.Domain.Practice.StaffProfile>();
+  public DbSet<global::AuditSphereOps.Domain.Practice.StaffCertification> StaffCertifications => Set<global::AuditSphereOps.Domain.Practice.StaffCertification>();
+  public DbSet<global::AuditSphereOps.Domain.Practice.StaffAvailability> StaffAvailabilities => Set<global::AuditSphereOps.Domain.Practice.StaffAvailability>();
+  public DbSet<global::AuditSphereOps.Domain.Practice.StaffAllocation> StaffAllocations => Set<global::AuditSphereOps.Domain.Practice.StaffAllocation>();
+  public DbSet<global::AuditSphereOps.Domain.Audit.MaterialityCalculation> MaterialityCalculations => Set<global::AuditSphereOps.Domain.Audit.MaterialityCalculation>();
+  public DbSet<global::AuditSphereOps.Domain.Audit.RiskBandAssessment> RiskBandAssessments => Set<global::AuditSphereOps.Domain.Audit.RiskBandAssessment>();
+  public DbSet<global::AuditSphereOps.Domain.Audit.RiskPartnerClearance> RiskPartnerClearances => Set<global::AuditSphereOps.Domain.Audit.RiskPartnerClearance>();
+  public DbSet<global::AuditSphereOps.Domain.Audit.RiskOwnerAssignment> RiskOwnerAssignments => Set<global::AuditSphereOps.Domain.Audit.RiskOwnerAssignment>();
+  public DbSet<global::AuditSphereOps.Domain.Documents.ClientPortalFirstSignIn> ClientPortalFirstSignIns => Set<global::AuditSphereOps.Domain.Documents.ClientPortalFirstSignIn>();
+  public DbSet<global::AuditSphereOps.Domain.Documents.PbcRequestDelegation> PbcRequestDelegations => Set<global::AuditSphereOps.Domain.Documents.PbcRequestDelegation>();
+  public DbSet<global::AuditSphereOps.Domain.Documents.ClientPortalIntent> ClientPortalIntents => Set<global::AuditSphereOps.Domain.Documents.ClientPortalIntent>();
 
   public DbSet<QuotationVersion> QuotationVersions => Set<QuotationVersion>();
 
@@ -450,6 +462,8 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
     ConfigureMoney(b);
     ConfigurePractice(b);
     ConfigureCommercial(b);
+    ConfigureClientPortal(b);
+    ConfigureResourcePlanning(b);
     ConfigureAudit(b);
     ConfigureFieldwork(b);
     ConfigureScopedEvidence(b);

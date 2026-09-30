@@ -34,34 +34,30 @@ public sealed class PbcUploadJourneyTests
       $"/portal/requests/{host.RequestId:D}"));
     await clientPage.GetByRole(AriaRole.Heading, new() { Name = "PBC request" }).WaitForAsync();
     await clientCircuitConnected;
-    await clientPage.Locator("#content-hash").FillAsync(digest);
-    await clientPage.WaitForFunctionAsync(
-      "() => document.querySelector('#content-hash-state')?.textContent === 'SHA-256 digest entered.'");
-    var clientReconnected = WaitForCircuitConnectionAsync(clientPage, browserDiagnostics);
-    await clientPage.ReloadAsync();
-    await clientPage.GetByRole(AriaRole.Heading, new() { Name = "PBC request" }).WaitForAsync();
-    await clientReconnected;
     await clientPage.WaitForLoadStateAsync(LoadState.NetworkIdle, new() { Timeout = 5000 });
-    await clientPage.WaitForFunctionAsync(
-      "() => document.querySelector('#content-hash-state')?.textContent === 'SHA-256 digest entered.'");
-    var fileInputId = $"pbc-file-{host.RequestId:N}";
-    await clientPage.Locator($"#{fileInputId}").SetInputFilesAsync(new FilePayload
-    {
-      Name = "AuditSphere-E2E-Synthetic-PBC.pdf",
-      MimeType = "application/pdf",
-      Buffer = fileBytes
-    });
-    var selectedFile = await clientPage.EvaluateAsync<string?>(
-      "inputId => window.auditSpherePbc.readFileMetadata(inputId)?.name ?? null", fileInputId);
-    Assert.Equal("AuditSphere-E2E-Synthetic-PBC.pdf", selectedFile);
-    await clientPage.GetByRole(AriaRole.Button, new() { Name = "Prepare upload" }).ClickAsync();
+    await clientPage.WaitForTimeoutAsync(300);
+    // Drag and drop: the file lands on the drop zone and its SHA-256 is calculated in the browser, not typed.
+    var dropZoneId = $"pbc-drop-{host.RequestId:N}";
+    await clientPage.EvaluateAsync(@"async ({ zoneId, name, type, b64 }) => {
+      const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+      const transfer = new DataTransfer();
+      transfer.items.add(new File([bytes], name, { type }));
+      const zone = document.getElementById(zoneId);
+      zone.dispatchEvent(new DragEvent('dragenter', { dataTransfer: transfer, bubbles: true, cancelable: true }));
+      zone.dispatchEvent(new DragEvent('drop', { dataTransfer: transfer, bubbles: true, cancelable: true }));
+    }", new { zoneId = dropZoneId, name = "AuditSphere-E2E-Synthetic-PBC.pdf", type = "application/pdf", b64 = Convert.ToBase64String(fileBytes) });
+    await Assertions.Expect(clientPage.Locator("#content-hash")).ToHaveValueAsync(digest, new() { Timeout = 10000 });
+    await Assertions.Expect(clientPage.Locator("#file-name")).ToHaveValueAsync("AuditSphere-E2E-Synthetic-PBC.pdf");
+    await Assertions.Expect(clientPage.Locator("#content-hash-state")).ToHaveTextAsync("Fingerprint calculated from the selected file.");
+    await clientPage.GetByRole(AriaRole.Button, new() { Name = "Upload file" }).ClickAsync();
     var commandResult = clientPage.Locator(".command-result");
     await commandResult.WaitForAsync();
     var commandMessage = await commandResult.InnerTextAsync();
-    Assert.True(commandMessage.StartsWith("Transfer intent created;", StringComparison.Ordinal),
+    Assert.True(commandMessage.StartsWith("Upload received for review.", StringComparison.Ordinal),
       $"{commandMessage}\n{string.Join("\n", browserDiagnostics)}");
     await clientPage.GetByText($"Staged {fileBytes.Length} bytes in 1 chunk(s); trusted completion is still required.")
       .WaitForAsync(new() { Timeout = 10000 });
+    await clientPage.GetByText($"{fileBytes.Length:N0} of {fileBytes.Length:N0} bytes sent").WaitForAsync();
 
     Guid uploadId;
     await using (var db = host.CreateDbContext())

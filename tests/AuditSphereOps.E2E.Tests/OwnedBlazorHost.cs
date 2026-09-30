@@ -92,6 +92,7 @@ internal sealed class OwnedBlazorHost : IAsyncDisposable
       });
       db.Users.Add(user);
       db.RoleGrants.Add(PbcSeed.Grant(Fixture.FirmId, user, "ClientUser", clientId, engagementId));
+      db.ClientPortalFirstSignIns.Add(PbcSeed.FirstSignIn(user));
       await db.SaveChangesAsync();
     }
     return await StartWebAsync(FindRepositoryRoot(), user, enableSetup: false);

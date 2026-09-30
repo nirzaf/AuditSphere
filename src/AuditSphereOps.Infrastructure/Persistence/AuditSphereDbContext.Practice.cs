@@ -50,7 +50,8 @@ public sealed partial class AuditSphereDbContext
     b.Entity<TimeEntry>().HasIndex(x => new { x.FirmId, x.UserId, x.WorkDate, x.Status });
     b.Entity<RateCardVersion>().HasIndex(x => new { x.FirmId, x.Role, x.Activity, x.Currency, x.Version }).IsUnique();
     b.Entity<EngagementBudget>().HasIndex(x => new { x.FirmId, x.EngagementId, x.Version }).IsUnique();
-    b.Entity<BudgetLine>().HasIndex(x => new { x.FirmId, x.EngagementBudgetId, x.Role, x.Activity }).IsUnique();
+    b.Entity<BudgetLine>().HasIndex(x => new { x.FirmId, x.EngagementBudgetId, x.Role, x.Activity, x.Phase, x.RiskArea }).IsUnique()
+      .AreNullsDistinct(false).HasDatabaseName("IX_budget_lines_firm_budget_role_activity_phase_area");
     b.Entity<BillingAccount>().HasIndex(x => new { x.FirmId, x.PracticeClientId }).IsUnique();
     b.Entity<FirmFinanceProfile>().HasIndex(x => x.FirmId).IsUnique();
     b.Entity<Invoice>().HasIndex(x => new { x.FirmId, x.InvoiceNumber }).IsUnique();

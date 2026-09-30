@@ -138,6 +138,18 @@ public interface IAuditSphereDbContext : IAsyncDisposable
   DbSet<CreditNote> CreditNotes { get; }
   DbSet<BillingSourceAllocation> BillingSourceAllocations { get; }
   DbSet<EngagementActivation> EngagementActivations { get; }
+  DbSet<global::AuditSphereOps.Domain.Practice.EngagementStaffAssignment> EngagementStaffAssignments { get; }
+  DbSet<global::AuditSphereOps.Domain.Practice.StaffProfile> StaffProfiles { get; }
+  DbSet<global::AuditSphereOps.Domain.Practice.StaffCertification> StaffCertifications { get; }
+  DbSet<global::AuditSphereOps.Domain.Practice.StaffAvailability> StaffAvailabilities { get; }
+  DbSet<global::AuditSphereOps.Domain.Practice.StaffAllocation> StaffAllocations { get; }
+  DbSet<global::AuditSphereOps.Domain.Audit.MaterialityCalculation> MaterialityCalculations { get; }
+  DbSet<global::AuditSphereOps.Domain.Audit.RiskBandAssessment> RiskBandAssessments { get; }
+  DbSet<global::AuditSphereOps.Domain.Audit.RiskPartnerClearance> RiskPartnerClearances { get; }
+  DbSet<global::AuditSphereOps.Domain.Audit.RiskOwnerAssignment> RiskOwnerAssignments { get; }
+  DbSet<global::AuditSphereOps.Domain.Documents.ClientPortalFirstSignIn> ClientPortalFirstSignIns { get; }
+  DbSet<global::AuditSphereOps.Domain.Documents.PbcRequestDelegation> PbcRequestDelegations { get; }
+  DbSet<global::AuditSphereOps.Domain.Documents.ClientPortalIntent> ClientPortalIntents { get; }
   DbSet<QuotationVersion> QuotationVersions { get; }
   DbSet<CommercialApprovalRule> CommercialApprovalRules { get; }
   DbSet<QuotationApproval> QuotationApprovals { get; }

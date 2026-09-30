@@ -38,9 +38,9 @@ public static class GlobalSearchQuery
   }
 
   // The same role sets the destination routes authorize with.
-  private static readonly string[] ClientRoles = ["Administrator", "Partner", "Manager", "Staff", "CommercialManager", "EngagementLeader"];
-  private static readonly string[] EngagementRoles = ["Administrator", "Partner", "Manager", "Staff", "EngagementLeader", "Auditor"];
-  private static readonly string[] PbcRoles = ["Administrator", "Partner", "Manager", "Reviewer", "Staff", "Auditor", "Accountant", "AccountingPreparer", "AccountingReviewer"];
+  private static readonly string[] ClientRoles = ["Administrator", "Partner", "Manager", "Senior", "Staff", "CommercialManager", "EngagementLeader"];
+  private static readonly string[] EngagementRoles = ["Administrator", "Partner", "Manager", "Senior", "Staff", "EngagementLeader", "Auditor"];
+  private static readonly string[] PbcRoles = ["Administrator", "Partner", "Manager", "Reviewer", "Senior", "Staff", "Auditor", "Accountant", "AccountingPreparer", "AccountingReviewer"];
   private static readonly string[] CommercialRoles = ["Administrator", "Partner", "Manager", "RelationshipManager"];
   private static readonly string[] FinanceRoles = ["FinanceManager", "FinanceReviewer"];
 

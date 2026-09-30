@@ -49,6 +49,7 @@ internal static class PbcSeed
       Grant(firmId, reviewer, "Reviewer", clientId: clientId, engagementId: engagementId),
       Grant(firmId, client, "ClientUser", clientId: clientId, engagementId: engagementId),
       AdminGrant(firmId, admin));
+    db.ClientPortalFirstSignIns.Add(FirstSignIn(client));
     await db.SaveChangesAsync();
     return new Fixture(firmId, clientId, engagementId, staff, reviewer, client, admin);
   }
@@ -70,6 +71,13 @@ internal static class PbcSeed
     Id = Guid.NewGuid(), FirmId = firmId, UserId = user.Id, Role = role,
     ClientId = clientId, EngagementId = engagementId,
     GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = user.Id
+  };
+
+  /// <summary>An onboarded client: the first portal sign-in requirement is already satisfied.</summary>
+  internal static ClientPortalFirstSignIn FirstSignIn(AppUser user) => new()
+  {
+    Id = Guid.NewGuid(), FirmId = user.FirmId, UserId = user.Id, IdentityPath = ClientIdentityPaths.Unobserved,
+    TermsVersion = ClientPortalService.TermsVersion, CompletedAt = DateTimeOffset.UtcNow
   };
 
   internal static RoleGrant AdminGrant(Guid firmId, AppUser user) => new()

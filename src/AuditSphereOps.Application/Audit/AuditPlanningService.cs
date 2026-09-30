@@ -175,7 +175,7 @@ public static class AuditPlanningService
     public const int MaxDraftConclusionLength = 20_000;
 
     /// <summary>Internal staff roles permitted to plan and document audit work.</summary>
-    private static readonly string[] PlanningRoles =
+    internal static readonly string[] PlanningRoles =
         ["Partner", "Manager", "SeniorManager", "Senior", "Staff", "Auditor", "EngagementLeader", "Administrator"];
 
     // ── Materiality ─────────────────────────────────────────────────────────
@@ -245,6 +245,9 @@ public static class AuditPlanningService
         if (existing.ActorId == actor.UserId)
             return CommandResult<MaterialityResult>.Fail(ErrorCodes.ScopeDenied,
                 "The preparer cannot approve the same materiality assessment.");
+        if (!await MaterialityEngineService.IsAssessmentCurrentAsync(db, existing.FirmId, existing.Id, ct))
+            return CommandResult<MaterialityResult>.Fail(ErrorCodes.GenerationStale,
+                "The mapping or trial balance this materiality was calculated from has been replaced; recalculate it.");
         if (existing.Status != MaterialityStatuses.Draft || await db.MaterialityApprovals.AnyAsync(x =>
             x.FirmId == existing.FirmId && x.MaterialityAssessmentId == existing.Id, ct))
             return CommandResult<MaterialityResult>.Fail(ErrorCodes.ProtectedState,
@@ -942,14 +945,14 @@ public static class AuditPlanningService
     }
 
     /// <summary>Resolved engagement scope, or the nondisclosing denial for an actor who may not write it.</summary>
-    private sealed record Scope(Guid FirmId, Guid ClientId, string? Denied, string Message = "Access denied.");
+    internal sealed record Scope(Guid FirmId, Guid ClientId, string? Denied, string Message = "Access denied.");
 
     /// <summary>
     /// Resolves the stored engagement, authorizes the actor against that stored scope, and
     /// serializes the command on the engagement row. The client comes from the engagement record,
     /// never from the request (§42.3). Lock order stays firm → client → engagement (§29).
     /// </summary>
-    private static async Task<Scope> LockedEngagementAsync(
+    internal static async Task<Scope> LockedEngagementAsync(
         IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct,
         Guid? expectedClientId = null, bool requireProfessionalWork = true)
     {

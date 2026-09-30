@@ -15,7 +15,9 @@ public sealed record CreateTaskRequest(
   Guid? EngagementId = null,
   Guid? AssigneeUserId = null,
   Guid? ReportingPeriodId = null,
-  DateOnly? DueDate = null);
+  DateOnly? DueDate = null,
+  string? Phase = null,
+  string? RiskArea = null);
 
 public sealed record SaveTimeDraftRequest(
   Guid TaskId,
@@ -46,7 +48,7 @@ public sealed record RateCardDraftRequest(
   decimal RatePerHour,
   long? ExpectedVersion = null);
 
-public sealed record BudgetLineRequest(string Role, string Activity, int ForecastMinutes);
+public sealed record BudgetLineRequest(string Role, string Activity, int ForecastMinutes, string? Phase = null, string? RiskArea = null);
 
 public sealed record ReviseBudgetRequest(
   Guid EngagementId,
@@ -68,7 +70,7 @@ public sealed record BudgetActualSummary(
 /// </summary>
 public static class PracticeTimeService
 {
-  private static readonly string[] WorkRoles = ["Staff", "Manager", "Partner", "Administrator"];
+  private static readonly string[] WorkRoles = ["Senior", "Staff", "Manager", "Partner", "Administrator"];
   private static readonly string[] ApprovalRoles = ["Manager", "Partner", "Administrator"];
 
   public static async Task<CommandResult<Guid>> CreateTaskAsync(
@@ -78,6 +80,8 @@ public static class PracticeTimeService
       return CommandResult<Guid>.Fail("time.invalid", "Task title is required.");
     if (request.EngagementId.HasValue && !request.ClientId.HasValue)
       return CommandResult<Guid>.Fail("time.invalid", "An engagement task requires its client scope.");
+    if (PhaseError(request.Phase, request.RiskArea) is { } phaseError)
+      return CommandResult<Guid>.Fail("time.invalid", phaseError);
     if (request.ReportingPeriodId.HasValue && !request.ClientId.HasValue)
       return CommandResult<Guid>.Fail("time.invalid", "A reporting-period task requires its client scope.");
     var accountingDb = request.ReportingPeriodId.HasValue ? db as IClientAccountingDbContext : null;
@@ -122,6 +126,7 @@ public static class PracticeTimeService
       ReportingPeriodId = request.ReportingPeriodId,
       Title = request.Title.Trim(), AssigneeUserId = request.AssigneeUserId,
       DueDate = request.DueDate,
+      Phase = NormalizePhase(request.Phase), RiskArea = TrimOrNull(request.RiskArea),
       CreatedAt = DateTimeOffset.UtcNow,
       Status = request.AssigneeUserId.HasValue
         ? PracticeTimeStates.TaskInProgress : PracticeTimeStates.TaskOpen
@@ -202,6 +207,7 @@ public static class PracticeTimeService
       ClientId = task.ClientId, EngagementId = task.EngagementId, TaskId = task.Id,
       UserId = actor.UserId, WorkDate = request.WorkDate, StartMinute = request.StartMinute,
       DurationMinutes = request.DurationMinutes, Role = request.Role.Trim(), Activity = request.Activity.Trim(),
+      Phase = task.Phase, RiskArea = task.RiskArea,
       BillableClassification = request.BillableClassification.Trim().ToUpperInvariant(),
       Narrative = request.Narrative.Trim(), NarrativeVisibility = request.NarrativeVisibility.Trim().ToUpperInvariant(),
       RateCardVersionId = rate.Value?.Id, RatePerHour = rate.Value?.RatePerHour,
@@ -310,7 +316,8 @@ public static class PracticeTimeService
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = entry.ClientId,
       EngagementId = entry.EngagementId, TaskId = entry.TaskId, UserId = entry.UserId,
       WorkDate = request.WorkDate, StartMinute = request.StartMinute, DurationMinutes = request.DurationMinutes,
-      Role = entry.Role, Activity = request.Activity.Trim(), BillableClassification = entry.BillableClassification,
+      Role = entry.Role, Activity = request.Activity.Trim(), Phase = entry.Phase, RiskArea = entry.RiskArea,
+      BillableClassification = entry.BillableClassification,
       Narrative = request.Narrative.Trim(), NarrativeVisibility = request.NarrativeVisibility.Trim().ToUpperInvariant(),
       Currency = entry.Currency,
       Revision = entry.Revision + 1, SupersedesId = entry.Id,
@@ -431,6 +438,7 @@ public static class PracticeTimeService
       {
         Id = Guid.CreateVersion7(), FirmId = actor.FirmId, EngagementBudgetId = budget.Id,
         RateCardVersionId = card.Id, Role = line.Role.Trim(), Activity = line.Activity.Trim(),
+        Phase = NormalizePhase(line.Phase), RiskArea = TrimOrNull(line.RiskArea),
         ForecastMinutes = line.ForecastMinutes, RatePerHour = card.RatePerHour,
         ForecastCost = MoneyPolicy.Normalize(line.ForecastMinutes * card.RatePerHour / 60m)
       });
@@ -649,6 +657,39 @@ public static class PracticeTimeService
     Required(request.Role, "Rate role") ?? Required(request.Activity, "Rate activity") ??
     CurrencyError(request.Currency) ?? ExactMoneyError(request.RatePerHour, "Hourly rate");
 
+  private static string NormalizePhase(string? phase) =>
+    string.IsNullOrWhiteSpace(phase) ? BudgetPhases.Unassigned : phase.Trim().ToUpperInvariant();
+
+  private static string? PhaseError(string? phase, string? riskArea) =>
+    !string.IsNullOrWhiteSpace(phase) && !BudgetPhases.Assignable.Contains(phase.Trim().ToUpperInvariant())
+      ? "The phase must be Planning, Fieldwork, Completion or Reporting."
+      : riskArea?.Trim().Length > 120 ? "The risk area is limited to 120 characters." : null;
+
+  /// <summary>
+  /// Budget versus approved actual by phase and risk area. Every forecast line and every approved hour lands in
+  /// exactly one bucket (legacy rows in UNASSIGNED), so the bucket totals reconcile to the engagement totals.
+  /// </summary>
+  public static async Task<CommandResult<BudgetBreakdownView>> GetBudgetBreakdownAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct = default)
+  {
+    var summary = await GetBudgetActualAsync(db, actor, engagementId, null, ct);
+    if (!summary.Succeeded) return CommandResult<BudgetBreakdownView>.Fail(summary.ErrorCode!, summary.Message!);
+    var lines = await db.BudgetLines.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.EngagementBudgetId == summary.Value!.BudgetId).ToListAsync(ct);
+    var entries = await db.TimeEntries.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId &&
+      x.Status == PracticeTimeStates.TimeApproved).ToListAsync(ct);
+    static string Area(string? value) => string.IsNullOrWhiteSpace(value) ? "—" : value.Trim();
+    var keys = lines.Select(x => (x.Phase, Area(x.RiskArea))).Concat(entries.Select(x => (x.Phase, Area(x.RiskArea))))
+      .Distinct().OrderBy(x => Array.IndexOf(BudgetPhases.Assignable, x.Item1) is var i && i < 0 ? 99 : i).ThenBy(x => x.Item2, StringComparer.Ordinal);
+    var rows = keys.Select(k => new BudgetBreakdownRow(k.Item1, k.Item2,
+      lines.Where(x => x.Phase == k.Item1 && Area(x.RiskArea) == k.Item2).Sum(x => x.ForecastMinutes),
+      MoneyPolicy.Normalize(lines.Where(x => x.Phase == k.Item1 && Area(x.RiskArea) == k.Item2).Sum(x => x.ForecastCost)),
+      entries.Where(x => x.Phase == k.Item1 && Area(x.RiskArea) == k.Item2).Sum(x => x.DurationMinutes),
+      MoneyPolicy.Normalize(entries.Where(x => x.Phase == k.Item1 && Area(x.RiskArea) == k.Item2)
+        .Sum(x => x.RatePerHour.HasValue ? x.DurationMinutes * x.RatePerHour.Value / 60m : 0m)))).ToList();
+    var s = summary.Value!;
+    return CommandResult<BudgetBreakdownView>.Ok(new(s.BudgetId, s.BudgetVersion, rows, s.ForecastMinutes, s.ForecastCost, s.ActualMinutes, s.ActualCost));
+  }
+
   private static string? ValidateBudget(ReviseBudgetRequest request)
   {
     if (!request.Lines.Any() || request.Lines.Count > 200) return "A budget needs 1 to 200 lines.";
@@ -661,8 +702,9 @@ public static class PracticeTimeService
         return "Budget role and activity are required.";
       if (line.ForecastMinutes is < 1 or > 10_000_000)
         return "Forecast minutes are outside the supported bound.";
-      if (!keys.Add($"{line.Role.Trim()}\n{line.Activity.Trim()}"))
-        return "A budget cannot repeat the same role and activity line.";
+      if (PhaseError(line.Phase, line.RiskArea) is { } phaseError) return phaseError;
+      if (!keys.Add($"{line.Role.Trim()}\n{line.Activity.Trim()}\n{NormalizePhase(line.Phase)}\n{TrimOrNull(line.RiskArea)?.ToUpperInvariant()}"))
+        return "A budget cannot repeat the same role, activity, phase and risk-area line.";
     }
     return null;
   }

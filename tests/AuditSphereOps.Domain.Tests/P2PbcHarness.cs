@@ -107,6 +107,7 @@ internal sealed class P2PbcHarness : IAsyncDisposable
       PbcSeed.Grant(a.FirmId, a.Staff, "Staff", clientId, engagementId),
       PbcSeed.Grant(a.FirmId, a.Reviewer, "Reviewer", clientId, engagementId),
       PbcSeed.Grant(a.FirmId, clientUser, "ClientUser", clientId, engagementId));
+    db.ClientPortalFirstSignIns.Add(PbcSeed.FirstSignIn(clientUser));
     await db.SaveChangesAsync();
     return a with { ClientId = clientId, EngagementId = engagementId, Client = clientUser };
   }

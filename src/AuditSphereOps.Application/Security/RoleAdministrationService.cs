@@ -45,7 +45,7 @@ public sealed record UserAccessAssignmentResult(Guid UserId, Guid RoleGrantId, G
 public static class RoleAdministrationService
 {
   private static readonly string[] AllowedRoles =
-    ["Administrator", "Partner", "Manager", "Staff", "RelationshipManager", "FinanceManager", "FinanceReviewer", "ClientUser"];
+    ["Administrator", "Partner", "Manager", "Senior", "Staff", "RelationshipManager", "FinanceManager", "FinanceReviewer", "ClientUser"];
 
   public static IReadOnlyList<string> RoleCodes => AllowedRoles;
 

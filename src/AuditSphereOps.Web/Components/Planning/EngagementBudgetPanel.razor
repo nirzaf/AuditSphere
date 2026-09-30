@@ -1,0 +1,129 @@
+@* Budgeted hours by phase and risk area against approved time. Each version is prepared by one person and approved
+   by another; the breakdown always reconciles to the engagement total, including legacy unassigned rows. *@
+@using AuditSphereOps.Application.Practice
+@using AuditSphereOps.Domain.Practice
+@inject CurrentActorResolver ActorResolver
+@inject IDbContextFactory<AuditSphereDbContext> DbFactory
+
+<MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" role="region" aria-labelledby="budget-heading">
+  <h2 id="budget-heading">Budget by phase and risk area</h2>
+  @if (_breakdown is null)
+  {
+    <p class="muted">@(_draft is null ? "No approved budget yet." : "A draft budget is awaiting approval.")</p>
+  }
+  else
+  {
+    <p class="scope-note">Approved version @_breakdown.BudgetVersion. Actuals are approved time only, valued at the rate captured when it was recorded.</p>
+    <MudTable Items="_breakdown.Rows" Dense="true" Elevation="0" aria-label="Budget breakdown">
+      <HeaderContent><MudTh>Phase</MudTh><MudTh>Risk area</MudTh><MudTh>Budget hours</MudTh><MudTh>Actual hours</MudTh><MudTh>Budget value</MudTh><MudTh>Actual value</MudTh><MudTh>Variance hours</MudTh></HeaderContent>
+      <RowTemplate>
+        <MudTd DataLabel="Phase">@context.Phase</MudTd>
+        <MudTd DataLabel="Risk area">@context.RiskArea</MudTd>
+        <MudTd DataLabel="Budget hours">@Hours(context.ForecastMinutes)</MudTd>
+        <MudTd DataLabel="Actual hours">@Hours(context.ActualMinutes)</MudTd>
+        <MudTd DataLabel="Budget value">@context.ForecastCost.ToString("N2")</MudTd>
+        <MudTd DataLabel="Actual value">@context.ActualCost.ToString("N2")</MudTd>
+        <MudTd DataLabel="Variance hours" Class="@(context.ActualMinutes > context.ForecastMinutes ? "error-text" : null)">@Hours(context.ForecastMinutes - context.ActualMinutes)</MudTd>
+      </RowTemplate>
+      <FooterContent>
+        <MudTd><strong>Total</strong></MudTd><MudTd></MudTd>
+        <MudTd><strong>@Hours(_breakdown.ForecastMinutes)</strong></MudTd><MudTd><strong>@Hours(_breakdown.ActualMinutes)</strong></MudTd>
+        <MudTd><strong>@_breakdown.ForecastCost.ToString("N2")</strong></MudTd><MudTd><strong>@_breakdown.ActualCost.ToString("N2")</strong></MudTd>
+        <MudTd><strong>@Hours(_breakdown.ForecastMinutes - _breakdown.ActualMinutes)</strong></MudTd>
+      </FooterContent>
+    </MudTable>
+  }
+  @if (_draft is not null && _canManage)
+  {
+    <p>Draft version @_draft.Version awaits approval. <MudButton Variant="Variant.Outlined" OnClick="ApproveAsync" Disabled="@_busy">Approve draft budget</MudButton></p>
+  }
+  @if (_canManage)
+  {
+    <details class="my-2">
+      <summary>Prepare a new budget version</summary>
+      <p class="muted">Every line needs an approved rate card for its role and activity in @_currency.</p>
+      @foreach (var line in _lines)
+      {
+        <div class="audit-inline-form">
+          <label>Role <input @bind="line.Role" maxlength="50" /></label>
+          <label>Activity <input @bind="line.Activity" maxlength="50" /></label>
+          <label>Phase <select @bind="line.Phase">@foreach (var p in BudgetPhases.Assignable) { <option value="@p">@p</option> }</select></label>
+          <label>Risk area <input @bind="line.RiskArea" maxlength="120" /></label>
+          <label>Hours <input type="number" min="0.25" step="0.25" @bind="line.Hours" /></label>
+          <MudButton Variant="Variant.Text" OnClick="@(() => _lines.Remove(line))" aria-label="Remove line">Remove</MudButton>
+        </div>
+      }
+      <MudButton Variant="Variant.Text" OnClick="@(() => _lines.Add(new()))">Add line</MudButton>
+      <label>Currency <input @bind="_currency" maxlength="3" /></label>
+      <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SubmitAsync" Disabled="@(_busy || _lines.Count == 0)">Save budget version</MudButton>
+    </details>
+  }
+  @if (_message is not null) { <p class="command-result @(_error ? "error-text" : "success-text")" role="status">@_message</p> }
+</MudPaper>
+
+@code {
+  [Parameter, EditorRequired] public Guid EngagementId { get; set; }
+  private BudgetBreakdownView? _breakdown;
+  private EngagementBudget? _draft;
+  private List<LineInput> _lines = [new()];
+  private string _currency = "QAR";
+  private bool _busy, _error, _canManage;
+  private string? _message;
+
+  private sealed class LineInput
+  {
+    public string Role { get; set; } = "Senior";
+    public string Activity { get; set; } = "AUDIT";
+    public string Phase { get; set; } = BudgetPhases.Planning;
+    public string? RiskArea { get; set; }
+    public decimal Hours { get; set; } = 8;
+  }
+
+  private static string Hours(int minutes) => (minutes / 60m).ToString("N2");
+
+  protected override Task OnParametersSetAsync() => LoadAsync();
+
+  private async Task LoadAsync()
+  {
+    var actor = await ActorResolver.ResolveAsync();
+    if (actor is null) return;
+    _canManage = actor.Roles.Any(x => x is "Partner" or "Manager" or "Administrator");
+    await using var db = await DbFactory.CreateDbContextAsync();
+    var breakdown = await PracticeTimeService.GetBudgetBreakdownAsync(db, actor, EngagementId);
+    _breakdown = breakdown.Succeeded ? breakdown.Value : null;
+    _draft = _canManage ? await db.EngagementBudgets.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.EngagementId == EngagementId &&
+      x.Status == PracticeTimeStates.BudgetDraft).OrderByDescending(x => x.Version).FirstOrDefaultAsync() : null;
+  }
+
+  private async Task SubmitAsync()
+  {
+    var actor = await ActorResolver.ResolveAsync();
+    if (actor is null) return;
+    _busy = true;
+    try
+    {
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var result = await PracticeTimeService.ReviseBudgetAsync(db, actor, new(EngagementId, _currency,
+        _lines.Select(x => new BudgetLineRequest(x.Role, x.Activity, (int)Math.Round(x.Hours * 60m), x.Phase, x.RiskArea)).ToList()));
+      (_error, _message) = result.Succeeded ? (false, "Budget version saved; another manager or partner must approve it.") : (true, result.Message);
+      if (result.Succeeded) _lines = [new()];
+      await LoadAsync();
+    }
+    finally { _busy = false; }
+  }
+
+  private async Task ApproveAsync()
+  {
+    var actor = await ActorResolver.ResolveAsync();
+    if (actor is null || _draft is null) return;
+    _busy = true;
+    try
+    {
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var result = await PracticeTimeService.ApproveBudgetAsync(db, actor, _draft.Id);
+      (_error, _message) = result.Succeeded ? (false, "Budget approved.") : (true, result.Message);
+      await LoadAsync();
+    }
+    finally { _busy = false; }
+  }
+}

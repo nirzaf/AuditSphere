@@ -48,6 +48,23 @@ reload. Exact verification is in `status.json`.
 
 ---
 
+## STE specification alignment — package 3: resource planning and materiality
+
+An engagement team is now staffed at four levels (Engagement Partner, Audit Manager, Senior Auditor, Staff Associate),
+each granting exactly one engagement-scoped role, with certification required for the top two levels, one partner per
+engagement and no self- or above-rank staffing. A resource grid shows each person's weekly capacity net of recorded
+leave, planned allocation and approved-actual time, and flags over-allocation. Budgets and task time carry a phase and
+risk area and reconcile to the engagement total. Materiality is calculated from the current approved mapping over the
+sealed trial balance (revenue, profit before tax, total assets, net assets, total expenses or one mapped line) into
+Planning Materiality, Tolerable Error and the SAD threshold; a replaced mapping makes it stale, which blocks its
+approval, withdraws it from difference evaluation and blocks completion. Risks receive green, amber or red bands from
+recorded inputs that the database re-checks; amber and red need an owner of sufficient level and red needs an
+Engagement Partner's review before completion. The browser journey found and fixed a circuit crash when staffing
+someone who already held the engagement role, duplicate field identifiers, and a hidden file input overflowing
+narrow screens. Exact verification is in `status.json`.
+
+---
+
 ## STE specification alignment — package 2 (partial): acceptance paths, activation and workspace provisioning
 
 Acceptance now follows the client's history: a first engagement uses the new-client question bank and a returning
@@ -60,6 +77,15 @@ disambiguating duplicates instead of merging, and records the same binding and c
 administrator action. Live SharePoint creation remains `BLOCKED_EXTERNAL`; delegation by the client's primary
 contact, first-login enforcement, drag-and-drop portal upload and portal provisioning at conversion are not yet
 built. Exact verification is in `status.json`.
+
+The portal rows are now built as well. Lead conversion is the explicit portal trigger: it records the primary contact
+and a portal intent that grants nothing until a Partner activates an engagement, after which an administrator can
+invite the contact. Uploads stay closed until the identity's first-sign-in requirement is met (an observed Microsoft
+sign-in after a forced temporary-password change for AuditSphere-created members; the portal security acknowledgement
+for external or unobserved identities). The client's primary contact can delegate a request to a colleague of the
+same client and engagement only, and revocation applies to the next command. Files are dropped or chosen, their
+SHA-256 is calculated in the browser and progress is shown. The browser journey found and fixed a progress line lost
+on reload.
 
 ---
 

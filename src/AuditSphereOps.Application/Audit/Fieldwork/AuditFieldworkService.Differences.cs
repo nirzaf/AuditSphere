@@ -130,6 +130,8 @@ public static partial class AuditFieldworkService
       x.FirmId == firmId && x.ClientId == clientId && x.EngagementId == engagementId &&
       x.MaterialityAssessmentId == materiality.Id, ct);
     if (approval is null) return null;
+    // A calculation derived from a replaced mapping or trial balance no longer supports evaluation.
+    if (!await MaterialityEngineService.IsAssessmentCurrentAsync(db, firmId, materiality.Id, ct)) return null;
     var differences = await db.AuditDifferences.AsNoTracking().Where(x => x.FirmId == firmId &&
         x.ClientId == clientId && x.EngagementId == engagementId)
       .OrderBy(x => x.Id)

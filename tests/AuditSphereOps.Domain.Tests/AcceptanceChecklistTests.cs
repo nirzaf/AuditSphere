@@ -233,6 +233,11 @@ public sealed class AcceptanceChecklistTests
     await Record("AcceptedWithConditions", "AccountingOnly", 2, "Receive signed representation letter");
     Assert.Contains("conditional", (await ActivateAsync(pg, w.Partner, created.Value)).Message);
     var current = await Record("Accepted", "AccountingOnly", 2);
+    // The conversion-time portal intent stays closed until the Partner activates.
+    var contactId = Guid.NewGuid();
+    db.ClientContacts.Add(new ClientContact { Id = contactId, FirmId = w.FirmId, PracticeClientId = w.ClientId, FullName = "Owner", Email = "owner@example.test", Role = "Primary contact", Primary = true });
+    db.ClientPortalIntents.Add(new AuditSphereOps.Domain.Documents.ClientPortalIntent { Id = Guid.NewGuid(), FirmId = w.FirmId, PracticeClientId = w.ClientId, ClientContactId = contactId, RecipientEmail = "owner@example.test", SourceProposalId = Guid.NewGuid(), CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow });
+    await db.SaveChangesAsync();
 
     // A hold blocks; a Manager (not a Partner) is refused; the Partner then activates exactly once.
     db.EngagementHolds.Add(new EngagementHold { Id = Guid.NewGuid(), FirmId = w.FirmId, EngagementId = created.Value, HoldKind = "Independence", Reason = "Pending review", CreatedAt = DateTimeOffset.UtcNow });
@@ -248,5 +253,7 @@ public sealed class AcceptanceChecklistTests
     var record = await db.EngagementActivations.AsNoTracking().SingleAsync();
     Assert.Equal((current, 2L, w.PartnerUser.Id), (record.AcceptanceDecisionId, record.ClientGeneration, record.ActivatedByUserId));
     await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM engagement_activations WHERE id = {record.Id}"));
+    var intent = await db.ClientPortalIntents.AsNoTracking().SingleAsync(x => x.PracticeClientId == w.ClientId);
+    Assert.Equal((AuditSphereOps.Domain.Documents.ClientPortalIntentStates.ReadyToInvite, (Guid?)created.Value), (intent.State, intent.ActivatedEngagementId));
   }
 }

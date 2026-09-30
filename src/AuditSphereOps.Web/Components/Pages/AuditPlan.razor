@@ -7,6 +7,7 @@
 @using WorkpaperRecord = AuditSphereOps.Domain.Audit.Workpaper
 @using AuditSphereOps.Domain.Engagements
 @using AuditSphereOps.Domain.Security
+@using AuditSphereOps.Web.Components.Planning
 @using AuditSphereOps.Infrastructure.Persistence
 @using Microsoft.EntityFrameworkCore
 @inject CurrentActorResolver ActorResolver
@@ -62,6 +63,8 @@ else
     </MudGrid>
     <div class="plan-shell">
         <MudButton Variant="Variant.Outlined" Class="btn-secondary mb-2" OnClick="RefreshPlanAsync" Disabled="@_loading">Refresh plan</MudButton>
+
+        <MaterialityEnginePanel EngagementId="_engagement.Id" />
 
         <!-- Materiality -->
         <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" aria-labelledby="materiality-heading" role="region">
@@ -185,6 +188,8 @@ else
                 <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="btn-small" OnClick="CreateRiskAsync" Disabled="@(_busy || _engagement.ProfessionalWorkBlocked)">Record risk</MudButton>
             </fieldset>
         </MudPaper>
+
+        <RiskRoutingPanel @key="@($"risk-routing-{_risks.Count}")" EngagementId="_engagement.Id" />
 
         <!-- Populations -->
         <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" aria-labelledby="populations-heading" role="region">

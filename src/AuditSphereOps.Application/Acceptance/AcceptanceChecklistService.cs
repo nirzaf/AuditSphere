@@ -24,8 +24,8 @@ public sealed record AcceptanceChecklist(
 /// </summary>
 public static class AcceptanceChecklistService
 {
-  private static readonly string[] ReadRoles = ["Administrator", "Partner", "Manager", "Staff", "EngagementLeader", "Auditor"];
-  private static readonly string[] ProfessionalRoles = ["Partner", "Manager", "Staff", "EngagementLeader", "Auditor"];
+  private static readonly string[] ReadRoles = ["Administrator", "Partner", "Manager", "Senior", "Staff", "EngagementLeader", "Auditor"];
+  private static readonly string[] ProfessionalRoles = ["Partner", "Manager", "Senior", "Staff", "EngagementLeader", "Auditor"];
   private static readonly string[] ClearanceRoles = ["Partner", "Manager"];
   private static readonly string[] ContinuanceRoles = ["Partner", "Manager"];
 

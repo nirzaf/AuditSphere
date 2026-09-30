@@ -21,7 +21,45 @@ window.auditSpherePbc = {
     return file ? { name: file.name, type: file.type || "application/octet-stream", size: file.size } : null;
   },
 
-  uploadChunks: async function (inputId, uploadId, capability) {
+  /** Binds drag-and-drop and file selection to the component; idempotent per rendered element. */
+  bindDropZone: function (zoneId, inputId, dotnetRef) {
+    const zone = document.getElementById(zoneId);
+    const input = document.getElementById(inputId);
+    if (!zone || !input || zone.dataset.bound === "true") return;
+    zone.dataset.bound = "true";
+    const chosen = file => {
+      if (!file) return;
+      selectedFiles.set(inputId, file);
+      dotnetRef.invokeMethodAsync("OnFileChosen");
+    };
+    ["dragenter", "dragover"].forEach(name => zone.addEventListener(name, event => {
+      event.preventDefault();
+      zone.classList.add("drop-zone-active");
+    }));
+    ["dragleave", "drop"].forEach(name => zone.addEventListener(name, () => zone.classList.remove("drop-zone-active")));
+    zone.addEventListener("drop", event => {
+      event.preventDefault();
+      const file = event.dataTransfer?.files?.[0];
+      if (!file) return;
+      try { input.files = event.dataTransfer.files; } catch { /* older browsers keep the map entry only */ }
+      chosen(file);
+    });
+    zone.addEventListener("keydown", event => {
+      if (event.key === "Enter" || event.key === " ") { event.preventDefault(); input.click(); }
+    });
+    input.addEventListener("change", () => chosen(input.files?.[0]));
+  },
+
+  /** Name, type, size and the SHA-256 of the exact selected bytes, calculated in the browser. */
+  describeFile: async function (inputId) {
+    const file = selectedFile(inputId);
+    if (!file) return null;
+    const digest = await crypto.subtle.digest("SHA-256", await file.arrayBuffer());
+    const sha256 = Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, "0")).join("");
+    return { name: file.name, type: file.type || "application/octet-stream", size: file.size, sha256 };
+  },
+
+  uploadChunks: async function (inputId, uploadId, capability, progressRef) {
     const file = selectedFile(inputId);
     if (!file) throw new Error("Select a file before starting the upload.");
 
@@ -49,6 +87,7 @@ window.auditSpherePbc = {
       }
       offset += bytes.byteLength;
       chunkIndex += 1;
+      if (progressRef) await progressRef.invokeMethodAsync("OnUploadProgress", offset, file.size);
     }
     selectedFiles.delete(inputId);
     return `Staged ${offset} bytes in ${chunkIndex} chunk(s); trusted completion is still required.`;

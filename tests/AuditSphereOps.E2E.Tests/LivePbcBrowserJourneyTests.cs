@@ -75,12 +75,12 @@ public sealed class LivePbcBrowserJourneyTests(ITestOutputHelper output)
       await clientPage.GotoAsync($"{host.ClientUrl}/auth/sign-in?returnUrl={Uri.EscapeDataString($"/portal/requests/{host.RequestId:D}")}");
       await clientPage.GetByRole(AriaRole.Heading, new() { Name = "PBC request" }).WaitForAsync();
       await clientPage.WaitForLoadStateAsync(LoadState.NetworkIdle, new() { Timeout = 15000 });
-      await clientPage.Locator("#content-hash").FillAsync(digest);
-      await clientPage.WaitForFunctionAsync("() => document.querySelector('#content-hash-state')?.textContent === 'SHA-256 digest entered.'");
+      await clientPage.WaitForTimeoutAsync(300);
       var fileInputId = $"pbc-file-{host.RequestId:N}";
       await clientPage.Locator($"#{fileInputId}").SetInputFilesAsync(new FilePayload
         { Name = "AuditSphere-Live-Synthetic-PBC.pdf", MimeType = "application/pdf", Buffer = fileBytes });
-      await clientPage.GetByRole(AriaRole.Button, new() { Name = "Prepare upload" }).ClickAsync();
+      await Assertions.Expect(clientPage.Locator("#content-hash")).ToHaveValueAsync(digest, new() { Timeout = 10000 });
+      await clientPage.GetByRole(AriaRole.Button, new() { Name = "Upload file" }).ClickAsync();
       await clientPage.GetByText($"Staged {fileBytes.Length} bytes in 1 chunk(s); trusted completion is still required.").WaitForAsync(new() { Timeout = 15000 });
 
       Guid uploadId;

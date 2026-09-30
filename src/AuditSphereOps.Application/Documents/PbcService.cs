@@ -65,7 +65,7 @@ public static class PbcService
   public const long MaxUploadBytes = 250L * 1024 * 1024;
   public const int MaxChunkBytes = 8 * 1024 * 1024;
   private static readonly string[] StaffRoles =
-    ["Administrator", "Partner", "Manager", "Reviewer", "Staff", "Auditor", "Accountant", "AccountingPreparer", "AccountingReviewer"];
+    ["Administrator", "Partner", "Manager", "Reviewer", "Senior", "Staff", "Auditor", "Accountant", "AccountingPreparer", "AccountingReviewer"];
 
   public static async Task<CommandResult<Guid>> CreateRequestAsync(
     IAuditSphereDbContext db, ActorContext actor, CreatePbcRequestRequest input,
@@ -631,7 +631,7 @@ public static class PbcService
   private static async Task<CommandResult> AuthorizeClientAsync(
     IAuditSphereDbContext db, ActorContext actor, PbcRequest request, CancellationToken ct)
   {
-    if (actor.UserId != request.ClientOwnerUserId)
+    if (!await ClientPortalService.IsRequestParticipantAsync(db, actor, request, ct))
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     return await AuthorizationDecision.AuthorizeAsync(db, actor,
       new AuthorizationRequest(actor.FirmId, request.ClientId, request.EngagementId,
@@ -639,10 +639,14 @@ public static class PbcService
   }
 
   private static async Task<CommandResult> AuthorizeUploadActorAsync(
-    IAuditSphereDbContext db, ActorContext actor, PbcRequest request, CancellationToken ct) =>
-    actor.UserId == request.ClientOwnerUserId && actor.Roles.Contains("ClientUser", StringComparer.OrdinalIgnoreCase)
-      ? await AuthorizeClientAsync(db, actor, request, ct)
-      : await AuthorizeStaffAsync(db, actor, request.ClientId, request.EngagementId, ct);
+    IAuditSphereDbContext db, ActorContext actor, PbcRequest request, CancellationToken ct)
+  {
+    if (!actor.Roles.Contains("ClientUser", StringComparer.OrdinalIgnoreCase) ||
+        !await ClientPortalService.IsRequestParticipantAsync(db, actor, request, ct))
+      return await AuthorizeStaffAsync(db, actor, request.ClientId, request.EngagementId, ct);
+    var auth = await AuthorizeClientAsync(db, actor, request, ct);
+    return auth.Succeeded ? await ClientPortalService.RequireFirstSignInAsync(db, actor, ct) : auth;
+  }
 
   private static bool AllowedTransition(string current, string next) =>
     (current, next) switch

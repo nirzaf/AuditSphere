@@ -1,0 +1,177 @@
+@page "/app/practice/resources"
+@rendermode InteractiveServer
+@using AuditSphereOps.Application.Practice
+@using AuditSphereOps.Domain.Practice
+@inject CurrentActorResolver ActorResolver
+@inject IDbContextFactory<AuditSphereDbContext> DbFactory
+
+<PageTitle>Resource planning</PageTitle>
+<PageHeader Title="Resource planning" Eyebrow="Practice" Description="Team availability, skills, certifications and planned allocation by week. Planned and approved-actual utilization are shown separately; over-allocation is flagged, never hidden." />
+
+@if (_loading)
+{
+  <LoadingState IsLoading="true" LoadingMessage="Loading the resource grid…" />
+}
+else if (_grid is null)
+{
+  <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="notice my-4" role="alert"><h2>Access unavailable</h2><p>@(_denied ?? "A Partner, Manager or Administrator can view resource planning.")</p></MudAlert>
+}
+else
+{
+  <div class="audit-inline-form" aria-label="Grid range">
+    <label for="grid-start">First week <input id="grid-start" type="date" @bind="_start" /></label>
+    <label for="grid-weeks">Weeks <input id="grid-weeks" type="number" min="1" max="12" @bind="_weeks" /></label>
+    <MudButton Variant="Variant.Outlined" OnClick="LoadAsync">Show</MudButton>
+  </div>
+  <div class="table-wrap resource-grid-wrap">
+    <table class="resource-grid" aria-label="Resource grid">
+      <thead>
+        <tr>
+          <th scope="col">Team member</th>
+          <th scope="col">Skills and certifications</th>
+          <th scope="col">Target</th>
+          @foreach (var w in _grid.Rows.FirstOrDefault()?.Weeks ?? [])
+          {
+            <th scope="col">Week of @w.WeekStart.ToString("dd MMM")</th>
+          }
+        </tr>
+      </thead>
+      <tbody>
+        @foreach (var row in _grid.Rows)
+        {
+          <tr data-user="@row.Name">
+            <th scope="row">@row.Name<br /><span class="muted">@row.Department@(row.HasProfile ? "" : " · no profile")</span></th>
+            <td>
+              @if (row.Skills.Count > 0) { <span>@string.Join(", ", row.Skills)</span><br /> }
+              @foreach (var c in row.Certifications) { <span class="@(c.Current ? "success-text" : "error-text")">@c.Name@(c.ExpiresOn is null ? "" : $" (to {c.ExpiresOn:yyyy-MM-dd})")@(c.Current ? "" : " expired") </span> }
+            </td>
+            <td>@(row.HasProfile ? $"{row.TargetUtilizationPercent:0}%" : "—")</td>
+            @foreach (var cell in row.Weeks)
+            {
+              <td class="@(cell.OverAllocated ? "resource-over" : null)" aria-label="@($"{row.Name} week of {cell.WeekStart:dd MMM}: planned {Hours(cell.PlannedMinutes)} of {Hours(cell.CapacityMinutes)} hours{(cell.OverAllocated ? ", over-allocated" : "")}")">
+                <strong>@Hours(cell.PlannedMinutes)</strong> / @Hours(cell.CapacityMinutes) h
+                <br /><span class="muted">@(cell.PlannedUtilizationPercent is { } p ? $"planned {p:0}%" : "no capacity")@(cell.ActualUtilizationPercent is { } a ? $" · actual {a:0}%" : "")</span>
+                @if (cell.UnavailableMinutes > 0) { <br /><span class="muted">@Hours(cell.UnavailableMinutes) h unavailable</span> }
+                @if (cell.OverAllocated) { <br /><span class="error-text">Over-allocated</span> }
+              </td>
+            }
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+
+  <MudGrid Spacing="2" Class="my-4 resource-forms">
+    <MudItem xs="12" md="6">
+      <MudPaper Class="audit-workspace-panel pa-4" Elevation="1" role="region" aria-labelledby="profile-heading">
+        <h2 id="profile-heading">Staff profile</h2>
+        <label for="p-user">Team member <select id="p-user" @bind="_profileUser">@UserOptions()</select></label>
+        <label for="p-dept">Department <input id="p-dept" @bind="_department" maxlength="100" /></label>
+        <label for="p-skills">Skills (comma separated) <input id="p-skills" @bind="_skills" maxlength="500" /></label>
+        <label for="p-capacity">Weekly capacity (hours) <input id="p-capacity" type="number" min="0" max="80" @bind="_capacityHours" /></label>
+        <label for="p-target">Target utilization % <input id="p-target" type="number" min="0" max="100" @bind="_target" /></label>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveProfileAsync" Disabled="@_busy">Save profile</MudButton>
+        <h3 class="mt-3">Certification</h3>
+        <label for="c-name">Certification <input id="c-name" @bind="_certName" maxlength="100" /></label>
+        <label for="c-expires">Expires (optional) <input id="c-expires" type="date" @bind="_certExpires" /></label>
+        <MudButton Variant="Variant.Outlined" OnClick="AddCertificationAsync" Disabled="@_busy">Add certification</MudButton>
+        <h3 class="mt-3">Unavailability</h3>
+        <label for="a-start">From <input id="a-start" type="date" @bind="_leaveStart" /></label>
+        <label for="a-end">To <input id="a-end" type="date" @bind="_leaveEnd" /></label>
+        <label for="a-kind">Kind <select id="a-kind" @bind="_leaveKind"><option value="LEAVE">Leave</option><option value="TRAINING">Training</option><option value="PUBLIC_HOLIDAY">Public holiday</option></select></label>
+        <label for="a-hours">Hours per day <input id="a-hours" type="number" min="1" max="24" @bind="_leaveHours" /></label>
+        <MudButton Variant="Variant.Outlined" OnClick="AddAvailabilityAsync" Disabled="@_busy">Record unavailability</MudButton>
+      </MudPaper>
+    </MudItem>
+    <MudItem xs="12" md="6">
+      <MudPaper Class="audit-workspace-panel pa-4" Elevation="1" role="region" aria-labelledby="allocation-heading">
+        <h2 id="allocation-heading">Allocate to an engagement</h2>
+        <p class="muted">Only people staffed on the engagement can be allocated. Enter 0 hours to remove an allocation.</p>
+        <label for="al-engagement">Engagement <select id="al-engagement" @bind="_allocationEngagement"><option value="">Select</option>@foreach (var e in _engagements) { <option value="@e.Id">@e.Label</option> }</select></label>
+        <label for="al-user">Team member <select id="al-user" @bind="_allocationUser">@UserOptions()</select></label>
+        <label for="al-week">Week of <input id="al-week" type="date" @bind="_allocationWeek" /></label>
+        <label for="al-hours">Planned hours <input id="al-hours" type="number" min="0" max="80" step="0.5" @bind="_allocationHours" /></label>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="AllocateAsync" Disabled="@_busy">Save allocation</MudButton>
+      </MudPaper>
+    </MudItem>
+  </MudGrid>
+  @if (_message is not null) { <p class="command-result @(_error ? "error-text" : "success-text")" role="status">@_message</p> }
+}
+
+@code {
+  private ResourceGridView? _grid;
+  private List<(Guid Id, string Label)> _engagements = [];
+  private bool _loading = true, _busy, _error;
+  private string? _message, _denied;
+  private DateTime _start = DateTime.Today;
+  private int _weeks = 4;
+  private string _profileUser = string.Empty, _department = "Audit", _skills = string.Empty, _certName = string.Empty, _leaveKind = "LEAVE";
+  private decimal _capacityHours = 40, _target = 80, _leaveHours = 8, _allocationHours = 8;
+  private DateTime? _certExpires;
+  private DateTime _leaveStart = DateTime.Today, _leaveEnd = DateTime.Today, _allocationWeek = DateTime.Today;
+  private string _allocationEngagement = string.Empty, _allocationUser = string.Empty;
+
+  private static string Hours(int minutes) => (minutes / 60m).ToString("0.#");
+
+  private RenderFragment UserOptions() => builder =>
+  {
+    var seq = 0;
+    builder.OpenElement(seq++, "option"); builder.AddAttribute(seq++, "value", ""); builder.AddContent(seq++, "Select"); builder.CloseElement();
+    foreach (var row in _grid?.Rows ?? [])
+    {
+      builder.OpenElement(seq++, "option"); builder.AddAttribute(seq++, "value", row.UserId.ToString()); builder.AddContent(seq++, row.Name); builder.CloseElement();
+    }
+  };
+
+  protected override Task OnInitializedAsync() => LoadAsync();
+
+  private async Task LoadAsync()
+  {
+    var actor = await ActorResolver.ResolveAsync();
+    try
+    {
+      if (actor is null) { _denied = "Sign in with a staff identity."; return; }
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var grid = await ResourcePlanningService.GetGridAsync(db, actor, DateOnly.FromDateTime(_start), _weeks);
+      _grid = grid.Succeeded ? grid.Value : null;
+      _denied = grid.Succeeded ? null : grid.Message;
+      if (_grid is not null)
+        _engagements = (await db.Engagements.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.Status == "Active")
+            .Join(db.PracticeClients.AsNoTracking(), e => e.PracticeClientId, c => c.Id, (e, c) => new { e.Id, Label = (c.CommercialName ?? c.LegalName) + " · " + e.ServiceRoute + " " + e.PeriodEnd })
+            .OrderBy(x => x.Label).Take(200).ToListAsync())
+          .Select(x => (x.Id, x.Label)).ToList();
+    }
+    finally { _loading = false; }
+  }
+
+  private async Task RunAsync(Func<AuditSphereDbContext, ActorContext, Task<CommandResult>> command, string success)
+  {
+    var actor = await ActorResolver.ResolveAsync();
+    if (actor is null) return;
+    _busy = true;
+    try
+    {
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var result = await command(db, actor);
+      (_error, _message) = result.Succeeded ? (false, success) : (true, result.Message);
+      await LoadAsync();
+    }
+    finally { _busy = false; }
+  }
+
+  private Task SaveProfileAsync() => Guid.TryParse(_profileUser, out var user)
+    ? RunAsync((db, a) => ResourcePlanningService.SaveProfileAsync(db, a, new(user, _department, _skills, (int)(_capacityHours * 60), _target)), "Profile saved.")
+    : Task.CompletedTask;
+
+  private Task AddCertificationAsync() => Guid.TryParse(_profileUser, out var user)
+    ? RunAsync(async (db, a) => { var r = await ResourcePlanningService.AddCertificationAsync(db, a, new(user, _certName, null, _certExpires is null ? null : DateOnly.FromDateTime(_certExpires.Value))); return r.Succeeded ? CommandResult.Ok() : CommandResult.Fail(r.ErrorCode!, r.Message!); }, "Certification recorded.")
+    : Task.CompletedTask;
+
+  private Task AddAvailabilityAsync() => Guid.TryParse(_profileUser, out var user)
+    ? RunAsync(async (db, a) => { var r = await ResourcePlanningService.AddAvailabilityAsync(db, a, new(user, DateOnly.FromDateTime(_leaveStart), DateOnly.FromDateTime(_leaveEnd), _leaveKind, (int)(_leaveHours * 60))); return r.Succeeded ? CommandResult.Ok() : CommandResult.Fail(r.ErrorCode!, r.Message!); }, "Unavailability recorded.")
+    : Task.CompletedTask;
+
+  private Task AllocateAsync() => Guid.TryParse(_allocationEngagement, out var engagement) && Guid.TryParse(_allocationUser, out var user)
+    ? RunAsync((db, a) => ResourcePlanningService.SetAllocationAsync(db, a, new(engagement, user, DateOnly.FromDateTime(_allocationWeek), (int)(_allocationHours * 60))), "Allocation saved.")
+    : Task.CompletedTask;
+}

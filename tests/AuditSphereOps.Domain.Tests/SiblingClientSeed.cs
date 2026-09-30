@@ -47,6 +47,7 @@ internal static class SiblingClientSeed
         PbcSeed.Grant(firmId, reviewer, "AccountingReviewer", clientId),
         PbcSeed.Grant(firmId, client, "ClientUser", clientId, engagementId),
         PbcSeed.Grant(firmId, admin, "Manager", clientId));
+      db.ClientPortalFirstSignIns.Add(PbcSeed.FirstSignIn(client));
       await db.SaveChangesAsync();
     }
     var fixture = new PbcSeed.Fixture(firmId, clientId, engagementId, staff, reviewer, client, admin);

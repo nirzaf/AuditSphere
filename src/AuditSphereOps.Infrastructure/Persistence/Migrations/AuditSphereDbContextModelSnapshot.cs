@@ -10361,6 +10361,134 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("AuditSphereOps.Domain.Audit.MaterialityCalculation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<decimal>("BenchmarkAmount")
+                        .HasPrecision(28, 6)
+                        .HasColumnType("numeric(19,6)")
+                        .HasColumnName("benchmark_amount");
+
+                    b.Property<string>("BenchmarkKind")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("benchmark_kind");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("currency");
+
+                    b.Property<string>("DatasetDigest")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("dataset_digest");
+
+                    b.Property<Guid>("DatasetId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("dataset_id");
+
+                    b.Property<string>("DestinationCode")
+                        .HasColumnType("text")
+                        .HasColumnName("destination_code");
+
+                    b.Property<Guid>("EngagementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("engagement_id");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<string>("InputHash")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("input_hash");
+
+                    b.Property<Guid>("MappingVersionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("mapping_version_id");
+
+                    b.Property<long>("MappingVersionNumber")
+                        .HasColumnType("bigint")
+                        .HasColumnName("mapping_version_number");
+
+                    b.Property<Guid>("MaterialityAssessmentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("materiality_assessment_id");
+
+                    b.Property<decimal>("PerformancePercent")
+                        .HasPrecision(9, 4)
+                        .HasColumnType("numeric(19,6)")
+                        .HasColumnName("performance_percent");
+
+                    b.Property<decimal>("PlanningMateriality")
+                        .HasPrecision(28, 6)
+                        .HasColumnType("numeric(19,6)")
+                        .HasColumnName("planning_materiality");
+
+                    b.Property<string>("PolicyVersion")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("policy_version");
+
+                    b.Property<decimal>("RatePercent")
+                        .HasPrecision(9, 4)
+                        .HasColumnType("numeric(19,6)")
+                        .HasColumnName("rate_percent");
+
+                    b.Property<decimal>("SadThreshold")
+                        .HasPrecision(28, 6)
+                        .HasColumnType("numeric(19,6)")
+                        .HasColumnName("sad_threshold");
+
+                    b.Property<int>("SourceLineCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("source_line_count");
+
+                    b.Property<decimal>("TolerableError")
+                        .HasPrecision(28, 6)
+                        .HasColumnType("numeric(19,6)")
+                        .HasColumnName("tolerable_error");
+
+                    b.Property<decimal>("TrivialPercent")
+                        .HasPrecision(9, 4)
+                        .HasColumnType("numeric(19,6)")
+                        .HasColumnName("trivial_percent");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MappingVersionId");
+
+                    b.HasIndex("MaterialityAssessmentId");
+
+                    b.HasIndex("FirmId", "MaterialityAssessmentId")
+                        .IsUnique();
+
+                    b.HasIndex("FirmId", "EngagementId", "CreatedAt");
+
+                    b.ToTable("materiality_calculations", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_materiality_calculation_values", "benchmark_kind IN ('REVENUE','PROFIT_BEFORE_TAX','TOTAL_ASSETS','NET_ASSETS','TOTAL_EXPENSES','MAPPED_LINE') AND ((benchmark_kind = 'MAPPED_LINE') = (destination_code IS NOT NULL)) AND benchmark_amount > 0 AND planning_materiality > 0 AND tolerable_error > 0 AND tolerable_error < planning_materiality AND sad_threshold > 0 AND sad_threshold < tolerable_error AND source_line_count > 0 AND length(input_hash) = 64 AND currency ~ '^[A-Z]{3}$'");
+                        });
+                });
+
             modelBuilder.Entity("AuditSphereOps.Domain.Audit.OpeningBalanceVerification", b =>
                 {
                     b.Property<Guid>("Id")
@@ -10567,6 +10695,189 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.ToTable("population_versions", null, t =>
                         {
                             t.HasCheckConstraint("ck_population_values", "length(trim(purpose)) > 0 AND length(trim(assertion)) > 0 AND length(trim(source_receipt_ref)) > 0 AND length(trim(extraction_parameters)) > 0 AND row_count >= 0 AND monetary_control_total >= 0 AND currency ~ '^[A-Z]{3}$' AND status IN ('PENDING_APPROVAL','APPROVED','REJECTED')");
+                        });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Audit.RiskBandAssessment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("AssessedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("assessed_at");
+
+                    b.Property<Guid>("AssessedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("assessed_by_user_id");
+
+                    b.Property<string>("Band")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("band");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<Guid>("EngagementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("engagement_id");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<bool>("FraudRisk")
+                        .HasColumnType("boolean")
+                        .HasColumnName("fraud_risk");
+
+                    b.Property<int>("LikelihoodScore")
+                        .HasColumnType("integer")
+                        .HasColumnName("likelihood_score");
+
+                    b.Property<int>("MagnitudeScore")
+                        .HasColumnType("integer")
+                        .HasColumnName("magnitude_score");
+
+                    b.Property<string>("Rationale")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("rationale");
+
+                    b.Property<Guid>("RiskId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("risk_id");
+
+                    b.Property<string>("RuleVersion")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("rule_version");
+
+                    b.Property<bool>("Significant")
+                        .HasColumnType("boolean")
+                        .HasColumnName("significant");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RiskId");
+
+                    b.HasIndex("FirmId", "RiskId", "AssessedAt");
+
+                    b.ToTable("risk_band_assessments", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_risk_band_assessment_rule", "likelihood_score BETWEEN 1 AND 3 AND magnitude_score BETWEEN 1 AND 3 AND length(rationale) > 0 AND band = CASE WHEN significant OR fraud_risk THEN 'RED' WHEN likelihood_score * magnitude_score >= 6 THEN 'RED' WHEN likelihood_score * magnitude_score >= 3 THEN 'AMBER' ELSE 'GREEN' END");
+                        });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Audit.RiskOwnerAssignment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("AssignedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("assigned_at");
+
+                    b.Property<Guid>("AssignedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("assigned_by_user_id");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<Guid>("EngagementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("engagement_id");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<string>("OwnerStaffingLevel")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("owner_staffing_level");
+
+                    b.Property<Guid>("OwnerUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("owner_user_id");
+
+                    b.Property<Guid>("RiskBandAssessmentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("risk_band_assessment_id");
+
+                    b.Property<Guid>("RiskId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("risk_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RiskBandAssessmentId");
+
+                    b.HasIndex("FirmId", "RiskBandAssessmentId");
+
+                    b.ToTable("risk_owner_assignments", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_risk_owner_assignment_values", "owner_staffing_level IN ('ENGAGEMENT_PARTNER','AUDIT_MANAGER','SENIOR_AUDITOR','STAFF_ASSOCIATE')");
+                        });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Audit.RiskPartnerClearance", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("ClearedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("cleared_at");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<Guid>("EngagementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("engagement_id");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<string>("Note")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("note");
+
+                    b.Property<Guid>("PartnerUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("partner_user_id");
+
+                    b.Property<Guid>("RiskBandAssessmentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("risk_band_assessment_id");
+
+                    b.Property<Guid>("RiskId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("risk_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RiskBandAssessmentId");
+
+                    b.HasIndex("FirmId", "RiskBandAssessmentId")
+                        .IsUnique();
+
+                    b.ToTable("risk_partner_clearances", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_risk_partner_clearance_values", "length(note) > 0");
                         });
                 });
 
@@ -11818,6 +12129,112 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("AuditSphereOps.Domain.Documents.ClientPortalFirstSignIn", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CompletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("completed_at");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<string>("IdentityPath")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("identity_path");
+
+                    b.Property<DateTimeOffset?>("SignInObservedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("sign_in_observed_at");
+
+                    b.Property<string>("TermsVersion")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("terms_version");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("FirmId", "UserId")
+                        .IsUnique();
+
+                    b.ToTable("client_portal_first_sign_ins", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_client_portal_first_sign_in_values", "identity_path IN ('PROVISIONED_MEMBER','EXTERNAL_IDENTITY','UNOBSERVED_IDENTITY') AND length(terms_version) > 0 AND (identity_path <> 'PROVISIONED_MEMBER' OR sign_in_observed_at IS NOT NULL)");
+                        });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Documents.ClientPortalIntent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid?>("ActivatedEngagementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("activated_engagement_id");
+
+                    b.Property<Guid>("ClientContactId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_contact_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<Guid>("PracticeClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("practice_client_id");
+
+                    b.Property<string>("RecipientEmail")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("recipient_email");
+
+                    b.Property<Guid>("SourceProposalId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("source_proposal_id");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("state");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClientContactId");
+
+                    b.HasIndex("PracticeClientId");
+
+                    b.HasIndex("FirmId", "PracticeClientId")
+                        .IsUnique();
+
+                    b.ToTable("client_portal_intents", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_client_portal_intent_values", "state IN ('AWAITING_ACCEPTANCE','READY_TO_INVITE','INVITED') AND length(recipient_email) > 3 AND (state = 'AWAITING_ACCEPTANCE' OR activated_engagement_id IS NOT NULL)");
+                        });
+                });
+
             modelBuilder.Entity("AuditSphereOps.Domain.Documents.DocumentReference", b =>
                 {
                     b.Property<Guid>("Id")
@@ -12316,6 +12733,65 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.ToTable("pbc_requests", null, t =>
                         {
                             t.HasCheckConstraint("ck_pbc_request_values", "state IN ('DRAFT','SENT','ACKNOWLEDGED','PARTIALLY_RECEIVED','RECEIVED','UNDER_REVIEW','ACCEPTED','CLOSED','CLARIFICATION_REQUIRED','RESUBMITTED') AND revision >= 1 AND length(trim(objective)) > 0 AND length(trim(entity_scope)) > 0 AND length(period_start) = 10 AND length(period_end) = 10 AND period_start <= period_end AND length(trim(area)) > 0 AND length(trim(requested_format)) > 0 AND length(trim(due_date)) = 10 AND length(trim(confidentiality)) > 0 AND length(trim(acceptance_criteria)) > 0 AND ((state = 'ACCEPTED' AND accepted_at IS NOT NULL AND accepted_by_user_id IS NOT NULL) OR state <> 'ACCEPTED')");
+                        });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Documents.PbcRequestDelegation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("DelegateUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("delegate_user_id");
+
+                    b.Property<Guid>("DelegatorUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("delegator_user_id");
+
+                    b.Property<Guid>("EngagementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("engagement_id");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<Guid>("PbcRequestId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("pbc_request_id");
+
+                    b.Property<DateTimeOffset?>("RevokedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("revoked_at");
+
+                    b.Property<Guid?>("RevokedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("revoked_by_user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PbcRequestId");
+
+                    b.HasIndex("FirmId", "DelegateUserId");
+
+                    b.HasIndex("FirmId", "PbcRequestId", "DelegateUserId")
+                        .IsUnique()
+                        .HasFilter("revoked_at IS NULL");
+
+                    b.ToTable("pbc_request_delegations", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_pbc_request_delegation_values", "delegator_user_id <> delegate_user_id AND ((revoked_at IS NULL) = (revoked_by_user_id IS NULL))");
                         });
                 });
 
@@ -14304,6 +14780,11 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("forecast_minutes");
 
+                    b.Property<string>("Phase")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("phase");
+
                     b.Property<Guid>("RateCardVersionId")
                         .HasColumnType("uuid")
                         .HasColumnName("rate_card_version_id");
@@ -14311,6 +14792,10 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.Property<decimal>("RatePerHour")
                         .HasColumnType("numeric(19,6)")
                         .HasColumnName("rate_per_hour");
+
+                    b.Property<string>("RiskArea")
+                        .HasColumnType("text")
+                        .HasColumnName("risk_area");
 
                     b.Property<string>("Role")
                         .IsRequired()
@@ -14324,8 +14809,11 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("FirmId", "RateCardVersionId");
 
-                    b.HasIndex("FirmId", "EngagementBudgetId", "Role", "Activity")
-                        .IsUnique();
+                    b.HasIndex("FirmId", "EngagementBudgetId", "Role", "Activity", "Phase", "RiskArea")
+                        .IsUnique()
+                        .HasDatabaseName("IX_budget_lines_firm_budget_role_activity_phase_area");
+
+                    NpgsqlIndexBuilderExtensions.AreNullsDistinct(b.HasIndex("FirmId", "EngagementBudgetId", "Role", "Activity", "Phase", "RiskArea"), false);
 
                     b.ToTable("budget_lines", null, t =>
                         {
@@ -14778,6 +15266,77 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.ToTable("engagement_fee_agreements", null, t =>
                         {
                             t.HasCheckConstraint("ck_fee_agreement_values", "currency ~ '^[A-Z]{3}$' AND agreed_fee > 0 AND advance_percent > 0 AND advance_percent < 100");
+                        });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Practice.EngagementStaffAssignment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("AssignedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("assigned_at");
+
+                    b.Property<Guid>("AssignedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("assigned_by_user_id");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<Guid>("EngagementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("engagement_id");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<DateTimeOffset?>("RevokedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("revoked_at");
+
+                    b.Property<Guid?>("RevokedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("revoked_by_user_id");
+
+                    b.Property<Guid>("RoleGrantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("role_grant_id");
+
+                    b.Property<string>("StaffingLevel")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("staffing_level");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EngagementId");
+
+                    b.HasIndex("RoleGrantId");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("FirmId", "EngagementId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_engagement_staff_assignments_single_partner")
+                        .HasFilter("revoked_at IS NULL AND staffing_level = 'ENGAGEMENT_PARTNER'");
+
+                    b.HasIndex("FirmId", "EngagementId", "UserId")
+                        .IsUnique()
+                        .HasFilter("revoked_at IS NULL");
+
+                    b.ToTable("engagement_staff_assignments", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_engagement_staff_assignment_values", "staffing_level IN ('ENGAGEMENT_PARTNER','AUDIT_MANAGER','SENIOR_AUDITOR','STAFF_ASSOCIATE') AND ((revoked_at IS NULL) = (revoked_by_user_id IS NULL))");
                         });
                 });
 
@@ -16250,6 +16809,217 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("AuditSphereOps.Domain.Practice.StaffAllocation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<Guid>("EngagementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("engagement_id");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<int>("PlannedMinutes")
+                        .HasColumnType("integer")
+                        .HasColumnName("planned_minutes");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("UpdatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by_user_id");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<DateOnly>("WeekStart")
+                        .HasColumnType("date")
+                        .HasColumnName("week_start");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EngagementId");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("FirmId", "WeekStart");
+
+                    b.HasIndex("FirmId", "EngagementId", "UserId", "WeekStart")
+                        .IsUnique();
+
+                    b.ToTable("staff_allocations", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_staff_allocation_values", "planned_minutes BETWEEN 1 AND 4800 AND extract(isodow from week_start) = 1");
+                        });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Practice.StaffAvailability", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateOnly>("EndDate")
+                        .HasColumnType("date")
+                        .HasColumnName("end_date");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("kind");
+
+                    b.Property<int>("MinutesPerDay")
+                        .HasColumnType("integer")
+                        .HasColumnName("minutes_per_day");
+
+                    b.Property<DateTimeOffset>("RecordedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("recorded_at");
+
+                    b.Property<Guid>("RecordedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("recorded_by_user_id");
+
+                    b.Property<DateOnly>("StartDate")
+                        .HasColumnType("date")
+                        .HasColumnName("start_date");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("FirmId", "UserId", "StartDate");
+
+                    b.ToTable("staff_availabilities", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_staff_availability_values", "end_date >= start_date AND minutes_per_day BETWEEN 1 AND 1440 AND kind IN ('LEAVE','TRAINING','PUBLIC_HOLIDAY')");
+                        });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Practice.StaffCertification", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateOnly?>("ExpiresOn")
+                        .HasColumnType("date")
+                        .HasColumnName("expires_on");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<string>("Issuer")
+                        .HasColumnType("text")
+                        .HasColumnName("issuer");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("name");
+
+                    b.Property<DateTimeOffset>("RecordedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("recorded_at");
+
+                    b.Property<Guid>("RecordedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("recorded_by_user_id");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("FirmId", "UserId");
+
+                    b.ToTable("staff_certifications", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_staff_certification_values", "length(name) > 0");
+                        });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Practice.StaffProfile", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Department")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("department");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<string>("Skills")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("skills");
+
+                    b.Property<decimal>("TargetUtilizationPercent")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(19,6)")
+                        .HasColumnName("target_utilization_percent");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("UpdatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by_user_id");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<int>("WeeklyCapacityMinutes")
+                        .HasColumnType("integer")
+                        .HasColumnName("weekly_capacity_minutes");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("FirmId", "UserId")
+                        .IsUnique();
+
+                    b.ToTable("staff_profiles", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_staff_profile_values", "weekly_capacity_minutes BETWEEN 0 AND 4800 AND target_utilization_percent BETWEEN 0 AND 100 AND length(department) > 0");
+                        });
+                });
+
             modelBuilder.Entity("AuditSphereOps.Domain.Practice.TimeEntry", b =>
                 {
                     b.Property<Guid>("Id")
@@ -16313,6 +17083,11 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("text")
                         .HasColumnName("narrative_visibility");
 
+                    b.Property<string>("Phase")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("phase");
+
                     b.Property<Guid?>("RateCardVersionId")
                         .HasColumnType("uuid")
                         .HasColumnName("rate_card_version_id");
@@ -16324,6 +17099,10 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.Property<long>("Revision")
                         .HasColumnType("bigint")
                         .HasColumnName("revision");
+
+                    b.Property<string>("RiskArea")
+                        .HasColumnType("text")
+                        .HasColumnName("risk_area");
 
                     b.Property<string>("Role")
                         .IsRequired()
@@ -16419,9 +17198,18 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("firm_id");
 
+                    b.Property<string>("Phase")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("phase");
+
                     b.Property<Guid?>("ReportingPeriodId")
                         .HasColumnType("uuid")
                         .HasColumnName("reporting_period_id");
+
+                    b.Property<string>("RiskArea")
+                        .HasColumnType("text")
+                        .HasColumnName("risk_area");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -19868,6 +20656,21 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("AuditSphereOps.Domain.Audit.MaterialityCalculation", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Accounting.MappingVersion", null)
+                        .WithMany()
+                        .HasForeignKey("MappingVersionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Audit.MaterialityAssessment", null)
+                        .WithMany()
+                        .HasForeignKey("MaterialityAssessmentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("AuditSphereOps.Domain.Audit.OpeningBalanceVerification", b =>
                 {
                     b.HasOne("AuditSphereOps.Domain.Engagements.Engagement", null)
@@ -19891,6 +20694,33 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("FirmId", "ClientId", "EngagementId")
                         .HasPrincipalKey("FirmId", "PracticeClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Audit.RiskBandAssessment", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Audit.AuditRisk", null)
+                        .WithMany()
+                        .HasForeignKey("RiskId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Audit.RiskOwnerAssignment", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Audit.RiskBandAssessment", null)
+                        .WithMany()
+                        .HasForeignKey("RiskBandAssessmentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Audit.RiskPartnerClearance", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Audit.RiskBandAssessment", null)
+                        .WithMany()
+                        .HasForeignKey("RiskBandAssessmentId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
@@ -20166,6 +20996,30 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("AuditSphereOps.Domain.Documents.ClientPortalFirstSignIn", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Documents.ClientPortalIntent", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Practice.ClientContact", null)
+                        .WithMany()
+                        .HasForeignKey("ClientContactId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Practice.PracticeClient", null)
+                        .WithMany()
+                        .HasForeignKey("PracticeClientId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("AuditSphereOps.Domain.Documents.DocumentReference", b =>
                 {
                     b.HasOne("AuditSphereOps.Domain.Practice.PracticeClient", null)
@@ -20297,6 +21151,15 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("FirmId", "ClientId", "EngagementId")
                         .HasPrincipalKey("FirmId", "PracticeClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Documents.PbcRequestDelegation", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Documents.PbcRequest", null)
+                        .WithMany()
+                        .HasForeignKey("PbcRequestId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
@@ -20707,6 +21570,27 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("AuditSphereOps.Domain.Practice.EngagementStaffAssignment", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Engagements.Engagement", null)
+                        .WithMany()
+                        .HasForeignKey("EngagementId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Security.RoleGrant", null)
+                        .WithMany()
+                        .HasForeignKey("RoleGrantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("AuditSphereOps.Domain.Practice.FeeMilestone", b =>
                 {
                     b.HasOne("AuditSphereOps.Domain.Practice.EngagementFeeAgreement", null)
@@ -21003,6 +21887,48 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("FirmId", "ReceiptId")
                         .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Practice.StaffAllocation", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Engagements.Engagement", null)
+                        .WithMany()
+                        .HasForeignKey("EngagementId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Practice.StaffAvailability", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Practice.StaffCertification", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Practice.StaffProfile", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

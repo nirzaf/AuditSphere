@@ -35,6 +35,9 @@ public sealed class WorkTask
   public string Status { get; set; } = PracticeTimeStates.TaskOpen;
   public Guid? AssigneeUserId { get; set; }
   public DateOnly? DueDate { get; set; }
+  /// <summary>Budget phase the task's time counts toward (see <see cref="BudgetPhases"/>).</summary>
+  public string Phase { get; set; } = BudgetPhases.Unassigned;
+  public string? RiskArea { get; set; }
   public DateTimeOffset CreatedAt { get; set; }
   public DateTimeOffset? CompletedAt { get; set; }
 }
@@ -52,6 +55,9 @@ public sealed class TimeEntry
   public int DurationMinutes { get; set; }
   public string Role { get; set; } = string.Empty;
   public string Activity { get; set; } = string.Empty;
+  /// <summary>Copied from the task when recorded so approved time keeps its budget attribution.</summary>
+  public string Phase { get; set; } = BudgetPhases.Unassigned;
+  public string? RiskArea { get; set; }
   public string BillableClassification { get; set; } = PracticeTimeStates.Billable;
   public string Narrative { get; set; } = string.Empty;
   public string NarrativeVisibility { get; set; } = PracticeTimeStates.NarrativeInternal;
@@ -106,6 +112,8 @@ public sealed class BudgetLine
   public Guid RateCardVersionId { get; set; }
   public string Role { get; set; } = string.Empty;
   public string Activity { get; set; } = string.Empty;
+  public string Phase { get; set; } = BudgetPhases.Unassigned;
+  public string? RiskArea { get; set; }
   public int ForecastMinutes { get; set; }
   public decimal RatePerHour { get; set; }
   public decimal ForecastCost { get; set; }

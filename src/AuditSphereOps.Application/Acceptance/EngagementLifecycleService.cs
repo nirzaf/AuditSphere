@@ -2,6 +2,7 @@ using System.Globalization;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Security;
+using AuditSphereOps.Domain.Documents;
 using AuditSphereOps.Domain.Engagements;
 using AuditSphereOps.Domain.Shared;
 using Microsoft.EntityFrameworkCore;
@@ -94,6 +95,15 @@ public static class EngagementLifecycleService
     engagement.Status = "Active";
     engagement.ProfessionalWorkBlocked = false;
     engagement.Generation++;
+    // The conversion-time portal intent becomes invitable only now, after acceptance and Partner activation.
+    var portalIntent = await db.ClientPortalIntents.SingleOrDefaultAsync(x => x.FirmId == actor.FirmId &&
+      x.PracticeClientId == engagement.PracticeClientId && x.State == ClientPortalIntentStates.AwaitingAcceptance, ct);
+    if (portalIntent is not null)
+    {
+      portalIntent.State = ClientPortalIntentStates.ReadyToInvite;
+      portalIntent.ActivatedEngagementId = engagementId;
+      portalIntent.UpdatedAt = activation.ActivatedAt;
+    }
     await db.SaveChangesAsync(ct);
     await tx.CommitAsync(ct);
     return CommandResult<Guid>.Ok(activation.Id);

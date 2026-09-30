@@ -4,6 +4,7 @@
 @using AuditSphereOps.Domain.Practice
 @using AuditSphereOps.Domain.Security
 @using AuditSphereOps.Web.Components.Acceptance
+@using AuditSphereOps.Web.Components.Planning
 @inject CurrentActorResolver ActorResolver
 @inject IDbContextFactory<AuditSphereDbContext> DbFactory
 
@@ -70,6 +71,9 @@ else
 
   <EngagementActivationPanel @key="@($"activation-{_engagement.Id}-{_engagement.Generation}")" Engagement="_engagement" OnChanged="ReloadAsync" />
 
+  <EngagementStaffingPanel EngagementId="_engagement.Id" />
+  <EngagementBudgetPanel EngagementId="_engagement.Id" />
+
   <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" aria-labelledby="actions-heading" role="region">
     <h2 id="actions-heading">Work surfaces</h2>
     <div class="audit-action-row">
@@ -134,7 +138,7 @@ else
     _loading = true;
     ClearEngagement();
     _actor = await ActorResolver.ResolveAsync();
-    _isStaff = _actor is not null && _actor.Roles.Any(x => x is "Administrator" or "Partner" or "Manager" or "Staff" or "EngagementLeader" or "Auditor");
+    _isStaff = _actor is not null && _actor.Roles.Any(x => x is "Administrator" or "Partner" or "Manager" or "Senior" or "Staff" or "EngagementLeader" or "Auditor");
     if (_actor is not null && _isStaff)
     {
       await LoadEngagementAsync();
@@ -155,7 +159,7 @@ else
     await using var db = await DbFactory.CreateDbContextAsync();
     var authorization = await AuthorizationDecision.AuthorizeAsync(db, _actor,
       new AuthorizationRequest(_actor.FirmId, EngagementId: EngagementId,
-        RequiredRoles: ["Administrator", "Partner", "Manager", "Staff", "EngagementLeader", "Auditor"],
+        RequiredRoles: ["Administrator", "Partner", "Manager", "Senior", "Staff", "EngagementLeader", "Auditor"],
         InternalOnly: true));
     if (!authorization.Succeeded) return;
 
