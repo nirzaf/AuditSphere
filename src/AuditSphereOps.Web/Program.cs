@@ -606,6 +606,23 @@ app.MapGet("/api/commercial/documents/{documentId:guid}/download", async (
   return Results.File(document.Bytes, document.ContentType, document.FileName);
 });
 
+app.MapGet("/api/deliverables/{deliverableId:guid}/download", async (
+  Guid deliverableId,
+  HttpContext http,
+  TrustedActorResolver actorResolver,
+  IDbContextFactory<AuditSphereDbContext> dbFactory,
+  CancellationToken ct) =>
+{
+  var actor = await actorResolver.ResolveAsync(http.User, ct);
+  if (actor is null) return Results.Unauthorized();
+  await using var db = await dbFactory.CreateDbContextAsync(ct);
+  var result = await AuditSphereOps.Application.Completion.AuditDeliverableService.GetForDownloadAsync(db, actor, deliverableId, ct);
+  if (!result.Succeeded) return Results.Forbid();
+  http.Response.Headers.CacheControl = "no-store";
+  http.Response.Headers["X-Content-Type-Options"] = "nosniff";
+  return Results.File(result.Value!.Content, result.Value.ContentType, result.Value.FileName);
+});
+
 app.MapRazorComponents<AuditSphereOps.Web.Components.App>()
   .AddInteractiveServerRenderMode();
 

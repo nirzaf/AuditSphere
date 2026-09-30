@@ -1,0 +1,190 @@
+@page "/app/engagements/{EngagementId:guid}/tb-intake"
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.Components.Forms
+@inject CurrentActorResolver ActorResolver
+@inject IDbContextFactory<AuditSphereDbContext> DbFactory
+
+<PageTitle>Trial balance intake</PageTitle>
+<PageHeader Title="Trial balance intake" Eyebrow="Engagement" Description="Upload one Excel or CSV file with several periods, reuse approved mappings, and review currency conversion and movements before mapping approval." />
+<MudLink Href="@($"/app/engagements/{EngagementId}")" Class="back-link mb-2 d-inline-block">← Back to engagement</MudLink>
+
+<MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" role="region" aria-labelledby="mp-heading">
+  <h2 id="mp-heading">Multi-period upload</h2>
+  <p class="scope-note">Columns: PeriodCode, AccountCode, AccountName, NetClosingBalance (or Debit and Credit), Currency, Entity, MappingCode. Each period is validated and imported as its own dataset; nothing is imported unless every period passes.</p>
+  <InputFile id="mp-file" OnChange="OnFileAsync" accept=".xlsx,.csv" />
+  @if (_preview is not null)
+  {
+    <MudTable Items="_preview.Periods" Dense="true" Elevation="0" aria-label="Periods in the file">
+      <HeaderContent><MudTh>Period</MudTh><MudTh>Rows</MudTh><MudTh>Currency</MudTh><MudTh>Net</MudTh><MudTh>Status</MudTh></HeaderContent>
+      <RowTemplate>
+        <MudTd>@context.PeriodCode</MudTd><MudTd>@context.RowCount</MudTd><MudTd>@context.Currency</MudTd><MudTd>@context.NetTotal?.ToString("N2")</MudTd>
+        <MudTd><span class="@(context.Error is null ? "success-text" : "error-text")">@(context.Error ?? "Ready")</span></MudTd>
+      </RowTemplate>
+    </MudTable>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="ImportAsync" Disabled="@(_busy || !_preview.CanImport)">Import @_preview.Periods.Count period(s)</MudButton>
+  }
+</MudPaper>
+
+<MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" role="region" aria-labelledby="mm-heading">
+  <h2 id="mm-heading">Mapping memory and currency review</h2>
+  <label for="mm-dataset">Dataset
+    <select id="mm-dataset" @bind="_datasetId">
+      <option value="">Select</option>
+      @foreach (var d in _datasets) { <option value="@d.Id">@d.Label</option> }
+    </select></label>
+  <div class="audit-inline-form">
+    <MudButton Variant="Variant.Outlined" OnClick="ProposeAsync" Disabled="@(_busy || string.IsNullOrEmpty(_datasetId))">Propose mapping from history</MudButton>
+    <label for="fx-currency">Presentation currency <input id="fx-currency" @bind="_presentation" maxlength="3" /></label>
+    <label for="fx-percent">Highlight % <input id="fx-percent" type="number" @bind="_thresholdPercent" /></label>
+    <label for="fx-amount">and amount ≥ <input id="fx-amount" type="number" @bind="_thresholdAmount" /></label>
+    <MudButton Variant="Variant.Outlined" OnClick="ReviewAsync" Disabled="@(_busy || string.IsNullOrEmpty(_datasetId))">Review currency and movements</MudButton>
+  </div>
+  @if (_memory is not null)
+  {
+    <p class="muted">@(_memory.SourceMappingVersion is null ? "No approved mapping exists for this client yet; every account is new." : $"Proposals from approved mapping v{_memory.SourceMappingVersion}.")</p>
+    <MudTable Items="_memory.Proposals" Dense="true" Elevation="0" aria-label="Mapping proposals">
+      <HeaderContent><MudTh>Account</MudTh><MudTh>Name</MudTh><MudTh>Status</MudTh><MudTh>Proposed destination</MudTh></HeaderContent>
+      <RowTemplate>
+        <MudTd>@context.AccountCode</MudTd>
+        <MudTd>@context.AccountName@(context.PriorAccountName is not null && context.Status == "NAME_CHANGED" ? $" (was {context.PriorAccountName})" : "")</MudTd>
+        <MudTd><StatusChip Status="@context.Status" /></MudTd>
+        <MudTd>
+          @if (context.Allocations.Count > 0) { @string.Join(", ", context.Allocations.Select(a => $"{a.DestinationCode} ({a.StatementSection})")) }
+          else
+          {
+            <input aria-label="@($"Destination for {context.AccountCode}")" placeholder="Destination" @bind="New(context.AccountCode).Destination" />
+            <input aria-label="@($"Section for {context.AccountCode}")" placeholder="Section" @bind="New(context.AccountCode).Section" />
+          }
+        </MudTd>
+      </RowTemplate>
+    </MudTable>
+    <div class="audit-inline-form">
+      <label for="mm-taxonomy">Taxonomy version <input id="mm-taxonomy" @bind="_taxonomy" /></label>
+      <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="CreateDraftAsync" Disabled="@_busy">Create draft mapping for approval</MudButton>
+    </div>
+  }
+  @if (_review is not null)
+  {
+    <p>Rate: <strong>@_review.CurrentRate!.Rate</strong> @_review.SourceCurrency→@_review.PresentationCurrency (@_review.CurrentRate.RateType, @_review.CurrentRate.RateDate.ToString("yyyy-MM-dd"), @_review.CurrentRate.Direction, @_review.CurrentRate.Source v@_review.CurrentRate.SetVersion)@(_review.PriorRate is null ? "; no prior period to compare." : $"; prior period at {_review.PriorRate.Rate}.")</p>
+    <MudTable Items="_review.Lines" Dense="true" Elevation="0" aria-label="Currency review">
+      <HeaderContent><MudTh>Account</MudTh><MudTh>Source</MudTh><MudTh>Converted</MudTh><MudTh>Prior</MudTh><MudTh>Movement</MudTh></HeaderContent>
+      <RowTemplate>
+        <MudTd>@context.AccountCode @context.AccountName</MudTd>
+        <MudTd>@context.SourceAmount.ToString("N2")</MudTd>
+        <MudTd>@context.TranslatedAmount.ToString("N2")</MudTd>
+        <MudTd>@context.PriorTranslatedAmount?.ToString("N2")</MudTd>
+        <MudTd Class="@(context.Highlighted ? "variance-highlight" : null)">@(context.HighlightReason ?? context.Variance?.ToString("N2"))</MudTd>
+      </RowTemplate>
+    </MudTable>
+  }
+</MudPaper>
+@if (_message is not null) { <p class="command-result @(_error ? "error-text" : "success-text")" role="status">@_message</p> }
+
+@code {
+  [Parameter] public Guid EngagementId { get; set; }
+  private MultiPeriodPreview? _preview;
+  private byte[]? _content;
+  private string _fileName = string.Empty, _datasetId = string.Empty, _presentation = "QAR", _taxonomy = "tax-v1";
+  private decimal _thresholdPercent = 10m, _thresholdAmount;
+  private List<(Guid Id, string Label)> _datasets = [];
+  private MappingMemoryView? _memory;
+  private CurrencyReviewView? _review;
+  private readonly Dictionary<string, NewAllocation> _new = [];
+  private bool _busy, _error;
+  private string? _message;
+  private Guid _clientId;
+
+  private sealed class NewAllocation { public string Destination { get; set; } = ""; public string Section { get; set; } = ""; }
+  private NewAllocation New(string code) => _new.TryGetValue(code, out var n) ? n : _new[code] = new NewAllocation();
+
+  protected override async Task OnParametersSetAsync()
+  {
+    var actor = await ActorResolver.ResolveAsync();
+    if (actor is null) return;
+    await using var db = await DbFactory.CreateDbContextAsync();
+    var engagement = await db.Engagements.AsNoTracking().SingleOrDefaultAsync(x => x.Id == EngagementId && x.FirmId == actor.FirmId);
+    if (engagement is null) { (_error, _message) = (true, "The engagement is unavailable."); return; }
+    _clientId = engagement.PracticeClientId;
+    await LoadDatasetsAsync(db, actor);
+  }
+
+  private async Task LoadDatasetsAsync(AuditSphereDbContext db, ActorContext actor) =>
+    _datasets = (await db.TrialBalanceDatasets.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.EngagementId == EngagementId)
+        .GroupJoin(db.ClientReportingPeriods.AsNoTracking(), d => d.PeriodId, p => p.Id, (d, p) => new { d, p })
+        .SelectMany(x => x.p.DefaultIfEmpty(), (x, p) => new { x.d.Id, x.d.Currency, x.d.ImportedAt, Period = p == null ? "no period" : p.PeriodCode })
+        .OrderByDescending(x => x.ImportedAt).Take(50).ToListAsync())
+      .Select(x => (x.Id, $"{x.Period} · {x.Currency} · {x.ImportedAt.ToLocalTime():yyyy-MM-dd HH:mm}")).ToList();
+
+  private async Task OnFileAsync(InputFileChangeEventArgs e)
+  {
+    var actor = await ActorResolver.ResolveAsync();
+    if (actor is null) return;
+    _busy = true;
+    try
+    {
+      using var stream = e.File.OpenReadStream(25 * 1024 * 1024);
+      using var buffer = new MemoryStream();
+      await stream.CopyToAsync(buffer);
+      (_content, _fileName) = (buffer.ToArray(), e.File.Name);
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var preview = await MultiPeriodTrialBalanceService.PreviewAsync(db, actor, _clientId, _fileName, _content);
+      _preview = preview.Succeeded ? preview.Value : null;
+      (_error, _message) = preview.Succeeded ? (false, null) : (true, preview.Message);
+    }
+    finally { _busy = false; }
+  }
+
+  private async Task ImportAsync()
+  {
+    var actor = await ActorResolver.ResolveAsync();
+    if (actor is null || _content is null) return;
+    _busy = true;
+    try
+    {
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var result = await MultiPeriodTrialBalanceService.ImportAsync(db, actor, _clientId, EngagementId, _fileName, _content);
+      (_error, _message) = result.Succeeded ? (false, $"Imported {string.Join(", ", result.Value!.Datasets.Select(x => x.PeriodCode))} as separate datasets; each is validated by its own operation.") : (true, result.Message);
+      await LoadDatasetsAsync(db, actor);
+    }
+    finally { _busy = false; }
+  }
+
+  private async Task ProposeAsync()
+  {
+    var actor = await ActorResolver.ResolveAsync();
+    if (actor is null || !Guid.TryParse(_datasetId, out var datasetId)) return;
+    await using var db = await DbFactory.CreateDbContextAsync();
+    var result = await MappingMemoryService.ProposeAsync(db, actor, datasetId);
+    _memory = result.Succeeded ? result.Value : null;
+    (_error, _message) = result.Succeeded ? (false, null) : (true, result.Message);
+  }
+
+  private async Task CreateDraftAsync()
+  {
+    var actor = await ActorResolver.ResolveAsync();
+    if (actor is null || _memory is null) return;
+    _busy = true;
+    try
+    {
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var dataset = await db.TrialBalanceDatasets.AsNoTracking().SingleAsync(x => x.Id == _memory.DatasetId);
+      var period = dataset.PeriodId is null ? null : await db.ClientReportingPeriods.AsNoTracking().SingleOrDefaultAsync(x => x.Id == dataset.PeriodId);
+      var overrides = _new.Where(x => x.Value.Destination.Length > 0).Select(x => new MappingAllocationInput(x.Key, x.Value.Destination.Trim().ToUpperInvariant(),
+        x.Value.Section.Trim().ToUpperInvariant(), 1m, "Mapped at intake")).ToList();
+      var result = await MappingMemoryService.CreateDraftAsync(db, actor, _memory.DatasetId, _taxonomy, period?.StartDate.ToString("yyyy-MM-dd") ?? "",
+        period?.EndDate.ToString("yyyy-MM-dd") ?? "", overrides);
+      (_error, _message) = result.Succeeded ? (false, "Draft mapping created; a reviewer must approve it before it becomes current.") : (true, result.Message);
+    }
+    finally { _busy = false; }
+  }
+
+  private async Task ReviewAsync()
+  {
+    var actor = await ActorResolver.ResolveAsync();
+    if (actor is null || !Guid.TryParse(_datasetId, out var datasetId)) return;
+    await using var db = await DbFactory.CreateDbContextAsync();
+    var result = await TrialBalanceCurrencyReviewQuery.GetAsync(db, actor, datasetId, _presentation, _thresholdPercent, _thresholdAmount);
+    _review = result.Succeeded ? result.Value : null;
+    (_error, _message) = result.Succeeded ? (false, null) : (true, result.Message);
+  }
+}

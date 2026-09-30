@@ -242,6 +242,8 @@ public sealed class AuditConfirmationCase
   public long InputGeneration { get; set; } = 1;
   public string Status { get; set; } = AuditConfirmationStatuses.Draft;
   public string? DispatchReference { get; set; }
+  /// <summary>When dispatch evidence was recorded; the start of automated response monitoring.</summary>
+  public DateTimeOffset? DispatchedAt { get; set; }
   public Guid CreatedByUserId { get; set; }
   public DateTimeOffset CreatedAt { get; set; }
 }

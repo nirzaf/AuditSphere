@@ -138,6 +138,31 @@ public interface IAuditSphereDbContext : IAsyncDisposable
   DbSet<CreditNote> CreditNotes { get; }
   DbSet<BillingSourceAllocation> BillingSourceAllocations { get; }
   DbSet<EngagementActivation> EngagementActivations { get; }
+  DbSet<global::AuditSphereOps.Domain.Practice.TechnicalLibraryDocument> TechnicalLibraryDocuments { get; }
+  DbSet<global::AuditSphereOps.Domain.Practice.TechnicalLibraryVersion> TechnicalLibraryVersions { get; }
+  DbSet<global::AuditSphereOps.Domain.Practice.StaffCostRate> StaffCostRates { get; }
+  DbSet<global::AuditSphereOps.Domain.Practice.FirmExpense> FirmExpenses { get; }
+  DbSet<global::AuditSphereOps.Domain.Records.EngagementFileFreeze> EngagementFileFreezes { get; }
+  DbSet<global::AuditSphereOps.Domain.Records.FileFreezeAmendment> FileFreezeAmendments { get; }
+  DbSet<global::AuditSphereOps.Domain.Records.FrozenAccessAttempt> FrozenAccessAttempts { get; }
+  DbSet<global::AuditSphereOps.Domain.Records.DocumentLock> DocumentLocks { get; }
+  DbSet<global::AuditSphereOps.Domain.Audit.ConfirmationCriticality> ConfirmationCriticalities { get; }
+  DbSet<global::AuditSphereOps.Domain.Completion.ProcedureReviewNote> ProcedureReviewNotes { get; }
+  DbSet<global::AuditSphereOps.Domain.Completion.ProcedureReviewNoteEvent> ProcedureReviewNoteEvents { get; }
+  DbSet<global::AuditSphereOps.Domain.Completion.AuditDeliverable> AuditDeliverables { get; }
+  DbSet<global::AuditSphereOps.Domain.Completion.PartnerCompletionClearance> PartnerCompletionClearances { get; }
+  DbSet<global::AuditSphereOps.Domain.Completion.AuditOpinionDecision> AuditOpinionDecisions { get; }
+  DbSet<global::AuditSphereOps.Domain.Completion.SignatureSpecimen> SignatureSpecimens { get; }
+  DbSet<global::AuditSphereOps.Domain.Completion.SignatureApplication> SignatureApplications { get; }
+  DbSet<global::AuditSphereOps.Domain.Completion.ClientDeliverableReview> ClientDeliverableReviews { get; }
+  DbSet<global::AuditSphereOps.Domain.Completion.ClientDeliverableComment> ClientDeliverableComments { get; }
+  DbSet<global::AuditSphereOps.Domain.Audit.AuditSamplingRun> AuditSamplingRuns { get; }
+  DbSet<global::AuditSphereOps.Domain.Audit.ProcedureEvidenceLink> ProcedureEvidenceLinks { get; }
+  DbSet<global::AuditSphereOps.Domain.Audit.PhysicalEvidenceItem> PhysicalEvidenceItems { get; }
+  DbSet<global::AuditSphereOps.Domain.Audit.PhysicalEvidenceMovement> PhysicalEvidenceMovements { get; }
+  DbSet<global::AuditSphereOps.Domain.Audit.ProcedurePhysicalLink> ProcedurePhysicalLinks { get; }
+  DbSet<global::AuditSphereOps.Domain.Audit.AdHocProcedureInsertion> AdHocProcedureInsertions { get; }
+  DbSet<global::AuditSphereOps.Domain.Audit.AdHocProcedureRevision> AdHocProcedureRevisions { get; }
   DbSet<global::AuditSphereOps.Domain.Practice.EngagementStaffAssignment> EngagementStaffAssignments { get; }
   DbSet<global::AuditSphereOps.Domain.Practice.StaffProfile> StaffProfiles { get; }
   DbSet<global::AuditSphereOps.Domain.Practice.StaffCertification> StaffCertifications { get; }

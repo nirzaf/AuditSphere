@@ -71,7 +71,7 @@ public static class AuditProgramService
   private static readonly string[] ProgramOwnerRoles = ["Partner", "Administrator"];
   private static readonly string[] PlanningRoles =
     ["Partner", "Manager", "SeniorManager", "Senior", "Staff", "Auditor", "EngagementLeader", "Administrator"];
-  private static readonly string[] ReviewRoles = ["Reviewer", "Manager", "Partner", "Administrator"];
+  private static readonly string[] ReviewRoles = ["Reviewer", "Senior", "Manager", "Partner", "Administrator"];
   private const string InvalidCode = ErrorCodes.AuditPlanning.Invalid;
 
   public static async Task<CommandResult<AuditProgramResult>> PublishAsync(
@@ -423,6 +423,11 @@ public static class AuditProgramService
       """).SingleOrDefaultAsync(ct);
     if (procedure is null || procedure.ClientId != scope.ClientId)
       return CommandResult<ProcedureReviewValue>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var hierarchy = await ReviewNotesService.RequireReviewerAboveAsync(db, scope.FirmId, result.EngagementId, result.PreparedByUserId, actor.UserId, ct);
+    if (!hierarchy.Succeeded)
+      return CommandResult<ProcedureReviewValue>.Fail(hierarchy.ErrorCode!, hierarchy.Message!);
+    if (decision == AuditProcedureReviewDecisions.Reviewed && await ReviewNotesService.OpenCountAsync(db, scope.FirmId, procedure.Id, ct) is > 0 and var open)
+      return CommandResult<ProcedureReviewValue>.Fail(ErrorCodes.GateBlocked, $"{open} review note(s) are still open; resolve them before approving.");
 
     db.AuditProcedureReviews.Add(new AuditProcedureReview
     {

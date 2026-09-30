@@ -51,7 +51,7 @@ public sealed class GlobalSearchJourneyTests
 
       await search.PressSequentiallyAsync("pbc test");
       await Assertions.Expect(results.GetByRole(AriaRole.Link, new() { Name = "PBC TEST CLIENT" }).First).ToBeVisibleAsync(new() { Timeout = 15000 });
-      await Assertions.Expect(results).ToContainTextAsync("Documents, evidence and emails are not searched.");
+      await Assertions.Expect(results).ToContainTextAsync("Client documents, evidence and emails are not searched.");
       Assert.DoesNotContain(Marker, await results.InnerTextAsync(), StringComparison.OrdinalIgnoreCase);
 
       // A sibling client's exact name yields nothing, not even a count or snippet.

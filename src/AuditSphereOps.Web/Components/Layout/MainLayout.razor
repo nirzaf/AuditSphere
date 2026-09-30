@@ -28,7 +28,9 @@
       <p class="audit-nav-label">Economics &amp; billing</p>
       <MudNavLink Href="/app/practice/time">Time</MudNavLink>
       <MudNavLink Href="/app/practice/resources">Resource planning</MudNavLink>
-      <MudNavLink Href="/app/finance" Class="@SectionClass(NavSection.Finance)">Finance</MudNavLink>
+      <MudNavLink Href="/app/practice/analytics">Practice analytics</MudNavLink>
+      <MudNavLink Href="/app/finance" Match="NavLinkMatch.All" Class="@SectionClass(NavSection.Finance)">Finance</MudNavLink>
+      <MudNavLink Href="/app/finance/books">Firm books</MudNavLink>
       <p class="audit-nav-label">Accounting workbench</p>
       <MudNavGroup Title="Accounting" Expanded="@(_section is NavSection.Accounting or NavSection.PackageReviews)">
         <MudNavLink Href="/app/accounting" Match="NavLinkMatch.All" Class="@SectionClass(NavSection.Accounting)">Accounting workspace</MudNavLink>
@@ -44,6 +46,7 @@
       <MudNavLink Href="/app/consolidation">Consolidation</MudNavLink>
       <p class="audit-nav-label">Audit &amp; assurance</p>
       <MudNavLink Href="/app/audit/library" Class="@SectionClass(NavSection.Audit)">Audit program library</MudNavLink>
+      <MudNavLink Href="/app/library">Technical library</MudNavLink>
       <p class="audit-nav-label">Administration</p>
       <MudNavLink Href="/app/administration" Match="NavLinkMatch.All" Class="@SectionClass(NavSection.Administration)">Administration</MudNavLink>
       <MudNavLink Href="/app/administration/project-progress">Project progress</MudNavLink>

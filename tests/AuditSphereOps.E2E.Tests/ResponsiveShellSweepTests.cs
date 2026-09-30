@@ -16,7 +16,7 @@ public sealed class ResponsiveShellSweepTests(ITestOutputHelper output)
 
   private static readonly string[] ParameterlessRoutes =
   [
-    "/app", "/app/practice/leads", "/app/practice/commercial-settings", "/app/practice/time", "/app/practice/resources", "/app/finance", "/app/operations", "/app/administration",
+    "/app", "/app/practice/leads", "/app/practice/commercial-settings", "/app/practice/time", "/app/practice/resources", "/app/practice/analytics", "/app/finance/books", "/app/library", "/app/finance", "/app/operations", "/app/administration",
     "/app/administration/project-progress", "/app/administration/microsoft365/tenant-connection", "/app/accounting",
     "/app/accounting/evidence", "/app/accounting/mappings", "/app/accounting/journals", "/app/accounting/differences",
     "/app/accounting/reviews", "/app/accounting/rollforward", "/app/accounting/restatements",

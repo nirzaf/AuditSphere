@@ -499,6 +499,31 @@ accounting or consolidation workspaces.
 - UI: `Components/Planning/{EngagementStaffingPanel,EngagementBudgetPanel,MaterialityEnginePanel,RiskRoutingPanel}.razor` (hosted by `EngagementDetail.razor` and `AuditPlan.razor`), `Pages/ResourcePlanning.razor` (`/app/practice/resources`)
 - Tests: `PlanningResourcesAndMaterialityTests.cs`, `tests/.../PlanningAndResourcesJourneyTests.cs`
 
+## Trial-balance intake and fieldwork connections
+
+- Application intake: `Accounting/Intake/MultiPeriodTrialBalanceService.cs` (PeriodCode split over `TrialBalanceXlsxImporter.ReadTable` or CSV, per-period import through `TrialBalanceImportService`), `MappingMemoryService.cs`, `TrialBalanceCurrencyReviewQuery.cs`, `FinancialStatementDrillDownQuery.cs`, shared `MappedTrialBalanceSource.cs` (also used by the materiality engine)
+- Domain: `Domain/Audit/FieldworkConnections.cs` (`AuditSamplingRun`, `ProcedureEvidenceLink`, `PhysicalEvidenceItem`/`Movement`, `ProcedurePhysicalLink`, `AdHocProcedureInsertion`/`Revision`)
+- Application fieldwork: `Audit/Fieldwork/AuditFieldworkService.Connections.cs` (sampling run and re-performance, evidence picker, physical index, ad hoc steps, analytical-review and going-concern completion blockers wired into `EvaluateCompletionAsync`)
+- Persistence: `AuditSphereDbContext.FieldworkConnections.cs`, migration `FieldworkConnectionsSamplingEvidenceAndPhysicalIndex`
+- UI: `Pages/TrialBalanceIntake.razor` (`/app/engagements/{id}/tb-intake`), `Pages/StatementDrillDown.razor` (`/app/engagements/{id}/statements`), `Components/Fieldwork/FieldworkToolsPanel.razor` (hosted by `AuditFieldwork.razor`)
+- Tests: `FieldworkConnectionsTests.cs`, `tests/.../FieldworkConnectionsJourneyTests.cs`
+
+## Review notes, completion deliverables and file freeze
+
+- Domain: `Domain/Completion/AuditDeliverables.cs` (`ProcedureReviewNote`/`Event`, `AuditDeliverable`, `PartnerCompletionClearance`, `AuditOpinionDecision`, `SignatureSpecimen`/`Application`, `ClientDeliverableReview`/`Comment`), `ConfirmationCriticality` and `AuditConfirmationCase.DispatchedAt`; `Domain/Records/FileFreeze.cs` (`EngagementFileFreeze`, `FileFreezeAmendment`, `FrozenAccessAttempt`, `DocumentLock`)
+- Application: `Audit/ReviewNotesService.cs` (anchored notes; open-note and staffing-hierarchy checks inside `AuditProgramService.ReviewResultAsync`), `Completion/AuditDeliverableRenderer.cs` (DOCX with PNG embedding), `Completion/AuditDeliverableService.cs` (facts digest and staleness, SRM, Partner clearance, opinions, report trio, holding letter, signing, client review loop, confirmations dashboard, downloads), `Records/FileFreezeService.cs` (schedule, `FileFreezeHandler`/`FileFreezeDiscovery` on an injected clock, amendments, write guard), `Records/EngagementActivityQuery.cs` (activity trail, document locks)
+- Persistence: `AuditSphereDbContext.AuditDeliverables.cs`, `AuditSphereDbContext.FileFreeze.cs`; migrations `ReviewNotesDeliverablesOpinionsAndSignatures`, `ScheduledFileFreezeAndDocumentLocks`
+- Web/Worker: `Components/Completion/{CompletionDeliverablesPanel,FileRecordsPanel}.razor` (hosted by `Completion.razor`), review-notes tab in `FieldworkToolsPanel.razor`, portal review in `ClientPortal.razor`, `/api/deliverables/{id}/download` in `Web/Program.cs`; freeze handler and discovery registered in the general worker
+- Tests: `AuditDeliverablesTests.cs`, `tests/.../CompletionDeliverablesJourneyTests.cs`
+
+## Technical library, practice analytics and firm books
+
+- Domain: `Domain/Practice/FirmOperations.cs` (`TechnicalLibraryDocument`/`Version`, `StaffCostRate`, `FirmExpense`)
+- Application: `Practice/FirmOperationsServices.cs` (`TechnicalLibraryService` — also feeding `GlobalSearchQuery`; `PracticeAnalyticsQuery`; `FirmExpenseService` over `LedgerService` journals and the firm trial balance)
+- Persistence: `AuditSphereDbContext.FirmOperations.cs`, migration `TechnicalLibraryAnalyticsAndFirmExpenses` (published-version immutability, append-only cost rates)
+- UI: `Pages/TechnicalLibrary.razor` (`/app/library`, `/app/library/{id}`), `Pages/PracticeAnalytics.razor` (`/app/practice/analytics`), `Pages/FirmBooks.razor` (`/app/finance/books`)
+- Tests: `FirmOperationsTests.cs`, `tests/.../FirmOperationsJourneyTests.cs`
+
 ## Microsoft 365 setup, security and administration
 
 

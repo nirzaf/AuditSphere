@@ -40,6 +40,8 @@ else
     <MudLink Href="@($"/app/engagements/{_engagement.Id}/audit-plan")">Audit plan</MudLink>
     <MudLink Href="@($"/app/engagements/{_engagement.Id}/audit-fieldwork")">Fieldwork</MudLink>
     <MudLink Href="@($"/app/engagements/{_engagement.Id}/completion")">Completion</MudLink>
+    <MudLink Href="@($"/app/engagements/{_engagement.Id}/statements")">Statements</MudLink>
+    <MudLink Href="@($"/app/engagements/{_engagement.Id}/tb-intake")">TB intake</MudLink>
   </div>
   <MudGrid Spacing="2" Class="audit-accounting-metrics my-3" aria-label="Scoped engagement summary">
     <MudItem xs="6" sm="4"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Professional work</MudText><MudText Typo="Typo.h4">@(_engagement.ProfessionalWorkBlocked ? "Blocked" : "Clear")</MudText></MudPaper></MudItem>

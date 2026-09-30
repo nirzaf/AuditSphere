@@ -8,6 +8,7 @@
 @using AuditSphereOps.Domain.Engagements
 @using AuditSphereOps.Domain.Reviews
 @using AuditSphereOps.Domain.Security
+@using AuditSphereOps.Web.Components.Completion
 @using AuditSphereOps.Infrastructure.Persistence
 @using Microsoft.EntityFrameworkCore
 @inject CurrentActorResolver ActorResolver
@@ -54,6 +55,8 @@ else
         <MudLink Href="@($"/app/engagements/{_engagement.Id}/audit-fieldwork")">Fieldwork control center</MudLink>
         <MudLink Href="@($"/app/engagements/{_engagement.Id}")">Engagement</MudLink>
     </div>
+    <CompletionDeliverablesPanel EngagementId="_engagement.Id" />
+    <FileRecordsPanel EngagementId="_engagement.Id" />
     <MudGrid Spacing="2" Class="audit-accounting-metrics my-3" aria-label="Scoped completion counts">
         <MudItem xs="6" sm="4"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Gate rows</MudText><MudText Typo="Typo.h4">@_gates.Count</MudText></MudPaper></MudItem>
         <MudItem xs="6" sm="4"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Representations obtained</MudText><MudText Typo="Typo.h4">@_representations.Count(x => x.Obtained) / @_representations.Count</MudText></MudPaper></MudItem>

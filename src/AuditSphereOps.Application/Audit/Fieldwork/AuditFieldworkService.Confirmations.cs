@@ -58,6 +58,7 @@ public static partial class AuditFieldworkService
     if (live is null || live.Status != AuditConfirmationStatuses.Approved)
       return CommandResult<ConfirmationValue>.Fail(ErrorCodes.GateBlocked, "Only an approved confirmation can record dispatch evidence.");
     live.DispatchReference = request.DispatchReference.Trim();
+    live.DispatchedAt = DateTimeOffset.UtcNow;
     live.Status = AuditConfirmationStatuses.Dispatched;
     await db.SaveChangesAsync(ct);
     await tx.CommitAsync(ct);

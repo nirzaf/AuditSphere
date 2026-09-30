@@ -48,6 +48,56 @@ reload. Exact verification is in `status.json`.
 
 ---
 
+## STE specification alignment — package 7: firm operations and technical library
+
+A technical library holds IFRS, ISA and firm guidance as versioned entries: a Manager prepares, a different Partner or
+administrator publishes, older versions stay readable but cannot change, and search (including the staff search bar)
+only returns published versions the reader's audience allows, naming the version matched. Practice analytics are
+calculated from approved records with the formulas shown on the page: standard value at the captured charge-out rate,
+cost at a separately recorded staff cost rate, billed from posted invoice lines traced to the engagement, collected
+from receipt allocations, realization, margin, budget variance, department utilization and on-time task completion. The
+firm's own expenses (rent, salaries, petty cash…) are recorded with their source document, reviewed by a second
+finance user and posted through the firm ledger's journal controls, and the firm trial balance shows opening, movement
+and closing balances with summaries that must reconcile. Exact verification is in `status.json`.
+
+---
+
+## STE specification alignment — packages 5 and 6: completion, deliverables and file freeze
+
+Reviewers attach notes to quoted text in an exact result revision; the preparer replies, a reviewer resolves, and a
+result cannot be approved while a note is open. When the preparer is staffed, only someone staffed above them may review.
+A Summary Review Memorandum is generated from the reviewed facts and becomes stale when they change; the Engagement
+Partner clears a current memorandum once every prior gate is satisfied, then chooses Clean, Qualified, Adverse or
+Disclaimer (focus area and basis are required and written into the basis paragraph where the type needs them). The Audit
+Findings Report, Management Letter and Independent Auditor's Report are versioned Word documents; while a critical
+confirmation is open, the report is held and a versioned holding letter is produced instead. Client management
+comments on shared drafts and acknowledges the representation letter at its exact hash in the portal, and only then can
+the deciding Partner embed a registered PNG signature into the current report version (a picture, not a cryptographic
+signature). Signing schedules the file freeze 60 days later; a worker freezes due files, refused writes are recorded,
+and amendments need a second Partner. An activity trail lists uploads, edits, comments, sign-offs, freeze events and
+refused writes. SharePoint read-only enforcement and direct SharePoint edit capture remain `BLOCKED_EXTERNAL`. The
+browser journeys found and fixed an untranslatable portal query and a page reload interrupted by a download. Exact
+verification is in `status.json`.
+
+---
+
+## STE specification alignment — package 4: fieldwork connections
+
+A single Excel or CSV file with a PeriodCode column is split into one source per period; each is parsed and imported
+as its own dataset only when every period in the file validates. For a new dataset, the client's last approved mapping
+is proposed account by account, renamed and new accounts are flagged, and the result is a draft that still needs a
+reviewer's approval. A currency review converts the trial balance at the approved closing rate for the period end,
+shows the rate's source, date, direction and version, refuses a missing rate, and highlights movements against the
+prior period above both a percentage and an amount. Profit or loss and financial position are generated from the
+current approved mapping, and each line opens the procedures for its audit area. Sampling now runs the existing engine
+over an approved schedule and logs parameters, seed and source digest so the selection is re-performed on reload.
+Procedures link to the exact current received client upload, physical files (for example X-1 in Box 3) are indexed with
+their movements and procedure links, ad hoc steps are inserted without changing the adopted programme, and audit
+engagements cannot complete without a reviewed analytical review and a going-concern assessment covering twelve months
+after the period end. Exact verification is in `status.json`.
+
+---
+
 ## STE specification alignment — package 3: resource planning and materiality
 
 An engagement team is now staffed at four levels (Engagement Partner, Audit Manager, Senior Auditor, Staff Associate),

@@ -5,6 +5,7 @@
 @using AuditSphereOps.Application.Security
 @using AuditSphereOps.Domain.Audit
 @using AuditSphereOps.Domain.Engagements
+@using AuditSphereOps.Web.Components.Fieldwork
 @using AuditSphereOps.Infrastructure.Persistence
 @using Microsoft.EntityFrameworkCore
 @inject CurrentActorResolver ActorResolver
@@ -48,6 +49,7 @@ else
         </MudGrid>
     }
     <div class="plan-shell">
+        <FieldworkToolsPanel EngagementId="EngagementId" />
         <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" aria-labelledby="program-heading" role="region">
             <h2 id="program-heading">Versioned audit program</h2>
             <p class="info-text">The controlled source catalog contains @AuditProgramCatalog.Items.Count procedures across 20 sections. Applicability and evidence status are persisted per engagement.</p>

@@ -166,26 +166,13 @@ public static class MaterialityEngineService
   }
 
   private static IQueryable<MappingVersion> CurrentMappingQuery(IAuditSphereDbContext db, Guid firmId, Guid engagementId) =>
-    db.MappingVersions.AsNoTracking().Where(x => x.FirmId == firmId && x.EngagementId == engagementId && x.Status == AccountingPackageStates.MappingApproved)
-      .OrderByDescending(x => x.ApprovedAt).ThenByDescending(x => x.Version);
+    MappedTrialBalanceSource.CurrentMappingQuery(db, firmId, engagementId);
 
-  private static string DatasetDigest(TrialBalanceDataset dataset) =>
-    string.IsNullOrEmpty(dataset.NormalizedDatasetDigest) ? dataset.Sha256Hex : dataset.NormalizedDatasetDigest;
+  private static string DatasetDigest(TrialBalanceDataset dataset) => MappedTrialBalanceSource.Digest(dataset);
 
   private static async Task<(MappingVersion Mapping, TrialBalanceDataset Dataset, List<MappedBenchmarkLine> Lines)?> LoadSourceAsync(
-    IAuditSphereDbContext db, Guid firmId, Guid engagementId, CancellationToken ct)
-  {
-    var mapping = await CurrentMappingQuery(db, firmId, engagementId).FirstOrDefaultAsync(ct);
-    if (mapping is null) return null;
-    var dataset = await db.TrialBalanceDatasets.AsNoTracking().SingleOrDefaultAsync(x => x.Id == mapping.DatasetId && x.FirmId == firmId, ct);
-    if (dataset is null || dataset.ImportState != TrialBalanceImportStates.Sealed || !dataset.Balanced) return null;
-    var balances = await db.TrialBalanceRows.AsNoTracking().Where(x => x.DatasetId == dataset.Id)
-      .GroupBy(x => x.AccountCode).Select(g => new { g.Key, Amount = g.Sum(x => x.Amount) }).ToDictionaryAsync(x => x.Key, x => x.Amount, ct);
-    var allocations = await db.MappingAllocations.AsNoTracking().Where(x => x.FirmId == firmId && x.MappingVersionId == mapping.Id)
-      .Select(x => new MappingAllocationInput(x.SourceAccountCode, x.DestinationCode, x.StatementSection, x.Fraction, x.Rationale, x.AuditArea))
-      .ToListAsync(ct);
-    var lines = FinancialStatementCalculator.BuildPackageLines(balances, allocations, dataset.Currency)
-      .Select(x => new MappedBenchmarkLine(x.SourceAccountCode, x.DestinationCode, x.StatementSection, x.Amount)).ToList();
-    return (mapping, dataset, lines);
-  }
+    IAuditSphereDbContext db, Guid firmId, Guid engagementId, CancellationToken ct) =>
+    await MappedTrialBalanceSource.LoadAsync(db, firmId, engagementId, ct) is { } source
+      ? (source.Mapping, source.Dataset, source.BenchmarkLines.ToList())
+      : null;
 }

@@ -25,7 +25,7 @@ public static class GlobalSearchQuery
   private const int Candidates = 25;
 
   public const string Coverage =
-    "Searches clients, engagements, PBC requests, leads, invoices and staff pages you can open. Documents, evidence and emails are not searched.";
+    "Searches clients, engagements, PBC requests, leads, invoices, the technical library and staff pages you can open. Client documents, evidence and emails are not searched.";
 
   public static class Kinds
   {
@@ -34,6 +34,7 @@ public static class GlobalSearchQuery
     public const string PbcRequest = "PBC request";
     public const string Lead = "Lead";
     public const string Invoice = "Invoice";
+    public const string Library = "Technical library";
     public const string Page = "Page";
   }
 
@@ -171,6 +172,10 @@ public static class GlobalSearchQuery
       .Take(Candidates).ToListAsync(ct);
     truncated |= await AddAuthorizedAsync(hits, invoices, i => BillingService.CanOpenInvoiceAsync(db, actor, i.Id, ct),
       i => new(Kinds.Invoice, i.InvoiceNumber, $"{i.ClientName} · {i.Status} · {i.Total:N2} {i.Currency}".TrimEnd(), $"/app/practice/invoices/{i.Id:D}"));
+
+    // Technical library: published versions the actor's audience allows; each hit names its version.
+    var library = await TechnicalLibraryService.SearchAsync(db, actor, text, ct);
+    hits.AddRange(library.Take(PerKind).Select(h => new GlobalSearchHit(Kinds.Library, $"{h.Code} — {h.Title}", $"{h.Category} · v{h.Version} · {Trim(h.Snippet, 90)}", $"/app/library/{h.DocumentId:D}")));
 
     // Pages are navigation, not data: each route still authorizes its own content when opened.
     hits.AddRange(Pages.Where(p => p.Title.Contains(text, StringComparison.OrdinalIgnoreCase) ||

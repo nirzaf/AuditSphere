@@ -362,6 +362,9 @@ public static class PbcService
     var auth = await AuthorizeUploadActorAsync(db, actor, request, ct);
     if (!auth.Succeeded)
       return CommandResult<PbcUploadReceipt>.Fail(auth.ErrorCode!, auth.Message!);
+    var writable = await AuditSphereOps.Application.Records.FileFreezeService.RequireWritableAsync(db, actor, request.EngagementId, $"upload {input.FileName.Trim()}", ct);
+    if (!writable.Succeeded)
+      return CommandResult<PbcUploadReceipt>.Fail(writable.ErrorCode!, writable.Message!);
     if (request.State is not (PbcStates.Sent or PbcStates.Acknowledged or PbcStates.Resubmitted or PbcStates.PartiallyReceived))
       return CommandResult<PbcUploadReceipt>.Fail("pbc.upload-state", "The request is not accepting an upload.");
 

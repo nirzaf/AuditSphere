@@ -617,6 +617,8 @@ exercises the route's behavior; it is not a visual-parity claim.
 | `/app/consolidation/advanced/{ScopeId:guid}` | `AdvancedConsolidationWorkflow` | Staff (scoped) | PRESENTATION_ONLY + WIRE_EXISTING | READY_FOR_REVIEW | ClientScope advanced (widths, draft, focus) | Page-specific or not yet |
 | `/app/consolidation` | `Consolidation` | Staff (scoped) | PRESENTATION_ONLY + WIRE_EXISTING | READY_FOR_REVIEW | SiblingClientIsolation group; ClientScope advanced | Yes |
 | `/app/engagements/{EngagementId:guid}/audit-fieldwork` | `AuditFieldwork` | Staff (scoped) | PRESENTATION_ONLY + WIRE_EXISTING | READY_FOR_REVIEW | AuditAndRelease fieldwork | Yes |
+| `/app/engagements/{EngagementId:guid}/statements` | `StatementDrillDown` | Staff (scoped) | WIRE_EXISTING | READY_FOR_REVIEW | FieldworkConnectionsJourney; FieldworkConnections (Domain) | Not yet |
+| `/app/engagements/{EngagementId:guid}/tb-intake` | `TrialBalanceIntake` | Staff (scoped, accounting preparer) | WIRE_EXISTING | READY_FOR_REVIEW | FieldworkConnectionsJourney; FieldworkConnections (Domain) | Not yet |
 | `/app/engagements/{EngagementId:guid}/audit-plan` | `AuditPlan` | Staff (scoped) | PRESENTATION_ONLY + WIRE_EXISTING | READY_FOR_REVIEW | AuditAndRelease plan | Yes |
 | `/app/engagements/{EngagementId:guid}/completion` | `Completion` | Staff (scoped) | PRESENTATION_ONLY + WIRE_EXISTING | READY_FOR_REVIEW | AuditAndRelease completion | Yes |
 | `/app/engagements/{EngagementId:guid}/pbc` | `PbcRequests` | Staff (scoped) | PRESENTATION_ONLY + WIRE_EXISTING | READY_FOR_REVIEW | PbcUploadJourney; ClientScope PBC | Yes |
@@ -629,6 +631,9 @@ exercises the route's behavior; it is not a visual-parity claim.
 | `/app/practice/leads` | `Leads` | Staff (scoped) | PRESENTATION_ONLY + WIRE_EXISTING | READY_FOR_REVIEW | PracticeBillingLedger | Yes |
 | `/app/practice/commercial-settings` | `CommercialSettings` | Staff (scoped) | PRESENTATION_ONLY + WIRE_EXISTING | READY_FOR_REVIEW | CommercialJourney; CommercialWorkflow (Domain) | Not yet |
 | `/app/practice/resources` | `ResourcePlanning` | Staff (Partner/Manager/Administrator) | WIRE_EXISTING | READY_FOR_REVIEW | PlanningAndResourcesJourney; PlanningResourcesAndMateriality (Domain) | Not yet |
+| `/app/practice/analytics` | `PracticeAnalytics` | Staff (Partner/Administrator/FinanceManager, firm-wide) | WIRE_EXISTING | READY_FOR_REVIEW | FirmOperationsJourney; FirmOperations (Domain) | Not yet |
+| `/app/finance/books` | `FirmBooks` | Staff (finance roles) | WIRE_EXISTING | READY_FOR_REVIEW | FirmOperationsJourney; FirmOperations (Domain) | Not yet |
+| `/app/library`, `/app/library/{DocumentId:guid}` | `TechnicalLibrary` | Staff (audience-scoped) | WIRE_EXISTING | READY_FOR_REVIEW | FirmOperationsJourney; FirmOperations (Domain) | Not yet |
 | `/app/practice/proposals/{Id:guid}` | `ProposalDetail` | Staff (scoped) | PRESENTATION_ONLY + WIRE_EXISTING | READY_FOR_REVIEW | PracticeBillingLedger | Page-specific or not yet |
 | `/app/practice/time` | `PracticeTime` | Staff (scoped) | PRESENTATION_ONLY + WIRE_EXISTING | READY_FOR_REVIEW | ClientScope time scope | Yes |
 | `/app/records/archives/{Id:guid}` | `RecordsArchive` | Staff (scoped) | PRESENTATION_ONLY + WIRE_EXISTING | READY_FOR_REVIEW | ClientScope archive route | Page-specific or not yet |

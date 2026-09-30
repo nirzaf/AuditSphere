@@ -29,52 +29,7 @@ public static class TrialBalanceXlsxImporter
     if (xlsxBytes.Length > MaxBytes)
       throw new InvalidOperationException("Trial-balance workbook exceeds the 25 MB intake limit.");
 
-    using var stream = new MemoryStream(xlsxBytes, writable: false);
-    using var archive = new ZipArchive(stream, ZipArchiveMode.Read, leaveOpen: false);
-    if (archive.Entries.Count > MaxZipEntries)
-      throw new InvalidOperationException("Trial-balance workbook contains too many ZIP entries.");
-    var uncompressed = archive.Entries.Sum(x => Math.Max(0, x.Length));
-    if (uncompressed > MaxUncompressedBytes)
-      throw new InvalidOperationException("Trial-balance workbook exceeds the decompressed intake limit.");
-    if (archive.Entries.Any(x => x.FullName.EndsWith(".xlsm", StringComparison.OrdinalIgnoreCase) ||
-        x.FullName.EndsWith(".xlam", StringComparison.OrdinalIgnoreCase) ||
-        x.FullName.Contains("vbaProject", StringComparison.OrdinalIgnoreCase) ||
-        x.FullName.Contains("externalLinks", StringComparison.OrdinalIgnoreCase)))
-      throw new InvalidOperationException("Macro-enabled and externally linked workbooks are rejected.");
-
-    var contentTypes = ReadXml(archive, "[Content_Types].xml");
-    if (contentTypes.Descendants().Any(x => x.Attributes().Any(a =>
-        a.Name.LocalName == "ContentType" && (a.Value.Contains("macro", StringComparison.OrdinalIgnoreCase) ||
-          a.Value.Contains("externalLink", StringComparison.OrdinalIgnoreCase)))))
-      throw new InvalidOperationException("Macro-enabled and externally linked workbooks are rejected.");
-
-    var workbookEntry = archive.GetEntry("xl/workbook.xml")
-      ?? throw new InvalidOperationException("The workbook metadata is missing.");
-    var workbook = ReadXml(workbookEntry);
-    var sheets = workbook.Descendants().Where(x => x.Name.LocalName == "sheet").ToArray();
-    if (sheets.Length != 1)
-      throw new InvalidOperationException("The XLSX profile requires exactly one worksheet per controlled import.");
-    if (workbook.Descendants().Any(x => x.Name.LocalName is "externalReference" or "externalReferences"))
-      throw new InvalidOperationException("Externally linked worksheets are rejected.");
-
-    var relationships = archive.GetEntry("xl/_rels/workbook.xml.rels") is { } relationshipEntry
-      ? ReadXml(relationshipEntry).Descendants().Where(x => x.Name.LocalName == "Relationship")
-        .ToDictionary(x => (string?)x.Attribute("Id") ?? string.Empty, x => (string?)x.Attribute("Target") ?? string.Empty,
-          StringComparer.Ordinal)
-      : new Dictionary<string, string>(StringComparer.Ordinal);
-    if (workbookEntry is not null && archive.GetEntry("xl/_rels/workbook.xml.rels") is { } relEntry &&
-        ReadXml(relEntry).Descendants().Any(x => x.Name.LocalName == "Relationship" &&
-          string.Equals((string?)x.Attribute("TargetMode"), "External", StringComparison.OrdinalIgnoreCase)))
-      throw new InvalidOperationException("Externally linked workbook relationships are rejected.");
-    var relationshipId = (string?)sheets[0].Attribute(XName.Get("id", "http://schemas.openxmlformats.org/officeDocument/2006/relationships"));
-    if (relationshipId is null || !relationships.TryGetValue(relationshipId, out var target))
-      throw new InvalidOperationException("The worksheet relationship is missing.");
-    var sheetEntry = FindEntry(archive, target);
-    var sheet = ReadXml(sheetEntry);
-    var sharedStrings = archive.GetEntry("xl/sharedStrings.xml") is { } sharedEntry
-      ? ReadSharedStrings(sharedEntry)
-      : [];
-    var rows = sheet.Descendants().Where(x => x.Name.LocalName == "row").ToArray();
+    var (rows, sharedStrings) = OpenSheet(xlsxBytes);
     if (rows.Length < 2)
       throw new InvalidOperationException("Trial-balance workbook has no data rows.");
     if (rows.Length - 1 > TrialBalanceCsvImporter.MaxRows)
@@ -140,6 +95,76 @@ public static class TrialBalanceXlsxImporter
     if (parsedRows.Count == 0)
       throw new InvalidOperationException("Trial-balance workbook has no data rows.");
     return TrialBalanceCsvImporter.BuildParsed(parsedRows, currency!, Hashing.Sha256Hex(xlsxBytes), profile);
+  }
+
+  /// <summary>
+  /// Header and raw cell text of the single worksheet, after the same macro, external-link, size and single-sheet
+  /// checks as <see cref="Parse(byte[], TrialBalanceImportProfile)"/>. Used by the multi-period splitter.
+  /// </summary>
+  public static (IReadOnlyList<string> Header, IReadOnlyList<IReadOnlyList<string>> Rows) ReadTable(byte[] xlsxBytes)
+  {
+    if (xlsxBytes is null || xlsxBytes.Length == 0)
+      throw new InvalidOperationException("Empty trial-balance workbook cannot be processed.");
+    if (xlsxBytes.Length > MaxBytes)
+      throw new InvalidOperationException("Trial-balance workbook exceeds the 25 MB intake limit.");
+    var (rows, sharedStrings) = OpenSheet(xlsxBytes);
+    if (rows.Length < 2)
+      throw new InvalidOperationException("Trial-balance workbook has no data rows.");
+    var headerCells = ReadRow(rows[0], sharedStrings, 1);
+    var width = headerCells.Count == 0 ? 0 : headerCells.Keys.Max() + 1;
+    IReadOnlyList<string> Cells(Dictionary<int, string> cells) => Enumerable.Range(0, width).Select(i => cells.GetValueOrDefault(i, string.Empty)).ToList();
+    return (Cells(headerCells), rows.Skip(1).Select((row, i) => Cells(ReadRow(row, sharedStrings, i + 2))).ToList());
+  }
+
+  private static (XElement[] Rows, IReadOnlyList<string> SharedStrings) OpenSheet(byte[] xlsxBytes)
+  {
+    using var stream = new MemoryStream(xlsxBytes, writable: false);
+    using var archive = new ZipArchive(stream, ZipArchiveMode.Read, leaveOpen: false);
+    if (archive.Entries.Count > MaxZipEntries)
+      throw new InvalidOperationException("Trial-balance workbook contains too many ZIP entries.");
+    var uncompressed = archive.Entries.Sum(x => Math.Max(0, x.Length));
+    if (uncompressed > MaxUncompressedBytes)
+      throw new InvalidOperationException("Trial-balance workbook exceeds the decompressed intake limit.");
+    if (archive.Entries.Any(x => x.FullName.EndsWith(".xlsm", StringComparison.OrdinalIgnoreCase) ||
+        x.FullName.EndsWith(".xlam", StringComparison.OrdinalIgnoreCase) ||
+        x.FullName.Contains("vbaProject", StringComparison.OrdinalIgnoreCase) ||
+        x.FullName.Contains("externalLinks", StringComparison.OrdinalIgnoreCase)))
+      throw new InvalidOperationException("Macro-enabled and externally linked workbooks are rejected.");
+
+    var contentTypes = ReadXml(archive, "[Content_Types].xml");
+    if (contentTypes.Descendants().Any(x => x.Attributes().Any(a =>
+        a.Name.LocalName == "ContentType" && (a.Value.Contains("macro", StringComparison.OrdinalIgnoreCase) ||
+          a.Value.Contains("externalLink", StringComparison.OrdinalIgnoreCase)))))
+      throw new InvalidOperationException("Macro-enabled and externally linked workbooks are rejected.");
+
+    var workbookEntry = archive.GetEntry("xl/workbook.xml")
+      ?? throw new InvalidOperationException("The workbook metadata is missing.");
+    var workbook = ReadXml(workbookEntry);
+    var sheets = workbook.Descendants().Where(x => x.Name.LocalName == "sheet").ToArray();
+    if (sheets.Length != 1)
+      throw new InvalidOperationException("The XLSX profile requires exactly one worksheet per controlled import.");
+    if (workbook.Descendants().Any(x => x.Name.LocalName is "externalReference" or "externalReferences"))
+      throw new InvalidOperationException("Externally linked worksheets are rejected.");
+
+    var relationships = archive.GetEntry("xl/_rels/workbook.xml.rels") is { } relationshipEntry
+      ? ReadXml(relationshipEntry).Descendants().Where(x => x.Name.LocalName == "Relationship")
+        .ToDictionary(x => (string?)x.Attribute("Id") ?? string.Empty, x => (string?)x.Attribute("Target") ?? string.Empty,
+          StringComparer.Ordinal)
+      : new Dictionary<string, string>(StringComparer.Ordinal);
+    if (workbookEntry is not null && archive.GetEntry("xl/_rels/workbook.xml.rels") is { } relEntry &&
+        ReadXml(relEntry).Descendants().Any(x => x.Name.LocalName == "Relationship" &&
+          string.Equals((string?)x.Attribute("TargetMode"), "External", StringComparison.OrdinalIgnoreCase)))
+      throw new InvalidOperationException("Externally linked workbook relationships are rejected.");
+    var relationshipId = (string?)sheets[0].Attribute(XName.Get("id", "http://schemas.openxmlformats.org/officeDocument/2006/relationships"));
+    if (relationshipId is null || !relationships.TryGetValue(relationshipId, out var target))
+      throw new InvalidOperationException("The worksheet relationship is missing.");
+    var sheetEntry = FindEntry(archive, target);
+    var sheet = ReadXml(sheetEntry);
+    var sharedStrings = archive.GetEntry("xl/sharedStrings.xml") is { } sharedEntry
+      ? ReadSharedStrings(sharedEntry)
+      : [];
+    var rows = sheet.Descendants().Where(x => x.Name.LocalName == "row").ToArray();
+    return (rows, sharedStrings);
   }
 
   private static Dictionary<int, string> ReadRow(XElement row, IReadOnlyList<string> sharedStrings, int rowNumber)

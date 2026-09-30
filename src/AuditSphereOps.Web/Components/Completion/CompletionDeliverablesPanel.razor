@@ -1,0 +1,182 @@
+@* Final stage: confirmations monitoring and criticality, Summary Review Memorandum, Partner clearance, the four-way
+   opinion selector, the report trio with holding letter, client sharing and PNG signing. The Application service
+   enforces the chain; this panel shows each refusal instead of hiding the control. *@
+@using AuditSphereOps.Application.Completion
+@using AuditSphereOps.Domain.Completion
+@using Microsoft.AspNetCore.Components.Forms
+@inject CurrentActorResolver ActorResolver
+@inject IDbContextFactory<AuditSphereDbContext> DbFactory
+
+<MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" role="region" aria-labelledby="deliverables-heading">
+  <h2 id="deliverables-heading">Review, opinion and deliverables</h2>
+
+  <h3>Third-party confirmations</h3>
+  @if (_confirmations.Count == 0) { <p class="muted">No confirmations are recorded.</p> }
+  else
+  {
+    <MudTable Items="_confirmations" Dense="true" Elevation="0" aria-label="Confirmations dashboard">
+      <HeaderContent><MudTh>Type</MudTh><MudTh>Respondent</MudTh><MudTh>Amount</MudTh><MudTh>Monitoring</MudTh><MudTh>Critical</MudTh><MudTh><span class="sr-only">Action</span></MudTh></HeaderContent>
+      <RowTemplate>
+        <MudTd DataLabel="Type">@context.Type</MudTd>
+        <MudTd DataLabel="Respondent">@context.Respondent</MudTd>
+        <MudTd DataLabel="Amount">@context.BookedAmount.ToString("N2") @context.Currency</MudTd>
+        <MudTd DataLabel="Monitoring"><StatusChip Status="@context.Monitoring" />@(context.DaysSinceDispatch is { } d ? $" {d} day(s)" : "")</MudTd>
+        <MudTd DataLabel="Critical">@(context.Critical ? "Critical" : "—")</MudTd>
+        <MudTd DataLabel="Action"><MudButton Variant="Variant.Text" OnClick="@(() => ToggleCriticalAsync(context))" Disabled="@_busy" aria-label="@($"Toggle criticality for {context.Respondent}")">@(context.Critical ? "Mark not critical" : "Mark critical")</MudButton></MudTd>
+      </RowTemplate>
+    </MudTable>
+  }
+
+  <h3 class="mt-4">Summary Review Memorandum and Partner clearance</h3>
+  <label for="srm-recommendations" class="d-block">Reviewer recommendations <textarea id="srm-recommendations" @bind="_recommendations" rows="2" maxlength="8000"></textarea></label>
+  <MudButton Variant="Variant.Outlined" OnClick="GenerateSrmAsync" Disabled="@_busy">Generate Summary Review Memorandum</MudButton>
+  @if (_latestSrm is not null)
+  {
+    <p>Latest SRM v@_latestSrm.Version is <strong>@(_latestSrm.Current ? "current" : "stale")</strong>. @(_clearance is null ? "No current Partner clearance." : $"Cleared by the Partner on {_clearance.ClearedAt.ToLocalTime():yyyy-MM-dd HH:mm}.")</p>
+    <label for="clr-risks" class="d-block">Key risk areas reviewed <input id="clr-risks" @bind="_riskComment" maxlength="2000" /></label>
+    <label for="clr-notes" class="d-block">Financial-statement notes reviewed <input id="clr-notes" @bind="_notesComment" maxlength="2000" /></label>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="ClearAsync" Disabled="@_busy">Record Partner clearance</MudButton>
+  }
+
+  <h3 class="mt-4">Audit opinion</h3>
+  <div class="audit-inline-form">
+    <label for="op-type">Opinion
+      <select id="op-type" @bind="_opinionType">
+        @foreach (var t in AuditOpinionTypes.All) { <option value="@t">@AuditOpinionTypes.Label(t)</option> }
+      </select></label>
+    @if (_opinionType == AuditOpinionTypes.Qualified)
+    {
+      <label for="op-focus">Focus area <input id="op-focus" @bind="_focus" maxlength="200" /></label>
+    }
+  </div>
+  @if (_opinionType != AuditOpinionTypes.Unmodified)
+  {
+    <label for="op-basis" class="d-block">@(_opinionType == AuditOpinionTypes.Qualified ? "Basis for Qualified Opinion" : _opinionType == AuditOpinionTypes.Adverse ? "Basis for Adverse Opinion" : "Basis for Disclaimer of Opinion")
+      <textarea id="op-basis" @bind="_basis" rows="3" maxlength="4000"></textarea></label>
+  }
+  <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="DecideAsync" Disabled="@_busy">Record opinion (Engagement Partner)</MudButton>
+  @if (_opinion is not null) { <p>Current opinion: <strong>@AuditOpinionTypes.Label(_opinion.OpinionType)</strong>@(_opinion.FocusArea is null ? "" : $" — {_opinion.FocusArea}").</p> }
+
+  <h3 class="mt-4">Deliverables</h3>
+  <div class="audit-action-row">
+    @foreach (var kind in new[] { DeliverableKinds.AuditFindingsReport, DeliverableKinds.ManagementLetter, DeliverableKinds.RepresentationLetter, DeliverableKinds.IndependentAuditorsReport })
+    {
+      <MudButton Variant="Variant.Outlined" OnClick="@(() => GenerateAsync(kind))" Disabled="@_busy">Generate @DeliverableKinds.Title(kind)</MudButton>
+    }
+  </div>
+  @if (_deliverables.Count > 0)
+  {
+    <MudTable Items="_deliverables" Dense="true" Elevation="0" aria-label="Generated deliverables">
+      <HeaderContent><MudTh>Document</MudTh><MudTh>Version</MudTh><MudTh>State</MudTh><MudTh>SHA-256</MudTh><MudTh><span class="sr-only">Actions</span></MudTh></HeaderContent>
+      <RowTemplate>
+        <MudTd DataLabel="Document"><a href="@($"/api/deliverables/{context.Id}/download")">@context.Title</a></MudTd>
+        <MudTd DataLabel="Version">v@(context.Version)@(context.Signed ? " signed" : "")</MudTd>
+        <MudTd DataLabel="State">@(context.Current ? "Current" : "Stale")</MudTd>
+        <MudTd DataLabel="SHA-256"><code>@context.ContentSha256[..12]</code></MudTd>
+        <MudTd DataLabel="Actions">
+          @if (!context.Signed && context.Kind != DeliverableKinds.SummaryReviewMemorandum && context.Kind != DeliverableKinds.HoldingLetter)
+          {
+            <MudButton Variant="Variant.Text" OnClick="@(() => ShareAsync(context.Id))" Disabled="@_busy" aria-label="@($"Share {context.Title} v{context.Version} with the client")">Share with client</MudButton>
+          }
+          @if (!context.Signed && context.Kind == DeliverableKinds.IndependentAuditorsReport && context.Current)
+          {
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@(() => SignAsync(context.Id))" Disabled="@_busy">Sign with registered signature</MudButton>
+          }
+        </MudTd>
+      </RowTemplate>
+    </MudTable>
+  }
+  @foreach (var shared in _shared.Where(s => s.Comments.Any(c => c.ResolvedAt is null)))
+  {
+    @foreach (var comment in shared.Comments.Where(c => c.ResolvedAt is null))
+    {
+      <div class="audit-inline-form">
+        <span>Client comment on @shared.Title: “@comment.Body”</span>
+        <label>Resolution <input @bind="_resolution" aria-label="@($"Resolution for comment on {shared.Title}")" /></label>
+        <MudButton Variant="Variant.Text" OnClick="@(() => ResolveAsync(comment.Id))" Disabled="@_busy">Resolve</MudButton>
+      </div>
+    }
+  }
+  <h4 class="mt-3">Partner signature specimen</h4>
+  <p class="muted">A PNG image placed into the signed report. It is not a cryptographic signature; the signed document's hash is the evidence.</p>
+  <InputFile id="signature-file" OnChange="RegisterSignatureAsync" accept=".png" />
+  @if (_message is not null) { <p class="command-result @(_error ? "error-text" : "success-text")" role="status">@_message</p> }
+</MudPaper>
+
+@code {
+  [Parameter, EditorRequired] public Guid EngagementId { get; set; }
+  private IReadOnlyList<ConfirmationDashboardRow> _confirmations = [];
+  private IReadOnlyList<DeliverableView> _deliverables = [];
+  private IReadOnlyList<AuditDeliverableService.SharedDeliverableView> _shared = [];
+  private DeliverableView? _latestSrm;
+  private PartnerCompletionClearance? _clearance;
+  private AuditOpinionDecision? _opinion;
+  private string _recommendations = "", _riskComment = "", _notesComment = "", _opinionType = AuditOpinionTypes.Unmodified, _focus = "", _basis = "", _resolution = "";
+  private bool _busy, _error;
+  private string? _message;
+
+  protected override Task OnParametersSetAsync() => LoadAsync();
+
+  private async Task LoadAsync()
+  {
+    var actor = await ActorResolver.ResolveAsync();
+    if (actor is null) return;
+    await using var db = await DbFactory.CreateDbContextAsync();
+    var dashboard = await AuditDeliverableService.ConfirmationDashboardAsync(db, actor, EngagementId);
+    _confirmations = dashboard.Succeeded ? dashboard.Value! : [];
+    _deliverables = await AuditDeliverableService.ListAsync(db, actor, EngagementId);
+    _latestSrm = _deliverables.Where(x => x.Kind == DeliverableKinds.SummaryReviewMemorandum).OrderByDescending(x => x.Version).FirstOrDefault();
+    _clearance = await AuditDeliverableService.CurrentClearanceAsync(db, actor, EngagementId);
+    _opinion = await AuditDeliverableService.CurrentOpinionAsync(db, actor, EngagementId);
+    _shared = await AuditDeliverableService.SharedAsync(db, actor, EngagementId);
+  }
+
+  private async Task RunAsync(Func<AuditSphereDbContext, ActorContext, Task<(bool Ok, string Message)>> command)
+  {
+    var actor = await ActorResolver.ResolveAsync();
+    if (actor is null) return;
+    _busy = true;
+    try
+    {
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var (ok, message) = await command(db, actor);
+      (_error, _message) = (!ok, message);
+      await LoadAsync();
+    }
+    finally { _busy = false; }
+  }
+
+  private static (bool, string) R(CommandResult r, string ok) => (r.Succeeded, r.Succeeded ? ok : r.Message!);
+  private static (bool, string) R<T>(CommandResult<T> r, string ok) => (r.Succeeded, r.Succeeded ? ok : r.Message!);
+
+  private Task ToggleCriticalAsync(ConfirmationDashboardRow row) => RunAsync(async (db, a) =>
+    R(await AuditDeliverableService.SetConfirmationCriticalityAsync(db, a, row.CaseId, !row.Critical, row.Critical ? "Reassessed as not critical to the report" : "Material to the audit opinion"), "Criticality recorded."));
+
+  private Task GenerateSrmAsync() => RunAsync(async (db, a) =>
+    R(await AuditDeliverableService.GenerateSummaryReviewMemorandumAsync(db, a, EngagementId, _recommendations), "Summary Review Memorandum generated."));
+
+  private Task ClearAsync() => _latestSrm is null ? Task.CompletedTask : RunAsync(async (db, a) =>
+    R(await AuditDeliverableService.PartnerClearAsync(db, a, _latestSrm.Id, _riskComment, _notesComment), "Partner clearance recorded."));
+
+  private Task DecideAsync() => RunAsync(async (db, a) =>
+    R(await AuditDeliverableService.DecideOpinionAsync(db, a, EngagementId, _opinionType, _focus, _basis), $"{AuditOpinionTypes.Label(_opinionType)} opinion recorded."));
+
+  private Task GenerateAsync(string kind) => RunAsync(async (db, a) =>
+  {
+    var r = await AuditDeliverableService.GenerateReportAsync(db, a, EngagementId, kind);
+    return r.Succeeded ? (r.Value!.DeliverableId is not null, r.Value.Message) : (false, r.Message!);
+  });
+
+  private Task ShareAsync(Guid id) => RunAsync(async (db, a) => R(await AuditDeliverableService.ShareWithClientAsync(db, a, id), "Shared with client management."));
+  private Task ResolveAsync(Guid id) => RunAsync(async (db, a) => R(await AuditDeliverableService.ResolveCommentAsync(db, a, id, _resolution), "Comment resolved."));
+  private Task SignAsync(Guid id) => RunAsync(async (db, a) => R(await AuditDeliverableService.SignIndependentReportAsync(db, a, id), "Report signed; the signed version and its hash are recorded."));
+
+  private async Task RegisterSignatureAsync(InputFileChangeEventArgs e)
+  {
+    using var stream = e.File.OpenReadStream(AuditDeliverableService.MaxSignatureBytes);
+    using var buffer = new MemoryStream();
+    await stream.CopyToAsync(buffer);
+    var bytes = buffer.ToArray();
+    await RunAsync(async (db, a) => R(await AuditDeliverableService.RegisterSignatureAsync(db, a, bytes), "Signature specimen registered."));
+  }
+}

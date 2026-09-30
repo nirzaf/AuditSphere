@@ -168,6 +168,12 @@ else
   builder.Services.AddSingleton<GeneralLedgerCompletenessHandler>();
   builder.Services.AddSingleton<FinancialPackageBuildHandler>();
   builder.Services.AddSingleton<FinancialPackageRenderHandler>();
+  // Regulatory file freeze: due 60 days after the signed report on the system clock.
+  builder.Services.AddSingleton(TimeProvider.System);
+  builder.Services.AddSingleton<AuditSphereOps.Application.Records.FileFreezeHandler>();
+  builder.Services.AddSingleton<IPendingOperationDiscovery>(sp => new AuditSphereOps.Application.Records.FileFreezeDiscovery(
+    sp.GetRequiredService<IAuditSphereDbContextFactory>(), sp.GetRequiredService<IOperationStore>(),
+    sp.GetRequiredService<AuditSphereOps.Application.Records.FileFreezeHandler>(), workerOptions, sp.GetRequiredService<TimeProvider>()));
 }
 
 // Simulation adapters compose only in a Test environment with the explicit enablement flag.
@@ -207,7 +213,8 @@ static IOperationHandler[] ResolveHandlers(IServiceProvider sp, bool simulationA
   var packageBuild = sp.GetRequiredService<FinancialPackageBuildHandler>();
   var packageRender = sp.GetRequiredService<FinancialPackageRenderHandler>();
   var checkpoint = sp.GetRequiredService<ReleaseCheckpointHandler>();
+  var freeze = sp.GetRequiredService<AuditSphereOps.Application.Records.FileFreezeHandler>();
   return simulationAllowed
-    ? [validation, completeness, packageBuild, packageRender, checkpoint, sp.GetRequiredService<PbcDocumentTransferHandler>()]
-    : [validation, completeness, packageBuild, packageRender, checkpoint];
+    ? [validation, completeness, packageBuild, packageRender, checkpoint, freeze, sp.GetRequiredService<PbcDocumentTransferHandler>()]
+    : [validation, completeness, packageBuild, packageRender, checkpoint, freeze];
 }

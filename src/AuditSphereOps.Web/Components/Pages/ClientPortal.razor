@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @using AuditSphereOps.Domain.Accounting
 @using AuditSphereOps.Application.Documents
+@using AuditSphereOps.Application.Completion
 @inject CurrentActorResolver ActorResolver
 @inject IDbContextFactory<AuditSphereDbContext> DbFactory
 
@@ -69,6 +70,31 @@ else
     }
   </MudPaper>
 
+  <MudPaper Class="audit-client-panel pa-4 my-4" Elevation="1" aria-labelledby="client-review-heading" role="region">
+    <h2 id="client-review-heading">Documents for your review</h2>
+    @if (_shared.Count == 0)
+    {
+      <MudText Typo="Typo.body2" Color="Color.Secondary" Class="muted">No draft reports or letters are shared with you.</MudText>
+    }
+    @foreach (var doc in _shared)
+    {
+      <div class="client-review-item" data-document="@doc.Title">
+        <p><a href="@($"/api/deliverables/{doc.DeliverableId}/download")">@doc.Title v@(doc.Version)</a> <span class="muted">SHA-256 <code>@doc.ContentSha256[..12]</code></span>
+          @if (doc.AcknowledgedAt is not null) { <span class="success-text"> — acknowledged @doc.AcknowledgedAt.Value.ToLocalTime().ToString("yyyy-MM-dd")</span> }</p>
+        @foreach (var c in doc.Comments) { <p class="muted">@(c.FromClient ? "You" : "Auditor"): @c.Body @(c.Resolution is null ? "" : $"— resolved: {c.Resolution}")</p> }
+        @if (doc.AcknowledgedAt is null)
+        {
+          <div class="audit-inline-form">
+            <label>Comment <input @bind="_comment" aria-label="@($"Comment on {doc.Title}")" maxlength="4000" /></label>
+            <MudButton Variant="Variant.Outlined" OnClick="@(() => CommentAsync(doc.ReviewId))" Disabled="@_busy">Send comment</MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@(() => AcknowledgeAsync(doc.ReviewId, doc.ContentSha256))" Disabled="@_busy" aria-label="@($"Acknowledge {doc.Title}")">Acknowledge this version</MudButton>
+          </div>
+        }
+      </div>
+    }
+    @if (_reviewMessage is not null) { <p class="command-result" role="status">@_reviewMessage</p> }
+  </MudPaper>
+
   <MudPaper Class="audit-client-panel pa-4 my-4" Elevation="1" aria-labelledby="client-packages-heading" role="region">
     <h2 id="client-packages-heading">Financial packages for management review</h2>
     <p class="scope-note">These are validated packages explicitly shared with this client identity. This view does not expose internal audit workpapers or review decisions.</p>
@@ -105,6 +131,38 @@ else
   private List<PbcRequest> _requests = [];
   private List<ClientPackageRow> _packages = [];
   private bool _loading = true;
+  private List<AuditDeliverableService.SharedDeliverableView> _shared = [];
+  private string _comment = string.Empty;
+  private string? _reviewMessage;
+
+  private async Task CommentAsync(Guid reviewId)
+  {
+    if (_actor is null) return;
+    _busy = true;
+    try
+    {
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var result = await AuditDeliverableService.CommentAsync(db, _actor, reviewId, _comment);
+      _comment = string.Empty;
+      await LoadPortalAsync();
+      _reviewMessage = result.Succeeded ? "Comment sent to the audit team." : result.Message;
+    }
+    finally { _busy = false; }
+  }
+
+  private async Task AcknowledgeAsync(Guid reviewId, string sha)
+  {
+    if (_actor is null) return;
+    _busy = true;
+    try
+    {
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var result = await AuditDeliverableService.AcknowledgeAsync(db, _actor, reviewId, sha);
+      await LoadPortalAsync();
+      _reviewMessage = result.Succeeded ? "Acknowledged. The exact version you reviewed is recorded." : result.Message;
+    }
+    finally { _busy = false; }
+  }
   private FirstSignInStatus? _firstSignIn;
   private bool _acknowledged;
   private bool _busy;
@@ -180,6 +238,13 @@ else
       _requests = requests;
       _packages = packageRows;
       _firstSignIn = clientIds.Count > 0 ? await ClientPortalService.GetFirstSignInStatusAsync(db, actor) : null;
+      var clientWide = grantScopes.Where(g => !g.EngagementId.HasValue).Select(g => g.ClientId!.Value).Distinct().ToList();
+      var engagementIds = grantScopes.Where(x => x.EngagementId.HasValue).Select(x => x.EngagementId!.Value)
+        .Concat(await db.Engagements.AsNoTracking().Where(e => clientWide.Contains(e.PracticeClientId)).Select(e => e.Id).ToListAsync())
+        .Distinct().ToList();
+      var shared = new List<AuditDeliverableService.SharedDeliverableView>();
+      foreach (var engagementId in engagementIds) shared.AddRange(await AuditDeliverableService.SharedAsync(db, actor, engagementId));
+      _shared = shared;
     }
     finally
     {
