@@ -59,7 +59,7 @@ public sealed class AuditAndReleaseJourneyTests
     foreach (var width in new[] { 320, 390, 760, 1024, 1440, 1920 })
     {
       await page.SetViewportSizeAsync(width, 900);
-      await page.WaitForFunctionAsync("expected => document.documentElement.clientWidth === expected && (expected >= 960 || getComputedStyle(document.querySelector('.audit-main-content')).marginLeft === '0px')", width);
+      await page.WaitForFunctionAsync("expected => document.documentElement.clientWidth === expected && (expected >= 960 || (document.querySelector('.audit-main-content') !== null && getComputedStyle(document.querySelector('.audit-main-content')).marginLeft === '0px'))", width);
       var documentWidth = await page.EvaluateAsync<int>("document.documentElement.scrollWidth");
       var overflow = await page.EvaluateAsync<string>("""
         () => [...document.querySelectorAll('body, main, .audit-workspace, .completion-shell, .audit-workspace-panel, .table-wrap, .mud-table-container, .audit-record-toolbar, .mud-grid, .mud-grid-item')]
@@ -200,7 +200,7 @@ public sealed class AuditAndReleaseJourneyTests
     foreach (var width in new[] { 320, 390, 760, 1024, 1440, 1920 })
     {
       await page.SetViewportSizeAsync(width, 900);
-      await page.WaitForFunctionAsync("expected => document.documentElement.clientWidth === expected && (expected >= 960 || getComputedStyle(document.querySelector('.audit-main-content')).marginLeft === '0px')", width);
+      await page.WaitForFunctionAsync("expected => document.documentElement.clientWidth === expected && (expected >= 960 || (document.querySelector('.audit-main-content') !== null && getComputedStyle(document.querySelector('.audit-main-content')).marginLeft === '0px'))", width);
       var documentWidth = await page.EvaluateAsync<int>("document.documentElement.scrollWidth");
       Assert.True(documentWidth <= width + 1, $"Workpaper document is {documentWidth}px wide at {width}px viewport.");
       if (workpaperCaptureDir is not null && width is 390 or 1440)
@@ -283,7 +283,7 @@ public sealed class AuditAndReleaseJourneyTests
     foreach (var width in new[] { 320, 390, 760, 1024, 1440, 1920 })
     {
       await page.SetViewportSizeAsync(width, 900);
-      await page.WaitForFunctionAsync("expected => document.documentElement.clientWidth === expected && (expected >= 960 || getComputedStyle(document.querySelector('.audit-main-content')).marginLeft === '0px')", width);
+      await page.WaitForFunctionAsync("expected => document.documentElement.clientWidth === expected && (expected >= 960 || (document.querySelector('.audit-main-content') !== null && getComputedStyle(document.querySelector('.audit-main-content')).marginLeft === '0px'))", width);
       var documentWidth = await page.EvaluateAsync<int>("document.documentElement.scrollWidth");
       Assert.True(documentWidth <= width + 1, $"Finding document is {documentWidth}px wide at {width}px viewport.");
       if (findingCaptureDir is not null && width is 390 or 1440)
@@ -360,7 +360,7 @@ public sealed class AuditAndReleaseJourneyTests
     foreach (var width in new[] { 320, 390, 760, 1024, 1440, 1920 })
     {
       await page.SetViewportSizeAsync(width, 900);
-      await page.WaitForFunctionAsync("expected => document.documentElement.clientWidth === expected && (expected >= 960 || getComputedStyle(document.querySelector('.audit-main-content')).marginLeft === '0px')", width);
+      await page.WaitForFunctionAsync("expected => document.documentElement.clientWidth === expected && (expected >= 960 || (document.querySelector('.audit-main-content') !== null && getComputedStyle(document.querySelector('.audit-main-content')).marginLeft === '0px'))", width);
       var documentWidth = await page.EvaluateAsync<int>("document.documentElement.scrollWidth");
       Assert.True(documentWidth <= width + 1, $"Audit plan document is {documentWidth}px wide at {width}px viewport.");
       if (planCaptureDir is not null && width is 390 or 1440)
@@ -583,7 +583,7 @@ public sealed class AuditAndReleaseJourneyTests
     foreach (var width in new[] { 320, 390, 760, 1024, 1440, 1920 })
     {
       await page.SetViewportSizeAsync(width, 900);
-      await page.WaitForFunctionAsync("expected => document.documentElement.clientWidth === expected && (expected >= 960 || getComputedStyle(document.querySelector('.audit-main-content')).marginLeft === '0px')", width);
+      await page.WaitForFunctionAsync("expected => document.documentElement.clientWidth === expected && (expected >= 960 || (document.querySelector('.audit-main-content') !== null && getComputedStyle(document.querySelector('.audit-main-content')).marginLeft === '0px'))", width);
       await page.GetByText(candidateId.ToString("D")).WaitForAsync();
       var documentWidth = await page.EvaluateAsync<int>("document.documentElement.scrollWidth");
       Assert.True(documentWidth <= width + 1, $"Release document is {documentWidth}px wide at {width}px viewport.");
@@ -888,7 +888,7 @@ public sealed class AuditAndReleaseJourneyTests
       foreach (var width in new[] { 320, 390, 760, 1024, 1440, 1920 })
       {
         await page.SetViewportSizeAsync(width, 900);
-        await page.WaitForFunctionAsync("() => innerWidth > 760 || getComputedStyle(document.querySelector('.audit-main-content')).marginLeft === '0px'");
+        await page.WaitForFunctionAsync("() => innerWidth > 760 || (document.querySelector('.audit-main-content') !== null && getComputedStyle(document.querySelector('.audit-main-content')).marginLeft === '0px')");
         await page.EvaluateAsync("() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
         var fieldworkWidth = await page.EvaluateAsync<int>("() => document.documentElement.scrollWidth");
         var fieldworkOverflow = await page.EvaluateAsync<string>("""
@@ -916,7 +916,7 @@ public sealed class AuditAndReleaseJourneyTests
       foreach (var width in new[] { 320, 390, 760, 1024, 1440, 1920 })
       {
         await page.SetViewportSizeAsync(width, 900);
-        await page.WaitForFunctionAsync("() => innerWidth > 760 || getComputedStyle(document.querySelector('.audit-main-content')).marginLeft === '0px'");
+        await page.WaitForFunctionAsync("() => innerWidth > 760 || (document.querySelector('.audit-main-content') !== null && getComputedStyle(document.querySelector('.audit-main-content')).marginLeft === '0px')");
         await page.EvaluateAsync("() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
         var libraryWidth = await page.EvaluateAsync<int>("() => document.documentElement.scrollWidth");
         var libraryOverflow = await page.EvaluateAsync<string>("""

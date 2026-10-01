@@ -245,8 +245,7 @@ AuditSphere/
 │   ├── AuditSphereOps.Api.Tests/       # HTTP API & transfer security tests
 │   └── AuditSphereOps.E2E.Tests/       # Playwright journeys & grant revocation tests
 ├── docs/
-│   ├── auditsphere-requirements-system-specification-current.md  # Authoritative v5.0 build contract
-│   ├── auditsphere-accounting-module-requirements-current.md     # AC-01 to AC-28 user stories & gap analysis
+│   ├── auditsphere-accounting-module-requirements-current.md  # Current STE functional requirements
 │   ├── architecture/                   # Current architecture authority, code map, naming policy
 │   ├── task_breakdown/                 # R2R task breakdowns (Modules 20–26)
 │   ├── testing/                        # E2E automation strategy, test case catalog, scope/tenant-admin acceptance cases
@@ -370,8 +369,8 @@ Authority hierarchy and full reading guide: **[`docs/auditsphere-docs-index.md`]
 
 | Document | Description |
 |---|---|
-| [docs/auditsphere-requirements-system-specification-current.md](docs/auditsphere-requirements-system-specification-current.md) | **Authoritative v5.0 Build Contract** — architecture, data models, acceptance tests. |
-| [docs/auditsphere-accounting-module-requirements-current.md](docs/auditsphere-accounting-module-requirements-current.md) | **Accounting & Consolidation Roadmap** — gap analysis, AC-01 to AC-28 user stories. |
+| [Current architecture](docs/architecture/auditsphere-architecture-current-architecture.md) | Implementation architecture and engineering boundaries. |
+| [docs/auditsphere-accounting-module-requirements-current.md](docs/auditsphere-accounting-module-requirements-current.md) | **STE Functional Requirements** — current commercial, audit lifecycle and firm operations contract. |
 | [docs/architecture/auditsphere-architecture-current-architecture.md](docs/architecture/auditsphere-architecture-current-architecture.md) | **Current Architecture** — monolith structure, boundaries, dependency guards. |
 | [docs/architecture/auditsphere-architecture-code-map.md](docs/architecture/auditsphere-architecture-code-map.md) | **Architecture Code Map** — capability map and documentation authority index. |
 | [docs/architecture/auditsphere-architecture-document-naming-policy.md](docs/architecture/auditsphere-architecture-document-naming-policy.md) | **Document Naming Policy** — naming conventions for repository documentation. |
@@ -385,7 +384,7 @@ Authority hierarchy and full reading guide: **[`docs/auditsphere-docs-index.md`]
 
 ## Contributing
 
-1. **Consult the Spec First:** Review `docs/auditsphere-requirements-system-specification-current.md` (§§1–12, 22, 24, 27–33, 41–47) and `AGENTS.md` before changes.
+1. **Consult the Spec First:** Review the current STE requirements, `docs/architecture/auditsphere-architecture-current-architecture.md` and `AGENTS.md` before changes.
 2. **One Vertical Slice at a Time:** Smallest coherent slice in dependency order; never weaken an existing authorization check or mandatory security control.
 3. **Prove with Evidence:** `0 Warning(s)` Release builds and targeted tests against the local PostgreSQL 18.6 cluster; migrations must preserve append-only history.
 4. **Honest Recording:** Update `docs/execution/status.json` and `docs/execution/auditsphere-execution-current-slice.md` with observed facts only; never record an external gate as passed without live evidence.

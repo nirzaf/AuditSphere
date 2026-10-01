@@ -14,10 +14,10 @@
       <div class="audit-inline-form">
         <label for="smp-procedure">Procedure <select id="smp-procedure" @bind="_procedureId">@ProcedureOptions()</select></label>
         <label for="smp-schedule">Approved schedule <select id="smp-schedule" @bind="_scheduleId"><option value="">Select</option>@foreach (var s in _schedules) { <option value="@s.Id">@s.ScheduleType · @s.RowCount rows (@s.Currency)</option> }</select></label>
-        <label for="smp-method">Method <select id="smp-method" @bind="_method">@foreach (var m in AuditSamplingMethods.All) { <option value="@m">@m</option> }</select></label>
+        <label for="smp-method">Method <select id="smp-method" @bind="_method">@foreach (var m in AuditSamplingMethods.All) { <option value="@m">@(m == AuditSamplingMethods.Systematic ? "Systematic random" : m)</option> }</select></label>
         @if (_method == AuditSamplingMethods.MonetaryUnit) { <label for="smp-interval">Interval <input id="smp-interval" type="number" step="0.01" @bind="_interval" /></label> }
         @if (_method is AuditSamplingMethods.KeyItem or AuditSamplingMethods.Stratified) { <label for="smp-key">Key-item threshold <input id="smp-key" type="number" step="0.01" @bind="_keyThreshold" /></label> }
-        @if (_method is AuditSamplingMethods.Random or AuditSamplingMethods.Stratified)
+        @if (_method is AuditSamplingMethods.Random or AuditSamplingMethods.Systematic or AuditSamplingMethods.Stratified)
         {
           <label for="smp-size">Sample size <input id="smp-size" type="number" min="1" @bind="_sampleSize" /></label>
           <label for="smp-seed">Seed <input id="smp-seed" type="number" @bind="_seed" /></label>
@@ -214,7 +214,11 @@
   private Task RunSamplingAsync() => Guid.TryParse(_procedureId, out var procedure) && Guid.TryParse(_scheduleId, out var schedule)
     ? RunAsync(async (db, a) =>
       {
-        var r = await AuditFieldworkService.RunSamplingAsync(db, a, new(EngagementId, procedure, schedule, _method, _interval, _keyThreshold, _sampleSize, _seed, _samplingRationale));
+        var countBased = _method is AuditSamplingMethods.Random or AuditSamplingMethods.Systematic or AuditSamplingMethods.Stratified;
+        var r = await AuditFieldworkService.RunSamplingAsync(db, a, new(EngagementId, procedure, schedule, _method,
+          _method == AuditSamplingMethods.MonetaryUnit ? _interval : null,
+          _method is AuditSamplingMethods.KeyItem or AuditSamplingMethods.Stratified ? _keyThreshold : null,
+          countBased ? _sampleSize : null, countBased ? _seed : null, _samplingRationale));
         return (r.Succeeded, r.Succeeded ? $"Selected {r.Value!.Run.SelectedCount} of {r.Value.Run.PopulationCount} items ({r.Value.Run.CoveragePercent:0.##}% coverage); the selection awaits review." : r.Message!);
       })
     : Task.CompletedTask;

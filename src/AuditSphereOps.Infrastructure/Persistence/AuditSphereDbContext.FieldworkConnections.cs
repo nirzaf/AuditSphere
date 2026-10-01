@@ -18,7 +18,7 @@ public sealed partial class AuditSphereDbContext
         e.Property(p).HasPrecision(28, 6);
       e.Property(x => x.CoveragePercent).HasPrecision(9, 4);
       e.ToTable("audit_sampling_runs", t => t.HasCheckConstraint("ck_audit_sampling_run_values",
-        "method IN ('MUS','KEY_ITEM','RANDOM','STRATIFIED') AND selected_count > 0 AND selected_count <= population_count AND length(source_digest) = 64 AND length(selection_digest) = 64"));
+        "method IN ('MUS','KEY_ITEM','RANDOM','SYSTEMATIC','STRATIFIED') AND selected_count > 0 AND selected_count <= population_count AND length(source_digest) = 64 AND length(selection_digest) = 64"));
     });
     b.Entity<ProcedureEvidenceLink>(e =>
     {

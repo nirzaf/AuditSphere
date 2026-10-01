@@ -127,6 +127,7 @@ window.auditSphereExports.copyText = async text => {
   }
 
   function save(boundary, force = false) {
+    if (document.querySelector('[data-access-revoked]')) return;
     if (boundary.hasAttribute('data-draft-server-managed') && !force && !dirtyBoundaries.has(boundary)) return;
     const draft = collect(boundary);
     const key = keyFor(boundary);
@@ -222,6 +223,10 @@ window.auditSphereExports.copyText = async text => {
   }
 
   function init(container = document) {
+    if (document.querySelector('[data-access-revoked]')) {
+      root.clearRevokedSession();
+      return;
+    }
     for (const boundary of boundaries) {
       if (!document.contains(boundary)) boundaries.delete(boundary);
     }
@@ -337,6 +342,22 @@ window.auditSphereExports.copyText = async text => {
   }
 
   root.init = init;
+  root.clearRevokedSession = () => {
+    for (const boundary of boundaries) clearTimeout(timers.get(boundary));
+    boundaries.clear();
+    memoryDrafts.clear();
+    for (const store of stores) {
+      try {
+        const storage = window[store.name];
+        const keys = [];
+        for (let i = 0; i < storage.length; i++) {
+          const key = storage.key(i);
+          if (key?.startsWith('auditsphere:draft:v1:')) keys.push(key);
+        }
+        for (const key of keys) storage.removeItem(key);
+      } catch { /* Browser storage may be unavailable. */ }
+    }
+  };
   root.saveAll = () => {
     for (const boundary of [...boundaries]) {
       if (!document.contains(boundary)) {

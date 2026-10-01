@@ -11,9 +11,11 @@ public static class AuditSamplingMethods
   public const string KeyItem = "KEY_ITEM";
   /// <summary>Seeded pseudo-random selection without replacement.</summary>
   public const string Random = "RANDOM";
+  /// <summary>Seeded random start with equal spacing across the ordered row population.</summary>
+  public const string Systematic = "SYSTEMATIC";
   /// <summary>Key items first, then seeded random from the remainder up to the sample size.</summary>
   public const string Stratified = "STRATIFIED";
-  public static readonly string[] All = [MonetaryUnit, KeyItem, Random, Stratified];
+  public static readonly string[] All = [MonetaryUnit, KeyItem, Random, Systematic, Stratified];
 }
 
 public sealed record SamplingPopulationItem(string StableRowId, decimal SignedAmount);
@@ -24,9 +26,9 @@ public sealed record SamplingPlan(
   decimal? Interval = null,
   /// <summary>Required for KEY_ITEM and STRATIFIED: items at or above this are key items.</summary>
   decimal? KeyItemThreshold = null,
-  /// <summary>Required for RANDOM and STRATIFIED: maximum items to select.</summary>
+  /// <summary>Required for RANDOM, SYSTEMATIC and STRATIFIED: maximum items to select.</summary>
   int? SampleSize = null,
-  /// <summary>Required for RANDOM and STRATIFIED: the seed that makes selection reproducible.</summary>
+  /// <summary>Required for RANDOM, SYSTEMATIC and STRATIFIED: reproducible selection seed.</summary>
   int? Seed = null);
 
 public sealed record SampledItem(
@@ -55,11 +57,11 @@ public static class AuditSamplingEngine
     if (population.Select(x => x.StableRowId).Distinct(StringComparer.Ordinal).Count() != population.Count)
       throw new ArgumentException("Population row identities must be unique.", nameof(population));
 
-    // Zero-exposure rows carry no monetary exposure and are never selected by these
-    // methods; the original signed amount is preserved for the auditor's test sheet.
+    // Systematic sampling selects row positions, including zero-amount transactions.
+    // Existing monetary-exposure methods preserve their original population contract.
     var ordered = population
       .Select(x => new SamplingPopulationItem(x.StableRowId.Trim(), x.SignedAmount))
-      .Where(x => Abs(x.SignedAmount) > 0m)
+      .Where(x => plan.Method == AuditSamplingMethods.Systematic || Abs(x.SignedAmount) > 0m)
       .ToList();
     var signedTotal = population.Sum(x => x.SignedAmount);
     var absoluteTotal = ordered.Sum(x => Abs(x.SignedAmount));
@@ -69,6 +71,7 @@ public static class AuditSamplingEngine
       AuditSamplingMethods.MonetaryUnit => SelectMonetaryUnit(ordered, Require(plan.Interval, "interval", plan.Method)),
       AuditSamplingMethods.KeyItem => SelectKeyItems(ordered, Require(plan.KeyItemThreshold, "key-item threshold", plan.Method)),
       AuditSamplingMethods.Random => SelectRandom(ordered, RequireSize(plan.SampleSize, plan.Method), RequireSeed(plan.Seed, plan.Method)),
+      AuditSamplingMethods.Systematic => SelectSystematic(ordered, RequireSize(plan.SampleSize, plan.Method), RequireSeed(plan.Seed, plan.Method)),
       _ => SelectStratified(ordered, Require(plan.KeyItemThreshold, "key-item threshold", plan.Method),
         RequireSize(plan.SampleSize, plan.Method), RequireSeed(plan.Seed, plan.Method))
     };
@@ -131,6 +134,26 @@ public static class AuditSamplingEngine
           $"Random: deterministic draw with seed {seed}.", cumulativeByRow[index]);
       })
       .ToList();
+  }
+
+  private static List<SampledItem> SelectSystematic(List<SamplingPopulationItem> ordered, int sampleSize, int seed)
+  {
+    var take = Math.Min(sampleSize, ordered.Count);
+    if (take == 0) return [];
+    // Integer rational positions avoid rounding drift for non-divisible populations.
+    // The seeded numerator gives a random start within the first N/n interval.
+    var startNumerator = DrawIndexes(ordered.Count, 1, seed)[0];
+    var cumulative = CumulativeIndex(ordered);
+    var selected = new List<SampledItem>(take);
+    for (var k = 0; k < take; k++)
+    {
+      var index = (int)(((long)k * ordered.Count + startNumerator) / take);
+      var item = ordered[index];
+      selected.Add(new SampledItem(item.StableRowId, item.SignedAmount, Abs(item.SignedAmount),
+        $"Systematic random: row {index + 1} of {ordered.Count}; interval {ordered.Count}/{take}; start {startNumerator}/{take}; seed {seed}.",
+        cumulative[index]));
+    }
+    return selected;
   }
 
   private static List<SampledItem> SelectStratified(

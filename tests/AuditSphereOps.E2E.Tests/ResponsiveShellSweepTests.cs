@@ -92,7 +92,7 @@ public sealed class ResponsiveShellSweepTests(ITestOutputHelper output)
         {
           await page.SetViewportSizeAsync(width, 900);
           await page.WaitForFunctionAsync(width < 960
-            ? "() => getComputedStyle(document.querySelector('.audit-main-content')).marginLeft === '0px'"
+            ? "() => (document.querySelector('.audit-main-content') !== null && getComputedStyle(document.querySelector('.audit-main-content')).marginLeft === '0px')"
             : "() => document.querySelector('.audit-sidebar')?.getBoundingClientRect().left >= -1");
           var overflow = await page.EvaluateAsync<int>("() => document.documentElement.scrollWidth - window.innerWidth");
           if (overflow > 1)

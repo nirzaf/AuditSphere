@@ -39,8 +39,8 @@ The core modular monolith, Practice Management, Client Accounting Workspace (TB/
 ## Story coverage and completion boundaries
 
 This handoff is not an exhaustive list of unfinished user stories. Continue from the
-[accounting stories AC-01–AC-28](../auditsphere-accounting-module-requirements-current.md),
-[prototype parity stories AS-PAR-001–AS-PAR-062](../auditsphere-audit-user-stories-prototype-gap-closure-proposed.md),
+[current STE functional requirements](../auditsphere-accounting-module-requirements-current.md),
+[current specification coverage](auditsphere-ste-specification-coverage-current.md),
 [Microsoft 365 onboarding story](../auditsphere-m365-onboarding-user-stories.md), and
 [R2R/audit task index](../task_breakdown/auditsphere-r2r-index-task-breakdown.md).
 Checked accounting criteria and historical prototype baselines must be reconciled with
@@ -53,9 +53,8 @@ ERP, payroll execution, Purview integration, or eSignature provider integration,
 root `AGENTS.md` excludes. Preserve uploaded signed evidence and human decisions.
 External validation and independent review remain separate from local implementation.
 
-Follow the system specification §46 work loop: one reviewable slice and PR at a time;
-obtain the required independent review and explicit merge authorization before advancing
-through acceptance gates. Do not mark the entire documentation backlog complete from
+Follow the current architecture and owner-authorized delivery workflow. Independent
+review and professional approval remain required before advancing acceptance gates. Do not mark the entire documentation backlog complete from
 local test results.
 
 ---
@@ -84,7 +83,7 @@ The following local tasks, architectural decisions, and follow-ups are open for 
 
 - **G16 Period-End Open-Item Methodology:** Formalize and record methodology approval for period-end open-item classification and carrying-amount evidence before enabling automated open-item remeasurement workflows.
 
-- **Stale Content & Parameter Reauthorization:** Every parameterized staff and portal route now has an in-circuit route-change regression (assessment workbenches were the last added). Remaining: independent review of the whole set; no passive mid-circuit revocation push is claimed.
+- **Stale Content & Parameter Reauthorization:** Parameterized staff and portal routes have in-circuit route-change regressions. Both protected shells now recheck the trusted identity/session epoch every five seconds and remove their page, navigation, search and dialog subtree on a stale or disabled session without a user action. Commands still authorize at execution. This is periodic server verification, not instantaneous revocation push, and cannot remove content already downloaded by a browser. Remaining: independent review and the direct-command/export/count coverage above.
 
 
 

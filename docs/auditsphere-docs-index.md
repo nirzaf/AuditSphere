@@ -34,6 +34,8 @@
 
 
 
+The owner retired the former system specification, prototype parity source and UI migration document. Use the current STE functional requirements, current architecture and execution coverage for implementation; retired text remains in Git history only.
+
 ## 1. Start Here
 
 
@@ -236,11 +238,10 @@ When two documents appear to conflict or contain differing detail, precedence is
 
 
 
-| [`docs/auditsphere-requirements-system-specification-current.md`](auditsphere-requirements-system-specification-current.md) | **v5.0 Build Contract** — system objectives, data models, entity lifecycle, accounting rules, and acceptance tests. | `CURRENT` |
 
 
 
-| [`docs/auditsphere-accounting-module-requirements-current.md`](auditsphere-accounting-module-requirements-current.md) | Detailed accounting and consolidation gap analysis, roadmap, and user stories AC-01 through AC-28. | `CURRENT` |
+| [`docs/auditsphere-accounting-module-requirements-current.md`](auditsphere-accounting-module-requirements-current.md) | Current STE functional requirements: commercial, onboarding, planning, fieldwork, completion, records and firm operations. | `CURRENT` |
 
 
 
@@ -280,7 +281,6 @@ These documents describe planned features, prototype gap closures, or onboarding
 
 
 
-| [`docs/auditsphere-audit-user-stories-prototype-gap-closure-proposed.md`](auditsphere-audit-user-stories-prototype-gap-closure-proposed.md) | Detailed parity user stories and gap-closure backlogs derived from audit prototype analysis (AS-PAR-001..002). | `PROPOSED` |
 
 
 

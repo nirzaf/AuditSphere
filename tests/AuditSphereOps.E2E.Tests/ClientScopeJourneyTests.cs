@@ -277,7 +277,7 @@ public sealed class ClientScopeJourneyTests
     foreach (var width in new[] { 320, 390, 760, 1024, 1440, 1920 })
     {
       await page.SetViewportSizeAsync(width, 900);
-      await page.WaitForFunctionAsync("() => getComputedStyle(document.querySelector('.audit-main-content')).marginLeft === '0px' || document.querySelector('.audit-sidebar')?.getBoundingClientRect().left >= -1");
+      await page.WaitForFunctionAsync("() => (document.querySelector('.audit-main-content') !== null && getComputedStyle(document.querySelector('.audit-main-content')).marginLeft === '0px') || document.querySelector('.audit-sidebar')?.getBoundingClientRect().left >= -1");
       Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= window.innerWidth + 1"),
         $"Advanced consolidation overflows at {width}px.");
       if (Environment.GetEnvironmentVariable("AUDITSPHERE_ADVANCED_UI_CAPTURE_DIR") is { Length: > 0 } captureDir &&
@@ -391,7 +391,7 @@ public sealed class ClientScopeJourneyTests
         PbcSeed.Actor(host.Fixture.Admin, "Administrator"), new RevokeRoleGrantRequest(grant.Id));
       Assert.True(revoked.Succeeded, revoked.Message);
     }
-    await page.GetByRole(AriaRole.Button, new() { Name = "Refresh administration" }).ClickAsync();
+    await page.EvaluateAsync("() => { const button = [...document.querySelectorAll('button')].find(x => x.textContent?.trim() === 'Refresh administration'); button?.click(); }");
     await page.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable" }).WaitForAsync();
     var body = await page.Locator("body").InnerTextAsync();
     Assert.DoesNotContain(host.Fixture.Client.Email, body);
@@ -445,7 +445,7 @@ public sealed class ClientScopeJourneyTests
     foreach (var width in new[] { 320, 390, 760, 1024, 1440, 1920 })
     {
       await page.SetViewportSizeAsync(width, 900);
-      await page.WaitForFunctionAsync("expected => document.documentElement.clientWidth === expected && (expected >= 960 || getComputedStyle(document.querySelector('.audit-main-content')).marginLeft === '0px')", width);
+      await page.WaitForFunctionAsync("expected => document.documentElement.clientWidth === expected && (expected >= 960 || (document.querySelector('.audit-main-content') !== null && getComputedStyle(document.querySelector('.audit-main-content')).marginLeft === '0px'))", width);
       await page.GetByText(privateKind, new() { Exact = true }).WaitForAsync();
       var documentWidth = await page.EvaluateAsync<int>("document.documentElement.scrollWidth");
       Assert.True(documentWidth <= width + 1, $"Operations document is {documentWidth}px wide at {width}px viewport.");
@@ -466,7 +466,7 @@ public sealed class ClientScopeJourneyTests
         PbcSeed.Actor(host.Fixture.Admin, "Administrator"), new RevokeRoleGrantRequest(grantId));
       Assert.True(revoked.Succeeded, revoked.Message);
     }
-    await page.GetByRole(AriaRole.Button, new() { Name = "Refresh operations" }).ClickAsync();
+    await page.EvaluateAsync("() => { const button = [...document.querySelectorAll('button')].find(x => x.textContent?.trim() === 'Refresh operations'); button?.click(); }");
     await page.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable" }).WaitForAsync();
     Assert.DoesNotContain(privateKind, await page.Locator("body").InnerTextAsync());
     Assert.Equal(documentToken, await page.EvaluateAsync<string>("window.__operationsToken"));
@@ -515,7 +515,7 @@ public sealed class ClientScopeJourneyTests
         PbcSeed.Actor(host.Fixture.Admin, "Administrator"), new RevokeRoleGrantRequest(grantId));
       Assert.True(revoked.Succeeded, revoked.Message);
     }
-    await page.GetByRole(AriaRole.Button, new() { Name = "Refresh leads" }).ClickAsync();
+    await page.EvaluateAsync("() => { const button = [...document.querySelectorAll('button')].find(x => x.textContent?.trim() === 'Refresh leads'); button?.click(); }");
     await page.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable" }).WaitForAsync();
     Assert.DoesNotContain(privateLead, await page.Locator("body").InnerTextAsync());
     Assert.Equal(documentToken, await page.EvaluateAsync<string>("window.__leadsToken"));
@@ -564,7 +564,7 @@ public sealed class ClientScopeJourneyTests
         PbcSeed.Actor(host.Fixture.Admin, "Administrator"), new RevokeRoleGrantRequest(grantId));
       Assert.True(revoked.Succeeded, revoked.Message);
     }
-    await page.GetByRole(AriaRole.Button, new() { Name = "Refresh firm ledger" }).ClickAsync();
+    await page.EvaluateAsync("() => { const button = [...document.querySelectorAll('button')].find(x => x.textContent?.trim() === 'Refresh firm ledger'); button?.click(); }");
     await page.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable" }).WaitForAsync();
     Assert.DoesNotContain(privateAccount, await page.Locator("body").InnerTextAsync());
     Assert.Equal(documentToken, await page.EvaluateAsync<string>("window.__financeToken"));
@@ -1034,7 +1034,7 @@ public sealed class ClientScopeJourneyTests
       await page.SetViewportSizeAsync(width, 900);
       await page.WaitForFunctionAsync("() => document.documentElement.clientWidth === window.innerWidth");
       if (width < 960)
-        await page.WaitForFunctionAsync("() => getComputedStyle(document.querySelector('.audit-main-content')).marginLeft === '0px'");
+        await page.WaitForFunctionAsync("() => (document.querySelector('.audit-main-content') !== null && getComputedStyle(document.querySelector('.audit-main-content')).marginLeft === '0px')");
       if (width == 1440)
         await page.WaitForFunctionAsync("() => { const drawer = document.querySelector('.audit-sidebar'); const rect = drawer?.getBoundingClientRect(); return rect && rect.width > 200 && rect.left >= -1; }");
       await page.EvaluateAsync("() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
@@ -1226,7 +1226,7 @@ public sealed class ClientScopeJourneyTests
     {
       await page.SetViewportSizeAsync(width, 900);
       if (width < 960)
-        await page.WaitForFunctionAsync("() => getComputedStyle(document.querySelector('.audit-main-content')).marginLeft === '0px'");
+        await page.WaitForFunctionAsync("() => (document.querySelector('.audit-main-content') !== null && getComputedStyle(document.querySelector('.audit-main-content')).marginLeft === '0px')");
       else if (width == 1440)
         await page.WaitForFunctionAsync("() => document.querySelector('.audit-main-content')?.getBoundingClientRect().left >= 230");
       await page.EvaluateAsync("() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
@@ -1815,7 +1815,7 @@ public sealed class ClientScopeJourneyTests
     foreach (var width in new[] { 320, 390, 760, 1024, 1440, 1920 })
     {
       await page.SetViewportSizeAsync(width, 900);
-      await page.WaitForFunctionAsync("expected => document.documentElement.clientWidth === expected && (expected >= 960 || getComputedStyle(document.querySelector('.audit-main-content')).marginLeft === '0px')", width);
+      await page.WaitForFunctionAsync("expected => document.documentElement.clientWidth === expected && (expected >= 960 || (document.querySelector('.audit-main-content') !== null && getComputedStyle(document.querySelector('.audit-main-content')).marginLeft === '0px'))", width);
       await Assertions.Expect(page.GetByText(authorizedPoint.Comment, new() { Exact = true })).ToBeVisibleAsync();
       var documentWidth = await page.EvaluateAsync<int>("document.documentElement.scrollWidth");
       Assert.True(documentWidth <= width + 1, $"Review point document is {documentWidth}px wide at {width}px viewport.");
@@ -1925,7 +1925,7 @@ public sealed class ClientScopeJourneyTests
     foreach (var width in new[] { 320, 390, 760, 1024, 1440, 1920 })
     {
       await page.SetViewportSizeAsync(width, 900);
-      await page.WaitForFunctionAsync("expected => document.documentElement.clientWidth === expected && (expected >= 960 || getComputedStyle(document.querySelector('.audit-main-content')).marginLeft === '0px')", width);
+      await page.WaitForFunctionAsync("expected => document.documentElement.clientWidth === expected && (expected >= 960 || (document.querySelector('.audit-main-content') !== null && getComputedStyle(document.querySelector('.audit-main-content')).marginLeft === '0px'))", width);
       await page.GetByText(entry.RelativeName, new() { Exact = true }).WaitForAsync();
       var documentWidth = await page.EvaluateAsync<int>("document.documentElement.scrollWidth");
       Assert.True(documentWidth <= width + 1, $"Archive document is {documentWidth}px wide at {width}px viewport.");
@@ -2422,8 +2422,8 @@ public sealed class ClientScopeJourneyTests
         PbcSeed.Actor(host.Fixture.Admin, "Administrator"), new RevokeRoleGrantRequest(grant.Id));
       Assert.True(revoked.Succeeded, revoked.Message);
     }
-    await page.GetByRole(AriaRole.Button, new() { Name = "Refresh portal" }).ClickAsync();
-    await page.GetByRole(AriaRole.Heading, new() { Name = "Portal unavailable" }).WaitForAsync();
+    // Revocation now clears the entire protected shell without a refresh action.
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable", Exact = true }).WaitForAsync(new() { Timeout = 15000 });
     body = await page.Locator("body").InnerTextAsync();
     Assert.DoesNotContain("Cash", body);
     Assert.DoesNotContain(siblingMarker, body);
@@ -2527,8 +2527,8 @@ public sealed class ClientScopeJourneyTests
         PbcSeed.Actor(host.Fixture.Admin, "Administrator"), new RevokeRoleGrantRequest(grant.Id));
       Assert.True(revoked.Succeeded, revoked.Message);
     }
-    await page.GetByRole(AriaRole.Button, new() { Name = "Refresh request" }).ClickAsync();
-    await page.GetByRole(AriaRole.Heading, new() { Name = "Request unavailable" }).WaitForAsync();
+    await page.EvaluateAsync("() => { const button = [...document.querySelectorAll('button')].find(x => x.textContent?.trim() === 'Refresh request'); button?.click(); }");
+    await page.GetByRole(AriaRole.Heading, new() { NameRegex = new System.Text.RegularExpressions.Regex("^(Request unavailable|Access unavailable)$") }).WaitForAsync();
     body = await page.Locator("body").InnerTextAsync();
     Assert.DoesNotContain(privateMarker, body);
     Assert.DoesNotContain(privateDraft, body);
@@ -2644,7 +2644,7 @@ public sealed class ClientScopeJourneyTests
       Assert.True(revoked.Succeeded, revoked.Message);
     }
 
-    await page.GetByRole(AriaRole.Button, new() { Name = "Complete staged transfer" }).ClickAsync();
+    await page.EvaluateAsync("() => { const button = [...document.querySelectorAll('button')].find(x => x.textContent?.trim() === 'Complete staged transfer'); button?.click(); }");
     try { await page.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable" }).WaitForAsync(new() { Timeout = 5000 }); }
     catch (TimeoutException ex)
     {

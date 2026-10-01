@@ -113,7 +113,7 @@ public sealed class TenantAdministrationJourneyTests
         await page.SetViewportSizeAsync(width, 900);
         await page.GetByRole(AriaRole.Heading, new() { Name = "Setup progress" }).WaitForAsync();
         if (width < 960)
-          await page.WaitForFunctionAsync("() => getComputedStyle(document.querySelector('.audit-main-content')).marginLeft === '0px'");
+          await page.WaitForFunctionAsync("() => (document.querySelector('.audit-main-content') !== null && getComputedStyle(document.querySelector('.audit-main-content')).marginLeft === '0px')");
         else
           await page.WaitForFunctionAsync("() => document.querySelector('.audit-sidebar')?.getBoundingClientRect().left >= -1");
         await page.ScreenshotAsync(new() { Path = Path.Combine(captureDir, $"administration-{state}-{width}.png"), FullPage = true });
@@ -126,7 +126,7 @@ public sealed class TenantAdministrationJourneyTests
       await page.SetViewportSizeAsync(width, 900);
       await page.GetByRole(AriaRole.Heading, new() { Name = "Setup progress" }).WaitForAsync();
       if (width < 960)
-        await page.WaitForFunctionAsync("() => getComputedStyle(document.querySelector('.audit-main-content')).marginLeft === '0px'");
+        await page.WaitForFunctionAsync("() => (document.querySelector('.audit-main-content') !== null && getComputedStyle(document.querySelector('.audit-main-content')).marginLeft === '0px')");
       Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= window.innerWidth + 1"),
         $"Administration overflows the {width}px viewport.");
     }
@@ -171,7 +171,7 @@ public sealed class TenantAdministrationJourneyTests
       await page.SetViewportSizeAsync(width, 900);
       await page.GetByRole(AriaRole.Heading, new() { Name = "Tenant connection", Exact = true }).WaitForAsync();
       if (width < 960)
-        await page.WaitForFunctionAsync("() => getComputedStyle(document.querySelector('.audit-main-content')).marginLeft === '0px'");
+        await page.WaitForFunctionAsync("() => (document.querySelector('.audit-main-content') !== null && getComputedStyle(document.querySelector('.audit-main-content')).marginLeft === '0px')");
       var overflow = await page.EvaluateAsync<string>("""() => JSON.stringify({ width: innerWidth, scroll: document.documentElement.scrollWidth, elements: [...document.querySelectorAll('*')].filter(e => e.getBoundingClientRect().right > innerWidth + 1).slice(0, 8).map(e => ({ tag: e.tagName, cls: String(e.className).slice(0, 90), right: Math.round(e.getBoundingClientRect().right) })) })""");
       Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= window.innerWidth + 1"),
         $"Tenant connection overflows the {width}px viewport: {overflow}");
@@ -195,7 +195,7 @@ public sealed class TenantAdministrationJourneyTests
     await page.GetByRole(AriaRole.Button, new() { Name = "Search directory" }).ClickAsync();
     await page.GetByText("Directory Journey Member").WaitForAsync();
     await page.SetViewportSizeAsync(320, 900);
-    await page.WaitForFunctionAsync("() => getComputedStyle(document.querySelector('.audit-main-content')).marginLeft === '0px'");
+    await page.WaitForFunctionAsync("() => (document.querySelector('.audit-main-content') !== null && getComputedStyle(document.querySelector('.audit-main-content')).marginLeft === '0px')");
     Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= window.innerWidth + 1"),
       "Tenant directory results overflow the 320px viewport.");
     await page.GotoAsync(origin + "/app/administration");
@@ -206,7 +206,7 @@ public sealed class TenantAdministrationJourneyTests
     Assert.Contains("Consent verified", body);
     Assert.Contains("Microsoft Tenant", body);
     await page.SetViewportSizeAsync(390, 900);
-    await page.WaitForFunctionAsync("() => getComputedStyle(document.querySelector('.audit-main-content')).marginLeft === '0px'");
+    await page.WaitForFunctionAsync("() => (document.querySelector('.audit-main-content') !== null && getComputedStyle(document.querySelector('.audit-main-content')).marginLeft === '0px')");
     foreach (var (tabName, heading) in new[] {
       ("AuditSphere Roles", "User and role administration"),
       ("Microsoft Directory", "Microsoft directory"),

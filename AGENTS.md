@@ -6,7 +6,7 @@
 
 
 
-Short pointer; full authoritative contracts live in `docs/auditsphere-requirements-system-specification-current.md` (v5.0) and `docs/auditsphere-accounting-module-requirements-current.md`. Do not paste the full specification into this file.
+Short pointer; full authoritative contracts live in `docs/architecture/auditsphere-architecture-current-architecture.md` and `docs/auditsphere-accounting-module-requirements-current.md`. Do not paste the full specification into this file.
 
 
 
@@ -350,11 +350,11 @@ scripts/db/restore-drill.sh
 
 
 
-- **Authoritative System Spec:** `docs/auditsphere-requirements-system-specification-current.md` (v5.0 build contract). Read intro + §§1–12, 22, 24, 27–33, 41–47 first; then specific sections for the active issue.
+- **Authoritative Implementation Architecture:** `docs/architecture/auditsphere-architecture-current-architecture.md`; functional requirements are in the current STE requirements document. Former system/prototype specifications were retired by the owner and remain historical Git sources only.
 
 
 
-- **Accounting & Consolidation Roadmap:** `docs/auditsphere-accounting-module-requirements-current.md` (detailed gap analysis, AC-01 to AC-28 user stories, and implementation roadmap).
+- **Current Functional Requirements:** `docs/auditsphere-accounting-module-requirements-current.md` (STE commercial, onboarding, planning, fieldwork, completion, records and firm operations).
 
 
 
@@ -398,7 +398,7 @@ scripts/db/restore-drill.sh
 
 
 
-- Verify guidance against the current checkout, especially `docs/auditsphere-requirements-system-specification-current.md` §§30 and 45, `src/AuditSphereOps.Web/appsettings.json`, `src/AuditSphereOps.Web/Components/Pages/Microsoft365Setup.razor`, and the actual startup, worker, and deployment scripts. `docs/auditsphere-m365-onboarding-user-stories.md` describes proposed requirements: check implementation before presenting any step as available. Link to the applicable source revision; do not copy the specification or configuration files wholesale.
+- Verify guidance against the current checkout, especially `docs/architecture/auditsphere-architecture-current-architecture.md`, `src/AuditSphereOps.Web/appsettings.json`, `src/AuditSphereOps.Web/Components/Pages/Microsoft365Setup.razor`, and the actual startup, worker, and deployment scripts. `docs/auditsphere-m365-onboarding-user-stories.md` describes proposed requirements: check implementation before presenting any step as available. Link to the applicable source revision; do not copy the specification or configuration files wholesale.
 
 
 

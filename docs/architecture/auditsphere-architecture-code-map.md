@@ -689,3 +689,9 @@ For the complete documentation index, authority hierarchy, current requirements,
 - EF: `AuditSphereDbContext.AuditDeliverables.cs`, `.Commercial.cs`; `SteDeliverableAssembly` adds scoped proof foreign keys, append-only triggers, exact manifest text and the engagement-letter insertion guard.
 - Web: `CompletionDeliverablesPanel.razor`, `ClientPortal.razor`, `QuotationWorkbench.razor`; scope-checked scan and ZIP endpoints in `Web/Program.cs`. Worker policy defaults are in `Worker/appsettings.json`.
 - Tests: `AuditDeliverablesTests.Assembly.cs`, `CompletionBundleFixture.cs`, `CommercialWorkflowTests` and `CompletionDeliverablesJourneyTests`.
+
+## Protected open-session presentation
+
+- Web: `Components/Shared/SessionAccessBoundary.razor`, composed by both staff and client layouts. Reuses `CurrentActorResolver` and `TrustedActorResolver` for authenticated immutable identity, disabled state, expiry and session epoch checks. Checks every five seconds while connected; verification failure removes the protected component subtree and exposes a safe sign-in message. This does not replace Application command/query authorization.
+- Verification: `PassiveSessionRevocationJourneyTests` covers both shells, disabled identities and stale epochs without navigation or clicks.
+- Systematic sampling: `Domain/Audit/AuditSamplingEngine.cs` adds seeded equal-row-spacing selection, including zero-value rows. `AuditFieldworkService.Connections.cs` stores order-bound source identity and a distinct engine version; `FieldworkToolsPanel.razor` supplies sample size/seed and the existing immutable calculation log. Migration `SystematicAuditSampling` extends the allowed-method constraint. Existing sampling engines and stored source digests retain their contracts.

@@ -68,7 +68,7 @@ public sealed class PeriodWorkbenchScopeJourneyTests
       {
         await page.SetViewportSizeAsync(width, 900);
         if (width < 960)
-          await page.WaitForFunctionAsync("() => getComputedStyle(document.querySelector('.audit-main-content')).marginLeft === '0px'");
+          await page.WaitForFunctionAsync("() => (document.querySelector('.audit-main-content') !== null && getComputedStyle(document.querySelector('.audit-main-content')).marginLeft === '0px')");
         else if (width == 1440)
           await page.WaitForFunctionAsync("() => document.querySelector('.audit-main-content')?.getBoundingClientRect().left >= 230");
         await page.EvaluateAsync("() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");

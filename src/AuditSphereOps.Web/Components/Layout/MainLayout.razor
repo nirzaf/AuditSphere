@@ -2,6 +2,7 @@
 @implements IDisposable
 @inject NavigationManager Navigation
 
+<SessionAccessBoundary>
 <MudThemeProvider Theme="@_theme" />
 <MudPopoverProvider />
 <MudDialogProvider />
@@ -65,6 +66,8 @@
   </MudMainContent>
 </MudLayout>
 </MudBreakpointProvider>
+
+</SessionAccessBoundary>
 
 @code {
   [Inject] private IConfiguration Configuration { get; set; } = default!;

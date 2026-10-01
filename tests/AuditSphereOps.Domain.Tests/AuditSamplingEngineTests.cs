@@ -6,6 +6,39 @@ namespace AuditSphereOps.Domain.Tests;
 /// database, clock or runtime-dependent randomness.</summary>
 public sealed class AuditSamplingEngineTests
 {
+  [Fact]
+  public void Systematic_IsSeededEquallySpacedAndIncludesZeroAmountRows()
+  {
+    var population = Enumerable.Range(0, 20).Select(i => new SamplingPopulationItem($"row-{i:00}", 0m)).ToArray();
+    var plan = new SamplingPlan(AuditSamplingMethods.Systematic, SampleSize: 5, Seed: 42);
+    var result = AuditSamplingEngine.Select(population, plan);
+    var repeat = AuditSamplingEngine.Select(population, plan);
+    Assert.Equal(20, result.PopulationCount);
+    Assert.Equal(5, result.SelectedCount);
+    Assert.Equal(result.Items, repeat.Items);
+    var positions = result.Items.Select(x => int.Parse(x.StableRowId[4..])).ToArray();
+    Assert.InRange(positions[0], 0, 3);
+    for (var i = 1; i < positions.Length; i++) Assert.Equal(4, positions[i] - positions[i - 1]);
+    Assert.All(result.Items, x => Assert.Contains("Systematic random", x.InclusionReason));
+  }
+
+  [Fact]
+  public void Systematic_NonDivisibleAndSmallPopulationsAreBoundedWithoutDuplicates()
+  {
+    var result = AuditSamplingEngine.Select(Population,
+      new SamplingPlan(AuditSamplingMethods.Systematic, SampleSize: 3, Seed: -7));
+    Assert.Equal(3, result.SelectedCount);
+    Assert.Equal(3, result.Items.Select(x => x.StableRowId).Distinct().Count());
+    var census = AuditSamplingEngine.Select(Population,
+      new SamplingPlan(AuditSamplingMethods.Systematic, SampleSize: 99, Seed: 1));
+    Assert.Equal(Population.Length, census.SelectedCount);
+    Assert.Empty(AuditSamplingEngine.Select([], new SamplingPlan(AuditSamplingMethods.Systematic, SampleSize: 5, Seed: 1)).Items);
+    Assert.Throws<ArgumentException>(() => AuditSamplingEngine.Select(Population,
+      new SamplingPlan(AuditSamplingMethods.Systematic, SampleSize: 3)));
+    Assert.Throws<ArgumentException>(() => AuditSamplingEngine.Select(Population,
+      new SamplingPlan(AuditSamplingMethods.Systematic, SampleSize: 0, Seed: 1)));
+  }
+
   private static readonly SamplingPopulationItem[] Population =
   [
     new("row-01", 100m), new("row-02", 250m), new("row-03", 40m),

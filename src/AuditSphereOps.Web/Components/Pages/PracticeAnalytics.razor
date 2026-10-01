@@ -74,6 +74,7 @@ else
 
   private async Task LoadAsync()
   {
+    _view = null;
     var actor = await ActorResolver.ResolveAsync();
     if (actor is null) { _message = "Sign in with a staff identity."; return; }
     await using var db = await DbFactory.CreateDbContextAsync();

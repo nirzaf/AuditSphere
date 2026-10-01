@@ -33,6 +33,14 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ---
 
+## Project completion hardening
+
+Both protected shells now perform periodic trusted session verification and dispose their content on a disabled identity or stale epoch without a user action. Existing command authorization remains authoritative. Systematic random sampling is available through the existing fieldwork tool and immutable, order-bound calculation log; its migration preserves the other sampling methods. Current documentation navigation and health validation follow the owner-retired specification changes.
+
+Executed evidence belongs under `projectCompletionHardening` in `status.json`. Live site provisioning, direct SharePoint immutable retention, firm template/methodology approval, independent review and target-environment readiness remain separate acceptance gates. The whole AS-PAR-002 direct-command/export/count audit is not closed by shell monitoring.
+
+---
+
 ## STE commercial gates and final deliverable assembly
 
 The current accounting-named requirements document now contains the owner's full STE functional specification. This slice closes local commercial and completion gaps: independent quotation generation; Partner-only engagement letters bound to current commercial acceptance and unconditional service-specific risk approval; approved FSLI selection for modified opinions; exact signature/seal versions; version-bound client-uploaded signed LOR scans and human Partner verification; and a five-part ZIP referencing a real reviewed financial-package release and posted balance invoice.
@@ -1465,7 +1473,7 @@ review and explicit merge authorization before advancing acceptance.
   `Status: SENT` invoice text, and the `GetByRole(AriaRole.Region)` lookup of the
   time form (labelled cards now carry an explicit `role="region"`).
 - **Documented exceptions** in
-  [`docs/auditsphere-ui-mudblazor-conventions-migration-current.md`](../auditsphere-ui-mudblazor-conventions-migration-current.md):
+  [retired UI migration history](https://github.com/nirzaf/AuditSphere/commits/master/docs/auditsphere-ui-mudblazor-conventions-migration-current.md):
   6 native tables (`tfoot`/`colspan`) and the native browser-draft boundary
   elements. `/app/accounting/remeasurement` was left at its master markup in
   this slice because its browser-draft reload journey was sensitive to the

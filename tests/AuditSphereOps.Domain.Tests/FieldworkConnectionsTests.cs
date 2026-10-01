@@ -212,7 +212,7 @@ public sealed class FieldworkConnectionsTests
     await using var pg = await PgTestSchema.CreateAsync();
     var w = await SeedAsync(pg);
     var now = DateTimeOffset.UtcNow;
-    Guid revenueProcedure, cashProcedure, scheduleId;
+    Guid revenueProcedure, cashProcedure, systematicProcedure, scheduleId;
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       var datasetId = Guid.NewGuid();
@@ -242,7 +242,9 @@ public sealed class FieldworkConnectionsTests
       };
       var revenue = Procedure("REV-01", "Revenue", "Test revenue cut-off");
       var cash = Procedure("CSH-01", "Cash and bank", "Agree bank balances to confirmations");
-      db.AuditProcedures.AddRange(revenue, cash);
+      var systematicStep = Procedure("SMP-01", "Sampling", "Select systematic random transactions");
+      db.AuditProcedures.AddRange(revenue, cash, systematicStep);
+      systematicProcedure = systematicStep.Id;
       (revenueProcedure, cashProcedure) = (revenue.Id, cash.Id);
       scheduleId = Guid.NewGuid();
       db.AuditSchedules.Add(new AuditSchedule { Id = scheduleId, FirmId = w.FirmId, ClientId = w.ClientId, EngagementId = w.EngagementId, ScheduleType = "SALES_LISTING",
@@ -277,6 +279,14 @@ public sealed class FieldworkConnectionsTests
       var random = await AuditFieldworkService.RunSamplingAsync(db, w.Auditor, new(w.EngagementId, cashProcedure, scheduleId, "RANDOM", null, null, 5, 42, "Random five"));
       Assert.True(random.Succeeded, random.Message);
       Assert.Equal(5, random.Value!.Run.SelectedCount);
+      var systematic = await AuditFieldworkService.RunSamplingAsync(db, w.Auditor,
+        new(w.EngagementId, systematicProcedure, scheduleId, "SYSTEMATIC", null, null, 5, 42, "Systematic random five"));
+      Assert.True(systematic.Succeeded, systematic.Message);
+      Assert.Equal(5, systematic.Value!.Run.SelectedCount);
+      Assert.Equal("audit-systematic-engine.v1", systematic.Value.Run.EngineVersion);
+      var systematicReload = await AuditFieldworkService.GetSamplingRunAsync(db, w.Manager, systematic.Value.Run.Id);
+      Assert.True(systematicReload.Value!.Reproduces);
+      Assert.Equal(systematic.Value.Items.Select(x => x.StableRowId), systematicReload.Value.Items.Select(x => x.StableRowId));
       await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"UPDATE audit_sampling_runs SET seed = 7 WHERE id = {random.Value.Run.Id}"));
 
       // Physical file index: X-1 in Box 3, linked both ways, with movement history.

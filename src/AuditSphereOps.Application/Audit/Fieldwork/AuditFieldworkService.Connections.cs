@@ -54,7 +54,8 @@ public static partial class AuditFieldworkService
       ProcedureId = request.ProcedureId, ScheduleId = schedule.Id, Method = plan.Method, Interval = plan.Interval, KeyItemThreshold = plan.KeyItemThreshold,
       SampleSize = plan.SampleSize, Seed = plan.Seed, PopulationCount = outcome.PopulationCount, PopulationAbsoluteTotal = outcome.PopulationAbsoluteTotal,
       SelectedCount = outcome.SelectedCount, SelectedAbsoluteTotal = outcome.SelectedAbsoluteTotal, CoveragePercent = outcome.CoveragePercent,
-      SourceDigest = SourceDigest(rows), SelectionDigest = SelectionDigest(outcome.Items.Select(x => x.StableRowId)), EngineVersion = SamplingEngineVersion,
+      SourceDigest = SourceDigest(rows, plan.Method == AuditSamplingMethods.Systematic), SelectionDigest = SelectionDigest(outcome.Items.Select(x => x.StableRowId)),
+      EngineVersion = plan.Method == AuditSamplingMethods.Systematic ? "audit-systematic-engine.v1" : SamplingEngineVersion,
       CreatedByUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
     };
     db.AuditSamplingRuns.Add(run);
@@ -74,7 +75,7 @@ public static partial class AuditFieldworkService
     var rows = await ScheduleRowsAsync(db, actor.FirmId, run.ScheduleId, ct);
     var again = AuditSamplingEngine.Select(rows.Select(x => new SamplingPopulationItem(x.StableRowId, x.SignedAmount)).ToList(),
       new SamplingPlan(run.Method, run.Interval, run.KeyItemThreshold, run.SampleSize, run.Seed));
-    var reproduces = SourceDigest(rows) == run.SourceDigest && SelectionDigest(again.Items.Select(x => x.StableRowId)) == run.SelectionDigest;
+    var reproduces = SourceDigest(rows, run.Method == AuditSamplingMethods.Systematic) == run.SourceDigest && SelectionDigest(again.Items.Select(x => x.StableRowId)) == run.SelectionDigest;
     return CommandResult<SamplingRunView>.Ok(new(run, items, reproduces));
   }
 
@@ -88,9 +89,12 @@ public static partial class AuditFieldworkService
   private static async Task<List<AuditScheduleRow>> ScheduleRowsAsync(IAuditSphereDbContext db, Guid firmId, Guid scheduleId, CancellationToken ct) =>
     await db.AuditScheduleRows.AsNoTracking().Where(x => x.FirmId == firmId && x.ScheduleId == scheduleId).OrderBy(x => x.SourceLineNumber).ThenBy(x => x.StableRowId).ToListAsync(ct);
 
-  private static string SourceDigest(IEnumerable<AuditScheduleRow> rows) =>
-    Hashing.Sha256Hex(string.Join('\n', rows.OrderBy(x => x.StableRowId, StringComparer.Ordinal)
-      .Select(x => $"{x.StableRowId}|{x.SignedAmount.ToString("0.000000", CultureInfo.InvariantCulture)}|{x.Currency}")));
+  private static string SourceDigest(IEnumerable<AuditScheduleRow> rows, bool preserveOrder = false) =>
+    preserveOrder
+      ? Hashing.Sha256Hex(string.Join('\n', rows.Select(x =>
+        $"{x.SourceLineNumber}|{x.StableRowId}|{x.SignedAmount.ToString("0.000000", CultureInfo.InvariantCulture)}|{x.Currency}")))
+      : Hashing.Sha256Hex(string.Join('\n', rows.OrderBy(x => x.StableRowId, StringComparer.Ordinal)
+        .Select(x => $"{x.StableRowId}|{x.SignedAmount.ToString("0.000000", CultureInfo.InvariantCulture)}|{x.Currency}")));
 
   private static string SelectionDigest(IEnumerable<string> ids) => Hashing.Sha256Hex(string.Join('\n', ids.OrderBy(x => x, StringComparer.Ordinal)));
 

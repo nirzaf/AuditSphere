@@ -61,6 +61,10 @@ public sealed class FieldworkConnectionsJourneyTests
         SourceProcedureId = "REV-01", SourceSectionTitle = "Revenue", SourceWording = "Test revenue cut-off", Title = "Test revenue cut-off",
         ApplicabilityStatus = AuditApplicabilityStatuses.Applicable, Status = AuditProcedureStatuses.Planned, CreatedAt = now };
       db.AuditProcedures.Add(procedure);
+      db.AuditProcedures.Add(new AuditProcedure { Id = Guid.NewGuid(), FirmId = f.FirmId, ClientId = f.ClientId,
+        EngagementId = f.EngagementId, EngagementProgramId = programId, SourceProcedureId = "SMP-01", SourceSectionTitle = "Sampling",
+        SourceWording = "Select systematic random transactions", Title = "Select systematic random transactions",
+        ApplicabilityStatus = AuditApplicabilityStatuses.Applicable, Status = AuditProcedureStatuses.Planned, CreatedAt = now });
       revenueProcedure = procedure.Id;
       var scheduleId = Guid.NewGuid();
       db.AuditSchedules.Add(new AuditSchedule { Id = scheduleId, FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId, ScheduleType = "SALES_LISTING",
@@ -119,6 +123,16 @@ public sealed class FieldworkConnectionsJourneyTests
     await Assertions.Expect(page.Locator(".command-result").Last).ToContainTextAsync("of 20 items");
     await Assertions.Expect(page.Locator("[aria-label='Sampling calculation log']")).ToContainTextAsync("Matches");
 
+    await page.Locator("#smp-method").SelectOptionAsync("SYSTEMATIC");
+    await page.Locator("#smp-procedure").SelectOptionAsync(new SelectOptionValue { Label = "SMP-01 · Select systematic random transactions" });
+    await page.Locator("#smp-size").FillAsync("5");
+    await page.Locator("#smp-seed").FillAsync("42");
+    await page.Locator("#smp-rationale").FillAsync("Systematic random five from the approved sales listing");
+    await page.Locator("#smp-rationale").PressAsync("Tab");
+    await page.GetByRole(AriaRole.Button, new() { Name = "Run sampling" }).ClickAsync();
+    await Assertions.Expect(page.Locator(".command-result").Last).ToContainTextAsync("5 of 20 items");
+    await Assertions.Expect(page.Locator("[aria-label='Sampling calculation log']")).ToContainTextAsync("SYSTEMATIC");
+
     await page.GetByRole(AriaRole.Tab, new() { Name = "Physical files" }).ClickAsync();
     await page.Locator("#ph-index").FillAsync("X-1");
     await page.Locator("#ph-box").FillAsync("Box 3");
@@ -137,7 +151,7 @@ public sealed class FieldworkConnectionsJourneyTests
     await Assertions.Expect(page.Locator(".command-result").Last).ToContainTextAsync("Ad hoc step inserted");
     await using (var db = host.CreateDbContext())
     {
-      Assert.Equal(1, await db.AuditSamplingRuns.CountAsync(x => x.EngagementId == f.EngagementId));
+      Assert.Equal(2, await db.AuditSamplingRuns.CountAsync(x => x.EngagementId == f.EngagementId));
       Assert.True(await db.AuditProcedures.AnyAsync(x => x.EngagementId == f.EngagementId && x.SourceProcedureId == "ADHOC-001"));
       Assert.Equal(2, await db.TrialBalanceDatasets.CountAsync(x => x.EngagementId == f.EngagementId && x.PeriodId != null));
     }

@@ -79,7 +79,7 @@ public sealed class GlobalSearchJourneyTests
 
       // Narrow screens use a labelled toggle and do not overflow.
       await page.SetViewportSizeAsync(390, 844);
-      await page.WaitForFunctionAsync("() => getComputedStyle(document.querySelector('.audit-main-content')).marginLeft === '0px'");
+      await page.WaitForFunctionAsync("() => (document.querySelector('.audit-main-content') !== null && getComputedStyle(document.querySelector('.audit-main-content')).marginLeft === '0px')");
       await Assertions.Expect(search).ToBeHiddenAsync();
       await page.GetByRole(AriaRole.Button, new() { Name = "Open search" }).ClickAsync();
       await Assertions.Expect(search).ToBeVisibleAsync();

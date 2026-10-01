@@ -202,7 +202,7 @@ public sealed partial class SiblingClientIsolationJourneyTests(ITestOutputHelper
     {
       await page.SetViewportSizeAsync(width, 900);
       await page.WaitForFunctionAsync(width < 960
-        ? "() => getComputedStyle(document.querySelector('.audit-main-content')).marginLeft === '0px'"
+        ? "() => (document.querySelector('.audit-main-content') !== null && getComputedStyle(document.querySelector('.audit-main-content')).marginLeft === '0px')"
         : "() => document.querySelector('.audit-sidebar')?.getBoundingClientRect().left >= -1");
       if (Environment.GetEnvironmentVariable("AUDITSPHERE_GROUP_UI_CAPTURE_DIR") is { Length: > 0 } captureDir &&
           width is 320 or 390 or 1440)
