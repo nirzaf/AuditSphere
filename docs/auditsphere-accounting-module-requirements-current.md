@@ -1,3869 +1,625 @@
-# AuditSphere — Audit-Focused Accounting Module
+# STE Audit Management Tool
 
+## Functional Requirements & End-to-End System Workflow Specification
 
-
-## Gap Analysis, Agile User Stories and Implementation Roadmap
-
-
-
-
-
-
-
-**Repository:** `nirzaf/AuditSphere`
-
-
-
-**Branch inspected:** `master`
-
-
-
-**Pinned implementation checkpoint:** `c214cb35743284b7c336ae5d193d4026afb81da0` (source and tests); execution-ledger evidence is recorded separately in `docs/execution/auditsphere-execution-current-slice.md` and `docs/execution/status.json`.
-
-
-
-**Commit date / review date:** 23 September 2026
-
-
-
-**Deliverable status:** Active product and engineering backlog grounded in the current local implementation; not professional-methodology approval or production acceptance.
-
-
-
-
-
-
+| Attribute | Specification Details |
+| :--- | :--- |
+| **Document Version** | 2.1 |
+| **Document Status** | `CURRENT` |
+| **Target Focus** | Business Logic, Functional Requirements, Task Sequences & Module Workflows |
+| **Auditing Standards Context** | International Standards on Auditing (ISA) & International Financial Reporting Standards (IFRS) |
+| **Primary Currency** | Qatari Riyal (QAR) |
+| **System Architecture** | Modular Monolith (ASP.NET Core / Blazor Interactive Server / PostgreSQL) |
 
 ---
 
-
-
-
-
-
-
-## 1. Executive decision
-
-
-
-
-
-
-
-**Extend AuditSphere's existing .NET accounting and audit modules. Do not install ERPNext or turn the platform into an operational ERP.** Use ERPNext as a reference for useful accounting concepts and interaction patterns: company-specific account trees, journals, accounting dimensions, financial reports, reconciliation and currencies. Build those concepts around independent client evidence, approved reporting adjustments, exact-version review and group reporting.
-
-
-
-
-
-
-
-Maintain three explicit financial boundaries:
-
-
-
-
-
-
-
-1. **Audit firm's own books:** existing `Practice/FirmLedger` and billing services; firm revenue, staff costs, invoices and receipts.
-
-
-
-2. **External client's accounting workspace:** client-owned source TB/GL, client chart of accounts, approved mappings, reporting adjustments, reconciliations and entity financial statements.
-
-
-
-3. **Group consolidation workspace:** approved component packages, ownership/perimeter, translation, intercompany differences and consolidation-only journals. These must not change component books.
-
-
-
-
-
-
-
-The current system already has significant reusable accounting and audit infrastructure. The remaining gap is not “add an accounting module from zero.” It is **turn the bounded, single-entity TB-to-package implementation into a governed, multi-client accounting and consolidation product**. External component packs now follow a typed submitted/returned/resubmitted/approved workflow with reconciliation, compatibility-bridge evidence and approved-pack-only consolidation consumption; advanced schedules now have a guarded execution/result path, all five methods have deterministic golden fixtures plus source-bound PostgreSQL and built-in-browser execution coverage, and each advanced profile remains independently gated until the required external acceptance exists.
-
-
-
-
-
-
-
-### Scope change that must be recorded
-
-
-
-
-
-
-
-The current v5 specification explicitly limits the first operational profile to single-entity financial statements and says full group consolidation is not an implicit first-release obligation. The user's present request adds consolidation. Record an additive capability/scope decision; do not retrospectively describe consolidation as an already-implemented or previously accepted capability. [R2]
-
-
-
-
-
-
-
-A relationship group is not the same as a consolidation perimeter. A group name organizes clients; a consolidation perimeter identifies which entities and packages belong in a particular reporting exercise under an approved method.
-
-
-
-
-
-
-
-### Implementation and Verification Authority
-
-
-
-
-
-
-
-For currently verified capabilities, test counts, migration baseline, and verified checkpoint status, consult the authoritative execution ledger: [`docs/execution/status.json`](execution/status.json) and [`docs/execution/auditsphere-execution-current-slice.md`](execution/auditsphere-execution-current-slice.md).
-
-
-
-
-
-
+## Executive Table of Contents
+
+- [1. Requirement Gathering & Operational Context](#1-requirement-gathering--operational-context)
+  - [1.1 Business Objectives & Problem Statement](#11-business-objectives--problem-statement)
+  - [1.2 User Personas & Responsibility Matrix](#12-user-personas--responsibility-matrix)
+- [2. Project Modules Connectivity & Architecture](#2-project-modules-connectivity--architecture)
+- [3. End-to-End Project Task Flows & Sequence Maps](#3-end-to-end-project-task-flows--sequence-maps)
+  - [3.1 Flow 1: Lead Ingestion to Dual-Key Client Onboarding](#31-flow-1-lead-ingestion-to-dual-key-client-onboarding)
+  - [3.2 Flow 2: Planning, Resource Scheduling & Materiality Formulation](#32-flow-2-planning-resource-scheduling--materiality-formulation)
+  - [3.3 Flow 3: Technical Fieldwork Execution & Multi-Tier Review Matrix](#33-flow-3-technical-fieldwork-execution--multi-tier-review-matrix)
+  - [3.4 Flow 4: Reporting, 5-Part Deliverable Release & Compliance Archive](#34-flow-4-reporting-5-part-deliverable-release--compliance-archive)
+  - [3.5 Flow 5: Practice Management, Time Realization & Firm Bookkeeping](#35-flow-5-practice-management-time-realization--firm-bookkeeping)
+- [4. Module-by-Module Functional Requirements](#4-module-by-module-functional-requirements)
+  - [4.1 Module 1: Commercial & CRM Pipeline](#41-module-1-commercial--crm-pipeline)
+  - [4.2 Module 2: Administration, Governance & Planning](#42-module-2-administration-governance--planning)
+  - [4.3 Module 3: Technical Execution & Audit Fieldwork](#43-module-3-technical-execution--audit-fieldwork)
+  - [4.4 Module 4: Reporting & Final Deliverables](#44-module-4-reporting--final-deliverables)
+  - [4.5 Module 5: Practice Analytics & Internal Bookkeeping](#45-module-5-practice-analytics--internal-bookkeeping)
+- [5. System State Machine & Lifecycle Transitions](#5-system-state-machine--lifecycle-transitions)
+  - [5.1 State Machine Transition Matrix](#51-state-machine-transition-matrix)
+  - [5.2 State Machine Visual Workflow](#52-state-machine-visual-workflow)
 
 ---
 
-
-
-
-
-
-
-## 2. Evidence, sources and limitations
-
-
-
-
-
-
-
-### 2.1 Basis
-
-
-
-
-
-
-
-- **D1 — supplied audit process:** `Audit working process - Audit Tool New(1).docx`, eight pages, twenty numbered sections. Section names and procedural scope are preserved in section 5 of this report.
-
-
-
-- **R — repository source:** current branch metadata, domain entities, accounting services, audit fieldwork services, and the v5 specification at the pinned commit. See section 13 for immutable references.
-
-
-
-- **E — external comparison:** official ERPNext documentation, used only to explain the reference feature set.
-
-
-
-- **S — professional context:** IFRS Foundation overview pages for consolidation, business combinations, currency translation and reporting-version considerations. These are context, not a substitute for the firm's approved methodology or complete licensed standards.
-
-
-
-- **P — proposed design:** the user stories, new entities, sequence, tests and acceptance conditions below are recommendations, not claims that the sources already implement them.
-
-
-
-
-
-
-
-### 2.2 What this review does and does not establish
-
-
-
-
-
-
-
-This document began as a source-level architecture and product review. Its current implementation snapshot is refreshed from the local repository and execution evidence above. It does not claim professional-methodology approval, live tenant acceptance or a production deployment.
-
-
-
-
-
-
-
-“Present” means the inspected code represents the capability. “Partial” means a useful implementation exists but does not yet satisfy the broader requested behavior. “Not found” refers to the inspected model/service inventory, not to an assertion based only on a failed keyword search. Documentation completion labels and historical test counts are not treated as proof of the newly requested scope.
-
-
-
-
-
-
-
-The newer audit implementation includes `AuditSchedule`, selections, item tests, confirmations, alternative procedures, area assessments and differences. This report does not incorrectly list those as wholly absent. A generic assessment envelope is not, however, the same as an implemented and verified ECL, depreciation, tax or consolidation calculation engine. [R8–R10]
-
-
-
-
-
-
-
-### 2.3 Meaning of “manages the accounts” in this design
-
-
-
-
-
-
-
-The baseline is an **import-first preparation and audit workspace**, not client sales/purchase/payroll operations. A client can retain its external bookkeeping system. AuditSphere imports controlled evidence and maintains reporting/audit adjustments. If the firm later needs full outsourced day-to-day bookkeeping, define that as a separate capability with source-book ownership and operating controls; do not introduce it implicitly through this backlog. [R2]
-
-
-
-
-
-
+# 1. Requirement Gathering & Operational Context
+
+## 1.1 Business Objectives & Problem Statement
+
+* **Elimination of Per-File Licensing Penalties:** Existing commercial platforms enforce rigid licensing tiers (e.g., limits of 130 client files) that charge steep incremental fees for additional files. The in-house platform must support an unlimited number of client entities, historical engagements, and working papers with zero subscription penalties.
+* **Unified Engagement Lifecycle:** Centralize commercial sales, administrative governance, compliance clearance, audit fieldwork execution, multi-tier quality reviews, client deliverable generation, and internal firm practice management into a single, cohesive workflow.
+* **Standardized Auditing Governance:** Standardize firm-wide execution in strict alignment with International Standards on Auditing (ISA), including:
+  * **ISA 210:** Agreeing the Terms of Audit Engagements (Engagement Letters).
+  * **ISA 220 & ISQC 1:** Quality Control for an Audit of Financial Statements (Client Acceptance & Continuance).
+  * **ISA 230:** Audit Documentation (60-day assembly and regulatory locking).
+  * **ISA 320:** Materiality in Planning and Performing an Audit.
+  * **ISA 505:** External Confirmations.
+  * **ISA 570:** Going Concern.
+  * **ISA 700 & 705:** Forming an Opinion and Reporting on Financial Statements.
 
 ---
 
+## 1.2 User Personas & Responsibility Matrix
 
-
-
-
-
-
-## 3. ERPNext inspiration — what to adopt, adapt and exclude
-
-
-
-
-
-
-
-| ERPNext reference concept | AuditSphere adaptation | Boundary |
-
-
-
-|---|---|---|
-
-
-
-| Company-specific Chart of Accounts | Independent versioned client COA; optionally map to common firm and group reporting taxonomies | Never force different clients to use identical source account codes. |
-
-
-
-| Journal Entry and templates | Balanced, version-bound reporting/audit adjustments, reclassifications and reviewed recurring templates | Proposal, management agreement, review and application are distinct events. |
-
-
-
-| General Ledger | Immutable imported transaction detail and a traceable adjusted reporting view | Do not fabricate a client's transaction history from its closing TB. |
-
-
-
-| Accounting Dimensions | Import branch, department, cost centre, project, party and intercompany counterparty | Dimensions do not confer authorization. |
-
-
-
-| Financial reports and comparative periods | Entity TB, lead schedules, statements, disclosures, account drill-down and prior-year bridges | An arithmetic check is not a professional approval. |
-
-
-
-| Bank/payment reconciliation | Reconcile imported client schedules, bank statements and selected subsequent transactions | No client payment initiation or cash-management operations. |
-
-
-
-| Multi-currency | Original, functional and presentation currencies; approved immutable rate sets | Transaction remeasurement and foreign-operation translation are different processes. |
-
-
-
-| Intercompany Journal Entry | Match component balances and generate approved consolidation-only eliminations | Do not automatically post into each client's source ledger. |
-
-
-
-| Consolidated Financial Statement report | Auditable group reporting packs with perimeter, adjustments, eliminations and lineage | A report that sums entities is not evidence of complete consolidation methodology. |
-
-
-
-| Fiscal periods and closing | Client reporting-period locks and controlled amendments/rollforward | Do not reuse the firm's own fiscal-period objects as the client's periods. |
-
-
-
-| Sales/purchases/stock/payroll operations | Import schedules and supporting evidence for the audit procedures | Exclude ordering, procurement, warehouse movements, payroll disbursement and statutory filing from this module. |
-
-
-
-
-
-
-
-ERPNext's documentation describes a company-specific account tree, accounting dimensions, journal entries, multi-currency and consolidated reporting. These are useful reference concepts, not a claim that ERPNext's documented consolidated report supplies every ownership, acquisition or elimination control required here. [E1–E6]
-
-
-
-
-
-
+| User Role | Target Persona | Functional Scope & Core Responsibilities | Key Access Boundary |
+| :--- | :--- | :--- | :--- |
+| **PREPARER** | Audit Associate / Junior Auditor | • Executes assigned financial statement line item (FSLI) audit test procedures.<br/>• Uploads digital working papers and inputs physical binder index codes (`X-1, Box 3`).<br/>• Submits completed testing packages for managerial review.<br/>• Logs daily operational hours against assigned engagement tasks. | Limited to assigned workprograms; no sign-off or external communication rights. |
+| **REVIEWER** | Audit Senior / Audit Manager | • Verifies substantive testing and recalculated schedules.<br/>• Issues inline review notes and initiates the rework loop for incomplete tests.<br/>• Determines sampling parameters and calculates engagement materiality.<br/>• Prepares the Summary Review Memorandum (SRM) for the partner.<br/>• Tracks engagement budgets, team hours, and delivery milestones. | Engagement-wide review; can return tests for rework; cannot sign final audit opinion. |
+| **APPROVER** | Engagement Partner | • Evaluates and signs off on the Dual-Key Acceptance Gate (AML/KYC).<br/>• Authorizes commercial proposals and executes Engagement Letters.<br/>• Clears high-risk (Red) audit areas and formally signs off on the SRM.<br/>• Selects the final Audit Opinion, applies digital signatures and firm seals.<br/>• Authorizes final deliverable bundles and enforces regulatory file locks. | Full firm and engagement sign-off authority; final gatekeeper for releases. |
+| **CLIENT** | Client Coordinator / CFO / MD | • Accesses an isolated, tokenized external workspace (PBC Portal).<br/>• Views requested audit documentation with real-time review status badges.<br/>• Uploads requested financial schedules, trial balances, and voucher evidence.<br/>• Receives invoices, receipts, holding letters, and final deliverables.<br/>• Access freezes automatically upon engagement sign-off. | Isolated tenant portal; read/upload only; access terminates on engagement closure. |
 
 ---
 
+# 2. Project Modules Connectivity & Architecture
 
-
-
-
-
-
-The subsequent `9f8b2a7` web slice adds bounded review-only mapping candidates for unmapped accounts, labels ambiguous matches, and never auto-assigns an allocation.
-
-
-
-
-
-
-
-The `ccb01ea` web slice initially scoped Portfolio counters and release/package lists to active explicit grants; `60c7c68` preserves exact engagement-grant boundaries so an engagement-only grant cannot expand to sibling engagements; `69dc6ec` adds scope-bound client search and CSV export.
-
-
-
-
-
-
-
-## 4. Current-code gap analysis
-
-
-
-
-
-
-
-### 4.1 Capability matrix
-
-
-
-
-
-
-
-| ID | Capability | Current evidence | Gap / recommended action | Priority |
-
-
-
-|---|---|---|---|---|
-
-
-
-| G01 | Separation of firm and client accounts | `FirmLedger.cs` explicitly separates firm finance from client TB/adjustments. [R3] | Preserve it. Add client account structures rather than extending `FirmAccount` to hold external-company books. | Preserve |
-
-
-
-| G02 | Multiple independent clients | `PracticeClient`, client accounting profiles, periods/books, scoped portfolio queries and the context-pinned accounting workspace are implemented. [R4–R5] | Preserve client isolation and context-bound imports/packages; no separate client accounting stack is needed. | LOCAL_VERIFIED |
-
-
-
-| G03 | Client grouping and ownership | Effective-dated group membership and versioned consolidation perimeter/ownership inputs exist. [R4] | Associate/joint-arrangement and common-control treatment remains separately blocked unless an approved method is added; membership alone grants no access. | P1/P3 |
-
-
-
-| G04 | Client chart of accounts | Versioned client COA has stable identities, hierarchy, account types, historical names/codes and source aliases. [R5] | Preserve immutability and unresolved-account behavior; no current base COA gap identified. | LOCAL_VERIFIED |
-
-
-
-| G05 | Firm-wide taxonomies | Governed taxonomy versions, approval/effectivity, applicability, overlays and mapping/package impact checks are implemented. [R5–R7] | Preserve version-bound mappings and historical packages; jurisdiction-specific tax rules remain separate. | LOCAL_VERIFIED |
-
-
-
-| G06 | Mapping | Versioned mappings, independent allocation records, approved-taxonomy checks, exact split residual handling, explicit maker/checker and completeness checks exist. [R6–R7] | Preserve these controls; any future reusable rule packs must remain reviewable and version-bound. | LOCAL_VERIFIED |
-
-
-
-| G07 | Source ingestion | Bounded CSV/XLSX profiles, raw-byte SHA-256, versioned normalized digest, preview/validation, GL import, per-entity batch handling, source-period context and duplicate explanations exist. [R11–R12] | Preserve source lineage and add only specifically approved profile needs; no current Phase-0 ingestion gap identified. | LOCAL_VERIFIED |
-
-
-
-| G08 | GL / subledger detail | Typed journal/line, party, dimensions and service-date lineage are persisted; a source-bound completeness bridge reconciles GL to the selected TB and reports incomplete extracts. [R8–R9] | Preserve explicit extract-completeness disclosure and current-source review; specialized subledger profiles are added only when approved. | LOCAL_VERIFIED |
-
-
-
-| G09 | No-adjustment entity | Zero-journal plans finalize to the validated source balances and build a valid package without a dummy journal. [R7, R13] | Keep the end-to-end source-equivalence regression. | LOCAL_VERIFIED |
-
-
-
-| G10 | Audit/reporting journals | Audit/reporting journal purposes, explicit book inclusion, immutable management decisions, independent application review, amendments/reversals and typed difference lineage are implemented. [R5, R13] | Preserve source-reflection evidence and never infer external posting from export or client agreement. | LOCAL_VERIFIED |
-
-
-
-| G11 | Corrected / uncorrected differences | `AuditDifference` retains typed correction state, materiality/qualitative metadata, reviewer evaluation and exact journal-impact lineage. Human aggregate conclusion is bound to all current difference rows and independently approved materiality, then independently reviewed; completion rejects missing or stale assessments. [R8, R10] | Preserve the current-source and independent-review gates; final opinion/signature/release approvals remain separate human and external controls. | LOCAL_VERIFIED |
-
-
-
-| G12 | Reconciliation | Reconciliation resolves reference balances from identified TB/GL inputs, retains explained items and evidence, and requires independent review; ageing, bank and confirmation paths are source-bound. [R8–R9] | Preserve source-generation fencing and stale-review rejection. | LOCAL_VERIFIED |
-
-
-
-| G13 | Specialized audit accounting schedules | Reviewed ECL, inventory, depreciation, payroll, loans, equity, related-party, tax and forecast workspaces are implemented with explicit assumptions and evidence. [R8–R9] | Unsupported methods remain blocked; calculators do not make audit conclusions or execute client operations. | LOCAL_VERIFIED |
-
-
-
-| G14 | Reporting periods / comparative / multiple books | Client periods/books, context-bound TB/package identity, opening bridges, close/reopen amendments and restatement lineage are implemented; firm periods remain separate. [R3, R5] | Preserve original issued comparative values and keep amendments/restatements append-only. | LOCAL_VERIFIED |
-
-
-
-| G15 | Financial statements | Entity packages include approved structures, equity/cash-flow inputs, comparative and note checks, reporting-currency presentation, cross-casts and exact rendered artifact lineage. [R5–R7] | Unsupported/missing components remain visible blockers; release and signature evidence are distinct G18 controls. | LOCAL_VERIFIED |
-
-
-
-| G16 | Multi-currency | Approved rate sets/policies, pinned foreign-operation translation, maker/checker results and per-line FX lineage exist; component translation results are calculation-versioned; source-snapshot-bound entity remeasurement is persisted with exact approved rate observations, deterministic input hash, independent revalidation and review-only UI. Each remeasurement item now also references a unique sealed GL line from the same firm/client/engagement/reporting period, pins a digest over that line and its source batch/transaction, and revalidates the link at independent approval. Direct and streamed GL imports retain original currency, amount and functional posting in their normalized digest and stored source records; GL transactions/lines are database-enforced append-only. [R11, R15] | Remeasurement amounts/classifications and outstanding-item status remain practitioner-entered against period-end evidence; the imported GL line is corroborating lineage, not proof that a balance remains open. Professional methodology approval, real-currency golden scenarios and any required live integration evidence remain separate. Nonexchangeable currencies and unsupported hyperinflation remain blocked. | P4 |
-
-
-
-| G17 | Group consolidation | Versioned perimeter/component packs, intercompany reconciliation, elimination journals, deterministic runs/reviews, and source-bound acquisition/NCI, ownership-change, nested-scope, FX-reserve and asset-transfer schedules have PostgreSQL and method-specific golden-fixture coverage. [R1–R2, R5, R15] | Associate/joint-arrangement and common-control methods remain blocked; advanced profiles are not enabled automatically, and independent methodology/release/records/production gates remain separate. | LOCAL_VERIFIED |
-
-
-
-| G18 | Review, release and evidence | Reuse existing authorization, approvals, generations, release checkpoint and records patterns. [R2, R10] | Extend from entity targets to composite group manifests; prohibit stale component-based release. | P2/P3 |
-
-
-
-| G19 | Portfolio usability | Existing Blazor pages and entity workflow should be reused. [R1] | Cohesive client accounting and group workspaces, explicit basis/version, next action, blockers and scoped drill-down. | P1–P4 |
-
-
-
-| G20 | Proof and scale | Existing tests are a foundation, not evidence for new group scope. | Real PostgreSQL and browser tests, method-owner golden fixtures, exact-source replay, concurrency and representative workloads. | All phases |
-
-
-
-
-
-
-
-### 4.2 Immediate correctness fixes before extending scope
-
-
-
-
-
-
-
-**C1 — RESOLVED locally.** A zero-journal plan finalizes, creates an adjusted snapshot and builds a financial package whose balances equal the validated source. `ZeroAdjustmentPlan_ProducesSourceEquivalentPackage` exercises the complete service path; it inserts no dummy journal. [R7, R13; `tests/AuditSphereOps.Domain.Tests/FinancialStatementTests.cs`]
-
-
-
-
-
-
-
-**C2 — RESOLVED locally.** Import records keep raw-file SHA-256 separate from the versioned normalized-data digest and distinguish byte-identical from normalized-equivalent inputs. `Import_EquivalentNormalizedContent_IsExplainedAsDuplicate` verifies the duplicate explanation for distinct raw bytes with equivalent normalized content. [R11–R12; `tests/AuditSphereOps.Domain.Tests/ClientAccountingTests.cs`]
-
-
-
-
-
-
-
-**C3 — RESOLVED locally.** A dataset must contain exactly one legal entity; controlled multi-entity batches produce separate entity-scoped datasets, and direct mixed-entity promotion is rejected. PostgreSQL regressions cover both successful split batching and mixed-entity rejection. [R7, R11–R12; `tests/AuditSphereOps.Domain.Tests/`]
-
-
-
-
-
-
-
-**C4 — RESOLVED locally.** Mapping approval denies the creating user even when that actor also holds a reviewer role; the PostgreSQL mapping/package review regression exercises the denial alongside scope and stale-state checks. [R6; `tests/AuditSphereOps.Domain.Tests/FinancialStatementTests.cs`]
-
-
-
-
-
-
-
-**C5 — RESOLVED locally.** Mapping destinations and statement sections are validated against the applicable approved taxonomy; allocations require the supported `LAST_DESTINATION` policy. The deterministic calculator assigns the final destination the source remainder at accounting precision and records the rounding residual in package lineage. `PackageRounding_ConservesEachSourceBalanceAndRecordsResidual` covers exact conservation. This does not constitute professional approval of a taxonomy or accounting method. [R6–R7, R14; `tests/AuditSphereOps.Domain.Tests/FinancialStatementTests.cs`]
-
-
-
-
-
-
-
-**C6 — schedule reconciliation must resolve trusted reference data.** GL-backed bank-ledger schedules now require a sealed, firm/client/engagement/legal-entity-scoped GL import batch whose raw or normalized hash matches the schedule, whose selected account codes have complete case-insensitive source-line coverage, and whose persisted GL control total is derived from those source lines; a caller-supplied mismatch fails closed. Non-GL statement schedules remain separately evidenced and are not silently treated as GL data. [R9]
-
-
-
-
-
-
-
-**C7 — RESOLVED locally.** Difference records link the exact journal revision, source-reflection evidence, adjusted snapshot and a hash-checked `journal-impact.v2` payload; proposed/agreed/rejected/applied/reported states remain explicit and stale or unsupported correction evidence cannot become verified-reflected. The aggregate workflow records a human-authored conclusion and reporting impact against a deterministic snapshot of every difference plus the current independently approved materiality revision. A different scoped reviewer must review it, and both review and completion reject stale snapshots after any relevant input change. PostgreSQL-backed coverage verifies missing materiality blocks preparation, current reviewed assessments clear the aggregate blocker, and a newly identified difference makes that assessment stale. Focused browser coverage verifies the staff form and persisted submission. Totals never decide materiality or opinion. [R10]
-
-
-
-
-
-
-
-These are source-supported findings and proposed strengthening measures, not claims of a tested production exploit.
-
-
-
-
-
-
-
----
-
-
-
-
-
-
-
-## 5. Traceability to the supplied twenty-section audit process
-
-
-
-
-
-
-
-The attachment is an audit procedure checklist, not a complete accounting or consolidation specification. Keep its twenty section names and extend accounting support beneath them. Group ownership, firm taxonomies and consolidation originate from the current request, not from unmentioned content in the attachment.
-
-
-
-
-
-
-
-| Source section | Existing reusable support | Additional accounting support / proposed stories |
-
-
-
-|---|---|---|
-
-
-
-| 1. Planning & Risk Assessment | Audit planning/materiality and program infrastructure; TB/FS source model | Opening-balance bridge, period/source completeness, client profile, mapping and analytical inputs: AC-01, 03–09, 15. |
-
-
-
-| 2. Cash & Bank | Schedules, confirmations, responses and alternative procedures | Bank/GL/TB tie-out; dated reconciling items; outstanding-item aging; subsequent statement links: AC-08, 12, 25. |
-
-
-
-| 3. Trade Receivables | Schedule/confirmation/selection/test infrastructure | As-of aging, subsequent receipts, ECL inputs and independent recalculation: AC-08, 12–13. |
-
-
-
-| 4. Inventory | Schedules, item tests and assessment envelope | Quantity/cost source reconciliation, counts, cost-vs-NRV, obsolescence and cutoff: AC-12–13. |
-
-
-
-| 5. Revenue / Sales | Schedules, selections and item evidence | Monthly GL bridge, source dates, credit notes and revenue cutoff: AC-08, 12, 15. |
-
-
-
-| 6. Purchases & Trade Payables | Schedule/confirmation/test infrastructure | Payables aging, supplier statements, subsequent payments and unrecorded-liability bridge: AC-08, 12. |
-
-
-
-| 7. Fixed Assets | Assessment envelope and evidence links | Asset rollforward, additions/disposals, depreciation and impairment support: AC-14. |
-
-
-
-| 8. Expenses | Imported schedules and tests | Prior-year/budget variance, classification, capital-vs-expense and cutoff: AC-08, 12, 15. |
-
-
-
-| 9. Payroll | Area assessment and sample testing | Imported payroll-to-GL bridge and selected gross/net/deduction recalculations, not payroll operation: AC-14. |
-
-
-
-| 10. Loans & Borrowings | Confirmations and area assessments | Loan rollforward, interest/accrual calculations, current/noncurrent split and covenant inputs: AC-14. |
-
-
-
-| 11. Equity / Share Capital | Area assessment and document links | Share/equity rollforward, dividend and retained-earnings bridge: AC-03, 14, 16. |
-
-
-
-| 12. Related Parties | Confirmation and assessment model | Typed related-party/counterparty links, balance/transaction schedules and disclosure inputs: AC-08, 14, 20. Related parties are not automatically consolidation members. |
-
-
-
-| 13. Tax & Statutory Liabilities | Tax assessment envelope | Approved jurisdiction profile, return/payment/GL bridge, current/deferred-tax schedules where enabled: AC-14, 16. |
-
-
-
-| 14. Journal Entries & Fraud | Selection/testing and journal/difference records | Complete imported GL journal register; rule-based flags with human disposition: AC-08, 10–11, 15. |
-
-
-
-| 15. Analytical Review | Area-assessment envelope | Defined formula/denominator periods, ratios, monthly trends, budget comparisons and explanations: AC-15. |
-
-
-
-| 16. Going Concern | Area-assessment/evidence infrastructure | Versioned management forecasts, debt/cash inputs, scenarios and reviewed assumptions: AC-14–16. Never infer an audit conclusion from ratios alone. |
-
-
-
-| 17. Subsequent Events | Evidence and area assessments | Post-year-end transaction search and explicit adjustment/disclosure decisions: AC-08, 11, 16, 26. |
-
-
-
-| 18. Financial Statements & Disclosures | Mapped entity packages, cash-flow inputs, disclosures and text artifact | Complete approved presentation, comparative, equity and note consistency: AC-05–06, 16–17, 21–23. |
-
-
-
-| 19. Audit Differences & Adjustments | Difference register, AJ and reflection plan | Management decision, exact correction lineage, impact calculations and signed/gross summaries: AC-09–11, 23. |
-
-
-
-| 20. Final Completion & Audit Report | Program reviews, completion checks and release/records foundation | Consolidated completion evidence, representation/signing dependencies and exact final TB/FS lineage: AC-16, 23, 25–28. |
-
-
-
-
-
-
-
-Do not replace a source-required procedure with “schedule uploaded.” Receipt, reconciliation, testing, independent review and professional conclusion remain different outcomes.
-
-
-
-
-
-
-
----
-
-
-
-
-
-
-
-## 6. Target architecture
-
-
-
-
-
-
-
-### 6.1 Logical design
-
-
-
-
-
-
+The five core functional modules communicate across strict data boundaries. An engagement progresses sequentially through gates, ensuring administrative and compliance requirements are met before field testing begins.
 
 ```mermaid
-
-
-
 flowchart TD
+    subgraph M1["Module 1: Commercial & CRM Pipeline"]
+        direction TB
+        M1_Lead["Lead Ingestion (Multi-channel)"]
+        M1_Prop["Commercial Proposal (Quote / RFP)"]
+        M1_Gate{"Dual-Key Gate (Client + Partner)"}
+        M1_EL["Engagement Letter (ISA 210)"]
+        M1_Adv["50% Advance Invoice"]
+        M1_Lead --> M1_Prop --> M1_Gate
+        M1_Gate -->|"Both Approved"| M1_EL --> M1_Adv
+    end
 
+    subgraph M2["Module 2: Administration, Governance & Planning"]
+        direction TB
+        M2_Gov["Acceptance & Continuance (ISA 220)"]
+        M2_Tax["Taxonomy Provisioning (5-Folder Tree)"]
+        M2_Sched["Resource Scheduling & Milestones"]
+        M2_Mat["3-Tier Materiality Engine (PM, TE, SAD)"]
+        M2_Gov --> M2_Tax --> M2_Sched --> M2_Mat
+    end
 
+    subgraph M3["Module 3: Technical Execution & Fieldwork"]
+        direction TB
+        M3_TB["TB Ingestion & Auto-Mapping"]
+        M3_Dash["Split Dashboard (P&L & B/S)"]
+        M3_WP["Workprograms & Hybrid Evidence"]
+        M3_Conf["Confirmations Gatekeeper (ISA 505)"]
+        M3_Review["Three-Tier Review & SRM (ISA 220)"]
+        M3_TB --> M3_Dash --> M3_WP --> M3_Conf --> M3_Review
+    end
 
-    UI[Blazor staff and client workspaces] --> APP[Application commands and scoped queries]
+    subgraph M4["Module 4: Reporting, Deliverables & File Archive"]
+        direction TB
+        M4_Op["4-Way Opinion Dropdown (ISA 700/705)"]
+        M4_Sig["Digital Signature & Official Firm Seal"]
+        M4_Bundle["5-Part Deliverable Release Bundle"]
+        M4_Inv["50% Final Fee Invoice"]
+        M4_Lock["60-Day Compliance Lock (ISA 230)"]
+        M4_Op --> M4_Sig --> M4_Bundle --> M4_Inv --> M4_Lock
+    end
 
+    subgraph M5["Module 5: Practice Management & Internal Bookkeeping"]
+        direction TB
+        M5_Time["Daily Time Tracking & Role Charge-Out Rates"]
+        M5_Real["Engagement Profitability & Realization"]
+        M5_Ledger["Internal Practice Ledger & Operating Expenses"]
+        M5_Report["Firm Trial Balance, P&L & AR Aging"]
+        M5_Time --> M5_Real
+        M5_Ledger --> M5_Report
+    end
 
-
-    APP --> AUTH[Existing actor authorization and safety guards]
-
-
-
-    APP --> CA[Client accounting: periods, COA, TB and GL]
-
-
-
-    APP --> TAX[Governed reporting taxonomy and mapping]
-
-
-
-    APP --> AUD[Existing audit program, schedules and reviews]
-
-
-
-    APP --> CON[New consolidation module]
-
-
-
-    CA --> ENT[Immutable entity reporting package]
-
-
-
-    TAX --> ENT
-
-
-
-    ENT --> CON
-
-
-
-    CON --> GRP[Immutable group reporting package]
-
-
-
-    ENT --> REL[Existing approval, release and records controls]
-
-
-
-    GRP --> REL
-
-
-
-    APP --> DB[(Existing PostgreSQL / EF Core)]
-
-
-
-    APP --> JOB[Existing durable operations / .NET workers]
-
-
-
-    JOB --> M365[Approved SharePoint / Graph / records adapters]
-
-
-
-    FIRM[Existing firm billing and firm ledger] --> DB
-
-
-
+    M1_Adv ==>|"Handshake 1: Risk Clearance & 50% Deposit Paid"| M2_Gov
+    M2_Mat ==>|"Handshake 2: Planning Approved & TB Ingested"| M3_TB
+    M3_Review ==>|"Handshake 3: Partner Cleared SRM & Confirmations"| M4_Op
+    M3_WP -.->|"Labor Hours Actuals"| M5_Time
+    M4_Inv -.->|"50% Final Fee Note"| M5_Ledger
+    M1_Adv -.->|"50% Advance Receipt"| M5_Ledger
 ```
 
+---
 
+# 3. End-to-End Project Task Flows & Sequence Maps
 
+## 3.1 Flow 1: Lead Ingestion to Dual-Key Client Onboarding
 
-
-
-
-`TAX` above is a reporting taxonomy, not a jurisdictional tax-calculation engine. Use names such as `ReportingTaxonomy` in code to prevent that ambiguity.
-
-
-
-
-
-
-
-### 6.2 Financial data path
-
-
-
-
-
-
+The onboarding path enforces an automated state machine. An Engagement Letter cannot be generated until commercial terms are accepted by the client and risk clearance is formally approved by the Engagement Partner.
 
 ```mermaid
+flowchart TD
+    Start(["Client Contact Initiated<br/>(Phone / WhatsApp / Email / Referral)"]) --> Profiling["Entity & Contact Profiling<br/>(Group Structure, Tax ID, Signatories)"]
+    Profiling --> Scope["Generate Commercial Scope"]
+    
+    Scope --> Quote["Brief Quotation<br/>(1–2 Pages, 50/50 Fee Terms)"]
+    Scope --> Proposal["Comprehensive Technical Proposal<br/>(Team CVs, Methodology, Credentials)"]
+    
+    Quote --> Submit["Submit Proposal / Quote to Client"]
+    Proposal --> Submit
 
+    Submit --> GateEval{"Dual-Key Acceptance Gatekeeper"}
 
+    subgraph DualKey["Dual-Key Authorization (Parallel Requirements)"]
+        Key1["Key 1: Client Commercial Approval<br/>(Client digitally confirms quote fee)"]
+        Key2["Key 2: Partner Risk Clearance (ISA 220)<br/>(Partner signs AML/KYC background check)"]
+    end
 
-flowchart LR
+    GateEval -.-> Key1
+    GateEval -.-> Key2
 
+    Key1 --> CheckCondition{"Both Conditions Met?"}
+    Key2 --> CheckCondition
 
+    CheckCondition -->|"No: Hard Block"| Halt["Halt Pipeline<br/>(Engagement Letter blocked)"]
+    CheckCondition -->|"Yes: Cleared"| GenEL["Auto-Generate Engagement Letter (ISA 210)<br/>& Issue 50% Advance Commercial Invoice"]
 
-    A[Client-owned source files] --> B[Verified raw receipt and immutable import]
+    GenEL --> Payment["Client Settles 50% Advance Payment"]
+    Payment --> PostPayment{"Post-Payment Automated Handshake"}
 
-
-
-    B --> C[One entity / period / source book]
-
-
-
-    C --> D[Validated TB and reconciled GL]
-
-
-
-    D --> E[Approved client-to-taxonomy mapping]
-
-
-
-    D --> J[Approved reporting adjustments]
-
-
-
-    J --> F[Adjusted entity snapshot]
-
-
-
-    E --> F
-
-
-
-    F --> P[Entity financial package]
-
-
-
-    P --> K[Approved component package selection]
-
-
-
-    K --> X[Approved currency translation, when needed]
-
-
-
-    X --> L[Group adjustments and eliminations]
-
-
-
-    L --> G[Consolidated package]
-
-
-
-    G --> R[Group review and exact-version release]
-
-
-
+    PostPayment --> Receipt["Issue Official Receipt Voucher<br/>(Automated receipt dispatch)"]
+    PostPayment --> Portal["Provision Client Portal Workspace<br/>• System emails temporary credentials<br/>• Mandatory password reset on first login<br/>• Document upload window activates"]
 ```
 
-
-
-
-
-
-
-### 6.3 Three independent concepts that must not be conflated
-
-
-
-
-
-
-
-**Entity organization:** client, optional relationship group, ownership relationships.
-
-
-
-
-
-
-
-**Accounting basis:** source book, reporting book, management-agreed adjustment layer, presentation reclassification, consolidation-only layer.
-
-
-
-
-
-
-
-**Evidence status:** received, validated, reconciled, reviewed, management accepted, professionally approved, released and protected.
-
-
-
-
-
-
-
-A “balanced TB” only passes a mathematical test. “Management accepted” is not an auditor's opinion. “Sent” is not proof of delivery. “Group member” is not permission to view sibling companies.
-
-
-
-
-
-
-
-### 6.4 Proposed module placement
-
-
-
-
-
-
-
-Keep the current projects and add cohesive folders/classes inside them. Names below are proposed, not existing files.
-
-
-
-
-
-
-
-```text
-
-
-
-AuditSphereOps.Domain/
-
-
-
-  Practice/                 # existing firm CRM, billing, firm ledger
-
-
-
-  Accounting/
-
-
-
-    ClientAccounts/         # accounting profiles, client COA versions
-
-
-
-    Periods/                # reporting periods and books
-
-
-
-    Taxonomies/             # firm reporting taxonomy versions
-
-
-
-    Imports/                # typed source batches and GL data
-
-
-
-    Reconciliations/        # source-bound accounting schedules
-
-
-
-  Consolidation/            # scope, inputs, eliminations, run/results
-
-
-
-  Audit/                    # reuse existing fieldwork/program entities
-
-
-
-  Reviews/                  # reuse applicability/history patterns
-
-
-
-
-
-
-
-AuditSphereOps.Application/
-
-
-
-  Accounting/               # commands, query DTOs and pure calculators
-
-
-
-  Consolidation/            # orchestration and pure consolidation engine
-
-
-
-
-
-
-
-AuditSphereOps.Infrastructure/
-
-
-
-  Persistence/              # existing DbContext, configurations, migrations
-
-
-
-  Providers/                # existing external document/provider boundary
-
-
-
-
-
-
-
-AuditSphereOps.Web/
-
-
-
-  Components/Pages/Accounting/
-
-
-
-  Components/Pages/Consolidation/
-
-
-
-```
-
-
-
-
-
-
-
-Do not reorganize the entire repository merely to achieve this folder structure. Move only code touched by an accepted story. Keep deterministic calculation functions free of EF Core, network calls, clocks and random identifiers, following the current calculator pattern. [R14]
-
-
-
-
-
-
-
-### 6.5 Minimum model extensions
-
-
-
-
-
-
-
-| Domain | Proposed records | Required relationship/control |
-
-
-
-|---|---|---|
-
-
-
-| Client organization | `ClientAccountingProfile`, `ClientGroup`, `ClientGroupMembership` | Reuse `PracticeClient` as legal-entity identity; effective-dated group membership; no implicit access. |
-
-
-
-| Periods and books | `ClientReportingPeriod`, `ClientPeriodAmendment`, `ClientReportingBook`, `OpeningBalanceBridge` | Entity + period + basis; prior-period linkage; approved close/reopen and immutable amendment lineage. |
-
-
-
-| Client COA | `ClientChartVersion`, `ClientAccount`, `SourceAccountAlias` | Stable account identity; immutable published versions; code uniqueness within its declared source scope. |
-
-
-
-| Reporting taxonomy | `ReportingTaxonomyVersion`, `ReportingTaxonomyNode`, rule/template metadata | Approved immutable versions; tree/cycle checks; no client confidential data in firm-wide masters. |
-
-
-
-| Import and GL | `SourceImportBatch`, typed GL transaction/line records, source/parse manifest | Original byte hash distinct from normalized digest; typed account/date/party/currency fields. Reuse source-receipt mechanism. |
-
-
-
-| Adjustments | Extend existing AJ/plan with purpose/book, decisions and typed difference link | Do not create a second unrelated audit-journal engine. Preserve exact source-reflection semantics. |
-
-
-
-| Reconciliation | Extend existing `AuditSchedule` with trusted source bindings and typed calculation inputs | Use small area-specific input records; no arbitrary executable formula JSON. |
-
-
-
-| Group reporting | `ConsolidationScopeVersion`, `ConsolidationComponent`, `OwnershipInterestVersion`, `ConsolidationRun`, `ConsolidationInput` | Explicit group target, membership dates, method, immutable component package IDs and hashes. |
-
-
-
-| Group journals | `IntercompanyMatch`, `ConsolidationJournal`, `ConsolidationJournalLine` | Group-only effect, exact component/counterparty evidence, independent review. |
-
-
-
-| Currency | `ExchangeRateSetVersion`, `TranslationPolicyVersion`, `TranslationResult` | Rate direction/date/source/approval and transaction/functional/presentation currency distinctions. |
-
-
-
-| Reporting history | Extend package manifests and approval target adapters | Component version vector, taxonomy/mapping/rates/ownership/journals/engine version; exact group release target. |
-
-
-
-
-
-
-
-Introduce only the records needed for each vertical slice. Prefer typed columns for keys, dates, amounts, states and queryable dimensions; reserve JSON for immutable evidence/input snapshots with a versioned schema.
-
-
-
-
-
-
-
-### 6.6 Authorization and database invariants
-
-
-
-
-
-
-
-- Child rows must reference the correct firm/client/engagement or group scope with composite foreign keys. A company name or CSV `Entity` string is not authority.
-
-
-
-- Group reviewers need explicit group access and approved rights to consume selected component packages. That does not automatically grant raw component workpaper or unrelated client access.
-
-
-
-- Groups may include externally prepared component packs without making their providers internal users. Each pack still needs controlled receipt, scope, provenance and approval.
-
-
-
-- Keep source rows, accepted maps, applied journals and issued packages immutable. Amendments create versions, not overwritten history.
-
-
-
-- Validate the entire command before mutating assignments, approvals or financial rows. Commit business rows, audit evidence and outbox intent atomically where applicable.
-
-
-
-- Extend the existing lock order. For group publication, collect component guards in deterministic order and recheck their versions before commit. Do not hold locks while downloading documents or rendering files.
-
-
-
-- Run expensive calculations over pinned immutable inputs outside a long transaction. In a short publication transaction, recheck scope, current versions, policy and permission; reject changed inputs.
-
-
-
-- Preserve existing client input generation as a conservative safety gate. Add exact dependency manifests for clarity rather than prematurely replacing the safety mechanism.
-
-
-
-- Missing or unsupported inputs block an approval/release. They must not silently become zero, complete, or not applicable.
-
-
-
-
-
-
-
-### 6.7 Version manifest
-
-
-
-
-
-
-
-An entity or group result needs a canonical, versioned manifest covering all relevant inputs:
-
-
-
-
-
-
-
-```text
-
-
-
-scope / service / legal entities / reporting period / basis
-
-
-
-source receipt IDs and raw hashes
-
-
-
-sealed dataset IDs and normalized-data hashes
-
-
-
-client COA and taxonomy versions
-
-
-
-mapping version and approved allocations
-
-
-
-operative adjustment revisions and source-reflection decisions
-
-
-
-component package IDs and hashes, for group reporting
-
-
-
-ownership/perimeter and acquisition versions
-
-
-
-exchange-rate set and translation policy versions
-
-
-
-consolidation journal and intercompany resolution versions
-
-
-
-comparative package and opening-balance bridge
-
-
-
-report/template/calculation-engine versions
-
-
-
-```
-
-
-
-
-
-
-
-A change to any dependency makes the previously approved result historical or stale. It does not rewrite the historical sign-off. Content equivalence may allow reuse only after an explicit evaluation policy—not because a new result happens to have the same grand total.
-
-
-
-
-
-
+> [!IMPORTANT]
+> **Dual-Key Invariant:** Under no circumstances can an Engagement Letter or Client Portal be provisioned without both Key 1 (Client Commercial Acceptance) and Key 2 (Partner AML/KYC Clearance) recorded in the database.
 
 ---
 
+## 3.2 Flow 2: Planning, Resource Scheduling & Materiality Formulation
 
+Once an engagement is onboarded, the system initializes project administration, provisions the document structure, assigns staff, and calculates materiality thresholds from Trial Balance benchmarks.
 
+```mermaid
+flowchart TD
+    DualKeyClear(["Partner Clearance of Dual-Key Gate"]) --> ProvisionDir["Automated Engagement Directory Provisioning<br/>├── 01_Administration & Planning<br/>├── 02_Trial Balance & Schedules<br/>├── 03_Fieldwork & Testing<br/>├── 04_Drafts & Deliverables<br/>└── 05_Final Signed Archive"]
 
+    ProvisionDir --> Scheduling["Resource Scheduling & Assignment<br/>• Allocate Partner (Approver), Manager (Reviewer), Associates (Preparers)<br/>• Configure milestones based on statutory reporting cutoff"]
 
+    Scheduling --> IngestTB["Ingest Client Trial Balance (TB)<br/>(Excel / CSV upload with automated account code mapping)"]
 
+    IngestTB --> MatEngine["3-Tier Materiality Calculation Engine"]
 
-## 7. Agile user stories
+    subgraph MatDetails["Materiality Calculation Engine Steps"]
+        direction TB
+        BaseSel["1. Benchmark Base Selection<br/>• Profit Before Tax: 5%–10%<br/>• Revenue: 0.5%–2%<br/>• Total Assets: 0.5%–1%<br/>• Equity / Net Assets: 1%–2%"]
+        Metrics["2. Compute Core Metrics<br/>• Planning Materiality (PM) = Base × Selected %<br/>• Tolerable Error (TE) = 50%–75% of PM<br/>• SAD Threshold (Trivial) = 3%–5% of PM"]
+        Rounding["3. Practical Rounding Tolerance<br/>• Manager may round within strict ±5% limit (e.g., 53,421 → 53,000)"]
+        RiskColor["4. Account Risk Stratification<br/>• GREEN = Balance < TE (Low Risk: Junior Auditor)<br/>• AMBER = TE < Balance < PM (Moderate Risk: Senior)<br/>• RED = Balance > PM or High Inherent Risk (Critical: Manager/Partner)"]
+        BaseSel --> Metrics --> Rounding --> RiskColor
+    end
 
-
-
-
-
-
-
-Story criteria remain proposed unless marked locally verified in the execution ledger; checked items below are implementation evidence, not professional or production acceptance. Each story inherits the common completion contract: scoped authorization, valid and invalid paths, immutable evidence, explicit revisions, tests on actual PostgreSQL when persistence changes, user-visible outcomes, and no unapproved external effect.
-
-
-
-
-
-
-
-### AC-01 — Adopt the audit-accounting and group capability boundary
-
-
-
-
-
-
-
-**As** the product owner and engagement partner, **I want** a versioned capability profile distinguishing firm books, client preparation, audit-only work and consolidation, **so that** the application enables only the approved service and method.
-
-
-
-
-
-
-
-**Priority / dependencies:** P0; none. **Implementation:** extend existing service-profile/adoption controls; reference v5 scope and the new consolidation decision.
-
-
-
-
-
-
-
-**Acceptance criteria**
-
-
-
-- [x] A service selects entity or group reporting, framework/edition, period rules, currencies, accounting methods, review hierarchy and template family.
-
-
-
-- [x] Audit-only work can consume management/external-accountant packs without requiring client bookkeeping migration.
-
-
-
-- [x] Same-firm preparation and audit require the existing affirmative service-permissibility decision; staffing separation alone cannot override a prohibition.
-
-
-
-- [x] Unknown consolidation, valuation or tax methods are visibly unsupported and cannot authorize final reporting.
-
-
-
-- [x] Operational ERP features remain excluded unless separately authorized.
-
-
-
-- [x] Acceptance records distinguish local construction, method-owner approval, live evidence and released capability.
-
-
-
-
-
-
-
-### AC-02 — Maintain independent legal entities and optional relationship groups
-
-
-
-
-
-
-
-**As** a practice manager, **I want** each external company represented independently and optionally organized under a group name, **so that** I can navigate a corporate relationship without mixing accounts or permissions.
-
-
-
-
-
-
-
-**Priority / dependencies:** P1; AC-01. **Implementation:** reuse `PracticeClient`; add accounting profile and optional effective-dated group membership.
-
-
-
-
-
-
-
-**Acceptance criteria**
-
-
-
-- [x] Registration identity, jurisdiction, functional currency, fiscal calendar and source-system identifiers belong to a legal entity.
-
-
-
-- [x] Two clients may use the same account code without collision.
-
-
-
-- [x] A standalone SME needs no group record.
-
-
-
-- [x] Group membership never grants sibling-company access or creates a consolidation automatically.
-
-
-
-- [x] Group changes preserve historical memberships and do not rewrite previous reporting perimeters.
-
-
-
-- [x] Firm-wide search, export, counters and group summaries respect the caller's scope.
-
-
-
-
-
-
-
-### AC-03 — Manage client reporting periods, books and opening balances
-
-
-
-
-
-
-
-**As** a client accountant, **I want** explicit reporting periods and accounting bases, **so that** current-year, prior-year and alternative reporting views remain distinguishable.
-
-
-
-
-
-
-
-**Priority / dependencies:** P1; AC-02. **Implementation:** client-specific period/book objects, not `FirmPeriod` reuse.
-
-
-
-
-
-
-
-**Acceptance criteria**
-
-
-
-- [x] Every context-bound import/package identifies client, period, basis/book and currency; legacy direct fixtures remain nullable for additive migration compatibility.
-
-
-
-- [x] Trial-balance imports persist the selected reporting period, optional book and basis and reject a currency/basis mismatch; financial packages inherit the context, validate period dates and book/basis/currency lineage, and include it in the deterministic calculation hash.
-
-
-
-- [x] Prior-year signed/issued closing balances link to the current opening bridge, with unexplained differences visible.
-
-
-
-- [x] Short periods, different year-ends and post-year-end evidence dates are distinguishable.
-
-
-
-- [x] Management/statutory/reporting/consolidation adjustments have explicit inclusion rules; no ambiguous blank “all books” default.
-
-
-
-- [x] Close prevents unauthorized changes; reopen requires a recorded decision and creates an immutable amendment record with a new working revision.
-
-
-
-- [x] Restatements preserve originally issued comparative values and identify the revised basis.
-
-
-
-
-
-
-
-### AC-04 — Introduce versioned client charts of accounts
-
-
-
-
-
-
-
-**As** an accountant, **I want** a client-specific account hierarchy with stable identities, **so that** inconsistent external account codes can be interpreted safely across years.
-
-
-
-
-
-
-
-**Priority / dependencies:** P1; AC-02–03.
-
-
-
-
-
-
-
-**Acceptance criteria**
-
-
-
-- [x] Import/create group and posting accounts with code, name, type, normal balance and source-system aliases.
-
-
-
-- [x] Detect cycles, orphan parents, duplicate identifiers in scope and unsupported posting to group nodes.
-
-
-
-- [x] Published chart versions cannot be edited in place; code/name changes retain historical identity.
-
-
-
-- [x] An account absent from the current chart is unresolved rather than automatically classified from its number prefix.
-
-
-
-- [x] Source history remains unchanged when presentation categories change.
-
-
-
-- [x] A chart rename does not silently cause an upload to be discarded as byte-identical.
-
-
-
-
-
-
-
-### AC-05 — Govern a firm-wide reporting taxonomy
-
-
-
-
-
-
-
-**As** the firm's technical accounting owner, **I want** versioned master taxonomies shared across clients, **so that** presentation is consistent without forcing clients to change their own charts.
-
-
-
-
-
-
-
-**Priority / dependencies:** P1; AC-01, AC-04.
-
-
-
-
-
-
-
-**Acceptance criteria**
-
-
-
-- [x] Taxonomy nodes define hierarchy, statement location, display sign, normal balance, disclosure/audit area and applicability metadata.
-
-
-
-- [x] Draft, approved, retired and effective versions are explicit; only approved applicable versions can support final reporting.
-
-
-
-- [x] Firm defaults may have approved industry/group overlays without overwriting base taxonomy history.
-
-
-
-- [x] Publishing a version lists impacted mappings/packages; it does not rewrite historical accounts or approvals.
-
-
-
-- [x] Client-confidential amounts, names and rationale cannot leak into shared master templates.
-
-
-
-- [x] Accounting presentation taxonomy and jurisdiction-specific tax rules are separate concepts.
-
-
-
-
-
-
-
-### AC-06 — Build the mapping workbench and enforce exact allocations
-
-
-
-
-
-
-
-**As** an accounting preparer and independent reviewer, **I want** an explainable mapping workbench, **so that** each client balance reaches approved taxonomy nodes accurately.
-
-
-
-
-
-
-
-**Priority / dependencies:** P0/P1; AC-04–05. **Reuse:** `MappingVersion`, `MappingAllocation`, existing create/approve services.
-
-
-
-
-
-
-
-**Acceptance criteria**
-
-
-
-- [x] Show current/prior map, unmapped rows, ambiguous suggestions, split allocations and impact on reports.
-
-
-
-- [x] Suggestions require review; mappings use approved destination identities, not arbitrary strings.
-
-
-
-- [x] Every required source balance is allocated exactly once in total; splits sum to 100%.
-
-
-
-- [x] Deterministic residual allocation preserves the exact source amount at accounting precision and records any display-rounding difference separately.
-
-
-
-- [x] The preparer cannot approve their own mapping, even when they hold a reviewer role.
-
-
-
-- [x] New source/chart/taxonomy versions require a new applicability decision; reusable rule packs do not bypass this.
-
-
-
-
-
-
-
-### AC-07 — Import client TBs through governed CSV/XLSX profiles
-
-
-
-
-
-
-
-**As** an accountant, **I want** reusable import profiles with preview and reconciliation, **so that** different client exports can be loaded without editing their original evidence.
-
-
-
-
-
-
-
-**Priority / dependencies:** P0/P1; AC-02–04. **Reuse:** current CSV parser, LOADING→SEALED lifecycle and source receipt system.
-
-
-
-
-
-
-
-**Acceptance criteria**
-
-
-
-- [x] Support signed net balance and separate debit/credit layouts through explicit profiles; retain original values and locale decisions.
-
-
-
-- [x] Preserve original file bytes/hash separately from normalized dataset digest and parser/profile version.
-
-
-
-- [x] Validate headers, period/basis/entity/currency context, precision, duplicate rows and balancing totals before promotion.
-
-
-
-- [x] A multi-entity file becomes a controlled batch of independently scoped datasets; no cross-entity balancing or account-key collisions.
-
-
-
-- [x] XLSX parsing rejects executable/macros/external-link evaluation and uses bounded sheet, row, cell and decompression limits.
-
-
-
-- [x] Duplicate detection explains whether bytes or normalized content match; an invalid entity/file does not silently promote other invalid data.
-
-
-
-
-
-
-
-### AC-08 — Import GL detail and accounting dimensions
-
-
-
-
-
-
-
-**As** an auditor, **I want** complete source GL transactions and dimensions, **so that** I can trace balances to journals and test periods, parties and unusual postings.
-
-
-
-
-
-
-
-**Priority / dependencies:** P1; AC-03–04, AC-07. **Reuse:** generic schedule/evidence infrastructure where compatible.
-
-
-
-
-
-
-
-**Acceptance criteria**
-
-
-
-- [x] Preserve stable journal/line identity, account, posting/document/service dates, debit/credit, original and functional currency values, party, user/source and reversal references when provided.
-
-
-
-- [x] Map branch, cost centre, department, project and intercompany counterparty using client-specific dimension definitions.
-
-
-
-- [x] Reconcile opening plus movement to closing TB by account, entity, period and basis; disclose incomplete extracts.
-
-
-
-- [x] Flag missing/malformed journal groups, duplicates and out-of-period data rather than inventing counterpart lines.
-
-
-
-- [x] Search/drill-down remains paged, scoped and linked to the raw receipt.
-
-
-
-- [x] Bounded journal-risk analysis returns criteria-versioned, explainable manual/year-end/high-value/reversal/missing-origin indicators for review; it never creates an automatic fraud finding.
-
-
-
-
-
-
-
-### AC-09 — Preserve source reflection and support zero adjustments
-
-
-
-
-
-
-
-**As** an accountant, **I want** replacement client TBs reconciled to previous adjustments, **so that** agreed entries are applied once and a clean client requires no artificial journal.
-
-
-
-
-
-
-
-**Priority / dependencies:** P0/P1; AC-03, AC-07. **Reuse:** AJ source reconciliations and adjustment plans.
-
-
-
-
-
-
-
-**Acceptance criteria**
-
-
-
-- [x] A zero-journal plan finalizes and produces an adjusted snapshot exactly equal to the validated source.
-
-
-
-- [x] REFLECTED journals contribute zero; NOT_REFLECTED journals contribute once.
-
-
-
-- [x] UNKNOWN/PARTIALLY_REFLECTED remains blocked until resolved with evidence; equal grand totals alone are insufficient.
-
-
-
-- [x] A replacement source creates a new dataset/plan and preserves prior calculations and decisions.
-
-
-
-- [x] Plan input identity includes applicable basis/layer; the same logical entry cannot be double-applied through multiple purposes.
-
-
-
-- [x] Source-reflection changes invalidate affected package applicability under the commit safety rules.
-
-
-
-
-
-
-
-### AC-10 — Implement the audit-focused journal lifecycle
-
-
-
-
-
-
-
-**As** an accounting preparer, client management approver and reviewer, **I want** proposed corrections and presentation adjustments separated and approved, **so that** source books and audit reporting do not become confused.
-
-
-
-
-
-
-
-**Priority / dependencies:** P1; AC-03–06, AC-09. **Reuse:** existing AJ/plan entities; no parallel generic ledger.
-
-
-
-
-
-
-
-**Acceptance criteria**
-
-
-
-- [x] Classify each entry as proposed client-book correction, reporting-only adjustment, presentation reclassification or group-only elimination.
-
-
-
-- [x] Store balanced lines, reason, evidence, applicable period/book/basis/currency, origin and exact revision.
-
-
-
-- [x] Management accept/reject/partial-agreement is a signed-in, version-bound decision or explicitly identified offline evidence—not a reviewer-entered string impersonating management.
-
-
-
-- [x] An independent authorized reviewer approves application; posted/applied history is immutable.
-
-
-
-- [x] Reversals and amendments reference prior entries; recurring templates create new drafts, not automatic approval.
-
-
-
-- [x] Exporting an agreed correction does not mark the client's external ledger posted or reflected without evidence.
-
-
-
-
-
-
-
-### AC-11 — Link differences, management responses and verified correction
-
-
-
-
-
-
-
-**As** an audit manager, **I want** each difference connected to its exact proposed journal and reporting impact, **so that** corrected and uncorrected schedules support the final review.
-
-
-
-
-
-
-
-**Priority / dependencies:** P1; AC-09–10. **Reuse:** `AuditDifference` and fieldwork evaluation.
-
-
-
-
-
-
-
-**Acceptance criteria**
-
-
-
-- [x] Add typed links between difference, journal revision, source-reflection evidence and final adjusted snapshot; PostgreSQL coverage verifies the success path and exact lineage checks.
-
-
-
-- [x] Distinguish proposed, agreed, rejected, applied in reporting, reported posted externally and verified reflected; verified reflected remains gated by exact journal, source-reflection, adjusted-snapshot and current `journal-impact.v2` evidence.
-
-
-
-- [x] Calculate account/statement effects, profit and equity totals, and disclosure buckets from the exact journal lines and approved mapping lineage; unmapped accounts remain explicit.
-
-
-
-- [x] Present gross absolute and signed/net summaries, including corrected and unadjusted subtotals by currency, so offsetting differences do not disappear; PostgreSQL coverage passes.
-
-
-
-- [x] Retain difference classification, supplied materiality reference, qualitative concerns and reviewer evaluation metadata; the professional aggregate conclusion remains a separate review responsibility.
-
-
-
-- [x] An unsupported, stale or hash-mismatched correction impact prevents “verified corrected” status and final checklist completion.
-
-
-
-
-
-
-
-### AC-12 — Provide source-bound reconciliation workspaces
-
-
-
-
-
-
-
-**As** an auditor, **I want** cash, receivable, payable, inventory, revenue and expense schedules reconciled to the selected TB/GL, **so that** account-area work starts from complete evidence.
-
-
-
-
-
-
-
-**Priority / dependencies:** P2; AC-07–08. **Reuse:** `AuditSchedule`, confirmation and item-test commands.
-
-
-
-
-
-
-
-**Acceptance criteria**
-
-
-
-- [x] Resolve target GL/TB totals from an exact authorized dataset and account selection, not a user-entered total alone.
-
-
-
-- [x] Record signed reconciling items with reason, aging, evidence, disposition and reviewer; do not hide discrepancies in a plug.
-
-
-
-- [x] Receivable/payable ageing persists the reconciliation as-of date, a supported date basis, versioned bucket rule and computed bucket, explicit credit treatment, and paired subsequent settlement date/reference; PostgreSQL coverage passes.
-
-
-
-- [x] Bank work distinguishes independently approved ledger and statement schedules, typed timing items and proposed correcting entries; an unreconciled residual cannot be approved and proposed items require a same-engagement draft journal.
-
-
-
-- [x] Confirmation responses and alternative procedures preserve respondent/contact validation, channel, receipt, authenticity assessment and independent review evidence outside the client schedule; no-response alternatives are separately reviewed.
-
-
-
-- [x] A changed source marks the reconciliation stale and prevents reuse as current audit evidence.
-
-
-
-
-
-
-
-### AC-13 — Add reviewed ECL and inventory valuation schedules
-
-
-
-
-
-
-
-**As** an auditor, **I want** controlled valuation recalculations linked to imported schedules, **so that** I can evaluate management estimates without treating a generic JSON form as a verified calculation.
-
-
-
-
-
-
-
-**Priority / dependencies:** P2; AC-12. **Reuse:** area assessment and result/review infrastructure.
-
-
-
-
-
-
-
-**Acceptance criteria**
-
-
-
-- [x] ECL captures eligible exposure, segmentation, rates/assumptions, overlays, management amounts and reviewed methodology version.
-
-
-
-- [x] Inventory separates quantity/count reconciliation from cost and NRV/obsolescence valuation.
-
-
-
-- [x] Calculated differences reconcile to the booked amount and link to same-engagement proposed adjustments.
-
-
-
-- [x] Input changes create a new calculation version and stale the previous review.
-
-
-
-- [x] Missing assumptions or unsupported methods block a calculated conclusion; no universal default percentages.
-
-
-
-- [x] Approved golden fixtures and boundary cases verify each enabled calculation method.
-
-
-
-
-
-
-
-### AC-14 — Add rollforward and specialist accounting schedules
-
-
-
-
-
-
-
-**As** an auditor, **I want** typed support for assets, payroll, loans, equity, related parties, tax and forecasts, **so that** the corresponding source procedures have reproducible calculations and evidence.
-
-
-
-
-
-
-
-**Priority / dependencies:** P2; AC-08, AC-12. Split into small account-area child stories during delivery.
-
-
-
-
-
-
-
-**Acceptance criteria**
-
-
-
-- [x] Assets reconcile opening/additions/disposals/depreciation/impairment/closing; methods and useful lives remain explicit.
-
-
-
-- [x] Payroll sample recalculations retain contract assumptions, deductions and bank-payment links; the module does not run payroll.
-
-
-
-- [x] Loans preserve repayments, interest/accrual assumptions, maturity split and covenant inputs.
-
-
-
-- [x] Equity reconciles opening, profit/OCI, capital movements, dividends and closing balances; related-party schedules link to disclosures.
-
-
-
-- [x] Tax schedules use approved jurisdiction/period rules and retained return/payment/correspondence evidence; never assume all clients share one tax rate.
-
-
-
-- [x] Going-concern forecasts retain management ownership, cash/debt inputs, assumptions and sensitivity results; the auditor records the conclusion.
-
-
-
-
-
-
-
-### AC-15 — Provide analytical review and journal-risk workbenches
-
-
-
-
-
-
-
-**As** an audit senior, **I want** repeatable comparisons and drill-down, **so that** unusual movements can be investigated using the same approved reporting basis.
-
-
-
-
-
-
-
-**Priority / dependencies:** P2; AC-03, AC-06, AC-08, AC-12.
-
-
-
-
-
-
-
-**Acceptance criteria**
-
-
-
-- [x] Compare current/prior year, monthly periods and client budgets separately from the firm's engagement budget.
-
-
-
-- [x] Ratio definitions identify inputs, currency, period and denominator basis; divide-by-zero and insufficient data remain visible.
-
-
-
-- [x] Track journal flags, selected samples, management explanations, corroboration and human disposition.
-
-
-
-- [x] Negative/credit balances and seasonal movements are handled explicitly.
-
-
-
-- [x] A conclusion links to exact query parameters and input snapshots for replay.
-
-
-
-- [x] Aggregate reports enforce client/engagement or explicit group scope and return only period/currency totals and counts; client and group component identifiers are omitted.
-
-
-
-
-
-
-
-### AC-16 — Produce complete entity reporting packages
-
-
-
-
-
-
-
-**As** an accounting reviewer and engagement partner, **I want** statements and notes tied to the adjusted TB and comparatives, **so that** final reporting is complete, consistent and reviewable.
-
-
-
-
-
-
-
-**Priority / dependencies:** P2; AC-03, AC-05–06, AC-09–15.
-
-
-
-
-
-
-
-**Acceptance criteria**
-
-
-
-- [x] Generate the approved statement of financial position, profit/loss and OCI as applicable, cash flows, changes in equity, comparatives and notes through the approved taxonomy/mapping and package inputs; unsupported or missing supplementary components remain visible as review gates.
-
-
-
-- [x] Every package line retains source account, mapped destination, adjusted snapshot, mapping-version and adjustment-plan lineage; the deterministic artifact renders the key lineage identifiers.
-
-
-
-- [x] Cash flows require actual movement/supplementary inputs; a closing TB alone cannot fabricate them.
-
-
-
-- [x] Cross-casts, accounting equation, note-to-face totals, equity/profit and comparative checks produce individual validation results.
-
-
-
-- [x] Arithmetic validation, preparation, management approval, audit review and release states remain separate through package status, immutable review decisions and the existing guarded release path.
-
-
-
-- [x] Template/framework effective versions are pinned; exact rendered bytes are persisted with framework/template version and SHA-256 lineage, and package-review decisions require that matching artifact rather than approving an in-memory canonical text dump.
-
-
-
-
-
-
-
-### AC-17 — Introduce controlled currency remeasurement and translation
-
-
-
-
-
-
-
-**As** a group accountant, **I want** approved currency policies and rate sets, **so that** unlike currencies never get added and exchange effects are reproducible.
-
-
-
-
-
-
-
-**Priority / dependencies:** P4; AC-03, AC-08, AC-16; required before any foreign-currency group release.
-
-
-
-
-
-
-
-**Acceptance criteria**
-
-
-
-- [x] Distinguish transaction, entity functional and group presentation currency.
-
-
-
-- [x] Rate sets retain source, direction, date/range, rate type, approval and immutable version.
-
-
-
-- [x] Monetary remeasurement, foreign-operation translation and display-only conversion are separate operations.
-
-
-
-- [x] Closing, average and historical rates follow the approved method; translation reserve and opening-equity rollforwards remain explainable.
-
-
-
-- [x] Missing/invalid rates, nonexchangeable currencies and unsupported hyperinflation methods block that capability rather than use rate 1.
-
-
-
-- [x] FX/rounding adjustments are separately identified and never silently eliminate genuine intercompany differences.
-
-
-
-
-
-
-
-**Local calculation and workflow boundary:** `CurrencyRemeasurementCalculator` treats the supplied prior carrying amount as already expressed in functional currency. Monetary FX adjustment is the closing-rate functional-currency value less that carrying amount; historical-cost non-monetary inputs use the historical rate and do not produce an FX remeasurement gain/loss. `CurrencyRemeasurementService` persists a schedule whose item rows pin an exact engagement-owned `DocumentSnapshot` and source hash, an exact sealed GL line from the same firm/client/engagement/period and a digest of that line plus its batch/transaction source, approved rate row, approved policy, normalized inputs and computed results. The GL link must be unique per schedule and is revalidated by a different scoped reviewer together with the evidence, policy, rates and totals before approval. GL source transactions and lines are append-only at the database boundary. The workbench lists only currently scoped period/engagement contexts, saves an in-progress browser draft locally, and displays submitted item-level lineage. Approval does not post a journal. Amounts, classifications and period-end open-item status remain practitioner-entered and supported by period-end evidence: a posted GL line does not establish that a balance is still outstanding. Professional methodology approval and any release/records gates remain independent.
-
-
-
-
-
-
-
-**Component-translation lineage:** New foreign-operation component translation results use `COMPONENT_TRANSLATION_V2`; the result’s FX adjustment is zero because a single translated package total cannot determine a translation reserve. Existing `COMPONENT_TRANSLATION_V1` records keep their stored values and remain historical evidence, but they do not satisfy current scope readiness; the versioned unique key permits a corrected V2 result without overwriting them.
-
-
-
-
-
-
-
-### AC-18 — Define a versioned consolidation perimeter
-
-
-
-
-
-
-
-**As** a group engagement partner, **I want** a reviewed perimeter and ownership/control assessment, **so that** the correct entities are included for the correct dates and method.
-
-
-
-
-
-
-
-**Priority / dependencies:** P3; AC-01–03.
-
-
-
-
-
-
-
-**Acceptance criteria**
-
-
-
-- [x] A relationship group can have different approved consolidation scopes for different reporting exercises.
-
-
-
-- [x] Membership records specify effective dates, control/method assessment, ownership/economic interests and evidence.
-
-
-
-- [x] Prevent duplicate or circular hierarchy treatment and incompatible/overlapping inclusion decisions for versioned ownership edges; overlapping memberships remain rejected and unsupported nested profiles stay fail-closed.
-
-
-
-- [x] Parent/intermediate subgroup structures cannot cause a subsidiary to be counted twice.
-
-
-
-- [x] Percentage ownership does not automatically determine the professional control assessment.
-
-
-
-- [x] Scope changes create a new version and invalidate relevant group-package applicability, not historical issued packs.
-
-
-
-
-
-
-
-### AC-19 — Collect and approve component reporting packs
-
-
-
-
-
-
-
-**As** a group accountant, **I want** an approved reporting pack for every component, **so that** consolidation uses complete, compatible and permissioned inputs.
-
-
-
-
-
-
-
-**Priority / dependencies:** P3; AC-16, AC-18.
-
-
-
-
-
-
-
-**Acceptance criteria**
-
-
-
-- [x] Each input references the exact entity package, period, framework/basis, currency, taxonomy/mapping and hash.
-
-
-
-- [x] Externally prepared components use controlled import, reconciliation and approval, not hidden default acceptance.
-
-
-
-- [x] Incompatible dates/bases require a documented bridge and approval; missing components are not zero balances.
-
-
-
-- [x] Submitted, returned, resubmitted and approved component versions remain historical records.
-
-
-
-- [x] Group access consumes explicitly approved packs without automatically exposing underlying client workpapers.
-
-
-
-- [x] Updating any component makes downstream group runs stale until rebuilt/reviewed.
-
-
-
-
-
-
-
-### AC-20 — Match intercompany balances and transactions
-
-
-
-
-
-
-
-**As** a consolidation preparer, **I want** an evidence-based intercompany reconciliation, **so that** eliminations use agreed counterpart balances rather than blind account matching.
-
-
-
-
-
-
-
-**Priority / dependencies:** P3; AC-08, AC-18–19.
-
-
-
-
-
-
-
-**Acceptance criteria**
-
-
-
-- [x] Match by legal-entity pair, counterparty, account nature, period, currency and transaction/reference where available.
-
-
-
-- [x] Support reviewed one-to-one and grouped matches; grouped rows require a complete reviewed set, and unmatched items retain their reasons.
-
-
-
-- [x] Timing, currency, classification and genuine accounting differences remain distinct.
-
-
-
-- [x] Proposed eliminations carry source references and cannot be independently duplicated in another run layer.
-
-
-
-- [x] No automated adjustment is posted to the entities' source books.
-
-
-
-- [x] The same related party outside the perimeter is disclosed/reviewed but not automatically eliminated.
-
-
-
-
-
-
-
-### AC-21 — Run auditable consolidation and eliminations
-
-
-
-
-
-
-
-**As** a group accountant and reviewer, **I want** a deterministic group working TB, **so that** I can explain every result from component amounts through eliminations.
-
-
-
-
-
-
-
-**Priority / dependencies:** P3; AC-18–20; AC-17 before mixed-currency use.
-
-
-
-
-
-
-
-**Acceptance criteria**
-
-
-
-- [x] Show columns for each component, approved alignment adjustments, translated totals, eliminations and consolidated result.
-
-
-
-- [x] Consolidation journals balance at group reporting precision and use valid group taxonomy accounts.
-
-
-
-- [x] Receivable/payable, revenue/expense, dividend and investment/equity eliminations follow the enabled method and approved evidence.
-
-
-
-- [x] The restricted first profile explicitly requires same-currency, fully owned components and an approved opening consolidation basis; it is not labeled advanced-group complete.
-
-
-
-- [x] Repeated calculation from identical pinned inputs produces identical financial content/hash, independently of database IDs and execution time where those are not semantic inputs.
-
-
-
-- [x] Publication rechecks input versions, permissions and approvals in a short transaction; changed input prevents stale publication.
-
-
-
-
-
-
-
-### AC-22 — Support complex group accounting through explicit methods
-
-
-
-
-
-
-
-**As** a group technical reviewer, **I want** acquisitions, non-controlling interests and complex ownership handled through approved method-specific schedules, **so that** large groups are not misrepresented by simple aggregation.
-
-
-
-
-
-
-
-**Priority / dependencies:** P4; AC-17–21; professional methodology fixtures.
-
-
-
-
-
-
-
-**Acceptance criteria**
-
-
-
-- [x] Record acquisition/control dates, consideration, fair-value adjustments, opening reserves and goodwill/bargain-purchase treatment under the approved framework.
-
-
-
-- [x] Calculate and roll forward NCI under the approved method, including profit/OCI and distributions.
-
-
-
-- [x] Handle changes in ownership, disposals and loss of control as explicit cases—not editable historical percentages.
-
-
-
-- [x] Associate/joint-arrangement/equity-method and common-control cases are separately enabled or blocked; they cannot accidentally follow full-consolidation logic.
-
-
-
-- [x] Unrealized intercompany profit, asset-transfer depreciation and related tax consequences have source-bound schedules and reviewed journals.
-
-
-
-- [x] Foreign-currency and nested-group golden fixtures verify the complete group statements and comparative rollforwards before enabling that profile.
-
-
-
-
-
-
-
-**Local implementation note (2026-09-22):** a fixed candidate fixture combines the implemented FX translation reserve, acquisition goodwill, NCI rollforward, nested-scope uniqueness and asset-transfer elimination into balanced QAR current and comparative statements. Approved source-bound advanced-method schedules now persist canonical source/input digests, validate method-specific inputs and approved historical/closing/average FX observations at approval, enforce group-revision fencing, bind reviewed journal lines to method-calculated amounts, and feed guarded execution records with balanced current/comparative statements, method output manifest/digest, idempotent retry and separate maker/checker approval that revalidates current component inputs before approval. Deterministic golden fixtures and PostgreSQL schedule/journal/execution journeys cover all five advanced methods. Built-in-browser acceptance now covers all five methods end to end with their approved component/journal or FX fixtures, separate schedule/execution approvals and balanced `1 / 1` execution readiness for each scope. Independent methodology, release, records, signing and production gates remain separate, and no advanced profile is enabled automatically by this local evidence.
-
-
-
-
-
-
-
-### AC-23 — Enforce entity and group review applicability
-
-
-
-
-
-
-
-**As** a senior, manager and partner, **I want** approvals to cover exact current inputs, **so that** neither entity nor group reporting can release stale or incomplete work.
-
-
-
-
-
-
-
-**Priority / dependencies:** P2/P3; AC-09–16 and AC-18–22 where applicable.
-
-
-
-
-
-
-
-**Acceptance criteria**
-
-
-
-- [x] Reuse immutable approval history and separate current applicability rather than copying approval Booleans.
-
-
-
-- [x] Review stages distinguish preparation, accounting review, management response, senior review, manager completion, partner approval and EQR where applicable.
-
-
-
-- [x] Required unsubmitted work is a blocker; limiting a denominator to submitted work must not falsely show 100% complete.
-
-
-
-- [x] Group manifests bind every component plus rates, mappings, ownership, eliminations, comparative and template versions.
-
-
-
-- [x] A changed dependency blocks current approval/release without erasing historical evidence.
-
-
-
-- [ ] Signing, release authorization, external checkpoint, client delivery and records protection remain separately verified outcomes.
-
-
-
-
-
-
-
-### AC-24 — Deliver a cohesive multi-client accounting workspace
-
-
-
-
-
-
-
-**As** an accountant or auditor, **I want** scoped context switching and a clear next-action view, **so that** I can manage many clients without posting or reviewing in the wrong entity.
-
-
-
-
-
-
-
-**Priority / dependencies:** P1–P4 alongside the corresponding services.
-
-
-
-
-
-
-
-**Acceptance criteria**
-
-
-
-- [x] Persistent header shows firm, optional group, legal entity, engagement, period, book, currency and package version for a selected visible client period.
-
-
-
-- [x] Preserve unsaved work safely when switching; late responses from an old context cannot replace the new context.
-
-
-
-- [x] Tabs expose TB/GL, COA, mapping, reconciliations, adjustments, differences, statements and approval history; group tabs expose perimeter, packs, FX, intercompany and eliminations through scoped queue links and status panels.
-
-
-
-- [x] Dashboard shows required/complete/stale/blocked counts, named next owner, persisted due dates when a period-linked workflow task or PBC task exists, an explicit `Not recorded` fallback otherwise, and exact grant-checked period/package/mapping/task/PBC navigation.
-
-
-
-- [x] Bulk actions preview scope and outcomes; one invalid item cannot cause silent partial approval through a draft-retained, non-mutating package-review selection preview.
-
-
-
-- [x] Client pages reveal only approved requests, decisions and published documents; internal judgment and sibling data stay restricted.
-
-
-
-
-
-
-
-### AC-25 — Provide controlled data exchange and report artifacts
-
-
-
-
-
-
-
-**As** a client accountant and auditor, **I want** traceable imports/exports and final artifacts, **so that** AuditSphere can work with external accounting systems without replacing them.
-
-
-
-
-
-
-
-**Priority / dependencies:** P2/P5; AC-07–11, AC-16, AC-23.
-
-
-
-
-
-
-
-**Acceptance criteria**
-
-
-
-- [x] Begin with reviewed file profiles; optional ERPNext or other connectors must be read-only by default and separately approved.
-
-
-
-- [x] Export adjustment instructions with source, period, account, revision and management approval evidence; export is not proof of external posting.
-
-
-
-- [x] Produce client-safe workbook/PDF/Word artifacts only through approved renderer/template versions and existing document-storage boundaries.
-
-
-
-- [x] Preserve formulas safely in controlled templates and neutralize spreadsheet injection in untrusted values; never execute client macros.
-
-
-
-- [x] Artifact hashes and delivery receipts bind to the released package; regenerate by version, not by mutable “latest.”
-
-
-
-- [x] Tenant/provider/signing/records blockers remain independent; local export tests cannot fake live completion.
-
-
-
-
-
-
-
-**Local implementation note (2026-09-22):** the built-in `financial-package-xlsx.v1`, `financial-package-docx.v1` and `financial-package-pdf.v1` profiles produce deterministic exports from the exact canonical package artifact. Formula-shaped client values remain literal; XLSX preserves exactly one renderer-owned `COUNTA` formula and rejects any other formula, VBA project or external workbook part at runtime. PDF output uses PDFsharp/MigraDoc with an embedded OFL font and canonicalized generated identifiers. Each profile persists separate SHA-256-bound bytes for the package revision/generation/hash and exposes authorized Blazor downloads. Firm Methodology Owner approval `STE-METH-APP-001` maps Financial Statement Template v1.0 to the controlled XLSX, DOCX and PDF profiles; Audit Program and ECL remain methodology/template-family records without financial-package renderer enablement. Tenant, signing and records acceptance remain external.
-
-
-
-
-
-
-
-The reviewed `tb-signed-net.v1` and `tb-debit-credit.v1` CSV/XLSX profiles are bounded, versioned, read-only and reject formulas, macros, external links, mixed currencies and ambiguous rows. No ERPNext or other writable accounting-system connector is installed or enabled.
-
-
-
-
-
-
-
-### AC-26 — Close periods and roll forward safely
-
-
-
-
-
-
-
-**As** an engagement manager, **I want** entity and group periods closed, amended and carried forward with lineage, **so that** recurring engagements start from the right basis without inheriting stale judgments.
-
-
-
-
-
-
-
-**Priority / dependencies:** P2/P4; AC-03, AC-16, AC-23.
-
-
-
-
-
-
-
-**Acceptance criteria**
-
-
-
-- [x] Close checks outstanding reconciliations, typed accounting evidence, journal-risk state and current package approvals.
-
-
-
-- [x] A post-close change opens an authorized immutable amendment version; issued package history remains preserved through package/restatement lineage.
-
-
-
-- [x] Rollforward creates a new draft period, copies eligible reporting books as drafts, and links opening balances to explicit prior-period source evidence; prior approvals are not copied.
-
-
-
-- [x] Do not copy prior-year acceptance, materiality, audit conclusions or approval applicability as current.
-
-
-
-- [x] Group rollforward carries approved opening consolidation reserves, historical FX and recurring elimination lineage without duplicate application.
-
-
-
-- [x] Archive exports include new accounting/group dependencies; legal hold/disposal behavior follows the existing approved records policy.
-
-
-
-
-
-
-
-### AC-27 — Prove large-client processing and recoverability
-
-
-
-
-
-
-
-**As** an operations owner, **I want** bounded, observable processing of large GLs and group packs, **so that** many-client workloads do not destabilize interactive audit work.
-
-
-
-
-
-
-
-**Priority / dependencies:** P1–P5 as volume increases; AC-07–08, AC-19–21.
-
-
-
-
-
-
-
-**Acceptance criteria**
-
-
-
-- [x] Use bounded chunked imports, resumable retries and paged queries; chunk and batch limits are explicit and covered by PostgreSQL acceptance tests.
-
-
-
-- [x] Use the existing durable operation infrastructure for GL completeness and financial-package calculations, with source/mapping-plan revision fencing and idempotent retries; remaining long imports and rendering must reuse the same infrastructure rather than add a separate job engine.
-
-
-
-- [x] Cancelled/failed local durable work never publishes a partial accepted dataset or group package; queued cancellation requires an explicit administrator disposition before worker claim. Active work remains subject to lease expiry and reconciliation because cancellation cannot prove an already-started effect did not occur.
-
-
-
-- [x] Retry is idempotent; timeout-after-effect preserves uncertainty and reconciliation semantics.
-
-
-
-- [x] Benchmark representative client counts, GL volume, bounded group size, concurrency, six-decimal/high-magnitude precision and the concurrent database enqueue/worker locking path; the current benchmark is a local capacity observation, not production RPO/RTO evidence.
-
-
-
-- [x] Restore/recovery tests preserve accounting/group manifests and prevent duplicate external delivery; production RPO/RTO remains an externally observed acceptance gate.
-
-
-
-
-
-
-
-### AC-28 — Migrate safely and prove the full accounting scope
-
-
-
-
-
-
-
-**As** the technical lead and independent reviewer, **I want** additive migrations and source-to-report acceptance evidence, **so that** the expansion preserves existing clients and can be released with confidence.
-
-
-
-
-
-
-
-**Priority / dependencies:** P0 test setup; final acceptance after applicable AC stories.
-
-
-
-
-
-
-
-**Acceptance criteria**
-
-
-
-- [x] Inventory actual current schema, tests and instructions before creating issues; do not rely on historical test counts or migration numbers.
-
-
-
-- [x] Backfill client charts/periods only from unambiguous source identity; quarantine ambiguous history rather than invent metadata.
-
-
-
-- [x] Legacy packages keep original hashes/calculation-engine versions; new canonical formats are versioned, with the regression retaining a legacy package beside a newly built canonical package.
-
-
-
-- [x] Test PostgreSQL foreign keys, immutability, access denial, concurrent approval/input replacement and recovery on changed behavior.
-
-
-
-- [x] Run browser journeys for an SME, unrelated clients with colliding codes, a basic group and each advanced profile's gate; current evidence records all five advanced profiles as `APPROVED` with `1 / 1` execution after separate schedule and execution approval.
-
-
-
-- [x] Run the full source-bound method schedule, reviewed-journal and execution journey for `ACQUISITION_NCI_V1` with independent schedule and execution approval; no profile is enabled automatically.
-
-
-
-- [x] Repeat the full browser journey for `FOREIGN_CURRENCY_RESERVE_V1`, `OWNERSHIP_CHANGE_V1`, `NESTED_GROUP_V1` and `ASSET_TRANSFER_ELIMINATION_V1` before any separately authorized enablement.
-
-
-
-- [x] Record exact commits, methods, fixtures, tests, reviews and actual live-service limitations. A new profile cannot be declared complete because another profile passed.
-
-
-
-
-
-
-
-**Local migration note (2026-09-22):** migration `20260922071325_QuarantineLegacyAccountingBackfill` binds a legacy trial-balance dataset only when one client/date/currency/basis period matches and binds a legacy mapping only when one approved chart is effective for its period. Zero or multiple candidates leave the original nullable link unchanged and create append-only quarantine evidence.
-
-
-
-
-
-
-
-**Local browser note (2026-09-22):** the explicit Development/Test-only browser harness migrates and seeds the isolated `auditsphere_browser` database with one QAR SME, two unrelated clients that each retain account code `1000` in separate chart scopes, a basic QAR group, an enabled USD-to-QAR group with approved rate-set/policy fixtures and an advanced-method gating group containing all five advanced profiles. Built-in-browser journeys verified client context switching, group/FX status and scope-version rendering. Each advanced fixture completed required-field guidance and local draft restore, preparer schedule submission, administrator schedule approval, balanced verified execution and independent execution approval; the main workbench reports `1 / 1` execution and `APPROVED` readiness for all five scopes. Evidence is [`accounting-browser-advanced-gates-latest.json`](evidence/accounting-browser-advanced-gates-latest.json). The development identity refuses Production startup, cannot coexist with OIDC and rejects non-local return URLs. Source-bound method, reviewed-journal, FX and execution journeys are locally verified in PostgreSQL; required external acceptance remains separate. This is local acceptance evidence only.
-
-
-
-
-
-
-
----
-
-
-
-
-
-
-
-## 8. Phased implementation roadmap
-
-
-
-
-
-
-
-These phases define dependency and acceptance boundaries, not promised dates. Estimate delivery only after representative source files, reporting templates, group structures and methodology inputs are supplied.
-
-
-
-
-
-
-
-| Phase | Deliverables | Stories | Exit evidence |
-
-
-
-|---|---|---|---|
-
-
-
-| 0 — Scope and correctness | Adopt boundary; establish zero-adjustment package flow, distinct raw/normalized identities, per-entity dataset boundaries, mapping maker/checker and residual conservation | AC-01, AC-06–07, AC-09, AC-28 | **LOCAL_VERIFIED** at `c214cb3`: end-to-end zero-adjustment source-equivalent package, normalized duplicate/raw-byte distinction, split per-entity batch, mixed-entity rejection, maker/checker denial and rounding conservation tests. The five focused PostgreSQL regressions recorded in the execution ledger passed 5/5. |
-
-
-
-| 1 — Multi-client accounting foundation | Client profiles/group navigation, periods/books, client COA, firm taxonomy, mapping workbench, CSV/XLSX and GL imports, journals/differences | AC-02–11, AC-24 | Two unrelated clients with the same codes and different calendars complete independent accounting flows; denial tests pass. |
-
-
-
-| 2 — Audit-grade entity accounting | Reconciliations, typed schedules, analytics, complete entity reports, approval UX and rollforward | AC-12–16, AC-23–26 | All twenty source sections have linked accounting inputs/results/evidence appropriate to the enabled profile. |
-
-
-
-| 3 — Bounded group consolidation | Perimeter, approved component packs, same-currency intercompany reconciliation, elimination journals and consolidated working TB | AC-18–21, AC-23–24 | Wholly owned same-currency test group produces approved golden totals and traceable eliminations without modifying components. |
-
-
-
-| 4 — Advanced group capabilities | FX translation, acquisition/NCI, nested groups, ownership change, complex eliminations, comparative reserves | AC-17, AC-22, AC-26 | Professional-owner golden scenarios for each enabled method; unsupported cases explicitly blocked. |
-
-
-
-| 5 — Integration, scale and acceptance | Controlled external exchange, report artifacts, operational proof and complete entity/group/browser acceptance | AC-25, AC-27–28 | Exact release candidate has code/database/browser evidence and the separately required tenant/signing/records/owner approvals. |
-
-
-
-
-
-
-
-### Next engineering slice
-
-
-
-
-
-
-
-The original Phase-0 correctness slice is implemented and locally verified; do not reopen it without a failing regression or newly identified requirement. Continue the AC-01–AC-28 audit against current source and preserve focused tests for the verified path. At checkpoint `c214cb3`, the Release build and full 315/315 solution aggregate passed, including the ClientDetail route regression and accounting tests. Any uncovered local gap should be fixed as a narrow, tested vertical slice; Microsoft-provider, signing, Purview, recovery and independent human acceptance remain separate external gates.
-
-
-
-
-
-
-
-### Work that must not wait on tenant provisioning
-
-
-
-
-
-
-
-Client COA, taxonomy, period models, deterministic mapping, zero-adjustment plans, reconciliation calculations, ownership/perimeter modeling, group math and PostgreSQL tests can be built with clearly synthetic local fixtures. Production Graph, signing, Purview and recovery proof remain blocked independently. Do not use missing tenant approval as a reason to stop unrelated local accounting work, and do not remove external gates to make it appear finished.
-
-
-
-
-
-
-
-### No mandatory framework migration
-
-
-
-
-
-
-
-Retain the repository's pinned compatible .NET/EF Core/PostgreSQL stack during this work. A dependency upgrade is a separate tested change. Reuse Blazor, existing workers, authorization, durable operations, snapshots, approvals and release/records infrastructure. Neither Frappe, Cloudflare D1, a new frontend nor a new message broker is required for this repository's accounting expansion.
-
-
-
-
-
-
-
----
-
-
-
-
-
-
-
-## 9. Technical execution guidance
-
-
-
-
-
-
-
-### 9.1 Command patterns
-
-
-
-
-
-
-
-Use resource-specific commands over the existing application boundary, for example:
-
-
-
-
-
-
-
-```text
-
-
-
-CreateClientChartVersion / ApproveClientChart
-
-
-
-CreateTaxonomyDraft / PublishTaxonomyVersion
-
-
-
-PreviewSourceImport / CommitSourceImport
-
-
-
-CreateMappingVersion / ApproveMapping
-
-
-
-CreateAdjustmentDraft / RecordManagementDecision / ApplyApprovedAdjustment
-
-
-
-ResolveSourceReflection / FinalizeAdjustmentPlan
-
-
-
-BuildEntityPackage / ApproveEntityPackage
-
-
-
-CreateConsolidationScope / ApproveConsolidationScope
-
-
-
-SubmitComponentPack / ApproveComponentPack
-
-
-
-ReviewIntercompanyMatch / ApproveConsolidationJournal
-
-
-
-CalculateConsolidation / PublishConsolidationResult
-
-
-
-EvaluateApprovalApplicability / AuthorizeRelease
-
-
-
+    MatEngine --> MatDetails
+    MatDetails --> SignOff(["Formal Partner Sign-Off on Planning & Materiality"])
 ```
 
+### 3-Tier Materiality Thresholds & Stratification Guide
 
+| Materiality Metric | Benchmark Formula / Percentage | Operational Purpose |
+| :--- | :--- | :--- |
+| **Planning Materiality (PM)** | Benchmark Base × Chosen % (e.g., PBT 5–10%, Revenue 0.5–2%, Assets 0.5–1%) | Maximum misstatement threshold before financial statements are considered materially misstated. |
+| **Tolerable Error (TE) / Performance Materiality** | 50% (High Inherent Risk) to 75% (Low Inherent Risk) of PM | Working threshold used to determine sample sizes and identify individual line items requiring substantive testing. |
+| **Summary of Audit Differences (SAD)** | 3% to 5% of PM | Trivial threshold below which misstatements do not need to be accumulated on the audit difference schedule. |
+| **Practical Rounding Rule** | Strict ±5% adjustment limit | Managers may round raw values for operational practicality (e.g., QAR 53,421 rounded to QAR 53,000) before Partner sign-off. |
 
+---
 
+## 3.3 Flow 3: Technical Fieldwork Execution & Multi-Tier Review Matrix
 
+This phase constitutes the operational testing core. Line items on the Financial Statement Dashboard launch dedicated workprograms with row-level concurrency, allowing team members to execute testing in parallel without file lockout.
 
+```mermaid
+flowchart TD
+    PlanApproved(["Partner Sign-Off on Planning & Materiality"]) --> SplitView["Split Financial Statement Dashboard View"]
 
-These are recommended contracts, not a request to duplicate existing functions under different names. Extend current services where their responsibilities fit.
+    subgraph DashboardView["Split Dashboard Interface (Row-Level Concurrency)"]
+        direction TB
+        PL["PROFIT & LOSS (P/L) STATEMENT<br/>• Revenue / Sales ......... [AR Test] [Audit Workprogram]<br/>• Cost of Goods Sold ..... [AR Test] [Audit Workprogram]<br/>• Operating Expenses ..... [AR Test] [Audit Workprogram]"]
+        BS["BALANCE SHEET (B/S) STATEMENT<br/>• PPE & Intangibles ...... [AR Test] [Audit Workprogram]<br/>• Inventory .............. [AR Test] [Audit Workprogram]<br/>• Accounts Receivable .... [AR Test] [Audit Workprogram]<br/>• Cash & Bank Equivalents  [AR Test] [Audit Workprogram]"]
+    end
 
+    SplitView --> DashboardView
 
+    DashboardView --> LaunchAR["[Launch Analytical Review (AR)]<br/>• Multi-period variance calculation<br/>• Plausibility & ratio assessment<br/>• ISA 570 Going Concern evaluation"]
+    DashboardView --> LaunchWP["[Launch Substantive Workprogram]<br/>• Pre-configured procedural checklist<br/>• Ad-hoc custom step injection<br/>• Population & sampling calculators (MUS / Stratified)<br/>• Hybrid evidence cross-referencing:<br/>  - Digital file attachment<br/>  - Physical binder index: [X-1, Box 3]"]
 
+    LaunchAR --> Preparer["PREPARER (Junior Auditor)<br/>Executes test steps, attaches evidence, submits workpackage"]
+    LaunchWP --> Preparer
 
+    Preparer --> SubmitReview["Submit for Review"]
 
+    subgraph ReviewMatrix["Three-Tier Review Matrix & Rejection Loop"]
+        direction TB
+        MgrReview["REVIEWER (Audit Senior / Manager)<br/>Verifies substantive testing and recalculations"]
+        Decision{"Review Assessment"}
+        ReworkAction["Return with Mandatory Comments<br/>(Status reverts to 'Under Rework')"]
+        PromoteAction["Promote & Clear Procedures"]
 
+        MgrReview --> Decision
+        Decision -->|"Exceptions / Incomplete"| ReworkAction
+        Decision -->|"Passed"| PromoteAction
+    end
 
-Each state-changing command receives a target identity, expected revision, idempotency key and user input. The server resolves actual firm/client/group scope, actor and authoritative input versions. Avoid accepting `approvedBy`, trusted hashes or final states from a browser as proof.
+    SubmitReview --> MgrReview
+    ReworkAction -->|"Reassigned for Rework"| Preparer
 
+    PromoteAction --> SRM["Compile Summary Review Memorandum (SRM)<br/>• Aggregates unadjusted audit differences against SAD<br/>• Compiles open risks, AJEs, and critical estimates<br/>• Manager recommendation for sign-off"]
 
+    SRM --> ConfGate{"External Confirmations Gatekeeper (ISA 505)<br/>Check Bank, AR, AP, and Legal Statuses"}
 
-
-
-
-
-### 9.2 Calculation and rounding
-
-
-
-
-
-
-
-Continue using exact decimal arithmetic and the current declared money precision. Evaluate rate/percentage precision separately before schema changes: an exchange-rate precision policy need not equal posting precision. Check overflow and bounds before publication.
-
-
-
-
-
-
-
-For splits, allocations must conserve the input amount. Compute at controlled precision, use deterministic residual assignment, and store the method/result. Accounting rounding, presentation rounding, currency translation reserve and materiality are separate concepts. Do not hide a real imbalance by setting a rounding allowance equal to materiality.
-
-
-
-
-
-
-
-Use explicit signed conventions throughout TB, journal, source, statement and group columns. Each report shows its sign/basis/currency metadata. The same-currency consolidation sum should be reproducible without relying on UI formatting.
-
-
-
-
-
-
-
-### 9.3 No latest-data joins at approval time
-
-
-
-
-
-
-
-A group run selects exact component package versions. It must not join whichever TB or mapping happens to be “latest” while calculating. The current-version check belongs at run submission/publication and release; historical reports continue to use pinned versions.
-
-
-
-
-
-
-
-For a nested group, declare whether the input is a preconsolidated subgroup pack or its underlying entities. Never include both in the same result without an explicit approved decomposition method.
-
-
-
-
-
-
-
-### 9.4 Import adapters and evidence
-
-
-
-
-
-
-
-Separate the immutable receipt from parsing and financial normalization. A receipt may identify a workbook containing several sheets/entities; each accepted dataset has its own scope/parse manifest. Retain original row identities and mapping exceptions. Do not calculate or activate client spreadsheet macros, arbitrary SQL or expressions.
-
-
-
-
-
-
-
-A balanced TB does not prove that all GL transactions or schedules were supplied. Retain expected count/period/control evidence and review its completeness separately.
-
-
-
-
-
-
-
-### 9.5 UI organization
-
-
-
-
-
-
-
-```text
-
-
-
-Client Accounting
-
-
-
-  Overview and next actions
-
-
-
-  Periods and books
-
-
-
-  Chart of accounts
-
-
-
-  Imports / TB / GL
-
-
-
-  Mapping
-
-
-
-  Reconciliations and schedules
-
-
-
-  Adjustments and differences
-
-
-
-  Financial statements and notes
-
-
-
-  Reviews / history / close
-
-
-
-
-
-
-
-Group Reporting
-
-
-
-  Perimeter and ownership
-
-
-
-  Component reporting packs
-
-
-
-  Currency policy and rates
-
-
-
-  Intercompany reconciliation
-
-
-
-  Consolidation journals
-
-
-
-  Consolidated working TB
-
-
-
-  Group statements / disclosures
-
-
-
-  Reviews / changes / release
-
-
-
+    ConfGate -->|"Critical Confirmation Missing"| HoldingBlock["BLOCK Final Report Release<br/>Trigger Automated 'Holding Letter' to Client"]
+    ConfGate -->|"All Critical Confirmations Cleared"| PartnerReview["APPROVER (Engagement Partner)<br/>• Inspects SRM and evaluates unadjusted differences<br/>• Mandatory direct review of RED risk areas<br/>• Clears fieldwork completion"]
 ```
 
-
-
-
-
-
-
-Use the same source of truth as the command services. Completion indicators should be derived from actual required work, applicability and version freshness, not a percentage entered by the presenter.
-
-
-
-
-
-
-
----
-
-
-
-
-
-
-
-## 10. Acceptance fixtures and regression design
-
-
-
-
-
-
-
-The following are proposed fixtures. Their expected business outcomes must be approved by the methodology/accounting owner; they were not executed in this review.
-
-
-
-
-
-
-
-| Fixture | Scenario | Essential expected result |
-
-
-
-|---|---|---|
-
-
-
-| F01 | Two unrelated clients both use `1000`, for different purposes | Separate COA identities/mappings and no query/export leakage. |
-
-
-
-| F02 | Balanced SME TB, no adjustments | Valid zero-adjustment plan/package; source amounts unchanged. |
-
-
-
-| F03 | Same financial rows but account name changes | Raw hash/receipt differs; no false claim of identical bytes; metadata change remains reviewable. |
-
-
-
-| F04 | One file contains two entities with overlapping codes | Explicit per-entity split or rejection; no combined balancing/duplicate dictionary failure. |
-
-
-
-| F05 | Amount `0.01` split by `0.333333 / 0.333333 / 0.333334` | Published allocated sum equals `0.01` exactly under the documented residual rule. |
-
-
-
-| F06 | Preparer also has reviewer role | Self-approval of the same mapping/journal denied. |
-
-
-
-| F07 | Client replacement TB already reflects AJ | Adjustment applied zero additional times; historic plan retained. |
-
-
-
-| F08 | Uncertain or partial source reflection | No guessed partial adjustment; explicit blocker. |
-
-
-
-| F09 | Prior-year issued closing differs from current opening | Difference visible with approved bridge, never silently carried forward. |
-
-
-
-| F10 | Bank schedule total manually matches a different TB version | Reconciliation fails source identity/version validation. |
-
-
-
-| F11 | Aging includes credit notes and subsequent receipts | Accurate as-of population; later settlement evidence does not rewrite year-end balances. |
-
-
-
-| F12 | Difference marked corrected without a current journal/source link | Cannot become verified corrected. |
-
-
-
-| F13 | Group has same-currency A due from B of 100 and B due to A of 100 | Group Dr payable 100 / Cr receivable 100; both component packs remain unchanged. |
-
-
-
-| F14 | Group intercompany amount is 100 versus 90 | Difference remains unresolved or explicitly adjusted/reviewed; no blind 100 elimination. |
-
-
-
-| F15 | Related party is outside approved perimeter | Disclosure/review allowed; automatic consolidation elimination denied. |
-
-
-
-| F16 | Subgroup and its underlying entities selected twice | Duplicate economic inclusion rejected. |
-
-
-
-| F17 | Controlled component is not wholly owned | Enabled approved method recognizes NCI; do not simply multiply all statement balances by ownership percentage. |
-
-
-
-| F18 | Foreign component with missing historical rate | Translation blocked; no fallback to current rate or rate 1. |
-
-
-
-| F19 | Group approval followed by component TB/map/rate/perimeter change | Historical approval retained; current group applicability stale; release blocked. |
-
-
-
-| F20 | Group reviewer has pack access but not workpaper access | Group report allowed as approved; raw component evidence denied. |
-
-
-
-| F21 | Active source change during background consolidation | Publication fails version check, not a mixture of old/new results. |
-
-
-
-| F22 | Restored DB with newer external released package | Existing recovery quarantine and reconciliation rules apply to group delivery too. |
-
-
-
-| F23 | Accounting-only client | Preparation and management reporting completes without issuing an audit opinion. |
-
-
-
-| F24 | Full audit with all twenty source sections | Each applicable procedure has actual evidence/result/review and required statements/adjustments are tied to final TB. |
-
-
-
-
-
-
-
-### Invariant-based tests
-
-
-
-
-
-
-
-Beyond examples, prove conservation: allocation totals equal source totals; journals balance within scope; entity/group sums reconcile to their selected inputs plus documented overlays; identical canonical inputs yield identical financial outputs; unauthorized scope never changes outcome merely through group membership; current applicability cannot outlive a changed dependency.
-
-
-
-
-
-
-
-Do not replace failing invariants with tests that merely check the number of stages, table names or successful HTTP responses.
-
-
-
-
-
-
-
----
-
-
-
-
-
-
-
-## 11. Methodology and scope decisions to obtain
-
-
-
-
-
-
-
-| Decision | Responsible owner | Required before |
-
-
-
-|---|---|---|
-
-
-
-| First enabled reporting framework and effective edition | Technical accounting partner | Approving taxonomy/templates and final entity reports |
-
-
-
-| Which accounting services the audit firm may provide for each client | Independence/service owner | Dual accounting-and-audit work |
-
-
-
-| Whether day-to-day bookkeeping is excluded or separately enabled | Product owner | Building operational client ledger workflows |
-
-
-
-| Functional/presentation currencies and FX methods | Accounting methodology owner | Currency processing |
-
-
-
-| Consolidation control assessment and method for each entity | Group partner | Approving perimeter |
-
-
-
-| Acquisition/NCI/associate/common-control and tax methods | Group technical specialists | Enabling advanced group profile |
-
-
-
-| Materiality/difference classification and review authority | Audit methodology owner | Final audit/accounting completion rules |
-
-
-
-| Schedule calculator assumptions and representative fixtures | Account-area owners | Enabling ECL, tax, valuation and specialist calculations |
-
-
-
-| Expected client/group/data volumes and operating targets | Product and operations owners | Capacity acceptance |
-
-
-
-| External provider, signing, records and deployment authorization | Existing platform owners | Live integration/release acceptance |
-
-
-
-
-
-
-
-For IFRS reporting, control assessment is central to consolidation, and functional/presentation currency treatment requires deliberate methods. These professional choices must be recorded, not inferred by a software ownership-percentage shortcut. [S1–S3]
-
-
-
-
-
-
-
-Versioning is particularly important for reporting templates. IFRS 18 is effective for annual periods beginning on or after 1 January 2027, with earlier application permitted. A package's template must therefore depend on its approved reporting-period/framework choice, not simply the application's current date. [S4]
-
-
-
-
-
-
-
----
-
-
-
-
-
-
-
-## 12. Delivery governance and definition of done
-
-
-
-
-
-
-
-### 12.1 Working rules
-
-
-
-
-
-
-
-Read current root/nested `AGENTS.md`, the approved v5 specification and relevant current code before execution. Keep issue IDs from existing backlogs where applicable; do not duplicate already implemented audit-workflow stories. Create the smallest coherent feature or correction branch, add relevant tests, obtain current-head review and follow the project's explicit merge authorization policy.
-
-
-
-
-
-
-
-This document authorizes no repository write, remote migration, tenant consent, credential creation, deployment, destructive reset or real-client financial posting. Those actions require the applicable explicit authorization. Do not put a reusable merge codeword into a repository document or treat it as blanket approval.
-
-
-
-
-
-
-
-### 12.2 Verification commands to adapt to the current checkout
-
-
-
-
-
-
-
-```bash
-
-
-
-git status --short
-
-
-
-git rev-parse HEAD
-
-
-
-dotnet tool restore
-
-
-
-dotnet restore AuditSphereOps.slnx --locked-mode
-
-
-
-dotnet build AuditSphereOps.slnx --no-restore
-
-
-
-dotnet test AuditSphereOps.slnx --no-build
-
-
-
-git diff --check
-
-
+### Split Financial Statement Dashboard Schematic
 
 ```
-
-
-
-
-
-
-
-When a database slice changes, exercise its migrations and constraint tests on an explicitly disposable, correctly scoped PostgreSQL database/schema. Do not apply migrations to an existing shared/production database from a review instruction. Add browser tests around the commands and UI delivered in that slice. Test live providers only under the separately approved tenant/environment gate.
-
-
-
-
-
-
-
-### 12.3 Acceptance levels
-
-
-
-
-
-
-
-**Entity accounting ready:** approved scope, reliable import and identity, client COA/taxonomy, correct adjustments including zero-adjustment clients, trusted reconciliations, complete required statements, review and version lineage, and applicable UI/database tests.
-
-
-
-
-
-
-
-**Basic group accounting ready:** all entity prerequisites plus bounded approved perimeter, exact component packs, same-currency consolidation, reviewed intercompany/elimination logic and group applicability/release tests.
-
-
-
-
-
-
-
-**Advanced group accounting ready:** method-specific acquisition/NCI/ownership/FX/complex-elimination fixtures and complete required reports for every enabled case. A basic group demonstration is not acceptance for a large complex group.
-
-
-
-
-
-
-
-**Production accepted:** the relevant accounting capability above plus actual existing identity, provider, signing, records, security, recovery and professional adoption gates. Local tests do not establish those external claims.
-
-
-
-
-
-
-
-### 12.4 Final recommendation
-
-
-
-
-
-
-
-Prioritize **source integrity → client COA and taxonomy → accounting periods and reconciliation → full entity statements → controlled group consolidation**. Do not start with a consolidated dashboard or broaden the firm's own ledger.
-
-
-
-
-
-
-
-The best architecture is a native audit-accounting workbench inside the existing modular monolith, with approved component reporting packs feeding a distinct consolidation module. That achieves the user's multi-client goal while preserving what already makes AuditSphere valuable: scoped evidence, exact-version decisions and controlled release.
-
-
-
-
-
-
+┌────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                 SPLIT FINANCIAL STATEMENT DASHBOARD                                    │
+├────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ PROFIT & LOSS (P/L) STATEMENT                               CY (QAR)     PY (QAR)   Var (%)   Actions  │
+│ • Revenue / Sales .......................................  4,520,000    3,890,000   +16.2%    [AR] [WP]│
+│ • Cost of Goods Sold .................................... (2,810,000)  (2,450,000)  +14.7%    [AR] [WP]│
+│ • Operating Expenses ....................................   (940,000)    (810,000)  +16.0%    [AR] [WP]│
+├────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ BALANCE SHEET (B/S) STATEMENT                               CY (QAR)     PY (QAR)   Var (%)   Actions  │
+│ • Property, Plant & Equipment (PPE) .....................  1,850,000    1,920,000    -3.6%    [AR] [WP]│
+│ • Inventory .............................................    720,000      610,000   +18.0%    [AR] [WP]│
+│ • Accounts Receivable ...................................  1,140,000      980,000   +16.3%    [AR] [WP]│
+│ • Cash & Bank Equivalents ...............................    890,000      740,000   +20.3%    [AR] [WP]│
+└────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+  Legend: [AR] = Launch Analytical Review Interface | [WP] = Launch Substantive Workprogram
+```
 
 ---
 
+## 3.4 Flow 4: Reporting, 5-Part Deliverable Release & Compliance Archive
 
+Following Partner clearance of the SRM and confirmations, the engagement moves to formal closure. The Partner selects the opinion, embeds credentials, and releases the deliverables bundle alongside the final invoice.
 
+```mermaid
+flowchart TD
+    ClearedSRM(["Partner Clearance of SRM & External Confirmations"]) --> OpinionSelect{"Partner Selects Audit Opinion Category<br/>(ISA 700 / 705)"}
 
+    OpinionSelect -->|"1. Clean / Unqualified"| CleanPath["Standard Unqualified Opinion"]
+    OpinionSelect -->|"2. Qualified Opinion"| ModPath["Modified Opinion Workflow"]
+    OpinionSelect -->|"3. Disclaimer of Opinion"| ModPath
+    OpinionSelect -->|"4. Adverse Opinion"| ModPath
 
+    subgraph ModBuilder["Conditional Qualification Builder (ISA 705)"]
+        direction TB
+        ForceFSLI["Force selection of affected FSLI"]
+        MandatoryText["Expose mandatory text box for quantitative/qualitative rationale"]
+        InjectBasis["Inject rationale into 'Basis for Qualified/Modified Opinion' paragraph"]
+        ForceFSLI --> MandatoryText --> InjectBasis
+    end
 
+    ModPath --> ModBuilder
+    CleanPath --> SignSeal
+    InjectBasis --> SignSeal["Apply Partner Digital Signature & Official Firm Seal PNG"]
 
-## 13. Source index
+    SignSeal --> BundleComp["Auto-Compile Mandatory 5-Part Commercial Deliverables Bundle"]
 
+    subgraph DeliverablesBundle["Mandatory 5-Part Deliverables Bundle"]
+        direction TB
+        D1["Deliverable 1: Independent Auditor's Report & Certified Financial Statements"]
+        D2["Deliverable 2: Management Letter (Deficiency → Impact → Recommendation)"]
+        D3["Deliverable 3: Letter of Representation (LOR formatted for client letterhead)"]
+        D4["Deliverable 4: Management Correspondences Audit Trail (Confirmation records)"]
+        D5["Deliverable 5: Final Balance Fee Note (Automated release of remaining 50% bill)"]
+    end
 
+    BundleComp --> DeliverablesBundle
 
+    DeliverablesBundle --> FreezePortal["Client Portal Upload Privileges Frozen<br/>(Workspace switched to Read-Only; client downloads certified bundle)"]
 
+    FreezePortal --> ArchivalTimer["60-Day Compliance Archival Countdown (ISA 230)<br/>• Initiates 60-day timer from signature date<br/>• Early manual lock available to Partner"]
 
-
-
-Repository sources below were inspected at the pinned commit. File paths plus named methods in this report are the review locators; do not assume current branch line numbers will stay unchanged.
-
-
-
-
-
-
-
-- **R1:** GitHub `master` metadata and Domain/Application inventory at implementation checkpoint `c214cb3`.
-
-
-
-- **R2:** `docs/auditsphere-requirements-system-specification-current.md`, introduction and §§1.2–1.5: .NET adoption, service boundaries, single-entity initial scope and explicit group capability extension.
-
-
-
-- **R3:** `src/AuditSphereOps.Domain/Practice/FirmLedger.cs`: firm-only accounting boundary.
-
-
-
-- **R4:** `src/AuditSphereOps.Domain/Practice/Crm.cs`: canonical client and contact model.
-
-
-
-- **R5:** `src/AuditSphereOps.Domain/Accounting/Accounting.cs`: datasets, rows, maps, journals and entity packages.
-
-
-
-- **R6:** `src/AuditSphereOps.Application/Accounting/FinancialStatements/FinancialStatementService.Mapping.cs` (`CreateMappingVersionAsync`, `ApproveMappingAsync`) and `.Package.cs` (`BuildFinancialPackageAsync`).
-
-
-
-- **R7:** Same file, `ValidateAllocations`, `ValidateSupplementaryInformation`, `CalculateAdjustedBalancesAsync`, rendering methods.
-
-
-
-- **R8:** `src/AuditSphereOps.Domain/Audit/Fieldwork.cs`: schedules, tests, confirmations, assessments and differences.
-
-
-
-- **R9:** `src/AuditSphereOps.Application/Audit/Fieldwork/AuditFieldworkServiceContracts.cs` (request contracts) and `AuditFieldworkService.Schedules.cs` (schedule creation/review).
-
-
-
-- **R10:** Same file, `EvaluateDifferenceAsync`, `EvaluateCompletionAsync`.
-
-
-
-- **R11:** `src/AuditSphereOps.Application/Accounting/TrialBalanceCsvImporter.cs`.
-
-
-
-- **R12:** `src/AuditSphereOps.Application/Accounting/TrialBalanceImportService.cs`.
-
-
-
-- **R13:** `src/AuditSphereOps.Application/Accounting/AdjustmentPlanService.cs` and `SourceReconciliationService`.
-
-
-
-- **R14:** `src/AuditSphereOps.Application/Accounting/FinancialStatementCalculator.cs` and `TrialBalanceCalculator.cs`.
-
-
-
-- **R15:** `src/AuditSphereOps.Application/Accounting/CurrencyTranslationService.cs`, `ConsolidationService.cs`, `ConsolidationCalculator.cs` and `RecordsArchiveService.cs`: pinned approved foreign-operation translation profile with explicit DIRECT-rate semantics, deterministic per-line FX lineage, group-revision invalidation for reads and writes, approved-prior-scope roll-forward lineage and structured accounting/group archive lineage.
-
-
-
-- **D1:** User attachment, `Audit working process - Audit Tool New(1).docx`, sections 1–20.
-
-
-
-
-
-
-
-### Official reference addresses
-
-
-
-
-
-
-
-```text
-
-
-
-Repository at reviewed commit:
-
-
-
-https://github.com/nirzaf/AuditSphere/tree/c214cb35743284b7c336ae5d193d4026afb81da0
-
-
-
-
-
-
-
-E1 — ERPNext Chart of Accounts
-
-
-
-https://docs.frappe.io/erpnext/chart-of-accounts
-
-
-
-E2 — ERPNext Accounting Dimensions
-
-
-
-https://docs.frappe.io/erpnext/accounting-dimensions
-
-
-
-E3 — ERPNext Journal Entry
-
-
-
-https://docs.frappe.io/erpnext/journal-entry
-
-
-
-E4 — ERPNext Accounting Reports (including consolidated statements)
-
-
-
-https://docs.frappe.io/erpnext/accounting-reports
-
-
-
-E5 — ERPNext Multi Currency Accounting
-
-
-
-https://docs.frappe.io/erpnext/multi-currency-accounting
-
-
-
-E6 — ERPNext Inter Company Journal Entry
-
-
-
-https://docs.frappe.io/erpnext/inter-company-journal-entry
-
-
-
-
-
-
-
-S1 — IFRS 10: Consolidated Financial Statements
-
-
-
-https://www.ifrs.org/issued-standards/list-of-standards/ifrs-10-consolidated-financial-statements/
-
-
-
-S2 — IFRS 3: Business Combinations
-
-
-
-https://www.ifrs.org/issued-standards/list-of-standards/ifrs-3-business-combinations/
-
-
-
-S3 — IAS 21: The Effects of Changes in Foreign Exchange Rates
-
-
-
-https://www.ifrs.org/issued-standards/list-of-standards/ias-21-the-effects-of-changes-in-foreign-exchange-rates/
-
-
-
-S4 — IFRS 18: Presentation and Disclosure in Financial Statements
-
-
-
-https://www.ifrs.org/issued-standards/list-of-standards/ifrs-18-presentation-and-disclosure-in-financial-statements/
-
-
-
+    ArchivalTimer --> PermanentArchive(["Permanent Regulatory Lock<br/>• Entire engagement folder converted to Read-Only<br/>• Deletions and modifications permanently blocked<br/>• Immutable audit trail preserved for regulator inspection"])
 ```
 
+---
 
+## 3.5 Flow 5: Practice Management, Time Realization & Firm Bookkeeping
 
+In parallel with client engagements, the platform captures operational actuals, calculates realization metrics, and maintains the firm's internal practice ledger.
 
+```mermaid
+flowchart TD
+    DailyHours["Staff Logs Daily Hours<br/>(Tagged by Engagement, Phase & FSLI)"] --> RealEngine["Tiered Charge-Out Rates & Realization Engine"]
 
+    subgraph RateCards["Role Charge-Out Rates (QAR / Hour)"]
+        direction TB
+        R_Part["Engagement Partner: 1,000 QAR / h"]
+        R_Mgr["Audit Manager: 750 QAR / h"]
+        R_Sup["Audit Supervisor / Senior: 500 QAR / h"]
+        R_Assoc["Audit Associate / Junior: 200 QAR / h"]
+    end
 
+    RealEngine --> RateCards
 
-**End of report.**
+    subgraph CalcBlock["Realization & Variance Calculations"]
+        direction TB
+        CostCalc["Total Engagement Cost = Σ (Logged Hours × Role Charge-Out Rate)"]
+        ProfitCalc["Engagement Profitability = Contracted Audit Fee − Total Cost"]
+        VarCalc["Variance Analysis = Budgeted Phase Hours vs. Actual Hours Logged"]
+        CostCalc --> ProfitCalc
+        CostCalc --> VarCalc
+    end
+
+    RateCards --> CalcBlock
+
+    CalcBlock --> PracticeLedger["Practice Ledger & Internal Bookkeeping"]
+
+    subgraph Expenses["Firm Operational Expenses"]
+        direction TB
+        E1["Office Rent & Facility Costs"]
+        E2["Staff Salaries, End of Service & Benefits"]
+        E3["Operational Overhead & Administrative Expenses"]
+        E4["Petty Cash Disbursals"]
+    end
+
+    PracticeLedger --> Expenses
+
+    subgraph FirmOutputs["Internal Financial Reporting Outputs"]
+        direction TB
+        O1["Internal Firm Monthly Trial Balance"]
+        O2["Internal Firm Profit & Loss (P&L) Statement"]
+        O3["Client Accounts Receivable Aging Schedule<br/>(50% Advance / 50% Final Fee)"]
+    end
+
+    Expenses --> FirmOutputs
+```
+
+---
+
+# 4. Module-by-Module Functional Requirements
+
+## 4.1 Module 1: Commercial & CRM Pipeline
+
+### 4.1.1 Lead Capture & Client Profiles
+
+* **Multi-Channel Ingestion:** Ingest leads across Phone, WhatsApp, Email, Web Forms, and In-Person Referrals.
+* **Corporate Hierarchy:** Maintain organizational trees covering Holdings, Subsidiaries, and Affiliated Entities.
+* **Role-Based Communication Routing:** Maintain a Multi-Contact Directory with explicit notification routing:
+  * **Managing Director / General Manager:** Recipient of Commercial Proposals, Engagement Letters, and final audit deliverable packages.
+  * **Chief Financial Officer / Finance Director:** Recipient of Commercial Invoices, Payment Receipts, and Fee Notes.
+  * **Chief Accountant / Audit Liaison:** Recipient of operational PBC (Provided by Client) document requests and confirmation tracking.
+
+### 4.1.2 Commercial Proposal Engine
+
+* **Brief Quotation (RFQ/RFP):** Output a 1–2 page standardized summary showing engagement scope, statutory period, professional fees, payment terms (50% advance / 50% upon draft report), and estimated execution timeline.
+* **Comprehensive Proposal:** Auto-compile a multi-page professional presentation incorporating:
+  1. Firm Profile, History, and Commercial Registrations.
+  2. Assigned Engagement Partner & Audit Team CVs.
+  3. Industry-specific Credentials and Portfolio Evidence.
+  4. Audit Methodology Overview (ISA compliance framework).
+  5. Fee Schedule, Milestone Deliverables, and Execution Timeline.
+
+### 4.1.3 Dual-Key Onboarding Gatekeeper
+
+The system shall strictly disallow the generation of an Engagement Letter until two independent authorization keys are marked active in the database:
+* **Key 1 (Commercial Approval):** Recorded confirmation of client quote acceptance.
+* **Key 2 (Risk Clearance):** Partner completion and digital sign-off of the Client Acceptance/Continuance Checklist (ISA 220).
+
+### 4.1.4 Engagement Letter Generation (ISA 210)
+
+* **Template Selection:** Automatically pull standardized templates based on engagement type:
+  * External Statutory Audit Template (ISA 210).
+  * Internal Audit / Agreed-Upon Procedures Template (ISRS 4400).
+* **Minimal Manual Input:** Pre-populate from entity profile; require minimal manual field input (Client Legal Name, Period Covered, Agreed Fee, Submission Deadlines).
+* **Partner Authorization:** Apply Partner digital stamp and signature upon generation.
+
+### 4.1.5 Advance Invoicing, Receipting & Portal Onboarding
+
+* **Advance Invoicing:** Generate the 50% Advance Invoice concurrently with the Engagement Letter.
+* **Payment Recording:** Record payment settlement with transaction reference data (cheque number, bank transfer reference code).
+* **Automated Receipt Generation:** Instantly compile and dispatch an official payment receipt voucher to the client upon recording payment.
+* **Automated Client Portal Provisioning:**
+  * Auto-generate an isolated workspace for the client.
+  * Email temporary access credentials to the designated Client Audit Liaison.
+  * Enforce mandatory password reset on first login before document submission features are unlocked.
+  * Surface real-time status badges on requested items: `Pending Upload`, `Under Review`, `Approved`, `Rejected / Re-upload Required`.
+  * **Mandatory Rejection Reason:** If an item is rejected, the auditor must enter a mandatory rejection reason that surfaces immediately on the client's screen.
+  * **Temporal Lock:** Client document upload privileges automatically freeze when the final audit report is released.
+
+---
+
+## 4.2 Module 2: Administration, Governance & Planning
+
+### 4.2.1 Dual-Track Acceptance & Continuance Risk Gatekeeper
+
+* **Track A: New Client Acceptance Path:**
+  * Mandatory questionnaires: Ultimate Beneficial Ownership (UBO), Anti-Money Laundering (AML) background check, Know Your Customer (KYC) documentation, assessment of management integrity, financial viability evaluation, independence and conflict of interest checks.
+* **Track B: Recurring Client Continuance Path:**
+  * Delta review checklist: Settlement of prior-year professional fees, key management or shareholding changes, substantial new credit facilities or loans, ongoing litigation or legal notices, reported fraud or regulatory investigations.
+* **Mandatory Partner Sign-Off:** Block project transition to operational planning until the Partner executes the digital acceptance gate.
+
+### 4.2.2 Resource Allocation & Scheduling
+
+* **Visual Capacity Calendar:** Track team availability, target utilization, and leave schedules.
+* **Explicit Role Assignment:** Assign explicit roles per engagement: Engagement Partner (Approver), Audit Manager/Senior (Reviewer), and Associates (Preparers).
+* **Statutory Milestones:** Configure operational milestones relative to statutory cutoffs (e.g., December 31 year-end → fieldwork commences January Week 1 → draft report by February 15 → final signed report by March 15).
+
+### 4.2.3 Engagement Directory Provisioning
+
+Upon Partner risk acceptance, the system automatically provisions the standard 5-folder engagement taxonomy:
+```
+[Engagement Root Directory]
+├── 01_Administration & Planning
+├── 02_Trial Balance & Schedules
+├── 03_Fieldwork & Testing
+├── 04_Drafts & Deliverables
+└── 05_Final Signed Archive
+```
+
+### 4.2.4 3-Tier Materiality Calculation Engine
+
+* **Dynamic Benchmarking:** Link calculation directly to ingested Trial Balance balances:
+  * **Normalized Profit Before Tax (PBT):** 5.0% – 10.0%
+  * **Total Revenue:** 0.5% – 2.0%
+  * **Total Assets:** 0.5% – 1.0%
+  * **Equity / Net Assets:** 1.0% – 2.0%
+* **Core Output Calculations:**
+  * **Planning Materiality (PM):** Benchmark Base × percentage.
+  * **Tolerable Error (TE) / Performance Materiality:** 50% – 75% of PM.
+  * **Summary of Audit Differences (SAD) Threshold:** 3% – 5% of PM (trivial error cutoff).
+* **Rounding Rule:** Allow managers to apply practical rounding to computed materiality values within a strict ±5.0% maximum limit prior to Partner approval.
+* **Visual Color-Coded Risk Stratification:**
+  * **Green (Low Risk):** Balance below TE; standard automated audit programs; assignable to junior staff.
+  * **Amber (Moderate Risk):** Balance between TE and PM; requires senior substantive testing and sampling.
+  * **Red (Critical / High Risk):** Balance exceeds PM, involves critical accounting estimates, or carries high inherent risk; requires mandatory Manager-level execution and Partner review.
+
+---
+
+## 4.3 Module 3: Technical Execution & Audit Fieldwork
+
+### 4.3.1 Trial Balance Ingestion & Split Dashboard Interface
+
+* **Trial Balance Ingestion:** Ingest Trial Balance files via Excel/CSV (exported from QuickBooks, Tally, Zoho, SAP, etc.).
+* **Automated FSLI Mapping:** Automated mapping to standardized Financial Statement Line Items (FSLI) with historical memory.
+* **Split Dashboard Interface:**
+  * Displays **Profit & Loss (P/L) Statement** on the upper half and **Balance Sheet (B/S)** on the lower half.
+  * Displays Current Year Balance, Prior Year Comparative, and Percentage Variance per row.
+  * Every line item features two interactive action triggers:
+    * `[AR Test]`: Opens the Analytical Review Interface.
+    * `[Audit Workprogram]`: Opens substantive audit procedures.
+* **Row-Level Concurrency:** Ensure multiple auditors can simultaneously work on different line items (e.g., Auditor A on Sales, Auditor B on Fixed Assets) without file lockouts or overwrite conflicts.
+
+### 4.3.2 Workprogram Execution & Evidence Cross-Referencing
+
+* **Pre-Loaded Standard Checklists:** Standard procedural checklists per FSLI (Ownership, Valuation, Completeness, Existence, Cut-off).
+* **Ad-Hoc Step Insertion:** Allow field auditors to insert custom, editable procedural rows into active workprograms to address unique engagement risks.
+* **Sampling Engine:** Built-in calculators for Monetary Unit Sampling (MUS), Systematic Random Sampling, and Stratified Attribute Sampling.
+* **Hybrid Evidence Linking:**
+  * **Digital Evidence:** Direct link to electronic spreadsheets, PDFs, and PBC uploads.
+  * **Physical Evidence Reference:** Dedicated text field for physical file index tracking (e.g., `File Index: X-1, Box 3, Shelf B`).
+* **Analytical Review & Going Concern:** Standard templates for comparative financial analysis and mandatory ISA 570 Going Concern compliance checklists.
+
+### 4.3.3 Three-Tier Review Matrix & Workflow Governance
+
+* **Preparer Execution:** Executes procedures, cross-references digital/physical evidence, and clicks `[Submit for Review]`.
+* **Reviewer Rejection Loop:**
+  * Manager reviews completed tests.
+  * Can flag individual steps, input mandatory review notes, and click `[Return with Comments]`, automatically reverting the status to `Under Rework` and reassigning the Preparer.
+* **Summary Review Memorandum (SRM):**
+  * Auto-compiled upon Manager approval of all workprograms.
+  * Summarizes high-level audit variances, adjustments (AJEs), unadjusted differences against SAD/PM, and significant accounting estimates.
+* **Approver Clearance:** Partner conducts targeted reviews of high-risk (Red) areas and the SRM, formally signing off to unlock reporting.
+
+### 4.3.4 Third-Party Confirmations Dashboard & Gatekeeper
+
+* **Central Tracking Grid:** Track Bank, Accounts Receivable, Accounts Payable, Inventory, and Legal confirmations.
+* **Holding Letter Blocker:** If any confirmation marked as Critical remains unreturned, the system blocks the release of the final audit report and auto-generates a "Pending Confirmation / Holding Letter" to client management.
+
+---
+
+## 4.4 Module 4: Reporting & Final Deliverables
+
+### 4.4.1 Audit Opinion Selection Engine (ISA 700 / 705)
+
+* **Partner-Exclusive Opinion Selector:** Dedicated dropdown selector accessible exclusively by the Engagement Partner:
+  1. Clean / Unqualified Opinion
+  2. Qualified Opinion
+  3. Disclaimer of Opinion
+  4. Adverse Opinion
+* **Conditional Qualification Builder:** Selecting Qualified, Disclaimer, or Adverse dynamically prompts the Partner to select the affected FSLI and input a mandatory textual justification. The system injects this text directly into the "Basis for Qualified/Modified Opinion" paragraph in compliance with ISA 705.
+* **Digital Credentials:** Embeds the Partner's digital signature and official firm seal onto the final certified document.
+
+### 4.4.2 Mandatory 5-Part Commercial Deliverables Bundle
+
+Once the Partner authorizes the file, the system compiles the final package:
+1. **Deliverable 1: Independent Auditor's Report & Audited Financial Statements:** Certified, sealed, and digitally signed PDF.
+2. **Deliverable 2: Management Letter:** Structured internal control observations report (Deficiency → Impact → Auditor Recommendation).
+3. **Deliverable 3: Letter of Representation (LOR):** Formatted representation template populated with engagement figures, ready to be exported for printing on client letterhead, signed by executive management, and re-uploaded.
+4. **Deliverable 4: Management Correspondences Audit Trail:** Summary of all formal audit inquiries, confirmation results, and cleared queries.
+5. **Deliverable 5: Final Balance Fee Note:** Automated trigger generating the invoice for the remaining 50% professional fee balance.
+
+### 4.4.3 Regulatory File Lock & Compliance Archival (ISA 230)
+
+* **60-Day Archival Timer:** Enforce an automated 60-day regulatory file completion countdown timer starting from the date of the Partner's signature.
+* **Permanent Read-Only Lock:** Upon timer expiration (or manual Partner command), convert the entire engagement archive to Read-Only status. Deletions, modifications, and overwrites are permanently blocked.
+* **Immutable Audit Trail:** Maintain an immutable, timestamped audit log of all system actions, reviews, and sign-offs.
+
+---
+
+## 4.5 Module 5: Practice Analytics & Internal Bookkeeping
+
+### 4.5.1 Real-Time Profitability & Utilization Analytics
+
+* **Tiered Charge-Out Rates Engine:**
+  * Engagement Partner: **1,000 QAR / hour**
+  * Audit Manager: **750 QAR / hour**
+  * Audit Supervisor / Senior: **500 QAR / hour**
+  * Audit Associate / Junior: **200 QAR / hour**
+* **Engagement Profitability Calculation:**
+
+$$\text{Engagement Profitability} = \text{Contracted Audit Fee} - \sum (\text{Staff Hours Logged} \times \text{Charge-Out Rate})$$
+
+* **Variance Analysis:** Track budget vs. actual hours variance per engagement phase to evaluate realization rates and staff performance.
+
+### 4.5.2 Practice Ledger & Internal Bookkeeping
+
+* **Dedicated Operational Accounting Ledger:** Record firm internal operations:
+  * Office Rent & Facility Costs
+  * Staff Salaries, End of Service & Benefits
+  * Partner Withdrawals
+  * Petty Cash Disbursals
+* **Internal Financial Reporting:** Generate an internal firm Trial Balance, Monthly Profit & Loss Statement, and Client Accounts Receivable Aging Schedule (tracking 50% Advance and 50% Final Fee payments).
+
+---
+
+# 5. System State Machine & Lifecycle Transitions
+
+## 5.1 State Machine Transition Matrix
+
+| # | Current State | Allowed Actions | Gate / Condition to Advance | Next State | Boundary / Enforced Rule |
+| :-: | :--- | :--- | :--- | :--- | :--- |
+| **1** | `LEAD_INGESTION` | Log inquiry, capture company and contact data | Minimum entity and primary contact data validated | `PROPOSAL_GENERATION` | Lead stage only; no client workspace created. |
+| **2** | `PROPOSAL_GENERATION` | Build Brief Quote or Comprehensive Proposal, dispatch to client | Proposal dispatched via Email / WhatsApp | `DUAL_KEY_PENDING` | Quotes enforce standard 50/50 fee terms. |
+| **3** | `DUAL_KEY_PENDING` | Complete Client Acceptance Checklist (AML/KYC), record client commercial approval | **Dual-Key Clearance:** Both Client Acceptance AND Partner AML Approval confirmed | `ADVANCE_BILLING` | Hard block: EL cannot generate without both keys. |
+| **4** | `ADVANCE_BILLING` | Generate Engagement Letter & 50% Advance Invoice | 50% advance payment confirmed and recorded | `PORTAL_ACTIVE_PLANNING` | Portal remains inactive until advance payment clears. |
+| **5** | `PORTAL_ACTIVE_PLANNING` | Provision Client Portal, schedule team, ingest Trial Balance, calculate materiality | Planning signed off by Partner, TB mapped to FSLIs | `FIELDWORK_EXECUTION` | Materiality rounding capped at ±5.0%. |
+| **6** | `FIELDWORK_EXECUTION` | Execute workprograms, attach digital/physical evidence, log confirmation requests | All assigned FSLI procedures submitted by Preparers | `MANAGERIAL_REVIEW` | Row-level concurrency active on Split Dashboard. |
+| **7** | `MANAGERIAL_REVIEW` | Review workpapers, issue review notes/rework, compile SRM | Zero open review notes, SRM compiled, critical confirmations returned | `PARTNER_APPROVAL` | Any open review note reverts status to Under Rework. |
+| **8** | `PARTNER_APPROVAL` | Partner inspects SRM, reviews Red-risk areas, selects Audit Opinion | Partner applies digital signature and firm seal | `DELIVERABLE_RELEASE` | Modified opinions require mandatory justification. |
+| **9** | `DELIVERABLE_RELEASE` | Generate 5-part deliverables package, issue 50% balance invoice, freeze client portal uploads | Final package generated and delivered to client | `COMPLIANCE_COUNTDOWN` | Client portal upload privileges immediately freeze. |
+| **10** | `COMPLIANCE_COUNTDOWN` | Review final archive; Partner may trigger early lock | 60 calendar days elapsed since signature date OR manual lock triggered | `ARCHIVED_READ_ONLY` | ISA 230 regulatory file assembly timer. |
+| **11** | `ARCHIVED_READ_ONLY` | Read-only viewing and regulator inspection export | File is permanently locked; modifications strictly disallowed | *Terminal State* | Immutable, tamper-evident audit archive. |
+
+---
+
+## 5.2 State Machine Visual Workflow
+
+```mermaid
+stateDiagram-v2
+    [*] --> LEAD_INGESTION: Client Ingestion (Phone / WhatsApp / Email / Web)
+    LEAD_INGESTION --> PROPOSAL_GENERATION: Minimum Entity Profile Validated
+    PROPOSAL_GENERATION --> DUAL_KEY_PENDING: Quote or Comprehensive Proposal Dispatched
+    
+    DUAL_KEY_PENDING --> ADVANCE_BILLING: Dual-Key Cleared (Client Approval + Partner AML/KYC)
+    DUAL_KEY_PENDING --> [*]: Hard Block / Prospect Rejected
+
+    ADVANCE_BILLING --> PORTAL_ACTIVE_PLANNING: 50% Advance Payment Recorded & Receipt Issued
+    PORTAL_ACTIVE_PLANNING --> FIELDWORK_EXECUTION: Directory Provisioned, Staff Scheduled, TB Mapped & Materiality Signed Off
+    
+    FIELDWORK_EXECUTION --> MANAGERIAL_REVIEW: Preparer Submits All Assigned Procedures
+    MANAGERIAL_REVIEW --> FIELDWORK_EXECUTION: Review Notes Issued (Under Rework status triggered)
+    MANAGERIAL_REVIEW --> PARTNER_APPROVAL: Zero Open Notes, SRM Compiled & Critical Confirmations Cleared
+    
+    PARTNER_APPROVAL --> DELIVERABLE_RELEASE: Opinion Selected, Partner Digital Signature & Seal Applied
+    DELIVERABLE_RELEASE --> COMPLIANCE_COUNTDOWN: 5-Part Bundle Released, Final 50% Invoice Issued & Portal Uploads Frozen
+    
+    COMPLIANCE_COUNTDOWN --> ARCHIVED_READ_ONLY: 60 Calendar Days Elapsed (ISA 230) OR Manual Partner Lock
+    ARCHIVED_READ_ONLY --> [*]: Permanently Sealed Read-Only Archive
+```
