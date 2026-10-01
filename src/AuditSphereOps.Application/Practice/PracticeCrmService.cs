@@ -346,6 +346,9 @@ public static class PracticeCrmService
     var createdClient = existingClient is null;
     if (createdClient)
     {
+      var lead = await db.Leads.AsNoTracking().SingleAsync(x => x.FirmId == actor.FirmId && x.Id == opportunity.LeadId, ct);
+      if (!System.Net.Mail.MailAddress.TryCreate(lead.PrimaryContactEmail, out _))
+        return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Add a valid primary client contact email before client conversion and portal onboarding.");
       client = new PracticeClient
       {
         Id = Guid.CreateVersion7(), FirmId = actor.FirmId, LegalName = legalName,

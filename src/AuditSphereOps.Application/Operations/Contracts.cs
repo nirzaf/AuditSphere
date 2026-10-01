@@ -150,6 +150,10 @@ public interface IAuditSphereDbContext : IAsyncDisposable
   DbSet<global::AuditSphereOps.Domain.Completion.ProcedureReviewNote> ProcedureReviewNotes { get; }
   DbSet<global::AuditSphereOps.Domain.Completion.ProcedureReviewNoteEvent> ProcedureReviewNoteEvents { get; }
   DbSet<global::AuditSphereOps.Domain.Completion.AuditDeliverable> AuditDeliverables { get; }
+  DbSet<global::AuditSphereOps.Domain.Completion.SignedRepresentationLetter> SignedRepresentationLetters { get; }
+  DbSet<global::AuditSphereOps.Domain.Completion.RepresentationLetterVerification> RepresentationLetterVerifications { get; }
+  DbSet<global::AuditSphereOps.Domain.Completion.FirmSealSpecimen> FirmSealSpecimens { get; }
+  DbSet<global::AuditSphereOps.Domain.Completion.CommercialDeliverableBundle> CommercialDeliverableBundles { get; }
   DbSet<global::AuditSphereOps.Domain.Completion.PartnerCompletionClearance> PartnerCompletionClearances { get; }
   DbSet<global::AuditSphereOps.Domain.Completion.AuditOpinionDecision> AuditOpinionDecisions { get; }
   DbSet<global::AuditSphereOps.Domain.Completion.SignatureSpecimen> SignatureSpecimens { get; }
@@ -203,6 +207,7 @@ public interface IAuditSphereDbContext : IAsyncDisposable
   DbSet<FolderTemplateVersion> FolderTemplateVersions { get; }
   DbSet<IntegrationVerificationEvidence> IntegrationVerificationEvidences { get; }
   DbSet<ClientWorkspace> ClientWorkspaces { get; }
+  DbSet<ClientSharePointSite> ClientSharePointSites { get; }
   DbSet<DirectoryUserObservation> DirectoryUserObservations { get; }
   DbSet<UserAccessInvitation> UserAccessInvitations { get; }
   DbSet<TenantCapabilityVerification> TenantCapabilityVerifications { get; }

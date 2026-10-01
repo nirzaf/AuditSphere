@@ -78,7 +78,7 @@ public static class BillingService
         InternalOnly: true), ct);
     if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
 
-    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
     if (await LockFirmAsync(db, actor.FirmId, ct) is null)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
     var clientGuard = await LockClientAsync(db, actor.FirmId, request.PracticeClientId, ct);
@@ -103,7 +103,7 @@ public static class BillingService
     db.BillingAccounts.Add(account);
     client.BillingAccountId = account.Id;
     await db.SaveChangesAsync(ct);
-    await tx.CommitAsync(ct);
+    if (tx is not null) await tx.CommitAsync(ct);
     return CommandResult<Guid>.Ok(account.Id);
   }
 
@@ -124,7 +124,7 @@ public static class BillingService
     var subtotal = MoneyPolicy.Normalize(normalized.Sum(x => x.Total));
     var total = MoneyPolicy.Normalize(subtotal + request.Tax);
 
-    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
     if (await LockFirmAsync(db, actor.FirmId, ct) is null)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
     var guard = await LockClientAsync(db, actor.FirmId, account.PracticeClientId, ct);
@@ -185,7 +185,7 @@ public static class BillingService
     {
       return CommandResult<Guid>.Fail("billing.conflict", "The billing identity or source allocation changed; retry from current state.");
     }
-    await tx.CommitAsync(ct);
+    if (tx is not null) await tx.CommitAsync(ct);
     return CommandResult<Guid>.Ok(invoice.Id);
   }
 
@@ -564,9 +564,9 @@ public static class BillingService
       .SingleOrDefaultAsync(ct);
 
   private static async Task<CommandResult<Guid>> CommitValueAsync(
-    IDbContextTransaction tx, Guid value, CancellationToken ct)
+    IDbContextTransaction? tx, Guid value, CancellationToken ct)
   {
-    await tx.CommitAsync(ct);
+    if (tx is not null) await tx.CommitAsync(ct);
     return CommandResult<Guid>.Ok(value);
   }
 }

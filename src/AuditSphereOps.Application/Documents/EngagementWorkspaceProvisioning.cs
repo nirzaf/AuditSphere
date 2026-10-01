@@ -147,7 +147,7 @@ public sealed class EngagementWorkspaceProvisioningHandler(
     if (!await db.AcceptanceDecisions.AsNoTracking().AnyAsync(x => x.Id == workspace.AcceptanceDecisionId && x.FirmId == firmId &&
           x.PracticeClientId == client.Id && x.Decision == "Accepted", ct))
       throw new OperationBlockedException("client-not-accepted", authorization: true);
-    var active = await PbcRepositoryProvisioningService.ActiveSiteAsync(db, firmId, ct);
+    var active = await PbcRepositoryProvisioningService.ActiveSiteAsync(db, firmId, ct, client.Id);
     if (!active.Succeeded) throw new SafeRetryException(TimeSpan.FromMinutes(5));
     var (config, connection, clientTemplate) = active.Value!;
     var engagementTemplate = await db.FolderTemplateVersions.AsNoTracking()

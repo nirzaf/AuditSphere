@@ -23,6 +23,66 @@ public static class ClientPortalService
 {
   public const string TermsVersion = "PORTAL-SECURITY-2026-1";
 
+  // Existing clients without a conversion intent retain their earlier onboarding contract.
+  // This gate does not authorize an identity: callers first verify its current RoleGrant and scope.
+  internal static async Task<bool> CommercialOnboardingClearedAsync(IAuditSphereDbContext db, Guid firmId, Guid clientId, Guid? engagementId, CancellationToken ct)
+  {
+    var intent = await db.ClientPortalIntents.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == firmId && x.PracticeClientId == clientId, ct);
+    if (intent is null) return true;
+    var target = engagementId ?? intent.ActivatedEngagementId;
+    if (target is null || !await db.EngagementActivations.AnyAsync(x => x.FirmId == firmId && x.PracticeClientId == clientId && x.EngagementId == target, ct)) return false;
+    var agreement = await db.EngagementFeeAgreements.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == firmId && x.ProposalId == intent.SourceProposalId && x.PracticeClientId == clientId, ct);
+    return agreement is not null && await AuditSphereOps.Application.Practice.AutomaticFeeInvoiceHandler.HasCurrentLetterAsync(db, agreement, ct) &&
+      await db.Proposals.AnyAsync(x => x.FirmId == firmId && x.Id == intent.SourceProposalId && x.Status == "ACCEPTED" && x.ResponseAt != null, ct) &&
+      await db.FeeMilestones.AnyAsync(x => x.FirmId == firmId && x.AgreementId == agreement.Id && x.Kind == "ADVANCE" && x.State == "PAID", ct);
+  }
+
+  internal static async Task RefreshCommercialIntentAsync(IAuditSphereDbContext db, Guid firmId, Guid clientId, CancellationToken ct)
+  {
+    var intent = await db.ClientPortalIntents.SingleOrDefaultAsync(x => x.FirmId == firmId && x.PracticeClientId == clientId, ct);
+    if (intent is not null && intent.State == ClientPortalIntentStates.AwaitingAcceptance &&
+        await CommercialOnboardingClearedAsync(db, firmId, clientId, intent.ActivatedEngagementId, ct))
+    {
+      intent.State = ClientPortalIntentStates.ReadyToInvite;
+      intent.UpdatedAt = DateTimeOffset.UtcNow;
+      await db.SaveChangesAsync(ct);
+    }
+  }
+
+  public static async Task<IReadOnlyList<Guid>> AuthorizedPortalGrantIdsAsync(IAuditSphereDbContext db, ActorContext actor, CancellationToken ct = default)
+  {
+    var now = DateTimeOffset.UtcNow;
+    var grants = await db.RoleGrants.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.UserId == actor.UserId && x.Role == "ClientUser" &&
+      x.ClientId != null && x.RevokedAt == null && (x.ExpiresAt == null || x.ExpiresAt > now)).Take(500).ToListAsync(ct);
+    var ids = new List<Guid>();
+    foreach (var grant in grants)
+      if ((await AuthorizationDecision.AuthorizeAsync(db, actor, new(actor.FirmId, grant.ClientId, grant.EngagementId, ["ClientUser"]), ct)).Succeeded) ids.Add(grant.Id);
+    return ids;
+  }
+
+  public static async Task<IReadOnlyList<Guid>> AuthorizedPortalEngagementIdsAsync(IAuditSphereDbContext db, ActorContext actor, CancellationToken ct = default)
+  {
+    var now = DateTimeOffset.UtcNow;
+    var grants = db.RoleGrants.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.UserId == actor.UserId && x.Role == "ClientUser" &&
+      x.ClientId != null && x.RevokedAt == null && (x.ExpiresAt == null || x.ExpiresAt > now));
+    var candidates = await db.Engagements.AsNoTracking().Where(e => e.FirmId == actor.FirmId && grants.Any(g => g.ClientId == e.PracticeClientId &&
+      (g.EngagementId == null || g.EngagementId == e.Id))).OrderBy(e => e.Id).Take(500).Select(e => e.Id).ToListAsync(ct);
+    var ids = new List<Guid>();
+    foreach (var id in candidates)
+      if ((await AuthorizationDecision.AuthorizeAsync(db, actor, new(actor.FirmId, EngagementId: id, RequiredRoles: ["ClientUser"]), ct)).Succeeded) ids.Add(id);
+    return ids;
+  }
+
+  public static async Task<bool> HasPendingCommercialOnboardingAsync(IAuditSphereDbContext db, ActorContext actor, CancellationToken ct = default)
+  {
+    var now = DateTimeOffset.UtcNow;
+    var grants = await db.RoleGrants.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.UserId == actor.UserId && x.Role == "ClientUser" && x.ClientId != null &&
+      x.RevokedAt == null && (x.ExpiresAt == null || x.ExpiresAt > now)).Take(500).ToListAsync(ct);
+    foreach (var grant in grants)
+      if ((await AuthorizationDecision.AuthorizeAsync(db, actor, new(actor.FirmId, grant.ClientId, grant.EngagementId, ["ClientUser"]), ct)).ErrorCode == ErrorCodes.GateBlocked) return true;
+    return false;
+  }
+
   public static async Task<FirstSignInStatus> GetFirstSignInStatusAsync(
     IAuditSphereDbContext db, ActorContext actor, CancellationToken ct = default)
   {
@@ -70,6 +130,19 @@ public static class ClientPortalService
     await db.ClientPortalFirstSignIns.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId && x.UserId == actor.UserId, ct)
       ? CommandResult.Ok()
       : CommandResult.Fail("portal.first-sign-in.required", "Complete your first portal sign-in before uploading files.");
+
+  /// <summary>Client transfer privileges close at final financial-package release or final bundle assembly.</summary>
+  public static async Task<CommandResult> RequireUploadWindowAsync(IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct = default)
+  {
+    var engagement = await db.Engagements.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == engagementId, ct);
+    if (engagement is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var auth = await AuthorizationDecision.AuthorizeAsync(db, actor, new(actor.FirmId, engagement.PracticeClientId, engagementId, ["ClientUser"]), ct);
+    if (!auth.Succeeded) return auth;
+    var released = await db.CommercialDeliverableBundles.AnyAsync(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId, ct) ||
+      await db.Releases.AnyAsync(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId && db.ReleaseCandidates.Any(c =>
+        c.FirmId == actor.FirmId && c.Id == x.ReleaseCandidateId && c.TargetKind == "FINANCIAL_PACKAGE"), ct);
+    return released ? CommandResult.Fail(ErrorCodes.ProtectedState, "Client uploads are frozen after final release. You can still download your released documents.") : CommandResult.Ok();
+  }
 
   /// <summary>Owner of the request, or holder of an unrevoked delegation for it.</summary>
   public static async Task<bool> IsRequestParticipantAsync(IAuditSphereDbContext db, ActorContext actor, PbcRequest request, CancellationToken ct) =>
@@ -170,7 +243,9 @@ public static class ClientPortalService
     var upper = intent.RecipientEmail.ToUpperInvariant();
     var hasAccess = await db.Users.AsNoTracking().AnyAsync(u => u.FirmId == firmId && u.Email.ToUpper() == upper &&
       db.RoleGrants.Any(g => g.UserId == u.Id && g.Role == "ClientUser" && g.ClientId == clientId && g.RevokedAt == null), ct);
-    return new(hasAccess ? ClientPortalIntentStates.Invited : intent.State, intent.RecipientEmail, intent.UpdatedAt, hasAccess);
+    var cleared = await CommercialOnboardingClearedAsync(db, firmId, clientId, intent.ActivatedEngagementId, ct);
+    return new(!cleared ? ClientPortalIntentStates.AwaitingAcceptance : hasAccess ? ClientPortalIntentStates.Invited : ClientPortalIntentStates.ReadyToInvite,
+      intent.RecipientEmail, intent.UpdatedAt, cleared && hasAccess);
   }
 
   private static async Task<CommandResult> AuthorizeDelegatorAsync(IAuditSphereDbContext db, ActorContext actor, PbcRequest request, CancellationToken ct)

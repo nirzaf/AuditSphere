@@ -254,6 +254,6 @@ public sealed class AcceptanceChecklistTests
     Assert.Equal((current, 2L, w.PartnerUser.Id), (record.AcceptanceDecisionId, record.ClientGeneration, record.ActivatedByUserId));
     await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM engagement_activations WHERE id = {record.Id}"));
     var intent = await db.ClientPortalIntents.AsNoTracking().SingleAsync(x => x.PracticeClientId == w.ClientId);
-    Assert.Equal((AuditSphereOps.Domain.Documents.ClientPortalIntentStates.ReadyToInvite, (Guid?)created.Value), (intent.State, intent.ActivatedEngagementId));
+    Assert.Equal((AuditSphereOps.Domain.Documents.ClientPortalIntentStates.AwaitingAcceptance, (Guid?)created.Value), (intent.State, intent.ActivatedEngagementId));
   }
 }

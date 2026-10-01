@@ -959,7 +959,50 @@
     },
     "ste2AcceptanceProvisioning": "PASS locally: Release build 0 warnings; EF has-pending-model-changes clean; full suite Api 35/35, Domain 481/481, E2E 101/102 with one load-time failure (FinancialPackagePageClearsPriorPackageWhenRouteChangesToUnavailableId) that passed on isolated rerun. Package 2 partial: acceptance paths/evidence/adverse gating, Partner activation, acceptance-triggered exact tree provisioning against the fake Graph drive. Live SharePoint creation not observed (BLOCKED_EXTERNAL).",
     "ste2PortalAnd3Planning": "PASS locally: Release build 0 warnings; EF has-pending-model-changes clean; full suite Api 35/35, Domain 487/487, E2E 103/104 — the one failure (responsive sweep: /app/practice/resources overflowed narrow viewports) was fixed and the sweep then passed in isolation. Package 2 portal rows (first-sign-in upload gate, primary-contact delegation, drag-and-drop with in-browser SHA-256, conversion portal intent) and package 3 (four-level staffing, resource grid, phase/risk-area budgets, TB-derived PM/TE/SAD with staleness, database-enforced risk bands with Partner review). Live Entra first-password evidence and live SharePoint remain BLOCKED_EXTERNAL.",
-    "ste4to7FieldworkCompletionFreezeFirmOps": "PASS locally: Release build 0 warnings; EF has-pending-model-changes clean; full suite Api 35/35, Domain 497/497, E2E 107/107. Packages 4 (multi-period TB intake, mapping memory, currency review, statement drill-down, integrated sampling log, evidence picker, physical file index, ad hoc steps, AR/GC completion gate), 5 (inline review notes and hierarchy, SRM, Partner clearance, four-way opinion, report trio, holding letter, client review loop, PNG signing), 6 (60-day scheduled freeze with amendments, refused-write log, activity trail, document locks) and 7 (technical library, practice analytics, firm expenses, firm trial balance). SharePoint read-only enforcement, direct SharePoint edit capture and live confirmation channels remain BLOCKED_EXTERNAL."
+    "ste4to7FieldworkCompletionFreezeFirmOps": "PASS locally: Release build 0 warnings; EF has-pending-model-changes clean; full suite Api 35/35, Domain 497/497, E2E 107/107. Packages 4 (multi-period TB intake, mapping memory, currency review, statement drill-down, integrated sampling log, evidence picker, physical file index, ad hoc steps, AR/GC completion gate), 5 (inline review notes and hierarchy, SRM, Partner clearance, four-way opinion, report trio, holding letter, client review loop, PNG signing), 6 (60-day scheduled freeze with amendments, refused-write log, activity trail, document locks) and 7 (technical library, practice analytics, firm expenses, firm trial balance). SharePoint read-only enforcement, direct SharePoint edit capture and live confirmation channels remain BLOCKED_EXTERNAL.",
+    "clientSitesAndSteReporting": {
+      "sourceCommitBase": "5d1009d",
+      "sourceState": "uncommitted working tree; unrelated owner documentation changes preserved",
+      "observedAt": "2026-10-01T14:34:10.828828+00:00",
+      "build": "PASS: final Release solution build, 0 warnings/errors.",
+      "focusedTests": "PASS: 41/41 Domain cases covering client-site lifecycle/provider, document provisioning, reporting, contract contribution, firm operations and comprehensive tender.",
+      "browserTests": "PASS: 5/5 targeted Playwright journeys for separate site/member health and administrator epoch revocation, completion reporting, planning and commercial workflows.",
+      "fullSuite": "PASS across full project runs: Domain 525/525 and API 35/35 in the full Release solution run; fresh full Playwright rerun 108/108 after a readiness-only test repair. 668 tests passed, zero skips. The first solution run had one keyboard-focus failure; diagnostics proved initial Blazor render detached the focused node; unchanged assertions passed after NetworkIdle wait.",
+      "modelDrift": "PASS: no pending EF model changes after ClientSharePointSites, ClientSiteRolloutBoundary and CommercialTenderChapters migrations.",
+      "database": "Started local PostgreSQL 18 cluster on port 5433. New migrations executed only in isolated test schemas; Development/production migration not performed.",
+      "documentation": "Owned files pass git diff --check. Repository-wide documentation validator blocked by pre-existing deleted canonical documents; unrelated accounting document has trailing whitespace and was preserved.",
+      "liveAcceptance": "BLOCKED_EXTERNAL: isolated provisioner Graph and SharePoint Sites.FullControl.All consent, approved certificate and client-sites worker policy are not configured/verified in this turn. No live sites, memberships, consent or tenant changes executed.",
+      "securityBoundary": "Document app remains Sites.Selected with exact-site write; all assigned staff site-wide Full Control explicitly authorized by owner; local scopes unchanged; persisted unknown-create fence survives recovery; immutable Microsoft identity and ownership readback required.",
+      "coverage": "PARTIAL for the entire attached specification: current dual-key engagement-letter generation fence, assembled five-part final bundle, scanned signed LOR version binding and externally verified immutable archive remain open. See auditsphere-ste-specification-coverage-current.md.",
+      "secretScan": "Changed/new owned source and docs scanned for literal private keys, known service keys and bearer JWT literals: no matches."
+    },
+    "steDeliverableAssembly": {
+      "sourceCommitBase": "5d1009dd59d9f888cf9b626bb5823f1578493521",
+      "sourceState": "final tested source prepared for commit; owner requirement rewrite and canonical-document deletions remain separate and unstaged",
+      "observedAt": "2026-10-01T16:33:36.883379+00:00",
+      "requirementsSource": "docs/auditsphere-accounting-module-requirements-current.md (STE functional requirements v2.1)",
+      "requirementsSha256": "5b111c9bd9372300f5d9ee4a44d1564228f1adba5515b2533ff4c79d83278a13",
+      "build": "PASS: final Release solution build, 0 warnings/errors.",
+      "focusedDomainTests": "PASS: 38/38 authorization, acceptance, CRM, commercial and completion cases; subsequent final 10/10 commercial/completion cases include durable advance and balance drafts, revoked standing authority, immutable version-bound signed LOR, exact financial review/release, posted invoice and idempotent five-part ZIP. Final full run also verifies current finance authorization and epoch checks before payment-retry idempotency.",
+      "focusedBrowserTests": "PASS: final 4/4 journeys: signed LOR review/signature/seal/bundle downloads as Partner and client; pending commercial portal without content exposure; first sign-in and delegation; advanced consolidation focus and route isolation. Earlier commercial/completion 2/2 also passed.",
+      "fullSuite": "PASS: final-source dotnet test AuditSphereOps.slnx --no-build --configuration Release; Domain 528/528, API 35/35, Playwright E2E 109/109, 672/672 total, zero skips. Earlier run had a consolidation focus timing failure; interactive readiness was fixed with unchanged CSS/focus assertions. Superseded intermediate run was explicitly cancelled for the finance idempotency authorization fence; this fresh complete run includes that fence.",
+      "modelDrift": "PASS: EF reports no pending model changes. New SteDeliverableAssembly migration exercised in isolated test schemas; exact manifest text avoids jsonb hash normalization.",
+      "documentation": "PASS: Markdown filename policy and owned-file diff whitespace. Full documentation health check blocked by owner-deleted canonical prototype-gap document; deletions preserved. Wiki not published.",
+      "security": "Current session/grant checks precede portal commercial gating. New client conversion requires a valid primary contact email. Current commercial acceptance, unconditional Partner risk clearance, activation and paid advance open newly converted-client portal access. Legacy clients without conversion intents retain their prior contract. Client write transactions share the final-release guard. New scan/verification/seal/bundle evidence is append-only; selected-site worker scope unchanged.",
+      "database": "PostgreSQL 18 on loopback port 5433; migrations exercised only in isolated test schemas. Development and production were not migrated.",
+      "liveAcceptance": "BLOCKED_EXTERNAL: live isolated client-site consent/certificate/create/member-reconciliation acceptance and direct SharePoint immutable retention were not performed. Registered PNG credentials are visual signatures/seals; certificate-backed signing and legal-template acceptance remain separate.",
+      "secretScan": "PASS: changed/new owned source and docs scanned for private-key headers, known service-key formats and bearer JWT literals; no matches.",
+      "coverage": "Local commercial/deliverable rows implemented with backend/UI tests. No blanket professional, live-provider or production acceptance claim; see auditsphere-ste-specification-coverage-current.md.",
+      "sourceTreeSha256": "973895d02bcadc2e5ba04526a61c550845df32e6b9949464f6db31dc3df9012e",
+      "sourceTreeDigestScope": "Sorted tracked and non-ignored untracked src/tests paths plus exact bytes; uncommitted final tested source, excluding build outputs.",
+      "newMigrations": [
+        "ClientSharePointSites",
+        "ClientSiteRolloutBoundary",
+        "CommercialTenderChapters",
+        "SteDeliverableAssembly"
+      ],
+      "repositoryMigrationCount": 123
+    }
   },
   "documentationWork": {
     "r2rT002WikiDirectionReview": {
@@ -1062,11 +1105,11 @@
     }
   },
   "active": {
-    "packageId": "Prototype-inspired Blazor UI modernization",
-    "implementationStatus": "IN_PROGRESS",
+    "packageId": "Client SharePoint sites and STE specification alignment",
+    "implementationStatus": "PARTIAL",
     "acceptanceStatus": "PARTIAL",
-    "scope": "The shared staff/client/public shell, MudBlazor theme, Portfolio pilot, three current client portal views, administrator implementation task-progress, protected Microsoft 365 setup and tenant-connection views, firm-administration workbench, practice leads/time/firm-finance visual pass, accounting landing/evidence, accounting record/review queues, mapping/journal detail and accounting period visual passes, audit program library, engagement fieldwork, population detail, planning, completion, workpaper, finding, review-point, client-assessment, partner-decision, release-candidate and records-archive detail visual passes, the durable Operations route visual pass both group consolidation routes, and client/engagement/proposal/invoice/financial-package/currency-remeasurement detail routes are locally verified; a whole-application responsive sweep (19 parameterless and 10 seeded detail routes at 320-1920px) passes with a single exact-active navigation entry and owning-section cue per route. Scoped staff search (GlobalSearchQuery + GlobalSearch shell component) re-authorizes every hit with its destination route's decision; GlobalSearchQueryTests 10/10 and AS-UI-SEARCH-01 pass; full PostgreSQL-backed suite Domain 459/459, API 35/35, E2E 100/100 (594/594), Release build 0 warnings, no pending EF model changes on the real Blazor stack. The project task tracker shows completed, active, pending and blocked segments and completed-card percentages for Modules 20-26, four published audit phases, the audit aggregate and shared foundations, with status-filtered task lists; six other application areas remain explicitly untracked. The staff PBC inbox has a responsive presentation pass with scoped record counts and no change to transfer or authorization commands. Visual and accessibility work remains open for other accounting and audit detail routes and administration dialog/state coverage; no whole-application visual parity or production acceptance is claimed. Earlier AS-PAR-002, Microsoft provider, R2R review and P1/P8/P9 external gates remain recorded below.",
-    "nextAction": "Continue route-family visual passes on remaining accounting and audit detail routes, then administration dialog/state coverage. Add approved task-card mappings before assigning completion fractions to six untracked application areas. Preserve native draft/upload contracts and server authorization. Capture matching synthetic before/after evidence, keyboard and state coverage before any full UI acceptance claim.",
+    "scope": "Dedicated named client SharePoint sites, owner-approved whole-site Full Control for all assigned staff, separate selected-site document app grants, durable creation fencing and membership reconciliation, rollout cutoff, independent site/member health UI, signed-report PDF, modified-opinion validation, automatic final-review SRM, reviewed comprehensive tender and contract contribution metrics are locally implemented and verified. This does not certify complete acceptance of the entire attached specification or live Microsoft provisioning.",
+    "nextAction": "Local dual-key engagement-letter gating, five-part final bundle and exact-version signed LOR binding are implemented and verified under steDeliverableAssembly. Independently consent/configure the isolated client-sites worker and perform controlled live creation/membership/document acceptance. Preserve external immutable archive and professional signature/seal approval gates.",
     "branch": "master"
   },
   "localEvidence": [

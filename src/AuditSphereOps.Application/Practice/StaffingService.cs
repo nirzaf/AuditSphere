@@ -74,6 +74,8 @@ public static class StaffingService
       StaffingLevel = level, RoleGrantId = grant.Id, AssignedByUserId = actor.UserId, AssignedAt = now
     };
     db.EngagementStaffAssignments.Add(assignment);
+    var site = await db.ClientSharePointSites.SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.ClientId == engagement.PracticeClientId, ct);
+    if (site != null) { site.LastMembershipSyncAt = null; site.MembershipState = "PENDING"; }
     await db.SaveChangesAsync(ct);
     await tx.CommitAsync(ct);
     return CommandResult<Guid>.Ok(assignment.Id);
@@ -103,6 +105,8 @@ public static class StaffingService
       var user = await db.Users.SingleAsync(x => x.Id == assignment.UserId && x.FirmId == actor.FirmId, ct);
       user.SessionEpoch++;
     }
+    var site = await db.ClientSharePointSites.SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.ClientId == assignment.ClientId, ct);
+    if (site != null) { site.LastMembershipSyncAt = null; site.MembershipState = "PENDING"; }
     await db.SaveChangesAsync(ct);
     await tx.CommitAsync(ct);
     return CommandResult.Ok();

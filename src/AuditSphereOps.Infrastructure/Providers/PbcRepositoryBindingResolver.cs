@@ -74,10 +74,22 @@ public sealed class PbcRepositoryBindingResolver(IAuditSphereDbContextFactory fa
     var workspace = await db.FirmWorkspaceConfigurations.AsNoTracking().SingleOrDefaultAsync(x =>
       x.FirmId == scope.FirmId && x.ConnectionRevisionId == clientWorkspace.ConnectionRevisionId &&
       x.FolderTemplateVersionId == clientWorkspace.FolderTemplateVersionId &&
-      x.TenantId == binding.TenantId && x.SiteId == binding.SiteId &&
-      x.DriveId == binding.DriveId, ct);
+      x.TenantId == binding.TenantId, ct);
     if (workspace is null || workspace.AccessProfile != Microsoft365AccessProfiles.AppMediated)
       throw Block();
+    var clientSite = await db.ClientSharePointSites.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == scope.FirmId && x.ClientId == scope.ClientId, ct);
+    if (clientSite != null)
+    {
+      if (clientSite.State != "READY" || clientSite.VerifiedAt == null || clientSite.ConnectionRevisionId != workspace.ConnectionRevisionId ||
+          clientSite.TenantId != binding.TenantId || clientSite.SiteId != binding.SiteId || clientSite.DriveId != binding.DriveId)
+        throw Block();
+    }
+    else
+    {
+      var cutover = await db.FirmWorkspaceConfigurations.AsNoTracking().Where(x => x.FirmId == scope.FirmId).MinAsync(x => x.ClientSitesRequiredFrom, ct);
+      if (cutover != null && await db.PracticeClients.AnyAsync(x => x.FirmId == scope.FirmId && x.Id == scope.ClientId && x.CreatedAt >= cutover, ct)) throw Block();
+      if (workspace.SiteId != binding.SiteId || workspace.DriveId != binding.DriveId) throw Block();
+    }
     var connection = await db.Microsoft365ConnectionRevisions.AsNoTracking().SingleOrDefaultAsync(x =>
       x.Id == workspace.ConnectionRevisionId && x.FirmId == scope.FirmId &&
       x.State == Microsoft365RevisionStates.Active && (x.ConsentState == "VERIFIED" || x.ConsentState == "OBSERVED") &&

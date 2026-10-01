@@ -218,7 +218,7 @@ AuditSphereOps is an audit, accounting, and assurance operations platform built 
 
 
 
-- **Never** request tenant-wide Microsoft Graph scopes outside the narrow, separately credentialed and consented capabilities in [`docs/architecture/auditsphere-m365-tenant-administration-permissions.md`](docs/architecture/auditsphere-m365-tenant-administration-permissions.md). Each capability (`User.Read.All` reader, optional `User.Create`, `User.Invite.All`, `GroupMember.ReadWrite.All`, `Mail.Send`) uses its own app identity holding exactly that one role, is off by default, and is usable only after verified consent. Document access stays on `Sites.Selected` and exact site grants. Never implement Entra administrator-role assignment through AuditSphere role assignment.
+- **Never** request tenant-wide Microsoft Graph scopes outside the narrow, separately credentialed and consented capabilities in [`docs/architecture/auditsphere-m365-tenant-administration-permissions.md`](docs/architecture/auditsphere-m365-tenant-administration-permissions.md). Each capability (`User.Read.All` reader, optional `User.Create`, `User.Invite.All`, `GroupMember.ReadWrite.All`, `Mail.Send`) uses its own app identity holding exactly that one role, is off by default, and is usable only after verified consent. Document access stays on `Sites.Selected` and exact site grants. The isolated client-sites provisioning worker has a separately owner-approved exception for Graph and SharePoint `Sites.FullControl.All`, documented in `docs/architecture/auditsphere-client-sharepoint-sites-current.md`; its certificate must never be mounted in Web or the document worker. Never implement Entra administrator-role assignment through AuditSphere role assignment.
 
 
 

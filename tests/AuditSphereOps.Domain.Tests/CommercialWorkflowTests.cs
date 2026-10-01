@@ -1,12 +1,15 @@
 using System.IO.Compression;
 using AuditSphereOps.Application.Abstractions;
+using AuditSphereOps.Application.Acceptance;
 using AuditSphereOps.Application.Completion;
 using AuditSphereOps.Application.Documents;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Application.Reviews;
+using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Audit;
 using AuditSphereOps.Domain.Completion;
+using AuditSphereOps.Domain.Documents;
 using AuditSphereOps.Domain.Engagements;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Security;
@@ -184,8 +187,10 @@ public sealed class CommercialWorkflowTests
     return System.Net.WebUtility.HtmlDecode(System.Text.RegularExpressions.Regex.Replace(reader.ReadToEnd(), "<[^>]+>", " "));
   }
 
-  [Fact]
-  public async Task OneClickDocuments_AreBrandedImmutableAndBoundToTheApprovedQuotation()
+  [Theory]
+  [InlineData(false)]
+  [InlineData(true)]
+  public async Task OneClickDocuments_AreBrandedImmutableAndBoundToTheApprovedQuotation(bool revokeStandingAuthority)
   {
     await using var pg = await PgTestSchema.CreateAsync();
     var w = await SeedAsync(pg);
@@ -193,10 +198,10 @@ public sealed class CommercialWorkflowTests
     await using var db = new AuditSphereDbContext(pg.Options);
 
     var quote = await QuotationService.SaveAsync(db, w.Prep, Quote(proposalId, complexity: 1.2m, risk: 10m));
-    var blocked = await CommercialDocumentService.GenerateProposalDocumentsAsync(db, w.Prep, proposalId);
+    var blocked = await CommercialDocumentService.GenerateBriefQuotationAsync(db, w.Prep, proposalId);
     Assert.Equal(ErrorCodes.GateBlocked, blocked.ErrorCode); // not approved yet
     Assert.True((await QuotationService.SubmitAsync(db, w.Prep, quote.Value)).Succeeded);
-    var noProfile = await CommercialDocumentService.GenerateProposalDocumentsAsync(db, w.Prep, proposalId);
+    var noProfile = await CommercialDocumentService.GenerateBriefQuotationAsync(db, w.Prep, proposalId);
     Assert.Equal(ErrorCodes.GateBlocked, noProfile.ErrorCode);
     Assert.Contains("commercial profile", noProfile.Message);
 
@@ -206,7 +211,29 @@ public sealed class CommercialWorkflowTests
     Assert.True((await CommercialDocumentService.SaveProfileAsync(db, w.Partner,
       new("Gulf Audit Partners", "West Bay, Doha", "hello@gulf.example.test", "+974 0000 0000", "#0F766E", "This letter is subject to our standard terms of business."))).Succeeded);
 
-    var generated = await CommercialDocumentService.GenerateProposalDocumentsAsync(db, w.Prep, proposalId);
+    var brief = await CommercialDocumentService.GenerateBriefQuotationAsync(db, w.Prep, proposalId);
+    Assert.True(brief.Succeeded, brief.Message);
+    Assert.Equal(ErrorCodes.GateBlocked, (await CommercialDocumentService.GenerateEngagementLetterAsync(db, w.Partner, proposalId)).ErrorCode);
+    Assert.Empty(await db.CommercialDocuments.Where(x => x.Kind == CommercialDocumentKinds.EngagementLetter).ToListAsync());
+    Assert.True((await PracticeCrmService.ApproveProposalAsync(db, w.Partner, proposalId)).Succeeded);
+    Assert.True((await PracticeCrmService.SendProposalAsync(db, w.Prep, proposalId)).Succeeded);
+    Assert.True((await PracticeCrmService.RecordProposalResponseAsync(db, w.Prep, proposalId, new("ACCEPTED"))).Succeeded);
+    var clientId = (await PracticeCrmService.ConvertToClientDraftAsync(db, w.Prep, new(proposalId, "Gulf Trading LLC"))).Value;
+    Assert.Equal(ErrorCodes.GateBlocked, (await CommercialDocumentService.GenerateEngagementLetterAsync(db, w.Partner, proposalId)).ErrorCode);
+    await QuestionnaireSeed.SeedTemplatesAndDefinitionsAsync(db);
+    await db.SaveChangesAsync();
+    var checklist = (await AcceptanceChecklistService.GetAsync(db, w.Manager, clientId)).Value!;
+    Assert.NotEmpty(checklist.Items);
+    foreach (var item in checklist.Items)
+      Assert.True((await AcceptanceChecklistService.RecordAnswerAsync(db, w.Manager, clientId, item.Question.Code,
+        item.Question.AdverseAnswer == "YES" ? "No" : "Yes", item.Question.RequiresEvidence ? $"DOC-{item.Question.Code}" : null)).Succeeded);
+    var generation = (await db.ClientSafetyStates.AsNoTracking().SingleAsync(x => x.Id == clientId)).InputGeneration;
+    var acceptance = await AcceptanceDecisionService.RecordAsync(db, w.Partner, new(clientId, null, "FinancialStatementAudit", "Accepted", "All risk and independence evidence reviewed.", null, generation));
+    Assert.True(acceptance.Succeeded, acceptance.Message);
+    Assert.Equal(ErrorCodes.ScopeDenied, (await CommercialDocumentService.GenerateEngagementLetterAsync(db, w.Prep, proposalId)).ErrorCode);
+    Assert.True((await AuditDeliverableService.RegisterSignatureAsync(db, w.Partner, CompletionTestFixtures.Png(100, 60))).Succeeded);
+    Assert.True((await AuditDeliverableService.RegisterFirmSealAsync(db, w.Partner, CompletionTestFixtures.Png(100, 100))).Succeeded);
+    var generated = await CommercialDocumentService.GenerateProposalDocumentsAsync(db, w.Partner, proposalId);
     Assert.True(generated.Succeeded, generated.Message);
     var (q, letter) = (generated.Value!.Quotation, generated.Value.EngagementLetter);
     Assert.Equal((CommercialDocumentKinds.Quotation, CommercialDocumentKinds.EngagementLetter), (q.Kind, letter.Kind));
@@ -230,14 +257,78 @@ public sealed class CommercialWorkflowTests
     Assert.DoesNotContain("Acceptance", quoteText);
 
     // One click again returns the same documents, not new ones.
-    var again = await CommercialDocumentService.GenerateProposalDocumentsAsync(db, w.Prep, proposalId);
+    var again = await CommercialDocumentService.GenerateProposalDocumentsAsync(db, w.Partner, proposalId);
     Assert.Equal((q.Id, letter.Id), (again.Value!.Quotation.Id, again.Value.EngagementLetter.Id));
     Assert.Equal(2, await db.CommercialDocuments.CountAsync(x => x.ProposalId == proposalId));
 
-    // Repricing supersedes the quotation: no documents from the new, unapproved version; the old pair is retained.
-    Assert.True((await QuotationService.SaveAsync(db, w.Prep, Quote(proposalId, complexity: 1.3m, risk: 10m))).Succeeded);
-    Assert.Equal(ErrorCodes.GateBlocked, (await CommercialDocumentService.GenerateProposalDocumentsAsync(db, w.Prep, proposalId)).ErrorCode);
-    Assert.Equal(2, (await CommercialDocumentService.ListAsync(db, w.Prep, proposalId)).Value!.Count);
+    Assert.Equal(acceptance.Value, letter.AcceptanceDecisionId);
+    Assert.NotNull(letter.CommercialAcceptedAt);
+    Assert.NotNull(letter.SignatureSpecimenId);
+    Assert.NotNull(letter.FirmSealSpecimenId);
+    // The gated letter creates the 50/50 agreement. Standing authority creates one DRAFT, never approval/posting.
+    var admin = User(w.FirmId, "automation-administrator");
+    db.Users.Add(admin);
+    db.RoleGrants.Add(new RoleGrant { Id = Guid.NewGuid(), FirmId = w.FirmId, UserId = admin.Id, Role = "Administrator", GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = admin.Id });
+    await db.SaveChangesAsync();
+    var factory = new OperationContextFactory(new PbcSeed.OptionsDbContextFactory(pg.Options));
+    var store = new PostgresOperationStore(factory);
+    var options = new WorkerOptions(w.FirmId, "Test");
+    var policy = new AutomaticFeeInvoicePolicy(true, w.FinanceManager.UserId, admin.Id);
+    var handler = new AutomaticFeeInvoiceHandler(policy);
+    var discovery = new AutomaticFeeInvoiceDiscovery(factory, store, handler, options, policy);
+    Assert.Equal(0, await new AutomaticFeeInvoiceDiscovery(factory, store, handler, options, policy with { Enabled = false }).EnqueuePendingAsync(default));
+    Assert.Equal(0, await new AutomaticFeeInvoiceDiscovery(factory, store, handler, options, policy with { ApprovingAdministratorId = w.Prep.UserId }).EnqueuePendingAsync(default));
+    Assert.Equal(1, await discovery.EnqueuePendingAsync(default));
+    Assert.Equal(0, await discovery.EnqueuePendingAsync(default));
+    if (revokeStandingAuthority)
+      await db.Users.Where(x => x.Id == admin.Id).ExecuteUpdateAsync(x => x.SetProperty(v => v.SessionEpoch, v => v.SessionEpoch + 1));
+    var dispatcher = new OperationDispatcher(store, new DurableOperationRegistry([handler], options), options);
+    Assert.True(await dispatcher.ProcessNextAsync());
+    Assert.False(await dispatcher.ProcessNextAsync());
+    var operation = await db.DurableOperations.AsNoTracking().SingleAsync(x => x.OperationKind == AutomaticFeeInvoiceHandler.Kind);
+    Assert.Equal(revokeStandingAuthority ? OperationState.AUTHORIZATION_BLOCKED : OperationState.COMPLETED, operation.Status);
+    if (revokeStandingAuthority) Assert.Empty(await db.Invoices.AsNoTracking().ToListAsync());
+    else
+    {
+      var invoice = Assert.Single(await db.Invoices.AsNoTracking().ToListAsync());
+      Assert.Equal(BillingStates.InvoiceDraft, invoice.Status);
+      Assert.Null(invoice.PostedAt);
+      Assert.Equal(16500m, invoice.Total);
+      var agreement = await db.EngagementFeeAgreements.AsNoTracking().SingleAsync(x => x.ProposalId == proposalId);
+      Assert.Equal(invoice.Id, (await FeeAgreementService.IssueAdvanceInvoiceAsync(db, w.FinanceManager, agreement.Id)).Value);
+      Assert.Equal(ErrorCodes.ScopeDenied, (await FeeAgreementService.IssueAdvanceInvoiceAsync(db, w.Prep, agreement.Id)).ErrorCode);
+      Assert.Equal(0, await discovery.EnqueuePendingAsync(default));
+      Assert.Equal(1, await db.OperationEvents.CountAsync(x => x.OperationId == operation.Id && x.Kind == "fee.invoice-draft.created.v1"));
+      var clientUser = User(w.FirmId, "client-portal-owner"); clientUser.UserKind = "Client";
+      db.Users.Add(clientUser);
+      db.RoleGrants.Add(new RoleGrant { Id = Guid.NewGuid(), FirmId = w.FirmId, UserId = clientUser.Id, Role = "ClientUser", ClientId = clientId, GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = admin.Id });
+      await db.SaveChangesAsync();
+      var clientActor = Actor(clientUser, "ClientUser");
+      Assert.Equal(ErrorCodes.GateBlocked, (await AuthorizationDecision.AuthorizeAsync(db, clientActor, new(w.FirmId, clientId, RequiredRoles: ["ClientUser"]))).ErrorCode);
+      var engagement = await EngagementLifecycleService.CreateDraftAsync(db, w.Partner, new(clientId, "FinancialStatementAudit", "2026-01-01", "2026-12-31", "AUDIT-2026"));
+      Assert.True(engagement.Succeeded, engagement.Message);
+      Assert.True((await EngagementLifecycleService.ActivateAsync(db, w.Partner, engagement.Value)).Succeeded);
+      Assert.Equal(ErrorCodes.GateBlocked, (await AuthorizationDecision.AuthorizeAsync(db, clientActor, new(w.FirmId, clientId, engagement.Value, ["ClientUser"]))).ErrorCode);
+      Assert.Empty(await ClientPortalService.AuthorizedPortalGrantIdsAsync(db, clientActor));
+      Assert.True((await BillingService.SubmitInvoiceAsync(db, w.FinanceManager, invoice.Id)).Succeeded);
+      Assert.True((await BillingService.ApproveInvoiceAsync(db, w.FinanceReviewer, invoice.Id)).Succeeded);
+      db.FirmFinanceProfiles.Add(new FirmFinanceProfile { Id = Guid.NewGuid(), FirmId = w.FirmId, FunctionalCurrency = "QAR", ProfileKind = BillingStates.TestProfile, Approved = true,
+        ApprovedByUserId = w.FinanceReviewer.UserId, ApprovedAt = DateTimeOffset.UtcNow, CreatedAt = DateTimeOffset.UtcNow });
+      await db.SaveChangesAsync();
+      Assert.True((await BillingService.PostInvoiceAsync(db, w.FinanceManager, invoice.Id)).Succeeded);
+      var paid = await FeeAgreementService.RecordAdvancePaymentAsync(db, w.FinanceManager, agreement.Id, 16500m, "PORTAL-TEST-ADVANCE");
+      Assert.True(paid.Succeeded, paid.Message);
+      Assert.Equal(ErrorCodes.ScopeDenied, (await FeeAgreementService.RecordAdvancePaymentAsync(db, w.Prep, agreement.Id, 16500m, "PORTAL-TEST-ADVANCE")).ErrorCode);
+      Assert.Equal(ErrorCodes.GenerationStale, (await FeeAgreementService.RecordAdvancePaymentAsync(db, w.FinanceManager with { SessionEpoch = w.FinanceManager.SessionEpoch + 1 }, agreement.Id, 16500m, "PORTAL-TEST-ADVANCE")).ErrorCode);
+      Assert.True((await AuthorizationDecision.AuthorizeAsync(db, clientActor, new(w.FirmId, clientId, engagement.Value, ["ClientUser"]))).Succeeded);
+      Assert.Single(await ClientPortalService.AuthorizedPortalGrantIdsAsync(db, clientActor));
+      Assert.Equal(ClientPortalIntentStates.ReadyToInvite, (await db.ClientPortalIntents.AsNoTracking().SingleAsync(x => x.PracticeClientId == clientId)).State);
+
+    }
+    Assert.Equal(ErrorCodes.ProtectedState, (await QuotationService.SaveAsync(db, w.Prep, Quote(proposalId, complexity: 1.3m, risk: 10m))).ErrorCode);
+    await db.ClientSafetyStates.Where(x => x.Id == clientId).ExecuteUpdateAsync(x => x.SetProperty(v => v.InputGeneration, v => v.InputGeneration + 1));
+    Assert.Equal(ErrorCodes.GenerationStale, (await CommercialDocumentService.GenerateEngagementLetterAsync(db, w.Partner, proposalId)).ErrorCode);
+    Assert.Equal(revokeStandingAuthority ? 2 : 3, (await CommercialDocumentService.ListAsync(db, w.Prep, proposalId)).Value!.Count); // paid case also retains its immutable receipt
 
     // Generated documents are append-only, and a stranger from another firm cannot read them.
     await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
@@ -247,6 +338,33 @@ public sealed class CommercialWorkflowTests
     var outsider = User(Guid.NewGuid(), "outsider");
     Assert.False((await CommercialDocumentService.GetAsync(db, Actor(outsider, "Partner"), q.Id)).Succeeded);
     Assert.True((await CommercialDocumentService.GetAsync(db, w.Prep, q.Id)).Succeeded);
+  }
+
+  [Fact]
+  public async Task ComprehensiveTender_RequiresReviewedChapters_AndRetainsExactlyOneImmutableVersionPerPrice()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    var (_, _, proposalId) = await DraftProposalAsync(pg, w);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var quote = await QuotationService.SaveAsync(db, w.Prep, Quote(proposalId));
+    Assert.True((await QuotationService.SubmitAsync(db, w.Prep, quote.Value)).Succeeded);
+    Assert.False((await CommercialDocumentService.GenerateTenderAsync(db, w.Prep, proposalId, "Actual team CV", "Draft February", true)).Succeeded);
+    Assert.True((await CommercialDocumentService.SaveProfileAsync(db, w.Partner, new("Gulf Audit Partners", "Doha", "", "", "#0F766E", "",
+      "Firm history and approved CR registration", "Reviewed retail portfolio", "Reviewed ISA methodology"))).Succeeded);
+    Assert.False((await CommercialDocumentService.GenerateTenderAsync(db, w.Prep, proposalId, "Actual team CV", "Draft February", false)).Succeeded);
+    var result = await CommercialDocumentService.GenerateTenderAsync(db, w.Prep, proposalId, "Partner A and actual assigned team CVs", "Draft February; final March", true);
+    Assert.True(result.Succeeded, result.Message);
+    var document = result.Value!;
+    Assert.Equal(CommercialDocumentKinds.ComprehensiveProposal, document.Kind);
+    Assert.Equal(Hashing.Sha256Hex(document.Bytes), document.Sha256Hex);
+    var text = DocxText(document.Bytes);
+    Assert.Contains("1. Firm profile", text); Assert.Contains("2. Assigned Engagement Partner", text);
+    Assert.Contains("3. Industry credentials", text); Assert.Contains("4. Audit methodology", text);
+    Assert.Contains("5. Fee schedule", text); Assert.Contains("Partner A", text); Assert.Contains("final March", text);
+    Assert.Equal(document.Id, (await CommercialDocumentService.GenerateTenderAsync(db, w.Prep, proposalId, "Other team", "Other dates", true)).Value!.Id);
+    Assert.Single(await db.CommercialDocuments.Where(x => x.ProposalId == proposalId && x.Kind == CommercialDocumentKinds.ComprehensiveProposal).ToListAsync());
+    await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"UPDATE commercial_documents SET file_name = 'changed' WHERE id = {document.Id}"));
   }
 
   private sealed class RecordingMailSender : IPbcMailSender

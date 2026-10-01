@@ -44,13 +44,13 @@
         </RowTemplate>
       </MudTable>
       <MudAlert Severity="Severity.Info" Dense="true" Class="mt-2">
-        Never requested: @string.Join(", ", Microsoft365PermissionMatrix.Prohibited). Microsoft Entra administrator-role assignment is not available in AuditSphere.
+        Never requested by the document or tenant-administration apps: @string.Join(", ", Microsoft365PermissionMatrix.Prohibited). The isolated client-sites worker has a separately consented Sites.FullControl.All exception. Microsoft Entra administrator-role assignment is not available in AuditSphere.
       </MudAlert>
     </MudPaper>
   </MudTabPanel>
   <MudTabPanel Text="SharePoint">
     <MudPaper Class="audit-workspace-panel audit-admin-panel pa-4" Elevation="0" role="region" aria-labelledby="sharepoint-heading">
-      <h3 id="sharepoint-heading">SharePoint (selected site only)</h3>
+      <h3 id="sharepoint-heading">SharePoint documents and client sites</h3>
       <dl class="details audit-admin-details">
         <dt>Selected site</dt><dd>@(Overview.SharePoint.SiteUrl ?? "Not configured")</dd>
         <dt>Library</dt><dd><code>@(Overview.SharePoint.DriveId ?? "—")</code></dd>
@@ -71,6 +71,7 @@
         </tbody>
       </MudSimpleTable>
       <MudButton Variant="Variant.Outlined" Href="/app/administration/microsoft365" Class="mt-3">Configure selected site, library and templates</MudButton>
+      <ClientSharePointSitesPanel />
       <WorkspaceProvisioningPanel />
     </MudPaper>
   </MudTabPanel>

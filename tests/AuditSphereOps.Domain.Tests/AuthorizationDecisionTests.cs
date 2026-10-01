@@ -530,6 +530,10 @@ public sealed class AuthorizationDecisionTests
     public DbSet<global::AuditSphereOps.Domain.Completion.ProcedureReviewNote> ProcedureReviewNotes => db.ProcedureReviewNotes;
     public DbSet<global::AuditSphereOps.Domain.Completion.ProcedureReviewNoteEvent> ProcedureReviewNoteEvents => db.ProcedureReviewNoteEvents;
     public DbSet<global::AuditSphereOps.Domain.Completion.AuditDeliverable> AuditDeliverables => db.AuditDeliverables;
+    public DbSet<global::AuditSphereOps.Domain.Completion.SignedRepresentationLetter> SignedRepresentationLetters => db.SignedRepresentationLetters;
+    public DbSet<global::AuditSphereOps.Domain.Completion.RepresentationLetterVerification> RepresentationLetterVerifications => db.RepresentationLetterVerifications;
+    public DbSet<global::AuditSphereOps.Domain.Completion.FirmSealSpecimen> FirmSealSpecimens => db.FirmSealSpecimens;
+    public DbSet<global::AuditSphereOps.Domain.Completion.CommercialDeliverableBundle> CommercialDeliverableBundles => db.CommercialDeliverableBundles;
     public DbSet<global::AuditSphereOps.Domain.Completion.PartnerCompletionClearance> PartnerCompletionClearances => db.PartnerCompletionClearances;
     public DbSet<global::AuditSphereOps.Domain.Completion.AuditOpinionDecision> AuditOpinionDecisions => db.AuditOpinionDecisions;
     public DbSet<global::AuditSphereOps.Domain.Completion.SignatureSpecimen> SignatureSpecimens => db.SignatureSpecimens;
@@ -603,6 +607,7 @@ public sealed class AuthorizationDecisionTests
     public DbSet<FirmWorkspaceConfiguration> FirmWorkspaceConfigurations => db.FirmWorkspaceConfigurations;
     public DbSet<FolderTemplateVersion> FolderTemplateVersions => db.FolderTemplateVersions;
     public DbSet<IntegrationVerificationEvidence> IntegrationVerificationEvidences => db.IntegrationVerificationEvidences;
+    public DbSet<ClientSharePointSite> ClientSharePointSites => db.ClientSharePointSites;
     public DbSet<ClientWorkspace> ClientWorkspaces => db.ClientWorkspaces;
     public Microsoft.EntityFrameworkCore.Infrastructure.DatabaseFacade Database => db.Database;
     public Task<int> SaveChangesAsync(CancellationToken ct = default) => db.SaveChangesAsync(ct);

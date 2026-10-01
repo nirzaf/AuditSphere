@@ -26,7 +26,7 @@ public sealed record ConfirmationDashboardRow(Guid CaseId, string Type, string R
 /// signed only by the deciding Partner with a registered PNG specimen after management has acknowledged the current
 /// representation letter and client comments are resolved. The platform records human decisions; it never forms one.
 /// </summary>
-public static class AuditDeliverableService
+public static partial class AuditDeliverableService
 {
   private static readonly string[] PreparerRoles = ["Manager", "Partner", "Administrator"];
   private static readonly string[] ReaderRoles = ["Staff", "Senior", "Manager", "Partner", "Administrator", "Reviewer", "Auditor"];
@@ -48,7 +48,7 @@ public static class AuditDeliverableService
     var materiality = await db.MaterialityAssessments.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId &&
         db.MaterialityApprovals.Any(a => a.MaterialityAssessmentId == x.Id))
       .OrderByDescending(x => x.CreatedAt).Select(x => new { x.Id, x.OverallMateriality, x.PerformanceMateriality, x.ClearlyTrivialThreshold, x.BenchmarkSource }).FirstOrDefaultAsync(ct);
-    var routing = await RiskBandService.GetRoutingAsync(db, actor, engagementId, ct);
+    var routing = await RiskBandService.GetRoutingForAuthorizedScopeAsync(db, actor.FirmId, engagementId, ct);
     var procedures = await db.AuditProcedures.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId && x.ApplicabilityStatus == AuditApplicabilityStatuses.Applicable)
       .OrderBy(x => x.SourceProcedureId).Select(x => new { x.Id, x.SourceProcedureId, x.Title, x.Status, x.CurrentResultRevision }).ToListAsync(ct);
     var openNotes = 0;
@@ -58,7 +58,7 @@ public static class AuditDeliverableService
     var confirmations = await ConfirmationRowsAsync(db, actor.FirmId, engagementId, ct);
     var gc = await db.GoingConcernAssessments.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId).OrderByDescending(x => x.Revision)
       .Select(x => new { x.Id, x.Revision, x.Conclusion, Reviewed = x.ReviewedByUserId != null }).FirstOrDefaultAsync(ct);
-    var completion = await AuditFieldworkService.EvaluateCompletionAsync(db, actor, engagementId, ct);
+    var completion = await AuditFieldworkService.EvaluateCompletionForAuthorizedScopeAsync(db, actor.FirmId, engagement.PracticeClientId, engagementId, ct);
     return new(client.CommercialName ?? client.LegalName, engagement.PeriodEnd, materiality is null ? "" : "", materiality,
       routing.Succeeded ? routing.Value!.Select(r => (object)new { r.RiskId, r.Area, r.Band, r.PartnerCleared }).ToList() : [],
       procedures.Select(p => (object)p).ToList(), openNotes, findings, MoneyPolicy.Normalize(unadjusted),
@@ -75,6 +75,9 @@ public static class AuditDeliverableService
   /// <summary>True while the facts a deliverable was generated from are unchanged (a signed copy follows its source).</summary>
   public static async Task<bool> IsCurrentAsync(IAuditSphereDbContext db, ActorContext actor, AuditDeliverable deliverable, CancellationToken ct = default)
   {
+    var client = actor.Roles.Contains("ClientUser");
+    if (deliverable.FirmId != actor.FirmId || !(await AuthorizationDecision.AuthorizeAsync(db, actor,
+        new(actor.FirmId, deliverable.ClientId, deliverable.EngagementId, client ? ["ClientUser"] : ReaderRoles, InternalOnly: !client), ct)).Succeeded) return false;
     if (deliverable.SignedFromDeliverableId is { } source)
       return await db.AuditDeliverables.AsNoTracking().SingleOrDefaultAsync(x => x.Id == source, ct) is { } unsigned && await IsCurrentAsync(db, actor, unsigned, ct);
     var latest = await db.AuditDeliverables.AsNoTracking().Where(x => x.FirmId == deliverable.FirmId && x.EngagementId == deliverable.EngagementId &&
@@ -87,7 +90,7 @@ public static class AuditDeliverableService
   {
     var facts = FactsDigest(await FactsAsync(db, actor, engagementId, ct));
     if (kind != DeliverableKinds.IndependentAuditorsReport) return facts;
-    var opinion = await CurrentOpinionAsync(db, actor, engagementId, ct);
+    var opinion = await CurrentOpinionForAuthorizedScopeAsync(db, actor, engagementId, ct);
     return Digest(new { facts, Opinion = opinion?.Id });
   }
 
@@ -100,6 +103,30 @@ public static class AuditDeliverableService
       return CommandResult<Guid>.Fail(ErrorCodes.AuditPlanning.Invalid, "Write the reviewer's recommendations for the Partner.");
     var auth = await AuthorizeAsync(db, actor, engagementId, ["Manager", "Partner", "Administrator"], ct);
     if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+    return await CompileSummaryAsync(db, actor, engagementId, recommendations, ct);
+  }
+
+  /// <summary>Called within the authorized final workprogramme review transaction. Compiles facts, never an audit opinion.</summary>
+  internal static async Task CompileAfterFinalReviewAsync(IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct)
+  {
+    var applicable = db.AuditProcedures.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId &&
+      x.ApplicabilityStatus == AuditApplicabilityStatuses.Applicable);
+    if (!await applicable.AnyAsync(ct) || await applicable.AnyAsync(x => x.Status != AuditProcedureStatuses.Reviewed, ct)) return;
+    var facts = await FactsAsync(db, actor, engagementId, ct);
+    var digest = FactsDigest(facts);
+    if (await db.AuditDeliverables.AnyAsync(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId &&
+      x.Kind == DeliverableKinds.SummaryReviewMemorandum && x.InputDigest == digest, ct)) return;
+    var comments = await db.AuditProcedureReviews.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId &&
+      x.Decision == AuditProcedureReviewDecisions.Reviewed && x.Comment != null).OrderBy(x => x.CreatedAt).Select(x => x.Comment!).ToListAsync(ct);
+    var recommendation = comments.Count == 0
+      ? "Automatically compiled after all applicable workprogrammes were reviewed. No reviewer recommendation was recorded; human Partner clearance is still required."
+      : "Recorded reviewer comments:\n" + string.Join("\n", comments);
+    await CompileSummaryAsync(db, actor, engagementId, recommendation, ct);
+  }
+
+  private static async Task<CommandResult<Guid>> CompileSummaryAsync(IAuditSphereDbContext db, ActorContext actor, Guid engagementId,
+    string recommendations, CancellationToken ct)
+  {
     var facts = await FactsAsync(db, actor, engagementId, ct);
     var sections = new List<DocumentSection>
     {
@@ -151,18 +178,27 @@ public static class AuditDeliverableService
   {
     var type = (opinionType ?? string.Empty).Trim().ToUpperInvariant();
     if (!AuditOpinionTypes.All.Contains(type)) return CommandResult<Guid>.Fail(ErrorCodes.AuditPlanning.Invalid, "Choose Clean, Qualified, Adverse or Disclaimer.");
-    if (type == AuditOpinionTypes.Qualified && (string.IsNullOrWhiteSpace(focusArea) || string.IsNullOrWhiteSpace(basisText)))
-      return CommandResult<Guid>.Fail(ErrorCodes.AuditPlanning.Invalid, "A qualified opinion needs the focus area and the basis for the qualification.");
-    if (type is AuditOpinionTypes.Adverse or AuditOpinionTypes.Disclaimer && string.IsNullOrWhiteSpace(basisText))
-      return CommandResult<Guid>.Fail(ErrorCodes.AuditPlanning.Invalid, "An adverse opinion or a disclaimer needs its basis.");
+    if (type != AuditOpinionTypes.Unmodified &&
+        (string.IsNullOrWhiteSpace(focusArea) || focusArea.Trim().Length > 200 ||
+         string.IsNullOrWhiteSpace(basisText) || basisText.Trim().Length > 4000))
+      return CommandResult<Guid>.Fail(ErrorCodes.AuditPlanning.Invalid,
+        "A modified opinion needs an affected area of up to 200 characters and a basis of up to 4,000 characters.");
     var auth = await AuthorizePartnerAsync(db, actor, engagementId, ct);
     if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
     var clearance = await CurrentClearanceAsync(db, actor, engagementId, ct);
     if (clearance is null) return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Partner clearance of a current Summary Review Memorandum is required before the opinion.");
+    OpinionFsliOption? selectedArea = null;
+    if (type != AuditOpinionTypes.Unmodified)
+    {
+      var choices = await AffectedFinancialStatementAreasAsync(db, actor, engagementId, ct);
+      var matching = choices.Where(x => x.Id.ToString("D") == focusArea?.Trim() || x.Name == focusArea?.Trim() || x.Code == focusArea?.Trim()).Take(2).ToList();
+      if (matching.Count != 1) return CommandResult<Guid>.Fail(ErrorCodes.AuditPlanning.Invalid, "Select one affected FSLI from the approved reporting taxonomy; free-text or ambiguous areas are not accepted.");
+      selectedArea = matching[0];
+    }
     var decision = new AuditOpinionDecision
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = clearance.ClientId, EngagementId = engagementId, PartnerClearanceId = clearance.Id, OpinionType = type,
-      FocusArea = type == AuditOpinionTypes.Unmodified ? null : string.IsNullOrWhiteSpace(focusArea) ? null : focusArea.Trim(),
+      FocusArea = selectedArea?.Name, AffectedTaxonomyNodeId = selectedArea?.Id,
       BasisText = type == AuditOpinionTypes.Unmodified ? null : basisText!.Trim(), DecidedByUserId = actor.UserId, DecidedAt = DateTimeOffset.UtcNow
     };
     db.AuditOpinionDecisions.Add(decision);
@@ -184,12 +220,12 @@ public static class AuditDeliverableService
       AuditOpinionTypes.Adverse =>
       [
         new("Adverse Opinion", [$"In our opinion, because of the significance of the matter described in the Basis for Adverse Opinion section of our report, {statements} do not present fairly the financial position and performance in accordance with the applicable financial reporting framework."]),
-        new("Basis for Adverse Opinion", [opinion.BasisText!])
+        new("Basis for Adverse Opinion", [$"Focus area: {opinion.FocusArea}.", opinion.BasisText!])
       ],
       AuditOpinionTypes.Disclaimer =>
       [
         new("Disclaimer of Opinion", [$"We do not express an opinion on {statements}. Because of the significance of the matter described in the Basis for Disclaimer of Opinion section of our report, we have not been able to obtain sufficient appropriate audit evidence to provide a basis for an audit opinion."]),
-        new("Basis for Disclaimer of Opinion", [opinion.BasisText!])
+        new("Basis for Disclaimer of Opinion", [$"Focus area: {opinion.FocusArea}.", opinion.BasisText!])
       ],
       _ =>
       [
@@ -276,7 +312,7 @@ public static class AuditDeliverableService
   public static async Task<CommandResult<Guid>> RegisterSignatureAsync(IAuditSphereDbContext db, ActorContext actor, byte[] png, CancellationToken ct = default)
   {
     if (png.Length == 0 || png.Length > MaxSignatureBytes) return CommandResult<Guid>.Fail(ErrorCodes.AuditPlanning.Invalid, "Upload a PNG signature of at most 512 KB.");
-    if (AuditDeliverableRenderer.ReadPngSize(png) is not { } size || size.Width is < 50 or > 2000 || size.Height is < 20 or > 1000)
+    if (AuditDeliverableRenderer.ReadPngSize(png) is not { } size || size.Width is < 50 or > 2000 || size.Height is < 20 or > 1000 || !AuditDeliverableRenderer.IsRenderablePng(png))
       return CommandResult<Guid>.Fail(ErrorCodes.AuditPlanning.Invalid, "The file is not a PNG image of a usable signature size.");
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor, new AuthorizationRequest(actor.FirmId, RequiredRoles: ["Partner"], InternalOnly: true), ct);
     if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
@@ -300,23 +336,29 @@ public static class AuditDeliverableService
     if (report is null) return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var auth = await AuthorizePartnerAsync(db, actor, report.EngagementId, ct);
     if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    await LockDeliverableEngagementAsync(db, actor.FirmId, report.EngagementId, ct);
+    auth = await AuthorizePartnerAsync(db, actor, report.EngagementId, ct);
+    if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
     if (!await IsCurrentAsync(db, actor, report, ct)) return CommandResult<Guid>.Fail(ErrorCodes.GenerationStale, "This report version is no longer current; generate it again.");
     var opinion = await CurrentOpinionAsync(db, actor, report.EngagementId, ct);
     if (opinion is null || opinion.DecidedByUserId != actor.UserId)
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Only the Partner who decided the opinion signs the report.");
     if (await db.SignatureApplications.AnyAsync(x => x.FirmId == actor.FirmId && x.SourceDeliverableId == report.Id, ct))
       return CommandResult<Guid>.Fail(ErrorCodes.IdempotencyConflict, "This report version is already signed.");
-    var gate = await ClientGateAsync(db, actor.FirmId, report.EngagementId, ct);
+    var gate = await ClientGateAsync(db, actor, report.EngagementId, ct);
     if (gate is not null) return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, gate);
     var specimen = await db.SignatureSpecimens.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.UserId == actor.UserId && x.RevokedAt == null, ct);
     if (specimen is null) return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Register your PNG signature first.");
+    var seal = await db.FirmSealSpecimens.AsNoTracking().Where(x => x.FirmId == actor.FirmId).OrderByDescending(x => x.Version).FirstOrDefaultAsync(ct);
+    if (seal is null) return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Register the approved firm seal before signing the final report.");
     var partner = await db.Users.AsNoTracking().SingleAsync(x => x.Id == actor.UserId, ct);
     var facts = await FactsAsync(db, actor, report.EngagementId, ct);
     var sections = OpinionSections(opinion, facts.Client, facts.PeriodEnd).Append(new DocumentSection("Responsibilities",
       ["Management is responsible for the preparation of the financial statements. Our responsibility is to express an opinion on them based on our audit."])).ToList();
-    var signed = await StoreAsync(db, actor, report.EngagementId, DeliverableKinds.IndependentAuditorsReport, report.InputDigest, new { SignedFrom = report.Id, Specimen = specimen.Sha256 },
+    var signed = await StoreAsync(db, actor, report.EngagementId, DeliverableKinds.IndependentAuditorsReport, report.InputDigest, new { SignedFrom = report.Id, Specimen = specimen.Sha256, Seal = seal.Id, SealHash = seal.Sha256 },
       facts.Client, sections, "Engagement Partner", new DeliverableSignature(specimen.PngContent, specimen.WidthPixels, specimen.HeightPixels, partner.DisplayName, "Engagement Partner",
-        DateOnly.FromDateTime(DateTime.UtcNow)), ct, signedFrom: report);
+        DateOnly.FromDateTime(DateTime.UtcNow)), ct, signedFrom: report, firmSeal: seal.PngContent);
     if (!signed.Succeeded) return signed;
     var signedDoc = await db.AuditDeliverables.SingleAsync(x => x.Id == signed.Value, ct);
     await AuditSphereOps.Application.Records.FileFreezeService.ScheduleAsync(db, signedDoc, signedDoc.CreatedAt, ct);
@@ -326,6 +368,7 @@ public static class AuditDeliverableService
       SignedDeliverableId = signed.Value, SignedByUserId = actor.UserId, SignedAt = DateTimeOffset.UtcNow
     });
     await db.SaveChangesAsync(ct);
+    await tx.CommitAsync(ct);
     return signed;
   }
 
@@ -402,13 +445,18 @@ public static class AuditDeliverableService
   }
 
   /// <summary>Signing gate: the latest representation letter acknowledged by the client, and no open client comments on any shared deliverable.</summary>
-  private static async Task<string?> ClientGateAsync(IAuditSphereDbContext db, Guid firmId, Guid engagementId, CancellationToken ct)
+  private static async Task<string?> ClientGateAsync(IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct)
   {
+    var firmId = actor.FirmId;
     var letter = await db.AuditDeliverables.AsNoTracking().Where(x => x.FirmId == firmId && x.EngagementId == engagementId && x.Kind == DeliverableKinds.RepresentationLetter)
       .OrderByDescending(x => x.Version).FirstOrDefaultAsync(ct);
     if (letter is null) return "Generate the management representation letter and have client management acknowledge it first.";
+    if (!await IsCurrentAsync(db, actor, letter, ct)) return "The representation letter is stale; generate and obtain a signed current version.";
     var ack = await db.ClientDeliverableReviews.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == firmId && x.DeliverableId == letter.Id, ct);
     if (ack?.AcknowledgedSha256 != letter.ContentSha256) return "Client management has not acknowledged the current representation letter.";
+    if (!await db.SignedRepresentationLetters.AnyAsync(x => x.FirmId == firmId && x.DeliverableId == letter.Id &&
+        x.DeliverableSha256 == letter.ContentSha256 && db.RepresentationLetterVerifications.Any(v => v.FirmId == firmId && v.SignedLetterId == x.Id), ct))
+      return "Upload the management-signed PDF of the current representation letter and have the Engagement Partner verify its signature and completeness.";
     var reviewIds = db.ClientDeliverableReviews.Where(x => x.FirmId == firmId && x.EngagementId == engagementId).Select(x => x.Id);
     return await db.ClientDeliverableComments.AnyAsync(x => reviewIds.Contains(x.ReviewId) && x.ResolvedAt == null, ct)
       ? "Resolve the client's open comments on the shared drafts first." : null;
@@ -532,7 +580,13 @@ public static class AuditDeliverableService
     return result;
   }
 
-  public static async Task<PartnerCompletionClearance?> CurrentClearanceAsync(IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct = default)
+  public static async Task<PartnerCompletionClearance?> CurrentClearanceAsync(IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct = default) =>
+    (await AuthorizeAsync(db, actor, engagementId, ReaderRoles, ct)).Succeeded ? await CurrentClearanceForAuthorizedScopeAsync(db, actor, engagementId, ct) : null;
+
+  public static async Task<AuditOpinionDecision?> CurrentOpinionAsync(IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct = default) =>
+    (await AuthorizeAsync(db, actor, engagementId, ReaderRoles, ct)).Succeeded ? await CurrentOpinionForAuthorizedScopeAsync(db, actor, engagementId, ct) : null;
+
+  private static async Task<PartnerCompletionClearance?> CurrentClearanceForAuthorizedScopeAsync(IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct)
   {
     var clearance = await db.PartnerCompletionClearances.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId).OrderByDescending(x => x.ClearedAt).FirstOrDefaultAsync(ct);
     if (clearance is null) return null;
@@ -540,28 +594,30 @@ public static class AuditDeliverableService
     return await IsCurrentAsync(db, actor, srm, ct) ? clearance : null;
   }
 
-  public static async Task<AuditOpinionDecision?> CurrentOpinionAsync(IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct = default)
+  private static async Task<AuditOpinionDecision?> CurrentOpinionForAuthorizedScopeAsync(IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct = default)
   {
-    var clearance = await CurrentClearanceAsync(db, actor, engagementId, ct);
+    var clearance = await CurrentClearanceForAuthorizedScopeAsync(db, actor, engagementId, ct);
     return clearance is null ? null : await db.AuditOpinionDecisions.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.PartnerClearanceId == clearance.Id)
       .OrderByDescending(x => x.DecidedAt).FirstOrDefaultAsync(ct);
   }
 
   private static async Task<CommandResult<Guid>> StoreAsync(IAuditSphereDbContext db, ActorContext actor, Guid engagementId, string kind, string digest, object summary,
-    string client, IReadOnlyList<DocumentSection> sections, string? signatureLabel, DeliverableSignature? signature, CancellationToken ct, AuditDeliverable? signedFrom = null)
+    string client, IReadOnlyList<DocumentSection> sections, string? signatureLabel, DeliverableSignature? signature, CancellationToken ct, AuditDeliverable? signedFrom = null, byte[]? firmSeal = null)
   {
     var engagement = await db.Engagements.AsNoTracking().SingleAsync(x => x.Id == engagementId && x.FirmId == actor.FirmId, ct);
     var firm = await db.FirmCommercialProfiles.AsNoTracking().Where(x => x.FirmId == actor.FirmId).OrderByDescending(x => x.Version).Select(x => x.LegalName).FirstOrDefaultAsync(ct);
     var version = signedFrom?.Version ?? (await db.AuditDeliverables.Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId && x.Kind == kind && x.SignedFromDeliverableId == null)
       .MaxAsync(x => (int?)x.Version, ct) ?? 0) + 1;
     var reference = $"{kind[..3]}-{engagement.PeriodEnd}-v{version}{(signedFrom is null ? "" : "-SIGNED")}";
-    var content = AuditDeliverableRenderer.RenderDocx(new AuditDeliverableModel(firm ?? "Audit firm", DeliverableKinds.Title(kind), reference, DateOnly.FromDateTime(DateTime.UtcNow),
-      kind == DeliverableKinds.RepresentationLetter ? "The auditors" : $"Those charged with governance, {client}", sections, signatureLabel, signature));
+    var model = new AuditDeliverableModel(firm ?? "Audit firm", DeliverableKinds.Title(kind), reference, DateOnly.FromDateTime(DateTime.UtcNow),
+      kind == DeliverableKinds.RepresentationLetter ? "The auditors" : $"Those charged with governance, {client}", sections, signatureLabel, signature, firmSeal);
+    var finalPdf = signedFrom != null && kind == DeliverableKinds.IndependentAuditorsReport;
+    var content = finalPdf ? AuditDeliverableRenderer.RenderPdf(model) : AuditDeliverableRenderer.RenderDocx(model);
     var deliverable = new AuditDeliverable
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = engagement.PracticeClientId, EngagementId = engagementId, Kind = kind, Version = version,
-      TemplateVersion = AuditDeliverableRenderer.TemplateVersion, InputDigest = digest, InputSummaryJson = JsonSerializer.Serialize(summary),
-      FileName = $"{reference}.docx", ContentType = AuditDeliverableRenderer.DocxContentType, Content = content, ContentSha256 = Hashing.Sha256Hex(content),
+      TemplateVersion = finalPdf ? "AUDIT-SIGNED-PDF-v1" : AuditDeliverableRenderer.TemplateVersion, InputDigest = digest, InputSummaryJson = JsonSerializer.Serialize(summary),
+      FileName = $"{reference}.{(finalPdf ? "pdf" : "docx")}", ContentType = finalPdf ? "application/pdf" : AuditDeliverableRenderer.DocxContentType, Content = content, ContentSha256 = Hashing.Sha256Hex(content),
       SignedFromDeliverableId = signedFrom?.Id, CreatedByUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
     };
     db.AuditDeliverables.Add(deliverable);

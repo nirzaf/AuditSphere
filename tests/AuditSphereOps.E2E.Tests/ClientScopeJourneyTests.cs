@@ -294,6 +294,7 @@ public sealed class ClientScopeJourneyTests
     await page.GetByRole(AriaRole.Heading, new() { Name = privateGroupName }).WaitForAsync();
     await Assertions.Expect(page.Locator("#advanced-source-manifest"))
       .ToHaveValueAsync("{\"sources\":[],\"reviewedJournals\":[],\"note\":\"synthetic draft\"}");
+    await page.WaitForLoadStateAsync(LoadState.NetworkIdle); // Preserve focus through the interactive-render replacement.
     var submitSchedule = page.GetByRole(AriaRole.Button, new() { Name = "Submit schedule" });
     await submitSchedule.FocusAsync();
     await Assertions.Expect(submitSchedule).ToHaveCSSAsync("outline-style", "solid");

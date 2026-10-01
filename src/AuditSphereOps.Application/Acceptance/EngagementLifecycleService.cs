@@ -1,5 +1,6 @@
 using System.Globalization;
 using AuditSphereOps.Application.Abstractions;
+using AuditSphereOps.Application.Documents;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Documents;
@@ -100,11 +101,11 @@ public static class EngagementLifecycleService
       x.PracticeClientId == engagement.PracticeClientId && x.State == ClientPortalIntentStates.AwaitingAcceptance, ct);
     if (portalIntent is not null)
     {
-      portalIntent.State = ClientPortalIntentStates.ReadyToInvite;
       portalIntent.ActivatedEngagementId = engagementId;
       portalIntent.UpdatedAt = activation.ActivatedAt;
     }
     await db.SaveChangesAsync(ct);
+    await ClientPortalService.RefreshCommercialIntentAsync(db, actor.FirmId, engagement.PracticeClientId, ct);
     await tx.CommitAsync(ct);
     return CommandResult<Guid>.Ok(activation.Id);
   }

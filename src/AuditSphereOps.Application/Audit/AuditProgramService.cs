@@ -406,6 +406,9 @@ public static class AuditProgramService
     var scope = await ResolveEngagementAsync(db, actor, result.EngagementId, ct, result.ClientId, ReviewRoles);
     if (scope.Denied is not null)
       return CommandResult<ProcedureReviewValue>.Fail(scope.Denied, scope.Message);
+    // Serialize the final review transition so concurrent approvals cannot miss automatic compilation.
+    await db.Engagements.FromSqlInterpolated($"SELECT * FROM engagements WHERE id = {result.EngagementId} AND firm_id = {actor.FirmId} FOR UPDATE")
+      .SingleAsync(ct);
     var generation = await db.ClientSafetyStates.AsNoTracking()
       .Where(x => x.FirmId == scope.FirmId && x.Id == scope.ClientId)
       .Select(x => x.InputGeneration).SingleOrDefaultAsync(ct);
@@ -451,6 +454,8 @@ public static class AuditProgramService
     procedure.Status = decision == AuditProcedureReviewDecisions.Reviewed
       ? AuditProcedureStatuses.Reviewed : AuditProcedureStatuses.ChangesRequired;
     await db.SaveChangesAsync(ct);
+    if (decision == AuditProcedureReviewDecisions.Reviewed)
+      await AuditSphereOps.Application.Completion.AuditDeliverableService.CompileAfterFinalReviewAsync(db, actor, result.EngagementId, ct);
     await tx.CommitAsync(ct);
     return CommandResult<ProcedureReviewValue>.Ok(new(result.Id, result.AuditProcedureId, result.Revision, decision));
   }

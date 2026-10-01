@@ -44,15 +44,19 @@
       <select id="op-type" @bind="_opinionType">
         @foreach (var t in AuditOpinionTypes.All) { <option value="@t">@AuditOpinionTypes.Label(t)</option> }
       </select></label>
-    @if (_opinionType == AuditOpinionTypes.Qualified)
+    @if (_opinionType != AuditOpinionTypes.Unmodified)
     {
-      <label for="op-focus">Focus area <input id="op-focus" @bind="_focus" maxlength="200" /></label>
+      <label for="op-focus">Affected FSLI * <select id="op-focus" @bind="_focus" required>
+        <option value="">Select from the approved reporting taxonomy</option>
+        @foreach (var area in _opinionAreas) { <option value="@area.Id.ToString("D")">@area.Code — @area.Name</option> }
+      </select></label>
+      @if (_opinionAreas.Count == 0) { <MudAlert Severity="Severity.Warning">Approve the applicable reporting taxonomy before recording a modified opinion.</MudAlert> }
     }
   </div>
   @if (_opinionType != AuditOpinionTypes.Unmodified)
   {
     <label for="op-basis" class="d-block">@(_opinionType == AuditOpinionTypes.Qualified ? "Basis for Qualified Opinion" : _opinionType == AuditOpinionTypes.Adverse ? "Basis for Adverse Opinion" : "Basis for Disclaimer of Opinion")
-      <textarea id="op-basis" @bind="_basis" rows="3" maxlength="4000"></textarea></label>
+      <textarea id="op-basis" @bind="_basis" rows="3" maxlength="4000" required></textarea></label>
   }
   <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="DecideAsync" Disabled="@_busy">Record opinion (Engagement Partner)</MudButton>
   @if (_opinion is not null) { <p>Current opinion: <strong>@AuditOpinionTypes.Label(_opinion.OpinionType)</strong>@(_opinion.FocusArea is null ? "" : $" — {_opinion.FocusArea}").</p> }
@@ -97,9 +101,39 @@
       </div>
     }
   }
+  <h3 class="mt-4">Management-signed representation letter</h3>
+  <MudText Typo="Typo.body2">Client management uploads the signed PDF for the exact shared version in the portal. The Engagement Partner verifies the signature, authority and completeness before signing the report.</MudText>
+  @if (_signedLetters.Count == 0) { <p class="muted">No signed representation scan has been uploaded.</p> }
+  @foreach (var scan in _signedLetters)
+  {
+    <div class="my-2" data-signed-letter="@scan.Id">
+      <a href="@($"/api/representation-scans/{scan.Id}/download")">Management-signed LOR v@(scan.Version) — @scan.ManagementSignatory</a>
+      <StatusChip Status="@(scan.Current ? scan.Verified ? "VERIFIED" : "PENDING_REVIEW" : "STALE")" />
+      <code>@scan.ContentSha256[..12]</code>
+      @if (scan.Current && !scan.Verified)
+      {
+        <label class="d-block">Signature verification evidence <textarea @bind="_scanReason" maxlength="2000" aria-label="Signature verification evidence"></textarea></label>
+        <label><input type="checkbox" @bind="_scanReviewed" /> I reviewed this exact scan and verified management authority, signature and completeness.</label>
+        <MudButton Variant="Variant.Outlined" OnClick="@(() => VerifyScanAsync(scan))" Disabled="@(_busy || !_scanReviewed)">Verify signed representation (Partner)</MudButton>
+      }
+    </div>
+  }
+  <h3 class="mt-4">Five-part final bundle</h3>
+  <MudText Typo="Typo.body2">Signed report and certified financial statements; management letter; representation template and management-signed scan; correspondence audit trail; posted final balance fee note.</MudText>
+  @if (_bundleState is not null)
+  {
+    @foreach (var blocker in _bundleState.Blockers) { <MudAlert Severity="Severity.Warning" Class="my-1">@blocker</MudAlert> }
+    @foreach (var bundle in _bundleState.Bundles)
+    { <p><a href="@($"/api/deliverable-bundles/{bundle.Id}/download")">Download five-part final bundle</a> <code>@bundle.Sha256[..12]</code> @bundle.AssembledAt.ToString("yyyy-MM-dd")</p> }
+  }
+  <label><input type="checkbox" @bind="_statementsReviewed" /> I reviewed the exact released financial statements for certification with this report.</label>
+  <MudButton Variant="Variant.Filled" OnClick="AssembleAsync" Disabled="@(_busy || !_statementsReviewed || _bundleState is null || _bundleState.Blockers.Count != 0)">Assemble five-part bundle (Partner)</MudButton>
   <h4 class="mt-3">Partner signature specimen</h4>
   <p class="muted">A PNG image placed into the signed report. It is not a cryptographic signature; the signed document's hash is the evidence.</p>
   <InputFile id="signature-file" OnChange="RegisterSignatureAsync" accept=".png" />
+  <h4 class="mt-3">Official firm seal</h4>
+  <p class="muted">A firm-wide Partner or Administrator registers the approved seal. Each report retains the exact seal version used.</p>
+  <InputFile id="firm-seal-file" OnChange="RegisterSealAsync" accept=".png" />
   @if (_message is not null) { <p class="command-result @(_error ? "error-text" : "success-text")" role="status">@_message</p> }
 </MudPaper>
 
@@ -112,6 +146,11 @@
   private PartnerCompletionClearance? _clearance;
   private AuditOpinionDecision? _opinion;
   private string _recommendations = "", _riskComment = "", _notesComment = "", _opinionType = AuditOpinionTypes.Unmodified, _focus = "", _basis = "", _resolution = "";
+  private IReadOnlyList<OpinionFsliOption> _opinionAreas = [];
+  private IReadOnlyList<SignedLetterView> _signedLetters = [];
+  private BundleAssemblyState? _bundleState;
+  private string _scanReason = "";
+  private bool _scanReviewed, _statementsReviewed;
   private bool _busy, _error;
   private string? _message;
 
@@ -120,6 +159,8 @@
   private async Task LoadAsync()
   {
     var actor = await ActorResolver.ResolveAsync();
+    _confirmations = []; _deliverables = []; _shared = []; _signedLetters = []; _opinionAreas = []; _bundleState = null;
+    _clearance = null; _opinion = null; _latestSrm = null;
     if (actor is null) return;
     await using var db = await DbFactory.CreateDbContextAsync();
     var dashboard = await AuditDeliverableService.ConfirmationDashboardAsync(db, actor, EngagementId);
@@ -128,7 +169,11 @@
     _latestSrm = _deliverables.Where(x => x.Kind == DeliverableKinds.SummaryReviewMemorandum).OrderByDescending(x => x.Version).FirstOrDefault();
     _clearance = await AuditDeliverableService.CurrentClearanceAsync(db, actor, EngagementId);
     _opinion = await AuditDeliverableService.CurrentOpinionAsync(db, actor, EngagementId);
+    _opinionAreas = await AuditDeliverableService.AffectedFinancialStatementAreasAsync(db, actor, EngagementId);
     _shared = await AuditDeliverableService.SharedAsync(db, actor, EngagementId);
+    _signedLetters = await AuditDeliverableService.SignedRepresentationsAsync(db, actor, EngagementId);
+    var bundles = await AuditDeliverableService.BundleStateAsync(db, actor, EngagementId);
+    _bundleState = bundles.Succeeded ? bundles.Value : null;
   }
 
   private async Task RunAsync(Func<AuditSphereDbContext, ActorContext, Task<(bool Ok, string Message)>> command)
@@ -157,6 +202,18 @@
 
   private Task ClearAsync() => _latestSrm is null ? Task.CompletedTask : RunAsync(async (db, a) =>
     R(await AuditDeliverableService.PartnerClearAsync(db, a, _latestSrm.Id, _riskComment, _notesComment), "Partner clearance recorded."));
+
+  private Task VerifyScanAsync(SignedLetterView scan) => !_scanReviewed ? Task.CompletedTask : RunAsync(async (db, actor) =>
+    R(await AuditDeliverableService.VerifySignedRepresentationAsync(db, actor, scan.Id, scan.ContentSha256, _scanReason), "Signed representation verified for its exact version."));
+  private Task AssembleAsync() => RunAsync(async (db, actor) =>
+    R(await AuditDeliverableService.AssembleBundleAsync(db, actor, EngagementId, _statementsReviewed), "Five-part final bundle assembled and available to the assigned client."));
+  private async Task RegisterSealAsync(InputFileChangeEventArgs args)
+  {
+    if (args.File.Size > AuditDeliverableService.MaxSignatureBytes) { _error = true; _message = "Seal PNG must be at most 512 KB."; return; }
+    using var buffer = new MemoryStream();
+    await args.File.OpenReadStream(AuditDeliverableService.MaxSignatureBytes).CopyToAsync(buffer);
+    await RunAsync(async (db, actor) => R(await AuditDeliverableService.RegisterFirmSealAsync(db, actor, buffer.ToArray()), "Approved firm seal registered."));
+  }
 
   private Task DecideAsync() => RunAsync(async (db, a) =>
     R(await AuditDeliverableService.DecideOpinionAsync(db, a, EngagementId, _opinionType, _focus, _basis), $"{AuditOpinionTypes.Label(_opinionType)} opinion recorded."));

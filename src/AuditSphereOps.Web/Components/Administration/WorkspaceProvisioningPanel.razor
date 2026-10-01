@@ -5,7 +5,7 @@
 
 <MudPaper Class="audit-workspace-panel audit-admin-panel pa-4 mt-3" Elevation="0" role="region" aria-labelledby="workspace-provisioning-heading">
   <h3 id="workspace-provisioning-heading">Client workspaces and PBC repositories</h3>
-  <MudText Typo="Typo.body2" Class="field-help">Folders are created only inside the approved selected site. An engagement repository accepts PBC uploads only after a disposable upload and exact read-back succeed.</MudText>
+  <MudText Typo="Typo.body2" Class="field-help">Folders are created inside the client’s verified dedicated site when one is requested, otherwise inside the previously approved selected site. An engagement repository accepts PBC uploads only after a disposable upload and exact read-back succeed.</MudText>
   @if (!Provisioner.IsConfigured)
   {
     <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" role="status">The selected-site runtime credential is not configured on this server.</MudAlert>

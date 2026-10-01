@@ -110,3 +110,13 @@ these solve the navigability problem the physical splits solve.
 
 Use [`auditsphere-architecture-code-map.md`](auditsphere-architecture-code-map.md) to find the Domain/Application/Infrastructure/Web/tests files
 for a business capability before searching the whole repository.
+
+## Dedicated client SharePoint sites
+
+The owner-approved [client-site decision](auditsphere-client-sharepoint-sites-current.md) adds an isolated Acceptance `client-sites` worker for supported SharePoint site creation, exact document-worker grants and reconciliation of assigned staff into a site group with Full Control. Its privileged certificate is never mounted in Web or the `pbc` worker. A persisted new-client rollout boundary preserves existing repositories and blocks shared-site fallback for newer clients. Local RoleGrant scopes remain unchanged. Staff have site-wide sharing/deletion authority; external immutable archive protection remains a separately verified requirement.
+
+### STE commercial and completion evidence
+
+Engagement-letter generation is separate from quotation generation and requires recorded client commercial acceptance plus current unconditional Partner risk approval for the same service. The letter records the exact acceptance, quotation, signature and firm-seal identities. New signed management representations bind their PDF bytes to the exact acknowledged generated letter and require human Partner verification. Five-part bundles reference the current signed report, actual reviewed financial-package release and PDF artifact, management letter, verified signed representation and posted final balance invoice. Scoped downloads reuse local session and RoleGrant authorization; application roles never confer Microsoft authority.
+
+The optional general-worker automatic fee policy creates drafts under captured FinanceManager/Administrator authority only. It is disabled by default; finance review, posting and mail dispatch remain separate. Newly converted-client portal access is withheld until commercial keys, activation and advance payment are current. Existing clients without commercial conversion records retain their original onboarding contract. Client write transactions use the final-release client guard. Signature/seal PNGs are visual credentials, not certificate-backed digital signatures; SharePoint archive retention still requires independently verified external controls.

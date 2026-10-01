@@ -369,6 +369,12 @@ public static class PbcService
       return CommandResult<PbcUploadReceipt>.Fail("pbc.upload-state", "The request is not accepting an upload.");
 
     await using var tx = await db.Database.BeginTransactionAsync(ct);
+    if (actor.Roles.Contains("ClientUser"))
+    {
+      _ = await db.ClientSafetyStates.FromSqlInterpolated($"SELECT * FROM client_safety_states WHERE id = {request.ClientId} AND firm_id = {actor.FirmId} FOR UPDATE").AsNoTracking().SingleAsync(ct);
+      auth = await AuthorizeUploadActorAsync(db, actor, request, ct);
+      if (!auth.Succeeded) return CommandResult<PbcUploadReceipt>.Fail(auth.ErrorCode!, auth.Message!);
+    }
     var lockedRequest = await db.PbcRequests.FromSqlInterpolated($"""
       SELECT * FROM pbc_requests WHERE firm_id = {actor.FirmId} AND id = {input.PbcRequestId} FOR UPDATE
       """).SingleOrDefaultAsync(ct);
@@ -426,6 +432,12 @@ public static class PbcService
       return CommandResult<PbcUploadReceipt>.Fail(auth.ErrorCode!, auth.Message!);
 
     await using var tx = await db.Database.BeginTransactionAsync(ct);
+    if (actor.Roles.Contains("ClientUser"))
+    {
+      _ = await db.ClientSafetyStates.FromSqlInterpolated($"SELECT * FROM client_safety_states WHERE id = {request.ClientId} AND firm_id = {actor.FirmId} FOR UPDATE").AsNoTracking().SingleAsync(ct);
+      auth = await AuthorizeUploadActorAsync(db, actor, request, ct);
+      if (!auth.Succeeded) return CommandResult<PbcUploadReceipt>.Fail(auth.ErrorCode!, auth.Message!);
+    }
     intent = await db.PbcUploadIntents.FromSqlInterpolated($"""
       SELECT * FROM pbc_upload_intents WHERE firm_id = {actor.FirmId} AND id = {input.UploadIntentId} FOR UPDATE
       """).SingleOrDefaultAsync(ct);
@@ -648,7 +660,9 @@ public static class PbcService
         !await ClientPortalService.IsRequestParticipantAsync(db, actor, request, ct))
       return await AuthorizeStaffAsync(db, actor, request.ClientId, request.EngagementId, ct);
     var auth = await AuthorizeClientAsync(db, actor, request, ct);
-    return auth.Succeeded ? await ClientPortalService.RequireFirstSignInAsync(db, actor, ct) : auth;
+    if (!auth.Succeeded) return auth;
+    var firstSignIn = await ClientPortalService.RequireFirstSignInAsync(db, actor, ct);
+    return firstSignIn.Succeeded ? await ClientPortalService.RequireUploadWindowAsync(db, actor, request.EngagementId, ct) : firstSignIn;
   }
 
   private static bool AllowedTransition(string current, string next) =>

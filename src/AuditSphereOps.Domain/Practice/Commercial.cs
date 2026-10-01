@@ -21,6 +21,7 @@ public static class CommercialRuleKinds
 public static class CommercialDocumentKinds
 {
   public const string Quotation = "QUOTATION";
+  public const string ComprehensiveProposal = "COMPREHENSIVE_PROPOSAL";
   public const string EngagementLetter = "ENGAGEMENT_LETTER";
   public const string PaymentReceipt = "PAYMENT_RECEIPT";
 }
@@ -105,6 +106,9 @@ public sealed class FirmCommercialProfile
   public string ContactPhone { get; set; } = string.Empty;
   public string AccentColorHex { get; set; } = "#2B6CB0";
   public string ClosingText { get; set; } = string.Empty;
+  public string FirmHistoryAndRegistrations { get; set; } = string.Empty;
+  public string IndustryCredentials { get; set; } = string.Empty;
+  public string AuditMethodology { get; set; } = string.Empty;
   public Guid CreatedByUserId { get; set; }
   public DateTimeOffset CreatedAt { get; set; }
 }
@@ -112,6 +116,10 @@ public sealed class FirmCommercialProfile
 /// <summary>A generated, immutable commercial document with its template version and content hash.</summary>
 public sealed class CommercialDocument
 {
+  public Guid? AcceptanceDecisionId { get; set; }
+  public Guid? SignatureSpecimenId { get; set; }
+  public Guid? FirmSealSpecimenId { get; set; }
+  public DateTimeOffset? CommercialAcceptedAt { get; set; }
   public Guid Id { get; set; }
   public Guid FirmId { get; set; }
   public Guid? ProposalId { get; set; }

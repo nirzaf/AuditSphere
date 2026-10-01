@@ -60,6 +60,7 @@ public sealed class CompletionDeliverablesJourneyTests
         AuditProcedureId = procedure.Id, ResultRevision = 1, Decision = AuditProcedureReviewDecisions.Reviewed, ReviewerUserId = manager.Id, CreatedAt = now });
       db.StaffCertifications.Add(new StaffCertification { Id = Guid.NewGuid(), FirmId = f.FirmId, UserId = partner.Id, Name = "ACCA", RecordedAt = now, RecordedByUserId = partner.Id });
       await db.SaveChangesAsync();
+      await CompletionTestFixtures.SeedTaxonomyAsync(db, f.FirmId, partner.Id);
     }
     await using (var db = host.CreateDbContext())
       Assert.True((await StaffingService.AssignAsync(db, new ActorContext(f.Admin.Id, f.FirmId, f.Admin.SessionEpoch, ["Administrator"]),
@@ -101,7 +102,7 @@ public sealed class CompletionDeliverablesJourneyTests
     // Conditional fields: focus and basis appear only for a qualified opinion.
     await Assertions.Expect(page.Locator("#op-focus")).ToHaveCountAsync(0);
     await page.Locator("#op-type").SelectOptionAsync(AuditOpinionTypes.Qualified);
-    await page.Locator("#op-focus").FillAsync("Inventory");
+    await page.Locator("#op-focus").SelectOptionAsync(new SelectOptionValue { Label = "INV — Inventory" });
     await page.Locator("#op-basis").FillAsync("We were unable to observe the inventory count at 31 December 2026.");
     await page.Locator("#op-basis").PressAsync("Tab");
     await page.GetByRole(AriaRole.Button, new() { Name = "Record opinion (Engagement Partner)" }).ClickAsync();
@@ -139,10 +140,22 @@ public sealed class CompletionDeliverablesJourneyTests
       Assert.Equal((doc.ContentSha256, f.Client.Id), (ack.AcknowledgedSha256, ack.AcknowledgedByUserId!.Value));
     }
 
+    await clientPage.GetByLabel("Management signatory", new() { Exact = true }).FillAsync("Authorized Executive Management");
+    await clientPage.GetByLabel("Management signatory", new() { Exact = true }).PressAsync("Tab");
+    await clientPage.GetByLabel("Upload management-signed representation letter").SetInputFilesAsync(new FilePayload { Name = "signed-representation.pdf", MimeType = "application/pdf", Buffer = CompletionTestFixtures.SignedPdf() });
+    await Assertions.Expect(clientPage.GetByText("Signed PDF uploaded for this exact letter version", new() { Exact = false })).ToBeVisibleAsync();
+
     // Back on the Partner's page: register a PNG signature, sign, and the 60-day freeze is scheduled and traced.
     await page.GotoAsync($"{origin}/app/engagements/{f.EngagementId:D}/completion");
     await page.GetByRole(AriaRole.Heading, new() { Name = "File freeze and activity trail" }).WaitForAsync(new() { Timeout = 20000 });
     await SettleAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Link, new() { Name = "Management-signed LOR v1", Exact = false })).ToBeVisibleAsync();
+    await page.GetByLabel("Signature verification evidence", new() { Exact = true }).FillAsync("Reviewed the management signature, authority and all representation pages.");
+    await page.GetByLabel("I reviewed this exact scan and verified management authority, signature and completeness.").CheckAsync();
+    await page.GetByRole(AriaRole.Button, new() { Name = "Verify signed representation (Partner)" }).ClickAsync();
+    await Assertions.Expect(result).ToContainTextAsync("Signed representation verified");
+    await page.Locator("#firm-seal-file").SetInputFilesAsync(new FilePayload { Name = "firm-seal.png", MimeType = "image/png", Buffer = Png(100, 100) });
+    await Assertions.Expect(result).ToContainTextAsync("Approved firm seal registered");
     await page.Locator("#signature-file").SetInputFilesAsync(new FilePayload { Name = "signature.png", MimeType = "image/png", Buffer = Png(160, 50) });
     await Assertions.Expect(result).ToContainTextAsync("Signature specimen registered.");
     await page.GetByRole(AriaRole.Button, new() { Name = "Sign with registered signature" }).ClickAsync();
@@ -155,6 +168,30 @@ public sealed class CompletionDeliverablesJourneyTests
     await Assertions.Expect(page.Locator("[aria-label='Activity trail']")).ToContainTextAsync("Independent Auditor's Report v1 signed");
     await using (var db = host.CreateDbContext())
       Assert.Equal(FileFreezeStates.Scheduled, (await db.EngagementFileFreezes.AsNoTracking().SingleAsync(x => x.EngagementId == f.EngagementId)).State);
+    // The bundle control stays blocked until real reviewed release and posted balance evidence exists.
+    await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Assemble five-part bundle (Partner)" })).ToBeDisabledAsync();
+    await page.GetByRole(AriaRole.Button, new() { Name = "Generate Management Letter", Exact = true }).ClickAsync();
+    await Assertions.Expect(result).ToContainTextAsync("Management Letter generated.");
+    var accountingReviewer = PbcSeed.User(f.FirmId, "Staff");
+    var financeReviewer = PbcSeed.User(f.FirmId, "Staff");
+    await using (var db = host.CreateDbContext())
+    { db.Users.AddRange(accountingReviewer, financeReviewer); await db.SaveChangesAsync(); }
+    var financialScope = new CompletionBundleScope(f.FirmId, f.ClientId, f.EngagementId, new()
+    { ["associate"] = f.Staff, ["senior"] = accountingReviewer, ["partner"] = partner, ["partner2"] = financeReviewer, ["manager"] = manager });
+    await CompletionBundleFixture.ReleasedFinancialPackageAsync(host.DbOptions, financialScope);
+    await CompletionBundleFixture.SeedPostedFeeAsync(host.DbOptions, financialScope);
+    await page.GotoAsync($"{origin}/app/engagements/{f.EngagementId:D}/completion");
+    await page.GetByRole(AriaRole.Heading, new() { Name = "File freeze and activity trail" }).WaitForAsync(new() { Timeout = 20000 });
+    await SettleAsync();
+    await page.GetByLabel("I reviewed the exact released financial statements for certification with this report.").CheckAsync();
+    await page.GetByRole(AriaRole.Button, new() { Name = "Assemble five-part bundle (Partner)" }).ClickAsync();
+    await Assertions.Expect(result).ToContainTextAsync("Five-part final bundle assembled");
+    var bundleDownload = await page.RunAndWaitForDownloadAsync(() => page.GetByRole(AriaRole.Link, new() { Name = "Download five-part final bundle" }).ClickAsync());
+    Assert.EndsWith(".zip", bundleDownload.SuggestedFilename);
+    await clientPage.ReloadAsync();
+    await clientPage.GetByRole(AriaRole.Link, new() { Name = "Download five-part final bundle" }).WaitForAsync(new() { Timeout = 20000 });
+    var clientDownload = await clientPage.RunAndWaitForDownloadAsync(() => clientPage.GetByRole(AriaRole.Link, new() { Name = "Download five-part final bundle" }).ClickAsync());
+    Assert.EndsWith(".zip", clientDownload.SuggestedFilename);
     Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal) || x.Contains("unhandled exception", StringComparison.OrdinalIgnoreCase));
   }
 

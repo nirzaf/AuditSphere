@@ -67,7 +67,7 @@ public sealed class CommercialJourneyTests
     await Assertions.Expect(version).ToContainTextAsync("APPROVED");
 
     // No documents without the firm letterhead: the command refuses and says why.
-    await page.GetByRole(AriaRole.Button, new() { Name = "Generate quotation and engagement letter" }).ClickAsync();
+    await page.GetByRole(AriaRole.Button, new() { Name = "Generate brief quotation" }).ClickAsync();
     await Assertions.Expect(page.Locator(".command-result", new() { HasText = "commercial profile" })).ToBeVisibleAsync();
 
     await page.GotoAsync($"{origin}/app/practice/commercial-settings");
@@ -83,11 +83,13 @@ public sealed class CommercialJourneyTests
     await page.GetByRole(AriaRole.Heading, new() { Name = "Calculated quotation" }).WaitForAsync();
     await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new() { Timeout = 15000 });
     await page.WaitForTimeoutAsync(500);
-    await page.GetByRole(AriaRole.Button, new() { Name = "Generate quotation and engagement letter" }).ClickAsync();
+    await page.GetByRole(AriaRole.Button, new() { Name = "Generate brief quotation" }).ClickAsync();
     var quotationLink = page.GetByRole(AriaRole.Link, new() { Name = "Quotation-", Exact = false }).First;
     await quotationLink.WaitForAsync(new() { Timeout = 15000 });
     await Assertions.Expect(page.GetByText("COMMERCIAL-QUOTATION-v1").First).ToBeVisibleAsync();
-    await Assertions.Expect(page.GetByRole(AriaRole.Link, new() { Name = "EngagementLetter-", Exact = false }).First).ToBeVisibleAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Link, new() { Name = "EngagementLetter-", Exact = false })).ToHaveCountAsync(0);
+    await page.GetByRole(AriaRole.Button, new() { Name = "Generate engagement letter (Partner)" }).ClickAsync();
+    await Assertions.Expect(page.GetByText("Record client acceptance of the current quotation", new() { Exact = false })).ToBeVisibleAsync();
 
     var href = await quotationLink.GetAttributeAsync("href");
     var download = await context.APIRequest.GetAsync(origin + href!, new() { MaxRedirects = 0 });

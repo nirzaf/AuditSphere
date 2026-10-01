@@ -3,16 +3,25 @@
 @using AuditSphereOps.Domain.Accounting
 @using AuditSphereOps.Application.Documents
 @using AuditSphereOps.Application.Completion
+@using Microsoft.AspNetCore.Components.Forms
+@using AuditSphereOps.Domain.Completion
 @inject CurrentActorResolver ActorResolver
 @inject IDbContextFactory<AuditSphereDbContext> DbFactory
 
 <PageTitle>Client portal</PageTitle>
-<PageHeader Title="Client portal" Description="Restricted client workspace. This view contains assigned PBC requests and transfer receipts only. Internal risk, review and workpaper content is not exposed." />
+<PageHeader Title="Client portal" Description="Assigned document requests, shared reports, management-signed representation letters and final deliverable bundles. Internal review and workpaper content remains restricted." />
 <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="audit-client-refresh" OnClick="LoadPortalAsync" Disabled="@_loading">Refresh portal</MudButton>
 
 @if (_loading)
 {
   <LoadingState IsLoading="true" LoadingMessage="Loading assigned requests…" />
+}
+else if (_pendingCommercialOnboarding && !_clientIds.Any())
+{
+  <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="notice my-4" role="status">
+    <h2>Portal setup pending</h2>
+    <MudText Typo="Typo.body2">Your workspace opens after commercial acceptance, Partner risk clearance, engagement activation and advance payment. Contact your audit team for the remaining action.</MudText>
+  </MudAlert>
 }
 else if (_actor is null || !_clientIds.Any())
 {
@@ -90,8 +99,21 @@ else
             <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@(() => AcknowledgeAsync(doc.ReviewId, doc.ContentSha256))" Disabled="@_busy" aria-label="@($"Acknowledge {doc.Title}")">Acknowledge this version</MudButton>
           </div>
         }
+        @if (doc.Kind == DeliverableKinds.RepresentationLetter && doc.AcknowledgedAt is not null)
+        {
+          <p>Print this exact version on client letterhead, have authorized management sign it, then upload the complete PDF scan (maximum 10 MB).</p>
+          <label>Management signatory <input @bind="_managementSignatory" maxlength="200" aria-label="Management signatory" /></label>
+          <InputFile OnChange="@(args => UploadSignedLetterAsync(doc, args))" accept=".pdf" aria-label="Upload management-signed representation letter" />
+          @foreach (var scan in _signedLetters.Where(x => x.DeliverableId == doc.DeliverableId))
+          {
+            <p><a href="@($"/api/representation-scans/{scan.Id}/download")">Your signed representation PDF</a>
+              <StatusChip Status="@(scan.Current ? scan.Verified ? "VERIFIED" : "PENDING_REVIEW" : "STALE")" /></p>
+          }
+        }
       </div>
     }
+    @foreach (var bundle in _bundles)
+    { <p><a href="@($"/api/deliverable-bundles/{bundle.Id}/download")">Download five-part final bundle</a> <code>@bundle.Sha256[..12]</code></p> }
     @if (_reviewMessage is not null) { <p class="command-result" role="status">@_reviewMessage</p> }
   </MudPaper>
 
@@ -132,7 +154,30 @@ else
   private List<ClientPackageRow> _packages = [];
   private bool _loading = true;
   private List<AuditDeliverableService.SharedDeliverableView> _shared = [];
-  private string _comment = string.Empty;
+  private string _comment = string.Empty, _managementSignatory = "";
+  private List<SignedLetterView> _signedLetters = [];
+  private List<BundleView> _bundles = [];
+  private bool _pendingCommercialOnboarding;
+
+  private async Task UploadSignedLetterAsync(AuditDeliverableService.SharedDeliverableView document, InputFileChangeEventArgs args)
+  {
+    var actor = await ActorResolver.ResolveAsync();
+    if (actor is null) { await LoadPortalAsync(); return; }
+    if (args.File.Size > AuditDeliverableService.MaxSignedLetterBytes) { _reviewMessage = "The signed scan must be a PDF of at most 10 MB."; return; }
+    _busy = true;
+    try
+    {
+      using var buffer = new MemoryStream();
+      await args.File.OpenReadStream(AuditDeliverableService.MaxSignedLetterBytes).CopyToAsync(buffer);
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var result = await AuditDeliverableService.UploadSignedRepresentationAsync(db, actor, document.DeliverableId, document.ContentSha256, _managementSignatory, buffer.ToArray());
+      _reviewMessage = result.Succeeded ? "Signed PDF uploaded for this exact letter version. Engagement Partner verification is pending." : result.Message;
+      await LoadPortalAsync();
+    }
+    catch (IOException) { _reviewMessage = "The file upload was interrupted. Select the PDF again."; }
+    finally { _busy = false; }
+  }
+
   private string? _reviewMessage;
 
   private async Task CommentAsync(Guid reviewId)
@@ -197,28 +242,31 @@ else
     _actor = null;
     _clientIds = [];
     _requests = [];
-    _packages = [];
+    _packages = []; _shared = []; _signedLetters = []; _bundles = [];
+    _pendingCommercialOnboarding = false;
     try
     {
       var actor = await ActorResolver.ResolveAsync();
       if (actor is null || generation != _loadGeneration)
         return;
       await using var db = await DbFactory.CreateDbContextAsync();
-      var grants = db.RoleGrants.AsNoTracking().Where(x =>
+      var approvedGrantIds = await ClientPortalService.AuthorizedPortalGrantIdsAsync(db, actor);
+      var grants = db.RoleGrants.AsNoTracking().Where(x => approvedGrantIds.Contains(x.Id) &&
         x.FirmId == actor.FirmId && x.UserId == actor.UserId && x.Role == "ClientUser" &&
         x.ClientId.HasValue && x.RevokedAt == null);
       var grantScopes = await grants.Select(x => new { x.ClientId, x.EngagementId }).ToListAsync();
       var clientIds = grantScopes.Select(x => x.ClientId!.Value).Distinct().ToList();
+      var engagementIds = await ClientPortalService.AuthorizedPortalEngagementIdsAsync(db, actor);
       var requests = new List<PbcRequest>();
       var packageRows = new List<ClientPackageRow>();
       if (clientIds.Count > 0)
       {
-        requests = await ClientPortalService.ParticipantRequests(db, actor).Where(x =>
+        requests = await ClientPortalService.ParticipantRequests(db, actor).Where(x => engagementIds.Contains(x.EngagementId) &&
           grants.Any(g => g.ClientId == x.ClientId &&
             (!g.EngagementId.HasValue || g.EngagementId == x.EngagementId)))
           .OrderBy(x => x.DueDate).ThenBy(x => x.Area).ToListAsync();
         var packages = await db.FinancialPackages.AsNoTracking().Where(x =>
-          x.FirmId == actor.FirmId && x.Status == AccountingPackageStates.PackageValidated &&
+          x.FirmId == actor.FirmId && engagementIds.Contains(x.EngagementId) && x.Status == AccountingPackageStates.PackageValidated &&
           grants.Any(g => g.ClientId == x.ClientId &&
             (!g.EngagementId.HasValue || g.EngagementId == x.EngagementId)))
           .OrderByDescending(x => x.CreatedAt).Take(100).ToListAsync();
@@ -238,12 +286,17 @@ else
       _requests = requests;
       _packages = packageRows;
       _firstSignIn = clientIds.Count > 0 ? await ClientPortalService.GetFirstSignInStatusAsync(db, actor) : null;
-      var clientWide = grantScopes.Where(g => !g.EngagementId.HasValue).Select(g => g.ClientId!.Value).Distinct().ToList();
-      var engagementIds = grantScopes.Where(x => x.EngagementId.HasValue).Select(x => x.EngagementId!.Value)
-        .Concat(await db.Engagements.AsNoTracking().Where(e => clientWide.Contains(e.PracticeClientId)).Select(e => e.Id).ToListAsync())
-        .Distinct().ToList();
+      _pendingCommercialOnboarding = await ClientPortalService.HasPendingCommercialOnboardingAsync(db, actor);
       var shared = new List<AuditDeliverableService.SharedDeliverableView>();
-      foreach (var engagementId in engagementIds) shared.AddRange(await AuditDeliverableService.SharedAsync(db, actor, engagementId));
+      var signedLetters = new List<SignedLetterView>();
+      var bundles = new List<BundleView>();
+      foreach (var engagementId in engagementIds)
+      {
+        shared.AddRange(await AuditDeliverableService.SharedAsync(db, actor, engagementId));
+        signedLetters.AddRange(await AuditDeliverableService.SignedRepresentationsAsync(db, actor, engagementId));
+        bundles.AddRange(await AuditDeliverableService.ClientBundlesAsync(db, actor, engagementId));
+      }
+      _signedLetters = signedLetters; _bundles = bundles;
       _shared = shared;
     }
     finally

@@ -46,17 +46,24 @@ public sealed partial class AuditSphereDbContext
     });
     b.Entity<FirmCommercialProfile>(e =>
     {
+      e.Property(x => x.FirmHistoryAndRegistrations).HasMaxLength(16000);
+      e.Property(x => x.IndustryCredentials).HasMaxLength(16000);
+      e.Property(x => x.AuditMethodology).HasMaxLength(16000);
       e.HasIndex(x => new { x.FirmId, x.Version }).IsUnique();
       e.ToTable("firm_commercial_profiles", t => t.HasCheckConstraint("ck_firm_commercial_profile_values",
         "version >= 1 AND length(legal_name) > 0 AND accent_color_hex ~ '^#[0-9A-Fa-f]{6}$'"));
     });
     b.Entity<CommercialDocument>(e =>
     {
+      e.HasOne<AuditSphereOps.Domain.Completion.SignatureSpecimen>().WithMany().HasForeignKey(x => new { x.FirmId, x.SignatureSpecimenId }).HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+      e.HasOne<AuditSphereOps.Domain.Completion.FirmSealSpecimen>().WithMany().HasForeignKey(x => new { x.FirmId, x.FirmSealSpecimenId }).HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+      e.HasOne<AuditSphereOps.Domain.Acceptance.AcceptanceDecision>().WithMany()
+        .HasForeignKey(x => new { x.FirmId, x.AcceptanceDecisionId }).HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
       e.HasIndex(x => new { x.FirmId, x.ProposalId, x.Kind, x.CreatedAt });
-      e.HasIndex(x => new { x.FirmId, x.QuotationVersionId, x.Kind }).IsUnique().HasFilter("kind IN ('QUOTATION','ENGAGEMENT_LETTER')");
+      e.HasIndex(x => new { x.FirmId, x.QuotationVersionId, x.Kind }).IsUnique().HasFilter("kind IN ('QUOTATION','ENGAGEMENT_LETTER','COMPREHENSIVE_PROPOSAL')");
       e.HasIndex(x => new { x.FirmId, x.FeeMilestoneId, x.Kind }).IsUnique().HasFilter("kind = 'PAYMENT_RECEIPT'");
       e.ToTable("commercial_documents", t => t.HasCheckConstraint("ck_commercial_document_values",
-        "kind IN ('QUOTATION','ENGAGEMENT_LETTER','PAYMENT_RECEIPT') AND length(template_version) > 0 AND length(sha256_hex) = 64 AND octet_length(bytes) > 0 AND length(file_name) > 0"));
+        "kind IN ('QUOTATION','ENGAGEMENT_LETTER','PAYMENT_RECEIPT','COMPREHENSIVE_PROPOSAL') AND length(template_version) > 0 AND length(sha256_hex) = 64 AND octet_length(bytes) > 0 AND length(file_name) > 0"));
     });
     b.Entity<EngagementFeeAgreement>(e =>
     {

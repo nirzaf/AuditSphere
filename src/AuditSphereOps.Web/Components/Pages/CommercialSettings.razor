@@ -39,6 +39,9 @@ else
       <MudTextField T="string" Label="Contact phone" @bind-Value="_phone" MaxLength="60" Margin="Margin.Dense" />
       <MudTextField T="string" Label="Accent colour (#RRGGBB)" @bind-Value="_accent" MaxLength="7" Margin="Margin.Dense" />
       <MudTextField T="string" Label="Closing text (terms reference, registration details)" @bind-Value="_closing" MaxLength="4000" Lines="4" Margin="Margin.Dense" />
+      <MudTextField T="string" Label="Approved firm history and commercial registrations" @bind-Value="_history" MaxLength="16000" Lines="5" Margin="Margin.Dense" />
+      <MudTextField T="string" Label="Approved industry credentials and portfolio evidence" @bind-Value="_credentials" MaxLength="16000" Lines="5" Margin="Margin.Dense" />
+      <MudTextField T="string" Label="Approved audit methodology overview" @bind-Value="_methodology" MaxLength="16000" Lines="5" Margin="Margin.Dense" />
       <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveProfileAsync" Disabled="@_busy">Save letterhead</MudButton>
       @if (_profile is not null) { <span class="muted">Current version @_profile.Version</span> }
     </div>
@@ -101,6 +104,7 @@ else
   private FirmCommercialProfile? _profile;
   private IReadOnlyList<CommercialApprovalRule> _rules = [];
   private string _legalName = string.Empty, _address = string.Empty, _email = string.Empty, _phone = string.Empty;
+  private string _history = "", _credentials = "", _methodology = "";
   private string _accent = "#2B6CB0", _closing = string.Empty;
   private string _ruleKind = CommercialRuleKinds.DiscountOver, _ruleRole = "Partner";
   private decimal _threshold = 10m;
@@ -127,6 +131,7 @@ else
       {
         _legalName = _profile.LegalName; _address = _profile.Address; _email = _profile.ContactEmail;
         _phone = _profile.ContactPhone; _accent = _profile.AccentColorHex; _closing = _profile.ClosingText;
+        _history = _profile.FirmHistoryAndRegistrations; _credentials = _profile.IndustryCredentials; _methodology = _profile.AuditMethodology;
       }
     }
     finally { _loading = false; }
@@ -134,7 +139,7 @@ else
 
   private Task SaveProfileAsync() => RunAsync(async (db, actor) =>
   {
-    var result = await CommercialDocumentService.SaveProfileAsync(db, actor, new(_legalName, _address, _email, _phone, _accent, _closing));
+    var result = await CommercialDocumentService.SaveProfileAsync(db, actor, new(_legalName, _address, _email, _phone, _accent, _closing, _history, _credentials, _methodology));
     return (result.Succeeded, result.Succeeded ? "Letterhead saved." : result.Message);
   });
 

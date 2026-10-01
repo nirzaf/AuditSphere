@@ -15,6 +15,42 @@ namespace AuditSphereOps.E2E.Tests;
 public sealed class ClientPortalOnboardingJourneyTests
 {
   [Fact]
+  [Trait("CaseId", "AS-PORTAL-COMMERCIAL-01")]
+  public async Task CommercialOnboardingPending_HidesClientContent_AndDisabledSessionClearsTheState()
+  {
+    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "AS-PORTAL-COMMERCIAL-01");
+    var f = host.Fixture;
+    var contactId = Guid.NewGuid();
+    await using (var db = host.CreateDbContext())
+    {
+      db.ClientContacts.Add(new ClientContact { Id = contactId, FirmId = f.FirmId, PracticeClientId = f.ClientId, FullName = "Management", Email = f.Client.Email, Role = "Primary contact", Primary = true });
+      db.ClientPortalIntents.Add(new ClientPortalIntent { Id = Guid.NewGuid(), FirmId = f.FirmId, PracticeClientId = f.ClientId, ClientContactId = contactId, SourceProposalId = Guid.NewGuid(),
+        RecipientEmail = f.Client.Email, CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow });
+      await db.SaveChangesAsync();
+      var staff = PbcSeed.Actor(f.Staff, "Staff");
+      var request = await PbcService.CreateRequestAsync(db, staff,
+        new(f.EngagementId, "Sensitive requested evidence", "TEST ENTITY", "2026-01-01", "2026-12-31", "Private onboarding request", "PDF", "Evidence totals",
+          f.Client.Id, f.Staff.Id, f.Reviewer.Id, "2027-01-31", "Confidential", "Reviewed supporting evidence."));
+      Assert.True(request.Succeeded, request.Message);
+      Assert.True((await PbcService.ChangeStateAsync(db, staff, new(request.Value, PbcStates.Sent, 1))).Succeeded);
+    }
+    var origin = await host.StartWebForIdentityAsync(f.Client);
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    var page = await (await browser.NewContextAsync()).NewPageAsync();
+    await page.GotoAsync($"{origin}/auth/sign-in?returnUrl=/portal");
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Portal setup pending" })).ToBeVisibleAsync();
+    await Assertions.Expect(page.GetByText("Your workspace opens after commercial acceptance", new() { Exact = false })).ToBeVisibleAsync();
+    await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+    Assert.DoesNotContain("Private onboarding request", await page.Locator("body").InnerTextAsync());
+    await using (var db = host.CreateDbContext())
+      await db.Users.Where(x => x.Id == f.Client.Id).ExecuteUpdateAsync(x => x.SetProperty(u => u.Disabled, true).SetProperty(u => u.SessionEpoch, u => u.SessionEpoch + 1));
+    await page.GetByRole(AriaRole.Button, new() { Name = "Refresh portal" }).ClickAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Portal unavailable" })).ToBeVisibleAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Portal setup pending" })).ToHaveCountAsync(0);
+  }
+
+  [Fact]
   [Trait("CaseId", "AS-PORTAL-ONBOARD-01")]
   public async Task FirstSignInOpensUploads_AndThePrimaryContactDelegatesAndRevokes()
   {

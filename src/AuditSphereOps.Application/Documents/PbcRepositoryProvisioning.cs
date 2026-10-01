@@ -64,7 +64,7 @@ public static class PbcRepositoryProvisioningService
     if (!await db.AcceptanceDecisions.AsNoTracking().AnyAsync(x => x.Id == workspace.AcceptanceDecisionId &&
           x.FirmId == actor.FirmId && x.PracticeClientId == practiceClientId && x.Decision == "Accepted", ct))
       return Fail(ErrorCodes.GateBlocked, "The client acceptance decision is not Accepted.");
-    var active = await ActiveSiteAsync(db, actor.FirmId, ct);
+    var active = await ActiveSiteAsync(db, actor.FirmId, ct, practiceClientId);
     if (!active.Succeeded) return Fail(active.ErrorCode!, active.Message!);
     var (config, connection, template) = active.Value!;
     if (workspace.State == ClientWorkspaceStates.Ready && workspace.RemoteItemId is not null &&
@@ -125,7 +125,7 @@ public static class PbcRepositoryProvisioningService
       x.PracticeClientId == engagement.PracticeClientId && x.Purpose == "PRIMARY", ct);
     if (workspace is null || workspace.State != ClientWorkspaceStates.Ready || workspace.RemoteItemId is null)
       return Fail(ErrorCodes.GateBlocked, "Provision the client workspace before the engagement repository.");
-    var active = await ActiveSiteAsync(db, actor.FirmId, ct);
+    var active = await ActiveSiteAsync(db, actor.FirmId, ct, engagement.PracticeClientId);
     if (!active.Succeeded) return Fail(active.ErrorCode!, active.Message!);
     var (config, connection, clientTemplate) = active.Value!;
     if (workspace.ConnectionRevisionId != connection.Id || workspace.DriveId != config.DriveId)
@@ -218,7 +218,7 @@ public static class PbcRepositoryProvisioningService
   }
 
   internal static async Task<CommandResult<(FirmWorkspaceConfiguration Config, Microsoft365ConnectionRevision Connection, FolderTemplateVersion Template)>>
-    ActiveSiteAsync(IAuditSphereDbContext db, Guid firmId, CancellationToken ct)
+    ActiveSiteAsync(IAuditSphereDbContext db, Guid firmId, CancellationToken ct, Guid? clientId = null)
   {
     var connection = await db.Microsoft365ConnectionRevisions.AsNoTracking()
       .Where(x => x.FirmId == firmId && x.State == Microsoft365RevisionStates.Active && x.ConsentState == "VERIFIED")
@@ -232,6 +232,25 @@ public static class PbcRepositoryProvisioningService
         config.AccessProfile != Microsoft365AccessProfiles.AppMediated)
       return CommandResult<(FirmWorkspaceConfiguration, Microsoft365ConnectionRevision, FolderTemplateVersion)>.Fail(ErrorCodes.GateBlocked,
         "An active, consent-verified working-site connection with an approved client template is required.");
+    if (clientId != null)
+    {
+      var site = await db.ClientSharePointSites.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == firmId && x.ClientId == clientId, ct);
+      var cutover = await db.FirmWorkspaceConfigurations.AsNoTracking().Where(x => x.FirmId == firmId)
+        .MinAsync(x => x.ClientSitesRequiredFrom, ct);
+      if (site == null && cutover != null && await db.PracticeClients.AnyAsync(x => x.FirmId == firmId && x.Id == clientId && x.CreatedAt >= cutover, ct))
+        return CommandResult<(FirmWorkspaceConfiguration, Microsoft365ConnectionRevision, FolderTemplateVersion)>.Fail(ErrorCodes.GateBlocked,
+          "The dedicated client site is pending; shared-site fallback is refused.");
+      if (site != null)
+      {
+        if (site.State != "READY" || site.VerifiedAt == null || site.ConnectionRevisionId != connection.Id ||
+            site.TenantId != connection.TenantId || site.SiteId == null || site.DriveId == null || site.RootItemId == null)
+          return CommandResult<(FirmWorkspaceConfiguration, Microsoft365ConnectionRevision, FolderTemplateVersion)>.Fail(ErrorCodes.GateBlocked,
+            "The dedicated client site is pending or blocked; shared-site fallback is refused.");
+        config = new FirmWorkspaceConfiguration { Id = config.Id, FirmId = firmId, ConnectionRevisionId = connection.Id,
+          FolderTemplateVersionId = template.Id, TenantId = site.TenantId, SiteId = site.SiteId, DriveId = site.DriveId,
+          RootFolderId = site.RootItemId, DisplayUrl = site.RequestedUrl, AccessProfile = config.AccessProfile, CreatedAt = config.CreatedAt };
+      }
+    }
     return CommandResult<(FirmWorkspaceConfiguration, Microsoft365ConnectionRevision, FolderTemplateVersion)>.Ok((config, connection, template));
   }
 

@@ -127,6 +127,11 @@ public static class AuthorizationDecision
          || actor.Roles.Contains("ClientUser", StringComparer.OrdinalIgnoreCase)))
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
 
+    if (!request.InternalOnly && effectiveClientId is { } portalClient &&
+        (user.UserKind.Equals("Client", StringComparison.OrdinalIgnoreCase) || actor.Roles.Contains("ClientUser", StringComparer.OrdinalIgnoreCase)) &&
+        !await AuditSphereOps.Application.Documents.ClientPortalService.CommercialOnboardingClearedAsync(db, request.FirmId, portalClient, request.EngagementId, ct))
+      return CommandResult.Fail(ErrorCodes.GateBlocked, "The client portal opens after current commercial acceptance, Partner risk clearance, activation and advance payment.");
+
     if (request.RequireProfessionalWork)
     {
       if (!request.EngagementId.HasValue)

@@ -9,6 +9,49 @@ public sealed partial class AuditSphereDbContext
 {
   private static void ConfigureAuditDeliverables(ModelBuilder b)
   {
+    b.Entity<AuditDeliverable>().HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id });
+    b.Entity<SignedRepresentationLetter>(e =>
+    {
+      e.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id });
+      e.HasIndex(x => new { x.FirmId, x.DeliverableId, x.ContentSha256 }).IsUnique();
+      e.HasOne<AuditDeliverable>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.DeliverableId })
+        .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+      e.ToTable("signed_representation_letters", t => t.HasCheckConstraint("ck_signed_representation_letter",
+        "length(deliverable_sha256) = 64 AND length(content_sha256) = 64 AND octet_length(content) BETWEEN 1 AND 10485760 AND length(management_signatory) BETWEEN 2 AND 200"));
+    });
+    b.Entity<RepresentationLetterVerification>(e =>
+    {
+      e.HasIndex(x => new { x.FirmId, x.SignedLetterId }).IsUnique();
+      e.HasOne<SignedRepresentationLetter>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.SignedLetterId })
+        .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+      e.ToTable("representation_letter_verifications", t => t.HasCheckConstraint("ck_representation_letter_verification", "length(reason) BETWEEN 10 AND 2000"));
+    });
+    b.Entity<FirmSealSpecimen>(e =>
+    {
+      e.HasAlternateKey(x => new { x.FirmId, x.Id });
+      e.HasIndex(x => new { x.FirmId, x.Version }).IsUnique();
+      e.ToTable("firm_seal_specimens", t => t.HasCheckConstraint("ck_firm_seal_specimen", "version >= 1 AND length(sha256) = 64 AND octet_length(png_content) BETWEEN 1 AND 524288"));
+    });
+    b.Entity<CommercialDeliverableBundle>(e =>
+    {
+      ScopeToEngagement(e, nameof(CommercialDeliverableBundle.FirmId), nameof(CommercialDeliverableBundle.ClientId), nameof(CommercialDeliverableBundle.EngagementId));
+      e.HasOne<Release>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.FinancialPackageReleaseId })
+        .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+      e.HasOne<AuditSphereOps.Domain.Accounting.FinancialPackageArtifact>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.FinancialPackageArtifactId })
+        .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+      e.HasOne<AuditSphereOps.Domain.Practice.Invoice>().WithMany().HasForeignKey(x => new { x.FirmId, x.BalanceInvoiceId })
+        .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+      e.HasIndex(x => new { x.FirmId, x.EngagementId, x.SourceDigest }).IsUnique();
+      // Preserve the exact manifest bytes used by the ZIP and its SHA-256 evidence.
+      e.Property(x => x.ManifestJson).HasColumnType("text");
+      e.HasOne<AuditDeliverable>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.SignedReportId })
+        .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+      e.HasOne<AuditDeliverable>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.ManagementLetterId })
+        .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+      e.HasOne<SignedRepresentationLetter>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.SignedRepresentationLetterId })
+        .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+      e.ToTable("commercial_deliverable_bundles", t => t.HasCheckConstraint("ck_commercial_deliverable_bundle", "length(source_digest) = 64 AND length(manifest_sha256) = 64 AND length(content_sha256) = 64 AND octet_length(content) > 0"));
+    });
     b.Entity<ProcedureReviewNote>(e =>
     {
       e.HasIndex(x => new { x.FirmId, x.ProcedureId, x.CreatedAt });
@@ -41,12 +84,14 @@ public sealed partial class AuditSphereDbContext
     b.Entity<AuditOpinionDecision>(e =>
     {
       e.HasIndex(x => new { x.FirmId, x.EngagementId, x.DecidedAt });
+      e.HasOne<AuditSphereOps.Domain.Accounting.ReportingTaxonomyNode>().WithMany().HasForeignKey(x => new { x.FirmId, x.AffectedTaxonomyNodeId }).HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
       e.HasOne<PartnerCompletionClearance>().WithMany().HasForeignKey(x => x.PartnerClearanceId).OnDelete(DeleteBehavior.Restrict);
       e.ToTable("audit_opinion_decisions", t => t.HasCheckConstraint("ck_audit_opinion_decision_values",
         "opinion_type IN ('UNMODIFIED','QUALIFIED','ADVERSE','DISCLAIMER') AND ((opinion_type = 'UNMODIFIED' AND basis_text IS NULL) OR (opinion_type <> 'UNMODIFIED' AND length(basis_text) > 0)) AND (opinion_type <> 'QUALIFIED' OR length(focus_area) > 0)"));
     });
     b.Entity<SignatureSpecimen>(e =>
     {
+      e.HasAlternateKey(x => new { x.FirmId, x.Id });
       e.HasIndex(x => new { x.FirmId, x.UserId }).IsUnique().HasFilter("revoked_at IS NULL");
       e.ToTable("signature_specimens", t => t.HasCheckConstraint("ck_signature_specimen_values",
         "length(sha256) = 64 AND octet_length(png_content) BETWEEN 1 AND 524288 AND width_pixels > 0 AND height_pixels > 0"));

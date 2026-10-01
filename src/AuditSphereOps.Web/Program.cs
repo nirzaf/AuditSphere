@@ -623,6 +623,31 @@ app.MapGet("/api/deliverables/{deliverableId:guid}/download", async (
   return Results.File(result.Value!.Content, result.Value.ContentType, result.Value.FileName);
 });
 
+app.MapGet("/api/representation-scans/{scanId:guid}/download", async (
+  Guid scanId, HttpContext http, TrustedActorResolver actorResolver, IDbContextFactory<AuditSphereDbContext> dbFactory, CancellationToken ct) =>
+{
+  var actor = await actorResolver.ResolveAsync(http.User, ct);
+  if (actor is null) return Results.Unauthorized();
+  await using var db = await dbFactory.CreateDbContextAsync(ct);
+  var result = await AuditSphereOps.Application.Completion.AuditDeliverableService.GetSignedRepresentationAsync(db, actor, scanId, ct);
+  if (!result.Succeeded) return Results.Forbid();
+  http.Response.Headers.CacheControl = "no-store";
+  http.Response.Headers["X-Content-Type-Options"] = "nosniff";
+  return Results.File(result.Value!.Content, "application/pdf", $"Management-signed-LOR-{scanId}.pdf");
+});
+app.MapGet("/api/deliverable-bundles/{bundleId:guid}/download", async (
+  Guid bundleId, HttpContext http, TrustedActorResolver actorResolver, IDbContextFactory<AuditSphereDbContext> dbFactory, CancellationToken ct) =>
+{
+  var actor = await actorResolver.ResolveAsync(http.User, ct);
+  if (actor is null) return Results.Unauthorized();
+  await using var db = await dbFactory.CreateDbContextAsync(ct);
+  var result = await AuditSphereOps.Application.Completion.AuditDeliverableService.GetBundleAsync(db, actor, bundleId, ct);
+  if (!result.Succeeded) return Results.Forbid();
+  http.Response.Headers.CacheControl = "no-store";
+  http.Response.Headers["X-Content-Type-Options"] = "nosniff";
+  return Results.File(result.Value!.Content, "application/zip", $"Final-audit-bundle-{bundleId}.zip");
+});
+
 app.MapRazorComponents<AuditSphereOps.Web.Components.App>()
   .AddInteractiveServerRenderMode();
 

@@ -146,7 +146,13 @@ public static class TechnicalLibraryService
 
 public sealed record EngagementEconomicsRow(Guid EngagementId, string Label, string Currency, int BudgetMinutes, decimal BudgetValue, int ActualMinutes,
   decimal StandardValue, decimal ActualCost, decimal Billed, decimal Collected, decimal? RealizationPercent, decimal? CollectionPercent,
-  decimal Profit, decimal? MarginPercent, int BudgetVarianceMinutes, bool CostComplete);
+  decimal Profit, decimal? MarginPercent, int BudgetVarianceMinutes, bool CostComplete)
+{
+  public decimal? ContractedFee { get; init; }
+  public string? ContractCurrency { get; init; }
+  public decimal? LifetimeStandardValue { get; init; }
+  public decimal? ContractedFeeLessStandardValue { get; init; }
+}
 public sealed record DepartmentUtilizationRow(string Department, int CapacityMinutes, int ChargeableMinutes, decimal? UtilizationPercent, decimal? TargetPercent);
 public sealed record MilestonePerformance(int Due, int CompletedOnTime, int CompletedLate, int Overdue, decimal? OnTimePercent);
 public sealed record PracticeAnalyticsView(DateOnly From, DateOnly To, IReadOnlyList<EngagementEconomicsRow> Engagements, IReadOnlyList<DepartmentUtilizationRow> Departments,
@@ -162,6 +168,7 @@ public static class PracticeAnalyticsQuery
 {
   public static readonly string[] Definitions =
   [
+    "Contract contribution = agreed contract fee − lifetime approved-time standard value, in the contract currency. This is separate from period billed-minus-actual-cost profit; missing rates or mixed currencies make it unavailable.",
     "Standard value = approved minutes × captured charge-out rate ÷ 60.",
     "Actual cost = approved minutes × staff cost rate effective on the work date ÷ 60 (charge-out rates are not costs).",
     "Billed = posted invoice lines sourced from the engagement's approved time or fee milestones (credit notes deducted).",
@@ -197,6 +204,10 @@ public static class PracticeAnalyticsQuery
       : l.SourceKind == FeeAgreementService.MilestoneSourceKind && l.SourceId is { } m ? milestoneEngagement.GetValueOrDefault(m) : null;
     var billedLines = lines.Select(x => new { x.l, x.i, Engagement = LineEngagement(x.l) }).Where(x => x.Engagement.HasValue).ToList();
     engagementIds = engagementIds.Union(billedLines.Select(x => x.Engagement!.Value)).Distinct().ToList();
+    var agreements = await db.EngagementFeeAgreements.AsNoTracking().Where(x => x.FirmId == f && x.EngagementId != null).ToListAsync(ct);
+    engagementIds = engagementIds.Union(agreements.Select(x => x.EngagementId!.Value)).ToList();
+    var lifetimeTime = await db.TimeEntries.AsNoTracking().Where(x => x.FirmId == f && x.Status == PracticeTimeStates.TimeApproved &&
+      x.EngagementId != null && engagementIds.Contains(x.EngagementId.Value)).Select(x => new { x.EngagementId, x.DurationMinutes, x.RatePerHour, x.Currency }).ToListAsync(ct);
     var invoiceIds = billedLines.Select(x => x.i.Id).Distinct().ToArray();
     var allocations = await db.ReceiptAllocations.AsNoTracking().Where(x => invoiceIds.Contains(x.InvoiceId)).GroupBy(x => x.InvoiceId)
       .Select(g => new { g.Key, Amount = g.Sum(x => x.Amount) }).ToDictionaryAsync(x => x.Key, x => x.Amount, ct);
@@ -228,10 +239,16 @@ public static class PracticeAnalyticsQuery
       var cost = MoneyPolicy.Normalize(costs.Sum(c => c ?? 0m));
       billed = MoneyPolicy.Normalize(billed); collected = MoneyPolicy.Normalize(collected);
       var costComplete = costs.All(c => c.HasValue);
+      var contracts = agreements.Where(x => x.EngagementId == id).ToArray();
+      var contract = contracts.Length == 1 ? contracts[0] : null; // Ambiguous contract revisions are unavailable, never silently summed.
+      var contribution = contract == null ? null : ContractContributionCalculator.Compute(contract.AgreedFee, contract.Currency,
+        lifetimeTime.Where(x => x.EngagementId == id).Select(x => new ContractTimeValue(x.DurationMinutes, x.RatePerHour, x.Currency)).ToArray());
       return new EngagementEconomicsRow(id, labels.GetValueOrDefault(id, "Engagement"), budget?.Currency ?? mine.FirstOrDefault(t => t.Currency != null)?.Currency ?? "",
         bl.Sum(x => x.ForecastMinutes), MoneyPolicy.Normalize(bl.Sum(x => x.ForecastCost)), mine.Sum(t => t.DurationMinutes), standard, cost, billed, collected,
         standard > 0 ? Math.Round(billed / standard * 100m, 1) : null, billed > 0 ? Math.Round(collected / billed * 100m, 1) : null,
-        billed - cost, billed > 0 && costComplete ? Math.Round((billed - cost) / billed * 100m, 1) : null, bl.Sum(x => x.ForecastMinutes) - mine.Sum(t => t.DurationMinutes), costComplete);
+        billed - cost, billed > 0 && costComplete ? Math.Round((billed - cost) / billed * 100m, 1) : null, bl.Sum(x => x.ForecastMinutes) - mine.Sum(t => t.DurationMinutes), costComplete)
+      { ContractedFee = contract?.AgreedFee, ContractCurrency = contract?.Currency,
+        LifetimeStandardValue = contribution?.LifetimeStandardValue, ContractedFeeLessStandardValue = contribution?.FeeLessStandardValue };
     }).OrderBy(x => x.Label).ToList();
 
     // Department utilization over the same period.

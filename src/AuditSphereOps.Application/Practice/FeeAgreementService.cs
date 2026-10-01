@@ -41,6 +41,15 @@ public static class FeeAgreementService
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     if (await LockFirmAsync(db, actor.FirmId, ct) is null)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
+    var result = await EnsureReviewedAgreementWithinTransactionAsync(db, actor, proposalId, ct);
+    if (result.Succeeded) await tx.CommitAsync(ct);
+    return result;
+  }
+
+  // The caller has authorized commercial access and holds the firm guard in its local transaction.
+  internal static async Task<CommandResult<Guid>> EnsureReviewedAgreementWithinTransactionAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid proposalId, CancellationToken ct)
+  {
     var existing = await db.EngagementFeeAgreements.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.ProposalId == proposalId, ct);
     if (existing is not null) return CommandResult<Guid>.Ok(existing.Id);
     var proposal = await db.Proposals.AsNoTracking().SingleOrDefaultAsync(x => x.Id == proposalId && x.FirmId == actor.FirmId, ct);
@@ -53,6 +62,8 @@ public static class FeeAgreementService
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The agreed fee must come from an approved quotation that matches the accepted proposal.");
 
     var advance = MoneyPolicy.Normalize(proposal.Fee * DefaultAdvancePercent / 100m, QuotationCalculator.CurrencyScale);
+    if (advance <= 0m || proposal.Fee - advance <= 0m)
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The agreed fee must support positive advance and balance milestones.");
     var agreement = new EngagementFeeAgreement
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ProposalId = proposal.Id, QuotationVersionId = quotation.Id,
@@ -64,7 +75,6 @@ public static class FeeAgreementService
       new FeeMilestone { Id = Guid.CreateVersion7(), FirmId = actor.FirmId, AgreementId = agreement.Id, Kind = FeeMilestoneKinds.Advance, Amount = advance, CreatedAt = agreement.CreatedAt },
       new FeeMilestone { Id = Guid.CreateVersion7(), FirmId = actor.FirmId, AgreementId = agreement.Id, Kind = FeeMilestoneKinds.Balance, Amount = agreement.AgreedFee - advance, CreatedAt = agreement.CreatedAt });
     await db.SaveChangesAsync(ct);
-    await tx.CommitAsync(ct);
     return CommandResult<Guid>.Ok(agreement.Id);
   }
 
@@ -106,6 +116,9 @@ public static class FeeAgreementService
   {
     var agreement = await db.EngagementFeeAgreements.AsNoTracking().SingleOrDefaultAsync(x => x.Id == agreementId && x.FirmId == actor.FirmId, ct);
     if (agreement is null) return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new(actor.FirmId, agreement.PracticeClientId, RequiredRoles: ["FinanceManager", "FinanceReviewer"], InternalOnly: true), ct);
+    if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
     var milestone = await db.FeeMilestones.SingleAsync(x => x.FirmId == actor.FirmId && x.AgreementId == agreementId && x.Kind == kind, ct);
     if (milestone.InvoiceId.HasValue) return CommandResult<Guid>.Ok(milestone.InvoiceId.Value);
 
@@ -167,6 +180,9 @@ public static class FeeAgreementService
       return CommandResult<AdvancePaymentOutcome>.Fail("fee.invalid", "Enter the bank or transfer reference (up to 120 characters).");
     var agreement = await db.EngagementFeeAgreements.AsNoTracking().SingleOrDefaultAsync(x => x.Id == agreementId && x.FirmId == actor.FirmId, ct);
     if (agreement is null) return CommandResult<AdvancePaymentOutcome>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new(actor.FirmId, agreement.PracticeClientId, RequiredRoles: ["FinanceManager", "FinanceReviewer"], InternalOnly: true), ct);
+    if (!auth.Succeeded) return CommandResult<AdvancePaymentOutcome>.Fail(auth.ErrorCode!, auth.Message!);
     var milestone = await db.FeeMilestones.SingleAsync(x => x.FirmId == actor.FirmId && x.AgreementId == agreementId && x.Kind == FeeMilestoneKinds.Advance, ct);
     if (milestone.InvoiceId is null)
       return CommandResult<AdvancePaymentOutcome>.Fail(ErrorCodes.GateBlocked, "Issue the advance invoice first.");
@@ -208,6 +224,7 @@ public static class FeeAgreementService
       tracked.PaidAt = receipt.ReceivedAt;
       await db.SaveChangesAsync(ct);
     }
+    await AuditSphereOps.Application.Documents.ClientPortalService.RefreshCommercialIntentAsync(db, actor.FirmId, agreement.PracticeClientId, ct);
     return await EnsureReceiptDocumentAndEmailAsync(db, actor, agreement, tracked, invoice, receipt, ct);
   }
 

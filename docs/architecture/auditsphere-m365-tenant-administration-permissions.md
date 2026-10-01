@@ -67,7 +67,9 @@ administrator is asked to accept.
 `RoleManagement.ReadWrite.Directory`, so AuditSphere refuses them (and treats an
 unknown `isAssignableToRole` as privileged). Dynamic-membership groups are refused.
 
-No AuditSphere runtime may request `Directory.ReadWrite.All`, `User.ReadWrite.All`,
+The isolated client-sites worker has the separately owner-approved [client-site provisioning exception](auditsphere-client-sharepoint-sites-current.md), using Graph and SharePoint `Sites.FullControl.All` only for site creation, exact document-worker grants and site-local staff administration. Every other runtime retains the prohibition below.
+
+No other AuditSphere runtime may request `Directory.ReadWrite.All`, `User.ReadWrite.All`,
 `RoleManagement.ReadWrite.Directory`, `Sites.ReadWrite.All`, `Sites.FullControl.All`,
 `Files.ReadWrite.All`, `Mail.Read` or `Mail.ReadWrite`
 (`Microsoft365PermissionMatrix.Prohibited`, enforced by tests).

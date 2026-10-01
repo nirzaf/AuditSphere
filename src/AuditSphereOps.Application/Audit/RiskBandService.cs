@@ -103,10 +103,16 @@ public static class RiskBandService
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor, new AuthorizationRequest(actor.FirmId, engagement.PracticeClientId,
       engagementId, AuditPlanningService.PlanningRoles, InternalOnly: true), ct);
     if (!auth.Succeeded) return CommandResult<IReadOnlyList<RiskRoutingRow>>.Fail(auth.ErrorCode!, auth.Message!);
-    var risks = await db.AuditRisks.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId).OrderBy(x => x.CreatedAt).ToListAsync(ct);
-    var assessments = await db.RiskBandAssessments.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId).ToListAsync(ct);
-    var clearances = await db.RiskPartnerClearances.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId).ToListAsync(ct);
-    var owners = await db.RiskOwnerAssignments.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId).ToListAsync(ct);
+    return await GetRoutingForAuthorizedScopeAsync(db, actor.FirmId, engagementId, ct);
+  }
+
+  internal static async Task<CommandResult<IReadOnlyList<RiskRoutingRow>>> GetRoutingForAuthorizedScopeAsync(
+    IAuditSphereDbContext db, Guid firmId, Guid engagementId, CancellationToken ct)
+  {
+    var risks = await db.AuditRisks.AsNoTracking().Where(x => x.FirmId == firmId && x.EngagementId == engagementId).OrderBy(x => x.CreatedAt).ToListAsync(ct);
+    var assessments = await db.RiskBandAssessments.AsNoTracking().Where(x => x.FirmId == firmId && x.EngagementId == engagementId).ToListAsync(ct);
+    var clearances = await db.RiskPartnerClearances.AsNoTracking().Where(x => x.FirmId == firmId && x.EngagementId == engagementId).ToListAsync(ct);
+    var owners = await db.RiskOwnerAssignments.AsNoTracking().Where(x => x.FirmId == firmId && x.EngagementId == engagementId).ToListAsync(ct);
     var userIds = clearances.Select(x => x.PartnerUserId).Concat(owners.Select(x => x.OwnerUserId)).Distinct().ToArray();
     var names = await db.Users.AsNoTracking().Where(x => userIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.DisplayName, ct);
     var rows = risks.Select(risk =>

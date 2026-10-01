@@ -30,6 +30,8 @@ public static class FinancialPackageOfficeRenderer
     GlobalFontSettings.FontResolver ??= EmbeddedPdfFontResolver.Instance;
   }
 
+  internal static void EnsurePdfFonts() { } // Invoking this triggers the single embedded-font registration above.
+
   public static FinancialPackageOfficeArtifact Render(string artifactVersion, string canonicalPackageText)
   {
     ArgumentException.ThrowIfNullOrWhiteSpace(canonicalPackageText);

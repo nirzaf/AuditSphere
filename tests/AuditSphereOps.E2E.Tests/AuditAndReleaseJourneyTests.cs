@@ -905,6 +905,7 @@ public sealed class AuditAndReleaseJourneyTests
     await page.GotoAsync(SignInUrl(host.StaffUrl, "/app/audit/library"));
     await page.GetByRole(AriaRole.Heading, new() { Name = "Library versions" }).WaitForAsync();
     await libraryConnected;
+    await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new() { Timeout = 5000 });
     var refreshLibrary = page.GetByRole(AriaRole.Button, new() { Name = "Refresh library" });
     await page.GetByRole(AriaRole.Link, new() { Name = "Back to portfolio" }).FocusAsync();
     await page.Keyboard.PressAsync("Tab");

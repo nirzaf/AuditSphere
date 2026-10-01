@@ -73,6 +73,10 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
   public DbSet<global::AuditSphereOps.Domain.Completion.ProcedureReviewNote> ProcedureReviewNotes => Set<global::AuditSphereOps.Domain.Completion.ProcedureReviewNote>();
   public DbSet<global::AuditSphereOps.Domain.Completion.ProcedureReviewNoteEvent> ProcedureReviewNoteEvents => Set<global::AuditSphereOps.Domain.Completion.ProcedureReviewNoteEvent>();
   public DbSet<global::AuditSphereOps.Domain.Completion.AuditDeliverable> AuditDeliverables => Set<global::AuditSphereOps.Domain.Completion.AuditDeliverable>();
+  public DbSet<global::AuditSphereOps.Domain.Completion.SignedRepresentationLetter> SignedRepresentationLetters => Set<global::AuditSphereOps.Domain.Completion.SignedRepresentationLetter>();
+  public DbSet<global::AuditSphereOps.Domain.Completion.RepresentationLetterVerification> RepresentationLetterVerifications => Set<global::AuditSphereOps.Domain.Completion.RepresentationLetterVerification>();
+  public DbSet<global::AuditSphereOps.Domain.Completion.FirmSealSpecimen> FirmSealSpecimens => Set<global::AuditSphereOps.Domain.Completion.FirmSealSpecimen>();
+  public DbSet<global::AuditSphereOps.Domain.Completion.CommercialDeliverableBundle> CommercialDeliverableBundles => Set<global::AuditSphereOps.Domain.Completion.CommercialDeliverableBundle>();
   public DbSet<global::AuditSphereOps.Domain.Completion.PartnerCompletionClearance> PartnerCompletionClearances => Set<global::AuditSphereOps.Domain.Completion.PartnerCompletionClearance>();
   public DbSet<global::AuditSphereOps.Domain.Completion.AuditOpinionDecision> AuditOpinionDecisions => Set<global::AuditSphereOps.Domain.Completion.AuditOpinionDecision>();
   public DbSet<global::AuditSphereOps.Domain.Completion.SignatureSpecimen> SignatureSpecimens => Set<global::AuditSphereOps.Domain.Completion.SignatureSpecimen>();
@@ -505,6 +509,7 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
     ConfigureOperations(b);
     ConfigureSecurity(b);
     ConfigureMicrosoft365(b);
+    ConfigureClientSharePointSites(b);
   }
 
   private static void ConfigureMoney(ModelBuilder b)

@@ -132,6 +132,7 @@ public sealed class AuditOpinionDecision
   public Guid EngagementId { get; set; }
   public Guid PartnerClearanceId { get; set; }
   public string OpinionType { get; set; } = AuditOpinionTypes.Unmodified;
+  public Guid? AffectedTaxonomyNodeId { get; set; }
   public string? FocusArea { get; set; }
   public string? BasisText { get; set; }
   public Guid DecidedByUserId { get; set; }

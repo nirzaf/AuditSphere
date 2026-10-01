@@ -41,7 +41,8 @@ var externalEffects = builder.Configuration.GetValue<bool>("ExternalEffects:Enab
 var liveMail = builder.Environment.IsEnvironment("Acceptance") && externalEffects && group == "mail";
 // Live selected-site PBC transfers run only in an isolated Acceptance worker for the "pbc" group.
 var livePbc = builder.Environment.IsEnvironment("Acceptance") && externalEffects && group == PbcDocumentTransferHandler.LiveGroup;
-if (!builder.Environment.IsDevelopment() && !builder.Environment.IsEnvironment("Test") && !liveMail && !livePbc)
+var liveClientSites = builder.Environment.IsEnvironment("Acceptance") && externalEffects && group == ClientSharePointSiteHandler.Group && builder.Configuration.GetValue<bool>("ClientSites:Enabled");
+if (!builder.Environment.IsDevelopment() && !builder.Environment.IsEnvironment("Test") && !liveMail && !livePbc && !liveClientSites)
   throw new InvalidOperationException("This worker composition is not approved for the current environment.");
 var connection = builder.Configuration.GetConnectionString("AuditSphere");
 if (string.IsNullOrWhiteSpace(connection))
@@ -58,8 +59,8 @@ var workerOptions = new WorkerOptions(firmId, builder.Environment.EnvironmentNam
   builder.Configuration.GetValue<bool>("AllowSimulationAdapters"),
   externalEffects, group,
   DeploymentEpoch: deploymentEpoch);
-if (externalEffects && !liveMail && !livePbc)
-  throw new InvalidOperationException("External effects require an isolated Acceptance mail or pbc worker.");
+if (externalEffects && !liveMail && !livePbc && !liveClientSites)
+  throw new InvalidOperationException("External effects require an isolated Acceptance mail, pbc or enabled client-sites worker.");
 
 var releaseSafety = builder.Configuration.GetSection(ReleaseSafetyOptions.SectionName).Get<ReleaseSafetyOptions>() ?? new();
 releaseSafety.Validate(
@@ -161,6 +162,39 @@ else if (livePbc)
     sp.GetRequiredService<IAuditSphereDbContextFactory>(), sp.GetRequiredService<IOperationStore>(),
     sp.GetRequiredService<EngagementWorkspaceProvisioningHandler>(), workerOptions));
 }
+else if (liveClientSites)
+{
+  var siteOptions = new ClientSiteProviderOptions(builder.Configuration["ClientSites:TenantId"] ?? "",
+    builder.Configuration["ClientSites:ClientId"] ?? "", builder.Configuration["ClientSites:SiteHost"] ?? "",
+    builder.Configuration["ClientSites:CertificatePath"] ?? "", builder.Configuration["ClientSites:PrivateKeyPath"] ?? "",
+    builder.Configuration["SelectedSite:ClientId"] ?? "", builder.Configuration["ClientSites:CustodianObjectId"] ?? "");
+  siteOptions.Validate();
+  // Reject shared identities even if a token would otherwise satisfy a required role.
+  if (!Guid.TryParse(builder.Configuration["Identity:ClientId"], out _))
+    throw new InvalidOperationException("Identity:ClientId is required to verify provisioning credential separation.");
+  var forbiddenIds = new[] { "Identity:ClientId", "DirectoryReader:ClientId", "TenantConsent:ClientId", "TenantAdministration:Provisioning:ClientId",
+    "TenantAdministration:GuestInvitation:ClientId", "TenantAdministration:GroupMembership:ClientId", "TenantAdministration:OutboundMail:ClientId", "GraphMail:ClientId" };
+  if (forbiddenIds.Any(key => string.Equals(builder.Configuration[key], siteOptions.ProvisionerClientId, StringComparison.OrdinalIgnoreCase)))
+    throw new InvalidOperationException("Client site provisioning must use a separate app identity.");
+  if (!Guid.TryParse(builder.Configuration["ClientSites:AdministratorUserId"], out var administrator))
+    throw new InvalidOperationException("ClientSites:AdministratorUserId is required.");
+  if (!DateTimeOffset.TryParse(builder.Configuration["ClientSites:ClientsCreatedAfter"], System.Globalization.CultureInfo.InvariantCulture,
+      System.Globalization.DateTimeStyles.AssumeUniversal, out var cutover))
+    throw new InvalidOperationException("ClientSites:ClientsCreatedAfter must be an explicit approved UTC rollout timestamp.");
+  var policy = new ClientSitePolicy(true, siteOptions.TenantId, siteOptions.SiteHost, administrator, cutover);
+  var readerOptions = new GraphCapabilityCredentialOptions(true, siteOptions.TenantId,
+    builder.Configuration["DirectoryReader:ClientId"] ?? "", builder.Configuration["DirectoryReader:CertificatePath"] ?? "",
+    builder.Configuration["DirectoryReader:PrivateKeyPath"] ?? "", "User.Read.All");
+  readerOptions.Validate();
+  var tokenHttp = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false }) { Timeout = TimeSpan.FromSeconds(30) };
+  var siteHttp = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false }) { Timeout = TimeSpan.FromSeconds(100) };
+  builder.Services.AddSingleton<IClientSharePointSiteProvider>(new SharePointClientSiteProvider(siteHttp, tokenHttp, siteOptions,
+    new GraphCapabilityTokenSource(tokenHttp, readerOptions)));
+  builder.Services.AddSingleton<ClientSharePointSiteHandler>();
+  builder.Services.AddSingleton<IPendingOperationDiscovery>(sp => new ClientSharePointSiteDiscovery(
+    sp.GetRequiredService<IAuditSphereDbContextFactory>(), sp.GetRequiredService<IOperationStore>(),
+    sp.GetRequiredService<ClientSharePointSiteHandler>(), workerOptions, policy));
+}
 else
 {
   builder.Services.AddSingleton<TrialBalanceValidationHandler>();
@@ -168,6 +202,18 @@ else
   builder.Services.AddSingleton<GeneralLedgerCompletenessHandler>();
   builder.Services.AddSingleton<FinancialPackageBuildHandler>();
   builder.Services.AddSingleton<FinancialPackageRenderHandler>();
+  var feeAutomation = new AutomaticFeeInvoicePolicy(
+    builder.Configuration.GetValue<bool>("AutomaticFeeInvoices:Enabled"),
+    builder.Configuration.GetValue<Guid>("AutomaticFeeInvoices:FinanceUserId"),
+    builder.Configuration.GetValue<Guid>("AutomaticFeeInvoices:ApprovingAdministratorId"));
+  if (feeAutomation.Enabled && (workerOptions.Group != "general" || feeAutomation.FinanceUserId == Guid.Empty || feeAutomation.ApprovingAdministratorId == Guid.Empty))
+    throw new InvalidOperationException("Automatic fee invoice drafts require the general worker and explicit finance/administrator identities.");
+  builder.Services.AddSingleton(feeAutomation);
+  builder.Services.AddSingleton<AutomaticFeeInvoiceHandler>();
+  if (feeAutomation.Enabled)
+    builder.Services.AddSingleton<IPendingOperationDiscovery>(sp => new AutomaticFeeInvoiceDiscovery(
+      sp.GetRequiredService<IAuditSphereDbContextFactory>(), sp.GetRequiredService<IOperationStore>(),
+      sp.GetRequiredService<AutomaticFeeInvoiceHandler>(), workerOptions, feeAutomation));
   // Regulatory file freeze: due 60 days after the signed report on the system clock.
   builder.Services.AddSingleton(TimeProvider.System);
   builder.Services.AddSingleton<AuditSphereOps.Application.Records.FileFreezeHandler>();
@@ -179,7 +225,7 @@ else
 // Simulation adapters compose only in a Test environment with the explicit enablement flag.
 // In Development the PBC transfer operations remain queued pending an approved provider
 // boundary; the durable queue records the truthful pending state instead of executing.
-var simulationAllowed = !liveMail && !livePbc && workerOptions.EnvironmentName == "Test" && workerOptions.AllowSimulationAdapters;
+var simulationAllowed = !liveMail && !livePbc && !liveClientSites && workerOptions.EnvironmentName == "Test" && workerOptions.AllowSimulationAdapters;
 if (simulationAllowed)
 {
   var providerRoot = builder.Configuration["Storage:PbcProviderSimulationRoot"]
@@ -193,19 +239,20 @@ if (simulationAllowed)
     workerOptions));
 }
 
-if (!liveMail && !livePbc)
+if (!liveMail && !livePbc && !liveClientSites)
   builder.Services.AddSingleton<IPendingOperationDiscovery>(sp =>
     sp.GetRequiredService<TrialBalanceDiscovery>());
 builder.Services.AddSingleton(sp => new DurableOperationRegistry(
-  ResolveHandlers(sp, simulationAllowed, liveMail, livePbc), workerOptions));
+  ResolveHandlers(sp, simulationAllowed, liveMail, livePbc, liveClientSites), workerOptions));
 builder.Services.AddSingleton<OperationDispatcher>();
 builder.Services.AddHostedService<Worker>();
 
 var host = builder.Build();
 host.Run();
 
-static IOperationHandler[] ResolveHandlers(IServiceProvider sp, bool simulationAllowed, bool liveMail, bool livePbc)
+static IOperationHandler[] ResolveHandlers(IServiceProvider sp, bool simulationAllowed, bool liveMail, bool livePbc, bool liveClientSites)
 {
+  if (liveClientSites) return [sp.GetRequiredService<ClientSharePointSiteHandler>()];
   if (liveMail) return [sp.GetRequiredService<PbcMailDeliveryHandler>(), sp.GetRequiredService<CommercialMailDeliveryHandler>()];
   if (livePbc) return [sp.GetRequiredService<PbcDocumentTransferHandler>(), sp.GetRequiredService<EngagementWorkspaceProvisioningHandler>()];
   var validation = sp.GetRequiredService<TrialBalanceValidationHandler>();
@@ -214,7 +261,8 @@ static IOperationHandler[] ResolveHandlers(IServiceProvider sp, bool simulationA
   var packageRender = sp.GetRequiredService<FinancialPackageRenderHandler>();
   var checkpoint = sp.GetRequiredService<ReleaseCheckpointHandler>();
   var freeze = sp.GetRequiredService<AuditSphereOps.Application.Records.FileFreezeHandler>();
+  var fees = sp.GetRequiredService<AutomaticFeeInvoiceHandler>();
   return simulationAllowed
-    ? [validation, completeness, packageBuild, packageRender, checkpoint, freeze, sp.GetRequiredService<PbcDocumentTransferHandler>()]
-    : [validation, completeness, packageBuild, packageRender, checkpoint, freeze];
+    ? [validation, completeness, packageBuild, packageRender, checkpoint, freeze, fees, sp.GetRequiredService<PbcDocumentTransferHandler>()]
+    : [validation, completeness, packageBuild, packageRender, checkpoint, freeze, fees];
 }

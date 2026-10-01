@@ -1,0 +1,53 @@
+@using AuditSphereOps.Application.Documents
+@inject CurrentActorResolver ActorResolver
+@inject IDbContextFactory<AuditSphereDbContext> DbFactory
+
+<MudPaper Class="audit-workspace-panel audit-admin-panel pa-4 mt-3" Elevation="0">
+  <h3>Client SharePoint sites</h3>
+  <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined">
+    Assigned staff receive Full Control across the entire client site, including sibling engagements, sharing, permissions and deletion.
+    AuditSphere roles keep their reviewed scope. A separate site custodian retains access.
+    Staff access changes in Microsoft require worker reconciliation; local session revocation does not revoke SharePoint access instantly.
+  </MudAlert>
+  @if (_loading) { <LoadingState IsLoading="true" LoadingMessage="Loading client site status…" /> }
+  else if (_denied) { <MudAlert Severity="Severity.Error">Current firm-wide Administrator access is required.</MudAlert> }
+  else if (_rows.Count == 0) { <MudText Class="mt-2">No clients yet.</MudText> }
+  else
+  {
+    <MudTable Items="_rows" Dense="true" Elevation="0" Class="mt-3">
+      <HeaderContent><MudTh>Client</MudTh><MudTh>Site</MudTh><MudTh>Staff permissions</MudTh><MudTh>Last verification / action</MudTh></HeaderContent>
+      <RowTemplate>
+        <MudTd DataLabel="Client">@context.ClientName</MudTd>
+        <MudTd DataLabel="Site"><StatusChip Status="@context.State" />
+          @if (context.State == "READY" && context.Url != null) { <div><MudLink Href="@context.Url" Target="_blank" rel="noopener noreferrer">Open client site</MudLink></div> }
+        </MudTd>
+        <MudTd DataLabel="Staff permissions"><StatusChip Status="@context.MembershipState" /><div>@context.VerifiedMembers verified members · Full Control</div></MudTd>
+        <MudTd DataLabel="Last verification / action">@(context.VerifiedAt?.ToString("u") ?? "Not verified")<div>@context.RequiredAction</div>
+          @if (context.OperationState != null) { <MudLink Href="/app/operations">Operation: @context.OperationState</MudLink> }
+        </MudTd>
+      </RowTemplate>
+    </MudTable>
+    <MudText Typo="Typo.caption">Showing at most 100 clients. A folder called Final Signed Archive does not provide immutable retention; external archive protection requires independent verification.</MudText>
+  }
+  <MudButton Class="mt-2" Variant="Variant.Outlined" Disabled="@_loading" OnClick="LoadAsync">Refresh site status</MudButton>
+</MudPaper>
+
+@code {
+  private IReadOnlyList<ClientSiteStatusRow> _rows = [];
+  private bool _loading = true, _denied;
+  protected override Task OnInitializedAsync() => LoadAsync();
+  private async Task LoadAsync()
+  {
+    _loading = true; _rows = [];
+    try
+    {
+      var actor = await ActorResolver.ResolveAsync();
+      if (actor == null) { _denied = true; return; }
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var result = await ClientSharePointSiteQuery.GetAsync(db, actor);
+      _denied = !result.Succeeded;
+      if (result.Succeeded) _rows = result.Value!;
+    }
+    finally { _loading = false; }
+  }
+}

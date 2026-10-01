@@ -118,6 +118,8 @@ public sealed class Microsoft365ConnectionRevision
 
 public sealed class FirmWorkspaceConfiguration
 {
+  /// <summary>Persisted rollout boundary: newer clients must never fall back to the shared site.</summary>
+  public DateTimeOffset? ClientSitesRequiredFrom { get; set; }
   public Guid Id { get; set; }
   public Guid FirmId { get; set; }
   public Guid ConnectionRevisionId { get; set; }

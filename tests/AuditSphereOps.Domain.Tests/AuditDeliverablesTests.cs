@@ -25,7 +25,7 @@ namespace AuditSphereOps.Domain.Tests;
 /// holding letter for a critical confirmation, the client comment and representation-letter loop, and PNG signing.
 /// </summary>
 [Trait("Profile", "Database")]
-public sealed class AuditDeliverablesTests
+public sealed partial class AuditDeliverablesTests
 {
   private sealed record World(Guid FirmId, Guid ClientId, Guid EngagementId, Dictionary<string, AppUser> U, Guid ProcedureId, Guid ResultId)
   {
@@ -48,6 +48,7 @@ public sealed class AuditDeliverablesTests
     await db.Engagements.Where(x => x.Id == engagementId).ExecuteUpdateAsync(s => s.SetProperty(x => x.Status, "Active").SetProperty(x => x.ProfessionalWorkBlocked, false)
       .SetProperty(x => x.ServiceRoute, "FinancialStatementAudit").SetProperty(x => x.PeriodEnd, "2026-12-31"));
     db.Users.AddRange(u.Values);
+    db.ClientPortalFirstSignIns.Add(PbcSeed.FirstSignIn(u["client"]));
     RoleGrant G(string name, string role, Guid? client = null, Guid? engagement = null) => new()
     { Id = Guid.NewGuid(), FirmId = firmId, UserId = u[name].Id, Role = role, ClientId = client, EngagementId = engagement, GrantedAt = now, GrantedByUserId = u[name].Id };
     db.RoleGrants.AddRange(G("partner", "Partner"), G("partner2", "Partner"), G("client", "ClientUser", clientId, engagementId));
@@ -74,6 +75,7 @@ public sealed class AuditDeliverablesTests
     db.Findings.Add(new Finding { Id = Guid.NewGuid(), FirmId = firmId, ClientId = clientId, EngagementId = engagementId, ActorId = u["senior"].Id, FindingType = "Control deficiency",
       ImpactDescription = "Credit notes approved without review", MonetaryAmount = 12_000m, ManagementResponse = "Approval workflow introduced from March.", CreatedAt = now });
     await db.SaveChangesAsync();
+    await CompletionTestFixtures.SeedTaxonomyAsync(db, firmId, u["partner"].Id);
     var w = new World(firmId, clientId, engagementId, u, procedure.Id, result.Id);
     foreach (var (name, level) in new[] { ("partner", StaffingLevels.EngagementPartner), ("manager", StaffingLevels.AuditManager), ("senior", StaffingLevels.SeniorAuditor),
       ("associate", StaffingLevels.StaffAssociate), ("associate2", StaffingLevels.StaffAssociate) })
@@ -107,6 +109,9 @@ public sealed class AuditDeliverablesTests
     Assert.True((await ReviewNotesService.ResolveAsync(db, senior, note.Value, "Agreed.")).Succeeded);
     var reviewed = await AuditProgramService.ReviewResultAsync(db, senior, new(w.ResultId, "REVIEWED", null));
     Assert.True(reviewed.Succeeded, reviewed.Message);
+    var automatic = await db.AuditDeliverables.AsNoTracking().SingleAsync(x => x.EngagementId == w.EngagementId && x.Kind == DeliverableKinds.SummaryReviewMemorandum);
+    Assert.Contains("Automatically compiled", DocumentText(automatic.Content));
+    Assert.Empty(await db.PartnerCompletionClearances.Where(x => x.EngagementId == w.EngagementId).ToListAsync());
     var history = (await ReviewNotesService.ListAsync(db, senior, w.ProcedureId)).Single();
     Assert.False(history.Open);
     Assert.Equal(2, history.Events.Count);
@@ -143,7 +148,13 @@ public sealed class AuditDeliverablesTests
       srm = (await AuditDeliverableService.GenerateSummaryReviewMemorandumAsync(db, manager, w.EngagementId, "Clear the confirmation before signing.")).Value;
       Assert.Equal(ErrorCodes.ScopeDenied, (await AuditDeliverableService.PartnerClearAsync(db, w.A("partner2", "Partner"), srm, "Reviewed", "Reviewed")).ErrorCode);
       Assert.True((await AuditDeliverableService.PartnerClearAsync(db, partner, srm, "Revenue and cash reviewed.", "Notes 1–14 reviewed.")).Succeeded);
-      Assert.Equal(ErrorCodes.AuditPlanning.Invalid, (await AuditDeliverableService.DecideOpinionAsync(db, partner, w.EngagementId, "QUALIFIED", null, "basis")).ErrorCode);
+      foreach (var type in new[] { "QUALIFIED", "ADVERSE", "DISCLAIMER" })
+      {
+        Assert.Equal(ErrorCodes.AuditPlanning.Invalid, (await AuditDeliverableService.DecideOpinionAsync(db, partner, w.EngagementId, type, null, "basis")).ErrorCode);
+        Assert.Equal(ErrorCodes.AuditPlanning.Invalid, (await AuditDeliverableService.DecideOpinionAsync(db, partner, w.EngagementId, type, "Inventory", " ")).ErrorCode);
+        Assert.Equal(ErrorCodes.AuditPlanning.Invalid, (await AuditDeliverableService.DecideOpinionAsync(db, partner, w.EngagementId, type, new string('a', 201), "basis")).ErrorCode);
+        Assert.Equal(ErrorCodes.AuditPlanning.Invalid, (await AuditDeliverableService.DecideOpinionAsync(db, partner, w.EngagementId, type, "Inventory", new string('a', 4001))).ErrorCode);
+      }
       Assert.True((await AuditDeliverableService.DecideOpinionAsync(db, partner, w.EngagementId, "QUALIFIED", "Inventory",
         "We were unable to observe the counting of inventory held at 31 December 2026, stated at QAR 2.1 million.")).Succeeded);
       // The critical confirmation holds the report and produces a holding letter.
@@ -163,7 +174,7 @@ public sealed class AuditDeliverablesTests
       Assert.Null(await AuditDeliverableService.CurrentOpinionAsync(db, partner, w.EngagementId));
       Assert.Equal(ErrorCodes.GenerationStale, (await AuditDeliverableService.PartnerClearAsync(db, partner, srm, "x", "y")).ErrorCode);
       var srm2 = (await AuditDeliverableService.GenerateSummaryReviewMemorandumAsync(db, manager, w.EngagementId, "Ready for Partner clearance.")).Value;
-      Assert.Equal(2, (await db.AuditDeliverables.AsNoTracking().SingleAsync(x => x.Id == srm2)).Version);
+      Assert.Equal(stale.Version + 1, (await db.AuditDeliverables.AsNoTracking().SingleAsync(x => x.Id == srm2)).Version);
       Assert.True((await AuditDeliverableService.PartnerClearAsync(db, partner, srm2, "Revenue and cash reviewed.", "Notes 1–14 reviewed.")).Succeeded);
       Assert.True((await AuditDeliverableService.DecideOpinionAsync(db, partner, w.EngagementId, "QUALIFIED", "Inventory",
         "We were unable to observe the counting of inventory held at 31 December 2026, stated at QAR 2.1 million.")).Succeeded);
@@ -207,6 +218,12 @@ public sealed class AuditDeliverablesTests
       Assert.Equal(ErrorCodes.ScopeDenied, (await AuditDeliverableService.AcknowledgeAsync(db, manager, repReview, letterSha)).ErrorCode);
       Assert.True((await AuditDeliverableService.AcknowledgeAsync(db, client, repReview, letterSha)).Succeeded);
 
+      Assert.Equal(ErrorCodes.GateBlocked, (await AuditDeliverableService.SignIndependentReportAsync(db, partner, iar)).ErrorCode); // acknowledgement is not a signed scan
+      var scan = await AuditDeliverableService.UploadSignedRepresentationAsync(db, client, repLetter, letterSha, "Authorized Management", CompletionTestFixtures.SignedPdf());
+      Assert.True(scan.Succeeded, scan.Message);
+      var scanned = await db.SignedRepresentationLetters.AsNoTracking().SingleAsync(x => x.Id == scan.Value);
+      Assert.True((await AuditDeliverableService.VerifySignedRepresentationAsync(db, partner, scan.Value, scanned.ContentSha256, "Verified management signature and all pages against the exact generated version.")).Succeeded);
+      Assert.True((await AuditDeliverableService.RegisterFirmSealAsync(db, partner, Png(100, 100))).Succeeded);
       // Only the deciding Engagement Partner signs, once, embedding the PNG into that exact version.
       Assert.Equal(ErrorCodes.ScopeDenied, (await AuditDeliverableService.SignIndependentReportAsync(db, w.A("partner2", "Partner"), iar)).ErrorCode);
       var signed = await AuditDeliverableService.SignIndependentReportAsync(db, partner, iar);
@@ -214,8 +231,14 @@ public sealed class AuditDeliverablesTests
       Assert.Equal(ErrorCodes.IdempotencyConflict, (await AuditDeliverableService.SignIndependentReportAsync(db, partner, iar)).ErrorCode);
       var signedDoc = await db.AuditDeliverables.AsNoTracking().SingleAsync(x => x.Id == signed.Value);
       Assert.Equal(iar, signedDoc.SignedFromDeliverableId);
-      using (var zip = new ZipArchive(new MemoryStream(signedDoc.Content)))
-        Assert.Contains(zip.Entries, e => e.FullName.EndsWith(".png", StringComparison.Ordinal));
+      Assert.Equal("application/pdf", signedDoc.ContentType);
+      Assert.EndsWith(".pdf", signedDoc.FileName);
+      Assert.StartsWith("%PDF-", Encoding.ASCII.GetString(signedDoc.Content));
+      using (var pdf = PdfSharp.Pdf.IO.PdfReader.Open(new MemoryStream(signedDoc.Content), PdfSharp.Pdf.IO.PdfDocumentOpenMode.Import))
+      {
+        Assert.True(pdf.PageCount > 0);
+        Assert.Contains(pdf.Internals.GetAllObjects(), x => x is PdfSharp.Pdf.PdfDictionary d && d.Elements.GetName("/Subtype") == "/Image");
+      }
       Assert.Equal(Hashing.Sha256Hex(signedDoc.Content), signedDoc.ContentSha256);
       Assert.True(await db.SignatureApplications.AnyAsync(x => x.SourceDeliverableId == iar && x.SignedByUserId == w.U["partner"].Id));
       await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"UPDATE audit_deliverables SET content_sha256 = {new string('f', 64)} WHERE id = {signed.Value}"));
@@ -240,6 +263,12 @@ public sealed class AuditDeliverablesTests
     var letter = (await AuditDeliverableService.GenerateReportAsync(db, manager, w.EngagementId, DeliverableKinds.RepresentationLetter)).Value!.DeliverableId!.Value;
     var review = (await AuditDeliverableService.ShareWithClientAsync(db, manager, letter)).Value;
     Assert.True((await AuditDeliverableService.AcknowledgeAsync(db, w.A("client", "ClientUser"), review, (await db.AuditDeliverables.AsNoTracking().SingleAsync(x => x.Id == letter)).ContentSha256)).Succeeded);
+    var representation = await db.AuditDeliverables.AsNoTracking().SingleAsync(x => x.Id == letter);
+    var scan = await AuditDeliverableService.UploadSignedRepresentationAsync(db, w.A("client", "ClientUser"), letter, representation.ContentSha256, "Authorized Management", CompletionTestFixtures.SignedPdf());
+    Assert.True(scan.Succeeded, scan.Message);
+    var uploaded = await db.SignedRepresentationLetters.AsNoTracking().SingleAsync(x => x.Id == scan.Value);
+    Assert.True((await AuditDeliverableService.VerifySignedRepresentationAsync(db, partner, scan.Value, uploaded.ContentSha256, "Management signature and authority independently reviewed.")).Succeeded);
+    Assert.True((await AuditDeliverableService.RegisterFirmSealAsync(db, partner, Png(100, 100))).Succeeded);
     var iar = (await AuditDeliverableService.GenerateReportAsync(db, manager, w.EngagementId, DeliverableKinds.IndependentAuditorsReport)).Value!.DeliverableId!.Value;
     Assert.True((await AuditDeliverableService.RegisterSignatureAsync(db, partner, Png(120, 40))).Succeeded);
     var signed = await AuditDeliverableService.SignIndependentReportAsync(db, partner, iar);

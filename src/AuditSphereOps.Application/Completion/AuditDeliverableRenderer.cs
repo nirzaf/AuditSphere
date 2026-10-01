@@ -13,7 +13,7 @@ public sealed record DeliverableSignature(byte[] Png, int WidthPixels, int Heigh
 
 public sealed record AuditDeliverableModel(
   string FirmName, string Title, string Reference, DateOnly Date, string AddressedTo,
-  IReadOnlyList<DocumentSection> Sections, string? SignatureLabel = null, DeliverableSignature? Signature = null);
+  IReadOnlyList<DocumentSection> Sections, string? SignatureLabel = null, DeliverableSignature? Signature = null, byte[]? FirmSeal = null);
 
 /// <summary>
 /// Renders audit deliverables as Word documents from a data model; optionally embeds a validated PNG signature image
@@ -57,12 +57,94 @@ public static class AuditDeliverableRenderer
         else
           body.Append(Paragraph("Signature: ______________________________   (unsigned draft)", size: 20, spaceBefore: 200));
       }
+      if (model.FirmSeal is { } seal && ReadPngSize(seal) is { } sealSize)
+      {
+        var image = main.AddImagePart(ImagePartType.Png);
+        using (var png = new MemoryStream(seal)) image.FeedData(png);
+        body.Append(Paragraph("Official firm seal", size: 18));
+        body.Append(new W.Paragraph(new W.Run(Picture(main.GetIdOfPart(image), sealSize.Width, sealSize.Height, 2U))));
+      }
       body.Append(new W.SectionProperties(new W.PageSize { Width = 11906, Height = 16838 },
         new W.PageMargin { Top = 1134, Bottom = 1134, Left = 1134, Right = 1134 }));
       main.Document = new W.Document(body);
       main.Document.Save();
     }
     return stream.ToArray();
+  }
+
+  /// <summary>Final signed report PDF with its approved signature image; never represented as a certificate signature.</summary>
+  public static byte[] RenderPdf(AuditDeliverableModel model)
+  {
+    AuditSphereOps.Application.Accounting.FinancialPackageOfficeRenderer.EnsurePdfFonts();
+    var document = new MigraDoc.DocumentObjectModel.Document();
+    document.Info.Title = model.Title;
+    document.Info.Author = model.FirmName;
+    var normal = document.Styles[MigraDoc.DocumentObjectModel.StyleNames.Normal]!;
+    normal.Font.Name = "AuditSphere Noto Sans";
+    normal.Font.Size = 10;
+    normal.ParagraphFormat.SpaceAfter = 6;
+    var section = document.AddSection();
+    section.PageSetup.PageFormat = MigraDoc.DocumentObjectModel.PageFormat.A4;
+    section.PageSetup.LeftMargin = section.PageSetup.RightMargin = MigraDoc.DocumentObjectModel.Unit.FromCentimeter(2);
+    section.AddParagraph(model.FirmName).Format.Font.Bold = true;
+    section.AddParagraph(model.Title).Format.Font.Size = 16;
+    section.AddParagraph($"Reference: {model.Reference}");
+    section.AddParagraph($"Date: {model.Date:dd MMMM yyyy}");
+    section.AddParagraph($"To: {model.AddressedTo}");
+    foreach (var item in model.Sections)
+    {
+      var heading = section.AddParagraph(item.Heading);
+      heading.Format.Font.Bold = true;
+      heading.Format.SpaceBefore = 10;
+      heading.Format.KeepWithNext = true;
+      foreach (var text in item.Paragraphs) section.AddParagraph(text);
+      if (item.Table is { } data)
+      {
+        var table = section.AddTable();
+        foreach (var _ in data.Header) table.AddColumn(MigraDoc.DocumentObjectModel.Unit.FromCentimeter(17d / data.Header.Count));
+        void Row(IReadOnlyList<string> values, bool header)
+        {
+          var row = table.AddRow(); row.HeadingFormat = header;
+          for (var i = 0; i < values.Count; i++) row.Cells[i].AddParagraph(values[i]).Format.Font.Bold = header;
+        }
+        Row(data.Header, true);
+        foreach (var row in data.Rows) Row(row, false);
+      }
+    }
+    if (model.SignatureLabel != null) section.AddParagraph(model.SignatureLabel).Format.SpaceBefore = 12;
+    if (model.Signature is { } signature)
+    {
+      // Decode before rendering: MigraDoc otherwise substitutes a placeholder for a broken image.
+      using var source = new MemoryStream(signature.Png);
+      using var validatedImage = PdfSharp.Drawing.XImage.FromStream(source);
+      var image = section.AddImage("base64:" + Convert.ToBase64String(signature.Png));
+      image.Width = MigraDoc.DocumentObjectModel.Unit.FromCentimeter(6);
+      image.LockAspectRatio = true;
+      section.AddParagraph($"{signature.SignatoryName}, {signature.SignatoryRole}");
+      section.AddParagraph($"{signature.Date:dd MMMM yyyy}");
+    }
+    if (model.FirmSeal is { } seal)
+    {
+      using var source = new MemoryStream(seal);
+      using var valid = PdfSharp.Drawing.XImage.FromStream(source);
+      section.AddParagraph("Official firm seal");
+      var image = section.AddImage("base64:" + Convert.ToBase64String(seal));
+      image.Width = MigraDoc.DocumentObjectModel.Unit.FromCentimeter(3);
+      image.LockAspectRatio = true;
+    }
+    var footer = section.Footers.Primary.AddParagraph();
+    footer.AddText(model.Reference + " · Page "); footer.AddPageField();
+    var renderer = new MigraDoc.Rendering.PdfDocumentRenderer { Document = document };
+    renderer.RenderDocument();
+    using var output = new MemoryStream();
+    renderer.PdfDocument.Save(output, closeStream: false);
+    return output.ToArray();
+  }
+
+  public static bool IsRenderablePng(byte[] bytes)
+  {
+    try { using var stream = new MemoryStream(bytes); using var image = PdfSharp.Drawing.XImage.FromStream(stream); return image.PixelWidth > 0 && image.PixelHeight > 0; }
+    catch (Exception ex) when (ex is not OutOfMemoryException) { return false; }
   }
 
   /// <summary>Validated PNG header: signature bytes and IHDR dimensions. Returns null when the bytes are not a PNG.</summary>
@@ -75,7 +157,7 @@ public static class AuditDeliverableRenderer
     return (Big(16), Big(20));
   }
 
-  private static W.Drawing Picture(string relationshipId, int widthPixels, int heightPixels)
+  private static W.Drawing Picture(string relationshipId, int widthPixels, int heightPixels, uint imageId = 1U)
   {
     // Scale to at most 6 cm wide; 1 px at 96 dpi = 9525 EMU.
     const long maxWidth = 6L * 360000;
@@ -85,7 +167,7 @@ public static class AuditDeliverableRenderer
     return new W.Drawing(new DW.Inline(
       new DW.Extent { Cx = cx, Cy = cy },
       new DW.EffectExtent { LeftEdge = 0L, TopEdge = 0L, RightEdge = 0L, BottomEdge = 0L },
-      new DW.DocProperties { Id = 1U, Name = "Signature" },
+      new DW.DocProperties { Id = imageId, Name = imageId == 1 ? "Signature" : "Firm seal" },
       new DW.NonVisualGraphicFrameDrawingProperties(new A.GraphicFrameLocks { NoChangeAspect = true }),
       new A.Graphic(new A.GraphicData(new PIC.Picture(
         new PIC.NonVisualPictureProperties(new PIC.NonVisualDrawingProperties { Id = 0U, Name = "signature.png" }, new PIC.NonVisualPictureDrawingProperties()),

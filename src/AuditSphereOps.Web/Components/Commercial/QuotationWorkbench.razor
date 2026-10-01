@@ -162,12 +162,20 @@
     <h3 class="mt-4">Documents</h3>
     @if (_current is { Status: QuotationStates.Approved } && _current.Fee == Proposal.Fee)
     {
-      <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="GenerateAsync" Disabled="@_busy">Generate quotation and engagement letter</MudButton>
+      <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="GenerateAsync" Disabled="@_busy">Generate brief quotation</MudButton>
+      <MudButton Variant="Variant.Outlined" OnClick="GenerateLetterAsync" Disabled="@_busy">Generate engagement letter (Partner)</MudButton>
+      <MudText Typo="Typo.caption">Engagement letters require recorded client approval and current Partner risk clearance.</MudText>
     }
     else
     {
       <p class="muted">Documents are generated from an approved quotation whose fee matches the proposal.</p>
     }
+    <MudText Typo="Typo.h6">Comprehensive five-chapter proposal</MudText>
+    <MudText Typo="Typo.body2">Uses the reviewed chapters in Commercial settings. Enter CVs for the actual assigned team and the delivery timeline. One immutable proposal is retained per approved quotation revision; revising it requires a new quotation revision.</MudText>
+    <MudTextField T="string" Label="Assigned Partner and team CVs" @bind-Value="_teamCvs" Lines="5" MaxLength="16000" />
+    <MudTextField T="string" Label="Deliverables timeline" @bind-Value="_tenderTimeline" Lines="3" MaxLength="8000" />
+    <MudCheckBox T="bool" @bind-Value="_tenderReviewed" Label="I reviewed the firm chapters, assigned team and timeline for this client" />
+    <MudButton Variant="Variant.Outlined" OnClick="GenerateTenderAsync" Disabled="@(_busy || !_tenderReviewed)">Generate comprehensive proposal</MudButton>
     @if (_documents.Count > 0)
     {
       <ul class="audit-document-list">
@@ -195,6 +203,8 @@
   private IReadOnlyList<QuotationRateOption> _options = [];
   private IReadOnlyList<QuotationView>? _views;
   private IReadOnlyList<CommercialDocument> _documents = [];
+  private string _teamCvs = "", _tenderTimeline = "";
+  private bool _tenderReviewed;
   private QuotationVersion? _current;
   private QuotationPricingResult? _preview;
   private string? _previewError;
@@ -312,10 +322,22 @@
     return (result.Succeeded, result.Succeeded ? $"Approval recorded for the {required.Role} rule." : result.Message);
   });
 
+  private Task GenerateTenderAsync() => RunAsync(async (db, actor) =>
+  {
+    var result = await CommercialDocumentService.GenerateTenderAsync(db, actor, Proposal.Id, _teamCvs, _tenderTimeline, _tenderReviewed);
+    return (result.Succeeded, result.Succeeded ? "Comprehensive proposal generated from reviewed content." : result.Message);
+  });
+
+  private Task GenerateLetterAsync() => RunAsync(async (db, actor) =>
+  {
+    var result = await CommercialDocumentService.GenerateEngagementLetterAsync(db, actor, Proposal.Id);
+    return (result.Succeeded, result.Succeeded ? "Engagement letter generated with both approval keys recorded." : result.Message!);
+  });
+
   private Task GenerateAsync() => RunAsync(async (db, actor) =>
   {
-    var result = await CommercialDocumentService.GenerateProposalDocumentsAsync(db, actor, Proposal.Id);
-    return (result.Succeeded, result.Succeeded ? "Quotation and engagement letter generated." : result.Message);
+    var result = await CommercialDocumentService.GenerateBriefQuotationAsync(db, actor, Proposal.Id);
+    return (result.Succeeded, result.Succeeded ? "Brief quotation generated." : result.Message);
   });
 
   private async Task RunAsync(Func<AuditSphereDbContext, ActorContext, Task<(bool Ok, string? Message)>> action)
@@ -345,6 +367,7 @@
   private static string Label(string kind) => kind switch
   {
     CommercialDocumentKinds.Quotation => "Quotation",
+    CommercialDocumentKinds.ComprehensiveProposal => "Comprehensive proposal",
     CommercialDocumentKinds.EngagementLetter => "Engagement letter",
     CommercialDocumentKinds.PaymentReceipt => "Payment receipt",
     _ => kind

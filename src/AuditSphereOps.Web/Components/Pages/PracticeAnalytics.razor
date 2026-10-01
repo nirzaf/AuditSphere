@@ -23,7 +23,7 @@ else
     <h2 id="econ-heading">Engagement economics</h2>
     <div class="table-wrap">
       <table class="statement-table" aria-label="Engagement economics">
-        <thead><tr><th>Engagement</th><th class="num">Budget h</th><th class="num">Actual h</th><th class="num">Standard value</th><th class="num">Cost</th><th class="num">Billed</th><th class="num">Collected</th><th class="num">Realization</th><th class="num">Collection</th><th class="num">Profit</th><th class="num">Margin</th></tr></thead>
+        <thead><tr><th>Engagement</th><th class="num">Budget h</th><th class="num">Actual h</th><th class="num">Standard value</th><th class="num">Cost</th><th class="num">Billed</th><th class="num">Collected</th><th class="num">Realization</th><th class="num">Collection</th><th class="num">Profit</th><th class="num">Margin</th><th class="num">Contract fee</th><th class="num">Lifetime standard value</th><th class="num">Fee less standard value</th></tr></thead>
         <tbody>
           @foreach (var r in _view.Engagements)
           {
@@ -34,6 +34,9 @@ else
               <td class="num">@r.Billed.ToString("N2")</td><td class="num">@r.Collected.ToString("N2")</td>
               <td class="num">@Pct(r.RealizationPercent)</td><td class="num">@Pct(r.CollectionPercent)</td>
               <td class="num">@r.Profit.ToString("N2")</td><td class="num">@Pct(r.MarginPercent)</td>
+              <td class="num">@(r.ContractedFee?.ToString("N2") ?? "Unavailable") @r.ContractCurrency</td>
+              <td class="num">@(r.LifetimeStandardValue?.ToString("N2") ?? "Unavailable") @r.ContractCurrency</td>
+              <td class="num">@(r.ContractedFeeLessStandardValue?.ToString("N2") ?? "Unavailable") @r.ContractCurrency</td>
             </tr>
           }
         </tbody>

@@ -33,6 +33,26 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ---
 
+## STE commercial gates and final deliverable assembly
+
+The current accounting-named requirements document now contains the owner's full STE functional specification. This slice closes local commercial and completion gaps: independent quotation generation; Partner-only engagement letters bound to current commercial acceptance and unconditional service-specific risk approval; approved FSLI selection for modified opinions; exact signature/seal versions; version-bound client-uploaded signed LOR scans and human Partner verification; and a five-part ZIP referencing a real reviewed financial-package release and posted balance invoice.
+
+A gated letter creates the reviewed agreement and 50/50 milestones. The optional general-worker standing policy produces invoice drafts only, with current firm-wide FinanceManager and Administrator identities and session epochs captured in each durable intent. Independent finance review and posting remain required. Newly converted-client portal access requires both keys, activation and paid advance; pre-existing clients without conversion records retain the earlier onboarding contract. PBC and signed-LOR uploads close at final financial-package release, with the release guard shared by client write transactions. The client can download its authorized immutable bundle afterwards.
+
+The PostgreSQL and browser fixtures exercise actual financial review/release and billing commands. Execution results are recorded only under `steDeliverableAssembly` in `status.json`. The [coverage matrix](auditsphere-ste-specification-coverage-current.md) distinguishes local implementation from live SharePoint/Entra acceptance, certificate-backed signatures, legal template approval and external immutable retention. New migrations have not been applied to Development or production. The final tested implementation is prepared for commit; owner documentation replacements/deletions remain separate and unstaged.
+
+---
+
+## Client SharePoint sites and STE reporting alignment
+
+The owner approved Full Control across each entire client site for assigned staff, including engagement-only staff. A separate, disabled-by-default `client-sites` worker creates deterministically named client sites, verifies immutable Microsoft identities and exact site ownership, grants only the separate document app exact-site write, and reconciles the managed staff group. Local RoleGrant scope is unchanged. A persisted rollout boundary preserves older repositories and prevents newer clients from falling back to the shared site. Unknown creation outcomes retain a dispatch fence and require reconciliation.
+
+Administration shows site readiness separately from staff membership health. Reporting validates all modified-opinion explanations, renders the signed independent report as PDF, automatically compiles the SRM after final workprogramme review, and supports reviewed five-chapter comprehensive proposals. Practice analytics separately labels contracted fee less lifetime standard charge-out value, failing closed on missing rates, ambiguous contracts or currency differences.
+
+Run evidence and migration facts are in `status.json` under `clientSitesAndSteReporting`. The permission/deployment contract is [client-site architecture](../architecture/auditsphere-client-sharepoint-sites-current.md). The [specification coverage matrix](auditsphere-ste-specification-coverage-current.md) explicitly retains incomplete local workflows and external acceptance gates; the whole specification is not certified complete. No live site creation, membership change, application consent or production migration was performed. Direct SharePoint Full Control cannot prove immutable archival protection.
+
+---
+
 ## STE specification alignment — package 1: commercial calculation and the fee cycle
 
 A proposal is now priced from approved rate cards, hours, a complexity factor and a risk premium; each change is a

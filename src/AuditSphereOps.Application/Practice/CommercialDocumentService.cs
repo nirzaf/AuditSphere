@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
+using AuditSphereOps.Application.Completion;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Security;
@@ -11,7 +12,7 @@ using Microsoft.EntityFrameworkCore;
 namespace AuditSphereOps.Application.Practice;
 
 public sealed record SaveCommercialProfileRequest(
-  string LegalName, string Address, string ContactEmail, string ContactPhone, string AccentColorHex, string ClosingText);
+  string LegalName, string Address, string ContactEmail, string ContactPhone, string AccentColorHex, string ClosingText, string FirmHistoryAndRegistrations = "", string IndustryCredentials = "", string AuditMethodology = "");
 
 public sealed record GeneratedProposalDocuments(CommercialDocument Quotation, CommercialDocument EngagementLetter);
 
@@ -21,7 +22,7 @@ public sealed record GeneratedProposalDocuments(CommercialDocument Quotation, Co
 /// returns the same documents; a changed quotation produces a new pair. No document is produced from an unapproved
 /// quotation or a proposal fee that disagrees with it.
 /// </summary>
-public static class CommercialDocumentService
+public static partial class CommercialDocumentService
 {
   private static readonly string[] CommercialRoles = ["Administrator", "Partner", "Manager", "RelationshipManager"];
   private static readonly string[] ProfileRoles = ["Administrator", "Partner"];
@@ -40,20 +41,26 @@ public static class CommercialDocumentService
     if ((request.Address ?? string.Empty).Length > 500 || (request.ClosingText ?? string.Empty).Length > 4000 ||
         (request.ContactEmail ?? string.Empty).Length > 200 || (request.ContactPhone ?? string.Empty).Length > 60)
       return CommandResult<Guid>.Fail("commercial.invalid", "A profile field is too long.");
+    if (new[] { request.FirmHistoryAndRegistrations, request.IndustryCredentials, request.AuditMethodology }.Any(x => (x ?? "").Length > 16000))
+      return CommandResult<Guid>.Fail("commercial.invalid", "Tender profile chapters must each be at most 16,000 characters.");
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     if (await LockFirmAsync(db, actor.FirmId, ct) is null)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
     var latest = await db.FirmCommercialProfiles.Where(x => x.FirmId == actor.FirmId).OrderByDescending(x => x.Version).FirstOrDefaultAsync(ct);
     if (latest is not null && latest.LegalName == name && latest.Address == (request.Address ?? string.Empty).Trim() &&
         latest.ContactEmail == (request.ContactEmail ?? string.Empty).Trim() && latest.ContactPhone == (request.ContactPhone ?? string.Empty).Trim() &&
-        string.Equals(latest.AccentColorHex, color, StringComparison.OrdinalIgnoreCase) && latest.ClosingText == (request.ClosingText ?? string.Empty).Trim())
+        string.Equals(latest.AccentColorHex, color, StringComparison.OrdinalIgnoreCase) && latest.ClosingText == (request.ClosingText ?? string.Empty).Trim() &&
+        latest.FirmHistoryAndRegistrations == (request.FirmHistoryAndRegistrations ?? "").Trim() &&
+        latest.IndustryCredentials == (request.IndustryCredentials ?? "").Trim() && latest.AuditMethodology == (request.AuditMethodology ?? "").Trim())
       return CommandResult<Guid>.Ok(latest.Id);
     var profile = new FirmCommercialProfile
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, Version = (latest?.Version ?? 0) + 1, LegalName = name,
       Address = (request.Address ?? string.Empty).Trim(), ContactEmail = (request.ContactEmail ?? string.Empty).Trim(),
       ContactPhone = (request.ContactPhone ?? string.Empty).Trim(), AccentColorHex = color.ToUpperInvariant(),
-      ClosingText = (request.ClosingText ?? string.Empty).Trim(), CreatedByUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
+      ClosingText = (request.ClosingText ?? string.Empty).Trim(),
+      FirmHistoryAndRegistrations = (request.FirmHistoryAndRegistrations ?? "").Trim(), IndustryCredentials = (request.IndustryCredentials ?? "").Trim(),
+      AuditMethodology = (request.AuditMethodology ?? "").Trim(), CreatedByUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
     };
     db.FirmCommercialProfiles.Add(profile);
     await db.SaveChangesAsync(ct);
@@ -70,42 +77,91 @@ public static class CommercialDocumentService
       .Where(x => x.FirmId == actor.FirmId).OrderByDescending(x => x.Version).FirstOrDefaultAsync(ct));
   }
 
+  /// <summary>Brief quotation is available before client/risk acceptance; never generates an engagement letter.</summary>
+  public static Task<CommandResult<CommercialDocument>> GenerateBriefQuotationAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid proposalId, CancellationToken ct = default) => GenerateDocumentAsync(db, actor, proposalId, false, ct);
+
+  /// <summary>Only a current Partner may generate a letter after both persisted approval keys pass.</summary>
+  public static Task<CommandResult<CommercialDocument>> GenerateEngagementLetterAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid proposalId, CancellationToken ct = default) => GenerateDocumentAsync(db, actor, proposalId, true, ct);
+
   public static async Task<CommandResult<GeneratedProposalDocuments>> GenerateProposalDocumentsAsync(
     IAuditSphereDbContext db, ActorContext actor, Guid proposalId, CancellationToken ct = default)
   {
+    var letter = await GenerateEngagementLetterAsync(db, actor, proposalId, ct);
+    if (!letter.Succeeded) return CommandResult<GeneratedProposalDocuments>.Fail(letter.ErrorCode!, letter.Message!);
+    var quotation = await GenerateBriefQuotationAsync(db, actor, proposalId, ct);
+    return quotation.Succeeded ? CommandResult<GeneratedProposalDocuments>.Ok(new(quotation.Value!, letter.Value!))
+      : CommandResult<GeneratedProposalDocuments>.Fail(quotation.ErrorCode!, quotation.Message!);
+  }
+
+  private static async Task<CommandResult<CommercialDocument>> GenerateDocumentAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid proposalId, bool engagementLetter, CancellationToken ct = default)
+  {
     var auth = await AuthorizeAsync(db, actor, CommercialRoles, ct);
-    if (!auth.Succeeded) return CommandResult<GeneratedProposalDocuments>.Fail(auth.ErrorCode!, auth.Message!);
+    if (!auth.Succeeded) return CommandResult<CommercialDocument>.Fail(auth.ErrorCode!, auth.Message!);
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     if (await LockFirmAsync(db, actor.FirmId, ct) is null)
-      return CommandResult<GeneratedProposalDocuments>.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
+      return CommandResult<CommercialDocument>.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
 
     var proposal = await db.Proposals.AsNoTracking().SingleOrDefaultAsync(x => x.Id == proposalId && x.FirmId == actor.FirmId, ct);
-    if (proposal is null) return CommandResult<GeneratedProposalDocuments>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    if (proposal is null) return CommandResult<CommercialDocument>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var quotation = await db.QuotationVersions.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ProposalId == proposalId)
       .OrderByDescending(x => x.Revision).FirstOrDefaultAsync(ct);
     if (quotation is null || quotation.Status != QuotationStates.Approved || quotation.Fee != proposal.Fee)
-      return CommandResult<GeneratedProposalDocuments>.Fail(ErrorCodes.GateBlocked,
+      return CommandResult<CommercialDocument>.Fail(ErrorCodes.GateBlocked,
         "Documents are generated only from an approved quotation whose fee matches the proposal.");
     var profile = await db.FirmCommercialProfiles.AsNoTracking().Where(x => x.FirmId == actor.FirmId)
       .OrderByDescending(x => x.Version).FirstOrDefaultAsync(ct);
     if (profile is null)
-      return CommandResult<GeneratedProposalDocuments>.Fail(ErrorCodes.GateBlocked, "Configure the firm commercial profile (name, address, branding) before generating documents.");
+      return CommandResult<CommercialDocument>.Fail(ErrorCodes.GateBlocked, "Configure the firm commercial profile (name, address, branding) before generating documents.");
+
+    var opportunity = await db.Opportunities.AsNoTracking().SingleAsync(x => x.Id == proposal.OpportunityId && x.FirmId == actor.FirmId, ct);
+    AuditSphereOps.Domain.Acceptance.AcceptanceDecision? riskDecision = null;
+    if (engagementLetter)
+    {
+      var partnerAuth = await AuthorizeAsync(db, actor, ["Partner"], ct);
+      if (!partnerAuth.Succeeded) return CommandResult<CommercialDocument>.Fail(partnerAuth.ErrorCode!, partnerAuth.Message!);
+      if (proposal.Status != CrmStates.ProposalAccepted || proposal.ResponseAt is null || proposal.PracticeClientId is not { } clientId)
+        return CommandResult<CommercialDocument>.Fail(ErrorCodes.GateBlocked, "Record client acceptance of the current quotation and open client acceptance before generating the engagement letter.");
+      var guard = await db.ClientSafetyStates.FromSqlInterpolated(
+        $"SELECT * FROM client_safety_states WHERE id = {clientId} AND firm_id = {actor.FirmId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
+      riskDecision = await db.AcceptanceDecisions.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.PracticeClientId == clientId &&
+          x.EngagementId == null && x.ServiceRoute == opportunity.ServiceRoute && x.Decision != "Pending")
+        .OrderByDescending(x => x.Generation).ThenByDescending(x => x.DecidedAt).FirstOrDefaultAsync(ct);
+      if (guard is null || riskDecision is null || riskDecision.Decision != "Accepted" || riskDecision.DecidedByUserId is null || riskDecision.DecidedAt is null)
+        return CommandResult<CommercialDocument>.Fail(ErrorCodes.GateBlocked, "A current unconditional Partner acceptance decision for this client and service is required.");
+      if (riskDecision.Generation != guard.InputGeneration)
+        return CommandResult<CommercialDocument>.Fail(ErrorCodes.GenerationStale, "The Partner risk clearance is stale; complete the current acceptance checklist first.");
+    }
 
     var existing = await db.CommercialDocuments.AsNoTracking()
       .Where(x => x.FirmId == actor.FirmId && x.QuotationVersionId == quotation.Id &&
         (x.Kind == CommercialDocumentKinds.Quotation || x.Kind == CommercialDocumentKinds.EngagementLetter)).ToListAsync(ct);
     var existingQuote = existing.SingleOrDefault(x => x.Kind == CommercialDocumentKinds.Quotation);
     var existingLetter = existing.SingleOrDefault(x => x.Kind == CommercialDocumentKinds.EngagementLetter);
-    if (existingQuote is not null && existingLetter is not null)
-      return CommandResult<GeneratedProposalDocuments>.Ok(new(existingQuote, existingLetter));
+    var previous = engagementLetter ? existingLetter : existingQuote;
+    if (previous is not null)
+    {
+      if (engagementLetter && previous.AcceptanceDecisionId != riskDecision?.Id)
+        return CommandResult<CommercialDocument>.Fail(ErrorCodes.GenerationStale, "The historical letter belongs to an earlier risk clearance; use a newly approved commercial revision for reissue.");
+      return CommandResult<CommercialDocument>.Ok(previous);
+    }
 
-    var opportunity = await db.Opportunities.AsNoTracking().SingleAsync(x => x.Id == proposal.OpportunityId && x.FirmId == actor.FirmId, ct);
     var lead = await db.Leads.AsNoTracking().SingleAsync(x => x.Id == opportunity.LeadId && x.FirmId == actor.FirmId, ct);
     var clientName = proposal.PracticeClientId.HasValue
       ? await db.PracticeClients.AsNoTracking().Where(x => x.Id == proposal.PracticeClientId && x.FirmId == actor.FirmId).Select(x => x.LegalName).SingleAsync(ct)
       : lead.Name;
     var addressee = string.IsNullOrWhiteSpace(lead.PrimaryContactName) ? clientName : $"{clientName} (attention {lead.PrimaryContactName})";
     var lines = JsonSerializer.Deserialize<List<QuotationLineResult>>(quotation.LinesJson, Json) ?? [];
+    SignatureSpecimen? signature = null;
+    FirmSealSpecimen? seal = null;
+    if (engagementLetter)
+    {
+      signature = await db.SignatureSpecimens.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.UserId == actor.UserId && x.RevokedAt == null, ct);
+      seal = await db.FirmSealSpecimens.AsNoTracking().Where(x => x.FirmId == actor.FirmId).OrderByDescending(x => x.Version).FirstOrDefaultAsync(ct);
+      if (signature is null || seal is null) return CommandResult<CommercialDocument>.Fail(ErrorCodes.GateBlocked, "Register your approved Partner signature and the official firm seal before generating the engagement letter.");
+    }
     var now = DateTimeOffset.UtcNow;
     var shortId = proposal.Id.ToString("N")[..8].ToUpperInvariant();
     var reference = $"{shortId}-R{quotation.Revision}";
@@ -117,7 +173,7 @@ public static class CommercialDocumentService
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ProposalId = proposal.Id, QuotationVersionId = quotation.Id, Kind = kind,
       TemplateVersion = template, ProfileVersion = profile.Version, FileName = $"{prefix}-{reference}.docx",
       ContentType = CommercialDocumentRenderer.DocxContentType, Bytes = bytes, Sha256Hex = Hashing.Sha256Hex(bytes),
-      CreatedByUserId = actor.UserId, CreatedAt = now
+      CreatedByUserId = actor.UserId, CreatedAt = now, AcceptanceDecisionId = riskDecision?.Id, CommercialAcceptedAt = engagementLetter ? proposal.ResponseAt : null, SignatureSpecimenId = signature?.Id, FirmSealSpecimenId = seal?.Id
     };
 
     var engagement = new DocumentSection("Engagement", [
@@ -147,22 +203,33 @@ public static class CommercialDocumentService
     var quoteSections = new List<DocumentSection?> { engagement, scope, deliverables, exclusions, dependencies,
       new("Fee", [], feeTable), terms, payment };
     var letterSections = new List<DocumentSection?> {
-      new("Introduction", [$"We are pleased to confirm the terms on which {profile.LegalName} will act for {clientName}."]),
+      new(opportunity.ServiceRoute == "FinancialStatementAudit" ? "Statutory audit engagement — ISA 210" : "Internal audit / agreed-upon procedures — agreed service terms", [$"We are pleased to confirm the terms on which {profile.LegalName} will act for {clientName}."]),
       engagement, scope, deliverables, exclusions, dependencies,
+      new("Firm contact", [profile.Address, profile.ContactEmail, profile.ContactPhone]),
+      new("Reviewed engagement terms", [profile.ClosingText]),
       new("Fee", [$"Total agreed fee: {Money(quotation.Fee, quotation.Currency)}."], null), terms, payment };
 
     var quote = Store(CommercialDocumentKinds.Quotation, CommercialDocumentRenderer.QuotationTemplate, "Quotation",
       CommercialDocumentRenderer.RenderDocx(new(profile, "Quotation", reference, DateOnly.FromDateTime(now.UtcDateTime), addressee,
         quoteSections.Where(x => x is not null).Select(x => x!).ToList(), false)));
-    var letter = Store(CommercialDocumentKinds.EngagementLetter, CommercialDocumentRenderer.EngagementLetterTemplate, "EngagementLetter",
-      CommercialDocumentRenderer.RenderDocx(new(profile, "Engagement letter", reference, DateOnly.FromDateTime(now.UtcDateTime), addressee,
-        letterSections.Where(x => x is not null).Select(x => x!).ToList(), true)));
-    db.CommercialDocuments.Add(quote);
-    db.CommercialDocuments.Add(letter);
+    var letterBytes = engagementLetter
+      ? AuditDeliverableRenderer.RenderDocx(new(profile.LegalName, "Engagement letter", reference, DateOnly.FromDateTime(now.UtcDateTime), addressee,
+        letterSections.Where(x => x is not null).Select(x => x!).Append(new DocumentSection("Acceptance", ["For the client: ________________________   Date: __________"])).ToList(),
+        "Engagement Partner", new(signature!.PngContent, signature.WidthPixels, signature.HeightPixels,
+          (await db.Users.AsNoTracking().SingleAsync(x => x.Id == actor.UserId && x.FirmId == actor.FirmId, ct)).DisplayName, "Engagement Partner", DateOnly.FromDateTime(now.UtcDateTime)), seal!.PngContent))
+      : [];
+    var letter = Store(CommercialDocumentKinds.EngagementLetter, CommercialDocumentRenderer.EngagementLetterTemplate, "EngagementLetter", letterBytes);
+    var selected = engagementLetter ? letter : quote;
+    if (engagementLetter)
+    {
+      var agreement = await FeeAgreementService.EnsureReviewedAgreementWithinTransactionAsync(db, actor, proposal.Id, ct);
+      if (!agreement.Succeeded) return CommandResult<CommercialDocument>.Fail(agreement.ErrorCode!, agreement.Message!);
+    }
+    db.CommercialDocuments.Add(selected);
     try { await db.SaveChangesAsync(ct); }
-    catch (DbUpdateException) { return CommandResult<GeneratedProposalDocuments>.Fail("commercial.conflict", "The documents were generated concurrently; reload."); }
+    catch (DbUpdateException) { return CommandResult<CommercialDocument>.Fail("commercial.conflict", "The documents were generated concurrently; reload."); }
     await tx.CommitAsync(ct);
-    return CommandResult<GeneratedProposalDocuments>.Ok(new(quote, letter));
+    return CommandResult<CommercialDocument>.Ok(selected);
   }
 
   public static async Task<CommandResult<IReadOnlyList<CommercialDocument>>> ListAsync(

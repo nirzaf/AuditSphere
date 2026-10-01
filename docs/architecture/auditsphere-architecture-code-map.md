@@ -663,3 +663,29 @@ For the complete documentation index, authority hierarchy, current requirements,
 
 
 👉 [`docs/auditsphere-docs-index.md`](../auditsphere-docs-index.md)
+
+## Dedicated client SharePoint sites
+
+- Application: `Documents/ClientSharePointSites.cs` owns standing administrator authorization, rollout cutoff, durable operation lifecycle, immutable identity decisions and separate site/member projections.
+- Domain: `Microsoft365/ClientSharePointSite.cs`; EF mapping: `AuditSphereDbContext.ClientSharePointSites.cs`.
+- Infrastructure: `Providers/SharePointClientSiteProvider.cs`; isolated Acceptance `client-sites` worker. The `pbc` worker stays Sites.Selected.
+- Web: `Administration/ClientSharePointSitesPanel.razor`, with explicit site-wide Full Control warning in `Planning/EngagementStaffingPanel.razor`.
+- Tests: `ClientSharePointSitesTests`, `SharePointClientSiteProviderTests`, `ClientSharePointSitesJourneyTests`.
+- Permission and configuration authority: [client-site decision](auditsphere-client-sharepoint-sites-current.md).
+- Requirement coverage and unclosed gaps: [STE coverage](../execution/auditsphere-ste-specification-coverage-current.md).
+
+### STE reporting and commercial extensions
+
+- `Practice/CommercialDocumentService.Tender.cs` assembles reviewed five-chapter proposals; `CommercialSettings.razor` versions firm chapters and `QuotationWorkbench.razor` captures the assigned team CVs, timeline and explicit review.
+- `Audit/AuditProgramService.cs` serializes the final review transition; `Completion/AuditDeliverableService.cs` automatically compiles the SRM and preserves separate Partner clearance/opinion/signing decisions.
+- `Completion/AuditDeliverableRenderer.cs` renders the signed report PDF with a validated registered PNG specimen. The renderer also embeds the exact versioned approved firm-seal image; neither PNG image asserts certificate-backed signing.
+- `Practice/ContractContributionCalculator.cs` is the pure contracted-fee-minus-standard-time-value calculator; `FirmOperationsServices.cs` and `PracticeAnalytics.razor` expose it separately from actual staff-cost metrics.
+- Verification sources: `CommercialWorkflowTests`, `AuditDeliverablesTests`, `ContractContributionCalculatorTests` and their commercial/completion journeys. Remaining specification gaps are recorded in the execution coverage matrix.
+
+### STE signed representations, five-part bundles and standing invoice drafts
+
+- Domain: `Completion/DeliverableAssembly.cs`; nullable immutable commercial proof references in `Practice/Commercial.cs` and the approved FSLI identity in `Completion/AuditDeliverables.cs`.
+- Application: `Completion/AuditDeliverableService.{Representations,Bundle,Seal,OpinionAreas}.cs`; `Practice/CommercialDocumentService.cs` owns dual-key letters; `Practice/AutomaticFeeInvoices.cs` owns standing-policy discovery and LOCAL draft operations; `Documents/ClientPortalService.cs` owns commercial portal readiness and release upload fences.
+- EF: `AuditSphereDbContext.AuditDeliverables.cs`, `.Commercial.cs`; `SteDeliverableAssembly` adds scoped proof foreign keys, append-only triggers, exact manifest text and the engagement-letter insertion guard.
+- Web: `CompletionDeliverablesPanel.razor`, `ClientPortal.razor`, `QuotationWorkbench.razor`; scope-checked scan and ZIP endpoints in `Web/Program.cs`. Worker policy defaults are in `Worker/appsettings.json`.
+- Tests: `AuditDeliverablesTests.Assembly.cs`, `CompletionBundleFixture.cs`, `CommercialWorkflowTests` and `CompletionDeliverablesJourneyTests`.
