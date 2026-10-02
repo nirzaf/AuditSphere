@@ -143,6 +143,7 @@ export class EngagementDetail {
     { path: 'completion', label: 'Completion' },
     { path: 'statements', label: 'Statements' },
     { path: 'tb-intake', label: 'Trial balance intake' },
+    { path: 'general-ledger', label: 'General ledger' },
     { path: 'pbc', label: 'PBC requests' },
   ];
   activationReviewed = false;

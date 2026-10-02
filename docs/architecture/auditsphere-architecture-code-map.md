@@ -768,3 +768,10 @@ For the complete documentation index, authority hierarchy, current requirements,
 - API: `UiEndpoints.AccountingRecords.cs` maps scoped source-acceptance reads and antiforgery-protected writes; `UiEndpoints.Infrastructure.cs` declares the native deep link.
 - Angular: `features/accounting/source-acceptance.ts` owns native Signal Forms, explicit evidence-reference tab recovery, navigation protection and unknown-outcome fencing; `features/engagements/tb-source.ts` links from the inspected source.
 - Tests: `SourceAcceptanceApiTests.cs`, `AngularSourceAcceptanceJourneyTests.cs`, `source-acceptance.spec.ts` and the existing source acceptance/source-binding suites.
+
+## Native general-ledger source inspection
+
+- Application: `Accounting/Intake/GeneralLedgerWorkspace.cs` owns scoped source catalogue/context and selected-source composition; `GeneralLedgerQuery.cs` owns bounded server filters, deterministic pages, complete bounded journals and final authority/source fences.
+- API: `Ui/UiEndpoints.GeneralLedger.cs` composes the workspace through trusted-session reads.
+- Angular: `features/engagements/general-ledger.ts` and `general-ledger-contracts.ts` own native filter forms, exact values, context decoding, stale-result removal and responsive tables; engagement detail links the native workflow.
+- Verification: `GeneralLedgerApiTests`, `AngularGeneralLedgerJourneyTests`, `general-ledger.spec.ts` and existing GL/source acceptance suites. `GeneralLedgerWorkspaceSeed` supplies synthetic read-side records, not worker or professional acceptance.

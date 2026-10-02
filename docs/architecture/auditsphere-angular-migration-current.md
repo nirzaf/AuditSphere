@@ -260,3 +260,20 @@ Pending/stale checkpoints fence writes on reload; recovery never restores assent
 read plus acknowledgment is required after an unknown outcome, and no command is automatically
 retried. Protected data is cleared on identity changes or failed reads. GL upload/completeness,
 reviewed mapping editing and full story/retirement acceptance remain pending.
+
+### Native general-ledger inspection
+
+The exact engagement route exposes a bounded sealed-GL source catalogue, server-applied
+account/posting-date/journal/counterparty filters and deterministic line pages. The
+Application workspace composes existing GL queries and independent selected-source reads;
+API handlers resolve the trusted actor and recheck the session before response. Journal
+reads return every line only within the interactive limit, refusing oversized sources
+without a partial verdict. No permission, identity, financial model or durable-operation
+boundary changes.
+
+Angular retains exact decimal strings and uses native Signal Forms for filters. Context
+changes cancel reads and clear source/journal selections; failed refreshes remove prior
+results. Edited filters hide the obsolete population until applied. Sealing, arithmetic
+balance, independent source acceptance and completeness are separate facts. Native GL
+upload/completeness commands and GL acceptance remain pending; this read-only slice
+creates no evidence or professional conclusion.

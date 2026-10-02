@@ -36,7 +36,9 @@ public sealed record GeneralLedgerJournalDetail(
 
 public static class GeneralLedgerQuery
 {
-  private static readonly string[] ReadRoles = ["AccountingPreparer", "AccountingReviewer", "Manager", "Partner", "Administrator"];
+  internal static readonly string[] ReadRoles = ["AccountingPreparer", "AccountingReviewer", "Manager", "Partner", "Administrator"];
+
+  public const int MaxJournalLines = 1000;
 
   /// <summary>Paged GL lines for one sealed batch with typed, server-applied filters
   /// and exact debit/credit totals for the filtered population.</summary>
@@ -45,7 +47,8 @@ public static class GeneralLedgerQuery
     GeneralLedgerLineFilter? filter = null, int page = 1, int pageSize = 100,
     CancellationToken ct = default)
   {
-    if (importBatchId == Guid.Empty || page < 1 || pageSize is < 1 or > 500)
+    if (importBatchId == Guid.Empty || page < 1 || pageSize is < 1 or > 500 ||
+        (long)(page - 1) * pageSize > int.MaxValue || !ValidFilter(filter))
       return CommandResult<GeneralLedgerLinesPage>.Fail(ErrorCodes.Accounting.ImportRejected,
         "The ledger page request is invalid.");
     var batch = await db.SourceImportBatches.AsNoTracking()
@@ -56,7 +59,7 @@ public static class GeneralLedgerQuery
       new AuthorizationRequest(batch.FirmId, batch.ClientId, batch.EngagementId, ReadRoles, InternalOnly: true), ct);
     if (!auth.Succeeded)
       return CommandResult<GeneralLedgerLinesPage>.Fail(auth.ErrorCode!, auth.Message!);
-    if (batch.Status != "SEALED")
+    if (batch.Status != "SEALED" || batch.SourceKind != AccountingSourceKinds.GeneralLedger)
       return CommandResult<GeneralLedgerLinesPage>.Fail(ErrorCodes.GateBlocked, "Only a sealed GL batch can be read.");
 
     var joined = db.GeneralLedgerLines.AsNoTracking()
@@ -98,19 +101,21 @@ public static class GeneralLedgerQuery
         x.line.Branch, x.line.CostCentre, x.line.Department, x.line.Project))
       .ToListAsync(ct);
 
+    var final = await CheckCurrentAsync(db, actor, batch, ct);
+    if (!final.Succeeded) return CommandResult<GeneralLedgerLinesPage>.Fail(final.ErrorCode!, final.Message!);
     return CommandResult<GeneralLedgerLinesPage>.Ok(new GeneralLedgerLinesPage(
       items, totalCount, page, pageSize,
       MoneyPolicy.Normalize(totalDebit), MoneyPolicy.Normalize(totalCredit),
       MoneyPolicy.Normalize(totalDebit) == MoneyPolicy.Normalize(totalCredit)));
   }
 
-  /// <summary>Every line of one journal group inside a sealed batch with debit/credit
+  /// <summary>All lines of a bounded journal group inside a sealed batch with debit/credit
   /// totals; an unbalanced journal is reported honestly instead of silently hidden.</summary>
   public static async Task<CommandResult<GeneralLedgerJournalDetail>> GetJournalDrillDownAsync(
     IClientAccountingDbContext db, ActorContext actor, Guid importBatchId, string stableJournalId,
     CancellationToken ct = default)
   {
-    if (importBatchId == Guid.Empty || string.IsNullOrWhiteSpace(stableJournalId))
+    if (importBatchId == Guid.Empty || string.IsNullOrWhiteSpace(stableJournalId) || stableJournalId.Length > 200)
       return CommandResult<GeneralLedgerJournalDetail>.Fail(ErrorCodes.Accounting.ImportRejected,
         "A sealed batch and stable journal id are required.");
     var batch = await db.SourceImportBatches.AsNoTracking()
@@ -121,7 +126,7 @@ public static class GeneralLedgerQuery
       new AuthorizationRequest(batch.FirmId, batch.ClientId, batch.EngagementId, ReadRoles, InternalOnly: true), ct);
     if (!auth.Succeeded)
       return CommandResult<GeneralLedgerJournalDetail>.Fail(auth.ErrorCode!, auth.Message!);
-    if (batch.Status != "SEALED")
+    if (batch.Status != "SEALED" || batch.SourceKind != AccountingSourceKinds.GeneralLedger)
       return CommandResult<GeneralLedgerJournalDetail>.Fail(ErrorCodes.GateBlocked, "Only a sealed GL batch can be read.");
 
     var journal = await db.GeneralLedgerTransactions.AsNoTracking()
@@ -130,7 +135,7 @@ public static class GeneralLedgerQuery
         x.StableJournalId == stableJournalId.Trim(), ct);
     if (journal is null)
       return CommandResult<GeneralLedgerJournalDetail>.Fail(ErrorCodes.ScopeDenied,
-        "The requested journal is not part of this sealed batch.");
+        "Access denied.");
 
     var lines = await db.GeneralLedgerLines.AsNoTracking()
       .Where(x => x.FirmId == journal.FirmId && x.ClientId == journal.ClientId &&
@@ -140,13 +145,39 @@ public static class GeneralLedgerQuery
       .Select(x => new GeneralLedgerJournalLineRow(
         x.Id, x.StableLineId, x.AccountCode, x.Debit, x.Credit, x.FunctionalAmount,
         x.OriginalCurrency, x.OriginalAmount, x.IntercompanyCounterparty))
-      .ToListAsync(ct);
+      .Take(MaxJournalLines + 1).ToListAsync(ct);
+    if (lines.Count > MaxJournalLines)
+      return CommandResult<GeneralLedgerJournalDetail>.Fail(ErrorCodes.GateBlocked,
+        "This journal exceeds the interactive line limit. Use a supported large-source review workflow.");
     var totalDebit = MoneyPolicy.Normalize(lines.Sum(x => x.Debit));
     var totalCredit = MoneyPolicy.Normalize(lines.Sum(x => x.Credit));
 
+    var final = await CheckCurrentAsync(db, actor, batch, ct);
+    if (!final.Succeeded) return CommandResult<GeneralLedgerJournalDetail>.Fail(final.ErrorCode!, final.Message!);
     return CommandResult<GeneralLedgerJournalDetail>.Ok(new GeneralLedgerJournalDetail(
       journal.StableJournalId, journal.PostingDate, journal.DocumentNumber, journal.Currency,
       journal.IsManual, journal.IsYearEnd, journal.ReversalReference, lines,
       lines.Count, totalDebit, totalCredit, totalDebit == totalCredit));
+  }
+  internal static bool ValidFilter(GeneralLedgerLineFilter? filter) => filter is null ||
+    ((filter.AccountCodePrefix?.Length ?? 0) <= 100 && (filter.StableJournalId?.Length ?? 0) <= 200 &&
+     (filter.Counterparty?.Length ?? 0) <= 200 &&
+     (!filter.PostedFrom.HasValue || !filter.PostedTo.HasValue || filter.PostedFrom <= filter.PostedTo));
+
+  internal static async Task<CommandResult> CheckCurrentAsync(IClientAccountingDbContext db,
+    ActorContext actor, SourceImportBatch observed, CancellationToken ct)
+  {
+    var current = await db.SourceImportBatches.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.Id == observed.Id && x.FirmId == actor.FirmId, ct);
+    if (current is null || current.ClientId != observed.ClientId || current.EngagementId != observed.EngagementId ||
+        current.PeriodId != observed.PeriodId || current.BookId != observed.BookId || current.Status != observed.Status ||
+        current.SourceKind != observed.SourceKind || current.RawFileSha256Hex != observed.RawFileSha256Hex ||
+        current.NormalizedDatasetDigest != observed.NormalizedDatasetDigest || current.Currency != observed.Currency ||
+        current.LegalEntityKey != observed.LegalEntityKey || current.RowCount != observed.RowCount ||
+        current.ProfileVersion != observed.ProfileVersion || current.ParserVersion != observed.ParserVersion ||
+        current.CreatedByUserId != observed.CreatedByUserId || current.CreatedAt != observed.CreatedAt)
+      return CommandResult.Fail(ErrorCodes.StaleRevision, "The ledger source changed. Refresh before reading it again.");
+    return await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(observed.FirmId, observed.ClientId, observed.EngagementId, ReadRoles, InternalOnly: true), ct);
   }
 }

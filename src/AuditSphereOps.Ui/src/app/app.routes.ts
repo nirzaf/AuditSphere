@@ -92,6 +92,8 @@ export const routes: Routes = [
     loadComponent: () => import('./features/audit/plan').then(m => m.AuditPlan) },
   { path: 'app/practice/time', canActivate: [staffGuard], title: 'Time & work records · AuditSphere',
     loadComponent: () => import('./features/practice/time').then(m => m.PracticeTime) },
+  { path: 'app/engagements/:id/general-ledger', canActivate: [staffGuard], title: 'General ledger · AuditSphere',
+    loadComponent: () => import('./features/engagements/general-ledger').then(m => m.GeneralLedger) },
   { path: 'app/engagements/:id/tb-intake', canActivate: [staffGuard], canDeactivate: [unsavedChangesGuard], title: 'Trial balance intake · AuditSphere',
     loadComponent: () => import('./features/engagements/tb-intake').then(m => m.TrialBalanceIntake) },
   { path: 'app/practice/resources', canActivate: [staffGuard], title: 'Resource planning · AuditSphere',

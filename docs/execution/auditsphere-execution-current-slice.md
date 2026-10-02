@@ -32,6 +32,23 @@ which the full suite was run; per-slice records carry their own evidence.
 
 
 
+## Native general-ledger source inspection
+
+The Angular engagement workflow now opens a server-paged catalogue of sealed GL sources,
+scoped to the current client and exact engagement. Application queries own source context,
+account/date/journal/counterparty filters, exact decimal totals and bounded complete journal
+reads. They refuse non-GL/loading sources, invalid ranges and overflowing page requests,
+and recheck current authority and immutable source metadata before returning.
+
+The native page clears old rows on refresh, hides results after filter edits and rejects
+responses for another source, reporting context or selected pointer. Journal detail shows
+all lines of a bounded journal, with explicit refusal for oversized journals instead of a
+truncated balance verdict. Current independent source selection is displayed separately
+from sealing and arithmetic balance. Inspection publishes no acceptance or completeness
+record. GL import/completeness commands, GL acceptance UI, mapping editing and wider
+migration/retirement acceptance remain open. Verification and publication facts are in
+`status.json`; the browser fixture is synthetic and establishes no live provider acceptance.
+
 ## Native independent trial-balance source acceptance
 
 The standalone API and Angular route now compose a reviewed source-acceptance workspace.

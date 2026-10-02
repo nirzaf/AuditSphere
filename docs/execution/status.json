@@ -2429,12 +2429,115 @@
           "aspNetArtifactSha256": "31cdb9ca8560fb2caa8f2f64325273aa8834d86e06d7e03e4ac42505455da81a",
           "applicationArtifactSha256": "ffd609520f674bfdf898cc7cf654c58b6267e696014077fe8efd9e72a8c0014e"
         },
-        "scope": "All three test projects running from the exact published implementation; no terminal test result yet."
+        "scope": "All three test projects running from the exact published implementation; no terminal test result yet.",
+        "partialResults": {
+          "api": {
+            "passed": 83,
+            "failed": 0,
+            "skipped": 0
+          },
+          "domain": {
+            "passed": 555,
+            "failed": 0,
+            "skipped": 0
+          },
+          "browser": "RUNNING; no terminal result yet."
+        }
       },
       "remaining": "GL import/completeness and GL acceptance UI, reviewed mapping/forms/drafts, wider migration parity and controlled Blazor retirement remain open.",
       "implementationCommit": "af9f04e85a951552d1f7d4a09dbb39aa01e52b4d",
       "remoteMasterConfirmed": true,
       "publication": "Direct master push independently confirmed by git ls-remote. Full regression dispatched from a new frozen managed worktree; terminal evidence pending."
+    },
+    "angularGeneralLedgerInspection": {
+      "status": "PASS",
+      "boundary": "Local scoped read-only Application/API/Angular slice. Synthetic sealed records are not live Microsoft, durable import, completeness or human acceptance evidence. No model or Graph permission changes.",
+      "sourceBaseCommit": "299f47bb35732619165d3db8b11c0c8558ff8692",
+      "fingerprints": {
+        "sourceFingerprintSha256": "f96f4e866179f5212247cc796234edcfc1e75d9f7f23e1b9f1168cf529abb4b3",
+        "angularArtifactSha256": "66a18ba7d2aaea5b59fe5086f286925d5409e36bcc6135380c48be8ecc8f6000",
+        "angularFileCount": 79,
+        "aspNetArtifactSha256": "6340f18bbb5c2de39464f51ef090918ee0961956c7ad4d8a50a2b0b883245f3f",
+        "applicationArtifactSha256": "186f10ff4405f9c5e09d02f989a620d8066fba879747b0d20610750d81023a5f",
+        "testAssemblySha256": {
+          "backend": "487b95507879b32fa09bb5f3a286763c77df2d070f08c5e6d246677f50f0b7f3",
+          "domain": "9b627440a4827159a085dcf1f763ea7c86b083661e2cfe06c41132dc0d85d34e",
+          "browser": "a58bdfa74a5bd8f9d2694a0e305fe8dcc8487ba8d1a99696e09c6688ec0b2ca9"
+        }
+      },
+      "build": {
+        "status": "PASS",
+        "warnings": 0,
+        "errors": 0,
+        "log": "/private/tmp/auditsphere-gl-inspection-build.log"
+      },
+      "angularBuild": {
+        "status": "PASS",
+        "log": "/private/tmp/auditsphere-gl-inspection-angular-build.log"
+      },
+      "angularTests": {
+        "status": "PASS",
+        "passed": 154,
+        "failed": 0,
+        "skipped": 0,
+        "files": 40,
+        "log": "/private/tmp/auditsphere-gl-inspection-angular-tests.log"
+      },
+      "apiTests": {
+        "status": "PASS",
+        "passed": 87,
+        "failed": 0,
+        "skipped": 0,
+        "scope": "Complete standalone API test project on the corrected final build; GL catalogue/filter/paging, cross-firm/sibling/client isolation, expiry, oversized journal, source kind and late revocation/source fences.",
+        "log": "/private/tmp/auditsphere-gl-inspection-api-final.log"
+      },
+      "domainTests": {
+        "status": "PASS",
+        "passed": 11,
+        "failed": 0,
+        "skipped": 0,
+        "scope": "Existing GL read/import/completeness and source acceptance contracts.",
+        "log": "/private/tmp/auditsphere-gl-inspection-domain-final.log"
+      },
+      "browserTests": {
+        "status": "PASS",
+        "passed": 4,
+        "failed": 0,
+        "skipped": 0,
+        "scope": "Native GL inspection/recovery and independent TB source acceptance; scoped filters/pages, exact journal detail, mobile, failed reads, revocation and retained decisions.",
+        "log": "/private/tmp/auditsphere-gl-inspection-browser-final.log"
+      },
+      "builtInBrowser": "PASS owned synthetic isolated API host: scoped source selected, server account/journal filter, exact filtered amounts, complete journal detail, no console warnings/errors. Mobile viewport390 document375 without overflow. Screenshots outside Git; viewport reset, tab closed and owned host/database disposed.",
+      "screenshots": [
+        "/private/tmp/auditsphere-angular-gl-inspection.png",
+        "/private/tmp/auditsphere-angular-gl-inspection-mobile.png"
+      ],
+      "modelDrift": "PASS standalone API Release check; no pending model changes.",
+      "documentation": "PASS documentation health, filename, protected narrative metrics, unchanged Razor inventory and diff checks; no Wiki publication.",
+      "corrections": "New fixture links added to the API/E2E projects. Grant-time fixture corrected without changing the existing constraint. Expiry test now asserts the existing stronger stale-session invalidation before a fresh sign-in denial; no product authority or assertion bypass.",
+      "remaining": "Native GL import/completeness commands and GL acceptance UI, reviewed mapping editing/forms/drafts, wider parity/performance/accessibility and controlled Blazor retirement.",
+      "initialFullApiRun": {
+        "status": "FAIL",
+        "passed": 86,
+        "failed": 1,
+        "skipped": 0,
+        "log": "/private/tmp/auditsphere-gl-inspection-api-initial-full.log",
+        "reason": "The added expiry assertion expected 403; existing grant-stamp invalidation correctly returned 401. Corrected assertions cover stale-session 401 then fresh-sign-in 403, with no hidden counts. Focused gate and a new complete API run passed on the corrected build."
+      },
+      "expiryGate": {
+        "status": "PASS",
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0,
+        "log": "/private/tmp/auditsphere-gl-inspection-api-expiry.log",
+        "scope": "Existing stale-cookie grant-stamp invalidation, fresh-session scoped denial and no hidden counts."
+      },
+      "builtInBrowserArtifactMatch": "Angular, API and Application artifact hashes matched before and after the API-test-only expiry correction; built-in browser proof remains on the exact final product artifacts.",
+      "secretScan": "PASS staged redacted gitleaks scan. A diagnostic generic-api-key match was exactly the compiled API test DLL SHA-256 under an ambiguous label; checksum labels were clarified and the full staged scan passed with no exclusions.",
+      "fullSuite": {
+        "status": "NOT_RUN",
+        "scope": "This local slice has full API plus affected Domain/browser verification. A frozen published-source full regression will follow; previous source-acceptance regression is still awaiting browser terminal result."
+      }
     }
   },
   "documentationWork": {
@@ -2538,11 +2641,11 @@
     }
   },
   "active": {
-    "packageId": "Project completion hardening and acceptance reconciliation",
+    "packageId": "ASP.NET Core API and Angular 22 presentation migration",
     "implementationStatus": "PARTIAL",
     "acceptanceStatus": "PARTIAL",
-    "scope": "STE local commercial/deliverable/client-site implementation plus passive session clearing, protected draft cleanup, systematic random sampling and current documentation health. Full broader authorization coverage and live/professional/deployment acceptance remain separate.",
-    "nextAction": "Finish final-source regression verification; continue the AS-PAR-002 direct-command/export/count audit and obtain the firm-approved AS-PAR-009 policy. Configure approved target-environment Microsoft client-site provisioning, verify exact-site grants/membership revocation/upload and independent immutable retention; complete deployment/professional acceptance.",
+    "scope": "Standalone API and native Angular capability slices preserve Application authorization, exact financial inputs, durable operations and independent human gates. Legacy Blazor remains available for rollback until wider parity and retirement acceptance.",
+    "nextAction": "Publish verified GL inspection, run the frozen full regression and implement guarded native GL acceptance/completeness and import controls, then reviewed mapping editing/drafts and remaining migration stories.",
     "branch": "master"
   },
   "localEvidence": [
@@ -3347,6 +3450,11 @@
       "item": "AS-PAR-009 \u2014 Pricing review, evidence-bound dispatch and client response",
       "status": "PARTIAL",
       "details": "Proposal preparer identity, distinct-user checker enforcement and preservation of unattributed historical proposals are implemented and locally verified. Still required before enabling review/send/response: a firm-approved pricing basis/limit policy and review evidence, explicit validity, durable delivery receipts, version-bound client response identity/authority/document hash, and negotiation revision controls. The existing PracticeCrmService status transitions alone do not prove complete commercial review or email delivery. Do not treat commercial proposal acceptance as professional client acceptance or engagement commencement."
+    },
+    {
+      "item": "ASP.NET Core API and Angular 22 migration",
+      "status": "PARTIAL",
+      "details": "Native API/Angular slices are implemented with local verification in capability-specific records. Native GL inspection has passed local API, Angular, affected Domain/browser and model-drift verification. Its full-solution regression remains separate. Complete GL import/completeness and acceptance UI, reviewed mapping editing/forms/drafts, wider parity/accessibility/performance, compatibility/cutover/rollback and controlled Blazor retirement remain acceptance work. The current Angular migration backlog retains its independent story statuses."
     }
   ],
   "externalGates": [
