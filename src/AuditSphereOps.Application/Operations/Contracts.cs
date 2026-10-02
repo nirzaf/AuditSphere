@@ -279,6 +279,7 @@ public interface IClientAccountingDbContext : IAuditSphereDbContext
 public interface IAdjustmentJournalDbContext : IAuditSphereDbContext
 {
   DbSet<AdjustmentJournalManagementDecision> AdjustmentJournalManagementDecisions { get; }
+  DbSet<AdjustmentJournalAction> AdjustmentJournalActions { get; }
 }
 
 public interface IAuditSphereDbContextFactory

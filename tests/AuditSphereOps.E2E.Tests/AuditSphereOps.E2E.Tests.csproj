@@ -26,6 +26,7 @@
     <Compile Include="../AuditSphereOps.Domain.Tests/GeneralLedgerUploadSeed.cs" Link="Fixtures/GeneralLedgerUploadSeed.cs" />
     <Compile Include="../AuditSphereOps.Domain.Tests/MappingApprovalSeed.cs" Link="Fixtures/MappingApprovalSeed.cs" />
     <Compile Include="../AuditSphereOps.Domain.Tests/StatementReviewSeed.cs" Link="Fixtures/StatementReviewSeed.cs" />
+    <Compile Include="../AuditSphereOps.Domain.Tests/JournalReviewSeed.cs" Link="Fixtures/JournalReviewSeed.cs" />
     <Compile Include="../AuditSphereOps.Domain.Tests/PbcSeed.cs" Link="Fixtures/PbcSeed.cs" />
     <Compile Include="../AuditSphereOps.Domain.Tests/SiblingClientSeed.cs" Link="Fixtures/SiblingClientSeed.cs" />
     <Compile Include="../Shared/RemeasurementFixture.cs" Link="Fixtures/RemeasurementFixture.cs" />

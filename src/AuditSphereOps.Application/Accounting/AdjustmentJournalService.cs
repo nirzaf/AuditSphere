@@ -266,7 +266,7 @@ public static class AdjustmentJournalService
 
   public static async Task<CommandResult<Guid>> CreateReversalDraftAsync(
     IAuditSphereDbContext db, ActorContext actor, Guid postedJournalId, string journalNumber,
-    CancellationToken ct = default)
+    CancellationToken ct = default, string? reason = null, string? evidenceReference = null)
   {
     var original = await db.AdjustmentJournals.AsNoTracking().SingleOrDefaultAsync(x => x.Id == postedJournalId &&
       x.FirmId == actor.FirmId && x.Status == "Posted", ct);
@@ -280,8 +280,8 @@ public static class AdjustmentJournalService
       .Select(x => new { x.AccountCode, Debit = x.Credit, Credit = x.Debit }).ToListAsync(ct);
     var lines = rawLines.Select(x => (x.AccountCode, x.Debit, x.Credit)).ToList();
     return await CreateDraftAsync(db, actor, original.BaseDatasetId, journalNumber, lines, ct,
-      original.Purpose, original.BookId, original.Origin, "REVERSAL_OF:" + original.JournalNumber,
-      original.EvidenceReference, reversalOfJournalId: original.Id);
+      original.Purpose, original.BookId, original.Origin, reason ?? "REVERSAL_OF:" + original.JournalNumber,
+      evidenceReference ?? original.EvidenceReference, reversalOfJournalId: original.Id);
   }
 
   public static async Task<CommandResult> RecordManagementDecisionAsync(
@@ -468,7 +468,7 @@ public static class AdjustmentJournalService
     return CommandResult.Ok();
   }
 
-  private static string? CheckLines(IReadOnlyList<(string AccountCode, decimal Debit, decimal Credit)> lines)
+  internal static string? CheckLines(IReadOnlyList<(string AccountCode, decimal Debit, decimal Credit)> lines)
   {
     decimal debits = 0, credits = 0;
     foreach (var line in lines)

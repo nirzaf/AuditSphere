@@ -2341,3 +2341,18 @@ Responsive confirmation forms no longer impose an intrinsic minimum width on the
 The source confirmation lifecycle now retains each new human closure decision with its actor, conclusion, timestamp and exact reviewed evidence snapshot. PostgreSQL refuses closure-row updates and deletion. Native Angular displays the retained conclusion and digest; historical closures with no record are labelled explicitly. Case locking and deterministic current-alternative ordering prevent stale or repeated closure decisions. The additive migration is exercised only in owned synthetic test databases; shared Development and production migration application remain operator-controlled. Scoped draft recovery and the broader migration acceptance remain open. Executed verification is recorded in `status.json`.
 
 Confirmation draft recovery extension: case, batch and action forms now use versioned explicit tab drafts, exact identity/session/entity/current-base checks, expiration and bounded allowlists. Recovery clears review; pending submission intent requires persisted-state refresh. Navigation/context changes offer keep, save and continue, or discard, with honest memory-only fallback when storage fails. Background revision changes retain edits while blocking stale submission. This leaves the general draft primitive and remaining module/story acceptance open. Observed verification and browser evidence live in status.json.
+
+## Native Angular journal revision lifecycle
+
+Journal detail now provides exact source/context review, focused balanced-line editing, fresh
+server preview and assent, submission/return, independent technical posting, linked reversal,
+and read-only retained before/after evidence. Application owns the scoped serialized transaction,
+final authority/period/freeze checks and immutable actor/request receipts. Unknown responses fence
+new actions until receipt reconciliation; tab recovery excludes assent. Posted lines remain frozen,
+including attempted moves to an editable journal. The existing returned-edit service and database
+guard now agree. This does not apply a treatment to client books or a package.
+
+Observed local checks and original failures are recorded in `status.json`. The additive migration
+has been exercised in disposable test databases only. New-journal creation, management responses,
+reflection/application controls and wider migration acceptance remain pending. The prior frozen
+mapping regression's historical-schema failure remains distinct from its verified fixture repair.

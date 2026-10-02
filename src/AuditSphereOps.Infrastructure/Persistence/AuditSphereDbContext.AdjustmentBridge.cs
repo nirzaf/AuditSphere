@@ -21,6 +21,7 @@ public sealed partial class AuditSphereDbContext
   // constraints supplement reviewer evidence; they do not prove reflection is correct.
   private static void ConfigureAdjustmentBridge(ModelBuilder b)
   {
+    ConfigureAdjustmentJournalActions(b);
     var sourceReconciliation = b.Entity<JournalSourceReconciliation>();
     sourceReconciliation.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
       .HasName("AK_journal_source_reconciliations_scope_id");

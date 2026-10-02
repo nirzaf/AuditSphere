@@ -416,3 +416,33 @@ It carries the exact source/mapping basis, checks revision and bounds on the ser
 protects text against spreadsheet formulas. It does not issue a financial package, record
 a professional conclusion or grant source/mapping approval. Complete migration acceptance,
 production-like performance, cutover/rollback and Blazor retirement remain open.
+
+### Native journal revision lifecycle
+
+The existing journal detail route now composes an Application workspace for exact line edits,
+submission, return, independent technical posting and a linked reversal draft. Each action needs
+an explicit server preview and fresh review of the exact source, reporting period/book,
+currency, purpose, rationale and evidence. Amounts are plain decimal strings with no rounding;
+invalid precision, source accounts or unbalanced totals block confirmation. Review requires an
+authorized practitioner other than the preparer. Group-only eliminations remain in consolidation;
+client-book correction retains its separate management-evidence gate.
+
+The local transaction serializes the journal and source, preserves current professional scope,
+file-freeze and period guards, and retains immutable before/after line snapshots and an actor-owned
+request receipt together with the transition. Final authority loss rolls back both. Identical
+concurrent requests resolve to the same retained receipt; a changed intent cannot reuse its
+identity. Database guards permit draft/returned line correction and reject changes or moves of
+submitted/posted lines. The timeline shows observed native events only; legacy history without
+retained evidence is labelled rather than reconstructed.
+
+Explicit tab drafts retain bounded editable fields for the same identity, session and review
+basis, excluding review assent. Unknown responses block new actions and navigation. Receipt
+verification and acknowledgment recover a committed result; absence permits only an explicitly
+reviewed retry of the identical request. Scope/session changes clear protected views. Exact source
+inspection remains independently authorized. Controlled instructions verify current revision and
+management evidence; downloading them is neither external posting nor package application.
+
+The additive action-evidence migration and returned-line guard are exercised only in owned test
+databases. Rollback refuses deletion of retained action evidence. New-journal creation, management
+response and reflection/application controls, broader accounting parity, production-like
+acceptance, cutover and Blazor retirement remain open. Executed verification lives in `status.json`.

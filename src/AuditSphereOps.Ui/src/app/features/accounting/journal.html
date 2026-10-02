@@ -1,0 +1,419 @@
+<a routerLink="/app/accounting/journals">Back to adjustment journals</a>
+<audit-page-header
+  title="Adjustment journal"
+  eyebrow="Accounting treatment"
+  description="Edit, submit and independently review exact journal revisions. Corrections preserve retained history."
+/>
+<button matButton="outlined" (click)="refresh()" [disabled]="busy()">Refresh journal review</button>
+<audit-state [loading]="journal.loading()" [error]="journal.error()" label="journal review" />
+@if (journal.data(); as j) {
+  <section class="panel" aria-label="Exact journal context">
+    <h2>{{ j.journalNumber }} · <audit-status [value]="j.status" /> · Revision {{ j.revision }}</h2>
+    <dl class="facts">
+      <dt>Source / revision</dt>
+      <dd>
+        <code>{{ j.datasetId }}</code> · {{ j.datasetRevision }}
+      </dd>
+      <dt>Source SHA-256</dt>
+      <dd>
+        <code>{{ j.datasetDigest }}</code>
+      </dd>
+      <dt>Period / currency</dt>
+      <dd>{{ j.periodStart || 'Unbound' }} to {{ j.periodEnd || 'Unbound' }} · {{ j.currency }}</dd>
+      <dt>Reporting book</dt>
+      <dd>{{ j.bookId || 'No book' }}</dd>
+      <dt>Purpose / origin</dt>
+      <dd>{{ j.purpose }} · {{ j.origin }}</dd>
+      <dt>Prepared by</dt>
+      <dd>
+        <code>{{ j.preparerId }}</code>
+      </dd>
+      <dt>Rationale / evidence</dt>
+      <dd>{{ j.reason }} · {{ j.evidenceReference }}</dd>
+      @if (j.returnReason) {
+        <dt>Reviewer return reason</dt>
+        <dd>{{ j.returnReason }}</dd>
+      }
+      @if (j.reversalOfId) {
+        <dt>Reverses</dt>
+        <dd>
+          <a [routerLink]="['/app/accounting/journals', j.reversalOfId]">{{ j.reversalOfId }}</a>
+        </dd>
+      }
+      @if (j.supersedesId) {
+        <dt>Supersedes</dt>
+        <dd>
+          <a [routerLink]="['/app/accounting/journals', j.supersedesId]">{{ j.supersedesId }}</a>
+        </dd>
+      }
+    </dl>
+    @if (j.blocker) {
+      <p role="status">{{ j.blocker }}</p>
+    }
+    <p>
+      Technical posting freezes this treatment. External client-book posting, management consent and
+      package application are separate decisions. Group eliminations use the consolidation workflow.
+    </p>
+    <div class="actions">
+      <button
+        matButton="outlined"
+        (click)="sourceOpen.set(!sourceOpen())"
+        [disabled]="busy() || uncertain()"
+      >
+        Inspect exact journal source
+      </button>
+      <button matButton="outlined" (click)="export()" [disabled]="busy() || uncertain()">
+        Download controlled instructions
+      </button>
+    </div>
+    <p>
+      Instruction export requires retained accepted/partial management evidence for this exact
+      revision. A downloaded file does not prove external posting.
+    </p>
+  </section>
+  @if (sourceOpen()) {
+    <section class="panel" aria-label="Exact journal source">
+      <button matButton (click)="sourceOpen.set(false)">Close journal source</button>
+      <audit-tb-source
+        [datasetId]="j.datasetId"
+        [clientId]="j.clientId"
+        [engagementId]="j.engagementId"
+      />
+    </section>
+  }
+  <section class="panel" aria-label="Current journal lines">
+    <h2>Retained journal lines</h2>
+    <div class="table-scroll" tabindex="0" role="region" aria-label="Journal line scroll area">
+      <table>
+        <caption>
+          Current revision · exact amounts in
+          {{
+            j.currency
+          }}
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col">Account</th>
+            <th scope="col">Debit</th>
+            <th scope="col">Credit</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (l of j.lines; track $index) {
+            <tr>
+              <th scope="row">{{ l.accountCode }}</th>
+              <td class="number">{{ l.debit }}</td>
+              <td class="number">{{ l.credit }}</td>
+            </tr>
+          }
+        </tbody>
+        <tfoot>
+          <tr>
+            <th scope="row">Complete totals</th>
+            <td class="number">{{ j.totalDebit }}</td>
+            <td class="number">{{ j.totalCredit }}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  </section>
+  @if (pending(); as p) {
+    <section class="panel" aria-label="Pending journal request">
+      <h2>Unconfirmed journal action</h2>
+      <p>
+        Request <code>{{ p.requestId }}</code>
+      </p>
+      <p>
+        Intent hash <code>{{ p.requestHash }}</code>
+      </p>
+      <button matButton="outlined" (click)="reconcile()" [disabled]="busy()">
+        Check persisted journal receipt
+      </button>
+      @if (receipt()) {
+        <button matButton (click)="acknowledge()" [disabled]="busy()">
+          Acknowledge retained journal receipt
+        </button>
+      }
+    </section>
+  }
+  @if (draftAvailable()) {
+    <section class="panel" aria-label="Journal tab draft">
+      <p>
+        Editable fields are saved in this tab for the same identity and exact basis. Restoring does
+        not restore review assent or execute an action.
+      </p>
+      <button matButton="outlined" (click)="restoreDraft()" [disabled]="busy()">
+        Restore saved journal fields
+      </button>
+    </section>
+  }
+  @if (j.canEdit || j.canSubmit || j.canReturn || j.canPost || j.canReverse) {
+    <section class="panel" aria-label="Journal action editor">
+      <h2>Prepare a journal action</h2>
+      <form (submit)="$event.preventDefault(); prepare()">
+        <fieldset [disabled]="busy() || uncertain()">
+          <legend>Editable action fields</legend>
+          <label
+            >Journal action<select
+              aria-label="Journal action"
+              [value]="model().action"
+              (change)="changeAction($event)"
+            >
+              <option value="UPDATE" [disabled]="!j.canEdit">Save corrected draft revision</option>
+              <option value="SUBMIT" [disabled]="!j.canSubmit">
+                Submit for independent review
+              </option>
+              <option value="RETURN" [disabled]="!j.canReturn">Return to preparer</option>
+              <option value="POST" [disabled]="!j.canPost">
+                Post independently reviewed treatment
+              </option>
+              <option value="REVERSE" [disabled]="!j.canReverse">
+                Create linked reversal draft
+              </option>
+            </select></label
+          >
+          <label>Action reason<textarea [formField]="fields.reason" rows="3"></textarea></label>
+          <label
+            >Supporting evidence reference<input [formField]="fields.evidenceReference"
+          /></label>
+          @if (model().action === 'REVERSE') {
+            <label>Reversal journal number<input [formField]="fields.reversalNumber" /></label>
+            <p>
+              The server swaps the original debit/credit lines into a new linked draft. The original
+              posted journal remains immutable; this draft requires independent review.
+            </p>
+          }
+          @if (model().action === 'UPDATE') {
+            <p>
+              Use accounts in the exact source, nonnegative plain decimals and at most six
+              fractional digits. No exponent, currency symbol, locale separator or silent rounding.
+            </p>
+            @for (l of model().lines; track $index; let i = $index) {
+              <fieldset class="line">
+                <legend>Line {{ i + 1 }}</legend>
+                <label
+                  >Account {{ i + 1
+                  }}<input
+                    [value]="l.accountCode"
+                    maxlength="32"
+                    (input)="editLine(i, 'accountCode', $event)"
+                /></label>
+                <label
+                  >Debit {{ i + 1
+                  }}<input
+                    [value]="l.debit"
+                    maxlength="20"
+                    inputmode="decimal"
+                    (input)="editLine(i, 'debit', $event)"
+                /></label>
+                <label
+                  >Credit {{ i + 1
+                  }}<input
+                    [value]="l.credit"
+                    maxlength="20"
+                    inputmode="decimal"
+                    (input)="editLine(i, 'credit', $event)"
+                /></label>
+                <button
+                  matButton
+                  type="button"
+                  (click)="removeLine(i)"
+                  [attr.aria-label]="'Remove journal line ' + (i + 1)"
+                >
+                  Remove line
+                </button>
+              </fieldset>
+            }
+            <button
+              matButton="outlined"
+              type="button"
+              (click)="addLine()"
+              [disabled]="model().lines.length >= 500"
+            >
+              Add journal line
+            </button>
+          }
+        </fieldset>
+        <div class="actions">
+          <button
+            matButton="outlined"
+            type="button"
+            (click)="saveDraft()"
+            [disabled]="busy() || uncertain()"
+          >
+            Save journal tab draft
+          </button>
+          <button
+            matButton
+            type="button"
+            (click)="discardDraft()"
+            [disabled]="busy() || uncertain()"
+          >
+            Undo unsubmitted journal edits
+          </button>
+          <button matButton="filled" type="submit" [disabled]="busy() || !fields().valid()">
+            Preview exact journal action
+          </button>
+        </div>
+      </form>
+    </section>
+  } @else {
+    <p role="status">
+      No journal mutation is available under your current role and this retained state. The preparer
+      cannot perform their own independent review.
+    </p>
+  }
+  @if (preview(); as p) {
+    <section class="panel" aria-label="Journal action review">
+      <h2>Review exact journal action</h2>
+      <p>{{ p.action }} · Current revision {{ j.revision }} · {{ j.status }}</p>
+      <p>Preview totals: debit {{ p.totalDebit }} · credit {{ p.totalCredit }} {{ j.currency }}</p>
+      @if (p.blocker) {
+        <p role="alert">{{ p.blocker }}</p>
+      }
+      @if (p.errors.length) {
+        <ul role="alert">
+          @for (error of p.errors; track $index) {
+            <li>{{ error }}</li>
+          }
+        </ul>
+      }
+      <div class="table-scroll" tabindex="0" role="region" aria-label="Journal preview scroll area">
+        <table>
+          <caption>
+            Proposed exact lines
+          </caption>
+          <thead>
+            <tr>
+              <th>Account</th>
+              <th>Debit</th>
+              <th>Credit</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (l of p.lines; track $index) {
+              <tr>
+                <th scope="row">{{ l.accountCode }}</th>
+                <td class="number">{{ l.debit }}</td>
+                <td class="number">{{ l.credit }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      @if (p.canProceed) {
+        <label
+          ><input
+            type="checkbox"
+            [checked]="reviewed()"
+            (change)="reviewed.set($any($event.target).checked)"
+            [disabled]="busy()"
+          />
+          I reviewed the exact source, period, purpose, lines, rationale and requested journal
+          action.</label
+        >
+        <button matButton="filled" (click)="execute()" [disabled]="busy() || !reviewed()">
+          Confirm reviewed journal action
+        </button>
+      }
+    </section>
+  }
+  <section class="panel" aria-label="Journal revision timeline">
+    <h2>Retained native revision history</h2>
+    <p>
+      This timeline contains observed native command evidence. Earlier legacy actions without
+      retained events are not reconstructed or claimed as audited history.
+    </p>
+    @for (h of j.history; track h.id) {
+      <article>
+        <h3>
+          {{ h.action }} · {{ h.oldStatus }} revision {{ h.oldRevision }} →
+          {{ h.newStatus }} revision {{ h.newRevision }}
+        </h3>
+        <p>{{ h.reason }} · {{ h.evidenceReference }}</p>
+        <p>
+          Actor <code>{{ h.actorId }}</code> · {{ h.createdAt }} UTC
+        </p>
+        <button matButton="outlined" (click)="historyId.set(h.id)" [disabled]="busy()">
+          Inspect retained revision {{ h.id }}
+        </button>
+        @if (h.resultJournalId !== j.journalId) {
+          <a [routerLink]="['/app/accounting/journals', h.resultJournalId]"
+            >Open linked reversal draft</a
+          >
+        }
+      </article>
+    } @empty {
+      <p>No native command evidence has been retained for this journal.</p>
+    }
+    <nav aria-label="Journal history pages" class="actions">
+      <button
+        matButton
+        (click)="historyPage.set(historyPage() - 1)"
+        [disabled]="busy() || historyPage() <= 1"
+      >
+        Previous journal history
+      </button>
+      <span>Page {{ historyPage() }} of {{ Math.max(1, Math.ceil(j.historyCount / 25)) }}</span>
+      <button
+        matButton
+        (click)="historyPage.set(historyPage() + 1)"
+        [disabled]="busy() || historyPage() * 25 >= j.historyCount"
+      >
+        Next journal history
+      </button>
+    </nav>
+  </section>
+  @if (historyId()) {
+    <audit-state
+      [loading]="historical.loading()"
+      [error]="historical.error()"
+      label="retained journal revision"
+    />
+    @if (historical.data(); as h) {
+      <section class="panel" aria-label="Retained journal revision evidence">
+        <h2>Before / after retained revision</h2>
+        <button matButton (click)="historyId.set('')">Close journal revision evidence</button>
+        @for (snapshot of [h.before, h.after]; track $index) {
+          <h3>
+            {{ $index === 0 ? 'Before' : 'After' }} · {{ snapshot.status }} revision
+            {{ snapshot.revision }}
+          </h3>
+          <p>{{ snapshot.reason }} · {{ snapshot.evidenceReference }}</p>
+          <div
+            class="table-scroll"
+            tabindex="0"
+            role="region"
+            [attr.aria-label]="$index === 0 ? 'Before revision lines' : 'After revision lines'"
+          >
+            <table>
+              <caption>
+                {{
+                  $index === 0 ? 'Before' : 'After'
+                }}
+                exact lines
+              </caption>
+              <thead>
+                <tr>
+                  <th>Account</th>
+                  <th>Debit</th>
+                  <th>Credit</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (l of snapshot.lines; track $index) {
+                  <tr>
+                    <th scope="row">{{ l.accountCode }}</th>
+                    <td class="number">{{ l.debit }}</td>
+                    <td class="number">{{ l.credit }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </section>
+    }
+  }
+}
+<audit-command-message [message]="message()" [failed]="failed()" />

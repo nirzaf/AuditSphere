@@ -13,6 +13,7 @@ public static partial class UiEndpoints
   public sealed record SourceAcceptanceInput(string Revision, string EvidenceReference, bool Reviewed);
   private static void MapAccountingRecordEndpoints(RouteGroupBuilder group)
   {
+    MapJournalReviewEndpoints(group);
     group.MapGet("/gl-sources/{id:guid}/acceptance", (Guid id, HttpContext http) =>
       ReadAsync(http, (db, actor, ct) => SourceAcceptanceWorkspace.GetGeneralLedgerAsync(db, actor, id, ct)));
     group.MapPost("/gl-sources/{id:guid}/acceptance", (Guid id, SourceAcceptanceInput input, HttpContext http) =>

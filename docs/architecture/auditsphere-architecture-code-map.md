@@ -809,3 +809,12 @@ For the complete documentation index, authority hierarchy, current requirements,
   retain URL context, scoped source/evidence inspection and stale-response fences.
 - Verification: `StatementReviewApiTests.cs`, `StatementReviewSeed.cs` and
   `AngularStatementReviewJourneyTests.cs` cover exact basis, scope, export and return navigation.
+
+## Native journal revision lifecycle
+
+- Domain: `Accounting/AdjustmentJournalAction.cs` retains actor/request identity and immutable before/after evidence.
+- Application: `Accounting/AdjustmentJournalWorkspace.cs` and `.Commands.cs` own scoped reviews, previews, serialized transitions, receipt reconciliation, history and controlled export; they compose the existing `AdjustmentJournalService`.
+- API: `Ui/UiEndpoints.JournalReview.cs` exposes trusted-session reads and antiforgery-protected previews/actions/exports.
+- Angular: `features/accounting/journal.ts`, `.html`, `.scss` and `journal-contracts.ts` implement the exact editor, review, tab recovery, uncertain-result fencing and retained timeline.
+- Persistence: `AuditSphereDbContext.AdjustmentJournalActions.cs` and `NativeAdjustmentJournalActions` enforce scoped lineage, unique requests and append-only evidence; the line trigger checks both old/new journal states.
+- Verification: `JournalReviewApiTests`, `JournalReviewSeed`, `AngularJournalReviewJourneyTests` and `journal.spec.ts`. Results and migration-application boundaries live in `status.json`.

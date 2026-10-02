@@ -3336,13 +3336,13 @@
         }
       },
       "fullSuite": {
-        "status": "RUNNING_WITH_OBSERVED_FAILURE",
+        "status": "FAIL",
         "sourceCommit": "a374d9f8b2a6cbd28ccd568df3ad4357e2fbe94e",
         "worktree": "/private/tmp/auditsphere-mapping-draft-regression-20261002",
         "buildLog": "/private/tmp/auditsphere-mapping-draft-regression-build.log",
         "log": "/private/tmp/auditsphere-mapping-draft-regression-suite.log",
         "fingerprintsPath": "/private/tmp/auditsphere-mapping-draft-regression-hashes.json",
-        "boundary": "Sequential locked restore and frozen build precede full regression. No completion claimed before terminal result.",
+        "boundary": "Original terminal frozen regression failed only the historical mapping schema seed. The repair and statement slice are independently verified locally; new frozen regression is running. No failure converted to a pass.",
         "apiResult": {
           "status": "PASS",
           "passed": 108,
@@ -3352,9 +3352,32 @@
         "observedFailure": {
           "test": "AccountingBackfillMigrationTests.LegacyContextBackfill_BindsSingleMatchesAndQuarantinesAmbiguity",
           "code": "42703",
-          "details": "The historical schema fixture attempted to insert current mapping metadata columns before forward migration. The frozen published run is unchanged; terminal Domain/browser counts remain pending.",
+          "details": "The historical schema fixture attempted to insert current mapping metadata columns before forward migration. The original frozen run terminated with one Domain failure; its actual project totals and original log are retained.",
           "repair": "Current tree seeds only the historical mapping column set before forward migration. Focused backfill and affected statement regressions passed separately."
-        }
+        },
+        "exitCode": 1,
+        "passed": 817,
+        "failed": 1,
+        "skipped": 0,
+        "completedAt": "2026-10-02T22:47:06.714610+00:00",
+        "projectResults": {
+          "domain": {
+            "passed": 562,
+            "failed": 1,
+            "skipped": 0
+          },
+          "api": {
+            "passed": 108,
+            "failed": 0,
+            "skipped": 0
+          },
+          "browser": {
+            "passed": 147,
+            "failed": 0,
+            "skipped": 0
+          }
+        },
+        "cleanup": "Clean unchanged frozen source fingerprint confirmed after terminal exit1; disposable worktree removed. Original logs and artifact fingerprints retained."
       },
       "remaining": [
         "Wider grid performance/accessibility and source-action story acceptance",
@@ -3452,7 +3475,21 @@
         "buildLog": "/private/tmp/auditsphere-statement-review-regression-build.log",
         "log": "/private/tmp/auditsphere-statement-review-regression-suite.log",
         "fingerprintsPath": "/private/tmp/auditsphere-statement-review-regression-hashes.json",
-        "boundary": "Frozen published source; sequential locked restore/build and full unchanged regression. Completion requires terminal result."
+        "boundary": "Frozen published source; Domain/API projects passed. Browser and terminal whole-run result remain pending; no full pass inferred.",
+        "projectResults": {
+          "domain": {
+            "status": "PASS",
+            "passed": 563,
+            "failed": 0,
+            "skipped": 0
+          },
+          "api": {
+            "status": "PASS",
+            "passed": 112,
+            "failed": 0,
+            "skipped": 0
+          }
+        }
       },
       "remaining": [
         "Wider statement source-action/QA/accessibility/performance acceptance",
@@ -3485,6 +3522,116 @@
         "remoteHeadConfirmed": true,
         "confirmedAt": "2026-10-02T22:32:09.968427+00:00"
       }
+    },
+    "angularJournalLifecycle": {
+      "status": "PASS_LOCAL_SLICE",
+      "observedAt": "2026-10-02T22:57:56.505451+00:00",
+      "sourceBaseCommit": "7f3daa9be9ad268065d40f69519488180e3c13de",
+      "scope": "Exact journal revision workspace, decimal line correction, fresh preview/assent, submission/return, independent posting, linked reversal, immutable before/after history, scoped receipt recovery and source/instruction review. No external client-book posting or package application inferred.",
+      "build": {
+        "status": "PASS",
+        "warnings": 0,
+        "errors": 0,
+        "releaseLog": "/private/tmp/auditsphere-journal-publication-build.log",
+        "browserBuildLog": "/private/tmp/auditsphere-journal-browser-build.log",
+        "angularLog": "/private/tmp/auditsphere-journal-angular-final-build.log"
+      },
+      "angular": {
+        "status": "PASS",
+        "files": 48,
+        "passed": 204,
+        "failed": 0,
+        "skipped": 0,
+        "log": "/private/tmp/auditsphere-journal-angular-tests.log"
+      },
+      "api": {
+        "status": "PASS",
+        "scope": "Whole standalone API suite on stable artifacts; focused four journal lifecycle/scope/precision/idempotency/late-epoch cases passed first.",
+        "log": "/private/tmp/auditsphere-journal-api-full.log",
+        "focusedLog": "/private/tmp/auditsphere-journal-api-guard-corrected.log",
+        "passed": 116,
+        "failed": 0,
+        "skipped": 0,
+        "exitCode": 0
+      },
+      "domain": {
+        "status": "PASS",
+        "scope": "Adjustment bridge/eligibility, records approval and repaired historical mapping backfill.",
+        "passed": 19,
+        "failed": 0,
+        "skipped": 0,
+        "exitCode": 0,
+        "log": "/private/tmp/auditsphere-journal-domain.log"
+      },
+      "browser": {
+        "status": "PASS",
+        "scope": "Native exact edit, unknown receipt acknowledgment, returned correction/resubmit, independent post/reversal, stale period, mobile and epoch loss; statement/mapping regressions.",
+        "log": "/private/tmp/auditsphere-journal-e2e-final.log",
+        "passed": 8,
+        "failed": 0,
+        "skipped": 0,
+        "exitCode": 0
+      },
+      "modelDrift": {
+        "status": "PASS",
+        "log": "/private/tmp/auditsphere-journal-model-final.log",
+        "migration": "20261002223634_NativeAdjustmentJournalActions",
+        "boundary": "Additive immutable receipts and returned-line guard checked in owned synthetic databases only; shared Development/production not migrated."
+      },
+      "builtInBrowser": {
+        "status": "PASS",
+        "environment": "Owned disposable synthetic PostgreSQL, API Release and Angular production assets; external effects disabled.",
+        "observed": [
+          "A 0.000001 imbalance blocks confirmation; exact correction retains revision2.",
+          "Before/after history shows original100.123456 and corrected200.123456.",
+          "Exact source inspection retains source/revision/digest and original amounts.",
+          "Desktop document1265 within1280; mobile375 within390, exact amounts remain unwrapped within scrollable tables.",
+          "Browser console returned no warnings/errors."
+        ],
+        "desktopScreenshot": "/private/tmp/auditsphere-angular-journal-review.png",
+        "mobileScreenshot": "/private/tmp/auditsphere-angular-journal-review-mobile.png",
+        "cleanup": "Preview tab closed, viewport reset and owned preview/databases disposed with terminal exit0."
+      },
+      "initialChecks": {
+        "status": "FAIL_THEN_CORRECTED",
+        "details": "First source fixture lacked a reporting basis and was replaced with valid scoped journal context. Returned correction exposed the old database guard freezing returned lines; the migration now checks both old/new editable parent states and protects posted moves/deletion. Browser compile used the wrong regex option; first runtime failed only status-chip casing. Unit history-page check incorrectly interpreted decoder path as request URL; corrected to current page. Final whole API, Angular and affected browser cohorts passed. Original failed checks remain distinct from the corrections.",
+        "logs": [
+          "/private/tmp/auditsphere-journal-api-focused.log",
+          "/private/tmp/auditsphere-journal-api-corrected.log",
+          "/private/tmp/auditsphere-journal-return-debug.log",
+          "/private/tmp/auditsphere-journal-e2e.log"
+        ]
+      },
+      "fullSuite": {
+        "status": "NOT_RUN",
+        "boundary": "Focused and whole API results are not full unchanged-solution regression. Prior statement frozen regression is separately running."
+      },
+      "remaining": [
+        "Native new-journal creation",
+        "Management/client responses",
+        "Reflection/application and eligibility workbench",
+        "Wider story acceptance, cutover and Blazor retirement"
+      ],
+      "evidenceBoundary": "Local synthetic checks only; no shared financial data, Microsoft authority or live-provider acceptance changed.",
+      "fingerprints": {
+        "sourceFingerprintSha256": "f109c1b000347734d6d1b3be31cdbd34e44bceae113cd82d01947f7e5bb539f0",
+        "angularArtifactSha256": "8186da63fc1e1b8fffa74b25bf79107ff12429dcecd17eb4f3499ebda6cb393c",
+        "angularFileCount": 86,
+        "aspNetArtifactSha256": "2f6897d79437757d255436708550a908b74e0be07b9bee5519330cb1eb2dbc14",
+        "applicationArtifactSha256": "c23375605d13f7d682befb1f260ebb8ca879c032a8de87f1cb8594b0e3a28aab",
+        "testAssemblySha256": {
+          "backend": "047e478b1dd73b7d22f390b353c45fa3e0aa8d99277dcbcc2edca341aca876f1",
+          "domain": "75e1fddcd4ab53ac3c861d592c7c4f12d8d043146da01cab5dba085b68c98589",
+          "browser": "ba919907b6c0d80c1786181823251ae29d4e6bb74d856a88849ce4406f945f4a"
+        }
+      },
+      "fingerprintsPath": "/private/tmp/auditsphere-journal-artifact-hashes.json",
+      "secretScan": {
+        "status": "PASS",
+        "scope": "Complete staged native journal lifecycle, migration and documentation diff scanned with redaction; no leaks detected.",
+        "log": "/private/tmp/auditsphere-journal-secret-scan.log"
+      },
+      "docsChecks": "PASS Markdown health, filenames, protected narrative metrics and diff checks. No Wiki publication."
     }
   },
   "documentationWork": {
@@ -3592,7 +3739,7 @@
     "implementationStatus": "PARTIAL",
     "acceptanceStatus": "PARTIAL",
     "scope": "Standalone API and native Angular capability slices preserve Application authorization, exact financial inputs, durable operations and independent human gates. Legacy Blazor remains available for rollback until wider parity and retirement acceptance.",
-    "nextAction": "Finish frozen regression and repair evidence; publish native statement contribution review, then migrate remaining journal/adjustment controls and other native stories.",
+    "nextAction": "Finish native journal lifecycle verification/publication and frozen regression; migrate journal creation, management responses and reflection/application controls next.",
     "branch": "master"
   },
   "localEvidence": [

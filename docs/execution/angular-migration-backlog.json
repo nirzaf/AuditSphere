@@ -144,7 +144,7 @@
       "id": "US-024",
       "title": "Migrate journal and adjustment workflows",
       "status": "PARTIAL",
-      "scope": "Native journal queues and journal command workbench exist. Full origin, reversal, client-response and source-action parity remains open."
+      "scope": "Native journal queues and exact revision workbench now support focused line correction, server preview, submission/return, independent posting, linked reversal, immutable before/after history and scoped receipt recovery. Creation, management/client-response, reflection/application and wider source-action acceptance remain open."
     },
     {
       "id": "US-025",

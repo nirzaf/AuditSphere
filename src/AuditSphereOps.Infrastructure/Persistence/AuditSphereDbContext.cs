@@ -220,6 +220,7 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
   public DbSet<AdjustmentJournal> AdjustmentJournals => Set<AdjustmentJournal>();
 
   public DbSet<AdjustmentJournalManagementDecision> AdjustmentJournalManagementDecisions => Set<AdjustmentJournalManagementDecision>();
+  public DbSet<AdjustmentJournalAction> AdjustmentJournalActions => Set<AdjustmentJournalAction>();
 
   public DbSet<AdjustmentLine> AdjustmentLines => Set<AdjustmentLine>();
 

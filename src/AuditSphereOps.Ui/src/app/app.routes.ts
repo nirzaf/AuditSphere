@@ -79,7 +79,7 @@ export const routes: Routes = [
   { path: 'app/accounting/mappings', canActivate: [staffGuard], title: 'Mappings · AuditSphere', data: { mode: 'mappings' },
     loadComponent: () => import('./features/accounting/records').then(m => m.AccountingRecords) },
   { path: 'app/accounting/journals/:id', canActivate: [staffGuard], title: 'Adjustment journal · AuditSphere',
-    loadComponent: () => import('./features/accounting/journal').then(m => m.AdjustmentJournal) },
+    canDeactivate: [unsavedChangesGuard], loadComponent: () => import('./features/accounting/journal').then(m => m.AdjustmentJournal) },
   { path: 'app/accounting/journals', canActivate: [staffGuard], title: 'Adjustment journals · AuditSphere', data: { mode: 'journals' },
     loadComponent: () => import('./features/accounting/records').then(m => m.AccountingRecords) },
   { path: 'app/accounting/differences', canActivate: [staffGuard], title: 'Audit differences · AuditSphere', data: { mode: 'differences' },
