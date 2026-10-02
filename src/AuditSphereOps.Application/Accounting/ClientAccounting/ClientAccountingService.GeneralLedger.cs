@@ -329,11 +329,11 @@ public static partial class ClientAccountingService
     return Hashing.Sha256Hex(Encoding.UTF8.GetBytes("gl-import.chunk.v2\n" + JsonSerializer.Serialize(canonical)));
   }
 
-  private sealed record GeneralLedgerImportContext(
+  internal sealed record GeneralLedgerImportContext(
     ClientReportingPeriod Period, IReadOnlyDictionary<string, ClientAccount> Accounts,
     IReadOnlyDictionary<string, IReadOnlySet<string>> DimensionCodes);
 
-  private static async Task<CommandResult<GeneralLedgerImportContext>> ResolveGeneralLedgerImportContextAsync(
+  internal static async Task<CommandResult<GeneralLedgerImportContext>> ResolveGeneralLedgerImportContextAsync(
     IClientAccountingDbContext db, ActorContext actor, Guid clientId, Guid periodId, Guid? bookId,
     string currency, CancellationToken ct)
   {
@@ -360,7 +360,7 @@ public static partial class ClientAccountingService
     return CommandResult<GeneralLedgerImportContext>.Ok(new(period, accounts, dimensionCodes));
   }
 
-  private static CommandResult<int> ValidateGeneralLedgerTransactions(
+  internal static CommandResult<int> ValidateGeneralLedgerTransactions(
     IReadOnlyList<GeneralLedgerTransactionInput> transactions, ClientReportingPeriod period, string currency,
     IReadOnlyDictionary<string, ClientAccount> accounts,
     IReadOnlyDictionary<string, IReadOnlySet<string>> dimensionCodes,

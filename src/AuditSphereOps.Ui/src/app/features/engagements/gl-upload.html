@@ -1,0 +1,174 @@
+<audit-page-header
+  title="General ledger upload"
+  description="Choose → server preview → review exact file → import → inspect retained source"
+  eyebrow="Client accounting"
+/>
+<a matButton [routerLink]="['/app/engagements', id(), 'general-ledger']"
+  >Back to general ledger inspection</a
+>
+<audit-state [loading]="catalogue.loading()" label="upload authority" />
+@if (catalogue.error()) {
+  <audit-state [error]="catalogue.error()" />
+}
+@if (catalogue.data(); as c) {
+  <section aria-labelledby="profile-heading">
+    <h2 id="profile-heading">GL CSV v1 profile</h2>
+    <p>
+      One file describes one reporting period, optional reporting book, entity and functional
+      currency. Every journal must balance; all account and dimension codes must already exist in
+      the published client chart. Exact values are validated on the server without currency
+      conversion or rounding.
+    </p>
+    <p>
+      UTF-8 CSV, up to 10,000,000 bytes, 5,000 rows and 1,000 journals. Larger sources use the
+      existing approved chunk importer. XLSX is not supported by this GL profile.
+    </p>
+    <details>
+      <summary>Required and optional columns</summary>
+      <p>
+        Required:
+        <code
+          >PeriodCode,Entity,Currency,JournalId,LineId,DocumentNumber,PostingDate,SourceSystem,SourceUser,AccountCode,Debit,Credit,OriginalCurrency,OriginalAmount,FunctionalAmount</code
+        >
+      </p>
+      <p>
+        Optional:
+        <code
+          >BookCode,DocumentDate,ServiceDate,ReversalReference,IsManual,IsYearEnd,PartyIdentifier,Branch,CostCentre,Department,Project,IntercompanyCounterparty</code
+        >
+      </p>
+      <p>
+        Repeat journal metadata on every line. Use ISO dates, true/false flags and decimal strings
+        with at most six decimal places. Mixed metadata, unknown columns, duplicate lines and
+        unbalanced journals are refused.
+      </p>
+    </details>
+    <p>
+      Client <code>{{ c.clientId }}</code> · Engagement <code>{{ c.engagementId }}</code>
+    </p>
+    <label
+      >General ledger CSV file<input
+        type="file"
+        accept=".csv"
+        (change)="pick($event)"
+        [disabled]="busy()"
+    /></label>
+    @if (fileName()) {
+      <p>Selected file: {{ fileName() }}</p>
+    }
+    @if (busy()) {
+      <p role="status">Reading the exact GL file state…</p>
+    }
+    @if (message()) {
+      <p role="status">{{ message() }}</p>
+    }
+    @if (availableDraft() && !review()) {
+      <button matButton (click)="discardCheckpoint()" [disabled]="busy() || uncertain()">
+        Discard GL metadata checkpoint
+      </button>
+    }
+    @if (uncertain()) {
+      <section role="alert">
+        <h2>GL import outcome needs review</h2>
+        <p>
+          No automatic retry. Reselect the original file, read its persisted source receipt, then
+          acknowledge what was retained.
+        </p>
+      </section>
+    }
+    <div class="toolbar">
+      <button matButton (click)="reconcile()" [disabled]="busy() || !hasFile()">
+        Read persisted GL source
+      </button>
+      @if (reconciled() && uncertain()) {
+        <button matButton (click)="acknowledge()">I reviewed the persisted GL source</button>
+      }
+    </div>
+  </section>
+  @if (review(); as p) {
+    <section aria-labelledby="preview-heading">
+      <h2 id="preview-heading">Exact source preview and receipt</h2>
+      <dl>
+        <dt>Period / book</dt>
+        <dd>
+          {{ p.periodCode }} · {{ p.periodId }} · {{ p.bookCode || 'No book' }} {{ p.bookId }}
+        </dd>
+        <dt>Entity / currency</dt>
+        <dd>{{ p.entity }} · {{ p.currency }}</dd>
+        <dt>Original file SHA-256</dt>
+        <dd>
+          <code>{{ p.fileSha256 }}</code>
+        </dd>
+        <dt>Full file counts</dt>
+        <dd>{{ p.journalCount }} journals · {{ p.lineCount }} lines</dd>
+        <dt>Exact debit / credit</dt>
+        <dd>{{ p.debit }} / {{ p.credit }}</dd>
+        <dt>Retained source</dt>
+        <dd>{{ p.importBatchId ?? 'Not imported' }} · {{ p.importState ?? 'No receipt' }}</dd>
+        <dt>Normalized source digest</dt>
+        <dd>{{ p.sourceHash ?? 'Not yet retained' }}</dd>
+      </dl>
+      @if (p.blocker) {
+        <p role="alert">{{ p.blocker }}</p>
+      }
+      <p>
+        Preview shows at most the first 20 rows. Every row is validated by the server before import.
+        A balanced/sealed source does not mean accepted, selected or complete.
+      </p>
+      <div class="table-wrap" tabindex="0" role="region" aria-label="GL upload sample">
+        <table>
+          <caption>
+            Exact preview sample ·
+            {{
+              p.currency
+            }}
+          </caption>
+          <thead>
+            <tr>
+              <th>Journal / line</th>
+              <th>Posting date</th>
+              <th>Account</th>
+              <th>Debit</th>
+              <th>Credit</th>
+              <th>Functional</th>
+              <th>Original</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of p.sample; track row.lineId) {
+              <tr>
+                <td>{{ row.journalId }} / {{ row.lineId }}</td>
+                <td>{{ row.postingDate }}</td>
+                <td>{{ row.accountCode }}</td>
+                <td>{{ row.debit }}</td>
+                <td>{{ row.credit }}</td>
+                <td>{{ row.functionalAmount }}</td>
+                <td>{{ row.originalAmount }} {{ row.originalCurrency }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <label
+        ><input type="checkbox" [formField]="fields.reviewed" (change)="assent($event)" /> I
+        reviewed this exact GL file, reporting context and complete server validation.</label
+      >
+      <div class="toolbar">
+        <button matButton (click)="saveCheckpoint()" [disabled]="busy()">
+          Save GL metadata checkpoint</button
+        ><button matButton (click)="discardCheckpoint()" [disabled]="busy() || uncertain()">
+          Discard GL metadata checkpoint</button
+        ><button matButton (click)="importFile()" [disabled]="!canImport() || !model().reviewed">
+          Import reviewed GL file
+        </button>
+      </div>
+      @if (p.importBatchId && p.importState === 'SEALED') {
+        <a matButton [routerLink]="['/app/accounting/gl-sources', p.importBatchId, 'acceptance']"
+          >Review imported GL source acceptance</a
+        ><a matButton [routerLink]="['/app/accounting/gl-sources', p.importBatchId, 'completeness']"
+          >Prepare and review GL completeness</a
+        >
+      }
+    </section>
+  }
+}

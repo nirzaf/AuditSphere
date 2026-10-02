@@ -31,6 +31,7 @@ const blank = () => ({ account: '', from: '', to: '', journal: '', counterparty:
       label="ledger sources"
     />
     @if (catalogue.data(); as c) {
+      <a matButton [routerLink]="['/app/engagements', c.engagementId, 'general-ledger', 'upload']">Upload general ledger</a>
       <section class="panel" aria-labelledby="catalogue-heading">
         <h2 id="catalogue-heading">Sealed ledger sources</h2>
         <p>

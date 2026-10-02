@@ -258,8 +258,9 @@ or database schema is introduced.
 Native Signal Forms preserve evidence-reference intent through explicit, bounded tab drafts.
 Pending/stale checkpoints fence writes on reload; recovery never restores assent. A persisted
 read plus acknowledgment is required after an unknown outcome, and no command is automatically
-retried. Protected data is cleared on identity changes or failed reads. GL upload/completeness,
-reviewed mapping editing and full story/retirement acceptance remain pending.
+retried. Protected data is cleared on identity changes or failed reads. Native GL upload and
+completeness are covered by the subsequent slices below; reviewed mapping editing and full
+story/retirement acceptance remain pending.
 
 ### Native general-ledger inspection
 
@@ -286,7 +287,7 @@ transaction. The same native review component preserves fresh assent, explicit e
 tab recovery, navigation guards and unknown-outcome reconciliation, with separate draft keys
 and runtime decoders for TB and GL. Source-kind-specific selected pointers remain independent.
 GL sealing or acceptance does not assert account-exact completeness; that proof and review
-retain their existing downstream gates. Native GL import controls remain open.
+retain their existing downstream gates. Native GL import controls are covered by the subsequent bounded CSV slice below.
 
 ### General ledger completeness workspace
 
@@ -310,5 +311,31 @@ Drafts store only bounded source/bridge references, action and evidence text in 
 tab. Assent is never restored. Context changes and failed reads remove protected results.
 Lost response checkpoints require an explicit persisted-state read and acknowledgment before
 more writes or navigation. Completed calculation, extract coverage, independent approval,
-source selection and professional conclusions are separate facts. Native GL import and wider
-intake/form/retirement acceptance remain open; verification facts live in the execution ledger.
+source selection and professional conclusions are separate facts. The bounded native GL CSV
+import is described below; wider intake/form/retirement acceptance remains open. Verification
+facts live in the execution ledger.
+
+### Native general-ledger CSV upload
+
+`GeneralLedgerCsvProfile` defines a bounded, strict UTF-8 CSV profile with explicit required
+and optional columns. It preserves ISO dates, exact supported decimal strings, immutable
+journal/line identities and original-currency amounts; it does not infer values, round money
+or perform currency conversion. One source must describe one exact period/book/entity and
+functional currency. The interactive cap is deliberately smaller than the existing chunk
+importer; other profiles and large-file controls remain open.
+
+`GeneralLedgerUploadWorkspace` authorizes the exact engagement before parsing, resolves
+client-local period/book/chart context and composes the existing GL validation/import service.
+Preview is read-only. Import rechecks a reviewed exact-file/context digest under parent and
+period locks, reuses an exact retained source after concurrent same-file requests, and checks
+current authority/context before commit. Equivalent normalized rows with different file bytes
+are a conflict. Receipt recovery neither imports nor changes local selected-source pointers.
+A sealed GL source remains separate from independent acceptance and completeness.
+
+The native upload route is linked from GL inspection. All monetary values remain strings;
+only the first bounded sample is rendered although the server validates the complete file.
+Explicit tab checkpoints reuse `TabDrafts` and the existing file metadata allowlist, bounded
+to this profile. The checkpoint base binds the current user/firm/session/engagement/client;
+file bytes and assent are excluded. A reselected file must match the pending exact hash and
+size. Unknown writes cannot repeat until a persisted read and manual acknowledgement.
+Storage failure prevents dispatch. Navigation and invalidation clear or fence protected state.

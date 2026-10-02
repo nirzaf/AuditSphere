@@ -32,6 +32,28 @@ which the full suite was run; per-slice records carry their own evidence.
 
 
 
+## Native general-ledger upload and receipt recovery
+
+A dedicated Angular route now composes a reviewed GL CSV upload through the standalone API.
+The explicit UTF-8 profile retains exact dates, amounts, journal/line identities and original
+currency provenance. One file describes one client period, optional book, entity and functional
+currency. Every journal and account/dimension code is validated by the existing Application
+importer; malformed quoting, unsupported precision, unknown columns, mixed metadata and
+ineligible context are refused. The bounded interactive profile is separate from the existing
+larger chunk-import contract.
+
+The reviewed file and current reporting/chart/safety/session context bind import assent.
+Parent/period locks serialize import; exact concurrent retries resolve to the same retained
+source. Final authority and context checks roll back all source rows after a late revocation.
+Sealing, source selection, independent acceptance and completeness remain separate states.
+The native page keeps only bounded file metadata in explicit tab checkpoints, requires the
+original file and a persisted receipt read after an unknown outcome, and protects navigation.
+No file bytes, financial rows or assent are restored from browser storage.
+
+Local verification and synthetic built-in browser observations are recorded in `status.json`.
+Reviewed mapping editing/drafts, larger GL upload profiles, wider parity and controlled
+cutover/Blazor retirement remain open.
+
 ## Native general-ledger completeness preparation and review
 
 The standalone API and Angular GL inspection now compose a native completeness workspace.

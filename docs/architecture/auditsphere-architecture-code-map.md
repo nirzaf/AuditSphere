@@ -775,3 +775,10 @@ For the complete documentation index, authority hierarchy, current requirements,
 - API: `Ui/UiEndpoints.GeneralLedger.cs` composes the workspace through trusted-session reads.
 - Angular: `features/engagements/general-ledger.ts` and `general-ledger-contracts.ts` own native filter forms, exact values, context decoding, stale-result removal and responsive tables; engagement detail links the native workflow.
 - Verification: `GeneralLedgerApiTests`, `AngularGeneralLedgerJourneyTests`, `general-ledger.spec.ts` and existing GL/source acceptance suites. `GeneralLedgerWorkspaceSeed` supplies synthetic read-side records, not worker or professional acceptance.
+
+### Native general-ledger upload
+
+- Application: `Accounting/Intake/GeneralLedgerCsvProfile.cs` defines the explicit bounded source profile; `GeneralLedgerUploadWorkspace.cs` binds exact-file review and scoped recovery to the existing `ClientAccountingService.GeneralLedger.cs` validator/importer.
+- API: `Ui/UiEndpoints.GeneralLedger.cs` owns authenticated, antiforgery-protected preview/import/read-only reconciliation endpoints.
+- Angular: `features/engagements/gl-upload.ts`, `.html` and `gl-upload-contracts.ts` own native preview, exact values, scoped metadata checkpoints, fresh assent, navigation and unknown-outcome fences.
+- Checks: `GeneralLedgerCsvProfileTests`, `GeneralLedgerUploadApiTests`, `AngularGeneralLedgerUploadJourneyTests` and `gl-upload.spec.ts`; `GeneralLedgerUploadSeed` supplies owned synthetic fixtures. Observed execution results belong only to `status.json`.
