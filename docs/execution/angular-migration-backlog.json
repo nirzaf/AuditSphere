@@ -132,7 +132,7 @@
       "id": "US-022",
       "title": "Build the mapping workbench with revision-safe batch editing",
       "status": "PARTIAL",
-      "scope": "Native mapping lineage, comparison, unmapped accounts, allocations and impact workbench exists with revision-fenced source commands. Complete batch/keyboard/draft parity remains open."
+      "scope": "Native lineage, comparison, unmapped accounts, allocations and impact workbench exists. Dedicated independent review binds exact source/allocations/chart/taxonomy/generation and fresh assent to the serialized approval transaction; both API approval routes require review. Late authority changes roll back approval/generation, and tab checkpoints fence uncertain responses until manual persisted-state acknowledgment. Complete batch editing, keyboard/paste, editable-field drafts and story acceptance remain open."
     },
     {
       "id": "US-023",

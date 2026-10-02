@@ -68,6 +68,8 @@ export const routes: Routes = [
     loadComponent: () => import('./features/accounting/package').then(m => m.FinancialPackage) },
   { path: 'app/accounting/reviews', canActivate: [staffGuard], title: 'Package reviews · AuditSphere',
     loadComponent: () => import('./features/accounting/reviews').then(m => m.PackageReviews) },
+  { path: 'app/accounting/mappings/:id/approval', canActivate: [staffGuard], canDeactivate: [unsavedChangesGuard], title: 'Independent mapping review · AuditSphere',
+    loadComponent: () => import('./features/accounting/mapping-approval').then(m => m.MappingApproval) },
   { path: 'app/accounting/mappings/:id', canActivate: [staffGuard], title: 'Accounting mapping · AuditSphere',
     loadComponent: () => import('./features/accounting/mapping').then(m => m.MappingWorkbench) },
   { path: 'app/accounting/periods/:id', canActivate: [staffGuard], title: 'Accounting period · AuditSphere',

@@ -339,3 +339,26 @@ to this profile. The checkpoint base binds the current user/firm/session/engagem
 file bytes and assent are excluded. A reselected file must match the pending exact hash and
 size. Unknown writes cannot repeat until a persisted read and manual acknowledgement.
 Storage failure prevents dispatch. Navigation and invalidation clear or fence protected state.
+
+### Independent mapping approval
+
+The native mapping workbench links a dedicated `/ui/app/accounting/mappings/{id}/approval`
+review. `MappingApprovalWorkspace` reads the exact authorized mapping, sealed raw source,
+complete bounded allocations, client chart, approved taxonomy, period/book and safety
+generation. Its revision binds actor/session and actual source/applicability metadata. It
+reuses the existing allocation and taxonomy validators; incomplete splits and unsupported
+precision remain authoritative refusals. Oversized review populations fail closed.
+
+`FinancialStatementService.ApproveMappingAsync` rechecks native reviewed intent under its
+existing firm/client/mapping locks and checks current authority after saving. Approval and
+input generation roll back together after late revocation. Both standalone API approval
+endpoints require fresh review. Existing Application callers keep their compatibility
+contract; no approved mapping history or financial books are rewritten.
+
+Native Signal Forms never restore review assent. A metadata-only tab checkpoint is required
+before dispatch. Lost or malformed responses fence further commands/navigation; recovery
+requires a current persisted read and manual acknowledgment. Protected results disappear
+on failed reads or session invalidation. The workbench labels approval as retained history
+and links current applicability rather than inferring package eligibility from an approved
+status. Mapping batch editing, keyboard/paste, editable drafts and complete story acceptance
+remain separate pending work.

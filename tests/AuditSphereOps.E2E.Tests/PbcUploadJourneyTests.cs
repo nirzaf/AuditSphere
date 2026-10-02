@@ -138,8 +138,9 @@ public sealed class PbcUploadJourneyTests
     }
 
     await staffPage.ReloadAsync();
-    await staffPage.GetByText("Intent state").WaitForAsync();
-    Assert.Contains(PbcUploadStates.Staged, await staffPage.Locator("body").InnerTextAsync());
+    var stagedRow = staffPage.GetByRole(AriaRole.Row).Filter(new() { HasText = "AuditSphere-E2E-Synthetic-PBC.pdf" });
+    await Assertions.Expect(stagedRow).ToContainTextAsync(PbcUploadStates.Staged);
+    await Assertions.Expect(stagedRow).ToContainTextAsync(OperationState.RESULT_UNCERTAIN.ToString());
     Assert.True(await worker.ProcessNextAsync());
     await host.WaitForReceivedAsync(uploadId);
     await using (var received = host.CreateDbContext())

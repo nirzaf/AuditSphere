@@ -4,12 +4,12 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "57c716ded6835637a4e3a7b60f5ae776b8957367",
-  "verifiedCommit": "100e42e0a9ed44ce8b39cf8d7979e87de80de7fd",
+  "headCommit": "9dc72e024107cef76da45ae0c5b94d12e234cbb8",
+  "verifiedCommit": "cee29bb460929b3ffebbc9ef896dbf5d9b751352",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": true,
   "productionEnabled": false,
-  "verifiedAt": "2026-10-02T20:45:21.424507+00:00",
+  "verifiedAt": "2026-10-02T21:03:51.328632+00:00",
   "toolchain": {
     "sdk": ".NET 10",
     "efCore": "10.0.12",
@@ -22,7 +22,7 @@
     "ciLockedRestore": "PASS locally: SDK policy regression check rejected latestPatch and passed after global.json required rollForward=disable for SDK 10.0.300. CI now installs from global.json and checks SDK selection before locked restore. dotnet tool restore; dotnet restore AuditSphereOps.slnx --locked-mode; dotnet build AuditSphereOps.slnx --no-restore --configuration Release all passed. Actionlint v1.7.7 passed with ShellCheck/Pyflakes disabled. Package lock files unchanged. Addresses run 35920521850 NU1004 for SDK-injected Microsoft.AspNetCore.App.Internal.Assets 10.0.11 versus locked 10.0.8; local SDK 10.0.300 evaluates 10.0.8. Full tests and hosted execution of this fix not rerun.",
     "ciWorkflowValidation": "PASS locally: actionlint v1.7.7 reproduced the forbidden runner context in job-level env, then exited 0 after E2E_RUN_ROOT initialization moved to a step using RUNNER_TEMP and GITHUB_ENV. Command: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7 -shellcheck= -pyflakes= .github/workflows/ci.yml. Bash assertion also passed for a temporary path containing spaces and run/attempt suffix 393-2. ShellCheck/Pyflakes disabled; full .NET suite and hosted GitHub Actions not rerun for this workflow-only fix.",
     "build": "PASS native GL upload Angular production and Release solution builds, zero .NET warnings/errors. Frozen GL acceptance and completeness builds also passed.",
-    "tests": "Complete unchanged frozen solution PASS at 100e42e: Domain555/API90/browser139, total784, no failures/skips. Native GL upload local gates PASS: API98, Angular169, affected Domain9/browser10. Frozen completeness regression RUNNING, API94/Domain555 passed; no complete result before browser terminal summary.",
+    "tests": "Complete unchanged frozen solution PASS at cee29bb: Domain555/API94/browser141, total790, no failures/skips. Native upload local gates passed; published upload regression RUNNING. Mapping review verification remains in progress.",
     "testCommand": "Frozen source acceptance: dotnet tool restore; dotnet restore AuditSphereOps.slnx --locked-mode; npm --prefix src/AuditSphereOps.Ui ci; npm --prefix src/AuditSphereOps.Ui run build; dotnet build AuditSphereOps.slnx --configuration Release --no-restore -m:1; dotnet test AuditSphereOps.slnx --configuration Release --no-build.",
     "testResults": "RR-01..RR-04 acceptance: ForeignOperation_Gold07_ReplayApprovalAndReadbackAreStable (identical translation and run retries, independent approval, CURRENT_APPROVED readback twice); ForeignOperation_MissingRequiredAverageDoesNotFallback and ForeignOperation_MissingRequiredHistoricalDoesNotFallback (typed gate.blocked, no persisted result); ForeignOperation_ZeroReserveStillUsesPerLinePurposes (Cash 400, Payables -480, Capital -280, Revenue -144, Expense 504, no reserve line, sum 0) now extended through separate-partner ApproveRunAsync and GetLatestReportAsync returning CURRENT_APPROVED with Capital -280 / Revenue -144 / Expense 504 intact; ForeignOperation_UnknownTaxonomyRequiresApprovedMapping (unmapped blocks, one approved mapping resolves, conflicting mappings block); ForeignOperation_ManifestUsesExactLineRateIdentity (each manifest row carries its own source line's rate purpose and rate); ForeignOperation_ChangedRateOrComponentStalesOldReview (rate and source changes make an approved report stale). RR-02 rate-boundary acceptance: RateSet_RejectsZeroNegativeAndSameCurrencyObservations (zero, negative and same-currency observations refused at the rate-set boundary), ForeignOperation_SameCurrencyComponentTranslatesAsIdentity (identity rate 1 through translation and independent approval, no rate observation consumed), ForeignOperation_AssetOnlyProfileNeedsOnlyClosingRate (valid asset-only profile needs only the closing rate and yields zero reserve), LineTranslationTests.MissingRatesFailClosed (missing/zero/negative/unspecified rates fail closed) and SameCurrencyNeedsNoRate (identity at the bridge). The group-report export/archive leg is a declared M37/M38 boundary (module 26 contract Group-report release boundary), excluded from evidence rather than claimed. AI-navigability refactor: all 402 tests pass with unchanged test semantics across the capability-partial splits; ArchitectureGuardTests enforce the project reference direction. RR-08 pack acceptance: test_source_ids_preserve_original_procedure_meaning and test_audit_handover_requires_declared_acceptance_inputs pass. No tenant or production effect. MudBlazor slice 3: CurrencyRemeasurement migrated with the draft-state contract intact (boundary section, five selects and the date input native; text/numeric line fields are MudBlazor controls with forwarded data-draft-field attributes); form controls migrated on 15 pages with typed MudBlazor components and no native <button> remaining; three select groups stayed native after the suite exposed SelectOptionAsync, hidden-input visibility and raw-value InputValueAsync contracts; accounting navigation standardized on a MudPaper link bar with aria-current and exact home matching; app.css consolidated (.accounting-tabs, .button, .card-grid, button:disabled removed; .accounting-nav added). No authorization, business-rule, route or persistence change and no new migration. MudBlazor slice 4 completion: the FinancialPackage Stage select and the AssessmentDecision decision-outcome select converted to MudSelect at full assertion strength (SelectMudOptionAsync popover interaction choosing the same value; the decision id moved to the visible wrapper so its visibility/absence assertions needed no change); Microsoft 365 capability selects stay native permanently under the raw-value InputValueAsync contract; draft-state.js excludes input type=hidden composite-widget internals from discovery and collection; RouteRenderSmokeTests visits every parameterless inventoried route (19 staff routes plus the client portal) asserting heading render and zero page errors. No authorization, business-rule, route or persistence change. MudBlazor final reconciliation: the migration document now records the verified counts (42 page components, 49 routes, 0 native buttons, 39 intentional native controls across 9 pages, 5 native tables with per-table tfoot/colspan/caption reasons) and the Web-only reference; StatusChip maps POSTED, RECONCILED and ACCEPTED to success with the check-circle icon and RESUBMITTED to info; the dead .field-label and .context-bar CSS rules were removed. No UI behavior, business-rule, authorization or persistence change.",
     "testEnvironmentRecovery": "The preceding run had 141 passed and 105 failed while PostgreSQL was shutting down. The server log records a smart shutdown request at 2026-09-22T19:25:04Z; its initiator is unknown. Started the stopped local cluster on 127.0.0.1:5433, confirmed PostgreSQL 18.6 and the auditsphere_tests database, then reran the entire suite successfully without source, test, assertion or runner changes. PostgreSQL remained available after the run; no production effects were enabled.",
@@ -2825,28 +2825,39 @@
       },
       "documentation": "PASS Markdown health, filename, protected narrative metrics and diff checks; no Wiki publication.",
       "fullSuite": {
-        "status": "RUNNING",
+        "status": "PASS",
         "sourceCommit": "cee29bb460929b3ffebbc9ef896dbf5d9b751352",
         "worktree": "/private/tmp/auditsphere-gl-completeness-regression-20261002",
         "buildLog": "/private/tmp/auditsphere-gl-completeness-regression-build.log",
         "log": "/private/tmp/auditsphere-gl-completeness-regression-suite.log",
-        "boundary": "Detached frozen published source; sequential locked restores and Angular/Release builds precede all tests. No terminal result claimed before observation.",
+        "boundary": "Complete terminal success on the unchanged detached published checkout. Local synthetic/provider-fake evidence only; no live provider or production acceptance.",
         "build": "PASS locked restores, Angular production and Release solution builds; zero .NET warnings/errors.",
         "fingerprintsPath": "/private/tmp/auditsphere-gl-completeness-regression-hashes.json",
         "sourceFingerprintSha256": "6d63ce1fddc5db7cc291322da8611a132c71a141d318ebb05c92dfc780c23048",
         "angularArtifactSha256": "219c344189d68e1baecbb020bbc54427ebf8561301201c60347688ba12116978",
-        "partialResults": {
+        "passed": 790,
+        "failed": 0,
+        "skipped": 0,
+        "exitCode": 0,
+        "completedAt": "2026-10-02T21:03:51.328632+00:00",
+        "projectResults": {
+          "domain": {
+            "passed": 555,
+            "failed": 0,
+            "skipped": 0
+          },
           "api": {
             "passed": 94,
             "failed": 0,
             "skipped": 0
           },
-          "domain": {
-            "passed": 555,
+          "browser": {
+            "passed": 141,
             "failed": 0,
             "skipped": 0
           }
-        }
+        },
+        "cleanup": "Completed unchanged detached checkout removed after terminal success; logs and fingerprints retained outside Git."
       },
       "publication": {
         "status": "PUSHED",
@@ -2966,12 +2977,36 @@
       },
       "docsChecks": "PASS Markdown health, filenames, protected narrative metrics and diff checks. No Wiki publication.",
       "fullSuite": {
-        "status": "BUILDING",
+        "status": "RUNNING",
         "sourceCommit": "57c716ded6835637a4e3a7b60f5ae776b8957367",
         "worktree": "/private/tmp/auditsphere-gl-upload-regression-20261002",
         "buildLog": "/private/tmp/auditsphere-gl-upload-regression-build.log",
         "log": "/private/tmp/auditsphere-gl-upload-regression-suite.log",
-        "boundary": "Detached unchanged published source; sequential locked restores, Angular production and Release solution builds precede tests. No terminal result claimed before observation."
+        "boundary": "Detached unchanged published source; sequential locked restores, Angular production and Release solution builds precede tests. No terminal result claimed before observation.",
+        "build": "PASS locked restores, Angular production and Release solution builds; zero .NET warnings/errors.",
+        "fingerprintsPath": "/private/tmp/auditsphere-gl-upload-regression-hashes.json",
+        "sourceFingerprintSha256": "1bc133da20da5c700d21d6d75b009a4e65f190d3292a13a7d9e528f7d092a626",
+        "angularArtifactSha256": "ef8796b56f2d40df14925632c6af74778f6d3f550efa74d1efaf85ab121b5829",
+        "observedFailures": {
+          "status": "FAILURES_OBSERVED_RUN_STILL_ACTIVE",
+          "tests": [
+            "InvoiceScopeJourneyTests.FinanceManagerScopedToAnotherClientCannotViewInvoiceOrFallbackBalance",
+            "PbcUploadJourneyTests.ClientUpload_ReconcilesUncertainProviderResult_AndStaffDownloadsExactBytes"
+          ],
+          "details": "Invoice same-document navigation timed out before denied heading; PBC header became visible before STAGED row text. Browser test recovery waits for actual interactive replacement and exact staged/uncertain row; original frozen run remains unchanged and active."
+        },
+        "apiResult": {
+          "status": "PASS",
+          "passed": 98,
+          "failed": 0,
+          "skipped": 0
+        },
+        "domainResult": {
+          "status": "PASS",
+          "passed": 563,
+          "failed": 0,
+          "skipped": 0
+        }
       },
       "remaining": [
         "Other and larger GL file profiles",
@@ -2989,6 +3024,164 @@
         "status": "PASS",
         "scope": "Complete staged upload diff scanned redacted before commit; no leaks detected.",
         "log": "/private/tmp/auditsphere-gl-upload-secret-scan.log"
+      }
+    },
+    "angularMappingApproval": {
+      "status": "PASS_LOCAL_SLICE",
+      "observedAt": "2026-10-02T21:11:45.441478+00:00",
+      "sourceBaseCommit": "9dc72e024107cef76da45ae0c5b94d12e234cbb8",
+      "scope": "Native independently reviewed mapping approval through standalone API. Exact complete source/allocations/chart/taxonomy/period/book/safety/session revision binds fresh assent under existing serialized approval. Version-only API alias cannot bypass review; late epoch rolls approval and input generation back atomically. No schema, permission or calculator change.",
+      "build": {
+        "status": "PASS",
+        "warnings": 0,
+        "errors": 0,
+        "angularLog": "/private/tmp/auditsphere-mapping-review-angular-build-final.log",
+        "releaseLog": "/private/tmp/auditsphere-mapping-review-build-guarded.log",
+        "finalApiTestBuildLog": "/private/tmp/auditsphere-mapping-review-api-build-final.log",
+        "browserRecoveryLog": "/private/tmp/auditsphere-mapping-review-browser-build-recovery.log",
+        "browserFinalLog": "/private/tmp/auditsphere-mapping-review-browser-build-confirmed.log",
+        "artifactBoundary": "Browser fixture/recovery test rebuild retained byte-identical API/Application artifacts; final browser assembly and source fingerprints recorded separately."
+      },
+      "angular": {
+        "status": "PASS",
+        "log": "/private/tmp/auditsphere-mapping-review-angular-tests-final.log",
+        "files": 44,
+        "passed": 173,
+        "failed": 0,
+        "skipped": 0
+      },
+      "apiFocused": {
+        "status": "PASS",
+        "log": "/private/tmp/auditsphere-mapping-review-api-focused-final.log",
+        "scope": "Fresh assent/CSRF/null input/alias, concurrent approval/replay, source/context staleness, immutable allocation update refusal and invalid appended split, preparer separation/current role/cross-firm/random/client/epoch denial and late-epoch atomic rollback.",
+        "passed": 6,
+        "failed": 0,
+        "skipped": 0
+      },
+      "api": {
+        "status": "PASS",
+        "log": "/private/tmp/auditsphere-mapping-review-api-full.log",
+        "scope": "Whole standalone API suite on stable final mapping artifacts.",
+        "passed": 104,
+        "failed": 0,
+        "skipped": 0
+      },
+      "domain": {
+        "status": "PASS",
+        "log": "/private/tmp/auditsphere-mapping-review-domain-final.log",
+        "scope": "Existing FinancialStatementTests mapping/package regressions.",
+        "passed": 9,
+        "failed": 0,
+        "skipped": 0
+      },
+      "browserFocused": {
+        "status": "PASS",
+        "log": "/private/tmp/auditsphere-mapping-review-browser-focused-corrected.log",
+        "scope": "Native independent review, lost accepted response, reload/read/manual acknowledgment with no retry, stale generation, self-review refusal, mobile and epoch clearing.",
+        "passed": 2,
+        "failed": 0,
+        "skipped": 0
+      },
+      "browser": {
+        "status": "PASS",
+        "log": "/private/tmp/auditsphere-mapping-review-browser-confirmed.log",
+        "scope": "Native mapping, GL upload/completeness/acceptance/inspection, TB acceptance and PBC/invoice recovery cohort. Per-test hang guard bounds stalled verification; no dump collected.",
+        "passed": 14,
+        "failed": 0,
+        "skipped": 0,
+        "exitCode": 0
+      },
+      "modelDrift": {
+        "status": "PASS",
+        "log": "/private/tmp/auditsphere-mapping-review-model-final.log",
+        "boundary": "No pending model changes; no migration or shared Development/production database change."
+      },
+      "initialChecks": {
+        "status": "FAIL_THEN_CORRECTED",
+        "logs": [
+          "/private/tmp/auditsphere-mapping-review-build.log",
+          "/private/tmp/auditsphere-mapping-review-angular-tests.log",
+          "/private/tmp/auditsphere-mapping-review-api-focused.log",
+          "/private/tmp/auditsphere-mapping-review-browser-focused.log",
+          "/private/tmp/auditsphere-mapping-review-api-focused-corrected.log"
+        ],
+        "resolution": "Internal review validation wrapper keeps private source type private; HTTP fake corrected. Synthetic rows load before sealing, approved taxonomy remains immutable, allocation UPDATE refusal asserted while appended invalid Draft split tests fencing. Guards preserved."
+      },
+      "builtInBrowser": {
+        "status": "PASS",
+        "environment": "Owned disposable synthetic PostgreSQL/API Release and Angular production assets, external effects disabled.",
+        "observed": [
+          "Preparer with reviewer role cannot approve own mapping.",
+          "Independent reviewer inspected full allocations/report impact then gave fresh assent; reviewer/timestamp retained and generation advanced once.",
+          "No source selection or package eligibility implied.",
+          "390px viewport/document375, no horizontal overflow.",
+          "No warning/error console messages."
+        ],
+        "desktopScreenshot": "/private/tmp/auditsphere-angular-mapping-approval.png",
+        "selfReviewScreenshot": "/private/tmp/auditsphere-angular-mapping-self-review.png",
+        "mobileScreenshot": "/private/tmp/auditsphere-angular-mapping-approval-mobile.png",
+        "cleanup": "Owned preview/database disposed with terminal success; tabs closed and viewport reset."
+      },
+      "fingerprintsPath": "/private/tmp/auditsphere-mapping-review-artifact-hashes.json",
+      "fingerprints": {
+        "sourceFingerprintSha256": "4511733ac437761203e024bad175caf0a503a5f5afbdad4e35db37a37449f042",
+        "angularArtifactSha256": "e4af4915abdeb5e015a350e0e78217498c4375e4fa59844cb90cafa315b64534",
+        "angularFileCount": 84,
+        "aspNetArtifactSha256": "a14a4be450865af00869166295b02e4fc9e5283a4c1f392ac45909ba41369d58",
+        "applicationArtifactSha256": "be59c39a5fe13c54234236563c6bbf47dbe75661e864eefd8a77763187585871",
+        "testAssemblySha256": {
+          "backend": "6e8758a6ef87b7ae2d7f9740eb2aa2984a1a5716aa5abcbc86a0d1dc7058e105",
+          "domain": "75d2c474709540f8cdf257959b4b6fefcd30080865d0898b01191a73dd845bc1",
+          "browser": "e961e1fc0cdbf46bafc4ad2ec3a281f65568fac0224471a5dbf6ec7b76faec28"
+        }
+      },
+      "docsChecks": "PASS Markdown health, filenames, protected narrative metrics and diff checks. No Wiki publication.",
+      "fullSuite": {
+        "status": "NOT_RUN_ON_THIS_SLICE",
+        "boundary": "Last complete published full suite is the separate GL-completeness checkpoint; current mapping verification is scoped."
+      },
+      "remaining": [
+        "Mapping batch editing/new versions, keyboard/paste controls and editable-field drafts",
+        "Wider parity/accessibility/performance and controlled cutover/Blazor retirement"
+      ],
+      "packageGates": {
+        "status": "PASS",
+        "passed": 2,
+        "failed": 0,
+        "skipped": 0,
+        "log": "/private/tmp/auditsphere-mapping-review-package-gates-final.log"
+      },
+      "glInspectionBrowser": {
+        "status": "PASS",
+        "passed": 2,
+        "failed": 0,
+        "skipped": 0,
+        "log": "/private/tmp/auditsphere-mapping-review-gl-inspection-final.log"
+      },
+      "initialBrowserCohort": {
+        "status": "ABORTED_AFTER_HANG",
+        "exitCode": 1,
+        "log": "/private/tmp/auditsphere-mapping-review-browser-cohort.log",
+        "details": "Completeness gate journey stalled on an unbounded response FinishedAsync wait after a successful refresh. Runner was interrupted; owned hosts exited. No complete result inferred. Refreshed HTTP success plus bounded UI readiness now gates the unchanged downstream stale-input, worker and independent rejection assertions."
+      },
+      "initialBrowserRecovery": {
+        "status": "FAIL_THEN_CORRECTED",
+        "passed": 2,
+        "failed": 1,
+        "skipped": 0,
+        "exitCode": 1,
+        "log": "/private/tmp/auditsphere-mapping-review-browser-recovery.log",
+        "resolution": "Completeness and exact staged/uncertain upload checks passed. Invoice then read its body while interactive content was still loading; now waits for exact authorized row before same-document denied-route assertions. No product authorization changes."
+      },
+      "verifiedAt": "2026-10-02T21:24:36.804566+00:00",
+      "secretScan": {
+        "status": "PASS",
+        "scope": "Complete staged change scanned redacted; no leaks detected. Final staged scan required before publication.",
+        "log": "/private/tmp/auditsphere-mapping-review-secret-scan.log"
+      },
+      "publication": {
+        "status": "AWAITING_COMMIT",
+        "branch": "master"
       }
     }
   },
@@ -3097,7 +3290,7 @@
     "implementationStatus": "PARTIAL",
     "acceptanceStatus": "PARTIAL",
     "scope": "Standalone API and native Angular capability slices preserve Application authorization, exact financial inputs, durable operations and independent human gates. Legacy Blazor remains available for rollback until wider parity and retirement acceptance.",
-    "nextAction": "Finish frozen published upload/completeness regressions; complete reviewed mapping approval, mapping editing/forms/drafts and remaining migration stories.",
+    "nextAction": "Publish verified mapping approval; finish original frozen GL-upload run/recovery evidence, then native mapping batch editing/new versions/drafts and remaining migration stories.",
     "branch": "master"
   },
   "localEvidence": [

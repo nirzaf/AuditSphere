@@ -1,0 +1,90 @@
+<audit-page-header
+  title="Independent mapping review"
+  eyebrow="Client accounting"
+  description="Review the exact source, allocations, applicability and current generation before approval."
+/>
+<a matButton routerLink="/app/accounting/mappings">Mapping register</a>
+<a matButton [routerLink]="['/app/accounting/mappings', id()]"
+  >Inspect allocations and report impact</a
+>
+<button matButton="outlined" (click)="refresh()" [disabled]="busy()">Read persisted mapping</button>
+<audit-state
+  [loading]="review.loading()"
+  [error]="review.error()"
+  label="the exact mapping review"
+/>
+@if (uncertain()) {
+  <section class="panel" aria-labelledby="uncertain-heading">
+    <h2 id="uncertain-heading">Mapping approval outcome needs review</h2>
+    <p>
+      Read the current persisted mapping. An interrupted response never permits an automatic
+      approval retry or navigation past this fence.
+    </p>
+    <button
+      matButton="outlined"
+      (click)="acknowledge()"
+      [disabled]="!reconciled() || busy() || !review.data()"
+    >
+      I reviewed the persisted mapping
+    </button>
+  </section>
+}
+@if (review.data(); as p) {
+  <section class="panel" aria-labelledby="mapping-review-heading">
+    <h2 id="mapping-review-heading">Exact version and applicability</h2>
+    <audit-status [value]="p.status" />
+    <dl>
+      <dt>Mapping / version</dt>
+      <dd>
+        <code>{{ p.mappingId }}</code> · {{ p.version }}
+      </dd>
+      <dt>Client / engagement</dt>
+      <dd>
+        <code>{{ p.clientId }}</code> · <code>{{ p.engagementId }}</code>
+      </dd>
+      <dt>Source dataset</dt>
+      <dd>
+        <code>{{ p.datasetId }}</code>
+      </dd>
+      <dt>Source / allocations</dt>
+      <dd>
+        {{ p.sourceAccountCount }} source accounts · {{ p.allocationCount }} complete allocations
+      </dd>
+      <dt>Client chart</dt>
+      <dd>{{ p.chartVersionId ?? 'Legacy unbound chart; inspect applicability' }}</dd>
+      <dt>Taxonomy</dt>
+      <dd>{{ p.taxonomyVersion }}</dd>
+      <dt>Reporting period</dt>
+      <dd>{{ p.periodStart }} to {{ p.periodEnd }}</dd>
+      <dt>Mapping / current generation</dt>
+      <dd>{{ p.mappingGeneration }} / {{ p.inputGeneration }}</dd>
+      <dt>Prepared by</dt>
+      <dd>
+        <code>{{ p.preparerId }}</code>
+      </dd>
+      <dt>Retained reviewer</dt>
+      <dd>
+        {{ p.reviewerId ?? 'Not yet approved' }} ·
+        {{ p.reviewedAt ?? 'No retained review timestamp' }}
+      </dd>
+    </dl>
+    <p>
+      Use the allocation workbench to inspect splits, rationale, lineage and report impact.
+      Suggestions remain review-only. This approval does not select a source or issue a financial
+      package.
+    </p>
+    @if (p.blocker) {
+      <p role="status">{{ p.blocker }}</p>
+    }
+    @for (generation of [resetGeneration()]; track generation) {
+      <label
+        ><input type="checkbox" [formField]="fields.reviewed" (change)="assent($event)" /> I
+        independently reviewed this exact mapping, its full allocations and applicability.</label
+      >
+    }
+    <button matButton="filled" (click)="approve()" [disabled]="!canApprove() || !model().reviewed">
+      {{ busy() ? 'Recording approval…' : 'Approve reviewed mapping' }}
+    </button>
+  </section>
+}
+<audit-command-message [message]="message()" [failed]="uncertain()" />

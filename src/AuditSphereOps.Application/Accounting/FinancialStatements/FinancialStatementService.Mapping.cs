@@ -104,7 +104,9 @@ public static partial class FinancialStatementService
     ActorContext actor,
     Guid mappingVersionId,
     long expectedVersion,
-    CancellationToken ct = default)
+    CancellationToken ct = default,
+    string? reviewRevision = null,
+    bool reviewed = false)
   {
     if (mappingVersionId == Guid.Empty || expectedVersion < 1)
       return CommandResult.Fail(ErrorCodes.Accounting.MappingInvalid, "A mapping version and positive expected version are required.");
@@ -133,6 +135,17 @@ public static partial class FinancialStatementService
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     if (mapping.Version != expectedVersion)
       return CommandResult.Fail(ErrorCodes.StaleRevision, "The mapping version changed; reload it.");
+    if (reviewRevision is not null)
+    {
+      if (!reviewed || !SourceAcceptanceWorkspace.ValidHash(reviewRevision) || db is not IClientAccountingDbContext reviewDb)
+        return CommandResult.Fail(ErrorCodes.StaleRevision, "Review the exact current mapping before approving it.");
+      var plan = await MappingApprovalWorkspace.GetAsync(reviewDb, actor, mappingVersionId, ct);
+      if (!plan.Succeeded) return CommandResult.Fail(plan.ErrorCode!, plan.Message!);
+      if (plan.Value!.Revision != reviewRevision)
+        return CommandResult.Fail(ErrorCodes.StaleRevision, "Mapping source, allocations, applicability or authority changed. Refresh and review again.");
+      if (!plan.Value.CanApprove)
+        return CommandResult.Fail(ErrorCodes.GateBlocked, plan.Value.Blocker!);
+    }
     if (mapping.Status == AccountingPackageStates.MappingApproved)
       return CommandResult.Ok();
     if (mapping.Status != AccountingPackageStates.MappingDraft)
@@ -174,6 +187,10 @@ public static partial class FinancialStatementService
     mapping.ApprovedByUserId = actor.UserId;
     mapping.ApprovedAt = DateTimeOffset.UtcNow;
     await db.SaveChangesAsync(ct);
+    // A revocation after publication began must roll back the approval and generation together.
+    auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new(actor.FirmId, mapping.ClientId, mapping.EngagementId, ReviewerRoles, InternalOnly: true, RequireProfessionalWork: reviewRevision is not null), ct);
+    if (!auth.Succeeded) return auth;
     await tx.CommitAsync(ct);
     return CommandResult.Ok();
   }
@@ -200,6 +217,9 @@ public static partial class FinancialStatementService
       return "Reporting period must be an ordered ISO date range.";
     return request.Allocations.Count == 0 ? "At least one mapping allocation is required." : null;
   }
+
+  internal static string? ValidateReviewAllocations(IReadOnlyCollection<MappingSourceAccount> rows, IReadOnlyCollection<MappingAllocationInput> allocations) =>
+    ValidateAllocations(rows.Select(x => new SourceBalance(x.AccountCode, x.Amount)).ToArray(), allocations);
 
   private static string? ValidateAllocations(
     IReadOnlyCollection<SourceBalance> rows,

@@ -67,9 +67,28 @@ public sealed class InvoiceScopeJourneyTests
     var managerPage = await managerContext.NewPageAsync();
     var managerDiagnostics = new List<string>();
     var managerConnected = WaitForCircuitConnectionAsync(managerPage, managerDiagnostics);
-    await managerPage.GotoAsync(SignInUrl(managerUrl, $"/app/practice/invoices/{invoiceId:D}"));
-    await managerPage.GetByText(invoiceNumber, new() { Exact = true }).WaitForAsync();
+    // Hold negotiation until the static invoice node is captured. A connected
+    // socket alone does not prove that the interactive router replaced prerender.
+    var allowInteractive = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+    await managerPage.RouteAsync("**/_blazor/negotiate**", async route =>
+    {
+      await allowInteractive.Task.WaitAsync(TimeSpan.FromSeconds(30));
+      await route.ContinueAsync();
+    });
+    IElementHandle? prerenderedInvoice;
+    try
+    {
+      await managerPage.GotoAsync(SignInUrl(managerUrl, $"/app/practice/invoices/{invoiceId:D}"));
+      await managerPage.GetByText(invoiceNumber, new() { Exact = true }).WaitForAsync();
+      prerenderedInvoice = await managerPage.GetByText(invoiceNumber, new() { Exact = true }).ElementHandleAsync();
+    }
+    finally { allowInteractive.TrySetResult(); }
     await managerConnected;
+    Assert.NotNull(prerenderedInvoice);
+    await managerPage.WaitForFunctionAsync("node => !node.isConnected", prerenderedInvoice, new() { Timeout = 30_000 });
+    await managerPage.UnrouteAsync("**/_blazor/negotiate**");
+    await Assertions.Expect(managerPage.GetByText(invoiceNumber, new() { Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(managerPage.GetByText(privateLine, new() { Exact = true })).ToBeVisibleAsync();
     var managerBody = await managerPage.Locator("body").InnerTextAsync();
     Assert.Contains(privateLine, managerBody);
     Assert.Contains("247.00", managerBody);
@@ -91,6 +110,7 @@ public sealed class InvoiceScopeJourneyTests
     await managerPage.EvaluateAsync("path => { history.pushState({}, '', path); dispatchEvent(new PopStateEvent('popstate')); }",
       $"/app/practice/invoices/{invoiceId:D}");
     await managerPage.GetByText(invoiceNumber, new() { Exact = true }).WaitForAsync();
+    await Assertions.Expect(managerPage.GetByText(privateLine, new() { Exact = true })).ToBeVisibleAsync();
     Assert.Contains(privateLine, await managerPage.Locator("body").InnerTextAsync());
 
     await using var context = await browser.NewContextAsync();

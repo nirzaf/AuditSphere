@@ -32,6 +32,30 @@ which the full suite was run; per-slice records carry their own evidence.
 
 
 
+## Independent native mapping approval
+
+The standalone API now exposes a bounded review of the exact mapping, source, complete
+allocations, chart/taxonomy applicability and current input generation. Native approval binds
+fresh assent to a server revision under the existing serialized approval transaction. The
+API approval alias also requires that review; a version-only request cannot bypass it.
+Preparer/reviewer separation, professional scope, sealed raw source, complete allocations,
+current applicability and mutable reporting context are rechecked. A late epoch change
+rolls back approval and input generation together.
+
+The dedicated Angular review page shows retained reviewer metadata separately from current
+applicability. Explicit metadata checkpoints exclude assent and financial rows. Interrupted
+responses fence commands and navigation until a persisted read and manual acknowledgment.
+Refresh or session changes clear assent and protected content; historical approval alone
+never implies current package eligibility.
+
+Verification evidence is recorded in `status.json`. Batch mapping editing, keyboard/paste
+controls, editable-field drafts and broader migration acceptance remain open.
+
+Browser verification now waits for refreshed application state rather than an unbounded
+network-body completion. Retained PBC checks wait for the exact staged/uncertain upload row;
+invoice scope checks wait for interactive replacement and fully loaded authorized content
+before same-document navigation. Original failures and reruns remain separate ledger entries.
+
 ## Native general-ledger upload and receipt recovery
 
 A dedicated Angular route now composes a reviewed GL CSV upload through the standalone API.

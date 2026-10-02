@@ -1,7 +1,7 @@
 import { Component, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
-import { Api, CommandState, routeGuid } from '../../core/api';
+import { Api, routeGuid } from '../../core/api';
 import { arr, dec, guid, nat, nullable, obj, text } from '../../core/decode';
 import { SHARED } from '../../core/ui';
 
@@ -37,7 +37,7 @@ export const decodeMapping = obj({ id: guid, status: text, datasetId: guid, char
         <p>Mappings are immutable versions. A new source dataset, chart or taxonomy requires a new applicability decision.</p>
         @if (m.priorMappingId) { <p>Prior version: <a [routerLink]="['/app/accounting/mappings', m.priorMappingId]">v{{ m.priorVersion }}</a> <small>({{ m.priorStatus }}, {{ m.priorAllocationCount }} allocations)</small></p> }
         @else { <p>This is the first mapping version in the current engagement.</p> }
-        <p><strong>{{ m.status === 'APPROVED' ? 'APPLICABLE: exact dataset and taxonomy approved' : 'APPLICABILITY PENDING: independent mapping approval required' }}</strong></p>
+        <p><strong>{{ m.status === 'APPROVED' ? 'RETAINED APPROVAL: inspect current applicability before building a package' : 'APPLICABILITY PENDING: independent mapping approval required' }}</strong></p>
       </section>
       <section class="panel" aria-labelledby="comparison-heading">
         <h2 id="comparison-heading">Current and prior allocation comparison</h2>
@@ -84,12 +84,11 @@ export const decodeMapping = obj({ id: guid, status: text, datasetId: guid, char
       @if (m.status === 'DRAFT') {
         <section class="panel" aria-labelledby="approve-heading">
           <h2 id="approve-heading">Approve mapping</h2>
-          <p>Approval rechecks the accepted dataset, full allocation and current firm/client generation.</p>
-          <button matButton="filled" (click)="approve(m.id, m.version)" [disabled]="cmd.busy()">{{ cmd.busy() ? 'Approving…' : 'Approve mapping' }}</button>
+          <p>Open the independent review of the accepted dataset, full allocation, applicability and current firm/client generation.</p>
+          <a matButton="filled" [routerLink]="['/app/accounting/mappings', m.id, 'approval']">Review mapping approval</a>
         </section>
-      } @else { <section class="panel" role="status"><h2>Reviewed mapping</h2><p>This version is immutable and can be used by a package build.</p></section> }
+      } @else { <section class="panel" role="status"><h2>Reviewed mapping</h2><p>This immutable version retains its historical approval. Current source, chart, taxonomy and generation gates still apply to a package build.</p><a matButton="outlined" [routerLink]="['/app/accounting/mappings',m.id,'approval']">Inspect current mapping applicability</a></section> }
     }
-    <audit-command-message [message]="cmd.message()" [failed]="cmd.failed()" />
   `,
 })
 export class MappingWorkbench {
@@ -97,9 +96,5 @@ export class MappingWorkbench {
   readonly id = routeGuid();
   readonly mapping = this.api.resource(() => (this.id() ? `/api/ui/accounting/mappings/${this.id()}` : null), decodeMapping,
     'The mapping is not available in the current firm scope.');
-  readonly cmd = new CommandState(this.api);
   candidates(c: { code: string; name: string }[]): string { return c.map((x) => `${x.code} (${x.name})`).join(', '); }
-  approve(id: string, version: number): void {
-    void this.cmd.run(`/api/ui/accounting/mappings/${id}/approve`, { version }, 'Mapping approved.').finally(() => this.mapping.reload());
-  }
 }

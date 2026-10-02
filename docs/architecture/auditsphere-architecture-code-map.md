@@ -782,3 +782,10 @@ For the complete documentation index, authority hierarchy, current requirements,
 - API: `Ui/UiEndpoints.GeneralLedger.cs` owns authenticated, antiforgery-protected preview/import/read-only reconciliation endpoints.
 - Angular: `features/engagements/gl-upload.ts`, `.html` and `gl-upload-contracts.ts` own native preview, exact values, scoped metadata checkpoints, fresh assent, navigation and unknown-outcome fences.
 - Checks: `GeneralLedgerCsvProfileTests`, `GeneralLedgerUploadApiTests`, `AngularGeneralLedgerUploadJourneyTests` and `gl-upload.spec.ts`; `GeneralLedgerUploadSeed` supplies owned synthetic fixtures. Observed execution results belong only to `status.json`.
+
+### Native mapping approval review
+
+- `src/AuditSphereOps.Application/Accounting/MappingApprovalWorkspace.cs`: bounded exact review and current applicability; composes existing serialized approval/validation.
+- `src/AuditSphereOps.Api/Ui/UiEndpoints.AccountingDetail.cs`: authorized review and both guarded approval endpoints.
+- `src/AuditSphereOps.Ui/src/app/features/accounting/mapping-approval.ts` and `mapping-approval.html`: fresh reviewed assent, metadata-only checkpoints and uncertain-outcome recovery.
+- `tests/AuditSphereOps.Api.Tests/MappingApprovalApiTests.cs` and `tests/AuditSphereOps.E2E.Tests/AngularMappingApprovalJourneyTests.cs`: exact review, concurrency, stale/protected scope, independent approval, rollback and native recovery.

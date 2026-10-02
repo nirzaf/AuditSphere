@@ -469,7 +469,7 @@ public static partial class FinancialStatementService
     return null;
   }
 
-  private static async Task<string?> ValidateApprovedTaxonomyAsync(
+  internal static async Task<string?> ValidateApprovedTaxonomyAsync(
     IAuditSphereDbContext db,
     Guid firmId,
     string taxonomyCode,
