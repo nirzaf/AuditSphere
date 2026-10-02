@@ -156,7 +156,7 @@
       "id": "US-026",
       "title": "Migrate currency review and remeasurement",
       "status": "PARTIAL",
-      "scope": "Native reviewed FX workpaper preparation/independent approval, source/provenance presentation, guarded transactions and explicit tab recovery are implemented. Complete intake currency-review, rate/method editor and source-action acceptance remain open."
+      "scope": "Native reviewed remeasurement workpapers and read-only intake currency comparison, exact scope/rate provenance, same-currency identity, bounded presentation and stale/session fences are implemented. Complete rate/method editor and source-action/form acceptance remain open."
     },
     {
       "id": "US-027",

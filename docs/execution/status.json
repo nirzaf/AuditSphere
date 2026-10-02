@@ -2055,6 +2055,55 @@
         "confirmedAt": "2026-10-02T16:24:26.650288+00:00",
         "evidence": "git push origin master exited 0; independent git ls-remote origin refs/heads/master exactly matched implementation revision."
       }
+    },
+    "angularIntakeCurrency": {
+      "status": "IMPLEMENTED native read-only currency intake comparison; PARTIAL full currency/migration acceptance",
+      "observedAt": "2026-10-02T16:50:40.029943+00:00",
+      "sourceBase": "bb14de83b6603984edc4ae572390a10031b9dd3d",
+      "sourceFingerprintSha256": "e7b32d6a12281f2efc788f4de1d8e5140ebacc41e89e243ee25fe7246ada772b",
+      "aspNetArtifactSha256": "3f40857ab1ef0ed4cff5e233efa24b48f5cc3a0675ef883db6d49e41e26459c3",
+      "applicationArtifactSha256": "529f6f52f8cb0f716c46da0613cd28490f6e7d552506fa051d757e694a62b995",
+      "angularArtifactSha256": "8793f6f2e0b4399e8dfbd6d1d0cd741ee416ed93cfd677651e6a0051acbd20d6",
+      "angularFileCount": 76,
+      "sourceBoundary": "Verified isolated worktree source and frozen Release/Angular artifacts identified by these fingerprints. Main checkout full regression for prior currency workpaper source remains running and excludes this implementation. No full current-source solution regression or production acceptance claimed.",
+      "fingerprintMethod": "SHA-256 of sorted unique Git-tracked/nonignored src/tests relative paths, NUL, bytes, NUL; Angular browser hash uses sorted relative paths and bytes with NUL delimiters.",
+      "behavior": "Native Signal Forms read panel; exact decimal threshold/source strings; exact scope, method, rounding, rate set/version/observation and provenance; current/prior comparison; explicit same-currency identity without invented observation. Prior candidates are scope-filtered before selection, including expiry. Latest invalid rate/direction/effective dates refuse fallback. Final current/prior source/period/rate and actor rechecks fail closed. Bound 20000 account aggregate and 50 rendered rows per page. Filters mark results stale; changed context, malformed response or revoked session cannot repopulate old data.",
+      "build": "PASS Release full solution, zero warnings/errors; Angular production build within configured budgets. Locked restore passed with the repository SDK, no package lock changes.",
+      "angularTests": {
+        "passed": 123,
+        "failed": 0,
+        "skipped": 0,
+        "files": 35,
+        "scope": "Full Angular suite including exact thresholds, identity/rate contract validation, paging/provenance, failed refresh, stale/late response and context/session withdrawal."
+      },
+      "apiTests": {
+        "passed": 67,
+        "failed": 0,
+        "skipped": 0,
+        "scope": "Full PostgreSQL-backed API suite; four new currency tests cover comparison/identity/precision, hidden prior and expired wider scopes, wrong firm/guessed IDs, latest invalid direction/effective date and changed revision, plus interceptor-controlled prior-period mutation and epoch revocation during the read."
+      },
+      "domainTests": {
+        "passed": 10,
+        "failed": 0,
+        "skipped": 0,
+        "scope": "Affected multi-period intake/currency comparison, LineTranslation and zero/negative/same-currency rate boundaries."
+      },
+      "browserTests": {
+        "passed": 2,
+        "failed": 0,
+        "skipped": 0,
+        "scope": "Native Angular intake and existing legacy fieldwork/intake journeys on final built source."
+      },
+      "builtInBrowser": "PASS final owned synthetic API/Angular preview: exact dataset/context, rate identity/provenance, six-place threshold/source text, excluded sibling-engagement prior, same-currency identity and missing-rate result removal. Final normal review repeated after additional prior-period read fence. No console warnings/errors. Same Angular presentation at viewport 390: document width 375, panel 343, wrapping identifiers and contained table scrolling. All temporary tabs closed, viewport reset; both successful preview sessions quit/exit 0 and owned databases cleaned. No real client data, Microsoft side effect or accounting approval.",
+      "modelDrift": "PASS standalone API pending-model-change check. No new migration or shared database migration.",
+      "corrections": "Synthetic fixture initially reused upload identities and inserted rows after sealing; fixed distinct identities and LOADING-to-SEALED sequence. Expired wider grant is asserted directly before expiry processing and fresh sign-in. An early API run overlapped the final build and loaded the pre-correction test fixture; discarded, then rerun from frozen final artifacts passed. Preview child startup used the wrong installed SDK; explicitly selected the repository SDK without changing global.json or relaxing its guard.",
+      "documentation": "PASS documentation health, filenames, protected narrative metrics, source inventory --check and git diff --check. No Wiki publication.",
+      "secretCheck": "PASS staged redacted gitleaks scan, no findings or suppressed rules. No real credentials added; scanner success is not a comprehensive guarantee.",
+      "fullSuite": {
+        "status": "NOT_RERUN",
+        "boundary": "Full current-source API and affected Domain/E2E plus full Angular checks passed; earlier main checkout full solution regression is a separate source revision."
+      },
+      "remaining": "Complete intake upload/mapping command/form/draft parity, rate/method editor acceptance, remaining module stories, security/accessibility/performance/canary acceptance and final Blazor retirement remain open."
     }
   },
   "documentationWork": {

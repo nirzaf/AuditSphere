@@ -9,6 +9,8 @@ public static partial class UiEndpoints
   public sealed record IntakeAllocationInput(string AccountCode, string Destination, string Section);
   public sealed record IntakeDraftInput(string TaxonomyVersion, IReadOnlyList<IntakeAllocationInput> Allocations);
 
+  private static bool ValidReviewThreshold(string value) => System.Text.RegularExpressions.Regex.IsMatch(value, @"^\d{1,14}(\.\d{1,6})?$");
+
   private static void MapIntakeEndpoints(RouteGroupBuilder group)
   {
     group.MapGet("/engagements/{id:guid}/tb-intake", (Guid id, HttpContext http) =>
@@ -47,7 +49,7 @@ public static partial class UiEndpoints
     group.MapGet("/datasets/{id:guid}/currency-review", (Guid id, string presentation, string? percent, string? amount, HttpContext http) =>
     {
       var p = 10m; var a = 0m;
-      if ((percent is not null && !TryDecimal(percent, out p)) || (amount is not null && !TryDecimal(amount, out a)))
+      if ((percent is not null && (!ValidReviewThreshold(percent) || !TryDecimal(percent, out p))) || (amount is not null && (!ValidReviewThreshold(amount) || !TryDecimal(amount, out a))))
         return Task.FromResult(Invalid("Enter thresholds as numbers."));
       return ReadAsync(http, (db, actor, ct) => TrialBalanceCurrencyReviewQuery.GetAsync(db, actor, id, presentation ?? "", p, a, ct));
     });

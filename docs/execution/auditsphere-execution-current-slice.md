@@ -32,11 +32,19 @@ which the full suite was run; per-slice records carry their own evidence.
 
 
 
+## Native intake currency review and prior-source isolation
+
+The intake currency panel now uses native Signal Forms and a dedicated bounded read projection. It shows exact dataset/client/engagement/period identity, the upload closing-comparison method, source/presentation currencies, current/prior observation provenance, rounding and movement thresholds. Same-currency identity consumes no market rate. Thresholds grant no approval; classification-based translation and remeasurement remain separate accounting workflows.
+
+The Application query selects prior datasets only after current scope filtering, excludes expired wider grants and rechecks authority plus current/prior source, period and rate state before returning results. An invalid latest observation blocks conversion rather than falling back. The panel removes old results on refresh, labels edited filters stale and refuses late/wrong-context responses after dataset or session changes. Exact verification/publication evidence is in `status.json`; complete intake command/form/draft parity and rate/method editor acceptance remain open.
+
+---
+
 ## Native currency remeasurement and reviewed draft recovery
 
 The Angular workpaper now uses Signal Forms, bounded exact decimal input and explicit tab draft recovery. Current approved inputs supply the recovery base; changed inputs retain edits but block submission until explicit rebase and fresh review. Client-context changes use a keep/save/discard dialog and clear prior evidence fields. Current independent reviewer authority is projected by the Application service. The API serializes reviewed preparation/approval under scope guards, preserves frozen-file gates, returns the same workpaper for duplicate preparation, and retains the existing stale-source disposition.
 
-Scope reads exclude expired wider grants and expose bounded selectors. Saved calculation views identify rate/policy versions and provenance, source/functional currencies, direction, classification, prior carrying amount and FX/rounding movements. The original foreign-currency-only remeasurement contract is retained. Currency intake review and complete source-action parity remain open. Exact verification and publication facts belong to `status.json`.
+Scope reads exclude expired wider grants and expose bounded selectors. Saved calculation views identify rate/policy versions and provenance, source/functional currencies, direction, classification, prior carrying amount and FX/rounding movements. The original foreign-currency-only remeasurement contract is retained. Complete source-action/form/rate-method parity remains open; the newer intake section records the currency comparison. Exact verification and publication facts belong to `status.json`.
 
 ---
 

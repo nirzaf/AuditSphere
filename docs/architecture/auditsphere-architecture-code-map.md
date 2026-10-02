@@ -502,6 +502,7 @@ accounting or consolidation workspaces.
 ## Trial-balance intake and fieldwork connections
 
 - Application intake: `Accounting/Intake/MultiPeriodTrialBalanceService.cs` (PeriodCode split over `TrialBalanceXlsxImporter.ReadTable` or CSV, per-period import through `TrialBalanceImportService`), `MappingMemoryService.cs`, `TrialBalanceCurrencyReviewQuery.cs`, `FinancialStatementDrillDownQuery.cs`, shared `MappedTrialBalanceSource.cs` (also used by the materiality engine)
+- Native intake currency review: `Ui/UiEndpoints.Intake.cs` composes `TrialBalanceCurrencyReviewQuery`; Angular `features/engagements/currency-review.ts` renders scope, provenance and exact comparison; `CurrencyReviewApiTests`, `AngularCurrencyReviewJourneyTests` and `currency-review.spec.ts` exercise scope/identity/read fences and native presentation.
 - Domain: `Domain/Audit/FieldworkConnections.cs` (`AuditSamplingRun`, `ProcedureEvidenceLink`, `PhysicalEvidenceItem`/`Movement`, `ProcedurePhysicalLink`, `AdHocProcedureInsertion`/`Revision`)
 - Application fieldwork: `Audit/Fieldwork/AuditFieldworkService.Connections.cs` (sampling run and re-performance, evidence picker, physical index, ad hoc steps, analytical-review and going-concern completion blockers wired into `EvaluateCompletionAsync`)
 - Persistence: `AuditSphereDbContext.FieldworkConnections.cs`, migration `FieldworkConnectionsSamplingEvidenceAndPhysicalIndex`
