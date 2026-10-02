@@ -5,7 +5,7 @@
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
   "headCommit": "0b2c0ba8ea2efd955d2c512986a46798e33cb6a2",
-  "verifiedCommit": "5d259ac417bc8faccbf4b52404b005cd6f9d0b40",
+  "verifiedCommit": "0b2c0ba8ea2efd955d2c512986a46798e33cb6a2",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": true,
   "productionEnabled": false,
@@ -2074,7 +2074,7 @@
       "applicationArtifactSha256": "529f6f52f8cb0f716c46da0613cd28490f6e7d552506fa051d757e694a62b995",
       "angularArtifactSha256": "8793f6f2e0b4399e8dfbd6d1d0cd741ee416ed93cfd677651e6a0051acbd20d6",
       "angularFileCount": 76,
-      "sourceBoundary": "Focused checks/full API and Angular suites verified implementationCommit in the isolated worktree, identified by the recorded source/artifact fingerprints. A full .NET regression for the same revision is now running from those frozen artifacts. No passing current-source full solution or production acceptance inferred.",
+      "sourceBoundary": "Focused checks, full API/Angular suites and full .NET regression verified implementationCommit in the isolated worktree using the recorded frozen artifact fingerprints. No production or subsequent-source acceptance inferred.",
       "fingerprintMethod": "SHA-256 of sorted unique Git-tracked/nonignored src/tests relative paths, NUL, bytes, NUL; Angular browser hash uses sorted relative paths and bytes with NUL delimiters.",
       "behavior": "Native Signal Forms read panel; exact decimal threshold/source strings; exact scope, method, rounding, rate set/version/observation and provenance; current/prior comparison; explicit same-currency identity without invented observation. Prior candidates are scope-filtered before selection, including expiry. Latest invalid rate/direction/effective dates refuse fallback. Final current/prior source/period/rate and actor rechecks fail closed. Bound 20000 account aggregate and 50 rendered rows per page. Filters mark results stale; changed context, malformed response or revoked session cannot repopulate old data.",
       "build": "PASS Release full solution, zero warnings/errors; Angular production build within configured budgets. Locked restore passed with the repository SDK, no package lock changes.",
@@ -2109,11 +2109,28 @@
       "documentation": "PASS documentation health, filenames, protected narrative metrics, source inventory --check and git diff --check. No Wiki publication.",
       "secretCheck": "PASS staged redacted gitleaks scan, no findings or suppressed rules. No real credentials added; scanner success is not a comprehensive guarantee.",
       "fullSuite": {
-        "status": "RUNNING",
+        "status": "PASS",
         "sourceCommit": "0b2c0ba8ea2efd955d2c512986a46798e33cb6a2",
         "startedAt": "2026-10-02T16:53:43.095777+00:00",
         "command": "dotnet test AuditSphereOps.slnx -c Release --no-build",
-        "boundary": "Observed all three test projects started in the isolated worktree using frozen final Release/Angular outputs and exact repository SDK. No rebuild or source mutation in that worktree during run. Outcome pending."
+        "boundary": "Terminal exit 0 from frozen Release/Angular artifacts at source 0b2c0ba in the isolated worktree. Excludes subsequent currency configuration editor source.",
+        "completedAt": "2026-10-02T17:22:33.439124+00:00",
+        "domain": {
+          "passed": 555,
+          "failed": 0,
+          "skipped": 0
+        },
+        "api": {
+          "passed": 67,
+          "failed": 0,
+          "skipped": 0
+        },
+        "e2e": {
+          "passed": 130,
+          "failed": 0,
+          "skipped": 0
+        },
+        "totalPassed": 752
       },
       "remaining": "Complete intake upload/mapping command/form/draft parity, rate/method editor acceptance, remaining module stories, security/accessibility/performance/canary acceptance and final Blazor retirement remain open.",
       "implementationCommit": "0b2c0ba8ea2efd955d2c512986a46798e33cb6a2",
