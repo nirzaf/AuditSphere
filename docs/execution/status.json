@@ -4,7 +4,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "77b896a8158f7b0070718da0d3da38b023a375f5",
+  "headCommit": "a374d9f8b2a6cbd28ccd568df3ad4357e2fbe94e",
   "verifiedCommit": "6b3f411c203f3285dff3fe9ae36c56eaf640c2f3",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": true,
@@ -3336,8 +3336,13 @@
         }
       },
       "fullSuite": {
-        "status": "NOT_RUN",
-        "boundary": "Final whole-solution frozen regression will run on the committed native batch source; previous full PASS belongs to mapping approval, not this new slice."
+        "status": "RUNNING",
+        "sourceCommit": "a374d9f8b2a6cbd28ccd568df3ad4357e2fbe94e",
+        "worktree": "/private/tmp/auditsphere-mapping-draft-regression-20261002",
+        "buildLog": "/private/tmp/auditsphere-mapping-draft-regression-build.log",
+        "log": "/private/tmp/auditsphere-mapping-draft-regression-suite.log",
+        "fingerprintsPath": "/private/tmp/auditsphere-mapping-draft-regression-hashes.json",
+        "boundary": "Sequential locked restore and frozen build precede full regression. No completion claimed before terminal result."
       },
       "remaining": [
         "Wider grid performance/accessibility and source-action story acceptance",
@@ -3349,6 +3354,13 @@
         "status": "PASS",
         "scope": "Complete staged native mapping batch diff scanned redacted before commit; no leaks detected.",
         "log": "/private/tmp/auditsphere-mapping-draft-secret-scan.log"
+      },
+      "publication": {
+        "status": "PUSHED",
+        "branch": "master",
+        "implementationCommit": "a374d9f8b2a6cbd28ccd568df3ad4357e2fbe94e",
+        "remoteHeadConfirmed": true,
+        "confirmedAt": "2026-10-02T22:09:37.341453+00:00"
       }
     }
   },
