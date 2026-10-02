@@ -789,3 +789,12 @@ For the complete documentation index, authority hierarchy, current requirements,
 - `src/AuditSphereOps.Api/Ui/UiEndpoints.AccountingDetail.cs`: authorized review and both guarded approval endpoints.
 - `src/AuditSphereOps.Ui/src/app/features/accounting/mapping-approval.ts` and `mapping-approval.html`: fresh reviewed assent, metadata-only checkpoints and uncertain-outcome recovery.
 - `tests/AuditSphereOps.Api.Tests/MappingApprovalApiTests.cs` and `tests/AuditSphereOps.E2E.Tests/AngularMappingApprovalJourneyTests.cs`: exact review, concurrency, stale/protected scope, independent approval, rollback and native recovery.
+
+### Native mapping batch creation
+
+- `src/AuditSphereOps.Application/Accounting/MappingDraftWorkspace.cs`: bounded editor, complete reviewed preview and receipt reconciliation; `FinancialStatementService.Mapping.cs` owns the serialized new-version transaction and final authority fence.
+- `src/AuditSphereOps.Api/Ui/UiEndpoints.MappingDrafts.cs`: trusted-session editor/receipt reads and antiforgery-protected preview/creation commands.
+- `src/AuditSphereOps.Ui/src/app/features/accounting/mapping-draft.ts`, `.html`, `.scss` and `mapping-draft-contracts.ts`: explicit focused split editing, selected/pasted batch previews, native keyboard controls, local undo, draft recovery and receipt fencing.
+- `src/AuditSphereOps.Ui/src/app/core/tab-drafts.ts`: identity/epoch/TTL-bound convenience fields; pending-reference recovery exposes only request identity/hash after a fresh authorized base read.
+- `NativeMappingCreationReceipts` migration: nullable legacy-compatible metadata, scoped parent FK, unique actor/request identity, append-only receipt and allocation guards; rollback refuses retained receipt deletion.
+- `MappingDraftApiTests`, `AngularMappingDraftJourneyTests`, `mapping-draft.spec.ts` and `mapping-draft-contracts.spec.ts`: immutable history, exact fractions, idempotency, rollback, keyboard/paste, stale context and native recovery. Observed results live in `status.json`.

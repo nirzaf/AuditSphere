@@ -96,10 +96,21 @@ public sealed partial class AuditSphereDbContext
     mapping.Property(x => x.PeriodStart).HasMaxLength(10);
     mapping.Property(x => x.PeriodEnd).HasMaxLength(10);
     mapping.Property(x => x.Status).HasMaxLength(16);
+    mapping.Property(x => x.CreationRequestHash).HasMaxLength(64);
+    mapping.Property(x => x.CreationReviewRevision).HasMaxLength(64);
+    mapping.HasIndex(x => new { x.FirmId, x.CreatedByUserId, x.CreationRequestId })
+      .IsUnique().HasDatabaseName("ux_mapping_creation_request");
+    mapping.HasOne<MappingVersion>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.BaseMappingVersionId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     mapping.HasIndex(x => new { x.FirmId, x.EngagementId, x.DatasetId, x.Version })
       .IsUnique().HasDatabaseName("ux_mapping_version_identity");
-    mapping.ToTable("mapping_versions", t => t.HasCheckConstraint("ck_mapping_version_values",
-      "version >= 1 AND generation >= 1 AND length(taxonomy_version) > 0 AND length(period_start) = 10 AND length(period_end) = 10 AND period_start <= period_end AND status IN ('DRAFT','APPROVED') AND ((status = 'DRAFT' AND approved_by_user_id IS NULL AND approved_at IS NULL) OR (status = 'APPROVED' AND approved_by_user_id IS NOT NULL AND approved_at IS NOT NULL))"));
+    mapping.ToTable("mapping_versions", t => {
+      t.HasCheckConstraint("ck_mapping_version_values",
+        "version >= 1 AND generation >= 1 AND length(taxonomy_version) > 0 AND length(period_start) = 10 AND length(period_end) = 10 AND period_start <= period_end AND status IN ('DRAFT','APPROVED') AND ((status = 'DRAFT' AND approved_by_user_id IS NULL AND approved_at IS NULL) OR (status = 'APPROVED' AND approved_by_user_id IS NOT NULL AND approved_at IS NOT NULL))");
+      t.HasCheckConstraint("ck_mapping_creation_receipt",
+        "(base_mapping_version_id IS NULL AND creation_request_id IS NULL AND creation_request_hash IS NULL AND creation_review_revision IS NULL) OR (base_mapping_version_id IS NOT NULL AND base_mapping_version_id <> id AND creation_request_id IS NOT NULL AND creation_request_hash IS NOT NULL AND creation_request_hash ~ '^[a-f0-9]{64}$' AND creation_review_revision IS NOT NULL AND creation_review_revision ~ '^[a-f0-9]{64}$')");
+    });
     mapping.HasOne<PracticeClient>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.ClientId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);

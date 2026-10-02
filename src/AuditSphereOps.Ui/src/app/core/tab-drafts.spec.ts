@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
-import { TabDrafts } from './tab-drafts';
+import { TabDrafts, pendingRequestReference } from './tab-drafts';
 import { SessionService } from './session';
 import {
   emptyCreate,
@@ -136,5 +136,25 @@ describe('Versioned tab drafts', () => {
     expect(drafts.save(existing, intent(emptyCreate()), createDraft, true)).toBe(true);
     const read = drafts.read(existing, createDraft);
     expect(read.state === 'ready' && read.draft.submissionPending).toBe(true);
+  });
+  it('recovers only a pending identity across a changed base, never editable fields or assent', () => {
+    const reference = { requestId: id, requestHash: 'c'.repeat(64) };
+    expect(drafts.save(scope, reference, pendingRequestReference, true)).toBe(true);
+    const next = { ...scope, baseRevision: 'b'.repeat(64) };
+    expect(drafts.read(next, pendingRequestReference).state).toBe('stale');
+    expect(drafts.readPendingRequest(next)).toEqual({
+      state: 'ready',
+      draft: { value: reference, submissionPending: true },
+    });
+    expect(pendingRequestReference({ ...reference, reviewed: true })).toBeNull();
+    const { key, value } = stored();
+    sessionStorage.setItem(key, JSON.stringify({ ...value, value: intent(emptyCreate()) }));
+    expect(drafts.readPendingRequest(next).state).toBe('stale');
+    drafts.save(scope, reference, pendingRequestReference, false);
+    expect(drafts.readPendingRequest(next).state).toBe('stale');
+    drafts.save(scope, reference, pendingRequestReference, true);
+    const e = stored();
+    vi.spyOn(Date, 'now').mockReturnValue(e.value.expiresAt);
+    expect(drafts.readPendingRequest(next).state).toBe('stale');
   });
 });

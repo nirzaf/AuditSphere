@@ -10,6 +10,7 @@ public static partial class UiEndpoints
 
   private static void MapAccountingDetailEndpoints(RouteGroupBuilder group)
   {
+    MapMappingDraftEndpoints(group);
     group.MapGet("/accounting/mappings/{id:guid}", (Guid id, HttpContext http) => ReadAsync(http, (db, actor, ct) => MappingWorkbenchQuery.GetAsync(db, actor, id, ct)));
     group.MapGet("/accounting/mappings/{id:guid}/approval", (Guid id, HttpContext http) =>
       ReadAsync(http, (db, actor, ct) => MappingApprovalWorkspace.GetAsync(db, actor, id, ct)));

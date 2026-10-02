@@ -1,0 +1,450 @@
+<audit-page-header
+  title="Prepare a mapping version"
+  eyebrow="Client accounting"
+  description="Edit exact source-account allocations, review the complete batch, then create a new version."
+/>
+<nav class="actions" aria-label="Mapping navigation">
+  <a matButton [routerLink]="['/app/accounting/mappings', id()]">Allocations, impact and history</a>
+  <a matButton routerLink="/app/accounting/mappings">Mapping register</a>
+  <button matButton="outlined" (click)="refresh()" [disabled]="busy()">Read current base</button>
+</nav>
+<audit-state
+  [loading]="editor.loading()"
+  [error]="editor.error()"
+  label="the scoped mapping editor"
+/>
+@if (editor.data(); as p) {
+  <section class="panel" aria-labelledby="basis-heading">
+    <h2 id="basis-heading">Exact mapping basis</h2>
+    <p>
+      Base version {{ p.baseVersion }} · {{ p.sourceAccountCount }} source accounts · generation
+      {{ p.inputGeneration }}
+    </p>
+    <p>Taxonomy {{ p.taxonomyVersion }} · {{ p.periodStart }} to {{ p.periodEnd }}</p>
+    <details>
+      <summary>Source, scope and chart identities</summary>
+      <dl>
+        <dt>Base mapping</dt>
+        <dd>
+          <code>{{ p.baseMappingId }}</code>
+        </dd>
+        <dt>Dataset</dt>
+        <dd>
+          <code>{{ p.datasetId }}</code>
+        </dd>
+        <dt>Client / engagement</dt>
+        <dd>{{ p.clientId }} / {{ p.engagementId }}</dd>
+        <dt>Client chart</dt>
+        <dd>{{ p.chartVersionId ?? 'Unavailable' }}</dd>
+      </dl>
+    </details>
+    <p>
+      Historical allocations remain unchanged. A new draft does not approve a mapping, accept a
+      source or build a financial package. Suggestions in the history workbench are review-only.
+    </p>
+    @if (p.blocker) {
+      <p role="status">{{ p.blocker }}</p>
+    }
+  </section>
+  @if (uncertain()) {
+    <section class="panel warning" aria-labelledby="pending-heading">
+      <h2 id="pending-heading">Mapping creation outcome needs verification</h2>
+      <p>
+        No new request is permitted until this pending identity is resolved. A response timeout does
+        not prove that creation failed.
+      </p>
+      <div class="actions">
+        <button matButton="outlined" (click)="readReceipt()" [disabled]="busy()">
+          Read creation receipt
+        </button>
+        <button
+          matButton="outlined"
+          (click)="acknowledgeReceipt()"
+          [disabled]="busy() || !receiptRead() || !receipt()"
+        >
+          I reviewed the retained creation
+        </button>
+        @if (receiptRead() && !receipt()) {
+          <button matButton="outlined" (click)="reviewSameRequest()" [disabled]="busy()">
+            Review the same retained request
+          </button>
+        }
+      </div>
+    </section>
+  }
+  @if (receipt(); as r) {
+    <section class="panel" aria-labelledby="receipt-heading">
+      <h2 id="receipt-heading">Retained mapping creation</h2>
+      <p>Version {{ r.version }} · <audit-status [value]="r.status" /> · {{ r.createdAt }}</p>
+      <p>
+        Request <code>{{ r.requestId }}</code> · Mapping <code>{{ r.mappingId }}</code>
+      </p>
+      <a matButton [routerLink]="['/app/accounting/mappings', r.mappingId]"
+        >Inspect new mapping version</a
+      >
+      <a matButton [routerLink]="['/app/accounting/mappings', r.mappingId, 'approval']"
+        >Independent review</a
+      >
+    </section>
+  }
+  @if (stale() && !uncertain()) {
+    <section class="panel warning" aria-labelledby="stale-heading">
+      <h2 id="stale-heading">Mapping basis changed</h2>
+      <p>
+        Your local edits are retained. Source, chart, taxonomy, lineage or generation changed; a
+        previous preview and assent cannot be reused.
+      </p>
+      <button matButton="outlined" (click)="reviewCurrentBase()" [disabled]="busy()">
+        Review retained edits against current base
+      </button>
+    </section>
+  }
+  <section class="panel" aria-labelledby="accounts-heading">
+    <h2 id="accounts-heading">Source accounts</h2>
+    <p id="keyboard-help">
+      Use Tab / Shift+Tab normally. On an Edit button use ↑ / ↓ to move, Enter or F2 to edit. Escape
+      cancels the active form. Changes stay keyed to account codes across pages and filters.
+    </p>
+    <form class="actions" (submit)="$event.preventDefault(); filter()">
+      <label>Search source accounts<input [formField]="filterFields.search" /></label>
+      <button matButton="outlined" [disabled]="busy() || uncertain() || !!active().accountCode">
+        Filter accounts
+      </button>
+    </form>
+    <p role="status">
+      {{ p.filteredCount }} matching accounts · {{ selected().length }} explicitly selected ·
+      {{ changes().length }} locally changed (maximum 200)
+    </p>
+    <div
+      class="table-scroll"
+      tabindex="0"
+      aria-label="Paged source accounts"
+      aria-describedby="keyboard-help"
+    >
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">Select</th>
+            <th scope="col">Account</th>
+            <th scope="col" class="number">Source balance</th>
+            <th scope="col">Retained allocations</th>
+            <th scope="col">Edit</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (a of p.accounts; track a.accountCode) {
+            <tr>
+              <td>
+                <input
+                  type="checkbox"
+                  [attr.aria-label]="'Select account ' + a.accountCode"
+                  [checked]="selected().includes(a.accountCode)"
+                  [disabled]="!editable()"
+                  (change)="select(a.accountCode, $event)"
+                />
+              </td>
+              <th scope="row">
+                <code>{{ a.accountCode }}</code
+                ><small>{{ a.accountName }}</small>
+              </th>
+              <td class="number">{{ a.amount | money }} {{ a.currency }}</td>
+              <td>
+                @for (s of a.allocations; track $index) {
+                  <div>{{ s.destinationCode }} × {{ s.fraction }}</div>
+                } @empty {
+                  <span>Unmapped</span>
+                }
+              </td>
+              <td>
+                <button
+                  matButton
+                  data-account-edit
+                  (keydown)="keyboard($event, a.accountCode)"
+                  (click)="edit(a.accountCode)"
+                  [disabled]="!editable() || !!active().accountCode"
+                >
+                  Edit {{ a.accountCode }}
+                </button>
+              </td>
+            </tr>
+          } @empty {
+            <tr>
+              <td colspan="5">No source accounts match this filter.</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    <div class="actions">
+      <button
+        matButton="outlined"
+        (click)="changePage(-1)"
+        [disabled]="p.page <= 1 || busy() || uncertain() || !!active().accountCode"
+      >
+        Previous accounts
+      </button>
+      <span>Page {{ p.page }}</span
+      ><button
+        matButton="outlined"
+        (click)="changePage(1)"
+        [disabled]="
+          p.page * p.pageSize >= p.filteredCount || busy() || uncertain() || !!active().accountCode
+        "
+      >
+        Next accounts
+      </button>
+    </div>
+  </section>
+  @if (active().accountCode) {
+    <section
+      class="panel"
+      aria-labelledby="active-heading"
+      (keydown.escape)="cancelEdit(); $event.stopPropagation()"
+    >
+      <h2 id="active-heading">Edit account {{ active().accountCode }}</h2>
+      <form (submit)="$event.preventDefault(); stage()">
+        <fieldset [disabled]="!editable()">
+          <legend>Exact destination splits</legend>
+          @for (s of active().splits; track $index; let i = $index) {
+            <div class="split">
+              <label
+                >Destination {{ i + 1
+                }}<select
+                  [id]="'active-destination-' + i"
+                  [attr.aria-label]="'Destination ' + (i + 1)"
+                  [formField]="fields.splits[i].destinationCode"
+                >
+                  <option value="">Choose approved posting destination</option>
+                  @for (d of p.destinations; track d.code) {
+                    <option [value]="d.code">{{ d.code }} · {{ d.name }}</option>
+                  }
+                </select></label
+              >
+              <label
+                >Fraction {{ i + 1
+                }}<input [formField]="fields.splits[i].fraction" inputmode="decimal"
+              /></label>
+              <label
+                >Rationale {{ i + 1 }}<textarea [formField]="fields.splits[i].rationale"></textarea>
+              </label>
+              <label
+                >Audit area {{ i + 1 }} (optional)<input [formField]="fields.splits[i].auditArea"
+              /></label>
+              <button
+                matButton
+                type="button"
+                (click)="removeSplit(i)"
+                [disabled]="active().splits.length <= 1"
+              >
+                Remove split {{ i + 1 }}
+              </button>
+            </div>
+          }
+          <p>
+            Fractions must total exactly 1, using at most six decimal places. No browser rounding or
+            suggested allocation is applied.
+          </p>
+          <div class="actions">
+            <button
+              matButton
+              type="button"
+              (click)="addSplit()"
+              [disabled]="active().splits.length >= 20"
+            >
+              Add destination split
+            </button>
+            <button matButton="filled">Stage account change</button
+            ><button matButton type="button" (click)="cancelEdit()">Cancel active edit</button>
+          </div>
+        </fieldset>
+      </form>
+    </section>
+  }
+  <details class="panel">
+    <summary>Assign selected accounts or paste exact allocations</summary>
+    <fieldset [disabled]="!editable() || !!active().accountCode">
+      <legend>Preview before staging</legend>
+      <label
+        >Batch destination<select
+          aria-label="Batch destination"
+          [formField]="batchFields.destinationCode"
+        >
+          <option value="">Choose approved posting destination</option>
+          @for (d of p.destinations; track d.code) {
+            <option [value]="d.code">{{ d.code }} · {{ d.name }}</option>
+          }
+        </select></label
+      >
+      <label>Batch rationale<textarea [formField]="batchFields.rationale"></textarea></label>
+      <label>Batch audit area (optional)<input [formField]="batchFields.auditArea" /></label>
+      <button matButton="outlined" (click)="previewSelected()" [disabled]="!selected().length">
+        Preview selected assignment
+      </button>
+      <label
+        >Paste tab-separated allocation rows<textarea
+          [formField]="pasteFields.text"
+          rows="5"
+          aria-describedby="paste-help"
+        ></textarea>
+      </label>
+      <p id="paste-help">
+        Columns: exact account code, destination code, fraction, rationale, optional audit area.
+        Repeat an account only for an explicit split. No headings. Source accounts and the complete
+        mapping are checked by the server.
+      </p>
+      <button matButton="outlined" (click)="previewPaste()">Preview pasted allocations</button>
+    </fieldset>
+  </details>
+  @if (localBatch().length) {
+    <section class="panel" aria-labelledby="local-heading">
+      <h2 id="local-heading">Proposed local batch</h2>
+      <p>
+        {{ localBatch().length }} exact accounts. This replaces staged changes only for the listed
+        accounts.
+      </p>
+      @for (c of localBatch(); track c.accountCode) {
+        <p>
+          <code>{{ c.accountCode }}</code> →
+          @for (s of c.splits; track $index) {
+            <span>{{ s.destinationCode }} × {{ s.fraction }} ({{ s.rationale }}) </span>
+          }
+        </p>
+      }
+      <button matButton="outlined" (click)="stageBatch()" [disabled]="!editable()">
+        Stage this exact batch</button
+      ><button matButton (click)="cancelBatch()">Cancel batch preview</button>
+    </section>
+  }
+  <section class="panel" aria-labelledby="staged-heading">
+    <h2 id="staged-heading">Local changes and draft recovery</h2>
+    @for (c of changes(); track c.accountCode) {
+      <p>
+        <code>{{ c.accountCode }}</code> →
+        @for (s of c.splits; track $index) {
+          <span>{{ s.destinationCode }} × {{ s.fraction }} </span>
+        }
+        <button matButton (click)="removeChange(c.accountCode)" [disabled]="!editable()">
+          Remove change {{ c.accountCode }}
+        </button>
+      </p>
+    } @empty {
+      <p>No local changes have been staged.</p>
+    }
+    <div class="actions">
+      <button
+        matButton="outlined"
+        (click)="undo()"
+        [disabled]="!editable() || !undoCount() || !!active().accountCode"
+      >
+        Undo local change
+      </button>
+      <button
+        matButton="outlined"
+        (click)="saveDraft()"
+        [disabled]="busy() || uncertain() || !dirty()"
+      >
+        Save tab draft
+      </button>
+      <button
+        matButton="outlined"
+        (click)="recoverDraft()"
+        [disabled]="busy() || uncertain() || dirty() || draftState() !== 'ready'"
+      >
+        Recover saved tab draft
+      </button>
+      <button matButton (click)="discardDraft()" [disabled]="busy() || uncertain()">
+        Discard local draft
+      </button>
+      <button
+        matButton="filled"
+        (click)="reviewBatch()"
+        [disabled]="
+          !editable() || !changes().length || !!active().accountCode || !!localBatch().length
+        "
+      >
+        Review complete mapping batch
+      </button>
+    </div>
+    <p>
+      A convenience draft expires after four hours and stays in this browser tab. Assent is never
+      saved. Recovery requires a fresh authorized base.
+    </p>
+    @if (draftState() === 'stale') {
+      <p role="status">
+        A saved draft has an older base or unsupported shape. It was not applied to this mapping.
+      </p>
+    }
+  </section>
+  @if (preview(); as v) {
+    <section class="panel" aria-labelledby="preview-heading">
+      <h2 id="preview-heading">Complete mapping batch review</h2>
+      <p>
+        {{ v.changedAccountCount }} exact accounts changed · {{ v.allocationCount }} allocations in
+        the proposed complete mapping
+      </p>
+      <p>
+        Request <code>{{ v.requestId }}</code
+        >. The source, chart, taxonomy and period remain bound to this reviewed base.
+      </p>
+      <div class="table-scroll" tabindex="0" aria-label="Exact before and after allocations">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">Account</th>
+              <th scope="col">Retained before</th>
+              <th scope="col">Proposed after</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (c of v.changes; track c.accountCode) {
+              <tr>
+                <th scope="row">{{ c.accountCode }}</th>
+                <td>
+                  @for (a of c.before; track $index) {
+                    <p>
+                      {{ a.destinationCode }} × {{ a.fraction }} · {{ a.rationale }} ·
+                      {{ a.auditArea ?? 'No audit area' }}
+                    </p>
+                  } @empty {
+                    <p>Unmapped</p>
+                  }
+                </td>
+                <td>
+                  @for (a of c.after; track $index) {
+                    <p>
+                      {{ a.destinationCode }} × {{ a.fraction }} · {{ a.rationale }} ·
+                      {{ a.auditArea ?? 'No audit area' }}
+                    </p>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      @if (v.blocker) {
+        <p role="status">{{ v.blocker }}</p>
+      }
+      @for (generation of [resetGeneration()]; track generation) {
+        <label
+          ><input type="checkbox" [formField]="reviewFields.reviewed" (change)="assent($event)" /> I
+          reviewed these exact account changes, splits, rationale and mapping basis.</label
+        >
+      }
+      <button
+        matButton="filled"
+        (click)="create()"
+        [disabled]="!canCreate() || !reviewModel().reviewed"
+      >
+        {{
+          busy()
+            ? 'Recording new version…'
+            : retryExact()
+              ? 'Create with the same retained request'
+              : 'Create reviewed mapping version'
+        }}
+      </button>
+    </section>
+  }
+}
+<audit-command-message [message]="message()" [failed]="uncertain() || stale()" />

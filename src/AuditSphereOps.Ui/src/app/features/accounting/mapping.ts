@@ -31,6 +31,7 @@ export const decodeMapping = obj({ id: guid, status: text, datasetId: guid, char
           <dt>Taxonomy scope</dt><dd>{{ m.taxonomyScope }}</dd><dt>Period</dt><dd>{{ m.periodStart }} to {{ m.periodEnd }}</dd><dt>Version</dt><dd>{{ m.version }}</dd><dt>Generation</dt><dd>{{ m.generation }}</dd></dl>
       </section>
       <p role="status">{{ m.sourceAccountCount }} source accounts · {{ m.unmapped.length }} unmapped · {{ m.splits.length }} split · {{ m.impacts.length }} report destinations</p>
+      <a matButton="outlined" [routerLink]="['/app/accounting/mappings', m.id, 'edit']">Prepare new mapping version</a>
       <nav aria-label="Mapping sections" class="actions"><a [routerLink]="[]" fragment="lineage-heading">Lineage</a><a [routerLink]="[]" fragment="comparison-heading">Comparison</a><a [routerLink]="[]" fragment="unmapped-heading">Unmapped</a><a [routerLink]="[]" fragment="impact-heading">Report impact</a><a [routerLink]="[]" fragment="allocation-heading">Allocations</a></nav>
       <section class="panel" aria-labelledby="lineage-heading">
         <h2 id="lineage-heading">Mapping lineage</h2>

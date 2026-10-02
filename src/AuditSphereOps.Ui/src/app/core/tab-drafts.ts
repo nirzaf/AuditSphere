@@ -12,6 +12,21 @@ export interface TabDraft<T> {
   value: T;
   submissionPending: boolean;
 }
+export interface PendingRequestReference {
+  requestId: string;
+  requestHash: string;
+}
+export function pendingRequestReference(raw: unknown): PendingRequestReference | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const r = raw as Record<string, unknown>;
+  return Object.keys(r).length === 2 &&
+    typeof r['requestId'] === 'string' &&
+    /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(r['requestId']) &&
+    typeof r['requestHash'] === 'string' &&
+    /^[a-f0-9]{64}$/.test(r['requestHash'])
+    ? { requestId: r['requestId'], requestHash: r['requestHash'] }
+    : null;
+}
 export type DraftRead<T> =
   { state: 'ready'; draft: TabDraft<T> } | { state: 'absent' | 'stale' | 'unavailable' };
 
@@ -71,9 +86,23 @@ export class TabDrafts {
     }
   }
   read<T>(scope: DraftScope, validate: (raw: unknown) => T | null): DraftRead<T> {
+    return this.readCore(scope, validate);
+  }
+  /** Only after a fresh authorized entity read: recover a pending request's identity
+   * across a changed base, so its persisted receipt can be read. This never recovers
+   * editable fields, assent or an executable command against a stale revision. */
+  readPendingRequest(scope: DraftScope): DraftRead<PendingRequestReference> {
+    const r = this.readCore(scope, pendingRequestReference, true);
+    return r.state === 'ready' && !r.draft.submissionPending ? { state: 'stale' } : r;
+  }
+  private readCore<T>(
+    scope: DraftScope,
+    validate: (raw: unknown) => T | null,
+    pendingReferenceOnly = false,
+  ): DraftRead<T> {
     const key = this.key(scope['entity']),
       s = this.session.current();
-    if (!key || !s) return { state: 'absent' };
+    if (!key || !s || !/^[a-f0-9]{64}$/.test(scope.baseRevision)) return { state: 'absent' };
     try {
       const raw = sessionStorage.getItem(key);
       if (!raw) return { state: 'absent' };
@@ -101,13 +130,16 @@ export class TabDrafts {
         e['savedAt'] > now ||
         e['expiresAt'] <= now ||
         e['expiresAt'] - e['savedAt'] !== lifetime ||
-        typeof e['submissionPending'] !== 'boolean'
+        typeof e['submissionPending'] !== 'boolean' ||
+        typeof e['baseRevision'] !== 'string' ||
+        !/^[a-f0-9]{64}$/.test(e['baseRevision'])
       ) {
         sessionStorage.removeItem(key);
         return { state: 'stale' };
       }
       const value = validate(e['value']);
-      if (!value || e['baseRevision'] !== scope['baseRevision']) return { state: 'stale' };
+      if (!value || (!pendingReferenceOnly && e['baseRevision'] !== scope['baseRevision']))
+        return { state: 'stale' };
       return { state: 'ready', draft: { value, submissionPending: e['submissionPending'] } };
     } catch {
       return { state: 'unavailable' };

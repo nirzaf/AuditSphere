@@ -132,7 +132,7 @@
       "id": "US-022",
       "title": "Build the mapping workbench with revision-safe batch editing",
       "status": "PARTIAL",
-      "scope": "Native lineage, comparison, unmapped accounts, allocations and impact workbench exists. Dedicated independent review binds exact source/allocations/chart/taxonomy/generation and fresh assent to the serialized approval transaction; both API approval routes require review. Late authority changes roll back approval/generation, and tab checkpoints fence uncertain responses until manual persisted-state acknowledgment. Complete batch editing, keyboard/paste, editable-field drafts and story acceptance remain open."
+      "scope": "Native mapping lineage/comparison/impact and independent revision-bound approval are implemented. A new paged source-account editor adds exact split forms, explicit selected/paste batch previews, local undo, reviewed new-version creation and scoped immutable idempotency receipts. Tab drafts preserve bounded editable fields without assent, and unknown creation outcomes fence new requests until persisted reconciliation or deliberate review of the same retained request. Local build, Angular/API/affected PostgreSQL and browser gates plus built-in desktop/mobile verification passed; wider grid performance/accessibility, source-action parity and story acceptance remain open."
     },
     {
       "id": "US-023",

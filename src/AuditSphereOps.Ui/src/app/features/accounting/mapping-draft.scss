@@ -1,0 +1,100 @@
+:host {
+  display: block;
+  min-width: 0;
+}
+.actions {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-block: 0.8rem;
+}
+label {
+  display: grid;
+  gap: 0.4rem;
+  margin-block: 0.8rem;
+  min-width: 0;
+}
+input:not([type='checkbox']),
+select,
+textarea {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 0.65rem;
+  font: inherit;
+  border: 1px solid var(--border, #b5bac5);
+  border-radius: 0.35rem;
+  background: var(--surface, white);
+  color: inherit;
+}
+input[type='checkbox'] {
+  width: 1.1rem;
+  height: 1.1rem;
+  vertical-align: middle;
+}
+label:has(input[type='checkbox']) {
+  display: block;
+}
+fieldset {
+  border: 1px solid var(--border, #b5bac5);
+  border-radius: 0.4rem;
+  min-width: 0;
+}
+.split {
+  display: grid;
+  grid-template-columns: minmax(130px, 2fr) minmax(80px, 1fr) minmax(140px, 3fr) minmax(100px, 1fr);
+  gap: 0.6rem;
+  border-bottom: 1px solid var(--border, #b5bac5);
+  padding-block: 0.8rem;
+}
+.split button {
+  grid-column: 1 / -1;
+  justify-self: start;
+}
+small {
+  display: block;
+  font-weight: normal;
+}
+summary {
+  cursor: pointer;
+  font-weight: 600;
+  padding-block: 0.5rem;
+}
+dl {
+  display: grid;
+  grid-template-columns: minmax(100px, 160px) minmax(0, 1fr);
+  gap: 0.5rem;
+}
+dd {
+  margin: 0;
+}
+p,
+dd,
+code,
+td,
+th {
+  overflow-wrap: anywhere;
+}
+.warning {
+  border-inline-start: 4px solid #ae6400;
+}
+.table-scroll {
+  max-width: 100%;
+  overflow: auto;
+}
+table {
+  min-width: 620px;
+}
+@media (max-width: 700px) {
+  .split {
+    grid-template-columns: 1fr;
+  }
+  dl {
+    grid-template-columns: 1fr;
+  }
+  dd {
+    margin-bottom: 0.5rem;
+  }
+}

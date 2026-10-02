@@ -32,6 +32,27 @@ which the full suite was run; per-slice records carry their own evidence.
 
 
 
+## Native mapping batch creation
+
+The standalone API and Angular mapping editor now compose a reviewed new-version workflow.
+Source accounts are server-paged, destination choices come from the exact approved taxonomy,
+and the focused split form retains exact decimal text. Explicit selected-account and paste
+previews precede local staging; keyboard navigation and local undo do not mutate history.
+The server preview checks the complete proposed mapping, and creation binds fresh assent
+to the exact source/applicability, generation, lineage and session revision.
+
+The serialized transaction retains the new version, allocations and an idempotent request
+receipt together. PostgreSQL guards preserve native creation metadata and allocations;
+independent approval remains separate. Late authority changes roll back all new records.
+Tab drafts exclude assent and financial source rows. Interrupted creation fences new
+requests and navigation until a scoped persisted receipt is verified, or the same retained
+request is explicitly re-reviewed against its unchanged base. No automatic retry occurs.
+
+Local build/test evidence and browser verification are recorded in `status.json`. The new
+additive migration is restricted to owned verification databases so far; shared Development
+and production were not migrated. Wider story acceptance, other accounting editor parity,
+cutover/rollback and Blazor retirement remain pending.
+
 ## Independent native mapping approval
 
 The standalone API now exposes a bounded review of the exact mapping, source, complete
@@ -48,8 +69,8 @@ responses fence commands and navigation until a persisted read and manual acknow
 Refresh or session changes clear assent and protected content; historical approval alone
 never implies current package eligibility.
 
-Verification evidence is recorded in `status.json`. Batch mapping editing, keyboard/paste
-controls, editable-field drafts and broader migration acceptance remain open.
+Verification evidence is recorded in `status.json`. The newer slice above adds native batch
+editing; broader migration acceptance remains open.
 
 Browser verification now waits for refreshed application state rather than an unbounded
 network-body completion. Retained PBC checks wait for the exact staged/uncertain upload row;

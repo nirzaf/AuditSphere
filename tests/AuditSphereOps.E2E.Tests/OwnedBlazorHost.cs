@@ -106,8 +106,8 @@ internal sealed class OwnedBlazorHost : IAsyncDisposable
     StartWebAsync(FindRepositoryRoot(), identity, enableSetup: false, extraSettings: extraSettings);
 
   public Task<string> StartApiForIdentityAsync(AuditSphereOps.Domain.Security.AppUser identity,
-    IReadOnlyDictionary<string, string>? extraSettings = null) =>
-    StartWebAsync(FindRepositoryRoot(), identity, enableSetup: false, extraSettings: extraSettings, apiHost: true);
+    IReadOnlyDictionary<string, string>? extraSettings = null, int? loopbackPort = null) =>
+    StartWebAsync(FindRepositoryRoot(), identity, enableSetup: false, extraSettings: extraSettings, apiHost: true, loopbackPort: loopbackPort);
 
   public async Task WaitForReceivedAsync(Guid uploadId)
   {
@@ -148,9 +148,12 @@ internal sealed class OwnedBlazorHost : IAsyncDisposable
   }
 
   private async Task<string> StartWebAsync(string repo, AuditSphereOps.Domain.Security.AppUser identity, bool enableSetup,
-    bool requireProtectionAttestation = false, IReadOnlyDictionary<string, string>? extraSettings = null, bool apiHost = false)
+    bool requireProtectionAttestation = false, IReadOnlyDictionary<string, string>? extraSettings = null, bool apiHost = false, int? loopbackPort = null)
   {
-    var url = $"http://127.0.0.1:{ReserveLoopbackPort()}";
+    // A named loopback-only port permits built-in browser inspection of this same
+    // disposable fixture. Automated runs continue to reserve an ephemeral port.
+    if (loopbackPort is < 1024 or > 65535) throw new ArgumentOutOfRangeException(nameof(loopbackPort));
+    var url = $"http://127.0.0.1:{loopbackPort ?? ReserveLoopbackPort()}";
     var logPath = Path.Combine(runRoot, $"{(apiHost ? "api" : "web")}-{identity.UserKind}-{identity.Id:N}.log");
     var settings = new List<string>
     {

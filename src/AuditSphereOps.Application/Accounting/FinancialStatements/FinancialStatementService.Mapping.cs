@@ -11,11 +11,18 @@ namespace AuditSphereOps.Application.Accounting;
 
 public static partial class FinancialStatementService
 {
-  public static async Task<CommandResult<Guid>> CreateMappingVersionAsync(
+  public static Task<CommandResult<Guid>> CreateMappingVersionAsync(
     IAuditSphereDbContext db,
     ActorContext actor,
     CreateMappingVersionRequest request,
-    CancellationToken ct = default)
+    CancellationToken ct = default) => CreateMappingVersionCoreAsync(db, actor, request, ct, null);
+
+  internal static Task<CommandResult<Guid>> CreateMappingVersionAsync(IAuditSphereDbContext db, ActorContext actor,
+    CreateMappingVersionRequest request, CancellationToken ct, MappingCreationFence creationFence) =>
+    CreateMappingVersionCoreAsync(db, actor, request, ct, creationFence);
+
+  private static async Task<CommandResult<Guid>> CreateMappingVersionCoreAsync(IAuditSphereDbContext db,
+    ActorContext actor, CreateMappingVersionRequest request, CancellationToken ct, MappingCreationFence? creationFence)
   {
     var invalid = ValidateMappingRequest(request);
     if (invalid is not null)
@@ -71,6 +78,25 @@ public static partial class FinancialStatementService
     if (client is null)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Client safety state is unavailable.");
 
+    MappingDraftWorkspace.CreationProof? creationProof = null;
+    if (creationFence is not null)
+    {
+      if (db is not IClientAccountingDbContext creationDb)
+        return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The typed mapping creation context is required.");
+      var engagement = await creationDb.Engagements.FromSqlInterpolated(
+        $"SELECT * FROM engagements WHERE firm_id = {actor.FirmId} AND id = {dataset.EngagementId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
+      if (engagement?.PracticeClientId != dataset.ClientId)
+        return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+      var proof = await MappingDraftWorkspace.ValidateFenceAsync(creationDb, actor, request, creationFence, ct);
+      if (!proof.Succeeded) return CommandResult<Guid>.Fail(proof.ErrorCode!, proof.Message!);
+      creationProof = proof.Value!;
+      if (creationProof.ExistingId is { } retainedId)
+      {
+        await tx.CommitAsync(ct);
+        return CommandResult<Guid>.Ok(retainedId);
+      }
+    }
+
     var version = (await db.MappingVersions
       .Where(x => x.FirmId == actor.FirmId && x.EngagementId == dataset.EngagementId)
       .Select(x => (long?)x.Version).MaxAsync(ct) ?? 0) + 1;
@@ -80,6 +106,10 @@ public static partial class FinancialStatementService
       EngagementId = dataset.EngagementId, DatasetId = dataset.Id, ClientChartVersionId = chartVersionId, Version = version,
       Generation = client.InputGeneration, TaxonomyVersion = request.TaxonomyVersion.Trim(),
       PeriodStart = request.PeriodStart.Trim(), PeriodEnd = request.PeriodEnd.Trim(),
+      BaseMappingVersionId = creationFence?.BaseMappingId,
+      CreationRequestId = creationFence?.Intent.RequestId,
+      CreationRequestHash = creationProof?.RequestHash,
+      CreationReviewRevision = creationFence?.ReviewRevision,
       CreatedByUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
     };
     db.MappingVersions.Add(mapping);
@@ -88,7 +118,26 @@ public static partial class FinancialStatementService
 
     try
     {
-      await db.SaveChangesAsync(ct);
+      if (creationFence is null) await db.SaveChangesAsync(ct);
+      else
+      {
+        // This command owns the entire transaction and rolls it back on any failure.
+        // EF savepoints use a child PostgreSQL xid; native allocations are fenced to
+        // the parent version's creation transaction, so publish without a child xid.
+        var savepoints = db.Database.AutoSavepointsEnabled;
+        db.Database.AutoSavepointsEnabled = false;
+        try { await db.SaveChangesAsync(ct); }
+        finally { db.Database.AutoSavepointsEnabled = savepoints; }
+      }
+      if (creationFence is not null && db is IClientAccountingDbContext finalDb)
+      {
+        auth = await AuthorizationDecision.AuthorizeAsync(finalDb, actor,
+          new(actor.FirmId, dataset.ClientId, dataset.EngagementId, PreparerRoles, InternalOnly: true, RequireProfessionalWork: true), ct);
+        if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+        var mutable = await GeneralLedgerCompletenessWorkspace.MutablePeriodAsync(finalDb, actor, dataset.ClientId,
+          dataset.EngagementId, dataset.PeriodId!.Value, dataset.BookId, ct);
+        if (!mutable.Succeeded) return CommandResult<Guid>.Fail(mutable.ErrorCode!, mutable.Message!);
+      }
       await tx.CommitAsync(ct);
       return CommandResult<Guid>.Ok(mapping.Id);
     }

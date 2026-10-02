@@ -360,5 +360,36 @@ before dispatch. Lost or malformed responses fence further commands/navigation; 
 requires a current persisted read and manual acknowledgment. Protected results disappear
 on failed reads or session invalidation. The workbench labels approval as retained history
 and links current applicability rather than inferring package eligibility from an approved
-status. Mapping batch editing, keyboard/paste, editable drafts and complete story acceptance
-remain separate pending work.
+status. Wider story acceptance remains separate from this bounded implementation.
+
+### Native mapping batch creation
+
+The mapping workbench links `/ui/app/accounting/mappings/{id}/edit`. Its Application
+workspace reads authorized source accounts in bounded pages and exposes only posting
+destinations in the exact approved taxonomy. Split fractions remain plain decimal strings;
+the server validates the complete proposed mapping. Selected-account and tab-separated
+changes require an explicit preview before staging. Local undo affects unsaved edits only.
+Native table buttons use arrows for row navigation and Enter/F2 for the focused editor;
+normal form typing and Tab navigation retain their ordinary behavior.
+
+Creation requires a fresh reviewed batch bound to source, chart, taxonomy, period/book,
+generation, mapping lineage and actor/session. The serialized Application transaction
+retains a new version, all allocations and an exact creation receipt together. Its final
+authority check rolls the entire version back after a late epoch change. Concurrent exact
+requests reconcile to the same receipt; another intent cannot reuse that request identity.
+Receipt metadata and native allocations have PostgreSQL immutability guards. Approval
+remains a separate independent decision. Legacy Application signatures stay compatible.
+
+Explicit editable drafts stay in the same browser tab and expire; they exclude review
+assent and source balances. A pending creation checkpoint contains only request identity
+and hash. After a fresh authorized base read, that metadata may identify a receipt even
+when the base changed; stale editable fields cannot be restored through this path. An
+unknown result fences new requests and navigation. Recovery reads and acknowledges the
+persisted receipt, or explicitly previews the exact retained request against an unchanged
+base before fresh assent and an idempotent retry. No automatic retry or field rebase occurs.
+Changed context retains current local fields and requires a new complete review.
+
+The additive native-receipt migration is exercised only by owned local test databases.
+It was not applied to the shared Development database or production. Migration rollback
+refuses deletion of retained native receipts. Broader accounting form parity, high-volume
+performance/accessibility acceptance, controlled cutover and Blazor retirement remain open.

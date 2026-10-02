@@ -156,6 +156,11 @@ public sealed class MappingVersion
   public Guid DatasetId { get; set; }
   /// <summary>Approved client chart version used for this mapping; nullable for legacy mappings.</summary>
   public Guid? ClientChartVersionId { get; set; }
+  /// <summary>Native batch creation receipt and exact reviewed parent; null on legacy versions.</summary>
+  public Guid? BaseMappingVersionId { get; set; }
+  public Guid? CreationRequestId { get; set; }
+  public string? CreationRequestHash { get; set; }
+  public string? CreationReviewRevision { get; set; }
   public long Version { get; set; } = 1;
   public long Generation { get; set; } = 1;
   public string TaxonomyVersion { get; set; } = string.Empty;
