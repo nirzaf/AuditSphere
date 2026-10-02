@@ -4,7 +4,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "ff49ecd7e71568876c83315d1f219ca6f08ae8dd",
+  "headCommit": "af9f04e85a951552d1f7d4a09dbb39aa01e52b4d",
   "verifiedCommit": "de2839e8e827fe29b15db0d2b35d7d636dc1e96d",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": true,
@@ -2413,10 +2413,28 @@
       "documentation": "PASS documentation health, filenames, protected narrative metrics, current Razor source inventory and git diff checks. No Wiki publication.",
       "secretScan": "PASS staged redacted gitleaks scan; no detected leaks.",
       "fullSuite": {
-        "status": "NOT_RUN",
-        "boundary": "The earlier frozen upload full run had one rollback browser timeout and excludes this source acceptance/export implementation. No current full solution or production pass inferred."
+        "status": "RUNNING",
+        "sourceCommit": "af9f04e85a951552d1f7d4a09dbb39aa01e52b4d",
+        "worktree": "/Users/qts/.codex/worktrees/angular-source-acceptance/AuditSphere",
+        "buildLog": "/private/tmp/auditsphere-source-acceptance-full-build.log",
+        "log": "/private/tmp/auditsphere-source-acceptance-full-suite.log",
+        "fingerprintsPath": "/private/tmp/auditsphere-source-acceptance-isolated-artifact-hashes.json",
+        "boundary": "Frozen published source acceptance, source export and reviewed upload implementation. Sequential locked restore, Angular and Release solution builds precede the full suite. Terminal full-run exit required before PASS; no production acceptance inferred.",
+        "build": "PASS sequential SDK-locked restore, Angular production and Release solution builds; zero .NET warnings/errors.",
+        "fingerprints": {
+          "sourceCommit": "af9f04e85a951552d1f7d4a09dbb39aa01e52b4d",
+          "sourceFingerprintSha256": "aa332beb327ccfad20c30e006c4530a31f57b56a75ad177cddc948956b85efc5",
+          "angularArtifactSha256": "6c8048aea921dbcdaff681041037df74712455cac9e6a765a4ed64c14ace2c64",
+          "angularFileCount": 78,
+          "aspNetArtifactSha256": "31cdb9ca8560fb2caa8f2f64325273aa8834d86e06d7e03e4ac42505455da81a",
+          "applicationArtifactSha256": "ffd609520f674bfdf898cc7cf654c58b6267e696014077fe8efd9e72a8c0014e"
+        },
+        "scope": "All three test projects running from the exact published implementation; no terminal test result yet."
       },
-      "remaining": "GL import/completeness and GL acceptance UI, reviewed mapping/forms/drafts, wider migration parity and controlled Blazor retirement remain open."
+      "remaining": "GL import/completeness and GL acceptance UI, reviewed mapping/forms/drafts, wider migration parity and controlled Blazor retirement remain open.",
+      "implementationCommit": "af9f04e85a951552d1f7d4a09dbb39aa01e52b4d",
+      "remoteMasterConfirmed": true,
+      "publication": "Direct master push independently confirmed by git ls-remote. Full regression dispatched from a new frozen managed worktree; terminal evidence pending."
     }
   },
   "documentationWork": {
