@@ -4,7 +4,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "a374d9f8b2a6cbd28ccd568df3ad4357e2fbe94e",
+  "headCommit": "5966575d045570218f9ea8262b676054b32aaa79",
   "verifiedCommit": "6b3f411c203f3285dff3fe9ae36c56eaf640c2f3",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": true,
@@ -3446,8 +3446,13 @@
         "details": "Initial build used the wrong exact-source selector and omitted the shared seed compile links; unit fixture typing corrected. Final builds/tests passed. Mobile wrapped decimal text corrected with labelled keyboard-scrollable table containers."
       },
       "fullSuite": {
-        "status": "NOT_RUN",
-        "boundary": "Earlier mapping batch frozen regression remains running with an observed legacy fixture failure. No full solution pass on this statement slice claimed."
+        "status": "RUNNING",
+        "sourceCommit": "5966575d045570218f9ea8262b676054b32aaa79",
+        "worktree": "/private/tmp/auditsphere-statement-review-regression-20261002",
+        "buildLog": "/private/tmp/auditsphere-statement-review-regression-build.log",
+        "log": "/private/tmp/auditsphere-statement-review-regression-suite.log",
+        "fingerprintsPath": "/private/tmp/auditsphere-statement-review-regression-hashes.json",
+        "boundary": "Frozen published source; sequential locked restore/build and full unchanged regression. Completion requires terminal result."
       },
       "remaining": [
         "Wider statement source-action/QA/accessibility/performance acceptance",
@@ -3472,6 +3477,13 @@
         "status": "PASS",
         "scope": "Complete staged statement review and historical migration fixture diff scanned redacted; no leaks detected.",
         "log": "/private/tmp/auditsphere-statements-secret-scan.log"
+      },
+      "publication": {
+        "status": "PUSHED",
+        "branch": "master",
+        "implementationCommit": "5966575d045570218f9ea8262b676054b32aaa79",
+        "remoteHeadConfirmed": true,
+        "confirmedAt": "2026-10-02T22:32:09.968427+00:00"
       }
     }
   },
