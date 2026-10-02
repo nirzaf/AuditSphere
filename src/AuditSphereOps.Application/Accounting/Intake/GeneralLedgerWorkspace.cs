@@ -90,7 +90,7 @@ public static class GeneralLedgerWorkspace
   }
 
   private static bool ValidHash(string s) => s.Length == 64 && s.All(char.IsAsciiHexDigit);
-  private static async Task<CommandResult<GeneralLedgerSourceContext>> ContextAsync(
+  internal static async Task<CommandResult<GeneralLedgerSourceContext>> ContextAsync(
     IClientAccountingDbContext db, ActorContext actor, Guid engagementId, Guid batchId, CancellationToken ct)
   {
     var batch = await db.SourceImportBatches.AsNoTracking().SingleOrDefaultAsync(x => x.Id == batchId &&

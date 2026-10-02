@@ -1,0 +1,356 @@
+<audit-page-header
+  title="General ledger completeness"
+  eyebrow="Client accounting"
+  description="Prepare account-exact evidence through the background worker, then request an independent human review."
+/>
+<audit-state [loading]="loading()" [error]="error()" label="general ledger completeness" />
+@if (message()) {
+  <p role="status" aria-live="polite">{{ message() }}</p>
+}
+@if (uncertain()) {
+  <section class="warning" aria-labelledby="unknown-heading">
+    <h2 id="unknown-heading">Completeness outcome needs review</h2>
+    <p>
+      No automatic retry. Read the retained bridge or operation for the exact affected source pair
+      before further submission.
+    </p>
+    <button matButton [disabled]="busy() || loading()" (click)="refresh(true)">
+      Read persisted completeness
+    </button>
+    <button matButton [disabled]="busy() || loading() || !reconciled()" (click)="acknowledge()">
+      I reviewed the persisted completeness
+    </button>
+  </section>
+}
+<div class="toolbar">
+  <button matButton [disabled]="busy() || loading()" (click)="refresh()">
+    Refresh completeness</button
+  ><a matButton routerLink="/app/operations">Operations and recovery</a>
+</div>
+@if (workspace(); as w) {
+  <a matButton [routerLink]="['/app/engagements', w.context.source.engagementId, 'general-ledger']"
+    >Back to general ledger inspection</a
+  >
+  <section aria-labelledby="context-heading">
+    <h2 id="context-heading">Immutable GL source</h2>
+    <p>
+      {{ w.context.source.entity }} · {{ w.context.source.currency }} ·
+      {{ w.context.source.periodCode }} · {{ w.context.basis }}
+    </p>
+    <dl>
+      <dt>GL import batch</dt>
+      <dd>{{ w.context.source.batchId }}</dd>
+      <dt>Source digest</dt>
+      <dd>{{ w.context.source.sourceHash }}</dd>
+      <dt>Client / engagement</dt>
+      <dd>{{ w.context.source.clientId }} / {{ w.context.source.engagementId }}</dd>
+      <dt>Reporting book</dt>
+      <dd>
+        {{ w.context.bookCode ?? 'No linked book' }} · {{ w.context.source.bookId ?? 'None' }}
+      </dd>
+      <dt>Period</dt>
+      <dd>{{ w.context.startDate }} to {{ w.context.endDate }} · {{ w.context.periodStatus }}</dd>
+      <dt>Selected TB</dt>
+      <dd>{{ w.context.selectedTrialBalance?.trialBalanceDatasetId ?? 'No source selected' }}</dd>
+      <dt>Selected GL</dt>
+      <dd>{{ w.context.source.selected?.importBatchId ?? 'No source selected' }}</dd>
+      <dt>Input generation</dt>
+      <dd>{{ w.context.inputGeneration }}</dd>
+    </dl>
+    <p>
+      Source selection, sealing, completeness and professional conclusions are separate. No local
+      journal changes the source books.
+    </p>
+    @if (w.context.blocker) {
+      <p role="alert" class="warning">{{ w.context.blocker }}</p>
+    }
+  </section>
+  <section aria-labelledby="prepare-heading">
+    <h2 id="prepare-heading">Prepare source pair</h2>
+    <fieldset [disabled]="busy() || loading()">
+      <label
+        >Closing trial balance<select
+          aria-label="Closing trial balance"
+          [value]="model().trialBalanceId"
+          (change)="edit('trialBalanceId', $any($event.target).value)"
+        >
+          <option value="">Choose compatible sealed TB</option>
+          @for (t of w.closingSources.items; track t.id) {
+            <option [value]="t.id">
+              {{ t.periodCode }} · revision {{ t.revision }} · {{ t.id }}
+            </option>
+          }
+        </select></label
+      >
+      @if (!w.closingSources.totalCount) {
+        <p>
+          No compatible accepted, sealed and balanced closing TB exists for this period, book,
+          entity and currency.
+        </p>
+      }
+      <div class="toolbar">
+        <button
+          matButton
+          [disabled]="w.closingSources.page <= 1"
+          (click)="refresh(false, w.closingSources.page - 1, w.openingSources.page)"
+        >
+          Previous closing sources</button
+        ><span
+          >Page {{ w.closingSources.page }} · {{ w.closingSources.totalCount }} closing
+          sources</span
+        ><button
+          matButton
+          [disabled]="w.closingSources.page * 20 >= w.closingSources.totalCount"
+          (click)="refresh(false, w.closingSources.page + 1, w.openingSources.page)"
+        >
+          Next closing sources
+        </button>
+      </div>
+      <label
+        >Opening trial balance<select
+          aria-label="Opening trial balance"
+          [value]="model().openingId"
+          (change)="edit('openingId', $any($event.target).value)"
+        >
+          <option value="">Opening evidence not provided — blocks approval</option>
+          @for (t of w.openingSources.items; track t.id) {
+            <option [value]="t.id">
+              {{ t.periodCode }} · revision {{ t.revision }} · {{ t.id }}
+            </option>
+          }
+        </select></label
+      >
+      <div class="toolbar">
+        <button
+          matButton
+          [disabled]="w.openingSources.page <= 1"
+          (click)="refresh(false, w.closingSources.page, w.openingSources.page - 1)"
+        >
+          Previous opening sources</button
+        ><span
+          >Page {{ w.openingSources.page }} · {{ w.openingSources.totalCount }} opening
+          sources</span
+        ><button
+          matButton
+          [disabled]="w.openingSources.page * 20 >= w.openingSources.totalCount"
+          (click)="refresh(false, w.closingSources.page, w.openingSources.page + 1)"
+        >
+          Next opening sources
+        </button>
+      </div>
+      <button matButton [disabled]="!model().trialBalanceId" (click)="loadPlan()">
+        Review completeness source pair
+      </button>
+    </fieldset>
+    @if (plan(); as p) {
+      <dl>
+        <dt>Closing TB / digest</dt>
+        <dd>{{ p.closing.id }} · {{ p.closing.sourceHash }}</dd>
+        <dt>Opening TB / digest</dt>
+        <dd>
+          {{ p.opening?.id ?? 'Unknown opening' }} ·
+          {{ p.opening?.sourceHash ?? 'No retained opening evidence' }}
+        </dd>
+      </dl>
+      @if (p.blocker) {
+        <p role="alert" class="warning">{{ p.blocker }}</p>
+      }
+      @for (o of p.operations; track o.id) {
+        <p class="identity">
+          Operation {{ o.id }} · {{ o.status }} · {{ o.createdAt }} · {{ o.evidenceReference }} ·
+          result {{ o.resultIdentity ?? 'Not observed' }}
+        </p>
+      }
+      @if (p.existingBridgeId) {
+        <button matButton [disabled]="busy() || loading()" (click)="loadReview(p.existingBridgeId)">
+          Read retained bridge
+        </button>
+      }
+      @if (!p.opening) {
+        <p class="warning">
+          Unknown opening is never zero. Evidence can be prepared, but it cannot be approved as
+          complete without opening coverage.
+        </p>
+      }
+      <label
+        >Completeness evidence reference<textarea
+          aria-label="Completeness evidence reference"
+          maxlength="2000"
+          [value]="model().evidenceReference"
+          [disabled]="busy() || loading() || uncertain()"
+          (input)="edit('evidenceReference', $any($event.target).value)"
+        ></textarea>
+      </label>
+    }
+  </section>
+  <section aria-labelledby="history-heading">
+    <h2 id="history-heading">Retained completeness bridges</h2>
+    @if (!w.bridges.length) {
+      <p>
+        No completeness bridge has been observed. A queued operation is not a completed calculation
+        or approval.
+      </p>
+    }
+    @if (w.moreBridges) {
+      <p>
+        Showing the latest 20 retained bridges for this source. Use Operations to inspect older
+        retained results.
+      </p>
+    }
+    @for (b of w.bridges; track b.id) {
+      <p class="identity">
+        {{ b.id }} · {{ b.status }} · residual {{ b.absoluteResidual }} ·
+        {{ b.incompleteExtract ? 'Incomplete extract' : 'Extract checks passed' }}
+      </p>
+      <button matButton [disabled]="busy() || loading()" (click)="loadReview(b.id)">
+        Inspect completeness bridge {{ b.id }}
+      </button>
+    }
+  </section>
+  @if (review(); as r) {
+    <section aria-labelledby="review-heading">
+      <h2 id="review-heading">Independent completeness review</h2>
+      <dl>
+        <dt>Bridge / status</dt>
+        <dd>{{ r.bridge.id }} · {{ r.bridge.status }}</dd>
+        <dt>Closing TB / digest</dt>
+        <dd>{{ r.bridge.trialBalanceDatasetId }} · {{ r.bridge.trialBalanceHash }}</dd>
+        <dt>Opening TB / digest</dt>
+        <dd>
+          {{ r.bridge.openingTrialBalanceDatasetId ?? 'Unknown opening' }} ·
+          {{ r.bridge.openingTrialBalanceHash || 'Unavailable' }}
+        </dd>
+        <dt>Movement coverage</dt>
+        <dd>{{ r.bridge.coverageStart }} to {{ r.bridge.coverageEnd }}</dd>
+        <dt>Account residual</dt>
+        <dd>
+          {{ r.bridge.absoluteResidual }} · {{ r.bridge.mismatchedAccountCount }} mismatched /
+          {{ r.bridge.matchedAccountCount }} matched
+        </dd>
+        <dt>Known opening/movement residual</dt>
+        <dd>
+          {{ r.bridge.openingTrialBalanceDatasetId ? r.bridge.openingMovementResidual : 'Unknown' }}
+          · {{ r.bridge.openingMovementMismatchedAccountCount }} known calculation mismatches
+        </dd>
+        <dt>Journal exceptions</dt>
+        <dd>{{ r.bridge.journalExceptionCount }}</dd>
+        <dt>Completeness disclosure</dt>
+        <dd>{{ r.bridge.completenessDisclosure || 'No extract exception observed' }}</dd>
+        <dt>Account proof digests</dt>
+        <dd>{{ r.bridge.accountResidualDigest }} / {{ r.bridge.openingMovementResidualDigest }}</dd>
+        <dt>Prepared by</dt>
+        <dd>{{ r.bridge.createdByUserId }} · {{ r.bridge.createdAt }}</dd>
+        <dt>Evidence</dt>
+        <dd>{{ r.bridge.evidenceReference }}</dd>
+        <dt>Reviewed by</dt>
+        <dd>
+          {{ r.bridge.reviewedByUserId ?? 'Pending independent review' }} ·
+          {{ r.bridge.reviewedAt ?? '' }}
+        </dd>
+      </dl>
+      @if (r.approvalBlocker) {
+        <p role="alert" class="warning">{{ r.approvalBlocker }}</p>
+      }
+      @if (r.reviewBlocker && r.reviewBlocker !== r.approvalBlocker) {
+        <p role="alert" class="warning">{{ r.reviewBlocker }}</p>
+      }
+      <div
+        class="table-wrap"
+        tabindex="0"
+        role="region"
+        aria-label="Account-exact completeness residuals"
+      >
+        <table>
+          <caption>
+            Account-exact residuals ·
+            {{
+              w.context.source.currency
+            }}
+          </caption>
+          <thead>
+            <tr>
+              <th>Account</th>
+              <th>Opening</th>
+              <th>GL movement</th>
+              <th>Closing TB</th>
+              <th>GL − closing</th>
+              <th>Closing − opening − movement</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (x of r.residuals.items; track x.accountCode) {
+              <tr>
+                <td>{{ x.accountCode }}</td>
+                <td>{{ x.opening ?? 'Unknown' }}</td>
+                <td>{{ x.movement }}</td>
+                <td>{{ x.closing }}</td>
+                <td>{{ x.movementClosingDifference }}</td>
+                <td>{{ x.openingMovementDifference ?? 'Unknown' }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <div class="toolbar">
+        <button
+          matButton
+          [disabled]="busy() || loading() || r.residuals.page <= 1"
+          (click)="loadReview(r.bridge.id, r.residuals.page - 1)"
+        >
+          Previous account residuals</button
+        ><span>Page {{ r.residuals.page }} · {{ r.residuals.totalCount }} accounts</span
+        ><button
+          matButton
+          [disabled]="busy() || loading() || r.residuals.page * 50 >= r.residuals.totalCount"
+          (click)="loadReview(r.bridge.id, r.residuals.page + 1)"
+        >
+          Next account residuals
+        </button>
+      </div>
+      <label
+        >Completeness review decision<select
+          aria-label="Completeness review decision"
+          [value]="model().action"
+          [disabled]="busy() || loading() || uncertain()"
+          (change)="edit('action', $any($event.target).value)"
+        >
+          <option value="approve">Approve reconciled completeness evidence</option>
+          <option value="reject">Reject completeness evidence</option>
+        </select></label
+      >
+      <p>
+        Approval records a human decision on this retained proof. It does not express an audit
+        opinion.
+      </p>
+    </section>
+  }
+  @if (plan() || review()) {
+    @for (generation of [assentGeneration()]; track generation) {
+      <label
+        ><input
+          type="checkbox"
+          [checked]="reviewed()"
+          [disabled]="busy() || loading() || uncertain()"
+          (change)="recordAssent($event)"
+        />
+        I reviewed this exact source pair or retained proof and the requested completeness
+        action.</label
+      >
+    }
+  }
+  <div class="toolbar">
+    <button matButton [disabled]="busy() || loading() || uncertain()" (click)="saveDraft()">
+      Save completeness tab draft</button
+    ><button matButton [disabled]="busy() || loading() || uncertain()" (click)="recoverDraft()">
+      Recover completeness tab draft</button
+    ><button matButton [disabled]="busy() || loading() || uncertain()" (click)="discardDraft()">
+      Discard completeness draft</button
+    ><button matButton [disabled]="!canSubmit()" (click)="submit()">
+      {{
+        model().action === 'prepare'
+          ? 'Prepare reviewed completeness'
+          : 'Record independent completeness decision'
+      }}
+    </button>
+  </div>
+}

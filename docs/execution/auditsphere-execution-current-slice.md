@@ -32,6 +32,26 @@ which the full suite was run; per-slice records carry their own evidence.
 
 
 
+## Native general-ledger completeness preparation and review
+
+The standalone API and Angular GL inspection now compose a native completeness workspace.
+Scoped source selection is bounded to compatible sealed closing and prior-period opening TBs.
+The reviewed plan binds the immutable source pair, reporting context, safety generation and
+current authority. Preparation queues the existing durable operation. Retained worker results,
+independent approval/rejection and source selection remain separate facts. A preparer cannot
+review the same bridge even when holding a reviewer role. Review transactions serialize the
+decision and recheck current authority before commit; closed periods/books, frozen files,
+professional holds and stale reviews refuse mutations.
+
+Account residuals are paginated and retain exact decimal strings. Missing opening accounts
+are disclosed as unknown and block approval, including a missing opening account whose
+known arithmetic residual is zero. The native page retains explicit tab drafts without review
+assent, protects navigation and reconciles interrupted submissions through a persisted read
+and manual acknowledgment. Prior operations are reviewed through Operations rather than
+blindly duplicated. Native GL import, reviewed mapping editing and wider migration/cutover/
+retirement acceptance remain open. Local checks and synthetic built-in-browser evidence are
+recorded in `status.json`.
+
 ## Native independent general-ledger source acceptance
 
 The Angular GL inspection links a native independent source-review page. The Application

@@ -104,6 +104,7 @@ const blank = () => ({ account: '', from: '', to: '', journal: '', counterparty:
             [routerLink]="['/app/accounting/gl-sources', s.context.batchId, 'acceptance']"
             >Review general ledger source acceptance</a
           >
+          <a matButton [routerLink]="['/app/accounting/gl-sources', s.context.batchId, 'completeness']">Prepare and review GL completeness</a>
           <dl>
             <dt>Immutable source</dt>
             <dd>

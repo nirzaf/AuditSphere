@@ -54,9 +54,14 @@ public static partial class AccountingAnalysisService
         string.IsNullOrWhiteSpace(request.EvidenceReference) || request.EvidenceReference.Trim().Length > 2000)
       return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ReconciliationRejected, "A completeness bridge needs one scoped period, TB, GL batch and evidence reference.");
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
-      new AuthorizationRequest(actor.FirmId, request.ClientId, request.EngagementId, PreparerRoles, InternalOnly: true), ct);
+      new AuthorizationRequest(actor.FirmId, request.ClientId, request.EngagementId, PreparerRoles, InternalOnly: true, RequireProfessionalWork: true), ct);
     if (!auth.Succeeded)
       return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+    await using var ownTx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
+    var locked = await GeneralLedgerCompletenessWorkspace.LockAsync(db, actor, request.ClientId, request.EngagementId, ct);
+    if (!locked.Succeeded) return CommandResult<Guid>.Fail(locked.ErrorCode!, locked.Message!);
+    var mutable = await GeneralLedgerCompletenessWorkspace.MutablePeriodAsync(db, actor, request.ClientId, request.EngagementId, request.PeriodId, request.BookId, ct);
+    if (!mutable.Succeeded) return CommandResult<Guid>.Fail(mutable.ErrorCode!, mutable.Message!);
     var period = await db.ClientReportingPeriods.AsNoTracking().SingleOrDefaultAsync(x =>
       x.Id == request.PeriodId && x.FirmId == actor.FirmId && x.ClientId == request.ClientId, ct);
     if (period is null)
@@ -71,7 +76,7 @@ public static partial class AccountingAnalysisService
       x.ImportState == TrialBalanceImportStates.Sealed, ct);
     var batch = await db.SourceImportBatches.AsNoTracking().SingleOrDefaultAsync(x =>
       x.Id == request.ImportBatchId && x.FirmId == actor.FirmId && x.ClientId == request.ClientId &&
-      x.EngagementId == request.EngagementId && x.Status == "SEALED", ct);
+      x.EngagementId == request.EngagementId && x.SourceKind == AccountingSourceKinds.GeneralLedger && x.Status == "SEALED", ct);
     if (dataset is null || batch is null)
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "The selected TB dataset or GL batch is outside the sealed engagement scope.");
     if (batch.PeriodId != request.PeriodId || batch.BookId != request.BookId ||
@@ -172,6 +177,7 @@ public static partial class AccountingAnalysisService
     var disclosure = new List<string>();
     if (openingDataset is null) disclosure.Add("OPENING_DATASET_NOT_PROVIDED");
     if (openingDataset is not null && openingTotals.Count == 0) disclosure.Add("OPENING_DATASET_EMPTY");
+    if (openingDataset is not null && accounts.Any(code => !opening.ContainsKey(code))) disclosure.Add("OPENING_ACCOUNT_COVERAGE_MISSING");
     if (journalExceptionCount > 0) disclosure.Add("MALFORMED_JOURNAL_GROUPS");
     if (batch.ExpectedTransactionCount > 0 &&
         (batch.ExpectedTransactionCount != batch.AcceptedTransactionCount || batch.ExpectedLineCount != batch.AcceptedLineCount))
@@ -199,22 +205,31 @@ public static partial class AccountingAnalysisService
     };
     db.GeneralLedgerCompletenessBridges.Add(bridge);
     await db.SaveChangesAsync(ct);
+    auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new(actor.FirmId, request.ClientId, request.EngagementId, PreparerRoles, InternalOnly: true, RequireProfessionalWork: true), ct);
+    if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+    if (ownTx is not null) await ownTx.CommitAsync(ct);
     return CommandResult<Guid>.Ok(bridge.Id);
   }
 
   public static async Task<CommandResult<Guid>> EnqueueGeneralLedgerCompletenessBridgeAsync(
     IClientAccountingDbContext db, ActorContext actor, GeneralLedgerCompletenessRequest request,
     IOperationStore operationStore, GeneralLedgerCompletenessHandler handler,
-    CancellationToken ct = default)
+    CancellationToken ct = default, string? reviewRevision = null, bool reviewed = false)
   {
     if (request.ClientId == Guid.Empty || request.EngagementId == Guid.Empty || request.PeriodId == Guid.Empty ||
         request.TrialBalanceDatasetId == Guid.Empty || request.ImportBatchId == Guid.Empty ||
         string.IsNullOrWhiteSpace(request.EvidenceReference) || request.EvidenceReference.Trim().Length > 2000)
       return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ReconciliationRejected, "A completeness bridge needs one scoped period, TB, GL batch and evidence reference.");
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
-      new AuthorizationRequest(actor.FirmId, request.ClientId, request.EngagementId, PreparerRoles, InternalOnly: true), ct);
+      new AuthorizationRequest(actor.FirmId, request.ClientId, request.EngagementId, PreparerRoles, InternalOnly: true, RequireProfessionalWork: true), ct);
     if (!auth.Succeeded)
       return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    var locked = await GeneralLedgerCompletenessWorkspace.LockAsync(db, actor, request.ClientId, request.EngagementId, ct);
+    if (!locked.Succeeded) return CommandResult<Guid>.Fail(locked.ErrorCode!, locked.Message!);
+    var mutable = await GeneralLedgerCompletenessWorkspace.MutablePeriodAsync(db, actor, request.ClientId, request.EngagementId, request.PeriodId, request.BookId, ct);
+    if (!mutable.Succeeded) return CommandResult<Guid>.Fail(mutable.ErrorCode!, mutable.Message!);
     var period = await db.ClientReportingPeriods.AsNoTracking().SingleOrDefaultAsync(x =>
       x.Id == request.PeriodId && x.FirmId == actor.FirmId && x.ClientId == request.ClientId, ct);
     if (period is null)
@@ -225,7 +240,7 @@ public static partial class AccountingAnalysisService
       x.ImportState == TrialBalanceImportStates.Sealed, ct);
     var batch = await db.SourceImportBatches.AsNoTracking().SingleOrDefaultAsync(x =>
       x.Id == request.ImportBatchId && x.FirmId == actor.FirmId && x.ClientId == request.ClientId &&
-      x.EngagementId == request.EngagementId && x.Status == "SEALED", ct);
+      x.EngagementId == request.EngagementId && x.SourceKind == AccountingSourceKinds.GeneralLedger && x.Status == "SEALED", ct);
     if (dataset is null || batch is null)
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "The selected TB dataset or GL batch is outside the sealed engagement scope.");
     if (batch.PeriodId != request.PeriodId || batch.BookId != request.BookId ||
@@ -235,7 +250,15 @@ public static partial class AccountingAnalysisService
         !string.Equals(dataset.LegalEntityKey, batch.LegalEntityKey, StringComparison.Ordinal))
       return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ReconciliationRejected, "The TB and GL sources do not describe the same period, book, entity or currency.");
 
-    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    if (reviewRevision is not null)
+    {
+      if (!reviewed || !SourceAcceptanceWorkspace.ValidHash(reviewRevision))
+        return CommandResult<Guid>.Fail(ErrorCodes.StaleRevision, "Review the current completeness inputs.");
+      var plan = await GeneralLedgerCompletenessWorkspace.PlanAsync(db, actor, request.ImportBatchId, request.TrialBalanceDatasetId, request.OpeningTrialBalanceDatasetId, ct);
+      if (!plan.Succeeded) return CommandResult<Guid>.Fail(plan.ErrorCode!, plan.Message!);
+      if (!plan.Value!.CanPrepare || plan.Value.Revision != reviewRevision)
+        return CommandResult<Guid>.Fail(ErrorCodes.StaleRevision, "Completeness inputs or authority changed. Refresh and review again.");
+    }
     var payload = JsonSerializer.Serialize(new
     {
       clientId = request.ClientId.ToString("D"), engagementId = request.EngagementId.ToString("D"),
@@ -259,21 +282,38 @@ public static partial class AccountingAnalysisService
     }
     if (!enqueued.Succeeded)
       return CommandResult<Guid>.Fail(enqueued.ErrorCode!, enqueued.Message!);
+    auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new(actor.FirmId, request.ClientId, request.EngagementId, PreparerRoles, InternalOnly: true, RequireProfessionalWork: true), ct);
+    if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
     await tx.CommitAsync(ct);
     return enqueued;
   }
 
   public static async Task<CommandResult> ReviewGeneralLedgerCompletenessAsync(
     IClientAccountingDbContext db, ActorContext actor, Guid bridgeId, bool approve,
-    CancellationToken ct = default)
+    CancellationToken ct = default, string? reviewRevision = null, bool reviewed = false)
   {
-    var bridge = await db.GeneralLedgerCompletenessBridges.SingleOrDefaultAsync(x => x.Id == bridgeId && x.FirmId == actor.FirmId, ct);
+    var bridge = await db.GeneralLedgerCompletenessBridges.AsNoTracking().SingleOrDefaultAsync(x => x.Id == bridgeId && x.FirmId == actor.FirmId, ct);
     if (bridge is null)
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
-      new AuthorizationRequest(actor.FirmId, bridge.ClientId, bridge.EngagementId, ReviewerRoles, InternalOnly: true), ct);
+      new AuthorizationRequest(actor.FirmId, bridge.ClientId, bridge.EngagementId, ReviewerRoles, InternalOnly: true, RequireProfessionalWork: true), ct);
     if (!auth.Succeeded)
       return auth;
+    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    var locked = await GeneralLedgerCompletenessWorkspace.LockAsync(db, actor, bridge.ClientId, bridge.EngagementId, ct);
+    if (!locked.Succeeded) return locked;
+    var mutable = await GeneralLedgerCompletenessWorkspace.MutablePeriodAsync(db, actor, bridge.ClientId, bridge.EngagementId, bridge.PeriodId, bridge.BookId, ct);
+    if (!mutable.Succeeded) return mutable;
+    bridge = await db.GeneralLedgerCompletenessBridges.FromSqlInterpolated($"SELECT * FROM general_ledger_completeness_bridges WHERE firm_id = {actor.FirmId} AND id = {bridgeId} FOR UPDATE").AsNoTracking().SingleAsync(ct);
+    if (reviewRevision is not null)
+    {
+      if (!reviewed || !SourceAcceptanceWorkspace.ValidHash(reviewRevision)) return CommandResult.Fail(ErrorCodes.StaleRevision, "Review the current completeness proof.");
+      var review = await GeneralLedgerCompletenessWorkspace.ReviewAsync(db, actor, bridgeId, ct: ct);
+      if (!review.Succeeded) return CommandResult.Fail(review.ErrorCode!, review.Message!);
+      if (review.Value!.Revision != reviewRevision || !(approve ? review.Value.CanApprove : review.Value.CanReject))
+        return CommandResult.Fail(ErrorCodes.StaleRevision, "The completeness proof or authority changed. Refresh and review again.");
+    }
     if (bridge.CreatedByUserId == actor.UserId)
       return CommandResult.Fail(ErrorCodes.Accounting.ReconciliationRejected, "The completeness preparer cannot review the same bridge.");
     if (bridge.Status is not ("RECONCILED" or "UNRECONCILED"))
@@ -282,6 +322,8 @@ public static partial class AccountingAnalysisService
       return CommandResult.Fail(ErrorCodes.GateBlocked, "Only an exactly reconciled bridge can be approved.");
     if (approve && (bridge.IncompleteExtract || bridge.OpeningMovementResidual != 0m || bridge.JournalExceptionCount != 0))
       return CommandResult.Fail(ErrorCodes.GateBlocked, "An incomplete or malformed GL extract cannot be approved as complete.");
+    if (approve && await GeneralLedgerCompletenessWorkspace.MissingOpeningCoverageAsync(db, bridge, ct))
+      return CommandResult.Fail(ErrorCodes.GateBlocked, "Opening account coverage is missing. Unknown opening is never zero.");
     var currentTbHash = await db.TrialBalanceDatasets.AsNoTracking().Where(x => x.Id == bridge.TrialBalanceDatasetId)
       .Select(x => x.NormalizedDatasetDigest.Length == 64 ? x.NormalizedDatasetDigest : x.Sha256Hex).SingleOrDefaultAsync(ct);
     var currentGlHash = await db.SourceImportBatches.AsNoTracking().Where(x => x.Id == bridge.ImportBatchId)
@@ -294,10 +336,13 @@ public static partial class AccountingAnalysisService
         !string.Equals(currentGlHash, bridge.GeneralLedgerHash, StringComparison.OrdinalIgnoreCase) ||
         !string.Equals(currentOpeningHash, bridge.OpeningTrialBalanceHash, StringComparison.OrdinalIgnoreCase))
       return CommandResult.Fail(ErrorCodes.ManifestMismatch, "A source digest changed after the completeness bridge was prepared.");
-    bridge.Status = approve ? AccountingWorkflowStates.Approved : AccountingWorkflowStates.Rejected;
-    bridge.ReviewedByUserId = actor.UserId;
-    bridge.ReviewedAt = DateTimeOffset.UtcNow;
-    await db.SaveChangesAsync(ct);
+    await db.GeneralLedgerCompletenessBridges.Where(x => x.Id == bridgeId && x.FirmId == actor.FirmId)
+      .ExecuteUpdateAsync(s => s.SetProperty(x => x.Status, approve ? AccountingWorkflowStates.Approved : AccountingWorkflowStates.Rejected)
+        .SetProperty(x => x.ReviewedByUserId, actor.UserId).SetProperty(x => x.ReviewedAt, DateTimeOffset.UtcNow), ct);
+    auth = await AuthorizationDecision.AuthorizeAsync(db, actor, new(actor.FirmId, bridge.ClientId, bridge.EngagementId,
+      ReviewerRoles, InternalOnly: true, RequireProfessionalWork: true), ct);
+    if (!auth.Succeeded) return auth;
+    await tx.CommitAsync(ct);
     return CommandResult.Ok();
   }
 }

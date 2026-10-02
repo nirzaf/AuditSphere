@@ -214,6 +214,8 @@ internal sealed class OwnedBlazorHost : IAsyncDisposable
       throw new InvalidOperationException($"The live pbc worker exited with {process.ExitCode}; see {logPath}.");
   }
 
+  public Task StartGeneralWorkerAsync() => StartWorkerAsync(FindRepositoryRoot());
+
   private async Task StartWorkerAsync(string repo)
   {
     var logPath = Path.Combine(runRoot, "worker.log");

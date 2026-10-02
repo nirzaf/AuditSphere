@@ -274,9 +274,8 @@ boundary changes.
 Angular retains exact decimal strings and uses native Signal Forms for filters. Context
 changes cancel reads and clear source/journal selections; failed refreshes remove prior
 results. Edited filters hide the obsolete population until applied. Sealing, arithmetic
-balance, independent source acceptance and completeness are separate facts. Native GL
-upload/completeness commands and GL acceptance remain pending; this read-only slice
-creates no evidence or professional conclusion.
+balance, independent source acceptance and completeness are separate facts. This read-only inspection slice creates no acceptance/completeness evidence or professional
+conclusion; the subsequent native source-review and completeness workspaces are described below.
 
 ### General ledger independent source review
 
@@ -287,4 +286,29 @@ transaction. The same native review component preserves fresh assent, explicit e
 tab recovery, navigation guards and unknown-outcome reconciliation, with separate draft keys
 and runtime decoders for TB and GL. Source-kind-specific selected pointers remain independent.
 GL sealing or acceptance does not assert account-exact completeness; that proof and review
-retain their existing downstream gates. Native GL import/completeness controls remain open.
+retain their existing downstream gates. Native GL import controls remain open.
+
+### General ledger completeness workspace
+
+The native GL inspection links `/ui/app/accounting/gl-sources/{id}/completeness`.
+The standalone API composes `GeneralLedgerCompletenessWorkspace` with the existing analysis
+service, durable store and worker handler. Source lists contain only exact-scope compatible,
+accepted, sealed and balanced closing/prior-period TBs. Plan and proof revisions are read
+again and checked under ordered parent/reporting-period locks. Commands require antiforgery,
+current professional authority and fresh reviewed intent. The existing normalized operation
+payload and idempotency contract are preserved. Observations are filtered to the exact GL/TB
+pair before bounded loading; prior requests require Operations review rather than a duplicate.
+
+The worker computes the retained proof; an independent authorized reviewer records approval
+or rejection transactionally. Final session/authorization checks roll back late revocation.
+A missing opening account is unknown, including when an omitted zero amount would appear
+arithmetically reconciled. Account pages show exact server decimal strings and nullable
+opening/roll-forward residuals; no browser calculator or fabricated professional verdict exists.
+Immutable source identities, proof digests, preparer, reviewer and evidence remain visible.
+
+Drafts store only bounded source/bridge references, action and evidence text in the current
+tab. Assent is never restored. Context changes and failed reads remove protected results.
+Lost response checkpoints require an explicit persisted-state read and acknowledgment before
+more writes or navigation. Completed calculation, extract coverage, independent approval,
+source selection and professional conclusions are separate facts. Native GL import and wider
+intake/form/retirement acceptance remain open; verification facts live in the execution ledger.

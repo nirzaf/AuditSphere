@@ -86,7 +86,7 @@ current reviews for matching packages; reopen/restatement create immutable revis
 
 
 
-- Application: `Application/Accounting/TrialBalance{Calculator,ImportService,CsvImporter,XlsxImporter,DatasetQuery,ValidationHandler}.cs`, `Application/Accounting/ClientAccounting/ClientAccountingService.GeneralLedger.cs`, `GeneralLedgerCompletenessHandler.cs`, `GeneralLedgerQuery.cs`, `Application/Accounting/Analysis/AccountingAnalysisService.GeneralLedger.cs`
+- Application: `Application/Accounting/TrialBalance{Calculator,ImportService,CsvImporter,XlsxImporter,DatasetQuery,ValidationHandler}.cs`, `Application/Accounting/ClientAccounting/ClientAccountingService.GeneralLedger.cs`, `GeneralLedgerCompletenessHandler.cs`, `GeneralLedgerQuery.cs`, `Application/Accounting/Analysis/AccountingAnalysisService.GeneralLedger.cs`, `Application/Accounting/Analysis/GeneralLedgerCompletenessWorkspace*.cs`
 
 
 
@@ -94,11 +94,11 @@ current reviews for matching packages; reopen/restatement create immutable revis
 
 
 
-- UI: `AccountingRecords.razor`
+- API/UI: `Api/Ui/UiEndpoints.GeneralLedger.cs`, `Ui/src/app/features/accounting/gl-completeness*`, `Ui/src/app/features/engagements/general-ledger*`; legacy rollback `AccountingRecords.razor`
 
 
 
-- Tests: `ClientAccountingTests.GeneralLedger.cs`, `TrialBalanceCalculatorTests.cs`, `TrialBalanceWorkerTests.cs`, `TrialBalanceXlsxImporterTests.cs`, `SourceAcceptanceAndComparativesTests.cs`
+- Tests: `ClientAccountingTests.GeneralLedger.cs`, `TrialBalanceCalculatorTests.cs`, `TrialBalanceWorkerTests.cs`, `TrialBalanceXlsxImporterTests.cs`, `SourceAcceptanceAndComparativesTests.cs`, `GeneralLedgerCompletenessApiTests.cs`, `AngularGeneralLedgerCompletenessJourneyTests.cs`
 
 
 
