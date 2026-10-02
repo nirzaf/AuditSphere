@@ -11,7 +11,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AuditSphereOps.Application.Accounting;
 
-public sealed record TrialBalanceImportContext(Guid PeriodId, Guid? BookId, string Basis);
+public sealed record TrialBalanceImportContext(Guid PeriodId, Guid? BookId, string Basis, string? ExpectedPeriodRevision = null);
 
 public static class TrialBalanceImportService
 {
@@ -276,6 +276,14 @@ public static class TrialBalanceImportService
     if (lockedEngagement is null || lockedEngagement.PracticeClientId != clientId)
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
 
+    // Fence period closure and changed currency/basis at the actual per-period publication boundary.
+    await db.ClientReportingPeriods.FromSqlInterpolated($"SELECT * FROM client_reporting_periods WHERE id = {sourceContext.PeriodId} AND firm_id = {actor.FirmId} FOR UPDATE")
+      .AsNoTracking().SingleOrDefaultAsync(ct);
+    source = await ResolveSourceContextAsync(db, actor, clientId, sourceContext, parsed.Currency, ct);
+    if (!source.Succeeded) return CommandResult<Guid>.Fail(source.ErrorCode!, source.Message!);
+    auth = await AuthorizationDecision.AuthorizeAsync(db, actor, new AuthorizationRequest(engagement.FirmId, clientId, engagementId), ct);
+    if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+
     var duplicate = await db.TrialBalanceDatasets.AsNoTracking().AnyAsync(d =>
       d.FirmId == lockedEngagement.FirmId && d.EngagementId == engagementId &&
       d.RawFileSha256Hex == parsed.RawFileSha256Hex, ct);
@@ -338,6 +346,8 @@ public static class TrialBalanceImportService
       await db.SaveChangesAsync(ct);
       dataset.ImportState = TrialBalanceImportStates.Sealed;
       await db.SaveChangesAsync(ct);
+      auth = await AuthorizationDecision.AuthorizeAsync(db, actor, new AuthorizationRequest(engagement.FirmId, clientId, engagementId), ct);
+      if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
       await tx.CommitAsync(ct);
     }
     catch (DbUpdateException ex) when (IsUniqueViolation(ex))
@@ -371,6 +381,8 @@ public static class TrialBalanceImportService
     if (period is null)
       return CommandResult<ResolvedTrialBalanceContext>.Fail(ErrorCodes.ScopeDenied,
         "The reporting period is outside the client scope.");
+    if (sourceContext.ExpectedPeriodRevision is { } expected && expected != TrialBalanceUploadWorkspace.PeriodRevision(period))
+      return CommandResult<ResolvedTrialBalanceContext>.Fail(ErrorCodes.StaleRevision, "The reviewed reporting period changed. Preview the upload again.");
     if (period.Status == AccountingWorkflowStates.Closed)
       return CommandResult<ResolvedTrialBalanceContext>.Fail(ErrorCodes.ProtectedState,
         "A closed reporting period cannot receive a trial-balance import.");

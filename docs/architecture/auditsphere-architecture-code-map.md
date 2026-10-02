@@ -746,3 +746,10 @@ For the complete documentation index, authority hierarchy, current requirements,
 - API: `Ui/UiEndpoints.CurrencyConfiguration.cs` validates explicit dates, purpose and exact rate text; `UiEndpoints.Infrastructure.cs` owns the explicit SPA route.
 - Angular: `features/accounting/currency-configuration.ts` and `currency-configuration-contracts.ts` own native Signal Forms, review binding, tab recovery and unknown-outcome fencing.
 - Checks: `CurrencyConfigurationApiTests`, `AngularCurrencyConfigurationJourneyTests`, and `currency-configuration.spec.ts`; observed results belong to the execution ledger.
+
+### Reviewed native trial-balance upload
+
+- Application: `Accounting/Intake/TrialBalanceUploadWorkspace.cs` owns exact-file reviewed intake and read-only source/validation reconciliation; `TrialBalanceImportService.cs` owns period locking and reviewed-period/final authority fencing. `MappingMemoryService.cs` bounds historical proposals and filters prior engagement authority before selection.
+- API: `Ui/UiEndpoints.Intake.cs` exposes reviewed upload and receipt reads through the trusted session and antiforgery boundary.
+- Angular: `features/engagements/tb-upload.ts` and `tb-upload-contracts.ts` own native assent, bounded metadata checkpoints, guarded navigation, context clearing and unknown-outcome recovery; `tb-intake.ts` preserves the receipt panel during dataset-selector refresh.
+- Tests: `TrialBalanceUploadApiTests`, `AngularTrialBalanceUploadJourneyTests` and `tb-upload.spec.ts` cover negative authority/period/file cases, partial and concurrent recovery, isolated mapping history, lost responses and owned worker validation.

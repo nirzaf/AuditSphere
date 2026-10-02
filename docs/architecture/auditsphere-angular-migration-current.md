@@ -206,3 +206,19 @@ successful persisted-state refresh and explicit reconciliation; commands are nev
 replayed. Server and browser regression checks, publication and remaining acceptance are recorded
 in the execution ledger. This vertical slice does not establish complete migration or Blazor
 retirement acceptance.
+
+### Reviewed multi-period intake
+
+`TrialBalanceUploadWorkspace` composes the existing split/parser and guarded source importer.
+The native API requires exact file/revision assent and offers read-only receipt reconciliation.
+An import is a sequence of per-period publications, not an atomic browser batch. Each source
+receipt and existing durable validation operation remains independently observable. A current
+period revision is rechecked under its publication lock; stale or closed periods fail closed.
+The existing CSV parser bound is shown separately from the multipart transport bound.
+
+Angular `tb-upload.ts` uses native Signal Forms, metadata-only tab checkpoints and navigation
+protection. Recovery never stores file content or restores authorization assent. Unknown results
+require current persisted receipts and explicit acknowledgment; there is no automatic write retry.
+`tb-intake.ts` refreshes its authorized dataset selector without destroying the receipt panel.
+`MappingMemoryService` filters prior history by active grant scope before selecting or counting;
+sibling engagement history cannot widen an engagement-only assignment.

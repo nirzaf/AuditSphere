@@ -32,6 +32,23 @@ which the full suite was run; per-slice records carry their own evidence.
 
 
 
+## Native reviewed trial-balance upload and receipt recovery
+
+The Angular intake now composes a reviewed Application upload workspace. Exact file identity,
+reporting-period metadata and the current actor/session bind assent. Every period must pass
+preview before a new import starts; each imported period retains its own transaction and durable
+validation. Read-only reconciliation returns exact scoped source and operation identities,
+including successful earlier periods, without retrying an import. Concurrent identical uploads
+reuse existing source receipts; equivalent content with different canonical bytes remains a conflict.
+
+The native Signal Form withdraws assent on refresh, fences unknown or malformed import outcomes,
+and requires a successful persisted read plus explicit acknowledgment before further writes.
+Bounded tab checkpoints contain file metadata only; recovery requires reselecting the bytes and
+fresh review. Dataset-selector refresh preserves the upload receipts. Historical mapping proposals
+are filtered by current scope before selecting a prior version, with bounded account windows and
+final authority checks. The complete GL, mapping editor and source-export stories remain open.
+Observed verification and publication belong to `status.json`.
+
 ## Native firm currency configuration
 
 The FX rates and policies editor now composes existing firm-wide currency services through a

@@ -22,12 +22,7 @@ public static partial class UiEndpoints
       if (file is null) return Invalid("Choose an Excel or CSV file up to 25 MB.");
       return await CommandAsync(http, async (db, actor, ct) =>
       {
-        var workspace = await TrialBalanceIntakeWorkspaceQuery.GetAsync(db, actor, id, ct);
-        if (!workspace.Succeeded) return CommandResult<object>.Fail(workspace.ErrorCode!, workspace.Message!);
-        var preview = await MultiPeriodTrialBalanceService.PreviewAsync(db, actor, workspace.Value!.ClientId, file.Value.Name, file.Value.Content, ct);
-        return preview.Succeeded
-          ? CommandResult<object>.Ok(new { preview.Value!.FileSha256, preview.Value.Periods, preview.Value.CanImport })
-          : CommandResult<object>.Fail(preview.ErrorCode!, preview.Message!);
+        return await TrialBalanceUploadWorkspace.PreviewAsync(db, actor, id, file.Value.Name, file.Value.Content, ct);
       });
     });
     group.MapPost("/engagements/{id:guid}/tb-intake/import", async (Guid id, HttpContext http) =>
@@ -36,13 +31,17 @@ public static partial class UiEndpoints
       if (file is null) return Invalid("Choose an Excel or CSV file up to 25 MB.");
       return await CommandAsync(http, async (db, actor, ct) =>
       {
-        var workspace = await TrialBalanceIntakeWorkspaceQuery.GetAsync(db, actor, id, ct);
-        if (!workspace.Succeeded) return CommandResult<object>.Fail(workspace.ErrorCode!, workspace.Message!);
-        var result = await MultiPeriodTrialBalanceService.ImportAsync(db, actor, workspace.Value!.ClientId, id, file.Value.Name, file.Value.Content, ct);
-        return result.Succeeded
-          ? CommandResult<object>.Ok(result.Value!.Datasets.Select(x => new { x.PeriodCode, x.DatasetId }).ToList())
-          : CommandResult<object>.Fail(result.ErrorCode!, result.Message!);
+        var form = await http.Request.ReadFormAsync(ct);
+        return await TrialBalanceUploadWorkspace.ImportAsync(db, actor, id, file.Value.Name, file.Value.Content,
+          form["revision"].ToString(), form["fileSha256"].ToString(), form["reviewed"].ToString() == "true", ct);
       });
+    });
+    // Reconciliation parses the reselected exact file and reads receipts; it performs no import or retry.
+    group.MapPost("/engagements/{id:guid}/tb-intake/reconcile", async (Guid id, HttpContext http) =>
+    {
+      var file = await ReadUploadAsync(http, "file", MaxTrialBalanceUploadBytes);
+      if (file is null) return Invalid("Choose an Excel or CSV file up to 25 MB.");
+      return await CommandAsync(http, (db, actor, ct) => TrialBalanceUploadWorkspace.PreviewAsync(db, actor, id, file.Value.Name, file.Value.Content, ct));
     });
     group.MapGet("/datasets/{id:guid}/mapping-memory", (Guid id, HttpContext http) =>
       ReadAsync(http, (db, actor, ct) => MappingMemoryService.ProposeAsync(db, actor, id, ct)));

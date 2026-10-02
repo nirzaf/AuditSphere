@@ -1,14 +1,11 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, DestroyRef, effect, inject, signal, untracked, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { Api, CommandState, routeGuid } from '../../core/api';
 import {
   arr,
-  bool,
-  date,
   dec,
-  decode,
   guid,
   instant,
   nat,
@@ -16,30 +13,16 @@ import {
   obj,
   text,
 } from '../../core/decode';
+import { SessionService } from '../../core/session';
 import { SHARED } from '../../core/ui';
 import { IntakeCurrencyReview } from './currency-review';
+import { TrialBalanceUpload } from './tb-upload';
 export { decodeCurrencyReview } from './currency-review';
 
 export const decodeIntake = obj({
   engagementId: guid,
   clientId: guid,
   datasets: arr(obj({ id: guid, periodCode: text, currency: text, importedAt: instant }), 50),
-});
-export const decodePreview = obj({
-  fileSha256: text,
-  canImport: bool,
-  periods: arr(
-    obj({
-      periodCode: text,
-      periodId: nullable(guid),
-      rowCount: nat,
-      currency: nullable(text),
-      netTotal: nullable(dec),
-      balanced: bool,
-      error: nullable(text),
-    }),
-    120,
-  ),
 });
 const allocation = obj({
   sourceAccountCode: text,
@@ -66,7 +49,14 @@ export const decodeMemory = obj({
 
 @Component({
   selector: 'audit-tb-intake',
-  imports: [FormsModule, RouterLink, MatButtonModule, IntakeCurrencyReview, ...SHARED],
+  imports: [
+    FormsModule,
+    RouterLink,
+    MatButtonModule,
+    IntakeCurrencyReview,
+    TrialBalanceUpload,
+    ...SHARED,
+  ],
   template: `
     <audit-page-header
       title="Trial balance intake"
@@ -76,59 +66,18 @@ export const decodeMemory = obj({
     <a [routerLink]="['/app/engagements', id()]">← Back to engagement</a>
     <audit-state [loading]="ws.loading()" [error]="ws.error()" label="trial balance intake" />
     @if (ws.data(); as w) {
-      <section class="panel" aria-labelledby="mp-heading">
-        <h2 id="mp-heading">Multi-period upload</h2>
-        <p>
-          Columns: PeriodCode, AccountCode, AccountName, NetClosingBalance (or Debit and Credit),
-          Currency, Entity, MappingCode. Each period is validated and imported as its own dataset;
-          nothing is imported unless every period passes.
-        </p>
-        <label
-          >Trial balance file
-          <input type="file" accept=".xlsx,.csv" (change)="pick($event)" [disabled]="cmd.busy()"
-        /></label>
-        @if (preview(); as p) {
-          <div class="table-scroll">
-            <table aria-label="Periods in the file">
-              <thead>
-                <tr>
-                  <th>Period</th>
-                  <th class="number">Rows</th>
-                  <th>Currency</th>
-                  <th class="number">Net</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                @for (r of p.periods; track r.periodCode) {
-                  <tr>
-                    <td>{{ r.periodCode }}</td>
-                    <td class="number">{{ r.rowCount }}</td>
-                    <td>{{ r.currency }}</td>
-                    <td class="number">{{ r.netTotal | money }}</td>
-                    <td [class.error-text]="r.error">{{ r.error ?? 'Ready' }}</td>
-                  </tr>
-                }
-              </tbody>
-            </table>
-          </div>
-          <p>
-            <small
-              >File SHA-256 <code>{{ p.fileSha256 }}</code></small
-            >
-          </p>
-          <button matButton="filled" (click)="import()" [disabled]="cmd.busy() || !p.canImport">
-            Import {{ p.periods.length }} period(s)
-          </button>
-        }
-      </section>
+      <audit-tb-upload
+        [engagementId]="w.engagementId"
+        [clientId]="w.clientId"
+        (imported)="refreshDatasets()"
+      />
       <section class="panel" aria-labelledby="mm-heading">
         <h2 id="mm-heading">Mapping memory</h2>
         <label
           >Dataset
-          <select [(ngModel)]="datasetId" name="dataset" (ngModelChange)="memory.set(null)">
+          <select [(ngModel)]="datasetId" name="dataset" (ngModelChange)="resetMemory()">
             <option value="">Select</option>
-            @for (d of w.datasets; track d.id) {
+            @for (d of availableDatasets(); track d.id) {
               <option [value]="d.id">
                 {{ d.periodCode }} · {{ d.currency }} ·
                 {{ d.importedAt.slice(0, 16).replace('T', ' ') }}
@@ -217,6 +166,7 @@ export const decodeMemory = obj({
 })
 export class TrialBalanceIntake {
   private readonly api = inject(Api);
+  private readonly session = inject(SessionService);
   readonly id = routeGuid();
   readonly ws = this.api.resource(
     () => (this.id() ? `/api/ui/engagements/${this.id()}/tb-intake` : null),
@@ -224,10 +174,13 @@ export class TrialBalanceIntake {
     'Trial balance intake requires an accounting or engagement assignment.',
   );
   readonly cmd = new CommandState(this.api);
-  readonly preview = signal<ReturnType<typeof decodePreview> | null>(null);
   readonly memory = signal<ReturnType<typeof decodeMemory> | null>(null);
   readonly readError = signal('');
-  private file: File | null = null;
+  private readonly upload = viewChild(TrialBalanceUpload);
+  readonly availableDatasets = signal<ReturnType<typeof decodeIntake>['datasets']>([]);
+  private datasetRequest = 0;
+  private memoryRequest = 0;
+  private destroyed = false;
   private readonly entries = new Map<string, { destination: string; section: string }>();
   datasetId = '';
   taxonomy = 'tax-v1';
@@ -240,58 +193,68 @@ export class TrialBalanceIntake {
   describe(a: { destinationCode: string; statementSection: string }[]): string {
     return a.map((x) => `${x.destinationCode} (${x.statementSection})`).join(', ');
   }
-  private form(): FormData {
-    const f = new FormData();
-    f.set('file', this.file!);
-    return f;
+  confirmNavigation() {
+    return this.upload()?.confirmNavigation() ?? true;
   }
-  async pick(event: Event): Promise<void> {
-    this.preview.set(null);
-    const f = (event.target as HTMLInputElement).files?.[0] ?? null;
-    if (!f || f.size === 0 || f.size > 25 * 1024 * 1024) {
-      this.file = null;
-      this.cmd.failed.set(true);
-      this.cmd.message.set('Choose an Excel or CSV file up to 25 MB.');
-      return;
+  resetMemory() {
+    this.memoryRequest++;
+    this.memory.set(null);
+    this.entries.clear();
+    this.readError.set('');
+  }
+  constructor() {
+    effect(() => {
+      this.id();
+      this.session.invalidation();
+      untracked(() => {
+        this.datasetRequest++;
+        this.resetMemory();
+        this.datasetId = '';
+        this.availableDatasets.set([]);
+      });
+    });
+    effect(() => {
+      const w = this.ws.data();
+      untracked(() => this.availableDatasets.set(w?.datasets ?? []));
+    });
+    inject(DestroyRef).onDestroy(() => {
+      this.destroyed = true;
+      this.memoryRequest++;
+      this.datasetRequest++;
+    });
+  }
+  async refreshDatasets(): Promise<void> {
+    const id = this.id(),
+      context = this.ws.data(),
+      request = ++this.datasetRequest;
+    if (!id || !context) return;
+    try {
+      const w = await this.api.get(`/api/ui/engagements/${id}/tb-intake`, decodeIntake);
+      if (this.destroyed || request !== this.datasetRequest || this.id() !== id || !this.ws.data())
+        return;
+      if (w.engagementId !== id || w.clientId !== context.clientId)
+        throw new Error('Unsupported intake context.');
+      this.availableDatasets.set(w.datasets);
+    } catch (e) {
+      if (!this.destroyed && request === this.datasetRequest)
+        this.readError.set((e as Error).message);
     }
-    this.file = f;
-    await this.cmd.run<unknown>(
-      `/api/ui/engagements/${this.id()}/tb-intake/preview`,
-      this.form(),
-      '',
-      (value) => {
-        try {
-          this.preview.set(decode(decodePreview, value));
-        } catch {
-          this.cmd.failed.set(true);
-          this.cmd.message.set('Unsupported preview response.');
-        }
-      },
-    );
-  }
-  import(): void {
-    if (!this.file) return;
-    this.cmd
-      .run<{ periodCode: string }[]>(
-        `/api/ui/engagements/${this.id()}/tb-intake/import`,
-        this.form(),
-        'Imported as separate datasets; each is validated by its own operation.',
-        () => {
-          this.preview.set(null);
-          this.file = null;
-        },
-      )
-      .finally(() => this.ws.reload());
   }
   async propose(): Promise<void> {
-    this.readError.set('');
-    this.entries.clear();
+    this.resetMemory();
+    const selected = this.datasetId,
+      request = this.memoryRequest;
     try {
-      this.memory.set(
-        await this.api.get(`/api/ui/datasets/${this.datasetId}/mapping-memory`, decodeMemory),
+      const result = await this.api.get(
+        `/api/ui/datasets/${selected}/mapping-memory`,
+        decodeMemory,
       );
+      if (this.destroyed || request !== this.memoryRequest || this.datasetId !== selected) return;
+      if (result.datasetId !== selected) throw new Error('Unsupported dataset context.');
+      this.memory.set(result);
     } catch (e) {
-      this.readError.set((e as Error).message);
+      if (!this.destroyed && request === this.memoryRequest)
+        this.readError.set((e as Error).message);
     }
   }
   createDraft(datasetId: string): void {

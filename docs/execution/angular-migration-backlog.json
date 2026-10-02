@@ -126,7 +126,7 @@
       "id": "US-021",
       "title": "Migrate multi-period trial-balance intake and general ledger",
       "status": "PARTIAL",
-      "scope": "Native multi-period TB intake and accounting source-record workspaces exist. Complete GL intake, resume and source-export parity remains open."
+      "scope": "Native multi-period intake now requires actor/period/file-bound review, observes exact scoped receipts and durable validation, recovers partial/concurrent uploads without duplicates, and fences unknown outcomes. Signal Forms, metadata-only tab checkpoint recovery, navigation protection and scope-filtered mapping history are implemented. Complete GL intake, mapping editor and source-export acceptance remain open."
     },
     {
       "id": "US-022",

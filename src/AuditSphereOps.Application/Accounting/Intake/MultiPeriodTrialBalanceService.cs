@@ -56,9 +56,9 @@ public static class MultiPeriodTrialBalanceService
   }
 
   public static async Task<CommandResult<MultiPeriodPreview>> PreviewAsync(
-    IClientAccountingDbContext db, ActorContext actor, Guid clientId, string fileName, byte[] content, CancellationToken ct = default)
+    IClientAccountingDbContext db, ActorContext actor, Guid clientId, string fileName, byte[] content, CancellationToken ct = default, Guid? engagementId = null)
   {
-    var auth = await AuthorizationDecision.AuthorizeAsync(db, actor, new AuthorizationRequest(actor.FirmId, clientId,
+    var auth = await AuthorizationDecision.AuthorizeAsync(db, actor, new AuthorizationRequest(actor.FirmId, clientId, engagementId,
       RequiredRoles: ["AccountingPreparer", "AccountingReviewer", "Manager", "Partner", "Administrator", "Senior", "Staff"], InternalOnly: true), ct);
     if (!auth.Succeeded) return CommandResult<MultiPeriodPreview>.Fail(auth.ErrorCode!, auth.Message!);
     IReadOnlyDictionary<string, string> split;
@@ -79,18 +79,26 @@ public static class MultiPeriodTrialBalanceService
       {
         var parsed = TrialBalanceCsvImporter.Parse(csv, ProfileFor(csv));
         var net = MoneyPolicy.Normalize(parsed.Rows.Sum(x => x.Amount));
+        var error = period is null ? $"No reporting period {code} exists for this client."
+          : period.Status == AccountingWorkflowStates.Closed ? $"Period {code} is closed."
+          : !string.Equals(period.Currency, parsed.Currency, StringComparison.OrdinalIgnoreCase) ? $"Period {code} currency does not match the source."
+          : parsed.Rows.Select(x => x.Entity).Distinct(StringComparer.Ordinal).Count() != 1 ? $"Period {code} must contain exactly one legal entity."
+          : net != 0m ? $"Period {code} does not balance (net {net:N2})." : null;
         result.Add(new(code, period?.Id, parsed.Rows.Count, parsed.Currency, net, net == 0m,
-          period is null ? $"No reporting period {code} exists for this client." : net != 0m ? $"Period {code} does not balance (net {net:N2})." : null));
+          error));
       }
       catch (InvalidOperationException ex) { result.Add(new(code, period?.Id, 0, null, null, false, ex.Message)); }
     }
-    return CommandResult<MultiPeriodPreview>.Ok(new(Hashing.Sha256Hex(content), result));
+    auth = await AuthorizationDecision.AuthorizeAsync(db, actor, new AuthorizationRequest(actor.FirmId, clientId, engagementId,
+      RequiredRoles: ["AccountingPreparer", "AccountingReviewer", "Manager", "Partner", "Administrator", "Senior", "Staff"], InternalOnly: true), ct);
+    return auth.Succeeded ? CommandResult<MultiPeriodPreview>.Ok(new(Hashing.Sha256Hex(content), result))
+      : CommandResult<MultiPeriodPreview>.Fail(auth.ErrorCode!, auth.Message!);
   }
 
   public static async Task<CommandResult<MultiPeriodImportResult>> ImportAsync(
     IClientAccountingDbContext db, ActorContext actor, Guid clientId, Guid engagementId, string fileName, byte[] content, CancellationToken ct = default)
   {
-    var preview = await PreviewAsync(db, actor, clientId, fileName, content, ct);
+    var preview = await PreviewAsync(db, actor, clientId, fileName, content, ct, engagementId);
     if (!preview.Succeeded) return CommandResult<MultiPeriodImportResult>.Fail(preview.ErrorCode!, preview.Message!);
     if (!preview.Value!.CanImport)
       return CommandResult<MultiPeriodImportResult>.Fail(ErrorCodes.Accounting.ImportRejected,
@@ -112,7 +120,7 @@ public static class MultiPeriodTrialBalanceService
     return CommandResult<MultiPeriodImportResult>.Ok(new(imported));
   }
 
-  private static TrialBalanceImportProfile ProfileFor(string csv)
+  internal static TrialBalanceImportProfile ProfileFor(string csv)
   {
     var header = csv[..csv.IndexOf('\n')];
     return header.Split(',').Any(h => h.Trim().Equals("Debit", StringComparison.OrdinalIgnoreCase))
