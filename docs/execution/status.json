@@ -4,12 +4,12 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "5d259ac417bc8faccbf4b52404b005cd6f9d0b40",
-  "verifiedCommit": "be80aad351f5497f3e7408d9e886d994a5bd1c2a",
+  "headCommit": "0b2c0ba8ea2efd955d2c512986a46798e33cb6a2",
+  "verifiedCommit": "5d259ac417bc8faccbf4b52404b005cd6f9d0b40",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": true,
   "productionEnabled": false,
-  "verifiedAt": "2026-09-28T15:55:52Z",
+  "verifiedAt": "2026-10-02T16:53:43.095777+00:00",
   "toolchain": {
     "sdk": ".NET 10",
     "efCore": "10.0.12",
@@ -2005,7 +2005,7 @@
       "applicationArtifactSha256": "e5c7b5b512bbc3bd82d65b71ff95c2aa529911322986dd1af0ac38a027fea5f0",
       "angularArtifactSha256": "5b7ab8ea6b9d93138959816e1ccaeb25f6bf8d7312aa2c1254b48716844f4953",
       "angularFileCount": 76,
-      "sourceBoundary": "Focused checks verified implementationCommit and the recorded artifact/source fingerprints. Full solution regression for this exact source is running; no passing full new-source regression or production acceptance inferred.",
+      "sourceBoundary": "Focused checks and completed full .NET regression verified implementationCommit and recorded frozen artifact/source fingerprints. Subsequent intake revision is excluded; no production acceptance claimed.",
       "fingerprintMethod": "SHA-256 of sorted unique Git-tracked/nonignored src/tests relative paths, NUL, file bytes and NUL; Angular browser hash uses sorted relative paths, NUL and bytes.",
       "behavior": "Native Signal Forms and exact plain decimal text; fresh actor/session-bound reviewed preparation and independent approval under firm/client/engagement guards; file-freeze gates, duplicate preparation identity and persisted STALE revalidation. Bounded active-grant/input reads exclude expired wider scopes. Result scope, approved rate/policy versions, provenance, direction, classification, prior carrying, movement and rounding are explicit. Historical missing GL lineage stays readable with an inspection-only blocker and cannot gain new approval.",
       "drafts": "Explicit bounded tab/session recovery for exact period/engagement/current approved inputs. No review assent, credentials or files stored. Guarded scope changes clear previous evidence fields; stale refresh retains intent but blocks submission until explicit rebase and fresh review. Storage failure is memory-only; unknown or malformed-success responses preserve pending intent and prohibit automatic retries. Session invalidation withdraws protected state.",
@@ -2041,11 +2041,20 @@
       "documentation": "PASS documentation health, filenames, protected narrative metrics, source inventory --check and git diff --check. No Wiki publication.",
       "secretCheck": "PASS redacted staged gitleaks scan, no findings after artifact checksum field clarified. The initial generic API key finding was the verified public build artifact SHA-256, not a credential; no detection rules suppressed. Scanner success is not a comprehensive guarantee.",
       "fullSuite": {
-        "status": "RUNNING",
+        "status": "PASS",
         "sourceCommit": "5d259ac417bc8faccbf4b52404b005cd6f9d0b40",
         "startedAt": "2026-10-02T16:24:26.650288+00:00",
         "command": "dotnet test AuditSphereOps.slnx -c Release --no-build",
-        "boundary": "Observed active runner with all three test projects started. Uses existing frozen Release artifacts; no rebuild or source mutation during run. Outcome pending."
+        "boundary": "Terminal runner exit 0; frozen Release artifacts for sourceCommit. Later native intake source is excluded.",
+        "completedAt": "2026-10-02T16:53:43.095777+00:00",
+        "passed": 747,
+        "failed": 0,
+        "skipped": 0,
+        "projects": {
+          "Domain": 555,
+          "Api": 63,
+          "E2E": 129
+        }
       },
       "remaining": "Currency intake review, complete source-action/rate-method editor parity, cross-feature form/draft migration, security/accessibility/performance/canary acceptance and final Blazor retirement remain open.",
       "implementationCommit": "5d259ac417bc8faccbf4b52404b005cd6f9d0b40",
@@ -2065,7 +2074,7 @@
       "applicationArtifactSha256": "529f6f52f8cb0f716c46da0613cd28490f6e7d552506fa051d757e694a62b995",
       "angularArtifactSha256": "8793f6f2e0b4399e8dfbd6d1d0cd741ee416ed93cfd677651e6a0051acbd20d6",
       "angularFileCount": 76,
-      "sourceBoundary": "Verified isolated worktree source and frozen Release/Angular artifacts identified by these fingerprints. Main checkout full regression for prior currency workpaper source remains running and excludes this implementation. No full current-source solution regression or production acceptance claimed.",
+      "sourceBoundary": "Focused checks/full API and Angular suites verified implementationCommit in the isolated worktree, identified by the recorded source/artifact fingerprints. A full .NET regression for the same revision is now running from those frozen artifacts. No passing current-source full solution or production acceptance inferred.",
       "fingerprintMethod": "SHA-256 of sorted unique Git-tracked/nonignored src/tests relative paths, NUL, bytes, NUL; Angular browser hash uses sorted relative paths and bytes with NUL delimiters.",
       "behavior": "Native Signal Forms read panel; exact decimal threshold/source strings; exact scope, method, rounding, rate set/version/observation and provenance; current/prior comparison; explicit same-currency identity without invented observation. Prior candidates are scope-filtered before selection, including expiry. Latest invalid rate/direction/effective dates refuse fallback. Final current/prior source/period/rate and actor rechecks fail closed. Bound 20000 account aggregate and 50 rendered rows per page. Filters mark results stale; changed context, malformed response or revoked session cannot repopulate old data.",
       "build": "PASS Release full solution, zero warnings/errors; Angular production build within configured budgets. Locked restore passed with the repository SDK, no package lock changes.",
@@ -2100,10 +2109,20 @@
       "documentation": "PASS documentation health, filenames, protected narrative metrics, source inventory --check and git diff --check. No Wiki publication.",
       "secretCheck": "PASS staged redacted gitleaks scan, no findings or suppressed rules. No real credentials added; scanner success is not a comprehensive guarantee.",
       "fullSuite": {
-        "status": "NOT_RERUN",
-        "boundary": "Full current-source API and affected Domain/E2E plus full Angular checks passed; earlier main checkout full solution regression is a separate source revision."
+        "status": "RUNNING",
+        "sourceCommit": "0b2c0ba8ea2efd955d2c512986a46798e33cb6a2",
+        "startedAt": "2026-10-02T16:53:43.095777+00:00",
+        "command": "dotnet test AuditSphereOps.slnx -c Release --no-build",
+        "boundary": "Observed all three test projects started in the isolated worktree using frozen final Release/Angular outputs and exact repository SDK. No rebuild or source mutation in that worktree during run. Outcome pending."
       },
-      "remaining": "Complete intake upload/mapping command/form/draft parity, rate/method editor acceptance, remaining module stories, security/accessibility/performance/canary acceptance and final Blazor retirement remain open."
+      "remaining": "Complete intake upload/mapping command/form/draft parity, rate/method editor acceptance, remaining module stories, security/accessibility/performance/canary acceptance and final Blazor retirement remain open.",
+      "implementationCommit": "0b2c0ba8ea2efd955d2c512986a46798e33cb6a2",
+      "remotePublication": {
+        "branch": "master",
+        "commit": "0b2c0ba8ea2efd955d2c512986a46798e33cb6a2",
+        "confirmedAt": "2026-10-02T16:53:43.095777+00:00",
+        "evidence": "Fast-forward merge into clean master and git push origin master exited 0; independent git ls-remote exactly matched implementation revision."
+      }
     }
   },
   "documentationWork": {
