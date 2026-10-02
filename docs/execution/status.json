@@ -4,7 +4,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "09cdac7a65616e803804643898720f725a47ce97",
+  "headCommit": "0e8423949d633e428fddf35bfc2baa161a6c3ee4",
   "verifiedCommit": "5966575d045570218f9ea8262b676054b32aaa79",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": true,
@@ -3732,8 +3732,13 @@
         "details": "Missing closing editor section and missing strict decoder path arguments failed compilation and were corrected before final production build and whole Angular tests. No earlier failed build is claimed as passed."
       },
       "fullSuite": {
-        "status": "NOT_RUN",
-        "boundary": "This slice has separate local gates. The frozen published journal-lifecycle full run remains independent and in progress; no full creation regression is claimed."
+        "status": "RUNNING",
+        "sourceCommit": "0e8423949d633e428fddf35bfc2baa161a6c3ee4",
+        "worktree": "/private/tmp/auditsphere-journal-creation-regression-20261002",
+        "buildLog": "/private/tmp/auditsphere-journal-creation-regression-build.log",
+        "log": "/private/tmp/auditsphere-journal-creation-regression-suite.log",
+        "fingerprintsPath": "/private/tmp/auditsphere-journal-creation-regression-hashes.json",
+        "boundary": "Frozen published source, sequential locked restore/build and unchanged whole solution suite. Terminal result required for full pass."
       },
       "fingerprints": {
         "sourceFingerprintSha256": "05d3d36b162d996a7a2c166b27b03f7fabe4e285877be43e520d35507d76e81e",
@@ -3760,6 +3765,13 @@
         "status": "PASS",
         "scope": "Complete staged native creation, migrations, tests and docs diff scanned redacted; no leaks detected.",
         "log": "/private/tmp/auditsphere-journal-creation-secret-scan.log"
+      },
+      "publication": {
+        "status": "PUSHED",
+        "branch": "master",
+        "implementationCommit": "0e8423949d633e428fddf35bfc2baa161a6c3ee4",
+        "remoteHeadConfirmed": true,
+        "confirmedAt": "2026-10-02T23:19:14.751460+00:00"
       }
     }
   },
