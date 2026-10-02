@@ -2353,6 +2353,18 @@ including attempted moves to an editable journal. The existing returned-edit ser
 guard now agree. This does not apply a treatment to client books or a package.
 
 Observed local checks and original failures are recorded in `status.json`. The additive migration
-has been exercised in disposable test databases only. New-journal creation, management responses,
-reflection/application controls and wider migration acceptance remain pending. The prior frozen
+has been exercised in disposable test databases only. Native creation is described below;
+management responses, reflection/application controls and wider migration acceptance remain pending. The prior frozen
 mapping regression's historical-schema failure remains distinct from its verified fixture repair.
+
+### Native journal creation from a sealed source
+
+Source inspection now enters a dedicated Angular draft-creation page. Exact source/period/book
+and purpose/origin are reviewed with all decimal lines, rationale and evidence. Application
+serializes creation with the existing service and a retained original-line event. Identical
+requests reconcile; duplicate numbers, changed prior-journal revisions and late authority loss
+cannot publish another draft. Corrections can link an exact same-context posted/returned
+journal while retaining it unchanged. Unknown responses require receipt reconciliation and
+acknowledgment; tab fields never restore assent. The additive event migration is exercised only
+in disposable databases. Executed checks are recorded in `status.json`; management responses,
+reflection/application and full migration acceptance remain open.

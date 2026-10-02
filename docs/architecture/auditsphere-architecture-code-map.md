@@ -818,3 +818,11 @@ For the complete documentation index, authority hierarchy, current requirements,
 - Angular: `features/accounting/journal.ts`, `.html`, `.scss` and `journal-contracts.ts` implement the exact editor, review, tab recovery, uncertain-result fencing and retained timeline.
 - Persistence: `AuditSphereDbContext.AdjustmentJournalActions.cs` and `NativeAdjustmentJournalActions` enforce scoped lineage, unique requests and append-only evidence; the line trigger checks both old/new journal states.
 - Verification: `JournalReviewApiTests`, `JournalReviewSeed`, `AngularJournalReviewJourneyTests` and `journal.spec.ts`. Results and migration-application boundaries live in `status.json`.
+
+### Native journal creation
+
+- `Accounting/AdjustmentJournalWorkspace.Creation.cs`: exact source context, preview, serialized draft/event creation, prior-revision fencing and receipt lookup; shared exact line validation remains in `.Commands.cs`.
+- `Ui/UiEndpoints.JournalReview.cs`: fixed source-bound draft/preview/receipt HTTP contracts; the explicit SPA catalogue owns the source draft route.
+- `features/accounting/journal-create.ts`, `.html`, `journal-creation-contracts.ts`: typed purpose/origin fields, exact line review, optional supersession, tab recovery and uncertain-result acknowledgment. `engagements/tb-source.ts` supplies the scoped entry link.
+- `NativeJournalCreationEvidence`: extends existing immutable journal action evidence with an explicit no-prior-journal state; rollback preserves retained creation events.
+- `JournalCreationApiTests`, `AngularJournalCreationJourneyTests` and `journal-create.spec.ts`: concurrency, original-line retention, precision, prior revision, authority, keyboard and recovery checks. Observed results live in `status.json`.

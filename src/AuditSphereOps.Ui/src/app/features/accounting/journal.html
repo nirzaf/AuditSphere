@@ -327,7 +327,10 @@
     @for (h of j.history; track h.id) {
       <article>
         <h3>
-          {{ h.action }} · {{ h.oldStatus }} revision {{ h.oldRevision }} →
+          {{ h.action }} ·
+          @if (h.oldStatus !== 'NOT_CREATED') {
+            {{ h.oldStatus }} revision {{ h.oldRevision }} →
+          }
           {{ h.newStatus }} revision {{ h.newRevision }}
         </h3>
         <p>{{ h.reason }} · {{ h.evidenceReference }}</p>
@@ -375,42 +378,47 @@
         <h2>Before / after retained revision</h2>
         <button matButton (click)="historyId.set('')">Close journal revision evidence</button>
         @for (snapshot of [h.before, h.after]; track $index) {
-          <h3>
-            {{ $index === 0 ? 'Before' : 'After' }} · {{ snapshot.status }} revision
-            {{ snapshot.revision }}
-          </h3>
-          <p>{{ snapshot.reason }} · {{ snapshot.evidenceReference }}</p>
-          <div
-            class="table-scroll"
-            tabindex="0"
-            role="region"
-            [attr.aria-label]="$index === 0 ? 'Before revision lines' : 'After revision lines'"
-          >
-            <table>
-              <caption>
-                {{
-                  $index === 0 ? 'Before' : 'After'
-                }}
-                exact lines
-              </caption>
-              <thead>
-                <tr>
-                  <th>Account</th>
-                  <th>Debit</th>
-                  <th>Credit</th>
-                </tr>
-              </thead>
-              <tbody>
-                @for (l of snapshot.lines; track $index) {
+          @if (snapshot.status === 'NOT_CREATED') {
+            <h3>Before creation</h3>
+            <p>No journal existed before this retained creation event.</p>
+          } @else {
+            <h3>
+              {{ $index === 0 ? 'Before' : 'After' }} · {{ snapshot.status }} revision
+              {{ snapshot.revision }}
+            </h3>
+            <p>{{ snapshot.reason }} · {{ snapshot.evidenceReference }}</p>
+            <div
+              class="table-scroll"
+              tabindex="0"
+              role="region"
+              [attr.aria-label]="$index === 0 ? 'Before revision lines' : 'After revision lines'"
+            >
+              <table>
+                <caption>
+                  {{
+                    $index === 0 ? 'Before' : 'After'
+                  }}
+                  exact lines
+                </caption>
+                <thead>
                   <tr>
-                    <th scope="row">{{ l.accountCode }}</th>
-                    <td class="number">{{ l.debit }}</td>
-                    <td class="number">{{ l.credit }}</td>
+                    <th>Account</th>
+                    <th>Debit</th>
+                    <th>Credit</th>
                   </tr>
-                }
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  @for (l of snapshot.lines; track $index) {
+                    <tr>
+                      <th scope="row">{{ l.accountCode }}</th>
+                      <td class="number">{{ l.debit }}</td>
+                      <td class="number">{{ l.credit }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
         }
       </section>
     }

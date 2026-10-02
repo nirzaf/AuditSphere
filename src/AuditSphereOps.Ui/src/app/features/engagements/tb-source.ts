@@ -128,6 +128,7 @@ export function decodeSource(raw: unknown) {
           <a matButton [routerLink]="['/app/accounting/sources', s.datasetId, 'acceptance']"
             >Review source acceptance</a
           >
+          <a matButton [routerLink]="['/app/accounting/sources', s.datasetId, 'journal-draft']">Prepare new adjustment journal</a>
           <dl class="source-context">
             <dt>Source</dt>
             <dd>

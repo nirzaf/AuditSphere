@@ -11,6 +11,14 @@ public static partial class UiEndpoints
 {
   private static void MapJournalReviewEndpoints(RouteGroupBuilder group)
   {
+    group.MapGet("/datasets/{id:guid}/journal-drafts", (Guid id, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => AdjustmentJournalWorkspace.GetCreationAsync(db, actor, id, ct)));
+    group.MapGet("/datasets/{id:guid}/journal-drafts/receipts/{requestId:guid}", (Guid id, Guid requestId, string requestHash, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => AdjustmentJournalWorkspace.LookupCreationAsync(db, db, actor, id, requestId, requestHash, ct)));
+    group.MapPost("/datasets/{id:guid}/journal-drafts/preview", (Guid id, JournalCreationRequest? input, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => AdjustmentJournalWorkspace.PreviewCreationAsync(db, actor, id, input, ct)));
+    group.MapPost("/datasets/{id:guid}/journal-drafts", (Guid id, JournalCreationRequest? input, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => AdjustmentJournalWorkspace.CreateAsync(db, db, actor, id, input, ct)));
     group.MapPost("/accounting/journals/{id:guid}/workspace/instructions", async (Guid id, JournalExportInput input,
       HttpContext http, TrustedActorResolver resolver, IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) => {
       var actor = await resolver.ResolveAsync(http.User, http.RequestAborted);

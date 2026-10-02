@@ -30,6 +30,35 @@ public static partial class AdjustmentJournalWorkspace
     decimal.TryParse(s, NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out v) &&
     s.Length <= 20 && Regex.IsMatch(s, @"^(0|[1-9][0-9]{0,12})(\.[0-9]{1,6})?$", RegexOptions.CultureInvariant);
 
+  private sealed record CheckedLines(IReadOnlyList<JournalLineView> Lines, IReadOnlyList<string> Errors);
+  private static async Task<CommandResult<CheckedLines>> CheckEditLinesAsync(IClientAccountingDbContext db,
+    Guid datasetId, IReadOnlyList<JournalEditLine> inputs, CancellationToken ct)
+  {
+    var allowed = await db.TrialBalanceRows.AsNoTracking().Where(x => x.DatasetId == datasetId)
+      .OrderBy(x => x.Id).Take(20_001).Select(x => x.AccountCode).ToListAsync(ct);
+    if (allowed.Count > 20_000) return Fail<CheckedLines>(ErrorCodes.GateBlocked, "The source exceeds the interactive account limit.");
+    var codes = allowed.ToHashSet(StringComparer.Ordinal);
+    var parsed = new List<JournalLineView>(); var errors = new List<string>();
+    for (var i = 0; i < inputs.Count; i++)
+    {
+      var l = inputs[i];
+      if (l is null || l.AccountCode is not { Length: > 0 and <= 32 } || !codes.Contains(l.AccountCode.Trim()))
+      { errors.Add($"Line {i + 1}: choose an account in this exact source."); continue; }
+      if (l.Debit is null || l.Credit is null || !Decimal(l.Debit, out var debit) || !Decimal(l.Credit, out var credit))
+      { errors.Add($"Line {i + 1}: use nonnegative plain decimals with at most six fractional digits."); continue; }
+      if (debit > 0m && credit > 0m || debit == 0m && credit == 0m)
+      { errors.Add($"Line {i + 1}: enter a positive amount on exactly one side."); continue; }
+      parsed.Add(new(l.AccountCode.Trim(), debit, credit));
+    }
+    if (inputs.Count < 2) errors.Add("A journal needs at least two lines.");
+    if (errors.Count == 0)
+    {
+      var error = AdjustmentJournalService.CheckLines(parsed.Select(x => (x.AccountCode, x.Debit, x.Credit)).ToArray());
+      if (error is not null) errors.Add(error);
+    }
+    return CommandResult<CheckedLines>.Ok(new(parsed, errors));
+  }
+
   public static async Task<CommandResult<JournalActionPreview>> PreviewAsync(IClientAccountingDbContext db,
     IAdjustmentJournalDbContext evidenceDb, ActorContext actor, Guid id, JournalActionRequest? request, CancellationToken ct = default)
   {
@@ -43,28 +72,9 @@ public static partial class AdjustmentJournalWorkspace
     var lines = v.Lines.ToArray();
     if (r.Action == "UPDATE")
     {
-      var allowed = await db.TrialBalanceRows.AsNoTracking().Where(x => x.DatasetId == v.DatasetId).OrderBy(x => x.Id).Take(20_001).Select(x => x.AccountCode).ToListAsync(ct);
-      if (allowed.Count > 20_000) return Fail<JournalActionPreview>(ErrorCodes.GateBlocked, "The source exceeds the interactive account limit.");
-      var codes = allowed.ToHashSet(StringComparer.Ordinal);
-      var parsed = new List<JournalLineView>();
-      for (var i = 0; i < r.Lines.Count; i++)
-      {
-        var l = r.Lines[i];
-        if (l is null || l.AccountCode is not { Length: > 0 and <= 32 } || !codes.Contains(l.AccountCode.Trim()))
-        { errors.Add($"Line {i + 1}: choose an account in this exact source."); continue; }
-        if (l.Debit is null || l.Credit is null || !Decimal(l.Debit, out var debit) || !Decimal(l.Credit, out var credit))
-        { errors.Add($"Line {i + 1}: use nonnegative plain decimals with at most six fractional digits."); continue; }
-        if (debit > 0m && credit > 0m || debit == 0m && credit == 0m)
-        { errors.Add($"Line {i + 1}: enter a positive amount on exactly one side."); continue; }
-        parsed.Add(new(l.AccountCode.Trim(), debit, credit));
-      }
-      if (r.Lines.Count < 2) errors.Add("A journal needs at least two lines.");
-      if (errors.Count == 0)
-      {
-        var lineError = AdjustmentJournalService.CheckLines(parsed.Select(x => (x.AccountCode, x.Debit, x.Credit)).ToArray());
-        if (lineError is not null) errors.Add(lineError);
-      }
-      lines = parsed.ToArray();
+      var checkedLines = await CheckEditLinesAsync(db, v.DatasetId, r.Lines, ct);
+      if (!checkedLines.Succeeded) return Fail<JournalActionPreview>(checkedLines.ErrorCode!, checkedLines.Message!);
+      errors.AddRange(checkedLines.Value!.Errors); lines = checkedLines.Value.Lines.ToArray();
     }
     else if (r.Action == "REVERSE")
       lines = v.Lines.Select(x => new JournalLineView(x.AccountCode, x.Credit, x.Debit)).ToArray();

@@ -443,6 +443,31 @@ inspection remains independently authorized. Controlled instructions verify curr
 management evidence; downloading them is neither external posting nor package application.
 
 The additive action-evidence migration and returned-line guard are exercised only in owned test
-databases. Rollback refuses deletion of retained action evidence. New-journal creation, management
-response and reflection/application controls, broader accounting parity, production-like
+databases. Rollback refuses deletion of retained action evidence. Native creation is described
+below. Management response and reflection/application controls, broader accounting parity, production-like
 acceptance, cutover and Blazor retirement remain open. Executed verification lives in `status.json`.
+
+### Native journal creation
+
+Sealed source inspection links to an explicitly owned Angular draft-creation route. Its scoped
+Application context binds the source revision/digest, reporting period/book, currency, basis,
+entity, safety generation and actor/session. The preparer chooses an existing supported purpose
+and origin and enters exact source-account lines, rationale and evidence. A complete server
+preview identifies invalid lines and imbalance before fresh assent. Group-only eliminations
+remain outside this workflow. Creation grants no technical approval, management consent,
+external posting or financial-package application.
+
+The serialized local transaction creates one draft and its immutable original-line event
+together. Concurrent identical requests reconcile to that event; changed intent and duplicate
+source/journal numbers are refused. Optional supersession names an exact posted/returned
+journal and reviewed revision in the same reporting context. The prior journal is locked and
+revalidated and remains unchanged. Final authority loss rolls back both the new journal and
+its event. The retained event uses the explicit pre-creation state `NOT_CREATED`; the timeline shows
+“Before creation”, with no invented prior journal or balances; later edits preserve the original creation snapshot.
+
+Explicit tab fields exclude assent and source balances. Pending-reference reconciliation
+blocks another creation and navigation after an unknown response. Opening a recovered draft
+requires acknowledgment of its retained receipt. The creation-evidence migration preserves
+append-only events and refuses rollback while such evidence exists. Owned local tests exercise
+it; shared Development and production are not migrated. Management/client-response and
+reflection/application controls, wider migration acceptance and retirement remain open.

@@ -10,7 +10,8 @@ public sealed partial class AuditSphereDbContext
   {
     var e = b.Entity<AdjustmentJournalAction>();
     e.ToTable("adjustment_journal_actions", t => t.HasCheckConstraint("ck_adjustment_journal_action",
-      "action IN ('UPDATE','SUBMIT','RETURN','POST','REVERSE') AND actor_epoch >= 1 AND old_revision >= 1 AND new_revision >= 1" +
+      "((action='CREATE' AND old_revision=0 AND old_status='NOT_CREATED' AND new_revision=1 AND new_status='Draft')" +
+      " OR (action IN ('UPDATE','SUBMIT','RETURN','POST','REVERSE') AND old_revision >= 1)) AND actor_epoch >= 1 AND new_revision >= 1" +
       " AND request_hash ~ '^[0-9a-f]{64}$' AND review_basis ~ '^[0-9a-f]{64}$'" +
       " AND length(trim(reason)) BETWEEN 1 AND 4000 AND length(trim(evidence_reference)) BETWEEN 1 AND 2000" +
       " AND length(before_json) BETWEEN 1 AND 250000 AND length(after_json) BETWEEN 1 AND 250000"));

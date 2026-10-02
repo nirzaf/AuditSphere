@@ -1,0 +1,271 @@
+<a routerLink="/app/accounting/journals">Back to adjustment journals</a>
+<audit-page-header
+  title="Prepare adjustment journal"
+  eyebrow="Exact source treatment"
+  description="Create a reviewed draft from the selected sealed source. Creation, technical review, management decisions and application remain separate."
+/>
+<button matButton="outlined" (click)="refresh()" [disabled]="busy()">
+  Refresh journal source review
+</button>
+<audit-state
+  [loading]="context.loading()"
+  [error]="context.error()"
+  label="journal creation source"
+/>
+@if (context.data(); as c) {
+  <section class="panel" aria-label="Journal creation source context">
+    <h2>Exact source · revision {{ c.datasetRevision }}</h2>
+    <dl class="facts">
+      <dt>Source</dt>
+      <dd>
+        <code>{{ c.datasetId }}</code>
+      </dd>
+      <dt>SHA-256</dt>
+      <dd>
+        <code>{{ c.datasetDigest }}</code>
+      </dd>
+      <dt>Reporting period</dt>
+      <dd>{{ c.periodCode }} · {{ c.periodStart }} to {{ c.periodEnd }}</dd>
+      <dt>Book / currency / basis</dt>
+      <dd>{{ c.bookCode || 'No book' }} · {{ c.currency }} · {{ c.basis }}</dd>
+      <dt>Entity</dt>
+      <dd>{{ c.entity }}</dd>
+    </dl>
+    @if (c.blocker) {
+      <p role="status">{{ c.blocker }}</p>
+    }
+    <button
+      matButton="outlined"
+      (click)="sourceOpen.set(!sourceOpen())"
+      [disabled]="busy() || uncertain()"
+    >
+      Inspect new journal source
+    </button>
+  </section>
+  @if (sourceOpen()) {
+    <audit-tb-source
+      [datasetId]="c.datasetId"
+      [clientId]="c.clientId"
+      [engagementId]="c.engagementId"
+    />
+  }
+  @if (pending(); as p) {
+    <section class="panel" aria-label="Pending journal creation">
+      <h2>Unconfirmed journal creation</h2>
+      <p>
+        Request <code>{{ p.requestId }}</code> · intent <code>{{ p.requestHash }}</code>
+      </p>
+      <button matButton="outlined" (click)="reconcile()" [disabled]="busy()">
+        Check persisted creation receipt
+      </button>
+      @if (receipt()) {
+        <button matButton (click)="acknowledge()" [disabled]="busy()">
+          Acknowledge retained creation receipt
+        </button>
+      }
+    </section>
+  }
+  @if (receipt(); as r) {
+    <section class="panel" aria-label="Retained journal creation">
+      <h2>Draft retained</h2>
+      <p>Original creation · {{ r.createdAt }} UTC · {{ r.reason }} · {{ r.evidenceReference }}</p>
+      @if (!uncertain()) {
+        <a [routerLink]="['/app/accounting/journals', r.resultJournalId]"
+          >Open created journal draft</a
+        >
+      } @else {
+        <p>Acknowledge the retained creation receipt before opening the draft.</p>
+      }
+      <p>
+        The original exact lines are retained in the journal's creation event. Nothing has been
+        posted externally or applied to a financial package.
+      </p>
+    </section>
+  }
+  @if (draftAvailable() && !receipt()) {
+    <section class="panel">
+      <p>
+        Same-identity, same-session fields are saved in this tab for this exact source basis.
+        Restoring excludes assent.
+      </p>
+      <button matButton (click)="restoreDraft()" [disabled]="busy()">
+        Restore new journal fields
+      </button>
+    </section>
+  }
+  @if (c.canCreate && !receipt()) {
+    <section class="panel" aria-label="New journal editor">
+      <h2>Prepare exact draft fields</h2>
+      <form (submit)="$event.preventDefault(); prepare()">
+        <fieldset [disabled]="busy() || uncertain()">
+          <legend>New draft fields</legend>
+          <label>Journal number<input [formField]="fields.journalNumber" /></label>
+          <label
+            >Journal purpose<select [formField]="fields.purpose">
+              <option value="REPORTING_ADJUSTMENT">Reporting adjustment</option>
+              <option value="PRESENTATION_RECLASSIFICATION">Presentation reclassification</option>
+              <option value="CLIENT_BOOK_CORRECTION">Client book correction</option>
+            </select></label
+          >
+          <label
+            >Journal origin<select [formField]="fields.origin">
+              <option value="AUDIT_PROPOSED">Audit proposed</option>
+              <option value="CLIENT_REQUESTED">Client requested</option>
+              <option value="MANAGEMENT_PROVIDED">Management provided</option>
+              <option value="IMPORTED">Imported evidence</option>
+            </select></label
+          >
+          <p>
+            Purpose controls later eligibility. Client-book corrections require retained management
+            evidence; group eliminations use consolidation. Choosing imported origin does not upload
+            or verify a file.
+          </p>
+          <label
+            >New journal rationale<textarea [formField]="fields.reason" rows="3"></textarea></label
+          ><label
+            >New journal evidence reference<input [formField]="fields.evidenceReference"
+          /></label>
+          <label>Superseded journal ID (optional)<input [formField]="fields.supersedesId" /></label
+          ><label
+            >Superseded journal revision (optional)<input
+              [formField]="fields.supersedesRevision"
+              inputmode="numeric"
+          /></label>
+          <p>
+            For a correction, provide both the exact posted/returned journal ID and reviewed
+            revision in this same reporting context. Its retained lines remain unchanged.
+          </p>
+          <p>
+            Use exact source accounts, nonnegative plain decimals and at most six fractional digits.
+            The server validates the complete balance.
+          </p>
+          @for (l of model().lines; track $index; let i = $index) {
+            <fieldset class="line">
+              <legend>New line {{ i + 1 }}</legend>
+              <label
+                >New account {{ i + 1
+                }}<input
+                  [value]="l.accountCode"
+                  maxlength="32"
+                  (input)="editLine(i, 'accountCode', $event)"
+              /></label>
+              <label
+                >New debit {{ i + 1
+                }}<input
+                  [value]="l.debit"
+                  maxlength="20"
+                  inputmode="decimal"
+                  (input)="editLine(i, 'debit', $event)"
+              /></label>
+              <label
+                >New credit {{ i + 1
+                }}<input
+                  [value]="l.credit"
+                  maxlength="20"
+                  inputmode="decimal"
+                  (input)="editLine(i, 'credit', $event)"
+              /></label>
+              <button
+                matButton
+                type="button"
+                [attr.aria-label]="'Remove new journal line ' + (i + 1)"
+                (click)="removeLine(i)"
+              >
+                Remove line
+              </button>
+            </fieldset>
+          }
+          <button
+            matButton="outlined"
+            type="button"
+            (click)="addLine()"
+            [disabled]="model().lines.length >= 500"
+          >
+            Add new journal line
+          </button>
+        </fieldset>
+        <div class="actions">
+          <button matButton type="button" (click)="saveDraft()" [disabled]="busy() || uncertain()">
+            Save new journal tab draft</button
+          ><button
+            matButton
+            type="button"
+            (click)="discardDraft()"
+            [disabled]="busy() || uncertain()"
+          >
+            Undo unsubmitted new journal fields</button
+          ><button matButton="filled" type="submit" [disabled]="busy() || !fields().valid()">
+            Preview new journal
+          </button>
+        </div>
+      </form>
+    </section>
+  }
+  @if (preview(); as p) {
+    <section class="panel" aria-label="New journal creation review">
+      <h2>Review exact new journal</h2>
+      <p>
+        {{ model().journalNumber }} · {{ model().purpose }} · {{ model().origin }} ·
+        {{ model().reason }} · {{ model().evidenceReference }}
+      </p>
+      @if (model().supersedesId) {
+        <p>
+          Supersedes <code>{{ model().supersedesId }}</code> revision
+          {{ model().supersedesRevision }}
+        </p>
+      }
+      <p>
+        Exact preview totals: debit {{ p.totalDebit }} · credit {{ p.totalCredit }} {{ c.currency }}
+      </p>
+      @if (p.blocker) {
+        <p role="status">{{ p.blocker }}</p>
+      }
+      <ul>
+        @for (error of p.errors; track $index) {
+          <li>{{ error }}</li>
+        }
+      </ul>
+      <div
+        class="table-scroll"
+        tabindex="0"
+        role="region"
+        aria-label="New journal preview scroll area"
+      >
+        <table>
+          <caption>
+            Proposed new draft lines
+          </caption>
+          <thead>
+            <tr>
+              <th>Account</th>
+              <th>Debit</th>
+              <th>Credit</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (l of p.lines; track $index) {
+              <tr>
+                <th scope="row">{{ l.accountCode }}</th>
+                <td class="number">{{ l.debit }}</td>
+                <td class="number">{{ l.credit }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      @if (p.canProceed) {
+        <label
+          ><input
+            type="checkbox"
+            [checked]="reviewed()"
+            (change)="reviewed.set($any($event.target).checked)"
+          />I reviewed the exact source, purpose, origin, rationale, evidence and complete new
+          journal lines.</label
+        ><button matButton="filled" (click)="execute()" [disabled]="busy() || !reviewed()">
+          Create reviewed journal draft
+        </button>
+      }
+    </section>
+  }
+}
+<audit-command-message [message]="message()" [failed]="failed()" />

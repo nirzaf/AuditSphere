@@ -58,6 +58,8 @@ export const routes: Routes = [
     loadComponent: () => import('./features/accounting/source-acceptance').then(m => m.SourceAcceptance) },
   { path: 'app/accounting/sources/:id/acceptance', canActivate: [staffGuard], canDeactivate: [unsavedChangesGuard], title: 'Source acceptance · AuditSphere',
     loadComponent: () => import('./features/accounting/source-acceptance').then(m => m.SourceAcceptance) },
+  { path: 'app/accounting/sources/:id/journal-draft', canActivate: [staffGuard], canDeactivate: [unsavedChangesGuard], title: 'Prepare journal · AuditSphere',
+    loadComponent: () => import('./features/accounting/journal-create').then(m => m.JournalCreate) },
   { path: 'app/accounting/evidence', canActivate: [staffGuard], title: 'Accounting evidence · AuditSphere',
     loadComponent: () => import('./features/accounting/evidence').then(m => m.AccountingEvidence) },
   { path: 'app/accounting/rollforward', canActivate: [staffGuard], title: 'Period roll-forward · AuditSphere',

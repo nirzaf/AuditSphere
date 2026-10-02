@@ -22,17 +22,27 @@ export interface JournalFields {
 }
 const line = obj({ accountCode: str(32), debit: dec, credit: dec });
 const action = oneOf('UPDATE', 'SUBMIT', 'RETURN', 'POST', 'REVERSE');
+const operation = oneOf('CREATE', 'UPDATE', 'SUBMIT', 'RETURN', 'POST', 'REVERSE');
 const status = oneOf('Draft', 'Submitted', 'Returned', 'Posted', 'ReflectedInSource', 'Void');
+const priorStatus = oneOf(
+  'NOT_CREATED',
+  'Draft',
+  'Submitted',
+  'Returned',
+  'Posted',
+  'ReflectedInSource',
+  'Void',
+);
 export const decodeJournalReceipt = obj({
   id: guid,
   requestId: guid,
   requestHash: sha256,
   journalId: guid,
   resultJournalId: guid,
-  action,
+  action: operation,
   oldRevision: nat,
   newRevision: nat,
-  oldStatus: status,
+  oldStatus: priorStatus,
   newStatus: status,
   actorId: guid,
   reason: str(4000),
@@ -115,7 +125,7 @@ export function decodeJournalReview(raw: unknown, path = 'response') {
   return v;
 }
 const preview = obj({
-  action,
+  action: operation,
   reviewBasis: sha256,
   requestHash: sha256,
   canProceed: bool,
@@ -142,7 +152,7 @@ export const decodeJournalLookup = obj({ found: bool, receipt: nullable(decodeJo
 const snapshot = obj({
   journalId: guid,
   revision: nat,
-  status,
+  status: priorStatus,
   reason: str(4000),
   evidenceReference: str(2000),
   lines: arr(line, 500),
