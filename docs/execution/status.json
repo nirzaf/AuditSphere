@@ -3336,13 +3336,25 @@
         }
       },
       "fullSuite": {
-        "status": "RUNNING",
+        "status": "RUNNING_WITH_OBSERVED_FAILURE",
         "sourceCommit": "a374d9f8b2a6cbd28ccd568df3ad4357e2fbe94e",
         "worktree": "/private/tmp/auditsphere-mapping-draft-regression-20261002",
         "buildLog": "/private/tmp/auditsphere-mapping-draft-regression-build.log",
         "log": "/private/tmp/auditsphere-mapping-draft-regression-suite.log",
         "fingerprintsPath": "/private/tmp/auditsphere-mapping-draft-regression-hashes.json",
-        "boundary": "Sequential locked restore and frozen build precede full regression. No completion claimed before terminal result."
+        "boundary": "Sequential locked restore and frozen build precede full regression. No completion claimed before terminal result.",
+        "apiResult": {
+          "status": "PASS",
+          "passed": 108,
+          "failed": 0,
+          "skipped": 0
+        },
+        "observedFailure": {
+          "test": "AccountingBackfillMigrationTests.LegacyContextBackfill_BindsSingleMatchesAndQuarantinesAmbiguity",
+          "code": "42703",
+          "details": "The historical schema fixture attempted to insert current mapping metadata columns before forward migration. The frozen published run is unchanged; terminal Domain/browser counts remain pending.",
+          "repair": "Current tree seeds only the historical mapping column set before forward migration. Focused backfill and affected statement regressions passed separately."
+        }
       },
       "remaining": [
         "Wider grid performance/accessibility and source-action story acceptance",
@@ -3361,6 +3373,105 @@
         "implementationCommit": "a374d9f8b2a6cbd28ccd568df3ad4357e2fbe94e",
         "remoteHeadConfirmed": true,
         "confirmedAt": "2026-10-02T22:09:37.341453+00:00"
+      }
+    },
+    "angularStatementReview": {
+      "status": "PASS_LOCAL_SLICE",
+      "observedAt": "2026-10-02T22:30:20.456469+00:00",
+      "sourceBaseCommit": "8b3c779",
+      "scope": "Native separate statements with exact independently approved mapping/source/period/chart/taxonomy basis, complete totals, bounded server filtering/paging, account contributions, scoped evidence and exact source inspection. Return navigation rechecks current state; old data/export disappear on stale context or lost authority. Read-only CSV export binds exact reviewed basis.",
+      "build": {
+        "status": "PASS",
+        "warnings": 0,
+        "errors": 0,
+        "releaseLog": "/private/tmp/auditsphere-statements-publication-build.log",
+        "angularLog": "/private/tmp/auditsphere-statements-angular-mobile-build.log"
+      },
+      "angular": {
+        "status": "PASS",
+        "files": 47,
+        "passed": 195,
+        "failed": 0,
+        "skipped": 0,
+        "log": "/private/tmp/auditsphere-statements-angular-mobile-tests.log"
+      },
+      "api": {
+        "status": "PASS",
+        "scope": "Whole standalone API suite; new coverage includes exact contributions/totals/CSV, CSRF, paging, scope, changed source/evidence and late epoch refusal.",
+        "passed": 112,
+        "failed": 0,
+        "skipped": 0,
+        "exitCode": 0,
+        "log": "/private/tmp/auditsphere-statements-api-full.log"
+      },
+      "domain": {
+        "status": "PASS",
+        "scope": "Backfill migration repair plus FinancialStatementTests and FieldworkConnectionsTests. Original frozen failure retained separately.",
+        "passed": 14,
+        "failed": 0,
+        "skipped": 0,
+        "exitCode": 0,
+        "log": "/private/tmp/auditsphere-statements-backfill-tests.log",
+        "buildLog": "/private/tmp/auditsphere-statements-backfill-build.log"
+      },
+      "browser": {
+        "status": "PASS",
+        "scope": "Statement/evidence return, retained row/filter/reload, exact-source/export, stale-generation refusal, epoch clearing and mobile keyboard scrolling; mapping approval/batch regression.",
+        "passed": 6,
+        "failed": 0,
+        "skipped": 0,
+        "exitCode": 0,
+        "log": "/private/tmp/auditsphere-statements-keyboard-browser.log"
+      },
+      "modelDrift": {
+        "status": "PASS",
+        "log": "/private/tmp/auditsphere-statements-model-final.log",
+        "boundary": "No schema change from this slice; shared Development/production not migrated."
+      },
+      "builtInBrowser": {
+        "status": "PASS",
+        "environment": "Owned disposable synthetic PostgreSQL/API Release and Angular production assets, external effects disabled.",
+        "observed": [
+          "Exact approved basis, 31 contributions and complete total 100.123486; page two/filter retained.",
+          "Supporting procedure missing work/files explicitly distinguished from zero; return rechecks authoritative basis.",
+          "Desktop and mobile document fit viewport; amounts remain on one line within keyboard-scrollable tables.",
+          "Final browser console reported no warnings/errors."
+        ],
+        "desktopScreenshot": "/private/tmp/auditsphere-angular-statement-review.png",
+        "mobileScreenshot": "/private/tmp/auditsphere-angular-statement-review-mobile.png",
+        "cleanup": "Owned preview/databases disposed with terminal exit0; preview tab closed and viewport reset."
+      },
+      "initialChecks": {
+        "status": "FAIL_THEN_CORRECTED",
+        "details": "Initial build used the wrong exact-source selector and omitted the shared seed compile links; unit fixture typing corrected. Final builds/tests passed. Mobile wrapped decimal text corrected with labelled keyboard-scrollable table containers."
+      },
+      "fullSuite": {
+        "status": "NOT_RUN",
+        "boundary": "Earlier mapping batch frozen regression remains running with an observed legacy fixture failure. No full solution pass on this statement slice claimed."
+      },
+      "remaining": [
+        "Wider statement source-action/QA/accessibility/performance acceptance",
+        "Other migration stories and controlled route cutover/Blazor retirement"
+      ],
+      "evidenceBoundary": "Local synthetic verification only. No financial books, grants, approvals, Microsoft permissions or provider acceptance changed.",
+      "fingerprints": {
+        "sourceFingerprintSha256": "e358407a5b45b04dec07c72a815f9378d5be6a3e8ee46e2f52189ba020ffa8c4",
+        "angularArtifactSha256": "d5b201f2550fd7d7430215e8b4055bf973c6a160462caacaafb28545e58da79d",
+        "angularFileCount": 86,
+        "aspNetArtifactSha256": "0f4a388fc8b03309681125133a3f0b7782b0457c972cab2d23ae559cd6836766",
+        "applicationArtifactSha256": "c13ee35b421b3110dc713854d349e27775304d65c9696ccecdc6f340f46a1b21",
+        "testAssemblySha256": {
+          "backend": "37402b79e6bdd0cac88aee37c1024821656d8a1733b82c96b696f7b3e195c8e3",
+          "domain": "ef0b04451f483445cef389135c2743b61e307e2b599591ceacd764a2363b894f",
+          "browser": "3e3aa8a141b6d83a4c3a97a1b7c3f3f5d9cb270902fade80e49e2ffb86812cdb"
+        }
+      },
+      "fingerprintsPath": "/private/tmp/auditsphere-statements-artifact-hashes.json",
+      "docsChecks": "PASS Markdown health, filenames, protected narrative metrics and diff checks. No Wiki publication.",
+      "secretScan": {
+        "status": "PASS",
+        "scope": "Complete staged statement review and historical migration fixture diff scanned redacted; no leaks detected.",
+        "log": "/private/tmp/auditsphere-statements-secret-scan.log"
       }
     }
   },
@@ -3469,7 +3580,7 @@
     "implementationStatus": "PARTIAL",
     "acceptanceStatus": "PARTIAL",
     "scope": "Standalone API and native Angular capability slices preserve Application authorization, exact financial inputs, durable operations and independent human gates. Legacy Blazor remains available for rollback until wider parity and retirement acceptance.",
-    "nextAction": "Finish unchanged published regressions and recovery evidence; implement native mapping batch editing/new versions/drafts and remaining migration stories.",
+    "nextAction": "Finish frozen regression and repair evidence; publish native statement contribution review, then migrate remaining journal/adjustment controls and other native stories.",
     "branch": "master"
   },
   "localEvidence": [
@@ -4278,7 +4389,7 @@
     {
       "item": "ASP.NET Core API and Angular 22 migration",
       "status": "PARTIAL",
-      "details": "Native GL completeness local Application/API/Angular/worker/browser gates passed with independent decisions, missing opening refusal and explicit recovery. Frozen published GL acceptance regression remains running in its unchanged detached checkout; prior GL inspection regression failed when its managed checkout disappeared. Remaining: native GL import, reviewed mapping editing/forms/drafts, wider story parity/accessibility/performance and controlled Blazor retirement. Local slices are not full migration or external acceptance."
+      "details": "Native GL intake/completeness, independent source acceptance, reviewed mapping approval/batch creation and exact statement contribution review have local verification. Mapping batch frozen regression has an observed historical fixture failure; focused repair passes separately. Remaining: journal/evidence and other source-action parity, accessibility/performance, controlled cutover/rollback and Blazor retirement acceptance."
     }
   ],
   "externalGates": [

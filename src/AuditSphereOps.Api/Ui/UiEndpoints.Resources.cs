@@ -40,6 +40,7 @@ public static partial class UiEndpoints
             new SetAllocationRequest(input.EngagementId, input.UserId, week, input.PlannedMinutes), ct))
         : Task.FromResult(Invalid("Choose the allocation week.")));
 
+    MapStatementEndpoints(group);
     group.MapGet("/engagements/{id:guid}/statements", (Guid id, HttpContext http) =>
       ReadAsync(http, (db, actor, ct) => FinancialStatementDrillDownQuery.GetAsync(db, actor, id, ct)));
   }

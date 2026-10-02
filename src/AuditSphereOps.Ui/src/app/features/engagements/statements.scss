@@ -1,0 +1,63 @@
+:host {
+  display: block;
+  min-width: 0;
+}
+.panel,
+.notice {
+  margin-block: 1rem;
+}
+dl {
+  display: grid;
+  grid-template-columns: minmax(8rem, 12rem) minmax(0, 1fr);
+  gap: 0.4rem 1rem;
+}
+dt {
+  font-weight: 600;
+}
+dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+code {
+  overflow-wrap: anywhere;
+}
+.actions,
+.filters,
+.procedure {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  margin-block: 0.75rem;
+}
+.filters label {
+  display: grid;
+  gap: 0.3rem;
+}
+small {
+  display: block;
+  color: var(--mat-sys-on-surface-variant);
+}
+.table-scroll {
+  max-width: 100%;
+  overflow: auto;
+}
+.prose {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 600px) {
+  dl {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  dt {
+    margin-top: 0.5rem;
+  }
+}
+
+.number {
+  white-space: nowrap;
+}
+.table-scroll table {
+  min-width: 32rem;
+}

@@ -798,3 +798,14 @@ For the complete documentation index, authority hierarchy, current requirements,
 - `src/AuditSphereOps.Ui/src/app/core/tab-drafts.ts`: identity/epoch/TTL-bound convenience fields; pending-reference recovery exposes only request identity/hash after a fresh authorized base read.
 - `NativeMappingCreationReceipts` migration: nullable legacy-compatible metadata, scoped parent FK, unique actor/request identity, append-only receipt and allocation guards; rollback refuses retained receipt deletion.
 - `MappingDraftApiTests`, `AngularMappingDraftJourneyTests`, `mapping-draft.spec.ts` and `mapping-draft-contracts.spec.ts`: immutable history, exact fractions, idempotency, rollback, keyboard/paste, stale context and native recovery. Observed results live in `status.json`.
+
+## Native statement contribution review
+
+- Application: `Accounting/Intake/StatementReviewWorkspace.cs` owns scoped, revision-bound
+  statement/contribution/procedure pages and complete CSV projection; `FinancialStatementDrillDownQuery.cs`
+  and `MappedTrialBalanceSource.cs` share existing deterministic statement/allocation arithmetic.
+- API: `Ui/UiEndpoints.Statements.cs` composes reads and protected exports.
+- Angular: `features/engagements/statements.ts`, `statements.html`, `statement-contracts.ts`
+  retain URL context, scoped source/evidence inspection and stale-response fences.
+- Verification: `StatementReviewApiTests.cs`, `StatementReviewSeed.cs` and
+  `AngularStatementReviewJourneyTests.cs` cover exact basis, scope, export and return navigation.

@@ -393,3 +393,26 @@ The additive native-receipt migration is exercised only by owned local test data
 It was not applied to the shared Development database or production. Migration rollback
 refuses deletion of retained native receipts. Broader accounting form parity, high-volume
 performance/accessibility acceptance, controlled cutover and Blazor retirement remain open.
+
+### Native statement contribution review
+
+The statement route now uses a named read-only Application workspace. It shares the existing
+allocation calculator and financial-statement projection, then provides server-paged statement
+lines, exact account contributions and relevant procedure pages. The complete statement total
+remains independent of the visible filter. The review binds the exact approved mapping, raw
+sealed source, chart/taxonomy applicability, reporting period/book, current input generation
+and actor/session. A second read and final authority check reject changed or revoked contexts.
+Oversized populations, incomplete allocations and unsupported sections fail closed.
+
+URL state contains bounded section/filter/page/row metadata and a non-secret basis hash.
+Returning from supporting procedure evidence refreshes the authoritative basis before restoring
+the prior row. Changed-basis details and evidence stay hidden until explicit acknowledgment;
+failed detail reads also hide old totals. The exact source opens within the same workspace,
+using its own scoped source query. Procedure results and linked files retain their independent
+server authorization. Missing evidence is labelled separately from zero contribution.
+
+The complete contribution CSV is an explicit authenticated, antiforgery-protected export.
+It carries the exact source/mapping basis, checks revision and bounds on the server, and
+protects text against spreadsheet formulas. It does not issue a financial package, record
+a professional conclusion or grant source/mapping approval. Complete migration acceptance,
+production-like performance, cutover/rollback and Blazor retirement remain open.

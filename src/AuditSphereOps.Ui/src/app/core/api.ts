@@ -56,7 +56,7 @@ export class Api {
           loading.set(false);
           const status = e instanceof HttpErrorResponse ? e.status : 0;
           if (status === 401) { error.set('Your session ended. Sign in again.'); this.session.refresh(); }
-          else error.set(status === 403 || status === 404 ? unavailable : status === 400 ? Api.message(e, unavailable) : 'Temporarily unavailable. Retry shortly.');
+          else error.set(status === 403 || status === 404 ? unavailable : status === 400 || status === 409 ? Api.message(e, unavailable) : 'Temporarily unavailable. Retry shortly.');
         },
       });
     };

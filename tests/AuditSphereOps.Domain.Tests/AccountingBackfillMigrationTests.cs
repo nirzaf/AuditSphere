@@ -32,6 +32,20 @@ public sealed class AccountingBackfillMigrationTests
       Add(db, exact);
       Add(db, ambiguous);
       await db.SaveChangesAsync();
+      // This database intentionally predates native creation receipts. Seed the
+      // historical mapping column set, then exercise the real forward migrations.
+      foreach (var fixture in new[] { exact, ambiguous })
+      {
+        var m = fixture.Mapping;
+        await db.Database.ExecuteSqlInterpolatedAsync($"""
+          INSERT INTO mapping_versions
+            (id, firm_id, client_id, engagement_id, dataset_id, version, generation,
+             taxonomy_version, period_start, period_end, status, created_by_user_id, created_at)
+          VALUES ({m.Id}, {m.FirmId}, {m.ClientId}, {m.EngagementId}, {m.DatasetId},
+            {m.Version}, {m.Generation}, {m.TaxonomyVersion}, {m.PeriodStart}, {m.PeriodEnd},
+            {m.Status}, {m.CreatedByUserId}, {m.CreatedAt})
+          """);
+      }
       await db.Database.MigrateAsync();
     }
 
@@ -112,7 +126,6 @@ public sealed class AccountingBackfillMigrationTests
     db.ClientReportingPeriods.AddRange(fixture.Periods);
     db.ClientChartVersions.AddRange(fixture.Charts);
     db.TrialBalanceDatasets.Add(fixture.Dataset);
-    db.MappingVersions.Add(fixture.Mapping);
   }
 
   private sealed record Fixture(

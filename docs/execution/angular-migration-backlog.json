@@ -138,7 +138,7 @@
       "id": "US-023",
       "title": "Migrate statement drill-down without losing source context",
       "status": "PARTIAL",
-      "scope": "Native statement drill-down preserves mapping/source context and links exact procedures. Full behavioral and refreshed fragment acceptance remains open."
+      "scope": "Native separate statement views now retain exact approved source/mapping/period/chart/taxonomy basis, bounded server filters/pages, complete totals, exact account contributions, scoped procedure/file evidence, inline source inspection and explicit complete CSV export. Evidence return and URL row/filter restoration recheck current state; stale context and revoked sessions hide old totals. Local API/unit/browser gates passed. Wider source-action, QA, accessibility/performance and migration acceptance remain open."
     },
     {
       "id": "US-024",

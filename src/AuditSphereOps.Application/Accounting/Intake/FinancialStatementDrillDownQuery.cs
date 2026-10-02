@@ -46,6 +46,18 @@ public static class FinancialStatementDrillDownQuery
       .OrderBy(p => p.SourceProcedureId, StringComparer.Ordinal)
       .Select(p => new DrillDownProcedure(p.Id, p.SourceProcedureId, p.Title, p.Status, p.SourceSectionTitle)).ToList();
 
+    var result = Project(source, ProceduresFor);
+    auth = await AuthorizationDecision.AuthorizeAsync(db, actor, new AuthorizationRequest(actor.FirmId, engagement.PracticeClientId, engagementId,
+      ["Partner", "Manager", "Senior", "Staff", "Auditor", "Reviewer", "Administrator", "AccountingPreparer", "AccountingReviewer"], InternalOnly: true), ct);
+    return auth.Succeeded ? CommandResult<StatementDrillDownView>.Ok(result) : CommandResult<StatementDrillDownView>.Fail(auth.ErrorCode!, auth.Message!);
+  }
+
+  internal static bool SupportedSection(string section) => IncomeSections.Concat(ExpenseSections).Concat(AssetSections).Concat(ClaimSections).Contains(section.Trim().ToUpperInvariant());
+
+  internal static decimal DisplaySign(string section) => AssetSections.Contains(section.Trim().ToUpperInvariant()) ? 1m : -1m;
+
+  internal static StatementDrillDownView Project(MappedTrialBalanceSource.Source source, Func<string, IReadOnlyList<DrillDownProcedure>> proceduresFor)
+  {
     StatementView Build(string title, string[] sections, Func<string, decimal> sign, string totalLabel)
     {
       var lines = source.Lines.Where(l => sections.Contains(l.StatementSection.Trim().ToUpperInvariant()))
@@ -56,7 +68,7 @@ public static class FinancialStatementDrillDownQuery
           var area = g.Select(x => x.AuditArea).FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)) ?? g.Key.DestinationCode;
           return new StatementLineView(g.Key.DestinationCode, g.Key.Section, area, MoneyPolicy.Normalize(g.Sum(x => sign(g.Key.Section) * x.Amount)),
             g.Select(x => x.SourceAccountCode).Distinct().Count(), g.Select(x => x.SourceAccountCode).Distinct().OrderBy(x => x, StringComparer.Ordinal).ToList(),
-            ProceduresFor(area));
+            proceduresFor(area));
         }).ToList();
       return new StatementView(title, lines, MoneyPolicy.Normalize(lines.Sum(x => x.Amount)), totalLabel);
     }
@@ -70,12 +82,12 @@ public static class FinancialStatementDrillDownQuery
     var claims = position.Lines.Where(x => ClaimSections.Contains(x.StatementSection)).Sum(x => x.Amount);
     var balances = MoneyPolicy.Normalize(assets - claims) == profit.Total;
     position = position with { Total = MoneyPolicy.Normalize(assets - claims), TotalLabel = "Assets less liabilities and equity (equals profit before closing)" };
-    return CommandResult<StatementDrillDownView>.Ok(new(source.Mapping.Id, source.Mapping.Version, MappedTrialBalanceSource.Digest(source.Dataset),
-      source.Dataset.Currency, profit, position, balances));
+    return new(source.Mapping.Id, source.Mapping.Version, MappedTrialBalanceSource.Digest(source.Dataset),
+      source.Dataset.Currency, profit, position, balances);
   }
 
-  private static bool Matches(string? candidate, string area) =>
-    !string.IsNullOrWhiteSpace(candidate) &&
+  internal static bool Matches(string? candidate, string area) =>
+    !string.IsNullOrWhiteSpace(candidate) && Normalize(candidate).Length > 0 && Normalize(area).Length > 0 &&
     (string.Equals(Normalize(candidate), Normalize(area), StringComparison.Ordinal) ||
      Normalize(candidate).Contains(Normalize(area), StringComparison.Ordinal) || Normalize(area).Contains(Normalize(candidate), StringComparison.Ordinal));
 

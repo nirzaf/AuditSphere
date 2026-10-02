@@ -32,6 +32,20 @@ which the full suite was run; per-slice records carry their own evidence.
 
 
 
+## Native statement contribution review
+
+The statement route now composes a read-only, bounded Application review on the approved
+mapping and exact sealed raw source. Separate statement views, complete backend totals,
+paged account contributions, scoped procedure evidence and in-place exact source inspection
+retain reporting/chart/taxonomy/generation context. URL navigation metadata restores filters
+and rows after a fresh authoritative read. Changed or unavailable supporting context hides
+old detail and totals; exports require the current exact review basis and server bounds.
+
+The existing deterministic allocation and statement projection remain shared with legacy
+consumers. No financial books, grants, approvals, schema or Microsoft permissions change.
+Local evidence is recorded in `status.json`; wider story acceptance and final migration
+cutover/Blazor retirement remain open.
+
 ## Native mapping batch creation
 
 The standalone API and Angular mapping editor now compose a reviewed new-version workflow.

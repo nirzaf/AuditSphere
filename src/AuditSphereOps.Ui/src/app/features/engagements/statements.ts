@@ -1,57 +1,238 @@
-import { Component, inject, signal } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { form, FormField, maxLength } from '@angular/forms/signals';
+import { MatButtonModule } from '@angular/material/button';
 import { Api, routeGuid } from '../../core/api';
-import { arr, bool, dec, guid, nat, nullable, obj, text } from '../../core/decode';
+import { SessionService } from '../../core/session';
 import { SHARED } from '../../core/ui';
-
-const line = obj({ destinationCode: text, statementSection: text, auditArea: text, amount: dec, sourceAccountCount: nat, sourceAccounts: arr(text),
-  procedures: arr(obj({ procedureId: guid, sourceProcedureId: text, title: text, status: text, section: nullable(text) }), 1000) });
-const statement = obj({ title: text, lines: arr(line, 2000), total: dec, totalLabel: text });
-export const decodeStatements = obj({ mappingVersionId: guid, mappingVersion: nat, datasetDigest: text, currency: text,
-  profitOrLoss: statement, financialPosition: statement, balances: bool });
+import { TrialBalanceSource } from './tb-source';
+import {
+  decodeStatementPage,
+  decodeStatementContributions,
+  decodeStatementEvidence,
+  statementLocation,
+  sameStatementBasis,
+  StatementLocation,
+} from './statement-contracts';
 
 @Component({
   selector: 'audit-statement-drilldown',
-  imports: [RouterLink, ...SHARED],
-  template: `
-    <audit-page-header title="Financial statements" eyebrow="Engagement"
-      description="Profit or loss and financial position generated from the current approved mapping over the sealed trial balance. Select a line to see its audit procedures." />
-    <a [routerLink]="['/app/engagements', id()]">← Back to engagement</a>
-    <audit-state [loading]="view.loading()" [error]="view.error()" label="statements" />
-    @if (view.data(); as v) {
-      <p>Mapping version {{ v.mappingVersion }} over trial balance <code>{{ v.datasetDigest.slice(0, 12) }}</code>, {{ v.currency }}.
-        {{ v.balances ? 'The statements agree.' : 'The statements do not agree; review the mapping.' }}</p>
-      @for (s of [v.profitOrLoss, v.financialPosition]; track s.title) {
-        <section class="panel" [attr.aria-label]="s.title">
-          <h2>{{ s.title }}</h2>
-          <div class="table-scroll"><table>
-            <thead><tr><th scope="col">Line</th><th scope="col">Section</th><th scope="col" class="number">Amount</th><th scope="col">Audit procedures</th></tr></thead>
-            <tbody>
-              @for (l of s.lines; track l.destinationCode) {
-                <tr><th scope="row"><button type="button" class="linklike" [attr.aria-expanded]="open() === s.title + l.destinationCode" (click)="toggle(s.title + l.destinationCode)">{{ l.destinationCode }}</button></th>
-                  <td>{{ l.statementSection }}</td><td class="number">{{ l.amount | money }}</td><td>{{ l.procedures.length }}</td></tr>
-                @if (open() === s.title + l.destinationCode) {
-                  <tr><td colspan="4">
-                    <p>Audit area <strong>{{ l.auditArea }}</strong>; source accounts {{ l.sourceAccounts.join(', ') }}.</p>
-                    @if (!l.procedures.length) { <p>No audit procedures cover this area yet. <a [routerLink]="['/app/engagements', id(), 'audit-fieldwork']">Insert an ad hoc step</a>.</p> }
-                    @else { <ul [attr.aria-label]="'Procedures for ' + l.destinationCode">@for (p of l.procedures; track p.procedureId) {
-                      <li><a [routerLink]="['/app/engagements', id(), 'audit-fieldwork']" [fragment]="'procedure-' + p.procedureId">{{ p.sourceProcedureId }} · {{ p.title }}</a> <audit-status [value]="p.status" /></li> }</ul> }
-                  </td></tr>
-                }
-              }
-            </tbody>
-            <tfoot><tr><th scope="row">{{ s.totalLabel }}</th><td></td><td class="number"><strong>{{ s.total | money }}</strong></td><td></td></tr></tfoot>
-          </table></div>
-        </section>
-      }
-    }
-  `,
+  imports: [RouterLink, FormField, MatButtonModule, TrialBalanceSource, ...SHARED],
+  templateUrl: './statements.html',
+  styleUrl: './statements.scss',
 })
 export class StatementDrillDown {
   private readonly api = inject(Api);
+  private readonly session = inject(SessionService);
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
   readonly id = routeGuid();
-  readonly view = this.api.resource(() => (this.id() ? `/api/ui/engagements/${this.id()}/statements` : null), decodeStatements,
-    'Statements are unavailable: an approved mapping over a sealed trial balance and an engagement assignment are required.');
-  readonly open = signal<string | null>(null);
-  toggle(key: string): void { this.open.update((o) => (o === key ? null : key)); }
+  private readonly query = toSignal(this.route.queryParamMap, {
+    initialValue: this.route.snapshot.queryParamMap,
+  });
+  readonly location = computed(() => statementLocation((k) => this.query().get(k)));
+  readonly model = signal({ filter: '' });
+  readonly fields = form(this.model, (p) => maxLength(p.filter, 80));
+  private readonly viewUrl = computed(() => {
+    const q = this.location();
+    return this.id() && q
+      ? `${this.base()}/workspace?${new URLSearchParams({ section: q.section, filter: q.filter, page: String(q.page) })}`
+      : null;
+  });
+  readonly view = this.api.resource(
+    () => this.viewUrl(),
+    (value, path) => {
+      const v = decodeStatementPage(value, path);
+      if (v.basis.engagementId !== this.id() || v.section !== this.location()?.section)
+        throw new Error('Wrong statement context');
+      return v;
+    },
+    'Statements are unavailable in your current engagement scope.',
+  );
+  readonly stale = computed(() => {
+    const v = this.view.data(),
+      q = this.location();
+    return !!v && !!q?.basis && q.basis !== v.basis.revision;
+  });
+  private readonly detailUrl = computed(() => {
+    const v = this.view.data(),
+      q = this.location();
+    return v && q?.line && !this.stale()
+      ? `${this.base()}/contributions?${new URLSearchParams({ section: q.section, destination: q.line, statementSection: q.lineSection, revision: v.basis.revision, page: String(q.accounts), procedurePage: String(q.procedures) })}`
+      : null;
+  });
+  readonly detail = this.api.resource(
+    () => this.detailUrl(),
+    decodeStatementContributions,
+    'This statement line is unavailable in the current scope.',
+  );
+  readonly visibleView = computed(() => (this.detail.error() ? null : this.view.data()));
+  readonly currentDetail = computed(() => {
+    const v = this.view.data(),
+      d = this.detail.data(),
+      q = this.location();
+    return v && d && q && !this.stale() && sameStatementBasis(v, d, q.line, q.lineSection)
+      ? d
+      : null;
+  });
+  private readonly evidenceUrl = computed(() => {
+    const d = this.currentDetail(),
+      q = this.location();
+    return d && q?.procedure && d.procedures.some((p) => p.procedureId === q.procedure)
+      ? `/api/ui/procedures/${q.procedure}/review`
+      : null;
+  });
+  readonly evidence = this.api.resource(
+    () => this.evidenceUrl(),
+    decodeStatementEvidence,
+    'This supporting record is unavailable in your current scope.',
+  );
+  readonly currentEvidence = computed(() => {
+    const e = this.evidence.data(),
+      d = this.currentDetail(),
+      q = this.location();
+    return e &&
+      d &&
+      q &&
+      e.procedureId === q.procedure &&
+      d.procedures.some((p) => p.procedureId === e.procedureId)
+      ? e
+      : null;
+  });
+  readonly sourceOpen = signal(false);
+  readonly downloading = signal(false);
+  readonly message = signal('');
+  readonly failed = signal(false);
+  private generation = 0;
+  constructor() {
+    let previousProcedure = '';
+    effect(() => {
+      const q = this.location();
+      untracked(() => {
+        this.model.set({ filter: q?.filter ?? '' });
+        if (previousProcedure && !q?.procedure) this.view.reload();
+        previousProcedure = q?.procedure ?? '';
+      });
+    });
+    effect(() => {
+      this.id();
+      this.session.invalidation();
+      this.query();
+      untracked(() => {
+        this.generation++;
+        this.sourceOpen.set(false);
+        this.message.set('');
+        this.failed.set(false);
+        this.downloading.set(false);
+      });
+    });
+  }
+  private base(): string {
+    return `/api/ui/engagements/${this.id()}/statements`;
+  }
+  pages(n: number): number {
+    return Math.max(1, Math.ceil(n / 25));
+  }
+  navigate(values: Partial<Record<keyof StatementLocation, string | number | null>>): void {
+    if (this.downloading()) return;
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: values,
+      queryParamsHandling: 'merge',
+    });
+  }
+  section(section: 'profit' | 'position'): void {
+    this.navigate({
+      section,
+      page: 1,
+      line: null,
+      lineSection: null,
+      basis: null,
+      accounts: null,
+      procedures: null,
+      procedure: null,
+    });
+  }
+  apply(): void {
+    if (this.fields().valid())
+      this.navigate({
+        filter: this.model().filter.trim(),
+        page: 1,
+        line: null,
+        lineSection: null,
+        basis: null,
+        accounts: null,
+        procedures: null,
+        procedure: null,
+      });
+  }
+  choose(line: string, section: string): void {
+    const v = this.view.data();
+    if (v)
+      this.navigate({
+        line,
+        lineSection: section,
+        basis: v.basis.revision,
+        accounts: 1,
+        procedures: 1,
+        procedure: null,
+      });
+  }
+  refresh(): void {
+    if (!this.downloading()) {
+      this.sourceOpen.set(false);
+      this.message.set('');
+      this.view.reload();
+    }
+  }
+  useCurrent(): void {
+    const v = this.view.data();
+    if (v) this.navigate({ basis: v.basis.revision, procedure: null });
+  }
+  inspectSource(): void {
+    this.sourceOpen.set(!this.sourceOpen());
+  }
+  async export(): Promise<void> {
+    const v = this.view.data();
+    if (
+      !v ||
+      this.detail.error() ||
+      this.stale() ||
+      this.downloading() ||
+      !this.session.current()?.staff
+    )
+      return;
+    const started = this.generation,
+      epoch = this.session.invalidation();
+    this.downloading.set(true);
+    this.message.set('');
+    try {
+      const r = await this.api.download(
+        this.base() + '/export',
+        { revision: v.basis.revision },
+        (m) =>
+          started === this.generation &&
+          epoch === this.session.invalidation() &&
+          this.view.data() === v &&
+          !this.stale() &&
+          m.headers['x-statement-basis'] === v.basis.revision &&
+          m.headers['x-mapping-id'] === v.basis.mappingId &&
+          m.headers['x-engagement-id'] === v.basis.engagementId &&
+          m.fileName ===
+            `auditsphere-statements-${v.basis.engagementId}-${v.basis.mappingId}.csv` &&
+          m.contentType.startsWith('text/csv') &&
+          m.byteCount <= 8 * 1024 * 1024,
+      );
+      if (started !== this.generation || epoch !== this.session.invalidation()) return;
+      this.failed.set(!r.ok);
+      this.message.set(
+        r.ok
+          ? 'Complete statement contributions saved with their exact approved basis. This is a review projection, not an issued package.'
+          : r.message,
+      );
+    } finally {
+      if (started === this.generation) this.downloading.set(false);
+    }
+  }
 }

@@ -1,0 +1,328 @@
+<audit-page-header
+  title="Financial statements"
+  eyebrow="Engagement review"
+  description="Review statement lines, exact source contributions and supporting procedures on one approved basis."
+/>
+<a matButton [routerLink]="['/app/engagements', id()]">Back to engagement</a>
+<button matButton="outlined" (click)="refresh()" [disabled]="downloading()">
+  Refresh approved basis
+</button>
+@if (!location()) {
+  <p role="alert">Use a valid statement section, bounded filter and page.</p>
+}
+<audit-state [loading]="view.loading()" [error]="view.error()" label="statements" />
+<audit-state [error]="detail.error()" label="statement basis" />
+@if (visibleView(); as v) {
+  <section class="panel" aria-label="Approved statement basis">
+    <h2>Approved statement basis</h2>
+    <p>
+      {{ v.basis.periodStart }} to {{ v.basis.periodEnd }} · {{ v.basis.currency }} · Mapping
+      version {{ v.basis.mappingVersion }} · Input generation {{ v.basis.generation }}
+    </p>
+    <dl>
+      <dt>Dataset / revision</dt>
+      <dd>
+        <code>{{ v.basis.datasetId }}</code> · {{ v.basis.datasetRevision }}
+      </dd>
+      <dt>Source digest</dt>
+      <dd>
+        <code>{{ v.basis.datasetDigest }}</code>
+      </dd>
+      <dt>Mapping / taxonomy</dt>
+      <dd>
+        <a [routerLink]="['/app/accounting/mappings', v.basis.mappingId]">{{
+          v.basis.mappingId
+        }}</a>
+        · {{ v.basis.taxonomyVersion }}
+      </dd>
+      <dt>Exact chart</dt>
+      <dd>{{ v.basis.chartVersionId ?? 'Legacy source has no chart binding' }}</dd>
+      <dt>Independent reviewer / timestamp</dt>
+      <dd>{{ v.basis.reviewerId }} · {{ v.basis.reviewedAt }}</dd>
+    </dl>
+    <p role="status">
+      {{
+        v.balances
+          ? 'The statements reconcile on this approved basis.'
+          : 'The statements do not reconcile; review the mapping.'
+      }}
+    </p>
+    <button
+      matButton
+      (click)="inspectSource()"
+      [attr.aria-expanded]="sourceOpen()"
+      [disabled]="stale() || downloading()"
+    >
+      {{ sourceOpen() ? 'Close exact source' : 'Inspect exact trial balance' }}
+    </button>
+    <button matButton="outlined" (click)="export()" [disabled]="stale() || downloading()">
+      Export complete statement contributions
+    </button>
+    <p class="muted">
+      CSV export includes both statements and all contributions, regardless of the visible filter.
+      The server rechecks this exact basis.
+    </p>
+  </section>
+  @if (stale()) {
+    <section class="notice" role="alert">
+      <h2>Statement basis changed</h2>
+      <p>
+        The previous row location is retained, but its old contribution and evidence are hidden.
+        Review the refreshed basis before reopening it.
+      </p>
+      <button matButton="outlined" (click)="useCurrent()">Use refreshed statement basis</button>
+    </section>
+  }
+  <nav class="actions" aria-label="Statement views">
+    <button matButton (click)="section('profit')" [attr.aria-pressed]="v.section === 'profit'">
+      Profit or loss
+    </button>
+    <button matButton (click)="section('position')" [attr.aria-pressed]="v.section === 'position'">
+      Financial position
+    </button>
+  </nav>
+  <form class="filters" (submit)="$event.preventDefault(); apply()">
+    <label>Statement line filter <input [formField]="fields.filter" /></label
+    ><button matButton="outlined" type="submit" [disabled]="!fields().valid() || downloading()">
+      Apply statement filter
+    </button>
+  </form>
+  <section class="panel" [attr.aria-label]="v.title">
+    <h2>{{ v.title }}</h2>
+    <p>
+      {{ v.filteredCount }} of {{ v.lineCount }} lines · Page {{ v.page }} of
+      {{ pages(v.filteredCount) }}
+    </p>
+    <div class="table-scroll" tabindex="0" role="region" aria-label="Statement table scroll area">
+      <table aria-label="Statement lines">
+        <caption>
+          Amounts in
+          {{
+            v.basis.currency
+          }}. Exact values remain available beside display rounding.
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col">Line</th>
+            <th scope="col">Section</th>
+            <th scope="col" class="number">Amount</th>
+            <th scope="col">Accounts / procedures</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (l of v.lines; track l.statementSection + l.destinationCode) {
+            <tr>
+              <th scope="row">
+                <button
+                  matButton
+                  [attr.aria-label]="'Inspect line ' + l.destinationCode + ' ' + l.statementSection"
+                  [attr.aria-expanded]="
+                    location()?.line === l.destinationCode &&
+                    location()?.lineSection === l.statementSection
+                  "
+                  (click)="choose(l.destinationCode, l.statementSection)"
+                  [disabled]="stale() || downloading()"
+                >
+                  {{ l.destinationCode }}
+                </button>
+              </th>
+              <td>{{ l.statementSection }}</td>
+              <td class="number">
+                {{ l.amount | money }}<small>Exact {{ l.amount }}</small>
+              </td>
+              <td>{{ l.accountCount }} / {{ l.procedureCount }}</td>
+            </tr>
+          } @empty {
+            <tr>
+              <td colspan="4">
+                No statement lines match this filter. This does not mean the statement total is
+                zero.
+              </td>
+            </tr>
+          }
+        </tbody>
+        <tfoot>
+          <tr>
+            <th scope="row" colspan="2">{{ v.totalLabel }} (complete statement)</th>
+            <td class="number">
+              {{ v.total | money }}<small>Exact {{ v.total }}</small>
+            </td>
+            <td></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+    <nav class="actions" aria-label="Statement pages">
+      <button
+        matButton
+        (click)="navigate({ page: v.page - 1 })"
+        [disabled]="v.page === 1 || downloading()"
+      >
+        Previous statement lines
+      </button>
+      <button
+        matButton
+        (click)="navigate({ page: v.page + 1 })"
+        [disabled]="v.page >= pages(v.filteredCount) || downloading()"
+      >
+        Next statement lines
+      </button>
+    </nav>
+  </section>
+  @if (location()?.line && !stale()) {
+    <audit-state
+      [loading]="detail.loading()"
+      [error]="detail.error()"
+      label="statement contributions"
+    />
+    @if (currentDetail(); as d) {
+      <section class="panel" aria-label="Exact account contributions">
+        <h2>{{ d.destinationCode }} · Source contributions</h2>
+        <p>
+          Complete line total {{ d.lineTotal | money }} {{ d.basis.currency }} · Exact
+          {{ d.lineTotal }} · {{ d.accountCount }} accounts
+        </p>
+        <div
+          class="table-scroll"
+          tabindex="0"
+          role="region"
+          aria-label="Contribution table scroll area"
+        >
+          <table aria-label="Source account contributions">
+            <thead>
+              <tr>
+                <th scope="col">Account</th>
+                <th scope="col">Name</th>
+                <th scope="col" class="number">Contribution</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (a of d.accounts; track a.accountCode) {
+                <tr>
+                  <th scope="row">{{ a.accountCode }}</th>
+                  <td>{{ a.accountName }}</td>
+                  <td class="number">
+                    {{ a.amount | money }}<small>Exact {{ a.amount }}</small>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+        <nav class="actions" aria-label="Contribution pages">
+          <button
+            matButton
+            (click)="navigate({ accounts: d.page - 1, procedure: null })"
+            [disabled]="d.page === 1 || downloading()"
+          >
+            Previous contributions</button
+          ><span>Page {{ d.page }} of {{ pages(d.accountCount) }}</span>
+          <button
+            matButton
+            (click)="navigate({ accounts: d.page + 1, procedure: null })"
+            [disabled]="d.page >= pages(d.accountCount) || downloading()"
+          >
+            Next contributions
+          </button>
+        </nav>
+        <h3>Relevant audit procedures</h3>
+        <p>
+          Coverage links do not establish performed work, sufficient evidence or a professional
+          conclusion.
+        </p>
+        @for (p of d.procedures; track p.procedureId) {
+          <article class="procedure">
+            <button
+              matButton
+              (click)="navigate({ procedure: p.procedureId })"
+              [attr.aria-label]="'Inspect procedure ' + p.sourceProcedureId"
+              [disabled]="downloading()"
+            >
+              {{ p.sourceProcedureId }} · {{ p.title }}</button
+            ><audit-status [value]="p.status" />
+          </article>
+        } @empty {
+          <p>
+            No matching procedures are available. Evidence coverage is unavailable, not a zero
+            balance.
+          </p>
+        }
+        <nav class="actions" aria-label="Procedure pages">
+          <button
+            matButton
+            (click)="navigate({ procedures: d.procedurePage - 1, procedure: null })"
+            [disabled]="d.procedurePage === 1 || downloading()"
+          >
+            Previous procedures</button
+          ><span
+            >{{ d.procedureCount }} procedures · Page {{ d.procedurePage }} of
+            {{ pages(d.procedureCount) }}</span
+          >
+          <button
+            matButton
+            (click)="navigate({ procedures: d.procedurePage + 1, procedure: null })"
+            [disabled]="d.procedurePage >= pages(d.procedureCount) || downloading()"
+          >
+            Next procedures
+          </button>
+        </nav>
+      </section>
+      @if (location()?.procedure) {
+        <aside class="panel" aria-label="Supporting procedure evidence">
+          <h2>Supporting procedure evidence</h2>
+          <button matButton (click)="navigate({ procedure: null })">
+            Return to statement line
+          </button>
+          <audit-state
+            [loading]="evidence.loading()"
+            [error]="evidence.error()"
+            label="supporting procedure"
+          />
+          @if (currentEvidence(); as e) {
+            @if (e.currentResult; as r) {
+              <h3>Current result revision {{ r.revision }}</h3>
+              <p class="prose">{{ r.workPerformed }}</p>
+              <p class="prose">{{ r.conclusion ?? 'No conclusion recorded.' }}</p>
+            } @else {
+              <p>No performed-work result is available for this procedure.</p>
+            }
+            @for (f of e.evidence; track f.linkId) {
+              <article>
+                <a [href]="'/api/pbc/uploads/' + f.uploadIntentId + '/download'">{{
+                  f.fileName
+                }}</a>
+                <p>
+                  Exact SHA-256 <code>{{ f.contentSha256 }}</code> · Linked {{ f.linkedAt }}
+                </p>
+                @if (f.note) {
+                  <p class="prose">{{ f.note }}</p>
+                }
+              </article>
+            } @empty {
+              <p>
+                No linked received files are available. This is missing supporting evidence, not
+                zero contribution.
+              </p>
+            }
+            <a
+              [routerLink]="['/app/engagements', id(), 'audit-fieldwork']"
+              [fragment]="'procedure-' + e.procedureId"
+              >Open controlled fieldwork</a
+            >
+          }
+        </aside>
+      }
+    }
+  }
+  @if (sourceOpen() && !stale()) {
+    <section class="panel" aria-label="Exact source inspection">
+      <h2>Exact source inspection</h2>
+      <audit-tb-source
+        [datasetId]="v.basis.datasetId"
+        [clientId]="v.basis.clientId"
+        [engagementId]="v.basis.engagementId"
+      />
+    </section>
+  }
+}
+<audit-command-message [message]="message()" [failed]="failed()" />

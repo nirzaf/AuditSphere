@@ -35,6 +35,12 @@ internal static class MappedTrialBalanceSource
     var balances = await db.TrialBalanceRows.AsNoTracking().Where(x => x.DatasetId == dataset.Id)
       .GroupBy(x => x.AccountCode).Select(g => new { g.Key, Amount = g.Sum(x => x.Amount) }).ToDictionaryAsync(x => x.Key, x => x.Amount, ct);
     var allocations = await db.MappingAllocations.AsNoTracking().Where(x => x.FirmId == firmId && x.MappingVersionId == mapping.Id).ToListAsync(ct);
+    return Build(mapping, dataset, balances, allocations);
+  }
+
+  internal static Source Build(MappingVersion mapping, TrialBalanceDataset dataset,
+    IReadOnlyDictionary<string, decimal> balances, IReadOnlyList<MappingAllocation> allocations)
+  {
     var areas = allocations.GroupBy(x => (x.SourceAccountCode, x.DestinationCode)).ToDictionary(g => g.Key, g => g.First().AuditArea);
     var lines = FinancialStatementCalculator.BuildPackageLines(balances,
         allocations.Select(x => new MappingAllocationInput(x.SourceAccountCode, x.DestinationCode, x.StatementSection, x.Fraction, x.Rationale, x.AuditArea)).ToList(),
