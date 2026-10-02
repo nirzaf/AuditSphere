@@ -442,10 +442,17 @@ public sealed class TenantAdministrationJourneyTests
   /// <summary>Opens a MudSelect and chooses the option with the given text.</summary>
   private static async Task SelectAsync(IPage page, ILocator select, string option)
   {
-    await select.ClickAsync(new() { Force = true });
-    await page.Locator(".mud-popover-open .mud-list-item", new() { HasText = option }).First.ClickAsync();
-    await page.Locator(".mud-popover-open").WaitForAsync(new() { State = WaitForSelectorState.Detached, Timeout = 5000 })
-      .ContinueWith(_ => Task.CompletedTask);
+    var item = page.Locator(".mud-popover-open .mud-list-item", new() { HasText = option }).First;
+    // A freshly rendered server dialog may precede the popover's interactive registration.
+    // Retry only opening the menu; the option and every business mutation are clicked once.
+    for (var attempt = 0; attempt < 4; attempt++)
+    {
+      if (!await item.IsVisibleAsync()) await select.ClickAsync(new() { Timeout = 5000 });
+      try { await item.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = 2000 }); break; }
+      catch (TimeoutException) when (attempt < 3) { }
+    }
+    await item.ClickAsync();
+    await item.WaitForAsync(new() { State = WaitForSelectorState.Hidden, Timeout = 5000 });
   }
 
   private sealed class BrowserSession : IAsyncDisposable

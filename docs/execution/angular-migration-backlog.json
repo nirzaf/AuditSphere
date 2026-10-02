@@ -60,7 +60,7 @@
       "id": "US-010",
       "title": "Preserve drafts without cross-user leakage",
       "status": "PARTIAL",
-      "scope": "Native confirmation and currency remeasurement forms use versioned identity/session/entity/base-bound tab drafts, explicit recovery and guarded navigation. Remaining module drafts/form acceptance remain open."
+      "scope": "Native confirmation, currency configuration/remeasurement, TB upload and source acceptance use identity/session/entity/base-bound tab drafts, explicit recovery and guarded navigation. Pending source-acceptance checkpoints fence writes/navigation until persisted-state acknowledgment. Remaining module drafts/form acceptance remain open."
     },
     {
       "id": "US-011",
@@ -126,7 +126,7 @@
       "id": "US-021",
       "title": "Migrate multi-period trial-balance intake and general ledger",
       "status": "PARTIAL",
-      "scope": "Native reviewed multi-period upload, exact scoped receipts, durable validation and recovery are implemented. Source inspection pages rows/issues on the server; bounded complete CSV export retains exact decimals and pins the source revision with final scope/session checks. Signal Forms, metadata-only checkpoints and scoped mapping history remain available. Complete GL import/completeness, source acceptance and final intake acceptance remain open."
+      "scope": "Native exact multi-period upload/receipt recovery, bounded source/issue inspection, revision-bound CSV export and independent reviewed TB source acceptance are implemented. Selection remains engagement/source-kind scoped; retained decisions, generation fencing, drafts and unknown-outcome recovery are explicit. GL intake/completeness and full intake parity remain open."
     },
     {
       "id": "US-022",

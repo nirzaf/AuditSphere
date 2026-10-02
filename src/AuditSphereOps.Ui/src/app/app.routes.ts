@@ -52,6 +52,8 @@ export const routes: Routes = [
     loadComponent: () => import('./features/accounting/currency-configuration').then(m => m.CurrencyConfiguration) },
   { path: 'app/accounting/remeasurement', canActivate: [staffGuard], canDeactivate: [unsavedChangesGuard], title: 'Currency remeasurement · AuditSphere',
     loadComponent: () => import('./features/accounting/remeasurement').then(m => m.CurrencyRemeasurement) },
+  { path: 'app/accounting/sources/:id/acceptance', canActivate: [staffGuard], canDeactivate: [unsavedChangesGuard], title: 'Source acceptance · AuditSphere',
+    loadComponent: () => import('./features/accounting/source-acceptance').then(m => m.SourceAcceptance) },
   { path: 'app/accounting/evidence', canActivate: [staffGuard], title: 'Accounting evidence · AuditSphere',
     loadComponent: () => import('./features/accounting/evidence').then(m => m.AccountingEvidence) },
   { path: 'app/accounting/rollforward', canActivate: [staffGuard], title: 'Period roll-forward · AuditSphere',

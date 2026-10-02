@@ -32,6 +32,27 @@ which the full suite was run; per-slice records carry their own evidence.
 
 
 
+## Native independent trial-balance source acceptance
+
+The standalone API and Angular route now compose a reviewed source-acceptance workspace.
+The stored source, current selected pointer, reporting-period state, input generation and
+actor/session bind the reviewed revision. The Application command serializes acceptance with
+the generation change and rechecks authority before commit. Importers cannot accept their own
+sources, including users with Administrator or reviewer grants. Frozen/blocked engagements,
+closed periods and unavailable source digests refuse acceptance.
+
+The page shows an immutable decision receipt and the current pointer separately. Selection is
+per engagement and source kind, across periods; the UI explicitly explains replacement and
+staleness of dependent evidence. Evidence-reference drafts are tab scoped, require explicit
+recovery and never restore review assent. Unknown submissions require an explicit persisted
+read and acknowledgment before further writes or navigation. Inspection and worker validation
+remain distinct from independent human acceptance and professional conclusions.
+
+The earlier reviewed-upload full regression completed with a rollback Blazor role-picker timeout;
+the same journey passed an isolated rerun on unchanged artifacts. Both results are retained in
+`status.json`; no full-suite pass is inferred. GL intake/completeness, reviewed mapping editing,
+wider parity and controlled Blazor retirement remain open.
+
 ## Native trial-balance source inspection and export
 
 The intake dataset selector now opens scoped source rows, persisted validation issues and

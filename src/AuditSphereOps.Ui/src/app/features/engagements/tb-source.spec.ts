@@ -1,3 +1,4 @@
+import { provideRouter } from '@angular/router';
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
@@ -51,7 +52,7 @@ describe('Native bounded source inspection', () => {
   beforeEach(() => {
     TestBed.configureTestingModule({
       imports: [TrialBalanceSource],
-      providers: [provideHttpClient(), provideHttpClientTesting()],
+      providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()],
     });
     TestBed.inject(SessionService).current.set({
       userId: id,
@@ -114,13 +115,11 @@ describe('Native bounded source inspection', () => {
     f.componentRef.setInput('datasetId', other);
     TestBed.tick();
     expect(c.model().filter).toBe('');
-    http
-      .expectOne(url.replace(id, other))
-      .flush({
-        ...response,
-        datasetId: other,
-        rows: { ...response.rows, items: [{ ...row, datasetId: other }] },
-      });
+    http.expectOne(url.replace(id, other)).flush({
+      ...response,
+      datasetId: other,
+      rows: { ...response.rows, items: [{ ...row, datasetId: other }] },
+    });
     TestBed.inject(SessionService).clear();
     TestBed.tick();
     expect(c.source.data()).toBeNull();

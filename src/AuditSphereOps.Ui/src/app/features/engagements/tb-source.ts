@@ -9,6 +9,7 @@ import {
   untracked,
 } from '@angular/core';
 import { form, FormField, maxLength } from '@angular/forms/signals';
+import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { Api } from '../../core/api';
 import { SessionService } from '../../core/session';
@@ -95,7 +96,7 @@ export function decodeSource(raw: unknown) {
 
 @Component({
   selector: 'audit-tb-source',
-  imports: [FormField, MatButtonModule, ...SHARED],
+  imports: [RouterLink, FormField, MatButtonModule, ...SHARED],
   template: `
     <section class="panel" aria-labelledby="source-heading">
       <h2 id="source-heading">Imported source records</h2>
@@ -124,6 +125,9 @@ export function decodeSource(raw: unknown) {
           label="scoped source records"
         />
         @if (source.data(); as s) {
+          <a matButton [routerLink]="['/app/accounting/sources', s.datasetId, 'acceptance']"
+            >Review source acceptance</a
+          >
           <dl class="source-context">
             <dt>Source</dt>
             <dd>

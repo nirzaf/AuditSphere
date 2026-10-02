@@ -238,3 +238,25 @@ content type, byte bound and active context before saving. A changed session or 
 cannot save a late file. Larger exports require a separately supported durable export workflow;
 there is no unbounded download fallback. Verification and remaining guide acceptance live in
 the execution ledger.
+
+
+## Reviewed trial-balance source acceptance
+
+The Angular route `/ui/app/accounting/sources/{id}/acceptance` composes
+`SourceAcceptanceWorkspace` through the standalone API. The existing append-only decision
+selects a TB source per engagement/source kind, across reporting periods. The page exposes
+that boundary, the old and proposed pointers, source identity, importer, worker validation,
+input generation and retained reviewer evidence. It never interprets sealing or worker validation
+as a professional conclusion.
+
+Reviewed writes bind current metadata, selection and actor/session under firm/client/engagement
+and source/period locks. The existing command now enforces importer/reviewer separation for TB
+and GL, rejects closed periods and missing identity digests, and rechecks professional authority
+before committing the decision and generation increment together. No new Microsoft permission
+or database schema is introduced.
+
+Native Signal Forms preserve evidence-reference intent through explicit, bounded tab drafts.
+Pending/stale checkpoints fence writes on reload; recovery never restores assent. A persisted
+read plus acknowledgment is required after an unknown outcome, and no command is automatically
+retried. Protected data is cleared on identity changes or failed reads. GL upload/completeness,
+reviewed mapping editing and full story/retirement acceptance remain pending.

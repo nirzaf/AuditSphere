@@ -760,3 +760,11 @@ For the complete documentation index, authority hierarchy, current requirements,
 - API: `Ui/UiEndpoints.AccountingRecords.cs` exposes source inspection and reviewed-revision CSV export through the trusted actor and antiforgery boundary.
 - Angular: `features/engagements/tb-source.ts` owns the native source panel, exact-value decoding, server filters/pages and context-checked file saving; `core/api.ts` supports an optional pre-save file metadata fence.
 - Tests: `TrialBalanceSourceApiTests`, `tb-source.spec.ts`, shared API download tests and `AngularTrialBalanceUploadJourneyTests` cover source isolation, malformed/stale responses, missing values, export bounds and actual scoped file download.
+
+
+## Native reviewed source acceptance
+
+- Application: `Accounting/Intake/SourceAcceptanceWorkspace.cs` owns bounded current-source review/reconciliation and actor/session-bound reviewed revisions; `AccountingSourceAcceptanceService.cs` owns independent reviewer checks, serialized immutable decisions and atomic generation changes.
+- API: `UiEndpoints.AccountingRecords.cs` maps scoped source-acceptance reads and antiforgery-protected writes; `UiEndpoints.Infrastructure.cs` declares the native deep link.
+- Angular: `features/accounting/source-acceptance.ts` owns native Signal Forms, explicit evidence-reference tab recovery, navigation protection and unknown-outcome fencing; `features/engagements/tb-source.ts` links from the inspected source.
+- Tests: `SourceAcceptanceApiTests.cs`, `AngularSourceAcceptanceJourneyTests.cs`, `source-acceptance.spec.ts` and the existing source acceptance/source-binding suites.

@@ -10,8 +10,13 @@ namespace AuditSphereOps.Api.Ui;
 public static partial class UiEndpoints
 {
   public sealed record TrialBalanceExportInput(long Revision);
+  public sealed record SourceAcceptanceInput(string Revision, string EvidenceReference, bool Reviewed);
   private static void MapAccountingRecordEndpoints(RouteGroupBuilder group)
   {
+    group.MapGet("/datasets/{id:guid}/source/acceptance", (Guid id, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => SourceAcceptanceWorkspace.GetAsync(db, actor, id, ct)));
+    group.MapPost("/datasets/{id:guid}/source/acceptance", (Guid id, SourceAcceptanceInput input, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => SourceAcceptanceWorkspace.AcceptAsync(db, actor, id, input.Revision, input.EvidenceReference, input.Reviewed, ct)));
     group.MapGet("/datasets/{id:guid}/source", (Guid id, string? filter, int? page, int? issuePage, HttpContext http) =>
       ReadAsync(http, (db, actor, ct) => TrialBalanceSourceWorkspace.GetAsync(db, actor, id, filter, page ?? 1, issuePage ?? 1, ct)));
     group.MapPost("/datasets/{id:guid}/source/export", async (Guid id, TrialBalanceExportInput input, HttpContext http,

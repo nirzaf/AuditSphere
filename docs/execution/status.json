@@ -4,7 +4,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "7a2c5c71c9a883e0334328ccd8f401e6b8c92332",
+  "headCommit": "ff49ecd7e71568876c83315d1f219ca6f08ae8dd",
   "verifiedCommit": "de2839e8e827fe29b15db0d2b35d7d636dc1e96d",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": true,
@@ -2264,7 +2264,7 @@
       "modelDrift": "PASS standalone API EF pending-model-change check; no new migration or shared database migration.",
       "documentation": "PASS documentation health, filenames, protected narrative metrics, source inventory and diff checks; staged secret scan recorded separately. No Wiki publication.",
       "fullSuite": {
-        "status": "RUNNING",
+        "status": "FAILED_ONE_BROWSER_JOURNEY",
         "sourceCommit": "7a2c5c71c9a883e0334328ccd8f401e6b8c92332",
         "worktree": "/Users/qts/.codex/worktrees/angular-trial-balance-upload/AuditSphere",
         "build": "PASS SDK-locked restore, Angular production and Release solution build; zero .NET warnings/errors.",
@@ -2275,7 +2275,33 @@
           "aspNetArtifactSha256": "19d3486399f780913de89e114d75da1849637301168ca5f2f7c6df901a9c189c",
           "applicationArtifactSha256": "b08981fb0caac5771928e49e3f8f1de039710388d3e1bde7494d2ab9e540fc45"
         },
-        "scope": "Frozen published reviewed-upload implementation; source-export changes on main are excluded. API portion passed 76/76; Domain and E2E portions still running. Terminal full-run exit required before PASS."
+        "scope": "Frozen published reviewed-upload implementation; later source-export and acceptance changes excluded. The full solution run had one role-picker timeout in the rollback Blazor tenant administration journey. No full PASS inferred from the isolated rerun.",
+        "domain": {
+          "passed": 555,
+          "failed": 0,
+          "skipped": 0
+        },
+        "api": {
+          "passed": 76,
+          "failed": 0,
+          "skipped": 0
+        },
+        "browser": {
+          "passed": 132,
+          "failed": 1,
+          "skipped": 0
+        },
+        "exitCode": 1,
+        "log": "/private/tmp/auditsphere-tb-upload-full-suite.log",
+        "isolatedRerun": {
+          "status": "PASS",
+          "passed": 1,
+          "failed": 0,
+          "sourceCommit": "7a2c5c71c9a883e0334328ccd8f401e6b8c92332",
+          "sameArtifacts": true,
+          "log": "/private/tmp/auditsphere-tb-upload-failed-journey-rerun.log"
+        },
+        "worktreeDisposition": "Archived after terminal full run and isolated rerun; fingerprints and logs retained outside Git."
       },
       "remaining": "Complete GL intake and acceptance/source-export journeys, reviewed mapping editor/form/draft parity, other migration stories and final retirement remain open.",
       "secretScan": "PASS staged redacted gitleaks scan; no detected leaks.",
@@ -2327,7 +2353,70 @@
         "boundary": "The isolated full regression at published7a2c5c7 excludes this later source/export implementation; no production acceptance inferred."
       },
       "remaining": "GL import/completeness and source-acceptance controls, reviewed mapping/form/draft parity, wider guide acceptance and controlled Blazor retirement remain open.",
-      "secretScan": "PASS staged redacted gitleaks scan; no detected leaks."
+      "secretScan": "PASS staged redacted gitleaks scan; no detected leaks.",
+      "implementationCommit": "ff49ecd7e71568876c83315d1f219ca6f08ae8dd",
+      "remoteMasterConfirmed": true,
+      "publication": "Direct master push independently confirmed by git ls-remote. Whole solution regression for the source/export implementation has not been run."
+    },
+    "angularSourceAcceptance": {
+      "status": "IMPLEMENTED reviewed independent TB source acceptance; PARTIAL complete intake/migration acceptance",
+      "observedAt": "2026-10-02T19:07:46.589774+00:00",
+      "sourceBase": "ff49ecd7e71568876c83315d1f219ca6f08ae8dd",
+      "sourceFingerprintSha256": "aa332beb327ccfad20c30e006c4530a31f57b56a75ad177cddc948956b85efc5",
+      "angularArtifactSha256": "6c8048aea921dbcdaff681041037df74712455cac9e6a765a4ed64c14ace2c64",
+      "angularFileCount": 78,
+      "aspNetArtifactSha256": "ff54812520685f856abc06945279309a9a431d7c7211c5a5a296741a7390fb59",
+      "applicationArtifactSha256": "3b3053c45cf7893df0bc99ef777e292b0c88b86a3242e3ce4b7b96019c6c91cb",
+      "fingerprintMethod": "SHA-256 of sorted unique Git-tracked/nonignored src/tests paths, NUL, bytes, NUL; Angular browser hash uses sorted relative paths and bytes with NUL delimiters.",
+      "behavior": "Exact current source/period/selection/generation and actor/session bind reviewed acceptance. Existing Application command serializes immutable decisions and generation changes, enforces independent importer/reviewer for TB and GL, rejects source-kind mismatches, missing digests, closed periods and frozen/blocked engagements, and rolls back a late authority change. Native Signal Form, evidence-reference-only tab drafts, explicit recovery, guarded navigation and unknown-outcome read/acknowledgment; no automatic retry or restored assent. Selection remains per engagement/source kind, across periods, and is explicitly explained.",
+      "build": "PASS final Release solution, zero warnings/errors; Angular production build within budgets.",
+      "apiTests": {
+        "status": "PASS",
+        "passed": 83,
+        "failed": 0,
+        "skipped": 0,
+        "scope": "Full PostgreSQL API suite. New cases cover CSRF, assent, exact reviewed inputs, concurrent duplicate decisions, source receipts, stale generation, importer refusal, pending/closed sources, cross-firm/sibling/client/guessed identities, GL importer/source-kind gates, missing digest, professional hold and late revocation rollback. API/Application binary hashes unchanged by the subsequent E2E helper/UI fallback-only rebuild.",
+        "log": "/private/tmp/auditsphere-source-acceptance-api-final.log"
+      },
+      "angularTests": {
+        "status": "PASS",
+        "passed": 150,
+        "failed": 0,
+        "skipped": 0,
+        "files": 39,
+        "scope": "Full Angular suite, including source acceptance exact assent, safe draft allowlist, pending/stale checkpoint reload, read/acknowledgment recovery, session/late-result clearing and malformed eligibility/receipt/generation refusal.",
+        "log": "/private/tmp/auditsphere-source-acceptance-angular-tests.log"
+      },
+      "domainTests": {
+        "status": "PASS",
+        "passed": 9,
+        "failed": 0,
+        "skipped": 0,
+        "scope": "Affected SourceAcceptanceAndComparatives and AuditScheduleSourceBinding suites.",
+        "log": "/private/tmp/auditsphere-source-acceptance-domain-tests.log"
+      },
+      "browserTests": {
+        "status": "PASS",
+        "passed": 9,
+        "failed": 0,
+        "skipped": 0,
+        "scope": "Final frozen native acceptance/upload journeys and complete rollback tenant-administration journey class. Lost accepted response plus reload, no duplicate decision, current pointer, tab recovery, independent maker/checker, stale generation, navigation intent, mobile layout and revocation. The rollback select helper retries menu opening only, selects once and asserts the menu closes; business assertions are retained.",
+        "log": "/private/tmp/auditsphere-source-acceptance-browser-final.log"
+      },
+      "builtInBrowser": "PASS final owned synthetic fixture on final Angular/API artifacts: reviewed acceptance stores one decision, selected pointer and incremented generation, explicit sealing/validation/acceptance distinction, retained evidence and no repeat acceptance control. Earlier same-slice draft recovery observed unchecked assent. Final responsive viewport390 had document375 with no overflow; no console warnings/errors. Screenshots retained outside Git, temporary tabs closed, viewport reset and both owned previews disposed. Synthetic seeded source status is not live provider/professional acceptance.",
+      "screenshots": [
+        "/private/tmp/auditsphere-angular-source-acceptance.png",
+        "/private/tmp/auditsphere-angular-source-acceptance-mobile.png"
+      ],
+      "modelDrift": "PASS standalone API Release pending-model-change check; no pending model changes or new migration.",
+      "corrections": "An intermediate added fixture violated the existing hold-release timestamp constraint; fixture corrected without weakening that constraint, focused case then full API suite passed. Initial EF -c argument selected a context rather than configuration; corrected --configuration Release command passed. Intermediate results excluded from final counts.",
+      "documentation": "PASS documentation health, filenames, protected narrative metrics, current Razor source inventory and git diff checks. No Wiki publication.",
+      "secretScan": "PASS staged redacted gitleaks scan; no detected leaks.",
+      "fullSuite": {
+        "status": "NOT_RUN",
+        "boundary": "The earlier frozen upload full run had one rollback browser timeout and excludes this source acceptance/export implementation. No current full solution or production pass inferred."
+      },
+      "remaining": "GL import/completeness and GL acceptance UI, reviewed mapping/forms/drafts, wider migration parity and controlled Blazor retirement remain open."
     }
   },
   "documentationWork": {
