@@ -42,7 +42,7 @@ public static class TrialBalanceDatasetQuery
       return CommandResult<TrialBalanceDatasetDto>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
 
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
-      new AuthorizationRequest(dataset.FirmId, dataset.ClientId, dataset.EngagementId), ct);
+      new AuthorizationRequest(dataset.FirmId, dataset.ClientId, dataset.EngagementId, InternalOnly: true), ct);
     if (!auth.Succeeded)
       return CommandResult<TrialBalanceDatasetDto>.Fail(auth.ErrorCode!, auth.Message!);
 
@@ -60,7 +60,7 @@ public static class TrialBalanceDatasetQuery
     int pageSize = 100,
     CancellationToken ct = default)
   {
-    if (page < 1 || pageSize is < 1 or > 1000)
+    if (page < 1 || pageSize is < 1 or > 1000 || (long)(page - 1) * pageSize > int.MaxValue || accountCodeFilter?.Length > 100)
       return CommandResult<TrialBalanceRowsPage>.Fail(ErrorCodes.Accounting.MappingInvalid, "A valid page number and size (1-1000) are required.");
 
     var dataset = await db.TrialBalanceDatasets.AsNoTracking()
@@ -70,7 +70,7 @@ public static class TrialBalanceDatasetQuery
       return CommandResult<TrialBalanceRowsPage>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
 
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
-      new AuthorizationRequest(dataset.FirmId, dataset.ClientId, dataset.EngagementId), ct);
+      new AuthorizationRequest(dataset.FirmId, dataset.ClientId, dataset.EngagementId, InternalOnly: true), ct);
     if (!auth.Succeeded)
       return CommandResult<TrialBalanceRowsPage>.Fail(auth.ErrorCode!, auth.Message!);
 
@@ -83,17 +83,20 @@ public static class TrialBalanceDatasetQuery
 
     var totalCount = await query.CountAsync(ct);
     var totalAmount = totalCount > 0 ? await query.SumAsync(r => r.Amount, ct) : 0m;
-    var totalDebit = totalCount > 0 ? await query.SumAsync(r => r.SourceDebit, ct) : null;
-    var totalCredit = totalCount > 0 ? await query.SumAsync(r => r.SourceCredit, ct) : null;
+    var totalDebit = totalCount > 0 && await query.AnyAsync(r => r.SourceDebit.HasValue, ct) ? await query.SumAsync(r => r.SourceDebit, ct) : null;
+    var totalCredit = totalCount > 0 && await query.AnyAsync(r => r.SourceCredit.HasValue, ct) ? await query.SumAsync(r => r.SourceCredit, ct) : null;
 
     var skip = (page - 1) * pageSize;
-    var rows = await query.OrderBy(r => r.AccountCode)
+    var rows = await query.OrderBy(r => r.AccountCode).ThenBy(r => r.Id)
       .Skip(skip)
       .Take(pageSize)
       .Select(r => new TrialBalanceRowDto(
         r.Id, r.DatasetId, r.AccountCode, r.AccountName,
         r.Amount, r.SourceDebit, r.SourceCredit, r.Currency, r.Entity, r.MappingCode))
       .ToListAsync(ct);
+
+    var final = await CheckCurrentAsync(db, actor, dataset, ct);
+    if (!final.Succeeded) return CommandResult<TrialBalanceRowsPage>.Fail(final.ErrorCode!, final.Message!);
 
     return CommandResult<TrialBalanceRowsPage>.Ok(new TrialBalanceRowsPage(
       rows, totalCount, page, pageSize,
@@ -106,7 +109,7 @@ public static class TrialBalanceDatasetQuery
     IAuditSphereDbContext db,
     ActorContext actor,
     Guid datasetId,
-    CancellationToken ct = default)
+    CancellationToken ct = default, long? expectedRevision = null)
   {
     var dataset = await db.TrialBalanceDatasets.AsNoTracking()
       .SingleOrDefaultAsync(d => d.Id == datasetId &&
@@ -115,14 +118,19 @@ public static class TrialBalanceDatasetQuery
       return CommandResult<TrialBalanceExportDto>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
 
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
-      new AuthorizationRequest(dataset.FirmId, dataset.ClientId, dataset.EngagementId), ct);
+      new AuthorizationRequest(dataset.FirmId, dataset.ClientId, dataset.EngagementId, InternalOnly: true), ct);
     if (!auth.Succeeded)
       return CommandResult<TrialBalanceExportDto>.Fail(auth.ErrorCode!, auth.Message!);
 
+    if (expectedRevision.HasValue && expectedRevision.Value != dataset.Revision)
+      return CommandResult<TrialBalanceExportDto>.Fail(ErrorCodes.StaleRevision, "The source changed. Refresh its rows before exporting.");
     var rows = await db.TrialBalanceRows.AsNoTracking()
       .Where(r => r.DatasetId == dataset.Id)
-      .OrderBy(r => r.AccountCode)
-      .ToListAsync(ct);
+      .OrderBy(r => r.AccountCode).ThenBy(r => r.Id)
+      .Take(MaxExportRows + 1).ToListAsync(ct);
+    if (rows.Count > MaxExportRows)
+      return CommandResult<TrialBalanceExportDto>.Fail(ErrorCodes.Accounting.ImportRejected,
+        "This source exceeds the direct CSV export limit. Use paged source inspection; a larger export requires a separately supported durable export.");
 
     var headers = new[]
     {
@@ -131,6 +139,7 @@ public static class TrialBalanceDatasetQuery
     };
 
     var lines = new List<string> { string.Join(',', headers.Select(CsvEscape)) };
+    var byteCount = System.Text.Encoding.UTF8.GetByteCount(lines[0]) + 1;
     foreach (var r in rows)
     {
       var fields = new[]
@@ -146,18 +155,41 @@ public static class TrialBalanceDatasetQuery
         CsvEscape(dataset.Id.ToString("D")),
         dataset.Revision.ToString(CultureInfo.InvariantCulture)
       };
-      lines.Add(string.Join(',', fields));
+      var line = string.Join(',', fields);
+      byteCount += System.Text.Encoding.UTF8.GetByteCount(line) + 1;
+      if (byteCount > MaxExportBytes)
+        return CommandResult<TrialBalanceExportDto>.Fail(ErrorCodes.Accounting.ImportRejected, "This source exceeds the direct CSV byte limit. Inspect its paged rows.");
+      lines.Add(line);
     }
 
+    var final = await CheckCurrentAsync(db, actor, dataset, ct);
+    if (!final.Succeeded) return CommandResult<TrialBalanceExportDto>.Fail(final.ErrorCode!, final.Message!);
     var fileName = $"auditsphere-tb-{dataset.Id:D}-r{dataset.Revision}.csv";
     return CommandResult<TrialBalanceExportDto>.Ok(new TrialBalanceExportDto(
       fileName, string.Join('\n', lines) + '\n', dataset.Revision));
   }
 
+  public const int MaxExportRows = 50_000;
+  public const int MaxExportBytes = 25 * 1024 * 1024;
+
+  internal static async Task<CommandResult> CheckCurrentAsync(IAuditSphereDbContext db,
+    ActorContext actor, TrialBalanceDataset source, CancellationToken ct)
+  {
+    var current = await db.TrialBalanceDatasets.AsNoTracking().SingleOrDefaultAsync(x => x.Id == source.Id, ct);
+    var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(source.FirmId, source.ClientId, source.EngagementId, InternalOnly: true), ct);
+    if (!auth.Succeeded) return auth;
+    if (current is null || current.ImportState != TrialBalanceImportStates.Sealed || current.Revision != source.Revision ||
+      current.ClientId != source.ClientId || current.EngagementId != source.EngagementId || current.FirmId != source.FirmId ||
+      current.ValidationStatus != source.ValidationStatus || current.Balanced != source.Balanced)
+      return CommandResult.Fail(ErrorCodes.StaleRevision, "The source changed during the read. Refresh it.");
+    return CommandResult.Ok();
+  }
+
   private static string CsvEscape(string? value)
   {
     var text = value ?? string.Empty;
-    if (text.Length > 0 && text[0] is '=' or '+' or '-' or '@') text = "'" + text;
+    if (text.TrimStart().Length > 0 && text.TrimStart()[0] is '=' or '+' or '-' or '@') text = "'" + text;
     return $"\"{text.Replace("\"", "\"\"", StringComparison.Ordinal)}\"";
   }
 }
@@ -176,7 +208,7 @@ public static class TrialBalanceValidationIssueQuery
     IAuditSphereDbContext db, ActorContext actor, Guid datasetId,
     int page = 1, int pageSize = 100, CancellationToken ct = default)
   {
-    if (datasetId == Guid.Empty || page < 1 || pageSize is < 1 or > 500)
+    if (datasetId == Guid.Empty || page < 1 || pageSize is < 1 or > 500 || (long)(page - 1) * pageSize > int.MaxValue)
       return CommandResult<TrialBalanceIssuesPage>.Fail(ErrorCodes.Accounting.ImportRejected,
         "The issue page request is invalid.");
     var dataset = await db.TrialBalanceDatasets.AsNoTracking()
@@ -189,7 +221,7 @@ public static class TrialBalanceValidationIssueQuery
       return CommandResult<TrialBalanceIssuesPage>.Fail(auth.ErrorCode!, auth.Message!);
 
     var issues = db.TrialBalanceValidationIssues.AsNoTracking()
-      .Where(x => x.FirmId == dataset.FirmId && x.DatasetId == dataset.Id);
+      .Where(x => x.FirmId == dataset.FirmId && x.ClientId == dataset.ClientId && x.EngagementId == dataset.EngagementId && x.DatasetId == dataset.Id && x.Revision == dataset.Revision);
     var totalCount = await issues.CountAsync(ct);
     var items = await issues
       .OrderBy(x => x.CreatedAt).ThenBy(x => x.RowKey).ThenBy(x => x.Id)
@@ -197,6 +229,8 @@ public static class TrialBalanceValidationIssueQuery
       .Select(x => new TrialBalanceIssueDto(
         x.Id, x.RowKey, x.Severity, x.Code, x.Message, x.CreatedAt))
       .ToListAsync(ct);
+    var final = await TrialBalanceDatasetQuery.CheckCurrentAsync(db, actor, dataset, ct);
+    if (!final.Succeeded) return CommandResult<TrialBalanceIssuesPage>.Fail(final.ErrorCode!, final.Message!);
     return CommandResult<TrialBalanceIssuesPage>.Ok(new TrialBalanceIssuesPage(items, totalCount, page, pageSize));
   }
 }

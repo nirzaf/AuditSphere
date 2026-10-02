@@ -753,3 +753,10 @@ For the complete documentation index, authority hierarchy, current requirements,
 - API: `Ui/UiEndpoints.Intake.cs` exposes reviewed upload and receipt reads through the trusted session and antiforgery boundary.
 - Angular: `features/engagements/tb-upload.ts` and `tb-upload-contracts.ts` own native assent, bounded metadata checkpoints, guarded navigation, context clearing and unknown-outcome recovery; `tb-intake.ts` preserves the receipt panel during dataset-selector refresh.
 - Tests: `TrialBalanceUploadApiTests`, `AngularTrialBalanceUploadJourneyTests` and `tb-upload.spec.ts` cover negative authority/period/file cases, partial and concurrent recovery, isolated mapping history, lost responses and owned worker validation.
+
+### Native trial-balance source inspection
+
+- Application: `Accounting/Intake/TrialBalanceSourceWorkspace.cs` composes scoped source context, server row/issue pages and final authority fences. `TrialBalanceDatasetQuery.cs` owns deterministic paging, current-revision issue reads, bounded CSV generation and missing-value preservation.
+- API: `Ui/UiEndpoints.AccountingRecords.cs` exposes source inspection and reviewed-revision CSV export through the trusted actor and antiforgery boundary.
+- Angular: `features/engagements/tb-source.ts` owns the native source panel, exact-value decoding, server filters/pages and context-checked file saving; `core/api.ts` supports an optional pre-save file metadata fence.
+- Tests: `TrialBalanceSourceApiTests`, `tb-source.spec.ts`, shared API download tests and `AngularTrialBalanceUploadJourneyTests` cover source isolation, malformed/stale responses, missing values, export bounds and actual scoped file download.

@@ -20,6 +20,18 @@ describe('API session and unknown outcome fences', () => {
     session.clear(); http.expectOne('/api/ui/example').flush({ value: 'accepted' });
     const result = await request; expect(result.ok).toBe(false); if(!result.ok) expect(result.unknown).toBe(true);
   });
+  it('does not save a file whose source metadata failed the caller context fence', async () => {
+    const api = TestBed.inject(Api), http = TestBed.inject(HttpTestingController);
+    const request = api.download('/api/ui/source/export', {revision:1}, () => false);
+    http.expectOne('/api/ui/source/export').flush(new Blob(['synthetic csv']), {headers:{'Content-Type':'text/csv','Content-Disposition':'attachment; filename=source.csv'}});
+    const result = await request; expect(result.ok).toBe(false); if (!result.ok) expect(result.code).toBe('download.context');
+  });
+  it('does not save a late download after revocation', async () => {
+    const api = TestBed.inject(Api), http = TestBed.inject(HttpTestingController);
+    const request = api.download('/api/ui/source/export'); TestBed.inject(SessionService).clear();
+    http.expectOne('/api/ui/source/export').flush(new Blob(['synthetic csv']));
+    const result = await request; expect(result.ok).toBe(false); if (!result.ok) expect(result.message).toContain('No file was saved');
+  });
   it('blocks a second page command after a lost response', async () => {
     const state = new CommandState(TestBed.inject(Api)), http = TestBed.inject(HttpTestingController);
     const first = state.run('/api/ui/example', { reviewed: true }, 'Accepted');

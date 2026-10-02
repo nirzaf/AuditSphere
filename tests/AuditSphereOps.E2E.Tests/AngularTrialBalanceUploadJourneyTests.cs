@@ -26,6 +26,12 @@ public sealed class AngularTrialBalanceUploadJourneyTests
     for (var attempt = 0; attempt < 60; attempt++) { await using var db = host.CreateDbContext(); validated = await db.TrialBalanceDatasets.CountAsync(x => x.ValidationStatus == "Accepted") == 2; if (validated) break; await Task.Delay(500); }
     Assert.True(validated, "Owned background worker must validate both source datasets.");
     await page.GetByRole(AriaRole.Button, new() { Name = "Refresh period receipts", Exact = true }).ClickAsync(); await Assertions.Expect(table).ToContainTextAsync(new System.Text.RegularExpressions.Regex("accepted", System.Text.RegularExpressions.RegexOptions.IgnoreCase));
+    Guid sourceId; long sourceRevision; await using (var db = host.CreateDbContext()) { var source = await db.TrialBalanceDatasets.AsNoTracking().OrderBy(x => x.ImportedAt).FirstAsync(); sourceId = source.Id; sourceRevision = source.Revision; }
+    await page.GetByRole(AriaRole.Combobox, new() { Name = "Dataset", Exact = true }).SelectOptionAsync(sourceId.ToString("D"));
+    await Assertions.Expect(page.GetByRole(AriaRole.Table, new() { Name = "Trial balance source rows", Exact = true })).ToContainTextAsync(".123456");
+    var downloaded = await page.RunAndWaitForDownloadAsync(() => page.GetByRole(AriaRole.Button, new() { Name = "Export complete source CSV", Exact = true }).ClickAsync());
+    Assert.Equal($"auditsphere-tb-{sourceId:D}-r{sourceRevision}.csv", downloaded.SuggestedFilename);
+    var downloadPath = System.IO.Path.GetTempFileName(); try { await downloaded.SaveAsAsync(downloadPath); var bytes = await System.IO.File.ReadAllTextAsync(downloadPath); Assert.Contains("dataset_revision", bytes); Assert.Contains(sourceId.ToString("D"), bytes); Assert.Contains(".123456", bytes); } finally { System.IO.File.Delete(downloadPath); }
     await using (var db = host.CreateDbContext()) { Assert.Equal(2, await db.TrialBalanceDatasets.CountAsync()); Assert.Equal(2, await db.DurableOperations.CountAsync(x => x.OperationKind == "ValidateTrialBalance.v1")); (await db.Users.SingleAsync(x => x.Id == host.Fixture.Staff.Id)).SessionEpoch++; await db.SaveChangesAsync(); }
     await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable", Exact = true })).ToBeVisibleAsync(new() { Timeout = 15000 }); Assert.DoesNotContain("100.123456", await page.Locator("body").InnerTextAsync()); Assert.Empty(errors);
   }

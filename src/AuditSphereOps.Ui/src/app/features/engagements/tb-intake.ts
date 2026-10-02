@@ -3,20 +3,12 @@ import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { Api, CommandState, routeGuid } from '../../core/api';
-import {
-  arr,
-  dec,
-  guid,
-  instant,
-  nat,
-  nullable,
-  obj,
-  text,
-} from '../../core/decode';
+import { arr, dec, guid, instant, nat, nullable, obj, text } from '../../core/decode';
 import { SessionService } from '../../core/session';
 import { SHARED } from '../../core/ui';
 import { IntakeCurrencyReview } from './currency-review';
 import { TrialBalanceUpload } from './tb-upload';
+import { TrialBalanceSource } from './tb-source';
 export { decodeCurrencyReview } from './currency-review';
 
 export const decodeIntake = obj({
@@ -55,6 +47,7 @@ export const decodeMemory = obj({
     MatButtonModule,
     IntakeCurrencyReview,
     TrialBalanceUpload,
+    TrialBalanceSource,
     ...SHARED,
   ],
   template: `
@@ -85,6 +78,11 @@ export const decodeMemory = obj({
             }
           </select></label
         >
+        <audit-tb-source
+          [datasetId]="datasetId || null"
+          [clientId]="w.clientId"
+          [engagementId]="w.engagementId"
+        />
         <div class="inline-form">
           <button matButton="outlined" (click)="propose()" [disabled]="cmd.busy() || !datasetId">
             Propose mapping from history

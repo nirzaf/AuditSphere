@@ -107,7 +107,7 @@ export class Api {
    * Generated-file download through an unsafe request (the server rechecks scope and may record the export). Saved via
    * an object URL; sent once. Returns the outcome so the page can state that the file is an instruction, not evidence.
    */
-  async download(url: string, body: unknown = {}): Promise<CommandOutcome<{ fileName: string; headers: Record<string, string> }>> {
+  async download(url: string, body: unknown = {}, accept?: (metadata: { fileName: string; headers: Record<string, string>; byteCount: number; contentType: string }) => boolean): Promise<CommandOutcome<{ fileName: string; headers: Record<string, string> }>> {
     const generation = this.session.invalidation();
     try {
       const response = await firstValueFrom(this.http.post(url, body, { observe: 'response', responseType: 'blob' }).pipe(timeout(60000)));
@@ -115,13 +115,15 @@ export class Api {
       const disposition = response.headers.get('Content-Disposition') ?? '';
       const match = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(disposition);
       const fileName = match ? decodeURIComponent(match[1]) : 'download';
+      const headers: Record<string, string> = {};
+      for (const key of response.headers.keys()) headers[key.toLowerCase()] = response.headers.get(key) ?? '';
+      if (!response.body || accept && !accept({ fileName, headers, byteCount: response.body.size, contentType: headers['content-type'] ?? '' }))
+        return { ok: false, unknown: false, code: 'download.context', message: 'The file did not match the current reviewed source. No file was saved. Refresh before exporting.', status: 0 };
       const link = document.createElement('a');
       link.href = URL.createObjectURL(response.body!);
       link.download = fileName;
       link.click();
       setTimeout(() => URL.revokeObjectURL(link.href), 1000);
-      const headers: Record<string, string> = {};
-      for (const key of response.headers.keys()) headers[key.toLowerCase()] = response.headers.get(key) ?? '';
       return { ok: true, value: { fileName, headers } };
     } catch (e) {
       const status = e instanceof HttpErrorResponse ? e.status : 0;

@@ -222,3 +222,19 @@ require current persisted receipts and explicit acknowledgment; there is no auto
 `tb-intake.ts` refreshes its authorized dataset selector without destroying the receipt panel.
 `MappingMemoryService` filters prior history by active grant scope before selecting or counting;
 sibling engagement history cannot widen an engagement-only assignment.
+
+### Source inspection and direct CSV export
+
+`TrialBalanceSourceWorkspace` composes bounded row and validation-issue queries for one sealed,
+authorized source. The native intake uses independent server pages, a bounded account-prefix
+filter and exact decimal strings. Stored period/source identity, revision, digests, sealing and
+validation remain visible; missing source totals do not become zero. Persisted issues are scoped
+to the source revision. Source inspection does not grant GL completeness, acceptance or approval.
+
+The standalone API exposes an antiforgery-protected CSV read pinned to the observed source
+revision. Application limits rows and UTF-8 bytes, escapes text formula prefixes and rechecks
+source state and current authority before release. Angular verifies file identity/revision,
+content type, byte bound and active context before saving. A changed session or destroyed view
+cannot save a late file. Larger exports require a separately supported durable export workflow;
+there is no unbounded download fallback. Verification and remaining guide acceptance live in
+the execution ledger.

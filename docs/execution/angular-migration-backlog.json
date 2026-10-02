@@ -126,7 +126,7 @@
       "id": "US-021",
       "title": "Migrate multi-period trial-balance intake and general ledger",
       "status": "PARTIAL",
-      "scope": "Native multi-period intake now requires actor/period/file-bound review, observes exact scoped receipts and durable validation, recovers partial/concurrent uploads without duplicates, and fences unknown outcomes. Signal Forms, metadata-only tab checkpoint recovery, navigation protection and scope-filtered mapping history are implemented. Complete GL intake, mapping editor and source-export acceptance remain open."
+      "scope": "Native reviewed multi-period upload, exact scoped receipts, durable validation and recovery are implemented. Source inspection pages rows/issues on the server; bounded complete CSV export retains exact decimals and pins the source revision with final scope/session checks. Signal Forms, metadata-only checkpoints and scoped mapping history remain available. Complete GL import/completeness, source acceptance and final intake acceptance remain open."
     },
     {
       "id": "US-022",

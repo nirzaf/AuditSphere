@@ -32,6 +32,21 @@ which the full suite was run; per-slice records carry their own evidence.
 
 
 
+## Native trial-balance source inspection and export
+
+The intake dataset selector now opens scoped source rows, persisted validation issues and
+complete source CSV export. Rows and issues use separate server pages; account-prefix filters
+stay on the server. Exact signed/debit/credit values remain decimal strings, and missing source
+debit/credit totals remain absent. Context, source revision, period, source digests, sealing and
+validation are shown separately. Inspection and export grant no source or mapping approval.
+
+Direct exports have explicit row and byte limits, bind the observed dataset revision, escape
+text formula prefixes and recheck current authority before release. Angular refuses file saving
+after identity/context changes or mismatched response metadata. Large exports remain blocked
+pending a supported durable export workflow. The complete GL import/completeness, reviewed
+source acceptance and mapping editing journeys remain open. Observed verification, publication
+and source boundaries belong to `status.json`.
+
 ## Native reviewed trial-balance upload and receipt recovery
 
 The Angular intake now composes a reviewed Application upload workspace. Exact file identity,
