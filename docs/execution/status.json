@@ -2140,6 +2140,54 @@
         "confirmedAt": "2026-10-02T16:53:43.095777+00:00",
         "evidence": "Fast-forward merge into clean master and git push origin master exited 0; independent git ls-remote exactly matched implementation revision."
       }
+    },
+    "angularCurrencyConfiguration": {
+      "status": "IMPLEMENTED native firm currency configuration; PARTIAL complete currency/migration acceptance",
+      "observedAt": "2026-10-02T17:42:31.814957+00:00",
+      "sourceBase": "855866e9d36516e0f417043478e7d478aea5925c",
+      "sourceFingerprintSha256": "661fd4fef274302bff748b554f6bac44620285d043ad9b3e780bc180fa349112",
+      "angularArtifactSha256": "5081ef671075c85745a1fd34d5f8d90e755586460616004853a97415768841c6",
+      "angularFileCount": 77,
+      "aspNetArtifactSha256": "a4d468bcb6596f6641d64b9eb0911bf14db3348f13b602fa9ab676f0b750f049",
+      "applicationArtifactSha256": "0db1f141c1bb314da40fb28c01fcc81ee76b377157168b611d7730df8fd94101",
+      "fingerprintMethod": "SHA-256 of sorted unique Git-tracked/nonignored src/tests paths, NUL, bytes, NUL; Angular browser hash uses sorted relative paths and bytes with NUL delimiters.",
+      "behavior": "Firm-wide currency-review roles only; bounded catalogue and observation detail. Exact DIRECT observations with explicit purpose, pair, date, source, effective range and version. Actor/session-bound reviewed revisions; serialized local writes; final authorization before commit. Independent approval refuses invalid stored observations. Approved records have no editor mutations. Existing currency services retain financial calculations and maker/checker metadata. Native Signal Forms, exact intent/revision assent, explicit bounded tab recovery, guarded navigation, fresh persisted-state review after unknown writes, runtime response/context checks and no automatic replay.",
+      "build": "PASS final Release full solution with zero warnings/errors; Angular production build within budgets.",
+      "angularTests": {
+        "passed": 131,
+        "failed": 0,
+        "skipped": 0,
+        "files": 36,
+        "scope": "Full Angular suite, including rapid native input/checkbox reset, precision, reviewed submission, duplicate dispatch prevention, stale bases, bounded tab intent/recovery, unknown outcomes and revoked session clearing."
+      },
+      "apiTests": {
+        "passed": 71,
+        "failed": 0,
+        "skipped": 0,
+        "scope": "Full final-artifact PostgreSQL-backed API suite. New configuration cases cover exact precision, CSRF/assent, stale revisions, independent approval, duplicate/concurrent retries, immutable approved inputs, guessed/other-firm IDs, firm-wide scope, disabled/revoked actors and invalid stored observations."
+      },
+      "domainTests": {
+        "passed": 24,
+        "failed": 0,
+        "skipped": 0,
+        "scope": "Affected Currency and LineTranslation suites; financial/domain source unchanged."
+      },
+      "browserTests": {
+        "passed": 3,
+        "failed": 0,
+        "skipped": 0,
+        "scope": "Final-artifact native configuration, intake closing review and remeasurement journeys. Configuration includes draft recovery, rejected precision, rapid edit withdrawal, independent approval, immutable approved state and revoked session."
+      },
+      "builtInBrowser": "PASS final synthetic API/Angular preview: reviewed draft, exact 3.700001 DIRECT observation, invalid precision refusal, rapid edit withdrawal and preparer approval refusal. No console warnings/errors. Viewport 390: document width 375; contained tables and wrapping identities. Temporary tabs closed, viewport reset and owned preview/database disposed. No real client data, Microsoft effect or professional approval.",
+      "corrections": "Firm configuration authorization follows the existing firm-wide currency authority; the initial engagement-work gate was removed. Rapid edits before checked-state rendering left a native checkbox checked; public Signal Forms field reset now synchronizes control/model, with exact intent/base submission fencing and explicit rapid-event regression. Malformed command successes are treated as unknown. Temporary diagnostic output removed.",
+      "fullSuite": {
+        "status": "NOT_RUN",
+        "boundary": "Prior source 0b2c0ba full regression passed separately; does not include this editor."
+      },
+      "remaining": "Complete source-action/method/form acceptance, remaining migration module stories, security/accessibility/performance/canary and final legacy Blazor retirement remain open.",
+      "modelDrift": "PASS final standalone API pending-model-change check; no new migration or shared database migration.",
+      "documentation": "PASS documentation health, filenames, protected narrative metrics, source inventory --check and git diff --check. No Wiki publication.",
+      "secretCheck": "PASS staged redacted gitleaks scan, no findings or suppressed rules. No real credentials introduced; scan success is not a comprehensive guarantee."
     }
   },
   "documentationWork": {

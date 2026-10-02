@@ -156,7 +156,7 @@
       "id": "US-026",
       "title": "Migrate currency review and remeasurement",
       "status": "PARTIAL",
-      "scope": "Native reviewed remeasurement workpapers and read-only intake currency comparison, exact scope/rate provenance, same-currency identity, bounded presentation and stale/session fences are implemented. Complete rate/method editor and source-action/form acceptance remain open."
+      "scope": "Native remeasurement, scoped intake closing comparison, and firm-wide rate/policy configuration compose existing currency services. Exact precision, identity/provenance, valid-observation and maker/checker gates, review-bound Signal Forms, tab recovery and unknown-outcome fencing are implemented. Complete source-action/method acceptance and final migration retirement remain open."
     },
     {
       "id": "US-027",

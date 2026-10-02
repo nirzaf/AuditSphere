@@ -738,3 +738,11 @@ For the complete documentation index, authority hierarchy, current requirements,
 - API `Ui/UiEndpoints.Remeasurement.cs` validates exact decimal text and composes the Application contract.
 - Angular `features/accounting/remeasurement.ts` and `remeasurement-drafts.ts` own native Signal Forms, explicit tab recovery, source/provenance presentation, independent review and unknown-outcome fencing.
 - Verification: `RemeasurementApiTests`, `AngularRemeasurementJourneyTests`, `remeasurement.spec.ts`, existing currency/line-translation and legacy workbench tests. Execution evidence is recorded only in the ledger.
+
+
+### Angular currency configuration
+
+- Application: `Accounting/CurrencyConfigurationWorkspace.cs` owns bounded firm configuration reads, actor-bound reviewed revisions, serialized local commands and valid-observation approval gates; `CurrencyTranslationService.cs` retains preparation and independent approval.
+- API: `Ui/UiEndpoints.CurrencyConfiguration.cs` validates explicit dates, purpose and exact rate text; `UiEndpoints.Infrastructure.cs` owns the explicit SPA route.
+- Angular: `features/accounting/currency-configuration.ts` and `currency-configuration-contracts.ts` own native Signal Forms, review binding, tab recovery and unknown-outcome fencing.
+- Checks: `CurrencyConfigurationApiTests`, `AngularCurrencyConfigurationJourneyTests`, and `currency-configuration.spec.ts`; observed results belong to the execution ledger.

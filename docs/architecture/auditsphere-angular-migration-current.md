@@ -182,3 +182,27 @@ The Angular trial-balance intake composes a dedicated native Signal Forms curren
 The existing Application query filters prior candidates by current firm/client/engagement grants before selection. An engagement-only assignment cannot see a sibling engagement's prior balances or identity, while a valid client-wide/firm-wide assignment can include authorized prior work. Expired wider grants never qualify. Source sealing, exact period ancestry, bounded account aggregation and latest approved rate validity fail closed. An invalid latest direction/effective interval cannot silently use an older positive observation. Final authorization and current/prior source, period and rate rechecks refuse a changed read before publication.
 
 The native panel limits rendered pages, labels a missing authorized prior comparison, and removes the previous result before a refreshed calculation. Changed filters mark displayed results stale; late or wrong-context responses cannot repopulate changed datasets or revoked sessions. Missing rates explain the required input correction without inventing approvable figures. Upload and mapping commands remain their existing separate workflows. Complete intake command/form/draft parity, rate/method editor parity and final Blazor retirement remain open.
+
+
+## Native currency configuration
+
+The firm-wide FX rates and policies page prepares rate-set drafts, exact DIRECT observations and
+translation-policy drafts through `CurrencyConfigurationWorkspace` and the existing
+`CurrencyTranslationService`. The standalone API owns authorization, CSRF validation, reviewed
+revision checks and serialized local writes. Only existing firm-wide currency-review authorities
+can read the bounded catalogue; engagement-only access does not expose firm configuration.
+
+The editor declares closing, average and historical observation purposes. Rates are submitted as
+plain exact decimal strings within the storage precision, with explicit date, pair, direction,
+source and effective range. Same-currency translation remains identity treatment and never creates
+a market observation. Invalid stored observations cannot be approved through this workspace.
+Maker/checker identity and timestamps stay on the existing records; approved records have no edit
+or delete action. New configuration uses a new code under the existing uniqueness contract.
+
+Signal Forms bind editable intent and review assent. Submission checks the exact reviewed intent
+and base revision. Identity/session/context-bound tab drafts restore bounded intent only and require
+fresh review. Changed contexts protect unsaved edits. Unknown outcomes fence new commands until a
+successful persisted-state refresh and explicit reconciliation; commands are never automatically
+replayed. Server and browser regression checks, publication and remaining acceptance are recorded
+in the execution ledger. This vertical slice does not establish complete migration or Blazor
+retirement acceptance.

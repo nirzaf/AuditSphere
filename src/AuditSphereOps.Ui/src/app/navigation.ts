@@ -21,6 +21,7 @@ export const NAVIGATION: NavGroup[] = [
     { label: 'Package reviews', path: '/app/accounting/reviews' },
     { label: 'Roll-forward', path: '/app/accounting/rollforward' },
     { label: 'Restatements', path: '/app/accounting/restatements' },
+    { label: 'FX rates & policies', path: '/app/accounting/currency-configuration' },
     { label: 'FX remeasurement', path: '/app/accounting/remeasurement' },
     { label: 'Group consolidation', path: '/app/consolidation' },
     { label: 'Firm ledger', path: '/app/finance', exact: true },

@@ -32,6 +32,16 @@ which the full suite was run; per-slice records carry their own evidence.
 
 
 
+## Native firm currency configuration
+
+The FX rates and policies editor now composes existing firm-wide currency services through a
+reviewed Application workspace and standalone API. Preparation keeps exact rate text, declared
+purposes, provenance and effective dates. Approval requires an independent authorized reviewer;
+invalid stored observations fail closed. The native form binds assent to exact intent and current
+base, protects unsaved context changes, supports bounded tab recovery and fences unknown writes.
+Observed verification and publication are in `status.json`. Complete migration acceptance and
+legacy retirement remain open.
+
 ## Native intake currency review and prior-source isolation
 
 The intake currency panel now uses native Signal Forms and a dedicated bounded read projection. It shows exact dataset/client/engagement/period identity, the upload closing-comparison method, source/presentation currencies, current/prior observation provenance, rounding and movement thresholds. Same-currency identity consumes no market rate. Thresholds grant no approval; classification-based translation and remeasurement remain separate accounting workflows.
