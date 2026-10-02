@@ -13,7 +13,7 @@ export const unsavedChangesGuard: CanDeactivateFn<NavigationProtected> = (compon
   selector: 'audit-unsaved-changes',
   imports: [MatDialogModule, MatButtonModule],
   template: `
-    <h2 mat-dialog-title>Unsubmitted confirmation edits</h2>
+    <h2 mat-dialog-title>Unsubmitted edits</h2>
     <mat-dialog-content
       ><p>
         Keep editing, save a draft in this browser tab, or discard the edits before continuing.

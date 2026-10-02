@@ -729,3 +729,11 @@ For the complete documentation index, authority hierarchy, current requirements,
 - Confirmation closure evidence: Domain `Audit/AuditConfirmationClosure.cs`, Application `Audit/Fieldwork/AuditFieldworkService.Confirmations.cs`, Infrastructure `AuditSphereDbContext.Fieldwork.cs` and the additive `ConfirmationClosureEvidence` migration retain immutable human conclusions and exact evidence snapshots. The native confirmation detail projection exposes scoped decision metadata; API and Angular browser tests cover retained evidence and current-alternative ordering.
 
 - Confirmation tab drafts: Angular `core/tab-drafts.ts` owns versioned identity/epoch/base envelopes and explicit tab storage; `core/unsaved-changes.ts` owns the Material leave dialog and route guard. `features/audit/confirmation-drafts.ts` bounds allowlisted intent; `confirmations.ts` owns recovery, refreshed-revision review and command-outcome fencing. `tab-drafts.spec.ts`, `confirmations.spec.ts` and native confirmation journeys cover storage failure, expiration, stale identity/revisions, tab isolation and revoked sessions.
+
+
+### Angular currency remeasurement
+
+- Application `Accounting/CurrencyRemeasurementWorkspaceQuery.cs` owns scoped bounded input reads and approved-input revisions; `CurrencyRemeasurementWorkspace.cs` owns reviewed guarded API transactions around existing `CurrencyRemeasurementService.cs` calculations and lineage.
+- API `Ui/UiEndpoints.Remeasurement.cs` validates exact decimal text and composes the Application contract.
+- Angular `features/accounting/remeasurement.ts` and `remeasurement-drafts.ts` own native Signal Forms, explicit tab recovery, source/provenance presentation, independent review and unknown-outcome fencing.
+- Verification: `RemeasurementApiTests`, `AngularRemeasurementJourneyTests`, `remeasurement.spec.ts`, existing currency/line-translation and legacy workbench tests. Execution evidence is recorded only in the ledger.

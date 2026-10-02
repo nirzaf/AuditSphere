@@ -48,7 +48,7 @@ export const routes: Routes = [
     loadComponent: () => import('./features/finance/ledger').then(m => m.FirmLedger) },
   { path: 'app/practice/invoices/:id', canActivate: [staffGuard], title: 'Invoice · AuditSphere',
     loadComponent: () => import('./features/finance/invoice').then(m => m.InvoiceDetail) },
-  { path: 'app/accounting/remeasurement', canActivate: [staffGuard], title: 'Currency remeasurement · AuditSphere',
+  { path: 'app/accounting/remeasurement', canActivate: [staffGuard], canDeactivate: [unsavedChangesGuard], title: 'Currency remeasurement · AuditSphere',
     loadComponent: () => import('./features/accounting/remeasurement').then(m => m.CurrencyRemeasurement) },
   { path: 'app/accounting/evidence', canActivate: [staffGuard], title: 'Accounting evidence · AuditSphere',
     loadComponent: () => import('./features/accounting/evidence').then(m => m.AccountingEvidence) },

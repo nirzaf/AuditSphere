@@ -1995,6 +1995,56 @@
         "observedAt": "2026-10-02T15:41:49.394802+00:00",
         "boundary": "Git push and independent ls-remote confirmation; hosted CI, deployment and full migration acceptance are not inferred."
       }
+    },
+    "angularRemeasurement": {
+      "status": "IMPLEMENTED native reviewed remeasurement workpaper and recovery; PARTIAL full currency/migration acceptance",
+      "observedAt": "2026-10-02T16:21:08.608282+00:00",
+      "sourceBase": "b171e8399a052e5a905b3753678aadde9d88f46e",
+      "sourceFingerprintSha256": "030cd55b82b40531f58bff04992b8805ff3e27e52cab5b120bbd9c110a3e629a",
+      "aspNetArtifactSha256": "50ce29c8e61eec0d74cee863bfeb503c261143c1e44acbacdb6a2f7e9570bfa7",
+      "applicationArtifactSha256": "e5c7b5b512bbc3bd82d65b71ff95c2aa529911322986dd1af0ac38a027fea5f0",
+      "angularArtifactSha256": "5b7ab8ea6b9d93138959816e1ccaeb25f6bf8d7312aa2c1254b48716844f4953",
+      "angularFileCount": 76,
+      "sourceBoundary": "Verified working-tree implementation identified by source fingerprint. Full solution regression for the preceding confirmation milestone passed; no full new-source regression or production acceptance inferred.",
+      "fingerprintMethod": "SHA-256 of sorted unique Git-tracked/nonignored src/tests relative paths, NUL, file bytes and NUL; Angular browser hash uses sorted relative paths, NUL and bytes.",
+      "behavior": "Native Signal Forms and exact plain decimal text; fresh actor/session-bound reviewed preparation and independent approval under firm/client/engagement guards; file-freeze gates, duplicate preparation identity and persisted STALE revalidation. Bounded active-grant/input reads exclude expired wider scopes. Result scope, approved rate/policy versions, provenance, direction, classification, prior carrying, movement and rounding are explicit. Historical missing GL lineage stays readable with an inspection-only blocker and cannot gain new approval.",
+      "drafts": "Explicit bounded tab/session recovery for exact period/engagement/current approved inputs. No review assent, credentials or files stored. Guarded scope changes clear previous evidence fields; stale refresh retains intent but blocks submission until explicit rebase and fresh review. Storage failure is memory-only; unknown or malformed-success responses preserve pending intent and prohibit automatic retries. Session invalidation withdraws protected state.",
+      "build": "PASS full Release solution, zero warnings/errors; final Angular production build within configured budgets.",
+      "angularTests": {
+        "passed": 116,
+        "failed": 0,
+        "skipped": 0,
+        "files": 34,
+        "scope": "Full Angular suite including allowlisted bounded intent, native selector state, explicit recovery, current-base fences, quota failure, unknown/malformed-success responses, session withdrawal and historical missing-lineage display."
+      },
+      "apiTests": {
+        "passed": 63,
+        "failed": 0,
+        "skipped": 0,
+        "scope": "Full PostgreSQL-backed API suite. New reviewed preparation/idempotent concurrency, exact amount bounds/CSRF, independent approval, stale source/review tokens, expired wider grant filtering before expiry, real expiry/session epoch lifecycle, cross-firm/guessed IDs and historical lineage refusal."
+      },
+      "domainTests": {
+        "passed": 9,
+        "failed": 0,
+        "skipped": 0,
+        "scope": "Focused CurrencyRemeasurement and LineTranslationTests; calculation identity/rate fail-closed and evidence-bound lifecycle."
+      },
+      "browserTests": {
+        "passed": 6,
+        "failed": 0,
+        "skipped": 0,
+        "scope": "Affected native currency, legacy currency and confirmation journeys. The final additive result-scope paragraph was followed by a fresh native currency rerun, 1/1 passed. Other affected backend/shared dialog source remained unchanged."
+      },
+      "modelDrift": "PASS standalone API EF pending-model-change check, Release --no-build. No migration added or applied to shared Development/production.",
+      "builtInBrowser": "PASS final owned synthetic API/Angular artifacts: selected exact context, tab save/reload/explicit recovery with exact decimal text and fresh review, persisted calculation and explicit result scope, draft removal after confirmed submission. No console warnings/errors. Mobile document width 375 at viewport 390 observed before the additive scope paragraph; final mobile scope-row visual not independently rerun. Screenshots outside Git. All temporary tabs closed, viewport reset and previews exited 0 after quit with owned database cleanup. No Microsoft external effect, journal posting or real professional approval.",
+      "corrections": "Initial API fixture expiry predated GrantedAt and violated the existing constraint; corrected fixture then exposed expected session invalidation. Direct query filtering and real expiry are now asserted before fresh sign-in. Initial native browser selector used an exact label containing option text; accessible-role locator and explicit selected context state corrected. Subsequent complete API and affected browser reruns passed.",
+      "documentation": "PASS documentation health, filenames, protected narrative metrics, source inventory --check and git diff --check. No Wiki publication.",
+      "secretCheck": "PASS redacted staged gitleaks scan, no findings after artifact checksum field clarified. The initial generic API key finding was the verified public build artifact SHA-256, not a credential; no detection rules suppressed. Scanner success is not a comprehensive guarantee.",
+      "fullSuite": {
+        "status": "NOT_RERUN",
+        "boundary": "Prior confirmation commit passed 742 .NET tests. Current source has focused/full-project checks above; no full current-source suite claim."
+      },
+      "remaining": "Currency intake review, complete source-action/rate-method editor parity, cross-feature form/draft migration, security/accessibility/performance/canary acceptance and final Blazor retirement remain open."
     }
   },
   "documentationWork": {

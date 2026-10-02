@@ -60,7 +60,7 @@
       "id": "US-010",
       "title": "Preserve drafts without cross-user leakage",
       "status": "PARTIAL",
-      "scope": "Confirmation forms now have versioned tab-only drafts, explicit recovery, exact identity/epoch/entity/base fencing, expiration, allowlisted fields, honest storage fallback, route/context/unload protection and review reset. Existing generic drafts are unchanged; cross-feature revision, expiry, navigation and recovery acceptance remains open."
+      "scope": "Native confirmation and currency remeasurement forms use versioned identity/session/entity/base-bound tab drafts, explicit recovery and guarded navigation. Remaining module drafts/form acceptance remain open."
     },
     {
       "id": "US-011",
@@ -156,7 +156,7 @@
       "id": "US-026",
       "title": "Migrate currency review and remeasurement",
       "status": "PARTIAL",
-      "scope": "Native FX remeasurement context and governed commands exist. Complete rate/method/source-action parity remains open."
+      "scope": "Native reviewed FX workpaper preparation/independent approval, source/provenance presentation, guarded transactions and explicit tab recovery are implemented. Complete intake currency-review, rate/method editor and source-action acceptance remain open."
     },
     {
       "id": "US-027",

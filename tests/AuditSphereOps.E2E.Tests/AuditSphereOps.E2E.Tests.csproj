@@ -23,6 +23,7 @@
     <Compile Include="../AuditSphereOps.Domain.Tests/CompletionTestFixtures.cs" Link="Fixtures/CompletionTestFixtures.cs" />
     <Compile Include="../AuditSphereOps.Domain.Tests/PbcSeed.cs" Link="Fixtures/PbcSeed.cs" />
     <Compile Include="../AuditSphereOps.Domain.Tests/SiblingClientSeed.cs" Link="Fixtures/SiblingClientSeed.cs" />
+    <Compile Include="../Shared/RemeasurementFixture.cs" Link="Fixtures/RemeasurementFixture.cs" />
     <Compile Include="../Shared/OwnedPostgresDatabase.cs" Link="Fixtures/OwnedPostgresDatabase.cs" />
     <Using Include="Xunit" />
     <None Include="../AuditSphereOps.Domain.Tests/xunit.runner.json" Link="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
