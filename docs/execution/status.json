@@ -2562,11 +2562,121 @@
             "domain": "ce8dd1e29b296192959911ffd91c72d159e0799c6f80fb2f3a7bd84fb64d847d",
             "browser": "ff2f9d364393f53e883447692c123631b73ddfb0ddf624ba6a20f22892b816c3"
           }
+        },
+        "partialResults": {
+          "api": {
+            "passed": 87,
+            "failed": 0,
+            "skipped": 0,
+            "boundary": "Observed project summary only; full run remains active."
+          }
         }
       },
       "implementationCommit": "4820da116242649ff1eb8fb47cb0000a0289942a",
       "remoteMasterConfirmed": true,
       "publication": "Direct master push confirmed independently by git ls-remote; full regression dispatched on the exact published source."
+    },
+    "angularGeneralLedgerAcceptance": {
+      "status": "PASS_LOCAL_SLICE",
+      "verifiedAt": "2026-10-02T19:52:33.938789+00:00",
+      "scope": "Native independent GL source acceptance on the standalone API and shared Angular review form. Real GL batch metadata, separate TB/GL selected pointers, actor/session/source/period/current-selection revision fencing, serialized decisions and atomic input generation, explicit evidence-only drafts, fresh assent, navigation and unknown-outcome recovery. No completeness or professional verdict fabricated.",
+      "build": {
+        "status": "PASS",
+        "warnings": 0,
+        "errors": 0,
+        "angularLog": "/private/tmp/auditsphere-gl-acceptance-angular-build.log",
+        "releaseLog": "/private/tmp/auditsphere-gl-acceptance-build.log"
+      },
+      "angular": {
+        "status": "PASS",
+        "passed": 157,
+        "failed": 0,
+        "skipped": 0,
+        "files": 41,
+        "log": "/private/tmp/auditsphere-gl-acceptance-angular-tests-final.log"
+      },
+      "api": {
+        "status": "PASS",
+        "log": "/private/tmp/auditsphere-gl-acceptance-api-tests.log",
+        "scope": "Complete standalone API suite, including concurrent GL/TB selected-pointer isolation, CSRF, stale reviews, importer separation, non-GL/unsealed scope refusal, closed period and late-revocation rollback.",
+        "passed": 90,
+        "failed": 0,
+        "skipped": 0
+      },
+      "domain": {
+        "status": "PASS",
+        "passed": 11,
+        "failed": 0,
+        "skipped": 0,
+        "log": "/private/tmp/auditsphere-gl-acceptance-domain-tests.log",
+        "scope": "Affected GL, source acceptance and comparative binding tests."
+      },
+      "browser": {
+        "status": "PASS",
+        "passed": 6,
+        "failed": 0,
+        "skipped": 0,
+        "log": "/private/tmp/auditsphere-gl-acceptance-browser-tests.log",
+        "scope": "Native GL acceptance, GL inspection and TB acceptance journeys."
+      },
+      "modelDrift": {
+        "status": "PASS",
+        "log": "/private/tmp/auditsphere-gl-acceptance-model-final.log"
+      },
+      "builtInBrowser": {
+        "status": "PASS",
+        "environment": "Owned synthetic PostgreSQL fixture, external effects disabled; API Release artifacts and Angular production browser build.",
+        "observed": [
+          "Real sealed GL metadata and separate completeness warning",
+          "Retained independent GL decision/current selected pointer",
+          "Input generation advances after retained decision",
+          "390px viewport with no document overflow",
+          "No warning/error console messages"
+        ],
+        "desktopScreenshot": "/private/tmp/auditsphere-angular-gl-acceptance.png",
+        "mobileScreenshot": "/private/tmp/auditsphere-angular-gl-acceptance-mobile.png",
+        "cleanup": "Owned preview and database disposed with terminal success; successful preview tab closed and viewport reset. Initial preview attempt auto-disposed when its stdin ended; restarted with interactive stdin."
+      },
+      "fingerprintsPath": "/private/tmp/auditsphere-gl-acceptance-artifact-hashes.json",
+      "fingerprints": {
+        "sourceFingerprintSha256": "a0caca24dc376b11f16100f10e986395afac895e4df6252ed4bef0990ee311d3",
+        "angularArtifactSha256": "a8249568a866d41882fa472b60489b8996ddfed3902178802560a3aa34f1c547",
+        "angularFileCount": 79,
+        "aspNetArtifactSha256": "c6a919e9b020ccb9dc0b9980a99aaa454bd2f7183600525b44dde81a500dba10",
+        "applicationArtifactSha256": "ab71c64d9e55129965147b08526fc8b1c1c6f2a56f064a643d49032013480b3c",
+        "testAssemblySha256": {
+          "backend": "68b1819de15eb02c75c3a30cc3a37ae49813af378387800af6f6a12cc9e6a44d",
+          "domain": "eb82ac0551dcf6bc2cd0b474d8b63dba6c1d850c402b638dad119e0a245dc8f9",
+          "browser": "d203ea870655a965841a68bad0bdf0fcf24fec739f311b92207335febed055d9"
+        }
+      },
+      "initialAngularRun": {
+        "status": "FAIL",
+        "passed": 156,
+        "failed": 1,
+        "log": "/private/tmp/auditsphere-gl-acceptance-angular-tests.log",
+        "resolution": "New component test observed before rendering completed; added explicit render tick and protected-review assertion. Focused GL tests and complete Angular suite reran successfully; no product guard weakened."
+      },
+      "initialModelCommand": {
+        "status": "COMMAND_ERROR",
+        "log": "/private/tmp/auditsphere-gl-acceptance-model.log",
+        "resolution": "Used short option reserved for DbContext; reran with --configuration Release, confirmed no model drift."
+      },
+      "fullSuite": {
+        "status": "NOT_RUN",
+        "boundary": "Slice-local checks do not replace a frozen full-solution regression. Older GL inspection regression remains running in its separate unchanged worktree."
+      },
+      "remaining": [
+        "Native GL import/completeness commands",
+        "Reviewed mapping editing/forms/drafts",
+        "Wider migration parity/accessibility/performance, deployment/cutover/rollback and controlled Blazor retirement"
+      ],
+      "docsChecks": "PASS Markdown health, filenames, narrative metrics, unchanged source inventory and diff checks.",
+      "publication": {
+        "status": "PENDING",
+        "branch": "master",
+        "boundary": "Implementation commit and remote head are recorded after a successful push."
+      }
     }
   },
   "documentationWork": {
@@ -2674,7 +2784,7 @@
     "implementationStatus": "PARTIAL",
     "acceptanceStatus": "PARTIAL",
     "scope": "Standalone API and native Angular capability slices preserve Application authorization, exact financial inputs, durable operations and independent human gates. Legacy Blazor remains available for rollback until wider parity and retirement acceptance.",
-    "nextAction": "Finish frozen GL inspection regression and implement guarded native GL acceptance/completeness and import controls, then reviewed mapping editing/drafts and remaining migration stories.",
+    "nextAction": "Finish frozen GL inspection regression; implement guarded native GL completeness and import controls, then reviewed mapping editing/drafts and remaining migration stories.",
     "branch": "master"
   },
   "localEvidence": [
@@ -3483,7 +3593,7 @@
     {
       "item": "ASP.NET Core API and Angular 22 migration",
       "status": "PARTIAL",
-      "details": "Native API/Angular slices are implemented with local verification in capability-specific records. Native GL inspection has passed local API, Angular, affected Domain/browser and model-drift verification. Its full-solution regression remains separate. Complete GL import/completeness and acceptance UI, reviewed mapping editing/forms/drafts, wider parity/accessibility/performance, compatibility/cutover/rollback and controlled Blazor retirement remain acceptance work. The current Angular migration backlog retains its independent story statuses."
+      "details": "Native API/Angular slices are implemented with local verification in capability-specific records. Native GL inspection has passed local API, Angular, affected Domain/browser and model-drift verification. Its full-solution regression remains separate. Complete GL import/completeness controls, reviewed mapping editing/forms/drafts, wider parity/accessibility/performance, compatibility/cutover/rollback and controlled Blazor retirement remain acceptance work. The current Angular migration backlog retains its independent story statuses."
     }
   ],
   "externalGates": [

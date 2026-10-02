@@ -764,10 +764,10 @@ For the complete documentation index, authority hierarchy, current requirements,
 
 ## Native reviewed source acceptance
 
-- Application: `Accounting/Intake/SourceAcceptanceWorkspace.cs` owns bounded current-source review/reconciliation and actor/session-bound reviewed revisions; `AccountingSourceAcceptanceService.cs` owns independent reviewer checks, serialized immutable decisions and atomic generation changes.
+- Application: `Accounting/Intake/SourceAcceptanceWorkspace.cs` and `.GeneralLedger.cs` own bounded current-source review/reconciliation and actor/session-bound reviewed revisions; `AccountingSourceAcceptanceService.cs` owns independent reviewer checks, serialized immutable decisions and atomic generation changes.
 - API: `UiEndpoints.AccountingRecords.cs` maps scoped source-acceptance reads and antiforgery-protected writes; `UiEndpoints.Infrastructure.cs` declares the native deep link.
-- Angular: `features/accounting/source-acceptance.ts` owns native Signal Forms, explicit evidence-reference tab recovery, navigation protection and unknown-outcome fencing; `features/engagements/tb-source.ts` links from the inspected source.
-- Tests: `SourceAcceptanceApiTests.cs`, `AngularSourceAcceptanceJourneyTests.cs`, `source-acceptance.spec.ts` and the existing source acceptance/source-binding suites.
+- Angular: `features/accounting/source-acceptance.ts` owns native Signal Forms, explicit evidence-reference tab recovery, navigation protection and unknown-outcome fencing; `features/engagements/tb-source.ts` and `general-ledger.ts` link from their respective inspected sources. GL metadata is separate from TB validation; draft identities cannot cross source kinds.
+- Tests: `SourceAcceptanceApiTests.cs`, `AngularSourceAcceptanceJourneyTests.cs`, `AngularGeneralLedgerAcceptanceJourneyTests.cs`, `source-acceptance.spec.ts`, `general-ledger-acceptance.spec.ts` and the existing source acceptance/source-binding suites.
 
 ## Native general-ledger source inspection
 

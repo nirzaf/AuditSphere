@@ -13,7 +13,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 namespace AuditSphereOps.Api.Tests;
 
-public sealed class SourceAcceptanceApiTests
+public sealed partial class SourceAcceptanceApiTests
 {
   [Fact]
   public async Task ReviewedAcceptance_CsrfAssentConcurrencyAndReceipts_AdvanceGenerationOnce()

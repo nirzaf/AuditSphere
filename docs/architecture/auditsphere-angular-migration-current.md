@@ -277,3 +277,14 @@ results. Edited filters hide the obsolete population until applied. Sealing, ari
 balance, independent source acceptance and completeness are separate facts. Native GL
 upload/completeness commands and GL acceptance remain pending; this read-only slice
 creates no evidence or professional conclusion.
+
+### General ledger independent source review
+
+The native GL inspection links `/ui/app/accounting/gl-sources/{id}/acceptance`.
+Application review exposes real batch/period/book/parser/profile metadata and independent
+GL decisions. Its reviewed revision is rechecked inside the existing serialized acceptance
+transaction. The same native review component preserves fresh assent, explicit evidence-only
+tab recovery, navigation guards and unknown-outcome reconciliation, with separate draft keys
+and runtime decoders for TB and GL. Source-kind-specific selected pointers remain independent.
+GL sealing or acceptance does not assert account-exact completeness; that proof and review
+retain their existing downstream gates. Native GL import/completeness controls remain open.

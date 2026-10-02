@@ -11,7 +11,7 @@ import {
 import { form, FormField, maxLength, required } from '@angular/forms/signals';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { Api, routeGuid } from '../../core/api';
 import { bool, guid, instant, nat, nullable, obj, oneOf, sha256, str } from '../../core/decode';
@@ -67,8 +67,88 @@ const shape = obj({
   canAccept: bool,
   blocker: nullable(str(2000)),
 });
-type Review = ReturnType<typeof shape>;
-export function decodeAcceptance(raw: unknown, path: string): Review {
+const glReceipt = obj({
+  id: guid,
+  firmId: guid,
+  clientId: guid,
+  engagementId: guid,
+  sourceKind: oneOf('GL'),
+  trialBalanceDatasetId: nullable(guid),
+  importBatchId: guid,
+  sourceIdentityHash: sha256,
+  decision: oneOf('ACCEPTED'),
+  evidenceReference: str(2000),
+  acceptedByUserId: guid,
+  createdAt: instant,
+});
+const glSelected = obj({
+  decisionId: guid,
+  sourceKind: oneOf('GL'),
+  trialBalanceDatasetId: nullable(guid),
+  importBatchId: guid,
+  sourceIdentityHash: sha256,
+  acceptedByUserId: guid,
+  acceptedAt: instant,
+  inputGeneration: nat,
+});
+const glShape = obj({
+  importBatchId: guid,
+  clientId: guid,
+  engagementId: guid,
+  periodId: guid,
+  periodCode: str(100),
+  bookId: nullable(guid),
+  currency: str(10),
+  entity: str(500),
+  importState: oneOf('SEALED'),
+  rowCount: nat,
+  rawFileSha256: str(100),
+  sourceHash: str(100),
+  profileVersion: str(200),
+  parserVersion: str(200),
+  importedByUserId: guid,
+  importedAt: instant,
+  inputGeneration: nat,
+  receipt: nullable(glReceipt),
+  selected: nullable(glSelected),
+  revision: sha256,
+  canAccept: bool,
+  blocker: nullable(str(2000)),
+});
+type Review =
+  (ReturnType<typeof shape> & { kind: 'TB' }) | (ReturnType<typeof glShape> & { kind: 'GL' });
+export function decodeGeneralLedgerAcceptance(
+  raw: unknown,
+  path: string,
+): ReturnType<typeof glShape> & { kind: 'GL' } {
+  const v = glShape(raw, path);
+  if (
+    (v.receipt &&
+      (v.receipt.importBatchId !== v.importBatchId ||
+        v.receipt.trialBalanceDatasetId !== null ||
+        v.receipt.clientId !== v.clientId ||
+        v.receipt.engagementId !== v.engagementId ||
+        v.receipt.sourceIdentityHash !== v.sourceHash)) ||
+    (v.selected &&
+      (v.selected.trialBalanceDatasetId !== null ||
+        v.selected.inputGeneration !== v.inputGeneration ||
+        (v.selected.importBatchId === v.importBatchId &&
+          v.selected.sourceIdentityHash !== v.sourceHash))) ||
+    (v.canAccept &&
+      (v.receipt !== null ||
+        v.blocker !== null ||
+        !/^[a-f0-9]{64}$/i.test(v.sourceHash) ||
+        !/^[a-f0-9]{64}$/i.test(v.rawFileSha256) ||
+        !v.periodCode)) ||
+    (!v.canAccept && !v.blocker)
+  )
+    throw new Error('Unsupported general ledger acceptance');
+  return { ...v, kind: 'GL' };
+}
+export function decodeAcceptance(
+  raw: unknown,
+  path: string,
+): ReturnType<typeof shape> & { kind: 'TB' } {
   const v = shape(raw, path);
   if (
     v.sourceRevision < 1 ||
@@ -89,7 +169,7 @@ export function decodeAcceptance(raw: unknown, path: string): Review {
     (!v.canAccept && !v.blocker)
   )
     throw new Error('Unsupported source acceptance');
-  return v;
+  return { ...v, kind: 'TB' };
 }
 export function decodeAcceptanceDraft(raw: unknown): { evidenceReference: string } | null {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
@@ -108,7 +188,11 @@ export function decodeAcceptanceDraft(raw: unknown): { evidenceReference: string
     <audit-page-header
       title="Source acceptance"
       eyebrow="Client accounting"
-      description="Independent human review of one immutable trial balance source."
+      [description]="
+        isGeneralLedger
+          ? 'Independent human review of one immutable general ledger source.'
+          : 'Independent human review of one immutable trial balance source.'
+      "
     />
     <audit-state [loading]="loading()" [error]="error()" label="source acceptance" />
     @if (message()) {
@@ -134,8 +218,16 @@ export function decodeAcceptanceDraft(raw: unknown): { evidenceReference: string
       Refresh source acceptance
     </button>
     @if (review(); as r) {
-      <a matButton [routerLink]="['/app/engagements', r.engagementId, 'tb-intake']"
-        >Back to trial balance intake</a
+      <a
+        matButton
+        [routerLink]="[
+          '/app/engagements',
+          r.engagementId,
+          isGeneralLedger ? 'general-ledger' : 'tb-intake',
+        ]"
+        >{{
+          isGeneralLedger ? 'Back to general ledger inspection' : 'Back to trial balance intake'
+        }}</a
       >
       <section aria-labelledby="source-heading">
         <h2 id="source-heading">Proposed source</h2>
@@ -143,47 +235,75 @@ export function decodeAcceptanceDraft(raw: unknown): { evidenceReference: string
           {{ r.entity }} · {{ r.currency }} · {{ r.periodCode ?? 'No linked reporting period' }}
         </p>
         <dl>
-          <dt>Dataset</dt>
-          <dd>{{ r.datasetId }}</dd>
+          <dt>{{ isGeneralLedger ? 'GL import batch' : 'Dataset' }}</dt>
+          <dd>{{ sourceIdentity(r) }}</dd>
           <dt>Client</dt>
           <dd>{{ r.clientId }}</dd>
           <dt>Engagement</dt>
           <dd>{{ r.engagementId }}</dd>
-          <dt>Source revision</dt>
-          <dd>{{ r.sourceRevision }}</dd>
+          @if (r.kind === 'TB') {
+            <dt>Source revision</dt>
+            <dd>{{ r.sourceRevision }}</dd>
+          } @else {
+            <dt>Book</dt>
+            <dd>{{ r.bookId ?? 'No linked book' }}</dd>
+            <dt>Imported line count</dt>
+            <dd>{{ r.rowCount }}</dd>
+            <dt>Raw file digest</dt>
+            <dd>{{ r.rawFileSha256 || 'Unavailable' }}</dd>
+            <dt>Import profile / parser</dt>
+            <dd>{{ r.profileVersion }} / {{ r.parserVersion }}</dd>
+          }
           <dt>Source digest</dt>
           <dd>{{ r.sourceHash || 'Unavailable' }}</dd>
           <dt>Imported by</dt>
           <dd>{{ r.importedByUserId }} · {{ r.importedAt }}</dd>
-          <dt>Worker validation</dt>
-          <dd>
-            {{ r.validationStatus }} · {{ r.importState }} ·
-            {{ r.balanced ? 'Balanced' : 'Unbalanced' }}
-          </dd>
+          @if (r.kind === 'TB') {
+            <dt>Worker validation</dt>
+            <dd>
+              {{ r.validationStatus }} · {{ r.importState }} ·
+              {{ r.balanced ? 'Balanced' : 'Unbalanced' }}
+            </dd>
+          } @else {
+            <dt>Import state</dt>
+            <dd>{{ r.importState }}</dd>
+          }
           <dt>Current input generation</dt>
           <dd>{{ r.inputGeneration }}</dd>
         </dl>
-        <p>
-          Worker validation and sealing do not replace independent source acceptance or a
-          professional conclusion.
-        </p>
+        @if (isGeneralLedger) {
+          <p>
+            Sealing and source acceptance do not establish GL completeness or a professional
+            conclusion. Account-exact completeness evidence and its independent review remain
+            separate downstream gates.
+          </p>
+        } @else {
+          <p>
+            Worker validation and sealing do not replace independent source acceptance or a
+            professional conclusion.
+          </p>
+        }
       </section>
       <section aria-labelledby="selection-heading">
         <h2 id="selection-heading">Current selected source → proposed source</h2>
         @if (r.selected; as s) {
           <p class="identity">
-            Current: {{ s.trialBalanceDatasetId }} · decision {{ s.decisionId }} ·
+            Current: {{ isGeneralLedger ? s.importBatchId : s.trialBalanceDatasetId }} · decision
+            {{ s.decisionId }} ·
             {{ s.sourceIdentityHash }}
           </p>
         } @else {
-          <p>No trial balance source is selected for this engagement.</p>
+          <p>
+            No {{ isGeneralLedger ? 'general ledger' : 'trial balance' }} source is selected for
+            this engagement.
+          </p>
         }
-        <p class="identity">Proposed: {{ r.datasetId }} · {{ r.sourceHash }}</p>
+        <p class="identity">Proposed: {{ sourceIdentity(r) }} · {{ r.sourceHash }}</p>
         <p>
-          Selection is for this engagement and source kind (TB), across reporting periods. A
-          different selected source will be superseded. Earlier decisions remain retained.
-          Acceptance advances input generation; dependent evidence may become stale and needs
-          re-preparation.
+          Selection is for this engagement and source kind ({{ isGeneralLedger ? 'GL' : 'TB' }}),
+          across reporting periods. A different selected source will be superseded. Earlier
+          decisions remain retained. Acceptance advances input generation; dependent evidence may
+          become stale and needs re-preparation.
         </p>
       </section>
       @if (r.receipt; as a) {
@@ -332,7 +452,16 @@ export class SourceAcceptance implements NavigationProtected {
   private readonly session = inject(SessionService);
   private readonly drafts = inject(TabDrafts);
   private readonly dialog = inject(MatDialog);
+  readonly isGeneralLedger = inject(ActivatedRoute).snapshot?.data?.['sourceKind'] === 'GL';
   readonly id = routeGuid();
+  sourceIdentity(r: Review): string {
+    return r.kind === 'GL' ? r.importBatchId : r.datasetId;
+  }
+  private endpoint(id: string) {
+    return this.isGeneralLedger
+      ? `/api/ui/gl-sources/${id}/acceptance`
+      : `/api/ui/datasets/${id}/source/acceptance`;
+  }
   readonly review = signal<Review | null>(null);
   readonly loading = signal(false);
   readonly busy = signal(false);
@@ -364,7 +493,7 @@ export class SourceAcceptance implements NavigationProtected {
     return { evidenceReference: this.model().evidenceReference };
   }
   private entity() {
-    return `source-acceptance:${this.id()}`;
+    return `${this.isGeneralLedger ? 'gl-source-acceptance' : 'source-acceptance'}:${this.id()}`;
   }
   private scope() {
     return { entity: this.entity(), baseRevision: this.review()?.revision ?? '' };
@@ -402,7 +531,9 @@ export class SourceAcceptance implements NavigationProtected {
         this.message.set('');
         if (s?.staff && this.id()) void this.refresh();
         else if (s?.staff)
-          this.error.set('Choose an available source through trial balance intake.');
+          this.error.set(
+            'Choose an available source through the engagement intake or general ledger inspection.',
+          );
       });
     });
   }
@@ -439,10 +570,13 @@ export class SourceAcceptance implements NavigationProtected {
     this.reconciled.set(false);
     this.invalidateReview();
     try {
-      const r = await this.api.get(`/api/ui/datasets/${id}/source/acceptance`, decodeAcceptance);
+      const r = await this.api.get<Review>(
+        this.endpoint(id),
+        this.isGeneralLedger ? decodeGeneralLedgerAcceptance : decodeAcceptance,
+      );
       if (!this.current(generation, id, request)) return;
       if (
-        r.datasetId !== id ||
+        this.sourceIdentity(r) !== id ||
         (r.receipt && r.receipt.firmId !== this.session.current()?.firmId) ||
         (r.canAccept && r.importedByUserId === this.session.current()?.userId)
       )
@@ -536,12 +670,12 @@ export class SourceAcceptance implements NavigationProtected {
     )
       return;
     const generation = this.session.invalidation(),
-      id = r.datasetId,
+      id = this.sourceIdentity(r),
       request = this.request;
     this.busy.set(true);
     this.invalidateReview();
     this.message.set('');
-    const result = await this.api.command<string>(`/api/ui/datasets/${id}/source/acceptance`, {
+    const result = await this.api.command<string>(this.endpoint(id), {
       revision: r.revision,
       evidenceReference: this.model().evidenceReference,
       reviewed: true,

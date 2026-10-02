@@ -19,7 +19,7 @@ public sealed record SourceAcceptanceReview(
   string Revision, bool CanAccept, string? Blocker);
 
 /// <summary>Review/reconciliation of one immutable TB source. Selection remains per engagement/source kind, not per period.</summary>
-public static class SourceAcceptanceWorkspace
+public static partial class SourceAcceptanceWorkspace
 {
   private static readonly string[] ReviewerRoles = ["AccountingReviewer", "Manager", "Partner", "Administrator"];
   internal static bool ValidHash(string? value) => value?.Length == 64 && value.All(Uri.IsHexDigit);

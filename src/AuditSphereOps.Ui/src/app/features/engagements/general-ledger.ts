@@ -99,6 +99,11 @@ const blank = () => ({ account: '', from: '', to: '', journal: '', counterparty:
         }
         <audit-state [loading]="source.loading()" [error]="source.error()" label="ledger records" />
         @if (source.data(); as s) {
+          <a
+            matButton
+            [routerLink]="['/app/accounting/gl-sources', s.context.batchId, 'acceptance']"
+            >Review general ledger source acceptance</a
+          >
           <dl>
             <dt>Immutable source</dt>
             <dd>

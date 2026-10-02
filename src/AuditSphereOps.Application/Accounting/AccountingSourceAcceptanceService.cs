@@ -117,11 +117,23 @@ public static class AccountingSourceAcceptanceService
     }
     if (request.ReviewRevision is not null)
     {
-      if (kind != AccountingSourceKinds.TrialBalance || !request.Reviewed)
+      if (!request.Reviewed)
         return CommandResult<Guid>.Fail(ErrorCodes.StaleRevision, "Review the current source and selected pointer before accepting it.");
-      var review = await SourceAcceptanceWorkspace.GetAsync(db, actor, request.TrialBalanceDatasetId!.Value, ct);
-      if (!review.Succeeded) return CommandResult<Guid>.Fail(review.ErrorCode!, review.Message!);
-      if (!review.Value!.CanAccept || review.Value.Revision != request.ReviewRevision)
+      bool canAccept;
+      string revision;
+      if (kind == AccountingSourceKinds.TrialBalance)
+      {
+        var review = await SourceAcceptanceWorkspace.GetAsync(db, actor, request.TrialBalanceDatasetId!.Value, ct);
+        if (!review.Succeeded) return CommandResult<Guid>.Fail(review.ErrorCode!, review.Message!);
+        canAccept = review.Value!.CanAccept; revision = review.Value.Revision;
+      }
+      else
+      {
+        var review = await SourceAcceptanceWorkspace.GetGeneralLedgerAsync(db, actor, request.ImportBatchId!.Value, ct);
+        if (!review.Succeeded) return CommandResult<Guid>.Fail(review.ErrorCode!, review.Message!);
+        canAccept = review.Value!.CanAccept; revision = review.Value.Revision;
+      }
+      if (!canAccept || revision != request.ReviewRevision)
         return CommandResult<Guid>.Fail(ErrorCodes.StaleRevision, "The source, selected pointer or authority changed. Refresh and review again.");
     }
 

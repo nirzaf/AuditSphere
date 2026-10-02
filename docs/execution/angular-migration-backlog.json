@@ -126,7 +126,7 @@
       "id": "US-021",
       "title": "Migrate multi-period trial-balance intake and general ledger",
       "status": "PARTIAL",
-      "scope": "Native exact multi-period TB upload/receipt recovery, source/issue inspection, revision-bound CSV export and independent reviewed TB source acceptance are implemented. Native GL inspection adds scoped source catalogue, server filters/pages and complete bounded journals with current selection distinct from arithmetic balance. GL import/completeness commands, GL acceptance UI and full intake parity remain open."
+      "scope": "Native exact multi-period TB upload/receipt recovery, source/issue inspection, revision-bound CSV export and independent reviewed TB source acceptance are implemented. Native GL inspection adds scoped source catalogue, server filters/pages and complete bounded journals with current selection distinct from arithmetic balance. Native independent GL acceptance now binds real batch metadata, current selected GL pointer and actor/session to a reviewed transaction, retaining separate TB/GL selections and unknown-outcome recovery. GL import/completeness commands and full intake parity remain open."
     },
     {
       "id": "US-022",

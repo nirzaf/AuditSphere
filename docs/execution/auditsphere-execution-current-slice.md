@@ -32,6 +32,24 @@ which the full suite was run; per-slice records carry their own evidence.
 
 
 
+## Native independent general-ledger source acceptance
+
+The Angular GL inspection links a native independent source-review page. The Application
+workspace returns GL batch, raw/normalized identity, period/book, parser/profile, line count,
+importer, current selection and retained decision without fabricating TB revision or validation
+fields. The reviewed revision binds current source, period, safety generation, authority and
+selected GL pointer; the existing acceptance transaction rechecks it under ordered locks.
+Concurrent commands cannot publish duplicate decisions or advance generation twice. Importer
+self-review, closed periods, frozen/blocked engagements and stale authority remain refused.
+
+The shared Angular review form preserves separate TB/GL draft identities, fresh assent,
+protected navigation and pending-outcome fences. A lost response requires an explicit persisted
+read and acknowledgment before further writes. GL acceptance changes only the selected GL
+pointer; existing TB selection remains independent. Sealing and acceptance never assert
+account-exact GL completeness or a professional conclusion. Native GL import/completeness
+commands, mapping editing and wider parity/retirement acceptance remain open. Local verification,
+publication and synthetic built-in-browser evidence are recorded in `status.json`.
+
 ## Native general-ledger source inspection
 
 The Angular engagement workflow now opens a server-paged catalogue of sealed GL sources,
@@ -45,7 +63,7 @@ responses for another source, reporting context or selected pointer. Journal det
 all lines of a bounded journal, with explicit refusal for oversized journals instead of a
 truncated balance verdict. Current independent source selection is displayed separately
 from sealing and arithmetic balance. Inspection publishes no acceptance or completeness
-record. GL import/completeness commands, GL acceptance UI, mapping editing and wider
+record. GL import/completeness commands, mapping editing and wider
 migration/retirement acceptance remain open. Verification and publication facts are in
 `status.json`; the browser fixture is synthetic and establishes no live provider acceptance.
 
