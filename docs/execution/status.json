@@ -4,12 +4,12 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "af9f04e85a951552d1f7d4a09dbb39aa01e52b4d",
-  "verifiedCommit": "de2839e8e827fe29b15db0d2b35d7d636dc1e96d",
+  "headCommit": "4820da116242649ff1eb8fb47cb0000a0289942a",
+  "verifiedCommit": "af9f04e85a951552d1f7d4a09dbb39aa01e52b4d",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": true,
   "productionEnabled": false,
-  "verifiedAt": "2026-10-02T18:14:20.277315+00:00",
+  "verifiedAt": "2026-10-02T19:39:47.326268+00:00",
   "toolchain": {
     "sdk": ".NET 10",
     "efCore": "10.0.12",
@@ -21,9 +21,9 @@
     "ciLatestHostedRun": "PASS: hosted CI run 36446032819 at exact setup-activation UI source commit cc3d624cce489f870df9d7cb7512a869ee8cc4a1. Run 36447224902 for active-review source commit be80aad351f5497f3e7408d9e886d994a5bd1c2a was cancelled after a separate README push; run 36447354520 for that subsequent commit was in progress at the last check. Hosted CI verifies Release build, EF model drift and documentation health; it does not run PostgreSQL/browser suites or establish production acceptance.",
     "ciLockedRestore": "PASS locally: SDK policy regression check rejected latestPatch and passed after global.json required rollForward=disable for SDK 10.0.300. CI now installs from global.json and checks SDK selection before locked restore. dotnet tool restore; dotnet restore AuditSphereOps.slnx --locked-mode; dotnet build AuditSphereOps.slnx --no-restore --configuration Release all passed. Actionlint v1.7.7 passed with ShellCheck/Pyflakes disabled. Package lock files unchanged. Addresses run 35920521850 NU1004 for SDK-injected Microsoft.AspNetCore.App.Internal.Assets 10.0.11 versus locked 10.0.8; local SDK 10.0.300 evaluates 10.0.8. Full tests and hosted execution of this fix not rerun.",
     "ciWorkflowValidation": "PASS locally: actionlint v1.7.7 reproduced the forbidden runner context in job-level env, then exited 0 after E2E_RUN_ROOT initialization moved to a step using RUNNER_TEMP and GITHUB_ENV. Command: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7 -shellcheck= -pyflakes= .github/workflows/ci.yml. Bash assertion also passed for a temporary path containing spaces and run/attempt suffix 393-2. ShellCheck/Pyflakes disabled; full .NET suite and hosted GitHub Actions not rerun for this workflow-only fix.",
-    "build": "PASS at source commit be80aad: Release Web build, 0 warnings/errors. Hosted CI passed at preceding UI source commit cc3d624; be80aad run 36447224902 was cancelled after a separate README push.",
-    "tests": "PASS: PostgreSQL-backed Microsoft365OnboardingTests 5/5 and M365SetupJourneyTests 2/2 at active-review source commit be80aad. Earlier provider-evidence source acdf86e passed focused Domain 27/27 and targeted M365 browser E2E 7/7; boundary source 59b5f59 passed 8/8. No current full solution suite or production acceptance is claimed.",
-    "testCommand": "dotnet build AuditSphereOps.slnx --no-restore --configuration Release; dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --configuration Release --no-restore --filter GraphSelectedResourceProbeTests|Microsoft365OnboardingTests|TenantAdministrationTests; dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --configuration Release --no-build --filter M365SetupJourneyTests|TenantAdministrationJourneyTests.",
+    "build": "PASS at frozen published source acceptance: locked restore, Angular production and Release solution builds, zero .NET warnings/errors. The newer GL inspection has a separately recorded passing local build and its frozen full regression is building.",
+    "tests": "PASS full PostgreSQL-backed solution regression at af9f04e: Domain555, API83, browser135, total773; zero failures/skips. Newer GL inspection has separate API87, Angular154, affected Domain11 and browser4 passing gates; its full solution regression is pending.",
+    "testCommand": "Frozen source acceptance: dotnet tool restore; dotnet restore AuditSphereOps.slnx --locked-mode; npm --prefix src/AuditSphereOps.Ui ci; npm --prefix src/AuditSphereOps.Ui run build; dotnet build AuditSphereOps.slnx --configuration Release --no-restore -m:1; dotnet test AuditSphereOps.slnx --configuration Release --no-build.",
     "testResults": "RR-01..RR-04 acceptance: ForeignOperation_Gold07_ReplayApprovalAndReadbackAreStable (identical translation and run retries, independent approval, CURRENT_APPROVED readback twice); ForeignOperation_MissingRequiredAverageDoesNotFallback and ForeignOperation_MissingRequiredHistoricalDoesNotFallback (typed gate.blocked, no persisted result); ForeignOperation_ZeroReserveStillUsesPerLinePurposes (Cash 400, Payables -480, Capital -280, Revenue -144, Expense 504, no reserve line, sum 0) now extended through separate-partner ApproveRunAsync and GetLatestReportAsync returning CURRENT_APPROVED with Capital -280 / Revenue -144 / Expense 504 intact; ForeignOperation_UnknownTaxonomyRequiresApprovedMapping (unmapped blocks, one approved mapping resolves, conflicting mappings block); ForeignOperation_ManifestUsesExactLineRateIdentity (each manifest row carries its own source line's rate purpose and rate); ForeignOperation_ChangedRateOrComponentStalesOldReview (rate and source changes make an approved report stale). RR-02 rate-boundary acceptance: RateSet_RejectsZeroNegativeAndSameCurrencyObservations (zero, negative and same-currency observations refused at the rate-set boundary), ForeignOperation_SameCurrencyComponentTranslatesAsIdentity (identity rate 1 through translation and independent approval, no rate observation consumed), ForeignOperation_AssetOnlyProfileNeedsOnlyClosingRate (valid asset-only profile needs only the closing rate and yields zero reserve), LineTranslationTests.MissingRatesFailClosed (missing/zero/negative/unspecified rates fail closed) and SameCurrencyNeedsNoRate (identity at the bridge). The group-report export/archive leg is a declared M37/M38 boundary (module 26 contract Group-report release boundary), excluded from evidence rather than claimed. AI-navigability refactor: all 402 tests pass with unchanged test semantics across the capability-partial splits; ArchitectureGuardTests enforce the project reference direction. RR-08 pack acceptance: test_source_ids_preserve_original_procedure_meaning and test_audit_handover_requires_declared_acceptance_inputs pass. No tenant or production effect. MudBlazor slice 3: CurrencyRemeasurement migrated with the draft-state contract intact (boundary section, five selects and the date input native; text/numeric line fields are MudBlazor controls with forwarded data-draft-field attributes); form controls migrated on 15 pages with typed MudBlazor components and no native <button> remaining; three select groups stayed native after the suite exposed SelectOptionAsync, hidden-input visibility and raw-value InputValueAsync contracts; accounting navigation standardized on a MudPaper link bar with aria-current and exact home matching; app.css consolidated (.accounting-tabs, .button, .card-grid, button:disabled removed; .accounting-nav added). No authorization, business-rule, route or persistence change and no new migration. MudBlazor slice 4 completion: the FinancialPackage Stage select and the AssessmentDecision decision-outcome select converted to MudSelect at full assertion strength (SelectMudOptionAsync popover interaction choosing the same value; the decision id moved to the visible wrapper so its visibility/absence assertions needed no change); Microsoft 365 capability selects stay native permanently under the raw-value InputValueAsync contract; draft-state.js excludes input type=hidden composite-widget internals from discovery and collection; RouteRenderSmokeTests visits every parameterless inventoried route (19 staff routes plus the client portal) asserting heading render and zero page errors. No authorization, business-rule, route or persistence change. MudBlazor final reconciliation: the migration document now records the verified counts (42 page components, 49 routes, 0 native buttons, 39 intentional native controls across 9 pages, 5 native tables with per-table tfoot/colspan/caption reasons) and the Web-only reference; StatusChip maps POSTED, RECONCILED and ACCEPTED to success with the check-circle icon and RESUBMITTED to info; the dead .field-label and .context-bar CSS rules were removed. No UI behavior, business-rule, authorization or persistence change.",
     "testEnvironmentRecovery": "The preceding run had 141 passed and 105 failed while PostgreSQL was shutting down. The server log records a smart shutdown request at 2026-09-22T19:25:04Z; its initiator is unknown. Started the stopped local cluster on 127.0.0.1:5433, confirmed PostgreSQL 18.6 and the auditsphere_tests database, then reran the entire suite successfully without source, test, assertion or runner changes. PostgreSQL remained available after the run; no production effects were enabled.",
     "migrations": "The persistent local auditsphere Development database has 111 applied repository migrations through 20260928124122_M365TenantAdministration (queried from __EFMigrationsHistory on 2026-09-28). The M365 tenant-administration migration was applied after a private backup. EF reports no pending model changes at source commit f044d3d. No production database was migrated.",
@@ -2413,7 +2413,7 @@
       "documentation": "PASS documentation health, filenames, protected narrative metrics, current Razor source inventory and git diff checks. No Wiki publication.",
       "secretScan": "PASS staged redacted gitleaks scan; no detected leaks.",
       "fullSuite": {
-        "status": "RUNNING",
+        "status": "PASS",
         "sourceCommit": "af9f04e85a951552d1f7d4a09dbb39aa01e52b4d",
         "worktree": "/Users/qts/.codex/worktrees/angular-source-acceptance/AuditSphere",
         "buildLog": "/private/tmp/auditsphere-source-acceptance-full-build.log",
@@ -2429,20 +2429,27 @@
           "aspNetArtifactSha256": "31cdb9ca8560fb2caa8f2f64325273aa8834d86e06d7e03e4ac42505455da81a",
           "applicationArtifactSha256": "ffd609520f674bfdf898cc7cf654c58b6267e696014077fe8efd9e72a8c0014e"
         },
-        "scope": "All three test projects running from the exact published implementation; no terminal test result yet.",
-        "partialResults": {
-          "api": {
-            "passed": 83,
-            "failed": 0,
-            "skipped": 0
-          },
-          "domain": {
-            "passed": 555,
-            "failed": 0,
-            "skipped": 0
-          },
-          "browser": "RUNNING; no terminal result yet."
-        }
+        "scope": "Full PostgreSQL-backed solution suite passed on the frozen published source-acceptance implementation. Angular/API/source artifact fingerprints and logs retained outside Git; local regression is not live Microsoft or professional/deployment acceptance.",
+        "exitCode": 0,
+        "passed": 773,
+        "failed": 0,
+        "skipped": 0,
+        "api": {
+          "passed": 83,
+          "failed": 0,
+          "skipped": 0
+        },
+        "domain": {
+          "passed": 555,
+          "failed": 0,
+          "skipped": 0
+        },
+        "browser": {
+          "passed": 135,
+          "failed": 0,
+          "skipped": 0
+        },
+        "worktreeDisposition": "ARCHIVED; confirmed through attached artifacts after terminal full-suite PASS."
       },
       "remaining": "GL import/completeness and GL acceptance UI, reviewed mapping/forms/drafts, wider migration parity and controlled Blazor retirement remain open.",
       "implementationCommit": "af9f04e85a951552d1f7d4a09dbb39aa01e52b4d",
@@ -2535,9 +2542,31 @@
       "builtInBrowserArtifactMatch": "Angular, API and Application artifact hashes matched before and after the API-test-only expiry correction; built-in browser proof remains on the exact final product artifacts.",
       "secretScan": "PASS staged redacted gitleaks scan. A diagnostic generic-api-key match was exactly the compiled API test DLL SHA-256 under an ambiguous label; checksum labels were clarified and the full staged scan passed with no exclusions.",
       "fullSuite": {
-        "status": "NOT_RUN",
-        "scope": "This local slice has full API plus affected Domain/browser verification. A frozen published-source full regression will follow; previous source-acceptance regression is still awaiting browser terminal result."
-      }
+        "status": "RUNNING",
+        "sourceCommit": "4820da116242649ff1eb8fb47cb0000a0289942a",
+        "worktree": "/Users/qts/.codex/worktrees/angular-general-ledger/AuditSphere",
+        "buildLog": "/private/tmp/auditsphere-gl-inspection-full-build.log",
+        "log": "/private/tmp/auditsphere-gl-inspection-full-suite.log",
+        "fingerprintsPath": "/private/tmp/auditsphere-gl-inspection-isolated-artifact-hashes.json",
+        "boundary": "Frozen published GL inspection. Sequential locked restore, Angular/Release builds and source/Angular fingerprint comparisons precede all solution tests. No full PASS before terminal completion.",
+        "build": "PASS sequential locked restore, Angular production and Release solution builds; zero .NET warnings/errors. Source and Angular fingerprint comparisons passed.",
+        "fingerprints": {
+          "sourceCommit": "4820da116242649ff1eb8fb47cb0000a0289942a",
+          "sourceFingerprintSha256": "f96f4e866179f5212247cc796234edcfc1e75d9f7f23e1b9f1168cf529abb4b3",
+          "angularArtifactSha256": "66a18ba7d2aaea5b59fe5086f286925d5409e36bcc6135380c48be8ecc8f6000",
+          "angularFileCount": 79,
+          "aspNetArtifactSha256": "9df0ddbdfa6cd41d438c7ea7e6ceb588ef86715155dbe1e39701eb6a6b45d358",
+          "applicationArtifactSha256": "ff173b79fd6628a38647b55b6c7308a5b55c410d401136135182a25ff5f46005",
+          "testAssemblySha256": {
+            "backend": "48c55c9fc245a7fc26da0f1268883272be70ff6d4eb7a7c15583e88ecd84d713",
+            "domain": "ce8dd1e29b296192959911ffd91c72d159e0799c6f80fb2f3a7bd84fb64d847d",
+            "browser": "ff2f9d364393f53e883447692c123631b73ddfb0ddf624ba6a20f22892b816c3"
+          }
+        }
+      },
+      "implementationCommit": "4820da116242649ff1eb8fb47cb0000a0289942a",
+      "remoteMasterConfirmed": true,
+      "publication": "Direct master push confirmed independently by git ls-remote; full regression dispatched on the exact published source."
     }
   },
   "documentationWork": {
@@ -2645,7 +2674,7 @@
     "implementationStatus": "PARTIAL",
     "acceptanceStatus": "PARTIAL",
     "scope": "Standalone API and native Angular capability slices preserve Application authorization, exact financial inputs, durable operations and independent human gates. Legacy Blazor remains available for rollback until wider parity and retirement acceptance.",
-    "nextAction": "Publish verified GL inspection, run the frozen full regression and implement guarded native GL acceptance/completeness and import controls, then reviewed mapping editing/drafts and remaining migration stories.",
+    "nextAction": "Finish frozen GL inspection regression and implement guarded native GL acceptance/completeness and import controls, then reviewed mapping editing/drafts and remaining migration stories.",
     "branch": "master"
   },
   "localEvidence": [

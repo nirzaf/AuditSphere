@@ -65,6 +65,9 @@ recovery and never restore review assent. Unknown submissions require an explici
 read and acknowledgment before further writes or navigation. Inspection and worker validation
 remain distinct from independent human acceptance and professional conclusions.
 
+The frozen published source-acceptance regression has passed across all solution projects;
+exact source, build and test evidence is retained in `status.json`.
+
 The earlier reviewed-upload full regression completed with a rollback Blazor role-picker timeout;
 the same journey passed an isolated rerun on unchanged artifacts. Both results are retained in
 `status.json`; no full-suite pass is inferred. GL intake/completeness, reviewed mapping editing,
