@@ -3603,8 +3603,13 @@
         ]
       },
       "fullSuite": {
-        "status": "NOT_RUN",
-        "boundary": "Focused and whole API results are not full unchanged-solution regression. Prior statement frozen regression is separately running."
+        "status": "RUNNING",
+        "sourceCommit": "6c9801362b49a285454be7bd9272fba874e0b84a",
+        "worktree": "/private/tmp/auditsphere-journal-regression-20261002",
+        "buildLog": "/private/tmp/auditsphere-journal-regression-build.log",
+        "log": "/private/tmp/auditsphere-journal-regression-suite.log",
+        "fingerprintsPath": "/private/tmp/auditsphere-journal-regression-hashes.json",
+        "boundary": "Frozen published source, sequential locked restore/build and unchanged full solution suite; terminal result required for full pass."
       },
       "remaining": [
         "Native new-journal creation",
@@ -3631,7 +3636,14 @@
         "scope": "Complete staged native journal lifecycle, migration and documentation diff scanned with redaction; no leaks detected.",
         "log": "/private/tmp/auditsphere-journal-secret-scan.log"
       },
-      "docsChecks": "PASS Markdown health, filenames, protected narrative metrics and diff checks. No Wiki publication."
+      "docsChecks": "PASS Markdown health, filenames, protected narrative metrics and diff checks. No Wiki publication.",
+      "publication": {
+        "status": "PUSHED",
+        "branch": "master",
+        "implementationCommit": "6c9801362b49a285454be7bd9272fba874e0b84a",
+        "remoteHeadConfirmed": true,
+        "confirmedAt": "2026-10-02T22:59:31.928036+00:00"
+      }
     }
   },
   "documentationWork": {
