@@ -39,9 +39,9 @@ interface RowInput { likelihood: number; magnitude: number; fraud: boolean; rati
     @if (plan.data(); as p) {
       <p class="actions" aria-label="Audit plan navigation">
         <audit-status [value]="p.professionalWorkBlocked ? 'PLANNING_BLOCKED' : 'PLANNING_ACTIVE'" />
-        <a [href]="'/app/engagements/' + p.engagementId + '/audit-fieldwork'">Fieldwork control center</a>
-        <a href="/app/audit/library">Program library</a>
-        <a [href]="'/app/engagements/' + p.engagementId + '/completion'">Completion checklist</a>
+        <a [routerLink]="['/app/engagements', p.engagementId, 'audit-fieldwork']">Fieldwork control center</a>
+        <a routerLink="/app/audit/library">Program library</a>
+        <a [routerLink]="['/app/engagements', p.engagementId, 'completion']">Completion checklist</a>
       </p>
       <p role="status">{{ p.risks.length }} identified risks · {{ p.populations.length }} populations · {{ p.findings.length }} findings · {{ p.workpapers.length }} workpapers</p>
       @if (p.professionalWorkBlocked) { <p role="alert">Professional work is blocked on this engagement; planning commands are refused until the hold is cleared.</p> }
@@ -154,7 +154,7 @@ interface RowInput { likelihood: number; magnitude: number; fraud: boolean; rati
         <h2 id="populations-heading">Populations (§20.1)</h2>
         <div class="table-scroll"><table>
           <thead><tr><th scope="col">Purpose</th><th scope="col">Assertion</th><th scope="col" class="number">Rows</th><th scope="col" class="number">Control total</th><th scope="col">Status</th></tr></thead>
-          <tbody>@for (x of p.populations; track x.id) { <tr><td><a [href]="'/app/audit/populations/' + x.id">{{ x.purpose }}</a></td><td>{{ x.assertion }}</td><td class="number">{{ x.rowCount }}</td><td class="number">{{ x.currency }} {{ x.monetaryControlTotal | money }}</td><td>{{ x.status }}</td></tr> }
+          <tbody>@for (x of p.populations; track x.id) { <tr><td><a [routerLink]="['/app/audit/populations', x.id]">{{ x.purpose }}</a></td><td>{{ x.assertion }}</td><td class="number">{{ x.rowCount }}</td><td class="number">{{ x.currency }} {{ x.monetaryControlTotal | money }}</td><td>{{ x.status }}</td></tr> }
           @empty { <tr><td colspan="5">No population has been extracted for this engagement.</td></tr> }</tbody>
         </table></div>
         <details><summary>Record a population version</summary>
@@ -172,7 +172,7 @@ interface RowInput { likelihood: number; magnitude: number; fraud: boolean; rati
 
       <section class="panel" aria-labelledby="findings-heading">
         <h2 id="findings-heading">Findings (§23)</h2>
-        <ul>@for (f of p.findings; track f.id) { <li>{{ f.findingType }} · {{ f.status }} · {{ f.monetaryAmount === null ? 'unquantified' : (f.monetaryAmount | money) }} <a [href]="'/app/findings/' + f.id">Open</a></li> }
+        <ul>@for (f of p.findings; track f.id) { <li>{{ f.findingType }} · {{ f.status }} · {{ f.monetaryAmount === null ? 'unquantified' : (f.monetaryAmount | money) }} <a [routerLink]="['/app/findings', f.id]">Open</a></li> }
           @empty { <li>No finding has been recorded for this engagement.</li> }</ul>
         <details><summary>Record a finding</summary>
           <form class="inline-form" (submit)="$event.preventDefault(); recordFinding()">
@@ -185,7 +185,7 @@ interface RowInput { likelihood: number; magnitude: number; fraud: boolean; rati
 
       <section class="panel" aria-labelledby="workpapers-heading">
         <h2 id="workpapers-heading">Audit workpapers (§21.1)</h2>
-        <ul>@for (w of p.workpapers; track w.id) { <li>{{ w.index }} — {{ w.title }} <small>Status: {{ w.status }} · Revision {{ w.revision }}</small> <a [href]="'/app/audit/workpapers/' + w.id">Open</a></li> }
+        <ul>@for (w of p.workpapers; track w.id) { <li>{{ w.index }} — {{ w.title }} <small>Status: {{ w.status }} · Revision {{ w.revision }}</small> <a [routerLink]="['/app/audit/workpapers', w.id]">Open</a></li> }
           @empty { <li>No workpapers created for this audit plan yet.</li> }</ul>
       </section>
     }

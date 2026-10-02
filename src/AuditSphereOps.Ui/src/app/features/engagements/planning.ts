@@ -1,6 +1,7 @@
 import { Component, DestroyRef, effect, inject, input, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
+import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { Subscription, timeout } from 'rxjs';
@@ -154,7 +155,7 @@ export function decodePlanning(value: unknown): Planning {
 }
 @Component({
   selector: 'audit-engagement-planning',
-  imports: [FormsModule, MatButtonModule, MatProgressBarModule],
+  imports: [FormsModule, RouterLink, MatButtonModule, MatProgressBarModule],
   template: ` <section aria-label="Engagement planning">
     <h2>Engagement team and budget</h2>
     @if (loading()) {
@@ -406,7 +407,7 @@ export function decodePlanning(value: unknown): Planning {
           workbench.
         </p>
       }
-      <a [href]="'/app/engagements/' + engagementId()">Manage staffing and budget</a>
+      <a [routerLink]="['/app/engagements', engagementId()]">Manage staffing and budget</a>
     }
   </section>`,
 })

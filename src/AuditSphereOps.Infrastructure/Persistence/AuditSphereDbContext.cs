@@ -406,6 +406,7 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
   public DbSet<AuditSubsequentMatchRecord> AuditSubsequentMatchRecords => Set<AuditSubsequentMatchRecord>();
 
   public DbSet<AuditConfirmationCase> AuditConfirmationCases => Set<AuditConfirmationCase>();
+  public DbSet<AuditConfirmationClosure> AuditConfirmationClosures => Set<AuditConfirmationClosure>();
 
   public DbSet<AuditConfirmationResponse> AuditConfirmationResponses => Set<AuditConfirmationResponse>();
 

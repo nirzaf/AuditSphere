@@ -482,6 +482,7 @@ public sealed class AuthorizationDecisionTests
     public DbSet<AuditSphereOps.Domain.Audit.GoingConcernAssessment> GoingConcernAssessments => db.GoingConcernAssessments;
     public DbSet<AuditSphereOps.Domain.Audit.SubsequentEventReview> SubsequentEventReviews => db.SubsequentEventReviews;
     public DbSet<AuditSphereOps.Domain.Audit.AuditConfirmationCase> AuditConfirmationCases => db.AuditConfirmationCases;
+    public DbSet<AuditSphereOps.Domain.Audit.AuditConfirmationClosure> AuditConfirmationClosures => db.AuditConfirmationClosures;
     public DbSet<AuditSphereOps.Domain.Audit.AuditConfirmationResponse> AuditConfirmationResponses => db.AuditConfirmationResponses;
     public DbSet<AuditSphereOps.Domain.Audit.AuditAlternativeProcedure> AuditAlternativeProcedures => db.AuditAlternativeProcedures;
     public DbSet<AuditSphereOps.Domain.Audit.AuditAreaAssessment> AuditAreaAssessments => db.AuditAreaAssessments;

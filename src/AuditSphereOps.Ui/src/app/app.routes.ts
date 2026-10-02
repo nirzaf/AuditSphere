@@ -1,7 +1,10 @@
 import { Routes } from '@angular/router';
 import { clientGuard } from './core/client.guard';
+import { unsavedChangesGuard } from './core/unsaved-changes';
 import { staffGuard } from './core/staff.guard';
 export const routes: Routes = [
+  { path: 'setup/microsoft365', title: 'Initial administrator setup · AuditSphere',
+    loadComponent: () => import('./features/admin/bootstrap').then(m => m.InstallationBootstrap) },
   { path: 'app/administration/microsoft365/tenant-connection', canActivate: [staffGuard], title: 'Microsoft tenant connection · AuditSphere',
     loadComponent: () => import('./features/admin/tenant').then(m => m.TenantConnection) },
   { path: 'app/administration/users', canActivate: [staffGuard], title: 'Users & Access · AuditSphere',
@@ -75,6 +78,8 @@ export const routes: Routes = [
     loadComponent: () => import('./features/audit/completion').then(m => m.EngagementCompletion) },
   { path: 'app/completion/:id', canActivate: [staffGuard], title: 'Engagement completion · AuditSphere',
     loadComponent: () => import('./features/audit/completion').then(m => m.EngagementCompletion) },
+  { path: 'app/engagements/:id/confirmations', canActivate: [staffGuard], canDeactivate: [unsavedChangesGuard], runGuardsAndResolvers: 'paramsOrQueryParamsChange', title: 'Confirmations · AuditSphere',
+    loadComponent: () => import('./features/audit/confirmations').then(m => m.Confirmations) },
   { path: 'app/engagements/:id/audit-fieldwork', canActivate: [staffGuard], title: 'Audit fieldwork · AuditSphere',
     loadComponent: () => import('./features/audit/fieldwork').then(m => m.AuditFieldwork) },
   { path: 'app/engagements/:id/audit-plan', canActivate: [staffGuard], title: 'Audit plan · AuditSphere',

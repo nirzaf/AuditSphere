@@ -66,7 +66,7 @@ public sealed record ActivateConnectionRequest(
 /// Local template/configuration boundary. It never resolves a Graph path or marks a
 /// Microsoft capability verified; those effects require a separate provider proof.
 /// </summary>
-public static class Microsoft365ConfigurationService
+public static partial class Microsoft365ConfigurationService
 {
   private static readonly HashSet<string> AllowedTokens = new(StringComparer.Ordinal)
   {
@@ -209,10 +209,12 @@ public static class Microsoft365ConfigurationService
     if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
 
     await using var tx = await db.Database.BeginTransactionAsync(ct);
-    var draft = await db.Microsoft365SetupDrafts.SingleOrDefaultAsync(x =>
-      x.Id == request.SetupDraftId && x.FirmId == actor.FirmId, ct);
-    var connection = await db.Microsoft365ConnectionRevisions.SingleOrDefaultAsync(x =>
-      x.Id == request.ConnectionRevisionId && x.FirmId == actor.FirmId, ct);
+    var draft = await db.Microsoft365SetupDrafts.FromSqlInterpolated($"""
+      SELECT * FROM m365_setup_drafts WHERE id = {request.SetupDraftId} AND firm_id = {actor.FirmId} FOR UPDATE
+      """).SingleOrDefaultAsync(ct);
+    var connection = await db.Microsoft365ConnectionRevisions.FromSqlInterpolated($"""
+      SELECT * FROM m365_connection_revisions WHERE id = {request.ConnectionRevisionId} AND firm_id = {actor.FirmId} FOR UPDATE
+      """).SingleOrDefaultAsync(ct);
     var template = await db.FolderTemplateVersions.SingleOrDefaultAsync(x =>
       x.Id == request.FolderTemplateVersionId && x.FirmId == actor.FirmId &&
       x.Purpose == FolderTemplatePurposes.ClientWorkspace, ct);
@@ -280,6 +282,9 @@ public static class Microsoft365ConfigurationService
       DefaultForFutureClients = true, CreatedAt = now
     };
     db.FirmWorkspaceConfigurations.Add(workspace);
+    TenantAdministration.AddEvent(db, actor, "SELECTED_WORKSPACE_ACTIVATED", now,
+      targetTenantId: connection.TenantId, oldState: connection.State, newState: "ACTIVE",
+      reason: "Administrator reviewed the exact selected resource and approved template", result: workspace.Id.ToString());
     connection.State = Microsoft365RevisionStates.Active;
     connection.ApprovedByUserId = actor.UserId;
     connection.ActivatedAt = now;
@@ -306,15 +311,22 @@ public static class Microsoft365ConfigurationService
     if (templateId == Guid.Empty) return CommandResult.Fail("m365.template.invalid", "A template is required.");
     var auth = await FirmAdministratorAsync(db, actor, ct);
     if (!auth.Succeeded) return auth;
-    var template = await db.FolderTemplateVersions.SingleOrDefaultAsync(x =>
-      x.Id == templateId && x.FirmId == actor.FirmId, ct);
+    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    var template = await db.FolderTemplateVersions.FromSqlInterpolated($"""
+      SELECT * FROM m365_folder_template_versions WHERE id = {templateId} AND firm_id = {actor.FirmId} FOR UPDATE
+      """).SingleOrDefaultAsync(ct);
     if (template is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "The template is unavailable.");
     if (template.ApprovedAt is null)
     {
       template.ApprovedAt = now;
       template.ApprovedByUserId = actor.UserId;
+      TenantAdministration.AddEvent(db, actor, "FOLDER_TEMPLATE_APPROVED", now, oldState: "UNAPPROVED", newState: "APPROVED",
+        reason: "Administrator reviewed the immutable folder manifest", result: template.Id.ToString());
+      auth = await FirmAdministratorAsync(db, actor, ct);
+      if (!auth.Succeeded) return auth;
       await db.SaveChangesAsync(ct);
     }
+    await tx.CommitAsync(ct);
     return CommandResult.Ok();
   }
 
@@ -366,6 +378,9 @@ public static class Microsoft365ConfigurationService
       CreatedAt = now
     };
     db.FolderTemplateVersions.Add(template);
+    TenantAdministration.AddEvent(db, actor, "FOLDER_TEMPLATE_SAVED", now, oldState: current?.ManifestDigest ?? "NONE",
+      newState: template.ManifestDigest, reason: "Administrator saved a reviewed folder manifest", result: template.Id.ToString());
+    if (!await TenantAdministration.IsCurrentAdministratorAsync(db, actor, ct)) return TenantAdministration.Denied<FolderTemplateResult>();
     await db.SaveChangesAsync(ct);
     await tx.CommitAsync(ct);
     return CommandResult<FolderTemplateResult>.Ok(ToResult(template, validation.Value.NodeCount));
@@ -386,6 +401,8 @@ public static class Microsoft365ConfigurationService
       if (document.RootElement.ValueKind != JsonValueKind.Object ||
           !document.RootElement.TryGetProperty("nodes", out var nodes) || nodes.ValueKind != JsonValueKind.Array)
         return CommandResult<FolderTemplateValidation>.Fail("m365.template.invalid", "A template must contain a nodes array.");
+      if (document.RootElement.EnumerateObject().Count() != 1)
+        return CommandResult<FolderTemplateValidation>.Fail("m365.template.invalid", "The template root may contain only one nodes array.");
 
       var keys = new HashSet<string>(StringComparer.Ordinal);
       var nodeCount = 0;
@@ -395,8 +412,10 @@ public static class Microsoft365ConfigurationService
         if (!result.Succeeded)
           return CommandResult<FolderTemplateValidation>.Fail(result.ErrorCode!, result.Message!);
       }
-      if (nodeCount is < 1 or > 200)
-        return CommandResult<FolderTemplateValidation>.Fail("m365.template.invalid", "A template must contain between 1 and 200 folders.");
+      // The STE client manifest intentionally has no intermediate Engagements folder:
+      // the worker puts each engagement year directly under the client root.
+      if (nodeCount > 200 || nodeCount == 0 && purpose != FolderTemplatePurposes.ClientWorkspace)
+        return CommandResult<FolderTemplateValidation>.Fail("m365.template.invalid", "Engagement templates require 1–200 folders; client templates allow 0–200.");
 
       var canonical = CanonicalJson(document.RootElement);
       return CommandResult<FolderTemplateValidation>.Ok(new(

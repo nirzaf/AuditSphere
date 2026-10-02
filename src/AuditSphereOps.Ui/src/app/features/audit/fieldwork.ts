@@ -36,7 +36,7 @@ type Fieldwork = ReturnType<typeof decodeFieldwork>;
     @if (ws.data(); as w) {
       @if (w.program) { <p role="status">{{ w.procedures.length }} adopted procedures · {{ count(w, 'APPLICABLE') }} applicable · {{ reviewed(w) }} reviewed</p> }
       <section class="panel" aria-labelledby="fieldwork-tools-heading">
-        <h2 id="fieldwork-tools-heading">Fieldwork tools</h2>
+        <h2 id="fieldwork-tools-heading">Fieldwork tools</h2><a [routerLink]="['/app/engagements',id(),'confirmations']">Confirmation dashboard</a>
         <mat-tab-group>
           <mat-tab label="Sampling">
             <p>Runs the sampling engine over an approved schedule. Parameters, seed and the exact source digest are logged, so the selection can be re-performed.</p>
@@ -141,7 +141,7 @@ type Fieldwork = ReturnType<typeof decodeFieldwork>;
         @if (w.program; as p) {
           <dl class="facts"><dt>Program</dt><dd>{{ p.programCode }} v{{ p.version }}</dd><dt>Source hash</dt><dd><code>{{ p.sourceHash }}</code></dd>
             <dt>Adopted procedures</dt><dd>{{ w.procedures.length }}</dd><dt>Applicable / reviewed</dt><dd>{{ count(w, 'APPLICABLE') }} / {{ reviewed(w) }}</dd></dl>
-          <p class="actions"><a [routerLink]="['/app/engagements', w.engagementId, 'audit-plan']">Open planning</a><a href="/app/audit/library">Program library</a><a [href]="'/app/engagements/' + w.engagementId + '/completion'">Open completion</a></p>
+          <p class="actions"><a [routerLink]="['/app/engagements', w.engagementId, 'audit-plan']">Open planning</a><a routerLink="/app/audit/library">Program library</a><a [routerLink]="['/app/engagements', w.engagementId, 'completion']">Open completion</a></p>
         } @else {
           <p>No published program has been adopted for this engagement.</p>
           <button matButton="filled" (click)="send('/api/ui/engagements/' + w.engagementId + '/fieldwork/program', {}, 'Program published and adopted.')" [disabled]="cmd.busy()">Publish and adopt {{ w.catalogVersion }}</button>

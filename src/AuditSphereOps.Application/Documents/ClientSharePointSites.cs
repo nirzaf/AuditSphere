@@ -258,15 +258,17 @@ public sealed class ClientSharePointSiteDiscovery(IAuditSphereDbContextFactory f
 }
 
 public sealed record ClientSiteStatusRow(Guid ClientId, string ClientName, string State, string MembershipState,
-  string? Url, int VerifiedMembers, DateTimeOffset? VerifiedAt, string? OperationState, string RequiredAction);
+  string? Url, int VerifiedMembers, DateTimeOffset? VerifiedAt, string? OperationState, string RequiredAction, DateTimeOffset? MembershipVerifiedAt = null);
 
 public static class ClientSharePointSiteQuery
 {
   public static async Task<CommandResult<IReadOnlyList<ClientSiteStatusRow>>> GetAsync(IAuditSphereDbContext db, ActorContext actor, CancellationToken ct = default)
   {
     if (!await TenantAdministration.IsCurrentAdministratorAsync(db, actor, ct)) return TenantAdministration.Denied<IReadOnlyList<ClientSiteStatusRow>>();
-    var clients = await db.PracticeClients.AsNoTracking().Where(x => x.FirmId == actor.FirmId).OrderBy(x => x.LegalName).Take(100).ToListAsync(ct);
+    var clients = await db.PracticeClients.AsNoTracking().Where(x => x.FirmId == actor.FirmId).OrderBy(x => x.LegalName).ThenBy(x => x.Id).Take(100).ToListAsync(ct);
     var ids = clients.Select(x => x.Id).ToArray();
+    var activeConnection = await db.Microsoft365ConnectionRevisions.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.State == "ACTIVE" && x.ConsentState == "VERIFIED")
+      .OrderByDescending(x => x.Revision).FirstOrDefaultAsync(ct);
     var sites = await db.ClientSharePointSites.AsNoTracking().Where(x => x.FirmId == actor.FirmId && ids.Contains(x.ClientId)).ToListAsync(ct);
     var operationIds = sites.Where(x => x.LastOperationId != null).Select(x => x.LastOperationId!.Value).ToArray();
     var operations = await db.DurableOperations.AsNoTracking().Where(x => x.FirmId == actor.FirmId && operationIds.Contains(x.Id) &&
@@ -276,16 +278,22 @@ public static class ClientSharePointSiteQuery
       var site = sites.SingleOrDefault(x => x.ClientId == client.Id);
       var op = operations.FirstOrDefault(x => x.TargetId == client.Id);
       var blocked = op?.Status is OperationState.PROVIDER_BLOCKED or OperationState.AUTHORIZATION_BLOCKED or OperationState.DEAD_LETTER or OperationState.RESULT_UNCERTAIN;
+      var invalidSite = site is { State: "READY" } && (site.VerifiedAt is null || site.VerifiedAt > DateTimeOffset.UtcNow ||
+        site.ConnectionRevisionId != activeConnection?.Id || site.TenantId != activeConnection?.TenantId ||
+        string.IsNullOrWhiteSpace(site.SiteId) || string.IsNullOrWhiteSpace(site.DriveId) || string.IsNullOrWhiteSpace(site.RootItemId));
+      var stale = site is not null && (site.LastMembershipSyncAt is null || site.LastMembershipSyncAt < DateTimeOffset.UtcNow.AddMinutes(-10) || site.LastMembershipSyncAt > DateTimeOffset.UtcNow);
       var action = site == null ? "Enable the isolated client-sites worker with separately consented credentials and approved administrator policy." :
+        invalidSite ? "Review the active consent-verified tenant connection, exact site resources and site verification before using this site." :
         blocked ? "Review Microsoft consent, site ownership and operation evidence; use Operations to re-arm reconciliation. Never replace an uncertain create." :
         site.MembershipState == "PENDING" ? "The worker must reconcile the updated team before staff permissions are verified." :
         site.MembershipState == "PARTIAL" ? "Some assigned identities are disabled, absent or changed. Verify their Microsoft directory status; membership will be reconciled." :
-        site.LastMembershipSyncAt < DateTimeOffset.UtcNow.AddMinutes(-10) ? "Membership verification is stale. Check the client-sites worker." :
+        stale ? "Membership verification is stale. Check the client-sites worker." :
         site.State == "READY" ? "No action required." : "Wait for site provisioning and exact-site verification.";
-      return new ClientSiteStatusRow(client.Id, client.CommercialName ?? client.LegalName, blocked ? "BLOCKED_EXTERNAL" : site?.State ?? "BLOCKED_EXTERNAL",
-        site?.LastMembershipSyncAt < DateTimeOffset.UtcNow.AddMinutes(-10) ? "STALE" : site?.MembershipState ?? "PENDING", site?.RequestedUrl, site == null ? 0 : (JsonSerializer.Deserialize<string[]>(site.MemberObjectIdsJson) ?? []).Length,
-        site?.VerifiedAt, op?.Status.ToString(), action);
+      return new ClientSiteStatusRow(client.Id, client.CommercialName ?? client.LegalName, blocked || invalidSite ? "BLOCKED_EXTERNAL" : site?.State ?? "BLOCKED_EXTERNAL",
+        stale ? "STALE" : site?.MembershipState ?? "PENDING", site?.RequestedUrl, site == null ? 0 : (JsonSerializer.Deserialize<string[]>(site.MemberObjectIdsJson) ?? []).Length,
+        site?.VerifiedAt, op?.Status.ToString(), action, site?.LastMembershipSyncAt);
     }).ToArray();
+    if (!await TenantAdministration.IsCurrentAdministratorAsync(db, actor, ct)) return TenantAdministration.Denied<IReadOnlyList<ClientSiteStatusRow>>();
     return CommandResult<IReadOnlyList<ClientSiteStatusRow>>.Ok(rows);
   }
 }

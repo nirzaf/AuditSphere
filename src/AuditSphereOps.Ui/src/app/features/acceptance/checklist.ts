@@ -323,8 +323,8 @@ export function decodeChecklist(value: unknown): Checklist {
         </section>
       }
       <p role="status">{{ commandStatus() }}</p>
-      <a [href]="'/app/clients/' + checklist.clientId + '/assessment'"
-        >Open full client assessment workbench</a
+      <a [routerLink]="['/app/clients', checklist.clientId]"
+        >View client profile</a
       >
     }
   `,

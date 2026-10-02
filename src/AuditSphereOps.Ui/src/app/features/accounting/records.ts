@@ -36,7 +36,7 @@ const PAGE = 25;
             <thead><tr><th>Client</th><th>Engagement</th><th>Period</th><th>Version</th><th>Chart</th><th>Status</th><th><span class="sr-only">Action</span></th></tr></thead>
             <tbody>@for (m of page(rows); track m.id) {
               <tr><td>{{ m.clientName }}</td><td>{{ m.engagementName }}</td><td>{{ m.periodStart }} to {{ m.periodEnd }}</td><td>v{{ m.version }} · gen {{ m.generation }}</td>
-                <td>{{ m.hasChart ? 'Bound' : 'Legacy/unbound' }}</td><td><audit-status [value]="m.status" /></td><td><a [href]="'/app/accounting/mappings/' + m.id">Open mapping</a></td></tr>
+                <td>{{ m.hasChart ? 'Bound' : 'Legacy/unbound' }}</td><td><audit-status [value]="m.status" /></td><td><a [routerLink]="['/app/accounting/mappings', m.id]">Open mapping</a></td></tr>
             } @empty { <tr><td colspan="7">No mapping versions are available in the current scope.</td></tr> }</tbody></table></div>
           <nav aria-label="Pages" class="actions"><button type="button" (click)="prev()" [disabled]="pageIndex() === 0">Previous</button><span>Page {{ pageIndex() + 1 }} of {{ pages(rows.length) }}</span><button type="button" (click)="next(rows.length)" [disabled]="pageIndex() + 1 >= pages(rows.length)">Next</button></nav>
         }

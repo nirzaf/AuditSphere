@@ -13,7 +13,9 @@ html {
         primary: mat.$azure-palette,
         tertiary: mat.$blue-palette,
       ),
-      typography: Roboto,
+      // The same installed font stack covers the shell and body-mounted Material overlays.
+      // No external font download is required for dialogs, tables or secure provisioning controls.
+      typography: (plain-family: (system-ui, sans-serif), brand-family: (system-ui, sans-serif)),
       density: 0,
     )
   );

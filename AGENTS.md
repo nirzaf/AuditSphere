@@ -30,7 +30,7 @@ Short pointer; full authoritative contracts live in `docs/architecture/auditsphe
 
 
 
-AuditSphereOps is an audit, accounting, and assurance operations platform built as an ASP.NET Core modular monolith across five projects:
+AuditSphereOps is an audit, accounting, and assurance operations platform built as an ASP.NET Core modular monolith with a separate Angular presentation project:
 
 
 
@@ -46,7 +46,11 @@ AuditSphereOps is an audit, accounting, and assurance operations platform built 
 
 
 
-- **`AuditSphereOps.Web/`**: Blazor Web App (Interactive Server), staff workbenches (`/app/accounting`, `/app/consolidation`, etc.), and restricted client portal (`/portal`).
+- **`AuditSphereOps.Api/`**: ASP.NET Core API host, trusted cookie/Entra authentication, capability endpoints, protected transports and explicit Angular route serving. Composes Application services; does not depend on Web or MudBlazor.
+
+- **`AuditSphereOps.Ui/`**: Angular 22 UI with Material/CDK, native staff workbenches under `/ui/app` and restricted client portal under `/ui/portal`. Uses same-origin authenticated APIs, never Microsoft Graph or browser bearer-token storage.
+
+- **`AuditSphereOps.Web/`**: Legacy Blazor Interactive Server rollback host. Reuses API composition and retains existing workbenches while complete migration parity and retirement acceptance remain open.
 
 
 
@@ -102,7 +106,7 @@ AuditSphereOps is an audit, accounting, and assurance operations platform built 
 
 
 
-- **Runtime & Framework:** .NET 10 SDK (`dotnet`), ASP.NET Core Blazor Interactive Server, EF Core 10 + Npgsql 10.
+- **Runtime & Framework:** .NET 10 SDK (`dotnet`), ASP.NET Core API, Angular 22 with Material/CDK, EF Core 10 + Npgsql 10. Blazor Interactive Server/MudBlazor remain only in the rollback Web host.
 
 
 
@@ -186,7 +190,7 @@ AuditSphereOps is an audit, accounting, and assurance operations platform built 
 
 
 
-- **Web Composes Application:** Razor components compose Application commands/queries; do not add new business-state mutations directly through `DbContext`. When substantially modifying an existing page, move complex reads or business operations into a named Application query/service if that reduces page responsibility. Do not bulk-refactor unaffected pages.
+- **Presentation Composes Application:** API handlers and legacy Razor components compose Application commands/queries; do not add new business-state mutations directly through `DbContext`. Angular uses the API contract. When substantially modifying an existing page, move complex reads or business operations into a named Application query/service if that reduces page responsibility. Do not bulk-refactor unaffected pages.
 
 
 
@@ -218,7 +222,7 @@ AuditSphereOps is an audit, accounting, and assurance operations platform built 
 
 
 
-- **Never** request tenant-wide Microsoft Graph scopes outside the narrow, separately credentialed and consented capabilities in [`docs/architecture/auditsphere-m365-tenant-administration-permissions.md`](docs/architecture/auditsphere-m365-tenant-administration-permissions.md). Each capability (`User.Read.All` reader, optional `User.Create`, `User.Invite.All`, `GroupMember.ReadWrite.All`, `Mail.Send`) uses its own app identity holding exactly that one role, is off by default, and is usable only after verified consent. Document access stays on `Sites.Selected` and exact site grants. The isolated client-sites provisioning worker has a separately owner-approved exception for Graph and SharePoint `Sites.FullControl.All`, documented in `docs/architecture/auditsphere-client-sharepoint-sites-current.md`; its certificate must never be mounted in Web or the document worker. Never implement Entra administrator-role assignment through AuditSphere role assignment.
+- **Never** request tenant-wide Microsoft Graph scopes outside the narrow, separately credentialed and consented capabilities in [`docs/architecture/auditsphere-m365-tenant-administration-permissions.md`](docs/architecture/auditsphere-m365-tenant-administration-permissions.md). Each capability (`User.Read.All` reader, optional `User.Create`, `User.Invite.All`, `GroupMember.ReadWrite.All`, `Mail.Send`) uses its own app identity holding exactly that one role, is off by default, and is usable only after verified consent. Document access stays on `Sites.Selected` and exact site grants. The isolated client-sites provisioning worker has a separately owner-approved exception for Graph and SharePoint `Sites.FullControl.All`, documented in `docs/architecture/auditsphere-client-sharepoint-sites-current.md`; its certificate must never be mounted in API, Web or the document worker. Never implement Entra administrator-role assignment through AuditSphere role assignment.
 
 
 
@@ -264,13 +268,16 @@ Per change: deliver the smallest coherent vertical slice with guarded transactio
 
 ```bash
 
+# 0. Build the Angular frontend before API-host browser verification or publication
+npm --prefix src/AuditSphereOps.Ui run build
+
 
 
 # 1. Build solution (Release)
 
 
 
-dotnet build src/AuditSphereOps.Web/AuditSphereOps.Web.csproj --no-restore --configuration Release
+dotnet build AuditSphereOps.slnx --no-restore --configuration Release
 
 
 
@@ -282,7 +289,7 @@ dotnet build src/AuditSphereOps.Web/AuditSphereOps.Web.csproj --no-restore --con
 
 
 
-dotnet test AuditSphereOps.slnx --no-build
+dotnet test AuditSphereOps.slnx --no-build --configuration Release
 
 
 
@@ -294,7 +301,7 @@ dotnet test AuditSphereOps.slnx --no-build
 
 
 
-dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Web
+dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Api --no-build --configuration Release
 
 
 
@@ -398,7 +405,7 @@ scripts/db/restore-drill.sh
 
 
 
-- Verify guidance against the current checkout, especially `docs/architecture/auditsphere-architecture-current-architecture.md`, `src/AuditSphereOps.Web/appsettings.json`, `src/AuditSphereOps.Web/Components/Pages/Microsoft365Setup.razor`, and the actual startup, worker, and deployment scripts. `docs/auditsphere-m365-onboarding-user-stories.md` describes proposed requirements: check implementation before presenting any step as available. Link to the applicable source revision; do not copy the specification or configuration files wholesale.
+- Verify guidance against the current checkout, especially `docs/architecture/auditsphere-architecture-current-architecture.md`, `src/AuditSphereOps.Api/appsettings.json`, the Angular administration components, the rollback `src/AuditSphereOps.Web/Components/Pages/Microsoft365Setup.razor`, and the actual startup, worker, and deployment scripts. `docs/auditsphere-m365-onboarding-user-stories.md` describes proposed requirements: check implementation before presenting any step as available. Link to the applicable source revision; do not copy the specification or configuration files wholesale.
 
 
 

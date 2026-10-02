@@ -38,7 +38,7 @@ export function sumDecimals(values: string[]): string {
       @else {
         @let all = scopes(g);
         <p role="status">{{ g.length }} groups · {{ all.length }} scope versions · {{ approvedPins(all) }} approved component pins</p>
-        <nav aria-label="Group consolidation tabs" class="actions"><a href="#perimeter">Perimeter</a><a href="#packs">Component packs</a><a href="#fx">FX</a><a href="#advanced">Advanced schedules</a><a href="#intercompany">Intercompany</a><a href="#eliminations">Eliminations</a></nav>
+        <nav aria-label="Group consolidation tabs" class="actions"><a [routerLink]="[]" fragment="perimeter">Perimeter</a><a [routerLink]="[]" fragment="packs">Component packs</a><a [routerLink]="[]" fragment="fx">FX</a><a [routerLink]="[]" fragment="advanced">Advanced schedules</a><a [routerLink]="[]" fragment="intercompany">Intercompany</a><a [routerLink]="[]" fragment="eliminations">Eliminations</a></nav>
         <section class="panel" id="perimeter" aria-labelledby="perimeter-heading"><h2 id="perimeter-heading">Perimeter</h2>
           @for (grp of g; track grp.id) {
             <h3 [id]="'group-' + grp.id">{{ grp.name }} <code>{{ grp.code }}</code></h3>

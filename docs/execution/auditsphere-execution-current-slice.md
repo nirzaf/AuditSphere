@@ -33,7 +33,30 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ---
 
-## Angular presentation migration — portfolio pilot
+## Native SharePoint configuration and templates
+
+The independent API and Angular tenant page now compose the existing selected-site verifier and configuration services. Resource edits bind a reviewed revision, enforce the configured tenant and invalidate previous selected-resource verification. Active configurations remain protected. Verification retains the exact site/library/root check and an unrelated-site denial control. Activation requires trusted consent, current boundary evidence and an approved client template. No Graph permissions were added.
+
+Folder-template save/approval and workspace activation record append-only administration events. The previously inconsistent empty STE client manifest is now accepted for the direct client/year layout; engagement manifests remain non-empty and extra root properties are refused. Native forms clear review on metadata changes and fence uncertain writes until persisted-state review. PostgreSQL/provider-fake API tests, related provider/onboarding tests, Angular unit tests and a standalone API browser journey passed. Built-in browser inspection confirmed external blockers and disabled activation in an owned synthetic preview; it submitted no Microsoft operation. Exact evidence and its source boundary are in the execution ledger.
+
+Client/engagement workspace provisioning and dedicated client-site rollout/member reconciliation still require native Angular parity. The full reference-guide migration, live Microsoft acceptance and final Blazor retirement remain open. Changes remain local until a commit/push is recorded.
+
+## ASP.NET Core API backend and Angular UI
+
+The owner-directed backend split is implemented: `AuditSphereOps.Api` owns the secure HTTP runtime and `AuditSphereOps.Ui` owns presentation. The rollback Web host composes the same API runtime and adds Razor/MudBlazor only; API has no dependency on legacy UI assemblies. Local publication includes the built Angular browser assets. API defaults to Angular, while rollback Web keeps its opt-in flag.
+
+Native route families cover practice, accounting, audit, consolidation, completion, administration and the restricted portal. The latest routing correction removes legacy workbench links, makes search use the declared Angular catalogue, preserves duplicate search destinations, and keeps skip navigation on the current workspace. Client role dialogs offer only `ClientUser` with client/engagement scope; Application authorization remains authoritative.
+
+Fresh installations also have native proof-backed administrator binding and deployment-owned tenant preparation. Setup requires the approved immutable Microsoft identity, explicit review and CSRF protection; the initial cookie has no protected actor until fresh sign-in binds the session epoch. Preparation is fenced to the reviewed draft revision and never substitutes for Microsoft consent or selected-site verification. Unknown outcomes require persisted-state review before another write.
+
+Optional Microsoft administration now has native creation/invitation wizards, bounded managed-group controls and reviewed operation reconciliation. Original-response passwords are masked and transient; replay/recovery returns none. The group mutation checks the observed membership before dispatch, and Microsoft membership changes no local roles. A browser-discovered role-catalogue URL mismatch was corrected before the regression run. Existing permissions and provider boundaries are reused.
+
+The shared Material font stack now covers dialogs as well as the shell without requiring an external font. The full solution regression run passed before this final visual correction; affected administration journeys, Angular checks and built-in browser inspection then verified the corrected typography. This sequence and its exact counts are recorded in the execution ledger.
+
+Synthetic API-host browser journeys exercise local role review/revocation, exact tenant consent/directory binding, optional administration and client first-sign-in/delegation/conversation/upload staging. Built-in browser checks have loaded the persisted dashboard, roster, client request thread, creation review, guest-only scope choices and bounded group dialog. The whole guide remains partial: selected-workspace controls, recovery of a lost pre-dispatch form, complete source-action/form/draft parity, performance/accessibility acceptance and controlled retirement remain open. No live Microsoft or production acceptance is inferred. Exact executed checks are recorded in `status.json`.
+
+## Previous Angular portfolio foundation
+
 
 The owner-requested guide is being implemented through explicit, reversible route ownership. The opt-in Angular preview at `/ui/app` uses the existing trusted .NET session and an Application portfolio query. Existing Blazor, portal, authentication, consent, download and health routes retain their owners. Enablement requires a browser build; rollback disables the preview flag.
 
@@ -2077,3 +2100,27 @@ Angular chart draft-write extension: reviewed creation and account entry now com
 Angular chart publication extension: an independent reviewer confirms a bounded full account-set digest; the existing locked command checks client/version/digest and preserves hierarchy validation and preparer separation. Builds, Angular contracts, PostgreSQL stale-snapshot/locking assertions and the synthetic reviewer Playwright journey passed with persisted publisher identity. Aliases/dimensions and full migration/built-in browser acceptance remain pending; see status.json.
 
 Chart alias publication fence: the reviewed chart digest now includes source-account aliases. Alias writes accept exact client/version fences under the chart lock. The focused PostgreSQL workspace test passed, including wrong-client refusal and stale publication after alias changes. Alias UI, dimensions, full migration and built-in browser acceptance remain pending; see status.json.
+
+## Angular client and engagement workspace administration
+
+Added bounded administrator workspace pages and exact target/resource/template reviews to the standalone API and Angular tenant screen. Provisioning requires a reason, current authority and the reviewed fingerprint; publication is refused after configuration or session changes. Client folder readiness, disposable PBC verification and dedicated client-site membership remain separate states. The latter is read-only and retains the explicit whole-site Full Control warning and isolated privileged worker boundary. Worker receipts bind their original provider plan and refuse folder ownership collisions; reconciliation remains get-or-create. No permission or credential boundary was widened.
+
+Verification results and the remaining migration gates are recorded in `status.json` after observation. This slice does not claim final Blazor retirement or live Microsoft acceptance.
+
+## Native Angular confirmation lifecycle
+
+The confirmation register and exact case-evidence reviews now have a dedicated Angular route, linked from fieldwork and completion. Local commands preserve scope, current session, reviewed revisions, independent review and frozen-file gates. Preparation never means delivery; only observed dispatch evidence starts follow-up monitoring. Current response and alternative revisions remain separate. Closure rejects nonresponse without reviewed alternative work, and late substantive responses require new independent review. Exact supported amount strings are preserved; unsupported storage precision fails validation rather than silently rounding. Unknown writes remain fenced until persisted refresh and fresh review.
+
+Executed evidence and corrections are recorded in `status.json`. This slice does not establish complete migration acceptance, actual external dispatch or final Blazor retirement.
+
+### Native confirmation batch preparation
+
+The Angular confirmation workspace now prepares reviewed batches through the standalone API. Every case has an exact supported amount, source identity, respondent and validated contact source; area, currency, date and optional procedure are reviewed together. Any edit clears confirmation. Application serializes preparation with current scope/epoch/register checks and the frozen-file guard, rejects existing source/date identities and publishes all cases in one transaction. An invalid or duplicate case refuses the whole batch. Unknown outcomes fence repeat writes until persisted state is reviewed. These are local prepared cases; no Microsoft effect or confirmation dispatch is inferred. Closure-conclusion evidence is now retained as described below; full scoped draft restoration remains pending. Exact executed verification is recorded in `status.json`.
+
+Responsive confirmation forms no longer impose an intrinsic minimum width on the mobile shell. The single-column grid and main content can shrink; wide registers retain contained horizontal scrolling. Expanded batch forms remain usable at narrow widths.
+
+### Confirmation closure evidence retention
+
+The source confirmation lifecycle now retains each new human closure decision with its actor, conclusion, timestamp and exact reviewed evidence snapshot. PostgreSQL refuses closure-row updates and deletion. Native Angular displays the retained conclusion and digest; historical closures with no record are labelled explicitly. Case locking and deterministic current-alternative ordering prevent stale or repeated closure decisions. The additive migration is exercised only in owned synthetic test databases; shared Development and production migration application remain operator-controlled. Scoped draft recovery and the broader migration acceptance remain open. Executed verification is recorded in `status.json`.
+
+Confirmation draft recovery extension: case, batch and action forms now use versioned explicit tab drafts, exact identity/session/entity/current-base checks, expiration and bounded allowlists. Recovery clears review; pending submission intent requires persisted-state refresh. Navigation/context changes offer keep, save and continue, or discard, with honest memory-only fallback when storage fails. Background revision changes retain edits while blocking stale submission. This leaves the general draft primitive and remaining module/story acceptance open. Observed verification and browser evidence live in status.json.

@@ -51,7 +51,8 @@ public static class PbcRepositoryProvisioningService
 
   public static async Task<CommandResult<WorkspaceProvisioningResult>> ProvisionClientWorkspaceAsync(
     IAuditSphereDbContext db, ActorContext actor, ISelectedSiteWorkspaceProvisioner provider,
-    Guid practiceClientId, DateTimeOffset now, CancellationToken ct = default)
+    Guid practiceClientId, DateTimeOffset now, CancellationToken ct = default, string? reviewedToken = null,
+    string reason = "Administrator provisioned client workspace")
   {
     if (!await TenantAdministration.IsCurrentAdministratorAsync(db, actor, ct)) return TenantAdministration.Denied<WorkspaceProvisioningResult>();
     if (!provider.IsConfigured)
@@ -67,6 +68,9 @@ public static class PbcRepositoryProvisioningService
     var active = await ActiveSiteAsync(db, actor.FirmId, ct, practiceClientId);
     if (!active.Succeeded) return Fail(active.ErrorCode!, active.Message!);
     var (config, connection, template) = active.Value!;
+    var workspaceRevision = workspace.Revision;
+    if (reviewedToken is not null && !await ReviewMatchesAsync(db, actor, practiceClientId, false, reviewedToken, ct))
+      return Fail(ErrorCodes.StaleRevision, "The reviewed workspace inputs changed before dispatch.");
     if (workspace.State == ClientWorkspaceStates.Ready && workspace.RemoteItemId is not null &&
         workspace.ConnectionRevisionId == connection.Id && workspace.DriveId == config.DriveId)
       return CommandResult<WorkspaceProvisioningResult>.Ok(new(workspace.Id, workspace.State, "The client workspace is already provisioned."));
@@ -75,23 +79,45 @@ public static class PbcRepositoryProvisioningService
     RemoteFolder clientFolder;
     try
     {
-      clientFolder = await provider.EnsureFolderAsync(location, config.RootFolderId,
-        FolderName(client.CommercialName ?? client.LegalName, client.Id), ct);
+      var ste = FindNode(template.ManifestJson, EngagementsNodeKey) is null;
+      var name = ste ? EngagementWorkspaceProvisioningHandler.SteClientName(client) : FolderName(client.CommercialName ?? client.LegalName, client.Id);
+      clientFolder = await provider.EnsureFolderAsync(location, config.RootFolderId, name, ct);
+      if (ste && await db.ClientWorkspaces.AsNoTracking().AnyAsync(x => x.TenantId == config.TenantId && x.PracticeClientId != client.Id &&
+          x.DriveId == config.DriveId && x.RemoteItemId == clientFolder.ItemId, ct))
+        clientFolder = await provider.EnsureFolderAsync(location, config.RootFolderId, FolderName(client.CommercialName ?? client.LegalName, client.Id), ct);
       await EnsureTreeAsync(provider, location, clientFolder.ItemId, template.ManifestJson, ct);
     }
     catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
     {
+      await using var failureTx = await db.Database.BeginTransactionAsync(ct);
+      if (!await LockWorkspacePublicationAsync(db, actor.FirmId, config.TenantId, config.DriveId, ct)) return Fail(ErrorCodes.GateBlocked, "The firm workspace guard is unavailable.");
+      var current = await db.ClientWorkspaces.FromSqlInterpolated($"SELECT * FROM client_workspaces WHERE id = {workspace.Id} AND firm_id = {actor.FirmId} FOR UPDATE")
+        .AsNoTracking().SingleOrDefaultAsync(ct);
+      if (!await TenantAdministration.IsCurrentAdministratorAsync(db, actor, ct)) return TenantAdministration.Denied<WorkspaceProvisioningResult>();
+      if (current?.Revision != workspaceRevision || reviewedToken is not null && !await ReviewMatchesAsync(db, actor, practiceClientId, false, reviewedToken, ct))
+        return Fail(ErrorCodes.StaleRevision, "The workspace changed while the provider request was in flight. Refresh persisted state.");
       workspace.State = ClientWorkspaceStates.BlockedConfiguration;
       workspace.LastErrorCode = ProviderCode(ex);
       workspace.Revision++;
       TenantAdministration.AddEvent(db, actor, "CLIENT_WORKSPACE_PROVISION_FAILED", now, oldState: ClientWorkspaceStates.WaitingForIntegration,
-        newState: workspace.State, reason: "Administrator provisioned client workspace", result: workspace.LastErrorCode);
+        newState: workspace.State, reason: reason, result: workspace.LastErrorCode, roleScopeChange: $"CLIENT {practiceClientId}");
       await db.SaveChangesAsync(ct);
+      await failureTx.CommitAsync(ct);
       return Fail(ErrorCodes.GateBlocked, "SharePoint did not accept the client workspace. Check the selected-site grant and try again.");
     }
 
     await using var tx = await db.Database.BeginTransactionAsync(ct);
+    if (!await LockWorkspacePublicationAsync(db, actor.FirmId, config.TenantId, config.DriveId, ct)) return Fail(ErrorCodes.GateBlocked, "The firm workspace guard is unavailable.");
     if (!await TenantAdministration.IsCurrentAdministratorAsync(db, actor, ct)) return TenantAdministration.Denied<WorkspaceProvisioningResult>();
+    var locked = await db.ClientWorkspaces.FromSqlInterpolated($"SELECT * FROM client_workspaces WHERE id = {workspace.Id} AND firm_id = {actor.FirmId} FOR UPDATE")
+      .AsNoTracking().SingleOrDefaultAsync(ct);
+    var latest = await ActiveSiteAsync(db, actor.FirmId, ct, practiceClientId);
+    if (locked?.Revision != workspaceRevision || !latest.Succeeded || !SameBinding(active.Value, latest.Value) ||
+        reviewedToken is not null && !await ReviewMatchesAsync(db, actor, practiceClientId, false, reviewedToken, ct))
+      return Fail(ErrorCodes.StaleRevision, "The workspace or selected resource changed during provisioning. Refresh before reconciliation.");
+    if (await db.ClientWorkspaces.AsNoTracking().AnyAsync(x => x.TenantId == config.TenantId && x.PracticeClientId != practiceClientId &&
+        x.DriveId == config.DriveId && x.RemoteItemId == clientFolder.ItemId, ct))
+      return Fail(ErrorCodes.StaleRevision, "The folder is unavailable to this client. Refresh and reconcile using its stable identity.");
     var previous = workspace.State;
     workspace.State = ClientWorkspaceStates.Ready;
     workspace.ConnectionRevisionId = connection.Id;
@@ -105,7 +131,7 @@ public static class PbcRepositoryProvisioningService
     workspace.LastVerifiedAt = now;
     workspace.Revision++;
     TenantAdministration.AddEvent(db, actor, "CLIENT_WORKSPACE_PROVISIONED", now, oldState: previous, newState: workspace.State,
-      reason: "Administrator provisioned client workspace", result: "READY");
+      reason: reason, result: "READY", roleScopeChange: $"CLIENT {practiceClientId}");
     await db.SaveChangesAsync(ct);
     await tx.CommitAsync(ct);
     return CommandResult<WorkspaceProvisioningResult>.Ok(new(workspace.Id, workspace.State,
@@ -114,7 +140,8 @@ public static class PbcRepositoryProvisioningService
 
   public static async Task<CommandResult<WorkspaceProvisioningResult>> ProvisionEngagementRepositoryAsync(
     IAuditSphereDbContext db, ActorContext actor, ISelectedSiteWorkspaceProvisioner provider,
-    Guid engagementId, DateTimeOffset now, CancellationToken ct = default)
+    Guid engagementId, DateTimeOffset now, CancellationToken ct = default, string? reviewedToken = null,
+    string reason = "Administrator provisioned engagement PBC repository")
   {
     if (!await TenantAdministration.IsCurrentAdministratorAsync(db, actor, ct)) return TenantAdministration.Denied<WorkspaceProvisioningResult>();
     if (!provider.IsConfigured)
@@ -136,18 +163,21 @@ public static class PbcRepositoryProvisioningService
     if (engagementTemplate is null || FindNode(engagementTemplate.ManifestJson, PbcNodeKey) is null)
       return Fail(ErrorCodes.GateBlocked, "Approve an engagement folder template that contains the PBC intake folder first.");
     var engagementsNode = FindNode(clientTemplate.ManifestJson, EngagementsNodeKey);
-    if (engagementsNode is null)
-      return Fail(ErrorCodes.GateBlocked, "The approved client template has no Engagements folder.");
+    if (reviewedToken is not null && !await ReviewMatchesAsync(db, actor, engagementId, true, reviewedToken, ct))
+      return Fail(ErrorCodes.StaleRevision, "The reviewed engagement inputs changed before dispatch.");
 
     var location = new SelectedSiteLocation(config.TenantId, config.SiteId, config.DriveId, connection.RuntimeCredentialReference);
     RemoteFolder pbcFolder;
     RemoteCapabilityTest test;
     try
     {
-      var engagements = await provider.EnsureFolderAsync(location, workspace.RemoteItemId, engagementsNode, ct);
+      var parent = workspace.RemoteItemId;
+      if (engagementsNode is not null) parent = (await provider.EnsureFolderAsync(location, parent, engagementsNode, ct)).ItemId;
       var label = string.Join(" ", new[] { engagement.PeriodEnd, engagement.ServiceRoute }.Where(x => !string.IsNullOrWhiteSpace(x)));
-      var engagementFolder = await provider.EnsureFolderAsync(location, engagements.ItemId,
-        FolderName(string.IsNullOrWhiteSpace(label) ? "Engagement" : label, engagement.Id), ct);
+      var siblings = await db.Engagements.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.PracticeClientId == engagement.PracticeClientId && x.Id != engagement.Id).ToListAsync(ct);
+      var name = engagementsNode is null ? EngagementWorkspaceProvisioningHandler.SteEngagementName(engagement, siblings) :
+        FolderName(string.IsNullOrWhiteSpace(label) ? "Engagement" : label, engagement.Id);
+      var engagementFolder = await provider.EnsureFolderAsync(location, parent, name, ct);
       var created = await EnsureTreeAsync(provider, location, engagementFolder.ItemId, engagementTemplate.ManifestJson, ct);
       pbcFolder = created[PbcNodeKey];
       test = await provider.TestReadWriteAsync(location, pbcFolder.ItemId, ct);
@@ -158,9 +188,18 @@ public static class PbcRepositoryProvisioningService
     }
 
     await using var tx = await db.Database.BeginTransactionAsync(ct);
+    if (!await LockWorkspacePublicationAsync(db, actor.FirmId, config.TenantId, config.DriveId, ct)) return Fail(ErrorCodes.GateBlocked, "The firm workspace guard is unavailable.");
     if (!await TenantAdministration.IsCurrentAdministratorAsync(db, actor, ct)) return TenantAdministration.Denied<WorkspaceProvisioningResult>();
+    var locked = await db.ClientWorkspaces.FromSqlInterpolated($"SELECT * FROM client_workspaces WHERE id = {workspace.Id} AND firm_id = {actor.FirmId} FOR UPDATE")
+      .AsNoTracking().SingleOrDefaultAsync(ct);
+    var latest = await ActiveSiteAsync(db, actor.FirmId, ct, engagement.PracticeClientId);
+    var templateId = await db.FolderTemplateVersions.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.Purpose == FolderTemplatePurposes.EngagementWorkspace && x.ApprovedAt != null)
+      .OrderByDescending(x => x.Version).Select(x => (Guid?)x.Id).FirstOrDefaultAsync(ct);
+    if (locked?.Revision != workspace.Revision || !latest.Succeeded || !SameBinding(active.Value, latest.Value) || templateId != engagementTemplate.Id ||
+        reviewedToken is not null && !await ReviewMatchesAsync(db, actor, engagementId, true, reviewedToken, ct))
+      return Fail(ErrorCodes.StaleRevision, "The workspace, templates or resource binding changed during provisioning. Refresh before reconciliation.");
     var applied = await ApplyEngagementBindingAsync(db, actor, engagement, config, pbcFolder.ItemId, test, now,
-      "Administrator provisioned engagement PBC repository", ct);
+      reason, ct);
     if (!applied.Succeeded) return Fail(applied.ErrorCode!, applied.Message!);
     await db.SaveChangesAsync(ct);
     await tx.CommitAsync(ct);
@@ -213,7 +252,7 @@ public static class PbcRepositoryProvisioningService
     });
     TenantAdministration.AddEvent(db, actor, test.Passed ? "PBC_REPOSITORY_VERIFIED" : "PBC_REPOSITORY_TEST_FAILED", now,
       oldState: "-", newState: capability.HealthStatus, reason: reason,
-      result: test.DiagnosticCode, correlationId: test.CorrelationId);
+      result: test.DiagnosticCode, correlationId: test.CorrelationId, roleScopeChange: $"CLIENT {engagement.PracticeClientId}; ENGAGEMENT {engagement.Id}");
     return CommandResult<RepositoryBinding>.Ok(binding);
   }
 
@@ -303,6 +342,32 @@ public static class PbcRepositoryProvisioningService
 
   internal static string ProviderCode(Exception ex) => ex is OperationBlockedException blocked ? blocked.Code : "provider-request-failed";
 
+  private static async Task<bool> ReviewMatchesAsync(IAuditSphereDbContext db, ActorContext actor, Guid id, bool engagement, string token, CancellationToken ct)
+  {
+    var current = await WorkspaceProvisioningAdministration.ReviewAsync(db, actor, id, engagement, ct);
+    return current.Succeeded && current.Value!.ReviewToken == token && current.Value.Eligible;
+  }
+
+  // Serialize exact drive ownership publication without upgrading the worker's firm safety FOR SHARE guard.
+  // Held only in the local publication transaction, after Microsoft I/O. The namespace seed separates this lock
+  // from other application advisory locks. Resource IDs are deployment-owned; this also prevents two firms
+  // accidentally claiming one remote client folder without disclosing the other firm's identity.
+  internal static async Task<bool> LockWorkspacePublicationAsync(IAuditSphereDbContext db, Guid firmId, string tenantId, string driveId, CancellationToken ct)
+  {
+    var guard = await db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id = {firmId} FOR SHARE")
+      .AsNoTracking().SingleOrDefaultAsync(ct);
+    if (guard is null) return false;
+    var resourceKey = JsonSerializer.Serialize(new[] { tenantId, driveId });
+    await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock(hashtextextended({resourceKey}, 137921))", ct);
+    return true;
+  }
+
+  private static bool SameBinding((FirmWorkspaceConfiguration Config, Microsoft365ConnectionRevision Connection, FolderTemplateVersion Template) a,
+    (FirmWorkspaceConfiguration Config, Microsoft365ConnectionRevision Connection, FolderTemplateVersion Template) b) =>
+    a.Connection.Id == b.Connection.Id && a.Connection.RuntimeCredentialReference == b.Connection.RuntimeCredentialReference &&
+    a.Config.TenantId == b.Config.TenantId && a.Config.SiteId == b.Config.SiteId && a.Config.DriveId == b.Config.DriveId &&
+    a.Config.RootFolderId == b.Config.RootFolderId && a.Config.AccessProfile == b.Config.AccessProfile && a.Template.Id == b.Template.Id;
+
   private static CommandResult<WorkspaceProvisioningResult> Fail(string code, string message) =>
     CommandResult<WorkspaceProvisioningResult>.Fail(code, message);
 }
@@ -329,15 +394,23 @@ public sealed record ClientWorkspaceRow(Guid ClientId, string ClientName, string
 public static class PbcRepositoryProvisioningQuery
 {
   public static async Task<CommandResult<IReadOnlyList<ClientWorkspaceRow>>> GetAsync(
-    IAuditSphereDbContext db, ActorContext actor, CancellationToken ct = default)
+    IAuditSphereDbContext db, ActorContext actor, CancellationToken ct = default, int page = 0, int pageSize = 25)
   {
     if (!await TenantAdministration.IsCurrentAdministratorAsync(db, actor, ct)) return TenantAdministration.Denied<IReadOnlyList<ClientWorkspaceRow>>();
-    var workspaces = await db.ClientWorkspaces.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.Purpose == "PRIMARY").ToListAsync(ct);
+    if (page is < 0 or > 100_000 || pageSize is < 1 or > 100)
+      return CommandResult<IReadOnlyList<ClientWorkspaceRow>>.Fail("request.invalid", "Use a bounded workspace page.");
+    var workspaces = await (from workspace in db.ClientWorkspaces.AsNoTracking()
+      join client in db.PracticeClients.AsNoTracking() on new { workspace.FirmId, Id = workspace.PracticeClientId } equals new { client.FirmId, client.Id }
+      where workspace.FirmId == actor.FirmId && workspace.Purpose == "PRIMARY"
+      orderby client.LegalName, workspace.PracticeClientId
+      select workspace).Skip(page * pageSize).Take(pageSize).ToListAsync(ct);
     var clientIds = workspaces.Select(x => x.PracticeClientId).ToArray();
     var clients = await db.PracticeClients.AsNoTracking().Where(x => x.FirmId == actor.FirmId && clientIds.Contains(x.Id))
       .ToDictionaryAsync(x => x.Id, x => x.CommercialName ?? x.LegalName, ct);
-    var engagements = await db.Engagements.AsNoTracking().Where(x => x.FirmId == actor.FirmId && clientIds.Contains(x.PracticeClientId)).ToListAsync(ct);
-    var bindings = await db.RepositoryBindings.AsNoTracking().Where(x => x.FirmId == actor.FirmId && clientIds.Contains(x.ClientId) &&
+    var engagements = await db.Engagements.AsNoTracking().Where(x => x.FirmId == actor.FirmId && clientIds.Contains(x.PracticeClientId))
+      .OrderBy(x => x.CreatedAt).ThenBy(x => x.Id).Take(2500).ToListAsync(ct);
+    var engagementIds = engagements.Select(x => x.Id).ToArray();
+    var bindings = await db.RepositoryBindings.AsNoTracking().Where(x => x.FirmId == actor.FirmId && clientIds.Contains(x.ClientId) && engagementIds.Contains(x.EngagementId) &&
       x.Classification == "working" && x.CapabilityProfile == "selected-site").ToListAsync(ct);
     var bindingIds = bindings.Select(x => x.Id).ToArray();
     var capabilities = await db.IntegrationCapabilities.AsNoTracking().Where(x => x.FirmId == actor.FirmId && bindingIds.Contains(x.RepositoryBindingId))

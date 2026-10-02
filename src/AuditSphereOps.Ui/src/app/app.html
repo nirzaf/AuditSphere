@@ -1,4 +1,4 @@
-<a class="skip-link" href="#main">Skip to main content</a>
+<a class="skip-link" href="#main" (click)="skipToMain($event)">Skip to main content</a>
 <mat-toolbar
   ><strong>AuditSphere</strong><span class="spacer"></span><span>Workspace preview</span>
   @if (session.current()) {
@@ -14,8 +14,6 @@
         <a [routerLink]="item.path" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: item.exact ?? false }" ariaCurrentWhenActive="page">{{ item.label }}</a>
       }
     }
-    <h2>Other</h2>
-    <a href="/app">Full workspace</a><a href="/portal">Client portal</a>
     <p>Your access follows current AuditSphere assignments.</p>
     } @else if (session.current()) {
       <h2>Your workspace</h2><a routerLink="/portal" routerLinkActive="active" ariaCurrentWhenActive="page">Client portal</a>
@@ -29,7 +27,9 @@
         <button matButton (click)="signOut()">Retry sign-out</button>
       </section>
     }
-    @if (!session.checked()) {
+    @if (publicSetup()) {
+      <router-outlet />
+    } @else if (!session.checked()) {
       <p role="status">Verifying your session…</p>
     } @else if (session.current()?.staff) {
       @defer (on interaction; on idle) {

@@ -1,5 +1,7 @@
-import { Component, DestroyRef, inject, signal } from '@angular/core';
-import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
+import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { map } from 'rxjs';
 import { NAVIGATION } from './navigation';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatButtonModule } from '@angular/material/button';
@@ -13,12 +15,21 @@ import { Drafts } from './core/drafts';
   styleUrl: './app.scss',
 })
 export class App {
+  private readonly router = inject(Router);
+  private readonly currentRoute = toSignal(this.router.events.pipe(map(() => this.router.url)), { initialValue: this.router.url });
+  readonly publicSetup = computed(() => this.currentRoute().split(/[?#]/)[0] === '/setup/microsoft365');
   readonly session = inject(SessionService);
   private readonly drafts = inject(Drafts);
   readonly nav = NAVIGATION;
   readonly signInHref = '/auth/sign-in?returnUrl=' + encodeURIComponent(
-    location.pathname.startsWith('/ui/portal') || location.pathname.startsWith('/ui/app') ? location.pathname + location.search : '/ui/app');
+    location.pathname.startsWith('/ui/portal') || location.pathname.startsWith('/ui/app') || location.pathname === '/ui/setup/microsoft365' ? location.pathname + location.search : '/ui/app');
   readonly signOutFailure = signal('');
+  skipToMain(event: Event): void {
+    event.preventDefault();
+    const main = document.getElementById('main');
+    main?.focus();
+    main?.scrollIntoView({ block: 'start' });
+  }
   async signOut(): Promise<void> {
     this.signOutFailure.set('');
     this.drafts.clearAll();

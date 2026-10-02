@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "sourceCommit": "fedca8aad60468de38b0e4f1c868d95f5b3db01d",
+  "sourceCommit": "2b68bff1daef4ec2e706528fd7ff4c303e37fd69",
   "coverage": "Source discovery only; dynamic actions, scope and parity tests require manual review.",
   "items": [
     {
@@ -497,9 +497,11 @@
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Administration/WorkspaceProvisioningPanel.razor",
-      "sourceSha256": "4a0269cced00fae60041ca9f79ab38cf8b1de0d4568af6f2ef400659278920f8",
+      "sourceSha256": "416cfb947e18b5665aa98f4fc219f465178b144ca48be93915806a0b72af44a1",
       "routes": [],
       "actions": [
+        "() => ChangePageAsync(-1)",
+        "() => ChangePageAsync(1)",
         "() => ProvisionClientAsync(row.ClientId)",
         "() => ProvisionEngagementAsync(engagement.EngagementId)"
       ],
@@ -519,6 +521,7 @@
       ],
       "links": [],
       "asyncCalls": [
+        "ChangePageAsync",
         "CreateDbContextAsync",
         "GetAsync",
         "LoadAsync",

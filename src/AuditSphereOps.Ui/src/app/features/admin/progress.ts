@@ -1,5 +1,7 @@
 import { Component, inject, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
+import { RouterLink } from '@angular/router';
+import { workspaceRoute } from '../../core/navigation';
 import { Api } from '../../core/api';
 import { arr, int, nat, nullable, obj, text } from '../../core/decode';
 import { SHARED } from '../../core/ui';
@@ -29,9 +31,9 @@ export class TaskBar {
 
 @Component({
   selector: 'audit-project-progress',
-  imports: [MatButtonModule, TaskBar, ...SHARED],
+  imports: [MatButtonModule, RouterLink, TaskBar, ...SHARED],
   template: `
-    <a href="/app/administration">← Firm administration</a>
+    <a routerLink="/app/administration">← Firm administration</a>
     <audit-page-header title="Project task progress" eyebrow="Implementation tracker"
       description="Completed and pending implementation task cards by module. Bars report reviewed task-card status, not a percentage of working software or production readiness." />
     <audit-state [loading]="p.loading()" [error]="p.error()" label="task-card progress" />
@@ -64,7 +66,7 @@ export class TaskBar {
         <details><summary>View {{ filtered(s.sharedTasks).length }} of {{ s.sharedTasks.length }} task cards</summary><ul>@for (t of filtered(s.sharedTasks); track t.id) { <li><strong>{{ t.id }}</strong> {{ t.title }} <audit-status [value]="t.status" /></li> }</ul></details></section>
       <section aria-labelledby="untracked-modules-heading"><h2 id="untracked-modules-heading">Other application modules</h2>
         <p>These areas have no dedicated module mapping in the published task pack. Their completion cannot be measured here yet; operational records in the app are separate from implementation task status.</p>
-        @for (a of d.untracked; track a.name) { <section class="panel"><h3>{{ a.name }} <small>Untracked</small></h3><p>No module-specific progress mapping published.</p>@if (a.route) { <a [href]="a.route">Open module</a> }</section> }</section>
+        @for (a of d.untracked; track a.name) { <section class="panel"><h3>{{ a.name }} <small>Untracked</small></h3><p>No module-specific progress mapping published.</p>@if (a.route && ownedRoute(a.route); as destination) { <a [routerLink]="destination">Open module</a> }</section> }</section>
     }
   `,
 })
@@ -73,6 +75,7 @@ export class ProjectProgress {
   readonly p = this.api.resource(() => '/api/ui/administration/project-progress', decodeProgress, 'Only an authorized firm administrator can view the implementation tracker.');
   readonly filter = signal('All');
   readonly filters = FILTERS;
+  readonly ownedRoute = workspaceRoute;
   filtered(tasks: Task[]): Task[] {
     const f = this.filter();
     return tasks.filter((t) => f === 'Completed' ? t.status === 'COMPLETED' : f === 'Active' ? t.status === 'IN_PROGRESS' || t.status === 'IN_REVIEW'

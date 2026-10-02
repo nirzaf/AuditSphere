@@ -69,6 +69,58 @@ public sealed class EngagementWorkspaceProvisioningTests
   private static string[] Children(FakeGraphDrive graph, string parentId) =>
     graph.Items.Where(x => x.ParentId == parentId && x.Folder).Select(x => x.Name).OrderBy(x => x, StringComparer.Ordinal).ToArray();
 
+  [Fact]
+  public async Task RemoteReceipt_CannotPublishAgainstChangedResources_AndReconciliationUsesTheNewExactPlan()
+  {
+    var rig = await CreateAsync(ste: true); await using var owned = rig.H;
+    var h = rig.H; await ActivateAsync(h, h.A.ClientId, h.A.EngagementId);
+    var op = new DurableOperation { Id = Guid.NewGuid(), FirmId = h.A.FirmId, ClientId = h.A.ClientId,
+      EngagementId = h.A.EngagementId, TargetId = h.A.EngagementId, OperationKind = EngagementWorkspaceProvisioningHandler.Kind };
+    var receipt = await rig.Handler.ExecuteEffectAsync(op, default);
+    await using (var change = h.Db())
+    {
+      (await change.FirmWorkspaceConfigurations.SingleAsync()).SiteId = "new-selected-site";
+      await change.SaveChangesAsync();
+    }
+    await using (var db = h.Db())
+    {
+      await using var tx = await db.Database.BeginTransactionAsync();
+      var error = await Assert.ThrowsAsync<OperationBlockedException>(() => rig.Handler.PublishAsync(db, op, receipt, default));
+      Assert.Equal("workspace-provider-binding-changed", error.Code);
+      Assert.Empty(await db.RepositoryBindings.ToListAsync());
+    }
+    var reconciled = await rig.Handler.ReconcileAsync(op, default);
+    await using (var db = h.Db())
+    {
+      await using var tx = await db.Database.BeginTransactionAsync();
+      await rig.Handler.PublishAsync(db, op, reconciled, default); await db.SaveChangesAsync(); await tx.CommitAsync();
+      Assert.Equal("new-selected-site", (await db.RepositoryBindings.SingleAsync()).SiteId);
+    }
+  }
+
+  [Fact]
+  public async Task ConcurrentSameNameClientPlans_CannotBindTwoClientsToTheSameRemoteFolder()
+  {
+    var rig = await CreateAsync(ste: true); await using var owned = rig.H;
+    var h = rig.H;
+    await using (var change = h.Db()) { (await change.PracticeClients.SingleAsync(x => x.Id == h.B.ClientId)).CommercialName = "P2 TEST Client A"; await change.SaveChangesAsync(); }
+    await ActivateAsync(h, h.A.ClientId, h.A.EngagementId); await ActivateAsync(h, h.B.ClientId, h.B.EngagementId);
+    DurableOperation Operation(PbcSeed.Fixture f) => new() { Id = Guid.NewGuid(), FirmId = f.FirmId, ClientId = f.ClientId,
+      EngagementId = f.EngagementId, TargetId = f.EngagementId, OperationKind = EngagementWorkspaceProvisioningHandler.Kind };
+    var a = Operation(h.A); var b = Operation(h.B);
+    var receiptA = await rig.Handler.ExecuteEffectAsync(a, default); var receiptB = await rig.Handler.ExecuteEffectAsync(b, default);
+    await using (var db = h.Db()) { await using var tx = await db.Database.BeginTransactionAsync(); await rig.Handler.PublishAsync(db, a, receiptA, default); await db.SaveChangesAsync(); await tx.CommitAsync(); }
+    await using (var db = h.Db())
+    {
+      await using var tx = await db.Database.BeginTransactionAsync();
+      var error = await Assert.ThrowsAsync<OperationBlockedException>(() => rig.Handler.PublishAsync(db, b, receiptB, default));
+      Assert.Equal("workspace-client-folder-already-owned", error.Code);
+    }
+    var reconciled = await rig.Handler.ReconcileAsync(b, default);
+    await using (var db = h.Db()) { await using var tx = await db.Database.BeginTransactionAsync(); await rig.Handler.PublishAsync(db, b, reconciled, default); await db.SaveChangesAsync(); await tx.CommitAsync();
+      var workspaces = await db.ClientWorkspaces.ToListAsync(); Assert.Equal(2, workspaces.Select(x => x.RemoteItemId).Distinct().Count()); }
+  }
+
   private static (string Id, string Name, string ParentId, bool Folder) Folder(FakeGraphDrive graph, string parentId, string name) =>
     graph.Items.Single(x => x.ParentId == parentId && x.Folder && x.Name == name);
 

@@ -82,7 +82,7 @@ export function decodeEngagement(value: unknown): Engagement {
         <section role="status">
           <h2>Professional work blocked</h2>
           <p>Review the clearance gates before starting professional work.</p>
-          <a [href]="'/app/engagements/' + engagement.id">Review activation and clearance</a>
+          <a [routerLink]="[]" fragment="engagement-clearance">Review clearance gates</a>
         </section>
       }
       @if (engagement.canActivate) {
@@ -92,7 +92,7 @@ export function decodeEngagement(value: unknown): Engagement {
             Activation requires the current unconditional acceptance for this service and no
             unreleased hold.
           </p>
-          <a [href]="'/app/clients/' + engagement.clientId + '/assessment'"
+          <a [routerLink]="['/app/clients', engagement.clientId, 'assessment']"
             >Review acceptance checklist</a
           >
           <label
@@ -114,7 +114,7 @@ export function decodeEngagement(value: unknown): Engagement {
       } @placeholder {
         <p>Team and budget</p>
       }
-      <h2>Holds and clearance gates</h2>
+      <h2 id="engagement-clearance">Holds and clearance gates</h2>
       @if (!engagement.holds.length) {
         <p>No holds recorded.</p>
       }

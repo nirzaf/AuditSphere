@@ -6,8 +6,10 @@ import { Api } from '../../core/api';
 import { SessionService } from '../../core/session';
 import { SHARED } from '../../core/ui';
 import { consentDestination, tenantWorkspace } from './tenant-contracts';
+import { SharePointAdministration } from './sharepoint';
+import { WorkspaceAdministration } from './workspaces';
 
-@Component({ selector: 'audit-tenant-connection', imports: [ReactiveFormsModule, RouterLink, MatButtonModule, ...SHARED], template: `
+@Component({ selector: 'audit-tenant-connection', imports: [ReactiveFormsModule, RouterLink, MatButtonModule, SharePointAdministration, WorkspaceAdministration, ...SHARED], template: `
   <audit-page-header title="Microsoft tenant connection" description="Microsoft authenticates the tenant administrator and asks for consent. AuditSphere verifies the exact tenant and each capability separately." />
   <nav class="actions" aria-label="Microsoft administration"><a matButton routerLink="/app/administration">Administration overview</a><a matButton routerLink="/app/administration/users">Users & Access</a></nav>
   <button matButton (click)="ws.reload()" [disabled]="busy()">Refresh persisted status</button>
@@ -21,8 +23,13 @@ import { consentDestination, tenantWorkspace } from './tenant-contracts';
         <dt>Directory verification</dt><dd>{{ w.workspace.connection.directoryCapabilityState }} · {{ w.workspace.connection.directoryLastCheckedAt ?? 'Not observed' }}</dd></dl>
       @if(w.workspace.consentingAdministrator; as a) { <h3>Verified consenting identity</h3><p>Tenant {{ a.tenantId }} · object {{ a.objectId }} · {{ a.verifiedAt }}</p> }
       <p>AuditSphere never asks for a Microsoft password. The deployment supplies approved credentials privately; the browser receives none.</p>
+      @if (!w.workspace.connection.connectionState && w.preparationConfigured && w.workspace.connection.draftId && w.configuredTenantId) {
+        <h3>Prepare the tenant connection</h3><p>Record configured tenant {{ w.configuredTenantId }} in setup revision {{ w.workspace.draftRevision }}. This prepares the consent flow; it does not grant Microsoft permissions or verify SharePoint access.</p>
+        <label><input type="checkbox" [formControl]="prepareReviewed" /> I reviewed the configured tenant and want to prepare this connection.</label>
+        <button matButton="filled" (click)="prepare()" [disabled]="!prepareReviewed.value || busy() || uncertain()">Prepare tenant connection</button>
+      }
       @if (!w.consentConfigured) { <p role="status">BLOCKED_EXTERNAL: configure the separately approved consent identity and fixed callback. A Microsoft tenant administrator must grant its documented permissions.</p> }
-      @else if(!w.workspace.connection.draftId) { <p role="status">A prepared tenant setup draft is required before consent can begin.</p> }
+      @else if(!w.workspace.connection.draftId || !w.workspace.connection.connectionState) { <p role="status">The installation administrator must prepare a tenant setup revision before consent can begin.</p> }
       @else {
         <form [formGroup]="form" (ngSubmit)="connect()"><label><input type="checkbox" formControlName="reviewed" /> I reviewed the configured tenant and requested capability permissions.</label>
           <button matButton="filled" [disabled]="form.invalid || busy() || uncertain()">Connect Microsoft 365 tenant</button></form>
@@ -40,13 +47,25 @@ import { consentDestination, tenantWorkspace } from './tenant-contracts';
       <li>Client template approved: {{ p.clientTemplateApproved ? 'Yes' : 'Pending' }}</li><li>Workspace activated: {{ p.workspaceActivated ? 'Yes' : 'Pending' }}</li></ul></section> }
   }
   <audit-command-message [message]="message()" [failed]="failed()" />
+  <audit-sharepoint-administration (changed)="ws.reload()" />
+  <audit-workspace-administration />
 ` })
 export class TenantConnection {
   private readonly api = inject(Api); private readonly session = inject(SessionService);
   readonly ws = this.api.resource(() => '/api/ui/administration/microsoft365', tenantWorkspace, 'Current firm-wide Administrator access is required.');
   readonly form = inject(FormBuilder).nonNullable.group({ reviewed: [false, Validators.requiredTrue] });
+  readonly prepareReviewed = inject(FormBuilder).nonNullable.control(false);
   readonly busy = signal(false); readonly uncertain = signal(false); readonly message = signal(''); readonly failed = signal(false);
-  constructor() { effect(() => { if (!this.ws.data()) { this.form.reset(); this.message.set(''); } }); }
+  constructor() { effect(() => { if (!this.ws.data()) { this.form.reset(); this.prepareReviewed.reset(); this.message.set(''); } }); }
+  async prepare(): Promise<void> {
+    const w = this.ws.data(); if (!w?.workspace.connection.draftId || !w.workspace.draftRevision || !w.preparationConfigured || !this.prepareReviewed.value || this.busy() || this.uncertain()) return;
+    const generation = this.session.invalidation(); this.busy.set(true);
+    try { const result = await this.api.command('/api/ui/administration/microsoft365/prepare', { draftId: w.workspace.connection.draftId, expectedRevision: w.workspace.draftRevision, reviewed: true });
+      if (generation !== this.session.invalidation()) return;
+      this.failed.set(!result.ok); this.message.set(result.ok ? 'Tenant connection prepared. Microsoft administrator consent and independent capability verification are still required.' : result.message);
+      if (result.ok) this.ws.reload(); else if (result.unknown) this.uncertain.set(true);
+    } finally { this.busy.set(false); }
+  }
   async connect(): Promise<void> {
     const w = this.ws.data(), draftId = w?.workspace.connection.draftId, tenant = w?.workspace.connection.expectedTenantId;
     if (!w || !draftId || !tenant || !w.consentConfigured || this.form.invalid || this.busy() || this.uncertain()) return;

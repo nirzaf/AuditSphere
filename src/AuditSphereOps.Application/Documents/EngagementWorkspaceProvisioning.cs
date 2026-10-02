@@ -32,7 +32,8 @@ public sealed class EngagementWorkspaceProvisioningHandler(
 
   public OperationDefinition Definition { get; } = new(Kind, OperationMode.LIVE, OperationAuthority.LIVE_PROVIDER, Group: PbcDocumentTransferHandler.LiveGroup);
 
-  private sealed record RemoteResult(string ClientFolderId, string ClientFolderName, string EngagementFolderId, string PbcFolderId, bool TestPassed, string Diagnostic, string? Correlation);
+  private sealed record RemoteResult(string ClientFolderId, string ClientFolderName, string EngagementFolderId, string PbcFolderId, bool TestPassed, string Diagnostic, string? Correlation,
+    string? PlanDigest = null);
 
   public string NormalizePayload(OperationRequest request)
   {
@@ -68,7 +69,7 @@ public sealed class EngagementWorkspaceProvisioningHandler(
 
     var clientName = plan.Ste ? SteClientName(plan.Client) : PbcRepositoryProvisioningService.FolderName(plan.Client.CommercialName ?? plan.Client.LegalName, plan.Client.Id);
     var clientFolder = await provider.EnsureFolderAsync(location, plan.Config.RootFolderId, clientName, ct);
-    if (plan.Ste && await db.ClientWorkspaces.AsNoTracking().AnyAsync(x => x.FirmId == op.FirmId && x.PracticeClientId != plan.Client.Id &&
+    if (plan.Ste && await db.ClientWorkspaces.AsNoTracking().AnyAsync(x => x.TenantId == plan.Config.TenantId && x.PracticeClientId != plan.Client.Id &&
           x.DriveId == plan.Config.DriveId && x.RemoteItemId == clientFolder.ItemId, ct))
     {
       // Another client already owns a folder of this name: use the stable disambiguated name instead of merging clients.
@@ -90,7 +91,7 @@ public sealed class EngagementWorkspaceProvisioningHandler(
     var created = await PbcRepositoryProvisioningService.EnsureTreeAsync(provider, location, engagementFolder.ItemId, plan.EngagementTemplate.ManifestJson, ct);
     var pbc = created[PbcRepositoryProvisioningService.PbcNodeKey];
     var test = await provider.TestReadWriteAsync(location, pbc.ItemId, ct);
-    return Encode(new RemoteResult(clientFolder.ItemId, clientName, engagementFolder.ItemId, pbc.ItemId, test.Passed, test.DiagnosticCode, test.CorrelationId));
+    return Encode(new RemoteResult(clientFolder.ItemId, clientName, engagementFolder.ItemId, pbc.ItemId, test.Passed, test.DiagnosticCode, test.CorrelationId, PlanDigest(plan)));
   }
 
   // Folder creation is get-or-create, so an unknown outcome is reconciled by running the same steps again.
@@ -102,6 +103,12 @@ public sealed class EngagementWorkspaceProvisioningHandler(
       throw new OperationBlockedException("provider-result-unverifiable");
     var remote = JsonSerializer.Deserialize<RemoteResult>(verifiedRemoteResult.Identity) ?? throw new OperationBlockedException("provider-result-unverifiable");
     var plan = await PlanAsync(db, op.FirmId, op.TargetId, ct);
+    if (!await PbcRepositoryProvisioningService.LockWorkspacePublicationAsync(db, op.FirmId, plan.Config.TenantId, plan.Config.DriveId, ct)) throw new OperationBlockedException("workspace-firm-guard-unavailable");
+    plan = await PlanAsync(db, op.FirmId, op.TargetId, ct);
+    if (remote.PlanDigest != PlanDigest(plan)) throw new OperationBlockedException("workspace-provider-binding-changed");
+    if (await db.ClientWorkspaces.AsNoTracking().AnyAsync(x => x.TenantId == plan.Config.TenantId && x.PracticeClientId != plan.Client.Id &&
+        x.DriveId == plan.Config.DriveId && x.RemoteItemId == remote.ClientFolderId, ct))
+      throw new OperationBlockedException("workspace-client-folder-already-owned", authorization: true);
     var activation = await db.EngagementActivations.AsNoTracking().SingleAsync(x => x.FirmId == op.FirmId && x.EngagementId == op.TargetId, ct);
     var now = DateTimeOffset.UtcNow;
     var eventActor = new ActorContext(activation.ActivatedByUserId, op.FirmId, 0, ["Partner"]);
@@ -193,6 +200,14 @@ public sealed class EngagementWorkspaceProvisioningHandler(
     var identity = JsonSerializer.Serialize(result);
     return new(identity, Hashing.Sha256Hex(System.Text.Encoding.UTF8.GetBytes(identity)));
   }
+
+  private static string PlanDigest(Plan plan) => TenantAdministration.Fingerprint(plan.Connection.Id.ToString(),
+    plan.Config.TenantId, plan.Config.SiteId, plan.Config.DriveId, plan.Config.RootFolderId,
+    plan.ClientTemplate.Id.ToString(), plan.ClientTemplate.ManifestDigest, plan.EngagementTemplate.Id.ToString(), plan.EngagementTemplate.ManifestDigest,
+    plan.Connection.RuntimeCredentialReference, plan.Client.LegalName, plan.Client.CommercialName,
+    plan.Engagement.Id.ToString(), plan.Engagement.Generation.ToString(System.Globalization.CultureInfo.InvariantCulture),
+    plan.Engagement.PeriodEnd, plan.Engagement.ServiceRoute, plan.Engagement.CreatedAt.ToString("O"),
+    SteEngagementName(plan.Engagement, plan.Siblings), plan.Workspace.AcceptanceDecisionId.ToString());
 }
 
 /// <summary>Finds activated engagements that have no workspace operation and no working binding, and queues one each.</summary>

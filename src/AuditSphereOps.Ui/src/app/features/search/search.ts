@@ -16,6 +16,9 @@ import { MatInputModule } from '@angular/material/input';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { Subject, Subscription, debounceTime, distinctUntilChanged, timeout } from 'rxjs';
 import { SessionService } from '../../core/session';
+import { Router, RouterLink } from '@angular/router';
+import { workspaceRoute } from '../../core/navigation';
+export { migratedHref } from '../../core/navigation';
 interface Hit {
   kind: string;
   title: string;
@@ -49,14 +52,6 @@ export function decodeSearch(value: unknown): SearchResult {
   }
   return v as unknown as SearchResult;
 }
-export function migratedHref(href: string): string {
-  return href === '/app/practice/leads' ||
-    href === '/app/practice/commercial-settings' ||
-    /^\/app\/practice\/proposals\/[0-9a-f-]{36}$/i.test(href) ||
-    /^\/app(?:$|\/(?:clients|engagements)\/[0-9a-f-]{36}$)/i.test(href)
-    ? '/ui' + href
-    : href;
-}
 @Component({
   selector: 'audit-global-search',
   imports: [
@@ -65,6 +60,7 @@ export function migratedHref(href: string): string {
     MatFormFieldModule,
     MatInputModule,
     MatProgressBarModule,
+    RouterLink,
   ],
   template: `
     <section aria-label="Global search">
@@ -84,8 +80,8 @@ export function migratedHref(href: string): string {
         <button matButton type="submit">Search</button>
       </form>
       <mat-autocomplete #suggestions="matAutocomplete" (optionSelected)="open($event.option.value)">
-        @for (hit of data()?.hits ?? []; track hit.href) {
-          <mat-option [value]="hit.href">{{ hit.title }} · {{ hit.kind }}</mat-option>
+        @for (hit of data()?.hits ?? []; track $index) {
+          <mat-option [value]="hit.href" [disabled]="!route(hit.href)">{{ hit.title }} · {{ hit.kind }}</mat-option>
         }
       </mat-autocomplete>
       <p id="search-help">
@@ -106,9 +102,13 @@ export function migratedHref(href: string): string {
           }}
         </p>
         <ul>
-          @for (hit of result.hits; track hit.href) {
+          @for (hit of result.hits; track $index) {
             <li>
-              <a [href]="link(hit.href)">{{ hit.title }}</a>
+              @if (route(hit.href); as destination) {
+                <a [routerLink]="destination">{{ hit.title }}</a>
+              } @else {
+                <span>{{ hit.title }}</span><small>This page is not available in this workspace.</small>
+              }
               <p>{{ hit.kind }} · {{ hit.detail }}</p>
             </li>
           }
@@ -121,13 +121,14 @@ export function migratedHref(href: string): string {
 export class GlobalSearch {
   private readonly http = inject(HttpClient);
   private readonly session = inject(SessionService);
+  private readonly router = inject(Router);
   private request?: Subscription;
   private readonly terms = new Subject<string>();
   private readonly field = viewChild<ElementRef<HTMLInputElement>>('term');
   readonly data = signal<SearchResult | null>(null);
   readonly loading = signal(false);
   readonly error = signal('');
-  readonly link = migratedHref;
+  readonly route = workspaceRoute;
   constructor() {
     effect(() => {
       this.session.invalidation();
@@ -140,7 +141,7 @@ export class GlobalSearch {
     });
     const typing = this.terms
       .pipe(debounceTime(250), distinctUntilChanged())
-      .subscribe((value) => this.run(value));
+      .subscribe((value) => { if (value.trim()) this.run(value); });
     const shortcut = (event: KeyboardEvent) => {
       const target = event.target instanceof HTMLElement ? event.target : null;
       if (
@@ -174,8 +175,9 @@ export class GlobalSearch {
     this.terms.next(value);
   }
   open(href: unknown): void {
-    if (typeof href === 'string' && this.data()?.hits.some((h) => h.href === href))
-      window.location.assign(migratedHref(href));
+    if (typeof href !== 'string' || !this.data()?.hits.some((h) => h.href === href)) return;
+    const destination = workspaceRoute(href);
+    if (destination) void this.router.navigateByUrl(destination);
   }
   search(event: Event, value: string): void {
     event.preventDefault();

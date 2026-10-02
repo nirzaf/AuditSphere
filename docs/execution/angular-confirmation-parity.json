@@ -1,0 +1,93 @@
+{
+  "schemaVersion": 1,
+  "authority": "Curated local source-action audit; test names are evidence pointers, not acceptance by themselves. Execution outcomes live only in status.json.",
+  "story": "US-033",
+  "status": "PARTIAL",
+  "nativeRoute": "/ui/app/engagements/{id}/confirmations",
+  "sourceFiles": [
+    "src/AuditSphereOps.Application/Audit/Fieldwork/AuditFieldworkService.Confirmations.cs",
+    "src/AuditSphereOps.Application/Audit/AuditConfirmationBatchService.cs",
+    "src/AuditSphereOps.Application/Completion/AuditDeliverableService.cs",
+    "src/AuditSphereOps.Web/Components/Completion/CompletionDeliverablesPanel.razor"
+  ],
+  "records": [
+    {
+      "action": "register",
+      "owner": "GET /api/ui/engagements/{id}/confirmations",
+      "disposition": "Implemented bounded scoped filters and critical blockers",
+      "evidencePointer": "ConfirmationApiTests.ExactScope_GuessedIds_BoundedWindows_AndRevokedSessions_FailClosed"
+    },
+    {
+      "action": "case-evidence",
+      "owner": "GET /api/ui/engagements/{id}/confirmations/{caseId}",
+      "disposition": "Implemented exact current response and alternative revisions",
+      "evidencePointer": "ConfirmationApiTests.ReviewedLifecycle_RequiresObservedDispatch_IndependentCurrentEvidence_AndReviewedAlternative"
+    },
+    {
+      "action": "prepare",
+      "owner": "CreateConfirmationAsync",
+      "disposition": "Implemented reviewed preparation, supported precision, duplicate identity and lost-outcome fence",
+      "evidencePointer": "AngularConfirmationJourneyTests"
+    },
+    {
+      "action": "approve",
+      "owner": "ApproveConfirmationAsync",
+      "disposition": "Implemented independent reviewed approval; preparation remains not dispatched",
+      "evidencePointer": "AngularConfirmationJourneyTests"
+    },
+    {
+      "action": "dispatch-observation",
+      "owner": "RecordDispatchEvidenceAsync",
+      "disposition": "Implemented local observation only; no external send action or inferred delivery",
+      "evidencePointer": "AngularConfirmationJourneyTests"
+    },
+    {
+      "action": "response-observation",
+      "owner": "RecordConfirmationResponseAsync",
+      "disposition": "Implemented append-only response revisions including late substantive response",
+      "evidencePointer": "ConfirmationApiTests.ReviewedLifecycle_RequiresObservedDispatch_IndependentCurrentEvidence_AndReviewedAlternative"
+    },
+    {
+      "action": "response-review",
+      "owner": "ReviewConfirmationResponseAsync",
+      "disposition": "Implemented independent current-response review; stale evidence IDs refused",
+      "evidencePointer": "ConfirmationApiTests.ReviewedLifecycle_RequiresObservedDispatch_IndependentCurrentEvidence_AndReviewedAlternative"
+    },
+    {
+      "action": "alternative-work",
+      "owner": "RecordAlternativeProcedureAsync",
+      "disposition": "Implemented purpose, explicit evidence references and professional conclusion",
+      "evidencePointer": "AngularConfirmationJourneyTests"
+    },
+    {
+      "action": "alternative-review",
+      "owner": "ReviewAlternativeProcedureAsync",
+      "disposition": "Implemented independent current-alternative review",
+      "evidencePointer": "AngularConfirmationJourneyTests"
+    },
+    {
+      "action": "close",
+      "owner": "CloseConfirmationAsync",
+      "disposition": "Implemented closure gate and append-only human conclusion, actor/time and exact evidence snapshot with deterministic latest-alternative ordering. Historical missing records are labelled without invented proof.",
+      "evidencePointer": "ConfirmationApiTests.ReviewedLifecycle_RequiresObservedDispatch_IndependentCurrentEvidence_AndReviewedAlternative; ConfirmationApiTests.Closure_UsesLatestAlternativeEvenAtEqualTimestamps_AndLabelsLegacyEvidence; AngularConfirmationJourneyTests"
+    },
+    {
+      "action": "criticality",
+      "owner": "SetConfirmationCriticalityAsync",
+      "disposition": "Implemented explicit reviewed criticality and rationale; no inferred opinion",
+      "evidencePointer": "ConfirmationApiTests.ReviewedLifecycle_RequiresObservedDispatch_IndependentCurrentEvidence_AndReviewedAlternative"
+    },
+    {
+      "action": "batch-prepare",
+      "owner": "POST /api/ui/engagements/{id}/confirmations/batch \u2192 ConfirmationWorkspace.CreateBatchAsync \u2192 CreateConfirmationBatchAsync",
+      "disposition": "Implemented native reviewed bounded multi-case Signal Forms, exact amounts, applicable procedure, atomic transaction, duplicate/source-date refusal and current-register/epoch/freeze fences",
+      "evidencePointer": "ConfirmationApiTests.ReviewedBatch_IsAtomic_Bounded_DuplicateSafe_AndScopeFenced; AngularConfirmationJourneyTests.NativeBatchForm_ReviewsAllRows_RejectsPartialDuplicates_AndPersistsExactDrafts"
+    },
+    {
+      "action": "draft-recovery",
+      "owner": "Scoped confirmation form drafts",
+      "disposition": "Implemented bounded versioned tab-only case/batch/action drafts, explicit same-identity/epoch/base recovery, expiration and allowlists, honest storage failure, route/context/unload guards, retained edits on background revision change and fresh review. Unknown submission intent is fenced, never replayed.",
+      "evidencePointer": "TabDrafts unit tests; Confirmation evidence controls; AngularConfirmationJourneyTests.TabDrafts_ExplicitRecovery_NavigationProtection_RevisionConflict_AndRevocation; AngularConfirmationJourneyTests.TabStorageFailure_DoesNotPretendSaved_AndKeepsNavigationIntent"
+    }
+  ]
+}

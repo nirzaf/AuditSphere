@@ -50,16 +50,16 @@ public static class AuditConfirmationBatchService
     if (string.IsNullOrWhiteSpace(request.AreaCode))
       return CommandResult<ConfirmationBatchValue>.Fail(ErrorCodes.Accounting.MappingInvalid,
         "A confirmation batch requires an area code.");
-    if (request.Cases is null || request.Cases.Count == 0)
+    if (request.Cases is null || request.Cases.Count is < 1 or > 100)
       return CommandResult<ConfirmationBatchValue>.Fail(ErrorCodes.Accounting.MappingInvalid,
-        "A confirmation batch requires at least one case.");
-    if (request.Cases.Select(x => x.SourceRecordId.Trim()).Distinct(StringComparer.Ordinal).Count() != request.Cases.Count)
-      return CommandResult<ConfirmationBatchValue>.Fail(ErrorCodes.Accounting.MappingInvalid,
-        "Batch case source records must be unique.");
-    if (request.Cases.Any(x => string.IsNullOrWhiteSpace(x.SourceRecordId) ||
+        "A confirmation batch requires between one and 100 cases.");
+    if (request.Cases.Any(x => x is null || string.IsNullOrWhiteSpace(x.SourceRecordId) ||
         string.IsNullOrWhiteSpace(x.Respondent) || string.IsNullOrWhiteSpace(x.ContactValidationSource)))
       return CommandResult<ConfirmationBatchValue>.Fail(ErrorCodes.Accounting.MappingInvalid,
         "Every batch case needs a source record, respondent and validated contact source.");
+    if (request.Cases.Select(x => x.SourceRecordId.Trim()).Distinct(StringComparer.Ordinal).Count() != request.Cases.Count)
+      return CommandResult<ConfirmationBatchValue>.Fail(ErrorCodes.Accounting.MappingInvalid,
+        "Batch case source records must be unique.");
     var currency = request.Currency?.Trim().ToUpperInvariant() ?? string.Empty;
     if (currency.Length != 3 || currency.Any(c => c is < 'A' or > 'Z'))
       return CommandResult<ConfirmationBatchValue>.Fail(ErrorCodes.Accounting.MappingInvalid,
@@ -93,7 +93,7 @@ public static class AuditConfirmationBatchService
       return CommandResult<ConfirmationBatchValue>.Fail(ErrorCodes.GateBlocked,
         $"The batch currency {currency} does not match the engagement reporting currency {packageCurrency}.");
 
-    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
     var generation = await db.ClientSafetyStates.AsNoTracking()
       .Where(x => x.Id == engagement.PracticeClientId && x.FirmId == actor.FirmId)
       .Select(x => (long?)x.InputGeneration).SingleOrDefaultAsync(ct) ?? 1;
@@ -115,7 +115,7 @@ public static class AuditConfirmationBatchService
       created.Add(new ConfirmationValue(confirmation.Id, confirmation.Status));
     }
     await db.SaveChangesAsync(ct);
-    await tx.CommitAsync(ct);
+    if (tx is not null) await tx.CommitAsync(ct);
 
     return CommandResult<ConfirmationBatchValue>.Ok(new ConfirmationBatchValue(
       area, created.Count, request.Cases.Sum(x => x.BookedAmount), created));

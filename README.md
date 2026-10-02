@@ -3,7 +3,7 @@
 [![.NET](https://img.shields.io/badge/.NET-10.0-512BD4?logo=dotnet&logoColor=white)](https://dotnet.microsoft.com/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-18.6-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 [![EF Core](https://img.shields.io/badge/EF%20Core-10.0-0078D4?logo=nuget&logoColor=white)](https://learn.microsoft.com/ef/core/)
-[![Blazor](https://img.shields.io/badge/Blazor-Interactive%20Server-512BD4?logo=blazor&logoColor=white)](https://dotnet.microsoft.com/apps/aspnet/web-apps/blazor)
+[![Angular](https://img.shields.io/badge/Angular-22-DD0031?logo=angular&logoColor=white)](src/AuditSphereOps.Ui/auditsphere-angular-development.md)
 [![Tests](https://img.shields.io/badge/Tests-PostgreSQL--backed-brightgreen)](tests/)
 [![Migrations](https://img.shields.io/badge/Migrations-EF%20Core-blue)](src/AuditSphereOps.Infrastructure/Persistence/Migrations/)
 ![License](https://img.shields.io/badge/License-Informational-lightgrey)
@@ -11,6 +11,12 @@
 **AuditSphereOps** is a professional audit, accounting, and assurance operations platform — an enterprise **.NET 10 modular monolith** for accounting practices, CPA firms, audit engagements, and multi-entity group consolidation. It governs the full engagement lifecycle: lead qualification, proposals, client acceptance, practice time and billing, trial-balance/GL intake, financial statement production, audit fieldwork, review, controlled package signing/release, records retention, and multi-currency consolidation.
 
 > **Status: Specification-Driven Modular Monolith.** Implemented and verified locally (per [`docs/execution/status.json`](docs/execution/status.json), the single authority for test counts, verified SHA, migration count, and external blockers, against PostgreSQL 18.6): core domain modules and practice management; period/book/basis-bound trial-balance intake with deterministic sealing, safe legacy period/chart backfill, and sealed GL source-bound schedule control totals; bounded resumable GL intake with service-date lineage and opening/movement completeness; client-scoped accounting dimensions, chart/taxonomy hierarchy controls, and QAR setup defaults; deterministic calculators and governed workflows (journal-risk indicators, exact-journal difference-impact classification, governed difference correction states, audit planning, bank reconciliation proofs, source-bound reconciliation-item aging, analytical-review replay lineage, valuation differences linked to scoped adjustments, typed specialist schedules with explicit asset-schedule methodology); package production and release control (exact-byte reviewed artifacts, deterministic formula-free XLSX/DOCX exports, package-bound release candidates, archive lineage, governed financial-package review decisions, authorized review queues, client-safe management views, durable GL/package processing, context-bound adjustment journals, queued-operation cancellation, recovery quarantine, provider safety fences, source-bound accounting-evidence freshness); versioned FX ranges and approved rate-rule enforcement with deterministic advanced-consolidation safety cores; stale-route re-authorization hardening across staff and client workbenches; a prototype-inspired Blazor UI modernization across the shared staff/client shell, MudBlazor route families and a whole-application responsive sweep with scoped staff navigation search that re-authorizes every hit against its destination route's decision; a source-backed administrator project progress tracker; guarded Microsoft tenant consent sessions; a least-privilege M365 tenant administration boundary; and bounded read-only Microsoft directory search. Production external gates (Entra OIDC, selected-resource SharePoint/Graph, live release checkpoint) require live infrastructure and remain `BLOCKED_EXTERNAL`, never fake-passed. Purview and eSignature provider integrations are out of product scope: exact uploaded signed-document evidence, SHA-256 identities, human decisions, and release manifests are preserved without claiming provider acceptance.
+
+## API backend and Angular UI
+
+The owner-directed migration now separates `src/AuditSphereOps.Api` (ASP.NET Core HTTP backend) from `src/AuditSphereOps.Ui` (Angular frontend). Both retain the existing Domain/Application/Infrastructure/Worker boundaries. The legacy Blazor host reuses API composition for rollback while feature parity is checked; full migration acceptance and retirement are still pending.
+
+Start/build/publish instructions are in the [Angular development guide](src/AuditSphereOps.Ui/auditsphere-angular-development.md); the [migration architecture](docs/architecture/auditsphere-angular-migration-current.md) records security and acceptance boundaries.
 
 ---
 
@@ -58,19 +64,19 @@ Absolute isolation is enforced between three accounting domains — in the Domai
 
 ## Architecture & Data Flow
 
-AuditSphereOps is structured as a **clean-architecture modular monolith** on ASP.NET Core with Blazor Interactive Server:
+AuditSphereOps is structured as a **clean-architecture modular monolith** with an ASP.NET Core API backend and Angular UI. The Blazor host remains available for rollback during migration acceptance:
 
 ```
    ┌───────────────────────────────────────────────┐
    │                   BROWSERS                    │
-   │  staff workbenches (/app/*) · client portal   │
-   │           (/portal) · health probes           │
+   │ staff Angular (/ui/app/*) · client Angular    │
+   │       (/ui/portal) · authorized files         │
    └────────────────────┬──────────────────────────┘
-                        │ Blazor Interactive Server (SignalR)
+                        │ same-origin HTTPS / authorized API
 ┌───────────────────────▼──────────────────────────────┐
-│                  AuditSphereOps.Web                  │
-│   Blazor Web App (Interactive Server) · MudBlazor    │
-│   workbenches · restricted client portal (/portal)   │
+│                  AuditSphereOps.Api                  │
+│      ASP.NET Core API · Angular presentation        │
+│    Angular workbenches /ui/app · /ui/portal          │
 │      route/refresh re-authorization · composes       │
 │     Application commands & queries · no business     │
 │           mutations through the DbContext            │
@@ -169,7 +175,7 @@ Native, production-grade implementations for the R2R lifecycle defined under `do
 
 ## Web Workbenches & Navigation Directory
 
-Role-gated Blazor workbenches (`src/AuditSphereOps.Web`) with client-side draft auto-save:
+The table below lists source workbench routes in the rollback Blazor host (`src/AuditSphereOps.Web`). Implemented Angular routes use `/ui` plus the same route. The explicit route catalogue in `src/AuditSphereOps.Ui/src/app/app.routes.ts` owns Angular navigation; route presence does not establish full action parity. Draft, authorization and acceptance evidence are recorded in the migration ledger.
 
 | Route | Workbench | Description |
 |---|---|---|
@@ -221,8 +227,9 @@ Role-gated Blazor workbenches (`src/AuditSphereOps.Web`) with client-side draft 
 |---|---|---|
 | **Runtime & SDK** | .NET 10 (`global.json` pin `10.0.300`, `rollForward=disable`) | Core runtime and compilation toolchain |
 | **Language** | C# 14 | Strict nullability and pattern matching |
-| **Web Framework** | ASP.NET Core Blazor (Interactive Server) | Web application & client portal |
-| **UI Component Library** | MudBlazor 9.10.0 (Web project only) | Component system for workbenches and portal; project reference direction guard-tested |
+| **HTTP Backend** | ASP.NET Core API (.NET 10) | Authorized capability contracts, cookie/OIDC, consent, files and health |
+| **Frontend** | Angular 22 with Material/CDK | Separate staff and client presentation workspace |
+| **Rollback UI** | Blazor Interactive Server with MudBlazor 9.10.0 | Legacy presentation only; API has no dependency on these libraries |
 | **ORM & Data Provider** | Entity Framework Core 10.0.12 + Npgsql 10.0.0 | PostgreSQL persistence |
 | **Database Engine** | PostgreSQL 18.6 | User-local development on port `5433`; managed cloud in prod |
 | **Document Processing** | DocumentFormat.OpenXml & PDFsharp / MigraDoc | Byte-stable, formula-free document generation |
@@ -238,7 +245,9 @@ AuditSphere/
 │   ├── AuditSphereOps.Domain/          # Pure domain models, entities, business invariants
 │   ├── AuditSphereOps.Application/     # ActorContext, scope authorization, calculators, renderers, orchestrators
 │   ├── AuditSphereOps.Infrastructure/  # EF Core DbContext, mappings, migrations, provider adapters
-│   ├── AuditSphereOps.Web/             # Blazor Web App (Interactive Server), workbenches, portal, health probes
+│   ├── AuditSphereOps.Api/             # ASP.NET Core API host, authenticated contracts, files and health
+│   ├── AuditSphereOps.Ui/              # Angular frontend, Material/CDK, lazy staff/client routes
+│   ├── AuditSphereOps.Web/             # Legacy Blazor presentation using shared API composition
 │   └── AuditSphereOps.Worker/          # Durable-operation worker (general, processing, records)
 ├── tests/
 │   ├── AuditSphereOps.Domain.Tests/    # PostgreSQL-backed domain, integration & architecture guard tests
@@ -262,6 +271,7 @@ AuditSphere/
 ### Prerequisites
 
 - **.NET SDK 10.0.300** (`global.json` enforces the exact SDK version)
+- **Node.js** matching `src/AuditSphereOps.Ui/.nvmrc` and its supported npm version
 - **PostgreSQL 18.6** accessible locally on port `5433`
 - **PowerShell** (Windows) or **Zsh / Bash** (macOS / Linux)
 
@@ -299,6 +309,11 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\db\stop.ps1     # Fa
 ## Build, Migrate, Test & Benchmark
 
 ```bash
+# 0. Build and test the separate Angular frontend
+npm --prefix src/AuditSphereOps.Ui ci
+npm --prefix src/AuditSphereOps.Ui run build
+npm --prefix src/AuditSphereOps.Ui run test:ci
+
 # 1. Build the entire solution in Release mode (restore first if needed)
 dotnet build AuditSphereOps.slnx --no-restore --configuration Release
 
@@ -308,7 +323,7 @@ dotnet test AuditSphereOps.slnx --no-build --configuration Release
 # 3. Verify EF Core model changes against the applied migrations
 dotnet ef migrations has-pending-model-changes \
   --project src/AuditSphereOps.Infrastructure \
-  --startup-project src/AuditSphereOps.Web \
+  --startup-project src/AuditSphereOps.Api \
   --configuration Release
 
 # 4. Optional: run the representative accounting benchmark
@@ -317,7 +332,7 @@ dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj
   --filter 'FullyQualifiedName~AccountingBenchmarkTests'
 ```
 
-The hosted GitHub Actions workflow is a **mandatory build gate plus documentation health checks**: pinned SDK check, locked restore, Release build, `has-pending-model-changes`, and the Markdown health/filename validators plus the narrative volatile-metrics guard (`docs-health` job). It does not execute the test suites, so a green CI badge is not test acceptance — the suites above are the test evidence and run locally (or in an explicitly configured test runner) against real PostgreSQL 18.6.
+The hosted GitHub Actions workflow checks the Angular build/unit tests, pinned SDK, locked restore, Release solution build, API model drift/publication and documentation health. It does not execute the PostgreSQL-backed Domain/API/browser suites. Those require the configured local database and browser runner; hosted build success does not establish their acceptance or live Microsoft readiness.
 
 ### Database Test Isolation
 

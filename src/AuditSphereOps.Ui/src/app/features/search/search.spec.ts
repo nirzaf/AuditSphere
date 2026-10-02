@@ -20,6 +20,15 @@ describe('Authorized navigation search contract', () => {
     expect(migratedHref('/app/practice/commercial-settings')).toBe(
       '/ui/app/practice/commercial-settings',
     );
-    expect(migratedHref('/app/finance')).toBe('/app/finance');
+    expect(migratedHref('/app/finance')).toBe('/ui/app/finance');
+    expect(migratedHref('/app/engagements/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/pbc')).toBe(
+      '/ui/app/engagements/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/pbc',
+    );
+    expect(migratedHref('/app/practice/invoices/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa')).toContain('/ui/app/practice/invoices/');
+    expect(migratedHref('/app/library/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa')).toContain('/ui/app/library/');
+    expect(migratedHref('/app/unowned')).toBeNull();
+    expect(migratedHref('/app/clients/' + '-'.repeat(36))).toBeNull();
+    expect(migratedHref('/app/clients/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa?returnUrl=https://example.test')).toBeNull();
+    expect(migratedHref('//example.test/app')).toBeNull();
   });
 });

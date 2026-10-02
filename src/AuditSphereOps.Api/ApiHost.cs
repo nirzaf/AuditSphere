@@ -16,7 +16,7 @@ public static partial class ApiHost
     builder.Services.AddHttpContextAccessor();
     addPresentation?.Invoke(builder);
     var connection = ConfigurePersistence(builder, legacyPresentation);
-    var identity = ConfigureAuthentication(builder);
+    var identity = ConfigureAuthentication(builder, legacyPresentation);
     ConfigureProviders(builder, connection, identity.OidcConfigured);
     ConfigureHealth(builder, connection);
     var app = builder.Build();
@@ -44,6 +44,7 @@ public static partial class ApiHost
 
     MapAuthenticationEndpoints(app, identity, legacyPresentation);
     MapDocumentEndpoints(app);
+    MapInstallationEndpoints(app);
     app.MapUiEndpoints();
     mapPresentation?.Invoke(app);
     return app;

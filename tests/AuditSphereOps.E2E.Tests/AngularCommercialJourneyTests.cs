@@ -111,9 +111,9 @@ public sealed class AngularCommercialJourneyTests
     }
     await page.ReloadAsync();
     await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Angular quotation client", Exact = true })).ToBeVisibleAsync();
-    var feePlaceholder = page.GetByText("Fee agreement and billing milestones", new() { Exact = true });
-    if (await feePlaceholder.CountAsync() > 0) await feePlaceholder.ScrollIntoViewIfNeededAsync();
     var fees = page.Locator("audit-fee-agreement");
+    // The container survives the viewport-triggered replacement of its lazy placeholder.
+    await page.Locator("#proposal-fee-agreement").ScrollIntoViewIfNeededAsync();
     await Assertions.Expect(fees.GetByRole(AriaRole.Heading, new() { Name = "Agreed fee and billing milestones", Exact = true })).ToBeVisibleAsync();
     await fees.GetByRole(AriaRole.Checkbox, new() { Name = "I reviewed this fee, milestone and selected action.", Exact = true }).CheckAsync();
     await fees.GetByRole(AriaRole.Button, new() { Name = "Create fee agreement", Exact = true }).ClickAsync();

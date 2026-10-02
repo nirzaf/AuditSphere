@@ -42,13 +42,13 @@ const REPORTS: [string, string][] = [['AUDIT_FINDINGS_REPORT', 'Audit Findings R
 
       <section class="panel" aria-labelledby="deliverables-heading">
         <h2 id="deliverables-heading">Review, opinion and deliverables</h2>
-        <h3>Third-party confirmations</h3>
+        <h3>Third-party confirmations</h3><a [routerLink]="['/app/engagements',id(),'confirmations']">Open confirmation dashboard</a>
         <div class="table-scroll"><table aria-label="Confirmations dashboard">
           <thead><tr><th>Type</th><th>Respondent</th><th class="number">Amount</th><th>Monitoring</th><th>Critical</th><th><span class="sr-only">Action</span></th></tr></thead>
           <tbody>@for (c of w.confirmations; track c.caseId) {
             <tr><td>{{ c.type }}</td><td>{{ c.respondent }}</td><td class="number">{{ c.bookedAmount | money }} {{ c.currency }}</td>
               <td><audit-status [value]="c.monitoring" />{{ c.daysSinceDispatch !== null ? ' ' + c.daysSinceDispatch + ' day(s)' : '' }}</td><td>{{ c.critical ? 'Critical' : '—' }}</td>
-              <td><button matButton (click)="send('/api/ui/confirmations/' + c.caseId + '/criticality', { critical: !c.critical }, 'Criticality recorded.')" [disabled]="cmd.busy()" [attr.aria-label]="'Toggle criticality for ' + c.respondent">{{ c.critical ? 'Mark not critical' : 'Mark critical' }}</button></td></tr>
+              <td><a [routerLink]="['/app/engagements',id(),'confirmations']">Review criticality and evidence</a></td></tr>
           } @empty { <tr><td colspan="6">No confirmations are recorded.</td></tr> }</tbody>
         </table></div>
 
@@ -185,9 +185,9 @@ const REPORTS: [string, string][] = [['AUDIT_FINDINGS_REPORT', 'Audit Findings R
       <section class="panel" aria-labelledby="actions-heading">
         <h2 id="actions-heading">Actions</h2>
         <p class="actions">
-          @if (w.releaseCandidateId) { <a matButton="filled" [href]="'/app/releases/' + w.releaseCandidateId">View release candidate</a> }
+          @if (w.releaseCandidateId) { <a matButton="filled" [routerLink]="['/app/releases', w.releaseCandidateId]">View release candidate</a> }
           @else if (w.canPrepareRelease && w.packageId) { <button matButton="filled" (click)="send(base() + '/release-candidate', { packageId: w.packageId }, 'Release candidate prepared from the exact reviewed package.')" [disabled]="cmd.busy()">{{ cmd.busy() ? 'Preparing…' : 'Prepare release candidate' }}</button> }
-          @if (w.packageId) { <a matButton="outlined" [href]="'/app/accounting/packages/' + w.packageId">Open financial package</a> }
+          @if (w.packageId) { <a matButton="outlined" [routerLink]="['/app/accounting/packages', w.packageId]">Open financial package</a> }
           <a matButton [routerLink]="['/app/engagements', w.engagementId]">Back to engagement</a>
         </p>
       </section>

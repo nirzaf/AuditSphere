@@ -532,7 +532,7 @@ accounting or consolidation workspaces.
 
 
 
-- Application: `Application/Microsoft365/Microsoft365ConfigurationService.cs`, `SelectedSiteBoundaryVerificationService.cs` (trusted exact-revision positive/negative resource evidence), `TenantConsentService.cs`, `TenantConnectionQuery.cs`, `DirectoryDiscoveryService.cs`, `DirectoryUserBindingService.cs`, `DirectoryCapabilityVerificationService.cs`, `TenantAdministrationProviders.cs` (provider interfaces + permission matrix), `TenantCapabilityService.cs`, `DirectoryProvisioningService.cs` (user creation, guest invitation, reconciliation), `ManagedGroupService.cs`, `AdministrationOverviewQuery.cs`; `Application/Security/` (`RoleAssignmentService.cs`, `RoleGrantExpiry.cs`, `UserAccessWorkspaceQuery.cs`)
+- Application: `Application/Microsoft365/Microsoft365ConfigurationService.cs`, `SelectedResourceAdministration.cs` (bounded administrator projection, reviewed draft edits and activation composition), `SelectedSiteBoundaryVerificationService.cs` (trusted exact-revision positive/negative resource evidence), `TenantConsentService.cs`, `TenantConnectionQuery.cs`, `DirectoryDiscoveryService.cs`, `DirectoryUserBindingService.cs`, `DirectoryCapabilityVerificationService.cs`, `TenantAdministrationProviders.cs` (provider interfaces + permission matrix), `TenantCapabilityService.cs`, `DirectoryProvisioningService.cs` (user creation, guest invitation, reconciliation), `ManagedGroupService.cs`, `AdministrationOverviewQuery.cs`; `Application/Security/` (`RoleAssignmentService.cs`, `RoleGrantExpiry.cs`, `UserAccessWorkspaceQuery.cs`)
 
 
 
@@ -540,7 +540,7 @@ accounting or consolidation workspaces.
 
 
 
-- UI: `Microsoft365Setup.razor`, `TenantConnection.razor`, `Administration.razor` (dashboard + Users & Access / Microsoft 365 / Audit History tabs), `Components/Administration/*`, `AccessNotAssigned.razor`; consent callback in `Web/Program.cs`, identity callback and composition in `Web/Authentication/TenantAdministrationComposition.cs`
+- API/Angular: `Api/Ui/UiEndpoints.Microsoft365.cs`, `.TenantOperations.cs`, `.SelectedResources.cs`; `Ui/src/app/features/admin/tenant.ts`, `sharepoint.ts`, `provisioning.ts`, `groups.ts`, `operation-recovery.ts`; API owns consent/authentication callback composition. Legacy presentation: `Microsoft365Setup.razor`, `TenantConnection.razor`, `Administration.razor` and `Components/Administration/*` remain the parity/rollback reference until retirement acceptance.
 
 
 
@@ -708,3 +708,24 @@ For the complete documentation index, authority hierarchy, current requirements,
 - Angular: `src/AuditSphereOps.Ui/src/app/core/session.ts` and `features/portfolio/portfolio.ts`.
 - Tests: `PortfolioQueryTests`, `UiContractTests`, `AngularPortfolioJourneyTests`, Angular component/decoder tests.
 - Authority: [migration ownership and remaining scope](auditsphere-angular-migration-current.md).
+
+### Angular workspace administration
+
+- Application: `Documents/WorkspaceProvisioningAdministration.cs` supplies bounded administrator workspace pages, exact target/resource/template review fingerprints and reviewed calls to existing `PbcRepositoryProvisioningService`. `ClientSharePointSiteQuery` projects separate dedicated-site and membership health.
+- API: `Ui/UiEndpoints.WorkspaceProvisioning.cs` exposes authenticated bounded reads and CSRF-protected client/engagement folder commands. It does not host privileged site creation or membership providers.
+- Angular: `features/admin/workspaces.ts` and `workspace-contracts.ts` render native target review, reasons, idempotent folder actions, independent PBC verification and read-only dedicated-site status; unknown responses fence further writes.
+- Worker: `EngagementWorkspaceProvisioningHandler` fingerprints the provider plan and refuses changed plans or folder ownership collisions before binding; publication serialization stays local to PostgreSQL after provider I/O.
+- Checks: `WorkspaceProvisioningApiTests`, `AngularWorkspaceAdministrationJourneyTests`, `workspaces.spec.ts` and `EngagementWorkspaceProvisioningTests`. Observed results belong to the execution ledger.
+
+### Angular confirmation administration
+
+- Application: `Audit/ConfirmationWorkspace.cs` (bounded scoped register, current evidence review and local reviewed command transaction), `Audit/Fieldwork/AuditFieldworkService.Confirmations.cs` (confirmation lifecycle, response revisions, independent alternative review and closure).
+- API: `Ui/UiEndpoints.Confirmations.cs` (trusted scoped reads and CSRF-protected reviewed commands; exact supported decimal inputs).
+- Angular: `features/audit/confirmations.ts`, `confirmation-contracts.ts` (native Signal Forms, separate preparation/observed dispatch/review states, bounded filters and unknown-outcome fences).
+- Verification: `ConfirmationApiTests`, `AngularConfirmationJourneyTests`, `confirmations.spec.ts`, existing fieldwork/sampling/deliverables suites.
+
+- Native reviewed confirmation batches: `Application/Audit/ConfirmationWorkspace.Batch.cs` owns the scoped transaction and reviewed-register fences; `AuditConfirmationBatchService.cs` retains batch lifecycle preparation. `Api/Ui/UiEndpoints.Confirmations.cs` validates bounded exact inputs, and Angular `features/audit/confirmations.ts` owns the multi-case Signal Form. API, Angular unit and confirmation browser tests cover atomic publication and stale/duplicate refusal.
+
+- Confirmation closure evidence: Domain `Audit/AuditConfirmationClosure.cs`, Application `Audit/Fieldwork/AuditFieldworkService.Confirmations.cs`, Infrastructure `AuditSphereDbContext.Fieldwork.cs` and the additive `ConfirmationClosureEvidence` migration retain immutable human conclusions and exact evidence snapshots. The native confirmation detail projection exposes scoped decision metadata; API and Angular browser tests cover retained evidence and current-alternative ordering.
+
+- Confirmation tab drafts: Angular `core/tab-drafts.ts` owns versioned identity/epoch/base envelopes and explicit tab storage; `core/unsaved-changes.ts` owns the Material leave dialog and route guard. `features/audit/confirmation-drafts.ts` bounds allowlisted intent; `confirmations.ts` owns recovery, refreshed-revision review and command-outcome fencing. `tab-drafts.spec.ts`, `confirmations.spec.ts` and native confirmation journeys cover storage failure, expiration, stale identity/revisions, tab isolation and revoked sessions.

@@ -80,7 +80,17 @@ jobs:
         run: |
           set -euo pipefail
           dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure \
-            --startup-project src/AuditSphereOps.Web --no-build --configuration Release
+            --startup-project src/AuditSphereOps.Api --no-build --configuration Release
+
+      - name: Verify standalone API and Angular publication
+        run: |
+          set -euo pipefail
+          dotnet publish src/AuditSphereOps.Api --no-build --no-restore --configuration Release \
+            --output "$RUNNER_TEMP/auditsphere-api"
+          test -f "$RUNNER_TEMP/auditsphere-api/AuditSphereOps.Api.dll"
+          test -f "$RUNNER_TEMP/auditsphere-api/ui/index.html"
+          test ! -f "$RUNNER_TEMP/auditsphere-api/AuditSphereOps.Web.dll"
+          test ! -f "$RUNNER_TEMP/auditsphere-api/MudBlazor.dll"
 
       - name: Summarize
         if: ${{ always() }}

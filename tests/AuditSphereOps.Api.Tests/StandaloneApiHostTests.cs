@@ -43,6 +43,12 @@ public sealed class StandaloneApiHostTests
     Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/api/ui/portfolio")).StatusCode);
     Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/api/ui/administration/microsoft365")).StatusCode);
     Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync($"/api/ui/engagements/{Guid.NewGuid()}")).StatusCode);
+    foreach (var path in new[] { "/api/ui/administration/access/assign", "/api/ui/administration/directory/bind" })
+    {
+      using var request = new HttpRequestMessage(HttpMethod.Post, path) { Content = JsonContent.Create(new { request = (object?)null, reviewed = true, reviewDigest = new string('a', 64) }) };
+      request.Headers.Add("X-XSRF-TOKEN", proof);
+      Assert.Equal(HttpStatusCode.Forbidden, (await client.SendAsync(request)).StatusCode);
+    }
     Assert.Equal(HttpStatusCode.Forbidden, (await client.PostAsJsonAsync("/api/ui/sign-out", new { })).StatusCode);
     using var signout = new HttpRequestMessage(HttpMethod.Post, "/api/ui/sign-out") { Content = JsonContent.Create(new { }) };
     signout.Headers.Add("X-XSRF-TOKEN", proof);
@@ -54,5 +60,34 @@ public sealed class StandaloneApiHostTests
   public void EndpointDecimals_KeepExactStringSerialization()
   {
     Assert.Equal("\"123456789012345678.123456\"", JsonSerializer.Serialize(123456789012345678.123456m, AuditSphereOps.Api.Ui.UiEndpoints.UiJson));
+  }
+
+  [Fact]
+  public async Task MalformedAdministratorRoleRequests_AreTypedRefusals_WithoutMutations()
+  {
+    await using var pg = await OwnedPostgresDatabase.CreateAsync("ANGULAR-ADMIN-REQUEST-VALIDATION");
+    var seed = await PbcSeed.SeedAsync(pg);
+    using var factory = new StandaloneApiApplicationFactory(new Dictionary<string, string?>
+    {
+      ["ConnectionStrings:AuditSphere"] = pg.ConnectionString,
+      ["DevelopmentIdentity:Enabled"] = "true", ["DevelopmentIdentity:Subject"] = seed.Admin.Subject,
+      ["DevelopmentIdentity:TenantId"] = seed.Admin.TenantId,
+      ["Application:AllowSimulationAdapters"] = "true", ["ExternalEffects:Enabled"] = "false"
+    });
+    using var client = factory.CreateClient(new() { AllowAutoRedirect = false });
+    await client.GetAsync("/auth/sign-in");
+    using var session = await client.GetAsync("/api/ui/session");
+    var proof = Uri.UnescapeDataString(session.Headers.GetValues("Set-Cookie").Single(h => h.StartsWith("XSRF-TOKEN=")).Split(';')[0]["XSRF-TOKEN=".Length..]);
+    foreach (var path in new[] { "/api/ui/administration/access/preview", "/api/ui/administration/access/assign" })
+    {
+      using var request = new HttpRequestMessage(HttpMethod.Post, path) { Content = JsonContent.Create(new { request = (object?)null, reviewed = true, reviewDigest = new string('a', 64) }) };
+      request.Headers.Add("X-XSRF-TOKEN", proof);
+      using var response = await client.SendAsync(request);
+      Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+      using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+      Assert.Contains(body.RootElement.GetProperty("code").GetString(), new[] { "request.invalid", "review.required" });
+    }
+    await using var db = new AuditSphereOps.Infrastructure.Persistence.AuditSphereDbContext(pg.Options);
+    Assert.Empty(db.RoleGrantChangeEvidences);
   }
 }

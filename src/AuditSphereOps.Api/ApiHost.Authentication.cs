@@ -29,7 +29,7 @@ namespace AuditSphereOps.Api;
 
 public static partial class ApiHost
 {
-  private static AuthenticationConfiguration ConfigureAuthentication(WebApplicationBuilder builder)
+  private static AuthenticationConfiguration ConfigureAuthentication(WebApplicationBuilder builder, bool legacyPresentation)
   {
     var identity = builder.Configuration.GetSection("Identity");
     var tenantId = identity["TenantId"];
@@ -128,6 +128,8 @@ public static partial class ApiHost
             {
               // Only proof-backed setup can use this Microsoft identity. Without an epoch claim,
               // TrustedActorResolver denies every protected application actor and role.
+              if (!legacyPresentation && context.Properties is { } properties)
+                properties.RedirectUri = "/ui/setup/microsoft365";
               return;
             }
             if (user is null || user.Disabled)

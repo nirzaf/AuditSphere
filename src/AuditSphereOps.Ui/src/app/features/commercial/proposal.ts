@@ -147,11 +147,13 @@ export function decodeProposal(value: unknown): Proposal {
       } @placeholder {
         <p>Commercial document generation and downloads</p>
       }
-      @defer (on viewport) {
-        <audit-fee-agreement [proposalId]="proposal.id" />
-      } @placeholder {
-        <p>Fee agreement and billing milestones</p>
-      }
+      <section id="proposal-fee-agreement" aria-label="Fee agreement and billing milestones">
+        @defer (on viewport) {
+          <audit-fee-agreement [proposalId]="proposal.id" />
+        } @placeholder {
+          <p>Fee agreement and billing milestones</p>
+        }
+      </section>
       <h2>Commercial workflow</h2>
       <p>
         Marking sent records status only. No email is sent here. A commercial acceptance does not
@@ -297,9 +299,6 @@ export function decodeProposal(value: unknown): Proposal {
           </li>
         }
       </ul>
-      <a [href]="'/app/practice/proposals/' + proposal.id"
-        >Open pricing and document generation workbench</a
-      >
     }
     <p role="status">{{ commandStatus() }}</p>
   `,

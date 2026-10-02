@@ -21,26 +21,22 @@ Every architecture-sensitive document carries one status:
 When preserved source text disagrees with this document (for example "add MediatR facades"),
 this document wins and the source text remains a historical requirement record.
 
-## The architecture (unchanged)
+## The architecture
 
 ```text
-                    AuditSphereOps
-                          │
-              ┌───────────┴───────────┐
-              │                       │
-             Web                    Worker
-              │                       │
-              └──────────┬────────────┘
-                         │
-                    Application
-                 capability services
-                 queries / calculators
-                         │
-                ┌────────┴────────┐
-                │                 │
-             Domain        Infrastructure
-                               │
-                          PostgreSQL
+           Angular UI             Legacy Blazor (rollback)
+               │                           │
+               ▼                           ▼
+        ASP.NET Core API ◀── shared composition ── Web
+               │
+               ├──────────── Worker
+               ▼               │
+          Application ◀────────┘
+     capability services / queries / pure calculators
+               │
+       Domain + Infrastructure
+                      │
+                 PostgreSQL
 ```
 
 - **One modular monolith**, with `Domain`, `Application`, `Infrastructure`, `Api`, legacy `Web`,

@@ -21,6 +21,7 @@ aside p {
   margin-top: 2rem;
 }
 main {
+  min-width: 0;
   padding: clamp(1rem, 4vw, 3rem);
   max-width: 80rem;
 }
@@ -37,7 +38,7 @@ main {
 }
 @media (max-width: 700px) {
   .workspace {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
   aside {
     border-right: 0;

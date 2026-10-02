@@ -4,7 +4,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "fedca8aad60468de38b0e4f1c868d95f5b3db01d",
+  "headCommit": "2b68bff1daef4ec2e706528fd7ff4c303e37fd69",
   "verifiedCommit": "be80aad351f5497f3e7408d9e886d994a5bd1c2a",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": true,
@@ -1615,6 +1615,360 @@
         "Uncommitted work",
         "Full migration and built-in browser acceptance pending"
       ]
+    },
+    "apiAngularProjectSeparation": {
+      "status": "IMPLEMENTED project separation; PARTIAL full migration acceptance",
+      "observedAt": "2026-10-02T11:54:51.794440+00:00",
+      "sourceBase": "2b68bff1daef4ec2e706528fd7ff4c303e37fd69",
+      "sourceBoundary": "Verified local working-tree changes over the named base; no new commit, remote publication, production deployment or full-guide acceptance inferred.",
+      "sourceFingerprintSha256": "55bc8c8f47726e066e11cae3525c2886f1c47b4bca4919c2d5676bb1fc9dd344",
+      "artifactSha256": "2f606516760e2d515bec909f1992098955fbdcd2cb90d5bc6e5778a684c88af0",
+      "behavior": "Standalone ASP.NET Core API owns secure HTTP composition without Web/MudBlazor references; separate Angular 22 UI uses explicit native routes and same-origin cookies/CSRF. Web is the rollback presentation host. Native proof-backed bootstrap binds only deployment-approved immutable identity, rejects duplicate claims/cross-firm binding/replay and requires fresh epoch sign-in. Deployment-tenant preparation uses reviewed draft revision and existing immutable connection history without asserting consent. Search/native links, client role choices and deferred fee-panel browser activation corrected.",
+      "build": "PASS: latest Angular production build under configured budgets and Release full-solution build; 0 .NET warnings/errors.",
+      "angularTests": {
+        "passed": 69,
+        "failed": 0,
+        "skipped": 0
+      },
+      "apiTests": {
+        "passed": 46,
+        "failed": 0,
+        "skipped": 0,
+        "scope": "Full latest API suite including PostgreSQL-backed installation bootstrap/preparation, exact identity, wrong tenant/object, duplicate claims, CSRF, wrong proof, cross-firm binding, replay, fresh epoch, revoked bootstrap and revision fences."
+      },
+      "browserTests": {
+        "passed": 14,
+        "failed": 0,
+        "skipped": 0,
+        "scope": "All Angular journeys plus M365SetupJourneyTests and TenantAdministrationJourneyTests against synthetic isolated PostgreSQL/API hosts. Latest deferred-fee regression and client-redirect correction passed."
+      },
+      "precedingFullSuite": "Preceding build: Domain 553/553 and API 40/40 passed; E2E 117/119 passed with two failures (deferred fee placeholder race and outdated client redirect expectation). Both are corrected and pass in the latest focused browser cohort. The entire solution suite was not rerun after these corrections; no current full-suite PASS is claimed.",
+      "modelDrift": "PASS: dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Api --configuration Release --no-build; no pending changes.",
+      "publication": "PASS: independent API publication contains Angular browser artifacts under ui/ and no AuditSphereOps.Web.dll or MudBlazor.dll. Legacy Web rollback publication also succeeds without duplicate appsettings conflicts.",
+      "builtInBrowser": "PASS read-only synthetic preview: native dashboard/roster, client role dialog limited to ClientUser and CLIENT/ENGAGEMENT, authorized search opening native PBC, client portal/thread/upload controls, unapproved installation identity refused. No role mutation, live consent or real tenant operation submitted.",
+      "documentation": "PASS: documentation health, Markdown names, narrative metrics, Razor source inventory and git diff --check. actionlint v1.7.7 passed with ShellCheck/Pyflakes disabled. CI workflow now checks API model drift/publication; hosted CI was not run.",
+      "secretCheck": "PASS bounded changed/new text scan for private keys, GitHub tokens and JWTs; not a comprehensive credential detector. No real deployment credentials added.",
+      "remaining": "Full source-action/form/draft parity, optional tenant-administration UI, production-like performance/accessibility acceptance, canary/previous-asset retention, live Microsoft gates and owner-authorized final retirement remain open."
+    },
+    "angularTenantAdministration": {
+      "status": "IMPLEMENTED optional administration controls; PARTIAL full migration acceptance",
+      "observedAt": "2026-10-02T12:45:43.842609+00:00",
+      "sourceBase": "2b68bff1daef4ec2e706528fd7ff4c303e37fd69",
+      "sourceBoundary": "Local working tree over the named base. No new commit/push, live tenant operation or production acceptance inferred.",
+      "sourceFingerprintSha256": "d9cb16a355b7076a59b5f0fb8f87e12617a01798f588e3859a33c223c3da2ece",
+      "fingerprintMethod": "SHA-256 of sorted unique Git-tracked/nonignored src/tests paths, followed by NUL, file bytes and NUL; excludes build outputs through Git ignore.",
+      "artifactSha256": "4403e912a916a3626edbf8c7424f44281b61ad96525a581b8d09a12e34c4bf9c",
+      "behavior": "Native seven-step reviewed workforce/guest dialogs, separately enabled fresh capability gates, original-response-only transient masked password, bounded approved-group administration with observed membership fencing, original-intent review and reconciliation/local-binding recovery. API composes existing Application/provider lifecycle and adds no Graph permission. Guest roles remain ClientUser with CLIENT/ENGAGEMENT scope; Microsoft membership changes no local roles.",
+      "correction": "Focused browser run first found the workforce role-catalogue URL mismatch; corrected to the existing role-catalogue endpoint before the full suite. Its group journey passed in that preceding run.",
+      "build": "PASS: latest Angular production build under configured budgets and Release full solution; 0 .NET warnings/errors.",
+      "angularTests": {
+        "passed": 78,
+        "failed": 0,
+        "skipped": 0,
+        "scope": "Full final Angular unit suite, rerun after role-catalogue correction and shared Material system-font configuration. Includes ephemeral password clearing/review/unknown-state fences, capability gating, bounded/immutable group contracts and stale/late membership review."
+      },
+      "apiTests": {
+        "passed": 49,
+        "failed": 0,
+        "skipped": 0,
+        "scope": "Full latest PostgreSQL-backed API suite, including three new provider-fake tenant-operation facts for CSRF/review/authority/capability gates, idempotency, no password persistence/replay, unknown reconciliation, exact guest scope, privileged-group refusal, reviewed add/remove and stale-membership conflict."
+      },
+      "fullSuite": "PASS before final typography-only runtime correction: Domain 553/553, API 49/49, E2E 122/122; 724 .NET tests, 0 failed/skipped. Backend runtime remained unchanged afterward. The entire solution was not rerun after the system font stack and new browser font assertion; the four affected administration journeys passed against the final Angular assets.",
+      "modelDrift": "PASS: EF has-pending-model-changes using API startup, Release --no-build; no pending model changes.",
+      "publication": "PASS: final independent API publication contains 72 Angular browser files, including corrected system typography, and no AuditSphereOps.Web.dll/MudBlazor.dll; API DLL matches tested Release build.",
+      "angularArtifactSha256": "80ba76276e37e1225b14e997fe14676458d789f442700e8d022d68be4b23fc6a",
+      "builtInBrowser": "PASS read-only synthetic owned preview: workforce role catalogue/explicit scope/review, guest fixed ClientUser and CLIENT/ENGAGEMENT-only choices, bounded group dialog. Final preview confirmed system-ui/sans-serif dialog font and captured corrected native provisioning screen. No create/invite/group effect or live Microsoft operation submitted; temporary previews and owned databases cleaned up.",
+      "documentation": "PASS: documentation health, Markdown filename policy, protected narrative metrics, current source inventory check and git diff --check. Local no-launch-profile commands explicitly select Development to load approved development user-secrets; no deployment settings/credentials changed.",
+      "secretCheck": "PASS bounded final scan of 64 changed/new text files for private keys, GitHub tokens and JWTs; not a comprehensive credential detector.",
+      "remaining": "Native selected-workspace configuration/provisioning, reconstruction of a lost pre-dispatch authorized request/form, complete source-action/form/draft/security parity, production-like performance/accessibility, asset retention/canary, live Microsoft gates and approved retirement remain open.",
+      "domainTests": {
+        "passed": 553,
+        "failed": 0,
+        "skipped": 0,
+        "scope": "Full latest PostgreSQL-backed Domain suite, including existing tenant-administration provider/lifecycle, group and authorization behavior."
+      },
+      "fullBrowserTests": {
+        "passed": 122,
+        "failed": 0,
+        "skipped": 0,
+        "scope": "Full Release E2E suite before the final font-stack correction; includes new native workforce/guest/group/recovery journeys and preceding navigation/fee/client-redirect corrections."
+      },
+      "finalBrowserTests": {
+        "passed": 4,
+        "failed": 0,
+        "skipped": 0,
+        "scope": "AngularTenantOperationsJourneyTests, AngularAdministrationJourneyTests and AngularTenantConnectionJourneyTests after final typography correction; includes computed system-ui dialog-font assertion."
+      }
+    },
+    "angularSharePointAdministration": {
+      "status": "IMPLEMENTED selected-resource/template controls; PARTIAL full migration acceptance",
+      "observedAt": "2026-10-02T13:15:18.564840+00:00",
+      "sourceBase": "2b68bff1daef4ec2e706528fd7ff4c303e37fd69",
+      "sourceBoundary": "Local working tree. No new commit/push, live Microsoft effect or production acceptance inferred. The preceding full-suite snapshot predates these SharePoint changes; a new entire-solution full suite was not run.",
+      "sourceFingerprintSha256": "c32b7e19622105a898484f7e40909bcbe3a907b8a91925c86c512ff9db110a12",
+      "fingerprintMethod": "SHA-256 of sorted unique Git-tracked/nonignored src/tests paths, NUL, file bytes and NUL; build outputs excluded by Git ignore.",
+      "artifactSha256": "4a17c343448cdc025a1c7c30496207b9a73b726e16008476754971e18807a2e9",
+      "angularArtifactSha256": "acd0a5f2d35702516c6a705c76e8fddc7dc55348f69a6803e7ec8ca8c43da056",
+      "behavior": "Native reviewed exact-resource draft editing, selected-site boundary verification, approved-template activation and immutable folder-template save/approval. Administrator/CSRF/revision/tenant guards remain server-owned. Edits invalidate previous selected-resource verification; active/protected drafts cannot change in place. Unbound or different-connection observations cannot appear VERIFIED. Credential/proof/callback fields are excluded from the bounded projection. Sites.Selected and the isolated client-sites worker boundary remain intact; no Graph permission added.",
+      "corrections": "Initial targeted API run exposed the existing STE client empty-manifest rejection; fixed while retaining nonempty engagement manifests and strict root allowlisting. A later guard-test fixture omitted the required observer user and failed a PostgreSQL foreign key; corrected and the entire API suite passed on rerun. Runtime remained byte-identical after this fixture-only correction.",
+      "build": "PASS: final full Release solution, 0 warnings/errors; Angular production build under configured budgets.",
+      "angularTests": {
+        "passed": 82,
+        "failed": 0,
+        "skipped": 0,
+        "scope": "Full Angular unit suite; 30 files, including resource/template review invalidation, revision payloads, unknown-write fences and bounded/fresh contract checks."
+      },
+      "apiTests": {
+        "passed": 52,
+        "failed": 0,
+        "skipped": 0,
+        "scope": "Full final PostgreSQL-backed API suite after correcting the observer fixture; includes three selected-resource/template facts covering review/CSRF, stale revisions, invalid manifests/URLs, immutable approval, cross-firm IDs, blocked/verified boundary evidence, activation, unbound observations and revoked sessions."
+      },
+      "domainTests": {
+        "passed": 39,
+        "failed": 0,
+        "skipped": 0,
+        "scope": "Microsoft365OnboardingTests, GraphSelectedResourceProbeTests, PbcSelectedSiteProviderTests, PbcSelectedSiteWorkerTests and ClientSharePointSitesTests against the final runtime. Full Domain suite was not rerun."
+      },
+      "browserTests": {
+        "passed": 7,
+        "failed": 0,
+        "skipped": 0,
+        "scope": "AngularSharePointJourneyTests, AngularTenantConnectionJourneyTests, AngularTenantOperationsJourneyTests, AngularAdministrationJourneyTests and M365SetupJourneyTests against the final runtime/Angular assets. Full E2E suite was not rerun."
+      },
+      "modelDrift": "PASS: EF pending-model-change check with API startup, Release --no-build; no pending changes.",
+      "publication": "PASS: published API matches the tested runtime; 72 Angular files under ui/, index.html present; no Web or MudBlazor assembly.",
+      "builtInBrowser": "PASS: owned synthetic API preview confirmed native exact-resource forms, separate consent/boundary states, external blocker, disabled verification/activation and unsaved STE layout. No save, approval, consent or live Microsoft operation submitted. UI assets match final publication; final unbound-connection projection guard was verified by API tests after inspection. Temporary tab, processes and owned database cleaned up.",
+      "documentation": "PASS: documentation health, Markdown filename policy, protected narrative metrics, source inventory --check and git diff --check. Code map and development/migration guides updated; no Wiki publication.",
+      "secretCheck": "PASS bounded scan of 75 changed/new text files for private keys, GitHub credentials and JWT literals; not a comprehensive detector.",
+      "remaining": "Native client/engagement workspace provisioning and dedicated client-site status/rollout/member-reconciliation parity, lost pre-dispatch form recovery, full source-action/form/draft/security acceptance, performance/accessibility/canary/asset retention, live Microsoft acceptance and final Blazor retirement remain open."
+    },
+    "angularWorkspaceAdministration": {
+      "status": "IMPLEMENTED reviewed workspace provisioning and read-only dedicated-site health; PARTIAL full migration acceptance",
+      "observedAt": "2026-10-02T14:19:19.448665+00:00",
+      "sourceBase": "2b68bff1daef4ec2e706528fd7ff4c303e37fd69",
+      "sourceBoundary": "Local working tree; no new commit/push, live Microsoft effect or production acceptance inferred. Full-suite evidence below predates the final guards and navigation corrections; the final entire-solution suite was not rerun.",
+      "sourceFingerprintSha256": "9127d414320c80a4c116ccc80f421a600c58b8507241d1cac9906df24aa6cf26",
+      "fingerprintMethod": "SHA-256 of sorted unique Git-tracked/nonignored src/tests paths, NUL, file bytes and NUL; build outputs excluded by Git ignore.",
+      "artifactSha256": "7619b8b5c8450f9e9dd09dc519abbb231e28429f5914c2ae81a6b56696a7114d",
+      "applicationArtifactSha256": "61fba182d49b7ffb588fafe6c9382656edb76152e9ed299060947e13e6ddd16c",
+      "angularArtifactSha256": "7eac3ea2a3b80502ef7ec9e5b674a8ef4507df86b5ee2719be6c819cb59d1d3a",
+      "behavior": "Native bounded administrator workspace pages, on-demand exact client/engagement review, reason and explicit confirmation, reviewed-token and current epoch checks before and after external I/O, resource/template fencing, immutable scope/actor/reason evidence and safe unknown-outcome recovery. Deterministic get-or-create folders reconcile without duplicating resources. Worker receipts bind an exact plan digest; legacy receipts without it require fresh reconciliation. Local publication takes the firm safety shared lock followed by an exact tenant/drive advisory lock after external I/O; this serializes publication and local authority changes without pretending Microsoft and PostgreSQL are atomic. Dedicated client-site health is read-only, blocks missing/future/wrong-connection verification and reports separate site/membership verification. Sites.Selected and the separately credentialed privileged worker remain intact; no schema or Graph permission added.",
+      "corrections": "Initial API test fixtures used an unsupported PENDING site state and omitted required connection/actor foreign keys; corrected to REQUESTED and current owned identities. Built-in browser exposed duplicated /ui router prefixes; corrected native client, engagement and operation links and added unit/E2E assertions. Legacy rollback workspace pagination remains available after the shared query became bounded.",
+      "build": "PASS: final full Release solution, zero warnings/errors; final Angular production build under configured budgets.",
+      "angularTests": {
+        "passed": 86,
+        "failed": 0,
+        "skipped": 0,
+        "scope": "Full final Angular unit suite, 31 files; includes exact reviewed target, blocked prerequisites, typed FAILED outcomes, unknown submission fencing, fresh review and /ui base navigation."
+      },
+      "apiTests": {
+        "passed": 55,
+        "failed": 0,
+        "skipped": 0,
+        "scope": "Full final PostgreSQL-backed API suite, including workspace pagination, authorization/CSRF/review, stale resources, revoked epoch, idempotency, evidence, cross-firm/guessed IDs and dedicated-site verification guards."
+      },
+      "domainTests": {
+        "passed": 45,
+        "failed": 0,
+        "skipped": 0,
+        "scope": "Final affected PostgreSQL-backed EngagementWorkspaceProvisioning, ClientSharePointSites, PbcSelectedSiteProvider, PbcSelectedSiteWorker, Microsoft365Onboarding and GraphSelectedResourceProbe suites; includes changed-plan receipt refusal and concurrent folder ownership. Full final Domain suite was not rerun."
+      },
+      "browserTests": {
+        "passed": 9,
+        "failed": 0,
+        "skipped": 0,
+        "scope": "Final AngularWorkspaceAdministration, AngularSharePoint, AngularTenantConnection, AngularTenantOperations, AngularAdministration, M365Setup and AngularNavigation journeys. Full final E2E suite was not rerun."
+      },
+      "historicalFullSuite": {
+        "domainPassed": 555,
+        "e2ePassed": 124,
+        "apiInitialPassed": 54,
+        "apiInitialFailed": 1,
+        "apiCorrectedRerunPassed": 55,
+        "boundary": "The full-suite invocation and corrected API rerun establish an earlier working-tree checkpoint only. Final source subsequently changed status guards, navigation, pagination and verification timestamps; final affected suites above establish those changes."
+      },
+      "modelDrift": "PASS: EF pending-model-change check with API startup, Release --no-build; no pending changes.",
+      "publication": "PASS: API-only and API-with-Angular no-build publishes match the tested API and Application assemblies. API-only output has no ui/index.html; bundled output contains index.html and 72 Angular files. Neither output contains Web or MudBlazor assemblies. API-only hosting requires the documented AngularUi:Enabled=false setting and independently served UI where needed.",
+      "builtInBrowser": "PASS: owned synthetic preview confirmed accepted-client workspace state, separate dedicated-site/membership blockers and Full Control warning, exact target/resource/template review, disabled provisioning after synthetic reason and confirmation, corrected native client navigation and rendered client profile. Browser console reported no errors. No provisioning, approval, consent or live Microsoft operation was submitted. Screenshot saved outside Git; temporary tab, processes and owned database cleaned up.",
+      "documentation": "PASS: documentation health, Markdown filename policy, protected narrative metrics, source inventory --check and git diff --check; no Wiki publication.",
+      "secretCheck": "PASS bounded scan of 88 changed/new text files for private keys, GitHub credentials and JWT literals, zero finding files; not a comprehensive detector.",
+      "remaining": "Dedicated-site rollout policy and member-reconciliation control parity, lost pre-dispatch original-form recovery, full source-action/form/draft/security acceptance, performance/accessibility/canary/asset retention, controlled live Microsoft acceptance and final Blazor retirement remain open."
+    },
+    "angularConfirmationWorkspace": {
+      "status": "IMPLEMENTED native reviewed confirmation lifecycle; PARTIAL full US-033 and migration acceptance",
+      "observedAt": "2026-10-02T14:41:22.377551+00:00",
+      "sourceBase": "2b68bff1daef4ec2e706528fd7ff4c303e37fd69",
+      "sourceBoundary": "Local uncommitted working tree. No push, production acceptance or live Microsoft side effect. Full final Domain and E2E suites were not rerun; their affected suites are reported below.",
+      "sourceFingerprintSha256": "8ab6363ea5e0062dded70f0f71e0cb158e6accfb4adb9958b29b2e50dc5c9e38",
+      "fingerprintMethod": "SHA-256 of sorted unique Git-tracked/nonignored src/tests paths, NUL, file bytes and NUL; build outputs excluded by Git ignore.",
+      "artifactSha256": "71e77e44a51ed0a3fdd125d83177cc6a356bcc78c449d8b4aee72fc8a3057e9b",
+      "angularArtifactSha256": "66b7af615f9966fcb87d85187c6413fa0677d8d9a5e86835b4e1e6020fc5127e",
+      "behavior": "Bounded authorized register/detail queries and reviewed local API commands. Firm/client/engagement locks, current authorization/epoch and source fingerprints fence mutation; independent latest-evidence review and frozen-file safeguards persist. Preparation, observed dispatch, append-only responses, alternatives, explicit criticality and closure remain distinct. Native Angular Signal Forms require exact supported numeric(20,6) precision and explicit review; unknown writes require fresh persisted review. No external dispatch, schema or Graph permission added.",
+      "corrections": "Initial fixtures omitted required contact-validation evidence. Initial unsupported decimal input exposed storage rounding; API and Angular now refuse excess precision before parsing and show exact supported raw amounts. Signal Forms length validation moved into its schema; action controls received explicit accessible labels. EF check corrected to --configuration Release.",
+      "build": "PASS final full Release solution: zero warnings/errors. PASS final Angular production build under configured budgets.",
+      "angularTests": {
+        "passed": 90,
+        "failed": 0,
+        "skipped": 0,
+        "scope": "Full final Angular unit suite, 32 files, including confirmation typed forms, exact amounts, window bounds, unknown-outcome fencing, fresh review and session clearing."
+      },
+      "apiTests": {
+        "passed": 57,
+        "failed": 0,
+        "skipped": 0,
+        "scope": "Full final PostgreSQL-backed API suite, including confirmation lifecycle, precision rejection, CSRF, self-review refusal, replay refusal, stale evidence, cross-firm/guessed IDs, pagination and revoked epochs."
+      },
+      "domainTests": {
+        "passed": 7,
+        "failed": 0,
+        "skipped": 0,
+        "scope": "Final affected AuditFieldworkWorkflowTests, AuditDeliverablesTests and AuditSamplingServiceTests. Full final Domain suite not rerun."
+      },
+      "browserTests": {
+        "passed": 2,
+        "failed": 0,
+        "skipped": 0,
+        "scope": "Final AngularConfirmationJourneyTests and CompletionDeliverablesJourneyTests: preparation, observed dispatch, independent current response/alternative reviews, blocked closure, persisted closure, mobile overflow, session revocation and no console errors. Full final E2E suite not rerun."
+      },
+      "modelDrift": "PASS EF pending-model-change check with standalone API startup, Release --no-build; no changes since last migration.",
+      "builtInBrowser": "PASS final Angular artifact on an owned synthetic API/database: disabled incomplete preparation, exact supported amount retained after create, DRAFT/NOT_DISPATCHED states, exact case review, unavailable self-approval and no console errors. Screenshot outside Git. Temporary browser tabs closed and preview process exited successfully after quit. No live Microsoft or external send.",
+      "documentation": "PASS documentation health (127 Markdown files, 19 canonical documents, 2374 relative links), filename policy, protected narrative metrics, source inventory --check and git diff --check. No Wiki publication.",
+      "secretCheck": "PASS bounded scan of 97 changed/new text files for private keys, GitHub credentials and JWT literals, zero finding files; not a comprehensive detector.",
+      "remaining": "US-033 closure-conclusion evidence retention, bulk preparation and complete original-form draft/source-action acceptance remain open. Full migration parity, performance/accessibility/canary acceptance, controlled external acceptance and final Blazor retirement remain open."
+    },
+    "angularConfirmationBatch": {
+      "status": "IMPLEMENTED reviewed native atomic batch preparation; PARTIAL full US-033 and migration acceptance",
+      "observedAt": "2026-10-02T14:55:13.109849+00:00",
+      "sourceBase": "2b68bff1daef4ec2e706528fd7ff4c303e37fd69",
+      "sourceBoundary": "Local uncommitted working tree. No push, deployment, live Microsoft effect or production acceptance. Full final Domain/E2E suites not rerun.",
+      "sourceFingerprintSha256": "bcbc0c0ebc0bc9a3d9a42fa0ed0ea920f5ead1bd6c2ee32ca404162c9c877dad",
+      "artifactSha256": "666bbfaa540c0aef1e4b6d677b32a8edb594825f547fc86958aa8494bb4a80a1",
+      "angularArtifactSha256": "f7e56ea955065cde0f0df2e6e1054a9140f9e92c7c9ef9abbe02bf2ce48fc67c",
+      "angularFileCount": 74,
+      "fingerprintMethod": "SHA-256 of sorted unique Git-tracked/nonignored src/tests paths, NUL, file bytes and NUL; Angular browser hash uses sorted relative paths, NUL and bytes.",
+      "behavior": "Angular 22 multi-case Signal Forms bound to a standalone API batch contract. One to 100 cases, shared area/currency/date and optional applicable procedure; exact numeric(20,6) validation, duplicate trimmed source refusal, every-row contact evidence and review reset on intent changes. Application locks firm/client/engagement, rechecks current authorization/epoch/register fingerprint, preserves frozen-file attempts and composes the existing batch service inside one local transaction. Existing source/date identities refuse the entire batch. Concurrent requests with a shared reviewed register publish only one batch. Prepared DRAFT is not observed dispatch; no external send or Graph permission change.",
+      "build": "PASS final full Release solution, zero warnings/errors. PASS Angular production build under budgets.",
+      "angularTests": {
+        "passed": 92,
+        "failed": 0,
+        "skipped": 0,
+        "scope": "Full Angular unit suite, 32 files; includes exact batch amounts, changed-intent review clearing, duplicate selection refusal, lost-outcome fencing and session clearing."
+      },
+      "domainTests": {
+        "passed": 8,
+        "failed": 0,
+        "skipped": 0,
+        "scope": "Affected PostgreSQL-backed AuditConfirmationBatchTests, AuditFieldworkWorkflowTests, AuditDeliverablesTests and AuditSamplingServiceTests. Runtime unchanged by subsequent API/E2E test assertion corrections."
+      },
+      "apiTests": {
+        "passed": 58,
+        "failed": 0,
+        "skipped": 0,
+        "scope": "Full PostgreSQL-backed API suite; reviewed atomic batches, invalid-row refusal, duplicate source/date refusal, exact amounts, stale/replayed register review, cross-firm access, procedure applicability, concurrent publication and revoked sessions. Subsequent changes are Angular-only layout corrections."
+      },
+      "browserTests": {
+        "passed": 6,
+        "failed": 0,
+        "skipped": 0,
+        "scope": "Final affected AngularConfirmationJourneyTests, CompletionDeliverablesJourneyTests, AngularPortfolioJourneyTests, AngularClientPortalJourneyTests and AngularNavigationJourneyTests. Includes exact atomic batch drafts, review reset after edits, refusal without partial publication, mobile overflow checks, confirmation lifecycle, revocation, portal isolation and native navigation. Full final E2E suite was not rerun."
+      },
+      "corrections": "Initial API and browser batch tests expected HTTP 409 for a fresh duplicate identity; the existing ProtectedState mapping returns HTTP 400, so assertions were corrected. Subsequent mobile E2E checks exposed genuine horizontal overflow. Form intrinsic sizing was corrected, then built-in browser diagnostics identified the shell grid auto minimum. Main content now has min-width:0 and the mobile grid uses minmax(0,1fr); tables scroll within the page. Final Angular unit tests passed after these corrections.",
+      "modelDrift": "PASS EF pending-model-change check with standalone API startup, Release --no-build; no changes since last migration.",
+      "builtInBrowser": "PASS final Angular/runtime artifacts in an owned synthetic API/database: native reviewed two-case preparation at 390px, document width 375px (within viewport), persisted DRAFT/NOT_DISPATCHED states and exact 123456789.123456 amount in case detail. No console errors. Final screenshot saved outside Git; viewport restored, temporary tab closed and preview process exited successfully after quit. No external dispatch or Microsoft operation.",
+      "documentation": "PASS documentation health (127 Markdown files, 19 canonical documents, 2374 relative links), filename policy, protected narrative metrics, source inventory --check and git diff --check. No Wiki publication.",
+      "secretCheck": "PASS bounded changed/new text scan of 100 files for private keys, GitHub credentials and JWT literals; zero finding files. Not a comprehensive detector.",
+      "remaining": "US-033 retained closure-conclusion evidence and scoped original-form draft recovery remain open. Full source-action/form/session/accessibility/performance/canary acceptance and final Blazor retirement remain open."
+    },
+    "angularConfirmationClosure": {
+      "status": "IMPLEMENTED retained native confirmation closure decisions; PARTIAL full migration acceptance",
+      "observedAt": "2026-10-02T15:09:35.752597+00:00",
+      "sourceBase": "2b68bff1daef4ec2e706528fd7ff4c303e37fd69",
+      "sourceBoundary": "Local uncommitted working tree. No push, deployment or live Microsoft effect. Full final Domain/E2E suites not rerun; final affected suites are reported below.",
+      "sourceFingerprintSha256": "77da03c7f8617c9146fafd9f8bcb029d778a0183e5470a739811f7e32d8af61d",
+      "artifactSha256": "d6ee3147e9dc0ce4effbdd98c3ee3a59b073a20c143b84a52dd2c64569172121",
+      "angularArtifactSha256": "0c9f0b2c457581c35834cb9e3ec140cfc9e527f27c190d9c0b8553ca2d50d5e6",
+      "angularFileCount": 74,
+      "fingerprintMethod": "SHA-256 of sorted unique Git-tracked/nonignored src/tests paths, NUL, file bytes and NUL; Angular browser hash uses sorted relative paths, NUL and bytes.",
+      "behavior": "Append-only human confirmation closure conclusion, actor, timestamp and exact case/current-response/current-alternative snapshot with SHA-256. Scoped foreign keys, unique case decision and database update/delete refusal trigger. Case lock, reauthorization, repeated-closure refusal, independent current-response review and deterministic latest-alternative timestamp/ID ordering. Native detail exposes bounded decision metadata through current engagement authorization; historical CLOSED cases without a record are labelled honestly. No invented historical conclusions or autonomous professional decisions.",
+      "build": "PASS final full Release solution, zero warnings/errors. PASS final Angular production build under configured budgets.",
+      "angularTests": {
+        "passed": 93,
+        "failed": 0,
+        "skipped": 0,
+        "scope": "Full final Angular unit suite, 32 files; includes retained closure display, exact evidence digest and explicit legacy missing-evidence state."
+      },
+      "apiTests": {
+        "passed": 59,
+        "failed": 0,
+        "skipped": 0,
+        "scope": "Full PostgreSQL-backed API suite. Includes retained current-response/alternative snapshot identities and digest, repeated-closure refusal, raw SQL update/delete rejection, deterministic alternatives at identical timestamps, legacy null evidence and existing reviewed batch/lifecycle/scope/session tests."
+      },
+      "domainTests": {
+        "passed": 21,
+        "failed": 0,
+        "skipped": 0,
+        "scope": "Affected PostgreSQL-backed AuditConfirmationBatchTests, AuditFieldworkWorkflowTests, AuditDeliverablesTests, AuditSamplingServiceTests and AuthorizationDecisionTests. Full final Domain suite not rerun."
+      },
+      "browserTests": {
+        "passed": 6,
+        "failed": 0,
+        "skipped": 0,
+        "scope": "Final AngularConfirmationJourneyTests, CompletionDeliverablesJourneyTests, AngularPortfolioJourneyTests, AngularClientPortalJourneyTests and AngularNavigationJourneyTests. Retained closure conclusion and digest persist after reload; mobile, revocation, portal isolation and navigation regressions pass. Full final E2E suite not rerun."
+      },
+      "corrections": "The initial full build exposed one test-only IAuditSphereDbContext adapter lacking the new closure DbSet. Its forwarding member was added; final full build passed.",
+      "modelDrift": "PASS EF pending-model-change check with standalone API startup, Release --no-build; no changes since the last migration.",
+      "migration": {
+        "name": "20261002145951_ConfirmationClosureEvidence",
+        "status": "PASS migration applied and exercised in owned synthetic test databases only",
+        "boundary": "Not applied to shared Development or production databases. Approved deployment migration procedure is required before starting upgraded hosts against those databases. No Wiki publication."
+      },
+      "builtInBrowser": "PASS final Angular/API artifacts on an owned synthetic database: staff preparation, separate reviewer sign-in/approval, synthetic observed dispatch, exact response capture, independent current response review and closure. Retained conclusion, actor/time and SHA-256 survived reload. Browser profiles share loopback cookies across ports, so each actor transition used explicit synthetic sign-in; automated journeys use isolated contexts. No console errors. Screenshot outside Git; temporary tabs closed and preview process exited successfully after quit. No external message or Microsoft operation.",
+      "documentation": "PASS documentation health (127 Markdown files, 19 canonical documents, 2374 relative links), filename policy, protected narrative metrics, source inventory --check and git diff --check before this ledger entry. Migration and parity documentation updated; no Wiki publication.",
+      "secretCheck": "PASS bounded changed/new text scan of 108 files for private keys, GitHub credentials and JWT literals; zero finding files. Not a comprehensive detector.",
+      "remaining": "Confirmation original-form scoped draft recovery and complete source-action acceptance remain open. Full migration security/form/session/accessibility/performance/canary acceptance and final Blazor retirement remain open."
+    },
+    "angularConfirmationDraftRecovery": {
+      "status": "IMPLEMENTED native confirmation tab recovery and navigation protection; PARTIAL full migration acceptance",
+      "observedAt": "2026-10-02T15:39:51.556349+00:00",
+      "sourceBase": "2b68bff1daef4ec2e706528fd7ff4c303e37fd69",
+      "sourceBoundary": "Focused verified working-tree checkpoint. Full .NET regression is running and is not claimed passed. Publication metadata is recorded after remote verification; no production deployment or Microsoft effect.",
+      "sourceFingerprintSha256": "acc26f1edcf37feb9977cb5d9b84f210ae62f6ba25278c15c61f7de7abd9e9b8",
+      "artifactSha256": "d6ee3147e9dc0ce4effbdd98c3ee3a59b073a20c143b84a52dd2c64569172121",
+      "angularArtifactSha256": "71c174914368ea8a252b50c7154a2a9ac8927de56a82bf5fd88f02aff2704662",
+      "angularFileCount": 75,
+      "fingerprintMethod": "SHA-256 of sorted unique Git-tracked/nonignored src/tests paths, NUL, file bytes and NUL; Angular browser hash uses sorted relative paths, NUL and bytes.",
+      "behavior": "Explicit versioned bounded tab/session drafts for case, batch and action forms; firm/user/session-generation/exact entity/base revision and four-hour expiration. Allowlisted intent excludes reviewed assent, credential/token/private-key/file fields. Fresh authorized read and explicit recovery; changed revision cannot be applied silently. Edits survive background refresh but stale submission is blocked until explicit refreshed-revision selection and fresh review. Pending submission checkpoint is recovered as uncertain, never replayed. Material route/context/refresh dialog, browser unload warning, memory-only storage fallback and session-invalidation clearing. Legacy generic drafts remain unchanged.",
+      "build": "PASS full Release solution with zero warnings/errors; PASS final Angular production build under configured budgets.",
+      "angularTests": {
+        "passed": 107,
+        "failed": 0,
+        "skipped": 0,
+        "scope": "Full Angular unit suite, 33 files; includes schema/expiry/identity/epoch/base, allowlists, storage quota/security errors, bounded draft count, explicit recovery, revision conflict, native selector restoration, navigation/unload and unknown-submission controls."
+      },
+      "apiTests": {
+        "passed": 59,
+        "failed": 0,
+        "skipped": 0,
+        "scope": "Full PostgreSQL-backed API suite against unchanged final API source/artifact; repeated successfully inside the ongoing full solution run."
+      },
+      "browserTests": {
+        "passed": 8,
+        "failed": 0,
+        "skipped": 0,
+        "scope": "Final affected AngularConfirmationJourneyTests, CompletionDeliverablesJourneyTests, AngularPortfolioJourneyTests, AngularClientPortalJourneyTests and AngularNavigationJourneyTests. Native draft reload/recovery, keep/save/discard navigation, two-tab separation/current-base conflict, revoked epoch clearing, quota failure, lifecycle and portal/navigation regressions."
+      },
+      "fullSuite": {
+        "status": "RUNNING",
+        "command": "dotnet test AuditSphereOps.slnx -c Release --no-build",
+        "boundary": "No full final Domain/E2E pass inferred from the focused checks."
+      },
+      "modelDrift": "PASS standalone API EF pending-model-change check, Release --no-build; no changes since last migration. No new migration in this slice. Prior ConfirmationClosureEvidence is exercised only in owned synthetic databases and still needs approved shared/production deployment.",
+      "builtInBrowser": "PASS final artifacts on a disposable synthetic database: tab save, reload, explicit recovery with review cleared, retained exact decimal/date fields, keep-editing navigation choices, expanded form surviving refresh and mobile dialog. At viewport 390 the document width was 375. No console errors/warnings. Desktop/mobile screenshots outside Git; agent tab closed, viewport reset and preview exited successfully after quit. No Microsoft or external-send action.",
+      "corrections": "Initial affected browser run was 7/8: refresh retained values but collapsed the native details form. Expanded state and recovery opening were corrected; final affected rerun passed 8/8. Native select values are restored while a dirty context change is declined.",
+      "documentation": "PASS documentation health, filenames, protected narrative metrics, source inventory --check and git diff --check. Architecture records per-form tab policy and remaining cross-feature draft gaps. No Wiki publication.",
+      "secretCheck": "PASS bounded changed/new text scan of 112 files with zero finding files; PASS gitleaks staged diff with redaction, no findings. Neither is a guarantee of comprehensive detection.",
+      "remaining": "Full source-action/story and cross-feature draft/form acceptance, migration security/session/accessibility/performance/canary acceptance and final Blazor retirement remain open. Production/external gates remain separate."
     }
   },
   "documentationWork": {

@@ -64,8 +64,9 @@ public sealed class AngularPortfolioJourneyTests
     await using var restricted = await browser.NewContextAsync();
     var clientPage = await restricted.NewPageAsync();
     await clientPage.GotoAsync(clientOrigin + "/auth/sign-in?returnUrl=%2Fui%2Fapp");
-    await Assertions.Expect(clientPage.GetByRole(AriaRole.Heading, new() {Name = "Access unavailable"})).ToBeVisibleAsync();
-    Assert.DoesNotContain("PBC TEST CLIENT", await clientPage.Locator("body").InnerTextAsync());
+    await Assertions.Expect(clientPage.GetByRole(AriaRole.Heading, new() {Name = "Client portal", Exact = true})).ToBeVisibleAsync();
+    Assert.DoesNotContain("Portfolio", await clientPage.Locator("aside").InnerTextAsync());
+    await Assertions.Expect(clientPage.Locator("audit-portfolio")).ToHaveCountAsync(0);
     await using var logoutContext = await browser.NewContextAsync();
     var logoutPage = await logoutContext.NewPageAsync();
     await logoutPage.GotoAsync(origin + "/auth/sign-in?returnUrl=%2Fui%2Fapp");

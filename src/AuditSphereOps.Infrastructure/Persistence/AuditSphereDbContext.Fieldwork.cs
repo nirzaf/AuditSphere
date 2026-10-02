@@ -291,6 +291,19 @@ public sealed partial class AuditSphereDbContext
     confirmation.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.CreatedByUserId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
 
+    var closure = b.Entity<AuditConfirmationClosure>();
+    closure.HasIndex(x => new { x.FirmId, x.ConfirmationCaseId }).IsUnique();
+    closure.Property(x => x.Conclusion).HasMaxLength(4000);
+    closure.Property(x => x.EvidenceSnapshotJson).HasColumnType("text");
+    closure.Property(x => x.EvidenceSha256).HasMaxLength(64).IsFixedLength();
+    closure.ToTable("audit_confirmation_closures", t => t.HasCheckConstraint("ck_audit_confirmation_closure_values",
+      "length(trim(conclusion)) BETWEEN 1 AND 4000 AND evidence_sha256 ~ '^[0-9a-f]{64}$' AND octet_length(evidence_snapshot_json) BETWEEN 1 AND 1048576"));
+    ScopeToEngagement(closure, nameof(AuditConfirmationClosure.FirmId), nameof(AuditConfirmationClosure.ClientId), nameof(AuditConfirmationClosure.EngagementId));
+    closure.HasOne<AuditConfirmationCase>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.ConfirmationCaseId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    closure.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClosedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
     var response = b.Entity<AuditConfirmationResponse>();
     response.HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_audit_confirmation_responses_firm_id_id");
     response.HasAlternateKey(x => new { x.FirmId, x.ConfirmationCaseId, x.Revision })

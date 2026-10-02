@@ -8489,6 +8489,70 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("AuditSphereOps.Domain.Audit.AuditConfirmationClosure", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<DateTimeOffset>("ClosedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("closed_at");
+
+                    b.Property<Guid>("ClosedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("closed_by_user_id");
+
+                    b.Property<string>("Conclusion")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)")
+                        .HasColumnName("conclusion");
+
+                    b.Property<Guid>("ConfirmationCaseId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("confirmation_case_id");
+
+                    b.Property<Guid>("EngagementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("engagement_id");
+
+                    b.Property<string>("EvidenceSha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character(64)")
+                        .HasColumnName("evidence_sha256")
+                        .IsFixedLength();
+
+                    b.Property<string>("EvidenceSnapshotJson")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("evidence_snapshot_json");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FirmId", "ClosedByUserId");
+
+                    b.HasIndex("FirmId", "ConfirmationCaseId")
+                        .IsUnique();
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "ConfirmationCaseId");
+
+                    b.ToTable("audit_confirmation_closures", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_audit_confirmation_closure_values", "length(trim(conclusion)) BETWEEN 1 AND 4000 AND evidence_sha256 ~ '^[0-9a-f]{64}$' AND octet_length(evidence_snapshot_json) BETWEEN 1 AND 1048576");
+                        });
+                });
+
             modelBuilder.Entity("AuditSphereOps.Domain.Audit.AuditConfirmationResponse", b =>
                 {
                     b.Property<Guid>("Id")
@@ -22106,6 +22170,30 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasForeignKey("FirmId", "ClientId", "EngagementId", "ProcedureId")
                         .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
                         .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Audit.AuditConfirmationClosure", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClosedByUserId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Engagements.Engagement", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId")
+                        .HasPrincipalKey("FirmId", "PracticeClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Audit.AuditConfirmationCase", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "ConfirmationCaseId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Audit.AuditConfirmationResponse", b =>

@@ -26,7 +26,7 @@ public sealed class SelectedSiteBoundaryVerificationService(
   IAuditSphereDbContextFactory factory, ISelectedSiteBoundaryProbe probe,
   string negativeControlSiteUrl)
 {
-  public async Task VerifyDraftAsync(ActorContext actor, Guid draftId, CancellationToken ct)
+  public async Task VerifyDraftAsync(ActorContext actor, Guid draftId, CancellationToken ct, long? expectedRevision = null)
   {
     var pendingId = Guid.CreateVersion7();
     await using (var db = await factory.CreateAsync(ct))
@@ -42,6 +42,8 @@ public sealed class SelectedSiteBoundaryVerificationService(
           connection.State == Microsoft365RevisionStates.Active ||
           !string.Equals(draft.ExpectedTenantId, connection.TenantId, StringComparison.Ordinal))
         throw new OperationBlockedException("selected-resource-consent-unverified", authorization: true);
+      if (expectedRevision is { } revision && draft.Revision != revision)
+        throw new OperationBlockedException("selected-resource-draft-changed", authorization: true);
 
       db.TenantCapabilityVerifications.Add(new TenantCapabilityVerification
       {
@@ -117,6 +119,9 @@ public sealed class SelectedSiteBoundaryVerificationService(
     current.State = Microsoft365RevisionStates.Verified;
     current.Revision++;
     current.UpdatedAt = now;
+    TenantAdministration.AddEvent(write, actor, "SELECTED_RESOURCE_BOUNDARY_VERIFIED", now,
+      oldState: "UNVERIFIED", newState: "VERIFIED", reason: "Administrator requested exact resource and unrelated-site denial checks",
+      result: "exact-resource-and-control-denial", targetTenantId: observed.TenantId);
     await write.SaveChangesAsync(ct);
     await tx.CommitAsync(ct);
   }

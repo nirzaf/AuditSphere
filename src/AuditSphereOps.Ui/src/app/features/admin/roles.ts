@@ -11,12 +11,18 @@ import { accessWorkspace, accessLine, accessUser, roleReview } from './access-co
 type Workspace = ReturnType<typeof accessWorkspace>;
 type User = ReturnType<typeof accessUser>;
 type RoleDialogData = { user: User; workspace: Workspace };
+/** Presentation hint only; the Application service independently validates identity kind and scope. */
+export function roleChoices(accountType: string, catalogue: string[]): { roles: string[]; scopes: string[]; initialRole: string } {
+  return accountType.startsWith('Client (')
+    ? { roles: catalogue.filter(r => r === 'ClientUser'), scopes: ['CLIENT', 'ENGAGEMENT'], initialRole: 'ClientUser' }
+    : { roles: catalogue.filter(r => r !== 'ClientUser'), scopes: ['FIRM_WIDE', 'CLIENT', 'ENGAGEMENT', 'GROUP'], initialRole: 'Staff' };
+}
 @Component({ selector: 'audit-role-assignment', imports: [ReactiveFormsModule, MatDialogModule, MatButtonModule, ...SHARED], template: `
   <h2 mat-dialog-title>Assign AuditSphere access</h2><mat-dialog-content>
     <p>{{ data.user.displayName }} · {{ data.user.microsoftIdentity }}</p><p>Local roles never assign Microsoft Entra administrator roles or Microsoft group membership.</p>
     <form [formGroup]="form" (ngSubmit)="preview()">
-      <label for="local-role">Role</label><select id="local-role" formControlName="role">@for (r of catalogue.data(); track r) { <option [value]="r">{{ r }}</option> }</select>
-      <label for="scope-kind">Scope type</label><select id="scope-kind" formControlName="scopeKind"><option>FIRM_WIDE</option><option>CLIENT</option><option>ENGAGEMENT</option><option>GROUP</option></select>
+      <label for="local-role">Role</label><select id="local-role" formControlName="role">@for (r of choices().roles; track r) { <option [value]="r">{{ r }}</option> }</select>
+      <label for="scope-kind">Scope type</label><select id="scope-kind" formControlName="scopeKind">@for (scope of choices().scopes; track scope) { <option [value]="scope">{{ scope }}</option> }</select>
       @if (form.controls.scopeKind.value === 'CLIENT' || form.controls.scopeKind.value === 'ENGAGEMENT') {
         <label for="role-client">Client</label><select id="role-client" formControlName="clientId"><option value="">Select client</option>@for(c of data.workspace.clients; track c.id) { <option [value]="c.id">{{ c.name }}</option> }</select>
       }
@@ -53,7 +59,8 @@ export class RoleAssignmentDialog {
   readonly data = inject<RoleDialogData>(MAT_DIALOG_DATA); readonly dialog = inject(MatDialogRef<RoleAssignmentDialog>);
   private readonly api = inject(Api); private readonly session = inject(SessionService); private readonly fb = inject(FormBuilder);
   readonly catalogue = this.api.resource(() => '/api/ui/administration/role-catalogue', arr(text, 100));
-  readonly form = this.fb.nonNullable.group({ role: ['Staff', Validators.required], scopeKind: ['CLIENT', Validators.required], clientId: '', engagementId: '', groupId: '', replacesGrantId: '',
+  readonly choices = () => roleChoices(this.data.user.accountType, this.catalogue.data() ?? []);
+  readonly form = this.fb.nonNullable.group({ role: [this.choices().initialRole, Validators.required], scopeKind: ['CLIENT', Validators.required], clientId: '', engagementId: '', groupId: '', replacesGrantId: '',
     effectiveFrom: '', expiresAt: '', reason: ['', [Validators.required, Validators.minLength(5), Validators.maxLength(1000)]] });
   readonly confirmed = this.fb.nonNullable.control(false);
   readonly review = signal<ReturnType<typeof roleReview> | null>(null); readonly busy = signal(false); readonly uncertain = signal(false); readonly message = signal(''); readonly failed = signal(false);

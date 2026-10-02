@@ -18,19 +18,19 @@
       "id": "US-003",
       "title": "Expose authorized UI contracts instead of server-component calls",
       "status": "PARTIAL",
-      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+      "scope": "Standalone ASP.NET Core API now owns fixed, cookie-authenticated capability contracts that compose named Application queries and commands. Full source-action and authoritative OpenAPI coverage remains under review."
     },
     {
       "id": "US-004",
       "title": "Preserve session identity, scoped permissions and CSRF protection",
       "status": "PARTIAL",
-      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+      "scope": "Trusted Entra cookies, exact immutable identity, session epochs and per-command CSRF remain server-owned. Native installation bootstrap rejects wrong/duplicate identities and cross-firm binding, clears proof after submit, fences unknown outcomes and requires fresh sign-in. Full session/security acceptance across all routes remains open."
     },
     {
       "id": "US-005",
       "title": "Build task-focused shells and preserve deep links",
       "status": "PARTIAL",
-      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+      "scope": "Native staff/client shells, explicit lazy routes and independently served API deep links exist. Catalogue drift and legacy-link guards are implemented; complete context, dirty-edit, back/forward and drawer acceptance remains open."
     },
     {
       "id": "US-006",
@@ -41,50 +41,50 @@
     {
       "id": "US-007",
       "title": "Show actionable workflow, error and empty states",
-      "status": "OPEN",
-      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+      "status": "PARTIAL",
+      "scope": "Shared loading/error blocks, safe typed API refusals, per-capability external blockers and unknown-outcome messages exist across migrated features. Full source-state parity remains under review."
     },
     {
       "id": "US-008",
       "title": "Use scoped signals and predictable asynchronous state",
-      "status": "OPEN",
-      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+      "status": "PARTIAL",
+      "scope": "Session and page signals, canceled resource reads and generation fences protect late reads, writes and downloads. Comprehensive cross-feature selections/cache acceptance remains open."
     },
     {
       "id": "US-009",
       "title": "Implement typed forms and exact financial inputs",
-      "status": "OPEN",
-      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+      "status": "PARTIAL",
+      "scope": "Runtime-decoded DTOs preserve exact decimal strings and date-only inputs; commercial, accounting and role forms require reviewed values. Complete typed-form and validation parity remains open."
     },
     {
       "id": "US-010",
       "title": "Preserve drafts without cross-user leakage",
-      "status": "OPEN",
-      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+      "status": "PARTIAL",
+      "scope": "Confirmation forms now have versioned tab-only drafts, explicit recovery, exact identity/epoch/entity/base fencing, expiration, allowlisted fields, honest storage fallback, route/context/unload protection and review reset. Existing generic drafts are unchanged; cross-feature revision, expiry, navigation and recovery acceptance remains open."
     },
     {
       "id": "US-011",
       "title": "Deliver keyboard-first accounting tables and editors",
-      "status": "OPEN",
-      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+      "status": "PARTIAL",
+      "scope": "Semantic financial tables, exact-number formatting and bounded local paging exist. Complete keyboard accounting-editor and batch acceptance remains open."
     },
     {
       "id": "US-012",
       "title": "Migrate authorized global search and shortcuts",
       "status": "PARTIAL",
-      "scope": "Angular authorized navigation search, debounce/cancellation, autocomplete and shortcut implemented; browser parity pending."
+      "scope": "Authorized bounded search, cancellation, autocomplete and slash shortcut exist. All declared Angular destinations resolve natively; unowned routes fail closed. API-host browser regression verifies duplicate result destinations, native deep-link navigation, reload and skip-link context. Complete source search/shortcut acceptance remains open."
     },
     {
       "id": "US-013",
       "title": "Migrate uploads and downloads with exact evidence integrity",
-      "status": "OPEN",
-      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+      "status": "PARTIAL",
+      "scope": "Same-origin client chunk staging, browser SHA-256, exact declared bytes and protected downloads are migrated. Trusted completion and durable transfer remain server-owned. Comprehensive upload/resume/download parity remains open."
     },
     {
       "id": "US-014",
       "title": "Replace circuit reconnection with operation-aware recovery",
-      "status": "OPEN",
-      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+      "status": "PARTIAL",
+      "scope": "Unknown page command outcomes fence further commands; durable-operation console exposes persisted state. Global receipt reconciliation and old-tab recovery parity remain open."
     },
     {
       "id": "US-015",
@@ -108,157 +108,157 @@
       "id": "US-018",
       "title": "Migrate staffing, resource planning and budgets",
       "status": "PARTIAL",
-      "scope": "Angular engagement staffing assignment/revocation and budget preparation/approval implemented; resource grid and full parity pending."
+      "scope": "Native staffing, budget and resource projections/commands exist with source Application authorization. Full resource-grid, draft and browser parity remains open."
     },
     {
       "id": "US-019",
       "title": "Migrate time, billing, invoices and firm books",
-      "status": "OPEN",
-      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+      "status": "PARTIAL",
+      "scope": "Native time/work records, invoice details, firm ledger and firm-book workspaces exist. Full posting, credit/receipt and source-action browser parity remains open."
     },
     {
       "id": "US-020",
       "title": "Migrate accounting setup, periods and revision lineage",
       "status": "PARTIAL",
-      "scope": "Angular scoped client/profile/period/book reads, reviewed setup, close/reopen with revision fences, readiness and amendment history implemented. Roll-forward, restatements, complete source parity and final browser acceptance remain pending."
+      "scope": "Scoped setup, profile/period/book/chart commands, close/reopen, roll-forward and restatement workspaces exist. Alias and dimension screens, full source-action parity and final acceptance remain open."
     },
     {
       "id": "US-021",
       "title": "Migrate multi-period trial-balance intake and general ledger",
-      "status": "OPEN",
-      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+      "status": "PARTIAL",
+      "scope": "Native multi-period TB intake and accounting source-record workspaces exist. Complete GL intake, resume and source-export parity remains open."
     },
     {
       "id": "US-022",
       "title": "Build the mapping workbench with revision-safe batch editing",
-      "status": "OPEN",
-      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+      "status": "PARTIAL",
+      "scope": "Native mapping lineage, comparison, unmapped accounts, allocations and impact workbench exists with revision-fenced source commands. Complete batch/keyboard/draft parity remains open."
     },
     {
       "id": "US-023",
       "title": "Migrate statement drill-down without losing source context",
-      "status": "OPEN",
-      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+      "status": "PARTIAL",
+      "scope": "Native statement drill-down preserves mapping/source context and links exact procedures. Full behavioral and refreshed fragment acceptance remains open."
     },
     {
       "id": "US-024",
       "title": "Migrate journal and adjustment workflows",
-      "status": "OPEN",
-      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+      "status": "PARTIAL",
+      "scope": "Native journal queues and journal command workbench exist. Full origin, reversal, client-response and source-action parity remains open."
     },
     {
       "id": "US-025",
       "title": "Migrate reconciliation, valuation and accounting evidence",
-      "status": "OPEN",
-      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+      "status": "PARTIAL",
+      "scope": "Native accounting evidence queue exists; specialist schedule and detailed reconciliation/valuation editor parity remains open."
     },
     {
       "id": "US-026",
       "title": "Migrate currency review and remeasurement",
-      "status": "OPEN",
-      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+      "status": "PARTIAL",
+      "scope": "Native FX remeasurement context and governed commands exist. Complete rate/method/source-action parity remains open."
     },
     {
       "id": "US-027",
       "title": "Migrate the group consolidation workspace",
-      "status": "OPEN",
-      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+      "status": "PARTIAL",
+      "scope": "Native group/perimeter/component/FX overview exists with explicit group authorization. Complete component/intercompany/elimination commands and browser parity remain open."
     },
     {
       "id": "US-028",
       "title": "Migrate advanced consolidation without inventing methods",
-      "status": "OPEN",
-      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+      "status": "PARTIAL",
+      "scope": "Native advanced schedule/execution workflow composes existing fail-closed methods. Typed method forms, complete source-action and method browser parity remain open."
     },
     {
       "id": "US-029",
       "title": "Migrate package build, rendering and stage reviews",
-      "status": "OPEN",
-      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+      "status": "PARTIAL",
+      "scope": "Native package build/render and stage-review workspaces exist. Complete review/release action parity and browser acceptance remain open."
     },
     {
       "id": "US-030",
       "title": "Migrate audit planning, materiality and risk routing",
-      "status": "OPEN",
-      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+      "status": "PARTIAL",
+      "scope": "Native materiality, risks, routing and audit-plan commands exist. Full approved-source, independence and source-action browser parity remains open."
     },
     {
       "id": "US-031",
       "title": "Migrate audit programs, populations and fieldwork execution",
-      "status": "OPEN",
-      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+      "status": "PARTIAL",
+      "scope": "Native library, population and fieldwork workspaces exist. Complete programme-adoption, procedure and population parity remains open."
     },
     {
       "id": "US-032",
       "title": "Migrate sampling, evidence links and physical indexing",
-      "status": "OPEN",
-      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+      "status": "PARTIAL",
+      "scope": "Native deterministic sampling, evidence linking and physical-file controls exist through existing Application services. Complete method/evidence/browser parity remains open."
     },
     {
       "id": "US-033",
       "title": "Migrate the confirmations dashboard and alternatives",
-      "status": "OPEN",
-      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+      "status": "PARTIAL",
+      "scope": "Native bounded confirmation register, critical/outstanding filters, reviewed single and atomic batch preparation, observed dispatch, response revisions, independent current response/alternative reviews, closure and explicit criticality rationale are implemented. Batches refuse duplicate identities, unsupported precision, stale review and partial publication; unknown outcomes fence repeat writes. Append-only closure-conclusion and exact reviewed-evidence retention are implemented; historical missing proof is labelled. Versioned case/batch/action tab drafts, explicit recovery, revision conflict, navigation protection and uncertain-submission recovery are implemented. Complete source-action and story acceptance remains open. Execution evidence is recorded in status.json."
     },
     {
       "id": "US-034",
       "title": "Migrate workpapers, findings and anchored review notes",
-      "status": "OPEN",
-      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+      "status": "PARTIAL",
+      "scope": "Native workpaper editor, finding/review records and anchored procedure notes exist. Full review-note and source-action/browser parity remains open."
     },
     {
       "id": "US-035",
       "title": "Migrate completion, human opinions and deliverables",
-      "status": "OPEN",
-      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+      "status": "PARTIAL",
+      "scope": "Native completion, human opinions, deliverable assembly and exact signed-LOR workflows exist. Full source-action/browser parity and professional acceptance remain open."
     },
     {
       "id": "US-036",
       "title": "Migrate release, archive, document locks and freeze",
-      "status": "OPEN",
-      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+      "status": "PARTIAL",
+      "scope": "Native release/archive records and completion/freeze projections exist. Complete locks, archive commands and controlled release/browser parity remain open."
     },
     {
       "id": "US-037",
       "title": "Migrate client onboarding and request delegation",
-      "status": "OPEN",
-      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+      "status": "PARTIAL",
+      "scope": "Native client first-sign-in, exact request delegation/revocation and scope denial have a passing API-host browser journey. Full onboarding/source-action parity remains open."
     },
     {
       "id": "US-038",
       "title": "Migrate PBC request management and client package review",
-      "status": "OPEN",
-      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+      "status": "PARTIAL",
+      "scope": "Native staff PBC and client request/package/document review routes exist; conversation, byte staging and revocation have passing synthetic API-host tests. Complete staff suitability and package-review browser parity remains open."
     },
     {
       "id": "US-039",
       "title": "Migrate user access and Microsoft 365 administration",
-      "status": "OPEN",
-      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+      "status": "PARTIAL",
+      "scope": "Native tenant consent, immutable directory binding, roles/scopes, optional provisioning/invitations, managed groups, operation reconciliation, selected-resource draft/verification/activation and approved templates are implemented locally. Native reviewed client/engagement folder provisioning and read-only dedicated-site/membership health now compose existing Application services with stale-plan/epoch fences. Full rollout policy, lost pre-dispatch form recovery, form/draft/source-action coverage, security and live acceptance remain open."
     },
     {
       "id": "US-040",
       "title": "Migrate the technical library, analytics and project progress",
-      "status": "OPEN",
-      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+      "status": "PARTIAL",
+      "scope": "Native technical library, analytics and administrator task progress exist. Full publishing, finance formulas and browser/source-action parity remains open."
     },
     {
       "id": "US-041",
       "title": "Migrate the operations console",
-      "status": "OPEN",
-      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+      "status": "PARTIAL",
+      "scope": "Native scoped durable-operation console exists with safe status/control contracts. Complete incident, recovery and source-action/browser parity remains open."
     },
     {
       "id": "US-042",
       "title": "Verify accessibility, responsive use and locale behavior",
-      "status": "OPEN",
-      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+      "status": "PARTIAL",
+      "scope": "Synthetic mobile portfolio/portal checks and shared semantic controls exist. Full keyboard, contrast, locale, focus and all-module responsive acceptance remains open."
     },
     {
       "id": "US-043",
       "title": "Set and meet measurable performance budgets",
-      "status": "OPEN",
-      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+      "status": "PARTIAL",
+      "scope": "Angular build budgets and lazy routes are enforced. Production-like cold/warm/large-dataset measurements and acceptance remain open."
     },
     {
       "id": "US-044",
@@ -270,7 +270,7 @@
       "id": "US-045",
       "title": "Deploy with explicit route ownership and reversible cutover",
       "status": "PARTIAL",
-      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+      "scope": "Independent API publication bundles Angular browser assets; auth/API/health routing remains explicit and Web rollback remains available. Production-like canary, previous-asset retention and final cutover acceptance remain open."
     },
     {
       "id": "US-046",

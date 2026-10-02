@@ -49,12 +49,19 @@
     </MudSimpleTable>
     </div>
   }
+  <div class="mt-2">
+    <MudButton Disabled="@(_busy || _page == 0)" OnClick="() => ChangePageAsync(-1)">Previous workspace page</MudButton>
+    <span>Page @(_page + 1)</span>
+    <MudButton Disabled="@(_busy || !_hasMore)" OnClick="() => ChangePageAsync(1)">Next workspace page</MudButton>
+    <MudText Typo="Typo.caption">Up to 25 clients and 25 engagement repositories per client are shown on a page. Open the client workbench for further engagements.</MudText>
+  </div>
   @if (!string.IsNullOrWhiteSpace(_message)) { <MudAlert Severity="@(_ok ? Severity.Success : Severity.Warning)" Dense="true" Class="mt-2" role="status">@_message</MudAlert> }
 </MudPaper>
 
 @code {
   private IReadOnlyList<ClientWorkspaceRow>? _rows;
-  private bool _busy, _ok;
+  private bool _busy, _ok, _hasMore;
+  private int _page;
   private string? _message;
 
   protected override Task OnInitializedAsync() => LoadAsync();
@@ -62,10 +69,18 @@
   private async Task LoadAsync()
   {
     var actor = await ActorResolver.ResolveAsync();
-    if (actor is null) { _rows = []; return; }
+    if (actor is null) { _rows = []; _hasMore = false; _page = 0; return; }
     await using var db = await DbFactory.CreateDbContextAsync();
-    var result = await PbcRepositoryProvisioningQuery.GetAsync(db, actor);
-    _rows = result.Succeeded ? result.Value : [];
+    var result = await WorkspaceProvisioningAdministration.GetAsync(db, actor, _page);
+    _rows = result.Succeeded ? result.Value!.Clients : [];
+    _hasMore = result.Succeeded && result.Value!.HasMore;
+  }
+
+  private async Task ChangePageAsync(int direction)
+  {
+    if (_busy || direction < 0 && _page == 0 || direction > 0 && !_hasMore) return;
+    _page += direction;
+    await LoadAsync();
   }
 
   private Task ProvisionClientAsync(Guid clientId) => RunAsync((db, actor) =>

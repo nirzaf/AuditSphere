@@ -33,9 +33,9 @@ export const decodeStatements = obj({ mappingVersionId: guid, mappingVersion: na
                 @if (open() === s.title + l.destinationCode) {
                   <tr><td colspan="4">
                     <p>Audit area <strong>{{ l.auditArea }}</strong>; source accounts {{ l.sourceAccounts.join(', ') }}.</p>
-                    @if (!l.procedures.length) { <p>No audit procedures cover this area yet. <a [href]="'/app/engagements/' + id() + '/audit-fieldwork'">Insert an ad hoc step</a>.</p> }
+                    @if (!l.procedures.length) { <p>No audit procedures cover this area yet. <a [routerLink]="['/app/engagements', id(), 'audit-fieldwork']">Insert an ad hoc step</a>.</p> }
                     @else { <ul [attr.aria-label]="'Procedures for ' + l.destinationCode">@for (p of l.procedures; track p.procedureId) {
-                      <li><a [href]="'/app/engagements/' + id() + '/audit-fieldwork#procedure-' + p.procedureId">{{ p.sourceProcedureId }} · {{ p.title }}</a> <audit-status [value]="p.status" /></li> }</ul> }
+                      <li><a [routerLink]="['/app/engagements', id(), 'audit-fieldwork']" [fragment]="'procedure-' + p.procedureId">{{ p.sourceProcedureId }} · {{ p.title }}</a> <audit-status [value]="p.status" /></li> }</ul> }
                   </td></tr>
                 }
               }

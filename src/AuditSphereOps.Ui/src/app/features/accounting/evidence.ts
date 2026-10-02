@@ -29,7 +29,7 @@ const PAGE = 25;
             <tbody>@for (x of r.slice(page() * 25, page() * 25 + 25); track $index) {
               <tr><td><strong>{{ x.kind }}</strong><small>{{ x.area }}</small></td><td>{{ x.clientName }}</td><td>{{ x.engagementName }}</td><td>{{ x.periodCode }}</td>
                 <td><audit-status [value]="x.status" />{{ x.isStale ? ' · STALE' : '' }}</td><td>{{ x.inputGeneration }} / {{ x.currentGeneration }}</td>
-                <td><audit-status [value]="x.linkStatus" />@if (x.workpaperId) { <a [href]="'/app/audit/workpapers/' + x.workpaperId">Open linked workpaper</a> }</td>
+                <td><audit-status [value]="x.linkStatus" />@if (x.workpaperId) { <a [routerLink]="['/app/audit/workpapers', x.workpaperId]">Open linked workpaper</a> }</td>
                 <td><small>{{ x.reference }}</small></td></tr> }</tbody>
           </table></div>
           <nav aria-label="Pages" class="actions"><button type="button" (click)="page.set(page() - 1)" [disabled]="page() === 0">Previous</button>

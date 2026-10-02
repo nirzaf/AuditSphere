@@ -7,7 +7,10 @@ using Microsoft.EntityFrameworkCore;
 namespace AuditSphereOps.Application.Microsoft365;
 
 public sealed record ChangeGroupMembershipRequest(
-  string IdempotencyKey, Guid ManagedGroupId, Guid UserId, bool Add, string Reason);
+  string IdempotencyKey, Guid ManagedGroupId, Guid UserId, bool Add, string Reason, bool? ExpectedExistingMembership = null);
+
+public sealed record ManagedGroupMembershipPreview(Guid ManagedGroupId, string GroupName, string GroupObjectId,
+  Guid UserId, string UserName, string UserObjectId, string TenantId, bool ExistingMembership, DateTimeOffset ObservedAt);
 
 public sealed record GroupMembershipChangeResult(Guid? OperationId, string State, bool ExistingMembership,
   string Message, string? CorrelationId);
@@ -19,6 +22,26 @@ public sealed record GroupMembershipChangeResult(Guid? OperationId, string State
 /// </summary>
 public static class ManagedGroupService
 {
+  public static async Task<CommandResult<ManagedGroupMembershipPreview>> PreviewMembershipAsync(IAuditSphereDbContext db,
+    ActorContext actor, IMicrosoftGroupMembershipProvider groups, TenantAdministrationOptions options,
+    Guid managedGroupId, Guid userId, DateTimeOffset now, CancellationToken ct = default)
+  {
+    if (!await TenantAdministration.IsCurrentAdministratorAsync(db, actor, ct)) return TenantAdministration.Denied<ManagedGroupMembershipPreview>();
+    var gate = await TenantCapabilityService.RequireVerifiedAsync(db, actor.FirmId, options, Microsoft365Capabilities.GroupMembership, now, ct);
+    if (!gate.Succeeded || !groups.IsConfigured) return CommandResult<ManagedGroupMembershipPreview>.Fail(ErrorCodes.GateBlocked, gate.Message ?? "Group administration is not configured.");
+    var group = await db.ManagedDirectoryGroups.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == managedGroupId && x.RetiredAt == null, ct);
+    var user = await db.Users.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == userId, ct);
+    if (group is null || user is null || !Guid.TryParse(user.Subject, out var member) ||
+        !string.Equals(group.TenantId, options.TenantId, StringComparison.OrdinalIgnoreCase) ||
+        !string.Equals(user.TenantId, group.TenantId, StringComparison.OrdinalIgnoreCase)) return TenantAdministration.Denied<ManagedGroupMembershipPreview>();
+    bool existing;
+    try { existing = await groups.IsMemberAsync(group.TenantId, group.GroupObjectId, member.ToString("D"), ct); }
+    catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
+    { return CommandResult<ManagedGroupMembershipPreview>.Fail(ErrorCodes.GateBlocked, "Microsoft could not confirm membership. Nothing was changed."); }
+    if (!await TenantAdministration.IsCurrentAdministratorAsync(db, actor, ct)) return TenantAdministration.Denied<ManagedGroupMembershipPreview>();
+    return CommandResult<ManagedGroupMembershipPreview>.Ok(new(group.Id, group.DisplayName, group.GroupObjectId,
+      user.Id, user.DisplayName, member.ToString("D"), group.TenantId, existing, now));
+  }
   public static async Task<CommandResult<Guid>> ApproveGroupAsync(
     IAuditSphereDbContext db, ActorContext actor, IMicrosoftGroupMembershipProvider groups,
     TenantAdministrationOptions options, string groupObjectId, string purpose, string reason, DateTimeOffset now,
@@ -95,10 +118,12 @@ public static class ManagedGroupService
     if (!gate.Succeeded || !groups.IsConfigured) return CommandResult<DirectoryGroupMemberPage>.Fail(ErrorCodes.GateBlocked, gate.Message ?? "Group administration is not configured.");
     var group = await db.ManagedDirectoryGroups.AsNoTracking().SingleOrDefaultAsync(x =>
       x.FirmId == actor.FirmId && x.Id == managedGroupId && x.RetiredAt == null, ct);
-    if (group is null || pageToken is { Length: > 2048 }) return TenantAdministration.Denied<DirectoryGroupMemberPage>();
+    if (group is null || pageToken is { Length: > 2048 } ||
+        !string.Equals(group.TenantId, options.TenantId, StringComparison.OrdinalIgnoreCase)) return TenantAdministration.Denied<DirectoryGroupMemberPage>();
     try
     {
       var page = await groups.ListMembersAsync(group.TenantId, group.GroupObjectId, pageToken, ct);
+      if (!await TenantAdministration.IsCurrentAdministratorAsync(db, actor, ct)) return TenantAdministration.Denied<DirectoryGroupMemberPage>();
       return page.Members.Count > 50
         ? CommandResult<DirectoryGroupMemberPage>.Fail(ErrorCodes.GateBlocked, "The group member page could not be verified.")
         : CommandResult<DirectoryGroupMemberPage>.Ok(page);
@@ -124,7 +149,8 @@ public static class ManagedGroupService
       x.FirmId == actor.FirmId && x.Id == request.ManagedGroupId && x.RetiredAt == null, ct);
     var user = await db.Users.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == request.UserId, ct);
     if (group is null || user is null) return TenantAdministration.Denied<GroupMembershipChangeResult>();
-    if (!string.Equals(user.TenantId, group.TenantId, StringComparison.OrdinalIgnoreCase) || !Guid.TryParse(user.Subject, out var member))
+    if (!string.Equals(group.TenantId, options.TenantId, StringComparison.OrdinalIgnoreCase) ||
+        !string.Equals(user.TenantId, group.TenantId, StringComparison.OrdinalIgnoreCase) || !Guid.TryParse(user.Subject, out var member))
       return Fail(ErrorCodes.GateBlocked, "Only identities bound from this Microsoft tenant can be group members.");
     if (request.Add && user.Disabled)
       return Fail(ErrorCodes.GateBlocked, "A disabled AuditSphere identity cannot be added to a group.");
@@ -136,10 +162,13 @@ public static class ManagedGroupService
     {
       return Fail(ErrorCodes.GateBlocked, "Microsoft could not confirm the current membership. Nothing was changed.");
     }
+    if (request.ExpectedExistingMembership is { } expected && existing != expected)
+      return Fail(ErrorCodes.StaleRevision, "Microsoft membership changed after review. Refresh and review the current membership.");
     var kind = request.Add ? ExternalOperationKinds.AddGroupMember : ExternalOperationKinds.RemoveGroupMember;
     if (existing == request.Add)
     {
       await using var noop = await db.Database.BeginTransactionAsync(ct);
+      if (!await TenantAdministration.IsCurrentAdministratorAsync(db, actor, ct)) return TenantAdministration.Denied<GroupMembershipChangeResult>();
       TenantAdministration.AddEvent(db, actor, kind + "_NO_CHANGE", now,
         oldState: existing ? "MEMBER" : "NOT_MEMBER", newState: existing ? "MEMBER" : "NOT_MEMBER",
         reason: request.Reason, result: "NO_CHANGE", targetTenantId: group.TenantId, targetObjectId: memberId,

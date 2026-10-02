@@ -25,13 +25,13 @@ public static partial class UiEndpoints
   /// <summary>Angular-owned preview routes (served under /ui). Keep in step with app.routes.ts.</summary>
   public static readonly string[] SpaRoutes =
   [
-    "/ui/app/administration", "/ui/app/administration/users", "/ui/app/administration/microsoft365/tenant-connection",
+    "/ui/setup/microsoft365", "/ui/app/administration", "/ui/app/administration/users", "/ui/app/administration/microsoft365/tenant-connection",
     "/ui/portal/accounting/packages/{id:guid}", "/ui/portal", "/ui/portal/requests/{id:guid}",
     "/ui", "/ui/", "/ui/app", "/ui/app/accounting", "/ui/app/practice/leads", "/ui/app/practice/commercial-settings",
     "/ui/app/clients/{id:guid}", "/ui/app/engagements/{id:guid}", "/ui/app/clients/{id:guid}/assessment",
     "/ui/app/practice/proposals/{id:guid}", "/ui/app/practice/leads/{id:guid}",
     "/ui/app/finance/books", "/ui/app/finance", "/ui/app/practice/invoices/{id:guid}", "/ui/app/practice/analytics", "/ui/app/library", "/ui/app/library/{id:guid}",
-    "/ui/app/practice/resources", "/ui/app/practice/time", "/ui/app/engagements/{id:guid}/statements", "/ui/app/engagements/{id:guid}/tb-intake", "/ui/app/engagements/{id:guid}/audit-plan", "/ui/app/engagements/{id:guid}/audit-fieldwork", "/ui/app/engagements/{id:guid}/completion", "/ui/app/completion/{id:guid}", "/ui/app/engagements/{id:guid}/pbc",
+    "/ui/app/practice/resources", "/ui/app/practice/time", "/ui/app/engagements/{id:guid}/statements", "/ui/app/engagements/{id:guid}/tb-intake", "/ui/app/engagements/{id:guid}/audit-plan", "/ui/app/engagements/{id:guid}/audit-fieldwork", "/ui/app/engagements/{id:guid}/confirmations", "/ui/app/engagements/{id:guid}/completion", "/ui/app/completion/{id:guid}", "/ui/app/engagements/{id:guid}/pbc",
     "/ui/app/accounting/mappings", "/ui/app/accounting/journals", "/ui/app/accounting/differences", "/ui/app/accounting/journals/{id:guid}",
     "/ui/app/accounting/mappings/{id:guid}", "/ui/app/accounting/periods/{id:guid}", "/ui/app/accounting/reviews", "/ui/app/accounting/packages/{id:guid}",
     "/ui/app/accounting/evidence", "/ui/app/accounting/rollforward", "/ui/app/accounting/restatements", "/ui/app/accounting/remeasurement",
@@ -61,6 +61,7 @@ public static partial class UiEndpoints
     MapTimeEndpoints(group);
     MapAuditPlanEndpoints(group);
     MapFieldworkEndpoints(group);
+    MapConfirmationEndpoints(group);
     MapCompletionEndpoints(group);
     MapPbcEndpoints(group);
     MapPortalEndpoints(group);
