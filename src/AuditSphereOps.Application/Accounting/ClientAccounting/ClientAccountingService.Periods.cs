@@ -24,6 +24,11 @@ public static partial class ClientAccountingService
     var auth = await AuthorizeClientAsync(db, actor, request.ClientId, PreparerRoles, ct);
     if (!auth.Succeeded)
       return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    await db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id = {actor.FirmId} FOR UPDATE").SingleOrDefaultAsync(ct);
+    auth = await AuthorizeClientAsync(db, actor, request.ClientId, PreparerRoles, ct);
+    if (!auth.Succeeded)
+      return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
     if (request.PriorPeriodId.HasValue && !await db.ClientReportingPeriods.AnyAsync(x =>
         x.Id == request.PriorPeriodId && x.FirmId == actor.FirmId && x.ClientId == request.ClientId, ct))
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "The prior period is outside the client scope.");
@@ -40,6 +45,7 @@ public static partial class ClientAccountingService
     };
     db.ClientReportingPeriods.Add(period);
     await db.SaveChangesAsync(ct);
+    await tx.CommitAsync(ct);
     return CommandResult<Guid>.Ok(period.Id);
   }
 
@@ -67,6 +73,10 @@ public static partial class ClientAccountingService
       .SingleOrDefaultAsync(ct);
     if (prior is null || prior.ClientId != request.ClientId)
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "The prior period is outside the client scope.");
+    auth = await AuthorizeClientAsync(db, actor, request.ClientId, PreparerRoles, ct);
+    if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+    if (request.ExpectedPriorRevision.HasValue && prior.Revision != request.ExpectedPriorRevision.Value)
+      return CommandResult<Guid>.Fail(ErrorCodes.StaleRevision, "The prior period revision is outdated.");
     if (prior.Status != AccountingWorkflowStates.Closed)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Only a closed period can be rolled forward.");
     if (request.StartDate <= prior.EndDate || !string.Equals(currency, prior.Currency, StringComparison.Ordinal))
@@ -124,7 +134,7 @@ public static partial class ClientAccountingService
 
   public static async Task<CommandResult> ClosePeriodAsync(
     IClientAccountingDbContext db, ActorContext actor, Guid periodId, string reason,
-    CancellationToken ct = default)
+    CancellationToken ct = default, long? expectedRevision = null, Guid? expectedClientId = null)
   {
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     var period = await db.ClientReportingPeriods
@@ -132,6 +142,10 @@ public static partial class ClientAccountingService
       .SingleOrDefaultAsync(ct);
     if (period is null)
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    if (expectedClientId.HasValue && period.ClientId != expectedClientId.Value)
+      return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    if (expectedRevision.HasValue && period.Revision != expectedRevision.Value)
+      return CommandResult.Fail(ErrorCodes.StaleRevision, "The reporting period revision is outdated.");
     var auth = await AuthorizeClientAsync(db, actor, period.ClientId, ReviewerRoles, ct);
     if (!auth.Succeeded)
       return auth;
@@ -182,7 +196,7 @@ public static partial class ClientAccountingService
 
   public static async Task<CommandResult> ReopenPeriodAsync(
     IClientAccountingDbContext db, ActorContext actor, Guid periodId, string reason,
-    CancellationToken ct = default)
+    CancellationToken ct = default, long? expectedRevision = null, Guid? expectedClientId = null)
   {
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     var period = await db.ClientReportingPeriods
@@ -190,6 +204,10 @@ public static partial class ClientAccountingService
       .SingleOrDefaultAsync(ct);
     if (period is null)
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    if (expectedClientId.HasValue && period.ClientId != expectedClientId.Value)
+      return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    if (expectedRevision.HasValue && period.Revision != expectedRevision.Value)
+      return CommandResult.Fail(ErrorCodes.StaleRevision, "The reporting period revision is outdated.");
     var auth = await AuthorizeClientAsync(db, actor, period.ClientId, ["Partner", "Administrator"], ct);
     if (!auth.Succeeded)
       return auth;

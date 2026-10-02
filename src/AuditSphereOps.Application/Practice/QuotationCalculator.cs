@@ -54,6 +54,10 @@ public static class QuotationCalculator
     }
     var duplicate = input.Lines.GroupBy(x => (x.Role.Trim().ToUpperInvariant(), x.Activity.Trim().ToUpperInvariant())).FirstOrDefault(g => g.Count() > 1);
     if (duplicate is not null) return "Each role and activity may appear on one line only.";
+    if (decimal.Round(input.ComplexityFactor, 4) != input.ComplexityFactor
+      || decimal.Round(input.RiskPremiumPercent, 4) != input.RiskPremiumPercent
+      || decimal.Round(input.DiscountPercent, 4) != input.DiscountPercent)
+      return "Complexity and percentage inputs support at most four decimal places.";
     if (input.ComplexityFactor < MinimumComplexity || input.ComplexityFactor > MaximumComplexity)
       return $"The complexity factor must be between {MinimumComplexity} and {MaximumComplexity}.";
     if (input.RiskPremiumPercent < 0 || input.RiskPremiumPercent > MaximumPercent)

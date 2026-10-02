@@ -130,15 +130,16 @@ public static class StaffingService
         StaffingLevels.AuthorizationRole(x.a.StaffingLevel), certified.Contains(x.a.UserId))).ToList());
   }
 
-  public static async Task<IReadOnlyList<StaffCandidate>> CandidatesAsync(IAuditSphereDbContext db, ActorContext actor, CancellationToken ct = default)
+  public static async Task<IReadOnlyList<StaffCandidate>> CandidatesAsync(IAuditSphereDbContext db, ActorContext actor, CancellationToken ct = default, int? limit = null)
   {
+    if (limit is < 1 or > 1000) throw new ArgumentOutOfRangeException(nameof(limit));
     var today = DateOnly.FromDateTime(DateTime.UtcNow);
     return await db.Users.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.UserKind == "Staff" && !x.Disabled && x.Id != actor.UserId)
       .OrderBy(x => x.DisplayName)
       .Select(x => new StaffCandidate(x.Id, x.DisplayName,
         db.StaffProfiles.Where(p => p.FirmId == x.FirmId && p.UserId == x.Id).Select(p => p.Department).FirstOrDefault(),
         db.StaffCertifications.Any(c => c.FirmId == x.FirmId && c.UserId == x.Id && (c.ExpiresOn == null || c.ExpiresOn >= today))))
-      .ToListAsync(ct);
+      .Take(limit ?? int.MaxValue).ToListAsync(ct);
   }
 
   /// <summary>Staffing rank of the acting user on this engagement: administrators and firm Partners rank as Partner.</summary>

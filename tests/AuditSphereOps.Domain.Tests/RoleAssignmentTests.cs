@@ -38,8 +38,11 @@ public sealed class RoleAssignmentTests
     Assert.Equal("roles.confirmation-required", unconfirmed.ErrorCode);
     var noReason = await RoleAssignmentService.AssignAsync(db, f.AdminActor, request with { Reason = "", ConfirmScopeExpansion = true }, DateTimeOffset.UtcNow);
     Assert.Equal("roles.reason-required", noReason.ErrorCode);
-    var saved = await RoleAssignmentService.AssignAsync(db, f.AdminActor, request with { ConfirmScopeExpansion = true }, DateTimeOffset.UtcNow);
+    var digest = RoleAssignmentReviewDigest.Compute(preview.Value!, request);
+    var saved = await RoleAssignmentService.AssignAsync(db, f.AdminActor, request with { ConfirmScopeExpansion = true }, DateTimeOffset.UtcNow, expectedReviewDigest: digest);
     Assert.True(saved.Succeeded, saved.Message);
+    var changed = await RoleAssignmentService.AssignAsync(db, f.AdminActor, request with { ConfirmScopeExpansion = true }, DateTimeOffset.UtcNow, expectedReviewDigest: digest);
+    Assert.Equal(ErrorCodes.StaleRevision, changed.ErrorCode);
     db.ChangeTracker.Clear();
     var grant = await db.RoleGrants.SingleAsync(x => x.Id == saved.Value!.GrantId);
     Assert.Equal("Assigned to client team", grant.Reason);

@@ -695,3 +695,16 @@ For the complete documentation index, authority hierarchy, current requirements,
 - Web: `Components/Shared/SessionAccessBoundary.razor`, composed by both staff and client layouts. Reuses `CurrentActorResolver` and `TrustedActorResolver` for authenticated immutable identity, disabled state, expiry and session epoch checks. Checks every five seconds while connected; verification failure removes the protected component subtree and exposes a safe sign-in message. This does not replace Application command/query authorization.
 - Verification: `PassiveSessionRevocationJourneyTests` covers both shells, disabled identities and stale epochs without navigation or clicks.
 - Systematic sampling: `Domain/Audit/AuditSamplingEngine.cs` adds seeded equal-row-spacing selection, including zero-value rows. `AuditFieldworkService.Connections.cs` stores order-bound source identity and a distinct engine version; `FieldworkToolsPanel.razor` supplies sample size/seed and the existing immutable calculation log. Migration `SystematicAuditSampling` extends the allowed-method constraint. Existing sampling engines and stored source digests retain their contracts.
+
+## API backend and Angular presentation migration
+
+- Application: `Practice/PortfolioQuery.cs` (bounded current-grant client projection).
+- API host: `src/AuditSphereOps.Api/ApiHost.{Authentication,AuthenticationEndpoints,DocumentEndpoints,Persistence,Providers,Health,Observability}.cs`; `Authentication/TrustedActorResolver.cs`, consent composition and production Data Protection.
+- HTTP contracts: `src/AuditSphereOps.Api/Ui/UiEndpoints.*.cs` (trusted session, CSRF-protected commands, exact financial strings and explicit SPA routes).
+- Legacy Web: `Program.cs` supplies Razor/MudBlazor presentation to the shared API host; `Authentication/CurrentActorResolver.cs` supplies circuit resolution.
+- Client portal queries: `Application/Documents/ClientPortalWorkspaceQuery.cs`, `ClientPortalReviewQuery.cs`, `ClientPortalReviewCommands.cs`.
+- Administration: `Application/Microsoft365/TenantAdministrationWorkspaceQuery.cs`, existing tenant/directory providers, and `Security/RoleAssignmentReviewDigest.cs` for current-access review fencing.
+- Native portal/admin: `src/AuditSphereOps.Ui/src/app/features/{portal,admin}/`; standalone API contract tests and Angular browser journeys.
+- Angular: `src/AuditSphereOps.Ui/src/app/core/session.ts` and `features/portfolio/portfolio.ts`.
+- Tests: `PortfolioQueryTests`, `UiContractTests`, `AngularPortfolioJourneyTests`, Angular component/decoder tests.
+- Authority: [migration ownership and remaining scope](auditsphere-angular-migration-current.md).

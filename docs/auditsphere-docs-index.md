@@ -36,6 +36,8 @@
 
 The owner retired the former system specification, prototype parity source and UI migration document. Use the current STE functional requirements, current architecture and execution coverage for implementation; retired text remains in Git history only.
 
+Current presentation migration: [Angular migration and route ownership](architecture/auditsphere-angular-migration-current.md). The owner attached a new migration guide; former retired UI documents remain historical.
+
 ## 1. Start Here
 
 

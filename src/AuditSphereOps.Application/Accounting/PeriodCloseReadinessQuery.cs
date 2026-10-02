@@ -14,7 +14,7 @@ public sealed record PeriodCloseBlocker(string Code, string Detail);
 
 public sealed record PeriodCloseReadinessReport(
   Guid PeriodId, string PeriodCode, string PeriodStatus, bool CanClose,
-  int PackageCount, IReadOnlyList<PeriodCloseBlocker> Blockers);
+  int PackageCount, IReadOnlyList<PeriodCloseBlocker> Blockers, bool CanDecideClose = false, bool CanReopen = false);
 
 public static class PeriodCloseReadinessQuery
 {
@@ -22,14 +22,14 @@ public static class PeriodCloseReadinessQuery
 
   public static async Task<CommandResult<PeriodCloseReadinessReport>> GetReadinessAsync(
     IClientAccountingDbContext db, ActorContext actor, Guid periodId,
-    CancellationToken ct = default)
+    CancellationToken ct = default, Guid? expectedClientId = null)
   {
     if (periodId == Guid.Empty)
       return CommandResult<PeriodCloseReadinessReport>.Fail(ErrorCodes.Accounting.MappingInvalid,
         "A reporting period id is required.");
     var period = await db.ClientReportingPeriods.AsNoTracking()
       .SingleOrDefaultAsync(x => x.Id == periodId && x.FirmId == actor.FirmId, ct);
-    if (period is null)
+    if (period is null || (expectedClientId.HasValue && period.ClientId != expectedClientId.Value))
       return CommandResult<PeriodCloseReadinessReport>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
       new AuthorizationRequest(period.FirmId, period.ClientId, null, ReadRoles, InternalOnly: true), ct);
@@ -90,8 +90,16 @@ public static class PeriodCloseReadinessQuery
       }
     }
 
+    var canDecideClose = (await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(period.FirmId, period.ClientId, RequiredRoles: ["AccountingReviewer", "Manager", "Partner", "Administrator"], InternalOnly: true), ct)).Succeeded;
+    var canReopen = (await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(period.FirmId, period.ClientId, RequiredRoles: ["Partner", "Administrator"], InternalOnly: true), ct)).Succeeded;
+    auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(period.FirmId, period.ClientId, null, ReadRoles, InternalOnly: true), ct);
+    if (!auth.Succeeded)
+      return CommandResult<PeriodCloseReadinessReport>.Fail(auth.ErrorCode!, auth.Message!);
     return CommandResult<PeriodCloseReadinessReport>.Ok(new PeriodCloseReadinessReport(
       period.Id, period.PeriodCode, period.Status,
-      CanClose: blockers.Count == 0, packageIds.Count, blockers));
+      CanClose: blockers.Count == 0, packageIds.Count, blockers, canDecideClose, canReopen));
   }
 }

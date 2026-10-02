@@ -74,7 +74,7 @@ public static class RoleAssignmentService
 
   public static async Task<CommandResult<RoleAssignmentResult>> AssignAsync(
     IClientAccountingDbContext db, ActorContext actor, RoleAssignmentRequest request, DateTimeOffset now,
-    CancellationToken ct = default)
+    CancellationToken ct = default, string? expectedReviewDigest = null)
   {
     var auth = await RoleAdministrationService.FirmAdministratorAsync(db, actor, ct);
     if (!auth.Succeeded) return CommandResult<RoleAssignmentResult>.Fail(auth.ErrorCode!, auth.Message!);
@@ -95,6 +95,8 @@ public static class RoleAssignmentService
       return CommandResult<RoleAssignmentResult>.Fail(ErrorCodes.GateBlocked, "Reverify this Microsoft identity before assigning access.");
 
     var preview = await BuildPreviewAsync(db, actor, target, request, now, ct);
+    if (expectedReviewDigest is not null && !string.Equals(expectedReviewDigest, RoleAssignmentReviewDigest.Compute(preview, request), StringComparison.Ordinal))
+      return CommandResult<RoleAssignmentResult>.Fail(ErrorCodes.StaleRevision, "The reviewed access changed. Reload and review the proposed assignment.");
     if (preview.BlockingReasons.Count > 0)
       return CommandResult<RoleAssignmentResult>.Fail("roles.blocked", preview.BlockingReasons[0]);
     if ((preview.ScopeExpansion || preview.IndependenceImpact.Count > 0) && !request.ConfirmScopeExpansion)

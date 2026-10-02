@@ -14,7 +14,7 @@ public static partial class ClientAccountingService
 {
   public static async Task<CommandResult<Guid>> CreateChartVersionAsync(
     IClientAccountingDbContext db, ActorContext actor, Guid clientId,
-    string sourceScope, DateOnly effectiveFrom, CancellationToken ct = default)
+    string sourceScope, DateOnly effectiveFrom, CancellationToken ct = default, int? expectedLatestVersion = null)
   {
     if (string.IsNullOrWhiteSpace(sourceScope))
       return CommandResult<Guid>.Fail(ErrorCodes.Accounting.MappingInvalid, "A chart source scope is required.");
@@ -34,6 +34,8 @@ public static partial class ClientAccountingService
       return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
     var version = (await db.ClientChartVersions.Where(x => x.FirmId == actor.FirmId && x.ClientId == clientId)
       .Select(x => (int?)x.Version).MaxAsync(ct) ?? 0) + 1;
+    if (expectedLatestVersion.HasValue && version - 1 != expectedLatestVersion.Value)
+      return CommandResult<Guid>.Fail(ErrorCodes.StaleRevision, "The latest chart version has changed.");
     var chart = new ClientChartVersion
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = clientId,
@@ -48,7 +50,7 @@ public static partial class ClientAccountingService
 
   public static async Task<CommandResult> AddAccountsAsync(
     IClientAccountingDbContext db, ActorContext actor, Guid chartVersionId,
-    IReadOnlyList<ClientAccountInput> inputs, CancellationToken ct = default)
+    IReadOnlyList<ClientAccountInput> inputs, CancellationToken ct = default, Guid? expectedClientId = null, int? expectedVersion = null)
   {
     if (inputs.Count == 0 || inputs.Any(x => string.IsNullOrWhiteSpace(x.StableIdentity) ||
         string.IsNullOrWhiteSpace(x.AccountCode) || string.IsNullOrWhiteSpace(x.AccountName) ||
@@ -59,11 +61,13 @@ public static partial class ClientAccountingService
       .FromSqlInterpolated($"SELECT * FROM client_chart_versions WHERE id = {chartVersionId} AND firm_id = {actor.FirmId} FOR UPDATE")
       .ToListAsync(ct);
     var chart = charts.SingleOrDefault(x => x.Id == chartVersionId && x.FirmId == actor.FirmId);
-    if (chart is null)
+    if (chart is null || (expectedClientId.HasValue && chart.ClientId != expectedClientId.Value))
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var auth = await AuthorizeClientAsync(db, actor, chart.ClientId, PreparerRoles, ct);
     if (!auth.Succeeded)
       return auth;
+    if (expectedVersion.HasValue && chart.Version != expectedVersion.Value)
+      return CommandResult.Fail(ErrorCodes.StaleRevision, "The reviewed chart version has changed.");
     if (chart.Status != AccountingWorkflowStates.Draft)
       return CommandResult.Fail(ErrorCodes.ProtectedState, "Published chart versions are immutable.");
     var duplicateInput = inputs.GroupBy(x => x.StableIdentity.Trim(), StringComparer.OrdinalIgnoreCase).Any(x => x.Count() > 1) ||
@@ -122,7 +126,7 @@ public static partial class ClientAccountingService
 
   public static async Task<CommandResult> AddSourceAccountAliasesAsync(
     IClientAccountingDbContext db, ActorContext actor, Guid chartVersionId,
-    IReadOnlyList<SourceAccountAliasInput> inputs, CancellationToken ct = default)
+    IReadOnlyList<SourceAccountAliasInput> inputs, CancellationToken ct = default, Guid? expectedClientId = null, int? expectedVersion = null)
   {
     if (inputs.Count == 0 || inputs.Any(x => x.ClientAccountId == Guid.Empty ||
         string.IsNullOrWhiteSpace(x.SourceSystem) || string.IsNullOrWhiteSpace(x.AliasCode)))
@@ -132,11 +136,13 @@ public static partial class ClientAccountingService
       .FromSqlInterpolated($"SELECT * FROM client_chart_versions WHERE id = {chartVersionId} AND firm_id = {actor.FirmId} FOR UPDATE")
       .ToListAsync(ct);
     var chart = charts.SingleOrDefault(x => x.Id == chartVersionId && x.FirmId == actor.FirmId);
-    if (chart is null)
+    if (chart is null || (expectedClientId.HasValue && chart.ClientId != expectedClientId.Value))
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var auth = await AuthorizeClientAsync(db, actor, chart.ClientId, PreparerRoles, ct);
     if (!auth.Succeeded)
       return auth;
+    if (expectedVersion.HasValue && chart.Version != expectedVersion.Value)
+      return CommandResult.Fail(ErrorCodes.StaleRevision, "The reviewed chart version changed.");
     if (chart.Status != AccountingWorkflowStates.Draft)
       return CommandResult.Fail(ErrorCodes.ProtectedState, "Published chart versions are immutable.");
     var normalized = inputs.Select(x => new
@@ -169,7 +175,7 @@ public static partial class ClientAccountingService
 
   public static async Task<CommandResult> PublishChartVersionAsync(
     IClientAccountingDbContext db, ActorContext actor, Guid chartVersionId,
-    CancellationToken ct = default)
+    CancellationToken ct = default, Guid? expectedClientId = null, int? expectedVersion = null, string? expectedDigest = null)
   {
     // Hold the chart row lock through validation and publication. Without an explicit
     // transaction PostgreSQL releases FOR UPDATE when the SELECT statement ends.
@@ -178,16 +184,21 @@ public static partial class ClientAccountingService
       .FromSqlInterpolated($"SELECT * FROM client_chart_versions WHERE id = {chartVersionId} AND firm_id = {actor.FirmId} FOR UPDATE")
       .ToListAsync(ct);
     var chart = charts.SingleOrDefault(x => x.Id == chartVersionId && x.FirmId == actor.FirmId);
-    if (chart is null)
+    if (chart is null || (expectedClientId.HasValue && chart.ClientId != expectedClientId.Value))
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var auth = await AuthorizeClientAsync(db, actor, chart.ClientId, ReviewerRoles, ct);
     if (!auth.Succeeded)
       return auth;
+    if (expectedVersion.HasValue && chart.Version != expectedVersion.Value)
+      return CommandResult.Fail(ErrorCodes.StaleRevision, "The reviewed chart version changed.");
     if (chart.Status != AccountingWorkflowStates.Draft)
       return CommandResult.Fail(ErrorCodes.ProtectedState, "Only a draft chart can be published.");
     if (chart.CreatedByUserId == actor.UserId)
       return CommandResult.Fail(ErrorCodes.Accounting.MappingInvalid, "The chart preparer cannot publish the same version.");
     var accounts = await db.ClientAccounts.Where(x => x.FirmId == chart.FirmId && x.ClientId == chart.ClientId && x.ChartVersionId == chart.Id).ToListAsync(ct);
+    var aliases = await db.SourceAccountAliases.AsNoTracking().Where(x => x.FirmId == chart.FirmId && x.ClientId == chart.ClientId && x.ChartVersionId == chart.Id).ToListAsync(ct);
+    if (expectedDigest is not null && !string.Equals(expectedDigest, ChartPublicationQuery.Digest(accounts, aliases), StringComparison.Ordinal))
+      return CommandResult.Fail(ErrorCodes.GenerationStale, "The reviewed chart accounts or aliases changed.");
     if (accounts.Count == 0 || accounts.Any(x => x.ParentAccountId == x.Id))
       return CommandResult.Fail(ErrorCodes.Accounting.MappingIncomplete, "A chart needs at least one valid account.");
     // Full publication-time re-validation under the row lock: the draft-time checks are
@@ -228,12 +239,12 @@ public static partial class ClientAccountingService
 
   public static async Task<CommandResult<ChartRevisionAccountsPage>> GetChartRevisionAccountsAsync(
     IClientAccountingDbContext db, ActorContext actor, Guid chartVersionId,
-    int page = 1, int pageSize = 100, CancellationToken ct = default)
+    int page = 1, int pageSize = 100, CancellationToken ct = default, Guid? expectedClientId = null)
   {
-    if (page < 1 || pageSize is < 1 or > 500)
+    if (page is < 1 or > 10000 || pageSize is < 1 or > 500)
       return CommandResult<ChartRevisionAccountsPage>.Fail(ErrorCodes.Accounting.MappingInvalid, "A valid page number and size (1-500) are required.");
     var chart = await db.ClientChartVersions.AsNoTracking().SingleOrDefaultAsync(x => x.Id == chartVersionId && x.FirmId == actor.FirmId, ct);
-    if (chart is null)
+    if (chart is null || (expectedClientId.HasValue && chart.ClientId != expectedClientId.Value))
       return CommandResult<ChartRevisionAccountsPage>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var auth = await AuthorizeClientAsync(db, actor, chart.ClientId, PreparerRoles, ct);
     if (!auth.Succeeded)
@@ -242,27 +253,18 @@ public static partial class ClientAccountingService
     var accountsQuery = db.ClientAccounts.AsNoTracking()
       .Where(x => x.FirmId == actor.FirmId && x.ClientId == chart.ClientId && x.ChartVersionId == chart.Id);
     var totalCount = await accountsQuery.CountAsync(ct);
-    var allAccounts = await accountsQuery.ToListAsync(ct);
-    var byId = allAccounts.ToDictionary(x => x.Id);
-    var childCounts = allAccounts.Where(x => x.ParentAccountId.HasValue)
-      .GroupBy(x => x.ParentAccountId!.Value)
-      .ToDictionary(g => g.Key, g => g.Count());
-
-    var skip = (page - 1) * pageSize;
-    var paged = allAccounts.OrderBy(x => x.AccountCode, StringComparer.Ordinal)
-      .Skip(skip).Take(pageSize)
-      .Select(x => new ChartAccountViewDto(
-        x.Id,
-        x.StableIdentity,
-        x.AccountCode,
-        x.AccountName,
-        x.AccountType,
-        x.NormalBalance,
-        x.IsPosting,
-        x.ParentAccountId,
-        x.ParentAccountId.HasValue && byId.TryGetValue(x.ParentAccountId.Value, out var parent) ? parent.AccountCode : null,
-        childCounts.GetValueOrDefault(x.Id, 0)))
-      .ToList();
+    var paged = await accountsQuery.OrderBy(x => EF.Functions.Collate(x.AccountCode, "C")).ThenBy(x => x.Id)
+      .Skip((page - 1) * pageSize).Take(pageSize)
+      .Select(x => new ChartAccountViewDto(x.Id, x.StableIdentity, x.AccountCode, x.AccountName, x.AccountType,
+        x.NormalBalance, x.IsPosting, x.ParentAccountId,
+        db.ClientAccounts.Where(parent => parent.FirmId == actor.FirmId && parent.ClientId == chart.ClientId &&
+          parent.ChartVersionId == chart.Id && parent.Id == x.ParentAccountId).Select(parent => parent.AccountCode).FirstOrDefault(),
+        db.ClientAccounts.Count(child => child.FirmId == actor.FirmId && child.ClientId == chart.ClientId &&
+          child.ChartVersionId == chart.Id && child.ParentAccountId == x.Id)))
+      .ToListAsync(ct);
+    auth = await AuthorizeClientAsync(db, actor, chart.ClientId, PreparerRoles, ct);
+    if (!auth.Succeeded)
+      return CommandResult<ChartRevisionAccountsPage>.Fail(auth.ErrorCode!, auth.Message!);
 
     return CommandResult<ChartRevisionAccountsPage>.Ok(new ChartRevisionAccountsPage(paged, totalCount, page, pageSize));
   }

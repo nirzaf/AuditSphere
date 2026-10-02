@@ -24,6 +24,7 @@ public sealed class ArchitectureGuardTests
     Assert.DoesNotContain("AuditSphereOps.Application", referenced);
     Assert.DoesNotContain("AuditSphereOps.Infrastructure", referenced);
     Assert.DoesNotContain("AuditSphereOps.Web", referenced);
+    Assert.DoesNotContain("AuditSphereOps.Api", referenced);
     Assert.DoesNotContain("AuditSphereOps.Worker", referenced);
   }
 
@@ -35,6 +36,7 @@ public sealed class ArchitectureGuardTests
     Assert.Contains("AuditSphereOps.Domain", referenced);
     Assert.DoesNotContain("AuditSphereOps.Infrastructure", referenced);
     Assert.DoesNotContain("AuditSphereOps.Web", referenced);
+    Assert.DoesNotContain("AuditSphereOps.Api", referenced);
     Assert.DoesNotContain("AuditSphereOps.Worker", referenced);
   }
 
@@ -46,6 +48,7 @@ public sealed class ArchitectureGuardTests
     Assert.Contains("AuditSphereOps.Application", referenced);
     Assert.Contains("AuditSphereOps.Domain", referenced);
     Assert.DoesNotContain("AuditSphereOps.Web", referenced);
+    Assert.DoesNotContain("AuditSphereOps.Api", referenced);
     Assert.DoesNotContain("AuditSphereOps.Worker", referenced);
   }
 }

@@ -138,7 +138,8 @@ public static class ClientPortalService
     if (engagement is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor, new(actor.FirmId, engagement.PracticeClientId, engagementId, ["ClientUser"]), ct);
     if (!auth.Succeeded) return auth;
-    var released = await db.CommercialDeliverableBundles.AnyAsync(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId, ct) ||
+    var released = await db.EngagementFileFreezes.AnyAsync(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId && x.State == "FROZEN", ct) ||
+      await db.CommercialDeliverableBundles.AnyAsync(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId, ct) ||
       await db.Releases.AnyAsync(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId && db.ReleaseCandidates.Any(c =>
         c.FirmId == actor.FirmId && c.Id == x.ReleaseCandidateId && c.TargetKind == "FINANCIAL_PACKAGE"), ct);
     return released ? CommandResult.Fail(ErrorCodes.ProtectedState, "Client uploads are frozen after final release. You can still download your released documents.") : CommandResult.Ok();

@@ -182,7 +182,7 @@ public sealed class FinancialArtifactJourneyTests
       Assert.True(revoked.Succeeded, revoked.Message);
     }
 
-    await page.GetByRole(AriaRole.Button, new() { Name = "Refresh journal" }).ClickAsync();
+    await ClickBeforePassiveSessionRemovalAsync(page, "Refresh journal");
     await page.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable" }).WaitForAsync();
     var body = await page.Locator("body").InnerTextAsync();
     Assert.DoesNotContain(journalNumber, body);
@@ -472,18 +472,8 @@ public sealed class FinancialArtifactJourneyTests
       Assert.True(revoked.Succeeded, revoked.Message);
     }
 
-    var decisionButton = page.GetByRole(AriaRole.Button, new() { Name = "Record management decision" });
-    if (await decisionButton.CountAsync() > 0)
-      await decisionButton.ClickAsync(new() { Force = true });
-    try
-    {
-      await page.GetByRole(AriaRole.Heading, new() { Name = "Package unavailable" }).WaitForAsync();
-    }
-    catch (TimeoutException)
-    {
-      throw new Xunit.Sdk.XunitException($"The revoked package view did not clear after an action.\n" +
-        $"{await page.Locator("body").InnerTextAsync()}\n{string.Join("\n", diagnostics)}");
-    }
+    await ClickBeforePassiveSessionRemovalAsync(page, "Record management decision");
+    await page.Locator("[data-access-revoked]").WaitForAsync(new() { Timeout = 15000 });
     Assert.Equal(documentToken, await page.EvaluateAsync<string>("window.__clientPackageRevokeToken"));
     var body = await page.Locator("body").InnerTextAsync();
     Assert.DoesNotContain(packageHash, body);
@@ -525,8 +515,8 @@ public sealed class FinancialArtifactJourneyTests
       Assert.True(revoked.Succeeded, revoked.Message);
     }
 
-    await page.GetByRole(AriaRole.Button, new() { Name = "Refresh package" }).ClickAsync();
-    await page.GetByRole(AriaRole.Heading, new() { Name = "Package unavailable" }).WaitForAsync();
+    await ClickBeforePassiveSessionRemovalAsync(page, "Refresh package");
+    await page.Locator("[data-access-revoked]").WaitForAsync(new() { Timeout = 15000 });
     var body = await page.Locator("body").InnerTextAsync();
     Assert.DoesNotContain(packageHash, body);
     Assert.DoesNotContain("Statement totals", body);
@@ -588,7 +578,7 @@ public sealed class FinancialArtifactJourneyTests
       Assert.True(revoked.Succeeded, revoked.Message);
     }
 
-    await page.GetByRole(AriaRole.Button, new() { Name = "Refresh queue" }).ClickAsync();
+    await ClickBeforePassiveSessionRemovalAsync(page, "Refresh queue");
     await page.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable" }).WaitForAsync();
     var body = await page.Locator("body").InnerTextAsync();
     Assert.DoesNotContain(packageId.ToString("D"), body);
@@ -702,7 +692,7 @@ public sealed class FinancialArtifactJourneyTests
       }
     }
 
-    await page.GetByRole(AriaRole.Button, new() { Name = "Refresh queue" }).ClickAsync();
+    await ClickBeforePassiveSessionRemovalAsync(page, "Refresh queue");
     await page.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable" }).WaitForAsync();
     var body = await page.Locator("body").InnerTextAsync();
     Assert.DoesNotContain("AJ-E2E-001", body);
@@ -746,7 +736,7 @@ public sealed class FinancialArtifactJourneyTests
       }
     }
 
-    await page.GetByRole(AriaRole.Button, new() { Name = "Refresh journal" }).ClickAsync();
+    await ClickBeforePassiveSessionRemovalAsync(page, "Refresh journal");
     await page.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable" }).WaitForAsync();
     var body = await page.Locator("body").InnerTextAsync();
     Assert.DoesNotContain("AJ-E2E-001", body);
@@ -1077,7 +1067,7 @@ public sealed class FinancialArtifactJourneyTests
       }
     }
 
-    await page.GetByRole(AriaRole.Button, new() { Name = "Refresh package" }).ClickAsync();
+    await ClickBeforePassiveSessionRemovalAsync(page, "Refresh package");
     await page.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable" }).WaitForAsync();
     var body = await page.Locator("body").InnerTextAsync();
     Assert.DoesNotContain(packageId.ToString("D"), body);
@@ -1142,7 +1132,7 @@ public sealed class FinancialArtifactJourneyTests
       }
     }
 
-    await page.GetByRole(AriaRole.Button, new() { Name = "Refresh mapping" }).ClickAsync();
+    await ClickBeforePassiveSessionRemovalAsync(page, "Refresh mapping");
     try
     {
       await page.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable" }).WaitForAsync(new() { Timeout = 5_000 });
@@ -1353,4 +1343,17 @@ public sealed class FinancialArtifactJourneyTests
     page.PageError += (_, error) => diagnostics.Add($"page-error: {error}");
     return connected.Task.WaitAsync(TimeSpan.FromSeconds(10));
   }
+  // The epoch monitor can dispose the button between locator resolution and click.
+  // A lost action is accepted only after the real session boundary has denied access.
+  private static async Task ClickBeforePassiveSessionRemovalAsync(IPage page, string name)
+  {
+    var button = page.GetByRole(AriaRole.Button, new() { Name = name });
+    if (await button.CountAsync() > 0)
+    {
+      try { await button.ClickAsync(new() { Timeout = 1000 }); return; }
+      catch (TimeoutException) { }
+    }
+    await page.Locator("[data-access-revoked]").WaitForAsync(new() { Timeout = 15000 });
+  }
+
 }

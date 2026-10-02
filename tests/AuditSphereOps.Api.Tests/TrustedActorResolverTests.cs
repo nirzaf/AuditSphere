@@ -1,7 +1,7 @@
 using System.Security.Claims;
 using AuditSphereOps.Domain.Tests;
 using AuditSphereOps.Testing;
-using AuditSphereOps.Web.Authentication;
+using AuditSphereOps.Api.Authentication;
 
 namespace AuditSphereOps.Api.Tests;
 

@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore;
 namespace AuditSphereOps.Application.Practice;
 
 public sealed record SaveCommercialProfileRequest(
-  string LegalName, string Address, string ContactEmail, string ContactPhone, string AccentColorHex, string ClosingText, string FirmHistoryAndRegistrations = "", string IndustryCredentials = "", string AuditMethodology = "");
+  string LegalName, string Address, string ContactEmail, string ContactPhone, string AccentColorHex, string ClosingText, string FirmHistoryAndRegistrations = "", string IndustryCredentials = "", string AuditMethodology = "", long? ExpectedVersion = null);
 
 public sealed record GeneratedProposalDocuments(CommercialDocument Quotation, CommercialDocument EngagementLetter);
 
@@ -53,6 +53,8 @@ public static partial class CommercialDocumentService
         latest.FirmHistoryAndRegistrations == (request.FirmHistoryAndRegistrations ?? "").Trim() &&
         latest.IndustryCredentials == (request.IndustryCredentials ?? "").Trim() && latest.AuditMethodology == (request.AuditMethodology ?? "").Trim())
       return CommandResult<Guid>.Ok(latest.Id);
+    if (request.ExpectedVersion.HasValue && request.ExpectedVersion != (latest?.Version ?? 0))
+      return CommandResult<Guid>.Fail(ErrorCodes.StaleRevision, "Commercial profile changed; review its current version.");
     var profile = new FirmCommercialProfile
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, Version = (latest?.Version ?? 0) + 1, LegalName = name,
@@ -79,11 +81,11 @@ public static partial class CommercialDocumentService
 
   /// <summary>Brief quotation is available before client/risk acceptance; never generates an engagement letter.</summary>
   public static Task<CommandResult<CommercialDocument>> GenerateBriefQuotationAsync(
-    IAuditSphereDbContext db, ActorContext actor, Guid proposalId, CancellationToken ct = default) => GenerateDocumentAsync(db, actor, proposalId, false, ct);
+    IAuditSphereDbContext db, ActorContext actor, Guid proposalId, CancellationToken ct = default, Guid? expectedQuotationId = null, long? expectedProfileVersion = null) => GenerateDocumentAsync(db, actor, proposalId, false, ct, expectedQuotationId, expectedProfileVersion);
 
   /// <summary>Only a current Partner may generate a letter after both persisted approval keys pass.</summary>
   public static Task<CommandResult<CommercialDocument>> GenerateEngagementLetterAsync(
-    IAuditSphereDbContext db, ActorContext actor, Guid proposalId, CancellationToken ct = default) => GenerateDocumentAsync(db, actor, proposalId, true, ct);
+    IAuditSphereDbContext db, ActorContext actor, Guid proposalId, CancellationToken ct = default, Guid? expectedQuotationId = null, long? expectedProfileVersion = null) => GenerateDocumentAsync(db, actor, proposalId, true, ct, expectedQuotationId, expectedProfileVersion);
 
   public static async Task<CommandResult<GeneratedProposalDocuments>> GenerateProposalDocumentsAsync(
     IAuditSphereDbContext db, ActorContext actor, Guid proposalId, CancellationToken ct = default)
@@ -96,7 +98,7 @@ public static partial class CommercialDocumentService
   }
 
   private static async Task<CommandResult<CommercialDocument>> GenerateDocumentAsync(
-    IAuditSphereDbContext db, ActorContext actor, Guid proposalId, bool engagementLetter, CancellationToken ct = default)
+    IAuditSphereDbContext db, ActorContext actor, Guid proposalId, bool engagementLetter, CancellationToken ct = default, Guid? expectedQuotationId = null, long? expectedProfileVersion = null)
   {
     var auth = await AuthorizeAsync(db, actor, CommercialRoles, ct);
     if (!auth.Succeeded) return CommandResult<CommercialDocument>.Fail(auth.ErrorCode!, auth.Message!);
@@ -115,6 +117,10 @@ public static partial class CommercialDocumentService
       .OrderByDescending(x => x.Version).FirstOrDefaultAsync(ct);
     if (profile is null)
       return CommandResult<CommercialDocument>.Fail(ErrorCodes.GateBlocked, "Configure the firm commercial profile (name, address, branding) before generating documents.");
+
+    if ((expectedQuotationId.HasValue && expectedQuotationId != quotation.Id)
+      || (expectedProfileVersion.HasValue && expectedProfileVersion != profile.Version))
+      return CommandResult<CommercialDocument>.Fail(ErrorCodes.StaleRevision, "The reviewed quotation or commercial profile changed.");
 
     var opportunity = await db.Opportunities.AsNoTracking().SingleAsync(x => x.Id == proposal.OpportunityId && x.FirmId == actor.FirmId, ct);
     AuditSphereOps.Domain.Acceptance.AcceptanceDecision? riskDecision = null;

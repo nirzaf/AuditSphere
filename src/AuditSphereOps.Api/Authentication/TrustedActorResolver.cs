@@ -1,0 +1,54 @@
+using System.Security.Claims;
+using AuditSphereOps.Application.Abstractions;
+using AuditSphereOps.Application.Security;
+using AuditSphereOps.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
+
+namespace AuditSphereOps.Api.Authentication;
+
+/// <summary>Maps only authenticated Entra claims to current local authorization state.</summary>
+public sealed class TrustedActorResolver(IDbContextFactory<AuditSphereDbContext> factory)
+{
+  public const string SessionEpochClaimType = "auditsphere:session_epoch";
+
+  public async Task<ActorContext?> ResolveAsync(ClaimsPrincipal principal, CancellationToken ct = default)
+  {
+    if (principal.Identity?.IsAuthenticated != true)
+      return null;
+
+    var subject = principal.FindFirstValue("oid");
+    var tenant = principal.FindFirstValue("tid");
+    var epochClaims = principal.FindAll(SessionEpochClaimType).ToArray();
+    if (string.IsNullOrWhiteSpace(subject) || string.IsNullOrWhiteSpace(tenant) ||
+        epochClaims.Length != 1 || !long.TryParse(epochClaims[0].Value,
+          System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture,
+          out var signedInEpoch))
+      return null;
+
+    await using var db = await factory.CreateDbContextAsync(ct);
+    var user = await db.Users.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.Subject == subject && x.TenantId == tenant, ct);
+    if (user is null || user.Disabled || user.SessionEpoch != signedInEpoch)
+      return null;
+    // An expired grant is revoked here; the epoch bump makes this and every open circuit stale.
+    if (await RoleGrantExpiry.RevokeExpiredForUserAsync(db, user.FirmId, user.Id, DateTimeOffset.UtcNow, ct))
+      return null;
+    var roles = await db.RoleGrants.AsNoTracking()
+      .Where(x => x.FirmId == user.FirmId && x.UserId == user.Id && x.RevokedAt == null)
+      .Select(x => x.Role).Distinct().ToListAsync(ct);
+    var invitation = await db.UserAccessInvitations
+      .Where(x => x.FirmId == user.FirmId && x.UserId == user.Id &&
+        db.RoleGrants.Any(g => g.FirmId == x.FirmId && g.Id == x.RoleGrantId && g.RevokedAt == null))
+      .OrderByDescending(x => x.CreatedAt).FirstOrDefaultAsync(ct);
+    if (invitation?.FirstAccessAt is null)
+    {
+      if (invitation is not null)
+      {
+        invitation.FirstAccessAt = DateTimeOffset.UtcNow;
+        invitation.UpdatedAt = invitation.FirstAccessAt.Value;
+        await db.SaveChangesAsync(ct);
+      }
+    }
+    return new ActorContext(user.Id, user.FirmId, user.SessionEpoch, roles);
+  }
+}

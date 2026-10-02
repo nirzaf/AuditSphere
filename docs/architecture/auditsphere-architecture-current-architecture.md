@@ -43,7 +43,7 @@ this document wins and the source text remains a historical requirement record.
                           PostgreSQL
 ```
 
-- **One modular monolith**, five projects: `Domain`, `Application`, `Infrastructure`, `Web`,
+- **One modular monolith**, with `Domain`, `Application`, `Infrastructure`, `Api`, legacy `Web`,
   `Worker`. No microservices, no message broker, no second ERP.
 - **Microsoft tenant administration** follows the
   [capability permission decision](auditsphere-m365-tenant-administration-permissions.md):
@@ -76,6 +76,10 @@ this document wins and the source text remains a historical requirement record.
   Intentional native HTML exceptions (browser-draft boundaries, raw-value and file-input
   contracts, `<tfoot>`/`colspan` tables) are recorded in
   `docs/auditsphere-ui-mudblazor-conventions-migration-current.md`.
+
+## Angular presentation migration
+
+The owner-requested [Angular migration](auditsphere-angular-migration-current.md) uses `AuditSphereOps.Api` as the ASP.NET Core HTTP backend and `AuditSphereOps.Ui` as the Angular frontend. API owns the authorized contracts, authentication/consent and protected file transports. The legacy Web host composes that same API runtime and adds Blazor presentation for rollback during parity work. API references no Web or MudBlazor code. Domain, Application, Infrastructure, Worker, database and Microsoft permission boundaries are preserved. Full feature parity and final Blazor retirement remain acceptance gates.
 
 ## Physical organization rules
 

@@ -1,0 +1,51 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>AuditSphereOps.Web.Development</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" />
+    <PackageReference Include="Serilog.AspNetCore" />
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" />
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.Http" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.Runtime" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AuditSphereOps.Domain\AuditSphereOps.Domain.csproj" />
+    <ProjectReference Include="..\AuditSphereOps.Application\AuditSphereOps.Application.csproj" />
+    <ProjectReference Include="..\AuditSphereOps.Infrastructure\AuditSphereOps.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="..\..\docs\task_breakdown\tracking\pack_manifest.json"
+             Link="project-progress\tracking\pack_manifest.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="..\..\docs\task_breakdown\tasks\**\*.md"
+             Link="project-progress\tasks\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <PublishAngularUi Condition="'$(PublishAngularUi)' == ''">true</PublishAngularUi>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(ApiProjectReferenced)' == 'true'">
+    <Content Update="appsettings*.json" CopyToOutputDirectory="Never" CopyToPublishDirectory="Never" />
+  </ItemGroup>
+  <Target Name="IncludeAngularBrowserBuild" BeforeTargets="ComputeFilesToPublish" Condition="'$(PublishAngularUi)' == 'true'">
+    <Error Condition="!Exists('$(MSBuildProjectDirectory)/../AuditSphereOps.Ui/dist/auditsphere-ui/browser/index.html')"
+           Text="Build AuditSphereOps.Ui before publishing the Angular API host, or explicitly set PublishAngularUi=false for a backend-only deployment." />
+    <ItemGroup>
+      <_AngularBrowserFile Include="$(MSBuildProjectDirectory)/../AuditSphereOps.Ui/dist/auditsphere-ui/browser/**/*" />
+      <ResolvedFileToPublish Include="@(_AngularBrowserFile)">
+        <RelativePath>ui/%(_AngularBrowserFile.RecursiveDir)%(_AngularBrowserFile.Filename)%(_AngularBrowserFile.Extension)</RelativePath>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      </ResolvedFileToPublish>
+    </ItemGroup>
+  </Target>
+</Project>

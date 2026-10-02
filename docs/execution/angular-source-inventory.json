@@ -1,0 +1,4053 @@
+{
+  "schemaVersion": 1,
+  "sourceCommit": "fedca8aad60468de38b0e4f1c868d95f5b3db01d",
+  "coverage": "Source discovery only; dynamic actions, scope and parity tests require manual review.",
+  "items": [
+    {
+      "source": "src/AuditSphereOps.Web/Components/Acceptance/AcceptanceChecklistPanel.razor",
+      "sourceSha256": "9daa133edad9512b70188a3c119bafa2a8333bdce60cc8cedec62837f71b6b59",
+      "routes": [],
+      "actions": [
+        "() => RecordReviewAsync(clearance.Id, Cleared)",
+        "() => RecordReviewAsync(clearance.Id, Hold)",
+        "() => SaveAnswerAsync(item)",
+        "RequestReviewAsync",
+        "StartNextAsync"
+      ],
+      "injectedServices": [
+        [
+          "CurrentActorResolver",
+          "ActorResolver"
+        ],
+        [
+          "IDbContextFactory<AuditSphereDbContext>",
+          "DbFactory"
+        ]
+      ],
+      "links": [],
+      "asyncCalls": [
+        "CreateDbContextAsync",
+        "GetAsync",
+        "InvokeAsync",
+        "LoadAsync",
+        "OnParametersSetAsync",
+        "RecordAnswerAsync",
+        "RecordClearanceAsync",
+        "RecordReviewAsync",
+        "RequestClearanceAsync",
+        "RequestReviewAsync",
+        "ResolveAsync",
+        "RunAsync",
+        "SaveAnswerAsync",
+        "StartContinuanceAsync",
+        "StartNextAsync"
+      ],
+      "draftHooks": [],
+      "authorizationLines": [
+        "private bool Editable => _checklist is { CurrentDecision: null } && _actor is not null && _actor.Roles.Any(x => x is \"Partner\" or \"Manager\" or \"Staff\" or \"EngagementLeader\" or \"Auditor\");",
+        "private bool Reviewer => _actor is not null && _actor.Roles.Any(x => x is \"Partner\" or \"Manager\");"
+      ],
+      "currentOwner": "Blazor",
+      "destination": {
+        "feature": "acceptance",
+        "story": "US-017",
+        "status": "PROPOSED_PENDING_PARITY_REVIEW"
+      },
+      "status": "DISCOVERED_NOT_REVIEWED"
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Acceptance/EngagementActivationPanel.razor",
+      "sourceSha256": "bb9e2db0ac4ab10da2a12bd45dddd2f722ae16e17aa685023b15c6902179a40d",
+      "routes": [],
+      "actions": [
+        "ActivateAsync"
+      ],
+      "injectedServices": [
+        [
+          "CurrentActorResolver",
+          "ActorResolver"
+        ],
+        [
+          "IDbContextFactory<AuditSphereDbContext>",
+          "DbFactory"
+        ]
+      ],
+      "links": [
+        "/app/clients/@Engagement.PracticeClientId/assessment"
+      ],
+      "asyncCalls": [
+        "ActivateAsync",
+        "CreateDbContextAsync",
+        "InvokeAsync",
+        "OnParametersSetAsync",
+        "ResolveAsync",
+        "SingleOrDefaultAsync"
+      ],
+      "draftHooks": [],
+      "authorizationLines": [],
+      "currentOwner": "Blazor",
+      "destination": {
+        "feature": "acceptance",
+        "story": "US-017",
+        "status": "PROPOSED_PENDING_PARITY_REVIEW"
+      },
+      "status": "DISCOVERED_NOT_REVIEWED"
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Acceptance/EngagementCreatePanel.razor",
+      "sourceSha256": "f36a652b19a33a7fa013020d78708b562e584271e07ddbb18b7ce880ca72e7e6",
+      "routes": [],
+      "actions": [
+        "CreateAsync"
+      ],
+      "injectedServices": [
+        [
+          "CurrentActorResolver",
+          "ActorResolver"
+        ],
+        [
+          "IDbContextFactory<AuditSphereDbContext>",
+          "DbFactory"
+        ]
+      ],
+      "links": [],
+      "asyncCalls": [
+        "CreateAsync",
+        "CreateDbContextAsync",
+        "CreateDraftAsync",
+        "InvokeAsync",
+        "ResolveAsync"
+      ],
+      "draftHooks": [],
+      "authorizationLines": [],
+      "currentOwner": "Blazor",
+      "destination": {
+        "feature": "acceptance",
+        "story": "US-017",
+        "status": "PROPOSED_PENDING_PARITY_REVIEW"
+      },
+      "status": "DISCOVERED_NOT_REVIEWED"
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Administration/ClientSharePointSitesPanel.razor",
+      "sourceSha256": "ab4536939938b3dc8619806021d5ac290e091787dcc2b5a7da0284694b96ccb0",
+      "routes": [],
+      "actions": [
+        "LoadAsync"
+      ],
+      "injectedServices": [
+        [
+          "CurrentActorResolver",
+          "ActorResolver"
+        ],
+        [
+          "IDbContextFactory<AuditSphereDbContext>",
+          "DbFactory"
+        ]
+      ],
+      "links": [
+        "/app/operations",
+        "@context.Url"
+      ],
+      "asyncCalls": [
+        "CreateDbContextAsync",
+        "GetAsync",
+        "LoadAsync",
+        "OnInitializedAsync",
+        "ResolveAsync"
+      ],
+      "draftHooks": [],
+      "authorizationLines": [],
+      "currentOwner": "Blazor",
+      "destination": {
+        "feature": "administration",
+        "story": "US-039",
+        "status": "PROPOSED_PENDING_PARITY_REVIEW"
+      },
+      "status": "DISCOVERED_NOT_REVIEWED"
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Administration/CreateUserWizard.razor",
+      "sourceSha256": "fa9d7b106d880166ce354e6cbb94039b0aed77211ff524e7be42b2da8f1be6f4",
+      "routes": [],
+      "actions": [
+        "Back",
+        "ClearPassword",
+        "CreateAsync",
+        "Next",
+        "ReconcileAsync",
+        "Reset"
+      ],
+      "injectedServices": [
+        [
+          "CurrentActorResolver",
+          "ActorResolver"
+        ],
+        [
+          "IDbContextFactory<AuditSphereDbContext>",
+          "DbFactory"
+        ],
+        [
+          "IMicrosoftDirectoryUserProvisioner",
+          "Provisioner"
+        ],
+        [
+          "TenantAdministrationSettings",
+          "Settings"
+        ]
+      ],
+      "links": [],
+      "asyncCalls": [
+        "CreateAsync",
+        "CreateDbContextAsync",
+        "CreateTenantUserAsync",
+        "InvokeAsync",
+        "ReconcileAsync",
+        "ResolveAsync",
+        "ResumeAsync"
+      ],
+      "draftHooks": [],
+      "authorizationLines": [],
+      "currentOwner": "Blazor",
+      "destination": {
+        "feature": "administration",
+        "story": "US-039",
+        "status": "PROPOSED_PENDING_PARITY_REVIEW"
+      },
+      "status": "DISCOVERED_NOT_REVIEWED"
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Administration/ExternalOperationsPanel.razor",
+      "sourceSha256": "82c58eb0e1690f09b6f5dd7d3e9209f3118161296ece9bc6f442a1d5931dca58",
+      "routes": [],
+      "actions": [
+        "() => ResumeAsync(context.Id)"
+      ],
+      "injectedServices": [
+        [
+          "CurrentActorResolver",
+          "ActorResolver"
+        ],
+        [
+          "IDbContextFactory<AuditSphereDbContext>",
+          "DbFactory"
+        ],
+        [
+          "IMicrosoftDirectoryUserProvisioner",
+          "Provisioner"
+        ],
+        [
+          "IMicrosoftGuestInvitationProvider",
+          "Invitations"
+        ],
+        [
+          "IMicrosoftGroupMembershipProvider",
+          "GroupProvider"
+        ],
+        [
+          "TenantAdministrationSettings",
+          "Settings"
+        ]
+      ],
+      "links": [],
+      "asyncCalls": [
+        "CreateDbContextAsync",
+        "InvokeAsync",
+        "ResolveAsync",
+        "ResumeAsync"
+      ],
+      "draftHooks": [],
+      "authorizationLines": [],
+      "currentOwner": "Blazor",
+      "destination": {
+        "feature": "administration",
+        "story": "US-039",
+        "status": "PROPOSED_PENDING_PARITY_REVIEW"
+      },
+      "status": "DISCOVERED_NOT_REVIEWED"
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Administration/GuestInvitationPanel.razor",
+      "sourceSha256": "98f1c14ce68882384f40d46928b3f157287a34d84abb49a487eedd8930892aca",
+      "routes": [],
+      "actions": [
+        "() => _previewing = false",
+        "InviteAsync",
+        "Preview"
+      ],
+      "injectedServices": [
+        [
+          "CurrentActorResolver",
+          "ActorResolver"
+        ],
+        [
+          "IDbContextFactory<AuditSphereDbContext>",
+          "DbFactory"
+        ],
+        [
+          "IMicrosoftGuestInvitationProvider",
+          "Invitations"
+        ],
+        [
+          "TenantAdministrationSettings",
+          "Settings"
+        ]
+      ],
+      "links": [],
+      "asyncCalls": [
+        "CreateDbContextAsync",
+        "InviteAsync",
+        "InviteGuestAsync",
+        "InvokeAsync",
+        "ResolveAsync"
+      ],
+      "draftHooks": [],
+      "authorizationLines": [],
+      "currentOwner": "Blazor",
+      "destination": {
+        "feature": "administration",
+        "story": "US-039",
+        "status": "PROPOSED_PENDING_PARITY_REVIEW"
+      },
+      "status": "DISCOVERED_NOT_REVIEWED"
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Administration/ManagedGroupsPanel.razor",
+      "sourceSha256": "3a4dc16619b277ae076baa05a68bae850fcbbcb60922590a6e342e7a6ea62ec5",
+      "routes": [],
+      "actions": [
+        "() => ChangeAsync(false)",
+        "() => ChangeAsync(true)",
+        "() => ViewMembersAsync(context)",
+        "ApproveAsync"
+      ],
+      "injectedServices": [
+        [
+          "CurrentActorResolver",
+          "ActorResolver"
+        ],
+        [
+          "IDbContextFactory<AuditSphereDbContext>",
+          "DbFactory"
+        ],
+        [
+          "IMicrosoftGroupMembershipProvider",
+          "GroupProvider"
+        ],
+        [
+          "TenantAdministrationSettings",
+          "Settings"
+        ]
+      ],
+      "links": [],
+      "asyncCalls": [
+        "ActorAsync",
+        "ApproveAsync",
+        "ApproveGroupAsync",
+        "ChangeAsync",
+        "ChangeMembershipAsync",
+        "CreateDbContextAsync",
+        "InvokeAsync",
+        "ListMembersAsync",
+        "ResolveAsync",
+        "ViewMembersAsync"
+      ],
+      "draftHooks": [],
+      "authorizationLines": [],
+      "currentOwner": "Blazor",
+      "destination": {
+        "feature": "administration",
+        "story": "US-039",
+        "status": "PROPOSED_PENDING_PARITY_REVIEW"
+      },
+      "status": "DISCOVERED_NOT_REVIEWED"
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Administration/Microsoft365StatusPanel.razor",
+      "sourceSha256": "a52c2e255b9f09c68dd9491f0e84305ed8b988506d5d883e829c0922a5635d36",
+      "routes": [],
+      "actions": [
+        "VerifyAsync"
+      ],
+      "injectedServices": [
+        [
+          "CurrentActorResolver",
+          "ActorResolver"
+        ],
+        [
+          "IDbContextFactory<AuditSphereDbContext>",
+          "DbFactory"
+        ],
+        [
+          "IMicrosoftTenantConsentVerifier",
+          "Verifier"
+        ],
+        [
+          "TenantAdministrationSettings",
+          "Settings"
+        ]
+      ],
+      "links": [
+        "/app/administration/microsoft365",
+        "/app/administration/microsoft365/tenant-connection"
+      ],
+      "asyncCalls": [
+        "CreateDbContextAsync",
+        "InvokeAsync",
+        "ResolveAsync",
+        "VerifyAsync"
+      ],
+      "draftHooks": [],
+      "authorizationLines": [],
+      "currentOwner": "Blazor",
+      "destination": {
+        "feature": "administration",
+        "story": "US-039",
+        "status": "PROPOSED_PENDING_PARITY_REVIEW"
+      },
+      "status": "DISCOVERED_NOT_REVIEWED"
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Administration/MicrosoftDirectoryPanel.razor",
+      "sourceSha256": "3f1de87a437bc76a1c35b886a1d68f9c72a854a94ed0e68fa2830d146a849f64",
+      "routes": [],
+      "actions": [
+        "() => (_browsing ? BrowseAsync(_page.NextPageToken) : SearchAsync(_page.NextPageToken))",
+        "() => AssignRequested.InvokeAsync(bound)",
+        "() => BindAsync(context)",
+        "() => BrowseAsync(null)",
+        "() => SearchAsync(null)"
+      ],
+      "injectedServices": [
+        [
+          "CurrentActorResolver",
+          "ActorResolver"
+        ],
+        [
+          "IDbContextFactory<AuditSphereDbContext>",
+          "DbFactory"
+        ],
+        [
+          "IMicrosoftDirectoryReader",
+          "DirectoryReader"
+        ],
+        [
+          "TenantAdministrationSettings",
+          "Settings"
+        ]
+      ],
+      "links": [],
+      "asyncCalls": [
+        "BindAsync",
+        "BindExistingGuestAsync",
+        "BindMemberAsync",
+        "BrowseActiveAsync",
+        "BrowseAsync",
+        "CreateDbContextAsync",
+        "InvokeAsync",
+        "ResolveAsync",
+        "SearchAsync"
+      ],
+      "draftHooks": [],
+      "authorizationLines": [],
+      "currentOwner": "Blazor",
+      "destination": {
+        "feature": "administration",
+        "story": "US-039",
+        "status": "PROPOSED_PENDING_PARITY_REVIEW"
+      },
+      "status": "DISCOVERED_NOT_REVIEWED"
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Administration/RoleAssignmentDialog.razor",
+      "sourceSha256": "a46e05bb735f7b792968f677a1ce0e8337b6d8e94934b9b835c304ea31d94971",
+      "routes": [],
+      "actions": [
+        "Cancel",
+        "PreviewAsync",
+        "SaveAsync"
+      ],
+      "injectedServices": [
+        [
+          "CurrentActorResolver",
+          "ActorResolver"
+        ],
+        [
+          "IDbContextFactory<AuditSphereDbContext>",
+          "DbFactory"
+        ]
+      ],
+      "links": [],
+      "asyncCalls": [
+        "AssignAsync",
+        "CreateDbContextAsync",
+        "PreviewAsync",
+        "ResolveAsync",
+        "SaveAsync"
+      ],
+      "draftHooks": [],
+      "authorizationLines": [],
+      "currentOwner": "Blazor",
+      "destination": {
+        "feature": "administration",
+        "story": "US-039",
+        "status": "PROPOSED_PENDING_PARITY_REVIEW"
+      },
+      "status": "DISCOVERED_NOT_REVIEWED"
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Administration/WorkspaceProvisioningPanel.razor",
+      "sourceSha256": "4a0269cced00fae60041ca9f79ab38cf8b1de0d4568af6f2ef400659278920f8",
+      "routes": [],
+      "actions": [
+        "() => ProvisionClientAsync(row.ClientId)",
+        "() => ProvisionEngagementAsync(engagement.EngagementId)"
+      ],
+      "injectedServices": [
+        [
+          "CurrentActorResolver",
+          "ActorResolver"
+        ],
+        [
+          "IDbContextFactory<AuditSphereDbContext>",
+          "DbFactory"
+        ],
+        [
+          "ISelectedSiteWorkspaceProvisioner",
+          "Provisioner"
+        ]
+      ],
+      "links": [],
+      "asyncCalls": [
+        "CreateDbContextAsync",
+        "GetAsync",
+        "LoadAsync",
+        "OnInitializedAsync",
+        "ProvisionClientAsync",
+        "ProvisionClientWorkspaceAsync",
+        "ProvisionEngagementAsync",
+        "ProvisionEngagementRepositoryAsync",
+        "ResolveAsync",
+        "RunAsync"
+      ],
+      "draftHooks": [],
+      "authorizationLines": [],
+      "currentOwner": "Blazor",
+      "destination": {
+        "feature": "administration",
+        "story": "US-039",
+        "status": "PROPOSED_PENDING_PARITY_REVIEW"
+      },
+      "status": "DISCOVERED_NOT_REVIEWED"
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Commercial/FeeAgreementPanel.razor",
+      "sourceSha256": "dfccebd75f46b426f0bde2c0a31e5e07514149a8886114e30046edb7b378df65",
+      "routes": [],
+      "actions": [
+        "CreateAgreementAsync",
+        "IssueAdvanceAsync",
+        "IssueBalanceAsync",
+        "LinkEngagementAsync",
+        "RecordPaymentAsync"
+      ],
+      "injectedServices": [
+        [
+          "CurrentActorResolver",
+          "ActorResolver"
+        ],
+        [
+          "IDbContextFactory<AuditSphereDbContext>",
+          "DbFactory"
+        ]
+      ],
+      "links": [
+        "/app/practice/invoices/@invoiceId"
+      ],
+      "asyncCalls": [
+        "CreateAgreementAsync",
+        "CreateDbContextAsync",
+        "GetForProposalAsync",
+        "InvokeAsync",
+        "IssueAdvanceAsync",
+        "IssueAdvanceInvoiceAsync",
+        "IssueBalanceAsync",
+        "IssueBalanceInvoiceAsync",
+        "LinkEngagementAsync",
+        "LoadAsync",
+        "OnParametersSetAsync",
+        "RecordAdvancePaymentAsync",
+        "RecordPaymentAsync",
+        "ResolveAsync",
+        "RunAsync",
+        "ToListAsync"
+      ],
+      "draftHooks": [],
+      "authorizationLines": [],
+      "currentOwner": "Blazor",
+      "destination": {
+        "feature": "practice/commercial",
+        "story": "US-016",
+        "status": "PROPOSED_PENDING_PARITY_REVIEW"
+      },
+      "status": "DISCOVERED_NOT_REVIEWED"
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Commercial/ProposalWorkflowPanel.razor",
+      "sourceSha256": "48ce7b934d125e5a17dbd99f9985b156bfee527f2e2633a6c795ea24bcfec29f",
+      "routes": [],
+      "actions": [
+        "() => RespondAsync(false)",
+        "() => RespondAsync(true)",
+        "ConvertAsync",
+        "ReviewAsync",
+        "SendAsync"
+      ],
+      "injectedServices": [
+        [
+          "CurrentActorResolver",
+          "ActorResolver"
+        ],
+        [
+          "IDbContextFactory<AuditSphereDbContext>",
+          "DbFactory"
+        ]
+      ],
+      "links": [
+        "@($"
+      ],
+      "asyncCalls": [
+        "ApproveProposalAsync",
+        "ConvertAsync",
+        "ConvertToClientDraftAsync",
+        "CreateDbContextAsync",
+        "InvokeAsync",
+        "RecordProposalResponseAsync",
+        "ResolveAsync",
+        "RespondAsync",
+        "ReviewAsync",
+        "RunAsync",
+        "RunCoreAsync",
+        "SendAsync",
+        "SendProposalAsync"
+      ],
+      "draftHooks": [],
+      "authorizationLines": [],
+      "currentOwner": "Blazor",
+      "destination": {
+        "feature": "practice/commercial",
+        "story": "US-016",
+        "status": "PROPOSED_PENDING_PARITY_REVIEW"
+      },
+      "status": "DISCOVERED_NOT_REVIEWED"
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Commercial/QuotationWorkbench.razor",
+      "sourceSha256": "0c67a30b6460eebe193831b2b7220d2f3527cf144ccebfc68ab0295a9376a259",
+      "routes": [],
+      "actions": [
+        "() => ApproveAsync(view.Version.Id, required)",
+        "() => RemoveLine(position)",
+        "() => SubmitAsync(view.Version.Id)",
+        "AddLine",
+        "GenerateAsync",
+        "GenerateLetterAsync",
+        "GenerateTenderAsync",
+        "SaveAsync"
+      ],
+      "injectedServices": [
+        [
+          "CurrentActorResolver",
+          "ActorResolver"
+        ],
+        [
+          "IDbContextFactory<AuditSphereDbContext>",
+          "DbFactory"
+        ]
+      ],
+      "links": [
+        "@($"
+      ],
+      "asyncCalls": [
+        "ApproveAsync",
+        "CreateDbContextAsync",
+        "GenerateAsync",
+        "GenerateBriefQuotationAsync",
+        "GenerateEngagementLetterAsync",
+        "GenerateLetterAsync",
+        "GenerateTenderAsync",
+        "InvokeAsync",
+        "ListAsync",
+        "ListRateOptionsAsync",
+        "LoadAsync",
+        "OnParametersSetAsync",
+        "ResolveAsync",
+        "RunAsync",
+        "SaveAsync",
+        "SubmitAsync",
+        "ToListAsync"
+      ],
+      "draftHooks": [],
+      "authorizationLines": [],
+      "currentOwner": "Blazor",
+      "destination": {
+        "feature": "practice/commercial",
+        "story": "US-016",
+        "status": "PROPOSED_PENDING_PARITY_REVIEW"
+      },
+      "status": "DISCOVERED_NOT_REVIEWED"
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Completion/CompletionDeliverablesPanel.razor",
+      "sourceSha256": "484ef2b7744ffb93bb0491dd930a8336c94647d6901dd2e3cf0e78b56a10a1ec",
+      "routes": [],
+      "actions": [
+        "@(() => GenerateAsync(kind))",
+        "@(() => ResolveAsync(comment.Id))",
+        "@(() => ShareAsync(context.Id))",
+        "@(() => SignAsync(context.Id))",
+        "@(() => ToggleCriticalAsync(context))",
+        "@(() => VerifyScanAsync(scan))",
+        "AssembleAsync",
+        "ClearAsync",
+        "DecideAsync",
+        "GenerateSrmAsync"
+      ],
+      "injectedServices": [
+        [
+          "CurrentActorResolver",
+          "ActorResolver"
+        ],
+        [
+          "IDbContextFactory<AuditSphereDbContext>",
+          "DbFactory"
+        ]
+      ],
+      "links": [
+        "@($"
+      ],
+      "asyncCalls": [
+        "AffectedFinancialStatementAreasAsync",
+        "AssembleAsync",
+        "AssembleBundleAsync",
+        "BundleStateAsync",
+        "ClearAsync",
+        "ConfirmationDashboardAsync",
+        "CopyToAsync",
+        "CreateDbContextAsync",
+        "CurrentClearanceAsync",
+        "CurrentOpinionAsync",
+        "DecideAsync",
+        "DecideOpinionAsync",
+        "GenerateAsync",
+        "GenerateReportAsync",
+        "GenerateSrmAsync",
+        "GenerateSummaryReviewMemorandumAsync",
+        "ListAsync",
+        "LoadAsync",
+        "OnParametersSetAsync",
+        "PartnerClearAsync",
+        "RegisterFirmSealAsync",
+        "RegisterSealAsync",
+        "RegisterSignatureAsync",
+        "ResolveAsync",
+        "ResolveCommentAsync",
+        "RunAsync",
+        "SetConfirmationCriticalityAsync",
+        "ShareAsync",
+        "ShareWithClientAsync",
+        "SharedAsync",
+        "SignAsync",
+        "SignIndependentReportAsync",
+        "SignedRepresentationsAsync",
+        "ToggleCriticalAsync",
+        "VerifyScanAsync",
+        "VerifySignedRepresentationAsync"
+      ],
+      "draftHooks": [],
+      "authorizationLines": [],
+      "currentOwner": "Blazor",
+      "destination": {
+        "feature": "completion",
+        "story": "US-035",
+        "status": "PROPOSED_PENDING_PARITY_REVIEW"
+      },
+      "status": "DISCOVERED_NOT_REVIEWED"
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Completion/FileRecordsPanel.razor",
+      "sourceSha256": "6800cc22ec58491bc86172ac377fbcecb52925daca302d9affdf678b5b01b7c0",
+      "routes": [],
+      "actions": [
+        "@(() => ApproveAsync(a.Id))",
+        "@(() => CloseAsync(a.Id))",
+        "@(() => UnlockAsync(l.Id))",
+        "LockAsync",
+        "RequestAsync"
+      ],
+      "injectedServices": [
+        [
+          "CurrentActorResolver",
+          "ActorResolver"
+        ],
+        [
+          "IDbContextFactory<AuditSphereDbContext>",
+          "DbFactory"
+        ]
+      ],
+      "links": [],
+      "asyncCalls": [
+        "ApproveAmendmentAsync",
+        "ApproveAsync",
+        "CloseAmendmentAsync",
+        "CloseAsync",
+        "CreateDbContextAsync",
+        "GetAsync",
+        "LoadAsync",
+        "LockAsync",
+        "LocksAsync",
+        "OnParametersSetAsync",
+        "RequestAmendmentAsync",
+        "RequestAsync",
+        "ResolveAsync",
+        "RunAsync",
+        "UnlockAsync"
+      ],
+      "draftHooks": [],
+      "authorizationLines": [],
+      "currentOwner": "Blazor",
+      "destination": {
+        "feature": "completion",
+        "story": "US-035",
+        "status": "PROPOSED_PENDING_PARITY_REVIEW"
+      },
+      "status": "DISCOVERED_NOT_REVIEWED"
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Fieldwork/FieldworkToolsPanel.razor",
+      "sourceSha256": "15ad6d2ceb127f51ae541b6e2153563291f2c9a63a218f5bda5fc1cf1f2fc922",
+      "routes": [],
+      "actions": [
+        "@(() => LinkPhysicalAsync(item.Id))",
+        "@(() => MoveAsync(item.Id))",
+        "@(() => NoteEventAsync(note.NoteId, ",
+        "AddNoteAsync",
+        "InsertAdHocAsync",
+        "LinkEvidenceAsync",
+        "RegisterPhysicalAsync",
+        "RunSamplingAsync"
+      ],
+      "injectedServices": [
+        [
+          "CurrentActorResolver",
+          "ActorResolver"
+        ],
+        [
+          "IDbContextFactory<AuditSphereDbContext>",
+          "DbFactory"
+        ]
+      ],
+      "links": [],
+      "asyncCalls": [
+        "AddNoteAsync",
+        "CreateDbContextAsync",
+        "EvidenceCandidatesAsync",
+        "FirstOrDefaultAsync",
+        "GetSamplingRunAsync",
+        "InsertAdHocAsync",
+        "InsertAdHocProcedureAsync",
+        "LinkClientEvidenceAsync",
+        "LinkEvidenceAsync",
+        "LinkPhysicalAsync",
+        "LinkPhysicalItemAsync",
+        "ListAsync",
+        "ListSamplingRunsAsync",
+        "LoadAsync",
+        "LoadNotesAsync",
+        "MoveAsync",
+        "MovePhysicalItemAsync",
+        "NoteEventAsync",
+        "OnParametersSetAsync",
+        "PhysicalItemsAsync",
+        "ProcedureEvidenceAsync",
+        "RegisterPhysicalAsync",
+        "RegisterPhysicalItemAsync",
+        "ResolveAsync",
+        "RespondAsync",
+        "RunAsync",
+        "RunSamplingAsync",
+        "ToListAsync"
+      ],
+      "draftHooks": [],
+      "authorizationLines": [],
+      "currentOwner": "Blazor",
+      "destination": {
+        "feature": "audit/fieldwork",
+        "story": "US-032",
+        "status": "PROPOSED_PENDING_PARITY_REVIEW"
+      },
+      "status": "DISCOVERED_NOT_REVIEWED"
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Layout/GlobalSearch.razor",
+      "sourceSha256": "33bbe3e18bb30eec51dc9acd076a56d33b207b705256e7a81958cfc0deea9d55",
+      "routes": [],
+      "actions": [
+        "Close",
+        "ToggleOpen"
+      ],
+      "injectedServices": [
+        [
+          "CurrentActorResolver",
+          "ActorResolver"
+        ],
+        [
+          "IDbContextFactory<AuditSphereDbContext>",
+          "DbFactory"
+        ],
+        [
+          "NavigationManager",
+          "Navigation"
+        ],
+        [
+          "IJSRuntime",
+          "JS"
+        ]
+      ],
+      "links": [
+        "@hit.Href"
+      ],
+      "asyncCalls": [
+        "ClearInputAsync",
+        "CreateDbContextAsync",
+        "InvokeAsync",
+        "InvokeVoidAsync",
+        "ResolveAsync",
+        "SearchAsync"
+      ],
+      "draftHooks": [],
+      "authorizationLines": [],
+      "currentOwner": "Blazor",
+      "destination": {
+        "feature": "shell/search",
+        "story": "US-012",
+        "status": "PROPOSED_PENDING_PARITY_REVIEW"
+      },
+      "status": "DISCOVERED_NOT_REVIEWED"
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Layout/MainLayout.razor",
+      "sourceSha256": "3bfa49fb5e1991fc6e32f24ba44484097c0c1036019e7766c0dc2da5f082d663",
+      "routes": [],
+      "actions": [
+        "@ToggleDrawer"
+      ],
+      "injectedServices": [
+        [
+          "NavigationManager",
+          "Navigation"
+        ]
+      ],
+      "links": [
+        "#main-content",
+        "/app",
+        "/app/accounting",
+        "/app/accounting/differences",
+        "/app/accounting/evidence",
+        "/app/accounting/journals",
+        "/app/accounting/mappings",
+        "/app/accounting/remeasurement",
+        "/app/accounting/restatements",
+        "/app/accounting/reviews",
+        "/app/accounting/rollforward",
+        "/app/administration",
+        "/app/administration/project-progress",
+        "/app/audit/library",
+        "/app/consolidation",
+        "/app/finance",
+        "/app/finance/books",
+        "/app/library",
+        "/app/operations",
+        "/app/practice/analytics",
+        "/app/practice/commercial-settings",
+        "/app/practice/leads",
+        "/app/practice/resources",
+        "/app/practice/time",
+        "/health/ready",
+        "/portal"
+      ],
+      "asyncCalls": [
+        "InvokeAsync"
+      ],
+      "draftHooks": [],
+      "authorizationLines": [],
+      "currentOwner": "Blazor",
+      "destination": {
+        "feature": "shell/shared",
+        "story": "US-005",
+        "status": "PROPOSED_PENDING_PARITY_REVIEW"
+      },
+      "status": "DISCOVERED_NOT_REVIEWED"
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/AccessNotAssigned.razor",
+      "sourceSha256": "4eabadd729a04b8f546911ed692f2e94dce0ea64d1edff5b46da7c644693d022",
+      "routes": [
+        "/auth/access-not-assigned"
+      ],
+      "actions": [],
+      "injectedServices": [],
+      "links": [
+        "/auth/sign-out"
+      ],
+      "asyncCalls": [],
+      "draftHooks": [],
+      "authorizationLines": [],
+      "currentOwner": "Blazor",
+      "destination": {
+        "feature": "administration",
+        "story": "US-039",
+        "status": "PROPOSED_PENDING_PARITY_REVIEW"
+      },
+      "status": "DISCOVERED_NOT_REVIEWED"
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/AccountingEvidence.razor",
+      "sourceSha256": "73bc324d1fd6bb41445ba99c6285c875ca0d96281705f1c40c52b6a9baeafc95",
+      "routes": [
+        "/app/accounting/evidence"
+      ],
+      "actions": [
+        "LoadEvidenceAsync"
+      ],
+      "injectedServices": [
+        [
+          "CurrentActorResolver",
+          "ActorResolver"
+        ],
+        [
+          "IDbContextFactory<AuditSphereDbContext>",
+          "DbFactory"
+        ],
+        [
+          "ILogger<AccountingEvidence>",
+          "Logger"
+        ]
+      ],
+      "links": [
+        "/app/accounting",
+        "@($"
+      ],
+      "asyncCalls": [
+        "AnyAsync",
+        "AuthorizeAsync",
+        "CreateDbContextAsync",
+        "LoadEvidenceAsync",
+        "LoadEvidenceCoreAsync",
+        "OnInitializedAsync",
+        "ResolveAsync",
+        "ToArrayAsync",
+        "ToDictionaryAsync",
+        "ToListAsync"
+      ],
+      "draftHooks": [],
+      "authorizationLines": [
+        "var authorization = await AuthorizationDecision.AuthorizeAsync(db, _actor,",
+        "new AuthorizationRequest(_actor.FirmId, RequiredRoles: QueueRoles, InternalOnly: true));"
+      ],
+      "currentOwner": "Blazor",
+      "destination": {
+        "feature": "accounting/evidence",
+        "story": "US-025",
+        "status": "PROPOSED_PENDING_PARITY_REVIEW"
+      },
+      "status": "DISCOVERED_NOT_REVIEWED"
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/AccountingPeriod.razor",
+      "sourceSha256": "502a40ff13ed2fa89b2add0cc51d9c4ec52b32bdeac15aa830f491843580a290",
+      "routes": [
+        "/app/accounting/periods/{PeriodId:guid}"
+      ],
+      "actions": [
+        "LoadPeriodAsync"
+      ],
+      "injectedServices": [
+        [
+          "CurrentActorResolver",
+          "ActorResolver"
+        ],
+        [
+          "IDbContextFactory<AuditSphereDbContext>",
+          "DbFactory"
+        ],
+        [
+          "ILogger<AccountingPeriod>",
+          "Logger"
+        ]
+      ],
+      "links": [
+        "/app/accounting",
+        "/app/accounting/evidence",
+        "/app/accounting/restatements",
+        "/app/accounting/rollforward",
+        "@($"
+      ],
+      "asyncCalls": [
+        "AuthorizeAsync",
+        "CreateDbContextAsync",
+        "FirstOrDefaultAsync",
+        "LoadAsync",
+        "LoadPeriodAsync",
+        "OnParametersSetAsync",
+        "ResolveAsync",
+        "SingleOrDefaultAsync"
+      ],
+      "draftHooks": [],
+      "authorizationLines": [
+        "var authorization = await AuthorizationDecision.AuthorizeAsync(db, _actor,",
+        "new AuthorizationRequest(_actor.FirmId, ClientId: clientId, RequiredRoles: AccountingRoles, InternalOnly: true));"
+      ],
+      "currentOwner": "Blazor",
+      "destination": {
+        "feature": "accounting/setup",
+        "story": "US-020",
+        "status": "PROPOSED_PENDING_PARITY_REVIEW"
+      },
+      "status": "DISCOVERED_NOT_REVIEWED"
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/AccountingRecords.razor",
+      "sourceSha256": "d36dccbb2a416aa88b84429790b36d30d39b8a141a6ed1cb48a7cb0a04041021",
+      "routes": [
+        "/app/accounting/mappings",
+        "/app/accounting/journals",
+        "/app/accounting/differences"
+      ],
+      "actions": [
+        "LoadCurrentQueueSafelyAsync"
+      ],
+      "injectedServices": [
+        [
+          "CurrentActorResolver",
+          "ActorResolver"
+        ],
+        [
+          "IDbContextFactory<AuditSphereDbContext>",
+          "DbFactory"
+        ],
+        [
+          "NavigationManager",
+          "Navigation"
+        ],
+        [
+          "ILogger<AccountingRecords>",
+          "Logger"
+        ]
+      ],
+      "links": [
+        "/app/accounting",
+        "/app/accounting/differences",
+        "/app/accounting/journals",
+        "/app/accounting/mappings",
+        "@($"
+      ],
+      "asyncCalls": [
+        "AuthorizeAsync",
+        "CreateDbContextAsync",
+        "InvokeAsync",
+        "LoadCurrentQueueAsync",
+        "LoadCurrentQueueSafelyAsync",
+        "MapDifferencesAsync",
+        "MapJournalsAsync",
+        "MapMappingsAsync",
+        "OnInitializedAsync",
+        "ResolveAsync",
+        "ToArrayAsync",
+        "ToDictionaryAsync",
+        "ToListAsync"
+      ],
+      "draftHooks": [],
+      "authorizationLines": [
+        "var authorization = await AuthorizationDecision.AuthorizeAsync(db, actor,",
+        "new AuthorizationRequest(actor.FirmId, RequiredRoles: AccountingRoles, InternalOnly: true));"
+      ],
+      "currentOwner": "Blazor",
+      "destination": {
+        "feature": "accounting/intake",
+        "story": "US-021",
+        "status": "PROPOSED_PENDING_PARITY_REVIEW"
+      },
+      "status": "DISCOVERED_NOT_REVIEWED"
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/AccountingWorkspace.razor",
+      "sourceSha256": "378ceac6ae9e8f805050767559749dc27ed46a4a90e5e465dc3eff4b5c459dbb",
+      "routes": [
+        "/app/accounting"
+      ],
+      "actions": [
+        "LoadAccountingContextAsync"
+      ],
+      "injectedServices": [
+        [
+          "CurrentActorResolver",
+          "ActorResolver"
+        ],
+        [
+          "IDbContextFactory<AuditSphereDbContext>",
+          "DbFactory"
+        ],
+        [
+          "ILogger<AccountingWorkspace>",
+          "Logger"
+        ]
+      ],
+      "links": [
+        "/app",
+        "/app/accounting/differences",
+        "/app/accounting/evidence",
+        "/app/accounting/evidence#reconciliations",
+        "/app/accounting/journals",
+        "/app/accounting/mappings",
+        "/app/accounting/remeasurement",
+        "/app/accounting/restatements",
+        "/app/accounting/reviews",
+        "/app/accounting/rollforward",
+        "/app/consolidation",
+        "@($",
+        "@context.Href"
+      ],
+      "asyncCalls": [
+        "AuthorizeAsync",
+        "CountAsync",
+        "CreateDbContextAsync",
+        "LoadAccountingContextAsync",
+        "LoadAccountingContextCoreAsync",
+        "OnInitializedAsync",
+        "ResolveAsync",
+        "ToArrayAsync",
+        "ToDictionaryAsync",
+        "ToListAsync"
+      ],
+      "draftHooks": [
+        "data-draft-scope",
+        "draft-state"
+      ],
+      "authorizationLines": [
+        "var authorization = await AuthorizationDecision.AuthorizeAsync(db, _actor,",
+        "new AuthorizationRequest(_actor.FirmId, RequiredRoles: AccountingRoles, InternalOnly: true));"
+      ],
+      "currentOwner": "Blazor",
+      "destination": {
+        "feature": "accounting/setup",
+        "story": "US-020",
+        "status": "PROPOSED_PENDING_PARITY_REVIEW"
+      },
+      "status": "DISCOVERED_NOT_REVIEWED"
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/Administration.razor",
+      "sourceSha256": "93d7b62102b620d15e6bd89860689dfc251fa98a7e72c45a595662577107241c",
+      "routes": [
+        "/app/administration"
+      ],
+      "actions": [
+        "() => ConfirmRevokeAsync(context)",
+        "() => CopyExistingInvitationAsync(invitation)",
+        "() => OpenAssignDialogAsync(context.UserId, context.DisplayName, null, null)",
+        "() => OpenAssignDialogAsync(user.Id, user.DisplayName, context.Id, context.Role)",
+        "() => ToggleGrantHistory(context.Id)",
+        "ApplyRoleAsync",
+        "CopyInvitationAsync",
+        "OnboardUserAsync",
+        "RefreshAdministrationAsync"
+      ],
+      "injectedServices": [
+        [
+          "CurrentActorResolver",
+          "ActorResolver"
+        ],
+        [
+          "IDbContextFactory<AuditSphereDbContext>",
+          "DbFactory"
+        ],
+        [
+          "IConfiguration",
+          "Configuration"
+        ],
+        [
+          "IJSRuntime",
+          "JS"
+        ],
+        [
+          "IDialogService",
+          "Dialogs"
+        ],
+        [
+          "TenantAdministrationSettings",
+          "AdminSettings"
+        ]
+      ],
+      "links": [
+        "/app",
+        "/app/administration/microsoft365",
+        "/app/administration/microsoft365/tenant-connection",
+        "/app/administration/project-progress",
+        "/app/operations",
+        "/health/live",
+        "/health/ready"
+      ],
+      "asyncCalls": [
+        "AnyAsync",
+        "ApplyRoleAsync",
+        "ApplyRoleGrantAndInvitationAsync",
+        "ConfirmRevokeAsync",
+        "CopyExistingInvitationAsync",
+        "CopyInvitationAsync",
+        "CopyInvitationCoreAsync",
+        "CreateDbContextAsync",
+        "EnsureUserAsync",
+        "GetAsync",
+        "GetCopyableInvitationAsync",
+        "InvokeVoidAsync",
+        "LoadAdministrationAsync",
+        "MarkInvitationCopiedAsync",
+        "OnDirectoryAssignAsync",
+        "OnInitializedAsync",
+        "OnboardUserAsync",
+        "OpenAssignDialogAsync",
+        "RefreshAdministrationAsync",
+        "ReloadKeepFormsAsync",
+        "ResolveAsync",
+        "RevokeRoleAsync",
+        "RevokeRoleGrantAsync"
+      ],
+      "draftHooks": [],
+      "authorizationLines": [
+        "/// Authorization is re-checked; any denial clears every protected projection."
+      ],
+      "currentOwner": "Blazor",
+      "destination": {
+        "feature": "administration",
+        "story": "US-039",
+        "status": "PROPOSED_PENDING_PARITY_REVIEW"
+      },
+      "status": "DISCOVERED_NOT_REVIEWED"
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/AdvancedConsolidationWorkflow.razor",
+      "sourceSha256": "f4c9eea3e8c58e73b6882d663f65f160b2dcbeee059450dddc6dde37c3e6edc8",
+      "routes": [
+        "/app/consolidation/advanced/{ScopeId:guid}"
+      ],
+      "actions": [
+        "() => ApproveExecutionAsync(context.Id)",
+        "() => ApproveScheduleAsync(context.Id)",
+        "RunExecutionAsync",
+        "SubmitScheduleAsync"
+      ],
+      "injectedServices": [
+        [
+          "CurrentActorResolver",
+          "ActorResolver"
+        ],
+        [
+          "IDbContextFactory<AuditSphereDbContext>",
+          "DbFactory"
+        ]
+      ],
+      "links": [
+        "/app/consolidation"
+      ],
+      "asyncCalls": [
+        "AnyAsync",
+        "ApproveAdvancedExecutionAsync",
+        "ApproveAdvancedMethodScheduleAsync",
+        "ApproveExecutionAsync",
+        "ApproveScheduleAsync",
+        "AuthorizeGroupAsync",
+        "BuildSourceManifestAsync",
+        "CountAsync",
+        "CreateAdvancedMethodScheduleAsync",
+        "CreateDbContextAsync",
+        "HasGroupRoleAsync",
+        "LoadAsync",
+        "OnInitializedAsync",
+        "ResolveAsync",
+        "RunAdvancedProfileAsync",
+        "RunExecutionAsync",
+        "SingleAsync",
+        "SingleOrDefaultAsync",
+        "SubmitScheduleAsync",
+        "ToArrayAsync",
+        "ToListAsync"
+      ],
+      "draftHooks": [
+        "data-draft-field",
+        "data-draft-guidance",
+        "data-draft-scope",
+        "draft-state"
+      ],
+      "authorizationLines": [
+        "var groupAccess = await AuthorizationDecision.AuthorizeGroupAsync(db, _actor, scope.GroupId,"
+      ],
+      "currentOwner": "Blazor",
+      "destination": {
+        "feature": "consolidation",
+        "story": "US-028",
+        "status": "PROPOSED_PENDING_PARITY_REVIEW"
+      },
+      "status": "DISCOVERED_NOT_REVIEWED"
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/AssessmentDecision.razor",
+      "sourceSha256": "6f108fa6118b23d8903133d293a70861ce6f3dc5950d5735aea0e11ece71a217",
+      "routes": [
+        "/app/assessments/{Id:guid}/decision"
+      ],
+      "actions": [
+        "RecordDecision"
+      ],
+      "injectedServices": [
+        [
+          "AuthenticationStateProvider",
+          "Auth"
+        ],
+        [
+          "CurrentActorResolver",
+          "ActorResolver"
+        ],
+        [
+          "IDbContextFactory<AuditSphereDbContext>",
+          "DbFactory"
+        ],
+        [
+          "NavigationManager",
+          "Nav"
+        ]
+      ],
+      "links": [
+        "/app",
+        "/app/assessments/@Id"
+      ],
+      "asyncCalls": [
+        "AuthorizeAsync",
+        "CreateDbContextAsync",
+        "GetAuthenticationStateAsync",
+        "OnParametersSetAsync",
+        "RecordAsync",
+        "ResolveAsync",
+        "SingleOrDefaultAsync"
+      ],
+      "draftHooks": [],
+      "authorizationLines": [
+        "@using Microsoft.AspNetCore.Components.Authorization",
+        "var authorization = await AuthorizationDecision.AuthorizeAsync(db, _actor,",
+        "new AuthorizationRequest(_actor.FirmId, ClientId: Id, RequiredRoles: [\"Partner\"], InternalOnly: true));"
+      ],
+      "currentOwner": "Blazor",
+      "destination": {
+        "feature": "acceptance",
+        "story": "US-017",
+        "status": "PROPOSED_PENDING_PARITY_REVIEW"
+      },
+      "status": "DISCOVERED_NOT_REVIEWED"
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/AssessmentDetail.razor",
+      "sourceSha256": "0f133cc7eef27bd565f2de6c9334ea3a08da4af87d492093b927f9e59d2778b6",
+      "routes": [
+        "/app/assessments/{Id:guid}",
+        "/app/clients/{ClientId:guid}/assessment"
+      ],
+      "actions": [],
+      "injectedServices": [
+        [
+          "CurrentActorResolver",
+          "ActorResolver"
+        ],
+        [
+          "IDbContextFactory<AuditSphereDbContext>",
+          "DbFactory"
+        ],
+        [
+          "NavigationManager",
+          "Nav"
+        ]
+      ],
+      "links": [
+        "/app",
+        "@($"
+      ],
+      "asyncCalls": [
+        "AuthorizeAsync",
+        "CreateDbContextAsync",
+        "FirstOrDefaultAsync",
+        "GetAsync",
+        "LoadAsync",
+        "OnParametersSetAsync",
+        "RefreshAsync",
+        "ResolveAsync",
+        "SingleOrDefaultAsync"
+      ],
+      "draftHooks": [],
+      "authorizationLines": [
+        "_isStaff = _actor is not null && _actor.Roles.Any(x => x is \"Administrator\" or \"Partner\" or \"Manager\" or \"Staff\" or \"EngagementLeader\" or \"Auditor\");",
+        "var authorization = await AuthorizationDecision.AuthorizeAsync(db, _actor,",
+        "new AuthorizationRequest(_actor.FirmId, ClientId: resolvedClientId, InternalOnly: true));"
+      ],
+      "currentOwner": "Blazor",
+      "destination": {
+        "feature": "acceptance",
+        "story": "US-017",
+        "status": "PROPOSED_PENDING_PARITY_REVIEW"
+      },
+      "status": "DISCOVERED_NOT_REVIEWED"
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/AuditFieldwork.razor",
+      "sourceSha256": "a73e2301efa3fad7c4cb553edd166f8a73ea61ec792b66dbc81a245626d843a6",
+      "routes": [
+        "/app/engagements/{EngagementId:guid}/audit-fieldwork"
+      ],
+      "actions": [
+        "() => DecideApplicabilityAsync(context.Id, AuditApplicabilityStatuses.Applicable)",
+        "() => DecideApplicabilityAsync(context.Id, AuditApplicabilityStatuses.NotApplicablePendingReview)",
+        "PublishAndAdoptAsync",
+        "RecordAggregateAssessmentAsync",
+        "ReviewAggregateAssessmentAsync"
+      ],
+      "injectedServices": [
+        [
+          "CurrentActorResolver",
+          "ActorResolver"
+        ],
+        [
+          "IDbContextFactory<AuditSphereDbContext>",
+          "DbFactory"
+        ]
+      ],
+      "links": [
+        "/app",
+        "/app/audit/library",
+        "@($"
+      ],
+      "asyncCalls": [
+        "AdoptAsync",
+        "AuthorizeAsync",
+        "CreateDbContextAsync",
+        "DecideApplicabilityAsync",
+        "EvaluateCompletionAsync",
+        "FirstOrDefaultAsync",
+        "GetDifferenceSummariesAsync",
+        "LoadAsync",
+        "OnParametersSetAsync",
+        "PublishAndAdoptAsync",
+        "PublishAsync",
+        "RecordAggregateAssessmentAsync",
+        "RecordAreaAssessmentAsync",
+        "ResolveAsync",
+        "ReviewAggregateAssessmentAsync",
+        "ReviewAreaAssessmentAsync",
+        "SingleAsync",
+        "SingleOrDefaultAsync",
+        "ToListAsync"
+      ],
+      "draftHooks": [],
+      "authorizationLines": [
+        "var authorization = await AuthorizationDecision.AuthorizeAsync(db, actor,",
+        "new AuthorizationRequest(actor.FirmId, engagement.PracticeClientId, engagement.Id,"
+      ],
+      "currentOwner": "Blazor",
+      "destination": {
+        "feature": "audit/fieldwork",
+        "story": "US-031",
+        "status": "PROPOSED_PENDING_PARITY_REVIEW"
+      },
+      "status": "DISCOVERED_NOT_REVIEWED"
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/AuditPlan.razor",
+      "sourceSha256": "ead897f096fb17336f95e2a42e16ff46a7d3c2fdada58ee2fda0c848c6b71356",
+      "routes": [
+        "/app/audit/plans/{Id:guid}",
+        "/app/engagements/{EngagementId:guid}/audit-plan"
+      ],
+      "actions": [
+        "ApproveMaterialityAsync",
+        "CreateFindingAsync",
+        "CreateMaterialityAsync",
+        "CreatePopulationAsync",
+        "CreateRiskAsync",
+        "RefreshPlanAsync"
+      ],
+      "injectedServices": [
+        [
+          "CurrentActorResolver",
+          "ActorResolver"
+        ],
+        [
+          "IDbContextFactory<AuditSphereDbContext>",
+          "DbFactory"
+        ],
+        [
+          "NavigationManager",
+          "Nav"
+        ]
+      ],
+      "links": [
+        "/app",
+        "/app/audit/library",
+        "/app/audit/populations/@context.Id",
+        "/app/audit/workpapers/@wp.Id",
+        "/app/findings/@f.Id",
+        "@($"
+      ],
+      "asyncCalls": [
+        "ApproveMaterialityAssessmentAsync",
+        "ApproveMaterialityAsync",
+        "AuthorizeAsync",
+        "CreateAuditRiskAsync",
+        "CreateDbContextAsync",
+        "CreateFindingAsync",
+        "CreateMaterialityAssessmentAsync",
+        "CreateMaterialityAsync",
+        "CreatePopulationAsync",
+        "CreatePopulationVersionAsync",
+        "CreateRiskAsync",
+        "FirstOrDefaultAsync",
+        "OnParametersSetAsync",
+        "RefreshAsync",
+        "RefreshPlanAsync",
+        "ResolveAsync",
+        "SingleOrDefaultAsync",
+        "ToListAsync"
+      ],
+      "draftHooks": [],
+      "authorizationLines": [
+        "_materiality.ActorId != _actor.UserId && _actor.Roles.Any(x => x is \"Manager\" or \"Partner\"))",
+        "var authorization = await AuthorizationDecision.AuthorizeAsync(db, actor,",
+        "new AuthorizationRequest(actor.FirmId, EngagementId: engagementId,"
+      ],
+      "currentOwner": "Blazor",
+      "destination": {
+        "feature": "audit/planning",
+        "story": "US-030",
+        "status": "PROPOSED_PENDING_PARITY_REVIEW"
+      },
+      "status": "DISCOVERED_NOT_REVIEWED"
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/AuditPopulation.razor",
+      "sourceSha256": "a862265a09aff15c1c3523540c7e4a59f4de4dd47f7023137701846635bc3c9f",
+      "routes": [
+        "/app/audit/populations/{Id:guid}"
+      ],
+      "actions": [],
+      "injectedServices": [
+        [
+          "CurrentActorResolver",
+          "ActorResolver"
+        ],
+        [
+          "IDbContextFactory<AuditSphereDbContext>",
+          "DbFactory"
+        ],
+        [
+          "NavigationManager",
+          "Nav"
+        ]
+      ],
+      "links": [
+        "/app",
+        "@($"
+      ],
+      "asyncCalls": [
+        "AuthorizeAsync",
+        "CreateDbContextAsync",
+        "FirstOrDefaultAsync",
+        "LoadPopulationAsync",
+        "OnParametersSetAsync",
+        "ResolveAsync",
+        "SingleOrDefaultAsync",
+        "ToDictionaryAsync",
+        "ToListAsync"
+      ],
+      "draftHooks": [],
+      "authorizationLines": [
+        "var authorization = await AuthorizationDecision.AuthorizeAsync(db, actor,",
+        "new AuthorizationRequest(actor.FirmId, ClientId: scope.ClientId,"
+      ],
+      "currentOwner": "Blazor",
+      "destination": {
+        "feature": "audit/fieldwork",
+        "story": "US-031",
+        "status": "PROPOSED_PENDING_PARITY_REVIEW"
+      },
+      "status": "DISCOVERED_NOT_REVIEWED"
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/AuditProgramLibraryPage.razor",
+      "sourceSha256": "17ab16abed02ae71e19257e67289545a5d62a0c16d85499b1e9a12f96457caf2",
+      "routes": [
+        "/app/audit/library"
+      ],
+      "actions": [
+        "() => OpenSectionAsync(context.SectionNumber)",
+        "ClearSearchAsync",
+        "RefreshAsync",
+        "SearchAsync"
+      ],
+      "injectedServices": [
+        [
+          "CurrentActorResolver",
+          "ActorResolver"
+        ],
+        [
+          "IDbContextFactory<AuditSphereDbContext>",
+          "DbFactory"
+        ]
+      ],
+      "links": [
+        "/app"
+      ],
+      "asyncCalls": [
+        "ClearSearchAsync",
+        "CreateDbContextAsync",
+        "GetLibraryAsync",
+        "GetSectionAsync",
+        "LoadAsync",
+        "OnInitializedAsync",
+        "OpenSectionAsync",
+        "RefreshAsync",
+        "ResolveAsync",
+        "SearchAsync"
+      ],
+      "draftHooks": [],
+      "authorizationLines": [],
+      "currentOwner": "Blazor",
+      "destination": {
+        "feature": "audit/fieldwork",
+        "story": "US-031",
+        "status": "PROPOSED_PENDING_PARITY_REVIEW"
+      },
+      "status": "DISCOVERED_NOT_REVIEWED"
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/ClientDetail.razor",
+      "sourceSha256": "d5489584493ee4c169312c112ea47d8d561dd07bc88b3299484a72eca3117c96",
+      "routes": [
+        "/app/clients/{ClientId:guid}"
+      ],
+      "actions": [
+        "CreateContactAsync"
+      ],
+      "injectedServices": [
+        [
+          "CurrentActorResolver",
+          "ActorResolver"
+        ],
+        [
+          "IDbContextFactory<AuditSphereDbContext>",
+          "DbFactory"
+        ]
+      ],
+      "links": [
+        "/app",
+        "@($"
+      ],
+      "asyncCalls": [
+        "AuthorizeAsync",
+        "CreateClientContactAsync",
+        "CreateContactAsync",
+        "CreateDbContextAsync",
+        "GetIntentAsync",
+        "LoadClientAsync",
+        "OnParametersSetAsync",
+        "ReloadClientAsync",
+        "ResolveAsync",
+        "SingleOrDefaultAsync",
+        "ToListAsync"
+      ],
+      "draftHooks": [],
+      "authorizationLines": [
+        "_isStaff = actor.Roles.Any(x => x is \"Administrator\" or \"Partner\" or \"Manager\" or \"Senior\" or \"Staff\" or \"CommercialManager\" or \"EngagementLeader\");",
+        "_canManageContacts = actor.Roles.Any(x => x is \"Administrator\" or \"Partner\" or \"Manager\" or \"CommercialManager\" or \"EngagementLeader\");",
+        "var authorization = await AuthorizationDecision.AuthorizeAsync(db, actor,",
+        "new AuthorizationRequest(actor.FirmId, clientId,"
+      ],
+      "currentOwner": "Blazor",
+      "destination": {
+        "feature": "practice/portfolio",
+        "story": "US-015",
+        "status": "PROPOSED_PENDING_PARITY_REVIEW"
+      },
+      "status": "DISCOVERED_NOT_REVIEWED"
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/ClientFinancialPackage.razor",
+      "sourceSha256": "78e5d0bc144da573077f3f6dc50a5a58de0e1bcdc567a51c1448a198089423e4",
+      "routes": [
+        "/portal/accounting/packages/{PackageId:guid}"
+      ],
+      "actions": [
+        "RecordAsync",
+        "RefreshAsync"
+      ],
+      "injectedServices": [
+        [
+          "CurrentActorResolver",
+          "ActorResolver"
+        ],
+        [
+          "IDbContextFactory<AuditSphereDbContext>",
+          "DbFactory"
+        ]
+      ],
+      "links": [
+        "/portal"
+      ],
+      "asyncCalls": [
+        "CreateDbContextAsync",
+        "GetClientViewAsync",
+        "OnParametersSetAsync",
+        "RecordAsync",
+        "RefreshAsync",
+        "ResolveAsync"
+      ],
+      "draftHooks": [],
+      "authorizationLines": [],
+      "currentOwner": "Blazor",
+      "destination": {
+        "feature": "portal",
+        "story": "US-038",
+        "status": "PROPOSED_PENDING_PARITY_REVIEW"
+      },
+      "status": "DISCOVERED_NOT_REVIEWED"
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/ClientPbcRequest.razor",
+      "sourceSha256": "b94e4d6ca203cf32421099a60a4959efc799977ccbc9891bce2853453c8ef210",
+      "routes": [
+        "/portal/requests/{RequestId:guid}"
+      ],
+      "actions": [
+        "@(() => RevokeAsync(d.Id))",
+        "DelegateAsync",
+        "RefreshRequestAsync",
+        "ReplyAsync",
+        "StartUploadAsync"
+      ],
+      "injectedServices": [
+        [
+          "CurrentActorResolver",
+          "ActorResolver"
+        ],
+        [
+          "IDbContextFactory<AuditSphereDbContext>",
+          "DbFactory"
+        ],
+        [
+          "IJSRuntime",
+          "JS"
+        ]
+      ],
+      "links": [
+        "/portal"
+      ],
+      "asyncCalls": [
+        "AuthorizeAsync",
+        "CreateDbContextAsync",
+        "DelegateAsync",
+        "DelegateCandidatesAsync",
+        "DelegateRequestAsync",
+        "DelegationsAsync",
+        "DenyAndClearAsync",
+        "DisposeAsync",
+        "GetFirstSignInStatusAsync",
+        "InvokeAsync",
+        "InvokeVoidAsync",
+        "IsPrimaryContactAsync",
+        "LoadRequestAsync",
+        "OnAfterRenderAsync",
+        "OnParametersSetAsync",
+        "RefreshRequestAsync",
+        "ReplyAsync",
+        "ResolveAsync",
+        "RevokeAsync",
+        "RevokeDelegationAsync",
+        "SingleOrDefaultAsync",
+        "StartUploadAsync",
+        "ToDictionaryAsync",
+        "ToListAsync"
+      ],
+      "draftHooks": [
+        "data-draft-scope",
+        "pbc-upload"
+      ],
+      "authorizationLines": [
+        "var authorization = await AuthorizationDecision.AuthorizeAsync(db, actor,",
+        "new AuthorizationRequest(actor.FirmId, candidate.ClientId, candidate.EngagementId, [\"ClientUser\"]));",
+        "var currentAuthorization = await AuthorizationDecision.AuthorizeAsync(db, currentActor,",
+        "new AuthorizationRequest(actor.FirmId, candidate.ClientId, candidate.EngagementId, [\"ClientUser\"]));",
+        "if (!currentAuthorization.Succeeded || generation != _loadGeneration || requestId != RequestId)",
+        "else if (IsAuthorizationFailure(result.ErrorCode))",
+        "else if (IsAuthorizationFailure(result.ErrorCode))",
+        "private static bool IsAuthorizationFailure(string? errorCode) =>"
+      ],
+      "currentOwner": "Blazor",
+      "destination": {
+        "feature": "portal",
+        "story": "US-038",
+        "status": "PROPOSED_PENDING_PARITY_REVIEW"
+      },
+      "status": "DISCOVERED_NOT_REVIEWED"
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/ClientPortal.razor",
+      "sourceSha256": "32f612c79034a468ae097e055a9b0554036cc500c28fdaa6036803c69fbe76d1",
+      "routes": [
+        "/portal"
+      ],
+      "actions": [
+        "@(() => AcknowledgeAsync(doc.ReviewId, doc.ContentSha256))",
+        "@(() => CommentAsync(doc.ReviewId))",
+        "CompleteFirstSignInAsync",
+        "LoadPortalAsync"
+      ],
+      "injectedServices": [
+        [
+          "CurrentActorResolver",
+          "ActorResolver"
+        ],
+        [
+          "IDbContextFactory<AuditSphereDbContext>",
+          "DbFactory"
+        ]
+      ],
+      "links": [
+        "@($"
+      ],
+      "asyncCalls": [
+        "AcknowledgeAsync",
+        "AuthorizedPortalEngagementIdsAsync",
+        "AuthorizedPortalGrantIdsAsync",
+        "ClientBundlesAsync",
+        "CommentAsync",
+        "CompleteFirstSignInAsync",
+        "CopyToAsync",
+        "CreateDbContextAsync",
+        "GetFirstSignInStatusAsync",
+        "HasPendingCommercialOnboardingAsync",
+        "LoadPortalAsync",
+        "OnInitializedAsync",
+        "ResolveAsync",
+        "SharedAsync",
+        "SignedRepresentationsAsync",
+        "ToListAsync",
+        "UploadSignedLetterAsync",
+        "UploadSignedRepresentationAsync"
+      ],
+      "draftHooks": [],
+      "authorizationLines": [
+        "var approvedGrantIds = await ClientPortalService.AuthorizedPortalGrantIdsAsync(db, actor);",
+        "var engagementIds = await ClientPortalService.AuthorizedPortalEngagementIdsAsync(db, actor);"
+      ],
+      "currentOwner": "Blazor",
+      "destination": {
+        "feature": "portal",
+        "story": "US-037",
+        "status": "PROPOSED_PENDING_PARITY_REVIEW"
+      },
+      "status": "DISCOVERED_NOT_REVIEWED"
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/CommercialSettings.razor",
+      "sourceSha256": "41fe4c7f57d95f08ed4fafe1927995d45e65d3725dab4b9938181125c0c5b4da",
+      "routes": [
+        "/app/practice/commercial-settings"
+      ],
+      "actions": [
+        "() => DeactivateAsync(rule.Id)",
+        "SaveProfileAsync",
+        "SaveRuleAsync"
+      ],
+      "injectedServices": [
+        [
+          "CurrentActorResolver",
+          "ActorResolver"
+        ],
+        [
+          "IDbContextFactory<AuditSphereDbContext>",
+          "DbFactory"
+        ]
+      ],
+      "links": [
+        "/app",
+        "/app/practice/leads"
+      ],
+      "asyncCalls": [
+        "CreateDbContextAsync",
+        "DeactivateAsync",
+        "DeactivateRuleAsync",
+        "GetProfileAsync",
+        "ListRulesAsync",
+        "LoadAsync",
+        "OnInitializedAsync",
+        "ResolveAsync",
+        "RunAsync",
+        "SaveProfileAsync",
+        "SaveRuleAsync"
+      ],
+      "draftHooks": [],
+      "authorizationLines": [],
+      "currentOwner": "Blazor",
+      "destination": {
+        "feature": "practice/commercial",
+        "story": "US-016",
+        "status": "PROPOSED_PENDING_PARITY_REVIEW"
+      },
+      "status": "DISCOVERED_NOT_REVIEWED"
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/Completion.razor",
+      "sourceSha256": "b8236df8a8c196db794a970d6bbf88b1dd9335b2bd9cbd7fab55afe8c72b4bfb",
+      "routes": [
+        "/app/completion/{Id:guid}",
+        "/app/engagements/{EngagementId:guid}/completion"
+      ],
+      "actions": [
+        "PrepareReleaseCandidateAsync"
+      ],
+      "injectedServices": [
+        [
+          "CurrentActorResolver",
+          "ActorResolver"
+        ],
+        [
+          "IDbContextFactory<AuditSphereDbContext>",
+          "DbFactory"
+        ],
+        [
+          "NavigationManager",
+          "Nav"
+        ]
+      ],
+      "links": [
+        "/app",
+        "/app/accounting/packages/@_packageId",
+        "/app/releases/@_releaseCandidateId",
+        "@($"
+      ],
+      "asyncCalls": [
+        "AuthorizeAsync",
+        "CountAsync",
+        "CreateAsync",
+        "CreateCandidateAsync",
+        "CreateDbContextAsync",
+        "FirstOrDefaultAsync",
+        "LoadCompletionAsync",
+        "OnParametersSetAsync",
+        "PrepareReleaseCandidateAsync",
+        "ResolveAsync",
+        "SingleOrDefaultAsync",
+        "ToListAsync"
+      ],
+      "draftHooks": [],
+      "authorizationLines": [
+        "_isStaff = actor is not null && actor.Roles.Any(x => x is \"Administrator\" or \"Partner\" or \"Manager\" or \"Senior\" or \"Staff\" or \"EngagementLeader\" or \"Auditor\");",
+        "_canPrepareRelease = actor?.Roles.Any(x => x is \"Administrator\" or \"Partner\") == true;",
+        "var authorization = await AuthorizationDecision.AuthorizeAsync(db, actor,",
+        "new AuthorizationRequest(actor.FirmId, EngagementId: requestedEngagementId.Value,",
+        "if (IsAuthorizationFailure(approval.ErrorCode))",
+        "if (IsAuthorizationFailure(candidate.ErrorCode))",
+        "private static bool IsAuthorizationFailure(string? errorCode) =>"
+      ],
+      "currentOwner": "Blazor",
+      "destination": {
+        "feature": "completion",
+        "story": "US-035",
+        "status": "PROPOSED_PENDING_PARITY_REVIEW"
+      },
+      "status": "DISCOVERED_NOT_REVIEWED"
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/Consolidation.razor",
+      "sourceSha256": "5a386619363b0ce4d6cde6c6abbf696d6f5d3b060a749bfb77592ae945cf2647",
+      "routes": [
+        "/app/consolidation"
+      ],
+      "actions": [],
+      "injectedServices": [
+        [
+          "CurrentActorResolver",
+          "ActorResolver"
+        ],
+        [
+          "IDbContextFactory<AuditSphereDbContext>",
+          "DbFactory"
+        ]
+      ],
+      "links": [
+        "#advanced",
+        "#eliminations",
+        "#fx",
+        "#intercompany",
+        "#packs",
+        "#perimeter",
+        "/app/accounting",
+        "@($"
+      ],
+      "asyncCalls": [
+        "AuthorizeGroupAsync",
+        "CreateDbContextAsync",
+        "GetLatestReportAsync",
+        "OnInitializedAsync",
+        "ResolveAsync",
+        "ToArrayAsync",
+        "ToDictionaryAsync",
+        "ToListAsync"
+      ],
+      "draftHooks": [],
+      "authorizationLines": [
+        "var access = await AuthorizationDecision.AuthorizeGroupAsync(db, actor, groupId,"
+      ],
+      "currentOwner": "Blazor",
+      "destination": {
+        "feature": "consolidation",
+        "story": "US-027",
+        "status": "PROPOSED_PENDING_PARITY_REVIEW"
+      },
+      "status": "DISCOVERED_NOT_REVIEWED"
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/CurrencyRemeasurement.razor",
+      "sourceSha256": "87bf90fdcf66b4609aab4a94a426ba2630571a0116afa25a5e0993915b647806",
+      "routes": [
+        "/app/accounting/remeasurement"
+      ],
+      "actions": [
+        "() => OpenScheduleAsync(context.Id)",
+        "() => RemoveLineAsync(line)",
+        "AddLineAsync",
+        "ApproveAsync",
+        "PrepareAsync"
+      ],
+      "injectedServices": [
+        [
+          "CurrentActorResolver",
+          "ActorResolver"
+        ],
+        [
+          "IDbContextFactory<AuditSphereDbContext>",
+          "DbFactory"
+        ],
+        [
+          "IJSRuntime",
+          "JS"
+        ]
+      ],
+      "links": [
+        "/app",
+        "/app/accounting"
+      ],
+      "asyncCalls": [
+        "AddLineAsync",
+        "ApproveAsync",
+        "AuthorizeAsync",
+        "ContextChangedAsync",
+        "CreateDbContextAsync",
+        "GetAsync",
+        "InvokeVoidAsync",
+        "LoadChoicesAsync",
+        "LoadScheduleAsync",
+        "OnAfterRenderAsync",
+        "OnInitializedAsync",
+        "OpenScheduleAsync",
+        "PrepareAsync",
+        "RemoveLineAsync",
+        "ResolveAsync",
+        "SingleAsync",
+        "SingleOrDefaultAsync",
+        "SourceLineChangedAsync",
+        "ToDictionaryAsync",
+        "ToListAsync"
+      ],
+      "draftHooks": [
+        "data-draft-field",
+        "data-draft-scope",
+        "data-draft-server-managed",
+        "draft-state"
+      ],
+      "authorizationLines": [
+        "var authorization = await AuthorizationDecision.AuthorizeAsync(db, _actor,",
+        "new AuthorizationRequest(_actor.FirmId, RequiredRoles: Roles, InternalOnly: true));"
+      ],
+      "currentOwner": "Blazor",
+      "destination": {
+        "feature": "accounting/currency",
+        "story": "US-026",
+        "status": "PROPOSED_PENDING_PARITY_REVIEW"
+      },
+      "status": "DISCOVERED_NOT_REVIEWED"
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/EngagementDetail.razor",
+      "sourceSha256": "dd2c5f09ed6ef2b4e2edcae8f20aa7d81eb04bd60de5f1669ba9d8906ab55f36",
+      "routes": [
+        "/app/engagements/{EngagementId:guid}"
+      ],
+      "actions": [],
+      "injectedServices": [
+        [
+          "CurrentActorResolver",
+          "ActorResolver"
+        ],
+        [
+          "IDbContextFactory<AuditSphereDbContext>",
+          "DbFactory"
+        ]
+      ],
+      "links": [
+        "/app",
+        "/app/clients/@_engagement.PracticeClientId",
+        "@($"
+      ],
+      "asyncCalls": [
+        "AuthorizeAsync",
+        "CreateDbContextAsync",
+        "LoadEngagementAsync",
+        "OnParametersSetAsync",
+        "ReloadAsync",
+        "ResolveAsync",
+        "SingleOrDefaultAsync",
+        "ToListAsync"
+      ],
+      "draftHooks": [],
+      "authorizationLines": [
+        "<span class=\"success-text\"><strong>CLEAR</strong> (Authorized professional work may proceed)</span>",
+        "_isStaff = _actor is not null && _actor.Roles.Any(x => x is \"Administrator\" or \"Partner\" or \"Manager\" or \"Senior\" or \"Staff\" or \"EngagementLeader\" or \"Auditor\");",
+        "var authorization = await AuthorizationDecision.AuthorizeAsync(db, _actor,",
+        "new AuthorizationRequest(_actor.FirmId, EngagementId: EngagementId,"
+      ],
+      "currentOwner": "Blazor",
+      "destination": {
+        "feature": "practice/portfolio",
+        "story": "US-015",
+        "status": "PROPOSED_PENDING_PARITY_REVIEW"
+      },
+      "status": "DISCOVERED_NOT_REVIEWED"
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/Finance.razor",
+      "sourceSha256": "f9af73a49ebc95d600572b77be7f2ddd375487691bec9dc9e0bb231c07f51260",
+      "routes": [
+        "/app/finance"
+      ],
+      "actions": [
+        "() => PromptClosePeriod(context.Id)",
+        "() => _selectedPeriodIdToClose = null",
+        "ExecuteClosePeriodAsync",
+        "LoadFinanceDataAsync"
+      ],
+      "injectedServices": [
+        [
+          "CurrentActorResolver",
+          "ActorResolver"
+        ],
+        [
+          "IDbContextFactory<AuditSphereDbContext>",
+          "DbFactory"
+        ]
+      ],
+      "links": [
+        "/app"
+      ],
+      "asyncCalls": [
+        "CloseFiscalPeriodAsync",
+        "CreateDbContextAsync",
+        "CurrentFinanceActorAsync",
+        "ExecuteClosePeriodAsync",
+        "GetAsync",
+        "LoadFinanceDataAsync",
+        "OnInitializedAsync",
+        "ResolveAsync"
+      ],
+      "draftHooks": [],
+      "authorizationLines": [
+        "else if (_actor is null || !_isAuthorized)",
+        "private bool _isAuthorized;",
+        "_isAuthorized = false;",
+        "_isAuthorized = true;",
+        "if (_isAuthorized)"
+      ],
+      "currentOwner": "Blazor",
+      "destination": {
+        "feature": "practice/finance",
+        "story": "US-019",
+        "status": "PROPOSED_PENDING_PARITY_REVIEW"
+      },
+      "status": "DISCOVERED_NOT_REVIEWED"
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/FinancialPackage.razor",
+      "sourceSha256": "3ca071033261c54af9e057ac9a7591624aeab80732221e67eb180a60321fded1",
+      "routes": [
+        "/app/accounting/packages/{PackageId:guid}"
+      ],
+      "actions": [
+        "() => DownloadOfficeArtifactAsync(FinancialPackageArtifactVersions.ControlledWorkbook)",
+        "() => DownloadOfficeArtifactAsync(FinancialPackageArtifactVersions.Pdf)",
+        "() => DownloadOfficeArtifactAsync(FinancialPackageArtifactVersions.Word)",
+        "() => DownloadOfficeArtifactAsync(FinancialPackageArtifactVersions.Workbook)",
+        "DownloadArtifactAsync",
+        "LoadPackageAsync",
+        "RecordReviewAsync"
+      ],
+      "injectedServices": [
+        [
+          "CurrentActorResolver",
+          "ActorResolver"
+        ],
+        [
+          "IDbContextFactory<AuditSphereDbContext>",
+          "DbFactory"
+        ],
+        [
+          "IJSRuntime",
+          "JS"
+        ]
+      ],
+      "links": [
+        "/app",
+        "/app/accounting",
+        "/app/accounting/reviews",
+        "@($"
+      ],
+      "asyncCalls": [
+        "AuthorizeAsync",
+        "CreateDbContextAsync",
+        "DownloadArtifactAsync",
+        "DownloadOfficeArtifactAsync",
+        "GetAsync",
+        "GetStoredPackageArtifactAsync",
+        "InvokeVoidAsync",
+        "LoadPackageAsync",
+        "OnInitializedAsync",
+        "RecordAsync",
+        "RecordReviewAsync",
+        "RenderPackageOfficeArtifactAsync",
+        "ResolveAsync",
+        "SingleOrDefaultAsync",
+        "ToListAsync"
+      ],
+      "draftHooks": [],
+      "authorizationLines": [
+        "private bool IsStaff => _actor is not null && _actor.Roles.Any(x => x is \"Administrator\" or \"Partner\" or \"Manager\" or \"Reviewer\" or \"Staff\" or \"AccountingPreparer\" or \"AccountingReviewer\");",
+        "private bool _canReview => _actor is not null && _actor.Roles.Any(x => x is \"Administrator\" or \"Partner\" or \"Manager\" or \"AccountingReviewer\" or \"AccountingPreparer\");",
+        "private IReadOnlyList<string> ReviewStages => _actor?.Roles.Any(x => x is \"Partner\" or \"Administrator\") == true",
+        "var authorization = await AuthorizationDecision.AuthorizeAsync(db, _actor,",
+        "new AuthorizationRequest(candidate.FirmId, candidate.ClientId, candidate.EngagementId,"
+      ],
+      "currentOwner": "Blazor",
+      "destination": {
+        "feature": "reviews/packages",
+        "story": "US-029",
+        "status": "PROPOSED_PENDING_PARITY_REVIEW"
+      },
+      "status": "DISCOVERED_NOT_REVIEWED"
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/FinancialPackageReviews.razor",
+      "sourceSha256": "92515e155e9c4b5b5b3e7e585f0cfd2f025e983fb74b2463512c61b8ad5d0548",
+      "routes": [
+        "/app/accounting/reviews"
+      ],
+      "actions": [
+        "LoadQueueAsync",
+        "PreviewSelection"
+      ],
+      "injectedServices": [
+        [
+          "CurrentActorResolver",
+          "ActorResolver"
+        ],
+        [
+          "IDbContextFactory<AuditSphereDbContext>",
+          "DbFactory"
+        ],
+        [
+          "ILogger<FinancialPackageReviews>",
+          "Logger"
+        ]
+      ],
+      "links": [
+        "/app/accounting",
+        "@($"
+      ],
+      "asyncCalls": [
+        "CreateDbContextAsync",
+        "GetStaffQueueAsync",
+        "LoadQueueAsync",
+        "OnInitializedAsync",
+        "ResolveAsync"
+      ],
+      "draftHooks": [
+        "data-draft-field",
+        "data-draft-scope"
+      ],
+      "authorizationLines": [
+        "private bool IsStaff => _actor is not null && _actor.Roles.Any(x => x is \"Administrator\" or \"Partner\" or \"Manager\" or \"AccountingReviewer\" or \"AccountingPreparer\");"
+      ],
+      "currentOwner": "Blazor",
+      "destination": {
+        "feature": "reviews/packages",
+        "story": "US-029",
+        "status": "PROPOSED_PENDING_PARITY_REVIEW"
+      },
+      "status": "DISCOVERED_NOT_REVIEWED"
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/Finding.razor",
+      "sourceSha256": "b80394e06d0c636a48553c389435b5a473a89817bafb2063e6164c59439b3453",
+      "routes": [
+        "/app/findings/{Id:guid}"
+      ],
+      "actions": [
+        "RecordResponseAsync",
+        "RefreshFindingAsync"
+      ],
+      "injectedServices": [
+        [
+          "CurrentActorResolver",
+          "ActorResolver"
+        ],
+        [
+          "IDbContextFactory<AuditSphereDbContext>",
+          "DbFactory"
+        ],
+        [
+          "NavigationManager",
+          "Nav"
+        ]
+      ],
+      "links": [
+        "/app",
+        "@($"
+      ],
+      "asyncCalls": [
+        "AuthorizeAsync",
+        "CreateDbContextAsync",
+        "FirstOrDefaultAsync",
+        "OnParametersSetAsync",
+        "RecordFindingResponseAsync",
+        "RecordResponseAsync",
+        "RefreshAsync",
+        "RefreshFindingAsync",
+        "ResolveAsync",
+        "SingleOrDefaultAsync"
+      ],
+      "draftHooks": [],
+      "authorizationLines": [
+        "var authorization = await AuthorizationDecision.AuthorizeAsync(db, actor,",
+        "new AuthorizationRequest(actor.FirmId, ClientId: scope.ClientId,"
+      ],
+      "currentOwner": "Blazor",
+      "destination": {
+        "feature": "audit/review",
+        "story": "US-034",
+        "status": "PROPOSED_PENDING_PARITY_REVIEW"
+      },
+      "status": "DISCOVERED_NOT_REVIEWED"
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/FirmBooks.razor",
+      "sourceSha256": "c398a80d7191bba2a1667861486ede0ab9d12512a46e63c0d5da9ff3f2912c9f",
+      "routes": [
+        "/app/finance/books"
+      ],
+      "actions": [
+        "@(() => PostAsync(context.Id))",
+        "@(() => ReviewAsync(context.Id, false))",
+        "@(() => ReviewAsync(context.Id, true))",
+        "@(() => SubmitAsync(context.Id))",
+        "RecordAsync",
+        "TrialBalanceAsync"
+      ],
+      "injectedServices": [
+        [
+          "CurrentActorResolver",
+          "ActorResolver"
+        ],
+        [
+          "IDbContextFactory<AuditSphereDbContext>",
+          "DbFactory"
+        ]
+      ],
+      "links": [],
+      "asyncCalls": [
+        "CopyToAsync",
+        "CreateDbContextAsync",
+        "ListAsync",
+        "LoadAsync",
+        "OnEvidenceAsync",
+        "OnInitializedAsync",
+        "PostAsync",
+        "RecordAsync",
+        "ResolveAsync",
+        "ReviewAsync",
+        "RunAsync",
+        "SubmitAsync",
+        "ToListAsync",
+        "TrialBalanceAsync"
+      ],
+      "draftHooks": [],
+      "authorizationLines": [],
+      "currentOwner": "Blazor",
+      "destination": {
+        "feature": "practice/finance",
+        "story": "US-019",
+        "status": "PROPOSED_PENDING_PARITY_REVIEW"
+      },
+      "status": "DISCOVERED_NOT_REVIEWED"
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/Home.razor",
+      "sourceSha256": "8ba5747ae34a0623df5aecddcba69f0b70504202fc64473725ddb197bb982939",
+      "routes": [
+        "/"
+      ],
+      "actions": [],
+      "injectedServices": [],
+      "links": [
+        "/app"
+      ],
+      "asyncCalls": [],
+      "draftHooks": [],
+      "authorizationLines": [],
+      "currentOwner": "Blazor",
+      "destination": {
+        "feature": "shell/shared",
+        "story": "US-005",
+        "status": "PROPOSED_PENDING_PARITY_REVIEW"
+      },
+      "status": "DISCOVERED_NOT_REVIEWED"
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/InvoiceDetail.razor",
+      "sourceSha256": "2b0c1cf1718e61b95028b79f98344c0b40c189db9b9b38ddaa668dec6db1a48a",
+      "routes": [
+        "/app/practice/invoices/{InvoiceId:guid}"
+      ],
+      "actions": [
+        "ApproveInvoiceAsync",
+        "PostInvoiceAsync",
+        "RefreshInvoiceAsync",
+        "SendInvoiceAsync"
+      ],
+      "injectedServices": [
+        [
+          "CurrentActorResolver",
+          "ActorResolver"
+        ],
+        [
+          "IDbContextFactory<AuditSphereDbContext>",
+          "DbFactory"
+        ]
+      ],
+      "links": [
+        "/app",
+        "/app/finance"
+      ],
+      "asyncCalls": [
+        "ApproveInvoiceAsync",
+        "CreateDbContextAsync",
+        "GetInvoiceDetailAsync",
+        "LoadInvoiceAsync",
+        "OnParametersSetAsync",
+        "PostInvoiceAsync",
+        "RefreshInvoiceAsync",
+        "ResolveAsync",
+        "SendInvoiceAsync"
+      ],
+      "draftHooks": [],
+      "authorizationLines": [
+        "else if (_actor is null || !_isAuthorized)",
+        "private bool _isAuthorized;",
+        "_isAuthorized = _actor.Roles.Any(x => x is \"FinanceManager\" or \"FinanceReviewer\");",
+        "_canAct = _isAuthorized;",
+        "if (_isAuthorized)",
+        "_isAuthorized = _actor.Roles.Any(x => x is \"FinanceManager\" or \"FinanceReviewer\");",
+        "_canAct = _isAuthorized;",
+        "if (_isAuthorized)",
+        "_isAuthorized = false;"
+      ],
+      "currentOwner": "Blazor",
+      "destination": {
+        "feature": "practice/finance",
+        "story": "US-019",
+        "status": "PROPOSED_PENDING_PARITY_REVIEW"
+      },
+      "status": "DISCOVERED_NOT_REVIEWED"
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/Journals.razor",
+      "sourceSha256": "e8d020af059e806b80b801614c965581cf809643f73119b09e2b9a3828f4be96",
+      "routes": [
+        "/app/accounting/journals/{JournalId:guid}"
+      ],
+      "actions": [
+        "ExportInstructionsAsync",
+        "PostJournalAsync",
+        "RefreshJournalAsync"
+      ],
+      "injectedServices": [
+        [
+          "CurrentActorResolver",
+          "ActorResolver"
+        ],
+        [
+          "IDbContextFactory<AuditSphereDbContext>",
+          "DbFactory"
+        ],
+        [
+          "IJSRuntime",
+          "JS"
+        ]
+      ],
+      "links": [
+        "/app/accounting/journals"
+      ],
+      "asyncCalls": [
+        "AuthorizeAsync",
+        "BuildInstructionExportAsync",
+        "CreateDbContextAsync",
+        "ExportInstructionsAsync",
+        "InvokeVoidAsync",
+        "LoadJournalAsync",
+        "OnParametersSetAsync",
+        "PostAsync",
+        "PostJournalAsync",
+        "RefreshJournalAsync",
+        "ResolveAsync",
+        "SingleOrDefaultAsync",
+        "ToListAsync"
+      ],
+      "draftHooks": [],
+      "authorizationLines": [
+        "_isStaff = _actor.Roles.Any(x => x is \"Administrator\" or \"Partner\" or \"Manager\" or \"Staff\" or \"AccountingPreparer\" or \"AccountingReviewer\");",
+        "var auth = await AuthorizationDecision.AuthorizeAsync(db, _actor,",
+        "new AuthorizationRequest(candidate.FirmId, candidate.ClientId, candidate.EngagementId,",
+        "_actor.Roles.Any(x => x is \"AccountingReviewer\" or \"Partner\" or \"Manager\");",
+        "_actor.Roles.Any(x => x is \"Administrator\" or \"Partner\" or \"Manager\" or \"AccountingPreparer\" or \"AccountingReviewer\");"
+      ],
+      "currentOwner": "Blazor",
+      "destination": {
+        "feature": "accounting/journals",
+        "story": "US-024",
+        "status": "PROPOSED_PENDING_PARITY_REVIEW"
+      },
+      "status": "DISCOVERED_NOT_REVIEWED"
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/Leads.razor",
+      "sourceSha256": "e467a74d007de30e672b9123489363e4e98a61054ee5ae0b2048d698efa8867c",
+      "routes": [
+        "/app/practice/leads"
+      ],
+      "actions": [
+        "@(() => ConfirmQualifyAsync(context))",
+        "CreateLeadAsync",
+        "LoadLeadsAsync"
+      ],
+      "injectedServices": [
+        [
+          "CurrentActorResolver",
+          "ActorResolver"
+        ],
+        [
+          "IDbContextFactory<AuditSphereDbContext>",
+          "DbFactory"
+        ],
+        [
+          "ISnackbar",
+          "Snackbar"
+        ],
+        [
+          "IDialogService",
+          "Dialogs"
+        ]
+      ],
+      "links": [
+        "/app"
+      ],
+      "asyncCalls": [
+        "ConfirmQualifyAsync",
+        "CreateDbContextAsync",
+        "CreateLeadAsync",
+        "CurrentCommercialActorAsync",
+        "ListAsync",
+        "LoadLeadsAsync",
+        "OnInitializedAsync",
+        "QualifyLeadAsync",
+        "ResolveAsync"
+      ],
+      "draftHooks": [
+        "data-draft-field",
+        "data-draft-scope",
+        "data-draft-status"
+      ],
+      "authorizationLines": [
+        "else if (_actor is null || !_isAuthorized)",
+        "private bool _isAuthorized;",
+        "_isAuthorized = false;",
+        "_isAuthorized = true;",
+        "if (_isAuthorized)",
+        "if (_isAuthorized)"
+      ],
+      "currentOwner": "Blazor",
+      "destination": {
+        "feature": "practice/commercial",
+        "story": "US-016",
+        "status": "PROPOSED_PENDING_PARITY_REVIEW"
+      },
+      "status": "DISCOVERED_NOT_REVIEWED"
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/Mapping.razor",
+      "sourceSha256": "9a27cf62d02048efca859827d9131eff9e36dd28236814b06f68a3b3d8534512",
+      "routes": [
+        "/app/accounting/mappings/{MappingId:guid}"
+      ],
+      "actions": [
+        "ApproveAsync",
+        "LoadMappingAsync"
+      ],
+      "injectedServices": [
+        [
+          "CurrentActorResolver",
+          "ActorResolver"
+        ],
+        [
+          "IDbContextFactory<AuditSphereDbContext>",
+          "DbFactory"
+        ]
+      ],
+      "links": [
+        "#allocation-heading",
+        "#comparison-heading",
+        "#impact-heading",
+        "#lineage-heading",
+        "#unmapped-heading",
+        "/app/accounting/mappings",
+        "/app/accounting/mappings/@_priorMapping.Id"
+      ],
+      "asyncCalls": [
+        "ApproveAsync",
+        "ApproveMappingAsync",
+        "AuthorizeAsync",
+        "CreateDbContextAsync",
+        "FirstOrDefaultAsync",
+        "LoadMappingAsync",
+        "LoadMappingCoreAsync",
+        "OnParametersSetAsync",
+        "ResolveAsync",
+        "SingleOrDefaultAsync",
+        "ToListAsync"
+      ],
+      "draftHooks": [],
+      "authorizationLines": [
+        "private bool IsStaff => _actor is not null && _actor.Roles.Any(x => x is \"Administrator\" or \"Partner\" or \"Manager\" or \"Reviewer\" or \"Staff\" or \"AccountingPreparer\" or \"AccountingReviewer\");",
+        "var authorization = await AuthorizationDecision.AuthorizeAsync(db, _actor,",
+        "new AuthorizationRequest(_actor.FirmId, candidate.ClientId, candidate.EngagementId,"
+      ],
+      "currentOwner": "Blazor",
+      "destination": {
+        "feature": "accounting/mappings",
+        "story": "US-022",
+        "status": "PROPOSED_PENDING_PARITY_REVIEW"
+      },
+      "status": "DISCOVERED_NOT_REVIEWED"
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/Microsoft365Setup.razor",
+      "sourceSha256": "4bcc97344060d8cb474dd1450f74f1961f6b3f3b2808f64e8b2b3b0741160c1b",
+      "routes": [
+        "/setup/microsoft365",
+        "/app/administration/microsoft365"
+      ],
+      "actions": [
+        "() => ApproveTemplate(context.Id)",
+        "ActivateWorkingSite",
+        "Claim",
+        "CompleteBootstrap",
+        "LoadSteLayout",
+        "Reload",
+        "Save",
+        "SaveTemplate",
+        "TestConnection"
+      ],
+      "injectedServices": [
+        [
+          "CurrentActorResolver",
+          "ActorResolver"
+        ],
+        [
+          "IDbContextFactory<AuditSphereDbContext>",
+          "DbFactory"
+        ],
+        [
+          "IConfiguration",
+          "Configuration"
+        ],
+        [
+          "AuthenticationStateProvider",
+          "AuthenticationState"
+        ],
+        [
+          "NavigationManager",
+          "Navigation"
+        ],
+        [
+          "SelectedSiteBoundaryVerificationService",
+          "SelectedSiteVerification"
+        ]
+      ],
+      "links": [
+        "/",
+        "/app/administration/microsoft365/tenant-connection",
+        "https://github.com/nirzaf/AuditSphere/wiki/Production-Configuration-Guide"
+      ],
+      "asyncCalls": [
+        "ActivateConnectionAsync",
+        "ApproveFolderTemplateAsync",
+        "AuthorizeAsync",
+        "ClaimAsync",
+        "CompleteInitialAdministratorBootstrapAsync",
+        "CreateDbContextAsync",
+        "FirstOrDefaultAsync",
+        "GetAsync",
+        "GetAuthenticationStateAsync",
+        "InputValueAsync",
+        "OnInitializedAsync",
+        "ResolveAsync",
+        "SaveDraftAsync",
+        "SaveFolderTemplateAsync",
+        "SingleOrDefaultAsync",
+        "ToListAsync",
+        "VerifyDraftAsync"
+      ],
+      "draftHooks": [],
+      "authorizationLines": [
+        "@using Microsoft.AspNetCore.Components.Authorization",
+        "_isFirmAdministrator = (await AuthorizationDecision.AuthorizeAsync(db, _actor,",
+        "new AuthorizationRequest(_actor.FirmId, RequiredRoles: [\"Administrator\"],"
+      ],
+      "currentOwner": "Blazor",
+      "destination": {
+        "feature": "administration",
+        "story": "US-039",
+        "status": "PROPOSED_PENDING_PARITY_REVIEW"
+      },
+      "status": "DISCOVERED_NOT_REVIEWED"
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/Operations.razor",
+      "sourceSha256": "a11b6ab3c0f7c57d618d8ed8ae1a249d055364c49834cc34ab61fc1875815b9d",
+      "routes": [
+        "/app/operations"
+      ],
+      "actions": [
+        "() => CancelAsync(context)",
+        "() => RetryAsync(context)",
+        "LiftQuarantineAsync",
+        "LoadOperationsAsync"
+      ],
+      "injectedServices": [
+        [
+          "CurrentActorResolver",
+          "ActorResolver"
+        ],
+        [
+          "IDbContextFactory<AuditSphereDbContext>",
+          "DbFactory"
+        ]
+      ],
+      "links": [
+        "/app"
+      ],
+      "asyncCalls": [
+        "CancelAsync",
+        "CreateDbContextAsync",
+        "CurrentAdminAsync",
+        "GetFirmOperatingModeAsync",
+        "LiftQuarantineAsync",
+        "ListAsync",
+        "LoadOperationsAsync",
+        "OnInitializedAsync",
+        "ResolveAsync",
+        "RetryAsync"
+      ],
+      "draftHooks": [],
+      "authorizationLines": [],
+      "currentOwner": "Blazor",
+      "destination": {
+        "feature": "operations",
+        "story": "US-041",
+        "status": "PROPOSED_PENDING_PARITY_REVIEW"
+      },
+      "status": "DISCOVERED_NOT_REVIEWED"
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/PbcRequests.razor",
+      "sourceSha256": "3b8ef42eeb6e56c344c18086953c35fcaa6a94791e153a052c00c903867f082f",
+      "routes": [
+        "/app/engagements/{EngagementId:guid}/pbc"
+      ],
+      "actions": [
+        "() => CompleteUploadAsync(intent)",
+        "() => RequestMoreAsync(request.Id)",
+        "CreateAndSendAsync"
+      ],
+      "injectedServices": [
+        [
+          "CurrentActorResolver",
+          "ActorResolver"
+        ],
+        [
+          "IDbContextFactory<AuditSphereDbContext>",
+          "DbFactory"
+        ],
+        [
+          "IOperationStore",
+          "OperationStore"
+        ],
+        [
+          "PbcDocumentTransferHandler",
+          "TransferHandler"
+        ],
+        [
+          "NavigationManager",
+          "Navigation"
+        ],
+        [
+          "IConfiguration",
+          "Configuration"
+        ],
+        [
+          "IJSRuntime",
+          "JS"
+        ]
+      ],
+      "links": [
+        "/app",
+        "@($",
+        "@DownloadUrl(intent.Id)"
+      ],
+      "asyncCalls": [
+        "AuthorizeAsync",
+        "CompleteUploadAsync",
+        "CreateAndSendAsync",
+        "CreateDbContextAsync",
+        "CreateRequestAsync",
+        "DenyAndClearAsync",
+        "InvokeAsync",
+        "InvokeVoidAsync",
+        "LoadAsync",
+        "LoadPeopleAsync",
+        "OnParametersSetAsync",
+        "RequestMoreAsync",
+        "RequestMoreFilesAsync",
+        "ResolveAsync",
+        "SendRequestAsync",
+        "SingleOrDefaultAsync",
+        "ToArrayAsync",
+        "ToDictionaryAsync",
+        "ToListAsync"
+      ],
+      "draftHooks": [
+        "data-draft-scope",
+        "draft-state",
+        "pbc-upload"
+      ],
+      "authorizationLines": [
+        "private bool IsStaff => _actor is not null && _actor.Roles.Any(role =>",
+        "var auth = await AuthorizationDecision.AuthorizeAsync(db, actor!,",
+        "new AuthorizationRequest(actor!.FirmId, engagement!.PracticeClientId, engagement.Id,",
+        "if (IsAuthorizationFailure(created.ErrorCode)) await DenyAndClearAsync();",
+        "if (IsAuthorizationFailure(_createResult.ErrorCode))",
+        "if (IsAuthorizationFailure(_messageResults[requestId].ErrorCode))",
+        "private static bool IsAuthorizationFailure(string? errorCode) =>",
+        "if (IsAuthorizationFailure(_results[intent.Id].ErrorCode))"
+      ],
+      "currentOwner": "Blazor",
+      "destination": {
+        "feature": "documents/pbc",
+        "story": "US-038",
+        "status": "PROPOSED_PENDING_PARITY_REVIEW"
+      },
+      "status": "DISCOVERED_NOT_REVIEWED"
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/PeriodRestatements.razor",
+      "sourceSha256": "3edeecaa6266ba83729509e9a7425941ae65441d312ceeacbaae64174575ed87",
+      "routes": [
+        "/app/accounting/restatements"
+      ],
+      "actions": [
+        "() => ApproveAsync(context.Id, context.ClientId)",
+        "CreateAsync",
+        "LoadSelectionAsync"
+      ],
+      "injectedServices": [
+        [
+          "CurrentActorResolver",
+          "ActorResolver"
+        ],
+        [
+          "IDbContextFactory<AuditSphereDbContext>",
+          "DbFactory"
+        ]
+      ],
+      "links": [
+        "/app/accounting"
+      ],
+      "asyncCalls": [
+        "ApproveAsync",
+        "ApprovePeriodRestatementAsync",
+        "AuthorizeAsync",
+        "CreateAsync",
+        "CreateDbContextAsync",
+        "CreatePeriodRestatementAsync",
+        "LoadDataAsync",
+        "LoadSelectionAsync",
+        "OnInitializedAsync",
+        "ResolveAsync",
+        "ToDictionaryAsync",
+        "ToListAsync"
+      ],
+      "draftHooks": [],
+      "authorizationLines": [
+        "<PageHeader Title=\"Period restatements\" Eyebrow=\"Accounting period maintenance\" Description=\"Authorized post-close amendments recorded with immutable lineage; issued packages are never rewritten.\" />",
+        "var authorization = await AuthorizationDecision.AuthorizeAsync(db, _actor,",
+        "new AuthorizationRequest(_actor.FirmId, RequiredRoles: AccountingRoles, InternalOnly: true));",
+        "var authorization = await AuthorizationDecision.AuthorizeAsync(db, _actor,",
+        "new AuthorizationRequest(_actor.FirmId, ClientId: clientId, RequiredRoles: AccountingRoles, InternalOnly: true));",
+        "var currentAccess = await AuthorizationDecision.AuthorizeAsync(db, _actor,",
+        "new AuthorizationRequest(_actor.FirmId, ClientId: clientId, RequiredRoles: AccountingRoles, InternalOnly: true));",
+        "var currentAccess = await AuthorizationDecision.AuthorizeAsync(db, _actor,",
+        "new AuthorizationRequest(_actor.FirmId, ClientId: clientId, RequiredRoles: ReviewerRoles, InternalOnly: true));"
+      ],
+      "currentOwner": "Blazor",
+      "destination": {
+        "feature": "accounting/setup",
+        "story": "US-020",
+        "status": "PROPOSED_PENDING_PARITY_REVIEW"
+      },
+      "status": "DISCOVERED_NOT_REVIEWED"
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/PeriodRollforward.razor",
+      "sourceSha256": "496044ce7b8d2e2e0a56d304d0ac192f9be7f80f93c0011b2b37cdbcfff0c061",
+      "routes": [
+        "/app/accounting/rollforward"
+      ],
+      "actions": [
+        "LoadClientAsync",
+        "RollForwardAsync"
+      ],
+      "injectedServices": [
+        [
+          "CurrentActorResolver",
+          "ActorResolver"
+        ],
+        [
+          "IDbContextFactory<AuditSphereDbContext>",
+          "DbFactory"
+        ]
+      ],
+      "links": [
+        "/app/accounting"
+      ],
+      "asyncCalls": [
+        "AuthorizeAsync",
+        "CreateDbContextAsync",
+        "LoadClientAsync",
+        "LoadDataAsync",
+        "LoadPackagesAsync",
+        "OnInitializedAsync",
+        "ResolveAsync",
+        "RollForwardAsync",
+        "RollForwardPeriodAsync",
+        "ToListAsync"
+      ],
+      "draftHooks": [],
+      "authorizationLines": [
+        "var authorization = await AuthorizationDecision.AuthorizeAsync(db, _actor,",
+        "new AuthorizationRequest(_actor.FirmId, RequiredRoles: AccountingRoles, InternalOnly: true));",
+        "var authorization = await AuthorizationDecision.AuthorizeAsync(db, _actor,",
+        "new AuthorizationRequest(_actor.FirmId, ClientId: clientId, RequiredRoles: AccountingRoles, InternalOnly: true));",
+        "var currentAccess = await AuthorizationDecision.AuthorizeAsync(db, _actor,",
+        "new AuthorizationRequest(_actor.FirmId, ClientId: clientId, RequiredRoles: AccountingRoles, InternalOnly: true));"
+      ],
+      "currentOwner": "Blazor",
+      "destination": {
+        "feature": "accounting/setup",
+        "story": "US-020",
+        "status": "PROPOSED_PENDING_PARITY_REVIEW"
+      },
+      "status": "DISCOVERED_NOT_REVIEWED"
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/Portfolio.razor",
+      "sourceSha256": "f7771250c924cfe077b5d32413484d0dbaa6c5bfe459651463f6f192d63cb136",
+      "routes": [
+        "/app",
+        "/app/overview"
+      ],
+      "actions": [
+        "DownloadPortfolioCsvAsync",
+        "LoadPortfolioAsync"
+      ],
+      "injectedServices": [
+        [
+          "CurrentActorResolver",
+          "ActorResolver"
+        ],
+        [
+          "IDbContextFactory<AuditSphereDbContext>",
+          "DbFactory"
+        ],
+        [
+          "IConfiguration",
+          "Configuration"
+        ],
+        [
+          "IJSRuntime",
+          "JS"
+        ]
+      ],
+      "links": [
+        "/app/accounting",
+        "/app/administration",
+        "/app/administration/microsoft365",
+        "/app/consolidation",
+        "/app/finance",
+        "/app/operations",
+        "/app/practice/leads",
+        "/app/practice/time",
+        "/auth/sign-in?returnUrl=%2Fauth%2Flanding",
+        "@($"
+      ],
+      "asyncCalls": [
+        "AnyAsync",
+        "AuthorizeAsync",
+        "CountAsync",
+        "CreateDbContextAsync",
+        "DownloadPortfolioCsvAsync",
+        "InvokeVoidAsync",
+        "LoadPortfolioAsync",
+        "OnInitializedAsync",
+        "ResolveAsync",
+        "ToArrayAsync",
+        "ToDictionaryAsync",
+        "ToListAsync"
+      ],
+      "draftHooks": [],
+      "authorizationLines": [
+        "private bool IsStaff => _actor is not null && _actor.Roles.Any(PortfolioRoles.Contains);",
+        "if (!actor.Roles.Any(PortfolioRoles.Contains))",
+        "var authorization = await AuthorizationDecision.AuthorizeAsync(db, actor,",
+        "new AuthorizationRequest(actor.FirmId, scope.ClientId, scope.EngagementId, PortfolioRoles,",
+        "var currentGrant = await AuthorizationDecision.AuthorizeAsync(db, currentActor,",
+        "new AuthorizationRequest(actor.FirmId, scope.ClientId, scope.EngagementId, PortfolioRoles,"
+      ],
+      "currentOwner": "Blazor",
+      "destination": {
+        "feature": "practice/portfolio",
+        "story": "US-015",
+        "status": "PROPOSED_PENDING_PARITY_REVIEW"
+      },
+      "status": "DISCOVERED_NOT_REVIEWED"
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/PracticeAnalytics.razor",
+      "sourceSha256": "f18185fa9b719b8166a73cefcb1cec8cffdd3341b2d4c6a2901c0359ec7018f9",
+      "routes": [
+        "/app/practice/analytics"
+      ],
+      "actions": [
+        "LoadAsync"
+      ],
+      "injectedServices": [
+        [
+          "CurrentActorResolver",
+          "ActorResolver"
+        ],
+        [
+          "IDbContextFactory<AuditSphereDbContext>",
+          "DbFactory"
+        ]
+      ],
+      "links": [],
+      "asyncCalls": [
+        "CreateDbContextAsync",
+        "GetAsync",
+        "LoadAsync",
+        "OnInitializedAsync",
+        "ResolveAsync"
+      ],
+      "draftHooks": [],
+      "authorizationLines": [],
+      "currentOwner": "Blazor",
+      "destination": {
+        "feature": "practice/analytics",
+        "story": "US-040",
+        "status": "PROPOSED_PENDING_PARITY_REVIEW"
+      },
+      "status": "DISCOVERED_NOT_REVIEWED"
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/PracticeTime.razor",
+      "sourceSha256": "874c2f2ba3c333aa20f5fefb426273b232b42e082fffe4212552e6aee6d38f17",
+      "routes": [
+        "/app/practice/time"
+      ],
+      "actions": [
+        "() => ApproveTimeAsync(context.Id)",
+        "() => SubmitTimeAsync(context.Id)",
+        "CreateTaskAsync",
+        "SaveTimeDraftAsync"
+      ],
+      "injectedServices": [
+        [
+          "CurrentActorResolver",
+          "ActorResolver"
+        ],
+        [
+          "IDbContextFactory<AuditSphereDbContext>",
+          "DbFactory"
+        ]
+      ],
+      "links": [
+        "/app"
+      ],
+      "asyncCalls": [
+        "ApproveTimeAsync",
+        "AuthorizeAsync",
+        "CreateDbContextAsync",
+        "CreateTaskAsync",
+        "LoadDataAsync",
+        "OnInitializedAsync",
+        "ResolveAsync",
+        "SaveTimeDraftAsync",
+        "SubmitTimeAsync",
+        "ToArrayAsync",
+        "ToDictionaryAsync",
+        "ToListAsync"
+      ],
+      "draftHooks": [
+        "data-draft-scope",
+        "draft-state"
+      ],
+      "authorizationLines": [
+        "var authorization = await AuthorizationDecision.AuthorizeAsync(db, _actor,",
+        "new AuthorizationRequest(_actor.FirmId, RequiredRoles: WorkRoles, InternalOnly: true));"
+      ],
+      "currentOwner": "Blazor",
+      "destination": {
+        "feature": "practice/finance",
+        "story": "US-019",
+        "status": "PROPOSED_PENDING_PARITY_REVIEW"
+      },
+      "status": "DISCOVERED_NOT_REVIEWED"
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/ProjectProgress.razor",
+      "sourceSha256": "4380115c3ae65676877d0b1949134632e64e171b2f075fa483041b257ef345dd",
+      "routes": [
+        "/app/administration/project-progress"
+      ],
+      "actions": [
+        "@(() => _taskFilter = filter.Key)"
+      ],
+      "injectedServices": [
+        [
+          "CurrentActorResolver",
+          "ActorResolver"
+        ],
+        [
+          "IDbContextFactory<AuditSphereDbContext>",
+          "DbFactory"
+        ]
+      ],
+      "links": [
+        "/app/administration",
+        "@area.Route"
+      ],
+      "asyncCalls": [
+        "CreateDbContextAsync",
+        "GetAsync",
+        "OnInitializedAsync",
+        "RefreshAsync",
+        "ResolveAsync"
+      ],
+      "draftHooks": [],
+      "authorizationLines": [],
+      "currentOwner": "Blazor",
+      "destination": {
+        "feature": "practice/analytics",
+        "story": "US-040",
+        "status": "PROPOSED_PENDING_PARITY_REVIEW"
+      },
+      "status": "DISCOVERED_NOT_REVIEWED"
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/ProposalDetail.razor",
+      "sourceSha256": "952220975ed21b7af83b657ce2b307820bad300181b419b1469e8ebeaea55863",
+      "routes": [
+        "/app/practice/proposals/{Id:guid}"
+      ],
+      "actions": [
+        "RefreshProposalAsync"
+      ],
+      "injectedServices": [
+        [
+          "CurrentActorResolver",
+          "ActorResolver"
+        ],
+        [
+          "IDbContextFactory<AuditSphereDbContext>",
+          "DbFactory"
+        ],
+        [
+          "ILogger<ProposalDetail>",
+          "Logger"
+        ]
+      ],
+      "links": [
+        "/app",
+        "/app/practice/leads"
+      ],
+      "asyncCalls": [
+        "AuthorizeAsync",
+        "ChangedAsync",
+        "CreateDbContextAsync",
+        "OnParametersSetAsync",
+        "RefreshProposalAsync",
+        "ResolveAsync",
+        "SingleOrDefaultAsync",
+        "ToListAsync"
+      ],
+      "draftHooks": [],
+      "authorizationLines": [
+        "else if (_actor is null || !_isAuthorized)",
+        "private bool _isAuthorized;",
+        "var authorization = await AuthorizationDecision.AuthorizeAsync(db, actor,",
+        "new AuthorizationRequest(actor.FirmId, RequiredRoles: CommercialRoles,",
+        "_isAuthorized = true;",
+        "_isAuthorized = authorized;",
+        "_isAuthorized = false;"
+      ],
+      "currentOwner": "Blazor",
+      "destination": {
+        "feature": "practice/commercial",
+        "story": "US-016",
+        "status": "PROPOSED_PENDING_PARITY_REVIEW"
+      },
+      "status": "DISCOVERED_NOT_REVIEWED"
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/RecordsArchive.razor",
+      "sourceSha256": "d3601645bc97021062bc444a9f71579f61d27450750a26913463fde99c98ed5b",
+      "routes": [
+        "/app/records/archives/{Id:guid}"
+      ],
+      "actions": [],
+      "injectedServices": [
+        [
+          "CurrentActorResolver",
+          "ActorResolver"
+        ],
+        [
+          "IDbContextFactory<AuditSphereDbContext>",
+          "DbFactory"
+        ]
+      ],
+      "links": [
+        "/app",
+        "@($"
+      ],
+      "asyncCalls": [
+        "AuthorizeAsync",
+        "CountAsync",
+        "CreateDbContextAsync",
+        "FirstOrDefaultAsync",
+        "OnParametersSetAsync",
+        "ResolveAsync",
+        "SingleOrDefaultAsync",
+        "ToListAsync"
+      ],
+      "draftHooks": [],
+      "authorizationLines": [
+        "var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,",
+        "new AuthorizationRequest(actor.FirmId, archive.ClientId, archive.EngagementId,"
+      ],
+      "currentOwner": "Blazor",
+      "destination": {
+        "feature": "records",
+        "story": "US-036",
+        "status": "PROPOSED_PENDING_PARITY_REVIEW"
+      },
+      "status": "DISCOVERED_NOT_REVIEWED"
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/Release.razor",
+      "sourceSha256": "0b47f8747fac34b68eb3583a20e1e0836793c81b52600e5a738bad4bdab76d88",
+      "routes": [
+        "/app/releases/{CandidateId:guid}"
+      ],
+      "actions": [
+        "IssueAsync",
+        "LoadCandidateAsync"
+      ],
+      "injectedServices": [
+        [
+          "CurrentActorResolver",
+          "ActorResolver"
+        ],
+        [
+          "IDbContextFactory<AuditSphereDbContext>",
+          "DbFactory"
+        ],
+        [
+          "ReleaseSafetyOptions",
+          "Safety"
+        ]
+      ],
+      "links": [
+        "/app"
+      ],
+      "asyncCalls": [
+        "AuthorizeAsync",
+        "CreateDbContextAsync",
+        "IssueAsync",
+        "LoadCandidateAsync",
+        "OnParametersSetAsync",
+        "ResolveAsync",
+        "SingleOrDefaultAsync"
+      ],
+      "draftHooks": [
+        "data-draft-skip"
+      ],
+      "authorizationLines": [
+        "<label for=\"release-key\">Authorized release key</label>",
+        "private bool IsStaff => _actor is not null && _actor.Roles.Any(x => x is \"Administrator\" or \"Partner\" or \"Manager\" or \"Reviewer\" or \"Staff\");",
+        "var authorization = await AuthorizationDecision.AuthorizeAsync(db, actor,",
+        "new AuthorizationRequest(candidate.FirmId, candidate.ClientId, candidate.EngagementId,"
+      ],
+      "currentOwner": "Blazor",
+      "destination": {
+        "feature": "records",
+        "story": "US-036",
+        "status": "PROPOSED_PENDING_PARITY_REVIEW"
+      },
+      "status": "DISCOVERED_NOT_REVIEWED"
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/ResourcePlanning.razor",
+      "sourceSha256": "2e6a2c726afddea68a3421ba8eecc120c9f76ed56068777b190103c4a24f2d2d",
+      "routes": [
+        "/app/practice/resources"
+      ],
+      "actions": [
+        "AddAvailabilityAsync",
+        "AddCertificationAsync",
+        "AllocateAsync",
+        "LoadAsync",
+        "SaveProfileAsync"
+      ],
+      "injectedServices": [
+        [
+          "CurrentActorResolver",
+          "ActorResolver"
+        ],
+        [
+          "IDbContextFactory<AuditSphereDbContext>",
+          "DbFactory"
+        ]
+      ],
+      "links": [],
+      "asyncCalls": [
+        "AddAvailabilityAsync",
+        "AddCertificationAsync",
+        "AllocateAsync",
+        "CreateDbContextAsync",
+        "GetGridAsync",
+        "LoadAsync",
+        "OnInitializedAsync",
+        "ResolveAsync",
+        "RunAsync",
+        "SaveProfileAsync",
+        "SetAllocationAsync",
+        "ToListAsync"
+      ],
+      "draftHooks": [],
+      "authorizationLines": [],
+      "currentOwner": "Blazor",
+      "destination": {
+        "feature": "practice/resources",
+        "story": "US-018",
+        "status": "PROPOSED_PENDING_PARITY_REVIEW"
+      },
+      "status": "DISCOVERED_NOT_REVIEWED"
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/ReviewPoint.razor",
+      "sourceSha256": "af63b1a7cf1132238a1836c2c6c68d12a97e10c06e3b7ca5ec8612f293b09415",
+      "routes": [
+        "/app/reviews/{Id:guid}"
+      ],
+      "actions": [
+        "ClearPoint",
+        "ReopenPoint"
+      ],
+      "injectedServices": [
+        [
+          "CurrentActorResolver",
+          "ActorResolver"
+        ],
+        [
+          "IDbContextFactory<AuditSphereDbContext>",
+          "DbFactory"
+        ],
+        [
+          "NavigationManager",
+          "Nav"
+        ]
+      ],
+      "links": [
+        "/app",
+        "@($"
+      ],
+      "asyncCalls": [
+        "AuthorizeAsync",
+        "CreateDbContextAsync",
+        "OnParametersSetAsync",
+        "ResolveAsync",
+        "SetDispositionAsync",
+        "SetReviewPointDispositionAsync",
+        "SingleOrDefaultAsync"
+      ],
+      "draftHooks": [],
+      "authorizationLines": [
+        "_isStaff = actor is not null && actor.Roles.Any(x => x is \"Administrator\" or \"Partner\" or \"Manager\" or \"Senior\" or \"Staff\" or \"EngagementLeader\" or \"Auditor\");",
+        "var authorization = await AuthorizationDecision.AuthorizeAsync(db, actor,",
+        "new AuthorizationRequest(actor.FirmId, candidate.ClientId, candidate.EngagementId,"
+      ],
+      "currentOwner": "Blazor",
+      "destination": {
+        "feature": "audit/review",
+        "story": "US-034",
+        "status": "PROPOSED_PENDING_PARITY_REVIEW"
+      },
+      "status": "DISCOVERED_NOT_REVIEWED"
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/StatementDrillDown.razor",
+      "sourceSha256": "46baaa347796678dcf0db48c7a1df302ede8617f41ab77e79d751dde17b8ed6d",
+      "routes": [
+        "/app/engagements/{EngagementId:guid}/statements"
+      ],
+      "actions": [
+        "@(() => _open = _open == key ? null : key)"
+      ],
+      "injectedServices": [
+        [
+          "CurrentActorResolver",
+          "ActorResolver"
+        ],
+        [
+          "IDbContextFactory<AuditSphereDbContext>",
+          "DbFactory"
+        ]
+      ],
+      "links": [
+        "@($"
+      ],
+      "asyncCalls": [
+        "CreateDbContextAsync",
+        "GetAsync",
+        "OnParametersSetAsync",
+        "ResolveAsync"
+      ],
+      "draftHooks": [],
+      "authorizationLines": [],
+      "currentOwner": "Blazor",
+      "destination": {
+        "feature": "accounting/statements",
+        "story": "US-023",
+        "status": "PROPOSED_PENDING_PARITY_REVIEW"
+      },
+      "status": "DISCOVERED_NOT_REVIEWED"
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/TechnicalLibrary.razor",
+      "sourceSha256": "9d272c9e265539b83bb9f963f826c88b3c95fd18d41c20f308e5fd5d18cefa4e",
+      "routes": [
+        "/app/library",
+        "/app/library/{DocumentId:guid}"
+      ],
+      "actions": [
+        "@(() => OpenVersionAsync(v.Version))",
+        "@(() => PublishAsync(draft.Id))",
+        "CreateAsync",
+        "DraftAsync",
+        "SearchAsync"
+      ],
+      "injectedServices": [
+        [
+          "CurrentActorResolver",
+          "ActorResolver"
+        ],
+        [
+          "IDbContextFactory<AuditSphereDbContext>",
+          "DbFactory"
+        ]
+      ],
+      "links": [
+        "@($"
+      ],
+      "asyncCalls": [
+        "CreateAsync",
+        "CreateDbContextAsync",
+        "DraftAsync",
+        "DraftVersionAsync",
+        "ListAsync",
+        "LoadAsync",
+        "OnParametersSetAsync",
+        "OpenAsync",
+        "OpenVersionAsync",
+        "PublishAsync",
+        "ResolveAsync",
+        "RunAsync",
+        "SearchAsync"
+      ],
+      "draftHooks": [],
+      "authorizationLines": [],
+      "currentOwner": "Blazor",
+      "destination": {
+        "feature": "practice/analytics",
+        "story": "US-040",
+        "status": "PROPOSED_PENDING_PARITY_REVIEW"
+      },
+      "status": "DISCOVERED_NOT_REVIEWED"
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/TenantConnection.razor",
+      "sourceSha256": "93254050f1ef30bc23478ae8587ce8d3c47da063f9f17e1b6a0bf379f9e1c2d3",
+      "routes": [
+        "/app/administration/microsoft365/tenant-connection"
+      ],
+      "actions": [
+        "() => BindDirectoryMemberAsync(context.ObjectId)",
+        "ConnectAsync",
+        "NextDirectoryPageAsync",
+        "SearchDirectoryAsync",
+        "VerifyAllCapabilitiesAsync",
+        "VerifyDirectoryAsync"
+      ],
+      "injectedServices": [
+        [
+          "CurrentActorResolver",
+          "ActorResolver"
+        ],
+        [
+          "IDbContextFactory<AuditSphereDbContext>",
+          "DbFactory"
+        ],
+        [
+          "IConfiguration",
+          "Configuration"
+        ],
+        [
+          "IWebHostEnvironment",
+          "Environment"
+        ],
+        [
+          "NavigationManager",
+          "Navigation"
+        ],
+        [
+          "IMicrosoftDirectoryReader",
+          "DirectoryReader"
+        ],
+        [
+          "TenantAdministrationSettings",
+          "AdminSettings"
+        ],
+        [
+          "IMicrosoftTenantConsentVerifier",
+          "ConsentVerifier"
+        ]
+      ],
+      "links": [
+        "/app/administration",
+        "/app/administration/microsoft365",
+        "@($"
+      ],
+      "asyncCalls": [
+        "BeginAsync",
+        "BindDirectoryMemberAsync",
+        "BindMemberAsync",
+        "BrowseActiveAsync",
+        "ConnectAsync",
+        "CreateDbContextAsync",
+        "FirstOrDefaultAsync",
+        "GetAsync",
+        "NextDirectoryPageAsync",
+        "OnInitializedAsync",
+        "ResolveAsync",
+        "RunSearchAsync",
+        "SearchAsync",
+        "SearchDirectoryAsync",
+        "StatusesAsync",
+        "VerifyAllCapabilitiesAsync",
+        "VerifyAsync",
+        "VerifyDirectoryAsync"
+      ],
+      "draftHooks": [],
+      "authorizationLines": [],
+      "currentOwner": "Blazor",
+      "destination": {
+        "feature": "administration",
+        "story": "US-039",
+        "status": "PROPOSED_PENDING_PARITY_REVIEW"
+      },
+      "status": "DISCOVERED_NOT_REVIEWED"
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/TrialBalanceIntake.razor",
+      "sourceSha256": "9ce8e72f08428d511de9930313692969d75fcfe5cedfb9e641a554f2693cd551",
+      "routes": [
+        "/app/engagements/{EngagementId:guid}/tb-intake"
+      ],
+      "actions": [
+        "CreateDraftAsync",
+        "ImportAsync",
+        "ProposeAsync",
+        "ReviewAsync"
+      ],
+      "injectedServices": [
+        [
+          "CurrentActorResolver",
+          "ActorResolver"
+        ],
+        [
+          "IDbContextFactory<AuditSphereDbContext>",
+          "DbFactory"
+        ]
+      ],
+      "links": [
+        "@($"
+      ],
+      "asyncCalls": [
+        "CopyToAsync",
+        "CreateDbContextAsync",
+        "CreateDraftAsync",
+        "GetAsync",
+        "ImportAsync",
+        "LoadDatasetsAsync",
+        "OnFileAsync",
+        "OnParametersSetAsync",
+        "PreviewAsync",
+        "ProposeAsync",
+        "ResolveAsync",
+        "ReviewAsync",
+        "SingleAsync",
+        "SingleOrDefaultAsync",
+        "ToListAsync"
+      ],
+      "draftHooks": [],
+      "authorizationLines": [],
+      "currentOwner": "Blazor",
+      "destination": {
+        "feature": "accounting/intake",
+        "story": "US-021",
+        "status": "PROPOSED_PENDING_PARITY_REVIEW"
+      },
+      "status": "DISCOVERED_NOT_REVIEWED"
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/Workpaper.razor",
+      "sourceSha256": "f8ad1c0396637bda6e119eda461f5b6a5cae27d2db999bf050ecf4baca1264b4",
+      "routes": [
+        "/app/audit/workpapers/{Id:guid}"
+      ],
+      "actions": [
+        "DiscardDraftAsync",
+        "ReloadCurrentTargetAsync",
+        "SaveDraftAsync",
+        "SubmitAsync"
+      ],
+      "injectedServices": [
+        [
+          "CurrentActorResolver",
+          "ActorResolver"
+        ],
+        [
+          "IDbContextFactory<AuditSphereDbContext>",
+          "DbFactory"
+        ],
+        [
+          "NavigationManager",
+          "Nav"
+        ]
+      ],
+      "links": [
+        "/app",
+        "@($"
+      ],
+      "asyncCalls": [
+        "AuthorizeAsync",
+        "AutosaveAfterDelayAsync",
+        "ClearIfAccessRevokedAsync",
+        "CreateDbContextAsync",
+        "DiscardDraftAsync",
+        "DiscardWorkpaperDraftAsync",
+        "DisposeAsync",
+        "FirstOrDefaultAsync",
+        "FlushPendingSaveAsync",
+        "InvokeAsync",
+        "LoadWorkpaperDraftAsync",
+        "OnConclusionInputAsync",
+        "OnParametersSetAsync",
+        "OnWorkInputAsync",
+        "RefreshAsync",
+        "ReloadCurrentTargetAsync",
+        "ResolveAsync",
+        "SaveDraftAsync",
+        "SaveWorkpaperDraftAsync",
+        "SingleOrDefaultAsync",
+        "SubmitAsync",
+        "SubmitWorkpaperAsync",
+        "ToListAsync"
+      ],
+      "draftHooks": [
+        "data-draft-skip"
+      ],
+      "authorizationLines": [
+        "var authorization = await AuthorizationDecision.AuthorizeAsync(db, actor,",
+        "new AuthorizationRequest(actor.FirmId, ClientId: scope.ClientId,",
+        "var authorization = await AuthorizationDecision.AuthorizeAsync(db, _actor,",
+        "new AuthorizationRequest(_actor.FirmId, ClientId: _workpaper.ClientId,"
+      ],
+      "currentOwner": "Blazor",
+      "destination": {
+        "feature": "audit/review",
+        "story": "US-034",
+        "status": "PROPOSED_PENDING_PARITY_REVIEW"
+      },
+      "status": "DISCOVERED_NOT_REVIEWED"
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Planning/EngagementBudgetPanel.razor",
+      "sourceSha256": "393025cf803dcb464e08347b155386ed673e569a959246cb86312448a5ba2171",
+      "routes": [],
+      "actions": [
+        "@(() => _lines.Add(new()))",
+        "@(() => _lines.Remove(line))",
+        "ApproveAsync",
+        "SubmitAsync"
+      ],
+      "injectedServices": [
+        [
+          "CurrentActorResolver",
+          "ActorResolver"
+        ],
+        [
+          "IDbContextFactory<AuditSphereDbContext>",
+          "DbFactory"
+        ]
+      ],
+      "links": [],
+      "asyncCalls": [
+        "ApproveAsync",
+        "ApproveBudgetAsync",
+        "CreateDbContextAsync",
+        "FirstOrDefaultAsync",
+        "GetBudgetBreakdownAsync",
+        "LoadAsync",
+        "OnParametersSetAsync",
+        "ResolveAsync",
+        "ReviseBudgetAsync",
+        "SubmitAsync"
+      ],
+      "draftHooks": [],
+      "authorizationLines": [
+        "_canManage = actor.Roles.Any(x => x is \"Partner\" or \"Manager\" or \"Administrator\");"
+      ],
+      "currentOwner": "Blazor",
+      "destination": {
+        "feature": "practice/resources",
+        "story": "US-018",
+        "status": "PROPOSED_PENDING_PARITY_REVIEW"
+      },
+      "status": "DISCOVERED_NOT_REVIEWED"
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Planning/EngagementStaffingPanel.razor",
+      "sourceSha256": "d248a8852cc21ef06c7c80cd4e5227ede0e9b1963620ceb9b1208bc236255cea",
+      "routes": [],
+      "actions": [
+        "@(() => RevokeAsync(context.AssignmentId))",
+        "AssignAsync"
+      ],
+      "injectedServices": [
+        [
+          "CurrentActorResolver",
+          "ActorResolver"
+        ],
+        [
+          "IDbContextFactory<AuditSphereDbContext>",
+          "DbFactory"
+        ]
+      ],
+      "links": [],
+      "asyncCalls": [
+        "AssignAsync",
+        "CandidatesAsync",
+        "CreateDbContextAsync",
+        "ListAsync",
+        "LoadAsync",
+        "OnParametersSetAsync",
+        "ResolveAsync",
+        "RevokeAsync"
+      ],
+      "draftHooks": [],
+      "authorizationLines": [
+        "<MudTd DataLabel=\"Engagement role\"><code>@context.AuthorizationRole</code></MudTd>",
+        "_canStaff = actor.Roles.Any(x => x is \"Partner\" or \"Manager\" or \"Administrator\");"
+      ],
+      "currentOwner": "Blazor",
+      "destination": {
+        "feature": "practice/resources",
+        "story": "US-018",
+        "status": "PROPOSED_PENDING_PARITY_REVIEW"
+      },
+      "status": "DISCOVERED_NOT_REVIEWED"
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Planning/MaterialityEnginePanel.razor",
+      "sourceSha256": "07b16634095a179659b0fa1fd2bdf6c5af69564d7c1116dab8f770996fcdbe9f",
+      "routes": [],
+      "actions": [
+        "ApproveAsync",
+        "CalculateAsync"
+      ],
+      "injectedServices": [
+        [
+          "CurrentActorResolver",
+          "ActorResolver"
+        ],
+        [
+          "IDbContextFactory<AuditSphereDbContext>",
+          "DbFactory"
+        ]
+      ],
+      "links": [],
+      "asyncCalls": [
+        "ApproveAsync",
+        "ApproveMaterialityAssessmentAsync",
+        "CalculateAsync",
+        "CreateDbContextAsync",
+        "GetLatestAsync",
+        "GetSourceAsync",
+        "InvokeAsync",
+        "LoadAsync",
+        "OnParametersSetAsync",
+        "ResolveAsync"
+      ],
+      "draftHooks": [],
+      "authorizationLines": [],
+      "currentOwner": "Blazor",
+      "destination": {
+        "feature": "audit/planning",
+        "story": "US-030",
+        "status": "PROPOSED_PENDING_PARITY_REVIEW"
+      },
+      "status": "DISCOVERED_NOT_REVIEWED"
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Planning/RiskRoutingPanel.razor",
+      "sourceSha256": "7e5393036bf35a32ff2a2b1c1db2267df1bff971de86e883713308408d389c99",
+      "routes": [],
+      "actions": [
+        "@(() => AssessAsync(row.RiskId))",
+        "@(() => AssignAsync(row.RiskId))",
+        "@(() => ClearAsync(row.RiskId))"
+      ],
+      "injectedServices": [
+        [
+          "CurrentActorResolver",
+          "ActorResolver"
+        ],
+        [
+          "IDbContextFactory<AuditSphereDbContext>",
+          "DbFactory"
+        ]
+      ],
+      "links": [],
+      "asyncCalls": [
+        "AssessAsync",
+        "AssignAsync",
+        "AssignOwnerAsync",
+        "ClearAsync",
+        "CreateDbContextAsync",
+        "GetRoutingAsync",
+        "ListAsync",
+        "LoadAsync",
+        "OnParametersSetAsync",
+        "PartnerClearAsync",
+        "ResolveAsync",
+        "RunAsync"
+      ],
+      "draftHooks": [],
+      "authorizationLines": [
+        "_canAssign = actor.Roles.Any(x => x is \"Partner\" or \"Manager\" or \"Administrator\");",
+        "_isPartner = actor.Roles.Contains(\"Partner\");"
+      ],
+      "currentOwner": "Blazor",
+      "destination": {
+        "feature": "audit/planning",
+        "story": "US-030",
+        "status": "PROPOSED_PENDING_PARITY_REVIEW"
+      },
+      "status": "DISCOVERED_NOT_REVIEWED"
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Shared/ConfirmDialog.razor",
+      "sourceSha256": "79b1e95244cb8e172eb3939ad10347d364018305d5b12b2518ae2e80e0ac428d",
+      "routes": [],
+      "actions": [
+        "Cancel",
+        "ConfirmAsync"
+      ],
+      "injectedServices": [],
+      "links": [],
+      "asyncCalls": [
+        "ConfirmAsync"
+      ],
+      "draftHooks": [],
+      "authorizationLines": [],
+      "currentOwner": "Blazor",
+      "destination": {
+        "feature": "shell/shared",
+        "story": "US-005",
+        "status": "PROPOSED_PENDING_PARITY_REVIEW"
+      },
+      "status": "DISCOVERED_NOT_REVIEWED"
+    }
+  ]
+}

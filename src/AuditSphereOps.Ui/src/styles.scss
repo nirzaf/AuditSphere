@@ -1,0 +1,178 @@
+// Include theming for Angular Material with `mat.theme()`.
+// This Sass mixin will define CSS variables that are used for styling Angular Material
+// components according to the Material 3 design spec.
+// Learn more about theming and how to use it for your application's
+// custom components at https://material.angular.dev/guide/theming
+@use '@angular/material' as mat;
+
+html {
+  height: 100%;
+  @include mat.theme(
+    (
+      color: (
+        primary: mat.$azure-palette,
+        tertiary: mat.$blue-palette,
+      ),
+      typography: Roboto,
+      density: 0,
+    )
+  );
+}
+
+body {
+  // Default the application to a light color theme. This can be changed to
+  // `dark` to enable the dark color theme, or to `light dark` to defer to the
+  // user's system settings.
+  color-scheme: light;
+
+  // Set a default background, font and text colors for the application using
+  // Angular Material's system-level CSS variables. Learn more about these
+  // variables at https://material.angular.dev/guide/system-variables
+  background-color: var(--mat-sys-surface);
+  color: var(--mat-sys-on-surface);
+  font: var(--mat-sys-body-medium);
+
+  // Reset the user agent margin.
+  margin: 0;
+  height: 100%;
+}
+/* You can add global styles to this file, and also import other style files */
+
+:focus-visible {
+  outline: 3px solid #075a9c;
+  outline-offset: 3px;
+}
+h1 {
+  font-size: clamp(1.8rem, 3vw, 2.5rem);
+}
+.eyebrow {
+  color: #315476;
+  font-weight: 600;
+}
+form {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+caption {
+  text-align: left;
+  padding: 1rem 0;
+  font-weight: 600;
+}
+th,
+td {
+  padding: 1rem;
+  border-bottom: 1px solid #d8e1eb;
+  text-align: left;
+}
+.number {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+small {
+  display: block;
+  overflow-wrap: anywhere;
+  color: #455468;
+}
+.table-scroll {
+  overflow-x: auto;
+}
+nav {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+.panel {
+  border: 1px solid #d8e1eb;
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  margin: 1.5rem 0;
+  background: var(--mat-sys-surface);
+}
+.panel h2 {
+  margin-top: 0;
+  font-size: 1.25rem;
+}
+.inline-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem 1rem;
+  margin: 1rem 0;
+}
+.inline-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.875rem;
+  max-width: 100%;
+  min-width: 0;
+}
+input,
+select,
+textarea {
+  font: inherit;
+  padding: 0.5rem;
+  border: 1px solid #8a9bb0;
+  border-radius: 4px;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+textarea {
+  min-width: min(28rem, 100%);
+  min-height: 4rem;
+}
+.status-chip {
+  display: inline-block;
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+  background: #e3ebf3;
+  color: #12385d;
+  font-size: 0.8125rem;
+  text-transform: capitalize;
+  white-space: nowrap;
+}
+.error-text,
+.state-error {
+  color: #a1260d;
+}
+.command-result {
+  font-weight: 500;
+}
+.blockers li {
+  color: #7a3b00;
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+dl.facts {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 0.25rem 1rem;
+}
+dl.facts dt {
+  font-weight: 600;
+}
+dl.facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+code {
+  overflow-wrap: anywhere;
+}

@@ -1,0 +1,61 @@
+using AuditSphereOps.Application.Accounting;
+using AuditSphereOps.Domain.Shared;
+
+namespace AuditSphereOps.Api.Ui;
+
+public static partial class UiEndpoints
+{
+  public const long MaxTrialBalanceUploadBytes = 25 * 1024 * 1024;
+  public sealed record IntakeAllocationInput(string AccountCode, string Destination, string Section);
+  public sealed record IntakeDraftInput(string TaxonomyVersion, IReadOnlyList<IntakeAllocationInput> Allocations);
+
+  private static void MapIntakeEndpoints(RouteGroupBuilder group)
+  {
+    group.MapGet("/engagements/{id:guid}/tb-intake", (Guid id, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => TrialBalanceIntakeWorkspaceQuery.GetAsync(db, actor, id, ct)));
+    // Preview validates without persisting anything, but still requires antiforgery because it accepts an upload.
+    group.MapPost("/engagements/{id:guid}/tb-intake/preview", async (Guid id, HttpContext http) =>
+    {
+      var file = await ReadUploadAsync(http, "file", MaxTrialBalanceUploadBytes);
+      if (file is null) return Invalid("Choose an Excel or CSV file up to 25 MB.");
+      return await CommandAsync(http, async (db, actor, ct) =>
+      {
+        var workspace = await TrialBalanceIntakeWorkspaceQuery.GetAsync(db, actor, id, ct);
+        if (!workspace.Succeeded) return CommandResult<object>.Fail(workspace.ErrorCode!, workspace.Message!);
+        var preview = await MultiPeriodTrialBalanceService.PreviewAsync(db, actor, workspace.Value!.ClientId, file.Value.Name, file.Value.Content, ct);
+        return preview.Succeeded
+          ? CommandResult<object>.Ok(new { preview.Value!.FileSha256, preview.Value.Periods, preview.Value.CanImport })
+          : CommandResult<object>.Fail(preview.ErrorCode!, preview.Message!);
+      });
+    });
+    group.MapPost("/engagements/{id:guid}/tb-intake/import", async (Guid id, HttpContext http) =>
+    {
+      var file = await ReadUploadAsync(http, "file", MaxTrialBalanceUploadBytes);
+      if (file is null) return Invalid("Choose an Excel or CSV file up to 25 MB.");
+      return await CommandAsync(http, async (db, actor, ct) =>
+      {
+        var workspace = await TrialBalanceIntakeWorkspaceQuery.GetAsync(db, actor, id, ct);
+        if (!workspace.Succeeded) return CommandResult<object>.Fail(workspace.ErrorCode!, workspace.Message!);
+        var result = await MultiPeriodTrialBalanceService.ImportAsync(db, actor, workspace.Value!.ClientId, id, file.Value.Name, file.Value.Content, ct);
+        return result.Succeeded
+          ? CommandResult<object>.Ok(result.Value!.Datasets.Select(x => new { x.PeriodCode, x.DatasetId }).ToList())
+          : CommandResult<object>.Fail(result.ErrorCode!, result.Message!);
+      });
+    });
+    group.MapGet("/datasets/{id:guid}/mapping-memory", (Guid id, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => MappingMemoryService.ProposeAsync(db, actor, id, ct)));
+    group.MapGet("/datasets/{id:guid}/currency-review", (Guid id, string presentation, string? percent, string? amount, HttpContext http) =>
+    {
+      var p = 10m; var a = 0m;
+      if ((percent is not null && !TryDecimal(percent, out p)) || (amount is not null && !TryDecimal(amount, out a)))
+        return Task.FromResult(Invalid("Enter thresholds as numbers."));
+      return ReadAsync(http, (db, actor, ct) => TrialBalanceCurrencyReviewQuery.GetAsync(db, actor, id, presentation ?? "", p, a, ct));
+    });
+    group.MapPost("/datasets/{id:guid}/draft-mapping", (Guid id, IntakeDraftInput input, HttpContext http) =>
+    {
+      var overrides = (input.Allocations ?? []).Where(x => !string.IsNullOrWhiteSpace(x.Destination)).Select(x => new MappingAllocationInput(x.AccountCode,
+        x.Destination.Trim().ToUpperInvariant(), (x.Section ?? "").Trim().ToUpperInvariant(), 1m, "Mapped at intake")).ToList();
+      return CommandAsync(http, (db, actor, ct) => TrialBalanceIntakeWorkspaceQuery.CreateDraftAsync(db, actor, id, input.TaxonomyVersion ?? "", overrides, ct));
+    });
+  }
+}

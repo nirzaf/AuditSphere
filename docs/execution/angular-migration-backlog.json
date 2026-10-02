@@ -1,0 +1,288 @@
+{
+  "schemaVersion": 1,
+  "authority": "Owner-attached migration guide; final retirement remains an acceptance gate.",
+  "stories": [
+    {
+      "id": "US-001",
+      "title": "Baseline every route, action and business control",
+      "status": "PARTIAL",
+      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+    },
+    {
+      "id": "US-002",
+      "title": "Establish the Angular 22 compatibility and build baseline",
+      "status": "PARTIAL",
+      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+    },
+    {
+      "id": "US-003",
+      "title": "Expose authorized UI contracts instead of server-component calls",
+      "status": "PARTIAL",
+      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+    },
+    {
+      "id": "US-004",
+      "title": "Preserve session identity, scoped permissions and CSRF protection",
+      "status": "PARTIAL",
+      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+    },
+    {
+      "id": "US-005",
+      "title": "Build task-focused shells and preserve deep links",
+      "status": "PARTIAL",
+      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+    },
+    {
+      "id": "US-006",
+      "title": "Create one accessible design system",
+      "status": "PARTIAL",
+      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+    },
+    {
+      "id": "US-007",
+      "title": "Show actionable workflow, error and empty states",
+      "status": "OPEN",
+      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+    },
+    {
+      "id": "US-008",
+      "title": "Use scoped signals and predictable asynchronous state",
+      "status": "OPEN",
+      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+    },
+    {
+      "id": "US-009",
+      "title": "Implement typed forms and exact financial inputs",
+      "status": "OPEN",
+      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+    },
+    {
+      "id": "US-010",
+      "title": "Preserve drafts without cross-user leakage",
+      "status": "OPEN",
+      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+    },
+    {
+      "id": "US-011",
+      "title": "Deliver keyboard-first accounting tables and editors",
+      "status": "OPEN",
+      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+    },
+    {
+      "id": "US-012",
+      "title": "Migrate authorized global search and shortcuts",
+      "status": "PARTIAL",
+      "scope": "Angular authorized navigation search, debounce/cancellation, autocomplete and shortcut implemented; browser parity pending."
+    },
+    {
+      "id": "US-013",
+      "title": "Migrate uploads and downloads with exact evidence integrity",
+      "status": "OPEN",
+      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+    },
+    {
+      "id": "US-014",
+      "title": "Replace circuit reconnection with operation-aware recovery",
+      "status": "OPEN",
+      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+    },
+    {
+      "id": "US-015",
+      "title": "Migrate portfolio, client and engagement workspaces",
+      "status": "PARTIAL",
+      "scope": "Angular portfolio, client/engagement reads, contacts, engagement creation/activation and planning commands implemented; complete summary/export/parity pending."
+    },
+    {
+      "id": "US-016",
+      "title": "Migrate CRM, quotation and commercial document workflows",
+      "status": "PARTIAL",
+      "scope": "Angular commercial intake, proposals/lifecycle, quotation pricing/matrix approval, documents, fee agreements and commercial settings implemented as opt-in routes. Full source metadata/form/draft parity and final acceptance remain pending."
+    },
+    {
+      "id": "US-017",
+      "title": "Migrate acceptance, continuance and activation gates",
+      "status": "PARTIAL",
+      "scope": "Angular checklist, fenced answers, specialist review request/results, continuance and explicit Partner decision controls implemented; full assessment-page parity and browser acceptance pending."
+    },
+    {
+      "id": "US-018",
+      "title": "Migrate staffing, resource planning and budgets",
+      "status": "PARTIAL",
+      "scope": "Angular engagement staffing assignment/revocation and budget preparation/approval implemented; resource grid and full parity pending."
+    },
+    {
+      "id": "US-019",
+      "title": "Migrate time, billing, invoices and firm books",
+      "status": "OPEN",
+      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+    },
+    {
+      "id": "US-020",
+      "title": "Migrate accounting setup, periods and revision lineage",
+      "status": "PARTIAL",
+      "scope": "Angular scoped client/profile/period/book reads, reviewed setup, close/reopen with revision fences, readiness and amendment history implemented. Roll-forward, restatements, complete source parity and final browser acceptance remain pending."
+    },
+    {
+      "id": "US-021",
+      "title": "Migrate multi-period trial-balance intake and general ledger",
+      "status": "OPEN",
+      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+    },
+    {
+      "id": "US-022",
+      "title": "Build the mapping workbench with revision-safe batch editing",
+      "status": "OPEN",
+      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+    },
+    {
+      "id": "US-023",
+      "title": "Migrate statement drill-down without losing source context",
+      "status": "OPEN",
+      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+    },
+    {
+      "id": "US-024",
+      "title": "Migrate journal and adjustment workflows",
+      "status": "OPEN",
+      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+    },
+    {
+      "id": "US-025",
+      "title": "Migrate reconciliation, valuation and accounting evidence",
+      "status": "OPEN",
+      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+    },
+    {
+      "id": "US-026",
+      "title": "Migrate currency review and remeasurement",
+      "status": "OPEN",
+      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+    },
+    {
+      "id": "US-027",
+      "title": "Migrate the group consolidation workspace",
+      "status": "OPEN",
+      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+    },
+    {
+      "id": "US-028",
+      "title": "Migrate advanced consolidation without inventing methods",
+      "status": "OPEN",
+      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+    },
+    {
+      "id": "US-029",
+      "title": "Migrate package build, rendering and stage reviews",
+      "status": "OPEN",
+      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+    },
+    {
+      "id": "US-030",
+      "title": "Migrate audit planning, materiality and risk routing",
+      "status": "OPEN",
+      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+    },
+    {
+      "id": "US-031",
+      "title": "Migrate audit programs, populations and fieldwork execution",
+      "status": "OPEN",
+      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+    },
+    {
+      "id": "US-032",
+      "title": "Migrate sampling, evidence links and physical indexing",
+      "status": "OPEN",
+      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+    },
+    {
+      "id": "US-033",
+      "title": "Migrate the confirmations dashboard and alternatives",
+      "status": "OPEN",
+      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+    },
+    {
+      "id": "US-034",
+      "title": "Migrate workpapers, findings and anchored review notes",
+      "status": "OPEN",
+      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+    },
+    {
+      "id": "US-035",
+      "title": "Migrate completion, human opinions and deliverables",
+      "status": "OPEN",
+      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+    },
+    {
+      "id": "US-036",
+      "title": "Migrate release, archive, document locks and freeze",
+      "status": "OPEN",
+      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+    },
+    {
+      "id": "US-037",
+      "title": "Migrate client onboarding and request delegation",
+      "status": "OPEN",
+      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+    },
+    {
+      "id": "US-038",
+      "title": "Migrate PBC request management and client package review",
+      "status": "OPEN",
+      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+    },
+    {
+      "id": "US-039",
+      "title": "Migrate user access and Microsoft 365 administration",
+      "status": "OPEN",
+      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+    },
+    {
+      "id": "US-040",
+      "title": "Migrate the technical library, analytics and project progress",
+      "status": "OPEN",
+      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+    },
+    {
+      "id": "US-041",
+      "title": "Migrate the operations console",
+      "status": "OPEN",
+      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+    },
+    {
+      "id": "US-042",
+      "title": "Verify accessibility, responsive use and locale behavior",
+      "status": "OPEN",
+      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+    },
+    {
+      "id": "US-043",
+      "title": "Set and meet measurable performance budgets",
+      "status": "OPEN",
+      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+    },
+    {
+      "id": "US-044",
+      "title": "Prove behavioral, security and contract parity",
+      "status": "PARTIAL",
+      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+    },
+    {
+      "id": "US-045",
+      "title": "Deploy with explicit route ownership and reversible cutover",
+      "status": "PARTIAL",
+      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+    },
+    {
+      "id": "US-046",
+      "title": "Document Angular conventions and safe AI-assisted implementation",
+      "status": "PARTIAL",
+      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+    },
+    {
+      "id": "US-047",
+      "title": "Retire Blazor only after the migration is accepted",
+      "status": "OPEN",
+      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+    }
+  ]
+}

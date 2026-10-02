@@ -33,6 +33,12 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ---
 
+## Angular presentation migration — portfolio pilot
+
+The owner-requested guide is being implemented through explicit, reversible route ownership. The opt-in Angular preview at `/ui/app` uses the existing trusted .NET session and an Application portfolio query. Existing Blazor, portal, authentication, consent, download and health routes retain their owners. Enablement requires a browser build; rollback disables the preview flag.
+
+The [architecture decision](../architecture/auditsphere-angular-migration-current.md) and [source discovery inventory](angular-source-inventory.json) distinguish implemented behavior from unreviewed coverage. This is a partial foundation and read-only portfolio slice, not completion of the full guide. Other financial, audit, portal and administration stories remain open; final retirement requires accepted parity. Exact executed checks are recorded in `status.json`.
+
 ## Project completion hardening
 
 Both protected shells now perform periodic trusted session verification and dispose their content on a disabled identity or stale epoch without a user action. Existing command authorization remains authoritative. Systematic random sampling is available through the existing fieldwork tool and immutable, order-bound calculation log; its migration preserves the other sampling methods. Current documentation navigation and health validation follow the owner-retired specification changes.
@@ -2017,3 +2023,57 @@ dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj
 
 
 ```
+
+### Angular client and engagement overview extension
+
+Added Application workspace projections, authorized HTTP contracts, lazy Angular detail routes and session-fenced reads. Engagement-only grants remain unable to read client-wide profiles or sibling engagements. Mutation panels remain pending migration; this is not full US-015 acceptance. Latest observed verification is recorded in status.json.
+
+Angular commercial extension: proposal detail, independent commercial review, sent-state recording, client response, prospect conversion and reviewed proposal revisions now compose existing Application services. Full Angular migration and built-in-browser acceptance remain pending; observed checks are recorded in status.json.
+
+Angular commercial intake extension: qualified leads now have bounded opportunity detail, reviewed discovery creation with a stable request identity, and initial proposal creation. Concurrent same-request creation and cross-firm read isolation were checked using PostgreSQL. Pricing/settings/documents/fee agreements remain pending; focused observed checks are in status.json.
+
+Angular quotation extension: approved-rate hours, backend preview, versioned breakdowns and independent matrix approvals compose existing Application workflows. Reviewed rates/revisions are fenced under the existing firm lock; four-decimal factor validation aligns with the canonical idempotency hash. The targeted Playwright pricing/save/approval journey passed after its deferred-load wait was corrected. Full migration and built-in-browser acceptance remain pending; observed checks live in status.json.
+
+Angular commercial document extension: generation and immutable artifact history/downloads are now available through the opt-in proposal route. Commands check the reviewed quotation and profile under the existing firm lock; letter generation retains professional acceptance, Partner and signature/seal guards. Focused PostgreSQL, API and Playwright checks passed, including the portfolio revocation regression after its search selector was scoped. Settings, fee agreements and complete migration/browser acceptance remain pending. See status.json for observed verification facts.
+
+Angular fee-agreement extension: persisted milestone amounts, engagement linkage, finance-controlled invoice drafts and manual advance-payment commands now compose existing billing services from the proposal route. Concurrent links cannot overwrite; payment-reference replay rejects changed payment details. The commercial browser fixture needed a valid primary-contact email, preserving the existing conversion gate. Focused local checks passed; commercial settings, full migration and built-in-browser acceptance remain pending. See status.json for observed checks.
+
+Angular commercial settings extension: versioned firm profile and confirmed matrix changes/deactivation now have opt-in Angular controls with server-side Administrator/Partner edit authority and reviewed-state fences. Focused unit, PostgreSQL, API and Playwright checks passed; existing document profile identities were retained, and EF reported no model drift. Full source parity and the wider migration remain pending. See status.json for observed facts.
+
+Angular accounting read extension: opt-in Angular client search and profile/reporting-period views now compose bounded Application queries. Explicit client-wide authorization is required for client books; engagement-only grants are not widened. Angular build and contract tests passed. Setup mutations, period workbenches and accounting browser/security acceptance remain pending; observed verification is recorded in status.json.
+
+Angular accounting profile extension: reviewed profile creation/revision now composes existing Application commands. Writes are serialized under the existing firm lock, revisions remain exact strings and unknown outcomes require a persisted-state refresh. Local builds and Angular tests passed; PostgreSQL/API/browser verification and the wider accounting migration remain pending. See status.json.
+
+Accounting profile verification extension: PostgreSQL checks confirmed client/sibling isolation, engagement-only denial, stale-session refusal and one winning concurrent reviewed revision. The authenticated API contract check also covered accounting read denials and a profile write without CSRF. Built-in browser acceptance and remaining accounting workflows are pending; exact observed results live in status.json.
+
+Angular reporting-period creation extension: explicit review, ISO date contracts and existing client-scoped creation now have Angular controls. Concurrent duplicate creation is serialized; PostgreSQL checks confirmed one period and refusal of a foreign prior-period link. Opening-balance evidence is not fabricated by setup. Builds and Angular contract checks passed; book setup, lifecycle workbenches and browser acceptance remain pending. See status.json.
+
+Angular reporting-book extension: bounded book metadata and reviewed creation now compose the existing Application service. The selected period is locked before closed-state/duplicate checks. Focused PostgreSQL verification covered concurrent duplicates and closed-period refusal; local builds and Angular checks passed. Remaining accounting workbenches and built-in browser acceptance are pending. See status.json.
+
+Angular accounting journey: synthetic PostgreSQL-backed Playwright setup created a reviewed profile, reporting period and reporting book, then verified persisted reload. The initial selector-label failure was corrected with an explicit period label; the rerun passed without page errors. This does not replace built-in browser acceptance or complete accounting parity. See status.json.
+
+Accounting lifecycle backend extension: reviewed close/reopen contracts bind the client and exact period revision under the existing period lock. Readiness rechecks authorization; source close gates and reopen amendment evidence remain authoritative. Focused PostgreSQL checks and Release build passed. Angular lifecycle controls and browser acceptance remain pending; see status.json.
+
+Angular period lifecycle UI extension: close readiness and decision authority are shown separately; closing/reopening requires explicit review and a reason. The synthetic PostgreSQL-backed Playwright journey passed through setup, close and reopen and verified amendment evidence. Builds and Angular contract tests passed. Built-in browser acceptance and remaining accounting workflows are pending; see status.json.
+
+Angular amendment-history extension: authorized bounded reopen history now shows exact previous/current revisions, reason, actor identity and UTC timestamp. PostgreSQL projection and synthetic Playwright lineage assertions passed alongside builds and Angular checks. Roll-forward, restatements and full migration/browser acceptance remain pending; observed results live in status.json.
+
+Angular roll-forward extension: reviewed external-evidence setup now sends exact monetary/date strings and the closed prior-period revision to the existing Application workflow. PostgreSQL checks preserved draft book copy, unapproved opening evidence and duplicate refusal, and verified stale revision denial. Builds and Angular checks passed. Validated source-package selection, bridge history/review and browser acceptance remain pending. See status.json.
+
+Angular opening-balance extension: scoped bounded bridge history now displays exact amounts, residual, source hash, evidence and approval metadata. Reviewed approval locks the bridge and verifies client/source identity with current reviewer authority. Focused PostgreSQL checks passed along with builds and Angular contracts. Validated source-package selection and browser approval/roll-forward journeys remain pending; see status.json.
+
+Accounting roll-forward browser extension: the synthetic Playwright journey now passes exact decimal opening amounts, closed-period roll-forward, draft book copy and reviewed bridge approval with persisted approver identity, followed by reopen and amendment history. This is automated local evidence; validated source-package selection and full migration/built-in browser acceptance remain pending. See status.json.
+
+Angular source-package selector extension: bounded matching validated packages can now be loaded for the exact closed client period/currency. Selection supplies the persisted hash and retains the reviewed prior revision fence. Local builds, Angular tests and focused PostgreSQL/Playwright checks passed for empty matching sources, wrong-client refusal and external-evidence roll-forward. Positive package selection and full migration/built-in browser acceptance remain pending; see status.json.
+
+Positive roll-forward source coverage: PostgreSQL checks selected the exact validated package, excluded review-required and other period/currency/client packages, refused a changed source hash and verified the persisted bridge source identity. Angular source decoding now has direct revision/currency tests. An invalid fixture status/date was corrected to the real catalogue. Production UI build and focused checks passed; positive browser selection and full migration acceptance remain pending. See status.json.
+
+Positive Angular source-package journey: the existing local Application package fixture produced a validated package, which the synthetic Playwright journey selected for roll-forward and verified by exact persisted bridge identity/hash after reviewed approval. The journey passed; full accounting parity/migration and built-in browser acceptance remain pending. See status.json.
+
+Angular chart read extension: scoped bounded revision metadata and deferred account hierarchy reads now compose Application queries. Account paging executes in PostgreSQL rather than materializing the entire chart; exact-client linkage, page bounds and final current authorization are checked. Builds, Angular contracts, PostgreSQL hierarchy assertions and the synthetic accounting Playwright journey passed. Chart mutation migration and full migration/built-in browser acceptance remain pending; see status.json.
+
+Angular chart draft-write extension: reviewed creation and account entry now compose existing locked Application commands with latest/chart-version fences and exact client linkage. Published charts remain immutable. Builds, Angular checks, focused PostgreSQL locking/scope tests and the synthetic accounting browser journey passed. Publication, aliases/dimensions and full migration/built-in browser acceptance remain pending; see status.json.
+
+Angular chart publication extension: an independent reviewer confirms a bounded full account-set digest; the existing locked command checks client/version/digest and preserves hierarchy validation and preparer separation. Builds, Angular contracts, PostgreSQL stale-snapshot/locking assertions and the synthetic reviewer Playwright journey passed with persisted publisher identity. Aliases/dimensions and full migration/built-in browser acceptance remain pending; see status.json.
+
+Chart alias publication fence: the reviewed chart digest now includes source-account aliases. Alias writes accept exact client/version fences under the chart lock. The focused PostgreSQL workspace test passed, including wrong-client refusal and stale publication after alias changes. Alias UI, dimensions, full migration and built-in browser acceptance remain pending; see status.json.

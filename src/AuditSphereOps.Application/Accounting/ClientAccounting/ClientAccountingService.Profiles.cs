@@ -24,6 +24,11 @@ public static partial class ClientAccountingService
     var auth = await AuthorizeClientAsync(db, actor, request.ClientId, PreparerRoles, ct);
     if (!auth.Succeeded)
       return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    await db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id = {actor.FirmId} FOR UPDATE").SingleOrDefaultAsync(ct);
+    auth = await AuthorizeClientAsync(db, actor, request.ClientId, PreparerRoles, ct);
+    if (!auth.Succeeded)
+      return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
     if (await db.ClientAccountingProfiles.AnyAsync(x => x.FirmId == actor.FirmId && x.ClientId == request.ClientId, ct))
       return CommandResult<Guid>.Fail(ErrorCodes.IdempotencyConflict, "The client already has an accounting profile.");
 
@@ -37,6 +42,7 @@ public static partial class ClientAccountingService
     };
     db.ClientAccountingProfiles.Add(profile);
     await db.SaveChangesAsync(ct);
+    await tx.CommitAsync(ct);
     return CommandResult<Guid>.Ok(profile.Id);
   }
 
@@ -49,6 +55,8 @@ public static partial class ClientAccountingService
         request.FiscalYearStartMonth is < 1 or > 12 || request.FiscalYearStartDay is < 1 or > 31 ||
         string.IsNullOrWhiteSpace(request.Jurisdiction) || string.IsNullOrWhiteSpace(request.SourceSystem))
       return CommandResult<long>.Fail(ErrorCodes.Accounting.MappingInvalid, "A valid client accounting profile is required.");
+    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    await db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id = {actor.FirmId} FOR UPDATE").SingleOrDefaultAsync(ct);
     var profile = await db.ClientAccountingProfiles.SingleOrDefaultAsync(x => x.Id == profileId && x.FirmId == actor.FirmId, ct);
     if (profile is null)
       return CommandResult<long>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
@@ -68,6 +76,7 @@ public static partial class ClientAccountingService
     profile.SourceSystemIdentifier = request.SourceSystemIdentifier.Trim();
     profile.Revision++;
     await db.SaveChangesAsync(ct);
+    await tx.CommitAsync(ct);
     return CommandResult<long>.Ok(profile.Revision);
   }
 }

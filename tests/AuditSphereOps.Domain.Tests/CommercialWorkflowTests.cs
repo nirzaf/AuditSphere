@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.IO.Compression;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Acceptance;
@@ -80,6 +81,184 @@ public sealed class CommercialWorkflowTests
       "Client supplies the trial balance", 1m, "QAR", "2026-01-01", "2026-12-31"));
     Assert.True(proposal.Succeeded, proposal.Message);
     return (lead.Value, opportunity.Value, proposal.Value);
+  }
+
+  [Fact]
+  public async Task AngularCommercialSettingsRespectEditAuthorityAndReviewedRevisions()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var readOnly = await CommercialSettingsQuery.GetAsync(db, w.Prep);
+    Assert.True(readOnly.Succeeded, readOnly.Message);
+    Assert.False(readOnly.Value!.CanEdit);
+    var initial = await CommercialSettingsQuery.GetAsync(db, w.Partner);
+    Assert.True(initial.Value!.CanEdit);
+    var request = new SaveCommercialProfileRequest("Synthetic Settings Firm", "Address", "", "", "#0F766E", "Closing", ExpectedVersion: 0);
+    Assert.False((await CommercialDocumentService.SaveProfileAsync(db, w.Prep, request)).Succeeded);
+    var saved = await CommercialDocumentService.SaveProfileAsync(db, w.Partner, request);
+    Assert.True(saved.Succeeded, saved.Message);
+    Assert.Equal(saved.Value, (await CommercialDocumentService.SaveProfileAsync(db, w.Partner, request)).Value);
+    Assert.False((await CommercialDocumentService.SaveProfileAsync(db, w.Partner, request with { LegalName = "Stale revised name" })).Succeeded);
+    var rule = await QuotationService.SaveRuleAsync(db, w.Partner, "DISCOUNT_OVER_PERCENT", 5m, "Manager",
+      expectedRulesRevision: initial.Value.RulesRevision);
+    Assert.True(rule.Succeeded, rule.Message);
+    var current = await CommercialSettingsQuery.GetAsync(db, w.Partner);
+    Assert.NotEqual(initial.Value.RulesRevision, current.Value!.RulesRevision);
+    Assert.Equal("1", current.Value.Profile!.Version);
+    Assert.Single(current.Value.Rules);
+    var stale = await QuotationService.SaveRuleAsync(db, w.Partner, "DISCOUNT_OVER_PERCENT", 10m, "Partner",
+      expectedRulesRevision: initial.Value.RulesRevision);
+    Assert.False(stale.Succeeded);
+    Assert.Equal(ErrorCodes.StaleRevision, stale.ErrorCode);
+    Assert.False((await QuotationService.DeactivateRuleAsync(db, w.Prep, rule.Value, expectedRulesRevision: current.Value.RulesRevision)).Succeeded);
+    Assert.True((await QuotationService.DeactivateRuleAsync(db, w.Partner, rule.Value, expectedRulesRevision: current.Value.RulesRevision)).Succeeded);
+    var inactive = await CommercialSettingsQuery.GetAsync(db, w.Partner);
+    Assert.Empty(inactive.Value!.Rules);
+    Assert.Equal(initial.Value.RulesRevision, inactive.Value.RulesRevision);
+    Assert.False((await QuotationService.SaveRuleAsync(db, w.Partner, "NON_STANDARD_TERMS", null, "Partner",
+      expectedRulesRevision: current.Value.RulesRevision)).Succeeded);
+  }
+
+  [Fact]
+  public async Task AngularFeeWorkspaceIsFirmScopedAndConcurrentEngagementLinksNeverOverwrite()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    var foreign = await SeedAsync(pg);
+    var (_, _, proposalId) = await DraftProposalAsync(pg, w);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var blocked = await FeeAgreementWorkspaceQuery.GetAsync(db, w.Prep, proposalId);
+    Assert.True(blocked.Succeeded, blocked.Message);
+    Assert.False(blocked.Value!.CanCreate);
+    Assert.NotEmpty(blocked.Value.CreationBlockers);
+    var quote = await QuotationService.SaveAsync(db, w.Prep, Quote(proposalId));
+    Assert.True((await QuotationService.SubmitAsync(db, w.Prep, quote.Value)).Succeeded);
+    Assert.True((await PracticeCrmService.ApproveProposalAsync(db, w.Partner, proposalId)).Succeeded);
+    Assert.True((await PracticeCrmService.SendProposalAsync(db, w.Prep, proposalId)).Succeeded);
+    Assert.True((await PracticeCrmService.RecordProposalResponseAsync(db, w.Prep, proposalId, new("ACCEPTED"))).Succeeded);
+    var client = await PracticeCrmService.ConvertToClientDraftAsync(db, w.Prep, new(proposalId, "Fee workspace client"));
+    var eligible = await FeeAgreementWorkspaceQuery.GetAsync(db, w.Prep, proposalId);
+    Assert.True(eligible.Value!.CanCreate);
+    Assert.False(eligible.Value.CanFinance);
+    var created = await FeeAgreementService.CreateAgreementAsync(db, w.Prep, proposalId);
+    Assert.True(created.Succeeded, created.Message);
+    var engagementA = Guid.NewGuid(); var engagementB = Guid.NewGuid();
+    db.Engagements.AddRange(
+      new Engagement { Id = engagementA, FirmId = w.FirmId, PracticeClientId = client.Value, ServiceRoute = "Audit", CreatedAt = DateTimeOffset.UtcNow },
+      new Engagement { Id = engagementB, FirmId = w.FirmId, PracticeClientId = client.Value, ServiceRoute = "Accounting", CreatedAt = DateTimeOffset.UtcNow });
+    await db.SaveChangesAsync();
+    var ready = await FeeAgreementWorkspaceQuery.GetAsync(db, w.Prep, proposalId);
+    Assert.Equal(2, ready.Value!.Engagements.Count);
+    Assert.Equal(2, ready.Value.Milestones.Count);
+    Assert.Equal(25000m, decimal.Parse(ready.Value.Fee, CultureInfo.InvariantCulture));
+    Assert.Equal(50m, decimal.Parse(ready.Value.AdvancePercent, CultureInfo.InvariantCulture));
+    Assert.False(ready.Value.ReleaseRecorded);
+    Assert.False((await FeeAgreementWorkspaceQuery.GetAsync(db, foreign.Prep, proposalId)).Succeeded);
+    async Task<CommandResult> LinkAsync(Guid engagement)
+    {
+      await using var scoped = new AuditSphereDbContext(pg.Options);
+      return await FeeAgreementService.LinkEngagementAsync(scoped, w.Prep, created.Value, engagement);
+    }
+    var links = await Task.WhenAll(LinkAsync(engagementA), LinkAsync(engagementB));
+    Assert.Single(links, r => r.Succeeded);
+    Assert.Single(links, r => !r.Succeeded);
+    var linked = await FeeAgreementWorkspaceQuery.GetAsync(db, w.Prep, proposalId);
+    Assert.Contains(linked.Value!.EngagementId!.Value, new[] { engagementA, engagementB });
+    Assert.Empty(linked.Value.Engagements);
+    Assert.True((await LinkAsync(linked.Value.EngagementId.Value)).Succeeded);
+  }
+
+  [Fact]
+  public async Task AngularCommercialDocumentsShowBlockersAndRetainImmutableIdentities()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    var foreign = await SeedAsync(pg);
+    var (_, _, proposalId) = await DraftProposalAsync(pg, w);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var initial = await CommercialDocumentWorkspaceQuery.GetAsync(db, w.Prep, proposalId);
+    Assert.True(initial.Succeeded, initial.Message);
+    Assert.NotEmpty(initial.Value!.CommonBlockers);
+    Assert.NotEmpty(initial.Value.LetterBlockers);
+    var quote = await QuotationService.SaveAsync(db, w.Prep, Quote(proposalId));
+    Assert.True((await QuotationService.SubmitAsync(db, w.Prep, quote.Value)).Succeeded);
+    var profileRequest = new SaveCommercialProfileRequest("Synthetic Firm", "Address", "", "", "#0F766E", "Closing",
+      "Reviewed history", "Reviewed credentials", "Reviewed methodology");
+    Assert.True((await CommercialDocumentService.SaveProfileAsync(db, w.Partner, profileRequest)).Succeeded);
+    var ready = await CommercialDocumentWorkspaceQuery.GetAsync(db, w.Prep, proposalId);
+    Assert.Empty(ready.Value!.CommonBlockers);
+    Assert.Empty(ready.Value.TenderBlockers);
+    Assert.NotEmpty(ready.Value.LetterBlockers);
+    Assert.False((await CommercialDocumentService.GenerateBriefQuotationAsync(db, w.Prep, proposalId,
+      expectedQuotationId: Guid.NewGuid(), expectedProfileVersion: 1)).Succeeded);
+    Assert.Empty(await db.CommercialDocuments.Where(x => x.ProposalId == proposalId).ToListAsync());
+    var brief = await CommercialDocumentService.GenerateBriefQuotationAsync(db, w.Prep, proposalId,
+      expectedQuotationId: quote.Value, expectedProfileVersion: 1);
+    Assert.True(brief.Succeeded, brief.Message);
+    var replay = await CommercialDocumentService.GenerateBriefQuotationAsync(db, w.Prep, proposalId,
+      expectedQuotationId: quote.Value, expectedProfileVersion: 1);
+    Assert.Equal(brief.Value!.Id, replay.Value!.Id);
+    var tender = await CommercialDocumentService.GenerateTenderAsync(db, w.Prep, proposalId, "Reviewed assigned team", "Reviewed delivery timeline", true,
+      expectedQuotationId: quote.Value, expectedProfileVersion: 1);
+    Assert.True(tender.Succeeded, tender.Message);
+    var listed = await CommercialDocumentWorkspaceQuery.GetAsync(db, w.Prep, proposalId);
+    Assert.Equal(2, listed.Value!.Documents.Count);
+    var artifact = Assert.Single(listed.Value.Documents, d => d.Id == brief.Value.Id);
+    Assert.Equal(brief.Value.Sha256Hex, artifact.Sha256);
+    Assert.Equal("1", artifact.ProfileVersion);
+    Assert.False((await CommercialDocumentWorkspaceQuery.GetAsync(db, foreign.Prep, proposalId)).Succeeded);
+    Assert.False((await CommercialDocumentService.GenerateEngagementLetterAsync(db, w.Partner, proposalId,
+      expectedQuotationId: quote.Value, expectedProfileVersion: 1)).Succeeded);
+    Assert.True((await CommercialDocumentService.SaveProfileAsync(db, w.Partner, profileRequest with { LegalName = "Synthetic Revised Firm" })).Succeeded);
+    var stale = await CommercialDocumentService.GenerateBriefQuotationAsync(db, w.Prep, proposalId,
+      expectedQuotationId: quote.Value, expectedProfileVersion: 1);
+    Assert.False(stale.Succeeded);
+    Assert.Equal(ErrorCodes.StaleRevision, stale.ErrorCode);
+    var revised = await CommercialDocumentWorkspaceQuery.GetAsync(db, w.Prep, proposalId);
+    Assert.Equal("2", revised.Value!.ProfileVersion);
+    Assert.All(revised.Value.Documents, d => Assert.Equal("1", d.ProfileVersion));
+  }
+
+  [Fact]
+  public async Task AngularQuotationWorkspaceUsesReviewedRatesAndRevisionFences()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    var foreign = await SeedAsync(pg);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var (_, _, proposalId) = await DraftProposalAsync(pg, w);
+    var workspace = await QuotationWorkspaceQuery.GetAsync(db, w.Prep, proposalId);
+    Assert.True(workspace.Succeeded, workspace.Message);
+    Assert.True(workspace.Value!.Editable);
+    Assert.Empty(workspace.Value.Versions);
+    var rate = workspace.Value.Rates.Single(r => r.Role == "Partner");
+    var request = new SaveQuotationRequest(proposalId, [new("Partner", "Audit", 10m, rate.Id)],
+      1m, 0m, 0m, false, null, ExpectedRevision: 0, ExpectedProposalRevision: 1);
+    var preview = await QuotationWorkspaceQuery.PreviewAsync(db, w.Prep, request);
+    Assert.True(preview.Succeeded, preview.Message);
+    Assert.Equal(10000m, decimal.Parse(preview.Value!.Fee, System.Globalization.CultureInfo.InvariantCulture));
+    Assert.Empty(await db.QuotationVersions.Where(x => x.ProposalId == proposalId).ToListAsync());
+    var saved = await QuotationService.SaveAsync(db, w.Prep, request);
+    Assert.True(saved.Succeeded, saved.Message);
+    Assert.Equal(saved.Value, (await QuotationService.SaveAsync(db, w.Prep, request)).Value);
+    Assert.False((await QuotationService.SaveAsync(db, w.Prep, request with { DiscountPercent = 1m })).Succeeded);
+    Assert.False((await QuotationWorkspaceQuery.PreviewAsync(db, w.Prep, request)).Succeeded);
+    Assert.False((await QuotationWorkspaceQuery.GetAsync(db, foreign.Prep, proposalId)).Succeeded);
+    var current = await QuotationWorkspaceQuery.GetAsync(db, w.Prep, proposalId);
+    Assert.Equal("1", Assert.Single(current.Value!.Versions).Revision);
+    db.RateCardVersions.Add(new RateCardVersion
+    {
+      Id = Guid.NewGuid(), FirmId = w.FirmId, Version = 2, Role = "Partner", Activity = "Audit", Currency = "QAR",
+      RatePerHour = 1100m, Status = PracticeTimeStates.RateApproved, CreatedByUserId = w.Partner.UserId,
+      ApprovedByUserId = w.Manager.UserId, CreatedAt = DateTimeOffset.UtcNow, ApprovedAt = DateTimeOffset.UtcNow
+    });
+    await db.SaveChangesAsync();
+    var stale = await QuotationService.SaveAsync(db, w.Prep, request with { ExpectedRevision = 1 });
+    Assert.False(stale.Succeeded);
+    Assert.Equal(ErrorCodes.StaleRevision, stale.ErrorCode);
+    Assert.False((await QuotationWorkspaceQuery.PreviewAsync(db, w.Prep, request with { ExpectedRevision = 1 })).Succeeded);
+    Assert.Single(await db.QuotationVersions.Where(x => x.ProposalId == proposalId).ToListAsync());
   }
 
   [Fact]
@@ -423,6 +602,8 @@ public sealed class CommercialWorkflowTests
     Assert.Equal((false, 7500m, null), (partial.Value!.MilestonePaid, partial.Value.Outstanding, partial.Value.ReceiptDocumentId));
     var repeated = await FeeAgreementService.RecordAdvancePaymentAsync(db, w.FinanceManager, agreementId, 5000m, "TT-1");
     Assert.Equal(partial.Value.ReceiptId, repeated.Value!.ReceiptId);
+    Assert.Equal(1, await db.Receipts.CountAsync(x => x.FirmId == w.FirmId));
+    Assert.Equal("fee.reference-conflict", (await FeeAgreementService.RecordAdvancePaymentAsync(db, w.FinanceManager, agreementId, 4999m, "TT-1")).ErrorCode);
     Assert.Equal(1, await db.Receipts.CountAsync(x => x.FirmId == w.FirmId));
     Assert.Equal("fee.over-payment", (await FeeAgreementService.RecordAdvancePaymentAsync(db, w.FinanceManager, agreementId, 8000m, "TT-2")).ErrorCode);
     Assert.Equal(0, await db.CommercialDocuments.CountAsync(x => x.Kind == CommercialDocumentKinds.PaymentReceipt));

@@ -9,7 +9,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AuditSphereOps.Application.Practice;
 
-public sealed record QuotationHoursLine(string Role, string Activity, decimal Hours);
+public sealed record QuotationHoursLine(string Role, string Activity, decimal Hours, Guid? ExpectedRateCardId = null);
 
 public sealed record SaveQuotationRequest(
   Guid ProposalId,
@@ -18,7 +18,8 @@ public sealed record SaveQuotationRequest(
   decimal RiskPremiumPercent,
   decimal DiscountPercent,
   bool NonStandardTerms,
-  string? NonStandardTermsNote);
+  string? NonStandardTermsNote,
+  long? ExpectedRevision = null, long? ExpectedProposalRevision = null);
 
 public sealed record QuotationRateOption(string Role, string Activity, decimal RatePerHour, Guid RateCardVersionId);
 
@@ -55,6 +56,8 @@ public static class QuotationService
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
     var proposal = await db.Proposals.SingleOrDefaultAsync(x => x.Id == request.ProposalId && x.FirmId == actor.FirmId, ct);
     if (proposal is null) return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    if (request.ExpectedProposalRevision.HasValue && request.ExpectedProposalRevision != proposal.Revision)
+      return CommandResult<Guid>.Fail(ErrorCodes.StaleRevision, "Proposal revision changed.");
     if (proposal.Status is not CrmStates.ProposalDraft)
       return CommandResult<Guid>.Fail(ErrorCodes.ProtectedState, "Only a draft proposal can be priced; revise the proposal to reprice.");
 
@@ -69,6 +72,8 @@ public static class QuotationService
         .Where(x => x.FirmId == actor.FirmId && x.Status == PracticeTimeStates.RateApproved && x.Currency == currency &&
           x.Role.ToUpper() == role.ToUpper() && x.Activity.ToUpper() == activity.ToUpper())
         .OrderByDescending(x => x.Version).FirstOrDefaultAsync(ct);
+      if (line.ExpectedRateCardId.HasValue && line.ExpectedRateCardId != card?.Id)
+        return CommandResult<Guid>.Fail(ErrorCodes.StaleRevision, "An approved rate changed; refresh the quotation.");
       priced.Add(new(role, activity, line.Hours, card?.RatePerHour ?? 0m, card?.Id ?? Guid.Empty));
     }
     var input = new QuotationPricingInput(currency, priced, request.ComplexityFactor, request.RiskPremiumPercent, request.DiscountPercent);
@@ -81,6 +86,8 @@ public static class QuotationService
     if (latest is not null && latest.Status != QuotationStates.Superseded && latest.InputHash == hash)
       return CommandResult<Guid>.Ok(latest.Id); // identical recalculation is idempotent
 
+    if (request.ExpectedRevision.HasValue && request.ExpectedRevision != (latest?.Revision ?? 0))
+      return CommandResult<Guid>.Fail(ErrorCodes.StaleRevision, "Quotation revision changed.");
     var result = QuotationCalculator.Calculate(input);
     var rules = await db.CommercialApprovalRules.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.Active).ToListAsync(ct);
     var required = CommercialApprovalMatrix.Required(rules, request.DiscountPercent, request.NonStandardTerms);
@@ -175,12 +182,15 @@ public static class QuotationService
   }
 
   public static async Task<CommandResult<IReadOnlyList<QuotationView>>> ListAsync(
-    IAuditSphereDbContext db, ActorContext actor, Guid proposalId, CancellationToken ct = default)
+    IAuditSphereDbContext db, ActorContext actor, Guid proposalId, CancellationToken ct = default, int? limit = null)
   {
+    if (limit is < 1 or > 100) return CommandResult<IReadOnlyList<QuotationView>>.Fail("request.invalid", "Invalid limit.");
     var auth = await AuthorizeAsync(db, actor, CommercialRoles, ct);
     if (!auth.Succeeded) return CommandResult<IReadOnlyList<QuotationView>>.Fail(auth.ErrorCode!, auth.Message!);
-    var versions = await db.QuotationVersions.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ProposalId == proposalId)
-      .OrderByDescending(x => x.Revision).ToListAsync(ct);
+    var query = db.QuotationVersions.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ProposalId == proposalId)
+      .OrderByDescending(x => x.Revision).AsQueryable();
+    if (limit.HasValue) query = query.Take(limit.Value);
+    var versions = await query.ToListAsync(ct);
     var ids = versions.Select(x => x.Id).ToList();
     var approvals = await db.QuotationApprovals.AsNoTracking().Where(x => x.FirmId == actor.FirmId && ids.Contains(x.QuotationVersionId)).ToListAsync(ct);
     IReadOnlyList<QuotationView> views = versions.Select(v => new QuotationView(v,
@@ -210,7 +220,7 @@ public static class QuotationService
 
   public static async Task<CommandResult<Guid>> SaveRuleAsync(
     IAuditSphereDbContext db, ActorContext actor, string kind, decimal? thresholdPercent, string requiredRole,
-    CancellationToken ct = default)
+    CancellationToken ct = default, string? expectedRulesRevision = null)
   {
     var auth = await AuthorizeAsync(db, actor, RuleAdminRoles, ct);
     if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
@@ -231,6 +241,8 @@ public static class QuotationService
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     if (await LockFirmAsync(db, actor.FirmId, ct) is null)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
+    if (expectedRulesRevision is not null && expectedRulesRevision != await RulesRevisionAsync(db, actor.FirmId, ct))
+      return CommandResult<Guid>.Fail(ErrorCodes.StaleRevision, "Approval rules changed; review the current matrix.");
     var previous = await db.CommercialApprovalRules.Where(x => x.FirmId == actor.FirmId && x.Kind == kind && x.ThresholdPercent == thresholdPercent)
       .OrderByDescending(x => x.Version).ToListAsync(ct);
     // A terms rule may exist for several roles; a band is one row per threshold, so a new version replaces it.
@@ -249,11 +261,15 @@ public static class QuotationService
   }
 
   public static async Task<CommandResult> DeactivateRuleAsync(
-    IAuditSphereDbContext db, ActorContext actor, Guid ruleId, CancellationToken ct = default)
+    IAuditSphereDbContext db, ActorContext actor, Guid ruleId, CancellationToken ct = default, string? expectedRulesRevision = null)
   {
     var auth = await AuthorizeAsync(db, actor, RuleAdminRoles, ct);
     if (!auth.Succeeded) return auth;
     await using var tx = await db.Database.BeginTransactionAsync(ct);
+    if (await LockFirmAsync(db, actor.FirmId, ct) is null)
+      return CommandResult.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
+    if (expectedRulesRevision is not null && expectedRulesRevision != await RulesRevisionAsync(db, actor.FirmId, ct))
+      return CommandResult.Fail(ErrorCodes.StaleRevision, "Approval rules changed; review the current matrix.");
     var rule = await db.CommercialApprovalRules.SingleOrDefaultAsync(x => x.Id == ruleId && x.FirmId == actor.FirmId, ct);
     if (rule is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     rule.Active = false;
@@ -271,6 +287,12 @@ public static class QuotationService
       .Where(x => x.FirmId == actor.FirmId && x.Active).OrderBy(x => x.Kind).ThenBy(x => x.ThresholdPercent).ToListAsync(ct);
     return CommandResult<IReadOnlyList<CommercialApprovalRule>>.Ok(rules);
   }
+
+  internal static string RulesRevision(IEnumerable<CommercialApprovalRule> rules) => Hashing.Sha256Hex(
+    System.Text.Encoding.UTF8.GetBytes(string.Join("|", rules.Where(r => r.Active).OrderBy(r => r.Id)
+      .Select(r => $"{r.Id:D}:{r.Version}:{r.Kind}:{r.RequiredRole}:{r.ThresholdPercent?.ToString(System.Globalization.CultureInfo.InvariantCulture)}"))));
+  private static async Task<string> RulesRevisionAsync(IAuditSphereDbContext db, Guid firmId, CancellationToken ct) =>
+    RulesRevision(await db.CommercialApprovalRules.AsNoTracking().Where(r => r.FirmId == firmId && r.Active).ToListAsync(ct));
 
   private static IReadOnlyList<RequiredApproval> ReadRequired(QuotationVersion version) =>
     JsonSerializer.Deserialize<List<RequiredApproval>>(version.RequiredApprovalsJson, Json) ?? [];

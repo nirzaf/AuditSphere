@@ -9,7 +9,16 @@ public sealed class QuotationCalculatorTests
   private static readonly Guid CardB = Guid.Parse("00000000-0000-0000-0000-00000000000b");
 
   private static QuotationPricingInput Input(decimal complexity = 1m, decimal risk = 0m, decimal discount = 0m) => new("QAR",
-    [new("Partner", "Audit", 10m, 1000m, CardA), new("Manager", "Audit", 20m, 750m, CardB)], complexity, risk, discount);
+  [new("Partner", "Audit", 10m, 1000m, CardA), new("Manager", "Audit", 20m, 750m, CardB)], complexity, risk, discount);
+
+  [Fact]
+  public void InputsCannotExceedCanonicalHashPrecision()
+  {
+    var input = new QuotationPricingInput("QAR", [new("Partner", "Audit", 10m, 1000m, Guid.NewGuid())], 1.00001m, 0m, 0m);
+    Assert.NotNull(QuotationCalculator.Validate(input));
+    Assert.NotNull(QuotationCalculator.Validate(input with { ComplexityFactor = 1m, RiskPremiumPercent = 0.00001m }));
+    Assert.NotNull(QuotationCalculator.Validate(input with { ComplexityFactor = 1m, DiscountPercent = 0.00001m }));
+  }
 
   [Fact]
   public void Fee_IsRateTimesHours_ThenComplexity_ThenRiskPremium_ThenDiscount()

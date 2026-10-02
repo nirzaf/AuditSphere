@@ -41,6 +41,20 @@ jobs:
           cache: true
           cache-dependency-path: '**/packages.lock.json'
 
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: src/AuditSphereOps.Ui/.nvmrc
+          cache: npm
+          cache-dependency-path: src/AuditSphereOps.Ui/package-lock.json
+
+      - name: Build and test Angular presentation
+        working-directory: src/AuditSphereOps.Ui
+        run: |
+          set -euo pipefail
+          npm ci
+          npm run build
+          npm run test:ci
+
       - name: Verify pinned .NET SDK
         run: |
           set -euo pipefail
@@ -94,6 +108,9 @@ jobs:
         run: |
           set -euo pipefail
           python3 scripts/docs/validate-markdown-documentation.py
+
+      - name: Check UI source discovery drift
+        run: python3 scripts/ui/inventory.py --check
 
       - name: Validate Markdown filenames
         run: |

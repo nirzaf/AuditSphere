@@ -1,3 +1,4 @@
+using AuditSphereOps.Api.Authentication;
 using AuditSphereOps.Application.Abstractions;
 using Microsoft.AspNetCore.Components.Authorization;
 

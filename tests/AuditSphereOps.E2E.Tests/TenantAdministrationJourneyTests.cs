@@ -12,9 +12,9 @@ namespace AuditSphereOps.E2E.Tests;
 [Trait("Category", "Microsoft365Onboarding")]
 public sealed class TenantAdministrationJourneyTests
 {
-  private sealed record Seeded(OwnedBlazorHost Host, AppUser Admin, string TenantId, string MemberObjectId, string GroupObjectId);
+  internal sealed record Seeded(OwnedBlazorHost Host, AppUser Admin, string TenantId, string MemberObjectId, string GroupObjectId);
 
-  private static async Task<Seeded> SeedAsync(OwnedBlazorHost host, bool verified)
+  internal static async Task<Seeded> SeedAsync(OwnedBlazorHost host, bool verified)
   {
     var tenantId = Guid.NewGuid().ToString("D");
     var now = DateTimeOffset.UtcNow;
@@ -77,7 +77,7 @@ public sealed class TenantAdministrationJourneyTests
     return new(host, admin, tenantId, Guid.NewGuid().ToString("D"), Guid.NewGuid().ToString("D"));
   }
 
-  private static Dictionary<string, string> Simulation(Seeded seeded, bool provisioning = true) => new()
+  internal static Dictionary<string, string> Simulation(Seeded seeded, bool provisioning = true) => new()
   {
     ["TenantAdministration__Simulation__Enabled"] = "true",
     ["TenantAdministration__Provisioning__Enabled"] = provisioning ? "true" : "false",

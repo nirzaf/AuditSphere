@@ -29,7 +29,8 @@ public sealed record CreateOpportunityRequest(
   string Currency,
   decimal? Probability = null,
   Guid? OwnerUserId = null,
-  string? NextAction = null);
+  string? NextAction = null,
+  Guid? RequestId = null);
 
 public sealed record ReviseProposalRequest(
   Guid OpportunityId,
@@ -62,7 +63,8 @@ public sealed record CreateClientContactRequest(
   string? ApprovedScope = null,
   DateTimeOffset? ValidFrom = null,
   DateTimeOffset? ValidTo = null,
-  bool Primary = false);
+  bool Primary = false,
+  long? ExpectedSafetyGeneration = null);
 
 /// <summary>
 /// Command-only commercial workflow. A proposal can win commercial work, but conversion
@@ -141,6 +143,24 @@ public static class PracticeCrmService
     if (await LockFirmAsync(db, actor.FirmId, ct) is null)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
 
+    if (request.RequestId == Guid.Empty)
+      return CommandResult<Guid>.Fail("crm.invalid", "A nonempty operation identity is required.");
+    if (request.RequestId.HasValue)
+    {
+      var prior = await db.Opportunities.AsNoTracking().SingleOrDefaultAsync(x => x.Id == request.RequestId.Value, ct);
+      if (prior is not null)
+      {
+        if (prior.FirmId != actor.FirmId || prior.LeadId != request.LeadId
+          || prior.ServiceRoute != request.ServiceRoute.Trim() || prior.EntityScope != request.EntityScope.Trim()
+          || prior.PeriodStart != request.PeriodStart.Trim() || prior.PeriodEnd != request.PeriodEnd.Trim()
+          || prior.ExpectedFee != request.ExpectedFee || prior.Currency != request.Currency.Trim().ToUpperInvariant()
+          || prior.Probability != request.Probability || prior.OwnerUserId != request.OwnerUserId
+          || prior.NextAction != TrimOrNull(request.NextAction))
+          return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Operation identity unavailable or terms changed.");
+        return CommandResult<Guid>.Ok(prior.Id);
+      }
+    }
+
     var lead = await db.Leads.SingleOrDefaultAsync(x => x.Id == request.LeadId && x.FirmId == actor.FirmId, ct);
     if (lead is null) return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     if (lead.Status != CrmStates.LeadQualified)
@@ -148,7 +168,7 @@ public static class PracticeCrmService
 
     var opportunity = new Opportunity
     {
-      Id = Guid.CreateVersion7(), FirmId = actor.FirmId, LeadId = lead.Id,
+      Id = request.RequestId ?? Guid.CreateVersion7(), FirmId = actor.FirmId, LeadId = lead.Id,
       ServiceRoute = request.ServiceRoute.Trim(), EntityScope = request.EntityScope.Trim(),
       PeriodStart = request.PeriodStart.Trim(), PeriodEnd = request.PeriodEnd.Trim(),
       ExpectedFee = request.ExpectedFee, Currency = request.Currency.Trim().ToUpperInvariant(),
@@ -437,6 +457,8 @@ public static class PracticeCrmService
       $"SELECT * FROM client_safety_states WHERE id = {request.PracticeClientId} AND firm_id = {actor.FirmId} FOR UPDATE").SingleOrDefaultAsync(ct);
     if (clientGuard is null)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Client safety state is unavailable.");
+    if (request.ExpectedSafetyGeneration.HasValue && clientGuard.InputGeneration != request.ExpectedSafetyGeneration.Value)
+      return CommandResult<Guid>.Fail(ErrorCodes.GenerationStale, "Client context changed. Review current contacts before submitting again.");
     var clientExists = await db.PracticeClients.AsNoTracking()
       .AnyAsync(x => x.Id == request.PracticeClientId && x.FirmId == actor.FirmId, ct);
     if (!clientExists) return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");

@@ -159,4 +159,38 @@ public sealed class ClientPortalOnboardingTests
     Assert.Equal(ErrorCodes.ScopeDenied, (await PbcService.StartUploadAsync(db, colleagueActor, Upload(requestId))).ErrorCode);
     Assert.Empty(await ClientPortalService.ParticipantRequests(db, colleagueActor).ToListAsync());
   }
+  [Fact]
+  public async Task PortalWorkspace_HidesOtherParticipants_AndFrozenFileRefusesClientReplies()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var f = await PbcSeed.SeedAsync(pg);
+    var other = await AddClientUserAsync(pg, f, f.ClientId, f.EngagementId, onboarded: true);
+    var mine = await SentRequestAsync(pg, f, f.Client.Id);
+    var sibling = await SentRequestAsync(pg, f, other.Id);
+    var actor = PbcSeed.Actor(f.Client, "ClientUser");
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var workspace = await ClientPortalWorkspaceQuery.GetAsync(db, actor);
+    Assert.Equal(mine, Assert.Single(workspace.Value!.Requests).Id);
+    Assert.Equal(ErrorCodes.ScopeDenied, (await ClientPortalWorkspaceQuery.RequestAsync(db, actor, sibling)).ErrorCode);
+    Assert.Equal(ErrorCodes.ScopeDenied, (await ClientPortalWorkspaceQuery.RequestAsync(db, PbcSeed.Actor(f.Staff, "Staff"), mine)).ErrorCode);
+    Assert.True((await PbcService.ReplyAsync(db, actor, mine, "Before freeze")).Succeeded);
+    var reportId = Guid.NewGuid(); var signedAt = DateTimeOffset.UtcNow.AddDays(-70);
+    db.AuditDeliverables.Add(new AuditSphereOps.Domain.Completion.AuditDeliverable
+    {
+      Id = reportId, FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId, Kind = "INDEPENDENT_AUDITORS_REPORT",
+      InputDigest = new string('a', 64), Content = [1], ContentSha256 = Hashing.Sha256Hex(new byte[] { 1 }),
+      TemplateVersion = "SYNTHETIC", FileName = "synthetic.pdf", ContentType = "application/pdf", CreatedByUserId = f.Admin.Id, CreatedAt = signedAt
+    });
+    db.EngagementFileFreezes.Add(new AuditSphereOps.Domain.Records.EngagementFileFreeze
+    {
+      Id = Guid.NewGuid(), FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
+      ReportDeliverableId = reportId, ReportSignedAt = signedAt, DueAt = signedAt.AddDays(60),
+      State = "FROZEN", FrozenAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow
+    });
+    await db.SaveChangesAsync();
+    Assert.False((await ClientPortalWorkspaceQuery.RequestAsync(db, actor, mine)).Value!.CanWrite);
+    Assert.Equal(ErrorCodes.ProtectedState, (await PbcService.ReplyAsync(db, actor, mine, "After freeze")).ErrorCode);
+    Assert.False(await db.PbcCommunications.AnyAsync(x => x.PbcRequestId == mine && x.Body == "After freeze"));
+  }
+
 }

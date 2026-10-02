@@ -22,7 +22,7 @@ public sealed record ReportingPeriodRequest(
 public sealed record RollForwardPeriodRequest(
   Guid ClientId, Guid PriorPeriodId, string PeriodCode, DateOnly StartDate, DateOnly EndDate,
   string Basis, string Currency, string SourceHash, decimal PriorClosingAmount,
-  decimal CurrentOpeningAmount, string EvidenceReference, Guid? SourcePackageId = null);
+  decimal CurrentOpeningAmount, string EvidenceReference, Guid? SourcePackageId = null, long? ExpectedPriorRevision = null);
 
 public sealed record ReportingBookRequest(
   Guid ClientId, Guid PeriodId, string Code, string Basis,

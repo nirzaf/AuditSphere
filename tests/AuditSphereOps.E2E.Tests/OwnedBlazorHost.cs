@@ -105,6 +105,10 @@ internal sealed class OwnedBlazorHost : IAsyncDisposable
     IReadOnlyDictionary<string, string>? extraSettings = null) =>
     StartWebAsync(FindRepositoryRoot(), identity, enableSetup: false, extraSettings: extraSettings);
 
+  public Task<string> StartApiForIdentityAsync(AuditSphereOps.Domain.Security.AppUser identity,
+    IReadOnlyDictionary<string, string>? extraSettings = null) =>
+    StartWebAsync(FindRepositoryRoot(), identity, enableSetup: false, extraSettings: extraSettings, apiHost: true);
+
   public async Task WaitForReceivedAsync(Guid uploadId)
   {
     using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(45));
@@ -144,10 +148,10 @@ internal sealed class OwnedBlazorHost : IAsyncDisposable
   }
 
   private async Task<string> StartWebAsync(string repo, AuditSphereOps.Domain.Security.AppUser identity, bool enableSetup,
-    bool requireProtectionAttestation = false, IReadOnlyDictionary<string, string>? extraSettings = null)
+    bool requireProtectionAttestation = false, IReadOnlyDictionary<string, string>? extraSettings = null, bool apiHost = false)
   {
     var url = $"http://127.0.0.1:{ReserveLoopbackPort()}";
-    var logPath = Path.Combine(runRoot, $"web-{identity.UserKind}-{identity.Id:N}.log");
+    var logPath = Path.Combine(runRoot, $"{(apiHost ? "api" : "web")}-{identity.UserKind}-{identity.Id:N}.log");
     var settings = new List<string>
     {
       "DOTNET_ENVIRONMENT", "Test",
@@ -175,10 +179,10 @@ internal sealed class OwnedBlazorHost : IAsyncDisposable
     }
     foreach (var (key, value) in extraSettings ?? new Dictionary<string, string>())
       settings.AddRange([key, value]);
-    var process = StartDotnet(repo, "src/AuditSphereOps.Web/AuditSphereOps.Web.csproj", logPath,
+    var process = StartDotnet(repo, apiHost ? "src/AuditSphereOps.Api/AuditSphereOps.Api.csproj" : "src/AuditSphereOps.Web/AuditSphereOps.Web.csproj", logPath,
       [.. settings]);
     processes.Add(process);
-    await pg.RecordProcessAsync($"web-{identity.UserKind}", process);
+    await pg.RecordProcessAsync($"{(apiHost ? "api" : "web")}-{identity.UserKind}", process);
     await WaitForReadyAsync(process, url, logPath);
     return url;
   }
@@ -248,7 +252,7 @@ internal sealed class OwnedBlazorHost : IAsyncDisposable
     info.ArgumentList.Add("--no-restore");
     info.ArgumentList.Add("--configuration");
     info.ArgumentList.Add(ConfigurationName());
-    if (project.Contains("Web.csproj", StringComparison.Ordinal))
+    if (project.Contains("Web.csproj", StringComparison.Ordinal) || project.Contains("Api.csproj", StringComparison.Ordinal))
     {
       var urlIndex = Array.IndexOf(pairs, "ASPNETCORE_URLS");
       if (urlIndex >= 0)

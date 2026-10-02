@@ -67,6 +67,53 @@ public sealed class AcceptanceChecklistTests
   }
 
   [Fact]
+  public async Task SpecialistReviewCommandsFenceGenerationStatusAndClientIdentity()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    Assert.False((await AcceptanceChecklistService.RequestClearanceAsync(db, w.Staff, w.ClientId,
+      "Independence", "Specialist", expectedGeneration: 999)).Succeeded);
+    var request = await AcceptanceChecklistService.RequestClearanceAsync(db, w.Staff, w.ClientId,
+      "Independence", "Specialist", expectedGeneration: 1);
+    Assert.True(request.Succeeded, request.Message);
+    var same = await AcceptanceChecklistService.RequestClearanceAsync(db, w.Staff, w.ClientId,
+      "Independence", "Specialist", expectedGeneration: 1);
+    Assert.Equal(request.Value, same.Value);
+    Assert.False((await AcceptanceWorkspaceQuery.RecordReviewAsync(db, w.Manager, Guid.NewGuid(), request.Value,
+      "CLEARED", "DOC", null, 1, "PENDING")).Succeeded);
+    Assert.False((await AcceptanceWorkspaceQuery.RecordReviewAsync(db, w.Manager, w.ClientId, request.Value,
+      "CLEARED", "DOC", null, 1, "HOLD")).Succeeded);
+    Assert.True((await AcceptanceWorkspaceQuery.RecordReviewAsync(db, w.Manager, w.ClientId, request.Value,
+      "CLEARED", "DOC", null, 1, "PENDING")).Succeeded);
+    var projection = await AcceptanceWorkspaceQuery.GetAsync(db, w.Manager, w.ClientId);
+    Assert.True(projection.Value!.CanReview);
+    Assert.False(projection.Value.CanDecide);
+    Assert.Equal("CLEARED", Assert.Single(projection.Value.Clearances).Status);
+  }
+
+  [Fact]
+  public async Task BrowserAnswerFencesRejectWrongGenerationAndStaleRevision()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var loaded = await AcceptanceWorkspaceQuery.GetAsync(db, w.Staff, w.ClientId);
+    Assert.True(loaded.Succeeded, loaded.Message);
+    Assert.True(loaded.Value!.CanEdit);
+    Assert.False((await AcceptanceChecklistService.RecordAnswerAsync(db, w.Staff, w.ClientId,
+      "CE-001", "Yes", "DOC-1", expectedGeneration: 999, expectedRevision: 0)).Succeeded);
+    var accepted = await AcceptanceChecklistService.RecordAnswerAsync(db, w.Staff, w.ClientId,
+      "CE-001", "Yes", "DOC-1", expectedGeneration: long.Parse(loaded.Value.Generation), expectedRevision: 0);
+    Assert.True(accepted.Succeeded, accepted.Message);
+    var repeated = await AcceptanceChecklistService.RecordAnswerAsync(db, w.Staff, w.ClientId,
+      "CE-001", "No", "DOC-2", expectedGeneration: long.Parse(loaded.Value.Generation), expectedRevision: 0);
+    Assert.Equal(ErrorCodes.StaleRevision, repeated.ErrorCode);
+    var refreshed = await AcceptanceWorkspaceQuery.GetAsync(db, w.Staff, w.ClientId);
+    Assert.Equal("Yes", Assert.Single(refreshed.Value!.Questions, q => q.Code == "CE-001").Answer);
+  }
+
+  [Fact]
   public async Task NewClient_MustAnswerEveryOnboardingQuestionWithEvidence_AndAnAdverseAnswerIsNeverAcceptedByFillingFields()
   {
     await using var pg = await PgTestSchema.CreateAsync();

@@ -59,14 +59,20 @@ public static partial class ClientAccountingService
 
   public static async Task<CommandResult> ApproveOpeningBalanceBridgeAsync(
     IClientAccountingDbContext db, ActorContext actor, Guid bridgeId,
-    CancellationToken ct = default)
+    CancellationToken ct = default, Guid? expectedClientId = null, string? expectedSourceHash = null)
   {
-    var bridge = await db.OpeningBalanceBridges.SingleOrDefaultAsync(x => x.Id == bridgeId && x.FirmId == actor.FirmId, ct);
+    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    var bridge = await db.OpeningBalanceBridges.FromSqlInterpolated(
+      $"SELECT * FROM opening_balance_bridges WHERE id = {bridgeId} AND firm_id = {actor.FirmId} FOR UPDATE").SingleOrDefaultAsync(ct);
     if (bridge is null)
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var auth = await AuthorizeClientAsync(db, actor, bridge.ClientId, ReviewerRoles, ct);
     if (!auth.Succeeded)
       return auth;
+    if (expectedClientId.HasValue && bridge.ClientId != expectedClientId.Value)
+      return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    if (expectedSourceHash is not null && !string.Equals(expectedSourceHash, bridge.SourceHash, StringComparison.Ordinal))
+      return CommandResult.Fail(ErrorCodes.GenerationStale, "The reviewed opening evidence has changed.");
     if (bridge.Status != "RECONCILED")
       return CommandResult.Fail(ErrorCodes.GateBlocked, "An unexplained opening difference blocks bridge approval.");
     if (bridge.ApprovedByUserId is not null || bridge.CreatedAt == default)
@@ -77,6 +83,7 @@ public static partial class ClientAccountingService
     bridge.ApprovedByUserId = actor.UserId;
     bridge.ApprovedAt = DateTimeOffset.UtcNow;
     await db.SaveChangesAsync(ct);
+    await tx.CommitAsync(ct);
     return CommandResult.Ok();
   }
 }

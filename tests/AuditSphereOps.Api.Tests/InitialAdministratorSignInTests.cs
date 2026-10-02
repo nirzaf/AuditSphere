@@ -1,4 +1,4 @@
-using AuditSphereOps.Web.Authentication;
+using AuditSphereOps.Api.Authentication;
 using Microsoft.Extensions.Configuration;
 
 namespace AuditSphereOps.Api.Tests;

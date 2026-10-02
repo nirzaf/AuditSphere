@@ -20,6 +20,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\AuditSphereOps.Api\AuditSphereOps.Api.csproj" AdditionalProperties="ApiProjectReferenced=true;PublishAngularUi=false" />
     <ProjectReference Include="..\AuditSphereOps.Domain\AuditSphereOps.Domain.csproj" />
     <ProjectReference Include="..\AuditSphereOps.Application\AuditSphereOps.Application.csproj" />
     <ProjectReference Include="..\AuditSphereOps.Infrastructure\AuditSphereOps.Infrastructure.csproj" />

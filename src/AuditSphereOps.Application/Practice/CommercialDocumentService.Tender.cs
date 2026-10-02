@@ -11,7 +11,7 @@ public static partial class CommercialDocumentService
 {
   /// <summary>Five reviewed chapters tied to one approved price revision. No invented registrations, CVs or credentials.</summary>
   public static async Task<CommandResult<CommercialDocument>> GenerateTenderAsync(IAuditSphereDbContext db, ActorContext actor,
-    Guid proposalId, string assignedTeamCvs, string deliverablesTimeline, bool reviewed, CancellationToken ct = default)
+    Guid proposalId, string assignedTeamCvs, string deliverablesTimeline, bool reviewed, CancellationToken ct = default, Guid? expectedQuotationId = null, long? expectedProfileVersion = null)
   {
     var auth = await AuthorizeAsync(db, actor, CommercialRoles, ct);
     if (!auth.Succeeded) return CommandResult<CommercialDocument>.Fail(auth.ErrorCode!, auth.Message!);
@@ -27,6 +27,15 @@ public static partial class CommercialDocumentService
       .OrderByDescending(x => x.Revision).FirstOrDefaultAsync(ct);
     if (quote is null || quote.Status != QuotationStates.Approved || quote.Fee != proposal.Fee)
       return CommandResult<CommercialDocument>.Fail(ErrorCodes.GateBlocked, "A current approved quotation matching the proposal fee is required.");
+    if (expectedQuotationId.HasValue && expectedQuotationId != quote.Id)
+      return CommandResult<CommercialDocument>.Fail(ErrorCodes.StaleRevision, "The reviewed quotation changed.");
+    if (expectedProfileVersion.HasValue)
+    {
+      var currentProfileVersion = await db.FirmCommercialProfiles.AsNoTracking().Where(x => x.FirmId == actor.FirmId)
+        .OrderByDescending(x => x.Version).Select(x => (long?)x.Version).FirstOrDefaultAsync(ct);
+      if (currentProfileVersion != expectedProfileVersion)
+        return CommandResult<CommercialDocument>.Fail(ErrorCodes.StaleRevision, "The reviewed commercial profile changed.");
+    }
     var previous = await db.CommercialDocuments.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId &&
       x.QuotationVersionId == quote.Id && x.Kind == CommercialDocumentKinds.ComprehensiveProposal, ct);
     if (previous is not null) return CommandResult<CommercialDocument>.Ok(previous);

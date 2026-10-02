@@ -4,7 +4,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "be80aad351f5497f3e7408d9e886d994a5bd1c2a",
+  "headCommit": "fedca8aad60468de38b0e4f1c868d95f5b3db01d",
   "verifiedCommit": "be80aad351f5497f3e7408d9e886d994a5bd1c2a",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": true,
@@ -1023,6 +1023,598 @@
       "repositoryMigrationCount": 124,
       "database": "Migration exercised only in isolated test databases. Development and production not migrated.",
       "acceptanceBoundary": "PARTIAL project acceptance: whole AS-PAR-002 direct-command/export/count coverage and AS-PAR-009 approved pricing/dispatch policy remain open. Live client-site provisioning/retention, target deployment, independent/professional approvals are separate gates. Periodic verification is not instantaneous revocation push; existing Application authorization remains mandatory."
+    },
+    "angularMigration": {
+      "status": "PARTIAL",
+      "sourceBase": "fedca8aad60468de38b0e4f1c868d95f5b3db01d",
+      "scope": "Angular presentation foundation and opt-in read-only portfolio pilot. No full-guide completion or Blazor retirement claimed.",
+      "toolchain": {
+        "node": "26.8.1",
+        "npm": "11.19.0",
+        "angular": "22.2.1",
+        "material": "22.2.1",
+        "cdk": "22.2.1",
+        "typescript": "6.0.3",
+        "vitest": "5.0.3"
+      },
+      "dependencies": "PASS: npm ci, ng version and npm ls confirmed pinned Angular/Material/CDK 22.2.1 on Node 26.8.1/npm 11.19.0; no zone.js, prerelease or peer override. npm audit reported zero vulnerabilities at observed install.",
+      "build": "PASS: Angular production build under configured initial/component budgets; Release .NET Web builds passed. No hosted CI execution claimed.",
+      "angularTests": "PASS: 9/9 component, decoder, session lifecycle, unknown sign-out, Material dialog/input and Signal Forms compatibility tests without Zone.js.",
+      "postgresTests": "PASS: latest PortfolioQueryTests 1/1; sibling engagement count isolation, cross-firm exclusion, client denial, pagination bounds, case-insensitive name/ID search, hidden-ID empty result and revoked grant denial.",
+      "apiTests": "PASS: full latest API suite 36/36; focused UI/cookie security 6/6. Covers session, no-store, pagination, missing/forged/valid CSRF, sign-out, stale epoch and passive renewal fence.",
+      "browserTests": "PASS: final full E2E 114/114 and focused seven revocation cases 7/7. Pilot covers deep-link, refresh, search/empty, scope-filtered counts, mobile overflow, passive invalidation, CSRF sign-out, client denial, endpoint ownership and Blazor rollback. Existing package/queue tests preserve protected-data, no-reload and decision assertions while recognizing actual session-boundary removal.",
+      "fullSuite": "PASS across executed suites: full API 36/36, full Domain 531/531 and final full E2E 114/114, all with zero skips. Latest portfolio query assertions also passed in a focused Domain rerun after search parity changes; focused cookie/UI security passed 6/6. Earlier browser runs exposed passive-session test races; the corrected revocation cohort passed 7/7 and final full E2E passed 114/114.",
+      "efModel": "PASS: no pending model changes.",
+      "docs": "PASS including new documents through an isolated Git index: documentation health, filenames, discovery drift and git diff --check. CI workflow actionlint v1.7.7 passed with ShellCheck/Pyflakes disabled. Hosted CI not executed.",
+      "remaining": "See angular-migration-backlog.json. Source inventory remains discovery, not manually reviewed parity. Full feature migration, old-tab asset retention, production-like rollout, accessibility/control/form acceptance and owner-authorized retirement remain open.",
+      "artifactSha256": "2ceb91eb444a19a5a9360ccc74e69634293eecd90869c78bd1c7eefe54d3915b",
+      "artifactBoundary": "Digest covers the local production browser build. No remote deployment, promotion or accepted canary is claimed.",
+      "testCounts": {
+        "domain": 531,
+        "api": 36,
+        "e2e": 114,
+        "angular": 9,
+        "failures": 0,
+        "skips": 0
+      },
+      "sourceFingerprintSha256": "4dd9df2d12febffeb30ae097e3f6ae03743222971791b5c2d87edaba64f2592f",
+      "sourceBoundary": "Fingerprint covers current src/tests source and tracked configuration, including the npm lockfile, excluding ignored build/dependency outputs. Working changes are uncommitted; no verified-commit or deployment acceptance is inferred."
+    },
+    "angularWorkspaceExtension": {
+      "status": "PARTIAL",
+      "angularProductionBuild": "PASS",
+      "angularTests": {
+        "passed": 11,
+        "failed": 0
+      },
+      "postgresWorkspaceIsolationTests": {
+        "passed": 1,
+        "failed": 0
+      },
+      "apiContractTests": {
+        "passed": 1,
+        "failed": 0
+      },
+      "builtInBrowserAcceptance": "PENDING",
+      "remaining": "Client commands, engagement activation/staffing/budget, full feature migration and final cutover remain pending."
+    },
+    "angularSearchExtension": {
+      "status": "PARTIAL",
+      "angularTests": {
+        "passed": 13,
+        "failed": 0
+      },
+      "apiContractTests": {
+        "passed": 1,
+        "failed": 0
+      },
+      "browserParity": "PENDING",
+      "scope": "Existing authorized navigation search exposed to Angular; full migration remains pending."
+    },
+    "angularContactExtension": {
+      "status": "PARTIAL",
+      "releaseBuild": "PASS",
+      "angularProductionBuild": "PASS",
+      "angularTests": {
+        "passed": 13,
+        "failed": 0
+      },
+      "postgresWorkspaceTests": {
+        "passed": 2,
+        "failed": 0
+      },
+      "apiContractTests": {
+        "passed": 1,
+        "failed": 0
+      },
+      "browserAcceptance": "PENDING",
+      "remaining": "Full command receipts/reconciliation, scoped drafts, engagement panels and remaining modules."
+    },
+    "angularPlanningExtension": {
+      "status": "PARTIAL",
+      "releaseBuild": "PASS",
+      "angularProductionBuild": "PASS",
+      "angularTests": {
+        "passed": 15,
+        "failed": 0
+      },
+      "postgresWorkspaceTests": {
+        "passed": 2,
+        "failed": 0
+      },
+      "builtInBrowserAcceptance": "PENDING",
+      "remaining": "Staffing and budget commands, resource grid, remaining modules and final route cutover."
+    },
+    "angularStaffingExtension": {
+      "status": "PARTIAL",
+      "releaseBuild": "PASS",
+      "angularProductionBuild": "PASS",
+      "angularTests": {
+        "passed": 15,
+        "failed": 0
+      },
+      "postgresWorkspaceTests": {
+        "passed": 3,
+        "failed": 0
+      },
+      "apiContractTests": {
+        "passed": 1,
+        "failed": 0
+      },
+      "browserAcceptance": "PENDING",
+      "remaining": "Budget commands, remaining feature migration and full parity/cutover."
+    },
+    "angularBudgetExtension": {
+      "status": "PARTIAL",
+      "angularProductionBuild": "PASS",
+      "angularTests": {
+        "passed": 15,
+        "failed": 0
+      },
+      "postgresWorkspaceTests": {
+        "passed": 4,
+        "failed": 0
+      },
+      "apiContractTests": {
+        "passed": 1,
+        "failed": 0
+      },
+      "builtInBrowserAcceptance": "PENDING",
+      "remaining": "Scoped draft persistence, full planning/browser parity, remaining modules and final cutover."
+    },
+    "angularLifecycleExtension": {
+      "status": "PARTIAL",
+      "releaseBuild": "PASS",
+      "angularProductionBuild": "PASS",
+      "angularTests": {
+        "passed": 15,
+        "failed": 0
+      },
+      "postgresWorkspaceTests": {
+        "passed": 5,
+        "failed": 0
+      },
+      "affectedAcceptanceCommercialTests": {
+        "passed": 9,
+        "failed": 0
+      },
+      "apiContractTests": {
+        "passed": 1,
+        "failed": 0
+      },
+      "browserAcceptance": "PENDING",
+      "remaining": "Acceptance checklist, full module migration and browser parity/cutover."
+    },
+    "angularAcceptanceExtension": {
+      "status": "PARTIAL",
+      "angularProductionBuild": "PASS",
+      "angularTests": {
+        "passed": 17,
+        "failed": 0
+      },
+      "postgresAcceptanceTests": {
+        "passed": 5,
+        "failed": 0
+      },
+      "apiContractTests": {
+        "passed": 1,
+        "failed": 0
+      },
+      "browserAcceptance": "PENDING",
+      "remaining": "Specialist-review commands, continuance, Partner decision UI, remaining modules and final cutover."
+    },
+    "angularAcceptanceCommands": {
+      "status": "PARTIAL",
+      "angularProductionBuild": "PASS",
+      "angularTests": {
+        "passed": 17,
+        "failed": 0
+      },
+      "postgresAcceptanceTests": {
+        "passed": 6,
+        "failed": 0
+      },
+      "apiContractTests": {
+        "passed": 1,
+        "failed": 0
+      },
+      "browserAcceptance": "PENDING",
+      "remaining": "Full assessment-page parity, remaining modules and final cutover."
+    },
+    "angularLeadsExtension": {
+      "status": "PARTIAL",
+      "angularProductionBuild": "PASS",
+      "angularTests": {
+        "passed": 19,
+        "failed": 0
+      },
+      "postgresWorkspaceTests": {
+        "passed": 6,
+        "failed": 0
+      },
+      "apiContractTests": {
+        "passed": 1,
+        "failed": 0
+      },
+      "browserAcceptance": "PENDING",
+      "remaining": "Opportunities, proposals, commercial documents, remaining modules and final cutover."
+    },
+    "angularProposalRevisionExtension": {
+      "status": "PARTIAL",
+      "scope": "Proposal detail and commercial lifecycle plus reviewed revision form; exact fee strings and reviewed revision fence. Opportunity intake/pricing/documents and full migration/browser parity remain pending.",
+      "checks": [
+        "Release Web build passed with 0 warnings/errors",
+        "Angular production build passed; initial bundle 370.83 kB",
+        "Angular unit tests 21/21 passed",
+        "PostgreSQL UiContractTests 1/1 passed, including proposal revision missing-CSRF refusal",
+        "WorkspaceQueryTests 7/7 passed for preceding proposal projection slice",
+        "git diff --check passed"
+      ],
+      "acceptance": "Local focused evidence only; no current full suite, built-in-browser or live external acceptance."
+    },
+    "angularOpportunityExtension": {
+      "status": "PARTIAL",
+      "scope": "Reviewed discovery opportunity intake and initial proposals; request identity replay checks, bounded firm-scoped projection and exact decimal/revision contracts. Pricing, settings, commercial documents, fee agreements and full migration/browser acceptance remain pending.",
+      "checks": [
+        "Angular production build passed; initial bundle 370.93 kB",
+        "Angular tests 24/24 passed",
+        "PostgreSQL WorkspaceQueryTests 8/8 passed after correcting a decimal-scale-only assertion",
+        "PostgreSQL UiContractTests 1/1 passed, including unauthorized lead detail and missing-CSRF opportunity creation",
+        "API test compilation built Release Web successfully",
+        "git diff --check passed"
+      ],
+      "limits": "Focused local checks only. No new full solution suite or built-in-browser acceptance. Worktree uncommitted."
+    },
+    "angularQuotationExtension": {
+      "status": "PARTIAL",
+      "scope": "Approved-rate selection, server preview, exact string amounts, quotation revision history, saving with reviewed rate/revision fences, submission and independent matrix approvals. Settings, commercial documents/fee agreements and full Angular migration remain pending.",
+      "checks": [
+        "Release Web build passed with 0 warnings/errors",
+        "Angular production build passed; initial bundle 372.10 kB",
+        "Angular tests 28/28 passed on final quotation source, including exact/signed amounts, approval flags and bounded contract decoders",
+        "CommercialWorkflowTests and QuotationCalculatorTests 18/18 passed",
+        "UiContractTests 1/1 passed with unauthorized quotation read and missing-CSRF preview/approval checks",
+        "AngularCommercialJourneyTests 1/1 passed after waiting for proposal data before deferred loading: preview 7500 QAR, persisted save and approval checked",
+        "git diff --check passed"
+      ],
+      "limits": "Focused local automated verification only. Built-in browser acceptance, full solution rerun and final migration retirement remain pending; worktree uncommitted."
+    },
+    "angularCommercialDocumentExtension": {
+      "status": "PARTIAL",
+      "scope": "Reviewed brief quotations, engagement letters and comprehensive proposals; bounded artifact metadata/history, prerequisite explanations, authorized downloads and reviewed quotation/profile version fences. Settings, fee agreements, full Angular migration and built-in-browser acceptance remain pending.",
+      "checks": [
+        "Release Web build passed with 0 warnings/errors",
+        "Angular production build passed; initial bundle 372.14 kB",
+        "Angular unit tests 31/31 passed",
+        "PostgreSQL CommercialWorkflowTests 7/7 passed including artifact replay, stale profile/quotation refusal, acceptance blockers and cross-firm read refusal",
+        "UiContractTests 1/1 passed including unauthorized document read and missing-CSRF letter generation",
+        "Playwright AngularCommercialJourneyTests and AngularPortfolioJourneyTests 2/2 passed after scoping the portfolio search selector: pricing/save/approval, blocked letter, document generation/download, revocation, logout and legacy rollback checked",
+        "git diff --check passed"
+      ],
+      "limits": "Focused local automated evidence only, not final migration/production acceptance. No new full solution suite or built-in-browser acceptance; worktree uncommitted."
+    },
+    "angularFeeAgreementExtension": {
+      "status": "PARTIAL",
+      "scope": "Persisted fee agreements/milestones, server-owned advance percentage, same-client engagement linking, invoice-draft handoff and manual advance payments under finance authorization. Commercial settings, full source parity, full migration and built-in-browser acceptance remain pending.",
+      "checks": [
+        "Release Web build passed with 0 warnings/errors",
+        "Angular production build passed; initial bundle 372.14 kB",
+        "Angular tests 35/35 passed on final fee-agreement source",
+        "PostgreSQL CommercialWorkflowTests 8/8 passed including concurrent-link protection, finance handoff, changed payment-reference refusal and cross-firm query refusal",
+        "UiContractTests 1/1 passed including unauthorized fee read and missing-CSRF creation/payment commands",
+        "Playwright AngularCommercialJourneyTests and AngularPortfolioJourneyTests 2/2 passed after supplying the required synthetic primary-contact email: agreement/milestone creation, disabled finance actions even after explicit review, document download, pricing and revocation/rollback checked",
+        "git diff --check passed"
+      ],
+      "limits": "Focused local automated verification. No current full solution rerun or final built-in-browser/production acceptance; migration worktree uncommitted."
+    },
+    "angularCommercialSettingsExtension": {
+      "status": "PARTIAL",
+      "sourceHead": "fedca8aad60468de38b0e4f1c868d95f5b3db01d",
+      "scope": "Opt-in commercial settings: versioned profile and reviewed active-matrix changes/deactivation, exact decimal threshold/default contracts, read-only commercial access and Administrator/Partner edit authority. Full metadata/form/draft parity, remaining modules and final migration acceptance remain pending.",
+      "checks": [
+        "Release Web build passed with 0 warnings/errors",
+        "Angular production build passed; initial bundle 372.32 kB",
+        "Angular tests 38/38 passed on final settings/search source",
+        "PostgreSQL CommercialWorkflowTests 9/9 passed, including profile replay/stale version refusal and active-matrix revision/edit-authority checks",
+        "UiContractTests 1/1 passed with unauthorized settings read and missing-CSRF rule write",
+        "Playwright AngularCommercialJourneyTests and AngularPortfolioJourneyTests 2/2 passed: settings profile revision/rule creation/deactivation and historical document profile identity retained, plus preceding commercial, fee and revocation flows",
+        "EF model drift check passed: no pending model changes",
+        "git diff --check passed"
+      ],
+      "limits": "Uncommitted worktree on master; focused automated local evidence only. No current full solution suite or final built-in-browser/production acceptance. Verified commit remains unchanged."
+    },
+    "angularAccountingReadExtension": {
+      "status": "PARTIAL",
+      "scope": "Bounded client accounting search and profile/reporting-period read view with client-wide authorization; engagement-only grants do not authorize client books.",
+      "angularUnitTests": {
+        "passed": 40,
+        "failed": 0
+      },
+      "angularProductionBuild": "PASS",
+      "limitations": [
+        "Uncommitted implementation",
+        "Accounting setup mutations and period workbenches pending",
+        "PostgreSQL/API/browser acceptance for this extension pending",
+        "Full migration and built-in browser acceptance pending"
+      ]
+    },
+    "angularAccountingProfileExtension": {
+      "status": "PARTIAL",
+      "scope": "Reviewed profile creation/revision through existing Application services, CSRF and serialized writes; Angular form and unknown-outcome refresh handling.",
+      "releaseBuild": "PASS",
+      "angularProductionBuild": "PASS",
+      "angularTestsPassed": 40,
+      "limitations": [
+        "Uncommitted work",
+        "Accounting browser acceptance pending",
+        "Reporting-period setup and remaining accounting workbenches pending",
+        "Full migration and built-in browser acceptance pending"
+      ],
+      "postgresqlTests": {
+        "passed": 3,
+        "failed": 0,
+        "scope": "Client/sibling and engagement-only scope, stale session, concurrent profile revisions, default-currency regression"
+      },
+      "apiTests": {
+        "passed": 1,
+        "failed": 0,
+        "scope": "UiContractTests including accounting unauthenticated/unauthorized reads and missing-CSRF profile write"
+      }
+    },
+    "angularAccountingPeriodExtension": {
+      "status": "PARTIAL",
+      "scope": "Reviewed reporting-period creation with ISO dates and scoped prior period; serialized duplicate prevention.",
+      "releaseBuild": "PASS",
+      "angularProductionBuild": "PASS",
+      "angularTestsPassed": 40,
+      "postgresqlTests": {
+        "passed": 1,
+        "failed": 0,
+        "scope": "Concurrent duplicates, foreign prior-period refusal and date contract"
+      },
+      "limitations": [
+        "Uncommitted work",
+        "Accounting browser acceptance pending",
+        "Book setup, roll-forward, close/reopen and remaining workbenches pending",
+        "Full migration and built-in browser acceptance pending"
+      ]
+    },
+    "angularAccountingBookExtension": {
+      "status": "PARTIAL",
+      "scope": "Bounded reporting-book metadata and reviewed creation; period lock guards concurrent duplicates and closed period.",
+      "releaseBuild": "PASS",
+      "angularProductionBuild": "PASS",
+      "angularTestsPassed": 40,
+      "postgresqlTests": {
+        "passed": 1,
+        "failed": 0,
+        "scope": "Concurrent period/book duplicates, foreign prior period, persisted book projection, closed-period refusal"
+      },
+      "limitations": [
+        "Uncommitted work",
+        "Accounting browser acceptance pending",
+        "Roll-forward, close/reopen, charts and remaining workbenches pending",
+        "Full migration and built-in browser acceptance pending"
+      ]
+    },
+    "angularAccountingJourney": {
+      "status": "PARTIAL",
+      "playwrightTests": {
+        "passed": 1,
+        "failed": 0,
+        "scope": "Reviewed profile, period and book setup, persisted reload and JavaScript errors"
+      },
+      "angularProductionBuild": "PASS",
+      "resolvedFailure": "Implicit period selector label included option text; explicit label fixed and rerun passed.",
+      "limitations": [
+        "Synthetic isolated PostgreSQL/identity journey",
+        "Uncommitted work",
+        "Built-in browser acceptance pending",
+        "Full accounting parity and migration pending"
+      ]
+    },
+    "angularAccountingLifecycleBackend": {
+      "status": "PARTIAL",
+      "scope": "Scoped readiness/close/reopen HTTP contracts with CSRF, explicit review, exact revision fence and existing human-review gates.",
+      "releaseBuild": "PASS",
+      "postgresqlTests": {
+        "passed": 1,
+        "failed": 0,
+        "scope": "Wrong-client readiness/close, stale reopen and immutable amendment revision"
+      },
+      "limitations": [
+        "Angular lifecycle controls pending",
+        "Uncommitted work",
+        "Lifecycle API/browser journey pending",
+        "Full migration and built-in browser acceptance pending"
+      ]
+    },
+    "angularAccountingLifecycleUi": {
+      "status": "PARTIAL",
+      "scope": "Explicit Angular close/reopen decisions and reason, server readiness/authority flags, reviewed revision and refreshed state.",
+      "releaseBuild": "PASS",
+      "angularProductionBuild": "PASS",
+      "angularTestsPassed": 42,
+      "playwrightTests": {
+        "passed": 1,
+        "failed": 0,
+        "scope": "Profile/period/book setup, close revision 2, reopen revision 3 and persisted amendment evidence"
+      },
+      "limitations": [
+        "Uncommitted work",
+        "Synthetic isolated identity/database journey",
+        "Built-in browser acceptance pending",
+        "Roll-forward, charts and remaining accounting workbenches pending",
+        "Full migration pending"
+      ]
+    },
+    "angularAccountingAmendmentHistory": {
+      "status": "PARTIAL",
+      "scope": "Bounded authorized immutable period amendment projection and Angular revision lineage table.",
+      "releaseBuild": "PASS",
+      "angularProductionBuild": "PASS",
+      "angularTestsPassed": 42,
+      "postgresqlTestsPassed": 1,
+      "playwrightTestsPassed": 1,
+      "limitations": [
+        "Uncommitted work",
+        "Synthetic isolated journey",
+        "Roll-forward, restatements and remaining accounting workbenches pending",
+        "Full migration and built-in browser acceptance pending"
+      ]
+    },
+    "angularAccountingRollforwardExtension": {
+      "status": "PARTIAL",
+      "scope": "Reviewed external-evidence roll-forward form and exact decimal/date HTTP contracts with prior revision fence.",
+      "releaseBuild": "PASS",
+      "angularProductionBuild": "PASS",
+      "angularTestsPassed": 42,
+      "postgresqlTests": {
+        "passed": 1,
+        "failed": 0,
+        "scope": "Stale prior revision, draft book copy, duplicate refusal and unapproved opening evidence"
+      },
+      "limitations": [
+        "Validated source-package selector and opening bridge history/review pending",
+        "Roll-forward browser journey pending",
+        "Uncommitted work",
+        "Full migration and built-in browser acceptance pending"
+      ]
+    },
+    "angularOpeningBalanceExtension": {
+      "status": "PARTIAL",
+      "scope": "Bounded client opening bridge evidence and exact amount projection, Angular review control, locked approval with current authority and reviewed source hash.",
+      "releaseBuild": "PASS",
+      "angularProductionBuild": "PASS",
+      "angularTestsPassed": 42,
+      "postgresqlTests": {
+        "passed": 1,
+        "failed": 0,
+        "scope": "Roll-forward evidence projection, wrong-client/hash approval refusal and valid approval"
+      },
+      "limitations": [
+        "Opening approval/roll-forward browser journey pending",
+        "Validated source-package selector pending",
+        "Uncommitted work",
+        "Full migration and built-in browser acceptance pending"
+      ]
+    },
+    "angularAccountingRollforwardJourney": {
+      "status": "PARTIAL",
+      "playwrightTests": {
+        "passed": 1,
+        "failed": 0,
+        "scope": "Profile, period/book setup, close, external-evidence roll-forward using 100.25 exact amounts, draft book copy, bridge approval identity, reopen/amendment history"
+      },
+      "limitations": [
+        "Synthetic isolated identity/database journey",
+        "Validated source-package selector pending",
+        "Full migration and built-in browser acceptance pending",
+        "Uncommitted work"
+      ]
+    },
+    "angularRollforwardPackageSelector": {
+      "status": "PARTIAL",
+      "scope": "Bounded exact-client closed-period validated-package query and Angular selector with stored hash and revision validation.",
+      "releaseBuild": "PASS",
+      "angularProductionBuild": "PASS",
+      "angularTestsPassed": 42,
+      "postgresqlTestsPassed": 1,
+      "playwrightTestsPassed": 1,
+      "verifiedCases": [
+        "No matching packages",
+        "Wrong client",
+        "Reviewed prior revision",
+        "External evidence fallback with persisted roll-forward approval"
+      ],
+      "limitations": [
+        "Positive validated-package selection fixture pending",
+        "Uncommitted work",
+        "Full migration and built-in browser acceptance pending"
+      ]
+    },
+    "angularRollforwardPackagePositiveCoverage": {
+      "status": "PARTIAL",
+      "angularProductionBuild": "PASS",
+      "angularTestsPassed": 43,
+      "postgresqlTests": {
+        "passed": 1,
+        "failed": 0,
+        "scope": "Exact validated package selected; review-required, other period/currency/client excluded; changed hash rejected; selected package bound to opening bridge"
+      },
+      "resolvedFixtureFailure": "Replaced unsupported DRAFT package status with REVIEW_REQUIRED and valid historical dates.",
+      "limitations": [
+        "Positive browser package-selection journey pending",
+        "Uncommitted work",
+        "Full migration and built-in browser acceptance pending"
+      ]
+    },
+    "angularRollforwardPackageBrowser": {
+      "status": "PARTIAL",
+      "playwrightTests": {
+        "passed": 1,
+        "failed": 0,
+        "scope": "Existing Application package builder fixture, positive Angular package selection, stored hash, reviewed roll-forward and approved bridge source identity/hash"
+      },
+      "limitations": [
+        "Synthetic isolated identity/database journey",
+        "Uncommitted work",
+        "Full accounting parity and migration pending",
+        "Built-in browser acceptance pending"
+      ]
+    },
+    "angularChartReadExtension": {
+      "status": "PARTIAL",
+      "scope": "Scoped bounded chart revisions, deferred Angular account hierarchy view, PostgreSQL account pagination with final authorization recheck.",
+      "releaseBuild": "PASS",
+      "angularProductionBuild": "PASS",
+      "angularTestsPassed": 45,
+      "postgresqlTestsPassed": 1,
+      "playwrightTestsPassed": 1,
+      "verifiedCases": [
+        "Parent codes and child counts",
+        "Page bounds",
+        "Wrong client refusal",
+        "Deferred Angular revision/account reads"
+      ],
+      "limitations": [
+        "Chart creation, account/alias/dimension writes and publication migration pending",
+        "Uncommitted work",
+        "Full migration and built-in browser acceptance pending"
+      ]
+    },
+    "angularChartDraftWrites": {
+      "status": "PARTIAL",
+      "scope": "Reviewed draft chart creation with latest-version fence and account entry with exact client/chart version, CSRF and existing hierarchy validation.",
+      "releaseBuild": "PASS",
+      "angularProductionBuild": "PASS",
+      "angularTestsPassed": 45,
+      "postgresqlTestsPassed": 4,
+      "playwrightTestsPassed": 1,
+      "limitations": [
+        "Publication, aliases and dimensions migration pending",
+        "Uncommitted work",
+        "Full migration and built-in browser acceptance pending"
+      ]
+    },
+    "angularChartPublicationExtension": {
+      "status": "PARTIAL",
+      "scope": "Independent reviewed chart publication, exact account-set digest checked under chart lock, client/version fencing and existing hierarchy/SoD checks.",
+      "releaseBuild": "PASS",
+      "angularProductionBuild": "PASS",
+      "angularTestsPassed": 46,
+      "postgresqlTestsPassed": 2,
+      "playwrightTestsPassed": 1,
+      "verifiedCases": [
+        "Preparer cannot publish own chart",
+        "Changed accounts reject stale publication digest",
+        "Independent Angular reviewer publication with persisted publisher identity"
+      ],
+      "limitations": [
+        "Aliases and dimensions migration pending",
+        "Uncommitted work",
+        "Full migration and built-in browser acceptance pending"
+      ]
     }
   },
   "documentationWork": {
@@ -1999,5 +2591,11 @@
       "required": "Production approval and independent review of the isolation matrix; automated matrix and tenant-reachable live cases pass in Development (throttling fake-only)."
     }
   ],
-  "evidenceBoundary": "This public pointer contains no tenant identifiers, user principals, credentials, tokens, secret values or private-provider URLs. Local evidence does not establish production acceptance or professional conclusions."
+  "evidenceBoundary": "This public pointer contains no tenant identifiers, user principals, credentials, tokens, secret values or private-provider URLs. Local evidence does not establish production acceptance or professional conclusions.",
+  "angularChartAliasPublicationFence": {
+    "status": "PARTIAL",
+    "verified": "Focused PostgreSQL chart workspace test passed (1/1), including wrong-client alias refusal and publication refusal after aliases changed following review.",
+    "changes": "Publication digest includes source aliases; alias writes optionally fence reviewed client and chart version.",
+    "pending": "Alias read/write Angular screens, dimensions, full migration, full suite and built-in browser acceptance remain pending."
+  }
 }

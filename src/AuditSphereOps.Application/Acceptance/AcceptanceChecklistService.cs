@@ -92,7 +92,7 @@ public static class AcceptanceChecklistService
 
   public static async Task<CommandResult> RecordAnswerAsync(
     IAuditSphereDbContext db, ActorContext actor, Guid clientId, string questionCode, string answer, string? evidenceReference,
-    CancellationToken ct = default)
+    CancellationToken ct = default, long? expectedGeneration = null, long? expectedRevision = null)
   {
     var auth = await AuthorizeAsync(db, actor, clientId, ProfessionalRoles, ct);
     if (!auth.Succeeded) return auth;
@@ -102,11 +102,15 @@ public static class AcceptanceChecklistService
     var guard = await db.ClientSafetyStates.FromSqlInterpolated(
       $"SELECT * FROM client_safety_states WHERE id = {clientId} AND firm_id = {actor.FirmId} FOR UPDATE").SingleOrDefaultAsync(ct);
     if (guard is null) return CommandResult.Fail(ErrorCodes.GateBlocked, "Client safety state is unavailable.");
+    if (expectedGeneration.HasValue && expectedGeneration.Value != guard.InputGeneration)
+      return CommandResult.Fail(ErrorCodes.GenerationStale, "Reload the current evaluation before saving.");
     var checklist = await LoadAsync(db, actor.FirmId, clientId, null, guard.InputGeneration, ct);
     if (checklist.CurrentDecision is not null)
       return CommandResult.Fail(ErrorCodes.ProtectedState, "A decision is already recorded for this generation; its evaluation is immutable.");
     var item = checklist.Items.SingleOrDefault(x => string.Equals(x.Question.Code, questionCode?.Trim(), StringComparison.OrdinalIgnoreCase));
     if (item is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied."); // a question outside this path is not disclosed
+    if (expectedRevision.HasValue && expectedRevision.Value != (item.Answer?.Revision ?? 0))
+      return CommandResult.Fail(ErrorCodes.StaleRevision, "This answer changed. Reload it before saving.");
     var value = item.Question.AnswerType == "BOOLEAN" ? AcceptanceRules.NormalizeBoolean(answer) : (string.IsNullOrWhiteSpace(answer) ? null : answer.Trim());
     if (value is null || value.Length > 2000) return CommandResult.Fail("acceptance.invalid", "Answer Yes or No.");
     if (item.Question.RequiresEvidence && evidence is null)
@@ -128,7 +132,7 @@ public static class AcceptanceChecklistService
 
   /// <summary>Requests a specialist review of an area. Idempotent while an open request for the area exists.</summary>
   public static async Task<CommandResult<Guid>> RequestClearanceAsync(
-    IAuditSphereDbContext db, ActorContext actor, Guid clientId, string area, string specialistName, CancellationToken ct = default)
+    IAuditSphereDbContext db, ActorContext actor, Guid clientId, string area, string specialistName, CancellationToken ct = default, long? expectedGeneration = null)
   {
     var auth = await AuthorizeAsync(db, actor, clientId, ProfessionalRoles, ct);
     if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
@@ -137,6 +141,13 @@ public static class AcceptanceChecklistService
     if (areaName.Length is < 2 or > 100 || name.Length is < 2 or > 200)
       return CommandResult<Guid>.Fail("acceptance.invalid", "Name the review area and the specialist who will perform it.");
     await using var tx = await db.Database.BeginTransactionAsync(ct);
+    var guard = await db.ClientSafetyStates.FromSqlInterpolated(
+      $"SELECT * FROM client_safety_states WHERE id = {clientId} AND firm_id = {actor.FirmId} FOR UPDATE").SingleOrDefaultAsync(ct);
+    if (guard is null) return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Client safety state is unavailable.");
+    if (expectedGeneration.HasValue && expectedGeneration.Value != guard.InputGeneration)
+      return CommandResult<Guid>.Fail(ErrorCodes.GenerationStale, "Reload the current evaluation.");
+    if (expectedGeneration.HasValue && (await LoadAsync(db, actor.FirmId, clientId, null, guard.InputGeneration, ct)).CurrentDecision is not null)
+      return CommandResult<Guid>.Fail(ErrorCodes.ProtectedState, "The current evaluation is immutable.");
     var open = await db.SpecialistClearances.FirstOrDefaultAsync(x => x.FirmId == actor.FirmId && x.PracticeClientId == clientId &&
       x.EngagementId == null && x.Area == areaName && x.Status != "CLEARED", ct);
     if (open is not null) return CommandResult<Guid>.Ok(open.Id);
@@ -153,19 +164,31 @@ public static class AcceptanceChecklistService
 
   public static async Task<CommandResult> RecordClearanceAsync(
     IAuditSphereDbContext db, ActorContext actor, Guid clearanceId, string status, string? evidenceReference, string? conditions,
-    CancellationToken ct = default)
+    CancellationToken ct = default, long? expectedGeneration = null, string? expectedStatus = null)
   {
     var normalized = (status ?? string.Empty).Trim().ToUpperInvariant();
     if (normalized is not ("CLEARED" or "HOLD" or "CONDITIONS"))
       return CommandResult.Fail("acceptance.invalid", "Record CLEARED, HOLD or CONDITIONS.");
     var evidence = string.IsNullOrWhiteSpace(evidenceReference) ? null : evidenceReference.Trim();
     var terms = string.IsNullOrWhiteSpace(conditions) ? null : conditions.Trim();
+    if (evidence is { Length: > 500 } || terms is { Length: > 2000 }) return CommandResult.Fail("acceptance.invalid", "Review evidence or conditions exceed their bounds.");
     if (normalized == "CLEARED" && evidence is null) return CommandResult.Fail("acceptance.invalid", "A clearance needs an evidence reference.");
     if (normalized == "CONDITIONS" && terms is null) return CommandResult.Fail("acceptance.invalid", "State the conditions.");
-    var clearance = await db.SpecialistClearances.SingleOrDefaultAsync(x => x.Id == clearanceId && x.FirmId == actor.FirmId, ct);
-    if (clearance is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    var auth = await AuthorizeAsync(db, actor, clearance.PracticeClientId, ClearanceRoles, ct);
+    var snapshot = await db.SpecialistClearances.AsNoTracking().SingleOrDefaultAsync(x => x.Id == clearanceId && x.FirmId == actor.FirmId, ct);
+    if (snapshot is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var auth = await AuthorizeAsync(db, actor, snapshot.PracticeClientId, ClearanceRoles, ct);
     if (!auth.Succeeded) return auth;
+    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    var guard = await db.ClientSafetyStates.FromSqlInterpolated(
+      $"SELECT * FROM client_safety_states WHERE id = {snapshot.PracticeClientId} AND firm_id = {actor.FirmId} FOR UPDATE").SingleOrDefaultAsync(ct);
+    if (guard is null) return CommandResult.Fail(ErrorCodes.GateBlocked, "Client safety state is unavailable.");
+    if (expectedGeneration.HasValue && expectedGeneration.Value != guard.InputGeneration)
+      return CommandResult.Fail(ErrorCodes.GenerationStale, "Reload the current evaluation.");
+    if (expectedGeneration.HasValue && (await LoadAsync(db, actor.FirmId, snapshot.PracticeClientId, null, guard.InputGeneration, ct)).CurrentDecision is not null)
+      return CommandResult.Fail(ErrorCodes.ProtectedState, "The current evaluation is immutable.");
+    var clearance = await db.SpecialistClearances.SingleAsync(x => x.Id == clearanceId && x.FirmId == actor.FirmId, ct);
+    if (expectedStatus is not null && clearance.Status != expectedStatus)
+      return CommandResult.Fail(ErrorCodes.StaleRevision, "This specialist review changed. Reload it before saving.");
     if (clearance.Status == "CLEARED") return CommandResult.Fail(ErrorCodes.ProtectedState, "A cleared review is final; request a new review if circumstances change.");
     clearance.Status = normalized;
     clearance.EvidenceReference = evidence;
@@ -173,6 +196,7 @@ public static class AcceptanceChecklistService
     clearance.SpecialistUserId = actor.UserId;
     clearance.ClearedAt = normalized == "CLEARED" ? DateTimeOffset.UtcNow : null;
     await db.SaveChangesAsync(ct);
+    await tx.CommitAsync(ct);
     return CommandResult.Ok();
   }
 
@@ -181,7 +205,7 @@ public static class AcceptanceChecklistService
   /// longer current) and creates the pending decision that the continuance delta checklist answers.
   /// </summary>
   public static async Task<CommandResult<long>> StartContinuanceAsync(
-    IAuditSphereDbContext db, ActorContext actor, Guid clientId, CancellationToken ct = default)
+    IAuditSphereDbContext db, ActorContext actor, Guid clientId, CancellationToken ct = default, long? expectedGeneration = null)
   {
     var auth = await AuthorizeAsync(db, actor, clientId, ContinuanceRoles, ct);
     if (!auth.Succeeded) return CommandResult<long>.Fail(auth.ErrorCode!, auth.Message!);
@@ -189,6 +213,8 @@ public static class AcceptanceChecklistService
     var guard = await db.ClientSafetyStates.FromSqlInterpolated(
       $"SELECT * FROM client_safety_states WHERE id = {clientId} AND firm_id = {actor.FirmId} FOR UPDATE").SingleOrDefaultAsync(ct);
     if (guard is null) return CommandResult<long>.Fail(ErrorCodes.GateBlocked, "Client safety state is unavailable.");
+    if (expectedGeneration.HasValue && expectedGeneration.Value != guard.InputGeneration)
+      return CommandResult<long>.Fail(ErrorCodes.GenerationStale, "Reload the current evaluation.");
     var accepted = await db.AcceptanceDecisions.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.PracticeClientId == clientId &&
       x.Generation == guard.InputGeneration && (x.Decision == "Accepted" || x.Decision == "AcceptedWithConditions"))
       .OrderByDescending(x => x.DecidedAt).FirstOrDefaultAsync(ct);

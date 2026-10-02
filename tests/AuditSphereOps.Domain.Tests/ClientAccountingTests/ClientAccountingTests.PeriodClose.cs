@@ -172,10 +172,20 @@ public sealed partial class ClientAccountingTests
       Assert.True((await ClientAccountingService.CreateBookAsync(db, preparer,
         new ReportingBookRequest(scope.ClientA, priorPeriodId, "STAT", "STATUTORY", "STATUTORY_ONLY", "QAR"))).Succeeded);
       Assert.True((await ClientAccountingService.ClosePeriodAsync(db, reviewer, priorPeriodId, "Prior period issued")).Succeeded);
+      var sources = await RollforwardSourceQuery.GetAsync(db, preparer, scope.ClientA, priorPeriodId);
+      Assert.True(sources.Succeeded, sources.Message);
+      Assert.Empty(sources.Value!.Items);
+      Assert.Equal("2", sources.Value.Revision);
+      Assert.Equal(ErrorCodes.ScopeDenied, (await RollforwardSourceQuery.GetAsync(db, preparer, scope.ClientB, priorPeriodId)).ErrorCode);
+
+      var stale = await ClientAccountingService.RollForwardPeriodAsync(db, preparer,
+        new RollForwardPeriodRequest(scope.ClientA, priorPeriodId, "2026", new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31),
+          "STATUTORY", "QAR", new string('f', 64), 100m, 100m, "signed-prior-closing", ExpectedPriorRevision: 1));
+      Assert.Equal(ErrorCodes.StaleRevision, stale.ErrorCode);
 
       var rolled = await ClientAccountingService.RollForwardPeriodAsync(db, preparer,
         new RollForwardPeriodRequest(scope.ClientA, priorPeriodId, "2026", new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31),
-          "STATUTORY", "QAR", new string('f', 64), 100m, 100m, "signed-prior-closing"));
+          "STATUTORY", "QAR", new string('f', 64), 100m, 100m, "signed-prior-closing", ExpectedPriorRevision: 2));
       Assert.True(rolled.Succeeded, rolled.Message);
       nextPeriodId = rolled.Value;
 
@@ -200,5 +210,16 @@ public sealed partial class ClientAccountingTests
     await using var verify = new AuditSphereDbContext(pg.Options);
     Assert.Equal(1, await verify.ClientReportingPeriods.CountAsync(x => x.PriorPeriodId == priorPeriodId));
     Assert.Equal(1, await verify.OpeningBalanceBridges.CountAsync(x => x.CurrentPeriodId == nextPeriodId));
+    var projected = await AccountingWorkspaceQuery.GetAsync(verify, reviewer, scope.ClientA);
+    var opening = Assert.Single(projected.Value!.OpeningBridges);
+    Assert.True(projected.Value.CanReviewOpening);
+    Assert.Equal("RECONCILED", opening.Status);
+    Assert.Null(opening.ApprovedBy);
+    Assert.Equal(ErrorCodes.ScopeDenied, (await ClientAccountingService.ApproveOpeningBalanceBridgeAsync(verify, reviewer,
+      opening.Id, expectedClientId: scope.ClientB, expectedSourceHash: opening.SourceHash)).ErrorCode);
+    Assert.Equal(ErrorCodes.GenerationStale, (await ClientAccountingService.ApproveOpeningBalanceBridgeAsync(verify, reviewer,
+      opening.Id, expectedClientId: scope.ClientA, expectedSourceHash: new string('a', 64))).ErrorCode);
+    Assert.True((await ClientAccountingService.ApproveOpeningBalanceBridgeAsync(verify, reviewer,
+      opening.Id, expectedClientId: scope.ClientA, expectedSourceHash: opening.SourceHash)).Succeeded);
   }
 }

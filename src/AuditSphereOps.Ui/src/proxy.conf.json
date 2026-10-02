@@ -1,0 +1,6 @@
+{
+  "/api/**": { "target": "http://localhost:5100" },
+  "/auth/**": { "target": "http://localhost:5100" },
+  "/health/**": { "target": "http://localhost:5100" },
+  "/signin-oidc": { "target": "http://localhost:5100" }
+}

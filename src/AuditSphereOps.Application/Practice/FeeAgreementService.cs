@@ -86,6 +86,8 @@ public static class FeeAgreementService
       new AuthorizationRequest(actor.FirmId, RequiredRoles: CommercialRoles, InternalOnly: true, RequireFirmWide: true), ct);
     if (!auth.Succeeded) return auth;
     await using var tx = await db.Database.BeginTransactionAsync(ct);
+    if (await LockFirmAsync(db, actor.FirmId, ct) is null)
+      return CommandResult.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
     var agreement = await db.EngagementFeeAgreements.SingleOrDefaultAsync(x => x.Id == agreementId && x.FirmId == actor.FirmId, ct);
     if (agreement is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     if (agreement.EngagementId == engagementId) return CommandResult.Ok();
@@ -192,6 +194,8 @@ public static class FeeAgreementService
 
     var storedReference = $"ADV-{agreement.Id.ToString("N")[..8].ToUpperInvariant()}-{reference}";
     var receipt = await db.Receipts.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.BillingAccountId == invoice.BillingAccountId && x.Reference == storedReference, ct);
+    if (receipt is not null && (receipt.Amount != amount || (receivedAt.HasValue && receipt.ReceivedAt != receivedAt)))
+      return CommandResult<AdvancePaymentOutcome>.Fail("fee.reference-conflict", "This payment reference already records different payment details.");
     if (receipt is null)
     {
       if (amount <= 0 || MoneyPolicy.Normalize(amount) != amount)

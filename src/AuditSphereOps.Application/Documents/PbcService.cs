@@ -235,9 +235,19 @@ public static class PbcService
       return CommandResult.Fail("pbc.message-state", "This request is not open for replies.");
 
     await using var tx = await db.Database.BeginTransactionAsync(ct);
+    // Same firm/client/engagement lock order as final release: a client reply cannot cross the release commit.
+    _ = await db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id = {actor.FirmId} FOR UPDATE").AsNoTracking().SingleAsync(ct);
+    _ = await db.ClientSafetyStates.FromSqlInterpolated($"SELECT * FROM client_safety_states WHERE id = {current.ClientId} AND firm_id = {actor.FirmId} FOR UPDATE").AsNoTracking().SingleAsync(ct);
+    _ = await db.Engagements.FromSqlInterpolated($"SELECT * FROM engagements WHERE id = {current.EngagementId} AND firm_id = {actor.FirmId} FOR UPDATE").AsNoTracking().SingleAsync(ct);
+    auth = await AuthorizeClientAsync(db, actor, current, ct);
+    if (!auth.Succeeded) return auth;
+    var window = await ClientPortalService.RequireUploadWindowAsync(db, actor, current.EngagementId, ct);
+    if (!window.Succeeded) return window;
     var request = await db.PbcRequests.FromSqlInterpolated($"""
       SELECT * FROM pbc_requests WHERE firm_id = {actor.FirmId} AND id = {requestId} FOR UPDATE
       """).SingleAsync(ct);
+    if (request.State is PbcStates.Draft or PbcStates.Accepted or PbcStates.Closed)
+      return CommandResult.Fail("pbc.message-state", "This request is not open for replies.");
     var now = DateTimeOffset.UtcNow;
     db.PbcCommunications.Add(Message(request, actor.UserId, PbcCommunicationKinds.ClientMessage, body, now));
     if (request.State == PbcStates.ClarificationRequired)
