@@ -32,6 +32,20 @@ which the full suite was run; per-slice records carry their own evidence.
 
 
 
+## Accounting evidence scope and session checks
+
+The Application evidence queue excludes expired grants from its scope projection. Before
+returning protected rows or counts, it rechecks the exact returned client/engagement scopes
+and the current session epoch. A late loss of authority publishes no evidence. The HTTP
+identity resolver's existing expiration reconciliation still invalidates the old cookie;
+fresh sign-in exposes only the remaining authorized scope.
+
+Owned sibling-client PostgreSQL checks and a native Angular API-host journey verify the
+scope, mobile display and removal of protected content after epoch loss. Exact evidence,
+publication and broader regression progress are recorded in `status.json`. No schema,
+Microsoft permission or professional authority changes. Detailed evidence editor parity
+and full migration/cutover acceptance remain open.
+
 ## Native statement contribution review
 
 The statement route now composes a read-only, bounded Application review on the approved

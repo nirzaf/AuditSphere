@@ -150,7 +150,7 @@
       "id": "US-025",
       "title": "Migrate reconciliation, valuation and accounting evidence",
       "status": "PARTIAL",
-      "scope": "Native accounting evidence queue exists; specialist schedule and detailed reconciliation/valuation editor parity remains open."
+      "scope": "Native accounting evidence queue now excludes expired broad/sibling grants and rechecks exact returned scope and session epoch before publishing rows or counts. Local PostgreSQL, API and Angular browser isolation/revocation checks passed. Native specialist schedule and detailed reconciliation/valuation editor parity and wider story acceptance remain open."
     },
     {
       "id": "US-026",

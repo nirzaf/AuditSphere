@@ -41,6 +41,14 @@ The implementation covers native route families for practice, accounting, consol
 
 Execution evidence is recorded in [status.json](../execution/status.json). Local synthetic fixtures do not establish tenant, deployment, professional or owner acceptance. Wiki publication has not been authorized.
 
+### Accounting evidence read authorization
+
+The evidence queue derives scope from current, unrevoked and unexpired local grants.
+Application rechecks every returned client/engagement scope and the actor's current epoch
+before publishing records or counts, including an empty result. The trusted HTTP identity
+resolver independently reconciles grant expiry and invalidates the former session. This
+read boundary does not change application roles or Microsoft directory permissions.
+
 ### Native reviewed adjustment-plan commands
 
 Exact sealed source inspection links to native plan preparation. A bounded posted-journal

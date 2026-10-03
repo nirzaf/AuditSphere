@@ -4201,6 +4201,92 @@
         "fingerprintsPath": "/private/tmp/auditsphere-plan-commands-final-hashes.json",
         "boundary": "Frozen published source/tests/production Angular assets and Release assemblies. No changes or rebuilds while the suite consumes them."
       }
+    },
+    "angularAccountingEvidenceQueueAccess": {
+      "status": "IMPLEMENTED_LOCALLY_VERIFIED_TARGETED",
+      "sourceBaseCommit": "19383199aeafde6b733732097be3319f0e487cf3",
+      "observedAt": "2026-10-03T01:25:34.346246+00:00",
+      "scope": "Exclude expired grants from Application evidence scope and recheck exact returned client/engagement authority and session epoch before returning protected evidence or counts.",
+      "build": {
+        "status": "PASS",
+        "warnings": 0,
+        "errors": 0,
+        "exitCode": 0,
+        "log": "/private/tmp/auditsphere-evidence-access-final-build.log",
+        "angularLog": "/private/tmp/auditsphere-evidence-access-angular-build.log"
+      },
+      "angular": {
+        "status": "PASS",
+        "files": 52,
+        "passed": 233,
+        "failed": 0,
+        "exitCode": 0,
+        "log": "/private/tmp/auditsphere-evidence-access-angular-tests.log"
+      },
+      "domainFocused": {
+        "status": "PASS",
+        "passed": 3,
+        "failed": 0,
+        "skipped": 0,
+        "exitCode": 0,
+        "log": "/private/tmp/auditsphere-evidence-access-domain-final.log"
+      },
+      "domainCohort": {
+        "status": "PASS",
+        "log": "/private/tmp/auditsphere-evidence-access-domain-cohort.log",
+        "filter": "AccountingEvidenceQueueAccessTests, SourceAcceptanceAndComparativesTests, ClientAccountingTests.AccountingEvidence",
+        "passed": 11,
+        "failed": 0,
+        "skipped": 0,
+        "exitCode": 0
+      },
+      "apiFocused": {
+        "status": "PASS",
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0,
+        "exitCode": 0,
+        "log": "/private/tmp/auditsphere-evidence-access-api-acceptance.log"
+      },
+      "api": {
+        "status": "RUNNING",
+        "log": "/private/tmp/auditsphere-evidence-access-api-full.log"
+      },
+      "browser": {
+        "status": "PASS",
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0,
+        "exitCode": 0,
+        "log": "/private/tmp/auditsphere-evidence-access-browser.log",
+        "boundary": "Owned synthetic client A/B; native API-host Angular queue, exact scoped count, mobile fit and epoch loss remove protected rows."
+      },
+      "modelDrift": {
+        "status": "PASS",
+        "exitCode": 0,
+        "log": "/private/tmp/auditsphere-evidence-access-model.log",
+        "boundary": "No new migration in this slice; prior additive model exercised only in owned synthetic databases."
+      },
+      "initialChecks": {
+        "status": "FAIL_THEN_CORRECTED",
+        "logs": [
+          "/private/tmp/auditsphere-evidence-access-focused.log",
+          "/private/tmp/auditsphere-evidence-access-api-focused.log"
+        ],
+        "details": "Synthetic expiration fixture initially violated expiration-after-granted invariant; fixed fixture timestamps. Initial HTTP assertion expected200 but existing trusted identity expiry reconciliation correctly returned401; retained401 assertion, checked revocation and reauthenticated before checking scoped rows. No expiry security guard weakened."
+      },
+      "fingerprintsPath": "/private/tmp/auditsphere-evidence-access-final-hashes.json",
+      "securityBoundary": "Expired broad grants were a direct Application projection weakness; the HTTP trusted identity resolver already reconciles expiration and invalidates the old cookie. No HTTP bypass claim. Local evidence only; specialist/reconciliation/valuation editor and broader migration acceptance remain open.",
+      "publication": {
+        "status": "READY_FOR_DIRECT_PUSH",
+        "branch": "master"
+      },
+      "fingerprintsUnchanged": true,
+      "secretScan": {
+        "status": "PASS",
+        "log": "/private/tmp/auditsphere-evidence-access-secret-publication.log",
+        "scope": "Owned staged source, test and documentation diff; redacted scan."
+      }
     }
   },
   "documentationWork": {
