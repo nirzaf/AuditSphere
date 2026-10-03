@@ -74,7 +74,11 @@ jobs:
           set -euo pipefail
           dotnet tool restore
           dotnet restore AuditSphereOps.slnx --locked-mode
-          dotnet build AuditSphereOps.slnx --no-restore --configuration Release
+          # Serialize to a single MSBuild node: Web and the test projects ProjectReference
+          # the Api, so the default parallel solution build races on the Api's output files
+          # (runtimeconfig.json and Roslyn satellite DLLs), causing intermittent MSB3026/MSB4018
+          # "used by another process" failures.
+          dotnet build AuditSphereOps.slnx --no-restore --configuration Release --maxcpucount:1
 
       - name: Check EF model drift
         run: |
