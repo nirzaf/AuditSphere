@@ -13,6 +13,22 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Angular SharePoint administration tab-draft recovery
+
+Selected SharePoint resource and versioned folder-template forms now support
+explicit bounded tab drafts. Recovery is tied to the current setup/resource or
+template-catalog basis, restores editable values only, and always clears review
+assent. The tenant connection route composes both setup and SharePoint guards;
+refresh and unrelated writes ask before they can discard dirty fields. Same-tab
+browser recovery was verified and created no template record.
+
+The Angular suite (448 tests across 87 files), production build, Release solution
+build, and focused SharePoint Playwright journey passed. The fresh whole-solution
+test was stopped after more than twelve minutes without a test summary while the
+API test host remained CPU-active in JIT compilation; it is not a pass. Exact
+evidence and remaining migration boundaries are in `status.json`. This does not
+close full migration, production cutover or Blazor retirement acceptance.
+
 ## Angular embedded commercial form draft recovery
 
 Proposal, quotation, commercial-document and fee-agreement fields now have
@@ -3412,3 +3428,16 @@ The Angular conventions and safe AI-assisted implementation document is now
 CURRENT under docs/architecture, and the curated cross-module parity ledger
 (28 retired-host sources, 25 curated source-action verdicts) landed under
 docs/execution as the US-044 record for the audited non-accounting modules.
+
+### All-module accessibility sweep
+
+The US-042 lane gains a pinned sweep journey: one staff identity walks a
+representative route from every native module and each rendered state must
+keep its document language, a single visible h1, named controls, labelled
+fields, captioned tables and WCAG AA contrast against the effective
+background, with an Escape-closable search overlay and a German-locale
+context proving locale-dependent rendering. The first run surfaced exactly
+one finding class - captionless tables on the practice time page, fixed for
+both the staff list and the approver queue - and the sweep now passes across
+all twenty routes with zero page errors. Real screen-reader walk-throughs and
+a wider locale matrix remain open before the whole-migration acceptance gate.
