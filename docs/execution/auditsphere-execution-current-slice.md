@@ -46,6 +46,12 @@ rollback-target and concurrent browser diagnostics test failures; both focused
 repairs preserve their original safety assertions. It does not replace the last
 successful whole-suite `verifiedCommit`.
 
+The focused activation slice is pushed to remote master. A fresh whole regression
+now consumes that published source in a separate clean, rebuilt and frozen managed
+worktree. Keep its source, browser assets and assemblies unchanged until every
+consumer joins, then compare the recorded fingerprints. Running tests are not
+whole-suite acceptance; exact publication and runtime evidence live in `status.json`.
+
 Next: reviewed blocked-engagement creation and planning forms/drafts/recovery,
 remaining assessment/source-action parity, wider quality and production-like
 cutover/rollback acceptance, then Blazor retirement. The full migration remains

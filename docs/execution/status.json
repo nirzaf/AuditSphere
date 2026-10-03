@@ -4,7 +4,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "f64e8332e9fd40b6d318fed79f90b9c52796060c",
+  "headCommit": "2692cb27fb933241690b02960e96f0536316fdb7",
   "verifiedCommit": "bc17a10f44e393a70ea2fb6b3c9f343d28271c9e",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": false,
@@ -5655,11 +5655,36 @@
         "checkedAfterAllConsumersJoined": true
       },
       "publication": {
-        "status": "READY_TO_COMMIT",
-        "secretScan": "PASS redacted staged gitleaks, no leaks"
+        "status": "PUSHED",
+        "secretScan": "PASS redacted staged gitleaks, no leaks",
+        "commit": "2692cb27fb933241690b02960e96f0536316fdb7",
+        "remote": "origin/master",
+        "remoteMatched": true
       },
       "boundary": "Focused local evidence only. Full Angular migration, client/engagement creation, planning forms/drafts, assessment parity, wider QA, production cutover and Blazor retirement stay PARTIAL. The earlier contact whole regression failed; focused repairs do not replace the successful top-level verifiedCommit.",
-      "allConsumersJoined": true
+      "allConsumersJoined": true,
+      "sourceCommit": "2692cb27fb933241690b02960e96f0536316fdb7"
+    },
+    "angularActivationWholeRegression": {
+      "status": "RUNNING",
+      "sourceCommit": "2692cb27fb933241690b02960e96f0536316fdb7",
+      "worktree": "/Users/qts/.codex/worktrees/angular-evidence-commands/AuditSphere",
+      "log": "/private/tmp/auditsphere-activation-whole-regression.log",
+      "fingerprintsPath": "/private/tmp/auditsphere-activation-whole-regression-hashes.json",
+      "build": {
+        "status": "PASS",
+        "warnings": 0,
+        "errors": 0,
+        "releaseLog": "/private/tmp/auditsphere-activation-whole-release-build.log",
+        "angularProductionBuildLog": "/private/tmp/auditsphere-activation-whole-ui-build.log"
+      },
+      "artifactFingerprints": {
+        "status": "FROZEN",
+        "sourceFiles": 1318,
+        "assets": 105,
+        "assemblies": 38
+      },
+      "boundary": "Fresh separate clean worktree on the pushed activation commit. Do not edit source, assets or assemblies until all test cohorts and the whole parent join; compare fingerprints afterward. RUNNING is not whole-suite acceptance and does not replace verifiedCommit."
     }
   },
   "documentationWork": {
@@ -5767,7 +5792,7 @@
     "implementationStatus": "PARTIAL",
     "acceptanceStatus": "PARTIAL",
     "scope": "Standalone API and native Angular capability slices preserve Application authorization, exact financial inputs, durable operations and independent human gates. Legacy Blazor remains available for rollback until wider parity and retirement acceptance.",
-    "nextAction": "Continue reviewed blocked-engagement creation and planning forms/drafts/request recovery; complete assessment source-action parity and migration quality/cutover/retirement acceptance. Run a fresh frozen whole regression on the published activation step.",
+    "nextAction": "Continue reviewed blocked-engagement creation and planning forms/drafts/request recovery while a separate frozen whole regression consumes the published activation commit. Complete assessment parity and migration quality/cutover/retirement acceptance.",
     "branch": "master"
   },
   "localEvidence": [
