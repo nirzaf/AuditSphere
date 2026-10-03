@@ -87,4 +87,23 @@ describe('Client profile request and command ownership', () => {
     expect(f.componentInstance.data()).toBeNull(); expect(f.componentInstance.serviceRoute).toBe('');
     expect(f.nativeElement.textContent).not.toContain('SYNTHETIC-REG');
   });
+  it('keeps malformed creation acknowledgments unknown and refuses automatic resubmission', () => {
+    const f = open(); read().flush({...payload,canCreateEngagement:true}); TestBed.tick();
+    const c = f.componentInstance; c.serviceRoute = 'AccountingOnly'; c.createEngagement();
+    TestBed.inject(HttpTestingController).expectOne('/api/ui/clients/'+id+'/engagements').flush({}); TestBed.tick();
+    expect(c.uncertain()).toBe(true); expect(c.commandStatus()).not.toContain('Engagement created.');
+    expect(c.serviceRoute).toBe('AccountingOnly'); c.createEngagement();
+    TestBed.inject(HttpTestingController).expectNone('/api/ui/clients/'+id+'/engagements');
+    c.load(); read().flush({}, {status:403,statusText:'Forbidden'}); TestBed.tick();
+    expect(c.data()).toBeNull(); expect(c.serviceRoute).toBe('');
+  });
+  it('accepts only a valid created identity and clears callbacks after destruction', () => {
+    const f = open(); read().flush({...payload,canCreateEngagement:true}); TestBed.tick();
+    const c = f.componentInstance; c.createEngagement();
+    TestBed.inject(HttpTestingController).expectOne('/api/ui/clients/'+id+'/engagements').flush({id:other}); TestBed.tick();
+    expect(c.commandStatus()).toContain('Engagement created.'); read().flush(payload); TestBed.tick();
+    c.data.set(decodeClient({...payload,canCreateEngagement:true})); c.createEngagement();
+    const old = TestBed.inject(HttpTestingController).expectOne('/api/ui/clients/'+id+'/engagements'); f.destroy();
+    old.flush({}); TestBed.tick(); expect(c.uncertain()).toBe(false);
+  });
 });

@@ -34,7 +34,7 @@
     },
     {
       "path": "src/AuditSphereOps.Application/Acceptance/EngagementLifecycleService.cs",
-      "sha256": "66f59e828f204005d0ce51dd437be5e7920f54e35449eb2675101734953761d9"
+      "sha256": "cafcea225e955ef9dae97dcfb690f7701710fed4ba4da6b2765938a29862fbcc"
     },
     {
       "path": "src/AuditSphereOps.Api/Ui/UiEndpoints.EngagementActivation.cs",
@@ -43,6 +43,10 @@
     {
       "path": "src/AuditSphereOps.Ui/src/app/features/engagements/activation.ts",
       "sha256": "12d322fd506dc6fb71b71c380329047b7d8e9443fd5a5f26957a9839ab36017a"
+    },
+    {
+      "path": "src/AuditSphereOps.Application/Acceptance/EngagementLifecycleService.Creation.cs",
+      "sha256": "6232406dd53aa6e3d351fdfa8583d8d3038063b659e9fab48d2ccee1a29d4c9f"
     }
   ],
   "records": [
@@ -70,6 +74,11 @@
       "action": "reviewed-partner-activation",
       "owner": "EngagementActivationWorkspace / EngagementLifecycleService / native activation page",
       "disposition": "IMPLEMENTED: Exact current Partner context, same-service unconditional acceptance, current revisions, zero holds and fresh assent. Guarded activation and immutable actor-owned request evidence commit together; retry returns the original receipt. Pending tab recovery retains request identity only and fences unknown results until reconciliation or fresh review. Local observed verification is recorded in status.json, not production or professional acceptance."
+    },
+    {
+      "action": "blocked-creation-safety",
+      "owner": "EngagementLifecycleService.Creation / native client page",
+      "disposition": "PARTIAL: Client-serialized creation rechecks current authority after locks and before commit; revoked writes roll back. Natural service-period retries retain one blocked shell, profile conflicts fail. Native UI requires a nonzero GUID acknowledgment; unsupported responses fence resubmission and retain fields. Reviewed creation route, immutable request evidence, drafts and outcome recovery remain open."
     }
   ],
   "remaining": "Complete client creation, blocked-engagement creation, planning forms/drafts/outcome acceptance, assessment source-action parity and remaining migration quality/cutover/retirement gates.",

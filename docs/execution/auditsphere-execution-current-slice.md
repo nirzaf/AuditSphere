@@ -13,6 +13,22 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Blocked engagement creation safety foundation
+
+Creation now rechecks current client-wide authority inside the client-serialized
+transaction and again before commit. Natural service-period retries retain one
+blocked shell; conflicting profiles fail. Late scope revocation rolls back the
+new shell. The Angular client form requires a nonzero GUID acknowledgment before
+clearing input or displaying success. Unsupported responses retain input and
+fence resubmission; scope refusal clears protected state. Existing Partner
+activation and Microsoft boundaries remain independent.
+
+Focused Release, Angular, PostgreSQL, browser and model checks passed. The built-in
+browser created only a synthetic disposable blocked draft and verified sign-out
+clearing. Observed counts, build fingerprints and logs live in `status.json`.
+Reviewed creation Signal Forms, immutable request evidence, drafts and response
+recovery remain pending; this foundation does not complete the migration story.
+
 ## Reviewed native Partner activation and response recovery
 
 The Angular engagement page now links to a focused Partner review route. Its
