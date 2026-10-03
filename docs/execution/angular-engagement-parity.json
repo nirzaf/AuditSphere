@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "authority": "Curated current-source audit. Source findings are not test execution or retirement acceptance.",
+  "story": "US-015",
+  "status": "PARTIAL",
+  "sourceFiles": [
+    {
+      "path": "src/AuditSphereOps.Web/Components/Pages/EngagementDetail.razor",
+      "sha256": "dd2c5f09ed6ef2b4e2edcae8f20aa7d81eb04bd60de5f1669ba9d8906ab55f36"
+    },
+    {
+      "path": "src/AuditSphereOps.Application/Practice/WorkspaceQuery.cs",
+      "sha256": "ecf14ef858cb1e00136c8fa56811525342d818896c13b6abfcc9983516d642bf"
+    },
+    {
+      "path": "src/AuditSphereOps.Application/Practice/WorkspaceQuery.Engagement.cs",
+      "sha256": "c5dfb1a690f6795cf25ad9d54ae95d99f459b01c768547119d816400040970fe"
+    },
+    {
+      "path": "src/AuditSphereOps.Ui/src/app/features/engagements/engagement.ts",
+      "sha256": "78ad437667cb03d71a8f6cf2f261359fbd9b25d24db983d8ac95b054e30c696e"
+    },
+    {
+      "path": "src/AuditSphereOps.Ui/src/app/features/engagements/engagement-contracts.ts",
+      "sha256": "08e82f1859c48d4a273d1bcd3112ddb7dfc7034234c55dcd0ce08718df1f01e3"
+    },
+    {
+      "path": "src/AuditSphereOps.Ui/src/app/features/engagements/planning.ts",
+      "sha256": "c4701d23dc0325ce556f3c16195e1178a19f2a7e3fa98219da6b834833ca06ba"
+    }
+  ],
+  "records": [
+    {
+      "action": "metadata-and-scope",
+      "owner": "WorkspaceQuery.EngagementAsync",
+      "disposition": "IMPLEMENTED: Exact firm/engagement scope, service profile, UTC creation metadata and exact string revision. Client navigation requires independent CLIENT authority and every advertised authority is rechecked after projection. Scoped source reads never infer sibling/client access."
+    },
+    {
+      "action": "hold-counts-and-history",
+      "owner": "WorkspaceQuery.EngagementAsync / native engagement page",
+      "disposition": "IMPLEMENTED: Complete exact-engagement active/released totals and stable bounded URL pages. Retained older UI builds keep their original bounded window. Same-engagement revalidation hides protected content while retaining the planning editor; refusal or context/session loss clears it. Active holds independently display blocked work."
+    },
+    {
+      "action": "read-and-command-lifetime",
+      "owner": "Native EngagementDetail",
+      "disposition": "IMPLEMENTED: Runtime response identity/page checks; canceled reads; route/session/lifetime fences before callbacks change busy/edit state; destroyed planning component fences; unsupported activation acknowledgments remain unknown. A return to the same route cannot accept its former command callback."
+    },
+    {
+      "action": "activation-and-planning-forms",
+      "owner": "EngagementLifecycleService / EngagementPlanningQuery / native planning components",
+      "disposition": "PARTIAL: Existing Partner activation and scoped planning commands remain separate from Entra roles and professional acceptance. Complete reviewed forms, revision-bound drafts, immutable request outcome recovery, full source-action parity and browser acceptance remain open."
+    }
+  ],
+  "remaining": "Complete client creation, blocked-engagement creation, activation and planning reviewed forms/drafts/outcome acceptance; remaining migration quality/cutover/retirement gates.",
+  "verificationPointers": [
+    "tests/AuditSphereOps.Domain.Tests/EngagementProfileWorkspaceTests.cs",
+    "tests/AuditSphereOps.Api.Tests/EngagementProfileWorkspaceApiTests.cs",
+    "src/AuditSphereOps.Ui/src/app/features/engagements/engagement-workspace.spec.ts",
+    "tests/AuditSphereOps.E2E.Tests/AngularEngagementProfileJourneyTests.cs",
+    "docs/execution/status.json"
+  ]
+}

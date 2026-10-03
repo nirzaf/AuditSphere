@@ -1,0 +1,191 @@
+<nav aria-label="Engagement navigation">
+  <a matButton routerLink="/app" [queryParams]="portfolioNavigation.params()">Portfolio</a>
+  <button matButton (click)="load()" [disabled]="pagingBlocked()">Refresh engagement</button>
+</nav>
+<audit-page-header
+  title="Engagement details"
+  eyebrow="Engagement workspace"
+  description="Review the service, professional clearance, team and budget for this engagement."
+/>
+@if (loading()) {
+  <mat-progress-bar mode="indeterminate" aria-label="Loading engagement" />
+}
+@if (error()) {
+  <section role="alert">
+    <h2>Engagement unavailable</h2>
+    <p>{{ error() }}</p>
+    <button matButton (click)="load()">Retry</button>
+  </section>
+}
+@if (data(); as engagement) {
+  <div [hidden]="loading()">
+    <h2>{{ engagement.serviceRoute }} — {{ engagement.clientName }}</h2>
+    <p>
+      <audit-status [value]="engagement.status" /> · {{ engagement.periodStart }} to
+      {{ engagement.periodEnd }}
+    </p>
+    <section aria-label="Engagement summary" class="engagement-metrics">
+      <article>
+        <h3>Professional work</h3>
+        <strong>{{ workBlocked(engagement) ? 'Blocked' : 'Open' }}</strong>
+      </article>
+      <article>
+        <h3>Active holds</h3>
+        <strong>{{ engagement.holdMetrics.active }}</strong>
+      </article>
+      <article>
+        <h3>Released holds</h3>
+        <strong>{{ engagement.holdMetrics.released }}</strong>
+      </article>
+    </section>
+    <section class="engagement-profile" aria-label="Engagement profile">
+      <h2>Service and period</h2>
+      <dl>
+        <dt>Client</dt>
+        <dd>
+          {{ engagement.clientName }}
+          @if (engagement.canViewClientProfile) {
+            <a [routerLink]="['/app/clients', engagement.clientId]">Client profile</a>
+          }
+        </dd>
+        <dt>Service profile</dt>
+        <dd>{{ engagement.serviceProfileId || 'Standard' }}</dd>
+        <dt>Period</dt>
+        <dd>{{ engagement.periodStart }} to {{ engagement.periodEnd }}</dd>
+        <dt>Created</dt>
+        <dd>{{ utcTime(engagement.createdAt) }}</dd>
+        <dt>Engagement ID</dt>
+        <dd>
+          <code>{{ engagement.id }}</code>
+        </dd>
+        <dt>Revision</dt>
+        <dd>{{ engagement.generation }}</dd>
+      </dl>
+    </section>
+    <nav aria-label="Engagement workflows">
+      @for (workflow of workflows; track workflow.path) {
+        <a matButton [routerLink]="['/app/engagements', engagement.id, workflow.path]">{{
+          workflow.label
+        }}</a>
+      }
+    </nav>
+    @if (workBlocked(engagement)) {
+      <section role="status">
+        <h2>Professional work blocked</h2>
+        <p>Review the clearance gates before starting professional work.</p>
+        <a [routerLink]="[]" [queryParams]="location()" fragment="engagement-clearance"
+          >Review clearance gates</a
+        >
+      </section>
+    }
+    @if (engagement.canActivate) {
+      <section>
+        <h2>Partner activation</h2>
+        <p>
+          Activation requires the current unconditional acceptance for this service and no
+          unreleased hold.
+        </p>
+        <a [routerLink]="['/app/clients', engagement.clientId, 'assessment']"
+          >Review acceptance checklist</a
+        >
+        <label
+          ><input
+            type="checkbox"
+            [(ngModel)]="activationReviewed"
+            [disabled]="activating() || activationUnknown()"
+          />
+          I reviewed this engagement and its acceptance prerequisites.</label
+        >
+        <button
+          matButton
+          [disabled]="!activationReviewed || activating() || activationUnknown()"
+          (click)="activate()"
+        >
+          Activate engagement
+        </button>
+        <p role="status">{{ activationStatus() }}</p>
+      </section>
+    }
+    @defer (on viewport) {
+      <audit-engagement-planning [engagementId]="engagement.id" />
+    } @placeholder {
+      <p>Team and budget</p>
+    }
+    <section id="engagement-clearance" aria-label="Holds and clearance gates">
+      <h2>Holds and clearance gates</h2>
+      <p>
+        {{ engagement.holdMetrics.total }} recorded holds ·
+        {{ engagement.holdMetrics.active }} active · {{ engagement.holdMetrics.released }} released
+      </p>
+      @if (engagement.holds.length) {
+        <div class="table-scroll">
+          <table>
+            <caption>
+              Hold history
+            </caption>
+            <thead>
+              <tr>
+                <th>Gate</th>
+                <th>Reason</th>
+                <th>Status</th>
+                <th>Recorded</th>
+                <th>Released</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (hold of engagement.holds; track hold.id) {
+                <tr>
+                  <td>{{ hold.kind }}</td>
+                  <td>{{ hold.reason }}</td>
+                  <td><audit-status [value]="hold.released ? 'RELEASED' : 'ACTIVE'" /></td>
+                  <td>{{ utcTime(hold.createdAt) }}</td>
+                  <td>{{ hold.releasedAt ? utcTime(hold.releasedAt) : '—' }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      } @else {
+        <p>
+          {{
+            engagement.holdMetrics.total
+              ? 'No holds on this page. Select a previous page.'
+              : 'No holds recorded.'
+          }}
+        </p>
+      }
+      <nav aria-label="Hold pages">
+        <button
+          matButton
+          (click)="page(engagement.paging.holdPage - 1)"
+          [disabled]="pagingBlocked() || engagement.paging.holdPage === 0"
+        >
+          Previous holds
+        </button>
+        <span>Page {{ engagement.paging.holdPage + 1 }}</span>
+        <button
+          matButton
+          (click)="page(engagement.paging.holdPage + 1)"
+          [disabled]="
+            pagingBlocked() ||
+            (engagement.paging.holdPage + 1) * engagement.paging.holdPageSize >=
+              engagement.holdMetrics.total
+          "
+        >
+          Next holds
+        </button>
+        <label for="engagement-hold-page-size">Holds per page</label>
+        <select
+          id="engagement-hold-page-size"
+          [value]="engagement.paging.holdPageSize"
+          (change)="size($any($event.target).value)"
+          [disabled]="pagingBlocked()"
+        >
+          <option value="10">10</option>
+          <option value="25">25</option>
+          <option value="50">50</option>
+        </select>
+      </nav>
+    </section>
+  </div>
+}

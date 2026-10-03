@@ -469,6 +469,15 @@ export class EngagementPlanning {
   private readonly http = inject(HttpClient);
   private readonly session = inject(SessionService);
   private request?: Subscription;
+  private lifetime = 0;
+  private readRevision = 0;
+  private destroyed = false;
+  private owner(): string {
+    const s = this.session.current();
+    return s?.staff
+      ? `${s.firmId}:${s.userId}:${s.generation}:${this.session.invalidation()}:${this.engagementId()}:${this.lifetime}`
+      : '';
+  }
   readonly data = signal<Planning | null>(null);
   readonly loading = signal(false);
   readonly error = signal('');
@@ -478,6 +487,9 @@ export class EngagementPlanning {
       this.session.invalidation();
       const staff = this.session.current()?.staff;
       untracked(() => {
+        this.lifetime++;
+        this.busy.set(false);
+        this.loading.set(false);
         this.request?.unsubscribe();
         this.data.set(null);
         this.currency = 'QAR';
@@ -499,7 +511,13 @@ export class EngagementPlanning {
         if (staff) this.load();
       });
     });
-    inject(DestroyRef).onDestroy(() => this.request?.unsubscribe());
+    inject(DestroyRef).onDestroy(() => {
+      this.destroyed = true;
+      this.lifetime++;
+      this.readRevision++;
+      this.request?.unsubscribe();
+      this.data.set(null);
+    });
   }
   requestRevocation(person: TeamMember): void {
     if (!this.busy()) this.revokeTarget.set(person);
@@ -526,7 +544,7 @@ export class EngagementPlanning {
   }
   private command(path: string, body: object): void {
     const id = this.engagementId();
-    const generation = this.session.invalidation();
+    const owner = this.owner();
     this.busy.set(true);
     this.commandStatus.set('Saving planning change…');
     this.http
@@ -534,8 +552,8 @@ export class EngagementPlanning {
       .pipe(timeout(15000))
       .subscribe({
         next: () => {
+          if (this.destroyed || owner !== this.owner()) return;
           this.busy.set(false);
-          if (id !== this.engagementId() || generation !== this.session.invalidation()) return;
           this.selectedUser = '';
           this.reviewed = false;
           this.revokeTarget.set(null);
@@ -544,8 +562,8 @@ export class EngagementPlanning {
           this.load();
         },
         error: (failure) => {
+          if (this.destroyed || owner !== this.owner()) return;
           this.busy.set(false);
-          if (id !== this.engagementId() || generation !== this.session.invalidation()) return;
           if (failure.status >= 400 && failure.status < 500)
             this.commandStatus.set(
               'Planning change refused. Check scope, current revision, approved rates, rank and certification.',
@@ -561,19 +579,21 @@ export class EngagementPlanning {
       });
   }
   load(): void {
+    const revision = ++this.readRevision;
     this.request?.unsubscribe();
     this.data.set(null);
     this.error.set('');
     const id = this.engagementId();
-    if (!guid.test(id) || !this.session.current()?.staff) return;
+    this.loading.set(false);
+    if (this.destroyed || !guid.test(id) || !this.session.current()?.staff) return;
     this.loading.set(true);
-    const generation = this.session.invalidation();
+    const owner = this.owner();
     this.request = this.http
       .get<unknown>('/api/ui/engagements/' + id + '/planning')
       .pipe(timeout(15000))
       .subscribe({
         next: (value) => {
-          if (generation !== this.session.invalidation()) return;
+          if (this.destroyed || owner !== this.owner() || revision !== this.readRevision) return;
           try {
             this.data.set(decodePlanning(value));
           } catch {
@@ -582,7 +602,14 @@ export class EngagementPlanning {
           this.loading.set(false);
         },
         error: (failure) => {
+          if (this.destroyed || owner !== this.owner() || revision !== this.readRevision) return;
           this.loading.set(false);
+          this.selectedUser = '';
+          this.reviewed = false;
+          this.budgetLines = [];
+          this.currency = '';
+          this.budgetReviewed = false;
+          this.revokeTarget.set(null);
           this.error.set('Planning unavailable. Check your access or retry.');
           if (failure.status === 401) this.session.clear();
         },

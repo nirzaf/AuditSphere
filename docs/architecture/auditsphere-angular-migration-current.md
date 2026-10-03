@@ -102,6 +102,33 @@ Existing contact and blocked-engagement commands remain separate. Complete revie
 form/draft/outcome recovery and engagement action parity remain open. See the
 [client action audit](../execution/angular-client-profile-parity.json).
 
+### Native engagement metadata and hold history
+
+`WorkspaceQuery.EngagementAsync` supplies service-profile and UTC creation metadata,
+exact engagement generation, complete authorized hold totals and bounded history
+pages ordered by creation time and immutable identity. Unpaged callers retain the
+original bounded window for older UI builds. Client-profile navigation requires
+separate client-wide authority; an engagement assignment never widens that scope.
+Every advertised command/navigation authority is rechecked after the projection,
+and the API rechecks the trusted session before delivery.
+
+The native view validates exact response identity, page, counts and revision.
+Active holds independently display blocked professional work even if the stored
+engagement flag is open; the clearance link leads to retained gate evidence.
+Same-engagement hold paging hides the view while revalidating and preserves its
+team/budget editor instance. Refused or malformed responses, identity/session loss
+and route destruction remove protected content. Route lifetime ownership also
+fences a late activation result after a return to the same identity. Planning
+command/read callbacks have matching owner and destruction checks. An unknown
+activation outcome permits state inspection, not another blind submission. An
+unsupported activation acknowledgment remains unconfirmed.
+
+This implements read-side metadata/history parity. Complete reviewed engagement
+creation, activation and planning forms, revision-bound drafts, retained request
+recovery and broader migration acceptance remain open. The
+[engagement action audit](../execution/angular-engagement-parity.json) records those
+boundaries; executed verification belongs to the execution ledger.
+
 ### Controlled canonical route ownership and retained assets
 
 The standalone API supports deployment-owned `AngularUi:CanonicalRoutes`, off by

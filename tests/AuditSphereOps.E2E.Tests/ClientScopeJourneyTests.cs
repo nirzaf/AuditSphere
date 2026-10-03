@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Playwright;
 using AuditSphereOps.Application.Security;
@@ -77,7 +78,7 @@ public sealed class ClientScopeJourneyTests
     {
       await using var context = await browser.NewContextAsync();
       var page = await context.NewPageAsync();
-      var diagnostics = new List<string>();
+      var diagnostics = new ConcurrentQueue<string>();
       var connected = WaitForCircuitConnectionAsync(page, diagnostics);
       await page.GotoAsync(SignInUrl(origin, route));
       if (denied)
@@ -173,7 +174,7 @@ public sealed class ClientScopeJourneyTests
     await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
     await using var context = await browser.NewContextAsync();
     var page = await context.NewPageAsync();
-    var diagnostics = new List<string>();
+    var diagnostics = new ConcurrentQueue<string>();
     var connected = WaitForCircuitConnectionAsync(page, diagnostics);
     await page.GotoAsync(SignInUrl(clientOrigin, $"/app/consolidation/advanced/{scopeId:D}"));
     await page.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable" }).WaitForAsync();
@@ -191,7 +192,7 @@ public sealed class ClientScopeJourneyTests
 
     await using var staffContext = await browser.NewContextAsync();
     var staffPage = await staffContext.NewPageAsync();
-    var staffDiagnostics = new List<string>();
+    var staffDiagnostics = new ConcurrentQueue<string>();
     var staffConnected = WaitForCircuitConnectionAsync(staffPage, staffDiagnostics);
     await staffPage.GotoAsync(SignInUrl(staffOrigin, "/app/consolidation"));
     await staffPage.GetByRole(AriaRole.Heading, new() { Name = $"{privateGroupName} · v1", Exact = true }).WaitForAsync();
@@ -255,7 +256,7 @@ public sealed class ClientScopeJourneyTests
     await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
     await using var context = await browser.NewContextAsync();
     var page = await context.NewPageAsync();
-    var diagnostics = new List<string>();
+    var diagnostics = new ConcurrentQueue<string>();
     var connected = WaitForCircuitConnectionAsync(page, diagnostics);
     await page.GotoAsync(SignInUrl(host.StaffUrl, $"/app/consolidation/advanced/{authorizedScopeId:D}"));
     await page.GetByRole(AriaRole.Heading, new() { Name = privateGroupName }).WaitForAsync();
@@ -317,7 +318,7 @@ public sealed class ClientScopeJourneyTests
     await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
     await using var context = await browser.NewContextAsync();
     var page = await context.NewPageAsync();
-    var diagnostics = new List<string>();
+    var diagnostics = new ConcurrentQueue<string>();
     var connected = WaitForCircuitConnectionAsync(page, diagnostics);
     await page.GotoAsync(SignInUrl(origin, "/app/administration"));
     await page.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable" }).WaitForAsync();
@@ -356,7 +357,7 @@ public sealed class ClientScopeJourneyTests
     await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
     await using var context = await browser.NewContextAsync();
     var page = await context.NewPageAsync();
-    var diagnostics = new List<string>();
+    var diagnostics = new ConcurrentQueue<string>();
     var connected = WaitForCircuitConnectionAsync(page, diagnostics);
     await page.GotoAsync(SignInUrl(origin, "/app/administration"));
     await connected;
@@ -431,7 +432,7 @@ public sealed class ClientScopeJourneyTests
     await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
     await using var context = await browser.NewContextAsync();
     var page = await context.NewPageAsync();
-    var diagnostics = new List<string>();
+    var diagnostics = new ConcurrentQueue<string>();
     var connected = WaitForCircuitConnectionAsync(page, diagnostics);
     await page.GotoAsync(SignInUrl(origin, "/app/operations"));
     await page.GetByText(privateKind, new() { Exact = true }).WaitForAsync();
@@ -502,7 +503,7 @@ public sealed class ClientScopeJourneyTests
     await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
     await using var context = await browser.NewContextAsync();
     var page = await context.NewPageAsync();
-    var diagnostics = new List<string>();
+    var diagnostics = new ConcurrentQueue<string>();
     var connected = WaitForCircuitConnectionAsync(page, diagnostics);
     await page.GotoAsync(SignInUrl(origin, "/app/practice/leads"));
     await page.GetByText(privateLead, new() { Exact = true }).WaitForAsync();
@@ -551,7 +552,7 @@ public sealed class ClientScopeJourneyTests
     await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
     await using var context = await browser.NewContextAsync();
     var page = await context.NewPageAsync();
-    var diagnostics = new List<string>();
+    var diagnostics = new ConcurrentQueue<string>();
     var connected = WaitForCircuitConnectionAsync(page, diagnostics);
     await page.GotoAsync(SignInUrl(origin, "/app/finance"));
     await page.GetByText(privateAccount, new() { Exact = true }).WaitForAsync();
@@ -594,7 +595,7 @@ public sealed class ClientScopeJourneyTests
     await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
     await using var context = await browser.NewContextAsync();
     var page = await context.NewPageAsync();
-    var diagnostics = new List<string>();
+    var diagnostics = new ConcurrentQueue<string>();
     var connected = WaitForCircuitConnectionAsync(page, diagnostics);
     await page.GotoAsync(SignInUrl(origin, "/app"));
     await page.GetByRole(AriaRole.Heading, new() { Name = "No firm, client or engagement scope" }).WaitForAsync();
@@ -631,7 +632,7 @@ public sealed class ClientScopeJourneyTests
     await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
     await using var context = await browser.NewContextAsync();
     var page = await context.NewPageAsync();
-    var diagnostics = new List<string>();
+    var diagnostics = new ConcurrentQueue<string>();
     var connected = WaitForCircuitConnectionAsync(page, diagnostics);
     await page.GotoAsync(SignInUrl(origin, "/app"));
     await page.GetByText(privateClientName, new() { Exact = true }).WaitForAsync();
@@ -738,7 +739,7 @@ public sealed class ClientScopeJourneyTests
     await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
     await using var context = await browser.NewContextAsync();
     var page = await context.NewPageAsync();
-    var diagnostics = new List<string>();
+    var diagnostics = new ConcurrentQueue<string>();
     var connected = WaitForCircuitConnectionAsync(page, diagnostics);
     await page.GotoAsync(SignInUrl(origin, "/app/practice/time"));
     await page.GetByRole(AriaRole.Heading, new() { Name = "Practice time & task records" }).WaitForAsync();
@@ -847,7 +848,7 @@ public sealed class ClientScopeJourneyTests
     var managerUrl = await host.StartWebForIdentityAsync(unrelatedManager);
     await using var managerContext = await browser.NewContextAsync();
     var managerPage = await managerContext.NewPageAsync();
-    var diagnostics = new List<string>();
+    var diagnostics = new ConcurrentQueue<string>();
     var managerConnected = WaitForCircuitConnectionAsync(managerPage, diagnostics);
     await managerPage.GotoAsync(SignInUrl(managerUrl, $"/app/assessments/{decisionId:D}"));
     await managerPage.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable" }).WaitForAsync();
@@ -914,7 +915,7 @@ public sealed class ClientScopeJourneyTests
     var unrelatedUrl = await host.StartWebForIdentityAsync(unrelatedPartner);
     await using var unrelatedContext = await browser.NewContextAsync();
     var unrelatedPage = await unrelatedContext.NewPageAsync();
-    var diagnostics = new List<string>();
+    var diagnostics = new ConcurrentQueue<string>();
     var unrelatedConnected = WaitForCircuitConnectionAsync(unrelatedPage, diagnostics);
     await unrelatedPage.GotoAsync(SignInUrl(unrelatedUrl, "/app/accounting/evidence"));
     await unrelatedPage.GetByText("Evidence records", new() { Exact = true }).WaitForAsync();
@@ -1016,7 +1017,7 @@ public sealed class ClientScopeJourneyTests
     var baseUrl = await host.StartWebForIdentityAsync(partner);
     await using var context = await browser.NewContextAsync();
     var page = await context.NewPageAsync();
-    var diagnostics = new List<string>();
+    var diagnostics = new ConcurrentQueue<string>();
     var connected = WaitForCircuitConnectionAsync(page, diagnostics);
     await page.GotoAsync(SignInUrl(baseUrl, "/app/accounting"));
     await page.GetByText("1 explicitly granted legal entity").WaitForAsync();
@@ -1158,7 +1159,7 @@ public sealed class ClientScopeJourneyTests
     var origin = await host.StartWebForIdentityAsync(scopedUser);
     await using var context = await browser.NewContextAsync();
     var page = await context.NewPageAsync();
-    var diagnostics = new List<string>();
+    var diagnostics = new ConcurrentQueue<string>();
     var connected = WaitForCircuitConnectionAsync(page, diagnostics);
     await page.GotoAsync(SignInUrl(origin, "/app/accounting"));
     await page.GetByText("1 explicitly granted legal entity").WaitForAsync();
@@ -1219,7 +1220,7 @@ public sealed class ClientScopeJourneyTests
     await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
     await using var context = await browser.NewContextAsync();
     var page = await context.NewPageAsync();
-    var diagnostics = new List<string>();
+    var diagnostics = new ConcurrentQueue<string>();
     var connected = WaitForCircuitConnectionAsync(page, diagnostics);
     await page.GotoAsync(SignInUrl(baseUrl, $"/app/accounting/periods/{assignedPeriodId:D}"));
     await page.Locator("h1").WaitForAsync();
@@ -1302,7 +1303,7 @@ public sealed class ClientScopeJourneyTests
     var engagementUrl = await host.StartWebForIdentityAsync(engagementPreparer);
     using var playwright = await Playwright.CreateAsync();
     await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
-    var diagnostics = new List<string>();
+    var diagnostics = new ConcurrentQueue<string>();
 
     foreach (var route in new[] { "/app/accounting/rollforward", "/app/accounting/restatements" })
     {
@@ -1384,7 +1385,7 @@ public sealed class ClientScopeJourneyTests
 
     await using var managerContext = await browser.NewContextAsync();
     var managerPage = await managerContext.NewPageAsync();
-    var diagnostics = new List<string>();
+    var diagnostics = new ConcurrentQueue<string>();
     var managerConnected = WaitForCircuitConnectionAsync(managerPage, diagnostics);
     await managerPage.GotoAsync(SignInUrl(managerUrl, $"/app/assessments/{host.Fixture.ClientId:D}/decision"));
     await managerPage.GetByRole(AriaRole.Heading, new() { Name = "Decision unavailable" }).WaitForAsync();
@@ -1417,7 +1418,7 @@ public sealed class ClientScopeJourneyTests
     await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
     await using var context = await browser.NewContextAsync();
     var page = await context.NewPageAsync();
-    var diagnostics = new List<string>();
+    var diagnostics = new ConcurrentQueue<string>();
     var connected = WaitForCircuitConnectionAsync(page, diagnostics);
     await page.GotoAsync(SignInUrl(host.StaffUrl, $"/app/engagements/{host.Fixture.EngagementId:D}"));
     await page.GetByRole(AriaRole.Heading, new() { Name = "Engagement details" }).WaitForAsync();
@@ -1477,7 +1478,7 @@ public sealed class ClientScopeJourneyTests
     await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
     await using var staffContext = await browser.NewContextAsync();
     var staffPage = await staffContext.NewPageAsync();
-    var staffDiagnostics = new List<string>();
+    var staffDiagnostics = new ConcurrentQueue<string>();
     var staffConnected = WaitForCircuitConnectionAsync(staffPage, staffDiagnostics);
     await staffPage.GotoAsync(SignInUrl(host.StaffUrl, $"/app/engagements/{host.Fixture.EngagementId:D}/completion"));
     await staffPage.GetByText(privateNarrative).WaitForAsync();
@@ -1485,7 +1486,7 @@ public sealed class ClientScopeJourneyTests
 
     await using var viewerContext = await browser.NewContextAsync();
     var page = await viewerContext.NewPageAsync();
-    var diagnostics = new List<string>();
+    var diagnostics = new ConcurrentQueue<string>();
     var viewerConnected = WaitForCircuitConnectionAsync(page, diagnostics);
     await page.GotoAsync(SignInUrl(viewerUrl, $"/app/engagements/{host.Fixture.EngagementId:D}/completion"));
     await page.GetByRole(AriaRole.Heading, new() { Name = "Engagement unavailable" }).WaitForAsync();
@@ -1535,7 +1536,7 @@ public sealed class ClientScopeJourneyTests
     await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
     await using var staffContext = await browser.NewContextAsync();
     var staffPage = await staffContext.NewPageAsync();
-    var staffDiagnostics = new List<string>();
+    var staffDiagnostics = new ConcurrentQueue<string>();
     var staffConnected = WaitForCircuitConnectionAsync(staffPage, staffDiagnostics);
     await staffPage.GotoAsync(SignInUrl(host.StaffUrl, $"/app/engagements/{host.Fixture.EngagementId:D}"));
     await staffPage.GetByText("PBC TEST CLIENT", new() { Exact = true }).First.WaitForAsync(); // also shown in the breadcrumb
@@ -1562,7 +1563,7 @@ public sealed class ClientScopeJourneyTests
 
     await using var viewerContext = await browser.NewContextAsync();
     var page = await viewerContext.NewPageAsync();
-    var diagnostics = new List<string>();
+    var diagnostics = new ConcurrentQueue<string>();
     var viewerConnected = WaitForCircuitConnectionAsync(page, diagnostics);
     await page.GotoAsync(SignInUrl(viewerUrl, $"/app/engagements/{host.Fixture.EngagementId:D}"));
     await page.GetByRole(AriaRole.Heading, new() { Name = "Engagement unavailable" }).WaitForAsync();
@@ -1623,7 +1624,7 @@ public sealed class ClientScopeJourneyTests
     await using (var staffContext = await browser.NewContextAsync())
     {
       var page = await staffContext.NewPageAsync();
-      var diagnostics = new List<string>();
+      var diagnostics = new ConcurrentQueue<string>();
       var connected = WaitForCircuitConnectionAsync(page, diagnostics);
       await page.GotoAsync(SignInUrl(host.StaffUrl,
         $"/app/engagements/{host.Fixture.EngagementId:D}/audit-plan"));
@@ -1644,7 +1645,7 @@ public sealed class ClientScopeJourneyTests
     await using (var revokeContext = await browser.NewContextAsync())
     {
       var revokePage = await revokeContext.NewPageAsync();
-      var revokeDiagnostics = new List<string>();
+      var revokeDiagnostics = new ConcurrentQueue<string>();
       var revokeConnected = WaitForCircuitConnectionAsync(revokePage, revokeDiagnostics);
       await revokePage.GotoAsync(SignInUrl(host.StaffUrl,
         $"/app/engagements/{host.Fixture.EngagementId:D}/audit-plan"));
@@ -1689,7 +1690,7 @@ public sealed class ClientScopeJourneyTests
     var unrelatedUrl = await host.StartWebForIdentityAsync(unrelatedManager);
     await using var unrelatedContext = await browser.NewContextAsync();
     var unrelatedPage = await unrelatedContext.NewPageAsync();
-    var unrelatedDiagnostics = new List<string>();
+    var unrelatedDiagnostics = new ConcurrentQueue<string>();
     var unrelatedConnected = WaitForCircuitConnectionAsync(unrelatedPage, unrelatedDiagnostics);
     await unrelatedPage.GotoAsync(SignInUrl(unrelatedUrl,
       $"/app/engagements/{host.Fixture.EngagementId:D}/audit-plan"));
@@ -1732,12 +1733,12 @@ public sealed class ClientScopeJourneyTests
     await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
     await using var staffContext = await browser.NewContextAsync();
     var staffPage = await staffContext.NewPageAsync();
-    var staffDiagnostics = new List<string>();
+    var staffDiagnostics = new ConcurrentQueue<string>();
     var staffConnected = WaitForCircuitConnectionAsync(staffPage, staffDiagnostics);
     await staffPage.GotoAsync(SignInUrl(host.StaffUrl, $"/app/reviews/{point.Id:D}"));
     await staffPage.GetByText(point.Comment).WaitForAsync();
     await staffConnected;
-    staffPage.PageError += (_, error) => staffDiagnostics.Add($"page-error: {error}");
+    staffPage.PageError += (_, error) => staffDiagnostics.Enqueue($"page-error: {error}");
     await staffPage.WaitForLoadStateAsync(LoadState.NetworkIdle, new() { Timeout = 5000 });
     var clearButton = staffPage.GetByRole(AriaRole.Button, new() { Name = "Clear Review Point" });
     Assert.True(await clearButton.IsEnabledAsync());
@@ -1754,7 +1755,7 @@ public sealed class ClientScopeJourneyTests
 
     await using var viewerContext = await browser.NewContextAsync();
     var page = await viewerContext.NewPageAsync();
-    var diagnostics = new List<string>();
+    var diagnostics = new ConcurrentQueue<string>();
     var viewerConnected = WaitForCircuitConnectionAsync(page, diagnostics);
     await page.GotoAsync(SignInUrl(viewerUrl, $"/app/reviews/{point.Id:D}"));
     await page.GetByRole(AriaRole.Heading, new() { Name = "Review point unavailable" }).WaitForAsync();
@@ -1807,8 +1808,8 @@ public sealed class ClientScopeJourneyTests
     await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
     await using var context = await browser.NewContextAsync();
     var page = await context.NewPageAsync();
-    var diagnostics = new List<string>();
-    page.PageError += (_, error) => diagnostics.Add($"page-error: {error}");
+    var diagnostics = new ConcurrentQueue<string>();
+    page.PageError += (_, error) => diagnostics.Enqueue($"page-error: {error}");
     var connected = WaitForCircuitConnectionAsync(page, diagnostics);
     await page.GotoAsync(SignInUrl(host.StaffUrl, $"/app/reviews/{authorizedPoint.Id:D}"));
     await page.GetByText(authorizedPoint.Comment, new() { Exact = true }).WaitForAsync();
@@ -1910,8 +1911,8 @@ public sealed class ClientScopeJourneyTests
     await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
     await using var context = await browser.NewContextAsync();
     var page = await context.NewPageAsync();
-    var diagnostics = new List<string>();
-    page.PageError += (_, error) => diagnostics.Add($"page-error: {error}");
+    var diagnostics = new ConcurrentQueue<string>();
+    page.PageError += (_, error) => diagnostics.Enqueue($"page-error: {error}");
     var connected = WaitForCircuitConnectionAsync(page, diagnostics);
     await page.GotoAsync(SignInUrl(host.StaffUrl, $"/app/records/archives/{archive.Id:D}"));
     await connected;
@@ -2017,7 +2018,7 @@ public sealed class ClientScopeJourneyTests
 
     await using var viewerContext = await browser.NewContextAsync();
     var page = await viewerContext.NewPageAsync();
-    var diagnostics = new List<string>();
+    var diagnostics = new ConcurrentQueue<string>();
     var viewerConnected = WaitForCircuitConnectionAsync(page, diagnostics);
     await page.GotoAsync(SignInUrl(viewerUrl, $"/app/findings/{findingId:D}"));
     await page.GetByRole(AriaRole.Heading, new() { Name = "Finding unavailable" }).WaitForAsync();
@@ -2089,7 +2090,7 @@ public sealed class ClientScopeJourneyTests
 
     await using var viewerContext = await browser.NewContextAsync();
     var page = await viewerContext.NewPageAsync();
-    var diagnostics = new List<string>();
+    var diagnostics = new ConcurrentQueue<string>();
     var viewerConnected = WaitForCircuitConnectionAsync(page, diagnostics);
     await page.GotoAsync(SignInUrl(viewerUrl, $"/app/audit/populations/{populationId:D}"));
     await page.GetByRole(AriaRole.Heading, new() { Name = "Population unavailable" }).WaitForAsync();
@@ -2171,7 +2172,7 @@ public sealed class ClientScopeJourneyTests
 
     await using var viewerContext = await browser.NewContextAsync();
     var page = await viewerContext.NewPageAsync();
-    var diagnostics = new List<string>();
+    var diagnostics = new ConcurrentQueue<string>();
     var viewerConnected = WaitForCircuitConnectionAsync(page, diagnostics);
     await page.GotoAsync(SignInUrl(viewerUrl, $"/app/audit/workpapers/{workpaperId:D}"));
     await page.GetByRole(AriaRole.Heading, new() { Name = "Workpaper unavailable" }).WaitForAsync();
@@ -2226,7 +2227,7 @@ public sealed class ClientScopeJourneyTests
     {
       await using var context = await browser.NewContextAsync();
       var page = await context.NewPageAsync();
-      var diagnostics = new List<string>();
+      var diagnostics = new ConcurrentQueue<string>();
       var connected = WaitForCircuitConnectionAsync(page, diagnostics);
       await page.GotoAsync(SignInUrl(origin, $"/app/clients/{host.Fixture.ClientId:D}"));
       await page.GetByRole(AriaRole.Heading, new() { Name = "Client unavailable" }).WaitForAsync();
@@ -2284,8 +2285,8 @@ public sealed class ClientScopeJourneyTests
     using var playwright = await Playwright.CreateAsync();
     await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
     var page = await browser.NewPageAsync();
-    var diagnostics = new List<string>();
-    page.PageError += (_, error) => diagnostics.Add($"page-error: {error}");
+    var diagnostics = new ConcurrentQueue<string>();
+    page.PageError += (_, error) => diagnostics.Enqueue($"page-error: {error}");
     var connected = WaitForCircuitConnectionAsync(page, diagnostics);
     await page.GotoAsync(SignInUrl(managerUrl, $"/app/clients/{host.Fixture.ClientId:D}"));
     await connected;
@@ -2351,7 +2352,7 @@ public sealed class ClientScopeJourneyTests
     using var playwright = await Playwright.CreateAsync();
     await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
     var page = await browser.NewPageAsync();
-    var diagnostics = new List<string>();
+    var diagnostics = new ConcurrentQueue<string>();
     var connected = WaitForCircuitConnectionAsync(page, diagnostics);
     await page.GotoAsync(SignInUrl(reviewerUrl, $"/app/reviews/{point.Id:D}"));
     await page.GetByText(privateComment, new() { Exact = true }).WaitForAsync();
@@ -2409,7 +2410,7 @@ public sealed class ClientScopeJourneyTests
     await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
     await using var context = await browser.NewContextAsync();
     var page = await context.NewPageAsync();
-    var diagnostics = new List<string>();
+    var diagnostics = new ConcurrentQueue<string>();
     var connected = WaitForCircuitConnectionAsync(page, diagnostics);
     await page.GotoAsync(SignInUrl(host.ClientUrl, "/portal"));
     await page.GetByText("Cash", new() { Exact = true }).WaitForAsync();
@@ -2472,7 +2473,7 @@ public sealed class ClientScopeJourneyTests
     await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
     await using var context = await browser.NewContextAsync();
     var page = await context.NewPageAsync();
-    var diagnostics = new List<string>();
+    var diagnostics = new ConcurrentQueue<string>();
     var connected = WaitForCircuitConnectionAsync(page, diagnostics);
     await page.GotoAsync(SignInUrl(host.ClientUrl, $"/portal/requests/{host.RequestId:D}"));
     await page.GetByRole(AriaRole.Heading, new() { Name = privateMarker }).WaitForAsync();
@@ -2576,7 +2577,7 @@ public sealed class ClientScopeJourneyTests
     await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
     await using var context = await browser.NewContextAsync();
     var page = await context.NewPageAsync();
-    var diagnostics = new List<string>();
+    var diagnostics = new ConcurrentQueue<string>();
     var connected = WaitForCircuitConnectionAsync(page, diagnostics);
     await page.GotoAsync(SignInUrl(origin, $"/app/engagements/{host.Fixture.EngagementId:D}/pbc"));
     await page.GetByRole(AriaRole.Heading, new() { Name = "Prepared-by-client requests" }).WaitForAsync();
@@ -2627,7 +2628,7 @@ public sealed class ClientScopeJourneyTests
     await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
     await using var context = await browser.NewContextAsync();
     var page = await context.NewPageAsync();
-    var diagnostics = new List<string>();
+    var diagnostics = new ConcurrentQueue<string>();
     var connected = WaitForCircuitConnectionAsync(page, diagnostics);
     await page.GotoAsync(SignInUrl(host.StaffUrl, $"/app/engagements/{host.Fixture.EngagementId:D}/pbc"));
     await page.GetByRole(AriaRole.Heading, new() { Name = privateMarker }).WaitForAsync();
@@ -2703,7 +2704,7 @@ public sealed class ClientScopeJourneyTests
     await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
     await using var context = await browser.NewContextAsync();
     var page = await context.NewPageAsync();
-    var diagnostics = new List<string>();
+    var diagnostics = new ConcurrentQueue<string>();
     var connected = WaitForCircuitConnectionAsync(page, diagnostics);
     await page.GotoAsync(SignInUrl(host.StaffUrl, $"/app/engagements/{host.Fixture.EngagementId:D}/pbc"));
     await page.GetByRole(AriaRole.Heading, new() { Name = privateMarker }).WaitForAsync();
@@ -2737,7 +2738,7 @@ public sealed class ClientScopeJourneyTests
     await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
     await using var context = await browser.NewContextAsync();
     var page = await context.NewPageAsync();
-    var diagnostics = new List<string>();
+    var diagnostics = new ConcurrentQueue<string>();
     var connected = WaitForCircuitConnectionAsync(page, diagnostics);
 
     await page.GotoAsync(SignInUrl(host.ClientUrl, $"/portal/requests/{host.RequestId:D}"));
@@ -2804,7 +2805,7 @@ public sealed class ClientScopeJourneyTests
     await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
     await using var context = await browser.NewContextAsync();
     var page = await context.NewPageAsync();
-    var diagnostics = new List<string>();
+    var diagnostics = new ConcurrentQueue<string>();
     var connected = WaitForCircuitConnectionAsync(page, diagnostics);
     await page.GotoAsync(SignInUrl(host.ClientUrl, "/portal"));
     await page.GetByText("Cash", new() { Exact = true }).WaitForAsync();
@@ -2829,7 +2830,7 @@ public sealed class ClientScopeJourneyTests
     await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
     await using var context = await browser.NewContextAsync();
     var page = await context.NewPageAsync();
-    var diagnostics = new List<string>();
+    var diagnostics = new ConcurrentQueue<string>();
     var connected = WaitForCircuitConnectionAsync(page, diagnostics);
 
     await page.GotoAsync(SignInUrl(unrelatedClientUrl, $"/portal/requests/{host.RequestId:D}"));
@@ -2861,16 +2862,16 @@ public sealed class ClientScopeJourneyTests
   private static string SignInUrl(string origin, string returnUrl) =>
     $"{origin}/auth/sign-in?returnUrl={Uri.EscapeDataString(returnUrl)}";
 
-  private static Task WaitForCircuitConnectionAsync(IPage page, List<string> diagnostics)
+  private static Task WaitForCircuitConnectionAsync(IPage page, ConcurrentQueue<string> diagnostics)
   {
     var connected = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
     page.Console += (_, message) =>
     {
-      diagnostics.Add($"console/{message.Type}: {message.Text}");
+      diagnostics.Enqueue($"console/{message.Type}: {message.Text}");
       if (message.Text.Contains("WebSocket connected to ws://", StringComparison.Ordinal))
         connected.TrySetResult();
     };
-    page.PageError += (_, error) => diagnostics.Add($"page-error: {error}");
+    page.PageError += (_, error) => diagnostics.Enqueue($"page-error: {error}");
     return connected.Task.WaitAsync(TimeSpan.FromSeconds(10));
   }
 }

@@ -13,6 +13,56 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Native engagement metadata, clearance and hold history
+
+The scoped Application projection now retains service-profile and UTC creation
+metadata, exact revision strings, complete active/released hold totals and stable
+bounded history pages. Client-profile navigation requires separate CLIENT authority.
+Active holds display blocked professional work independently from the stored flag;
+the clearance link leads to retained gate evidence. Older native builds retain the
+unpaged bounded endpoint contract.
+
+Same-engagement history revalidation hides protected content while preserving the
+team/budget editor and entered values. A refusal, mismatched response, route or
+session change removes it. Route lifetime fences stop callbacks from an earlier
+visit, including a return to the same identity, from changing current busy state or
+review. Unsupported activation acknowledgments remain unknown and cannot authorize
+another blind submission.
+
+The built-in browser checked metadata, responsive layout, page-size changes,
+preserved edits and sign-out clearing in an owned synthetic database. The focused
+PostgreSQL/API/Angular and corrected browser results, original failed attempts and
+artifact fingerprints are recorded only in `status.json`. An existing browser
+scope assertion now uses a thread-safe diagnostics collection; its isolation
+assertions remain intact. The separate whole run exposed that earlier collection
+race and cannot establish whole-suite acceptance.
+
+Reviewed creation, activation and planning forms, scoped drafts and retained
+request recovery remain the next eligible work. Full migration quality, production
+cutover and Blazor retirement remain open. No shared migration, live Microsoft
+operation or Wiki publication was performed.
+
+## Contact publication and engagement parity continuation
+
+The reviewed contact step is pushed to remote master; its publication evidence is
+recorded in `status.json`. A curated engagement source audit now identifies missing
+master metadata, complete hold counts/history, client-profile navigation authority
+and late activation callback lifetime fences. Planning edits must survive ordinary
+same-engagement history paging and clear when current authority is lost. The
+[engagement action audit](angular-engagement-parity.json) distinguishes existing
+commands from remaining form/draft/outcome acceptance.
+
+The earlier full regression terminated with the known navigation-selector failures;
+its source/assets/assemblies matched after every consumer joined. Those selectors
+are corrected and pass on the published client/contact steps. A fresh full run on
+the contact commit now consumes a separate clean, rebuilt and frozen worktree.
+Exact outcomes and test/build/hash paths remain only in `status.json`. The latest
+full successful acceptance remains the top-level `verifiedCommit`; an in-flight
+rerun does not replace it.
+
+Native engagement parity is the active next slice. Full migration, production
+cutover, wider quality gates and Blazor retirement remain open.
+
 ## Native reviewed client contact creation
 
 A focused native contact route replaces the inline Angular contact form. The

@@ -31,6 +31,7 @@
     <Compile Include="../AuditSphereOps.Domain.Tests/ReconciliationReviewSeed.cs" Link="Fixtures/ReconciliationReviewSeed.cs" />
     <Compile Include="../AuditSphereOps.Domain.Tests/PortfolioWorkspaceSeed.cs" Link="Fixtures/PortfolioWorkspaceSeed.cs" />
     <Compile Include="../AuditSphereOps.Domain.Tests/ClientProfileWorkspaceSeed.cs" Link="Fixtures/ClientProfileWorkspaceSeed.cs" />
+    <Compile Include="../AuditSphereOps.Domain.Tests/EngagementProfileWorkspaceSeed.cs" Link="Fixtures/EngagementProfileWorkspaceSeed.cs" />
     <Compile Include="../AuditSphereOps.Domain.Tests/SiblingClientSeed.cs" Link="Fixtures/SiblingClientSeed.cs" />
     <Compile Include="../AuditSphereOps.Domain.Tests/PbcSeed.cs" Link="Fixtures/PbcSeed.cs" />
     <Compile Include="../Shared/RemeasurementFixture.cs" Link="Fixtures/RemeasurementFixture.cs" />
