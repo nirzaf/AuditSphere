@@ -861,3 +861,11 @@ For the complete documentation index, authority hierarchy, current requirements,
 - UI: `features/engagements/planning.ts` and `budget-approval-contracts.ts` bind confirmation and reconcile unknown outcomes without resending writes.
 - Persistence: `AuditSphereDbContext.BudgetApprovals.cs` and the native approval migration enforce append-only evidence and deferred approved-budget linkage.
 - Verification: `BudgetApprovalReviewTests`, `BudgetApprovalReviewApiTests`, `AngularBudgetApprovalJourneyTests` and planning component tests.
+
+## Reviewed staffing backend receipts
+
+- Domain: `Practice/StaffingChange.cs` records immutable actor-owned local change evidence.
+- Application: `Practice/StaffingChangeWorkspace.cs` owns preview, reviewed execution and receipt lookup; `StaffingService.cs` retains rank, certification, grant and session-epoch rules.
+- API: `Ui/UiEndpoints.StaffingChange.cs` exposes CSRF-protected preview/execute and current-authorized receipt reads. Native UI adoption remains pending.
+- Persistence: `AuditSphereDbContext.StaffingChanges.cs` and native staffing review migration enforce retained evidence and deferred assignment linkage.
+- Tests: `StaffingChangeReviewTests.cs` covers concurrent exact replay, immutable receipts, scope, identity and stale context.

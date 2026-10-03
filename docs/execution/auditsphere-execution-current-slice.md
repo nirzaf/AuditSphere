@@ -13,6 +13,25 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Reviewed staffing backend receipts
+
+Application staffing preview now binds the exact action, target identity, level,
+assignment, certification, local grant effects, client/engagement generations and
+current actor/session. Assignment review states the owner-approved entire-client-
+site Full Control consequence; Microsoft membership still reconciles separately.
+Confirmed execution composes the existing staffing service inside one guarded
+transaction and retains an immutable actor-owned receipt. Exact request replay
+returns the original receipt; changed intent and stale review fail closed.
+Receipt lookup uses a publication barrier before reporting absence.
+
+The new persistence migration adds append-only evidence and a deferred assignment/
+revocation linkage guard, with rollback refusal when retained evidence exists.
+It is exercised only in disposable test schemas, not shared Development or
+production. Observed build and focused PostgreSQL evidence is recorded in
+status.json. Angular staffing still uses its existing command path; wiring native
+preview/receipt recovery and its API/browser acceptance is the next migration work.
+No complete migration or live Microsoft acceptance is claimed.
+
 ## Staffing transaction composition and publication fencing
 
 Staffing assignment and revocation now join a caller-owned transaction, or own and
