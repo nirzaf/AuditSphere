@@ -6825,6 +6825,15 @@
       },
       "boundary": "Focused presentation-contract evidence only. Full .NET suite and EF drift were not rerun. No schema, shared Development database, external provider or production state changed. Broader resource-planning acceptance and migration cutover/retirement remain open."
     },
+    "integratedFullRegressionAttempt575c338": {
+      "status": "INTERRUPTED",
+      "sourceCommit": "575c338aa99c7f60a73deca7e3ab113a37a00ced",
+      "observedAt": "2026-10-03",
+      "releaseBuild": "PASS: zero warnings/errors",
+      "fullSuite": "INTERRUPTED after more than 12 minutes without an API test summary; the API test host entered an idle wait. No suite counts or pass are inferred.",
+      "command": "dotnet test AuditSphereOps.slnx --no-build --configuration Release -m:1",
+      "boundary": "The prior verifiedCommit remains unchanged. This attempt did not produce full-suite acceptance, EF drift evidence, shared Development migration or production acceptance."
+    },
     "angularCommercialReadModelAndPerfBudgets": {
       "status": "IMPLEMENTED_LOCALLY_VERIFIED_TARGETED",
       "scope": "Commercial US-016 read-model parity: ProposalWorkspace now carries commercial owner (opportunity or lead owner), author, internal reviewer, approved/sent/response timestamps, supersedes reference and per-revision sent/response columns, resolved through one bounded user-name lookup with double authorization rechecks. Leads list regains summary metrics, recorded dates and refresh control. US-043 adds the local production-like budget journey with cold/warm/router/large-dataset ceilings.",

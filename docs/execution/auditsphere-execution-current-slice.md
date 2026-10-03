@@ -13,6 +13,16 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Integrated regression attempt on the current master
+
+The Release solution build passed with zero warnings or errors after the
+assessment-timeline and resource-grid changes. A fresh full solution test then
+remained in the API test stage for more than twelve minutes without a summary;
+the API host entered an idle wait and was interrupted. No API, Domain, E2E or
+aggregate test counts are inferred from that attempt. The prior
+`verifiedCommit` remains the last successful full-suite checkpoint. Details are
+recorded under `integratedFullRegressionAttempt575c338` in `status.json`.
+
 ## Angular resource-grid range integrity
 
 The grid now derives week headers from the server-returned normalized range, so
