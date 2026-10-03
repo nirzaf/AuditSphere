@@ -120,7 +120,7 @@
       "id": "US-020",
       "title": "Migrate accounting setup, periods and revision lineage",
       "status": "PARTIAL",
-      "scope": "Scoped setup, profile/period/book/chart commands, close/reopen, roll-forward and restatement workspaces exist. Native source account alias and client dimension workspaces are now implemented with reviewed chart publication fences, batch validation, typed dimension types, and Angular forms/decoders. Local verification (API 127/127, Vitest 223/223) passed. Full source-action parity and final acceptance remain open."
+      "scope": "Scoped setup, profile/period/book/chart commands, close/reopen, roll-forward and restatement workspaces exist. Native source account alias and client dimension workspaces are implemented with reviewed chart publication fences, batch validation, typed dimension types, and Angular forms/decoders. Current focused journeys verify reviewed-field assent invalidation, persisted alias/dimension creation, reload display, safe read-failure states and retry with mutation disabled until verification. The Angular suite/build and Release solution build pass; EF reports no model drift. The clean whole-solution regression predates this latest UI slice. Full source-action parity and final acceptance remain open."
     },
     {
       "id": "US-021",

@@ -4,12 +4,12 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "f192fe7a50ec38dfea57bd5b6560b80693d2cc98",
-  "verifiedCommit": "75b70e9afc8d01af06ee2c4681754edb99cd4f70",
+  "headCommit": "b012022d63560ffb42ab768f2b12a65af6268c56",
+  "verifiedCommit": "f192fe7a50ec38dfea57bd5b6560b80693d2cc98",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": false,
   "productionEnabled": false,
-  "verifiedAt": "2026-10-03T10:33:51.281276+00:00",
+  "verifiedAt": "2026-10-03T19:34:53Z",
   "toolchain": {
     "sdk": ".NET 10",
     "efCore": "10.0.12",
@@ -7082,14 +7082,35 @@
       "remaining": "Exclusive-window frozen whole-suite pass; screen-reader (AT) walk-throughs, wider locale matrix, production-like canary and acceptance, owner-authorized retirement (US-047), live Microsoft gates.",
       "cleanFrozenPass": {
         "command": "dotnet build AuditSphereOps.slnx --no-restore --configuration Release (zero warnings/errors) then dotnet test AuditSphereOps.slnx --configuration Release --no-build --no-restore",
-        "sourceState": "Binaries built at a settled head with clean source (79ac03e code state; the only later commit at launch was this entry's own docs commit 07ee5e3).",
+        "sourceState": "Binaries built with clean source at f192fe7 (including global-search deduplication); subsequent commits before this run were documentation-only (79ac03e and 07ee5e3). The later evidence commit afef376 records these observed results.",
         "api": "PASS: 176/176 (13m45s) including the parallel session's committed search typeahead contract.",
         "domain": "PASS: 644/644 (31m2s).",
         "e2e": "PASS: 201/201 (47m15s).",
         "aggregate": "1021/1021 passed, zero failed, zero skipped. The earlier concurrent-window failure (PbcInboxClearsRenderedStateWhenNavigatingToUnauthorizedSiblingEngagement) passed in this exclusive window, confirming it as contention flake rather than a product regression.",
-        "residualBoundary": "The parallel session's uncommitted accounting charts/workspace edits were present in the working tree during the E2E leg but are not part of the tested build or this claim. Remaining outside this gate: screen-reader (AT) walk-throughs, wider locale matrix, production-like canary/acceptance, live Microsoft gates and owner-authorized retirement (US-047)."
+        "residualBoundary": "Uncommitted accounting charts/workspace edits were present in the working tree during E2E but were not in the built binaries. Remaining outside this gate: screen-reader (AT) walk-throughs, wider locale matrix, production-like canary/acceptance, live Microsoft gates and owner-authorized retirement (US-047)."
       },
-      "status_note": "Superseded boundary: the concurrency-limited 200/201 window above is retained for history; the clean frozen pass below is the whole-suite acceptance record for this head."
+      "status_note": "Superseded boundary: the concurrency-limited 200/201 window above is retained for history; the clean frozen pass below is the whole-suite acceptance record for the f192fe7 code state."
+    },
+    "angularAccountingAliasDimensionReview": {
+      "codeCommit": "b012022d63560ffb42ab768f2b12a65af6268c56",
+      "observedAt": "2026-10-03T19:34:53Z",
+      "status": "PASS_LOCAL_SLICE",
+      "releaseSolutionBuild": "PASS; zero warnings/errors",
+      "productionUiBuild": "PASS",
+      "angularTests": {
+        "passed": 451,
+        "failed": 0,
+        "files": 87
+      },
+      "browserJourneys": {
+        "passed": 2,
+        "failed": 0,
+        "details": "Client-scoped staff creates and reload-verifies an accounting dimension and chart alias. Reviewed source/account/dimension/alias edits clear assent. Simulated first-read 503 responses show safe retry states and keep mutations disabled until a successful read."
+      },
+      "efModelDrift": "NONE",
+      "secretScan": "PASS; staged gitleaks found no leaks",
+      "fullSolutionRegression": "The clean frozen 1021/1021 run above predates this slice. Focused current-source browser journeys pass; current source has not had a new full-solution test run.",
+      "boundary": "US-020 remains PARTIAL: broader source-action parity, screen-reader/locale/performance acceptance, production cutover and owner-authorized Blazor retirement remain open."
     }
   },
   "documentationWork": {
@@ -7197,7 +7218,7 @@
     "implementationStatus": "PARTIAL",
     "acceptanceStatus": "PARTIAL",
     "scope": "Standalone API and native Angular capability slices preserve Application authorization, exact financial inputs, durable operations and independent human gates. Legacy Blazor remains available for rollback until wider parity and retirement acceptance.",
-    "nextAction": "Continue remaining resource-grid and cross-module source-action/accessibility/locale parity; run a fresh full regression on a stable integrated source; then complete production-like canary/cutover and owner-authorized Blazor retirement gates. The obsolete conversion regression was invalidated.",
+    "nextAction": "Continue the remaining partial Angular stories and cross-module route/source-action parity; complete screen-reader, wider locale and performance acceptance; then perform production-like canary/cutover and owner-authorized Blazor retirement. The clean frozen 1021/1021 regression predates the latest accounting UI slice, which currently has focused verification only.",
     "branch": "master"
   },
   "localEvidence": [
@@ -8006,7 +8027,7 @@
     {
       "item": "ASP.NET Core API and Angular 22 migration",
       "status": "PARTIAL",
-      "details": "Native API and Angular capability routes, financial review/evidence actions and scoped portfolio/client/contact/engagement projections have local verification. Exact reviewed Partner activation and retained request reconciliation now have focused local acceptance. Remaining: creation/planning forms/drafts/recovery, assessment source-action parity, accessibility/performance, production-like cutover/rollback and Blazor retirement. Earlier failed whole runs remain separate from focused repairs and the successful verifiedCommit."
+      "details": "Native API and Angular capability routes, financial review/evidence actions and scoped portfolio/client/contact/engagement projections have local verification. Exact reviewed Partner activation and retained request reconciliation have focused local acceptance; accounting chart alias and dimension workspaces now have reviewed-field invalidation and retryable fail-closed reads with focused browser verification. Remaining: partial creation/planning/source-action parity, accessibility/performance, production-like cutover/rollback and Blazor retirement. The clean 1021/1021 verifiedCommit predates the latest accounting UI slice."
     }
   ],
   "externalGates": [
@@ -8073,9 +8094,9 @@
   ],
   "evidenceBoundary": "This public pointer contains no tenant identifiers, user principals, credentials, tokens, secret values or private-provider URLs. Local evidence does not establish production acceptance or professional conclusions.",
   "angularChartAliasPublicationFence": {
-    "status": "PARTIAL",
-    "verified": "Focused PostgreSQL chart workspace test passed (1/1), including wrong-client alias refusal and publication refusal after aliases changed following review.",
-    "changes": "Publication digest includes source aliases; alias writes optionally fence reviewed client and chart version.",
-    "pending": "Alias read/write Angular screens, dimensions, full migration, full suite and built-in browser acceptance remain pending."
+    "status": "PASS_LOCAL_SLICE",
+    "verified": "Focused PostgreSQL chart workspace test and current client-scoped Playwright journeys passed. Alias/dimension creation persists and reloads; changing reviewed fields clears assent; simulated read failures are visible, retryable and fail closed.",
+    "changes": "Publication digest includes source aliases; alias writes fence the reviewed chart version; Angular alias and dimension workspaces use bounded typed responses and disable writes until reads verify successfully.",
+    "pending": "Broader accounting source-action parity, overall Angular migration, full current-source regression, accessibility/locale/performance acceptance, production-like cutover and owner-authorized Blazor retirement remain pending."
   }
 }

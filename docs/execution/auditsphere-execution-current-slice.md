@@ -13,6 +13,21 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Angular accounting alias and dimension review safeguards
+
+Accounting chart, account, alias and dimension forms now clear review assent
+when a reviewed value changes. Alias and dimension reads show safe loading,
+failure and retry states; their mutation controls stay disabled until the
+current client/revision read succeeds. Responses are bounded and validated,
+with an explicit truncation notice where the read is larger than the display
+limit. A client-scoped Playwright journey verified safe 503 recovery, reviewed
+creation, persistence and display after reload. Angular tests, the production
+UI build, Release solution build, EF drift check and staged secret scan passed.
+The current-source full solution suite has not been rerun; the last clean
+whole-suite result applies to the earlier search-fix source state. The overall
+migration and US-020 remain partial. Exact evidence is in `status.json` under
+`angularAccountingAliasDimensionReview`.
+
 ## Angular global-search submit deduplication
 
 Typing and submitting the same term could dispatch duplicate search reads when
