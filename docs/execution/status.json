@@ -4,7 +4,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "b3cdfc12e37707feb1a2c4f8f32f4e95ccec0787",
+  "headCommit": "2edf555b6a5888131da37dd9f3a2bbc4f03b89ce",
   "verifiedCommit": "75b70e9afc8d01af06ee2c4681754edb99cd4f70",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": false,
@@ -6481,13 +6481,20 @@
       "sourceCommit": "b3cdfc12e37707feb1a2c4f8f32f4e95ccec0787"
     },
     "angularConversionWholeRegression": {
-      "status": "RUNNING",
+      "status": "INVALIDATED",
       "sourceCommit": "b3cdfc12e37707feb1a2c4f8f32f4e95ccec0787",
       "sessionId": 49224,
       "log": "/private/tmp/auditsphere-conversion-master-full-regression.log",
       "frozenManifest": "/private/tmp/auditsphere-conversion-master-hashes.json",
       "command": "dotnet test AuditSphereOps.slnx --configuration Release --no-build --no-restore",
-      "boundary": "Join parent and inspect all project results before claiming completion or editing source/assets/assemblies. Latest whole-suite verifiedCommit remains the prior proven checkpoint."
+      "boundary": "Latest whole-suite verifiedCommit remains the earlier proven staffing checkpoint. A fresh full regression is required after concurrent work and assessment integration settle.",
+      "parentExitCode": 1,
+      "partialResults": {
+        "domainPassed": 611,
+        "apiPassed": 170,
+        "e2e": "CANCELLED_INCOMPLETE"
+      },
+      "invalidation": "Concurrent source and Release assembly changes produced 32 mismatches in the frozen manifest. Cancelled the owned obsolete parent with SIGINT, explicitly joined exit 1 and confirmed its test hosts exited. Partial passes do not prove whole-suite acceptance."
     },
     "angularAdminAccessParitySlice": {
       "status": "IMPLEMENTED_LOCALLY_VERIFIED_TARGETED",
@@ -6502,6 +6509,37 @@
       "modelDrift": "PASS: no pending EF model changes.",
       "worktreeBoundary": "Verified on a shared checkout whose working tree also contains another agent's uncommitted assessment-workspace parity files (AssessmentWorkspaceQuery, assessment route/workspace endpoints and journeys); the Release build compiled that in-flight source too. Staged commit contains only this slice's 18 files. No whole-suite pass is claimed at this commit.",
       "remaining": "Administration: lost pre-dispatch original-form recovery on tenant/setup pages, setup draft mail/records capability states and tenant display name, standalone verify-directory control, firm & security runtime display. Commercial: proposal read-model enrichment, draft hooks for settings/quotation/documents/fee-agreement forms, leads metric cards. Practice/finance: receipts, credit notes and their UI remain Application-only in BOTH hosts (parity-neutral). Cross-cutting: curated parity ledger files for audited modules, US-042 full accessibility/locale acceptance, US-043 production-like performance measurements, US-045 production canary, owner-authorized retirement."
+    },
+    "angularAssessmentReadParity": {
+      "status": "PASS_LOCAL",
+      "scope": "Native profile/progress and exact legacy decision selection; historical and engagement-specific read-only contexts; exact in-memory Partner assent. Typed Signal Forms, reviewed command receipts, persistent recovery and specialist timeline details remain partial.",
+      "sourceCommit": "2edf555b6a5888131da37dd9f3a2bbc4f03b89ce",
+      "sourceManifest": "/private/tmp/auditsphere-assessment-master-final-hashes.json",
+      "observedChecks": {
+        "release": "PASS: zero warnings/errors",
+        "angular": "PASS: 400/400",
+        "domain": "PASS: 8/8",
+        "api": "PASS: 1/1",
+        "e2e": "PASS: 2/2",
+        "ef": "PASS: no pending model changes",
+        "production": "PASS: production Angular build"
+      },
+      "logs": {
+        "release": "/private/tmp/auditsphere-assessment-master-final-release.log",
+        "angular": "/private/tmp/auditsphere-assessment-master-final-ui.log",
+        "production": "/private/tmp/auditsphere-assessment-master-final-production.log",
+        "domain": "/private/tmp/auditsphere-assessment-master-final-domain.log",
+        "api": "/private/tmp/auditsphere-assessment-master-final-api.log",
+        "e2e": "/private/tmp/auditsphere-assessment-master-final-e2e.log",
+        "ef": "/private/tmp/auditsphere-assessment-master-final-ef.log"
+      },
+      "builtinBrowser": "PASS on owned synthetic draft: exact history, current evaluation navigation, changed rationale clears Partner assent and disables decision; no console warnings/errors. Host/database and agent tab disposed. Final engagement-specific projection extension is covered by integrated automated checks.",
+      "screenshot": "/private/tmp/auditsphere-assessment-history.png",
+      "recovery": "Draft browser checks found old-decision fallback on current navigation, then an inaccessible select label. Both fixed with failed logs retained. Initial integrated Angular compilation encountered an in-progress adjacent lead draft missing its import; the concurrent import was supplied and the retry passed.",
+      "boundary": "Local focused evidence only. Adjacent concurrent working-tree changes are excluded from the assessment commit. No live Microsoft, shared Development database mutation or production acceptance. Whole migration and cutover remain partial.",
+      "manifest": "MATCH after all final focused consumers joined",
+      "verifiedTree": "Integrated working tree with concurrent adjacent changes; no whole-suite acceptance is inferred.",
+      "relatedPresentationCommit": "b56ae9b"
     }
   },
   "documentationWork": {
@@ -6609,7 +6647,7 @@
     "implementationStatus": "PARTIAL",
     "acceptanceStatus": "PARTIAL",
     "scope": "Standalone API and native Angular capability slices preserve Application authorization, exact financial inputs, durable operations and independent human gates. Legacy Blazor remains available for rollback until wider parity and retirement acceptance.",
-    "nextAction": "Join frozen conversion whole-regression parent before primary source edits; prepare assessment source-action parity outside tested tree, then continue resource-grid and quality/cutover/retirement acceptance.",
+    "nextAction": "Complete assessment typed forms and reviewed command receipt/recovery parity, specialist timeline and navigation/accessibility checks; continue resource-grid and quality/cutover/retirement acceptance. Run a fresh full regression on a stable integrated source; the obsolete conversion regression was invalidated.",
     "branch": "master"
   },
   "localEvidence": [
