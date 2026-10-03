@@ -56,19 +56,35 @@ public sealed class AdjustmentEligibilityQueryTests
       var digestBefore = report.Value.MembershipDigest;
       Assert.Matches("^[0-9a-f]{64}$", digestBefore);
 
-      // Resolving the second journal as already reflected reclassifies it as
-      // excluded with a different contribution-set digest.
+      // A changed decision cannot make the old immutable selection look usable.
+      // Finalization refuses this plan until a replacement snapshots that decision.
       Assert.True((await SourceReconciliationService.ResolveAsync(db, reviewer, fixture.DatasetId,
         "AJ-ELIG-2", 1, ReflectionStates.Reflected, "Client ledger already includes this entry.")).Succeeded);
       var after = await AdjustmentEligibilityQuery.GetEligibilityAsync(db, preparer, planId);
       Assert.True(after.Succeeded, after.Message);
-      var excluded = after.Value!.Journals.Single(x => x.JournalNumber == "AJ-ELIG-2");
-      Assert.Equal(AdjustmentEligibilityQuery.Excluded, excluded.Classification);
-      Assert.Equal("reflection.already-in-source", excluded.ReasonCode);
+      var changed = after.Value!.Journals.Single(x => x.JournalNumber == "AJ-ELIG-2");
+      Assert.Equal(AdjustmentEligibilityQuery.Blocked, changed.Classification);
+      Assert.Equal("reflection.changed-since-plan", changed.ReasonCode);
       Assert.Equal(1, after.Value.EligibleCount);
-      Assert.Equal(1, after.Value.ExcludedCount);
-      Assert.Equal(0, after.Value.BlockedCount);
+      Assert.Equal(0, after.Value.ExcludedCount);
+      Assert.Equal(1, after.Value.BlockedCount);
       Assert.NotEqual(digestBefore, after.Value.MembershipDigest);
+      var stale = await AdjustmentPlanService.FinalizeAsync(db, preparer, planId);
+      Assert.False(stale.Succeeded);
+      Assert.Equal(ErrorCodes.StaleRevision, stale.ErrorCode);
+      var replacement = await AdjustmentPlanService.CreatePlanAsync(db, preparer, fixture.DatasetId,
+        [new PlanLineInput("AJ-ELIG-1", 1), new PlanLineInput("AJ-ELIG-2", 1)]);
+      Assert.True(replacement.Succeeded);
+      var current = await AdjustmentEligibilityQuery.GetEligibilityAsync(db, reviewer, replacement.Value);
+      Assert.True(current.Succeeded, current.Message);
+      Assert.Equal(1, current.Value!.EligibleCount);
+      Assert.Equal(1, current.Value.ExcludedCount);
+      Assert.Equal(0, current.Value.BlockedCount);
+      await db.JournalSourceReconciliations.Where(x => x.LogicalJournalNumber == "AJ-ELIG-1").ExecuteDeleteAsync();
+      var missing = await AdjustmentEligibilityQuery.GetEligibilityAsync(db, preparer, replacement.Value);
+      Assert.True(missing.Succeeded);
+      Assert.Equal(ReflectionStates.Unknown, missing.Value!.Journals.Single(x => x.JournalNumber == "AJ-ELIG-1").ReflectionState);
+      Assert.Equal(1, missing.Value.BlockedCount);
     }
   }
 

@@ -24,6 +24,7 @@ const PAGE = 25;
     <nav aria-label="Accounting record queues" class="actions">
       <a routerLink="/app/accounting/mappings" routerLinkActive="active" ariaCurrentWhenActive="page">COA and mappings</a>
       <a routerLink="/app/accounting/journals" routerLinkActive="active" ariaCurrentWhenActive="page">Adjustments</a>
+      <a routerLink="/app/accounting/adjustment-plans" routerLinkActive="active" ariaCurrentWhenActive="page">Plan eligibility</a>
       <a routerLink="/app/accounting/differences" routerLinkActive="active" ariaCurrentWhenActive="page">Differences</a>
     </nav>
     <button type="button" (click)="reload()">Refresh queue</button>

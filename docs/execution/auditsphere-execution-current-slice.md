@@ -2383,3 +2383,18 @@ model-drift and built-in browser gates passed as recorded in `status.json`; wide
 regression has terminal acceptance with unchanged source/artifacts. Creation regression remains
 independent and failed on retained legacy browser timeouts; its corrected affected cohort is a
 separate pass. Overlapping source-reflection edits were preserved outside this owned worktree.
+
+
+### Native adjustment-plan eligibility review
+
+The next owned slice adds a bounded native queue and read-only plan review. It keeps retained
+calculation evidence separate from current applicability and reports the exact planned/current
+source-reflection states. The existing eligibility report now agrees with finalization when
+reflection changes or disappears and rejects ambiguous, group-only or oversized membership.
+Scoped source parents, current authority and supporting-context double reads protect results.
+The initial build and queue/fixture failures were corrected before final acceptance. The
+queue filters held engagements and preserves per-plan professional checks. Targeted final-source
+backend, Angular, affected Domain/browser, model and built-in browser checks passed. The full
+API regression is running in a frozen checkout; it has no terminal result yet. Observed counts,
+failures, artifact fingerprints and publication are recorded only in `status.json`.
+Native plan creation/finalization and wider migration acceptance remain pending.

@@ -126,7 +126,7 @@ account-exact; source acceptance binds sealed sources and bumps generation.
 
 
 
-- Application: `Application/Accounting/AdjustmentJournalService.cs`, `AdjustmentPlanService.cs`, `AdjustmentEligibilityQuery.cs`, `CurrencyRemeasurementService.cs`
+- Application: `Application/Accounting/AdjustmentJournalService.cs`, `AdjustmentPlanService.cs`, `AdjustmentEligibilityQuery.cs`, `AdjustmentPlanWorkspace.cs`, `CurrencyRemeasurementService.cs`
 
 
 

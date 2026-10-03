@@ -144,7 +144,7 @@
       "id": "US-024",
       "title": "Migrate journal and adjustment workflows",
       "status": "PARTIAL",
-      "scope": "Native queues, exact line creation/revision review, submission/return, independent posting, linked reversal/supersession, immutable original/before-after history and scoped receipt recovery are implemented. Exact signed-in client and offline staff management responses passed local backend, Angular and browser verification in status.json. Reflection/application and wider source-action acceptance remain open."
+      "scope": "Native queues, exact line creation/revision review, submission/return, independent posting, linked reversal/supersession, immutable original/before-after history and scoped receipt recovery are implemented. Exact signed-in client and offline staff management responses passed local backend, Angular and browser verification in status.json. Reflection/application and wider source-action acceptance remain open. Bounded native adjustment-plan review now separates retained calculation from current eligibility and fails closed on lost, changed, ambiguous or oversized membership; targeted final-source verification is recorded in status.json. Native plan creation/finalization remains open."
     },
     {
       "id": "US-025",

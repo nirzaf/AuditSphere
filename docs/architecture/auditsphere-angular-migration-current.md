@@ -503,3 +503,22 @@ remain in memory. Current session/scope loss clears protected context and fences
 The additive management-evidence migration is exercised only in owned synthetic databases.
 Shared Development/production migration application and full story, QA, cutover and retirement
 acceptance remain open. Observed verification and initial failures live in `status.json`.
+
+### Native adjustment-plan eligibility review
+
+A server-paged plan queue links a dedicated native review. It reads the exact authorized
+client/engagement/source parent and complete bounded plan membership, then pages presentation.
+The Application eligibility report retains planned and current reflection separately. Lost,
+unknown, partial or changed reflection blocks applicability; an ambiguous logical journal
+revision and a group-only elimination cannot become an eligible client adjustment. Structured
+canonical membership identities include layer, technical state and planned/current decisions.
+Oversized populations are refused rather than silently returning partial eligibility counts.
+
+The review includes reporting context, current blockers and separately labeled retained
+calculation results. A finalized status is retained evidence, not current release authority.
+The queue excludes held or professionally blocked engagements before paging and rechecks
+authority even for an empty result. Each returned plan and direct review enforces exact
+professional scope. Double reads fence changed supporting state; current scope/session loss
+removes protected content. The screen is read-only and exposes no placeholder application command. Native plan
+creation/finalization and wider journal/application story acceptance remain open. No schema,
+Microsoft permissions, financial books or grants change. Executed evidence is in `status.json`.
