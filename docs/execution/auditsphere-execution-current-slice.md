@@ -2395,6 +2395,23 @@ Scoped source parents, current authority and supporting-context double reads pro
 The initial build and queue/fixture failures were corrected before final acceptance. The
 queue filters held engagements and preserves per-plan professional checks. Targeted final-source
 backend, Angular, affected Domain/browser, model and built-in browser checks passed. The full
-API regression is running in a frozen checkout; it has no terminal result yet. Observed counts,
+API regression completed with unchanged frozen source/artifacts. Observed counts,
 failures, artifact fingerprints and publication are recorded only in `status.json`.
-Native plan creation/finalization and wider migration acceptance remain pending.
+Native plan creation/finalization is described below; wider migration acceptance remains pending.
+
+
+### Native reviewed adjustment-plan creation and finalization
+
+Exact source inspection now enters bounded posted-revision selection and a fresh server preview.
+Creation retains reviewed membership and actor-owned request evidence together. Finalization
+validates exact accounts/context/reflection, previews six-decimal totals and a canonical hash,
+then preserves the calculation and immutable event atomically. Source books and package release
+remain separate. Database guards refuse retained membership/context changes and evidence deletion.
+Native legacy-finalize bypass is refused through a typed Application result. Tab fields exclude
+assent; unknown outcomes require persisted receipt verification and acknowledgment.
+
+Angular, focused PostgreSQL API, affected Domain, model and built-in browser checks passed.
+The corrected final affected browser cohort and retained-evidence rollback/reapply checks passed.
+The broader final API regression remains active; its prior implementation pass is recorded
+separately. The migration was exercised only in disposable owned databases. Exact terminal
+results, initial failures and unchanged artifact fingerprints are recorded in `status.json`.

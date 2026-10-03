@@ -1,0 +1,66 @@
+<a routerLink="/app/accounting/adjustment-plans">Back to adjustment plans</a>
+<audit-page-header [title]="action() === 'CREATE' ? 'Prepare adjustment plan' : 'Finalize adjustment plan'"
+  eyebrow="Reviewed source calculation" description="Select exact posted revisions, review their source treatment and retain a traceable plan command." />
+<button matButton (click)="refresh()" [disabled]="busy()">Refresh plan command context</button>
+<audit-state [loading]="loading()" [error]="error()" label="plan command context" />
+@if (context(); as c) {
+  <section class="panel" aria-label="Plan command source context">
+    <h2>Exact source · revision {{ c.revision }}</h2>
+    <dl class="facts"><dt>Source</dt><dd><code>{{ c.datasetId }}</code></dd><dt>SHA-256</dt><dd><code>{{ c.digest }}</code></dd>
+      <dt>Period / book</dt><dd>{{ c.period }} · {{ c.book || 'No book' }}</dd><dt>Basis / currency</dt><dd>{{ c.basis }} · {{ c.currency }}</dd></dl>
+    @if (c.blocker) { <p role="status">{{ c.blocker }}</p> }
+    <p>This command retains an AuditSphere plan. External client books and financial-package release require their own approved workflows.</p>
+  </section>
+  @if (pending(); as p) {
+    <section class="panel" aria-label="Pending plan command"><h2>Unconfirmed plan command</h2>
+      <p>Request <code>{{ p.requestId }}</code> · intent <code>{{ p.requestHash }}</code></p>
+      <button matButton (click)="reconcile()" [disabled]="busy()">Check persisted plan receipt</button>
+      @if (receipt()) { <button matButton (click)="acknowledge()" [disabled]="busy()">Acknowledge retained plan receipt</button> }
+    </section>
+  }
+  @if (receipt(); as r) {
+    <section class="panel" aria-label="Retained plan command"><h2>{{ r.action === 'CREATE' ? 'Draft plan retained' : 'Calculation retained' }}</h2>
+      <p>{{ r.action }} · {{ r.createdAt }} UTC · {{ r.reason }} · {{ r.evidenceReference }}</p>
+      <p>Actor <code>{{ r.actorId }}</code> · plan <code>{{ r.planId }}</code></p>
+      @if (r.resultHash) { <p>Result SHA-256 <code>{{ r.resultHash }}</code></p><p>Debits {{ r.debits | money:6 }} · credits {{ r.credits | money:6 }} {{ c.currency }} · {{ r.appliedCount }} applied revisions</p> }
+      @if (!uncertain()) { <a [routerLink]="['/app/accounting/adjustment-plans', r.planId]">Review retained plan</a> }
+    </section>
+  }
+  @if (draftAvailable() && !receipt()) { <section class="panel"><p>Same-session tab fields are available for this exact review basis. Assent is excluded.</p>
+    <button matButton (click)="restoreDraft()" [disabled]="busy()">Restore plan fields</button></section> }
+  @if (!receipt() && c.available) {
+    <section class="panel" aria-label="Plan command editor"><h2>{{ action() === 'CREATE' ? 'Choose plan membership' : 'Review calculation intent' }}</h2>
+      <form (submit)="$event.preventDefault(); prepare()"><fieldset [disabled]="busy() || uncertain()"><legend>Reviewed plan intent</legend>
+        @if (options.data(); as o) {
+          <p>{{ model().journals.length }} selected revisions · limit 100. An empty selection explicitly creates a source-only plan.</p>
+          <div class="table-scroll" tabindex="0" role="region" aria-label="Plan journal selection scroll area"><table><caption>Posted journals in the exact source reporting context</caption>
+            <thead><tr><th>Select</th><th>Journal / revision</th><th>Purpose</th><th>Source reflection</th><th>Eligibility</th></tr></thead>
+            <tbody>@for (j of o.journals; track j.journalId) { <tr><td><input type="checkbox" [attr.aria-label]="'Include ' + j.journalNumber + ' revision ' + j.revision"
+              [checked]="selected(j.journalId)" [disabled]="!j.canInclude || (!selected(j.journalId) && model().journals.length >= 100)"
+              (change)="select(j.journalId,j.revision,$any($event.target).checked)" /></td><td>{{ j.journalNumber }} · {{ j.revision }}</td><td>{{ j.purpose }}</td>
+              <td>{{ j.reflectionState }}</td><td>{{ j.blocker || (j.reflectionState === 'NOT_REFLECTED' ? 'Eligible for calculation' : 'Included in membership; contributes no additional adjustment') }}</td></tr>
+            } @empty { <tr><td colspan="5">No posted journal revisions are available in this exact reporting context.</td></tr> }</tbody></table></div>
+        }
+        <label>Plan command rationale<textarea [formField]="fields.reason" rows="3"></textarea></label>
+        <label>Plan command evidence reference<input [formField]="fields.evidenceReference" /></label>
+      </fieldset>
+      @if (options.data(); as o) { <nav aria-label="Plan selection pages" class="actions"><button matButton type="button" (click)="page.set(o.page-1)" [disabled]="o.page===0 || busy() || uncertain()">Previous journal choices</button>
+        <span>Page {{ o.page+1 }}</span><button matButton type="button" (click)="page.set(o.page+1)" [disabled]="!o.hasMore || busy() || uncertain()">Next journal choices</button></nav> }
+      <div class="actions"><button matButton type="button" (click)="saveDraft()" [disabled]="busy() || uncertain()">Save plan tab draft</button>
+        <button matButton type="button" (click)="discardDraft()" [disabled]="busy() || uncertain()">Discard unsubmitted plan fields</button>
+        <button matButton="filled" type="submit" [disabled]="busy() || !fields().valid()">Preview plan command</button></div>
+      </form>
+    </section>
+  }
+  @if (preview(); as p) {
+    <section class="panel" aria-label="Exact plan command preview"><h2>Review exact {{ p.action === 'CREATE' ? 'plan selection' : 'calculation' }}</h2>
+      <p>{{ model().reason }} · {{ model().evidenceReference }}</p>
+      @if (p.blocker) { <p role="status">{{ p.blocker }}</p> }
+      @if (p.action === 'CREATE') { <ul>@for (j of p.journals; track j.journalId) { <li>{{ j.journalNumber }} revision {{ j.revision }} · {{ j.layer }} · {{ j.reflectionState }}</li> } @empty { <li>Source-only plan: no additional journal revisions selected.</li> }</ul> }
+      @if (p.resultHash) { <p>Debits {{ p.debits | money:6 }} · credits {{ p.credits | money:6 }} {{ c.currency }} · {{ p.appliedCount }} applied revisions</p><p>Proposed result SHA-256 <code>{{ p.resultHash }}</code></p> }
+      @if (p.canProceed) { <label><input type="checkbox" [checked]="reviewed()" (change)="reviewed.set($any($event.target).checked)" />I reviewed the exact source, period, membership, source reflection, rationale, evidence and proposed result.</label>
+        <button matButton="filled" (click)="execute()" [disabled]="busy() || !reviewed()">{{ action() === 'CREATE' ? 'Create reviewed plan' : 'Finalize reviewed calculation' }}</button> }
+    </section>
+  }
+}
+<audit-command-message [message]="message()" [failed]="failed()" />

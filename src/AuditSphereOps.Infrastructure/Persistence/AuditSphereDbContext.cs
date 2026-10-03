@@ -227,6 +227,7 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
   public DbSet<JournalSourceReconciliation> JournalSourceReconciliations => Set<JournalSourceReconciliation>();
 
   public DbSet<AdjustmentPlan> AdjustmentPlans => Set<AdjustmentPlan>();
+  public DbSet<AdjustmentPlanAction> AdjustmentPlanActions => Set<AdjustmentPlanAction>();
 
   public DbSet<AdjustmentPlanLine> AdjustmentPlanLines => Set<AdjustmentPlanLine>();
 

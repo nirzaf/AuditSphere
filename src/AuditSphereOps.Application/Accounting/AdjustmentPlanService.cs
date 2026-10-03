@@ -8,6 +8,7 @@ using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Shared;
+using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 
 namespace AuditSphereOps.Application.Accounting;
@@ -174,10 +175,19 @@ public static class AdjustmentPlanService
     return CommandResult<Guid>.Ok(plan.Id);
   }
 
-  public static async Task<CommandResult<FinalizedPlan>> FinalizeAsync(
+  public static Task<CommandResult<FinalizedPlan>> FinalizeAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid planId, CancellationToken ct = default) =>
+    FinalizeCoreAsync(db, actor, planId, false, ct);
+
+  internal static Task<CommandResult<FinalizedPlan>> FinalizeReviewedNativeAsync(
+    IClientAccountingDbContext db, ActorContext actor, Guid planId, CancellationToken ct) =>
+    FinalizeCoreAsync(db, actor, planId, true, ct);
+
+  private static async Task<CommandResult<FinalizedPlan>> FinalizeCoreAsync(
     IAuditSphereDbContext db,
     ActorContext actor,
     Guid planId,
+    bool reviewedNativeCommand,
     CancellationToken ct = default)
   {
     var plan = await db.AdjustmentPlans.SingleOrDefaultAsync(p => p.Id == planId, ct);
@@ -190,6 +200,10 @@ public static class AdjustmentPlanService
       return CommandResult<FinalizedPlan>.Fail(auth.ErrorCode!, auth.Message!);
     if (plan.Status != "Draft")
       return CommandResult<FinalizedPlan>.Fail(ErrorCodes.ProtectedState, "Only a draft plan can be finalized.");
+    if (!reviewedNativeCommand && db is IClientAccountingDbContext accounting &&
+      await accounting.AdjustmentPlanActions.AnyAsync(a => a.FirmId == plan.FirmId && a.PlanId == planId && a.Action == "CREATE", ct))
+      return CommandResult<FinalizedPlan>.Fail(ErrorCodes.ProtectedState,
+        "This retained native plan requires reviewed finalization with atomic command evidence.");
 
     var dataset = await db.TrialBalanceDatasets.AsNoTracking()
       .SingleOrDefaultAsync(d => d.Id == plan.BaseDatasetId, ct);
@@ -239,7 +253,7 @@ public static class AdjustmentPlanService
     debits = MoneyPolicy.Normalize(debits);
     credits = MoneyPolicy.Normalize(credits);
     var canonical = string.Join('\n', balances.OrderBy(kv => kv.Key, StringComparer.Ordinal)
-      .Select(kv => $"{kv.Key}|{kv.Value:0.000000}"));
+      .Select(kv => kv.Key + "|" + kv.Value.ToString("0.000000", CultureInfo.InvariantCulture)));
     var hash = Hashing.Sha256Hex(canonical);
 
     plan.Status = "Finalized";

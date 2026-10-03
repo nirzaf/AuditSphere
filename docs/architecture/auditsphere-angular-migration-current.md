@@ -41,6 +41,38 @@ The implementation covers native route families for practice, accounting, consol
 
 Execution evidence is recorded in [status.json](../execution/status.json). Local synthetic fixtures do not establish tenant, deployment, professional or owner acceptance. Wiki publication has not been authorized.
 
+### Native reviewed adjustment-plan commands
+
+Exact sealed source inspection links to native plan preparation. A bounded posted-journal
+catalogue matches the authorized client, engagement, period, book, currency and basis. Each
+selection names an immutable journal ID and revision. Unknown, partial, ambiguous and group-only
+treatments are blocked. An empty selection explicitly prepares a source-only plan. The server
+preview binds the complete source and current catalogue, rationale, evidence and request identity;
+the browser must obtain fresh assent before dispatch.
+
+Finalization has a separate exact-context preview. The Application workspace uses the existing
+pure trial-balance calculator, validates bounded source accounts and posted journal lines, and
+returns exact decimal totals and a culture-independent result hash. Source reflection determines
+which revisions contribute; reflected entries are excluded without applying them twice. Missing
+or changed decisions block calculation. Source books remain unchanged, and the resulting plan
+does not issue a financial package or post to external books.
+
+Creation and finalization serialize under the existing parent/safety locks and retain actor-owned
+idempotency receipts in the same local transaction. Current scope, session epoch, period/book and
+freeze checks are repeated before commit. Database guards retain native membership and context,
+freeze finalized results, reject event changes and require finalization evidence atomically.
+The legacy finalization entry point refuses a native plan unless it uses the reviewed command;
+existing legacy plans retain their service contract. Native history is scoped and server-paged.
+
+Tab fields exclude assent and calculated balances. Recovery references are required before a
+command is sent. Unknown or malformed acknowledgments fence new commands and navigation until
+an authorized persisted receipt is checked and explicitly acknowledged. Receipt absence permits
+only the identical intent after a fresh preview. Source, route and session changes clear protected
+state and fence late responses. The additive migration is exercised in disposable local test
+databases; rollback refuses removal when retained native plan evidence exists. Shared Development
+and production migration application remain operator-controlled.
+Executed verification and remaining migration acceptance are recorded in `status.json`.
+
 ## Incremental capability notes
 
 The following notes preserve the implemented slices and their safeguards. Earlier then-pending lists are superseded by the current [story backlog](../execution/angular-migration-backlog.json), implemented route catalogue and latest evidence in the execution ledger. They are not completion claims for the whole guide.

@@ -126,11 +126,11 @@ account-exact; source acceptance binds sealed sources and bumps generation.
 
 
 
-- Application: `Application/Accounting/AdjustmentJournalService.cs`, `AdjustmentPlanService.cs`, `AdjustmentEligibilityQuery.cs`, `AdjustmentPlanWorkspace.cs`, `CurrencyRemeasurementService.cs`
+- Application: `Application/Accounting/AdjustmentJournalService.cs`, `AdjustmentPlanService.cs`, `AdjustmentEligibilityQuery.cs`, `AdjustmentPlanWorkspace.cs`, `AdjustmentPlanWorkspace.Commands.cs`, `CurrencyRemeasurementService.cs`
 
 
 
-- Persistence: `AuditSphereDbContext.AdjustmentBridge.cs`
+- Persistence: `AuditSphereDbContext.AdjustmentBridge.cs`, `AuditSphereDbContext.AdjustmentPlanActions.cs`; retained native command evidence: `Domain/Accounting/AdjustmentPlanAction.cs`
 
 
 

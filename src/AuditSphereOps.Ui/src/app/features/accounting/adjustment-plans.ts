@@ -16,6 +16,7 @@ import {
   str,
 } from '../../core/decode';
 import { SHARED } from '../../core/ui';
+import { PlanHistory } from './plan-history';
 
 const reflection = oneOf(
   'UNKNOWN',
@@ -207,7 +208,7 @@ export class AdjustmentPlanQueue {
 
 @Component({
   selector: 'audit-adjustment-plan-review',
-  imports: [RouterLink, MatButtonModule, ...SHARED],
+  imports: [RouterLink, MatButtonModule, PlanHistory, ...SHARED],
   template: `
     <a routerLink="/app/accounting/adjustment-plans">Back to adjustment plan queue</a>
     <audit-page-header
@@ -248,10 +249,11 @@ export class AdjustmentPlanQueue {
             <code>{{ v.membershipDigest }}</code>
           </dd>
         </dl>
-        <p>
-          This review is read-only. Source books, journal technical approval, plan calculation and
-          financial-package release are separate operations.
-        </p>
+        <p>Source books, journal technical approval, plan calculation and financial-package release retain their own approval steps.</p>
+        @if (v.status === 'Draft' && v.blockers.length === 0) {
+          <a [routerLink]="['/app/accounting/adjustment-plans', v.id, 'finalize']">Review plan finalization</a>
+        }
+        <a [routerLink]="['/app/accounting/sources', v.datasetId, 'adjustment-plan']">Prepare replacement plan</a>
       </section>
       <section class="panel" aria-label="Current membership eligibility">
         <h2>Current membership eligibility</h2>
@@ -373,6 +375,7 @@ export class AdjustmentPlanQueue {
           </button>
         </nav>
       </section>
+      <audit-plan-history [planId]="v.id" />
     }
   `,
 })

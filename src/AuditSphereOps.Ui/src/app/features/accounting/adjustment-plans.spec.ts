@@ -117,6 +117,8 @@ describe('native adjustment plan review', () => {
         ],
       });
     f.detectChanges();
+    http.expectOne(`/api/ui/accounting/adjustment-plans/${id}/history?page=0`).flush({ items: [], page: 0, hasMore: false });
+    f.detectChanges();
     const text = f.nativeElement.textContent as string;
     expect(text).toContain('Retained plan calculation');
     expect(text).toContain('200.246912');
@@ -129,6 +131,8 @@ describe('native adjustment plan review', () => {
     const f = TestBed.createComponent(AdjustmentPlanReview);
     f.detectChanges();
     http.expectOne(`/api/ui/accounting/adjustment-plans/${id}?page=0`).flush(view);
+    f.detectChanges();
+    http.expectOne(`/api/ui/accounting/adjustment-plans/${id}/history?page=0`).flush({ items: [], page: 0, hasMore: false });
     f.detectChanges();
     expect(f.nativeElement.textContent).toContain('AJ-SYN');
     params.next(convertToParamMap({ id: other }));
