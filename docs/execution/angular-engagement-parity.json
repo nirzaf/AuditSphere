@@ -153,7 +153,7 @@
       "disposition": "IMPLEMENTED: Exact current client-wide Partner/Manager context, canonical service/profile/period preview and explicit assent. Client-serialized shell creation and immutable actor-owned request evidence commit together; current authority is rechecked and a deferred guard validates the exact blocked publication. Same-intent retries return the original receipt; conflicting or existing service-period intent requires inspection. Native Signal Forms, bounded revision-bound tab drafts without assent, unknown-response fences and actor-owned receipt reconciliation preserve route/session/lifetime ownership. Lost-response browser journeys and focused observed checks are recorded only in status.json. No professional or Microsoft acceptance is implied."
     }
   ],
-  "remaining": "Complete reviewed prospect-client conversion and assessment source-action parity, then migration quality/cutover/retirement gates. A fresh full regression of current staffing source is running; no outcome is inferred.",
+  "remaining": "Continue assessment source-action parity, resource-grid acceptance and migration quality/cutover/retirement gates. Reviewed prospect-client conversion has focused local verification recorded separately from the latest whole-suite checkpoint.",
   "verificationPointers": [
     "tests/AuditSphereOps.Domain.Tests/EngagementProfileWorkspaceTests.cs",
     "tests/AuditSphereOps.Api.Tests/EngagementProfileWorkspaceApiTests.cs",
@@ -171,5 +171,11 @@
     "src/AuditSphereOps.Ui/src/app/features/engagements/planning-navigation.spec.ts",
     "tests/AuditSphereOps.E2E.Tests/AngularPlanningNavigationJourneyTests.cs",
     "tests/AuditSphereOps.E2E.Tests/AngularPlanningAssentJourneyTests.cs"
-  ]
+  ],
+  "prospectClientConversion": {
+    "status": "IMPLEMENTED_FOCUSED_LOCAL",
+    "route": "/app/practice/proposals/:id/client-conversion",
+    "evidence": "status.json#verification.angularProspectClientConversion",
+    "boundary": "Retains commercial creation, canonical-client reuse, pending acceptance and no-access portal intent; not professional acceptance or whole migration retirement."
+  }
 }

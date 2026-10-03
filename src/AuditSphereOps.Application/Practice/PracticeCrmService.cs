@@ -318,7 +318,14 @@ public static class PracticeCrmService
     var auth = await AuthorizeAsync(db, actor, ct);
     if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
 
-    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
+    // Serialize canonical-client conversion per firm. This makes repeated conversion idempotent
+    // without creating a generic repository or relying only on a uniqueness exception.
+    var guard = await db.FirmSafetyStates.FromSqlInterpolated(
+      $"SELECT * FROM firm_safety_states WHERE id = {actor.FirmId} FOR UPDATE").SingleOrDefaultAsync(ct);
+    if (guard is null) return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
+    auth = await AuthorizeAsync(db, actor, ct);
+    if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
     var proposal = await db.Proposals.SingleOrDefaultAsync(x => x.Id == request.ProposalId && x.FirmId == actor.FirmId, ct);
     if (proposal is null) return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     if (proposal.PracticeClientId.HasValue) return CommandResult<Guid>.Ok(proposal.PracticeClientId.Value);
@@ -329,12 +336,6 @@ public static class PracticeCrmService
       x => x.Id == proposal.OpportunityId && x.FirmId == actor.FirmId, ct);
     if (opportunity is null || opportunity.Stage != CrmStates.OpportunityWon)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The commercial opportunity is not won.");
-
-    // Serialize canonical-client conversion per firm. This makes repeated conversion idempotent
-    // without creating a generic repository or relying only on a uniqueness exception.
-    var guard = await db.FirmSafetyStates.FromSqlInterpolated(
-      $"SELECT * FROM firm_safety_states WHERE id = {actor.FirmId} FOR UPDATE").SingleOrDefaultAsync(ct);
-    if (guard is null) return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
 
     var legalName = request.LegalName.Trim();
     var registrationNumber = TrimOrNull(request.RegistrationNumber);
@@ -349,7 +350,7 @@ public static class PracticeCrmService
            x.RegistrationNumber != null && x.Jurisdiction != null &&
            x.RegistrationNumber.ToUpper() == normalizedRegistration &&
            x.Jurisdiction.ToUpper() == normalizedJurisdiction)))
-      .ToListAsync(ct);
+      .Take(2).ToListAsync(ct);
     if (candidates.Count > 1)
       return CommandResult<Guid>.Fail("crm.duplicate", "More than one canonical client matches this identity; reviewed resolution is required.");
     var existingClient = candidates.SingleOrDefault();
@@ -409,10 +410,11 @@ public static class PracticeCrmService
       });
     await RecordPortalIntentAsync(db, actor.FirmId, proposal.Id, client.Id, opportunity.LeadId, ct);
     await db.SaveChangesAsync(ct);
-    await tx.CommitAsync(ct);
+    auth = await AuthorizeAsync(db, actor, ct);
+    if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+    if (tx is not null) await tx.CommitAsync(ct);
     return CommandResult<Guid>.Ok(client.Id);
   }
-
   /// <summary>
   /// Conversion is the explicit portal trigger: the lead's primary contact becomes the client's primary contact and a
   /// portal intent is recorded once per client. It grants nothing; activation later marks it ready to invite.

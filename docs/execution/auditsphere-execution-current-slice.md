@@ -13,6 +13,28 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Reviewed prospect-to-client conversion
+
+The native proposal now links to an explicit Angular conversion review. The
+workflow captures bounded legal identity fields, shows canonical-client reuse,
+primary contact and pending portal intent, and requires fresh assent bound to the
+exact server preview and current actor/proposal context. Restricted-profile text
+is memory-only before submission and excluded from editable tab drafts.
+
+Application execution composes the existing commercial conversion inside one
+transaction with an append-only actor-owned receipt. Firm serialization precedes
+proposal reads. Existing client metadata remains unchanged; stale contact/client
+context and conflicting canonical identities fail closed. Unknown replies retain
+a request reference and use authorized receipt lookup rather than retrying POST.
+Conversion grants no portal access and does not activate an engagement or bypass
+professional acceptance. The legacy rollback surface remains available.
+
+Focused Angular, commercial/domain, API and canonical/preview browser checks
+passed, as did Release/production builds and model-drift verification. The
+built-in browser verified an owned synthetic conversion and acknowledgement;
+its host/database were disposed. Exact evidence and recovered environment errors
+are in `status.json`. Whole migration acceptance remains partial.
+
 ## Joined master regression checkpoint
 
 The frozen whole-solution parent completed successfully. Domain, API and browser

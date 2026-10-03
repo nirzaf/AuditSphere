@@ -29,7 +29,7 @@ public static partial class UiEndpoints
     "/ui/portal/accounting/journals/{id:guid}", "/ui/portal/accounting/packages/{id:guid}", "/ui/portal", "/ui/portal/requests/{id:guid}",
     "/ui", "/ui/", "/ui/app", "/ui/app/accounting", "/ui/app/practice/leads", "/ui/app/practice/commercial-settings",
     "/ui/app/clients/{id:guid}", "/ui/app/clients/{id:guid}/contacts/new", "/ui/app/clients/{id:guid}/engagements/new", "/ui/app/engagements/{id:guid}", "/ui/app/engagements/{id:guid}/activation", "/ui/app/clients/{id:guid}/assessment",
-    "/ui/app/practice/proposals/{id:guid}", "/ui/app/practice/leads/{id:guid}",
+    "/ui/app/practice/proposals/{id:guid}/client-conversion", "/ui/app/practice/proposals/{id:guid}", "/ui/app/practice/leads/{id:guid}",
     "/ui/app/finance/books", "/ui/app/finance", "/ui/app/practice/invoices/{id:guid}", "/ui/app/practice/analytics", "/ui/app/library", "/ui/app/library/{id:guid}",
     "/ui/app/practice/resources", "/ui/app/practice/time", "/ui/app/engagements/{id:guid}/statements", "/ui/app/engagements/{id:guid}/tb-intake", "/ui/app/engagements/{id:guid}/general-ledger", "/ui/app/engagements/{id:guid}/general-ledger/upload", "/ui/app/engagements/{id:guid}/audit-plan", "/ui/app/engagements/{id:guid}/audit-fieldwork", "/ui/app/engagements/{id:guid}/confirmations", "/ui/app/engagements/{id:guid}/completion", "/ui/app/completion/{id:guid}", "/ui/app/engagements/{id:guid}/pbc",
     "/ui/app/accounting/adjustment-plans", "/ui/app/accounting/adjustment-plans/{id:guid}", "/ui/app/accounting/mappings", "/ui/app/accounting/journals", "/ui/app/accounting/differences", "/ui/app/accounting/journals/{id:guid}", "/ui/app/accounting/journals/{id:guid}/management",

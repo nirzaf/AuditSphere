@@ -869,3 +869,11 @@ For the complete documentation index, authority hierarchy, current requirements,
 - API: `Ui/UiEndpoints.StaffingChange.cs` exposes CSRF-protected preview/execute and current-authorized receipt reads. Native UI adoption remains pending.
 - Persistence: `AuditSphereDbContext.StaffingChanges.cs` and native staffing review migration enforce retained evidence and deferred assignment linkage.
 - Tests: `StaffingChangeReviewTests.cs` covers concurrent exact replay, immutable receipts, scope, identity and stale context.
+
+## Reviewed prospect-to-client conversion
+
+- Domain receipt: `Practice/ClientConversion.cs`.
+- Application: `Practice/ClientConversionWorkspace.cs` owns current authorization, exact previews, stale-context checks, atomic receipts and actor-owned publication-fenced lookup; `PracticeCrmService.ConvertToClientDraftAsync` joins caller transactions and preserves commercial/professional boundaries.
+- Persistence: `AuditSphereDbContext.ClientConversions.cs`, migration `NativeClientConversionReview`, append-only and deferred same-firm handover guard with retained-evidence rollback refusal.
+- API: `Ui/UiEndpoints.ClientConversion.cs`; Angular: `features/commercial/client-conversion.*`, native proposal link and guarded route.
+- Tests: `ClientConversionReviewTests`, `ClientConversionReviewApiTests`, `AngularClientConversionJourneyTests`, shared `ClientConversionReviewSeed`; observed results belong to the execution ledger.

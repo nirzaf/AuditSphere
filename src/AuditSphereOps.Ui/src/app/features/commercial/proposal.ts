@@ -205,16 +205,9 @@ export function decodeProposal(value: unknown): Proposal {
         </button>
       }
       @if (proposal.status === 'ACCEPTED' && !proposal.clientId) {
-        <label
-          >Client legal name<input [(ngModel)]="legalName" maxlength="200" [disabled]="busy()"
-        /></label>
-        <button
-          matButton
-          [disabled]="!reviewed || busy() || uncertain() || !legalName"
-          (click)="action('convert', { legalName })"
+        <a [routerLink]="['/app/practice/proposals', id, 'client-conversion']"
+          >Review prospect-to-client conversion</a
         >
-          Convert to prospect client
-        </button>
       }
       @if (proposal.clientId) {
         <a [routerLink]="['/app/clients', proposal.clientId]"

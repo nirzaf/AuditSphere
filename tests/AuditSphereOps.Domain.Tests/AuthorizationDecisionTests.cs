@@ -575,6 +575,7 @@ public sealed class AuthorizationDecisionTests
     public DbSet<PracticeClient> PracticeClients => db.PracticeClients;
     public DbSet<ClientContact> ClientContacts => db.ClientContacts;
     public DbSet<ClientContactCreation> ClientContactCreations => db.ClientContactCreations;
+    public DbSet<ClientConversion> ClientConversions => db.ClientConversions;
     public DbSet<WorkTask> WorkTasks => db.WorkTasks;
     public DbSet<TimeEntry> TimeEntries => db.TimeEntries;
     public DbSet<RateCardVersion> RateCardVersions => db.RateCardVersions;

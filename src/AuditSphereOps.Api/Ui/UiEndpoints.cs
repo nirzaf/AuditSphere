@@ -85,6 +85,7 @@ public static partial class UiEndpoints
     MapBudgetPreparationEndpoints(group);
     MapBudgetApprovalEndpoints(group);
     MapStaffingChangeEndpoints(group);
+    MapClientConversionEndpoints(group);
     MapQuotationEndpoints(group);
     MapCommercialDocumentEndpoints(group);
     MapFeeAgreementEndpoints(group);

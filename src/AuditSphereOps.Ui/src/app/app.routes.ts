@@ -159,6 +159,13 @@ export const routes: Routes = [
     loadComponent: () => import('./features/commercial/opportunities').then((m) => m.Opportunities),
   },
   {
+    path: 'app/practice/proposals/:id/client-conversion',
+    canActivate: [staffGuard],
+    canDeactivate: [unsavedChangesGuard],
+    title: 'Convert prospect · AuditSphere',
+    loadComponent: () => import('./features/commercial/client-conversion').then(m => m.ClientConversion),
+  },
+  {
     path: 'app/practice/proposals/:id',
     canActivate: [staffGuard],
     title: 'Proposal · AuditSphere',

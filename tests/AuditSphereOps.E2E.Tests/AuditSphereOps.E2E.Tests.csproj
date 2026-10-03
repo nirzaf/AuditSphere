@@ -4,6 +4,9 @@
     <IsPackable>false</IsPackable>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="../AuditSphereOps.Domain.Tests/ClientConversionReviewSeed.cs" Link="Fixtures/ClientConversionReviewSeed.cs" />
+  </ItemGroup>
+  <ItemGroup>
     <PackageReference Include="coverlet.collector" />
     <PackageReference Include="Microsoft.Playwright.Xunit" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />

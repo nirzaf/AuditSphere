@@ -1,0 +1,164 @@
+<nav aria-label="Breadcrumb">
+  <a routerLink="/app">Portfolio</a><a [routerLink]="['/app/practice/proposals', id()]">Proposal</a
+  ><span aria-current="page">Convert prospect</span>
+</nav>
+<audit-page-header
+  title="Convert prospect to client"
+  eyebrow="Reviewed commercial handover"
+  description="Review the legal identity, existing-client match and acceptance effects before conversion."
+/>
+<audit-state [loading]="state.loading() || busy()" label="prospect conversion" />
+@if (state.error()) {
+  <section role="alert">
+    <h2>Conversion workspace unavailable</h2>
+    <p>{{ state.error() }}</p>
+    <button matButton (click)="refresh()">Retry</button>
+  </section>
+}
+@if (state.data(); as context) {
+  <section aria-label="Proposal context">
+    <h2>{{ context.suggestedLegalName }}</h2>
+    <p>Proposal {{ context.proposalStatus }} · Revision {{ context.proposalRevision }}</p>
+    <p>
+      Conversion creates or reuses a canonical client and records pending acceptance. It grants no
+      portal access or professional approval.
+    </p>
+    <button matButton [disabled]="busy()" (click)="refresh()">Refresh conversion context</button>
+  </section>
+  @if (context.convertedClientId && !uncertain()) {
+    <section aria-label="Converted client">
+      <h2>Proposal already converted</h2>
+      <a [routerLink]="['/app/clients', context.convertedClientId]">Open client profile</a>
+    </section>
+  }
+  @if (uncertain()) {
+    <section role="alert">
+      <h2>Conversion receipt requires acknowledgement</h2>
+      <p>{{ message() }}</p>
+      <p>
+        Retained request: <code>{{ pending()?.requestId }}</code>
+      </p>
+      <button matButton [disabled]="busy()" (click)="reconcile()">Verify conversion receipt</button>
+    </section>
+  }
+  @if (context.canConvert && !uncertain()) {
+    <section aria-label="Client identity">
+      <h2>Client identity</h2>
+      <form (submit)="$event.preventDefault(); prepare()">
+        <label>Legal name<input [formField]="fields.legalName" autocomplete="off" /></label>
+        <label
+          >Commercial name<input [formField]="fields.commercialName" autocomplete="off"
+        /></label>
+        <label
+          >Registration number<input [formField]="fields.registrationNumber" autocomplete="off"
+        /></label>
+        <label>Jurisdiction<input [formField]="fields.jurisdiction" autocomplete="off" /></label>
+        <label
+          >Restricted profile<textarea [formField]="fields.restrictedProfile" rows="4"></textarea>
+        </label>
+        <p>
+          Restricted-profile text stays in memory until submission. Clear it before saving an
+          editable tab draft.
+        </p>
+        @if (!valid() && dirty()) {
+          <p role="status">Enter a legal name and keep each field within its permitted limit.</p>
+        }
+        <div class="actions">
+          <button matButton="filled" type="submit" [disabled]="locked() || !valid()">
+            Review client conversion</button
+          ><button matButton type="button" [disabled]="busy() || uncertain()" (click)="saveDraft()">
+            Save identity draft
+          </button>
+          @if (draftAvailable()) {
+            <button matButton type="button" [disabled]="locked()" (click)="restoreDraft()">
+              Restore identity draft
+            </button>
+          }
+          <button matButton type="button" [disabled]="busy() || uncertain()" (click)="discard()">
+            Discard identity edits
+          </button>
+        </div>
+      </form>
+      <p>
+        Drafts are bound to this identity, proposal and verified revision. Review assent is never
+        saved.
+      </p>
+    </section>
+  }
+  @if (preview(); as p) {
+    <section aria-label="Client conversion review" class="review">
+      <h2>Review exact client conversion</h2>
+      <dl>
+        <dt>Legal name</dt>
+        <dd>{{ p.fields.legalName }}</dd>
+        <dt>Commercial name</dt>
+        <dd>{{ p.fields.commercialName || 'Not supplied' }}</dd>
+        <dt>Registration number</dt>
+        <dd>{{ p.fields.registrationNumber || 'Not supplied' }}</dd>
+        <dt>Jurisdiction</dt>
+        <dd>{{ p.fields.jurisdiction || 'Not supplied' }}</dd>
+        <dt>Restricted profile</dt>
+        <dd>{{ p.fields.restrictedProfile || 'Not supplied' }}</dd>
+        <dt>Service route</dt>
+        <dd>{{ p.serviceRoute }}</dd>
+        <dt>Primary contact</dt>
+        <dd>{{ p.contactName }} · {{ p.contactEmail }}</dd>
+      </dl>
+      @if (p.existingClientId) {
+        <h3>Reuse existing canonical client</h3>
+        <p>{{ p.existingClientName }} · {{ p.existingClientStatus }}</p>
+        <p>
+          Existing client metadata remains unchanged. This conversion links the proposal and
+          opportunity to that client.
+        </p>
+      } @else {
+        <p>A new prospect client will be created with these reviewed details.</p>
+      }
+      <p>{{ p.portalEffect }}</p>
+      <p>{{ p.professionalEffect }}</p>
+      <label class="check"
+        ><input
+          type="checkbox"
+          [checked]="reviewed"
+          [disabled]="busy() || uncertain()"
+          (change)="reviewed = $any($event.target).checked"
+        />I reviewed this exact legal identity, client match and access effects.</label
+      >
+      <div class="actions">
+        <button
+          matButton="filled"
+          [disabled]="busy() || uncertain() || !reviewed"
+          (click)="execute()"
+        >
+          Confirm client conversion</button
+        ><button matButton [disabled]="busy() || uncertain()" (click)="cancelReview()">
+          Cancel review
+        </button>
+      </div>
+    </section>
+  }
+  @if (receipt(); as r) {
+    <section aria-label="Client conversion receipt">
+      <h2>Client conversion recorded</h2>
+      <dl>
+        <dt>Client ID</dt>
+        <dd>{{ r.clientId }}</dd>
+        <dt>Request ID</dt>
+        <dd>{{ r.requestId }}</dd>
+        <dt>Receipt ID</dt>
+        <dd>{{ r.id }}</dd>
+        <dt>Recorded</dt>
+        <dd>{{ r.createdAt }}</dd>
+      </dl>
+      <p>{{ r.preview.professionalEffect }}</p>
+      @if (uncertain()) {
+        <button matButton="filled" [disabled]="busy()" (click)="acknowledge()">
+          Acknowledge client conversion
+        </button>
+      }
+    </section>
+  }
+  @if (!uncertain()) {
+    <p role="status">{{ message() }}</p>
+  }
+}

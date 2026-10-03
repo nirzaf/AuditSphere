@@ -956,3 +956,14 @@ retrying mutations. Receipt acknowledgement refreshes current authorized staffin
 Protected editor state clears on session/scope/context loss, and unresolved writes
 hide the stale team projection and fence competing actions/navigation. SharePoint
 membership remains a separately reconciled external operation.
+
+## Native prospect conversion review
+
+Accepted proposals can now open the native reviewed prospect-to-client workflow.
+It includes bounded identity fields, explicit same-context tab draft recovery,
+canonical-client conflict/reuse preview and fresh confirmation. Restricted-profile
+text is excluded from tab persistence. Conversion and its immutable receipt share
+the existing Application transaction; unknown responses reconcile by actor-owned
+request reference. Professional acceptance, engagement activation and portal
+invitation remain separate authorities. This slice has focused local verification;
+assessment, remaining quality gates and retirement acceptance remain pending.
