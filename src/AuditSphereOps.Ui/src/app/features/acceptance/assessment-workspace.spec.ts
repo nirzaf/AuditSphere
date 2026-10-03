@@ -44,6 +44,7 @@ const context = {
   clearedReviews: 0,
   totalReviews: 0,
   sections: [],
+  specialistTimeline: [],
 };
 describe('Assessment read projection', () => {
   it('retains the exact historical professional record', () => {
@@ -102,5 +103,37 @@ describe('Assessment read projection', () => {
       },
     });
     expect(result.repository).not.toHaveProperty('downloadUrl');
+  });
+  it('accepts an ordered specialist event history and rejects an unsupported timeline action', () => {
+    const history = [
+      {
+        id: 'cccccccc-cccc-cccc-cccc-cccccccccccc',
+        reviewId: 'dddddddd-dddd-dddd-dddd-dddddddddddd',
+        action: 'Review requested',
+        area: 'AML',
+        specialist: 'Synthetic specialist',
+        status: 'PENDING',
+        evidence: null,
+        conditions: null,
+        actor: 'Synthetic staff',
+        occurredAt: '2026-10-03T10:00:00Z',
+      },
+      {
+        id: 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee',
+        reviewId: 'dddddddd-dddd-dddd-dddd-dddddddddddd',
+        action: 'Result recorded',
+        area: 'AML',
+        specialist: 'Synthetic specialist',
+        status: 'HOLD',
+        evidence: 'SYNTHETIC-EVIDENCE',
+        conditions: null,
+        actor: 'Synthetic partner',
+        occurredAt: '2026-10-03T10:01:00Z',
+      },
+    ];
+    expect(decodeAssessment({ ...context, selectedDecision: null, historical: false, specialistTimeline: history })
+      .specialistTimeline).toHaveLength(2);
+    expect(() => decodeAssessment({ ...context, selectedDecision: null, historical: false,
+      specialistTimeline: [{ ...history[0], action: 'Directory mutation' }] })).toThrow();
   });
 });

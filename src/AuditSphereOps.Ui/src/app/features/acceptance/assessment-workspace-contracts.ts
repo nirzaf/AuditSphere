@@ -30,6 +30,20 @@ export interface Clearance {
   status: string;
   evidence: string | null;
   conditions: string | null;
+  createdAt: string;
+  clearedAt: string | null;
+}
+export interface SpecialistEvent {
+  id: string;
+  reviewId: string;
+  action: string;
+  area: string;
+  specialist: string;
+  status: string | null;
+  evidence: string | null;
+  conditions: string | null;
+  actor: string;
+  occurredAt: string;
 }
 export interface Checklist {
   clientId: string;
@@ -111,7 +125,9 @@ export function decodeChecklist(value: unknown): Checklist {
       !bounded(c['specialist'], 200) ||
       !['evidence', 'conditions'].every(
         (k) => c[k] === null || bounded(c[k], k === 'evidence' ? 500 : 2000),
-      )
+      ) ||
+      typeof c['createdAt'] !== 'string' || !Number.isFinite(Date.parse(c['createdAt'])) ||
+      (c['clearedAt'] !== null && (typeof c['clearedAt'] !== 'string' || !Number.isFinite(Date.parse(c['clearedAt']))))
     )
       throw new Error('Invalid clearance');
   for (const k of ['currentDecision', 'priorDecision'])
@@ -156,6 +172,18 @@ const decodeAssessmentMetadata = obj({
   clearedReviews: nat,
   totalReviews: nat,
   sections: arr(obj({ section: str(300), answered: nat, total: nat }), 1000),
+  specialistTimeline: arr(obj({
+    id: decodeGuid,
+    reviewId: decodeGuid,
+    action: str(40),
+    area: str(100),
+    specialist: str(200),
+    status: nullable(str(20)),
+    evidence: nullable(str(500)),
+    conditions: nullable(str(2000)),
+    actor: str(300),
+    occurredAt: instant,
+  }), 200),
 });
 export function decodeAssessment(value: unknown) {
   const metadata = decode(decodeAssessmentMetadata, value);
@@ -171,6 +199,11 @@ export function decodeAssessment(value: unknown) {
     metadata.answered > metadata.total ||
     metadata.clearedReviews > metadata.totalReviews ||
     metadata.totalReviews !== checklist.clearances.length ||
+    metadata.specialistTimeline.some((event, i, events) =>
+      event.reviewId === '00000000-0000-0000-0000-000000000000' ||
+      !['Review requested', 'Result recorded'].includes(event.action) ||
+      !['PENDING', 'CLEARED', 'HOLD', 'CONDITIONS'].includes(event.status ?? '') ||
+      (i > 0 && Date.parse(events[i - 1].occurredAt) > Date.parse(event.occurredAt))) ||
     metadata.clearedReviews !== checklist.clearances.filter((c) => c.status === 'CLEARED').length ||
     metadata.answered !== checklist.questions.filter((q) => !!q.answer?.trim()).length ||
     new Set(metadata.sections.map((s) => s.section)).size !== metadata.sections.length ||

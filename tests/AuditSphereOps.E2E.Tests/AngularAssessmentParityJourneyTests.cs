@@ -1,3 +1,4 @@
+using AuditSphereOps.Application.Acceptance;
 using AuditSphereOps.Domain.Tests;
 using Microsoft.Playwright;
 using Microsoft.EntityFrameworkCore;
@@ -15,6 +16,7 @@ public sealed class AngularAssessmentParityJourneyTests
     var f = host.Fixture;
     Guid decisionId;
     await using (var db = host.CreateDbContext()) decisionId = await AssessmentParitySeed.PopulateAsync(db, f);
+    await SeedSpecialistTimelineAsync(host, f);
     var origin = await host.StartApiForIdentityAsync(f.Admin, new Dictionary<string, string> {
       ["AngularUi__Enabled"] = "true", ["AngularUi__CanonicalRoutes"] = canonical.ToString() });
     var prefix = canonical ? "" : "/ui";
@@ -29,6 +31,10 @@ public sealed class AngularAssessmentParityJourneyTests
     await Assertions.Expect(recorded).ToContainTextAsync("Evaluation 1");
     await Assertions.Expect(page.GetByRole(AriaRole.Region, new() { Name = "Client assessment profile", Exact = true })).ToContainTextAsync("PBC TEST CLIENT");
     await Assertions.Expect(page.GetByRole(AriaRole.Region, new() { Name = "Evaluation progress", Exact = true })).ToContainTextAsync("0 of 62 questions answered");
+    var timeline = page.GetByRole(AriaRole.Region, new() { Name = "Specialist review timeline", Exact = true });
+    await Assertions.Expect(timeline).ToContainTextAsync("Review requested");
+    await Assertions.Expect(timeline).ToContainTextAsync("Result recorded");
+    await Assertions.Expect(timeline).ToContainTextAsync("Synthetic assessment specialist");
     await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Review Partner decision", Exact = true })).ToHaveCountAsync(0);
     Assert.Contains("decisionId=" + decisionId, page.Url, StringComparison.OrdinalIgnoreCase);
     await page.SetViewportSizeAsync(390, 844);
@@ -64,7 +70,9 @@ public sealed class AngularAssessmentParityJourneyTests
     Assert.Equal(1, dispatched);
     await page.UnrouteAsync(commandRoute);
     await using (var db = host.CreateDbContext()) {
-      Assert.Single(await db.AssessmentCommandReceipts.Where(x => x.ClientId == f.ClientId).ToListAsync());
+      var receipts = await db.AssessmentCommandReceipts.Where(x => x.ClientId == f.ClientId).ToListAsync();
+      Assert.Equal(3, receipts.Count);
+      Assert.Equal(2, receipts.Count(x => x.Kind is "REQUEST_REVIEW" or "RECORD_REVIEW"));
       Assert.Single(await db.EvaluationResponses.Where(x => x.PracticeClientId == f.ClientId && x.Generation == 2).ToListAsync());
     }
     await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Review Partner decision", Exact = true })).ToBeVisibleAsync();
@@ -86,5 +94,31 @@ public sealed class AngularAssessmentParityJourneyTests
     await Assertions.Expect(page.GetByRole(AriaRole.Region, new() { Name = "Client assessment profile", Exact = true })).ToHaveCountAsync(0);
     await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Review Partner decision", Exact = true })).ToHaveCountAsync(0);
     Assert.Empty(errors);
+  }
+
+  private static async Task SeedSpecialistTimelineAsync(OwnedBlazorHost host, PbcSeed.Fixture f)
+  {
+    await using var db = host.CreateDbContext();
+    var actor = PbcSeed.Actor(f.Admin, "Partner");
+    var request = await ReviewedAsync(db, actor, f.ClientId,
+      new("REQUEST_REVIEW", "2", Area: "AML", Specialist: "Synthetic assessment specialist"));
+    var result = await ReviewedAsync(db, actor, f.ClientId,
+      new("RECORD_REVIEW", "2", Evidence: "SYNTHETIC-ASSESSMENT-REVIEW", ReviewId: request.ResourceId,
+        Status: "HOLD", ExpectedStatus: "PENDING"));
+    Assert.Equal(request.ResourceId, result.ResourceId);
+  }
+
+  private static async Task<AssessmentReceiptView> ReviewedAsync(AuditSphereOps.Infrastructure.Persistence.AuditSphereDbContext db,
+    AuditSphereOps.Application.Abstractions.ActorContext actor, Guid clientId, AssessmentCommandFields fields)
+  {
+    var requestId = Guid.CreateVersion7();
+    var preview = await AssessmentCommandWorkspace.PreviewAsync(db, actor, clientId,
+      new AssessmentCommandRequest(requestId, fields));
+    Assert.True(preview.Succeeded, preview.Message);
+    var value = preview.Value!;
+    var result = await AssessmentCommandWorkspace.ExecuteAsync(db, actor, clientId,
+      new AssessmentCommandRequest(requestId, fields, value.ReviewBasis, value.RequestHash, Reviewed: true));
+    Assert.True(result.Succeeded, result.Message);
+    return result.Value!;
   }
 }

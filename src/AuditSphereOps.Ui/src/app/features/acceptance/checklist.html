@@ -166,6 +166,23 @@
           <p>{{ section.section }}: {{ section.answered }} of {{ section.total }}</p>
         }
       </section>
+      <section aria-label="Specialist review timeline">
+        <h2>Specialist review timeline</h2>
+        @if (workspace.specialistTimeline.length) {
+          <ol>
+            @for (event of workspace.specialistTimeline; track event.id) {
+              <li>
+                <strong>{{ event.action }}</strong> · {{ event.area }} · {{ event.specialist }} ·
+                {{ event.status }} · {{ event.occurredAt }} · by {{ event.actor }}
+                @if (event.evidence) { <p>Evidence: {{ event.evidence }}</p> }
+                @if (event.conditions) { <p>Conditions: {{ event.conditions }}</p> }
+              </li>
+            }
+          </ol>
+        } @else {
+          <p>No reviewed specialist actions have been recorded.</p>
+        }
+      </section>
     }
     <p>{{ checklist.path }} · Evaluation {{ checklist.generation }}</p>
     <p>
@@ -225,6 +242,7 @@
           {{ clearance.area }} · {{ clearance.specialist }} · {{ clearance.status }} ·
           {{ clearance.evidence }} · {{ clearance.conditions }}
         </p>
+        <p>Requested {{ clearance.createdAt }} · Result recorded {{ clearance.clearedAt ?? 'Not cleared' }}</p>
         @if (checklist.canReview && clearance.status !== 'CLEARED') {
           <audit-assessment-command-editor
             [seed]="seed('review-' + clearance.id)"

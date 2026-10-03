@@ -49,6 +49,7 @@ const workspace = {
   clearedReviews: 0,
   totalReviews: 0,
   sections: [{ section: 'Identity', answered: 0, total: 1 }],
+  specialistTimeline: [],
   checklist: {
     clientId: id,
     generation: '9007199254740993',

@@ -9,7 +9,8 @@ namespace AuditSphereOps.Application.Acceptance;
 
 public sealed record AcceptanceQuestionView(string Code, string Section, string Prompt, string Category, string AnswerType,
   bool RequiresEvidence, bool Adverse, string? Answer, string? Evidence, string Revision, string? PriorAnswer, string? AnsweredBy);
-public sealed record AcceptanceClearanceView(Guid Id, string Area, string Specialist, string Status, string? Evidence, string? Conditions);
+public sealed record AcceptanceClearanceView(Guid Id, string Area, string Specialist, string Status, string? Evidence,
+  string? Conditions, DateTimeOffset CreatedAt, DateTimeOffset? ClearedAt);
 public sealed record AcceptanceWorkspace(Guid ClientId, string Generation, string Path, string? CurrentDecision, string? PriorDecision,
   bool Ready, bool CanEdit, bool CanReview, bool CanDecide, bool CanStartContinuance, IReadOnlyList<AcceptanceQuestionView> Questions,
   IReadOnlyList<AcceptanceClearanceView> Clearances, IReadOnlyList<AcceptanceBlocker> Blockers);
@@ -40,7 +41,8 @@ public static class AcceptanceWorkspaceQuery
       c.Items.Select(i => new AcceptanceQuestionView(i.Question.Code, i.Question.Section, i.Question.Prompt,
         i.Question.Category, i.Question.AnswerType, i.Question.RequiresEvidence, i.Adverse, i.Answer?.Answer,
         i.Answer?.EvidenceReference, (i.Answer?.Revision ?? 0).ToString(CultureInfo.InvariantCulture), i.PriorAnswer?.Answer, i.AnsweredBy)).ToArray(),
-      c.Clearances.Select(x => new AcceptanceClearanceView(x.Id, x.Area, x.SpecialistName, x.Status, x.EvidenceReference, x.Conditions)).ToArray(), c.Blockers));
+      c.Clearances.Select(x => new AcceptanceClearanceView(x.Id, x.Area, x.SpecialistName, x.Status,
+        x.EvidenceReference, x.Conditions, x.CreatedAt, x.ClearedAt)).ToArray(), c.Blockers));
   }
 
   public static async Task<CommandResult> RecordReviewAsync(IAuditSphereDbContext db, ActorContext actor, Guid clientId,
