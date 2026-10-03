@@ -13,6 +13,25 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Current-source Angular regression and built-in browser check
+
+At source `404b4b8`, the Angular production build and Release solution build
+passed with zero warnings and errors. The full PostgreSQL-backed solution run
+passed API 176/176, Domain 644/644 and E2E 202/202: 1022 passed, zero failed
+and zero skipped. EF reports no pending model changes. Exact evidence is in
+`status.json` under `angularCurrentSourceFullRegression`.
+
+The built-in browser loaded the authenticated `/ui/app/accounting` shell from
+the production Angular build. The Mappings route rendered its safe retry state
+after a read-only refresh. The local API liveness endpoint returned 200, while
+readiness returned 503; `dotnet ef migrations list` showed migrations pending
+on the Development database. No Development database migration was applied.
+This browser check therefore verifies Angular route rendering and its safe
+failure state, not a successful live data journey. Applying Development schema
+changes remains an operator-controlled step. Screen-reader and wider-locale
+acceptance, production-like canary, live Microsoft checks, owner acceptance and
+US-047 Blazor retirement remain open; overall migration acceptance is PARTIAL.
+
 ## Reviewed existing service-period engagement inspection
 
 The authorized client-scoped preview now returns the matching existing
