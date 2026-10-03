@@ -114,7 +114,7 @@
       "id": "US-019",
       "title": "Migrate time, billing, invoices and firm books",
       "status": "PARTIAL",
-      "scope": "Native time/work records with server-side drafts, task creation, submission and independent approval, invoice approve/post/send with receipt allocations, firm ledger close and firm-book record/submit/review/post workspaces with expense form drafts exist. Receipt recording, allocation and credit notes remain Application-only with no UI in either host; wider source-action browser parity and cutover remain open."
+      "scope": "Native time/work records with server-side drafts, task creation, submission and independent approval, invoice approve/post/send, firm ledger close and firm-book record/submit/review/post workspaces with expense form drafts exist. The Angular invoice now lists bounded recent receipt/credit history and provides reviewed receipt recording, allocation to posted invoices, and FinanceManager-only credit-note actions through BillingService. Exact decimals, scoped query/commands, antiforgery, refresh-before-reuse after unknown responses, and a persisted-state recovery journey have local evidence in status.json. Older-history paging, wider source-action browser parity, and production cutover remain open."
     },
     {
       "id": "US-020",

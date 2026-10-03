@@ -13,6 +13,27 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Angular invoice receipts, allocations and credit notes
+
+The Angular invoice workspace now shows the latest bounded billing-account
+receipts and invoice credit notes, records reviewed receipts, allocates receipts
+to posted invoices, and issues reviewed credit notes for FinanceManagers. The
+API delegates to the existing `BillingService`; the Application query scopes the
+invoice, billing account, receipt history and credit history. Exact decimal
+strings, explicit review, CSRF and current role/scope checks remain in force.
+After a lost response, the form stays disabled until persisted state is refreshed
+and the unresolved draft is cleared. Evidence for the Release build, Angular
+suite, PostgreSQL API journey, Playwright browser journey and EF model check is
+in `status.json` under `angularBillingReceiptCreditWorkspace`.
+
+The built-in Development browser was reloaded on the authenticated Angular
+workspace. Its synthetic search returned no invoice to inspect, so no Development
+billing rows were created; the complete invoice flow was exercised in the owned
+PostgreSQL Playwright journey. The full solution suite was not rerun for this
+slice. Migration acceptance remains PARTIAL; broader US-019 parity, production
+canary, assistive-technology acceptance, live Microsoft gates and Blazor
+retirement remain open.
+
 ## Current-source Angular regression and built-in browser check
 
 At source `404b4b8`, the Angular production build and Release solution build

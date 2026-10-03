@@ -454,7 +454,9 @@ identities; provider acceptance (Purview/eSignature) is never claimed.
 
 
 
-- UI: `Leads.razor`, `Portfolio.razor`, `ClientDetail.razor`, `Finance.razor`, `InvoiceDetail.razor`, `PracticeTime.razor`
+- UI: legacy `Leads.razor`, `Portfolio.razor`, `ClientDetail.razor`, `Finance.razor`, `InvoiceDetail.razor`, `PracticeTime.razor`; native Angular invoice actions in `AuditSphereOps.Ui/src/app/features/finance/invoice.ts` through `Api/UiEndpoints.Finance.cs` and `BillingInvoiceWorkspaceQuery.cs`
+
+- Verification: `BillingWorkspaceApiTests` checks current authorization, CSRF and exact receipt/allocation/credit balances; `AngularBillingWorkspaceJourneyTests` exercises the native flow and lost-response review.
 
 
 

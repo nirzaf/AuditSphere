@@ -487,6 +487,23 @@ The Angular proposal workspace now defers a commercial-document panel. A named A
 
 The Angular proposal route now defers a fee-agreement workspace with persisted agreed fee, server-owned advance percentage, exact-string milestones, allocation/outstanding values, invoice links and final-release state. Creation and engagement linking remain commercial commands; invoice drafting and manual advance payment require exact client-scoped FinanceManager/FinanceReviewer authority. Administration alone grants no finance authority. Bounded engagement candidates belong to the same client; the existing service now serializes engagement links under the firm guard so concurrent links cannot overwrite each other. Payment-reference replay reuses the recorded payment, and changed amount/received-time details are refused. The original billing review/posting, allocation, receipt and notification workflows remain authoritative; queued notification never means delivered. Fixed CSRF-protected endpoints compose these services. Unknown outcomes require fresh persisted-state review before another command. Commercial settings, full module parity and final browser acceptance remain pending.
 
+### Invoice receipts, allocations and credit notes
+
+The native invoice detail uses `BillingInvoiceWorkspaceQuery` for an authorized,
+bounded view of the latest 100 receipts in the invoice's billing account and the
+latest 100 credit notes for that invoice. It composes the existing `BillingService`
+for receipt recording, allocation to posted invoices, and credit-note issuance;
+the UI does not write financial state directly. Exact decimal strings, explicit
+review confirmation, server-side role/scope checks and antiforgery protect each
+command. Displayed invoice credit and allocation totals come from the complete
+persisted balance calculation, independent of the bounded recent-history lists.
+Credit-note issuance remains FinanceManager-only. When a command response is lost,
+the form stays disabled until the user reloads persisted state and clears the
+unresolved draft; the client never retries automatically. Synthetic PostgreSQL
+API and Playwright journeys cover recording, allocation, credit, authorization,
+CSRF and lost-response recovery. Older-than-window history pagination, wider
+source-action parity, production rollout and full migration acceptance remain open.
+
 ### Commercial settings
 
 Angular explicitly owns the opt-in commercial-settings route. A named Application query supplies the current profile, bounded active matrix, server-owned default threshold/role and edit authority. Firm-wide commercial users can read; only current firm-wide Administrators/Partners can edit. Profile changes bind the reviewed version and preserve historical document profile identities. Matrix writes/deactivation bind a fingerprint of the reviewed active rules and serialize under the existing firm guard; frozen quotation approval requirements remain unchanged. Forms require explicit review, and deactivation has a named confirmation describing future-rule/default effects. Fixed CSRF-protected endpoints reuse existing Application commands. Unknown outcomes require fresh persisted-state review before another action. Full commercial metadata/form/draft parity and the remaining Angular modules still require work; no complete migration acceptance is claimed.
