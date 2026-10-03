@@ -248,14 +248,17 @@ public static partial class UiEndpoints
         return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
       return Results.Ok(result.Value);
     });
-    group.MapGet("/clients/{id:guid}", async (Guid id, HttpContext http, TrustedActorResolver resolver,
+    group.MapGet("/clients/{id:guid}", async (Guid id, int? engagementPage, int? engagementPageSize, int? contactPage, int? contactPageSize,
+      HttpContext http, TrustedActorResolver resolver,
       IDbContextFactory<AuditSphereDbContext> factory) =>
     {
       var actor = await resolver.ResolveAsync(http.User, http.RequestAborted);
       if (actor is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
-      var result = await WorkspaceQuery.ClientAsync(db, actor, id, http.RequestAborted);
-      if (!result.Succeeded) return Results.Json(new { code = result.ErrorCode }, statusCode: 403);
+      var result = await WorkspaceQuery.ClientAsync(db, actor, id, http.RequestAborted,
+        engagementPage is null && engagementPageSize is null && contactPage is null && contactPageSize is null
+          ? null : new(engagementPage ?? 0, engagementPageSize ?? 10, contactPage ?? 0, contactPageSize ?? 10));
+      if (!result.Succeeded) return Results.Json(new { code = result.ErrorCode }, statusCode: result.ErrorCode == "request.invalid" ? 400 : 403);
       if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null)
         return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
       return Results.Ok(result.Value);

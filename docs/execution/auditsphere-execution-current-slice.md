@@ -13,6 +13,32 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Native client profile metadata and complete scoped pages
+
+The client projection now preserves source master metadata, exact safety generation,
+UTC onboarding time, complete authorized summary counts and independent bounded
+contact/engagement pages. Restricted profile content is excluded. Client-level
+commercial access never widens an engagement assignment; every contributing scope
+is rechecked before delivery. Native links and refresh keep the existing command
+and assessment authorities.
+
+Validated page parameters survive reload. Superseded reads, mismatched identities
+or page responses, session changes and old command callbacks cannot refill earlier
+content. The existing portal-intent notice explains acceptance and invitation gates
+without granting access or claiming Microsoft redemption. Existing contact and
+blocked-engagement commands remain; full reviewed forms, drafts and command-outcome
+recovery are the next client work.
+
+Release and Angular builds/unit checks passed. API checks and built-in desktop/mobile
+paging, reload and sign-out checks passed. Final focused PostgreSQL/browser checks passed after correcting the expired-grant
+fixture while preserving its database constraint. Unpaged API requests retain the
+original bounded window for older UI builds; the new view requests explicit pages.
+Final source, assets and assemblies match their frozen manifest. Observed results
+and intermediate failures belong in `status.json`. The isolated earlier portfolio whole-suite run has exposed
+a shell selector matching both navigation and the configuration notice. The focused
+selector is corrected in this slice; the earlier frozen run remains unchanged and
+cannot support a whole-suite pass claim. Full migration acceptance remains partial.
+
 ## Recent portfolio table controls and frozen regression result
 
 Candidate and package panels now independently page the already authorized recent

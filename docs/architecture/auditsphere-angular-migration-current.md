@@ -52,6 +52,31 @@ establish verified Microsoft capabilities. Full client/engagement source-action
 parity and retirement acceptance remain open. Curated source dispositions are in
 the [portfolio action audit](../execution/angular-portfolio-parity.json).
 
+### Native client master records and scoped pages
+
+The existing client-profile API composes `WorkspaceQuery.ClientAsync`. Legal and
+trading names, registration, jurisdiction, UTC onboarding time and exact safety
+generation are explicit DTO fields; restricted profile content is excluded. Client
+profile authority remains client-wide. Knowing an engagement ID or holding an
+engagement-only grant does not authorize this master record.
+
+Contacts and associated engagements have independent bounded server pages with
+stable source sorting, preserved row-size choices and complete authorized counts.
+Unpaged requests retain the original bounded window for retained older UI builds;
+the current view always supplies explicit page parameters. The engagement projection
+captures and rechecks its contributing scope requests;
+a client commercial role does not widen an engagement assignment. Every delivered
+page rechecks the client and any permitted command authority, while the API also
+rechecks the trusted session. Invalid or guessed destinations disclose no metadata.
+
+The portal notice reuses the existing Application intent view. It is an onboarding
+notice, not identity binding, a grant or proof of Microsoft invitation redemption.
+Validated URL pages survive reload; superseded reads, mismatched response contexts,
+route/session changes and old command callbacks cannot restore previous content.
+Existing contact and blocked-engagement commands remain separate. Complete reviewed
+form/draft/outcome recovery and engagement action parity remain open. See the
+[client action audit](../execution/angular-client-profile-parity.json).
+
 ### Controlled canonical route ownership and retained assets
 
 The standalone API supports deployment-owned `AngularUi:CanonicalRoutes`, off by

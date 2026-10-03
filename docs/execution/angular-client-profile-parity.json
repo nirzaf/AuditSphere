@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "authority": "Curated source-action audit. Test pointers do not imply execution acceptance; observed results belong only to status.json.",
+  "story": "US-015",
+  "status": "PARTIAL",
+  "sourceFiles": [
+    {
+      "path": "src/AuditSphereOps.Web/Components/Pages/ClientDetail.razor",
+      "sha256": "d5489584493ee4c169312c112ea47d8d561dd07bc88b3299484a72eca3117c96"
+    }
+  ],
+  "records": [
+    {
+      "action": "client-master-metadata-and-summary",
+      "owner": "WorkspaceQuery.ClientAsync / native client profile",
+      "disposition": "Implemented legal/trading names, registration, jurisdiction, UTC onboarding timestamp, exact safety generation and complete authorized counts. Restricted profile and raw EF entities excluded.",
+      "evidencePointer": "ClientProfileWorkspaceTests; ClientProfileWorkspaceApiTests; client-workspace.spec.ts"
+    },
+    {
+      "action": "associated-engagement-and-contact-pages",
+      "owner": "WorkspaceQuery.ClientAsync / validated URL state",
+      "disposition": "Implemented bounded independent server pages, stable source sorting and preserved page-size choices. Complete totals are independent of the displayed page. Client-level authority does not widen an engagement role.",
+      "evidencePointer": "ClientProfileWorkspaceTests; AngularClientProfileJourneyTests"
+    },
+    {
+      "action": "portal-intent-notice",
+      "owner": "ClientPortalService.GetIntentAsync through authorized WorkspaceQuery",
+      "disposition": "Implemented existing Application intent view with acceptance/activation/invitation explanation. The notice grants no access, binds no identity and establishes no Microsoft invitation redemption.",
+      "evidencePointer": "ClientProfileWorkspaceTests; AngularClientProfileJourneyTests"
+    },
+    {
+      "action": "refresh-open-links-return-and-revocation",
+      "owner": "WorkspaceQuery reauthorization / native route and session fences",
+      "disposition": "Implemented exact identity/page response validation, contributing-scope recheck, superseded read cancellation and old command callback fencing. Returned list refetches current authority.",
+      "evidencePointer": "ClientProfileWorkspaceTests.MidProjectionEngagementRevocationRefusesOldCountsWhileClientGrantRemains; client-workspace.spec.ts; AngularClientProfileJourneyTests"
+    },
+    {
+      "action": "contact-creation-and-blocked-engagement-creation",
+      "owner": "Existing PracticeCrmService / EngagementLifecycleService commands",
+      "disposition": "Existing native commands preserved. Complete form, reviewed intent, draft lifetime and unknown-outcome reconciliation acceptance remain open; current read-side changes do not claim those controls complete.",
+      "evidencePointer": "WorkspaceQueryTests; UiContractTests"
+    }
+  ],
+  "remaining": "Client creation/contact form and draft acceptance, full engagement source-action parity, wider quality gates, production cutover and Blazor retirement."
+}

@@ -26,6 +26,9 @@ describe('Workspace contracts', () => {
       decodeClient({
         id,
         name: 'Client',
+        commercialName: null, registrationNumber: null, jurisdiction: null, createdAt: '2026-01-01T00:00:00Z',
+        metrics: { engagements: 0, workBlocked: 0, contacts: 0 },
+        paging: { engagementPage: 0, engagementPageSize: 10, contactPage: 0, contactPageSize: 10 }, portalIntent: null,
         status: 'Active',
         contacts: [],
         canManageContacts: false,

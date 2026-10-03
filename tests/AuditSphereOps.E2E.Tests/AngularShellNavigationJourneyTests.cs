@@ -20,7 +20,7 @@ public sealed class AngularShellNavigationJourneyTests
     var page = await context.NewPageAsync(); var errors = new List<string>(); page.PageError += (_,error) => errors.Add(error);
     await page.GotoAsync(origin+"/auth/sign-in?returnUrl="+Uri.EscapeDataString(prefix+"/app"));
     await Assertions.Expect(page.GetByRole(AriaRole.Heading,new(){Name="Portfolio",Exact=true})).ToBeVisibleAsync();
-    await Assertions.Expect(page.Locator("aside")).ToBeHiddenAsync();
+    await Assertions.Expect(page.Locator("aside:has(> audit-workspace-navigation)")).ToBeHiddenAsync();
     var menu = page.GetByRole(AriaRole.Button,new(){Name="Open navigation",Exact=true});
     await menu.FocusAsync(); await menu.PressAsync("Enter");
     var dialog = page.GetByRole(AriaRole.Dialog,new(){Name="Workspace navigation",Exact=true});
@@ -43,7 +43,7 @@ public sealed class AngularShellNavigationJourneyTests
     await page.GoBackAsync(); await Assertions.Expect(page.GetByRole(AriaRole.Heading,new(){Name="Accounting workspace",Exact=true})).ToBeVisibleAsync();
     await page.GoForwardAsync(); await Assertions.Expect(page.GetByRole(AriaRole.Heading,new(){Name="Portfolio",Exact=true})).ToBeVisibleAsync();
     await menu.ClickAsync(); await Assertions.Expect(dialog).ToBeVisibleAsync(); await page.SetViewportSizeAsync(1100,800);
-    await Assertions.Expect(dialog).ToHaveCountAsync(0); await Assertions.Expect(page.Locator("aside")).ToBeVisibleAsync();
+    await Assertions.Expect(dialog).ToHaveCountAsync(0); await Assertions.Expect(page.Locator("aside:has(> audit-workspace-navigation)")).ToBeVisibleAsync();
     await Assertions.Expect(menu).ToBeHiddenAsync(); await Assertions.Expect(page.Locator("main")).ToBeFocusedAsync();
     await page.SetViewportSizeAsync(320,800); await menu.ClickAsync();
     Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= innerWidth + 1"));

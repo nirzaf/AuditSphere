@@ -1,0 +1,179 @@
+<nav aria-label="Breadcrumb"><a routerLink="/app" [queryParams]="portfolioNavigation.params()">Portfolio</a><span aria-current="page">Client profile</span></nav>
+<audit-page-header title="Client profile" eyebrow="Practice client" description="Client master records, engagements and contacts within your current local scope." />
+<audit-state [loading]="loading()" label="client profile" />
+@if (error()) {
+  <section role="alert"><h2>Client unavailable</h2><p>{{ error() }}</p><button matButton (click)="load()">Retry</button></section>
+}
+@if (data(); as client) {
+  <nav aria-label="Client navigation">
+    <audit-status [value]="client.status" />
+    <a [routerLink]="['/app/clients', client.id, 'assessment']">Acceptance checklist</a>
+    <button matButton [disabled]="saving()" (click)="load()">Refresh client</button>
+  </nav>
+  <section class="client-metrics" aria-label="Scoped client summary">
+    <article><h2>Engagements</h2><strong>{{ client.metrics.engagements }}</strong></article>
+    <article><h2>Work blocked</h2><strong>{{ client.metrics.workBlocked }}</strong></article>
+    <article><h2>Client contacts</h2><strong>{{ client.metrics.contacts }}</strong></article>
+  </section>
+  <section aria-labelledby="client-name" class="client-profile">
+    <h2 id="client-name">{{ client.name }}</h2>
+    @if (client.commercialName) { <p>Trading as: {{ client.commercialName }}</p> }
+    <dl>
+      <dt>Client ID</dt><dd><code>{{ client.id }}</code></dd>
+      <dt>Registration number</dt><dd>{{ client.registrationNumber ?? 'Not provided' }}</dd>
+      <dt>Jurisdiction</dt><dd>{{ client.jurisdiction ?? 'Default' }}</dd>
+      <dt>Safety state generation</dt><dd>{{ client.safetyGeneration }}</dd>
+      <dt>Onboarded</dt><dd><time [attr.datetime]="client.createdAt">{{ utcTime(client.createdAt) }}</time></dd>
+    </dl>
+  </section>
+  <section aria-label="Associated engagements">
+    <h2>Associated engagements</h2>
+    @if (!client.engagements.length) { <p>No engagements available on this page in your current scope.</p> }
+    @else {
+      <div class="table-scroll"><table><caption>Authorized client engagements</caption>
+        <thead><tr><th>Service route</th><th>Period</th><th>Status</th><th>Work blocked</th><th>Inspect</th></tr></thead>
+        <tbody>@for (engagement of client.engagements; track engagement.id) { <tr>
+          <td>{{ engagement.serviceRoute }}<small>{{ engagement.id }}</small></td>
+          <td>{{ engagement.periodStart }} to {{ engagement.periodEnd }}</td>
+          <td><audit-status [value]="engagement.status" /></td>
+          <td>{{ engagement.professionalWorkBlocked ? 'Blocked' : 'Clear' }}</td>
+          <td><a [routerLink]="['/app/engagements', engagement.id]">Open engagement</a></td>
+        </tr> }</tbody>
+      </table></div>
+    }
+    <nav aria-label="Client engagement pages">
+      <mat-form-field><mat-label>Engagements per page</mat-label><select matNativeControl #engagementSize [value]="client.paging.engagementPageSize" [disabled]="saving()" (change)="size('engagement', engagementSize.value)"><option value="10">10</option><option value="25">25</option><option value="50">50</option></select></mat-form-field>
+      @if (client.paging.engagementPage > 0) { <button matButton [disabled]="saving()" (click)="page('engagement', 0)">First engagements</button> }
+      <button matButton [disabled]="saving() || client.paging.engagementPage === 0" (click)="page('engagement', client.paging.engagementPage - 1)">Previous engagements</button>
+      <span>Page {{ client.paging.engagementPage + 1 }} · {{ client.metrics.engagements }} authorized engagements</span>
+      <button matButton [disabled]="saving() || (client.paging.engagementPage + 1) * client.paging.engagementPageSize >= client.metrics.engagements" (click)="page('engagement', client.paging.engagementPage + 1)">Next engagements</button>
+    </nav>
+  </section>
+      @if (client.canCreateEngagement) {
+        <section>
+          <h2>Create engagement</h2>
+          <p>
+            A new engagement starts blocked until Partner activation against current unconditional
+            acceptance.
+          </p>
+          <form (ngSubmit)="createEngagement()">
+            <mat-form-field
+              ><mat-label>Service route</mat-label
+              ><input
+                matInput
+                name="serviceRoute"
+                [(ngModel)]="serviceRoute"
+                maxlength="50"
+                required
+                [disabled]="saving()"
+            /></mat-form-field>
+            <mat-form-field
+              ><mat-label>Service profile</mat-label
+              ><input
+                matInput
+                name="serviceProfile"
+                [(ngModel)]="serviceProfile"
+                maxlength="100"
+                required
+                [disabled]="saving()"
+            /></mat-form-field>
+            <label
+              >Period start
+              <input
+                type="date"
+                name="start"
+                [(ngModel)]="periodStart"
+                required
+                [disabled]="saving()"
+            /></label>
+            <label
+              >Period end
+              <input type="date" name="end" [(ngModel)]="periodEnd" required [disabled]="saving()"
+            /></label>
+            <button matButton="filled" type="submit" [disabled]="saving() || uncertain()">
+              Create engagement
+            </button>
+          </form>
+          <p role="status">{{ commandStatus() }}</p>
+        </section>
+      }
+  <section aria-label="Client portal intent">
+    <h2>Client portal</h2>
+    @if (client.portalIntent; as intent) {
+      <p><audit-status [value]="intent.state" /> for <strong>{{ intent.recipientEmail }}</strong></p>
+      <p>{{ portalExplanation(intent.state) }}</p>
+      <p class="muted">Intent last updated: <time [attr.datetime]="intent.updatedAt">{{ utcTime(intent.updatedAt) }}</time>. This notice does not grant access or verify Microsoft invitation redemption.</p>
+    } @else { <p>No portal intent was recorded for this client at conversion.</p> }
+  </section>
+  <section aria-label="Client contacts">
+    <h2>Client contacts</h2>
+    @if (!client.contacts.length) { <p>No contacts available on this page.</p> }
+    @else {
+      <div class="table-scroll"><table><caption>Authorized client contacts</caption>
+        <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Primary</th></tr></thead>
+        <tbody>@for (contact of client.contacts; track contact.id) { <tr>
+          <td>{{ contact.name }}</td><td>{{ contact.email }}</td><td>{{ contact.role }}</td><td>{{ contact.primary ? 'Yes' : 'No' }}</td>
+        </tr> }</tbody>
+      </table></div>
+    }
+    <nav aria-label="Client contact pages">
+      <mat-form-field><mat-label>Contacts per page</mat-label><select matNativeControl #contactSize [value]="client.paging.contactPageSize" [disabled]="saving()" (change)="size('contact', contactSize.value)"><option value="10">10</option><option value="25">25</option><option value="50">50</option></select></mat-form-field>
+      @if (client.paging.contactPage > 0) { <button matButton [disabled]="saving()" (click)="page('contact', 0)">First contacts</button> }
+      <button matButton [disabled]="saving() || client.paging.contactPage === 0" (click)="page('contact', client.paging.contactPage - 1)">Previous contacts</button>
+      <span>Page {{ client.paging.contactPage + 1 }} · {{ client.metrics.contacts }} authorized contacts</span>
+      <button matButton [disabled]="saving() || (client.paging.contactPage + 1) * client.paging.contactPageSize >= client.metrics.contacts" (click)="page('contact', client.paging.contactPage + 1)">Next contacts</button>
+    </nav>
+      @if (client.canManageContacts) {
+        <form (ngSubmit)="saveContact()">
+          <h3>Add contact</h3>
+          <mat-form-field
+            ><mat-label>Full name</mat-label
+            ><input
+              matInput
+              name="name"
+              [(ngModel)]="contactName"
+              required
+              maxlength="200"
+              [disabled]="saving()"
+          /></mat-form-field>
+          <mat-form-field
+            ><mat-label>Email</mat-label
+            ><input
+              matInput
+              name="email"
+              [(ngModel)]="contactEmail"
+              type="email"
+              required
+              maxlength="254"
+              [disabled]="saving()"
+          /></mat-form-field>
+          <mat-form-field
+            ><mat-label>Role or title</mat-label
+            ><input
+              matInput
+              name="role"
+              [(ngModel)]="contactRole"
+              required
+              maxlength="200"
+              [disabled]="saving()"
+          /></mat-form-field>
+          <label
+            ><input
+              type="checkbox"
+              name="primary"
+              [(ngModel)]="contactPrimary"
+              [disabled]="saving()"
+            />
+            Primary contact</label
+          >
+          <button matButton="filled" type="submit" [disabled]="saving() || uncertain()">
+            Save contact
+          </button>
+          <p role="status">{{ commandStatus() }}</p>
+          @if (uncertain()) {
+            <p>Refresh and review current contacts before submitting another request.</p>
+          }
+        </form>
+      }
+  </section>
+}

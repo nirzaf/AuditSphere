@@ -4,7 +4,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "1e87d81ba5ab83e8f1c49daa4ac050f824b20ed6",
+  "headCommit": "52bc510a94675e2766b10ae733b08dd6317dafcf",
   "verifiedCommit": "bc17a10f44e393a70ea2fb6b3c9f343d28271c9e",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": false,
@@ -5139,8 +5139,11 @@
       },
       "fingerprintsPath": "/private/tmp/auditsphere-portfolio-pagers-corrected-hashes.json",
       "publication": {
-        "status": "READY_FOR_PUSH",
-        "branch": "master"
+        "status": "PUSHED",
+        "branch": "master",
+        "commit": "52bc510a94675e2766b10ae733b08dd6317dafcf",
+        "remoteVerified": true,
+        "secretScan": "PASS staged gitleaks, no leaks"
       },
       "evidenceBoundary": "Targeted local synthetic presentation only. Whole source acceptance remains the earlier bc17a10 checkpoint.",
       "builtInBrowser": {
@@ -5161,6 +5164,127 @@
       },
       "fingerprintsUnchanged": true,
       "assemblyRepairBoundary": "Only E2E test synchronization changed after production-build and unit acceptance; runtime source and production assets unchanged."
+    },
+    "angularClientProfile": {
+      "status": "PASS",
+      "sourceBaseCommit": "52bc510a94675e2766b10ae733b08dd6317dafcf",
+      "scope": "Client profile read metadata, exact generation, complete current-scope counts, independent bounded server pages and source portal-intent notice. No new mutation, Microsoft effect or migration.",
+      "build": {
+        "status": "PASS",
+        "warnings": 0,
+        "errors": 0,
+        "log": "/private/tmp/auditsphere-client-profile-release.log",
+        "e2eSelectorBuildLog": "/private/tmp/auditsphere-client-profile-e2e-selector-build.log",
+        "compatibilityBuildLog": "/private/tmp/auditsphere-client-profile-compatibility-build.log"
+      },
+      "angular": {
+        "status": "PASS",
+        "passed": 328,
+        "files": 73,
+        "failed": 0,
+        "log": "/private/tmp/auditsphere-client-profile-angular-tests-corrected.log",
+        "initialCompileRefusal": {
+          "log": "/private/tmp/auditsphere-client-profile-angular-tests.log",
+          "cause": "Strict nullable test dictionary type; corrected without reducing assertions."
+        }
+      },
+      "api": {
+        "status": "PASS",
+        "passed": 4,
+        "failed": 0,
+        "skipped": 0,
+        "log": "/private/tmp/auditsphere-client-profile-final-api.log"
+      },
+      "domain": {
+        "status": "PASS",
+        "passed": 13,
+        "failed": 0,
+        "skipped": 0,
+        "log": "/private/tmp/auditsphere-client-profile-final-domain.log",
+        "fixtureBuildLog": "/private/tmp/auditsphere-client-profile-fixture-build.log",
+        "intermediateCorrectionLog": "/private/tmp/auditsphere-client-profile-domain-corrected.log",
+        "failedCohort": {
+          "passed": 12,
+          "failed": 1,
+          "log": "/private/tmp/auditsphere-client-profile-domain.log",
+          "cause": "Expired fixture grant predated GrantedAt; valid past interval replaces it. Database expiry constraint retained."
+        }
+      },
+      "browser": {
+        "status": "PASS",
+        "log": "/private/tmp/auditsphere-client-profile-final-browser.log",
+        "priorPassed": 8,
+        "priorFailed": 0,
+        "priorLog": "/private/tmp/auditsphere-client-profile-browser.log",
+        "passed": 8,
+        "failed": 0,
+        "skipped": 0
+      },
+      "model": {
+        "status": "PASS",
+        "log": "/private/tmp/auditsphere-client-profile-final-model.log",
+        "invocationCorrection": "Initial command used context shortcut instead of explicit --configuration Release; invalid invocation retained at /private/tmp/auditsphere-client-profile-model.log."
+      },
+      "bundle": {
+        "status": "PASS",
+        "rawInitialBytes": 494890,
+        "estimatedTransferBytes": 125170,
+        "warningBudgetBytes": 500000,
+        "log": "/private/tmp/auditsphere-client-profile-angular-build.log",
+        "boundary": "CLI estimates only, not measured browser performance."
+      },
+      "builtInBrowser": {
+        "status": "PASS",
+        "checks": [
+          "Actual scoped metadata, exact generation and UTC timestamp",
+          "Independent engagement/contact pages",
+          "Validated page URL and reload retain pages",
+          "25 contact rows leave 10 engagement rows unchanged",
+          "390px viewport with 375px content width",
+          "No warning/error console entries",
+          "Sign-out removes protected client component and metadata"
+        ],
+        "screenshots": [
+          "/private/tmp/auditsphere-angular-client-profile-preview.png",
+          "/private/tmp/auditsphere-angular-client-profile-desktop.png",
+          "/private/tmp/auditsphere-angular-client-profile-mobile.png",
+          "/private/tmp/auditsphere-angular-client-profile-final.png"
+        ],
+        "cleanup": "Owned preview host/database terminal zero; tab closed and viewport reset.",
+        "finalRuntimeRecheck": "Fresh owned host after retained-window compatibility repair confirmed current metadata, UTC/exact generation and independent engagement pages against the final runtime. Both previews disposed with terminal zero."
+      },
+      "fingerprintsPath": "/private/tmp/auditsphere-client-profile-compatibility-final-hashes.json",
+      "publication": {
+        "status": "READY_FOR_PUSH",
+        "branch": "master",
+        "secretScan": "PASS staged gitleaks, no leaks"
+      },
+      "remaining": [
+        "Reviewed client contact/engagement forms and drafts",
+        "Full engagement source-action parity",
+        "Wider quality, production cutover and retirement"
+      ],
+      "evidenceBoundary": "Local synthetic read-side proof only; no live Microsoft, professional or production acceptance.",
+      "compatibility": "Requests omitting all paging parameters retain the original bounded window. Native Angular always supplies explicit bounded page parameters. Application/API tests cover old window and new complete counts/pages.",
+      "shellSelectorRepair": "Earlier whole-source browser run matched both navigation and portfolio configuration aside. Later focused source selector retains visibility, focus, resize, revocation and client restrictions. Targeted browser cohort covers both route modes.",
+      "preRepairFingerprintsPath": "/private/tmp/auditsphere-client-profile-frozen-hashes.json",
+      "priorFingerprintsMatched": true,
+      "observedAt": "2026-10-03T04:28:29.553906Z",
+      "fingerprintsUnchanged": true,
+      "fingerprintCounts": {
+        "sourceFiles": 1282,
+        "productionAssets": 102,
+        "assemblies": 38
+      },
+      "assemblyRepairBoundary": "After the failed expiry fixture cohort, only Domain test source/assembly changed and passed. A subsequent retained-window compatibility change received a fresh whole Release build, PostgreSQL/API/browser/model verification and fresh built-in runtime check; production assets and Angular tests remained unchanged."
+    },
+    "angularPortfolioWholeRegression": {
+      "status": "RUNNING_WITH_OBSERVED_FAILURES",
+      "sourceCommit": "52bc510a94675e2766b10ae733b08dd6317dafcf",
+      "log": "/private/tmp/auditsphere-portfolio-whole-regression.log",
+      "fingerprintsPath": "/private/tmp/auditsphere-portfolio-whole-regression-hashes.json",
+      "observedFailures": "Both shell-navigation cases use an ambiguous aside selector after the portfolio configuration notice was added. Scoped selector corrected only in the later client slice. Frozen earlier source/assets/assemblies remain unchanged.",
+      "boundary": "No terminal whole-suite acceptance until the command completes; no edits/rebuilds while it consumes this checkout."
     }
   },
   "documentationWork": {
