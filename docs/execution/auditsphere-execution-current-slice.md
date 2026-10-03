@@ -81,7 +81,9 @@ The published activation source has now passed a whole regression in its separat
 frozen worktree. Every cohort and the parent joined successfully, and source,
 Angular asset and Release assembly fingerprints match their pre-run manifest.
 This updates the whole-suite `verifiedCommit` for activation source only. The newer
-reviewed creation slice has its own focused evidence and needs a fresh whole run.
+reviewed creation slice has its own focused evidence. Its fresh whole run is now
+running in a separate frozen worktree; no result is inferred before parent completion
+and fingerprint comparison.
 Exact source identities, observed counts and runtime evidence live in `status.json`.
 
 Next: reviewed planning forms/drafts/recovery, client creation,

@@ -4,7 +4,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "64d962ec06a0127cf16ad2904673c62c534146da",
+  "headCommit": "6efa46bb6f5f1aa634ecfe1443faa53cc82ecdf6",
   "verifiedCommit": "2692cb27fb933241690b02960e96f0536316fdb7",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": false,
@@ -5748,7 +5748,7 @@
     },
     "angularEngagementCreationReview": {
       "status": "PASS_FOCUSED",
-      "sourceCommit": "UNCOMMITTED_ON_64d962ec06a0127cf16ad2904673c62c534146da",
+      "sourceCommit": "6efa46bb6f5f1aa634ecfe1443faa53cc82ecdf6",
       "observedAt": "2026-10-03T06:28:23.409540+00:00",
       "releaseBuild": {
         "status": "PASS",
@@ -5811,7 +5811,26 @@
         "Initial browser cohort was 4 passed / 2 failed because the new navigation encoded engagements/new as one URL segment. Separate route segments and a literal-href regression now preserve the original assertions; final browser cohort passed 6/6.",
         "Denied command and failed on-demand receipt read now remove protected context and require fresh authorization; new unit proves immediate refusal clearing."
       ],
-      "boundary": "Local reviewed blocked-engagement creation is implemented and focused-verified. No acceptance, activation, Microsoft access or automatic retry is inferred. Client creation, planning, assessment parity and migration quality/cutover/retirement gates remain open. The frozen full regression consumes the earlier activation source."
+      "boundary": "Local reviewed blocked-engagement creation is implemented and focused-verified. No acceptance, activation, Microsoft access or automatic retry is inferred. Client creation, planning, assessment parity and migration quality/cutover/retirement gates remain open. The frozen full regression consumes the earlier activation source.",
+      "publishedCommit": "6efa46bb6f5f1aa634ecfe1443faa53cc82ecdf6",
+      "remoteHeadVerified": true
+    },
+    "angularCreationWholeRegression": {
+      "status": "RUNNING",
+      "sourceCommit": "6efa46bb6f5f1aa634ecfe1443faa53cc82ecdf6",
+      "worktree": "/Users/qts/.codex/worktrees/angular-evidence-commands/AuditSphere",
+      "log": "/private/tmp/auditsphere-creation-whole-regression.log",
+      "manifest": "/private/tmp/auditsphere-creation-whole-regression-hashes.json",
+      "prerequisites": {
+        "releaseBuild": "PASS",
+        "angularProductionBuild": "PASS"
+      },
+      "frozenPaths": {
+        "source": 1335,
+        "assets": 107,
+        "assemblies": 38
+      },
+      "boundary": "No acceptance until every cohort and parent join successfully and frozen fingerprints match."
     }
   },
   "documentationWork": {
