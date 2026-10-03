@@ -4,7 +4,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "efe43778cd3d0c404a4867df5dc314720c7c7d82",
+  "headCommit": "afb164e63c9deb4ff9cbd5572ecfd498a2cdcf77",
   "verifiedCommit": "6efa46bb6f5f1aa634ecfe1443faa53cc82ecdf6",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": false,
@@ -6021,7 +6021,10 @@
         "paths": 109,
         "result": "MATCH"
       },
-      "boundary": "Budget editor only. Existing backend and Release assemblies reused; no schema changes. Whole regression remains the earlier creation source. Staffing/approval request parity, other planning Signal Forms and navigation guards, client creation, assessment and cutover remain partial."
+      "boundary": "Budget editor only. Existing backend and Release assemblies reused; no schema changes. Whole regression remains the earlier creation source. Staffing/approval request parity, other planning Signal Forms and navigation guards, client creation, assessment and cutover remain partial.",
+      "sourceCommit": "afb164e63c9deb4ff9cbd5572ecfd498a2cdcf77",
+      "publishedCommit": "afb164e63c9deb4ff9cbd5572ecfd498a2cdcf77",
+      "remoteHeadVerified": true
     }
   },
   "documentationWork": {
