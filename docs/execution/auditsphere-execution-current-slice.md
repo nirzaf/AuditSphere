@@ -13,6 +13,20 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Native planning editable budget drafts
+
+Budget preparation reuses the tab draft service for explicit save, restore and
+discard. Draft identity follows the exact engagement, firm, actor and session;
+restoration requires the current authorized budget version and draft state.
+Only bounded editable fields are stored: no approval assent, calculated cost,
+request execution or professional acceptance is restored. Unknown command outcomes
+fence these controls. Refused access clears protected fields.
+
+Angular tests, production build and the built-in browser verified this local slice;
+observed evidence is in `status.json`. Owned synthetic preview hosts and database
+were disposed. Reviewed Signal Forms and server request receipt recovery remain
+open, together with client creation, assessment parity and migration cutover gates.
+
 ## Planning protected editor clearing
 
 Native planning now removes protected editable fields and review assent immediately

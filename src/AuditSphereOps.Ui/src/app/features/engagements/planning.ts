@@ -6,6 +6,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { Subscription, timeout } from 'rxjs';
 import { SessionService } from '../../core/session';
+import { TabDrafts } from '../../core/tab-drafts';
 interface TeamMember {
   assignmentId: string;
   userId: string;
@@ -55,6 +56,60 @@ interface Planning {
   draft: Draft | null;
   canManageStaffing: boolean;
   candidates: { userId: string; name: string; department: string | null; certified: boolean }[];
+}
+export interface PlanningEditableBudget {
+  currency: string;
+  lines: {
+    role: string;
+    activity: string;
+    phase: string;
+    riskArea: string;
+    forecastMinutes: number;
+  }[];
+}
+export function editablePlanningBudget(raw: unknown): PlanningEditableBudget | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const value = raw as Record<string, unknown>;
+  if (
+    Object.keys(value).sort().join(',') !== 'currency,lines' ||
+    typeof value['currency'] !== 'string' ||
+    !/^[A-Z]{3}$/.test(value['currency']) ||
+    !Array.isArray(value['lines']) ||
+    value['lines'].length < 1 ||
+    value['lines'].length > 200
+  )
+    return null;
+  const lines: PlanningEditableBudget['lines'] = [];
+  for (const rawLine of value['lines']) {
+    if (!rawLine || typeof rawLine !== 'object' || Array.isArray(rawLine)) return null;
+    const line = rawLine as Record<string, unknown>;
+    if (
+      Object.keys(line).sort().join(',') !== 'activity,forecastMinutes,phase,riskArea,role' ||
+      !['role', 'activity', 'phase'].every(
+        (key) =>
+          typeof line[key] === 'string' &&
+          line[key].length >= 1 &&
+          line[key].length <= 50 &&
+          line[key] === line[key].trim() &&
+          !/[\x00-\x1f\x7f]/.test(line[key]),
+      ) ||
+      typeof line['riskArea'] !== 'string' ||
+      line['riskArea'].length > 120 ||
+      /[\x00-\x1f\x7f]/.test(line['riskArea']) ||
+      !Number.isSafeInteger(line['forecastMinutes']) ||
+      Number(line['forecastMinutes']) < 1 ||
+      Number(line['forecastMinutes']) > 10000000
+    )
+      return null;
+    lines.push({
+      role: line['role'] as string,
+      activity: line['activity'] as string,
+      phase: line['phase'] as string,
+      riskArea: line['riskArea'],
+      forecastMinutes: line['forecastMinutes'] as number,
+    });
+  }
+  return { currency: value['currency'], lines };
 }
 const guid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export function exactDecimal(value: unknown): value is string {
@@ -243,6 +298,35 @@ export function decodePlanning(value: unknown): Planning {
             Latest version {{ planning.latestBudgetVersion }}. An approved rate card is required for
             each role and activity. Another manager or partner must approve your draft.
           </p>
+          <p>
+            Save editable fields in this tab only. Restoring requires the same budget version and
+            draft state; approval is never restored.
+          </p>
+          <button
+            matButton
+            type="button"
+            [disabled]="busy() || uncertain()"
+            (click)="saveEditableBudget()"
+          >
+            Save budget fields in this tab
+          </button>
+          <button
+            matButton
+            type="button"
+            [disabled]="busy() || uncertain()"
+            (click)="restoreEditableBudget()"
+          >
+            Restore saved budget fields
+          </button>
+          <button
+            matButton
+            type="button"
+            [disabled]="busy() || uncertain()"
+            (click)="discardEditableBudget()"
+          >
+            Discard saved budget fields
+          </button>
+          <p role="status">{{ draftStatus() }}</p>
           <form (ngSubmit)="saveBudget()">
             <label
               >Currency
@@ -418,6 +502,68 @@ export class EngagementPlanning {
     { value: 'SENIOR_AUDITOR', label: 'Senior Auditor' },
     { value: 'STAFF_ASSOCIATE', label: 'Staff Associate' },
   ];
+  private readonly drafts = inject(TabDrafts);
+  readonly draftStatus = signal('');
+  private budgetDraftScope() {
+    const planning = this.data();
+    if (
+      !planning?.canManageStaffing ||
+      this.busy() ||
+      this.uncertain() ||
+      this.destroyed ||
+      !this.owner()
+    )
+      return null;
+    // The entity and session namespace bind identity; revision binds budget version and draft/approval state.
+    return {
+      entity: 'engagement-budget:' + this.engagementId(),
+      baseRevision:
+        BigInt(planning.latestBudgetVersion).toString(16).padStart(60, '0') +
+        (planning.draft ? '0001' : '0000'),
+    };
+  }
+  saveEditableBudget(): void {
+    const scope = this.budgetDraftScope();
+    if (!scope) return;
+    const saved = this.drafts.save(
+      scope,
+      { currency: this.currency, lines: this.budgetLines },
+      editablePlanningBudget,
+    );
+    this.draftStatus.set(
+      saved
+        ? 'Editable budget fields saved in this tab. Review is not saved.'
+        : 'Budget fields could not be saved. Check bounded fields and tab storage.',
+    );
+  }
+  restoreEditableBudget(): void {
+    const scope = this.budgetDraftScope();
+    if (!scope) return;
+    const result = this.drafts.read(scope, editablePlanningBudget);
+    this.budgetReviewed = false;
+    if (result.state === 'ready' && !result.draft.submissionPending) {
+      this.currency = result.draft.value.currency;
+      this.budgetLines = result.draft.value.lines.map((line) => ({ ...line }));
+      this.draftStatus.set(
+        'Editable fields restored. Review current rates and explicitly approve separately.',
+      );
+    } else {
+      this.draftStatus.set(
+        result.state === 'stale'
+          ? 'Saved budget fields are stale. They were not restored.'
+          : 'No usable saved budget fields are available.',
+      );
+    }
+  }
+  discardEditableBudget(): void {
+    const scope = this.budgetDraftScope();
+    if (!scope) return;
+    this.draftStatus.set(
+      this.drafts.clear(scope.entity)
+        ? 'Saved budget fields discarded.'
+        : 'Saved fields could not be discarded from tab storage.',
+    );
+  }
   currency = 'QAR';
   budgetReviewed = false;
   budgetLines = [
@@ -507,6 +653,7 @@ export class EngagementPlanning {
         this.reviewed = false;
         this.revokeTarget.set(null);
         this.commandStatus.set('');
+        this.draftStatus.set('');
         this.uncertain.set(false);
         if (staff) this.load();
       });
@@ -586,6 +733,7 @@ export class EngagementPlanning {
   }
   private clearProtectedEditor(): void {
     this.data.set(null);
+    this.draftStatus.set('');
     this.selectedUser = '';
     this.selectedLevel = 'STAFF_ASSOCIATE';
     this.reviewed = false;

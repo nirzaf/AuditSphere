@@ -5849,6 +5849,35 @@
       },
       "behavior": "Protected planning editors clear immediately on unauthorized or unavailable commands and malformed refreshed projections; denied commands revalidate current access.",
       "boundary": "Reviewed planning forms, revision-bound drafts and request receipt recovery remain PARTIAL. No whole regression acceptance inferred."
+    },
+    "angularPlanningBudgetDrafts": {
+      "status": "PASS_FOCUSED",
+      "sourceBase": "6a4325ad1b20e082ec8143518e83076566132065",
+      "angular": {
+        "passed": 362,
+        "failed": 0,
+        "files": 77,
+        "parentExitCode": 0,
+        "log": "/private/tmp/auditsphere-planning-drafts-angular.log"
+      },
+      "productionBuild": {
+        "status": "PASS",
+        "parentExitCode": 0,
+        "log": "/private/tmp/auditsphere-planning-drafts-build.log"
+      },
+      "builtInBrowser": {
+        "status": "PASS_LOCAL_SYNTHETIC",
+        "cases": [
+          "explicit save and restore",
+          "discard",
+          "sign-out clears protected workspace"
+        ],
+        "consoleWarnings": 0,
+        "consoleErrors": 0,
+        "screenshot": "/private/tmp/auditsphere-planning-drafts-restored.png",
+        "ownedPreviewDisposed": true
+      },
+      "boundary": "Editable budget fields only, bound to exact engagement/session and current budget version plus draft state. No assent, cost or business-command dispatch is restored. Full reviewed planning and server request receipts remain PARTIAL."
     }
   },
   "documentationWork": {

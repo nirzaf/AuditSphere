@@ -5,7 +5,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { SessionService } from '../../core/session';
 import { EngagementPlanning } from './planning';
 import { describe, expect, it } from 'vitest';
-import { decodePlanning, exactDecimal } from './planning';
+import { decodePlanning, exactDecimal, editablePlanningBudget } from './planning';
 describe('Exact planning contracts', () => {
   it('never accepts floating point money', () => {
     expect(exactDecimal('9007199254740993.01')).toBe(true);
@@ -83,6 +83,7 @@ describe('Planning protected editor clearing', () => {
     budgetState: 'UNAVAILABLE',
   };
   beforeEach(() => {
+    sessionStorage.clear();
     TestBed.configureTestingModule({
       imports: [EngagementPlanning],
       providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()],
@@ -97,6 +98,7 @@ describe('Planning protected editor clearing', () => {
   afterEach(() => {
     TestBed.inject(HttpTestingController).verify({ ignoreCancelled: true });
     TestBed.resetTestingModule();
+    sessionStorage.clear();
   });
   function open() {
     const fixture = TestBed.createComponent(EngagementPlanning);
@@ -143,5 +145,61 @@ describe('Planning protected editor clearing', () => {
       .flush({ ...planning, latestBudgetVersion: 1 });
     expectCleared(component);
     expect(component.error()).toContain('unsupported');
+  });
+  it('restores only editable fields against the same current budget revision without assent', () => {
+    const component = open();
+    component.currency = 'USD';
+    component.budgetReviewed = true;
+    component.saveEditableBudget();
+    component.currency = 'QAR';
+    component.restoreEditableBudget();
+    expect(component.currency).toBe('USD');
+    expect(component.budgetReviewed).toBe(false);
+    component.data.set({ ...component.data()!, latestBudgetVersion: '1' });
+    component.currency = 'QAR';
+    component.restoreEditableBudget();
+    expect(component.currency).toBe('QAR');
+    expect(component.draftStatus()).toContain('stale');
+  });
+  it('refuses recovered fields from a pending submission and cannot restore during an unknown outcome', () => {
+    const component = open();
+    component.saveEditableBudget();
+    const key = sessionStorage.key(0)!;
+    const saved = JSON.parse(sessionStorage.getItem(key)!);
+    saved.submissionPending = true;
+    sessionStorage.setItem(key, JSON.stringify(saved));
+    component.currency = 'USD';
+    component.restoreEditableBudget();
+    expect(component.currency).toBe('USD');
+    saved.submissionPending = false;
+    sessionStorage.setItem(key, JSON.stringify(saved));
+    component.uncertain.set(true);
+    component.restoreEditableBudget();
+    expect(component.currency).toBe('USD');
+  });
+  it('allowlists bounded budget fields and rejects approval, money and invalid minute values', () => {
+    const fields = {
+      currency: 'QAR',
+      lines: [
+        {
+          role: 'Senior',
+          activity: 'AUDIT',
+          phase: 'PLANNING',
+          riskArea: '',
+          forecastMinutes: 480,
+        },
+      ],
+    };
+    expect(editablePlanningBudget(fields)).toEqual(fields);
+    expect(editablePlanningBudget({ ...fields, reviewed: true })).toBeNull();
+    expect(
+      editablePlanningBudget({ ...fields, lines: [{ ...fields.lines[0], cost: '10' }] }),
+    ).toBeNull();
+    expect(
+      editablePlanningBudget({ ...fields, lines: [{ ...fields.lines[0], forecastMinutes: 0 }] }),
+    ).toBeNull();
+    expect(
+      editablePlanningBudget({ ...fields, lines: [{ ...fields.lines[0], role: 'x'.repeat(51) }] }),
+    ).toBeNull();
   });
 });
