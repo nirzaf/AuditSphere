@@ -13,7 +13,7 @@ import { WorkspaceAdministration } from './workspaces';
 @Component({ selector: 'audit-tenant-connection', imports: [TenantSetupEditor, ReactiveFormsModule, RouterLink, MatButtonModule, SharePointAdministration, WorkspaceAdministration, ...SHARED], template: `
   <audit-page-header title="Microsoft tenant connection" description="Microsoft authenticates the tenant administrator and asks for consent. AuditSphere verifies the exact tenant and each capability separately." />
   <nav class="actions" aria-label="Microsoft administration"><a matButton routerLink="/app/administration">Administration overview</a><a matButton routerLink="/app/administration/users">Users & Access</a></nav>
-  <button matButton (click)="ws.reload()" [disabled]="busy()">Refresh persisted status</button>
+  <button matButton (click)="refresh()" [disabled]="busy()">Refresh persisted status</button>
   <audit-state [loading]="ws.loading()" [error]="ws.error()" label="Microsoft tenant connection" />
   @if (ws.data(); as w) {
     @if(w.simulation) { <p role="status" class="notice">Simulation: these checks exercise the configured test provider. They do not prove live Microsoft consent.</p> }
@@ -40,7 +40,7 @@ import { WorkspaceAdministration } from './workspaces';
     </section>
     @if(w.workspace.setupMetadata; as metadata) {
       @if(w.workspace.connection.draftId && w.workspace.draftRevision) {
-<audit-tenant-setup-editor [draftId]="w.workspace.connection.draftId!" [revision]="w.workspace.draftRevision!" [initial]="metadata" [editable]="canEditSetup(w.workspace.connection.draftState, w.workspace.connection.connectionState)" (changed)="ws.reload()" />
+      <audit-tenant-setup-editor [draftId]="w.workspace.connection.draftId!" [revision]="w.workspace.draftRevision!" [initial]="metadata" [editable]="canEditSetup(w.workspace.connection.draftState, w.workspace.connection.connectionState)" (changed)="refresh()" />
 }
 <section class="panel" aria-labelledby="setup-capability-heading"><h2 id="setup-capability-heading">Saved setup configuration</h2>
         <dl class="facts"><dt>Mail setup</dt><dd><audit-status [value]="metadata.mailState" /></dd>
@@ -60,12 +60,18 @@ import { WorkspaceAdministration } from './workspaces';
       <li>Client template approved: {{ p.clientTemplateApproved ? 'Yes' : 'Pending' }}</li><li>Workspace activated: {{ p.workspaceActivated ? 'Yes' : 'Pending' }}</li></ul></section> }
   }
   <audit-command-message [message]="message()" [failed]="failed()" />
-  <audit-sharepoint-administration (changed)="ws.reload()" />
+  <audit-sharepoint-administration (changed)="refreshAfterSharePointChange()" />
   <audit-workspace-administration />
 ` })
 export class TenantConnection {
   readonly setupEditor = viewChild(TenantSetupEditor);
-  confirmNavigation() { return this.setupEditor()?.confirmNavigation() ?? true; }
+  readonly sharePointEditor = viewChild(SharePointAdministration);
+  async confirmNavigation() {
+    if (this.setupEditor() && !(await this.setupEditor()!.confirmNavigation())) return false;
+    return this.sharePointEditor()?.confirmNavigation() ?? true;
+  }
+  async refresh() { if(this.busy() || !(await this.confirmNavigation())) return; this.ws.reload(); }
+  refreshAfterSharePointChange() { this.ws.reload(); }
   canEditSetup(draft: string | null, connection: string | null) { return !!draft && ![draft, connection].some(x => x === 'ACTIVE' || x === 'SUSPENDED' || x === 'BLOCKED'); }
   private readonly api = inject(Api); private readonly session = inject(SessionService);
   readonly ws = this.api.resource(() => '/api/ui/administration/microsoft365', tenantWorkspace, 'Current firm-wide Administrator access is required.');
