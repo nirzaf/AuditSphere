@@ -13,6 +13,21 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Reviewed existing service-period engagement inspection
+
+The authorized client-scoped preview now returns the matching existing
+engagement ID when the service route and period already exist. Angular shows a
+separate existing-engagement state with an inspection link and no duplicate
+creation confirmation. The Application write path repeats the duplicate check
+inside the client safety transaction and rejects the write.
+
+Angular component coverage, PostgreSQL-backed Domain and API tests, both
+Playwright route modes, the Angular production build, Release solution build and
+EF model check passed. Exact counts and tested source commit are recorded in
+`status.json` under `angularExistingEngagementInspection`. The wider solution
+suite was not run for this slice. US-015 and migration acceptance remain
+PARTIAL; no production cutover or Blazor retirement is claimed.
+
 ## Current-head regression attempt (incomplete)
 
 On the current code source (`b012022`), the Angular production build and Release
