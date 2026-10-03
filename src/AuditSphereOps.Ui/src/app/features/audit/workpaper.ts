@@ -12,7 +12,7 @@ export const decodeWorkpaper = obj({ id: guid, engagementId: guid, index: text, 
   linkedProcedureTitle: nullable(text), revision: int, status: text, workPerformed: nullable(text), conclusion: nullable(text), createdAt: instant, submittedAt: nullable(instant),
   submissions: arr(obj({ revision: int, submittedAt: instant, conclusion: nullable(text) }), 1000), draft });
 type Draft = ReturnType<typeof draft>;
-const AUTOSAVE_MS = 1500;
+const AUTOSAVE_MS = 750;
 
 /**
  * Working content is saved as a server-side draft guarded by the draft revision and base generations. Autosave runs

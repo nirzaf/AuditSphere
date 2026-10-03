@@ -161,7 +161,18 @@ public static partial class ApiHost
       app.MapGet("/auth/access-not-assigned", (HttpContext http) =>
       {
         http.Response.Headers.CacheControl = "no-store";
-        return Results.Problem("Your Microsoft identity has no current AuditSphere access. Contact an authorized AuditSphere administrator.", statusCode: 403);
+        const string page = """
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>AuditSphere access not assigned</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>body{font-family:system-ui,sans-serif;margin:0;display:grid;place-items:center;min-height:100vh;background:#f6f7f9;color:#1c1f23}
+main{max-width:34rem;padding:2rem;text-align:center}a.button{display:inline-block;margin-top:1rem;padding:.6rem 1.2rem;border:1px solid #5b6470;border-radius:.4rem;text-decoration:none}</style></head>
+<body><main><h1>Access not assigned</h1>
+<p>Your Microsoft identity has no current AuditSphere access. Contact an authorized AuditSphere administrator to be granted a role and scope.</p>
+<p><a class="button" href="/auth/sign-out">Sign out</a></p></main></body>
+</html>
+""";
+        return Results.Text(page, "text/html; charset=utf-8", statusCode: StatusCodes.Status403Forbidden);
       });
       if (!oidcConfigured && !developmentIdentityEnabled)
         app.MapGet("/auth/sign-in", () => Results.Problem("Microsoft sign-in is not configured for this deployment.", statusCode: 503));

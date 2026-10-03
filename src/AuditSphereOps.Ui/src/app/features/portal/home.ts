@@ -16,7 +16,7 @@ import { SessionService } from '../../core/session';
     <audit-state [loading]="ws.loading()" [error]="ws.error()" label="your portal" />
     <audit-command-message [message]="message()" [failed]="failed()" />
     @if (ws.data(); as w) {
-      @if (w.pendingOnboarding) { <section class="panel" role="status"><h2>Portal setup pending</h2>
+      @if (w.pendingOnboarding && !w.engagementCount) { <section class="panel" role="status"><h2>Portal setup pending</h2>
         <p>Your workspace opens after commercial acceptance, Partner clearance, engagement activation and advance payment. Contact your audit team for the remaining action.</p></section> }
       @if (!w.firstSignIn.completed) {
         <section class="panel"><h2>Complete your first sign-in</h2><p>{{ w.firstSignIn.message }}</p>

@@ -11,8 +11,8 @@ namespace AuditSphereOps.Application.Documents;
 
 public sealed record PortalRequestItem(Guid Id, string Area, string Objective, string PeriodStart, string PeriodEnd, string DueDate, string State, bool Delegated);
 public sealed record PortalPackageItem(Guid Id, string Framework, string PeriodStart, string PeriodEnd, string Currency);
-public sealed record PortalWorkspace(FirstSignInStatus FirstSignIn, bool PendingOnboarding, IReadOnlyList<PortalRequestItem> Requests,
-  bool HasMoreRequests, IReadOnlyList<PortalPackageItem> Packages);
+public sealed record PortalWorkspace(FirstSignInStatus FirstSignIn, bool PendingOnboarding, int EngagementCount,
+  IReadOnlyList<PortalRequestItem> Requests, bool HasMoreRequests, IReadOnlyList<PortalPackageItem> Packages);
 public sealed record PortalUploadItem(Guid Id, string FileName, string ReceivedByteCount, string DeclaredByteCount, string State,
   string? TransferState, string Sha256, string CreatedAt);
 public sealed record PortalConversationItem(Guid Id, string At, string Speaker, string Body);
@@ -42,7 +42,8 @@ public static class ClientPortalWorkspaceQuery
     if (!await IsClientAsync(db, actor, ct) || !engagements.Order().SequenceEqual(currentEngagements.Order()) || !requestIds.Order().SequenceEqual(stillAssigned.Order()))
       return CommandResult<PortalWorkspace>.Fail(ErrorCodes.ScopeDenied, "Portal unavailable.");
     return CommandResult<PortalWorkspace>.Ok(new(await ClientPortalService.GetFirstSignInStatusAsync(db, actor, ct),
-      await ClientPortalService.HasPendingCommercialOnboardingAsync(db, actor, ct), requests.Take(50).ToArray(), requests.Count > 50, packages));
+      await ClientPortalService.HasPendingCommercialOnboardingAsync(db, actor, ct), engagements.Count,
+      requests.Take(50).ToArray(), requests.Count > 50, packages));
   }
 
   public static async Task<CommandResult<PortalRequestWorkspace>> RequestAsync(IAuditSphereDbContext db, ActorContext actor, Guid requestId, CancellationToken ct = default)

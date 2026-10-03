@@ -8,6 +8,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { Subscription, timeout } from 'rxjs';
 import { SessionService } from '../../core/session';
+import { Drafts } from '../../core/drafts';
 interface Lead {
   id: string;
   name: string;
@@ -85,6 +86,7 @@ export function decodeLeads(value: unknown): LeadPage {
               matInput
               name="name"
               [(ngModel)]="name"
+              (ngModelChange)="touchDraft()"
               required
               maxlength="200"
               [disabled]="busy()"
@@ -95,6 +97,7 @@ export function decodeLeads(value: unknown): LeadPage {
               matInput
               name="source"
               [(ngModel)]="source"
+              (ngModelChange)="touchDraft()"
               required
               maxlength="200"
               [disabled]="busy()"
@@ -105,6 +108,7 @@ export function decodeLeads(value: unknown): LeadPage {
               matInput
               name="contactName"
               [(ngModel)]="contactName"
+              (ngModelChange)="touchDraft()"
               maxlength="200"
               [disabled]="busy()"
           /></mat-form-field>
@@ -115,6 +119,7 @@ export function decodeLeads(value: unknown): LeadPage {
               type="email"
               name="contactEmail"
               [(ngModel)]="contactEmail"
+              (ngModelChange)="touchDraft()"
               maxlength="254"
               [disabled]="busy()"
           /></mat-form-field>
@@ -200,6 +205,21 @@ export class Leads {
   source = '';
   contactName = '';
   contactEmail = '';
+  private readonly drafts = inject(Drafts);
+  private draftTimer?: ReturnType<typeof setTimeout>;
+  private static validDraft(value: unknown): { name: string; source: string; contactName: string; contactEmail: string } | null {
+    if (!value || typeof value !== 'object') return null;
+    const v = value as Record<string, unknown>;
+    const str = (k: string, max: number) => typeof v[k] === 'string' && (v[k] as string).length <= max ? v[k] as string : null;
+    return str('name', 200) !== null && str('source', 200) !== null && str('contactName', 200) !== null && str('contactEmail', 254) !== null
+      ? { name: str('name', 200)!, source: str('source', 200)!, contactName: str('contactName', 200)!, contactEmail: str('contactEmail', 254)! }
+      : null;
+  }
+  touchDraft(): void {
+    clearTimeout(this.draftTimer);
+    this.draftTimer = setTimeout(
+      () => this.drafts.save('commercial-lead-draft', { name: this.name, source: this.source, contactName: this.contactName, contactEmail: this.contactEmail }), 800);
+  }
   readonly data = signal<LeadPage | null>(null);
   readonly loading = signal(false);
   readonly error = signal('');
@@ -208,6 +228,7 @@ export class Leads {
   readonly commandStatus = signal('');
   readonly qualification = signal<Lead | null>(null);
   constructor() {
+    inject(DestroyRef).onDestroy(() => clearTimeout(this.draftTimer));
     effect(() => {
       this.session.invalidation();
       const staff = this.session.current()?.staff;
@@ -218,7 +239,11 @@ export class Leads {
         this.qualification.set(null);
         this.commandStatus.set('');
         this.uncertain.set(false);
-        if (staff) this.load();
+        if (staff) {
+          const saved = this.drafts.load('commercial-lead-draft', Leads.validDraft);
+          if (saved) { this.name = saved.name; this.source = saved.source; this.contactName = saved.contactName; this.contactEmail = saved.contactEmail; }
+          this.load();
+        }
       });
     });
     inject(DestroyRef).onDestroy(() => this.request?.unsubscribe());
@@ -247,6 +272,7 @@ export class Leads {
           this.busy.set(false);
           if (generation !== this.session.invalidation()) return;
           this.name = this.source = this.contactName = this.contactEmail = '';
+          this.drafts.clear('commercial-lead-draft');
           this.qualification.set(null);
           this.commandStatus.set('Commercial change recorded.');
           this.load();

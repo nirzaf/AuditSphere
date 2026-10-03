@@ -1,10 +1,11 @@
 import { Component, computed, effect, inject, signal } from '@angular/core';
-import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
+import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
 import { Api } from '../../core/api';
+import { SessionService } from '../../core/session';
 import { SHARED } from '../../core/ui';
-import { accessWorkspace, accessUser, accessLine } from './access-contracts';
+import { accessWorkspace, accessUser, accessLine, accessGrantEvidence, copyableInvitation } from './access-contracts';
 import { RoleAssignmentDialog, AccessRevocationDialog } from './roles';
 import { MicrosoftDirectory } from './directory';
 import { tenantWorkspace } from './tenant-contracts';
@@ -28,10 +29,17 @@ import { capabilityAvailable, recoverableOperation } from './operations-contract
           <dt>Directory status</dt><dd>{{ u.directoryStatus }}</dd><dt>Invitation</dt><dd>{{ u.invitationStatus }}</dd><dt>Microsoft verification</dt><dd>{{ u.lastMicrosoftVerification ?? 'Not observed' }}</dd>
           <dt>Last application access</dt><dd>{{ u.lastAuditSphereAccess ?? 'Not observed' }}</dd><dt>Created by</dt><dd>{{ u.createdBy }}</dd><dt>Created</dt><dd>{{ u.createdDate }}</dd></dl>
         <h3>AuditSphere roles and scope</h3><ul>@for(g of u.access; track g.grantId) { <li>{{ g.role }} · {{ g.scopeKind }} · {{ g.engagementId ?? g.clientId ?? g.groupId ?? 'Firm' }} · expires {{ g.expiresAt ?? 'No expiry' }}
-          <button matButton (click)="revoke(g)" [attr.aria-label]="'Revoke ' + g.role + ' for ' + u.displayName">Revoke</button></li> } @empty { <li>No active grants</li> }</ul>
+          <button matButton (click)="toggleHistory(g.grantId)" [attr.aria-expanded]="expandedGrant() === g.grantId" [attr.aria-label]="'View history for ' + g.role + ' for ' + u.displayName">History</button>
+          <button matButton (click)="revoke(g)" [attr.aria-label]="'Revoke ' + g.role + ' for ' + u.displayName">Revoke</button>
+          @if (expandedGrant() === g.grantId) { <ul><li role="listitem" class="history-head">Grant change evidence (latest 20)</li>
+            @for(e of grantHistory().get(g.grantId) ?? []; track e.at) { <li>{{ e.at }} · {{ e.action }} · {{ e.priorRole }} → {{ e.newRole }} · {{ e.reason ?? e.source }} · by {{ e.actor }}</li> }
+            @empty { <li>No recorded changes for this grant.</li> }</ul> }</li> } @empty { <li>No active grants</li> }</ul>
         <button matButton="filled" (click)="assign(u)" [disabled]="u.auditSphereStatus === 'DISABLED'">Assign role and scope</button>
+        @if (u.invitationId) { <button matButton (click)="copyInvitation(u)" [disabled]="copying()">Copy invitation link</button> }
       </section>
     } @empty { <p>No local users match this view.</p> }
+    @if (inviteLink()) { <p>Invitation link: <code>{{ inviteLink() }}</code></p> }
+    <audit-command-message [message]="inviteMessage()" [failed]="inviteFailed()" />
     <section class="panel"><h2>Optional Microsoft administration</h2><p>Existing guests can be selected in Microsoft directory below. New invitations and new workforce accounts require separately enabled, verified consent. No client contact triggers a B2B invitation automatically.</p>
       <button matButton="filled" (click)="provision(false)" [disabled]="!available('TENANT_USER_PROVISIONING')">Create Microsoft 365 user</button>
       <button matButton="filled" (click)="provision(true)" [disabled]="!available('GUEST_INVITATION')">Invite new guest</button>
@@ -45,6 +53,18 @@ import { capabilityAvailable, recoverableOperation } from './operations-contract
         @if(recoverable(o.state,o.kind)){ <button matButton (click)="recover(o.id)">Review operation recovery</button> }
       </details> }
       @empty { <p>No external administration operations recorded.</p> }
+    </section>
+    <section class="panel"><h2>Bind a roster identity</h2><p>Directory-reader fallback: bind an exact verified identity from the approved roster or a verified sign-in, then assign its role and scope below. This never creates or changes a Microsoft account.</p>
+      <form [formGroup]="roster" (ngSubmit)="bindRoster()">
+        <label for="roster-tenant">Tenant ID</label><input id="roster-tenant" formControlName="tenantId" maxlength="200" required />
+        <label for="roster-subject">Object ID / subject</label><input id="roster-subject" formControlName="subject" maxlength="200" required />
+        <label for="roster-email">Email</label><input id="roster-email" type="email" formControlName="email" maxlength="320" required />
+        <label for="roster-name">Display name</label><input id="roster-name" formControlName="displayName" maxlength="300" required />
+        <label for="roster-kind">Application identity kind</label><select id="roster-kind" formControlName="userKind"><option value="Staff">Staff</option><option value="Client">Client</option></select>
+        <label for="roster-source">Identity evidence</label><select id="roster-source" formControlName="source"><option value="APPROVED_ROSTER">Approved roster</option><option value="VERIFIED_SIGN_IN">Verified sign-in</option></select>
+        <button matButton="filled" type="submit" [disabled]="roster.invalid || rosterBusy() || rosterUncertain()">Bind exact identity</button>
+      </form>
+      <audit-command-message [message]="rosterMessage()" [failed]="rosterFailed()" />
     </section>
     <section class="panel"><h2>Access history</h2><ul>@for(h of w.history; track $index) { <li>{{ h.at }} · {{ h.operation }} · {{ h.target }} · {{ h.change }} · {{ h.reason }} · {{ h.actor }} · {{ h.result }}</li> } @empty { <li>No access changes recorded.</li> }</ul></section>
   }
@@ -72,4 +92,43 @@ export class UserAccess {
     this.dialog.open(ManagedGroupsDialog,{data:workspace,width:'46rem',maxWidth:'96vw',autoFocus:'first-heading'}).afterClosed().subscribe(changed=>{if(changed)this.ws.reload();});}
   recover(id:string):void{if(!this.ws.data()?.operations.some(o=>o.id===id))return;
     this.dialog.open(TenantOperationRecoveryDialog,{data:id,width:'42rem',maxWidth:'96vw',autoFocus:'first-heading'}).afterClosed().subscribe(changed=>{if(changed)this.ws.reload();});}
+  readonly expandedGrant = signal<string | null>(null);
+  toggleHistory(grantId: string): void { this.expandedGrant.set(this.expandedGrant() === grantId ? null : grantId); }
+  readonly grantHistory = computed(() => { const map = new Map<string, ReturnType<typeof accessGrantEvidence>[]>();
+    for (const e of this.ws.data()?.grantHistory ?? []) { const list = map.get(e.grantId) ?? []; list.push(e); map.set(e.grantId, list); } return map; });
+  readonly copying = signal(false); readonly inviteLink = signal(''); readonly inviteMessage = signal(''); readonly inviteFailed = signal(false);
+  private readonly session = inject(SessionService);
+  async copyInvitation(user: ReturnType<typeof accessUser>): Promise<void> {
+    if (!user.invitationId || this.copying()) return;
+    const generation = this.session.invalidation(); this.copying.set(true); this.inviteMessage.set(''); this.inviteFailed.set(false);
+    try {
+      const invitation = await this.api.get('/api/ui/administration/access/invitations/' + user.invitationId, copyableInvitation);
+      if (generation !== this.session.invalidation()) return;
+      if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(invitation.link);
+      else { this.inviteLink.set(invitation.link); this.inviteFailed.set(true);
+        this.inviteMessage.set('Copy is unavailable in this browser; copy the link shown below and share it through the approved channel.'); return; }
+      const r = await this.api.command('/api/ui/administration/access/invitations/' + user.invitationId + '/copied');
+      if (generation !== this.session.invalidation()) return;
+      this.inviteMessage.set(r.ok ? 'Copied and recorded.' : r.message); this.inviteFailed.set(!r.ok);
+      if (r.ok) this.ws.reload();
+    } catch (e) {
+      if (generation !== this.session.invalidation()) return;
+      this.inviteFailed.set(true); this.inviteMessage.set(e instanceof Error ? e.message : 'The invitation link could not be loaded. Refresh and try again.');
+    } finally { this.copying.set(false); }
+  }
+  readonly roster = inject(FormBuilder).nonNullable.group({
+    tenantId: ['', Validators.required], subject: ['', Validators.required], email: ['', [Validators.required, Validators.email]],
+    displayName: ['', Validators.required], userKind: 'Staff', source: 'APPROVED_ROSTER' });
+  readonly rosterBusy = signal(false); readonly rosterUncertain = signal(false); readonly rosterMessage = signal(''); readonly rosterFailed = signal(false);
+  async bindRoster(): Promise<void> {
+    if (this.roster.invalid || this.rosterBusy() || this.rosterUncertain()) return;
+    const generation = this.session.invalidation(); this.rosterBusy.set(true); this.rosterMessage.set(''); this.rosterFailed.set(false);
+    try {
+      const r = await this.api.command<{ userId: string }>('/api/ui/administration/access/bind-manual', this.roster.getRawValue());
+      if (generation !== this.session.invalidation()) return;
+      if (r.ok) { this.rosterMessage.set('Exact identity bound. Review and assign its explicit role and scope from the user list before it can access anything.');
+        this.roster.reset({ tenantId: '', subject: '', email: '', displayName: '', userKind: 'Staff', source: 'APPROVED_ROSTER' }); this.ws.reload(); }
+      else { this.rosterFailed.set(true); this.rosterMessage.set(r.message); if (r.unknown) this.rosterUncertain.set(true); }
+    } finally { this.rosterBusy.set(false); }
+  }
 }

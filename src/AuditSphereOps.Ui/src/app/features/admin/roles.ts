@@ -6,7 +6,7 @@ import { Api } from '../../core/api';
 import { arr, decode, text } from '../../core/decode';
 import { SessionService } from '../../core/session';
 import { SHARED } from '../../core/ui';
-import { accessWorkspace, accessLine, accessUser, roleReview } from './access-contracts';
+import { accessWorkspace, accessLine, accessUser, roleReview, invitationAssignment, copyableInvitation } from './access-contracts';
 
 type Workspace = ReturnType<typeof accessWorkspace>;
 type User = ReturnType<typeof accessUser>;
@@ -51,9 +51,16 @@ export function roleChoices(accountType: string, catalogue: string[]): { roles: 
       @if (p.review.blockingReasons.length) { <ul role="alert">@for(b of p.review.blockingReasons; track b) { <li>{{ b }}</li> }</ul> }
       <label><input type="checkbox" [formControl]="confirmed" /> I reviewed the proposed access, scope change, expiry and independence impact.</label>
       <button matButton="filled" (click)="save()" [disabled]="busy() || uncertain() || !confirmed.value || !!p.review.blockingReasons.length">Assign reviewed access</button>
+      <button matButton="filled" (click)="saveWithInvitation()" [disabled]="busy() || uncertain() || !confirmed.value || !!p.review.blockingReasons.length || form.controls.scopeKind.value === 'GROUP'">Assign and prepare invitation</button>
+    }
+    @if (invitation(); as invite) {
+      <h3>Invitation intent saved</h3>
+      <p>Grant and invitation intent were saved atomically and the target's sessions were invalidated. Copy the safe landing link and share it through your approved channel.</p>
+      <p><code>{{ inviteLink() }}</code></p>
+      <button matButton="filled" (click)="copyInvitation()" [disabled]="busy() || uncertain()">Copy invitation link</button>
     }
     <audit-command-message [message]="message()" [failed]="failed()" />
-  </mat-dialog-content><mat-dialog-actions><button matButton (click)="dialog.close()" [disabled]="busy()">Close</button></mat-dialog-actions>
+  </mat-dialog-content><mat-dialog-actions><button matButton (click)="dialog.close(changed())" [disabled]="busy()">Close</button></mat-dialog-actions>
 `, styles: `form { display: grid; gap: .5rem; } label { margin-top: .5rem; } textarea { min-height: 5rem; }` })
 export class RoleAssignmentDialog {
   readonly data = inject<RoleDialogData>(MAT_DIALOG_DATA); readonly dialog = inject(MatDialogRef<RoleAssignmentDialog>);
@@ -64,9 +71,10 @@ export class RoleAssignmentDialog {
     effectiveFrom: '', expiresAt: '', reason: ['', [Validators.required, Validators.minLength(5), Validators.maxLength(1000)]] });
   readonly confirmed = this.fb.nonNullable.control(false);
   readonly review = signal<ReturnType<typeof roleReview> | null>(null); readonly busy = signal(false); readonly uncertain = signal(false); readonly message = signal(''); readonly failed = signal(false);
+  readonly invitation = signal<ReturnType<typeof invitationAssignment> | null>(null); readonly inviteLink = signal(''); readonly changed = signal(false);
   private reviewedRequest: ReturnType<RoleAssignmentDialog['request']> | null = null;
   private readonly openedGeneration = this.session.invalidation();
-  constructor() { effect(() => { if (this.session.invalidation() !== this.openedGeneration || !this.session.current()?.staff) this.dialog.close(); }); const sub = this.form.valueChanges.subscribe(() => { this.review.set(null); this.confirmed.setValue(false); this.reviewedRequest = null; }); inject(DestroyRef).onDestroy(() => sub.unsubscribe()); }
+  constructor() { effect(() => { if (this.session.invalidation() !== this.openedGeneration || !this.session.current()?.staff) this.dialog.close(); }); const sub = this.form.valueChanges.subscribe(() => { this.review.set(null); this.confirmed.setValue(false); this.reviewedRequest = null; this.invitation.set(null); this.inviteLink.set(''); }); inject(DestroyRef).onDestroy(() => sub.unsubscribe()); }
   private request() {
     const f = this.form.getRawValue(); const scope = f.scopeKind;
     return { userId: this.data.user.userId, role: f.role, scopeKind: scope, clientId: scope === 'CLIENT' || scope === 'ENGAGEMENT' ? f.clientId || null : null,
@@ -86,8 +94,41 @@ export class RoleAssignmentDialog {
     const generation = this.session.invalidation(); this.busy.set(true);
     try { const r = await this.api.command('/api/ui/administration/access/assign', { request: { ...request, confirmScopeExpansion: true }, reviewDigest: p.digest, reviewed: true });
       if (generation !== this.session.invalidation()) { this.dialog.close(); return; }
-      if (r.ok) this.dialog.close(true); else { this.failed.set(true); this.message.set(r.message); if (r.unknown) this.uncertain.set(true); else this.review.set(null); }
+      if (r.ok) { this.changed.set(true); this.dialog.close(true); } else { this.failed.set(true); this.message.set(r.message); if (r.unknown) this.uncertain.set(true); else this.review.set(null); }
     } finally { this.busy.set(false); }
+  }
+  /** Records the same reviewed grant together with its copy-link invitation intent (group scopes are excluded). */
+  async saveWithInvitation(): Promise<void> {
+    const p = this.review(), request = this.reviewedRequest;
+    if (!p || !request || !this.confirmed.value || this.busy() || this.uncertain() || p.review.blockingReasons.length) return;
+    if (request.scopeKind === 'GROUP') return;
+    const generation = this.session.invalidation(); this.busy.set(true);
+    try { const r = await this.api.command<ReturnType<typeof invitationAssignment>>('/api/ui/administration/access/assign-invitation',
+        { request: { ...request, confirmScopeExpansion: true }, reviewDigest: p.digest, reviewed: true });
+      if (generation !== this.session.invalidation()) { this.dialog.close(); return; }
+      if (r.ok) {
+        const invite = decode(invitationAssignment, r.value);
+        const link = await this.api.get('/api/ui/administration/access/invitations/' + invite.invitationId, copyableInvitation);
+        this.invitation.set(invite); this.inviteLink.set(link.link); this.changed.set(true);
+        this.message.set('Role grant and invitation intent were saved atomically; the target session was invalidated.');
+      } else { this.failed.set(true); this.message.set(r.message); if (r.unknown) this.uncertain.set(true); else this.review.set(null); }
+    } catch (e) { this.failed.set(true); this.message.set(e instanceof Error ? e.message : 'The invitation could not be prepared. Refresh and review again.'); }
+    finally { this.busy.set(false); }
+  }
+  async copyInvitation(): Promise<void> {
+    const invite = this.invitation(); if (!invite || this.busy() || this.uncertain()) return;
+    const generation = this.session.invalidation(); this.busy.set(true);
+    try {
+      const link = this.inviteLink() || (await this.api.get('/api/ui/administration/access/invitations/' + invite.invitationId, copyableInvitation)).link;
+      if (generation !== this.session.invalidation()) { this.dialog.close(); return; }
+      if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(link);
+      else { this.inviteLink.set(link); throw new Error('Copy is unavailable in this browser; select the link and copy it manually.'); }
+      const r = await this.api.command('/api/ui/administration/access/invitations/' + invite.invitationId + '/copied');
+      if (generation !== this.session.invalidation()) { this.dialog.close(); return; }
+      this.message.set(r.ok ? 'Copied and recorded.' : r.message);
+      if (!r.ok && r.unknown) this.uncertain.set(true);
+    } catch (e) { this.failed.set(true); this.message.set(e instanceof Error ? e.message : 'Copy was unavailable; select the link and copy it manually.'); }
+    finally { this.busy.set(false); }
   }
 }
 

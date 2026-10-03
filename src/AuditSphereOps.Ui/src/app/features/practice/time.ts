@@ -1,7 +1,8 @@
-import { Component, inject } from '@angular/core';
+import { Component, DestroyRef, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { Api, CommandState } from '../../core/api';
+import { Drafts } from '../../core/drafts';
 import { arr, bool, date, guid, nat, obj, text } from '../../core/decode';
 import { SHARED } from '../../core/ui';
 
@@ -23,11 +24,11 @@ export const decodeTime = obj({ firmWide: bool, isApprover: bool, periods: arr(o
         <h2 id="task-heading">Create work task</h2>
         <p>Link an optional accounting period when the task belongs to a client reporting workflow. Due dates are optional and are never inferred.</p>
         <form class="inline-form" (submit)="$event.preventDefault(); createTask()">
-          <label>Task title <input name="title" [(ngModel)]="task.title" required maxlength="200" autocomplete="off" /></label>
-          <label>Reporting period (optional) <select name="period" [(ngModel)]="task.period">
+          <label>Task title <input name="title" [(ngModel)]="task.title" (ngModelChange)="touchTask()" required maxlength="200" autocomplete="off" /></label>
+          <label>Reporting period (optional) <select name="period" [(ngModel)]="task.period" (ngModelChange)="touchTask()">
             <option value="" [disabled]="!v.firmWide">No period link (firm-wide task)</option>
             @for (p of v.periods; track p.id) { <option [value]="p.id">{{ p.label }}</option> }</select></label>
-          <label>Due date (optional) <input type="date" name="due" [(ngModel)]="task.due" /></label>
+          <label>Due date (optional) <input type="date" name="due" [(ngModel)]="task.due" (ngModelChange)="touchTask()" /></label>
           <button matButton="filled" type="submit" [disabled]="cmd.busy()">Create task</button>
         </form>
       </section>
@@ -36,13 +37,13 @@ export const decodeTime = obj({ firmWide: bool, isApprover: bool, periods: arr(o
         @if (!v.openTasks.length) { <p>No open tasks are currently available to book time against. Create or assign an open task first.</p> }
         @else {
           <form class="inline-form" (submit)="$event.preventDefault(); saveDraft()">
-            <label>Work task <select name="task" [(ngModel)]="draft.task" required>@for (t of v.openTasks; track t.id) { <option [value]="t.id">{{ t.title }} ({{ t.status }})</option> }</select></label>
-            <label>Date <input type="date" name="date" [(ngModel)]="draft.date" required /></label>
-            <label>Duration (minutes) <input type="number" name="minutes" min="15" step="15" [(ngModel)]="draft.minutes" required /></label>
-            <label>Role <input name="role" [(ngModel)]="draft.role" placeholder="Staff, Manager, Partner" required /></label>
-            <label>Activity <input name="activity" [(ngModel)]="draft.activity" placeholder="Fieldwork, Review, Planning" required /></label>
-            <label><span><input type="checkbox" name="billable" [(ngModel)]="draft.billable" /> Billable to client (optional)</span></label>
-            <label>Narrative (optional) <textarea name="narrative" [(ngModel)]="draft.narrative" rows="2" maxlength="2000"></textarea></label>
+            <label>Work task <select name="task" [(ngModel)]="draft.task" (ngModelChange)="touchDraft()" required>@for (t of v.openTasks; track t.id) { <option [value]="t.id">{{ t.title }} ({{ t.status }})</option> }</select></label>
+            <label>Date <input type="date" name="date" [(ngModel)]="draft.date" (ngModelChange)="touchDraft()" required /></label>
+            <label>Duration (minutes) <input type="number" name="minutes" min="15" step="15" [(ngModel)]="draft.minutes" (ngModelChange)="touchDraft()" required /></label>
+            <label>Role <input name="role" [(ngModel)]="draft.role" (ngModelChange)="touchDraft()" placeholder="Staff, Manager, Partner" required /></label>
+            <label>Activity <input name="activity" [(ngModel)]="draft.activity" (ngModelChange)="touchDraft()" placeholder="Fieldwork, Review, Planning" required /></label>
+            <label><span><input type="checkbox" name="billable" [(ngModel)]="draft.billable" (ngModelChange)="touchDraft()" /> Billable to client (optional)</span></label>
+            <label>Narrative (optional) <textarea name="narrative" [(ngModel)]="draft.narrative" (ngModelChange)="touchDraft()" rows="2" maxlength="2000"></textarea></label>
             <button matButton="filled" type="submit" [disabled]="cmd.busy()">Save time draft</button>
           </form>
         }
@@ -77,15 +78,48 @@ export const decodeTime = obj({ firmWide: bool, isApprover: bool, periods: arr(o
 })
 export class PracticeTime {
   private readonly api = inject(Api);
+  private readonly drafts = inject(Drafts);
   readonly view = this.api.resource(() => '/api/ui/practice/time', decodeTime, 'Sign in with an authorized internal staff identity to view and record time.');
   readonly cmd = new CommandState(this.api);
   task = { title: '', period: '', due: '' };
   draft = { task: '', date: new Date().toISOString().slice(0, 10), minutes: 60, role: 'Staff', activity: 'Fieldwork', billable: true, narrative: '' };
+  private taskTimer?: ReturnType<typeof setTimeout>;
+  private draftTimer?: ReturnType<typeof setTimeout>;
+  private static validTask(value: unknown): PracticeTime['task'] | null {
+    if (!value || typeof value !== 'object') return null;
+    const v = value as Record<string, unknown>;
+    return typeof v['title'] === 'string' && v['title'].length <= 200 && typeof v['period'] === 'string' &&
+      typeof v['due'] === 'string' ? { title: v['title'], period: v['period'], due: v['due'] } : null;
+  }
+  private static validDraft(value: unknown): PracticeTime['draft'] | null {
+    if (!value || typeof value !== 'object') return null;
+    const v = value as Record<string, unknown>;
+    return typeof v['task'] === 'string' && typeof v['date'] === 'string' && typeof v['minutes'] === 'number' &&
+      typeof v['role'] === 'string' && v['role'].length <= 100 && typeof v['activity'] === 'string' && v['activity'].length <= 100 &&
+      typeof v['billable'] === 'boolean' && typeof v['narrative'] === 'string' && v['narrative'].length <= 2000
+      ? { task: v['task'], date: v['date'], minutes: v['minutes'], role: v['role'], activity: v['activity'], billable: v['billable'], narrative: v['narrative'] }
+      : null;
+  }
+  constructor() {
+    const savedTask = this.drafts.load('practice-task', PracticeTime.validTask);
+    if (savedTask) this.task = savedTask;
+    const savedDraft = this.drafts.load('practice-time-draft', PracticeTime.validDraft);
+    if (savedDraft) this.draft = savedDraft;
+    inject(DestroyRef).onDestroy(() => { clearTimeout(this.taskTimer); clearTimeout(this.draftTimer); });
+  }
+  touchTask(): void {
+    clearTimeout(this.taskTimer);
+    this.taskTimer = setTimeout(() => this.drafts.save('practice-task', this.task), 800);
+  }
+  touchDraft(): void {
+    clearTimeout(this.draftTimer);
+    this.draftTimer = setTimeout(() => this.drafts.save('practice-time-draft', this.draft), 800);
+  }
 
   private reload = () => this.view.reload();
   createTask(): void {
     this.cmd.run('/api/ui/practice/time/tasks', { title: this.task.title, reportingPeriodId: this.task.period || null, dueDate: this.task.due || null },
-      'Work task created.', () => (this.task = { title: '', period: '', due: '' })).finally(this.reload);
+      'Work task created.', () => { this.task = { title: '', period: '', due: '' }; this.drafts.clear('practice-task'); }).finally(this.reload);
   }
   saveDraft(): void {
     const taskId = this.draft.task || this.view.data()?.openTasks[0]?.id;
@@ -93,7 +127,7 @@ export class PracticeTime {
     if (!taskId || !Number.isSafeInteger(minutes) || minutes <= 0) { this.cmd.failed.set(true); this.cmd.message.set('Choose a task and a whole number of minutes.'); return; }
     this.cmd.run('/api/ui/practice/time/entries', { taskId, workDate: this.draft.date, durationMinutes: minutes, role: this.draft.role,
       activity: this.draft.activity, billable: this.draft.billable, narrative: this.draft.narrative },
-      `Time draft recorded (${minutes}m).`, () => (this.draft.narrative = '')).finally(this.reload);
+      `Time draft recorded (${minutes}m).`, () => { this.draft.narrative = ''; this.drafts.clear('practice-time-draft'); }).finally(this.reload);
   }
   act(id: string, action: 'submit' | 'approve', ok: string): void {
     this.cmd.run(`/api/ui/practice/time/entries/${id}/${action}`, {}, ok).finally(this.reload);

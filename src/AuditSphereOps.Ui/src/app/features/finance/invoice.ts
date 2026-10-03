@@ -33,7 +33,7 @@ export const decodeInvoice = obj({ id: guid, invoiceNumber: text, currency: null
           <thead><tr><th scope="col">Description</th><th scope="col" class="number">Quantity</th><th scope="col" class="number">Unit price</th><th scope="col" class="number">Total</th></tr></thead>
           <tbody>@for (l of i.lines; track $index) { <tr><td>{{ l.description }}</td><td class="number">{{ l.quantity | money }}</td><td class="number">{{ l.unitPrice | money }}</td><td class="number">{{ l.lineTotal | money }}</td></tr> }
           @empty { <tr><td colspan="4">No line items recorded on this invoice.</td></tr> }</tbody>
-          <tfoot><tr><td colspan="3" class="number">Total</td><td class="number">{{ i.subtotal | money }}</td></tr></tfoot></table></div>
+          <tfoot><tr><td colspan="3" class="number">Total</td><td class="number">{{ linesTotal(i.lines) | money }}</td></tr></tfoot></table></div>
       </section>
       <section class="panel" aria-labelledby="alloc-heading">
         <h2 id="alloc-heading">Receipt allocations</h2>
@@ -62,4 +62,14 @@ export class InvoiceDetail {
     'The requested invoice was not found in the current firm scope.');
   readonly cmd = new CommandState(this.api);
   act(id: string, action: string, ok: string): void { void this.cmd.run(`/api/ui/finance/invoices/${id}/${action}`, {}, ok).finally(() => this.invoice.reload()); }
+  /** Exact-decimal line sum (scaled BigInt) so the footer total always equals the rendered lines. */
+  linesTotal(lines: ReturnType<typeof decodeInvoice>['lines']): string {
+    const places = Math.max(0, ...lines.map((l) => (l.lineTotal.split('.')[1] ?? '').length));
+    const total = lines.reduce((acc, l) => {
+      const v = l.lineTotal; const neg = v.startsWith('-'); const [w, f = ''] = (neg ? v.slice(1) : v).split('.');
+      return acc + (neg ? -1n : 1n) * BigInt(w + f.padEnd(places, '0'));
+    }, 0n);
+    const neg = total < 0n; const digits = (neg ? -total : total).toString().padStart(places + 1, '0');
+    return (neg ? '-' : '') + (places ? digits.slice(0, -places) + '.' + digits.slice(-places) : digits);
+  }
 }

@@ -1,7 +1,8 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, DestroyRef, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { Api, CommandState } from '../../core/api';
+import { Drafts } from '../../core/drafts';
 import { arr, bool, date, dec, decimalInput, guid, nat, nullable, obj, str, text } from '../../core/decode';
 import { SHARED } from '../../core/ui';
 
@@ -28,15 +29,15 @@ export const decodeTrialBalance = obj({ fromPeriod: text, toPeriod: text, rows: 
         <h2 id="expense-heading">Operating expenses</h2>
         @if (b.canPrepare) {
           <form class="inline-form" (submit)="$event.preventDefault(); record()">
-            <label>Date <input type="date" name="date" [(ngModel)]="draft.date" required /></label>
-            <label>Category <select name="category" [(ngModel)]="draft.category">@for (c of b.categories; track c) { <option [value]="c">{{ c.replaceAll('_', ' ').toLowerCase() }}</option> }</select></label>
-            <label>Payee <input name="payee" [(ngModel)]="draft.payee" maxlength="200" required /></label>
-            <label>Description <input name="description" [(ngModel)]="draft.description" maxlength="500" required /></label>
-            <label>Amount <input name="amount" inputmode="decimal" [(ngModel)]="draft.amount" required /></label>
-            <label>Currency <input name="currency" [(ngModel)]="draft.currency" maxlength="3" required /></label>
-            <label>Expense account <select name="expenseAccount" [(ngModel)]="draft.expenseAccount"><option value="">Select</option>
+            <label>Date <input type="date" name="date" [(ngModel)]="draft.date" (ngModelChange)="touch()" required /></label>
+            <label>Category <select name="category" [(ngModel)]="draft.category" (ngModelChange)="touch()">@for (c of b.categories; track c) { <option [value]="c">{{ c.replaceAll('_', ' ').toLowerCase() }}</option> }</select></label>
+            <label>Payee <input name="payee" [(ngModel)]="draft.payee" (ngModelChange)="touch()" maxlength="200" required /></label>
+            <label>Description <input name="description" [(ngModel)]="draft.description" (ngModelChange)="touch()" maxlength="500" required /></label>
+            <label>Amount <input name="amount" inputmode="decimal" [(ngModel)]="draft.amount" (ngModelChange)="touch()" required /></label>
+            <label>Currency <input name="currency" [(ngModel)]="draft.currency" (ngModelChange)="touch()" maxlength="3" required /></label>
+            <label>Expense account <select name="expenseAccount" [(ngModel)]="draft.expenseAccount" (ngModelChange)="touch()"><option value="">Select</option>
               @for (a of b.accounts; track a.id) { @if (a.accountType === 'EXPENSE') { <option [value]="a.id">{{ a.code }} {{ a.name }}</option> } }</select></label>
-            <label>Paid from <select name="paymentAccount" [(ngModel)]="draft.paymentAccount"><option value="">Select</option>
+            <label>Paid from <select name="paymentAccount" [(ngModel)]="draft.paymentAccount" (ngModelChange)="touch()"><option value="">Select</option>
               @for (a of b.accounts; track a.id) { @if (a.accountType === 'ASSET' || a.accountType === 'LIABILITY') { <option [value]="a.id">{{ a.code }} {{ a.name }}</option> } }</select></label>
             <label>Source document <input type="file" (change)="pick($event, b.maxEvidenceBytes)" /></label>
             <button matButton="filled" type="submit" [disabled]="cmd.busy()">Record expense</button>
@@ -91,6 +92,7 @@ export const decodeTrialBalance = obj({ fromPeriod: text, toPeriod: text, rows: 
 })
 export class FirmBooks {
   private readonly api = inject(Api);
+  private readonly drafts = inject(Drafts);
   readonly books = this.api.resource(() => '/api/ui/finance/books', decodeBooks, 'Firm books require a firm-wide finance assignment.');
   readonly cmd = new CommandState(this.api);
   readonly tb = signal<ReturnType<typeof decodeTrialBalance> | null>(null);
@@ -101,6 +103,27 @@ export class FirmBooks {
   to = this.month;
   draft = { date: new Date().toISOString().slice(0, 10), category: 'RENT', payee: '', description: '', amount: '', currency: 'QAR', expenseAccount: '', paymentAccount: '' };
   private file: File | null = null;
+  private draftTimer?: ReturnType<typeof setTimeout>;
+
+  private static validDraft(value: unknown): FirmBooks['draft'] | null {
+    if (!value || typeof value !== 'object') return null;
+    const v = value as Record<string, unknown>;
+    const str = (k: string, max: number) => typeof v[k] === 'string' && (v[k] as string).length <= max ? v[k] as string : null;
+    return str('date', 10) && str('category', 40) && str('payee', 200) && str('description', 500) &&
+      str('amount', 30) && str('currency', 3) && str('expenseAccount', 64) && str('paymentAccount', 64)
+      ? { date: str('date', 10)!, category: str('category', 40)!, payee: str('payee', 200)!, description: str('description', 500)!,
+          amount: str('amount', 30)!, currency: str('currency', 3)!, expenseAccount: str('expenseAccount', 64)!, paymentAccount: str('paymentAccount', 64)! }
+      : null;
+  }
+  constructor() {
+    const saved = this.drafts.load('firm-books-expense', FirmBooks.validDraft);
+    if (saved) this.draft = saved;
+    inject(DestroyRef).onDestroy(() => clearTimeout(this.draftTimer));
+  }
+  touch(): void {
+    clearTimeout(this.draftTimer);
+    this.draftTimer = setTimeout(() => this.drafts.save('firm-books-expense', this.draft), 800);
+  }
 
   pick(event: Event, max: number): void {
     const f = (event.target as HTMLInputElement).files?.[0] ?? null;
@@ -120,6 +143,7 @@ export class FirmBooks {
     form.set('expenseAccountId', this.draft.expenseAccount); form.set('paymentAccountId', this.draft.paymentAccount); form.set('evidence', this.file);
     this.cmd.run('/api/ui/finance/books/expenses', form, 'Expense recorded as a draft.', () => {
       this.draft = { ...this.draft, payee: '', description: '', amount: '' };
+      this.drafts.save('firm-books-expense', this.draft);
       this.file = null;
     }).finally(() => this.books.reload());
   }

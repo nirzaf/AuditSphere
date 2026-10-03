@@ -10,11 +10,14 @@ namespace AuditSphereOps.Application.Security;
 public sealed record UserAccessRow(
   Guid UserId, string DisplayName, string MicrosoftIdentity, string TenantId, string ObjectId,
   string AccountType, string DirectoryStatus, string AuditSphereStatus, IReadOnlyList<AccessLine> Access,
-  string InvitationStatus, DateTimeOffset? LastMicrosoftVerification, DateTimeOffset? LastAuditSphereAccess,
+  Guid? InvitationId, string InvitationStatus, DateTimeOffset? LastMicrosoftVerification, DateTimeOffset? LastAuditSphereAccess,
   string CreatedBy, DateTimeOffset CreatedDate);
 
 public sealed record AccessHistoryRow(DateTimeOffset At, string Operation, string Target, string Change,
   string Reason, string Actor, string Result, string? MicrosoftOperation);
+
+public sealed record AccessGrantEvidenceRow(Guid GrantId, DateTimeOffset At, string Action, string PriorRole,
+  string NewRole, string? Reason, string Actor, string Source);
 
 public sealed record ManagedGroupRow(Guid Id, string DisplayName, string GroupObjectId, string Purpose,
   DateTimeOffset ApprovedAt, string ApprovedBy);
@@ -31,6 +34,7 @@ public sealed record UserAccessWorkspace(
   IReadOnlyList<ExternalOperationRow> Operations,
   IReadOnlyList<ManagedGroupRow> Groups,
   IReadOnlyList<AccessHistoryRow> History,
+  IReadOnlyList<AccessGrantEvidenceRow> GrantHistory,
   IReadOnlyList<ScopeOption> Clients,
   IReadOnlyList<ScopeOption> Engagements,
   IReadOnlyList<ScopeOption> ClientGroups);
@@ -77,6 +81,7 @@ public static class UserAccessWorkspaceQuery
         directory,
         user.Disabled ? "DISABLED" : active.Count == 0 ? "NO_ACCESS" : "ACTIVE",
         active,
+        invitation is null ? null : invitation.FirstAccessAt is not null ? null : invitation.Id,
         invitation is null ? "NONE" : invitation.FirstAccessAt is not null ? "ACCEPTED" : invitation.DeliveryState,
         observation?.ObservedAt, user.LastSignInAt,
         user.CreatedByUserId is { } creator ? Name(creator) : "Bootstrap / roster", user.CreatedAt);
@@ -109,6 +114,12 @@ public static class UserAccessWorkspaceQuery
         x.RoleScopeChange ?? $"{x.OldState} → {x.NewState}", x.Reason, Name(x.ActorUserId), x.Result,
         x.ExternalOperationId?.ToString("D"))))
       .OrderByDescending(x => x.At).Take(400).ToList();
+    var grantEvidence = await db.RoleGrantChangeEvidences.AsNoTracking().Where(x => x.FirmId == firmId && x.RoleGrantId != null)
+      .OrderByDescending(x => x.CreatedAt).Take(4000).ToListAsync(ct);
+    var grantHistory = grantEvidence.GroupBy(x => x.RoleGrantId!.Value)
+      .Select(g => g.Take(20).Select(x => new AccessGrantEvidenceRow(g.Key, x.CreatedAt, x.Action, x.PriorRole,
+        x.NewRole, x.Reason, Name(x.ActorUserId), x.Source)))
+      .SelectMany(x => x).ToList();
     return CommandResult<UserAccessWorkspace>.Ok(new(
       rows.Where(x => x.AuditSphereStatus != "DISABLED").ToList(),
       rows.Where(x => x.AuditSphereStatus is "DISABLED" or "NO_ACCESS" ||
@@ -117,7 +128,7 @@ public static class UserAccessWorkspaceQuery
         x.ResultObjectId, x.ProviderCorrelationId, x.ResultCode, x.ReconciliationResult, Name(x.RequestedByUserId),
         x.CreatedAt, x.UpdatedAt)).ToList(),
       groups.Select(x => new ManagedGroupRow(x.Id, x.DisplayName, x.GroupObjectId, x.Purpose, x.ApprovedAt, Name(x.ApprovedByUserId))).ToList(),
-      historyRows, clients,
+      historyRows, grantHistory, clients,
       engagements.OrderBy(x => clientNames.GetValueOrDefault(x.PracticeClientId)).ThenBy(x => x.CreatedAt)
         .Select(x => new ScopeOption(x.Id, $"{clientNames.GetValueOrDefault(x.PracticeClientId, "Client")} — {(string.IsNullOrWhiteSpace(x.ServiceRoute) ? "engagement" : x.ServiceRoute)} {x.PeriodEnd} ({x.Id.ToString()[..8]})", x.PracticeClientId)).ToList(),
       clientGroups));

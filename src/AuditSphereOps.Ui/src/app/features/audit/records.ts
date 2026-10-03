@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, effect, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -89,6 +89,15 @@ export class FindingRecord {
   readonly cmd = new CommandState(this.api);
   response = '';
   corrected = false;
+  constructor() {
+    effect(() => {
+      const f = this.rec.data();
+      if (f && !this.response && f.managementResponse !== null) {
+        this.response = f.managementResponse;
+        this.corrected = f.corrected;
+      }
+    });
+  }
   respond(id: string): void {
     void this.cmd.run(`/api/ui/findings/${id}/response`, { managementResponse: this.response, corrected: this.corrected }, 'The management response was recorded.').finally(() => this.rec.reload());
   }
