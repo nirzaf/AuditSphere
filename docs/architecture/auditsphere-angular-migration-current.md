@@ -123,11 +123,45 @@ command/read callbacks have matching owner and destruction checks. An unknown
 activation outcome permits state inspection, not another blind submission. An
 unsupported activation acknowledgment remains unconfirmed.
 
-This implements read-side metadata/history parity. Complete reviewed engagement
-creation, activation and planning forms, revision-bound drafts, retained request
-recovery and broader migration acceptance remain open. The
-[engagement action audit](../execution/angular-engagement-parity.json) records those
-boundaries; executed verification belongs to the execution ledger.
+This implements read-side metadata/history parity. Reviewed engagement creation,
+planning forms, revision-bound editable drafts and broader migration acceptance
+remain open. The [engagement action audit](../execution/angular-engagement-parity.json)
+records those boundaries; executed verification belongs to the execution ledger.
+
+### Reviewed Partner engagement activation
+
+The native activation route composes `EngagementActivationWorkspace` and the
+existing `EngagementLifecycleService`. Every context read, preview, confirmation
+and receipt lookup requires a current internal Partner grant covering the exact
+engagement. Administrator authority alone is insufficient. The review displays
+stored service/profile/period metadata, exact engagement and client revisions,
+the current decision for the same service route, and every active hold. Only a
+draft with current unconditional acceptance and no unreleased holds is eligible.
+
+Confirmation binds the displayed review basis and explicit fresh assent. Under
+the existing client safety lock, activation, revision increment, portal-intent
+composition and request evidence commit together. Actor/session authority,
+current acceptance and holds are checked again before commit. A unique request
+identity returns its original actor-owned receipt on retry. The receipt retains
+exact acceptance, path, actor/session, reviewed revisions and resulting revision;
+existing activation evidence remains append-only.
+
+Tab recovery stores only a bounded request ID and hash, never assent or an
+executable stale review. Network failures and unsupported acknowledgments fence
+navigation and new submissions until explicit receipt reconciliation. An absent
+receipt permits inspection of fresh prerequisites and a new review of that same
+fixed actor/session/engagement action. Role/session loss and route destruction
+remove protected content and fence callbacks from an earlier route visit.
+
+The additive `NativeEngagementActivationReview` migration leaves legacy activation
+rows unchanged with null request metadata. Its deferred database guard checks
+publication scope and exact accepted activation state. The existing append-only
+guard protects all receipt fields; rollback refuses while reviewed activation
+evidence exists. Operators apply it through the existing approved migration
+workflow before using the new route. Verification uses disposable local databases;
+no shared Development migration or live Microsoft effect is implied. Activation
+does not grant portal or Microsoft access and does not record a professional
+acceptance decision on behalf of a practitioner.
 
 ### Controlled canonical route ownership and retained assets
 

@@ -176,6 +176,8 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./features/acceptance/checklist').then((m) => m.AcceptanceChecklist),
   },
+  { path: 'app/engagements/:id/activation', canActivate: [staffGuard], canDeactivate: [unsavedChangesGuard],
+    title: 'Review activation · AuditSphere', loadComponent: () => import('./features/engagements/activation').then(m => m.EngagementActivationReview) },
   {
     path: 'app/engagements/:id',
     canActivate: [staffGuard],

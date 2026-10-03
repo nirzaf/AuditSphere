@@ -161,54 +161,6 @@ describe('Engagement read and command lifetime', () => {
     TestBed.tick();
     expect(f.componentInstance.data()).toBeNull();
   });
-  it('ignores an old activation response after A to B to A, including busy state', () => {
-    const f = open();
-    read().flush(payload);
-    TestBed.tick();
-    f.componentInstance.activationReviewed = true;
-    f.componentInstance.activate();
-    const old = TestBed.inject(HttpTestingController).expectOne(
-      '/api/ui/engagements/' + id + '/activate',
-    );
-    ids.next(convertToParamMap({ id: other }));
-    TestBed.tick();
-    read().flush({ ...payload, id: other });
-    TestBed.tick();
-    ids.next(convertToParamMap({ id }));
-    TestBed.tick();
-    read().flush(payload);
-    TestBed.tick();
-    f.componentInstance.activationReviewed = true;
-    f.componentInstance.activate();
-    const current = TestBed.inject(HttpTestingController).expectOne(
-      '/api/ui/engagements/' + id + '/activate',
-    );
-    old.flush({ id: other });
-    TestBed.tick();
-    expect(f.componentInstance.activating()).toBe(true);
-    expect(f.componentInstance.activationReviewed).toBe(true);
-    current.flush({}, { status: 503, statusText: 'Unknown' });
-    TestBed.tick();
-    expect(f.componentInstance.activationUnknown()).toBe(true);
-    f.componentInstance.activate();
-    TestBed.inject(HttpTestingController).expectNone('/api/ui/engagements/' + id + '/activate');
-  });
-  it('does not treat an unsupported activation acknowledgement as success', () => {
-    const f = open();
-    read().flush(payload);
-    TestBed.tick();
-    const c = f.componentInstance;
-    c.activationReviewed = true;
-    c.activate();
-    TestBed.inject(HttpTestingController)
-      .expectOne('/api/ui/engagements/' + id + '/activate')
-      .flush({});
-    TestBed.tick();
-    expect(c.activationUnknown()).toBe(true);
-    expect(c.activationStatus()).not.toContain('activated');
-    c.activate();
-    TestBed.inject(HttpTestingController).expectNone('/api/ui/engagements/' + id + '/activate');
-  });
   it('preserves the planning editor during hold paging and removes it on refusal', async () => {
     const f = open();
     read().flush(payload);
@@ -238,23 +190,14 @@ describe('Engagement read and command lifetime', () => {
     expect(f.componentInstance.planning()).toBeUndefined();
     expect(f.nativeElement.textContent).not.toContain('Synthetic annual profile');
   });
-  it('clears protected content on session loss and ignores destroyed activation callbacks', () => {
+  it('clears protected read content on session loss', () => {
     const f = open();
     read().flush(payload);
     TestBed.tick();
-    const c = f.componentInstance;
-    c.activationReviewed = true;
-    c.activate();
-    const old = TestBed.inject(HttpTestingController).expectOne(
-      '/api/ui/engagements/' + id + '/activate',
-    );
     TestBed.inject(SessionService).clear();
     TestBed.tick();
-    expect(c.data()).toBeNull();
+    expect(f.componentInstance.data()).toBeNull();
+    expect(f.nativeElement.textContent).not.toContain('Synthetic annual profile');
     f.destroy();
-    old.flush({ id });
-    TestBed.tick();
-    expect(c.data()).toBeNull();
-    expect(c.activationStatus()).toBe('');
   });
 });

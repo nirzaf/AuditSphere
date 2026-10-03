@@ -18,7 +18,7 @@
     },
     {
       "path": "src/AuditSphereOps.Ui/src/app/features/engagements/engagement.ts",
-      "sha256": "78ad437667cb03d71a8f6cf2f261359fbd9b25d24db983d8ac95b054e30c696e"
+      "sha256": "1a62654b9e2711a4ca818671653021e301bc107c9f59362c6051d311a06c2004"
     },
     {
       "path": "src/AuditSphereOps.Ui/src/app/features/engagements/engagement-contracts.ts",
@@ -27,6 +27,22 @@
     {
       "path": "src/AuditSphereOps.Ui/src/app/features/engagements/planning.ts",
       "sha256": "c4701d23dc0325ce556f3c16195e1178a19f2a7e3fa98219da6b834833ca06ba"
+    },
+    {
+      "path": "src/AuditSphereOps.Application/Acceptance/EngagementActivationWorkspace.cs",
+      "sha256": "176657869fba8548c17e4d68ee98f6ea4778c87f24e2545ef1c91d5982c02dc3"
+    },
+    {
+      "path": "src/AuditSphereOps.Application/Acceptance/EngagementLifecycleService.cs",
+      "sha256": "66f59e828f204005d0ce51dd437be5e7920f54e35449eb2675101734953761d9"
+    },
+    {
+      "path": "src/AuditSphereOps.Api/Ui/UiEndpoints.EngagementActivation.cs",
+      "sha256": "c75baf84ae70628b0f43520c8ce651c940cde11483b67b707cbb7801cff58d71"
+    },
+    {
+      "path": "src/AuditSphereOps.Ui/src/app/features/engagements/activation.ts",
+      "sha256": "12d322fd506dc6fb71b71c380329047b7d8e9443fd5a5f26957a9839ab36017a"
     }
   ],
   "records": [
@@ -42,21 +58,30 @@
     },
     {
       "action": "read-and-command-lifetime",
-      "owner": "Native EngagementDetail",
-      "disposition": "IMPLEMENTED: Runtime response identity/page checks; canceled reads; route/session/lifetime fences before callbacks change busy/edit state; destroyed planning component fences; unsupported activation acknowledgments remain unknown. A return to the same route cannot accept its former command callback."
+      "owner": "Native EngagementDetail / EngagementActivationReview",
+      "disposition": "IMPLEMENTED: Response identity/page checks, canceled reads, route/session/lifetime fences and destroyed planning callbacks preserve current ownership. Activation confirmation now uses its own reviewed route and retained request reconciliation; unsupported acknowledgments remain unknown and a prior route visit cannot change the current request."
     },
     {
-      "action": "activation-and-planning-forms",
+      "action": "planning-forms",
       "owner": "EngagementLifecycleService / EngagementPlanningQuery / native planning components",
-      "disposition": "PARTIAL: Existing Partner activation and scoped planning commands remain separate from Entra roles and professional acceptance. Complete reviewed forms, revision-bound drafts, immutable request outcome recovery, full source-action parity and browser acceptance remain open."
+      "disposition": "PARTIAL: Existing scoped planning commands remain separate from professional acceptance and Entra authority. Complete planning reviewed forms, revision-bound editable drafts and retained request outcome recovery remain open."
+    },
+    {
+      "action": "reviewed-partner-activation",
+      "owner": "EngagementActivationWorkspace / EngagementLifecycleService / native activation page",
+      "disposition": "IMPLEMENTED: Exact current Partner context, same-service unconditional acceptance, current revisions, zero holds and fresh assent. Guarded activation and immutable actor-owned request evidence commit together; retry returns the original receipt. Pending tab recovery retains request identity only and fences unknown results until reconciliation or fresh review. Local observed verification is recorded in status.json, not production or professional acceptance."
     }
   ],
-  "remaining": "Complete client creation, blocked-engagement creation, activation and planning reviewed forms/drafts/outcome acceptance; remaining migration quality/cutover/retirement gates.",
+  "remaining": "Complete client creation, blocked-engagement creation, planning forms/drafts/outcome acceptance, assessment source-action parity and remaining migration quality/cutover/retirement gates.",
   "verificationPointers": [
     "tests/AuditSphereOps.Domain.Tests/EngagementProfileWorkspaceTests.cs",
     "tests/AuditSphereOps.Api.Tests/EngagementProfileWorkspaceApiTests.cs",
     "src/AuditSphereOps.Ui/src/app/features/engagements/engagement-workspace.spec.ts",
     "tests/AuditSphereOps.E2E.Tests/AngularEngagementProfileJourneyTests.cs",
-    "docs/execution/status.json"
+    "docs/execution/status.json",
+    "tests/AuditSphereOps.Domain.Tests/EngagementActivationReviewTests.cs",
+    "tests/AuditSphereOps.Api.Tests/EngagementActivationReviewApiTests.cs",
+    "src/AuditSphereOps.Ui/src/app/features/engagements/activation.spec.ts",
+    "tests/AuditSphereOps.E2E.Tests/AngularEngagementActivationJourneyTests.cs"
   ]
 }

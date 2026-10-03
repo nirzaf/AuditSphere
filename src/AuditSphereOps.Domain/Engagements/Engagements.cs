@@ -60,4 +60,11 @@ public sealed class EngagementActivation
   public string AcceptancePath { get; set; } = string.Empty;
   public Guid ActivatedByUserId { get; set; }
   public DateTimeOffset ActivatedAt { get; set; }
+  // Optional native review/receipt identity; historical activation evidence remains unchanged.
+  public Guid? RequestId { get; set; }
+  public string? RequestHash { get; set; }
+  public string? ReviewBasis { get; set; }
+  public long? ActorEpoch { get; set; }
+  public long? EngagementGeneration { get; set; }
+  public long? ResultGeneration { get; set; }
 }

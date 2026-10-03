@@ -28,8 +28,11 @@ public sealed class AngularRoutingContractTests
   {
     var root = Path.Combine(RepositoryRoot(), "src", "AuditSphereOps.Ui", "src", "app");
     var legacy = new Regex("""(?:href|\[href\])\s*=\s*"(?:/app|/portal|'/app|'/portal)""");
+    Assert.Matches(legacy, """<a href="/app/client">Client</a>""");
+    // Test selectors asserting the absence of a link are not runtime navigation.
     foreach (var path in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories)
-      .Where(path => path.EndsWith(".ts", StringComparison.Ordinal) || path.EndsWith(".html", StringComparison.Ordinal)))
+      .Where(path => !path.EndsWith(".spec.ts", StringComparison.Ordinal) &&
+        (path.EndsWith(".ts", StringComparison.Ordinal) || path.EndsWith(".html", StringComparison.Ordinal))))
       Assert.False(legacy.IsMatch(File.ReadAllText(path)), $"Legacy navigation link in {Path.GetRelativePath(root, path)}");
   }
 

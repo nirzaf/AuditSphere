@@ -90,7 +90,7 @@
       "id": "US-015",
       "title": "Migrate portfolio, client and engagement workspaces",
       "status": "PARTIAL",
-      "scope": "Native portfolio summary, recent panels/pagers, safe CSV and exact-owner return navigation are implemented. Native client profile now preserves source metadata, current-scope complete counts, independent bounded contact/engagement pages, UTC onboarding and portal-intent explanation. Reviewed contact creation now adds explicit tab drafts, primary replacement disclosure, actor-owned immutable receipts and exact-intent response-loss recovery. Native engagement metadata, exact revision, complete hold counts, stable pages and separately authorized client navigation now preserve read-side source parity, with route-lifetime callback fences and same-engagement planning editor preservation. Client creation, blocked-engagement/activation/planning forms and drafts, retained request recovery, full source-action parity and quality/cutover/retirement acceptance stay open."
+      "scope": "Native portfolio summary, recent panels/pagers, safe CSV and exact-owner return navigation are implemented. Native client profile now preserves source metadata, current-scope complete counts, independent bounded contact/engagement pages, UTC onboarding and portal-intent explanation. Reviewed contact creation now adds explicit tab drafts, primary replacement disclosure, actor-owned immutable receipts and exact-intent response-loss recovery. Native engagement metadata, exact revision, complete hold counts, stable pages and separately authorized client navigation now preserve read-side source parity, with route-lifetime callback fences and same-engagement planning editor preservation. Reviewed Partner activation now uses exact current acceptance/revision/hold context, explicit assent, immutable actor-owned receipts and same-request lost-response reconciliation. Client creation, blocked-engagement creation and planning forms/drafts/recovery, full source-action parity and quality/cutover/retirement acceptance stay open."
     },
     {
       "id": "US-016",
@@ -102,7 +102,7 @@
       "id": "US-017",
       "title": "Migrate acceptance, continuance and activation gates",
       "status": "PARTIAL",
-      "scope": "Angular checklist, fenced answers, specialist review request/results, continuance and explicit Partner decision controls implemented; full assessment-page parity and browser acceptance pending."
+      "scope": "Angular checklist, fenced answers, specialist review request/results, continuance and explicit Partner decision controls implemented. Native activation adds exact current unconditional acceptance/holds/revisions, fresh assent, guarded append-only request evidence and actor-owned response-loss reconciliation. Full assessment-page source-action parity and broader acceptance remain pending."
     },
     {
       "id": "US-018",

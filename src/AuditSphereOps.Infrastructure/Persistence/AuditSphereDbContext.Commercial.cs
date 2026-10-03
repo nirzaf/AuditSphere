@@ -12,11 +12,17 @@ public sealed partial class AuditSphereDbContext
     b.Entity<EngagementActivation>(e =>
     {
       e.HasIndex(x => new { x.FirmId, x.EngagementId }).IsUnique();
+      e.HasIndex(x => new { x.FirmId, x.ActivatedByUserId, x.RequestId }).IsUnique().HasFilter("request_id IS NOT NULL");
+      e.Property(x => x.RequestHash).HasMaxLength(64);
+      e.Property(x => x.ReviewBasis).HasMaxLength(64);
       e.HasOne<Engagement>().WithMany().HasForeignKey(x => x.EngagementId).OnDelete(DeleteBehavior.Restrict);
       e.HasOne<AuditSphereOps.Domain.Acceptance.AcceptanceDecision>().WithMany()
         .HasForeignKey(x => new { x.FirmId, x.AcceptanceDecisionId }).HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
-      e.ToTable("engagement_activations", t => t.HasCheckConstraint("ck_engagement_activation_values",
-        "client_generation >= 1 AND acceptance_path IN ('NEW_CLIENT','CONTINUANCE')"));
+      e.ToTable("engagement_activations", t =>
+      {
+        t.HasCheckConstraint("ck_engagement_activation_values", "client_generation >= 1 AND acceptance_path IN ('NEW_CLIENT','CONTINUANCE')");
+        t.HasCheckConstraint("ck_engagement_activation_request", "(request_id IS NULL AND request_hash IS NULL AND review_basis IS NULL AND actor_epoch IS NULL AND engagement_generation IS NULL AND result_generation IS NULL) OR (request_id IS NOT NULL AND request_id <> '00000000-0000-0000-0000-000000000000'::uuid AND request_hash IS NOT NULL AND review_basis IS NOT NULL AND actor_epoch IS NOT NULL AND engagement_generation IS NOT NULL AND result_generation IS NOT NULL AND request_hash ~ '^[a-f0-9]{64}$' AND review_basis ~ '^[a-f0-9]{64}$' AND actor_epoch >= 1 AND engagement_generation >= 1 AND result_generation > engagement_generation AND result_generation - engagement_generation = 1)");
+      });
     });
     b.Entity<QuotationVersion>(e =>
     {

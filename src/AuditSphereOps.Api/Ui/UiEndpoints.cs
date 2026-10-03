@@ -80,6 +80,7 @@ public static partial class UiEndpoints
     MapCommercialEndpoints(group);
     MapPortfolioEndpoints(group);
     MapClientContactCreationEndpoints(group);
+    MapEngagementActivationReviewEndpoints(group);
     MapQuotationEndpoints(group);
     MapCommercialDocumentEndpoints(group);
     MapFeeAgreementEndpoints(group);

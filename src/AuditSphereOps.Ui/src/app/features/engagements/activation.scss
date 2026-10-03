@@ -1,0 +1,41 @@
+:host {
+  display: block;
+}
+section {
+  margin-block: 1.5rem;
+  padding: 1rem;
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: 0.75rem;
+}
+dl {
+  display: grid;
+  grid-template-columns: minmax(9rem, 1fr) 3fr;
+  gap: 0.75rem;
+}
+dt {
+  font-weight: 600;
+}
+dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+label {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  margin-block: 1rem;
+}
+nav {
+  margin-block: 1rem;
+}
+code {
+  overflow-wrap: anywhere;
+}
+@media (max-width: 600px) {
+  dl {
+    grid-template-columns: 1fr;
+  }
+  dd {
+    margin-bottom: 0.5rem;
+  }
+}

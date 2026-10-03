@@ -1,5 +1,4 @@
 import { Component, DestroyRef, effect, inject, signal, untracked, viewChild } from '@angular/core';
-import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -21,14 +20,7 @@ export { decodeEngagement } from './engagement-contracts';
 
 @Component({
   selector: 'audit-engagement',
-  imports: [
-    FormsModule,
-    EngagementPlanning,
-    RouterLink,
-    MatButtonModule,
-    MatProgressBarModule,
-    ...SHARED,
-  ],
+  imports: [EngagementPlanning, RouterLink, MatButtonModule, MatProgressBarModule, ...SHARED],
   templateUrl: './engagement.html',
   styleUrl: './engagement.scss',
 })
@@ -46,10 +38,6 @@ export class EngagementDetail {
   readonly utcTime = clientUtcTime;
   readonly planning = viewChild(EngagementPlanning);
   readonly location = signal<EngagementLocation | null>(null);
-  activationReviewed = false;
-  readonly activating = signal(false);
-  readonly activationUnknown = signal(false);
-  readonly activationStatus = signal('');
   private readonly http = inject(HttpClient);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
@@ -98,10 +86,6 @@ export class EngagementDetail {
     this.data.set(null);
     this.loading.set(false);
     this.error.set('');
-    this.activationReviewed = false;
-    this.activating.set(false);
-    this.activationUnknown.set(false);
-    this.activationStatus.set('');
   }
   private owner(): string {
     const s = this.session.current();
@@ -110,12 +94,7 @@ export class EngagementDetail {
       : '';
   }
   pagingBlocked(): boolean {
-    return (
-      this.loading() ||
-      this.activating() ||
-      !!this.planning()?.busy() ||
-      !!this.planning()?.uncertain()
-    );
+    return this.loading() || !!this.planning()?.busy() || !!this.planning()?.uncertain();
   }
   page(page: number): void {
     const location = this.location(),
@@ -142,62 +121,6 @@ export class EngagementDetail {
   }
   workBlocked(engagement: Engagement): boolean {
     return engagement.professionalWorkBlocked || engagement.holdMetrics.active > 0;
-  }
-  activate(): void {
-    if (
-      !this.data()?.canActivate ||
-      !this.activationReviewed ||
-      this.activating() ||
-      this.loading() ||
-      this.activationUnknown()
-    )
-      return;
-    const owner = this.owner();
-    this.activating.set(true);
-    this.activationStatus.set('Checking activation prerequisites…');
-    this.http
-      .post('/api/ui/engagements/' + this.id + '/activate', {})
-      .pipe(timeout(15000))
-      .subscribe({
-        next: (value) => {
-          if (this.destroyed || owner !== this.owner()) return;
-          this.activating.set(false);
-          if (
-            !value ||
-            typeof value !== 'object' ||
-            !('id' in value) ||
-            typeof value.id !== 'string' ||
-            !guidPattern.test(value.id)
-          ) {
-            this.activationUnknown.set(true);
-            this.activationReviewed = false;
-            this.activationStatus.set(
-              'Outcome unconfirmed. Refresh and review engagement state before another action.',
-            );
-            return;
-          }
-          this.activationReviewed = false;
-          this.activationStatus.set('Engagement activated.');
-          this.load();
-        },
-        error: (failure) => {
-          if (this.destroyed || owner !== this.owner()) return;
-          this.activating.set(false);
-          this.activationReviewed = false;
-          if (failure.status >= 400 && failure.status < 500) {
-            this.activationStatus.set(
-              'Activation blocked. Review current acceptance, your Partner scope and unreleased holds.',
-            );
-            this.load();
-          } else {
-            this.activationUnknown.set(true);
-            this.activationStatus.set(
-              'Outcome unconfirmed. Refresh and review engagement state before another action.',
-            );
-          }
-          if (failure.status === 401) this.session.clear();
-        },
-      });
   }
   load(): void {
     const revision = ++this.viewRevision;
@@ -234,13 +157,9 @@ export class EngagementDetail {
               v.paging.holdPageSize !== location.holdPageSize
             )
               throw new Error('Wrong engagement context');
-            if (v.generation !== this.data()?.generation || !v.canActivate)
-              this.activationReviewed = false;
-            if (v.status === 'Active') this.activationUnknown.set(false);
             this.data.set(v);
           } catch {
             this.data.set(null);
-            this.activationReviewed = false;
             this.error.set('The server returned an unsupported response.');
           }
           this.loading.set(false);
@@ -248,7 +167,6 @@ export class EngagementDetail {
         error: (failure) => {
           if (this.destroyed || revision !== this.viewRevision || owner !== this.owner()) return;
           this.data.set(null);
-          this.activationReviewed = false;
           this.loading.set(false);
           this.error.set('Check your access or retry shortly.');
           if (failure.status === 401) this.session.clear();

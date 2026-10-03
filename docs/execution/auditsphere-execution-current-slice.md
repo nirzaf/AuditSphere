@@ -13,6 +13,45 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Reviewed native Partner activation and response recovery
+
+The Angular engagement page now links to a focused Partner review route. Its
+Application context displays exact service/profile/period metadata, engagement and
+client revisions, current same-service acceptance and active holds. Administrator
+authority alone cannot activate. A fresh explicit review is required before a
+current unconditional acceptance and zero holds can release a draft engagement.
+
+The existing activation command now composes an owned transaction without cached
+safety/engagement state. Activation, the guarded revision change, existing portal
+intent handling and immutable native request evidence commit together. Current
+Partner scope, session epoch, acceptance and holds are rechecked. A retry returns
+the original actor-owned receipt, and a late revocation rolls back the activation
+and engagement together. The additive migration preserves legacy rows, guards
+native publication at commit and refuses rollback while reviewed evidence exists.
+It has been exercised only in owned disposable databases.
+
+The native Signal Forms page stores no review assent. Tab recovery retains only
+request identity; unknown responses fence new submission and navigation. Receipt
+lookup waits behind any guarded activation transaction. An absent result permits
+fresh inspection and a new explicit review of that same fixed action. Scope/session
+loss, destruction and a return to the same route fence late callbacks. The retained
+legacy activation endpoint remains available for older UI builds.
+
+The built-in browser checked exact review, keyboard confirmation, the receipt,
+responsive layout and sign-out clearing. Synthetic local acceptance is not a
+professional or Microsoft acceptance. Focused checks, intermediate compile/route
+test corrections and immutable build fingerprints are recorded in `status.json`.
+The earlier contact-commit whole run has terminated with its retained-evidence
+rollback-target and concurrent browser diagnostics test failures; both focused
+repairs preserve their original safety assertions. It does not replace the last
+successful whole-suite `verifiedCommit`.
+
+Next: reviewed blocked-engagement creation and planning forms/drafts/recovery,
+remaining assessment/source-action parity, wider quality and production-like
+cutover/rollback acceptance, then Blazor retirement. The full migration remains
+partial. The existing operator migration workflow still applies; no Wiki update,
+shared Development migration or external Microsoft effect was performed.
+
 ## Native engagement metadata, clearance and hold history
 
 The scoped Application projection now retains service-profile and UTC creation

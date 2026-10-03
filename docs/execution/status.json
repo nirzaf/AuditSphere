@@ -4,7 +4,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "8d0586f66c9b8e3caf8a204898d57bb38b951c20",
+  "headCommit": "f64e8332e9fd40b6d318fed79f90b9c52796060c",
   "verifiedCommit": "bc17a10f44e393a70ea2fb6b3c9f343d28271c9e",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": false,
@@ -5408,7 +5408,7 @@
       "boundary": "US-015 and full migration remain PARTIAL. Engagement reviewed forms/drafts, remaining source-action parity, wider quality gates, production cutover and Blazor retirement remain open."
     },
     "angularContactWholeRegression": {
-      "status": "RUNNING",
+      "status": "FAILED",
       "sourceCommit": "8d0586f66c9b8e3caf8a204898d57bb38b951c20",
       "log": "/private/tmp/auditsphere-contact-whole-regression.log",
       "fingerprintsPath": "/private/tmp/auditsphere-contact-whole-regression-hashes.json",
@@ -5419,13 +5419,38 @@
         "log": "/private/tmp/auditsphere-contact-whole-release-build.log",
         "angularProductionBuildLog": "/private/tmp/auditsphere-contact-whole-ui-build.log"
       },
-      "boundary": "Frozen separate managed worktree. No terminal acceptance until all test cohorts and parent finish; no source or asset edits while consumed.",
-      "observedBrowserCohort": {
+      "boundary": "All three cohorts and whole parent terminated. Frozen source/assets/assemblies matched after join. Focused repairs do not replace a fresh whole-suite run or the successful top-level verifiedCommit.",
+      "observedDomainCohort": {
+        "status": "PASS",
+        "passed": 582,
+        "failed": 0,
+        "skipped": 0
+      },
+      "observedApiCohort": {
         "status": "FAILED",
         "passed": 161,
         "failed": 1,
         "skipped": 0,
-        "cause": "Concurrent browser Console event appended to a List while an existing scope assertion enumerated diagnostics. Later focused repair uses ConcurrentQueue and preserves the assertions. Whole parent/other cohorts remain running."
+        "cause": "Valuation rollback test targeted the predecessor of the latest migration, which is now contact creation rather than valuation preparation. Pinning the tested migration preserves the retained-evidence refusal assertion."
+      },
+      "observedBrowserFailure": "Existing unsent-draft isolation assertion enumerated a List while browser events appended. The focused ConcurrentQueue repair passes with its original assertions preserved.",
+      "parentExitCode": 1,
+      "passed": 913,
+      "failed": 2,
+      "skipped": 0,
+      "allConsumersJoined": true,
+      "observedBrowserCohort": {
+        "status": "FAILED",
+        "passed": 170,
+        "failed": 1,
+        "skipped": 0
+      },
+      "artifactFingerprints": {
+        "status": "MATCH",
+        "sourceFiles": 1296,
+        "assets": 104,
+        "assemblies": 38,
+        "checkedAfterAllConsumersJoined": true
       }
     },
     "angularEngagementProfile": {
@@ -5523,10 +5548,118 @@
         "cleanup": "Both owned preview processes/databases disposed with terminal zero; temporary tabs closed and viewport reset. Earlier error-page tab could not be closed because browser preflight refused its data URL."
       },
       "publication": {
-        "status": "READY_TO_COMMIT",
-        "branch": "master"
+        "status": "PUSHED",
+        "commit": "f64e8332e9fd40b6d318fed79f90b9c52796060c",
+        "remote": "origin/master",
+        "remoteMatched": true,
+        "secretScan": "PASS redacted staged gitleaks, no leaks"
       },
       "boundary": "Local read-side/lifetime evidence only. Full migration, reviewed client/engagement/activation/planning forms, drafts and request recovery, wider QA, production cutover and Blazor retirement stay PARTIAL. Canonical successful full regression remains top-level verifiedCommit."
+    },
+    "angularEngagementActivation": {
+      "status": "PASS_FOCUSED",
+      "implementationStatus": "IMPLEMENTED_LOCAL_SLICE",
+      "migrationAcceptance": "PARTIAL",
+      "prePublicationParent": "f64e8332e9fd40b6d318fed79f90b9c52796060c",
+      "scope": "Native exact Partner activation review and actor-owned request recovery around the existing lifecycle gate. Current same-service unconditional acceptance, exact revisions, zero active holds and fresh assent remain required. No portal/Entra grant or live Microsoft effect.",
+      "build": {
+        "status": "PASS",
+        "warnings": 0,
+        "errors": 0,
+        "log": "/private/tmp/auditsphere-activation-ready-release.log",
+        "productionBuildLog": "/private/tmp/auditsphere-activation-final-angular-build.log"
+      },
+      "angular": {
+        "status": "PASS",
+        "passed": 348,
+        "failed": 0,
+        "files": 76,
+        "log": "/private/tmp/auditsphere-activation-final-angular-tests.log"
+      },
+      "domain": {
+        "status": "PASS",
+        "passed": 15,
+        "failed": 0,
+        "skipped": 0,
+        "log": "/private/tmp/auditsphere-activation-ready-domain.log"
+      },
+      "commercialCompatibility": {
+        "status": "PASS",
+        "log": "/private/tmp/auditsphere-activation-commercial-compatibility.log",
+        "passed": 2,
+        "failed": 0,
+        "skipped": 0
+      },
+      "api": {
+        "status": "PASS",
+        "passed": 10,
+        "failed": 0,
+        "skipped": 0,
+        "log": "/private/tmp/auditsphere-activation-ready-api.log",
+        "boundary": "Includes activation, engagement metadata, complete valuation preparation class and exact route ownership contract checks."
+      },
+      "browser": {
+        "status": "PASS",
+        "passed": 10,
+        "failed": 0,
+        "skipped": 0,
+        "log": "/private/tmp/auditsphere-activation-joined-browser.log",
+        "boundary": "Owned provider-fake PostgreSQL/API hosts. Both canonical and preview modes prove real accepted activation with its HTTP response dropped, tab reload, retained receipt reconciliation and role-revocation content removal. Includes existing acceptance, GL/source-acceptance and unsent-draft isolation journeys.",
+        "parentJoinRecheckLog": "/private/tmp/auditsphere-activation-joined-browser.log",
+        "priorPassedLog": "/private/tmp/auditsphere-activation-ready-browser.log",
+        "parentExitCode": 0
+      },
+      "model": {
+        "status": "PASS",
+        "pendingModelChanges": false,
+        "log": "/private/tmp/auditsphere-activation-ready-model.log",
+        "migration": "20261003052805_NativeEngagementActivationReview",
+        "repositoryMigrationCount": 134,
+        "migrationListLog": "/private/tmp/auditsphere-activation-migrations-list.log",
+        "boundary": "Repository migration list only, no shared Development applied/pending status was queried. Migration exercised in disposable test/preview databases. Receipt-bearing rollback refusal and empty migration round-trip preserve evidence."
+      },
+      "builtInBrowser": {
+        "status": "PASS",
+        "desktop": "/private/tmp/auditsphere-angular-activation-final-desktop.png",
+        "mobile": "/private/tmp/auditsphere-angular-activation-final-mobile.png",
+        "previewLog": "/private/tmp/auditsphere-activation-final-preview.log",
+        "boundary": "Final frozen owned synthetic canonical API/Angular build. Exact review and initially disabled confirmation, keyboard Tab/Enter, accepted receipt and exact revision increment, corrected already-active wording, mobile390 content375, zero warning/error logs and sign-out protected subtree removal. Tab closed, viewport reset, host/database disposed exit0. No professional or external acceptance."
+      },
+      "intermediateCorrections": {
+        "angularCompileRefusals": [
+          "/private/tmp/auditsphere-activation-angular-tests.log",
+          "/private/tmp/auditsphere-activation-angular-tests-typed.log"
+        ],
+        "angularReadyPass": "/private/tmp/auditsphere-activation-angular-tests-ready.log",
+        "releaseAnalyzerRefusal": "/private/tmp/auditsphere-activation-corrected-release.log",
+        "routeTestRefusal": {
+          "log": "/private/tmp/auditsphere-activation-routing.log",
+          "passed": 2,
+          "failed": 1,
+          "cause": "Runtime-link scan included a .spec.ts negative link selector. Runtime files remain scanned; a positive legacy-link example preserves regex detection."
+        },
+        "modelInvocationRefusal": "/private/tmp/auditsphere-activation-model.log",
+        "modelInvocationRepair": "Use the EF --configuration option; -c selects a context, not the build configuration.",
+        "initialDomainPass": "/private/tmp/auditsphere-activation-domain.log",
+        "initialApiPass": "/private/tmp/auditsphere-activation-api.log",
+        "initialBrowserPass": "/private/tmp/auditsphere-activation-browser.log",
+        "initialFingerprints": "/private/tmp/auditsphere-activation-final-hashes.json",
+        "initialFingerprintsMatchedAfterJoin": true
+      },
+      "artifactFingerprints": {
+        "status": "MATCH",
+        "path": "/private/tmp/auditsphere-activation-ready-hashes.json",
+        "sourceFiles": 1318,
+        "assets": 105,
+        "assemblies": 38,
+        "checkedAfterAllConsumersJoined": true
+      },
+      "publication": {
+        "status": "READY_TO_COMMIT",
+        "secretScan": "PASS redacted staged gitleaks, no leaks"
+      },
+      "boundary": "Focused local evidence only. Full Angular migration, client/engagement creation, planning forms/drafts, assessment parity, wider QA, production cutover and Blazor retirement stay PARTIAL. The earlier contact whole regression failed; focused repairs do not replace the successful top-level verifiedCommit.",
+      "allConsumersJoined": true
     }
   },
   "documentationWork": {
@@ -5634,7 +5767,7 @@
     "implementationStatus": "PARTIAL",
     "acceptanceStatus": "PARTIAL",
     "scope": "Standalone API and native Angular capability slices preserve Application authorization, exact financial inputs, durable operations and independent human gates. Legacy Blazor remains available for rollback until wider parity and retirement acceptance.",
-    "nextAction": "Publish the focused engagement metadata/history and lifetime-fence step after all consumers join. Continue reviewed engagement creation/activation/planning forms, scoped drafts and persisted outcome recovery, followed by wider migration quality/cutover/retirement acceptance.",
+    "nextAction": "Continue reviewed blocked-engagement creation and planning forms/drafts/request recovery; complete assessment source-action parity and migration quality/cutover/retirement acceptance. Run a fresh frozen whole regression on the published activation step.",
     "branch": "master"
   },
   "localEvidence": [
@@ -6443,7 +6576,7 @@
     {
       "item": "ASP.NET Core API and Angular 22 migration",
       "status": "PARTIAL",
-      "details": "Native API and Angular capability routes, financial intake/mapping/statements/journal/evidence controls and scoped portfolio/client/contact projections have local verification. Engagement metadata/history and lifetime fences are under final verification. Remaining: complete source-action/forms/drafts/outcome recovery, accessibility/performance, production-like cutover/rollback and Blazor retirement acceptance. Older failed whole runs remain separate from focused repairs and the last successful verifiedCommit."
+      "details": "Native API and Angular capability routes, financial review/evidence actions and scoped portfolio/client/contact/engagement projections have local verification. Exact reviewed Partner activation and retained request reconciliation now have focused local acceptance. Remaining: creation/planning forms/drafts/recovery, assessment source-action parity, accessibility/performance, production-like cutover/rollback and Blazor retirement. Earlier failed whole runs remain separate from focused repairs and the successful verifiedCommit."
     }
   ],
   "externalGates": [

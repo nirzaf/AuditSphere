@@ -88,22 +88,7 @@
         <a [routerLink]="['/app/clients', engagement.clientId, 'assessment']"
           >Review acceptance checklist</a
         >
-        <label
-          ><input
-            type="checkbox"
-            [(ngModel)]="activationReviewed"
-            [disabled]="activating() || activationUnknown()"
-          />
-          I reviewed this engagement and its acceptance prerequisites.</label
-        >
-        <button
-          matButton
-          [disabled]="!activationReviewed || activating() || activationUnknown()"
-          (click)="activate()"
-        >
-          Activate engagement
-        </button>
-        <p role="status">{{ activationStatus() }}</p>
+        <a matButton [routerLink]="['/app/engagements', engagement.id, 'activation']" [queryParams]="location()">Review and activate engagement</a>
       </section>
     }
     @defer (on viewport) {

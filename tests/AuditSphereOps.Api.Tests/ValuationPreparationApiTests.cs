@@ -42,9 +42,11 @@ public sealed class ValuationPreparationApiTests
     }
     Assert.Equal(2,await db.ValuationPreparations.CountAsync());Assert.Equal(100.123456m,await db.AccountingReconciliations.Where(x=>x.Id==rec).Select(x=>x.SourceTotal).SingleAsync());
     var migrations=db.Database.GetMigrations().ToArray();
-    await Assert.ThrowsAsync<PostgresException>(()=>db.GetService<IMigrator>().MigrateAsync(migrations[^2]));
+    var valuationIndex=Array.FindIndex(migrations,m=>m.EndsWith("_NativeValuationPreparation",StringComparison.Ordinal));
+    Assert.True(valuationIndex>0);
+    await Assert.ThrowsAsync<PostgresException>(()=>db.GetService<IMigrator>().MigrateAsync(migrations[valuationIndex-1]));
     Assert.Equal(2,await db.ValuationPreparations.CountAsync());
-    Assert.Contains(migrations[^1],await db.Database.GetAppliedMigrationsAsync());
+    Assert.Contains(migrations[valuationIndex],await db.Database.GetAppliedMigrationsAsync());
   }
   [Fact]
   public async Task MissingUnsupportedStaleClosedAndRevokedInputsNeverCreateValuations()
@@ -115,7 +117,9 @@ public sealed class ValuationPreparationApiTests
     var seed=await AccountingAnalysisReviewSeed.SeedAsync(pg,false,false);
     await using var db=new AuditSphereDbContext(pg.Options);var migrations=db.Database.GetMigrations().ToArray();var migrator=db.GetService<IMigrator>();
     var existing=await db.EclAssessments.CountAsync();
-    await migrator.MigrateAsync(migrations[^2]);Assert.DoesNotContain(migrations[^1],await db.Database.GetAppliedMigrationsAsync());
+    var valuationIndex=Array.FindIndex(migrations,m=>m.EndsWith("_NativeValuationPreparation",StringComparison.Ordinal));
+    Assert.True(valuationIndex>0);
+    await migrator.MigrateAsync(migrations[valuationIndex-1]);Assert.DoesNotContain(migrations[valuationIndex],await db.Database.GetAppliedMigrationsAsync());
     Assert.Equal(existing,await db.EclAssessments.CountAsync());Assert.Equal(100.123456m,await db.TrialBalanceRows.Where(x=>x.DatasetId==seed.SourceId&&x.Amount>0).SumAsync(x=>x.Amount));
     await migrator.MigrateAsync();Assert.Empty(await db.ValuationPreparations.ToListAsync());Assert.Equal(existing,await db.EclAssessments.CountAsync());
   }
