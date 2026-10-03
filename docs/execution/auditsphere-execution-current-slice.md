@@ -13,6 +13,19 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Frozen integrated migration regression checkpoint
+
+The full Release solution regression completed successfully on the integrated native
+analysis and operational workbench checkpoint. Source, Angular production assets and
+Release assemblies remained frozen throughout the run and their fingerprints match.
+Exact source identity, project results and the retained log are in `status.json`.
+
+The newer reviewed evidence commands are published separately with their own verified
+API, PostgreSQL, Angular and browser gates. Valuation preparation is a later active
+slice; neither change is included in the earlier whole-solution acceptance claim.
+Full source-action parity, migration quality gates, cutover and Blazor retirement remain
+open. Local synthetic results establish no live tenant or production acceptance.
+
 ## Native reviewed accounting evidence commands
 
 The Angular analysis inspection now links to a separate reviewed action workspace.
