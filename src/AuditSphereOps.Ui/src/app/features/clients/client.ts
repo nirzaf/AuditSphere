@@ -7,6 +7,7 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { Subscription, timeout } from 'rxjs';
+import { PortfolioNavigation } from '../portfolio/portfolio-contracts';
 import { SessionService } from '../../core/session';
 interface Engagement {
   id: string;
@@ -89,7 +90,7 @@ export function decodeClient(value: unknown): Client {
     MatProgressBarModule,
   ],
   template: `
-    <a routerLink="/app">Portfolio</a>
+    <a routerLink="/app" [queryParams]="portfolioNavigation.params()">Portfolio</a>
     <h1>Client profile</h1>
     @if (loading()) {
       <mat-progress-bar mode="indeterminate" aria-label="Loading client" />
@@ -240,6 +241,7 @@ export function decodeClient(value: unknown): Client {
   `,
 })
 export class ClientDetail {
+  readonly portfolioNavigation = inject(PortfolioNavigation);
   private readonly http = inject(HttpClient);
   private readonly route = inject(ActivatedRoute);
   private readonly session = inject(SessionService);

@@ -21,11 +21,36 @@ Same-origin delivery remains the supported production boundary: build Angular se
 - Angular navigation stays within its declared routes. Search validates destinations against that same catalogue, handles multiple hits sharing one destination and shows an unavailable state for an unowned page. No migrated control links to `/app` or `/portal` on the API host. The Web rollback host remains directly available; it is not a hidden frontend fallback. Skip navigation focuses the current main content without changing workspace context.
 - API owns `/api/ui/session`, `/api/ui/portfolio` and CSRF-validated `POST /api/ui/sign-out`; the legacy Web host reuses these endpoints. They resolve trusted cookie identity and current epoch, never accept browser actor/firm/role authority, and return no-store responses.
 - Initial setup has a native `/ui/setup/microsoft365` page and cookie-authenticated `/api/setup/session` / `/api/setup/bootstrap` contracts. Only the exact deployment-approved Microsoft tenant/object identity can submit the installation proof with CSRF protection and explicit review. Application onboarding performs the local binding and evidence transaction; the API returns no raw proof/capability and requires fresh sign-in for the new session epoch. A revoked administrator cannot reopen bootstrap. Tenant preparation uses the deployment tenant and expected draft revision, preserving immutable connection history without asserting consent or selected-site verification.
-- The Application `PortfolioQuery` owns bounded scoped client projection and engagement counts. It rechecks authorization before returning. Group membership never authorizes this query.
+- The Application `PortfolioQuery` owns bounded scoped clients, current-scope summary counts, recent release/package projections and formula-safe CSV export. Each projection uses one authorized scope snapshot and rechecks every contributing scope before delivery. Group membership never authorizes this query.
 - The session bootstrap issues the antiforgery proof through `XSRF-TOKEN`; Angular sends `X-XSRF-TOKEN` for same-origin unsafe HTTP calls. Sign-out validates the antiforgery proof before removing the authentication cookie. Passive session checks do not renew an idle authentication ticket. Migrated business mutations compose existing Application services. Every unsafe endpoint must explicitly validate antiforgery as well as Application authorization; client configuration alone is not CSRF enforcement.
 - Session state stays in memory. Periodic and focus checks remove the protected Angular subtree when session verification fails. Canceled/superseded portfolio requests cannot refill invalidated state. Browser storage contains no authentication tokens or portfolio cache. Convenience drafts use a firm/user/scope namespace and are removed at sign-out; complete draft lifetime and revision parity remains under review.
 
 Build, preview and test commands are in the [Angular development guide](../../src/AuditSphereOps.Ui/auditsphere-angular-development.md).
+
+### Native portfolio projection and export
+
+`GET /api/ui/portfolio/workspace` composes the Application projection; the existing
+client-list contract remains available. Client counts, engagement counts, holds,
+pending operations, ready candidates and issued releases reflect explicit current
+grants. Engagement-only authority excludes sibling engagements and client-level
+operations. Record projections require the same firm and exact client/engagement
+relationship. Summary counts remain independent of search.
+
+The recent panels search only the bounded latest candidate/package windows, with
+that limitation stated in the UI. Client pages support the preserved page-size
+choices. The scoped CSV endpoint validates antiforgery, reprojects authorized data,
+neutralizes spreadsheet formula/control prefixes and refuses a client set above
+its declared bound. It creates no release approval or external side effect. Numeric
+revision identities remain exact strings; reporting periods remain stored strings.
+
+Search, page, page size and selected client use validated URL state. Memory-only
+return navigation is owned by the exact firm/user/session generation; protected
+results are never cached. Every return refetches current authority. Identity change,
+revocation, route destruction and changed filters fence late reads/downloads. The
+configuration notice reports persisted active configuration only; it does not
+establish verified Microsoft capabilities. Full client/engagement source-action
+parity and retirement acceptance remain open. Curated source dispositions are in
+the [portfolio action audit](../execution/angular-portfolio-parity.json).
 
 ### Controlled canonical route ownership and retained assets
 

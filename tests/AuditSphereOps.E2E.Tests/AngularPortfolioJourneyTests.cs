@@ -10,6 +10,55 @@ public sealed class AngularPortfolioJourneyTests
   [Theory]
   [InlineData(false)]
   [InlineData(true)]
+  [Trait("CaseId", "ANGULAR-PORTFOLIO-E2E-02")]
+  public async Task ScopedSummaryRecordsCsvAndReturnFilters(bool canonical)
+  {
+    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "ANGULAR-PORTFOLIO-E2E-02");
+    var a = await AuditSphereOps.Domain.Tests.SiblingClientSeed.SeedAsync(host.Database, host.Fixture.FirmId, "PORTFOLIO-A");
+    var b = await AuditSphereOps.Domain.Tests.SiblingClientSeed.SeedAsync(host.Database, host.Fixture.FirmId, "HIDDEN-PORTFOLIO-B");
+    try
+    {
+      await using (var db = host.CreateDbContext())
+      {
+        await AuditSphereOps.Domain.Tests.PortfolioWorkspaceSeed.PopulateAsync(db, a.Fixture, 3);
+        await AuditSphereOps.Domain.Tests.PortfolioWorkspaceSeed.PopulateAsync(db, b.Fixture, 3);
+      }
+      var prefix = canonical ? "" : "/ui";
+      var origin = await host.StartApiForIdentityAsync(a.Fixture.Staff, new Dictionary<string,string> {
+        ["AngularUi__Enabled"] = "true", ["AngularUi__CanonicalRoutes"] = canonical.ToString() });
+      using var playwright = await Playwright.CreateAsync(); await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+      await using var context = await browser.NewContextAsync(new() { AcceptDownloads = true }); var page = await context.NewPageAsync();
+      var errors = new List<string>(); page.PageError += (_, e) => errors.Add(e);
+      await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(prefix + "/app"));
+      await Assertions.Expect(page.Locator(".portfolio-clients tbody tr")).ToHaveCountAsync(1);
+      await Assertions.Expect(page.GetByRole(AriaRole.Region, new() { Name = "Recent financial packages" }).Locator("tbody tr")).ToHaveCountAsync(2);
+      await Assertions.Expect(page.GetByRole(AriaRole.Region, new() { Name = "Recent release candidates" }).Locator("tbody tr")).ToHaveCountAsync(3);
+      Assert.DoesNotContain("HIDDEN-PORTFOLIO-B", await page.Locator("body").InnerTextAsync());
+      await page.GetByRole(AriaRole.Textbox, new() { Name = "Search client name or ID" }).FillAsync("PORTFOLIO-A");
+      await page.Locator("audit-portfolio").GetByRole(AriaRole.Button, new() { Name = "Search", Exact = true }).ClickAsync();
+      await Assertions.Expect(page).ToHaveURLAsync(new System.Text.RegularExpressions.Regex("search=PORTFOLIO-A"));
+      var downloadTask = page.WaitForDownloadAsync();
+      await page.GetByRole(AriaRole.Button, new() { Name = "Download scoped CSV", Exact = true }).ClickAsync();
+      var download = await downloadTask; Assert.Equal("auditsphere-portfolio.csv", download.SuggestedFilename);
+      var text = await File.ReadAllTextAsync((await download.PathAsync())!);
+      Assert.Contains("9007199254740993", text); Assert.Contains("FINANCIAL_PACKAGE", text); Assert.DoesNotContain("HIDDEN-PORTFOLIO-B", text);
+      await page.GetByRole(AriaRole.Link, new() { Name = "PORTFOLIO-A Holdings", Exact = true }).ClickAsync();
+      await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Client unavailable", Exact = true })).ToBeVisibleAsync();
+      await page.Locator("audit-client").GetByRole(AriaRole.Link, new() { Name = "Portfolio", Exact = true }).ClickAsync();
+      await Assertions.Expect(page.GetByRole(AriaRole.Textbox, new() { Name = "Search client name or ID" })).ToHaveValueAsync("PORTFOLIO-A");
+      await Assertions.Expect(page.Locator(".portfolio-clients tr.selected")).ToHaveCountAsync(1);
+      await page.ReloadAsync(); await Assertions.Expect(page.Locator(".portfolio-clients tr.selected")).ToHaveCountAsync(1);
+      await page.SetViewportSizeAsync(390,844); Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= innerWidth + 1"));
+      await using (var db = host.CreateDbContext()) { var user = await db.Users.SingleAsync(u => u.Id == a.Fixture.Staff.Id); user.SessionEpoch++; await db.SaveChangesAsync(); }
+      await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable", Exact = true })).ToBeVisibleAsync(new() { Timeout = 15000 });
+      Assert.DoesNotContain("PORTFOLIO-A", await page.Locator("body").InnerTextAsync()); Assert.Empty(errors);
+    }
+    finally { Directory.Delete(a.StagingRoot, true); Directory.Delete(b.StagingRoot, true); }
+  }
+
+  [Theory]
+  [InlineData(false)]
+  [InlineData(true)]
   [Trait("CaseId", "ANGULAR-PORTFOLIO-E2E-01")]
   public async Task DirectLink_Scope_Revocation_AndBlazorRollback(bool canonical)
   {
@@ -31,10 +80,10 @@ public sealed class AngularPortfolioJourneyTests
     page.PageError += (_, error) => errors.Add(error);
     await page.GotoAsync(origin + "/auth/sign-in?returnUrl="+Uri.EscapeDataString(prefix+"/app"));
     await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() {Name = "Portfolio", Exact = true})).ToBeVisibleAsync();
-    await Assertions.Expect(page.Locator("tbody tr")).ToHaveCountAsync(1);
-    await Assertions.Expect(page.Locator("tbody td.number")).ToHaveTextAsync("1");
+    await Assertions.Expect(page.Locator(".portfolio-clients tbody tr")).ToHaveCountAsync(1);
+    await Assertions.Expect(page.Locator(".portfolio-clients tbody td.number")).ToHaveTextAsync("1");
     await page.ReloadAsync();
-    await Assertions.Expect(page.Locator("tbody tr")).ToHaveCountAsync(1);
+    await Assertions.Expect(page.Locator(".portfolio-clients tbody tr")).ToHaveCountAsync(1);
     await page.SetViewportSizeAsync(390, 844);
     Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= innerWidth + 1"));
     await page.GetByRole(AriaRole.Textbox, new() {Name = "Search client name or ID"}).FillAsync("NO MATCH");
@@ -42,7 +91,7 @@ public sealed class AngularPortfolioJourneyTests
     await Assertions.Expect(page.GetByText("No clients match this search in your current scope.")).ToBeVisibleAsync();
     await page.GetByRole(AriaRole.Textbox, new() {Name = "Search client name or ID"}).FillAsync("");
     await page.Locator("audit-portfolio").GetByRole(AriaRole.Button, new() {Name = "Search", Exact = true}).ClickAsync();
-    await Assertions.Expect(page.Locator("tbody tr")).ToHaveCountAsync(1);
+    await Assertions.Expect(page.Locator(".portfolio-clients tbody tr")).ToHaveCountAsync(1);
     await using (var db = host.CreateDbContext())
     {
       var user = await db.Users.SingleAsync(u => u.Id == host.Fixture.Staff.Id);

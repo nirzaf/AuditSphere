@@ -1,166 +1,113 @@
-import { Component, DestroyRef, effect, inject, signal, untracked } from '@angular/core';
-import { RouterLink } from '@angular/router';
-import { HttpClient } from '@angular/common/http';
+import { Component, DestroyRef, computed, effect, inject, signal, untracked } from '@angular/core';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { form, FormField, maxLength } from '@angular/forms/signals';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
-import { MatProgressBarModule } from '@angular/material/progress-bar';
-import { Subscription, timeout } from 'rxjs';
+import { Api } from '../../core/api';
 import { SessionService } from '../../core/session';
+import { SHARED } from '../../core/ui';
+import { PortfolioNavigation, decodePortfolioWorkspace, portfolioLocation } from './portfolio-contracts';
+export { decodePortfolio } from './portfolio-contracts';
+export type { ClientRow, PortfolioPage } from './portfolio-contracts';
 
-export interface ClientRow {
-  id: string;
-  name: string;
-  engagements: number;
-}
-export interface PortfolioPage {
-  items: ClientRow[];
-  total: number;
-  page: number;
-  pageSize: number;
-}
-export function decodePortfolio(value: unknown): PortfolioPage {
-  if (!value || typeof value !== 'object') throw new Error('Invalid portfolio');
-  const v = value as Record<string, unknown>;
-  if (
-    !Array.isArray(v['items']) ||
-    !['total', 'page', 'pageSize'].every((k) => Number.isSafeInteger(v[k]) && Number(v[k]) >= 0)
-  )
-    throw new Error('Invalid pagination');
-  if (Number(v['page']) > 10000 || Number(v['pageSize']) < 1 || Number(v['pageSize']) > 100 || v['items'].length > Number(v['pageSize'])) throw new Error('Invalid page bounds');
-  for (const row of v['items']) {
-    if (
-      !row ||
-      typeof row.id !== 'string' ||
-      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(row.id) ||
-      typeof row.name !== 'string' ||
-      !Number.isSafeInteger(row.engagements) ||
-      row.engagements < 0
-    )
-      throw new Error('Invalid client');
-  }
-  return v as unknown as PortfolioPage;
-}
 @Component({
   selector: 'audit-portfolio',
-  imports: [RouterLink, MatButtonModule, MatFormFieldModule, MatInputModule, MatProgressBarModule],
-  template: `
-    <header>
-      <p class="eyebrow">Practice overview · Current explicit scope</p>
-      <h1>Portfolio</h1>
-      <p>Clients and engagement counts visible under your current AuditSphere assignments.</p>
-    </header>
-    <form (submit)="search($event, filter.value)">
-      <mat-form-field
-        ><mat-label>Search client name or ID</mat-label><input matInput #filter maxlength="100"
-      /></mat-form-field>
-      <button matButton="filled" type="submit">Search</button>
-    </form>
-    @if (loading()) {
-      <mat-progress-bar mode="indeterminate" aria-label="Loading portfolio" />
-    }
-    @if (error()) {
-      <section role="alert">
-        <h2>Portfolio unavailable</h2>
-        <p>{{ error() }}</p>
-        <button matButton (click)="load()">Retry</button>
-      </section>
-    }
-    @if (data(); as result) {
-      <p role="status">{{ result.total }} clients in this search</p>
-      @if (!result.items.length) {
-        <p>No clients match this search in your current scope.</p>
-      } @else {
-        <div class="table-scroll">
-          <table>
-            <caption>
-              Authorized clients
-            </caption>
-            <thead>
-              <tr>
-                <th>Client</th>
-                <th>Visible engagements</th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (client of result.items; track client.id) {
-                <tr>
-                  <td>
-                    <strong><a [routerLink]="['/app/clients', client.id]">{{ client.name }}</a></strong
-                    ><small>{{ client.id }}</small>
-                  </td>
-                  <td class="number">{{ client.engagements }}</td>
-                </tr>
-              }
-            </tbody>
-          </table>
-        </div>
-      }
-      <nav aria-label="Client pages">
-        <button matButton [disabled]="result.page === 0" (click)="load(result.page - 1)">
-          Previous
-        </button>
-        <span>Page {{ result.page + 1 }}</span
-        ><button
-          matButton
-          [disabled]="(result.page + 1) * result.pageSize >= result.total"
-          (click)="load(result.page + 1)"
-        >
-          Next
-        </button>
-      </nav>
-    }
-  `,
+  imports: [RouterLink, FormField, MatButtonModule, MatFormFieldModule, MatInputModule, ...SHARED],
+  templateUrl: './portfolio.html',
+  styleUrl: './portfolio.scss',
 })
 export class Portfolio {
-  private readonly http = inject(HttpClient);
+  private readonly api = inject(Api);
   private readonly session = inject(SessionService);
-  private request?: Subscription;
-  private query = '';
-  readonly data = signal<PortfolioPage | null>(null);
-  readonly loading = signal(false);
-  readonly error = signal('');
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
+  readonly navigation = inject(PortfolioNavigation);
+  private readonly params = toSignal(this.route.queryParamMap, { initialValue: this.route.snapshot.queryParamMap });
+  readonly location = computed(() => portfolioLocation((k) => this.params().get(k)));
+  readonly model = signal({ search: '' });
+  readonly fields = form(this.model, (p) => maxLength(p.search, 100));
+  private readonly identityFence = signal(false);
+  readonly view = this.api.resource(() => {
+    const q = this.location();
+    return q && !this.identityFence() ? `/api/ui/portfolio/workspace?${new URLSearchParams({ search: q.search, page: String(q.page), pageSize: String(q.pageSize) })}` : null;
+  }, (v) => {
+    const value = decodePortfolioWorkspace(v), q = this.location();
+    if (this.identityFence() || !q || value.search !== q.search || value.clients.page !== q.page || value.clients.pageSize !== q.pageSize)
+      throw new Error('Wrong portfolio context');
+    return value;
+  }, 'Portfolio is unavailable in your current scope.');
+  readonly exporting = signal(false);
+  readonly message = signal('');
+  readonly failed = signal(false);
+  private version = 0;
+  private destroyed = false;
   constructor() {
+    let previousOwner = this.owner();
+    const remembered = this.navigation.read();
+    if (!this.route.snapshot.queryParamMap.keys.length && remembered)
+      void this.router.navigate([], { relativeTo: this.route, queryParams: remembered, replaceUrl: true });
     effect(() => {
+      const q = this.location();
       this.session.invalidation();
-      const staff = this.session.current()?.staff;
+      this.session.current();
       untracked(() => {
-        this.data.set(null);
-        this.request?.unsubscribe();
-        if (staff) this.load();
+        this.version++;
+        this.message.set(''); this.failed.set(false); this.exporting.set(false);
+        const owner = this.owner();
+        if (previousOwner && owner !== previousOwner) {
+          this.identityFence.set(true); this.model.set({ search: '' }); this.navigation.read();
+          if (owner) {
+            previousOwner = owner;
+            void this.router.navigate([], { relativeTo: this.route, queryParams: {}, replaceUrl: true }).then(() => {
+              if (!this.destroyed && owner === this.owner()) this.identityFence.set(false);
+            });
+          }
+          return;
+        }
+        previousOwner = owner;
+        this.model.set({ search: owner ? q?.search ?? '' : '' });
+        if (q && owner) this.navigation.remember(q);
       });
     });
-    inject(DestroyRef).onDestroy(() => this.request?.unsubscribe());
+    inject(DestroyRef).onDestroy(() => { this.destroyed = true; this.version++; });
   }
-  search(event: Event, value: string): void {
+  private owner(): string {
+    const s = this.session.current();
+    return s?.staff ? `${s.firmId}:${s.userId}:${s.generation}:${this.session.invalidation()}` : '';
+  }
+  search(event: Event): void {
     event.preventDefault();
-    this.query = value.trim();
-    this.load();
+    if (this.fields().invalid()) return;
+    this.go(0, this.model().search.trim());
   }
-  load(page = 0): void {
-    this.request?.unsubscribe();
-    this.data.set(null);
-    this.error.set('');
-    this.loading.set(true);
-    const generation = this.session.invalidation();
-    this.request = this.http
-      .get<unknown>('/api/ui/portfolio', { params: { search: this.query, page, pageSize: 25 } })
-      .pipe(timeout(15000))
-      .subscribe({
-        next: (value) => {
-          if (generation !== this.session.invalidation()) return;
-          try {
-            this.data.set(decodePortfolio(value));
-          } catch {
-            this.error.set('The server returned an unsupported response.');
-          }
-          this.loading.set(false);
-        },
-        error: (failure) => {
-          this.loading.set(false);
-          this.error.set('Refresh your session or ask an administrator to check your assignment.');
-          if (failure.status === 401 || failure.status === 403) this.session.clear();
-        },
-      });
+  go(page: number, search = this.location()?.search ?? '', pageSize = this.location()?.pageSize ?? 25): void {
+    if (page < 0 || page > 10000) return;
+    void this.router.navigate([], { relativeTo: this.route, queryParams: { search, page, pageSize } });
+  }
+  resizePage(size: unknown): void {
+    if (size === '10' || size === '25') this.go(0, this.location()?.search ?? '', Number(size));
+  }
+  createdAt(value: string): string {
+    const date = new Date(value);
+    return Number.isFinite(date.getTime()) ? date.toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' }) : 'Unsupported timestamp';
+  }
+  select(id: string): void {
+    const q = this.location();
+    if (q) this.navigation.remember({ ...q, selected: id });
+  }
+  async download(): Promise<void> {
+    const q = this.location();
+    if (!q || !this.view.data() || this.exporting()) return;
+    const version = this.version;
+    this.exporting.set(true); this.message.set(''); this.failed.set(false);
+    const r = await this.api.download('/api/ui/portfolio/export', { search: q.search }, (m) =>
+      !this.destroyed && version === this.version && !!this.session.current()?.staff &&
+      m.fileName === 'auditsphere-portfolio.csv' && m.contentType.startsWith('text/csv') &&
+      m.byteCount <= 8_000_000);
+    if (this.destroyed || version !== this.version) return;
+    this.exporting.set(false); this.failed.set(!r.ok);
+    this.message.set(r.ok ? 'Scoped CSV downloaded. The recent-record window is included; this export is not release approval.' : r.message);
   }
 }

@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "authority": "Curated source-action audit. Test pointers do not imply execution acceptance; observed results belong only to status.json.",
+  "story": "US-015",
+  "status": "PARTIAL",
+  "sourceFiles": [
+    {
+      "path": "src/AuditSphereOps.Web/Components/Pages/Portfolio.razor",
+      "sha256": "f7771250c924cfe077b5d32413484d0dbaa6c5bfe459651463f6f192d63cb136"
+    }
+  ],
+  "records": [
+    {
+      "action": "load-refresh-and-current-scope-summary",
+      "owner": "PortfolioQuery.WorkspaceAsync / GET /api/ui/portfolio/workspace",
+      "disposition": "Implemented rechecked scope snapshot, exact relationship guards and search-independent counts.",
+      "evidencePointer": "PortfolioWorkspaceTests; PortfolioWorkspaceApiTests"
+    },
+    {
+      "action": "current-scope-search-client-pages-and-page-size",
+      "owner": "PortfolioQuery.ListScopedAsync / portfolioLocation / native client pager",
+      "disposition": "Implemented bounded search and current server counts with preserved client page-size choices. Recent candidate/package searches stay inside the disclosed source window.",
+      "evidencePointer": "portfolio-workspace.spec.ts; AngularPortfolioJourneyTests"
+    },
+    {
+      "action": "recent-candidate-and-package-inspection",
+      "owner": "PortfolioQuery.WorkspaceAsync / native release and package links",
+      "disposition": "Implemented scoped windows, exact revision strings, persisted statuses and local creation timestamps. Destination services remain independent authorization authorities.",
+      "evidencePointer": "PortfolioWorkspaceTests; AngularPortfolioJourneyTests"
+    },
+    {
+      "action": "scoped-csv-export",
+      "owner": "PortfolioQuery.ExportAsync / POST /api/ui/portfolio/export",
+      "disposition": "Implemented same-scope recheck, CSRF, bounded clients, formula/control-prefix escaping and stale view/download refusal. This is a read export, not professional approval.",
+      "evidencePointer": "PortfolioWorkspaceTests; PortfolioWorkspaceApiTests; portfolio-workspace.spec.ts; AngularPortfolioJourneyTests"
+    },
+    {
+      "action": "operational-shortcuts-and-configuration-notice",
+      "owner": "native portfolio / guarded router catalogue",
+      "disposition": "Preserved existing destinations and persisted active-configuration warning without inferred Microsoft capability verification.",
+      "evidencePointer": "AngularRoutingContractTests; portfolio-workspace.spec.ts"
+    },
+    {
+      "action": "return-navigation-and-revocation",
+      "owner": "PortfolioNavigation / validated URL parameters / SessionService / Application reauthorization",
+      "disposition": "Implemented memory-only exact-owner location, current-authority refetch and stale content/download clearing.",
+      "evidencePointer": "PortfolioWorkspaceTests.RevocationDuringProjectionRefusesMixedScopesEvenWhenAnotherGrantRemains; AngularPortfolioJourneyTests"
+    },
+    {
+      "action": "recent-panel-row-pager-and-client-engagement-complete-parity",
+      "owner": "US-015 remaining source-action audit",
+      "disposition": "OPEN: native recent panels expose the bounded window rather than separate source table page-size controls. Client/engagement metadata, form/draft and broader quality acceptance remain independently reviewable.",
+      "evidencePointer": "angular-migration-backlog.json"
+    }
+  ]
+}

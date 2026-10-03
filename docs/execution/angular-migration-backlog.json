@@ -90,7 +90,7 @@
       "id": "US-015",
       "title": "Migrate portfolio, client and engagement workspaces",
       "status": "PARTIAL",
-      "scope": "Angular portfolio, client/engagement reads, contacts, engagement creation/activation and planning commands implemented; complete summary/export/parity pending."
+      "scope": "Native portfolio scoped summary, bounded recent candidate/package panels, safe CSV export, preserved shortcuts/page sizing and identity-owned return filters implemented. Current client/engagement reads and guarded commands remain; full client/engagement source-action, quality and retirement acceptance stay open."
     },
     {
       "id": "US-016",

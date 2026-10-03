@@ -1,0 +1,93 @@
+<audit-page-header title="Portfolio" eyebrow="Practice overview · Current explicit scope"
+  description="Clients, engagement activity and recent records under your current AuditSphere assignments.">
+  <button matButton (click)="view.reload()" [disabled]="view.loading()">Refresh</button>
+</audit-page-header>
+<form (submit)="search($event)">
+  <mat-form-field><mat-label>Search client name or ID</mat-label>
+    <input matInput [formField]="fields.search" /></mat-form-field>
+  <button matButton="filled" type="submit" [disabled]="fields().invalid()">Search</button>
+</form>
+@if (!location()) { <p role="alert">Invalid portfolio filters. <button matButton (click)="go(0, '')">Reset filters</button></p> }
+<audit-state [loading]="view.loading()" [error]="view.error()" label="portfolio" />
+@if (view.error()) { <h2>Portfolio unavailable</h2><button matButton (click)="view.reload()">Retry</button> }
+<audit-command-message [message]="message()" [failed]="failed()" />
+@if (view.data(); as result) {
+  @if (!result.hasActiveMicrosoftConfiguration) {
+    <aside class="configuration-note" aria-label="Microsoft configuration status">
+      No active Microsoft 365 configuration is recorded. An administrator can review tenant setup.
+      Local portfolio access does not establish external capability verification.
+    </aside>
+  }
+  <section aria-label="Current scope summary" class="portfolio-metrics">
+    <article><h2>Clients</h2><strong>{{ result.metrics.clients }}</strong></article>
+    <article><h2>Engagements</h2><strong>{{ result.metrics.engagements }}</strong></article>
+    <article><h2>Open holds</h2><strong>{{ result.metrics.openHolds }}</strong></article>
+    <article><h2>Pending operations</h2><strong>{{ result.metrics.pendingOperations }}</strong></article>
+    <article><h2>Ready candidates</h2><strong>{{ result.metrics.readyCandidates }}</strong></article>
+    <article><h2>Issued releases</h2><strong>{{ result.metrics.issuedReleases }}</strong></article>
+  </section>
+  <p>Summary counts cover your current scope and are unaffected by search.</p>
+  <button matButton="outlined" (click)="download()" [disabled]="exporting()">{{ exporting() ? 'Preparing CSV…' : 'Download scoped CSV' }}</button>
+  <p>Export includes matching clients (up to 1,000) and matching records from the latest {{ result.recentLimit }} candidates and packages in your scope.</p>
+  <h2>Clients in this search</h2>
+  <p role="status">{{ result.clients.total }} clients in this search</p>
+  @if (!result.clients.items.length) { <p>No clients match this search in your current scope.</p> }
+  @else {
+    <div class="table-scroll"><table class="portfolio-clients" aria-label="Authorized clients">
+      <caption>Authorized clients</caption><thead><tr><th>Client</th><th>Visible engagements</th></tr></thead>
+      <tbody>@for (client of result.clients.items; track client.id) {
+        <tr [class.selected]="location()?.selected === client.id">
+          <td><strong><a [routerLink]="['/app/clients', client.id]" (click)="select(client.id)">{{ client.name }}</a></strong><small>{{ client.id }}</small></td>
+          <td class="number">{{ client.engagements }}</td>
+        </tr>
+      }</tbody>
+    </table></div>
+  }
+  <nav aria-label="Client pages">
+    <mat-form-field><mat-label>Clients per page</mat-label>
+      <select matNativeControl #size [value]="result.clients.pageSize" (change)="resizePage(size.value)">
+        <option value="10">10</option><option value="25">25</option>
+      </select>
+    </mat-form-field>
+    <button matButton [disabled]="result.clients.page === 0" (click)="go(result.clients.page - 1)">Previous</button>
+    <span>Page {{ result.clients.page + 1 }}</span>
+    <button matButton [disabled]="(result.clients.page + 1) * result.clients.pageSize >= result.clients.total" (click)="go(result.clients.page + 1)">Next</button>
+  </nav>
+  <section aria-label="Practice and operational surfaces">
+    <h2>Practice and operational surfaces</h2>
+    <nav aria-label="Operational shortcuts">
+      <a matButton routerLink="/app/practice/leads">Practice leads</a>
+      <a matButton routerLink="/app/practice/time">Time tracking and approvals</a>
+      <a matButton routerLink="/app/finance">Firm ledger and periods</a>
+      <a matButton routerLink="/app/accounting">Client accounting</a>
+      <a matButton routerLink="/app/consolidation">Group consolidation</a>
+      <a matButton routerLink="/app/operations">Operations and recovery</a>
+      <a matButton routerLink="/app/administration">Firm administration</a>
+    </nav>
+  </section>
+  <section aria-label="Recent release candidates">
+    <h2>Recent release candidates</h2>
+    <p>Search within the latest {{ result.recentLimit }} records; {{ result.candidateTotal }} candidates exist in your current scope.</p>
+    @if (!result.candidates.length) { <p>No release candidates match in this recent window.</p> }
+    @else { <div class="table-scroll"><table><caption>Recent authorized release candidates</caption>
+      <thead><tr><th>Client / candidate</th><th>Target revision</th><th>Status</th><th>Created (local time)</th><th>Inspect</th></tr></thead>
+      <tbody>@for (r of result.candidates; track r.id) { <tr>
+        <td>{{ r.clientName }}<small>{{ r.id }}</small></td><td>{{ r.targetRevision }}</td>
+        <td><audit-status [value]="r.status" /></td><td><time [attr.datetime]="r.createdAt">{{ createdAt(r.createdAt) }}</time></td>
+        <td><a [routerLink]="['/app/releases', r.id]">Open candidate</a></td>
+      </tr> }</tbody>
+    </table></div> }
+  </section>
+  <section aria-label="Recent financial packages">
+    <h2>Recent financial packages</h2>
+    <p>Search within the latest {{ result.recentLimit }} records; {{ result.packageTotal }} packages exist in your current scope.</p>
+    @if (!result.packages.length) { <p>No financial packages match in this recent window.</p> }
+    @else { <div class="table-scroll"><table><caption>Recent authorized financial packages</caption>
+      <thead><tr><th>Client / package</th><th>Framework / period</th><th>Status</th><th>Inspect</th></tr></thead>
+      <tbody>@for (r of result.packages; track r.id) { <tr>
+        <td>{{ r.clientName }}<small>{{ r.id }}</small></td><td>{{ r.framework }}<small>{{ r.periodStart }} to {{ r.periodEnd }}</small></td>
+        <td><audit-status [value]="r.status" /></td><td><a [routerLink]="['/app/accounting/packages', r.id]">Open package</a></td>
+      </tr> }</tbody>
+    </table></div> }
+  </section>
+}

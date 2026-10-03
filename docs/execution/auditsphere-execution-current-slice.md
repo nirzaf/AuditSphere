@@ -13,6 +13,31 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Native scoped portfolio summary, records and export
+
+The Application projection now owns summary counts, bounded recent candidates and
+financial packages, and a formula-safe scoped CSV. Every section uses one authorized
+scope snapshot and rechecks all contributing grants before delivery. Client and
+engagement relationships remain explicit; mid-read revocation refuses the whole
+projection even when another valid grant remains. Export validates antiforgery and
+refuses an oversized client set instead of silently truncating it.
+
+The native view preserves refresh, operational shortcuts, candidate/package links,
+creation timestamps, client page-size choices and current-search states. Validated
+URL parameters and memory-only exact-owner location restore filters and selected
+client on return; no protected results are cached. Session, route and filter changes
+fence late reads and downloads. The saved-configuration notice establishes no
+Microsoft capability verification.
+
+Release, Angular, focused PostgreSQL/API and model checks passed. The first browser
+cohort failed only at an exact synthetic client-name selector; the corrected
+cohort passed against frozen assets. Built-in desktop/mobile checks preserve scope,
+return navigation, page size, restricted client routing and sign-out removal.
+Observed counts, logs, intermediate bundle warnings and final repair are recorded
+only in `status.json`. Recent-table pager, broader client/engagement source-action
+and whole migration acceptance remain open. The isolated earlier canonical whole
+run has completed API/Domain cohorts and is still waiting for browser completion.
+
 ## Responsive Angular navigation and source bookmark parity
 
 The native desktop and compact shells now share their presentation links. A compact

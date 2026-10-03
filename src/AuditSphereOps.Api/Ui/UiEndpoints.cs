@@ -78,6 +78,7 @@ public static partial class UiEndpoints
     var group = app.MapGroup("/api/ui");
     MapAcceptanceCommands(group);
     MapCommercialEndpoints(group);
+    MapPortfolioEndpoints(group);
     MapQuotationEndpoints(group);
     MapCommercialDocumentEndpoints(group);
     MapFeeAgreementEndpoints(group);

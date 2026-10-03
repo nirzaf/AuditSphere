@@ -699,7 +699,7 @@ For the complete documentation index, authority hierarchy, current requirements,
 
 ## API backend and Angular presentation migration
 
-- Application: `Practice/PortfolioQuery.cs` (bounded current-grant client projection).
+- Application: `Practice/PortfolioQuery{,.Scope,.Workspace}.cs` (bounded current-grant clients, summary, recent records and formula-safe scoped export under one rechecked scope snapshot).
 - API host: `src/AuditSphereOps.Api/ApiHost.{Authentication,AuthenticationEndpoints,DocumentEndpoints,Persistence,Providers,Health,Observability}.cs`; `Authentication/TrustedActorResolver.cs`, consent composition and production Data Protection.
 - HTTP contracts: `src/AuditSphereOps.Api/Ui/UiEndpoints.*.cs` (trusted session, CSRF-protected commands, exact financial strings and explicit SPA routes).
 - Route cutover: `Api/Ui/AngularRouteOwnership.cs`, `UiEndpoints.cs`, authentication/setup/consent composition and Angular `core/navigation.ts` preserve deployment-owned canonical or preview bases and optional retained fingerprinted assets; `CanonicalAngularHostTests`, `AngularNavigationJourneyTests` and `AngularPortfolioJourneyTests` cover local ownership, rollback and protected session boundaries.
@@ -709,7 +709,8 @@ For the complete documentation index, authority hierarchy, current requirements,
 - Native portal/admin: `src/AuditSphereOps.Ui/src/app/features/{portal,admin}/`; standalone API contract tests and Angular browser journeys.
 - Angular: `src/AuditSphereOps.Ui/src/app/core/session.ts` and `features/portfolio/portfolio.ts`.
 - Responsive shell: `Ui/src/app/app.{ts,html,scss}` and `core/workspace-navigation{,-dialog}.ts`; `app-navigation.spec.ts` and `AngularShellNavigationJourneyTests.cs` cover owner/load fencing, keyboard focus, resize, revocation and client navigation isolation. `AngularRoutingContractTests.cs` checks legacy/native route disposition.
-- Tests: `PortfolioQueryTests`, `UiContractTests`, `AngularPortfolioJourneyTests`, Angular component/decoder tests.
+- Portfolio API/presentation: `Api/Ui/UiEndpoints.Portfolio.cs`, `Ui/src/app/features/portfolio/portfolio{,-contracts,.html,.scss}` and identity-owned return parameters in `features/clients/client.ts`.
+- Tests: `PortfolioQueryTests`, `PortfolioWorkspaceTests`, `PortfolioWorkspaceApiTests`, `UiContractTests`, `AngularPortfolioJourneyTests`, Angular component/decoder tests. `PortfolioWorkspaceSeed` supplies synthetic read-side records without professional release acceptance.
 - Authority: [migration ownership and remaining scope](auditsphere-angular-migration-current.md).
 
 ### Angular workspace administration

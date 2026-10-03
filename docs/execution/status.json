@@ -18,7 +18,14 @@
     "postgres": "18.6 loopback development profile"
   },
   "verification": {
-    "ciLatestHostedRun": "PASS: hosted CI run 37092874919 at canonical-route source commit bc17a10f44e393a70ea2fb6b3c9f343d28271c9e completed successfully. Hosted CI checks locked Angular install/build/unit tests, pinned .NET Release build, EF drift, API/UI publication and documentation; PostgreSQL/API/browser full suites remain separately recorded local evidence. No production acceptance.",
+    "ciLatestHostedRun": {
+      "id": 37093779307,
+      "url": "https://github.com/nirzaf/AuditSphere/actions/runs/37093779307",
+      "headCommit": "80cfea615eecc23d01819617165499e7ddb90cb5",
+      "status": "completed",
+      "conclusion": "success",
+      "boundary": "Hosted build/unit/publish/model/documentation gates; separate local full PostgreSQL/API/browser command still running on earlier canonical checkpoint."
+    },
     "ciLockedRestore": "PASS locally: SDK policy regression check rejected latestPatch and passed after global.json required rollForward=disable for SDK 10.0.300. CI now installs from global.json and checks SDK selection before locked restore. dotnet tool restore; dotnet restore AuditSphereOps.slnx --locked-mode; dotnet build AuditSphereOps.slnx --no-restore --configuration Release all passed. Actionlint v1.7.7 passed with ShellCheck/Pyflakes disabled. Package lock files unchanged. Addresses run 35920521850 NU1004 for SDK-injected Microsoft.AspNetCore.App.Internal.Assets 10.0.11 versus locked 10.0.8; local SDK 10.0.300 evaluates 10.0.8. Full tests and hosted execution of this fix not rerun.",
     "ciWorkflowValidation": "PASS locally: actionlint v1.7.7 reproduced the forbidden runner context in job-level env, then exited 0 after E2E_RUN_ROOT initialization moved to a step using RUNNER_TEMP and GITHUB_ENV. Command: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7 -shellcheck= -pyflakes= .github/workflows/ci.yml. Bash assertion also passed for a temporary path containing spaces and run/attempt suffix 393-2. ShellCheck/Pyflakes disabled; full .NET suite and hosted GitHub Actions not rerun for this workflow-only fix.",
     "build": "PASS: frozen integrated source d5210b7 Release and Angular production builds; zero .NET warnings/errors. Newer slice evidence is recorded separately.",
@@ -4872,12 +4879,15 @@
         "skipped": 0
       },
       "domain": {
-        "status": "RUNNING"
+        "status": "PASS",
+        "passed": 571,
+        "failed": 0,
+        "skipped": 0
       },
       "browser": {
         "status": "RUNNING"
       },
-      "boundary": "Whole command remains running; no final exit code or whole-solution acceptance yet. Earlier verifiedCommit remains unchanged. Frozen owned worktree is separate from the newer responsive shell work."
+      "boundary": "API and Domain have completed. Browser cohort and whole command remain running; no terminal exit or whole-solution acceptance yet. Earlier verifiedCommit remains unchanged. Frozen owned worktree is separate from newer responsive shell and portfolio."
     },
     "angularResponsiveShell": {
       "status": "IMPLEMENTED_LOCALLY_VERIFIED_TARGETED",
@@ -4959,8 +4969,11 @@
       "fingerprintsPath": "/private/tmp/auditsphere-shell-ready-frozen-hashes.json",
       "fingerprintsUnchanged": true,
       "publication": {
-        "status": "READY_FOR_PUSH",
-        "branch": "master"
+        "status": "PUSHED",
+        "branch": "master",
+        "commit": "80cfea615eecc23d01819617165499e7ddb90cb5",
+        "remoteVerified": true,
+        "secretScan": "PASS: staged gitleaks found no leaks"
       },
       "remaining": [
         "Portfolio summary/release/package panels and scoped CSV source parity",
@@ -4968,6 +4981,114 @@
         "All-module accessibility/locale/performance and final migration/retirement acceptance"
       ],
       "evidenceBoundary": "Local synthetic targeted verification only. Backend authorization/financial logic and Microsoft permissions unchanged; no shared/production migration/deployment or Wiki publication. Wider full-solution run on the earlier canonical source is separate and still running; migration remains PARTIAL."
+    },
+    "angularPortfolioWorkspace": {
+      "status": "PASS",
+      "sourceBaseCommit": "80cfea615eecc23d01819617165499e7ddb90cb5",
+      "observedAt": "2026-10-03T03:58:44Z",
+      "scope": "Scoped summary, recent records, safe CSV, native shortcuts, client page sizes and exact-owner return navigation. No professional decisions or Microsoft effects.",
+      "build": {
+        "status": "PASS",
+        "warnings": 0,
+        "errors": 0,
+        "log": "/private/tmp/auditsphere-portfolio-final-build.log",
+        "selectorBuildLog": "/private/tmp/auditsphere-portfolio-selector-build.log"
+      },
+      "angular": {
+        "status": "PASS",
+        "passed": 319,
+        "files": 72,
+        "failed": 0,
+        "log": "/private/tmp/auditsphere-portfolio-ready-angular-tests.log"
+      },
+      "domain": {
+        "status": "PASS",
+        "passed": 5,
+        "failed": 0,
+        "skipped": 0,
+        "log": "/private/tmp/auditsphere-portfolio-domain.log"
+      },
+      "api": {
+        "status": "PASS",
+        "passed": 5,
+        "failed": 0,
+        "skipped": 0,
+        "log": "/private/tmp/auditsphere-portfolio-api.log"
+      },
+      "browser": {
+        "status": "PASS",
+        "passed": 6,
+        "failed": 0,
+        "skipped": 0,
+        "exitCode": 0,
+        "log": "/private/tmp/auditsphere-portfolio-browser-corrected.log"
+      },
+      "initialBrowser": {
+        "status": "FAILED",
+        "failed": 2,
+        "passed": 4,
+        "skipped": 0,
+        "exitCode": 1,
+        "log": "/private/tmp/auditsphere-portfolio-browser.log",
+        "cause": "Exact synthetic client-name selector omitted Holdings. Actual file download and scoped projections had passed before that selector timeout. No authorization relaxation."
+      },
+      "modelDrift": {
+        "status": "PASS",
+        "pendingChanges": false,
+        "log": "/private/tmp/auditsphere-portfolio-model.log"
+      },
+      "bundle": {
+        "status": "PASS",
+        "rawInitialBytes": 494890,
+        "estimatedTransferBytes": 125190,
+        "warningBudgetBytes": 500000,
+        "log": "/private/tmp/auditsphere-portfolio-final-parity-build.log",
+        "intermediateWarningLogs": [
+          "/private/tmp/auditsphere-portfolio-parity-angular-build.log",
+          "/private/tmp/auditsphere-portfolio-ready-angular-build.log"
+        ],
+        "repair": "Preserved native Material input page-size control and platform timestamp formatting avoid expanding initial shared dependencies. Budgets unchanged. CLI estimates are not measured browser performance."
+      },
+      "builtInBrowser": {
+        "status": "PASS",
+        "environment": "Owned synthetic database with external effects disabled",
+        "desktop": {
+          "width": 1280,
+          "contentWidth": 1265
+        },
+        "mobile": {
+          "width": 390,
+          "contentWidth": 375
+        },
+        "proof": [
+          "/private/tmp/auditsphere-angular-final-portfolio-desktop.png",
+          "/private/tmp/auditsphere-angular-final-portfolio-mobile.png",
+          "/private/tmp/auditsphere-angular-portfolio-client-restriction.png"
+        ],
+        "checks": [
+          "Summary only for scoped client/engagement; hidden sibling client absent",
+          "Client detail authority denial preserved; filter and selected client restored on return",
+          "Client page-size change preserved on reload",
+          "No browser console warnings/errors observed",
+          "Sign-out removes protected portfolio and synthetic client text",
+          "Client staff destination redirects to restricted portal"
+        ],
+        "downloadBoundary": "Built-in UI showed successful CSV request. Built-in download-event capture timed out; exact file content is asserted separately by provider-free API and Playwright journeys.",
+        "cleanup": "Owned preview processes/databases joined with terminal zero; temporary browser tabs closed and viewport reset"
+      },
+      "fingerprintsPath": "/private/tmp/auditsphere-portfolio-final-hashes.json",
+      "fingerprintsUnchanged": true,
+      "assemblyRepairBoundary": "Only E2E test assembly changed after initial Domain/API acceptance; runtime assemblies unchanged.",
+      "publication": {
+        "status": "READY_FOR_PUSH",
+        "branch": "master"
+      },
+      "remaining": [
+        "Recent table row-pager presentation parity",
+        "Full client/engagement source-action and form/draft acceptance",
+        "Whole migration quality/cutover/retirement gates"
+      ],
+      "evidenceBoundary": "Local synthetic scope/API/UI evidence only; no live Microsoft, professional or production acceptance. Canonical full regression is an earlier source checkpoint."
     }
   },
   "documentationWork": {
@@ -5075,7 +5196,7 @@
     "implementationStatus": "PARTIAL",
     "acceptanceStatus": "PARTIAL",
     "scope": "Standalone API and native Angular capability slices preserve Application authorization, exact financial inputs, durable operations and independent human gates. Legacy Blazor remains available for rollback until wider parity and retirement acceptance.",
-    "nextAction": "Publish verified responsive shell/bookmark step; finish native portfolio summary/export source parity, remaining source-action and quality gates. Join the frozen canonical whole-solution run before updating broad acceptance.",
+    "nextAction": "Publish native portfolio after corrected browser terminal success and frozen fingerprint confirmation. Join the earlier canonical whole-solution command before updating broad acceptance. Continue client/engagement source-action and migration quality gates.",
     "branch": "master"
   },
   "localEvidence": [
