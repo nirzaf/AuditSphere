@@ -71,12 +71,18 @@
     @if (!result.candidates.length) { <p>No release candidates match in this recent window.</p> }
     @else { <div class="table-scroll"><table><caption>Recent authorized release candidates</caption>
       <thead><tr><th>Client / candidate</th><th>Target revision</th><th>Status</th><th>Created (local time)</th><th>Inspect</th></tr></thead>
-      <tbody>@for (r of result.candidates; track r.id) { <tr>
+      <tbody>@for (r of candidates().items; track r.id) { <tr>
         <td>{{ r.clientName }}<small>{{ r.id }}</small></td><td>{{ r.targetRevision }}</td>
         <td><audit-status [value]="r.status" /></td><td><time [attr.datetime]="r.createdAt">{{ createdAt(r.createdAt) }}</time></td>
         <td><a [routerLink]="['/app/releases', r.id]">Open candidate</a></td>
       </tr> }</tbody>
-    </table></div> }
+    </table></div>
+    <nav aria-label="Recent candidate pages">
+      <mat-form-field><mat-label>Candidates per page</mat-label><select matNativeControl #candidateSize [value]="candidates().pageSize" (change)="recentSize('candidate', candidateSize.value)"><option value="10">10</option><option value="25">25</option></select></mat-form-field>
+      <button matButton [disabled]="candidates().page === 0" (click)="recentPage('candidate', candidates().page - 1)">Previous candidates</button>
+      <span>Page {{ candidates().page + 1 }} · {{ candidates().total }} matches in the recent window</span>
+      <button matButton [disabled]="(candidates().page + 1) * candidates().pageSize >= candidates().total" (click)="recentPage('candidate', candidates().page + 1)">Next candidates</button>
+    </nav> }
   </section>
   <section aria-label="Recent financial packages">
     <h2>Recent financial packages</h2>
@@ -84,10 +90,16 @@
     @if (!result.packages.length) { <p>No financial packages match in this recent window.</p> }
     @else { <div class="table-scroll"><table><caption>Recent authorized financial packages</caption>
       <thead><tr><th>Client / package</th><th>Framework / period</th><th>Status</th><th>Inspect</th></tr></thead>
-      <tbody>@for (r of result.packages; track r.id) { <tr>
+      <tbody>@for (r of packages().items; track r.id) { <tr>
         <td>{{ r.clientName }}<small>{{ r.id }}</small></td><td>{{ r.framework }}<small>{{ r.periodStart }} to {{ r.periodEnd }}</small></td>
         <td><audit-status [value]="r.status" /></td><td><a [routerLink]="['/app/accounting/packages', r.id]">Open package</a></td>
       </tr> }</tbody>
-    </table></div> }
+    </table></div>
+    <nav aria-label="Recent package pages">
+      <mat-form-field><mat-label>Packages per page</mat-label><select matNativeControl #packageSize [value]="packages().pageSize" (change)="recentSize('package', packageSize.value)"><option value="10">10</option><option value="25">25</option></select></mat-form-field>
+      <button matButton [disabled]="packages().page === 0" (click)="recentPage('package', packages().page - 1)">Previous packages</button>
+      <span>Page {{ packages().page + 1 }} · {{ packages().total }} matches in the recent window</span>
+      <button matButton [disabled]="(packages().page + 1) * packages().pageSize >= packages().total" (click)="recentPage('package', packages().page + 1)">Next packages</button>
+    </nav> }
   </section>
 }

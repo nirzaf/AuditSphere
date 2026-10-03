@@ -4,7 +4,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { BehaviorSubject } from 'rxjs';
 import { Portfolio } from './portfolio';
-import { PortfolioNavigation, decodePortfolioWorkspace, portfolioLocation } from './portfolio-contracts';
+import { PortfolioNavigation, decodePortfolioWorkspace, portfolioLocation, portfolioWindow } from './portfolio-contracts';
 import { SessionService } from '../../core/session';
 import { Api, CommandOutcome } from '../../core/api';
 const id = '11111111-1111-4111-8111-111111111111';
@@ -16,6 +16,14 @@ const payload = {
 };
 
 describe('Portfolio workspace and navigation contracts', () => {
+  it('pages only the authorized recent window and clamps a stale page after filtering', () => {
+    const rows = Array.from({ length: 25 }, (_, i) => i);
+    expect(portfolioWindow(rows, 2, 10).items).toEqual([20,21,22,23,24]);
+    expect(portfolioWindow(rows.slice(0, 3), 2, 10).page).toBe(0);
+    expect(portfolioWindow(rows, 0, 25).items).toHaveLength(25);
+    expect(() => portfolioWindow([...rows, 26], 0, 10)).toThrow();
+    expect(() => portfolioWindow(rows, 0, 100)).toThrow();
+  });
   it('preserves exact revisions and rejects invalid or unbounded projections', () => {
     expect(decodePortfolioWorkspace(payload).candidates[0].targetRevision).toBe('9007199254740993');
     expect(() => decodePortfolioWorkspace({ ...payload, recentLimit: 1000 })).toThrow();
@@ -80,6 +88,15 @@ describe('Native portfolio reads and export fences', () => {
     f.componentInstance.resizePage('25');
     expect(navigate).toHaveBeenCalledWith([], expect.objectContaining({ queryParams: { search: 'client', page: 0, pageSize: 25 } }));
     expect(f.componentInstance.createdAt('bad')).toBe('Unsupported timestamp');
+  });
+  it('keeps candidate and package pagers separate and includes no hidden records', () => {
+    const f = open(); read().flush({ ...payload, candidateTotal: 25, candidates: Array.from({ length: 25 }, (_, i) =>
+      ({ ...payload.candidates[0], id: `11111111-1111-4111-8111-${String(i + 1).padStart(12,'0')}` })) }); TestBed.tick();
+    expect(f.componentInstance.candidates().items).toHaveLength(10);
+    f.componentInstance.recentPage('candidate', 2); expect(f.componentInstance.candidates().items).toHaveLength(5);
+    expect(f.componentInstance.packages().page).toBe(0);
+    f.componentInstance.recentSize('candidate', '25'); expect(f.componentInstance.candidates().items).toHaveLength(25);
+    f.componentInstance.recentPage('candidate', 100); expect(f.componentInstance.candidates().page).toBe(0);
   });
   it('restores an explicit client-list return without reusing protected results', async () => {
     TestBed.inject(PortfolioNavigation).remember({ search: 'restored', page: 2, pageSize: 25, selected: id });

@@ -47,10 +47,11 @@
       "evidencePointer": "PortfolioWorkspaceTests.RevocationDuringProjectionRefusesMixedScopesEvenWhenAnotherGrantRemains; AngularPortfolioJourneyTests"
     },
     {
-      "action": "recent-panel-row-pager-and-client-engagement-complete-parity",
-      "owner": "US-015 remaining source-action audit",
-      "disposition": "OPEN: native recent panels expose the bounded window rather than separate source table page-size controls. Client/engagement metadata, form/draft and broader quality acceptance remain independently reviewable.",
-      "evidencePointer": "angular-migration-backlog.json"
+      "action": "recent-panel-row-pagers",
+      "owner": "portfolioWindow / native independent candidate and package pagers",
+      "disposition": "Implemented preserved row-page controls inside the already authorized source window. Changed search clamps/reset pages; export continues to include matching window records rather than only the displayed table page.",
+      "evidencePointer": "portfolio-workspace.spec.ts; AngularPortfolioJourneyTests"
     }
-  ]
+  ],
+  "remaining": "Full client and engagement metadata/form/draft parity and wider migration quality/retirement acceptance remain open."
 }

@@ -8,7 +8,7 @@ import { MatInputModule } from '@angular/material/input';
 import { Api } from '../../core/api';
 import { SessionService } from '../../core/session';
 import { SHARED } from '../../core/ui';
-import { PortfolioNavigation, decodePortfolioWorkspace, portfolioLocation } from './portfolio-contracts';
+import { PortfolioNavigation, decodePortfolioWorkspace, portfolioLocation, portfolioWindow } from './portfolio-contracts';
 export { decodePortfolio } from './portfolio-contracts';
 export type { ClientRow, PortfolioPage } from './portfolio-contracts';
 
@@ -41,6 +41,12 @@ export class Portfolio {
   readonly exporting = signal(false);
   readonly message = signal('');
   readonly failed = signal(false);
+  private readonly candidatePage = signal(0);
+  private readonly packagePage = signal(0);
+  private readonly candidateSize = signal(10);
+  private readonly packageSize = signal(10);
+  readonly candidates = computed(() => portfolioWindow(this.view.data()?.candidates ?? [], this.candidatePage(), this.candidateSize()));
+  readonly packages = computed(() => portfolioWindow(this.view.data()?.packages ?? [], this.packagePage(), this.packageSize()));
   private version = 0;
   private destroyed = false;
   constructor() {
@@ -55,6 +61,7 @@ export class Portfolio {
       untracked(() => {
         this.version++;
         this.message.set(''); this.failed.set(false); this.exporting.set(false);
+        this.candidatePage.set(0); this.packagePage.set(0);
         const owner = this.owner();
         if (previousOwner && owner !== previousOwner) {
           this.identityFence.set(true); this.model.set({ search: '' }); this.navigation.read();
@@ -92,6 +99,16 @@ export class Portfolio {
   createdAt(value: string): string {
     const date = new Date(value);
     return Number.isFinite(date.getTime()) ? date.toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' }) : 'Unsupported timestamp';
+  }
+  recentPage(kind: 'candidate' | 'package', page: number): void {
+    const current = kind === 'candidate' ? this.candidates() : this.packages();
+    if (!Number.isSafeInteger(page) || page < 0 || page > Math.max(0, Math.ceil(current.total / current.pageSize) - 1)) return;
+    (kind === 'candidate' ? this.candidatePage : this.packagePage).set(page);
+  }
+  recentSize(kind: 'candidate' | 'package', size: string): void {
+    if (size !== '10' && size !== '25') return;
+    (kind === 'candidate' ? this.candidateSize : this.packageSize).set(Number(size));
+    (kind === 'candidate' ? this.candidatePage : this.packagePage).set(0);
   }
   select(id: string): void {
     const q = this.location();

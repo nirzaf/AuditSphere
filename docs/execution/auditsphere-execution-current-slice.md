@@ -13,6 +13,23 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Recent portfolio table controls and frozen regression result
+
+Candidate and package panels now independently page the already authorized recent
+window with the preserved row-size choices. Presentation changes fetch no extra
+records, cannot enlarge scope and do not change CSV semantics. Search/session changes
+reset the table pages; empty or shortened windows clamp safely. Angular checks and
+builds passed. The affected browser cohort passed after synchronizing the existing
+sign-out test with its asynchronous cookie response; content removal and API denial
+assertions remain. Built-in desktop/mobile checks passed against frozen assets.
+
+The earlier frozen canonical whole-solution regression has completed successfully.
+Source, production UI assets and assemblies matched before the owned worktree was
+reused. Its source identity, terminal results and retained evidence are recorded in
+`status.json`. Responsive shell and portfolio slices have separate newer evidence;
+they are excluded from the earlier whole-suite claim. Full client/engagement parity,
+quality gates, production cutover and retirement acceptance remain open.
+
 ## Native scoped portfolio summary, records and export
 
 The Application projection now owns summary counts, bounded recent candidates and

@@ -29,6 +29,13 @@ export function decodePortfolioWorkspace(value: unknown) {
     throw new Error('Invalid portfolio bounds');
   return v;
 }
+/** Paging only the already authorized recent window; never requests or implies a larger record set. */
+export function portfolioWindow<T>(rows: readonly T[], requestedPage: number, pageSize: number) {
+  if (rows.length > 25 || !Number.isSafeInteger(requestedPage) || requestedPage < 0 || (pageSize !== 10 && pageSize !== 25))
+    throw new Error('Invalid recent window');
+  const page = Math.min(requestedPage, Math.max(0, Math.ceil(rows.length / pageSize) - 1));
+  return { items: rows.slice(page * pageSize, (page + 1) * pageSize), total: rows.length, page, pageSize };
+}
 export interface PortfolioLocation { search: string; page: number; pageSize: number; selected: string | null; }
 export function portfolioLocation(get: (key: string) => string | null): PortfolioLocation | null {
   const search = get('search') ?? '', raw = get('page') ?? '0', selected = get('selected'), size = get('pageSize') ?? '25';

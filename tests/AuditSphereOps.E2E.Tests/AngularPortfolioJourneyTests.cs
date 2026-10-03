@@ -20,7 +20,7 @@ public sealed class AngularPortfolioJourneyTests
     {
       await using (var db = host.CreateDbContext())
       {
-        await AuditSphereOps.Domain.Tests.PortfolioWorkspaceSeed.PopulateAsync(db, a.Fixture, 3);
+        await AuditSphereOps.Domain.Tests.PortfolioWorkspaceSeed.PopulateAsync(db, a.Fixture, 26);
         await AuditSphereOps.Domain.Tests.PortfolioWorkspaceSeed.PopulateAsync(db, b.Fixture, 3);
       }
       var prefix = canonical ? "" : "/ui";
@@ -32,7 +32,14 @@ public sealed class AngularPortfolioJourneyTests
       await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(prefix + "/app"));
       await Assertions.Expect(page.Locator(".portfolio-clients tbody tr")).ToHaveCountAsync(1);
       await Assertions.Expect(page.GetByRole(AriaRole.Region, new() { Name = "Recent financial packages" }).Locator("tbody tr")).ToHaveCountAsync(2);
-      await Assertions.Expect(page.GetByRole(AriaRole.Region, new() { Name = "Recent release candidates" }).Locator("tbody tr")).ToHaveCountAsync(3);
+      var candidates = page.GetByRole(AriaRole.Region, new() { Name = "Recent release candidates" });
+      await Assertions.Expect(candidates.Locator("tbody tr")).ToHaveCountAsync(10);
+      await candidates.GetByRole(AriaRole.Button, new() { Name = "Next candidates", Exact = true }).ClickAsync();
+      await Assertions.Expect(candidates.Locator("tbody tr")).ToHaveCountAsync(10);
+      await candidates.GetByRole(AriaRole.Button, new() { Name = "Next candidates", Exact = true }).ClickAsync();
+      await Assertions.Expect(candidates.Locator("tbody tr")).ToHaveCountAsync(5);
+      await candidates.GetByLabel("Candidates per page", new() { Exact = true }).SelectOptionAsync("25");
+      await Assertions.Expect(candidates.Locator("tbody tr")).ToHaveCountAsync(25);
       Assert.DoesNotContain("HIDDEN-PORTFOLIO-B", await page.Locator("body").InnerTextAsync());
       await page.GetByRole(AriaRole.Textbox, new() { Name = "Search client name or ID" }).FillAsync("PORTFOLIO-A");
       await page.Locator("audit-portfolio").GetByRole(AriaRole.Button, new() { Name = "Search", Exact = true }).ClickAsync();
@@ -122,7 +129,12 @@ public sealed class AngularPortfolioJourneyTests
     var logoutPage = await logoutContext.NewPageAsync();
     await logoutPage.GotoAsync(origin + "/auth/sign-in?returnUrl="+Uri.EscapeDataString(prefix+"/app"));
     await Assertions.Expect(logoutPage.GetByRole(AriaRole.Heading, new() {Name = "Portfolio", Exact = true})).ToBeVisibleAsync();
-    await logoutPage.GetByRole(AriaRole.Button, new() {Name = "Sign out", Exact = true}).ClickAsync();
+    var signedOut = await logoutPage.RunAndWaitForResponseAsync(
+      () => logoutPage.GetByRole(AriaRole.Button, new() {Name = "Sign out", Exact = true}).ClickAsync(),
+      response => response.Url.EndsWith("/api/ui/sign-out", StringComparison.Ordinal)
+        && response.Request.Method == "POST");
+    Assert.Equal(204, signedOut.Status);
+    await signedOut.FinishedAsync();
     await Assertions.Expect(logoutPage.GetByRole(AriaRole.Heading, new() {Name = "Access unavailable"})).ToBeVisibleAsync();
     Assert.Equal(401, (await logoutContext.APIRequest.GetAsync(origin + "/api/ui/session")).Status);
     Assert.Empty(errors);
