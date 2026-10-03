@@ -45,3 +45,17 @@ describe('Acceptance workspace contract', () => {
     ).toThrow();
   });
 });
+
+describe('Assessment context bounds', () => {
+  it.each(['0', '01', '9223372036854775808', '9999999999999999999'])(
+    'refuses unsafe generation %s',
+    (generation) => {
+      expect(() => decodeChecklist({ ...context, generation })).toThrow();
+    },
+  );
+  it('refuses unsupported professional decisions', () => {
+    expect(() =>
+      decodeChecklist({ ...context, currentDecision: 'AutomaticallyAccepted' }),
+    ).toThrow();
+  });
+});

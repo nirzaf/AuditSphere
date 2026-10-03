@@ -67,6 +67,77 @@ public sealed class AcceptanceChecklistTests
   }
 
   [Fact]
+  public async Task AssessmentProjectionPreservesExactDecisionAndDerivedProgress()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var initial = await AssessmentWorkspaceQuery.GetAsync(db, w.Staff, w.ClientId);
+    Assert.True(initial.Succeeded, initial.Message);
+    Assert.Equal((0, 62), (initial.Value!.Answered, initial.Value.Total));
+    Assert.Equal(62, initial.Value.Sections.Sum(s => s.Total));
+    Assert.Null(initial.Value.SelectedDecision);
+    Assert.Null(initial.Value.Repository);
+    Assert.True((await AcceptanceChecklistService.RecordAnswerAsync(db, w.Staff, w.ClientId, "CE-001", "Yes", "DOC")).Succeeded);
+    var decision = await AcceptanceDecisionService.RecordAsync(db, w.Partner,
+      new(w.ClientId, null, "AccountingOnly", "Declined", "Exact historical rationale", null, 1));
+    Assert.True(decision.Succeeded, decision.Message);
+    var route = await AssessmentRouteQuery.ResolveAsync(db, w.Staff, decision.Value);
+    Assert.Equal(decision.Value, route.Value!.DecisionId);
+    Assert.Equal(w.ClientId, route.Value.ClientId);
+    Assert.Null((await AssessmentRouteQuery.ResolveAsync(db, w.Staff, w.ClientId)).Value!.DecisionId);
+    var engagementId = await db.Engagements.Where(e => e.PracticeClientId == w.ClientId).Select(e => e.Id).SingleAsync();
+    var engagementDecision = await AcceptanceDecisionService.RecordAsync(db, w.Partner,
+      new(w.ClientId, engagementId, "AccountingOnly", "Declined", "Engagement-specific decision", null, 1));
+    Assert.True(engagementDecision.Succeeded, engagementDecision.Message);
+    var engagementView = await AssessmentWorkspaceQuery.GetAsync(db, w.Staff, w.ClientId, engagementDecision.Value);
+    Assert.True(engagementView.Succeeded, engagementView.Message);
+    Assert.Equal(engagementId, engagementView.Value!.SelectedDecision!.EngagementId);
+    Assert.False(engagementView.Value.Historical);
+    Assert.False(engagementView.Value.Checklist.CanEdit);
+    var guard = await db.ClientSafetyStates.SingleAsync(c => c.Id == w.ClientId);
+    guard.InputGeneration = 2;
+    await db.SaveChangesAsync();
+    var historical = await AssessmentWorkspaceQuery.GetAsync(db, w.Staff, w.ClientId, decision.Value);
+    Assert.True(historical.Succeeded, historical.Message);
+    Assert.True(historical.Value!.Historical);
+    Assert.Equal(decision.Value, historical.Value.SelectedDecision!.Id);
+    Assert.Equal("Exact historical rationale", historical.Value.SelectedDecision.Rationale);
+    Assert.Equal("partner", historical.Value.SelectedDecision.DecidedBy);
+    Assert.Equal("1", historical.Value.SelectedDecision.Generation);
+    Assert.Equal("2", historical.Value.Checklist.Generation);
+    Assert.False(historical.Value.Checklist.CanEdit);
+    Assert.False(historical.Value.Checklist.CanReview);
+    Assert.False(historical.Value.Checklist.CanDecide);
+    Assert.False(historical.Value.Checklist.CanStartContinuance);
+    var current = await AssessmentWorkspaceQuery.GetAsync(db, w.Staff, w.ClientId);
+    Assert.False(current.Value!.Historical);
+    Assert.Null(current.Value.SelectedDecision);
+    Assert.True(current.Value.Checklist.CanEdit);
+  }
+
+  [Fact]
+  public async Task AssessmentProjectionRefusesForeignUnknownAndRevokedContexts()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var other = await SeedAsync(pg);
+    var foreign = await AcceptanceDecisionService.RecordAsync(db, other.Partner,
+      new(other.ClientId, null, "AccountingOnly", "Deferred", "Foreign private rationale", null, 1));
+    Assert.True(foreign.Succeeded, foreign.Message);
+    var missing = await AssessmentWorkspaceQuery.GetAsync(db, w.Staff, w.ClientId, Guid.NewGuid());
+    var wrong = await AssessmentWorkspaceQuery.GetAsync(db, w.Staff, w.ClientId, foreign.Value);
+    Assert.Equal((missing.ErrorCode, missing.Message), (wrong.ErrorCode, wrong.Message));
+    Assert.Null(wrong.Value);
+    Assert.False((await AssessmentRouteQuery.ResolveAsync(db, w.Staff, foreign.Value)).Succeeded);
+    var user = await db.Users.SingleAsync(u => u.Id == w.Staff.UserId);
+    user.SessionEpoch++;
+    await db.SaveChangesAsync();
+    Assert.False((await AssessmentWorkspaceQuery.GetAsync(db, w.Staff, w.ClientId)).Succeeded);
+  }
+
+  [Fact]
   public async Task SpecialistReviewCommandsFenceGenerationStatusAndClientIdentity()
   {
     await using var pg = await PgTestSchema.CreateAsync();

@@ -4,6 +4,7 @@
     <IsPackable>false</IsPackable>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="../AuditSphereOps.Domain.Tests/AssessmentParitySeed.cs" Link="Fixtures/AssessmentParitySeed.cs" />
     <Compile Include="../AuditSphereOps.Domain.Tests/ClientConversionReviewSeed.cs" Link="Fixtures/ClientConversionReviewSeed.cs" />
   </ItemGroup>
   <ItemGroup>
