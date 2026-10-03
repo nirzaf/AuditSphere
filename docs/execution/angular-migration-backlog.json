@@ -96,7 +96,7 @@
       "id": "US-016",
       "title": "Migrate CRM, quotation and commercial document workflows",
       "status": "PARTIAL",
-      "scope": "Native leads, opportunities, proposals, quotation workbench, commercial documents, fee agreements and settings exceed the retired host in several flows (opportunity creation, revision concurrency). Lead form draft persistence is implemented. Proposal read-model enrichment and draft hooks for settings/quotation/documents/fee-agreement forms remain open; final cutover and retirement remain acceptance gates."
+      "scope": "Native leads, opportunities, proposals, quotation workbench, commercial documents, fee agreements and settings exceed the retired host in several flows. Lead form drafts, lead summary metrics/recorded dates/refresh and the full proposal read-model (owner, author, reviewer, delivery/response timestamps, supersedes, per-revision sent/response) are implemented with local verification. Draft hooks for settings/quotation/documents/fee-agreement forms remain open; final cutover and retirement remain acceptance gates."
     },
     {
       "id": "US-017",
@@ -258,7 +258,7 @@
       "id": "US-043",
       "title": "Set and meet measurable performance budgets",
       "status": "PARTIAL",
-      "scope": "Angular build budgets and lazy routes are enforced. Production-like cold/warm/large-dataset measurements and acceptance remain open."
+      "scope": "Angular build budgets and lazy routes are enforced. A local production-like budget journey now covers cold signed-in first paint, warm lazy-route load, client-side router navigation and a 60-lead dataset render with recorded measurements in status.json; sustained-load, network-constrained and production deployment measurements remain open."
     },
     {
       "id": "US-044",
@@ -276,7 +276,7 @@
       "id": "US-046",
       "title": "Document Angular conventions and safe AI-assisted implementation",
       "status": "PARTIAL",
-      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+      "scope": "The Angular conventions and safe AI-assisted implementation document is CURRENT under docs/architecture, covering layer boundaries, decode-at-the-edge, draft/assent rules, session fencing, test-strength rules and AI safety boundaries; ongoing adherence and any new convention changes are recorded with their slices."
     },
     {
       "id": "US-047",
