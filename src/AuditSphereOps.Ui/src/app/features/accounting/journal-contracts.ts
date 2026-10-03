@@ -22,7 +22,7 @@ export interface JournalFields {
 }
 const line = obj({ accountCode: str(32), debit: dec, credit: dec });
 const action = oneOf('UPDATE', 'SUBMIT', 'RETURN', 'POST', 'REVERSE');
-const operation = oneOf('CREATE', 'UPDATE', 'SUBMIT', 'RETURN', 'POST', 'REVERSE');
+const operation = oneOf('CREATE', 'UPDATE', 'SUBMIT', 'RETURN', 'POST', 'REVERSE', 'MANAGEMENT');
 const status = oneOf('Draft', 'Submitted', 'Returned', 'Posted', 'ReflectedInSource', 'Void');
 const priorStatus = oneOf(
   'NOT_CREATED',
@@ -48,6 +48,15 @@ export const decodeJournalReceipt = obj({
   reason: str(4000),
   evidenceReference: str(2000),
   createdAt: instant,
+});
+export const decodeManagementDecision = obj({
+  id: guid,
+  journalRevision: nat,
+  decision: oneOf('ACCEPTED', 'REJECTED', 'PARTIAL'),
+  evidenceMode: oneOf('SIGNED_IN', 'OFFLINE'),
+  evidenceReference: str(2000),
+  decidedByUserId: nullable(guid),
+  decidedAt: instant,
 });
 const view = obj({
   journalId: guid,
@@ -161,6 +170,7 @@ export const decodeJournalHistory = obj({
   receipt: decodeJournalReceipt,
   before: snapshot,
   after: snapshot,
+  management: nullable(decodeManagementDecision),
 });
 export function journalFields(raw: unknown): JournalFields | null {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;

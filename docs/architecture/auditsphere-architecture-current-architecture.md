@@ -77,6 +77,12 @@ this document wins and the source text remains a historical requirement record.
 
 The owner-requested [Angular migration](auditsphere-angular-migration-current.md) uses `AuditSphereOps.Api` as the ASP.NET Core HTTP backend and `AuditSphereOps.Ui` as the Angular frontend. API owns the authorized contracts, authentication/consent and protected file transports. The legacy Web host composes that same API runtime and adds Blazor presentation for rollback during parity work. API references no Web or MudBlazor code. Domain, Application, Infrastructure, Worker, database and Microsoft permission boundaries are preserved. Full feature parity and final Blazor retirement remain acceptance gates.
 
+Native journal management evidence composes the existing local treatment command in Application.
+Client and staff routes derive signed-in versus offline evidence from current identity, preserve
+exact draft revision and scoped epoch/period/source guards, and commit immutable evidence with
+idempotent receipts. Client disposition grants no technical posting or external-book authority.
+The migration detail and code map describe separate reflection/application gates.
+
 ## Physical organization rules
 
 1. **Large classes are split into capability-focused partial files** without changing public

@@ -18,7 +18,8 @@ public sealed record JournalActionReceipt(Guid Id, Guid RequestId, string Reques
 public sealed record JournalReceiptLookup(bool Found, JournalActionReceipt? Receipt);
 public sealed record JournalRevisionSnapshot(Guid JournalId, long Revision, string Status,
   string Reason, string EvidenceReference, IReadOnlyList<JournalLineView> Lines);
-public sealed record JournalHistoricalRevision(JournalActionReceipt Receipt, JournalRevisionSnapshot Before, JournalRevisionSnapshot After);
+public sealed record JournalHistoricalRevision(JournalActionReceipt Receipt, JournalRevisionSnapshot Before, JournalRevisionSnapshot After,
+  JournalManagementDecisionView? Management = null);
 public sealed record JournalReviewView(Guid JournalId, Guid ClientId, Guid EngagementId, string JournalNumber,
   string Status, long Revision, string ReviewBasis, Guid DatasetId, long DatasetRevision, string DatasetDigest,
   Guid? PeriodId, string PeriodStart, string PeriodEnd, Guid? BookId, string Currency, string Purpose, string Origin,
@@ -135,8 +136,11 @@ public static partial class AdjustmentJournalWorkspace
       x.ClientId == view.Value!.ClientId && x.EngagementId == view.Value.EngagementId && (x.JournalId == id || x.ResultJournalId == id), ct);
     if (e is null) return Fail<JournalHistoricalRevision>(ErrorCodes.ScopeDenied, "Access denied.");
     var final = await GetAsync(db, evidenceDb, actor, id, ct: ct);
+    using var retained = JsonDocument.Parse(e.AfterJson);
+    var after = e.Action == "MANAGEMENT" ? retained.RootElement.GetProperty("Journal") : retained.RootElement;
+    var management = e.Action == "MANAGEMENT" ? retained.RootElement.GetProperty("Management").Deserialize<JournalManagementDecisionView>() : null;
     return final.Succeeded ? CommandResult<JournalHistoricalRevision>.Ok(new(Receipt(e),
-      JsonSerializer.Deserialize<JournalRevisionSnapshot>(e.BeforeJson)!, JsonSerializer.Deserialize<JournalRevisionSnapshot>(e.AfterJson)!)) :
+      JsonSerializer.Deserialize<JournalRevisionSnapshot>(e.BeforeJson)!, after.Deserialize<JournalRevisionSnapshot>()!, management)) :
       Fail<JournalHistoricalRevision>(final.ErrorCode!, final.Message!);
   }
 

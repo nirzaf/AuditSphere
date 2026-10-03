@@ -11,6 +11,7 @@ public static partial class UiEndpoints
 {
   private static void MapJournalReviewEndpoints(RouteGroupBuilder group)
   {
+    MapJournalManagementEndpoints(group);
     group.MapGet("/datasets/{id:guid}/journal-drafts", (Guid id, HttpContext http) =>
       ReadAsync(http, (db, actor, ct) => AdjustmentJournalWorkspace.GetCreationAsync(db, actor, id, ct)));
     group.MapGet("/datasets/{id:guid}/journal-drafts/receipts/{requestId:guid}", (Guid id, Guid requestId, string requestHash, HttpContext http) =>

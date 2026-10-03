@@ -826,3 +826,12 @@ For the complete documentation index, authority hierarchy, current requirements,
 - `features/accounting/journal-create.ts`, `.html`, `journal-creation-contracts.ts`: typed purpose/origin fields, exact line review, optional supersession, tab recovery and uncertain-result acknowledgment. `engagements/tb-source.ts` supplies the scoped entry link.
 - `NativeJournalCreationEvidence`: extends existing immutable journal action evidence with an explicit no-prior-journal state; rollback preserves retained creation events.
 - `JournalCreationApiTests`, `AngularJournalCreationJourneyTests` and `journal-create.spec.ts`: concurrency, original-line retention, precision, prior revision, authority, keyboard and recovery checks. Observed results live in `status.json`.
+
+
+### Native journal management response
+
+- `Accounting/JournalManagementWorkspace.cs`: fixed client/staff evidence modes, scoped bounded portal queue, exact previews, serialized decisions, final authority, idempotent receipts and unknown-result lookup.
+- `Ui/UiEndpoints.JournalManagement.cs`: authenticated client/staff routes and CSRF-protected review/write contracts; explicit SPA route ownership remains in the API catalogue.
+- `features/accounting/journal-management.ts`, `.html` and `journal-management-contracts.ts`: exact financial review, fresh assent, staff tab recovery, in-memory client fields and pending-result acknowledgment. `features/portal/journals.ts` supplies the client entry queue.
+- `NativeJournalManagementEvidence`: exact current draft insertion, append-only decisions, reviewed-context/line freezing and the existing action constraint extension.
+- `JournalManagementApiTests`, `AngularJournalManagementJourneyTests` and `journal-management.spec.ts`: evidence modes, current scope/epoch, stale context, immutable revision, concurrent receipt and browser recovery checks. Executed outcomes live in `status.json`.

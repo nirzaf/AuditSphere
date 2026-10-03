@@ -444,7 +444,7 @@ management evidence; downloading them is neither external posting nor package ap
 
 The additive action-evidence migration and returned-line guard are exercised only in owned test
 databases. Rollback refuses deletion of retained action evidence. Native creation is described
-below. Management response and reflection/application controls, broader accounting parity, production-like
+below. Native management response is described below. Reflection/application controls, broader accounting parity, production-like
 acceptance, cutover and Blazor retirement remain open. Executed verification lives in `status.json`.
 
 ### Native journal creation
@@ -471,3 +471,35 @@ requires acknowledgment of its retained receipt. The creation-evidence migration
 append-only events and refuses rollback while such evidence exists. Owned local tests exercise
 it; shared Development and production are not migrated. Management/client-response and
 reflection/application controls, wider migration acceptance and retirement remain open.
+
+
+### Native journal management response
+
+The client portal exposes a bounded, currently authorized journal queue and an exact-revision
+management review. The queue checks the exact client/engagement parent and excludes group-only
+eliminations; those records remain outside both client and offline staff management routes.
+A signed-in client can accept, reject or partially accept the reviewed draft
+only after required first-sign-in completion. The separate staff route records evidenced offline
+management disposition; its identity never represents client authentication. Evidence mode is
+derived by Application from the current user and fixed route contract, not from browser input.
+
+A complete source/period/currency/line review and explicit fresh assent precede recording.
+Partial acceptance requires evidence identifying accepted and rejected portions and never
+applies a remainder automatically. Scope, session epoch, professional work, period/book, source,
+safety and file-freeze guards are rechecked in the serialized transaction. The existing local
+management command and immutable action receipt commit together. Identical concurrent requests
+recover the original result; changed intent is refused. Database guards bind the exact current
+draft revision and protect the decision, its reviewed context and lines after recording.
+A changed treatment needs a new linked journal.
+
+Management disposition leaves technical state unchanged. Submission, independent technical
+posting, source-reflection reconciliation and financial-package eligibility/application are
+separate decisions. Signed-in client identity and staff offline evidence remain distinguishable
+in the retained record and journal history. Unknown browser acknowledgments fence further writes
+and navigation until scoped receipt reconciliation and explicit acknowledgment. Staff tab recovery
+stores only bounded editable fields and request metadata, excluding assent; client response fields
+remain in memory. Current session/scope loss clears protected context and fences late responses.
+
+The additive management-evidence migration is exercised only in owned synthetic databases.
+Shared Development/production migration application and full story, QA, cutover and retirement
+acceptance remain open. Observed verification and initial failures live in `status.json`.

@@ -81,6 +81,11 @@
       />
     </section>
   }
+  <p class="actions">
+    <a [routerLink]="['/app/accounting/journals', j.journalId, 'management']"
+      >Review management response</a
+    >
+  </p>
   <section class="panel" aria-label="Current journal lines">
     <h2>Retained journal lines</h2>
     <div class="table-scroll" tabindex="0" role="region" aria-label="Journal line scroll area">
@@ -377,6 +382,18 @@
       <section class="panel" aria-label="Retained journal revision evidence">
         <h2>Before / after retained revision</h2>
         <button matButton (click)="historyId.set('')">Close journal revision evidence</button>
+        @if (h.management; as m) {
+          <h3>Retained management disposition</h3>
+          <p>{{ m.decision }} · {{ m.evidenceMode }} · exact revision {{ m.journalRevision }}</p>
+          <p>{{ m.evidenceReference }} · {{ m.decidedAt }} UTC</p>
+          <p>
+            {{
+              m.decidedByUserId
+                ? 'Authenticated client identity: ' + m.decidedByUserId
+                : 'Offline evidence recorded by the event actor; no client sign-in is claimed.'
+            }}
+          </p>
+        }
         @for (snapshot of [h.before, h.after]; track $index) {
           @if (snapshot.status === 'NOT_CREATED') {
             <h3>Before creation</h3>

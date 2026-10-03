@@ -2368,3 +2368,18 @@ journal while retaining it unchanged. Unknown responses require receipt reconcil
 acknowledgment; tab fields never restore assent. The additive event migration is exercised only
 in disposable databases. Executed checks are recorded in `status.json`; management responses,
 reflection/application and full migration acceptance remain open.
+
+
+### Native journal management responses
+
+The owned Angular slice adds a bounded scoped client queue, exact management review and separate
+staff offline evidence. Application derives evidence mode, fences exact current source/journal
+context and commits the decision with its immutable actor-owned receipt. Database guards freeze
+reviewed lines/context and retain client identity separately from offline staff recording.
+Unknown acknowledgment recovery requires an explicit scoped receipt check and acknowledgment;
+client fields remain in memory and staff tab recovery excludes assent. Technical posting and
+source/package application remain separate. Final isolated backend, Angular, affected Domain/browser,
+model-drift and built-in browser gates passed as recorded in `status.json`; wider migration remains open. The completed frozen journal
+regression has terminal acceptance with unchanged source/artifacts. Creation regression remains
+independent and failed on retained legacy browser timeouts; its corrected affected cohort is a
+separate pass. Overlapping source-reflection edits were preserved outside this owned worktree.

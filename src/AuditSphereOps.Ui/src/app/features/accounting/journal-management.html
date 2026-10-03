@@ -1,0 +1,232 @@
+<a [routerLink]="client() ? '/portal' : '/app/accounting/journals'"
+  >Back to {{ client() ? 'client portal' : 'adjustment journals' }}</a
+>
+<audit-page-header
+  title="Journal management response"
+  eyebrow="Separate management authority"
+  description="Review the exact journal revision. A management disposition does not post a treatment or apply it to source books or a financial package."
+/>
+<button matButton="outlined" (click)="refresh()" [disabled]="busy()">
+  Refresh management review
+</button>
+<audit-state [loading]="ws.loading()" [error]="ws.error()" label="scoped management review" />
+@if (ws.data(); as v) {
+  <section class="panel" aria-label="Exact management journal context">
+    <h2>{{ v.journalNumber }} · revision {{ v.revision }} <audit-status [value]="v.status" /></h2>
+    <dl class="facts">
+      <dt>Purpose</dt>
+      <dd>{{ v.purpose }}</dd>
+      <dt>Source / revision</dt>
+      <dd>
+        <code>{{ v.datasetId }}</code> · {{ v.datasetRevision }}
+      </dd>
+      <dt>Source SHA-256</dt>
+      <dd>
+        <code>{{ v.datasetDigest }}</code>
+      </dd>
+      <dt>Period / currency</dt>
+      <dd>{{ v.periodStart }} to {{ v.periodEnd }} · {{ v.currency }}</dd>
+      <dt>Proposed treatment / evidence</dt>
+      <dd>{{ v.reason }} · {{ v.evidenceReference }}</dd>
+      <dt>Evidence mode</dt>
+      <dd>
+        {{
+          v.evidenceMode === 'SIGNED_IN'
+            ? 'Your authenticated client response'
+            : 'Staff records offline management evidence'
+        }}
+      </dd>
+    </dl>
+    <p>
+      Acceptance, rejection and partial acceptance are human management dispositions. Partial
+      acceptance needs evidence identifying the accepted and rejected portions; it does not
+      automatically apply a remainder.
+    </p>
+    @if (v.blocker) {
+      <p role="status">{{ v.blocker }}</p>
+    }
+    @if (!client()) {
+      <a [routerLink]="['/app/accounting/journals', v.journalId]">Open technical journal review</a>
+    }
+  </section>
+  <section class="panel" aria-label="Management journal lines">
+    <h2>Exact proposed lines</h2>
+    <div class="table-scroll" tabindex="0" role="region" aria-label="Management line scroll area">
+      <table>
+        <caption>
+          Complete journal · exact amounts in
+          {{
+            v.currency
+          }}
+        </caption>
+        <thead>
+          <tr>
+            <th>Account</th>
+            <th>Debit</th>
+            <th>Credit</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (l of v.lines; track $index) {
+            <tr>
+              <th scope="row">{{ l.accountCode }}</th>
+              <td class="number">{{ l.debit }}</td>
+              <td class="number">{{ l.credit }}</td>
+            </tr>
+          }
+        </tbody>
+        <tfoot>
+          <tr>
+            <th scope="row">Complete totals</th>
+            <td class="number">{{ v.totalDebit }}</td>
+            <td class="number">{{ v.totalCredit }}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  </section>
+  @if (v.management; as m) {
+    <section class="panel" aria-label="Persisted management response">
+      <h2>Retained management response</h2>
+      <p>{{ m.decision }} · {{ m.evidenceMode }} · exact revision {{ m.journalRevision }}</p>
+      <p>{{ m.evidenceReference }} · {{ m.decidedAt }} UTC</p>
+      <p>
+        {{
+          m.decidedByUserId
+            ? 'Authenticated client identity: ' + m.decidedByUserId
+            : 'Offline evidence; no client authentication is claimed.'
+        }}
+      </p>
+      <p>
+        This decision freezes edits to the reviewed revision. A changed treatment requires a new
+        linked journal.
+      </p>
+    </section>
+  }
+  @if (pending(); as p) {
+    <section class="panel" aria-label="Pending management response">
+      <h2>Unconfirmed management response</h2>
+      <p>
+        Request <code>{{ p.requestId }}</code> · intent <code>{{ p.requestHash }}</code>
+      </p>
+      <button matButton="outlined" (click)="reconcile()" [disabled]="busy()">
+        Check retained management receipt
+      </button>
+      @if (receipt()) {
+        <button matButton (click)="acknowledge()" [disabled]="busy()">
+          Acknowledge retained management receipt
+        </button>
+      }
+    </section>
+  }
+  @if (receipt(); as r) {
+    <section class="panel" aria-label="Recovered management receipt">
+      <h2>Response retained</h2>
+      <p>
+        {{ r.management.decision }} · {{ r.management.evidenceMode }} · revision
+        {{ r.management.journalRevision }}
+      </p>
+      <p>{{ r.action.reason }} · {{ r.management.evidenceReference }}</p>
+      <p>
+        Recorded actor <code>{{ r.action.actorId }}</code> · {{ r.action.createdAt }} UTC
+      </p>
+    </section>
+  }
+  @if (draftAvailable() && !receipt()) {
+    <section class="panel">
+      <p>
+        Saved fields are for the same staff identity, session and exact review basis. Restoring
+        excludes assent.
+      </p>
+      <button matButton (click)="restoreDraft()" [disabled]="busy() || uncertain()">
+        Restore management response fields
+      </button>
+    </section>
+  }
+  @if (v.canDecide && !receipt()) {
+    <section class="panel" aria-label="Management response editor">
+      <h2>{{ client() ? 'Your management disposition' : 'Record offline management evidence' }}</h2>
+      @if (!client()) {
+        <p>
+          Record the client's evidenced decision. Staff recording offline evidence does not
+          impersonate a signed-in client.
+        </p>
+      }
+      <form (submit)="$event.preventDefault(); prepare()">
+        <fieldset [disabled]="busy() || uncertain()">
+          <legend>Management response fields</legend>
+          <label
+            >Management disposition<select
+              aria-label="Management disposition"
+              [formField]="fields.decision"
+            >
+              <option value="ACCEPTED">Accept</option>
+              <option value="REJECTED">Reject</option>
+              <option value="PARTIAL">Partially accept</option>
+            </select></label
+          >
+          <label
+            >Management response rationale<textarea
+              aria-label="Management response rationale"
+              [formField]="fields.reason"
+              rows="3"
+            ></textarea></label
+          ><label
+            >Management response evidence reference<input
+              aria-label="Management response evidence reference"
+              [formField]="fields.evidenceReference"
+          /></label>
+        </fieldset>
+        <div class="actions">
+          @if (!client()) {
+            <button
+              matButton
+              type="button"
+              (click)="saveDraft()"
+              [disabled]="busy() || uncertain()"
+            >
+              Save management tab draft
+            </button>
+          }
+          <button matButton type="button" (click)="discard()" [disabled]="busy() || uncertain()">
+            Undo unsubmitted response</button
+          ><button matButton="filled" type="submit" [disabled]="busy() || !fields().valid()">
+            Preview management response
+          </button>
+        </div>
+      </form>
+    </section>
+  }
+  @if (preview(); as p) {
+    <section class="panel" aria-label="Management disposition preview">
+      <h2>Review exact management disposition</h2>
+      <p>
+        {{ p.decision }} · {{ p.evidenceMode }} · {{ v.journalNumber }} revision {{ v.revision }}
+      </p>
+      <p>{{ p.reason }} · {{ p.evidenceReference }}</p>
+      <p>
+        The complete lines and source context above are part of this review. Technical state, lines,
+        external books and financial packages remain unchanged.
+      </p>
+      @if (p.blocker) {
+        <p role="alert">{{ p.blocker }}</p>
+      }
+      @if (p.canProceed) {
+        <label
+          ><input
+            type="checkbox"
+            aria-label="I reviewed the exact journal revision, source, complete lines, disposition and evidence."
+            [checked]="reviewed()"
+            (change)="reviewed.set($any($event.target).checked)"
+            [disabled]="busy()"
+          />
+          I reviewed the exact journal revision, source, complete lines, disposition and
+          evidence.</label
+        ><button matButton="filled" (click)="execute()" [disabled]="busy() || !reviewed()">
+          Record reviewed management response
+        </button>
+      }
+    </section>
+  }
+}
+<audit-command-message [message]="message()" [failed]="failed()" />

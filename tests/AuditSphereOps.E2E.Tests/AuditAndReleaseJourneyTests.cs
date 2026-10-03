@@ -502,7 +502,11 @@ public sealed class AuditAndReleaseJourneyTests
       });
       await db.SaveChangesAsync();
     }
+    // Reload replaces the interactive circuit. Static prerendered rows do not prove
+    // that in-place route handling is listening again.
+    var reconnected = WaitForCircuitConnectionAsync(page, diagnostics);
     await page.ReloadAsync();
+    await reconnected;
     await Assertions.Expect(page.Locator(".audit-population-table tbody tr")).ToHaveCountAsync(1);
     await Assertions.Expect(page.Locator("[aria-label='Scoped population summary']")).ToContainTextAsync("Reviewed item tests1");
     await Assertions.Expect(page.GetByText(longRationale)).ToBeVisibleAsync();
