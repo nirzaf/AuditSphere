@@ -47,6 +47,8 @@ export function decodeReconciliation(raw: unknown, path = 'response') {
     <audit-state [loading]="data.loading()" [error]="data.error()" label="scoped reconciliation evidence" />
     @if (data.data(); as r) {
       <section class="panel" aria-labelledby="context"><h2 id="context">Exact reporting context</h2>
+        <div class="actions"><a [routerLink]="['/app/accounting/reconciliations',r.id,'prepare','ECL']">Prepare ECL from this reconciliation</a>
+          <a [routerLink]="['/app/accounting/reconciliations',r.id,'prepare','INVENTORY']">Prepare inventory valuation from this reconciliation</a></div>
         <p>{{ r.clientName }} · {{ r.engagementName }} · {{ r.periodCode }} · {{ r.bookCode ?? 'No reporting book' }} · {{ r.basis }} · {{ r.currency }}</p>
         <p>{{ r.area }} · as of {{ r.asOfDate }} · revision {{ r.revision }} · accounts {{ r.accountSelection }}</p>
         <p>Retained status <audit-status [value]="r.status" /> · Current eligibility <audit-status [value]="r.canReuseApprovedEvidence ? 'CURRENT_APPROVED' : r.isStale ? 'STALE' : 'REVIEW_REQUIRED'" /></p>

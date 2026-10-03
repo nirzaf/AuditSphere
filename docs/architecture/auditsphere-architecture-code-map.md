@@ -154,15 +154,15 @@ account-exact; source acceptance binds sealed sources and bumps generation.
 
 
 
-- Application: `Application/Accounting/Analysis/AccountingAnalysisService.{Reconciliation,Valuations,AnalyticalReview,JournalRisk,Evidence,Authorization}.cs`; native scoped inspection: `Application/Accounting/ReconciliationWorkspaceQuery.cs`, `Application/Accounting/AccountingAnalysisReviewQuery{,.Retained}.cs`; native reviewed commands: `Application/Accounting/AccountingEvidenceWorkspace{,.Procedures}.cs`; retained receipt: `Domain/Accounting/AccountingEvidenceAction.cs` and `Infrastructure/Persistence/AuditSphereDbContext.AccountingEvidenceActions.cs`
+- Application: `Application/Accounting/Analysis/AccountingAnalysisService.{Reconciliation,Valuations,AnalyticalReview,JournalRisk,Evidence,Authorization}.cs`; native scoped inspection: `Application/Accounting/ReconciliationWorkspaceQuery.cs`, `Application/Accounting/AccountingAnalysisReviewQuery{,.Retained}.cs`; native reviewed commands: `Application/Accounting/AccountingEvidenceWorkspace{,.Procedures}.cs`, `Application/Accounting/ValuationPreparationWorkspace.cs`; retained receipts: `Domain/Accounting/AccountingEvidenceAction.cs`, `Domain/Accounting/ValuationPreparation.cs` and their matching Infrastructure persistence configurations
 
 
 
-- UI: `AccountingEvidence.razor`, `Finding.razor`; native queue/detail: `src/AuditSphereOps.Ui/src/app/features/accounting/evidence.ts`, `src/AuditSphereOps.Ui/src/app/features/accounting/reconciliation.ts`, `src/AuditSphereOps.Ui/src/app/features/accounting/analysis-review.ts`; reviewed action forms and receipt recovery: `src/AuditSphereOps.Ui/src/app/features/accounting/evidence-actions{.ts,.html}`, `src/AuditSphereOps.Ui/src/app/features/accounting/evidence-action-contracts.ts`
+- UI: `AccountingEvidence.razor`, `Finding.razor`; native queue/detail: `src/AuditSphereOps.Ui/src/app/features/accounting/evidence.ts`, `src/AuditSphereOps.Ui/src/app/features/accounting/reconciliation.ts`, `src/AuditSphereOps.Ui/src/app/features/accounting/analysis-review.ts`; reviewed action/preparation forms and receipt recovery: `src/AuditSphereOps.Ui/src/app/features/accounting/evidence-actions{.ts,.html}`, `src/AuditSphereOps.Ui/src/app/features/accounting/evidence-action-contracts.ts`, `src/AuditSphereOps.Ui/src/app/features/accounting/valuation-preparation{.ts,.html}`, `src/AuditSphereOps.Ui/src/app/features/accounting/valuation-preparation-contracts.ts`
 
 
 
-- Tests: `ClientAccountingTests.{Reconciliations,Analysis}.cs`, `SourceAcceptanceAndComparativesTests.cs`
+- Tests: `ClientAccountingTests.{Reconciliations,Analysis}.cs`, `SourceAcceptanceAndComparativesTests.cs`, `ValuationPreparationApiTests.cs`, `AngularValuationPreparationJourneyTests.cs`
 
 
 

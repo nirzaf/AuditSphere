@@ -4676,6 +4676,110 @@
         "Wider migration acceptance, cutover and Blazor retirement"
       ],
       "evidenceBoundary": "Local synthetic acceptance only. No autonomous audit opinion, client-book posting, Microsoft permission/effect, shared/production migration or Wiki publication. Whole migration remains PARTIAL."
+    },
+    "angularValuationPreparation": {
+      "status": "IMPLEMENTED_LOCALLY_VERIFIED_TARGETED",
+      "sourceBaseCommit": "8e91c7d9599799871c091457901c30d7cf00edc6",
+      "observedAt": "2026-10-03T03:08:54Z",
+      "scope": "Native source-bound ECL and inventory preparation using existing calculators and creation services, explicit bounded six-decimal inputs, fresh preview/assent, exact reconciliation/current complete proof, immutable snapshots and actor-owned local receipt recovery. Independent review remains separate.",
+      "build": {
+        "status": "PASS",
+        "warnings": 0,
+        "errors": 0,
+        "exitCode": 0,
+        "log": "/private/tmp/auditsphere-valuation-preparation-build-extra-tests.log",
+        "angularLog": "/private/tmp/auditsphere-valuation-preparation-angular-build-routed.log"
+      },
+      "angular": {
+        "status": "PASS",
+        "passed": 301,
+        "failed": 0,
+        "skipped": 0,
+        "exitCode": 0,
+        "log": "/private/tmp/auditsphere-valuation-preparation-angular-tests-initial.log",
+        "files": 70
+      },
+      "domain": {
+        "status": "PASS",
+        "passed": 7,
+        "failed": 0,
+        "skipped": 0,
+        "exitCode": 0,
+        "log": "/private/tmp/auditsphere-valuation-preparation-domain-ready.log"
+      },
+      "apiFocusedInitial": {
+        "status": "PASS",
+        "passed": 6,
+        "failed": 0,
+        "skipped": 0,
+        "exitCode": 0,
+        "log": "/private/tmp/auditsphere-valuation-preparation-api-ready.log"
+      },
+      "api": {
+        "status": "PASS",
+        "passed": 152,
+        "failed": 0,
+        "skipped": 0,
+        "exitCode": 0,
+        "log": "/private/tmp/auditsphere-valuation-preparation-api-full.log",
+        "fingerprintsPath": "/private/tmp/auditsphere-valuation-preparation-corrected-hashes.json",
+        "fingerprintsUnchanged": true,
+        "boundary": "Whole API passed before additional test-only hardening. Final extra-test rebuild changed only the API test assembly; all runtime, Domain/E2E test assemblies and Angular assets stayed unchanged."
+      },
+      "apiFinalFocused": {
+        "status": "PASS",
+        "passed": 5,
+        "failed": 0,
+        "skipped": 0,
+        "exitCode": 0,
+        "log": "/private/tmp/auditsphere-valuation-preparation-api-extra-tests.log",
+        "scope": "Both calculations, CSRF/assent, exact idempotency/recovery, wrong scope, missing/unsupported/stale/closed inputs, late epoch atomic rollback, concurrent exact creation and retained/empty migration rollback."
+      },
+      "browser": {
+        "status": "PASS",
+        "passed": 3,
+        "failed": 0,
+        "skipped": 0,
+        "exitCode": 0,
+        "log": "/private/tmp/auditsphere-valuation-preparation-browser-corrected.log",
+        "scope": "New native ECL/inventory journey plus affected evidence action and analysis review journeys. Exact retained amounts, source unchanged, DRAFT/unreviewed status, reload/mobile, epoch content clearing."
+      },
+      "modelDrift": {
+        "status": "PASS",
+        "exitCode": 0,
+        "log": "/private/tmp/auditsphere-valuation-preparation-model-ready.log",
+        "boundary": "Same final model; additive migration applied only to owned disposable test databases. No shared or production migration."
+      },
+      "migration": "20261003024335_NativeValuationPreparation",
+      "builtInBrowser": {
+        "status": "PASS",
+        "screenshots": [
+          "/private/tmp/auditsphere-angular-ecl-preparation.png",
+          "/private/tmp/auditsphere-angular-inventory-preparation.png",
+          "/private/tmp/auditsphere-angular-valuation-mobile.png"
+        ],
+        "boundary": "Owned synthetic database and Release API; external effects disabled. Explicit ECL preview7.006173 and inventory9.900006, separate exact prepared analyses/immutable receipts, unchanged100.123456 source, independent review still required. Mobile content375 within390; no console warnings/errors. Temporary tab closed, viewport reset and preview/database disposed with exit0."
+      },
+      "initialBrowser": {
+        "status": "FAIL_THEN_CORRECTED",
+        "passed": 2,
+        "failed": 1,
+        "skipped": 0,
+        "exitCode": 1,
+        "log": "/private/tmp/auditsphere-valuation-preparation-browser-ready.log",
+        "details": "Both UI creations completed; EF could not translate a nested in-memory Single predicate in the test-only status verification query. Captured the exact ECL/inventory IDs before EF predicates; no product or assertion relaxation. Final browser cohort passed3/3."
+      },
+      "fingerprintsPath": "/private/tmp/auditsphere-valuation-preparation-extra-tests-hashes.json",
+      "fingerprintsUnchanged": true,
+      "publication": {
+        "status": "READY_FOR_PUSH",
+        "branch": "master"
+      },
+      "remaining": [
+        "New reconciliation, specialist and analytical preparation/revision forms",
+        "Whole story/source-action acceptance, quality gates, controlled cutover and Blazor retirement"
+      ],
+      "evidenceBoundary": "Local synthetic acceptance only. No autonomous opinion, source/client-book posting, Microsoft permission/effect, shared/production migration or Wiki publication. No full solution pass for this newer preparation source; earlier pinned full-solution checkpoint remains separate. Whole migration remains PARTIAL."
     }
   },
   "documentationWork": {
@@ -4783,7 +4887,7 @@
     "implementationStatus": "PARTIAL",
     "acceptanceStatus": "PARTIAL",
     "scope": "Standalone API and native Angular capability slices preserve Application authorization, exact financial inputs, durable operations and independent human gates. Legacy Blazor remains available for rollback until wider parity and retirement acceptance.",
-    "nextAction": "Complete native valuation preparation verification/publication, then source-action parity, migration quality gates and controlled route cutover.",
+    "nextAction": "Publish verified native ECL/inventory preparation; complete source-action parity, canonical route cutover verification and migration quality gates.",
     "branch": "master"
   },
   "localEvidence": [

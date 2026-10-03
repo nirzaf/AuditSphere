@@ -91,6 +91,7 @@ public sealed class RecordsArchiveTests
     Assert.Contains("\"specialistSchedules\"", structuredExport.PayloadJson);
     Assert.Contains("\"accountingEvidenceAuditLinks\"", structuredExport.PayloadJson);
     Assert.Contains("\"accountingEvidenceActions\"", structuredExport.PayloadJson);
+    Assert.Contains("\"valuationPreparations\"", structuredExport.PayloadJson);
     Assert.Contains("\"clientGroups\"", structuredExport.PayloadJson);
     Assert.Contains("\"groupMemberships\"", structuredExport.PayloadJson);
     Assert.Contains("\"activityEvents\"", structuredExport.PayloadJson);

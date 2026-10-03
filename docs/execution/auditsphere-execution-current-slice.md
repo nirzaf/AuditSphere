@@ -13,6 +13,29 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Native source-bound valuation preparation
+
+The exact reconciliation inspection now links native ECL and inventory preparation.
+Explicit numeric inputs, assumptions and rationale use the existing supported
+calculators and creation commands. Fresh preview and assent bind the current source,
+complete proof, generation and reporting context. Missing/unsupported/stale inputs,
+closed periods/books, frozen files and revoked authority fail closed.
+
+A guarded local transaction retains the new draft analysis and immutable preparation
+receipt together. Inputs, context and result snapshots are append-only and included
+in new structured archives. Concurrent identical intents reconcile one result;
+changed intents cannot reuse their identity. Database guards freeze native inputs
+and refuse rollback that would discard retained evidence. Independent review stays
+separate, and the source books remain unchanged.
+
+Angular tab recovery excludes assent; dispatch requires a saved recovery reference.
+Unknown acknowledgments require persisted receipt reconciliation. Route/session
+changes clear protected content. Targeted and whole-API evidence, the test-only
+browser query correction, built-in desktop/mobile checks and migration rollback
+results are recorded in `status.json`. The final extra-test build changes only the
+API test assembly. New reconciliation/specialist/analytical preparation, wider parity
+and cutover remain open. No shared or production migration was applied.
+
 ## Frozen integrated migration regression checkpoint
 
 The full Release solution regression completed successfully on the integrated native

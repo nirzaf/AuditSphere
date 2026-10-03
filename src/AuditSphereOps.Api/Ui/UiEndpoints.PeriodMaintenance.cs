@@ -9,6 +9,7 @@ public static partial class UiEndpoints
 
   private static void MapPeriodMaintenanceEndpoints(RouteGroupBuilder group)
   {
+    MapValuationPreparationEndpoints(group);
     group.MapUiGet("/accounting/evidence", http => ReadAsync(http, (db, actor, ct) => AccountingEvidenceQueueQuery.GetAsync(db, actor, ct)));
     group.MapGet("/accounting/reconciliations/{id:guid}", (Guid id, int? page, HttpContext http) =>
       ReadAsync(http, (db, actor, ct) => ReconciliationWorkspaceQuery.GetAsync(db, actor, id, page ?? 0, ct)));

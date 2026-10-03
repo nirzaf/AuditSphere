@@ -41,6 +41,36 @@ The implementation covers native route families for practice, accounting, consol
 
 Execution evidence is recorded in [status.json](../execution/status.json). Local synthetic fixtures do not establish tenant, deployment, professional or owner acceptance. Wiki publication has not been authorized.
 
+### Native source-bound ECL and inventory preparation
+
+The native reconciliation inspection links separate ECL and inventory preparation
+forms. `ValuationPreparationWorkspace` composes the existing supported calculators
+and creation commands over the exact reconciled source, complete current item proof,
+reporting context and client generation. Every active numeric input, including zero,
+is explicit and bounded to the supported decimal precision. Unsupported methods,
+missing inputs, stale sources, closed periods/books and frozen files block creation.
+An approved historical reconciliation is not silently reset to make it editable.
+
+A fresh preview binds all inputs, assumptions digest, rationale, evidence reference,
+actor/session and current source basis. Explicit assent authorizes only that exact
+intent. The guarded local transaction creates a new draft analysis and an immutable
+actor-owned preparation receipt with input, context and result snapshots together.
+Identical requests recover the same receipt; changed intents cannot reuse their
+identity. Final scope/epoch checks roll back both records after late revocation.
+Independent review remains separate from preparation, and source books are unchanged.
+
+The additive migration preserves preparation receipts and their exact scoped target
+lineage, freezes native valuation inputs, and refuses rollback that would discard
+retained preparation evidence. New structured records archives include the retained
+snapshots without changing older exports. Shared or production migration application
+remains operator-controlled.
+
+Angular retains bounded editable tab fields without assent and requires a saved
+request reference before dispatch. Unknown or malformed acknowledgments fence new
+writes and navigation until persisted receipt reconciliation and acknowledgment.
+Route/session changes clear protected state. New reconciliation, specialist and
+analytical preparation parity and wider migration acceptance remain open.
+
 ### Native reviewed accounting evidence actions
 
 The separate native evidence action page composes `AccountingEvidenceWorkspace`

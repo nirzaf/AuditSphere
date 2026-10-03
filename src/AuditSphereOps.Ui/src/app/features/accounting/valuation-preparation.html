@@ -1,0 +1,39 @@
+<a [routerLink]="['/app/accounting/reconciliations',id()]">← Back to exact reconciliation</a>
+<audit-page-header title="Prepare source-bound valuation" eyebrow="Reviewed accounting inputs"
+  description="Use the supported method over the exact reconciled source. Preparation records a new analysis; independent human review remains separate." />
+<button matButton="outlined" (click)="refresh()" [disabled]="busy()">Refresh current source</button>
+<audit-state [loading]="data.loading()" [error]="data.error()" label="valuation preparation" />
+@if(message()){<p role="status">{{message()}}</p>}
+@if(data.data();as s){
+  <section class="panel"><h2>Exact reconciliation and source</h2><p>{{s.kind}} · {{s.context.clientName}} · {{s.context.engagementName}} · {{s.context.periodCode}} · {{s.context.currency}}</p>
+    <dl><dt>Source total</dt><dd>{{s.context.sourceTotal}} {{s.context.currency}}</dd><dt>Source digest</dt><dd>{{s.context.sourceHash}}</dd>
+      <dt>Input generation</dt><dd>{{s.context.inputGeneration}} retained / {{s.context.currentGeneration ?? 'Unavailable'}} current</dd>
+      <dt>As of</dt><dd>{{s.context.asOfDate}}</dd><dt>Complete item proof</dt><dd>{{s.context.latestProof?.id ?? 'Not retained'}}</dd></dl>
+    <p>Declared assumptions and practitioner inputs require supporting evidence. This preparation does not post a journal or issue an audit conclusion.</p>
+    @if(s.blockers.length){<h3>Preparation blocked</h3><ul>@for(b of s.blockers;track b){<li>{{b}}</li>}</ul>}
+  </section>
+  @if(uncertain()){<section class="panel" role="alert"><h2>Unconfirmed preparation</h2><p>Request {{pending()?.requestId}} · {{pending()?.requestHash}}</p>
+    <button matButton="outlined" (click)="reconcile()" [disabled]="busy()">Check preparation receipt</button>
+    @if(receipt() && pending()){<button matButton="filled" (click)="acknowledge()">Acknowledge retained preparation</button>}
+  </section>}
+  @if(s.canPrepare){<section class="panel"><h2>Explicit valuation inputs</h2><form (submit)="$event.preventDefault();prepare()">
+    <fieldset [disabled]="busy() || (uncertain() && !absent())"><legend>Exact valuation intent</legend><p>Supported method: {{model().method}}</p>
+      <label>Methodology version <input [formField]="fields.methodologyVersion" /></label><label>Assumptions SHA-256 <input [formField]="fields.assumptionsHash" spellcheck="false" /></label>
+      @for(k of amounts();track k){<label>{{labels[k]}} <input [formField]="fields[k]" type="text" inputmode="decimal" /></label>}
+      <p>Enter every amount explicitly, including any zero. Use at most six decimal places and a dot decimal separator. ECL probabilities are fractions between 0 and 1.</p>
+      <label>Reason / source rationale <textarea rows="4" [formField]="fields.reason"></textarea></label><label>Evidence reference <input [formField]="fields.evidenceReference" /></label>
+      <div class="actions"><button matButton="filled" type="submit" [disabled]="!valid()">Preview exact calculation</button>
+        <button matButton="outlined" type="button" (click)="saveDraft()">Save tab draft</button></div>
+    </fieldset>@if(draftAvailable() || uncertain()){<button matButton="outlined" type="button" (click)="restoreDraft()" [disabled]="busy()">Restore editable valuation fields</button>}
+  </form></section>}
+  @if(preview();as p){<section class="panel"><h2>Review calculation before preparation</h2><p>{{p.method}} · {{model().methodologyVersion}} · {{model().reason}} · {{model().evidenceReference}}</p>
+    <dl>@if(p.kind==='ECL'){<dt>Eligible exposure</dt><dd>{{p.eligibleExposure}} {{p.currency}}</dd>}<dt>Calculated amount</dt><dd>{{p.calculatedAmount}} {{p.currency}}</dd>
+      <dt>Booked amount</dt><dd>{{p.bookedAmount}} {{p.currency}}</dd><dt>Difference</dt><dd>{{p.difference}} {{p.currency}}</dd></dl>
+    @if(p.blockers.length){<ul>@for(b of p.blockers;track b){<li>{{b}}</li>}</ul>}
+    <label><input type="checkbox" [checked]="reviewed()" (change)="reviewed.set($any($event.target).checked)" [disabled]="busy() || !p.canProceed" /> I reviewed this exact source, all inputs and calculation.</label>
+    <button matButton="filled" (click)="execute()" [disabled]="busy() || !reviewed() || !p.canProceed">Prepare reviewed valuation</button>
+  </section>}
+  @if(receipt();as r){<section class="panel"><h2>Retained preparation receipt</h2><p>{{r.kind}} · {{r.requestId}} · {{r.createdAt}}</p><p>{{r.reason}} · {{r.evidenceReference}}</p>
+    @if(!uncertain()){<a [routerLink]="['/app/accounting/evidence',r.kind,r.evidenceId]">Inspect exact prepared valuation</a>}
+  </section>}
+}

@@ -542,6 +542,10 @@ public static class RecordsArchiveService
       .Where(x => x.FirmId == archive.FirmId && x.ClientId == archive.ClientId && x.EngagementId == archive.EngagementId).OrderBy(x => x.Id)
       .Select(x => new { x.Id, x.EvidenceKind, x.EvidenceId, x.ActorId, x.ActorEpoch, x.RequestId, x.RequestHash,
         x.ReviewBasis, x.Action, x.ResultId, x.LinkId, x.Decision, x.Reason, x.EvidenceReference, x.BeforeJson, x.AfterJson, x.CreatedAt }).ToListAsync(ct);
+    var valuationPreparations = typedAccounting is null ? [] : await typedAccounting.ValuationPreparations.AsNoTracking()
+      .Where(x => x.FirmId == archive.FirmId && x.ClientId == archive.ClientId && x.EngagementId == archive.EngagementId).OrderBy(x => x.Id)
+      .Select(x => new { x.Id, x.ReconciliationId, x.Kind, x.EvidenceId, x.ActorId, x.ActorEpoch, x.RequestId, x.RequestHash,
+        x.ReviewBasis, x.InputJson, x.ContextJson, x.ResultJson, x.Reason, x.EvidenceReference, x.CreatedAt }).ToListAsync(ct);
     var packageReviewDecisions = typedAccounting is null ? [] : await typedAccounting.FinancialPackageReviewDecisions.AsNoTracking()
       .Where(x => x.FirmId == archive.FirmId && x.ClientId == archive.ClientId && x.EngagementId == archive.EngagementId).OrderBy(x => x.Id)
       .Select(x => new { x.Id, x.FinancialPackageId, x.PackageRevision, x.PackageGeneration, x.PackageHash, x.FinancialPackageArtifactId, x.ArtifactVersion, x.ArtifactSha256Hex, x.Stage, x.Decision, x.EvidenceMode, x.EvidenceReference, x.Comment, x.DecidedByUserId, x.DecidedAt }).ToListAsync(ct);
@@ -806,6 +810,7 @@ public static class RecordsArchiveService
         journalRiskFlags,
         accountingEvidenceAuditLinks,
         accountingEvidenceActions,
+        valuationPreparations,
         packageReviewDecisions,
         trialBalanceDatasets,
         trialBalanceRows,
