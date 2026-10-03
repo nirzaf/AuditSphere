@@ -110,6 +110,33 @@ describe('Planning protected editor clearing', () => {
       .flush(planning);
     return fixture.componentInstance;
   }
+  it('validates budget fields and locks them while reviewing or recovering', () => {
+    const component = open();
+    component.currency = 'QQQQ';
+    expect(component.budgetFields.currency().invalid()).toBe(true);
+    component.currency = 'QAR';
+    expect(component.budgetFields.currency().invalid()).toBe(false);
+    component.budgetLines = [
+      { role: '', activity: 'AUDIT', phase: 'PLANNING', riskArea: '', forecastMinutes: 0 },
+    ];
+    expect(component.budgetFields.lines[0].role().invalid()).toBe(true);
+    expect(component.budgetFields.lines[0].forecastMinutes().invalid()).toBe(true);
+    component.budgetLines = [
+      { role: 'Senior', activity: 'AUDIT', phase: 'PLANNING', riskArea: '', forecastMinutes: 1.5 },
+    ];
+    expect(component.budgetFields.lines[0].forecastMinutes().invalid()).toBe(true);
+    const previous = component.budgetLines;
+    component.addBudgetLine();
+    expect(previous).toHaveLength(1);
+    expect(component.budgetLines).toHaveLength(2);
+    component.removeBudgetLine(0);
+    expect(component.budgetLines).toHaveLength(1);
+    component.uncertain.set(true);
+    expect(component.budgetFields.currency().disabled()).toBe(true);
+    component.addBudgetLine();
+    component.removeBudgetLine(0);
+    expect(component.budgetLines).toHaveLength(1);
+  });
   function expectCleared(component: EngagementPlanning) {
     expect(component.data()).toBeNull();
     expect(component.budgetLines).toEqual([]);

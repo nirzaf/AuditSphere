@@ -13,6 +13,22 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Native budget Signal Forms editor
+
+Budget inputs now use Signal Forms with bounded field metadata and whole-minute
+validation. Line changes replace the model immutably. Invalid touched fields show
+an accessible validation summary. Review and unknown-outcome fences disable the
+fields and tab-draft actions; explicit assent and immutable receipt recovery keep
+their existing behavior. Approval remains a separate action.
+
+The production UI build, Angular suite and affected budget/profile browser journeys
+completed successfully. The built-in browser checked line changes, validation,
+correction, exact rate review and disabled confirmation before assent in an owned
+synthetic preview, which was disposed. See `status.json` for observed evidence.
+No database schema or live Microsoft change was made. Staffing/approval request
+parity, other planning forms, navigation guards and wider migration gates remain
+open.
+
 ## Reviewed native budget preparation and retained request recovery
 
 The planning UI now previews exact approved rates and calculated forecast values

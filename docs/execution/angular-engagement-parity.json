@@ -26,7 +26,7 @@
     },
     {
       "path": "src/AuditSphereOps.Ui/src/app/features/engagements/planning.ts",
-      "sha256": "264658c621f463b8b8315c6f15e3378509f3eae04a99a7900943a993d7dd8e55"
+      "sha256": "bd02101ba1315ac0e51cc402484f4566a8df4fee09fc2e77341702baa37b4a12"
     },
     {
       "path": "src/AuditSphereOps.Application/Acceptance/EngagementActivationWorkspace.cs",
@@ -100,7 +100,7 @@
     {
       "action": "planning-forms",
       "owner": "EngagementLifecycleService / EngagementPlanningQuery / native planning components",
-      "disposition": "PARTIAL: Editable budget drafts and reviewed budget preparation are implemented locally. Exact approved-rate snapshots require explicit assent; a draft and immutable actor-owned request receipt commit together. Unknown responses and reload reconcile retained receipts without automatic retry. Staffing/approval request parity, Signal Forms and remaining planning acceptance remain open."
+      "disposition": "PARTIAL: Editable budget drafts, reviewed budget preparation and the budget Signal Forms editor are implemented locally. Bounded field validation includes whole forecast minutes; fields and tab actions lock during review/recovery. Exact approved-rate snapshots require explicit assent; a draft and immutable actor-owned request receipt commit together. Unknown responses and reload reconcile retained receipts without automatic retry. Staffing/approval request parity, other planning Signal Forms, navigation guards and remaining planning acceptance remain open."
     },
     {
       "action": "reviewed-partner-activation",
@@ -113,7 +113,7 @@
       "disposition": "IMPLEMENTED: Exact current client-wide Partner/Manager context, canonical service/profile/period preview and explicit assent. Client-serialized shell creation and immutable actor-owned request evidence commit together; current authority is rechecked and a deferred guard validates the exact blocked publication. Same-intent retries return the original receipt; conflicting or existing service-period intent requires inspection. Native Signal Forms, bounded revision-bound tab drafts without assent, unknown-response fences and actor-owned receipt reconciliation preserve route/session/lifetime ownership. Lost-response browser journeys and focused observed checks are recorded only in status.json. No professional or Microsoft acceptance is implied."
     }
   ],
-  "remaining": "Complete planning staffing/approval request parity and Signal Forms, client creation, assessment source-action parity and migration quality/cutover/retirement gates.",
+  "remaining": "Complete planning staffing/approval request parity, other planning Signal Forms and navigation guards, client creation, assessment source-action parity and migration quality/cutover/retirement gates.",
   "verificationPointers": [
     "tests/AuditSphereOps.Domain.Tests/EngagementProfileWorkspaceTests.cs",
     "tests/AuditSphereOps.Api.Tests/EngagementProfileWorkspaceApiTests.cs",

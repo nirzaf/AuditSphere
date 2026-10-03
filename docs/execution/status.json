@@ -5978,6 +5978,50 @@
       "boundary": "Budget preparation only: exact approved-rate review, same-intent idempotency, actor-owned receipt recovery, immutable publication and guarded rollback. Staffing/approval request parity, Signal Forms, client creation, assessment and cutover remain PARTIAL. Whole regression on earlier creation source remains separate.",
       "publishedCommit": "efe43778cd3d0c404a4867df5dc314720c7c7d82",
       "remoteHeadVerified": true
+    },
+    "angularPlanningBudgetSignalForms": {
+      "status": "PASS_FOCUSED",
+      "baseCommit": "118e1214a27e712920ddca893655dedce5edacff",
+      "angular": {
+        "status": "PASS",
+        "parentExitCode": 0,
+        "passed": 366,
+        "failed": 0,
+        "files": 77,
+        "log": "/private/tmp/auditsphere-signal-budget-angular.log"
+      },
+      "productionBuild": {
+        "status": "PASS",
+        "parentExitCode": 0,
+        "log": "/private/tmp/auditsphere-signal-budget-build.log"
+      },
+      "browser": {
+        "status": "PASS",
+        "parentExitCode": 0,
+        "passed": 4,
+        "failed": 0,
+        "log": "/private/tmp/auditsphere-signal-budget-e2e.log"
+      },
+      "builtInBrowser": {
+        "status": "PASS_LOCAL_SYNTHETIC",
+        "cases": [
+          "reactive line addition/removal",
+          "whole-minute validation feedback",
+          "correction and exact rate preview",
+          "locked fields and tab actions during review",
+          "confirmation disabled before assent"
+        ],
+        "consoleWarnings": 0,
+        "consoleErrors": 0,
+        "screenshot": "/private/tmp/auditsphere-signal-budget-preview.png",
+        "previewDisposed": true
+      },
+      "frozenEvidence": {
+        "manifest": "/private/tmp/auditsphere-signal-budget-hashes.json",
+        "paths": 109,
+        "result": "MATCH"
+      },
+      "boundary": "Budget editor only. Existing backend and Release assemblies reused; no schema changes. Whole regression remains the earlier creation source. Staffing/approval request parity, other planning Signal Forms and navigation guards, client creation, assessment and cutover remain partial."
     }
   },
   "documentationWork": {
@@ -6085,7 +6129,7 @@
     "implementationStatus": "PARTIAL",
     "acceptanceStatus": "PARTIAL",
     "scope": "Standalone API and native Angular capability slices preserve Application authorization, exact financial inputs, durable operations and independent human gates. Legacy Blazor remains available for rollback until wider parity and retirement acceptance.",
-    "nextAction": "Complete staffing/approval request parity and planning Signal Forms, then client creation and assessment parity. Join the separately frozen creation whole regression and compare fingerprints before accepting its result. Complete migration quality/cutover/retirement gates.",
+    "nextAction": "Complete staffing/approval reviewed request recovery, remaining planning Signal Forms and navigation guards, then client creation and assessment parity. The earlier creation whole regression is joined and fingerprints match; run a new whole regression for the newer planning source before wider acceptance. Complete migration quality/cutover/retirement gates.",
     "branch": "master"
   },
   "localEvidence": [

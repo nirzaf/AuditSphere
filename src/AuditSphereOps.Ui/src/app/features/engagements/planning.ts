@@ -1,5 +1,17 @@
 import { Component, DestroyRef, effect, inject, input, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import {
+  form,
+  FormField,
+  required,
+  maxLength,
+  applyEach,
+  disabled,
+  min,
+  max,
+  pattern,
+  validate,
+} from '@angular/forms/signals';
 import { HttpClient } from '@angular/common/http';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -218,7 +230,7 @@ export function decodePlanning(value: unknown): Planning {
 }
 @Component({
   selector: 'audit-engagement-planning',
-  imports: [FormsModule, RouterLink, MatButtonModule, MatProgressBarModule],
+  imports: [FormField, FormsModule, RouterLink, MatButtonModule, MatProgressBarModule],
   template: ` <section aria-label="Engagement planning">
     <h2>Engagement team and budget</h2>
     @if (loading()) {
@@ -313,7 +325,7 @@ export function decodePlanning(value: unknown): Planning {
           <button
             matButton
             type="button"
-            [disabled]="busy() || uncertain()"
+            [disabled]="busy() || uncertain() || !!budgetPreview()"
             (click)="saveEditableBudget()"
           >
             Save budget fields in this tab
@@ -321,7 +333,7 @@ export function decodePlanning(value: unknown): Planning {
           <button
             matButton
             type="button"
-            [disabled]="busy() || uncertain()"
+            [disabled]="busy() || uncertain() || !!budgetPreview()"
             (click)="restoreEditableBudget()"
           >
             Restore saved budget fields
@@ -329,77 +341,40 @@ export function decodePlanning(value: unknown): Planning {
           <button
             matButton
             type="button"
-            [disabled]="busy() || uncertain()"
+            [disabled]="busy() || uncertain() || !!budgetPreview()"
             (click)="discardEditableBudget()"
           >
             Discard saved budget fields
           </button>
           <p role="status">{{ draftStatus() }}</p>
-          <form (ngSubmit)="saveBudget()">
-            <label
-              >Currency
-              <input
-                name="currency"
-                [(ngModel)]="currency"
-                maxlength="3"
-                required
-                [disabled]="busy() || uncertain() || !!budgetPreview()"
-            /></label>
+          <form ngNoForm (submit)="$event.preventDefault(); saveBudget()">
+            @if (budgetFields().invalid() && budgetFields().touched()) {
+              <p role="alert">
+                Check the budget fields: currency needs three letters; role, activity and phase are
+                required (up to 50 characters); risk area allows 120 characters; forecast minutes
+                must be a whole number from 1 to 10,000,000.
+              </p>
+            }
+            <label>Currency <input [formField]="budgetFields.currency" /></label>
             @for (line of budgetLines; track $index; let index = $index) {
               <fieldset>
                 <legend>Budget line {{ index + 1 }}</legend>
-                <label
-                  >Role
-                  <input
-                    [name]="'role' + index"
-                    [(ngModel)]="line.role"
-                    maxlength="50"
-                    required
-                    [disabled]="busy() || uncertain() || !!budgetPreview()"
-                /></label>
-                <label
-                  >Activity
-                  <input
-                    [name]="'activity' + index"
-                    [(ngModel)]="line.activity"
-                    maxlength="50"
-                    required
-                    [disabled]="busy() || uncertain() || !!budgetPreview()"
-                /></label>
-                <label
-                  >Phase
-                  <input
-                    [name]="'phase' + index"
-                    [(ngModel)]="line.phase"
-                    maxlength="50"
-                    required
-                    [disabled]="busy() || uncertain() || !!budgetPreview()"
-                /></label>
-                <label
-                  >Risk area
-                  <input
-                    [name]="'risk' + index"
-                    [(ngModel)]="line.riskArea"
-                    maxlength="120"
-                    [disabled]="busy() || uncertain() || !!budgetPreview()"
-                /></label>
+                <label>Role <input [formField]="budgetFields.lines[index].role" /></label>
+                <label>Activity <input [formField]="budgetFields.lines[index].activity" /></label>
+                <label>Phase <input [formField]="budgetFields.lines[index].phase" /></label>
+                <label>Risk area <input [formField]="budgetFields.lines[index].riskArea" /></label>
                 <label
                   >Forecast minutes
                   <input
                     type="number"
-                    [name]="'minutes' + index"
-                    [(ngModel)]="line.forecastMinutes"
-                    min="1"
-                    max="10000000"
+                    [formField]="budgetFields.lines[index].forecastMinutes"
                     step="1"
-                    required
-                    [disabled]="busy() || uncertain() || !!budgetPreview()"
                 /></label>
                 <button
                   matButton
                   type="button"
                   [disabled]="busy() || uncertain() || !!budgetPreview()"
-                  (click)="budgetLines.splice(index, 1)"
+                  (click)="removeBudgetLine(index)"
                 >
                   Remove line {{ index + 1 }}
                 </button>
@@ -624,19 +599,72 @@ export class EngagementPlanning {
         : 'Saved fields could not be discarded from tab storage.',
     );
   }
-  currency = 'QAR';
-  budgetReviewed = false;
-  budgetLines = [
-    { role: 'Senior', activity: 'AUDIT', phase: 'PLANNING', riskArea: '', forecastMinutes: 480 },
-  ];
-  addBudgetLine(): void {
-    this.budgetLines.push({
-      role: 'Senior',
-      activity: 'AUDIT',
-      phase: 'PLANNING',
-      riskArea: '',
-      forecastMinutes: 480,
+  readonly budgetModel = signal<PlanningEditableBudget>({
+    currency: 'QAR',
+    lines: [
+      { role: 'Senior', activity: 'AUDIT', phase: 'PLANNING', riskArea: '', forecastMinutes: 480 },
+    ],
+  });
+  readonly budgetFields = form(this.budgetModel, (p) => {
+    required(p.currency);
+    maxLength(p.currency, 3);
+    pattern(p.currency, /^[A-Za-z]{3}$/);
+    disabled(
+      p,
+      () =>
+        this.busy() ||
+        this.uncertain() ||
+        !!this.budgetPreview() ||
+        !this.data()?.canManageStaffing,
+    );
+    applyEach(p.lines, (l) => {
+      required(l.role);
+      maxLength(l.role, 50);
+      required(l.activity);
+      maxLength(l.activity, 50);
+      required(l.phase);
+      maxLength(l.phase, 50);
+      maxLength(l.riskArea, 120);
+      required(l.forecastMinutes);
+      min(l.forecastMinutes, 1);
+      max(l.forecastMinutes, 10000000);
+      validate(l.forecastMinutes, ({ value }) =>
+        Number.isInteger(value())
+          ? undefined
+          : { kind: 'wholeMinutes', message: 'Enter whole forecast minutes.' },
+      );
     });
+  });
+  get currency(): string {
+    return this.budgetModel().currency;
+  }
+  set currency(value: string) {
+    this.budgetModel.update((m) => ({ ...m, currency: value }));
+  }
+  get budgetLines(): PlanningEditableBudget['lines'] {
+    return this.budgetModel().lines;
+  }
+  set budgetLines(value: PlanningEditableBudget['lines']) {
+    this.budgetModel.update((m) => ({ ...m, lines: value.map((l) => ({ ...l })) }));
+  }
+  budgetReviewed = false;
+  removeBudgetLine(index: number): void {
+    if (this.busy() || this.uncertain() || this.budgetPreview()) return;
+    this.budgetLines = this.budgetLines.filter((_, i) => i !== index);
+  }
+  addBudgetLine(): void {
+    if (this.busy() || this.uncertain() || this.budgetPreview() || this.budgetLines.length >= 200)
+      return;
+    this.budgetLines = [
+      ...this.budgetLines,
+      {
+        role: 'Senior',
+        activity: 'AUDIT',
+        phase: 'PLANNING',
+        riskArea: '',
+        forecastMinutes: 480,
+      },
+    ];
   }
   private readonly api = inject(Api);
   readonly budgetPreview = signal<BudgetPreparationPreview | null>(null);
