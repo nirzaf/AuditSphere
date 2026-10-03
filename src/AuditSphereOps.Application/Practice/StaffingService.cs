@@ -39,8 +39,12 @@ public static class StaffingService
     if (StaffingLevels.Rank(level) > actorRank)
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "You cannot staff someone above your own level.");
 
-    await using var tx = await db.Database.BeginTransactionAsync(ct);
-    var target = await db.Users.SingleOrDefaultAsync(x => x.Id == request.UserId && x.FirmId == actor.FirmId, ct);
+    await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
+    if (!await LockAuthorityAsync(db, actor, engagement.PracticeClientId, engagement.Id, ct))
+      return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    if (StaffingLevels.Rank(level) > await ActorRankAsync(db, actor, engagement.PracticeClientId, engagement.Id, ct))
+      return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "You cannot staff someone above your own level.");
+    var target = await db.Users.FromSqlInterpolated($"SELECT * FROM users WHERE firm_id={actor.FirmId} AND id={request.UserId} FOR UPDATE").SingleOrDefaultAsync(ct);
     if (target is null || target.Disabled || target.UserKind != "Staff")
       return CommandResult<Guid>.Fail("staffing.ineligible", "Only an enabled staff identity can be staffed.");
     var active = await db.EngagementStaffAssignments.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagement.Id && x.RevokedAt == null).ToListAsync(ct);
@@ -81,7 +85,10 @@ public static class StaffingService
     var site = await db.ClientSharePointSites.SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.ClientId == engagement.PracticeClientId, ct);
     if (site != null) { site.LastMembershipSyncAt = null; site.MembershipState = "PENDING"; }
     await db.SaveChangesAsync(ct);
-    await tx.CommitAsync(ct);
+    if (!(await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new(actor.FirmId, engagement.PracticeClientId, engagement.Id, StaffingRoles, InternalOnly: true), ct)).Succeeded)
+      return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    if (tx is not null) await tx.CommitAsync(ct);
     return CommandResult<Guid>.Ok(assignment.Id);
   }
 
@@ -94,8 +101,14 @@ public static class StaffingService
     if (!auth.Succeeded) return auth;
     if (StaffingLevels.Rank(snapshot.StaffingLevel) > await ActorRankAsync(db, actor, snapshot.ClientId, snapshot.EngagementId, ct))
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "You cannot revoke someone above your own level.");
-    await using var tx = await db.Database.BeginTransactionAsync(ct);
-    var assignment = await db.EngagementStaffAssignments.SingleAsync(x => x.Id == assignmentId, ct);
+    await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
+    if (!await LockAuthorityAsync(db, actor, snapshot.ClientId, snapshot.EngagementId, ct))
+      return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    if (StaffingLevels.Rank(snapshot.StaffingLevel) > await ActorRankAsync(db, actor, snapshot.ClientId, snapshot.EngagementId, ct))
+      return CommandResult.Fail(ErrorCodes.ScopeDenied, "You cannot revoke someone above your own level.");
+    await db.Users.FromSqlInterpolated($"SELECT * FROM users WHERE firm_id={actor.FirmId} AND id={snapshot.UserId} FOR UPDATE")
+      .AsNoTracking().SingleAsync(ct);
+    var assignment = await db.EngagementStaffAssignments.SingleAsync(x => x.Id == assignmentId && x.FirmId == actor.FirmId, ct);
     if (assignment.RevokedAt is not null) return CommandResult.Ok();
     var now = DateTimeOffset.UtcNow;
     assignment.RevokedAt = now;
@@ -112,8 +125,26 @@ public static class StaffingService
     var site = await db.ClientSharePointSites.SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.ClientId == assignment.ClientId, ct);
     if (site != null) { site.LastMembershipSyncAt = null; site.MembershipState = "PENDING"; }
     await db.SaveChangesAsync(ct);
-    await tx.CommitAsync(ct);
+    if (!(await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new(actor.FirmId, snapshot.ClientId, snapshot.EngagementId, StaffingRoles, InternalOnly: true), ct)).Succeeded)
+      return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    if (tx is not null) await tx.CommitAsync(ct);
     return CommandResult.Ok();
+  }
+
+  // Serialize staffing publication with reviewed operations and client safety changes.
+  // Callers owning a transaction must roll it back when this service refuses a command.
+  private static async Task<bool> LockAuthorityAsync(IAuditSphereDbContext db, ActorContext actor,
+    Guid clientId, Guid engagementId, CancellationToken ct)
+  {
+    if (await db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id={actor.FirmId} FOR UPDATE")
+      .AsNoTracking().SingleOrDefaultAsync(ct) is null) return false;
+    if (await db.ClientSafetyStates.FromSqlInterpolated($"SELECT * FROM client_safety_states WHERE firm_id={actor.FirmId} AND id={clientId} FOR UPDATE")
+      .AsNoTracking().SingleOrDefaultAsync(ct) is null) return false;
+    if (await db.Users.FromSqlInterpolated($"SELECT * FROM users WHERE firm_id={actor.FirmId} AND id={actor.UserId} FOR SHARE")
+      .AsNoTracking().SingleOrDefaultAsync(ct) is null) return false;
+    return (await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new(actor.FirmId, clientId, engagementId, StaffingRoles, InternalOnly: true), ct)).Succeeded;
   }
 
   public static async Task<CommandResult<IReadOnlyList<StaffAssignmentRow>>> ListAsync(IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct = default)

@@ -53,6 +53,76 @@ public sealed class PlanningResourcesAndMaterialityTests
   }
 
   [Fact]
+  public async Task Staffing_ConcurrentAssignmentPublishesOneGrantAndAssignment()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    async Task<Guid> Assign()
+    {
+      await using var db = new AuditSphereDbContext(pg.Options);
+      var result = await StaffingService.AssignAsync(db, w.Actor("partner", "Partner"),
+        new(w.EngagementId, w.Users["associate"].Id, StaffingLevels.StaffAssociate));
+      Assert.True(result.Succeeded, result.Message);
+      return result.Value;
+    }
+    var results = await Task.WhenAll(Assign(), Assign());
+    Assert.Equal(results[0], results[1]);
+    await using var check = new AuditSphereDbContext(pg.Options);
+    Assert.Single(await check.EngagementStaffAssignments.Where(x => x.UserId == w.Users["associate"].Id).ToListAsync());
+    Assert.Single(await check.RoleGrants.Where(x => x.UserId == w.Users["associate"].Id).ToListAsync());
+    Assert.Single(await check.RoleGrantChangeEvidences.Where(x => x.TargetUserId == w.Users["associate"].Id).ToListAsync());
+  }
+
+  [Fact]
+  public async Task Staffing_RevokeInsideCallerTransactionPreservesIndependentGrant()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    var independent = Grant(w.FirmId, w.Users["associate"], "Staff", w.ClientId, w.EngagementId);
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      db.RoleGrants.Add(independent);
+      await db.SaveChangesAsync();
+      await using var tx = await db.Database.BeginTransactionAsync();
+      var result = await StaffingService.AssignAsync(db, w.Actor("partner", "Partner"),
+        new(w.EngagementId, w.Users["associate"].Id, StaffingLevels.StaffAssociate));
+      Assert.True(result.Succeeded, result.Message);
+      Assert.True((await StaffingService.RevokeAsync(db, w.Actor("partner", "Partner"), result.Value)).Succeeded);
+      await tx.CommitAsync();
+    }
+    await using var check = new AuditSphereDbContext(pg.Options);
+    Assert.NotNull((await check.EngagementStaffAssignments.SingleAsync(x => x.UserId == w.Users["associate"].Id)).RevokedAt);
+    Assert.Null((await check.RoleGrants.SingleAsync(x => x.Id == independent.Id)).RevokedAt);
+    Assert.Equal(w.Users["associate"].SessionEpoch,
+      (await check.Users.SingleAsync(x => x.Id == w.Users["associate"].Id)).SessionEpoch);
+  }
+
+  [Fact]
+  public async Task Staffing_ComposesCallerTransaction_AssignmentAndRevocationRollbackTogether()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    Guid assignmentId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      await using var tx = await db.Database.BeginTransactionAsync();
+      var assigned = await StaffingService.AssignAsync(db, w.Actor("partner", "Partner"),
+        new(w.EngagementId, w.Users["associate"].Id, StaffingLevels.StaffAssociate));
+      Assert.True(assigned.Succeeded, assigned.Message);
+      assignmentId = assigned.Value;
+      Assert.True((await StaffingService.RevokeAsync(db, w.Actor("partner", "Partner"), assignmentId)).Succeeded);
+      Assert.NotNull(db.Database.CurrentTransaction);
+      await tx.RollbackAsync();
+    }
+    await using var check = new AuditSphereDbContext(pg.Options);
+    Assert.False(await check.EngagementStaffAssignments.AnyAsync(x => x.Id == assignmentId));
+    Assert.False(await check.RoleGrants.AnyAsync(x => x.UserId == w.Users["associate"].Id));
+    Assert.False(await check.RoleGrantChangeEvidences.AnyAsync(x => x.TargetUserId == w.Users["associate"].Id));
+    Assert.Equal(w.Users["associate"].SessionEpoch,
+      (await check.Users.SingleAsync(x => x.Id == w.Users["associate"].Id)).SessionEpoch);
+  }
+
+  [Fact]
   public async Task Staffing_ExpiredHigherRoleDoesNotElevateAnActiveManager()
   {
     await using var pg = await PgTestSchema.CreateAsync();
