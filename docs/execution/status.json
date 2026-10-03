@@ -7073,13 +7073,23 @@
       "boundary": "This fixes duplicate same-term search reads by synchronously cancelling the debounce and deduplicating active/completed term requests; failed lookups remain retryable. The overall API/Angular migration remains PARTIAL."
     },
     "angularIntegratedRegressionZcode": {
-      "status": "PARTIAL",
+      "status": "PASS",
       "scope": "Whole-solution Release regression launched from a fresh build (solution zero warnings/errors, Angular production build complete) while HEAD was 795da8c with clean source; the parallel session advanced HEAD with six commits (specialist review timeline, resource grid range, docs) and ran its own concurrent regression during the E2E leg.",
       "api": "PASS: 175/175 (14m30s).",
       "domain": "PASS: 644/644 (32m36s).",
       "e2e": "200/201. One case failed during the concurrent-window leg: ClientScopeJourneyTests.PbcInboxClearsRenderedStateWhenNavigatingToUnauthorizedSiblingEngagement. The failing case passes in isolation immediately after the run (1/1, 23s). The parallel session's own regression recorded a stall in the same window (222560b) and subsequently fixed and verified unrelated search typeahead behavior (f192fe7).",
       "boundary": "No frozen whole-suite pass is claimed: one E2E case failed under two concurrent full regressions contending for the shared local PostgreSQL and browsers, and the tested binaries predate the six commits that landed mid-run. API and Domain legs are complete passes at the tested build. A clean frozen whole-suite claim requires an exclusive window at a settled head.",
-      "remaining": "Exclusive-window frozen whole-suite pass; screen-reader (AT) walk-throughs, wider locale matrix, production-like canary and acceptance, owner-authorized retirement (US-047), live Microsoft gates."
+      "remaining": "Exclusive-window frozen whole-suite pass; screen-reader (AT) walk-throughs, wider locale matrix, production-like canary and acceptance, owner-authorized retirement (US-047), live Microsoft gates.",
+      "cleanFrozenPass": {
+        "command": "dotnet build AuditSphereOps.slnx --no-restore --configuration Release (zero warnings/errors) then dotnet test AuditSphereOps.slnx --configuration Release --no-build --no-restore",
+        "sourceState": "Binaries built at a settled head with clean source (79ac03e code state; the only later commit at launch was this entry's own docs commit 07ee5e3).",
+        "api": "PASS: 176/176 (13m45s) including the parallel session's committed search typeahead contract.",
+        "domain": "PASS: 644/644 (31m2s).",
+        "e2e": "PASS: 201/201 (47m15s).",
+        "aggregate": "1021/1021 passed, zero failed, zero skipped. The earlier concurrent-window failure (PbcInboxClearsRenderedStateWhenNavigatingToUnauthorizedSiblingEngagement) passed in this exclusive window, confirming it as contention flake rather than a product regression.",
+        "residualBoundary": "The parallel session's uncommitted accounting charts/workspace edits were present in the working tree during the E2E leg but are not part of the tested build or this claim. Remaining outside this gate: screen-reader (AT) walk-throughs, wider locale matrix, production-like canary/acceptance, live Microsoft gates and owner-authorized retirement (US-047)."
+      },
+      "status_note": "Superseded boundary: the concurrency-limited 200/201 window above is retained for history; the clean frozen pass below is the whole-suite acceptance record for this head."
     }
   },
   "documentationWork": {
