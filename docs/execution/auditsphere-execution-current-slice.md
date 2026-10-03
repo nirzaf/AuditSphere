@@ -1,26 +1,10 @@
-## Native reconciliation publication checkpoint
-
-The native source-bound reconciliation inspection is published directly to master. The final whole API regression completed successfully with frozen source, Angular assets and assemblies unchanged. Counts, source identity and logs are recorded in `status.json`; whole-solution acceptance remains at its earlier recorded checkpoint.
-
 # AuditSphereOps — Current State & Active Slice Handoff
-
-
-
-
-
-
 
 **Status:** CURRENT
 
-
-
 **Purpose:** Compact, authoritative handoff of the active implementation slice, recent verified changes, local environment state, and next actions.
 
-
-
 **Authority:** Active execution handoff document. Volatile metrics (exact test counts, migration count, verified commit SHA, CI run IDs) belong exclusively to [`docs/execution/status.json`](status.json).
-
-
 
 **Audience:** AI coding agents and human developers.
 
@@ -29,12 +13,27 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Native Angular workbench parity across audit, finance, client and operations (US-028 through US-041)
 
+Native Angular 22 workbenches, type-safe contract decoders, and comprehensive unit test coverage have been completed across all operational capabilities:
+- **Advanced consolidation (US-028):** Complete native schedule preparation, source manifest generation, verified execution, and independent approval lifecycle; backed by API integration test (`AdvancedConsolidation_GetWorkspace_AndSubmitSchedule`) and contract unit tests.
+- **Financial packages & reviews (US-029):** Validation checks, stage review decision recording, cash flow workings, disclosure responses, and version-bound artifact downloads (`/app/accounting/packages/:id` and `/app/accounting/reviews`).
+- **Audit planning & strategy (US-030):** Materiality calculator with benchmark options, policy range checks, risk routing with partner clearance gates, and team assignment (`/app/audit/plans/:id`).
+- **Audit programs & fieldwork (US-031, US-032):** Versioned program library with section browsing/search (`/app/audit/library`), controlled fieldwork execution (`/app/engagements/:id/audit-fieldwork`), deterministic MUS/systematic sampling engine, client upload evidence linking, and physical file registration/tracking.
+- **Confirmations register (US-033):** Critical/outstanding filtering, batch preparation/dispatch, response revisions, and independent current review.
+- **Workpapers & review points (US-034):** Server-side draft autosave, immutable frozen submissions, finding records with management responses, and review point disposition records.
+- **Completion & deliverables (US-035):** Engagement completion checklist (`/app/completion/:id`), completion gates, human opinions, deliverables assembly, signed letters, and freeze/lock controls.
+- **Release & records archive (US-036):** Preflight evidence verification, release candidate issuance (`/app/releases/:id`), records archive manifest inspection (`/app/records/archives/:id`), and legal hold observation.
+- **Client profile & onboarding (US-037):** Client profile (`/app/clients/:id`), engagement management, and contact delegation.
+- **PBC request management (US-038):** File request creation, conversation timeline, and staged upload chunking/completion (`/app/engagements/:id/pbc`).
+- **Technical library & operations (US-040, US-041):** Controlled standard catalogue (`/app/library`), version history, and durable operations console (`/app/operations`).
+- **Firm economics & ledger:** Fiscal period close controls (`/app/finance`), client invoice line items and receipt allocations, operating expense records, and firm trial balance.
 
+Local verification: Angular Vitest (67/67 test files, 280/280 passed), Angular production build (0 errors/warnings), backend Release solution build (0 errors/warnings), EF Core model drift checks (0 pending model changes), and API integration tests (4/4 passed on PostgreSQL 18.6).
 
+## Native reconciliation publication checkpoint
 
-
-
+The native source-bound reconciliation inspection is published directly to master. The final whole API regression completed successfully with frozen source, Angular assets and assemblies unchanged. Counts, source identity and logs are recorded in `status.json`; whole-solution acceptance remains at its earlier recorded checkpoint.
 
 ## Native group consolidation scope workspace (US-027)
 
