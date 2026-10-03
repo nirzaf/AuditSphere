@@ -4,7 +4,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "1d9a73fc25a62e39c20cae362d633aa81702a7ac",
+  "headCommit": "bd984864d87fae134c517d4bb3fbfa86fb75474f",
   "verifiedCommit": "75b70e9afc8d01af06ee2c4681754edb99cd4f70",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": false,
@@ -6571,6 +6571,52 @@
       },
       "recovery": "Initial helper build lacked the ActorContext namespace import. First five lock-wait tests expected scope.denied; the authoritative existing authorization contract returns generation.stale for a revoked session epoch. Corrected the fixture to revoke grants and epoch, assert that exact stale-session result and verify no mutations; the rerun passed. Failed logs retained.",
       "boundary": "Foundation only: immutable assessment request receipts, retained unknown-result lookup, Signal Forms and wider migration/cutover acceptance remain pending. No UI source, schema, provider permissions, live Microsoft or shared Development data changes. Whole-suite verifiedCommit remains the earlier proven checkpoint."
+    },
+    "angularAssessmentCommandReceipts": {
+      "status": "PASS_LOCAL",
+      "sourceCommit": "bd984864d87fae134c517d4bb3fbfa86fb75474f",
+      "observedAt": "2026-10-03",
+      "scope": "Reviewed assessment backend for ANSWER, REQUEST_REVIEW, RECORD_REVIEW, DECISION and CONTINUANCE. Existing capability services publish with an append-only actor-owned request receipt in one transaction.",
+      "checks": {
+        "release": "PASS: zero warnings/errors",
+        "affectedDomain": "PASS: 42/42, zero failed/skipped",
+        "api": "PASS: 4/4, zero failed/skipped",
+        "e2e": "PASS: 7/7, zero failed/skipped; existing native assessment and matching acceptance journeys",
+        "ef": "PASS: no pending model changes",
+        "docs": "PASS: narrative metrics, Markdown health and filenames",
+        "secrets": "PASS: staged gitleaks scan"
+      },
+      "evidence": {
+        "logs": [
+          "/private/tmp/auditsphere-assessment-receipts-final-release.log",
+          "/private/tmp/auditsphere-assessment-receipts-final-domain.log",
+          "/private/tmp/auditsphere-assessment-receipts-final-api.log",
+          "/private/tmp/auditsphere-assessment-receipts-final-e2e.log",
+          "/private/tmp/auditsphere-assessment-receipts-final-ef.log"
+        ],
+        "manifest": "/private/tmp/auditsphere-assessment-receipts-final-frozen-hashes.json",
+        "frozenPaths": 4101,
+        "hashTiming": "Captured after final build, before focused consumers; MATCH after all parents joined. No source or assembly changes during final consumers.",
+        "parents": "All final build/test/EF parents explicitly joined with exit 0."
+      },
+      "coverage": [
+        "All five action receipt replays",
+        "Changed request intent conflict",
+        "Current generation and answer revision review",
+        "Same-status specialist evidence change invalidates preview",
+        "Partner readiness gate and immutable decision recovery",
+        "Continuance returns original result generation on replay",
+        "Actor-owned lookup, wrong-client/missing symmetry and revoked authority",
+        "Concurrent duplicate dispatch and lookup waiting for in-flight publication",
+        "Revocation during publication-lock wait",
+        "Mutation rollback when receipt persistence fails",
+        "Receipt immutability and retained-evidence migration rollback refusal",
+        "CSRF, cookie identity and no-store HTTP contracts",
+        "Bounded Unicode answer and previous-evidence JSON storage"
+      ],
+      "migration": "20261003122211_NativeAssessmentCommandReceipts: exercised in owned disposable schemas/databases only; no shared Development or production migration.",
+      "recovery": "Initial test build required the existing IAuditSphereDbContext test adapter to expose the new receipt set. Initial focused run passed, then concurrent recovery/revocation and Unicode coverage were added. Receipt JSON limit was adjusted for bounded Unicode escaping; final build and consumers passed. Failed build log retained at /private/tmp/auditsphere-assessment-receipts-tests-build.log.",
+      "boundary": "Backend only. Angular preview/assent integration, Signal Forms, tab-only request references, unknown-outcome recovery and navigation/draft parity remain pending. No new provider permission or live Microsoft acceptance. Whole-suite verifiedCommit remains the earlier proven checkpoint."
     }
   },
   "documentationWork": {
