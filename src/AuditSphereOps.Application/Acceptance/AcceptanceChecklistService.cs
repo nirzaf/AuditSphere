@@ -162,8 +162,8 @@ public static class AcceptanceChecklistService
       return CommandResult<Guid>.Fail(ErrorCodes.GenerationStale, "Reload the current evaluation.");
     if (expectedGeneration.HasValue && (await LoadAsync(db, actor.FirmId, clientId, null, guard.InputGeneration, ct)).CurrentDecision is not null)
       return CommandResult<Guid>.Fail(ErrorCodes.ProtectedState, "The current evaluation is immutable.");
-    var open = await db.SpecialistClearances.FirstOrDefaultAsync(x => x.FirmId == actor.FirmId && x.PracticeClientId == clientId &&
-      x.EngagementId == null && x.Area == areaName && x.Status != "CLEARED", ct);
+    var open = await db.SpecialistClearances.Where(x => x.FirmId == actor.FirmId && x.PracticeClientId == clientId &&
+      x.EngagementId == null && x.Area == areaName && x.Status != "CLEARED").OrderBy(x => x.Id).FirstOrDefaultAsync(ct);
     if (open is not null) return CommandResult<Guid>.Ok(open.Id);
     var clearance = new SpecialistClearance
     {

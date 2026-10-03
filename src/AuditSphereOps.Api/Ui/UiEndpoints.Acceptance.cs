@@ -14,6 +14,12 @@ public static partial class UiEndpoints
   public sealed record ContinuanceInput(string Generation);
   private static void MapAcceptanceCommands(RouteGroupBuilder group)
   {
+    group.MapPost("/clients/{id:guid}/assessment/preview", (Guid id, AssessmentCommandRequest input, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => AssessmentCommandWorkspace.PreviewAsync(db, actor, id, input, ct)));
+    group.MapPost("/clients/{id:guid}/assessment/commands", (Guid id, AssessmentCommandRequest input, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => AssessmentCommandWorkspace.ExecuteAsync(db, actor, id, input, ct)));
+    group.MapGet("/clients/{id:guid}/assessment/receipts/{requestId:guid}", (Guid id, Guid requestId, string? requestHash, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => AssessmentCommandWorkspace.LookupAsync(db, actor, id, requestId, requestHash, ct)));
     group.MapPost("/clients/{id:guid}/acceptance/reviews", async (Guid id, ReviewRequestInput input, HttpContext http,
       TrustedActorResolver resolver, IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>
     {

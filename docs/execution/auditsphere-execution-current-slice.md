@@ -13,6 +13,34 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Reviewed assessment commands and backend recovery
+
+The Application assessment workspace now previews and executes answer revisions,
+specialist review requests/results, Partner decisions and continuance through the
+existing capability services. An exact review basis binds persisted evaluation,
+question definitions, answers, effective clearances, target evidence and current
+actor authority. Explicit assent is required; acceptance still requires the
+existing professional readiness gates. Irrelevant or oversized action fields are
+refused. No engagement is activated by these commands.
+
+Execution holds firm, client and actor locks and publishes the local mutation and
+append-only request receipt in one transaction. A matching committed receipt is
+returned before checking changed evaluation state; changed intent cannot reuse
+the request. Authorized actor-owned lookup waits for in-flight publication before
+reporting absence. No timeout establishes failure and no unknown action is blindly
+retried. Database guards validate current scoped authority and the exact result;
+retained receipts prohibit migration rollback. Specialist request reuse selects
+the same deterministic open review shown by the preview.
+
+The new migration is exercised only in disposable PostgreSQL test schemas and
+databases. Shared Development or production migration has not been performed.
+Focused verification evidence is recorded in `status.json`; whole-suite and live
+Microsoft acceptance remain separate. Existing endpoints stay available for
+retained builds. Angular still needs typed forms, explicit preview/assent,
+retained receipt references and navigation/recovery integration before this native
+workflow is complete. Resource-grid parity, wider acceptance and Blazor retirement
+remain open.
+
 ## Assessment command transaction ownership and current authority
 
 Answer capture, specialist review requests/results, Partner decisions and

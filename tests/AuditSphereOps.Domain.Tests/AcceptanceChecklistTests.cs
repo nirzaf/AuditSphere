@@ -18,7 +18,7 @@ namespace AuditSphereOps.Domain.Tests;
 /// evidence and adverse-answer escalation, and the Partner activation gate.
 /// </summary>
 [Trait("Profile", "Database")]
-public sealed class AcceptanceChecklistTests
+public sealed partial class AcceptanceChecklistTests
 {
   private sealed record World(Guid FirmId, Guid ClientId, ActorContext Staff, ActorContext Manager, ActorContext Partner, AppUser PartnerUser);
 

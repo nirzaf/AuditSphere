@@ -14,6 +14,23 @@ Same-origin delivery remains the supported production boundary: build Angular se
 
 ## Implemented ownership
 
+### Assessment reviewed command backend
+
+The scoped assessment API provides CSRF-protected preview and execute contracts
+and an authorized no-store receipt lookup. Application services retain answer,
+specialist, Partner decision and continuance authority. An exact persisted review
+basis and separate explicit assent fence new publication; immutable actor-owned
+receipts reconcile lost replies. The local mutation and receipt commit together.
+No external operation, professional conclusion, role grant or engagement activation
+is inferred. Retained evidence prevents rollback of the receipt migration.
+
+Deployments require their usual approved database migration before these new
+contracts are used. Existing assessment endpoints remain available to retained UI
+builds. Native Angular preview/forms/reference recovery integration and retirement
+acceptance are still pending; the backend alone does not establish UI parity.
+
+### Existing presentation and host ownership
+
 - Angular workspace: `src/AuditSphereOps.Ui`, standalone Angular with Material/CDK, zoneless change notification and lazy capability routes.
 - Shared Material typography uses an installed system font stack for both the shell and body-mounted dialogs, with no external font dependency.
 - API serves only the explicit `/ui` route catalogue shared by `UiEndpoints.SpaRoutes` and Angular `app.routes.ts`; a contract test prevents catalogue drift. Native families include practice, accounting, consolidation, audit, completion, administration and the restricted portal. Auth, consent callbacks, API, protected file transports and health keep their HTTP owners. Unknown routes are not a blanket SPA fallback.

@@ -18,6 +18,7 @@ namespace AuditSphereOps.Application.Operations;
 
 public interface IAuditSphereDbContext : IAsyncDisposable
 {
+  DbSet<AssessmentCommandReceipt> AssessmentCommandReceipts { get; }
   DbSet<DurableOperation> DurableOperations { get; }
   DbSet<OperationAttempt> OperationAttempts { get; }
   DbSet<OperationEvent> OperationEvents { get; }

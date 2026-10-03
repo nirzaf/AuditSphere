@@ -21,6 +21,7 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
   AuditSphereOps.Application.Operations.IAdjustmentJournalDbContext
 {
   public DbSet<AppUser> Users => Set<AppUser>();
+  public DbSet<AssessmentCommandReceipt> AssessmentCommandReceipts => Set<AssessmentCommandReceipt>();
 
   public DbSet<RoleGrant> RoleGrants => Set<RoleGrant>();
 
@@ -504,6 +505,7 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
     ConfigurePractice(b);
     ConfigureClientContactCreations(b);
     ConfigureClientConversions(b);
+    ConfigureAssessmentReceipts(b);
     ConfigureEngagementCreations(b);
     ConfigureBudgetPreparations(b);
     ConfigureBudgetApprovals(b);
