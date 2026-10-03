@@ -4,7 +4,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { provideRouter } from '@angular/router';
 import { By } from '@angular/platform-browser';
 import { SessionService } from '../../core/session';
-import { ResourcePlanning } from './resources';
+import { decodeResources, ResourcePlanning, resourceWeekStarts } from './resources';
 import {
   PlanningPreview,
   PlanningReceipt,
@@ -17,7 +17,7 @@ const id = '11111111-1111-4111-8111-111111111111',
 const workspace = {
   grid: {
     firstWeek: '2026-10-05',
-    weeks: 4,
+    weeks: 1,
     rows: [
       {
         userId: id,
@@ -70,10 +70,10 @@ describe('Resource planning forms', () => {
     });
   });
   afterEach(() => http.verify());
-  function setup() {
+  function setup(response = workspace) {
     const fixture = TestBed.createComponent(ResourcePlanning);
     fixture.detectChanges();
-    http.expectOne((r) => r.url.startsWith('/api/ui/practice/resources?')).flush(workspace);
+    http.expectOne((r) => r.url.startsWith('/api/ui/practice/resources?')).flush(response);
     TestBed.tick();
     return fixture;
   }
@@ -118,6 +118,31 @@ describe('Resource planning forms', () => {
     expect(text).toContain('30 hours');
     expect(text).toContain('does not assign an AuditSphere role');
     f.destroy();
+  });
+  it('keeps selected week columns and an aligned empty row when there are no active staff', () => {
+    expect(resourceWeekStarts('2026-10-05', 3)).toEqual([
+      '2026-10-05',
+      '2026-10-12',
+      '2026-10-19',
+    ]);
+    const f = setup({
+      grid: { firstWeek: '2026-10-05', weeks: 3, rows: [] },
+      engagements: [],
+    });
+    const table = f.nativeElement.querySelector('table[aria-label="Resource grid"]') as HTMLTableElement;
+    const headers = [...table.querySelectorAll('thead th')].map((h) => h.textContent?.trim());
+    expect(headers.slice(-3)).toEqual([
+      'Week of 2026-10-05',
+      'Week of 2026-10-12',
+      'Week of 2026-10-19',
+    ]);
+    expect(table.querySelector('tbody td')?.getAttribute('colspan')).toBe('6');
+    f.destroy();
+  });
+  it('rejects empty, oversized or row-misaligned resource ranges', () => {
+    expect(() => resourceWeekStarts('2026-10-05', 0)).toThrow();
+    expect(() => resourceWeekStarts('2026-10-05', 13)).toThrow();
+    expect(() => decodeResources({ ...workspace, grid: { ...workspace.grid, weeks: 2 } })).toThrow();
   });
   it('populates selected profile from persisted state and rejects invalid percentage before POST', async () => {
     const f = setup(),

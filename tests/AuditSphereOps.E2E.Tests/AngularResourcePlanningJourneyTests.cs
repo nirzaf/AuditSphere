@@ -31,6 +31,7 @@ public sealed class AngularResourcePlanningJourneyTests
     await page.GotoAsync(origin+"/auth/sign-in?returnUrl="+Uri.EscapeDataString(prefix+"/app/practice/resources"));
     var table=page.GetByRole(AriaRole.Table,new(){Name="Resource grid",Exact=true});
     await Assertions.Expect(table).ToContainTextAsync("Synthetic resource staff");
+    Assert.Equal(7, await table.Locator("thead th").CountAsync());
     Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= innerWidth + 1"));
     async Task ConfirmAndAcknowledgeAsync()
     {

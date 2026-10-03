@@ -15,7 +15,7 @@ import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { firstValueFrom } from 'rxjs';
 import { Api, CommandState } from '../../core/api';
 import { SessionService } from '../../core/session';
-import { arr, bool, date, dec, guid, nat, nullable, obj, text } from '../../core/decode';
+import { arr, bool, date, decode, dec, guid, nat, nullable, obj, text } from '../../core/decode';
 import { SHARED } from '../../core/ui';
 import { hours } from './analytics';
 import {
@@ -61,10 +61,34 @@ const row = obj({
     500,
   ),
 });
-export const decodeResources = obj({
+const resourcesResponse = obj({
   grid: obj({ firstWeek: date, weeks: nat, rows: arr(row, 2000) }),
   engagements: arr(obj({ id: guid, label: text }), 200),
 });
+
+export function resourceWeekStarts(firstWeek: string, weeks: number): string[] {
+  if (!validResourceDate(firstWeek) || !Number.isInteger(weeks) || weeks < 1 || weeks > 12)
+    throw new Error('Invalid resource range');
+  const start = Date.parse(firstWeek + 'T00:00:00Z');
+  return Array.from({ length: weeks }, (_, index) =>
+    new Date(start + index * 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+  );
+}
+
+export function decodeResources(value: unknown) {
+  const result = decode(resourcesResponse, value);
+  const starts = resourceWeekStarts(result.grid.firstWeek, result.grid.weeks);
+  if (
+    result.grid.rows.some(
+      (r) =>
+        r.weeks.length !== starts.length ||
+        r.weeks.some((week, index) => week.weekStart !== starts[index]) ||
+        r.allocations.some((allocation) => !starts.includes(allocation.weekStart)),
+    )
+  )
+    throw new Error('Invalid resource grid range');
+  return result;
+}
 
 const whole = (v: string | null) => (v === null ? null : v.split('.')[0]);
 export const toMinutes = resourceMinutes;
@@ -142,6 +166,7 @@ export class ResourcePlanning {
   );
   readonly hrs = (m: number) => hours(m).replace(/\.0$/, '');
   readonly whole = whole;
+  readonly weekStarts = resourceWeekStarts;
   readonly hasAllocations = computed(
     () => this.view.data()?.grid.rows.some((r) => r.allocations.length) ?? false,
   );

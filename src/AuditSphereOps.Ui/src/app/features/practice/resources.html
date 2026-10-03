@@ -61,8 +61,8 @@
             <th scope="col">Team member</th>
             <th scope="col">Skills and certifications</th>
             <th scope="col">Target</th>
-            @for (w of v.grid.rows[0]?.weeks ?? []; track w.weekStart) {
-              <th scope="col">Week of {{ w.weekStart }}</th>
+            @for (week of weekStarts(v.grid.firstWeek, v.grid.weeks); track week) {
+              <th scope="col">Week of {{ week }}</th>
             }
           </tr>
         </thead>
@@ -123,7 +123,7 @@
             </tr>
           } @empty {
             <tr>
-              <td colspan="3">No active staff.</td>
+              <td [attr.colspan]="v.grid.weeks + 3">No active staff.</td>
             </tr>
           }
         </tbody>
