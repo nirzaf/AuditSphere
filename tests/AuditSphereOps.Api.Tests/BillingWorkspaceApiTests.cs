@@ -76,6 +76,8 @@ public sealed class BillingWorkspaceApiTests
     Assert.Equal(HttpStatusCode.OK, credited.StatusCode);
     var final = await client.GetFromJsonAsync<JsonElement>(path);
     Assert.Equal(64.375m, Decimal(final.GetProperty("outstanding")));
+    Assert.Equal(10.5m, Decimal(final.GetProperty("credited")));
+    Assert.Equal(25.125m, Decimal(final.GetProperty("allocated")));
     var receipt = Assert.Single(final.GetProperty("receipts").EnumerateArray());
     Assert.Equal("SYN-BANK-001", receipt.GetProperty("reference").GetString());
     Assert.Equal(25.125m, Decimal(receipt.GetProperty("allocated")));

@@ -11,7 +11,7 @@ const positiveAmount = Validators.pattern(/^\d+(?:\.\d{1,6})?$/);
 
 export const decodeInvoice = obj({
   id: guid, billingAccountId: guid, invoiceNumber: text, currency: nullable(text), subtotal: dec, tax: dec, total: dec, revision: nat, status: text,
-  createdAt: instant, postedAt: nullable(instant), outstanding: dec, canAct: bool,
+  createdAt: instant, postedAt: nullable(instant), outstanding: dec, credited: dec, allocated: dec, canAct: bool,
   lines: arr(obj({ description: text, quantity: dec, unitPrice: dec, lineTotal: dec }), 5000),
   allocations: arr(obj({ receiptId: guid, createdAt: instant, amount: dec }), 5000),
   receipts: arr(obj({ id: guid, reference: text, currency: text, amount: dec, allocated: dec, remaining: dec, receivedAt: instant }), 100),
@@ -29,7 +29,7 @@ export const decodeInvoice = obj({
     <audit-page-header title="Practice invoice" eyebrow="Practice billing" description="Client invoice record, line items, receipts and credit notes under firm finance controls." />
     <audit-state [loading]="invoice.loading()" [error]="invoice.error()" label="invoice" />
     @if (invoice.data(); as i) {
-      <p role="status">Invoice total {{ i.total | money }} · credited {{ creditedTotal(i.creditNotes) | money }} · allocated {{ allocatedTotal(i.allocations) | money }} · balance outstanding {{ i.outstanding | money }}</p>
+      <p role="status">Invoice total {{ i.total | money }} · credited {{ i.credited | money }} · allocated {{ i.allocated | money }} · balance outstanding {{ i.outstanding | money }}</p>
       <section class="panel" aria-labelledby="invoice-heading">
         <p class="eyebrow">Status: <audit-status [value]="i.status" /> (Rev {{ i.revision }})</p>
         <h2 id="invoice-heading">{{ i.invoiceNumber }}</h2>
@@ -233,14 +233,6 @@ export class InvoiceDetail {
       this.message.set(success);
       this.invoice.reload();
     } finally { this.busy.set(false); }
-  }
-
-  creditedTotal(notes: ReturnType<typeof decodeInvoice>['creditNotes']): string {
-    return this.sum(notes.map((note) => note.amount));
-  }
-
-  allocatedTotal(allocations: ReturnType<typeof decodeInvoice>['allocations']): string {
-    return this.sum(allocations.map((allocation) => allocation.amount));
   }
 
   private sum(values: string[]): string {

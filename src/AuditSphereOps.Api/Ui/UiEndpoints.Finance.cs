@@ -36,6 +36,7 @@ public static partial class UiEndpoints
       {
         v.Invoice.Id, v.Invoice.BillingAccountId, v.Invoice.InvoiceNumber, v.Invoice.Currency, v.Invoice.Subtotal, v.Invoice.Tax, v.Invoice.Total, v.Invoice.Revision, v.Invoice.Status,
         v.Invoice.CreatedAt, v.Invoice.PostedAt, Outstanding = v.Balance.Outstanding,
+        Credited = v.Balance.Credited, Allocated = v.Balance.Allocated,
         Lines = v.Lines.Select(l => new { l.Description, l.Quantity, l.UnitPrice, l.LineTotal }),
         Allocations = v.Allocations.Select(a => new { a.ReceiptId, a.CreatedAt, a.Amount }),
         Receipts = r.Value.Receipts,

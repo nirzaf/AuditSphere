@@ -61,6 +61,8 @@ describe('Finance & Firm Ledger Contracts', () => {
       createdAt: '2026-10-01T09:00:00Z',
       postedAt: null,
       outstanding: '50000.00',
+      credited: '1000.00',
+      allocated: '0.00',
       canAct: true,
       billingAccountId: id2,
       lines: [
