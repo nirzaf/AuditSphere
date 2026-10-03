@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 namespace AuditSphereOps.Application.Accounting;
 
 public sealed record AccountingEvidenceRow(string Kind, string Area, string ClientName, string EngagementName, string PeriodCode, string Status,
-  long InputGeneration, long CurrentGeneration, string LinkStatus, Guid? WorkpaperId, string Reference, bool IsStale, bool IsTerminal);
+  long InputGeneration, long CurrentGeneration, string LinkStatus, Guid? WorkpaperId, string Reference, bool IsStale, bool IsTerminal, Guid? EvidenceId = null);
 
 /// <summary>
 /// Grant-scoped accounting evidence queue (ECL, inventory, specialist, analytical, journal-risk) with the audit-procedure
@@ -67,8 +67,11 @@ public static class AccountingEvidenceQueueQuery
       var has = linkStatus.TryGetValue(Key(kind, evidenceId), out var link);
       var terminal = kind == "JOURNAL_RISK" ? status is "CLEARED" or "NOT_AN_ISSUE" : status is "APPROVED" or "REJECTED";
       return new(kind, area, clients.GetValueOrDefault(clientId, "—"), engagements.GetValueOrDefault(engagementId, "Scoped engagement"), periodCode, status, input, current,
-        has ? link!.Status : "LINK_PENDING", has ? link!.WorkpaperId : null, reference, input != current, terminal);
+        has ? link!.Status : "LINK_PENDING", has ? link!.WorkpaperId : null, reference, input != current, terminal, evidenceId);
     }
+    foreach (var r in reconciliations.Values)
+      rows.Add(Row("RECONCILIATION", r.Area, r.Id, r.ClientId, r.EngagementId, periods.GetValueOrDefault(r.PeriodId, "—"), r.Status,
+        r.InputGeneration, generations.GetValueOrDefault(r.ClientId, 0), r.AccountSelection) with { LinkStatus = "SOURCE_REVIEW_REQUIRED" });
     foreach (var x in await db.EclAssessments.AsNoTracking().Where(x => x.FirmId == f && (unrestricted || directClientIds.Contains(x.ClientId) || scoped.Contains(x.EngagementId))).ToListAsync(ct))
     {
       var r = reconciliations[x.ReconciliationId];

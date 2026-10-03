@@ -187,7 +187,7 @@ public static partial class AccountingAnalysisService
 
   /// <summary>Canonical digest of the exact reconciliation item set; the proof and the
   /// approval gate both recompute it so an edited item set invalidates old proofs.</summary>
-  private static string ComputeReconciliationItemManifestDigest(
+  internal static string ComputeReconciliationItemManifestDigest(
     IEnumerable<(Guid ItemId, decimal SignedAmount)> items) =>
     Hashing.Sha256Hex(string.Join('\n', items
       .OrderBy(x => x.ItemId)

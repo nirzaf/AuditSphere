@@ -6,7 +6,7 @@ import { arr, bool, guid, int, nullable, obj, text } from '../../core/decode';
 import { SHARED } from '../../core/ui';
 
 export const decodeEvidenceQueue = arr(obj({ kind: text, area: text, clientName: text, engagementName: text, periodCode: text, status: text, inputGeneration: int,
-  currentGeneration: int, linkStatus: text, workpaperId: nullable(guid), reference: text, isStale: bool, isTerminal: bool }), 20000);
+  currentGeneration: int, linkStatus: text, workpaperId: nullable(guid), reference: text, isStale: bool, isTerminal: bool, evidenceId: nullable(guid) }), 20000);
 const PAGE = 25;
 
 @Component({
@@ -15,7 +15,7 @@ const PAGE = 25;
   template: `
     <a routerLink="/app/accounting">← Back to accounting workspace</a>
     <audit-page-header title="Accounting evidence queue" eyebrow="Accounting evidence"
-      description="Only accounting evidence in the authenticated client scope is shown. Approval requires a reviewed audit-procedure result; a free-text reference alone is not approval evidence." />
+      description="Only accounting evidence in the authenticated client scope is shown. Reconciliations retain local proofs; valuation and analysis approval requires a reviewed audit-procedure result. A free-text reference alone is not approval evidence." />
     <button matButton="outlined" (click)="rows.reload(); page.set(0)">Refresh queue</button>
     <audit-state [loading]="rows.loading()" [error]="rows.error()" label="scoped accounting evidence" />
     @if (rows.data(); as r) {
@@ -27,7 +27,7 @@ const PAGE = 25;
           <div class="table-scroll"><table>
             <thead><tr><th>Area</th><th>Client</th><th>Engagement</th><th>Period</th><th>Status</th><th>Input generation</th><th>Audit evidence</th><th>Reference</th></tr></thead>
             <tbody>@for (x of r.slice(page() * 25, page() * 25 + 25); track $index) {
-              <tr><td><strong>{{ x.kind }}</strong><small>{{ x.area }}</small></td><td>{{ x.clientName }}</td><td>{{ x.engagementName }}</td><td>{{ x.periodCode }}</td>
+              <tr><td><strong>{{ x.kind }}</strong><small>{{ x.area }}</small>@if (x.kind === 'RECONCILIATION' && x.evidenceId) { <a [routerLink]="['/app/accounting/reconciliations', x.evidenceId]">Inspect reconciliation</a> }</td><td>{{ x.clientName }}</td><td>{{ x.engagementName }}</td><td>{{ x.periodCode }}</td>
                 <td><audit-status [value]="x.status" />{{ x.isStale ? ' · STALE' : '' }}</td><td>{{ x.inputGeneration }} / {{ x.currentGeneration }}</td>
                 <td><audit-status [value]="x.linkStatus" />@if (x.workpaperId) { <a [routerLink]="['/app/audit/workpapers', x.workpaperId]">Open linked workpaper</a> }</td>
                 <td><small>{{ x.reference }}</small></td></tr> }</tbody>

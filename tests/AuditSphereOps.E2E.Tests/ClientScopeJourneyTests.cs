@@ -1062,8 +1062,12 @@ public sealed class ClientScopeJourneyTests
     {
       await evidencePage.SetViewportSizeAsync(width, 900);
       await evidencePage.WaitForFunctionAsync("() => document.documentElement.clientWidth === window.innerWidth");
+      if (width < 960)
+        await evidencePage.WaitForFunctionAsync("() => (document.querySelector('.audit-main-content') !== null && getComputedStyle(document.querySelector('.audit-main-content')).marginLeft === '0px')");
+      await evidencePage.EvaluateAsync("() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+      var evidenceOverflow = await evidencePage.EvaluateAsync<string>("""() => JSON.stringify({ viewport: innerWidth, document: document.documentElement.scrollWidth, offenders: [...document.querySelectorAll('body *')].filter(x => x.getBoundingClientRect().right > innerWidth + 1 && getComputedStyle(x).position !== 'fixed').slice(0, 8).map(x => ({ tag: x.tagName, className: typeof x.className === 'string' ? x.className : '', width: Math.round(x.getBoundingClientRect().width), right: Math.round(x.getBoundingClientRect().right) })) })""");
       Assert.True(await evidencePage.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= window.innerWidth + 1"),
-        $"Accounting evidence overflows the {width}px viewport.");
+        $"Accounting evidence overflows the {width}px viewport: {evidenceOverflow}");
       if ((width == 390 || width == 1440) && Environment.GetEnvironmentVariable("AUDITSPHERE_UI_CAPTURE_DIR") is { Length: > 0 } captureDir)
       {
         Directory.CreateDirectory(captureDir);

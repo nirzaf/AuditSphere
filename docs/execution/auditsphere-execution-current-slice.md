@@ -32,6 +32,24 @@ which the full suite was run; per-slice records carry their own evidence.
 
 
 
+## Native reconciliation evidence inspection
+
+The Angular evidence queue now links authorized reconciliations to a focused native view.
+The Application projection retains exact reporting/source identity, preparation and
+independent review metadata, historical amounts and the latest persisted complete-item
+proof. Current source digest, generation, reporting context and item manifest are checked
+separately; stale or unavailable inputs block reuse without rewriting retained approval.
+Items are server-paged, and an oversized complete item set fails closed. Repeated current
+reads and final authority checks prevent a mixed snapshot or stale session from publishing
+protected evidence. Guessed and out-of-scope detail identities share the same denial.
+
+Local PostgreSQL, API, Angular and browser evidence is recorded in `status.json`, including
+built-in desktop/mobile inspection. The affected legacy responsive assertion now waits for
+the existing drawer/main-content transition before measuring the original narrow widths;
+its overflow and isolation requirements remain unchanged. This slice does not add
+calculation, approval or linking commands. Specialist/valuation and related evidence editor
+parity, wider migration QA, cutover and Blazor retirement remain open.
+
 ## Accounting evidence scope and session checks
 
 The Application evidence queue excludes expired grants from its scope projection. Before

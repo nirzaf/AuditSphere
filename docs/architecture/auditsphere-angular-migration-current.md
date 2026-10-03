@@ -41,6 +41,22 @@ The implementation covers native route families for practice, accounting, consol
 
 Execution evidence is recorded in [status.json](../execution/status.json). Local synthetic fixtures do not establish tenant, deployment, professional or owner acceptance. Wiki publication has not been authorized.
 
+### Native reconciliation inspection
+
+`ReconciliationWorkspaceQuery` reads an exact locally authorized client/engagement and
+reporting period/book. It uses the existing reconciliation item-manifest formula to check
+the complete bounded item set and latest retained proof, while independently checking the
+current accepted/sealed source, digest and client generation. Historical amounts and
+review metadata stay separate from current reuse eligibility. Missing source, generation
+or proof blocks reuse; it never invents a zero result. The detail is read only.
+
+The native API and Angular route expose bounded item pages, preparation/review evidence
+and exact source navigation. Runtime decoders retain decimal strings, validate current
+proof eligibility and reject a mismatched target/page. Changed route/session clears old
+protected detail. A repeated authoritative projection and final exact authorization fence
+a mid-read input or epoch change. There is no new schema, Microsoft permission, calculation,
+approval or evidence-link mutation in this slice.
+
 ### Accounting evidence read authorization
 
 The evidence queue derives scope from current, unrevoked and unexpired local grants.
