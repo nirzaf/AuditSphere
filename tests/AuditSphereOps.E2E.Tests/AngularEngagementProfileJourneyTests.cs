@@ -81,7 +81,7 @@ public sealed class AngularEngagementProfileJourneyTests
     await page.GetByText("Team and budget",new(){Exact=true}).ScrollIntoViewIfNeededAsync();
     var planning=page.GetByRole(AriaRole.Region,new(){Name="Engagement planning",Exact=true});
     await Assertions.Expect(planning.GetByRole(AriaRole.Heading,new(){Name="Assign staff",Exact=true})).ToBeVisibleAsync();
-    await Assertions.Expect(planning.GetByRole(AriaRole.Button,new(){Name="Approve draft budget",Exact=true})).ToBeVisibleAsync();
+    await Assertions.Expect(planning.GetByRole(AriaRole.Button,new(){Name="Review budget approval",Exact=true})).ToBeVisibleAsync();
     await Assertions.Expect(planning.GetByRole(AriaRole.Region,new(){Name="Budget preparation",Exact=true})).ToHaveCountAsync(0);
     await page.SetViewportSizeAsync(390,844);
     Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= innerWidth + 1"));

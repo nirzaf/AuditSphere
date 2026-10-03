@@ -31,6 +31,13 @@ import { SessionService } from '../../core/session';
 import { TabDrafts, PendingRequestReference, pendingRequestReference } from '../../core/tab-drafts';
 import { Api } from '../../core/api';
 import {
+  BudgetApprovalPreview,
+  BudgetApprovalReceipt,
+  decodeBudgetApprovalPreview,
+  decodeBudgetApprovalReceipt,
+  decodeBudgetApprovalLookup,
+} from './budget-approval-contracts';
+import {
   BudgetPreparationPreview,
   BudgetPreparationReceipt,
   decodeBudgetPreparationPreview,
@@ -473,7 +480,7 @@ export function decodePlanning(value: unknown): Planning {
           <p role="status">{{ commandStatus() }}</p>
         </section>
       }
-      @if (planning.draft; as draft) {
+      @if (!approvalPending() && planning.draft; as draft) {
         <section aria-label="Budget approval">
           <h3>Draft version {{ draft.version }} · {{ draft.currency }}</h3>
           @for (line of draft.lines; track $index) {
@@ -489,14 +496,14 @@ export function decodePlanning(value: unknown): Planning {
                 [formField]="approvalFields.reviewed"
                 (change)="budgetReviewed = checkboxChecked($event)"
               />
-              I reviewed this draft and approve its budget.</label
+              I reviewed this draft for independent approval.</label
             >
             <button
               matButton
               [disabled]="busy() || uncertain() || !budgetReviewed"
               (click)="approveBudget(draft.id)"
             >
-              Approve draft budget
+              Review budget approval
             </button>
           } @else {
             <p>A different authorized manager or partner must approve this draft.</p>
@@ -504,8 +511,62 @@ export function decodePlanning(value: unknown): Planning {
           <p role="status">{{ commandStatus() }}</p>
         </section>
       }
+      @if (approvalPreview(); as preview) {
+        <section aria-label="Reviewed budget approval">
+          <h3>Review independent budget approval</h3>
+          <p>
+            Draft {{ preview.fields.expectedVersion }} · {{ preview.currency }} · forecast
+            {{ preview.forecastCost }}
+          </p>
+          @for (line of preview.lines; track $index) {
+            <p>
+              {{ line.role }} · {{ line.activity }} · {{ line.phase }} · {{ line.riskArea }} ·
+              {{ line.minutes }} minutes · {{ line.cost }}
+            </p>
+          }
+          <label
+            ><input
+              type="checkbox"
+              [formField]="approvalConfirmationFields.reviewed"
+              (change)="approvalConfirmationReviewed = checkboxChecked($event)"
+            />I reviewed this exact draft and authorize independent approval.</label
+          >
+          <button
+            matButton
+            [disabled]="busy() || uncertain() || !approvalConfirmationReviewed"
+            (click)="confirmBudgetApproval()"
+          >
+            Confirm budget approval
+          </button>
+          <button matButton [disabled]="busy() || uncertain()" (click)="cancelApprovalReview()">
+            Cancel approval review
+          </button>
+        </section>
+      }
+      @if (approvalPending()) {
+        <button matButton [disabled]="busy()" (click)="reconcileBudgetApproval()">
+          Verify approval request receipt
+        </button>
+      }
+      @if (approvalReceipt(); as receipt) {
+        <section aria-label="Budget approval receipt">
+          <h3>Recorded budget approval</h3>
+          <p>
+            Budget {{ receipt.budgetId }} · {{ receipt.preview.currency }} · forecast
+            {{ receipt.preview.forecastCost }}.
+          </p>
+          <button matButton [disabled]="busy()" (click)="acknowledgeBudgetApproval()">
+            Acknowledge budget approval
+          </button>
+        </section>
+      }
       <h3>Approved budget</h3>
-      @if (planning.budget; as budget) {
+      @if (approvalPending()) {
+        <p>
+          Approval outcome requires receipt verification and acknowledgement before the current
+          budget is refreshed.
+        </p>
+      } @else if (planning.budget; as budget) {
         <p>
           Version {{ budget.version }} · {{ budget.currency }}. Actuals include approved time only.
           Monetary values are shown exactly as supplied by the accounting service.
@@ -575,6 +636,7 @@ export class EngagementPlanning {
       this.busy() ||
       this.uncertain() ||
       (!allowReviewed && this.budgetPreview()) ||
+      !!this.approvalPreview() ||
       this.destroyed ||
       !this.owner()
     )
@@ -645,7 +707,11 @@ export class EngagementPlanning {
     disabled(
       p,
       () =>
-        this.busy() || this.uncertain() || !!this.budgetPreview() || !this.data()?.canPrepareBudget,
+        this.busy() ||
+        this.uncertain() ||
+        !!this.budgetPreview() ||
+        !!this.approvalPreview() ||
+        !this.data()?.canPrepareBudget,
     );
     applyEach(p.lines, (l) => {
       required(l.role);
@@ -678,7 +744,13 @@ export class EngagementPlanning {
     this.budgetModel.update((m) => ({ ...m, lines: value.map((l) => ({ ...l })) }));
   }
   removeBudgetLine(index: number): void {
-    if (!this.data()?.canPrepareBudget || this.busy() || this.uncertain() || this.budgetPreview())
+    if (
+      !this.data()?.canPrepareBudget ||
+      this.busy() ||
+      this.uncertain() ||
+      this.budgetPreview() ||
+      this.approvalPreview()
+    )
       return;
     this.budgetLines = this.budgetLines.filter((_, i) => i !== index);
   }
@@ -688,6 +760,7 @@ export class EngagementPlanning {
       this.busy() ||
       this.uncertain() ||
       this.budgetPreview() ||
+      this.approvalPreview() ||
       this.budgetLines.length >= 200
     )
       return;
@@ -714,6 +787,7 @@ export class EngagementPlanning {
         this.budgetReviewed ||
         !!this.revokeTarget() ||
         !!this.budgetPreview() ||
+        !!this.approvalPreview() ||
         this.preparationReviewed)
     );
   }
@@ -785,7 +859,13 @@ export class EngagementPlanning {
   async saveBudget(): Promise<void> {
     const planning = this.data(),
       owner = this.owner();
-    if (!planning?.canPrepareBudget || this.busy() || this.uncertain() || this.budgetPreview())
+    if (
+      !planning?.canPrepareBudget ||
+      this.busy() ||
+      this.uncertain() ||
+      this.budgetPreview() ||
+      this.approvalPreview()
+    )
       return;
     const editable = editablePlanningBudget({
       currency: this.currency.trim().toUpperCase(),
@@ -989,21 +1069,250 @@ export class EngagementPlanning {
     this.drafts.clear('engagement-budget:' + this.engagementId());
     this.load();
   }
-  approveBudget(id: string): void {
+  readonly approvalPreview = signal<BudgetApprovalPreview | null>(null);
+  readonly approvalReceipt = signal<BudgetApprovalReceipt | null>(null);
+  readonly approvalPending = signal<PendingRequestReference | null>(null);
+  private pendingApprovalScope(basis = '0'.repeat(64)) {
+    return {
+      entity: 'engagement-budget-approval-request/' + this.engagementId(),
+      baseRevision: basis,
+    };
+  }
+  cancelApprovalReview(): void {
+    if (this.busy() || this.uncertain()) return;
+    this.approvalPreview.set(null);
+    this.approvalConfirmationReviewed = false;
+  }
+  async approveBudget(id: string): Promise<void> {
+    const draft = this.data()?.draft,
+      owner = this.owner(),
+      captured = JSON.stringify(draft);
     if (
-      !this.data()?.draft?.canApprove ||
-      this.data()?.draft?.id !== id ||
+      !draft?.canApprove ||
+      draft.id !== id ||
       !this.budgetReviewed ||
       this.busy() ||
       this.uncertain() ||
-      this.budgetPreview()
+      this.budgetPreview() ||
+      this.approvalPreview()
     )
       return;
-    this.command('budgets/' + id + '/approve', {});
+    const requestId = crypto.randomUUID();
+    this.busy.set(true);
+    this.budgetReviewed = false;
+    const result = await this.api.command(
+      '/api/ui/engagements/' + this.engagementId() + '/budget-approval/preview',
+      { requestId, fields: { budgetId: id, expectedVersion: draft.version } },
+    );
+    if (this.destroyed || owner !== this.owner()) return;
+    this.busy.set(false);
+    if (!result.ok) {
+      this.commandStatus.set(result.message);
+      if (result.status === 401 || result.status === 403) {
+        this.clearProtectedEditor();
+        this.load();
+      }
+      return;
+    }
+    try {
+      const preview = decodeBudgetApprovalPreview(result.value);
+      if (
+        captured !== JSON.stringify(this.data()?.draft) ||
+        preview.engagementId !== this.engagementId() ||
+        preview.requestId !== requestId ||
+        preview.fields.budgetId !== id ||
+        preview.fields.expectedVersion !== draft.version ||
+        preview.currency !== draft.currency ||
+        JSON.stringify(preview.lines) !== JSON.stringify(draft.lines)
+      )
+        throw new Error('Changed approval review');
+      this.approvalPreview.set(preview);
+      this.commandStatus.set(
+        'Review the exact draft and explicitly confirm independent approval. No approval has been submitted.',
+      );
+    } catch {
+      this.commandStatus.set(
+        'Approval review changed or returned an unsupported response. Refresh before reviewing again.',
+      );
+    }
+  }
+  async confirmBudgetApproval(): Promise<void> {
+    const p = this.approvalPreview(),
+      owner = this.owner();
+    if (
+      !p ||
+      !this.data()?.canManageStaffing ||
+      !this.approvalConfirmationReviewed ||
+      this.busy() ||
+      this.uncertain()
+    )
+      return;
+    const reference = { requestId: p.requestId, requestHash: p.requestHash };
+    if (
+      !this.drafts.save(
+        this.pendingApprovalScope(p.reviewBasis),
+        reference,
+        pendingRequestReference,
+        true,
+      )
+    ) {
+      this.commandStatus.set('Recovery storage is unavailable. No budget command was sent.');
+      return;
+    }
+    this.approvalPending.set(reference);
+    this.busy.set(true);
+    this.approvalConfirmationReviewed = false;
+    const result = await this.api.command(
+      '/api/ui/engagements/' + this.engagementId() + '/budget-approval',
+      {
+        requestId: p.requestId,
+        fields: p.fields,
+        requestHash: p.requestHash,
+        reviewBasis: p.reviewBasis,
+        reviewed: true,
+      },
+    );
+    if (this.destroyed || owner !== this.owner()) return;
+    this.busy.set(false);
+    this.approvalPreview.set(null);
+    if (!result.ok) {
+      this.commandStatus.set(result.message);
+      if (result.unknown) this.uncertain.set(true);
+      else {
+        this.drafts.clear(this.pendingApprovalScope().entity);
+        this.approvalPending.set(null);
+        if (result.status === 401 || result.status === 403) {
+          this.clearProtectedEditor();
+          this.load();
+        }
+      }
+      return;
+    }
+    try {
+      const receipt = decodeBudgetApprovalReceipt(result.value);
+      if (
+        !this.matchesApprovalReceipt(receipt, reference) ||
+        JSON.stringify(receipt.preview) !== JSON.stringify(p)
+      )
+        throw new Error('Wrong receipt');
+      this.approvalReceipt.set(receipt);
+      this.uncertain.set(true);
+      this.commandStatus.set(
+        'Budget approval recorded with an immutable receipt. Acknowledge the result before continuing.',
+      );
+    } catch {
+      this.uncertain.set(true);
+      this.commandStatus.set(
+        'Outcome unconfirmed. Verify the retained budget receipt before another change.',
+      );
+    }
+  }
+  private matchesApprovalReceipt(r: BudgetApprovalReceipt, p: PendingRequestReference): boolean {
+    return (
+      r.engagementId === this.engagementId() &&
+      r.actorId === this.session.current()?.userId &&
+      r.requestId === p.requestId &&
+      r.requestHash === p.requestHash
+    );
+  }
+  async reconcileBudgetApproval(): Promise<void> {
+    const p = this.approvalPending(),
+      owner = this.owner();
+    if (!p || !this.data()?.canManageStaffing || this.busy()) return;
+    this.busy.set(true);
+    this.approvalPreview.set(null);
+    this.approvalConfirmationReviewed = false;
+    try {
+      const lookup = await this.api.get(
+        '/api/ui/engagements/' +
+          this.engagementId() +
+          '/budget-approval/receipts/' +
+          p.requestId +
+          '?requestHash=' +
+          p.requestHash,
+        decodeBudgetApprovalLookup,
+      );
+      if (this.destroyed || owner !== this.owner()) return;
+      if (lookup.found && lookup.receipt && this.matchesApprovalReceipt(lookup.receipt, p)) {
+        this.approvalReceipt.set(lookup.receipt);
+        this.uncertain.set(true);
+        this.commandStatus.set(
+          'Retained receipt confirms the budget approval. Acknowledge the result before continuing.',
+        );
+      } else if (!lookup.found) {
+        this.drafts.clear(this.pendingApprovalScope().entity);
+        this.approvalPending.set(null);
+        this.uncertain.set(false);
+        this.commandStatus.set(
+          'No committed approval was found after reconciliation. Refresh and explicitly review current fields before a new request.',
+        );
+        this.load();
+      } else throw new Error('Wrong receipt');
+    } catch {
+      if (!this.destroyed && owner === this.owner()) {
+        this.clearProtectedEditor();
+        this.load();
+        this.commandStatus.set(
+          'Receipt unavailable. Revalidate access before reconciling again. No command was retried.',
+        );
+      }
+    } finally {
+      if (!this.destroyed && owner === this.owner()) this.busy.set(false);
+    }
+  }
+  acknowledgeBudgetApproval(): void {
+    if (!this.approvalReceipt() || this.busy()) return;
+    if (!this.drafts.clear(this.pendingApprovalScope().entity)) {
+      this.commandStatus.set(
+        'Receipt acknowledged, but recovery storage could not be cleared. Retry clearing before continuing.',
+      );
+      return;
+    }
+    this.approvalPending.set(null);
+    this.approvalReceipt.set(null);
+    this.uncertain.set(false);
+    this.commandStatus.set('Budget approval acknowledged. Approval has been recorded.');
+    this.drafts.clear('engagement-budget:' + this.engagementId());
+    this.load();
   }
   readonly staffingModel = signal({ userId: '', level: 'STAFF_ASSOCIATE', reviewed: false });
   readonly preparationModel = signal({ reviewed: false });
   readonly approvalModel = signal({ reviewed: false });
+  readonly approvalConfirmationModel = signal({ reviewed: false });
+  private readonly approvalConfirmationAssent = signal('');
+  readonly approvalConfirmationFields = form(this.approvalConfirmationModel, (p) => {
+    validate(p.reviewed, ({ value }) => (value() ? undefined : { kind: 'reviewRequired' }));
+    disabled(
+      p,
+      () =>
+        this.busy() ||
+        this.uncertain() ||
+        !this.approvalPreview() ||
+        !this.data()?.draft?.canApprove,
+    );
+  });
+  private approvalConfirmationIntent(): string {
+    return this.owner() && this.approvalPreview() && this.data()?.draft?.canApprove
+      ? JSON.stringify([
+          this.owner(),
+          this.readRevision,
+          this.approvalPreview(),
+          this.data()?.draft,
+        ])
+      : '';
+  }
+  get approvalConfirmationReviewed(): boolean {
+    const intent = this.approvalConfirmationIntent();
+    return (
+      !!intent &&
+      this.approvalConfirmationModel().reviewed &&
+      this.approvalConfirmationAssent() === intent
+    );
+  }
+  set approvalConfirmationReviewed(value: boolean) {
+    this.approvalConfirmationModel.set({ reviewed: value });
+    this.approvalConfirmationAssent.set(value ? this.approvalConfirmationIntent() : '');
+  }
   private readonly staffingAssent = signal('');
   private readonly preparationAssent = signal('');
   private readonly approvalAssent = signal('');
@@ -1020,6 +1329,7 @@ export class EngagementPlanning {
         this.busy() ||
         this.uncertain() ||
         !!this.budgetPreview() ||
+        !!this.approvalPreview() ||
         !this.data()?.canManageStaffing,
     );
   });
@@ -1028,7 +1338,11 @@ export class EngagementPlanning {
     disabled(
       p,
       () =>
-        this.busy() || this.uncertain() || !this.budgetPreview() || !this.data()?.canPrepareBudget,
+        this.busy() ||
+        this.uncertain() ||
+        !this.budgetPreview() ||
+        !!this.approvalPreview() ||
+        !this.data()?.canPrepareBudget,
     );
   });
   readonly approvalFields = form(this.approvalModel, (p) => {
@@ -1039,6 +1353,7 @@ export class EngagementPlanning {
         this.busy() ||
         this.uncertain() ||
         !!this.budgetPreview() ||
+        !!this.approvalPreview() ||
         !this.data()?.draft?.canApprove,
     );
   });
@@ -1150,6 +1465,10 @@ export class EngagementPlanning {
         this.budgetPreview.set(null);
         this.budgetReceipt.set(null);
         this.budgetPending.set(null);
+        this.approvalPreview.set(null);
+        this.approvalReceipt.set(null);
+        this.approvalPending.set(null);
+        this.approvalConfirmationReviewed = false;
         this.preparationReviewed = false;
         this.uncertain.set(false);
         if (staff) this.load();
@@ -1165,7 +1484,13 @@ export class EngagementPlanning {
       const approval =
         this.approvalModel().reviewed &&
         (!this.approvalIntent() || this.approvalAssent() !== this.approvalIntent());
+      const confirmation =
+        this.approvalConfirmationModel().reviewed && !this.approvalConfirmationReviewed;
       untracked(() => {
+        if (confirmation) {
+          this.approvalConfirmationReviewed = false;
+          this.approvalConfirmationFields.reviewed().reset(false);
+        }
         if (staff) {
           this.reviewed = false;
           this.staffingFields.reviewed().reset(false);
@@ -1189,7 +1514,8 @@ export class EngagementPlanning {
     });
   }
   requestRevocation(person: TeamMember): void {
-    if (!this.busy() && !this.uncertain() && !this.budgetPreview()) this.revokeTarget.set(person);
+    if (!this.busy() && !this.uncertain() && !(this.budgetPreview() || this.approvalPreview()))
+      this.revokeTarget.set(person);
   }
   assign(): void {
     if (
@@ -1198,6 +1524,7 @@ export class EngagementPlanning {
       !guid.test(this.selectedUser) ||
       this.staffingFields().invalid() ||
       !!this.budgetPreview() ||
+      !!this.approvalPreview() ||
       this.busy() ||
       this.uncertain()
     )
@@ -1214,7 +1541,8 @@ export class EngagementPlanning {
       !guid.test(id) ||
       this.busy() ||
       this.uncertain() ||
-      this.budgetPreview()
+      this.budgetPreview() ||
+      this.approvalPreview()
     )
       return;
     this.command('staffing/' + id + '/revoke', {});
@@ -1268,6 +1596,10 @@ export class EngagementPlanning {
     this.budgetPreview.set(null);
     this.budgetReceipt.set(null);
     this.budgetPending.set(null);
+    this.approvalPreview.set(null);
+    this.approvalReceipt.set(null);
+    this.approvalPending.set(null);
+    this.approvalConfirmationReviewed = false;
     this.preparationReviewed = false;
     this.selectedUser = '';
     this.selectedLevel = 'STAFF_ASSOCIATE';
@@ -1279,6 +1611,8 @@ export class EngagementPlanning {
     this.revokeTarget.set(null);
   }
   load(): void {
+    this.approvalPreview.set(null);
+    this.approvalConfirmationReviewed = false;
     this.reviewed = false;
     this.budgetReviewed = false;
     this.preparationReviewed = false;
@@ -1315,6 +1649,20 @@ export class EngagementPlanning {
               this.budgetReceipt.set(null);
               this.budgetPreview.set(null);
               this.uncertain.set(false);
+            }
+            if (planning.canManageStaffing) {
+              const pending = this.drafts.readPendingRequest(this.pendingApprovalScope());
+              if (pending.state === 'ready') {
+                this.approvalPending.set(pending.draft.value);
+                this.uncertain.set(true);
+                this.commandStatus.set(
+                  'A prior approval needs reconciliation. Verify its retained receipt before another change.',
+                );
+              }
+            } else {
+              this.approvalPending.set(null);
+              this.approvalReceipt.set(null);
+              this.approvalPreview.set(null);
             }
           } catch {
             this.clearProtectedEditor();

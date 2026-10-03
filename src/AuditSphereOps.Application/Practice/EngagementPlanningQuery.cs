@@ -56,7 +56,7 @@ public static class EngagementPlanningQuery
     if (canManage && latest?.Status == AuditSphereOps.Domain.Practice.PracticeTimeStates.BudgetDraft)
     {
       var lines = await db.BudgetLines.AsNoTracking().Where(l => l.FirmId == actor.FirmId && l.EngagementBudgetId == latest.Id)
-        .OrderBy(l => l.Phase).ThenBy(l => l.Role).Take(200).ToListAsync(ct);
+        .OrderBy(l => l.Phase).ThenBy(l => l.Role).ThenBy(l => l.Activity).ThenBy(l => l.Id).Take(200).ToListAsync(ct);
       draft = new(latest.Id, latest.Version.ToString(CultureInfo.InvariantCulture), latest.Currency,
         latest.CreatedByUserId != actor.UserId, lines.Select(l => new PlanningDraftLine(l.Role, l.Activity, l.Phase,
           l.RiskArea, l.ForecastMinutes, l.ForecastCost.ToString(CultureInfo.InvariantCulture))).ToArray());

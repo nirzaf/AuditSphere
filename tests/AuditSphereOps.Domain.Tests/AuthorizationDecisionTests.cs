@@ -446,6 +446,7 @@ public sealed class AuthorizationDecisionTests
     public DbSet<Engagement> Engagements => db.Engagements;
     public DbSet<EngagementCreation> EngagementCreations => db.EngagementCreations;
     public DbSet<BudgetPreparation> BudgetPreparations => db.BudgetPreparations;
+    public DbSet<BudgetApproval> BudgetApprovals => db.BudgetApprovals;
     public DbSet<EngagementHold> EngagementHolds => db.EngagementHolds;
     public DbSet<AuditSphereOps.Domain.Documents.RepositoryBinding> RepositoryBindings => db.RepositoryBindings;
     public DbSet<AuditSphereOps.Domain.Documents.SyncCursor> SyncCursors => db.SyncCursors;

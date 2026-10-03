@@ -473,6 +473,109 @@ describe('Planning protected editor clearing', () => {
     TestBed.tick();
     expect(component.approvalModel().reviewed).toBe(false);
   });
+  it('recovers a committed approval without resending after a lost response', async () => {
+    const component = open();
+    const line = {
+      role: 'Senior',
+      activity: 'AUDIT',
+      phase: 'PLANNING',
+      riskArea: null,
+      minutes: 60,
+      cost: '100.125000',
+    };
+    const draft = { id, version: '1', currency: 'QAR', canApprove: true, lines: [line] };
+    component.data.set({ ...planning, draft });
+    component.budgetReviewed = true;
+    const reading = component.approveBudget(id);
+    const http = TestBed.inject(HttpTestingController);
+    const request = http.expectOne('/api/ui/engagements/' + id + '/budget-approval/preview');
+    const preview = {
+      engagementId: id,
+      requestId: request.request.body.requestId,
+      requestHash: 'a'.repeat(64),
+      reviewBasis: 'b'.repeat(64),
+      fields: { budgetId: id, expectedVersion: '1' },
+      currency: 'QAR',
+      lines: [line],
+      forecastCost: '100.125000',
+      engagementGeneration: '1',
+      clientGeneration: '0',
+    };
+    request.flush({ value: preview });
+    await reading;
+    expect(component.approvalPreview()).toEqual(preview);
+    component.approvalConfirmationReviewed = true;
+    const saving = component.confirmBudgetApproval();
+    http
+      .expectOne('/api/ui/engagements/' + id + '/budget-approval')
+      .flush({}, { status: 503, statusText: 'Unavailable' });
+    await saving;
+    expect(component.uncertain()).toBe(true);
+    await component.confirmBudgetApproval();
+    http.expectNone((r) => r.method === 'POST');
+    const receipt = {
+      id,
+      budgetId: id,
+      engagementId: id,
+      actorId: id,
+      requestId: preview.requestId,
+      requestHash: preview.requestHash,
+      reviewBasis: preview.reviewBasis,
+      preview,
+      createdAt: '2026-10-03T00:00:00Z',
+    };
+    const checking = component.reconcileBudgetApproval();
+    http
+      .expectOne(
+        '/api/ui/engagements/' +
+          id +
+          '/budget-approval/receipts/' +
+          preview.requestId +
+          '?requestHash=' +
+          preview.requestHash,
+      )
+      .flush({ found: true, receipt });
+    await checking;
+    expect(component.approvalReceipt()).toEqual(receipt);
+    component.acknowledgeBudgetApproval();
+    http
+      .expectOne('/api/ui/engagements/' + id + '/planning')
+      .flush({ ...planning, draft: null, latestBudgetVersion: '1' });
+    expect(component.approvalPending()).toBeNull();
+    expect(component.uncertain()).toBe(false);
+  });
+  it('refuses stale exact-preview approval assent before effects render', async () => {
+    const component = open();
+    const line = {
+      role: 'Senior',
+      activity: 'AUDIT',
+      phase: 'PLANNING',
+      riskArea: null,
+      minutes: 60,
+      cost: '100.125000',
+    };
+    component.data.set({
+      ...planning,
+      draft: { id, version: '1', currency: 'QAR', canApprove: true, lines: [line] },
+    });
+    component.approvalPreview.set({
+      engagementId: id,
+      requestId: id,
+      requestHash: 'a'.repeat(64),
+      reviewBasis: 'b'.repeat(64),
+      fields: { budgetId: id, expectedVersion: '1' },
+      currency: 'QAR',
+      lines: [line],
+      forecastCost: '100.125000',
+      engagementGeneration: '1',
+      clientGeneration: '0',
+    });
+    component.approvalConfirmationReviewed = true;
+    component.approvalPreview.update((p) => ({ ...p!, forecastCost: '999.00' }));
+    expect(component.approvalConfirmationReviewed).toBe(false);
+    await component.confirmBudgetApproval();
+    TestBed.inject(HttpTestingController).expectNone((r) => r.method === 'POST');
+  });
   it('binds preparation assent to the exact preview before render catches up', async () => {
     const component = open(),
       http = TestBed.inject(HttpTestingController);

@@ -34,6 +34,7 @@
     <Compile Include="../AuditSphereOps.Domain.Tests/EngagementProfileWorkspaceSeed.cs" Link="Fixtures/EngagementProfileWorkspaceSeed.cs" />
     <Compile Include="../AuditSphereOps.Domain.Tests/EngagementActivationReviewSeed.cs" Link="EngagementActivationReviewSeed.cs" />
     <Compile Include="../AuditSphereOps.Domain.Tests/BudgetPreparationReviewSeed.cs" Link="BudgetPreparationReviewSeed.cs" />
+    <Compile Include="../AuditSphereOps.Domain.Tests/BudgetApprovalReviewSeed.cs" Link="BudgetApprovalReviewSeed.cs" />
     <Compile Include="../AuditSphereOps.Domain.Tests/EngagementCreationReviewSeed.cs" Link="EngagementCreationReviewSeed.cs" />
     <Compile Include="../AuditSphereOps.Domain.Tests/SiblingClientSeed.cs" Link="Fixtures/SiblingClientSeed.cs" />
     <Compile Include="../AuditSphereOps.Domain.Tests/PbcSeed.cs" Link="Fixtures/PbcSeed.cs" />

@@ -453,7 +453,8 @@ public static class PracticeTimeService
   public static async Task<CommandResult> ApproveBudgetAsync(
     IAuditSphereDbContext db, ActorContext actor, Guid budgetId, CancellationToken ct = default)
   {
-    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    var ownsTransaction = db.Database.CurrentTransaction is null;
+    await using var tx = ownsTransaction ? await db.Database.BeginTransactionAsync(ct) : null;
     var snapshot = await db.EngagementBudgets.AsNoTracking().SingleOrDefaultAsync(
       x => x.Id == budgetId && x.FirmId == actor.FirmId, ct);
     if (snapshot is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
@@ -480,7 +481,10 @@ public static class PracticeTimeService
     budget.ApprovedByUserId = actor.UserId;
     budget.ApprovedAt = DateTimeOffset.UtcNow;
     await db.SaveChangesAsync(ct);
-    await tx.CommitAsync(ct);
+    var final = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, engagement.PracticeClientId, engagement.Id, ApprovalRoles, InternalOnly: true), ct);
+    if (!final.Succeeded) return final;
+    if (ownsTransaction) await tx!.CommitAsync(ct);
     return CommandResult.Ok();
   }
 
