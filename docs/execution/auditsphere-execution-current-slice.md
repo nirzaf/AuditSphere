@@ -23,6 +23,9 @@ with an explicit truncation notice where the read is larger than the display
 limit. A client-scoped Playwright journey verified safe 503 recovery, reviewed
 creation, persistence and display after reload. Angular tests, the production
 UI build, Release solution build, EF drift check and staged secret scan passed.
+The built-in browser loaded the authenticated Angular route and verified chart
+and dimension assent invalidation on a synthetic client without submitting a
+write; no console errors appeared.
 The current-source full solution suite has not been rerun; the last clean
 whole-suite result applies to the earlier search-fix source state. The overall
 migration and US-020 remain partial. Exact evidence is in `status.json` under

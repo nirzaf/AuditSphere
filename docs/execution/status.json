@@ -9,7 +9,7 @@
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": false,
   "productionEnabled": false,
-  "verifiedAt": "2026-10-03T19:34:53Z",
+  "verifiedAt": "2026-10-03T19:44:45Z",
   "toolchain": {
     "sdk": ".NET 10",
     "efCore": "10.0.12",
@@ -7093,7 +7093,7 @@
     },
     "angularAccountingAliasDimensionReview": {
       "codeCommit": "b012022d63560ffb42ab768f2b12a65af6268c56",
-      "observedAt": "2026-10-03T19:34:53Z",
+      "observedAt": "2026-10-03T19:44:45Z",
       "status": "PASS_LOCAL_SLICE",
       "releaseSolutionBuild": "PASS; zero warnings/errors",
       "productionUiBuild": "PASS",
@@ -7107,6 +7107,7 @@
         "failed": 0,
         "details": "Client-scoped staff creates and reload-verifies an accounting dimension and chart alias. Reviewed source/account/dimension/alias edits clear assent. Simulated first-read 503 responses show safe retry states and keep mutations disabled until a successful read."
       },
+      "builtInBrowser": "PASS: authenticated Angular accounting route loaded from localhost:5099. On the synthetic scoped client, dimension and chart form review controls enabled after assent and disabled after a reviewed value changed. No accounting create/update command was submitted. Browser console errors: none.",
       "efModelDrift": "NONE",
       "secretScan": "PASS; staged gitleaks found no leaks",
       "fullSolutionRegression": "The clean frozen 1021/1021 run above predates this slice. Focused current-source browser journeys pass; current source has not had a new full-solution test run.",
