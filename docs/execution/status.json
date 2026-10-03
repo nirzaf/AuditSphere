@@ -4,7 +4,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "d8bb9fdcde0b9cb78aacb578b0ac17a378548010",
+  "headCommit": "8485c3c2b38705e61ef49694c8a8e5741c45f136",
   "verifiedCommit": "6efa46bb6f5f1aa634ecfe1443faa53cc82ecdf6",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": false,
@@ -6314,6 +6314,36 @@
         "/private/tmp/auditsphere-budget-approval-release-final.log"
       ],
       "boundary": "Focused local approval evidence only. Earlier whole-suite verifiedCommit remains unchanged; staffing/revocation, client creation, assessment parity, wider regression and migration cutover remain open."
+    },
+    "angularStaffingTransactionFoundation": {
+      "status": "PASS_FOCUSED_LOCAL",
+      "sourceCommit": "8485c3c2b38705e61ef49694c8a8e5741c45f136",
+      "verifiedAt": "2026-10-03T09:21:32.779884+00:00",
+      "releaseBuild": {
+        "warnings": 0,
+        "errors": 0,
+        "exitCode": 0,
+        "log": "/private/tmp/auditsphere-staffing-transaction-release.log"
+      },
+      "postgresqlTests": {
+        "passed": 14,
+        "failed": 0,
+        "skipped": 0,
+        "parentExitCode": 0,
+        "log": "/private/tmp/auditsphere-staffing-transaction-tests-final.log"
+      },
+      "browserJourneys": {
+        "passed": 5,
+        "failed": 0,
+        "skipped": 0,
+        "parentExitCode": 0,
+        "log": "/private/tmp/auditsphere-staffing-transaction-e2e.log"
+      },
+      "retainedEarlierBuildFailure": {
+        "log": "/private/tmp/auditsphere-staffing-transaction-build.log",
+        "reason": "Rollback test referenced UserId instead of TargetUserId on grant evidence; corrected before final build and tests."
+      },
+      "boundary": "Transaction foundation only. No schema/UI change, shared database migration or live Microsoft effect. Reviewed staffing preview/receipts/recovery, wider regression and migration acceptance remain pending. Top-level whole-suite verifiedCommit is unchanged."
     }
   },
   "documentationWork": {

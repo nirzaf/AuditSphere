@@ -103,6 +103,10 @@
     {
       "path": "src/AuditSphereOps.Ui/src/app/features/engagements/budget-approval-contracts.ts",
       "sha256": "e894d093483e782015cfef9269f7f0a7c31145b737c40431362972f540521d08"
+    },
+    {
+      "path": "src/AuditSphereOps.Application/Practice/StaffingService.cs",
+      "sha256": "8f00255343ab1e4a8f4feafd4227c5779907c2611e8ffc8afb0ddb37cd150e88"
     }
   ],
   "records": [

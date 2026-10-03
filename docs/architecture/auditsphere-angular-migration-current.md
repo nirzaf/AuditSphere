@@ -934,3 +934,14 @@ approved-budget linkage and an append-only trigger protects retained evidence.
 The approval migration is a deployment prerequisite; it has only been exercised
 on disposable local test databases. Rollback refuses retained approval evidence.
 Staffing/revocation recovery and wider migration acceptance remain pending.
+
+### Staffing transaction foundation
+
+`StaffingService` joins an existing transaction without committing it; a caller
+must roll back on refusal. Direct callers retain service-owned commit/rollback.
+Firm then client safety locks precede actor authority and target identity locks.
+Assignment and revocation recheck current scope/rank under those locks and current
+authority before publication. Independently assigned role grants survive staffing
+revocation, while owned grant revocation retains evidence and session invalidation.
+Client-site membership remains an explicit pending external reconciliation. This
+foundation does not implement reviewed staffing receipts or automatic retries.

@@ -13,6 +13,21 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Staffing transaction composition and publication fencing
+
+Staffing assignment and revocation now join a caller-owned transaction, or own and
+commit their transaction when called directly. A caller receiving refusal must
+roll back its transaction. Firm/client safety locks serialize publication; locked
+current actor authority and rank are checked again before mutation, and current
+authority is checked before successful publication. Target identity locks protect
+grant and session-epoch changes. Existing certification, exact scope, independent
+grant preservation and selected-site membership reconciliation remain unchanged.
+
+This is the transaction foundation for reviewed staffing receipts. Reviewed
+staffing/revocation preview, request receipts, unknown-outcome UI recovery and wider
+migration acceptance remain pending. Observed build/test evidence belongs in
+status.json. No database migration or live Microsoft operation is introduced.
+
 ## Reviewed budget approval and retained recovery
 
 Independent approval now previews exact draft lines, currency, version and client/
