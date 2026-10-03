@@ -79,6 +79,10 @@ export class AdjustmentJournal implements NavigationProtected {
   readonly pending = signal<PendingRequestReference | null>(null);
   readonly sourceOpen = signal(false);
   readonly historyId = signal('');
+  readonly reflectionState = signal<
+    'NOT_REFLECTED' | 'REFLECTED' | 'PARTIALLY_REFLECTED' | 'NOT_APPLICABLE'
+  >('NOT_REFLECTED');
+  readonly reflectionEvidence = signal('');
   readonly historical = this.api.resource(
     () =>
       this.journal.data()?.history.some((h) => h.id === this.historyId())
@@ -122,6 +126,8 @@ export class AdjustmentJournal implements NavigationProtected {
         this.busy.set(false);
         this.sourceOpen.set(false);
         this.historyId.set('');
+        this.reflectionState.set('NOT_REFLECTED');
+        this.reflectionEvidence.set('');
         this.request = null;
         this.checkedAbsent = false;
         this.message.set('');
@@ -163,6 +169,13 @@ export class AdjustmentJournal implements NavigationProtected {
           this.pending.set(checkpoint.draft.value);
           this.uncertain.set(true);
           this.message.set(UNKNOWN_OUTCOME);
+        }
+        if (v.sourceReflection && v.sourceReflection.state !== 'UNKNOWN') {
+          this.reflectionState.set(v.sourceReflection.state as any);
+          this.reflectionEvidence.set(v.sourceReflection.evidence ?? '');
+        } else {
+          this.reflectionState.set('NOT_REFLECTED');
+          this.reflectionEvidence.set('');
         }
       });
     });
@@ -479,5 +492,42 @@ export class AdjustmentJournal implements NavigationProtected {
         ? 'Instructions downloaded. This is not proof of external posting or package application.'
         : result.message,
     );
+  }
+  async reconcileReflection() {
+    const v = this.journal.data(),
+      generation = this.generation;
+    if (!v || !v.canReconcileReflection || this.busy() || this.uncertain()) return;
+    const state = this.reflectionState();
+    const evidence = this.reflectionEvidence().trim();
+    if ((state === 'REFLECTED' || state === 'PARTIALLY_REFLECTED') && !evidence) {
+      this.message.set('Line-level bridge evidence is required for reflected treatments.');
+      this.failed.set(true);
+      return;
+    }
+    this.busy.set(true);
+    this.failed.set(false);
+    try {
+      const result = await this.api.command(this.base() + '/source-reflection', {
+        requestId: crypto.randomUUID(),
+        reviewBasis: v.reviewBasis,
+        state,
+        evidence,
+      });
+      if (generation !== this.generation) return;
+      if (!result.ok) {
+        this.message.set(result.message);
+        this.failed.set(true);
+        return;
+      }
+      this.message.set('Source reflection reconciliation recorded.');
+      this.journal.reload();
+    } catch (e) {
+      if (generation === this.generation) {
+        this.message.set(e instanceof Error ? e.message : 'Source reflection reconciliation failed.');
+        this.failed.set(true);
+      }
+    } finally {
+      if (generation === this.generation) this.busy.set(false);
+    }
   }
 }

@@ -21,6 +21,8 @@ export const routes: Routes = [
     loadComponent: () => import('./features/portal/home').then(m => m.ClientPortalHome) },
   { path: 'app/consolidation', canActivate: [staffGuard], pathMatch: 'full', title: 'Group consolidation · AuditSphere',
     loadComponent: () => import('./features/consolidation/overview').then(m => m.ConsolidationOverview) },
+  { path: 'app/consolidation/scopes/:id', canActivate: [staffGuard], title: 'Consolidation scope workspace · AuditSphere',
+    loadComponent: () => import('./features/consolidation/scope-workspace').then(m => m.ConsolidationScopeWorkspace) },
   { path: 'app/consolidation/advanced/:id', canActivate: [staffGuard], title: 'Advanced consolidation · AuditSphere',
     loadComponent: () => import('./features/consolidation/advanced').then(m => m.AdvancedConsolidation) },
   { path: 'app/operations', canActivate: [staffGuard], title: 'Operations · AuditSphere',

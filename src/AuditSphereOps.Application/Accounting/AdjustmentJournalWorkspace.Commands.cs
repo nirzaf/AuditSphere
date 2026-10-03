@@ -171,4 +171,38 @@ public static partial class AdjustmentJournalWorkspace
     await tx.CommitAsync(ct);
     return CommandResult<JournalActionReceipt>.Ok(Receipt(a));
   }
+
+  public sealed record JournalSourceReflectionRequest(
+    Guid RequestId, string ReviewBasis, string State, string Evidence);
+
+  public static async Task<CommandResult> ReconcileSourceReflectionAsync(
+    IClientAccountingDbContext db, IAdjustmentJournalDbContext evidenceDb,
+    ActorContext actor, Guid id, JournalSourceReflectionRequest? request, CancellationToken ct = default)
+  {
+    if (request is null || request.RequestId == Guid.Empty ||
+        !SourceAcceptanceWorkspace.ValidHash(request.ReviewBasis) ||
+        string.IsNullOrWhiteSpace(request.State) ||
+        request.State is not (ReflectionStates.NotReflected or ReflectionStates.Reflected or
+                              ReflectionStates.PartiallyReflected or ReflectionStates.NotApplicable) ||
+        request.Evidence is null || request.Evidence.Length > 2000 ||
+        ((request.State is ReflectionStates.Reflected or ReflectionStates.PartiallyReflected) &&
+         string.IsNullOrWhiteSpace(request.Evidence)))
+      return CommandResult.Fail(ErrorCodes.Accounting.ReconciliationRejected, "Choose a supported reflection state and valid line-level evidence.");
+
+    var current = await GetAsync(db, evidenceDb, actor, id, ct: ct);
+    if (!current.Succeeded) return CommandResult.Fail(current.ErrorCode!, current.Message!);
+    if (current.Value!.ReviewBasis != request.ReviewBasis)
+      return CommandResult.Fail(ErrorCodes.StaleRevision, "The reviewed journal changed. Refresh and try again.");
+    if (!current.Value.CanReconcileReflection)
+      return CommandResult.Fail(ErrorCodes.ProtectedState, "Source reflection cannot be reconciled for this journal state and authority.");
+
+    var result = await SourceReconciliationService.ResolveAsync(db, actor, current.Value.DatasetId,
+      current.Value.JournalNumber, current.Value.Revision, request.State, request.Evidence.Trim(), ct);
+    if (!result.Succeeded) return result;
+
+    var final = await GetAsync(db, evidenceDb, actor, id, ct: ct);
+    if (!final.Succeeded) return CommandResult.Fail(final.ErrorCode!, final.Message!);
+    return CommandResult.Ok();
+  }
 }
+

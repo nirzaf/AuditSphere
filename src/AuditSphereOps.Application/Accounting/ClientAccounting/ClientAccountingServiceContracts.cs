@@ -64,7 +64,15 @@ public sealed record ChartAccountViewDto(
 public sealed record ChartRevisionAccountsPage(
   IReadOnlyList<ChartAccountViewDto> Items, int TotalCount, int Page, int PageSize);
 
+public sealed record SourceAccountAliasViewDto(
+  Guid Id, Guid ClientAccountId, string AccountCode, string SourceSystem,
+  string AliasCode, string AliasName, string CreatedAt);
+
 public sealed record AccountingDimensionInput(string DimensionType, string Code, string Name);
+
+public sealed record ClientDimensionViewDto(
+  Guid Id, string DimensionType, string Code, string Name,
+  string Status, long Revision, string CreatedAt);
 
 public sealed record TaxonomyNodeInput(
   string Code, string Name, string StatementSection, string DisplaySign,

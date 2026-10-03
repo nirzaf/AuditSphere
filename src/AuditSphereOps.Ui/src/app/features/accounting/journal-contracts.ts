@@ -58,6 +58,13 @@ export const decodeManagementDecision = obj({
   decidedByUserId: nullable(guid),
   decidedAt: instant,
 });
+export const decodeSourceReflection = obj({
+  state: oneOf('UNKNOWN', 'NOT_REFLECTED', 'REFLECTED', 'PARTIALLY_REFLECTED', 'NOT_APPLICABLE'),
+  evidence: str(2000),
+  reviewedByUserId: nullable(guid),
+  reviewedAt: nullable(instant),
+  isExactRevision: bool,
+});
 const view = obj({
   journalId: guid,
   clientId: guid,
@@ -94,6 +101,9 @@ const view = obj({
   historyCount: nat,
   historyPage: nat,
   history: arr(decodeJournalReceipt, 25),
+  managementDecision: nullable(decodeManagementDecision),
+  sourceReflection: nullable(decodeSourceReflection),
+  canReconcileReflection: bool,
 });
 function units(s: string): bigint {
   if (!/^(0|[1-9][0-9]{0,18})(\.[0-9]{1,6})?$/.test(s))
@@ -123,7 +133,8 @@ export function decodeJournalReview(raw: unknown, path = 'response') {
     (v.canReturn && v.status !== 'Submitted') ||
     (v.canPost && v.status !== 'Submitted') ||
     (v.canReverse && v.status !== 'Posted') ||
-    (v.blocker && (v.canEdit || v.canSubmit || v.canPost || v.canReturn || v.canReverse)) ||
+    (v.canReconcileReflection && v.status !== 'Posted') ||
+    (v.blocker && (v.canEdit || v.canSubmit || v.canPost || v.canReturn || v.canReverse || v.canReconcileReflection)) ||
     v.history.some((e) => e.journalId !== v.journalId && e.resultJournalId !== v.journalId)
   )
     throw new Error('Unsupported journal review');
