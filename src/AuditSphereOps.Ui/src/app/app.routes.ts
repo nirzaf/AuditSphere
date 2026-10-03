@@ -169,6 +169,7 @@ export const routes: Routes = [
   {
     path: 'app/practice/proposals/:id',
     canActivate: [staffGuard],
+    canDeactivate: [unsavedChangesGuard],
     title: 'Proposal · AuditSphere',
     loadComponent: () => import('./features/commercial/proposal').then((m) => m.ProposalDetail),
   },

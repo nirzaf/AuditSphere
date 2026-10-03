@@ -14,7 +14,37 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { Subscription, timeout } from 'rxjs';
 import { SessionService } from '../../core/session';
+import { CommercialFormDraft, textFields } from './commercial-form-draft';
 import { exactDecimal, guidPattern } from '../../core/contracts';
+export function quotationDraft(
+  value: unknown,
+): {
+  lines: { rateCardId: string; hours: string }[];
+  complexity: string;
+  risk: string;
+  discount: string;
+  nonStandard: boolean;
+  note: string;
+} | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const v = value as Record<string, unknown>,
+    fields = textFields(v, { complexity: 40, risk: 40, discount: 40, note: 2000 });
+  if (
+    !fields ||
+    typeof v['nonStandard'] !== 'boolean' ||
+    !Array.isArray(v['lines']) ||
+    v['lines'].length < 1 ||
+    v['lines'].length > 100
+  )
+    return null;
+  const lines: { rateCardId: string; hours: string }[] = [];
+  for (const raw of v['lines']) {
+    const line = textFields(raw, { rateCardId: 36, hours: 40 });
+    if (!line || (line.rateCardId !== '' && !guidPattern.test(line.rateCardId))) return null;
+    lines.push(line);
+  }
+  return { ...fields, lines, nonStandard: v['nonStandard'] };
+}
 interface Rate {
   id: string;
   role: string;
@@ -153,6 +183,20 @@ export function decodeQuotation(value: unknown): Workspace {
         <p role="alert">{{ error() }}</p>
       }
       <button matButton [disabled]="busy()" (click)="load()">Refresh quotation</button>
+      <button
+        matButton
+        [disabled]="busy() || uncertain() || !data()?.editable || !tabDraft.scope()"
+        (click)="saveTabDraft()"
+      >
+        Save quotation tab draft
+      </button>
+      <button
+        matButton
+        [disabled]="busy() || uncertain() || !data()?.editable || !tabDraft.scope()"
+        (click)="recoverTabDraft()"
+      >
+        Recover quotation tab draft
+      </button>
       @if (data(); as w) {
         @if (w.editable) {
           @if (!w.rates.length) {
@@ -376,6 +420,47 @@ export class Quotation {
   readonly error = signal('');
   readonly message = signal('');
   readonly previewAmounts = signal<Amounts | null>(null);
+  readonly tabDraft = new CommercialFormDraft(
+    () => ({
+      lines: this.lines.map((x) => ({ ...x })),
+      complexity: this.complexity,
+      risk: this.risk,
+      discount: this.discount,
+      nonStandard: this.nonStandard,
+      note: this.note,
+    }),
+    quotationDraft,
+  );
+  saveTabDraft(): boolean {
+    if (!this.data()?.editable || this.busy() || this.uncertain()) return false;
+    const saved = this.tabDraft.save();
+    this.message.set(
+      saved
+        ? 'Unsubmitted quotation inputs saved without preview or review assent.'
+        : 'Tab draft could not be saved.',
+    );
+    return saved;
+  }
+  recoverTabDraft(): void {
+    const w = this.data();
+    if (!w?.editable || this.busy() || this.uncertain()) return;
+    const fields = this.tabDraft.recover();
+    if (
+      fields &&
+      fields.lines.every((l) => !l.rateCardId || w.rates.some((r) => r.id === l.rateCardId))
+    ) {
+      this.lines = fields.lines;
+      this.complexity = fields.complexity;
+      this.risk = fields.risk;
+      this.discount = fields.discount;
+      this.nonStandard = fields.nonStandard;
+      this.note = fields.note;
+      this.invalidatePreview();
+      this.message.set(
+        'Quotation inputs recovered. Calculate a fresh server preview and review it again.',
+      );
+    } else this.message.set('No compatible quotation tab draft is available.');
+  }
   lines = [{ rateCardId: '', hours: '1' }];
   complexity = '1';
   risk = '0';
@@ -391,6 +476,7 @@ export class Quotation {
       const staff = this.session.current()?.staff;
       untracked(() => {
         this.fence++;
+        this.tabDraft.reset();
         this.read?.unsubscribe();
         this.write?.unsubscribe();
         this.data.set(null);
@@ -531,8 +617,10 @@ export class Quotation {
           }
           this.invalidatePreview();
           this.message.set('Quotation action recorded.');
-          if (changesFee) this.changed.emit();
-          else this.load();
+          if (changesFee) {
+            this.tabDraft.submitted();
+            this.changed.emit();
+          } else this.load();
         },
         error: (failure) => {
           if (fence !== this.fence) return;
@@ -580,6 +668,7 @@ export class Quotation {
                 this.note = v.note ?? '';
               }
             }
+            void this.tabDraft.bind(`commercial-quotation:${w.proposalId}`, w);
           } catch {
             this.error.set('Unsupported quotation response.');
           }

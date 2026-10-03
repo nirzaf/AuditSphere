@@ -6894,7 +6894,18 @@
       "exitRecord": "/private/tmp/auditsphere-angular-fresh-regression.exit",
       "artifactManifest": "/private/tmp/auditsphere-angular-fresh-regression-manifest.json",
       "boundary": "Fresh source/UI/test artifacts captured after successful Release/Angular builds and EF drift check. Terminal result and unchanged-artifact audit required before regression acceptance.",
-      "workingTreeBoundary": "Later commercial settings source and unit tests are separate from captured binaries/UI assets; static source guards may inspect the working tree. Terminal result and unchanged artifact check remain required."
+      "workingTreeBoundary": "Later commercial settings source and unit tests are separate from captured binaries/UI assets; static source guards may inspect the working tree. Terminal result and unchanged artifact check remain required.",
+      "observedResults": {
+        "api": {
+          "passed": 175,
+          "failed": 0
+        },
+        "domain": {
+          "passed": 644,
+          "failed": 0
+        },
+        "e2e": "RUNNING"
+      }
     },
     "angularCommercialSettingsDrafts": {
       "status": "FOCUSED_LOCAL_VERIFIED",
@@ -6911,6 +6922,31 @@
       },
       "browser": "PASS owned synthetic Test schema: saved pre-dispatch draft, guarded save-and-continue, return, explicit recovery with unchecked assent and disabled submit; no console errors",
       "boundary": "Pre-dispatch commercial settings fields only. Fresh profile version/rules fingerprint required. Server authority and command unknown-outcome fence unchanged. Durable commercial receipt recovery, other commercial form drafts and whole-migration acceptance remain open."
+    },
+    "angularCommercialEmbeddedDrafts": {
+      "status": "PARTIAL",
+      "angularTests": {
+        "passed": 446,
+        "failed": 0,
+        "files": 87,
+        "log": "/private/tmp/auditsphere-commercial-forms-angular-final.log"
+      },
+      "isolatedAngularBuild": {
+        "status": "PASS",
+        "log": "/private/tmp/auditsphere-commercial-forms-build-final.log"
+      },
+      "implemented": [
+        "Bounded revision/session-bound explicit pre-dispatch quotation, document, fee-agreement and proposal drafts",
+        "Proposal navigation checks embedded editor dirty and unknown states",
+        "Recovering inputs never restores assent or server quotation previews",
+        "Successful proposal refresh retains unsaved revision fields; refused refresh clears protected content"
+      ],
+      "remaining": [
+        "Embedded-form browser acceptance",
+        "Durable commercial command outcome recovery",
+        "Whole migration acceptance and retirement"
+      ],
+      "regressionBoundary": "These later source changes are not compiled into the concurrently running captured full regression."
     }
   },
   "documentationWork": {

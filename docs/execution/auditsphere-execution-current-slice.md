@@ -13,6 +13,21 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Angular embedded commercial form draft recovery
+
+Proposal, quotation, commercial-document and fee-agreement fields now have
+explicit bounded tab drafts tied to current identity, session and authorized
+workspace state. Recovery excludes assent, quotation previews, executable
+requests and uploaded files. Proposal navigation checks all embedded editors
+and refuses unresolved command outcomes. A successful proposal refresh retains
+unsubmitted revision fields; a refused refresh clears protected content.
+
+Angular tests and an isolated UI build passed as recorded in status.json.
+Embedded-form browser acceptance and durable commercial outcome recovery remain
+open. These source changes are not compiled into the running captured full
+regression; its API and Domain projects have reported passing terminal results,
+while E2E is still running.
+
 ## Angular commercial settings draft recovery
 
 Firm letterhead and approval-rule edits now have explicit bounded tab drafts,

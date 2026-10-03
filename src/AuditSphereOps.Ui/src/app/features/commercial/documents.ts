@@ -5,6 +5,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { Subscription, timeout } from 'rxjs';
 import { SessionService } from '../../core/session';
+import { CommercialFormDraft, textFields } from './commercial-form-draft';
 import { guidPattern } from '../../core/contracts';
 interface Artifact {
   id: string;
@@ -90,6 +91,20 @@ export function decodeDocuments(value: unknown): Workspace {
         <p role="alert">{{ error() }}</p>
       }
       <button matButton [disabled]="busy()" (click)="load()">Refresh document state</button>
+      <button
+        matButton
+        [disabled]="busy() || uncertain() || !tabDraft.scope()"
+        (click)="saveTabDraft()"
+      >
+        Save document tab draft
+      </button>
+      <button
+        matButton
+        [disabled]="busy() || uncertain() || !tabDraft.scope()"
+        (click)="recoverTabDraft()"
+      >
+        Recover document tab draft
+      </button>
       @if (data(); as w) {
         <p>
           Reviewed quotation: <code>{{ w.quotationId ?? 'Not configured' }}</code
@@ -153,6 +168,7 @@ export function decodeDocuments(value: unknown): Workspace {
         <label
           >Assigned Partner and team CVs<textarea
             [(ngModel)]="teamCvs"
+            (ngModelChange)="reviewed = false"
             maxlength="16000"
             [disabled]="busy()"
           ></textarea>
@@ -160,6 +176,7 @@ export function decodeDocuments(value: unknown): Workspace {
         <label
           >Deliverables timeline<textarea
             [(ngModel)]="timeline"
+            (ngModelChange)="reviewed = false"
             maxlength="8000"
             [disabled]="busy()"
           ></textarea>
@@ -222,6 +239,30 @@ export class CommercialDocuments {
   readonly busy = signal(false);
   readonly uncertain = signal(false);
   readonly message = signal('');
+  readonly tabDraft = new CommercialFormDraft(
+    () => ({ teamCvs: this.teamCvs, timeline: this.timeline }),
+    (v) => textFields(v, { teamCvs: 16000, timeline: 8000 }),
+  );
+  saveTabDraft(): boolean {
+    if (!this.data() || this.busy() || this.uncertain()) return false;
+    const saved = this.tabDraft.save();
+    this.message.set(
+      saved
+        ? 'Unsubmitted document fields saved in this tab without review confirmation.'
+        : 'Tab draft could not be saved.',
+    );
+    return saved;
+  }
+  recoverTabDraft(): void {
+    if (!this.data() || this.busy() || this.uncertain()) return;
+    const fields = this.tabDraft.recover();
+    if (fields) {
+      this.teamCvs = fields.teamCvs;
+      this.timeline = fields.timeline;
+      this.reviewed = false;
+      this.message.set('Document fields recovered. Review current blockers and inputs again.');
+    } else this.message.set('No compatible document tab draft is available.');
+  }
   reviewed = false;
   teamCvs = '';
   timeline = '';
@@ -232,6 +273,7 @@ export class CommercialDocuments {
       const staff = this.session.current()?.staff;
       untracked(() => {
         this.fence++;
+        this.tabDraft.reset();
         this.read?.unsubscribe();
         this.write?.unsubscribe();
         this.data.set(null);
@@ -331,6 +373,7 @@ export class CommercialDocuments {
             const w = decodeDocuments(value);
             if (w.proposalId !== this.proposalId()) throw new Error('Wrong proposal');
             this.data.set(w);
+            void this.tabDraft.bind(`commercial-documents:${w.proposalId}`, w);
           } catch {
             this.error.set('Unsupported document response.');
           }

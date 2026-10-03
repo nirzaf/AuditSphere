@@ -6,6 +6,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { Subscription, timeout } from 'rxjs';
 import { SessionService } from '../../core/session';
+import { CommercialFormDraft, textFields } from './commercial-form-draft';
 import { exactDecimal, guidPattern } from '../../core/contracts';
 interface Milestone {
   id: string;
@@ -97,6 +98,20 @@ export function decodeFeeAgreement(value: unknown): Workspace {
         <p role="alert">{{ error() }}</p>
       }
       <button matButton [disabled]="busy()" (click)="load()">Refresh fee agreement</button>
+      <button
+        matButton
+        [disabled]="busy() || uncertain() || !data()?.canFinance || !tabDraft.scope()"
+        (click)="saveTabDraft()"
+      >
+        Save fee tab draft
+      </button>
+      <button
+        matButton
+        [disabled]="busy() || uncertain() || !data()?.canFinance || !tabDraft.scope()"
+        (click)="recoverTabDraft()"
+      >
+        Recover fee tab draft
+      </button>
       @if (data(); as w) {
         <p>
           Fee {{ w.fee }} {{ w.currency }} · {{ w.advancePercent }}% advance; remainder on final
@@ -184,12 +199,14 @@ export function decodeFeeAgreement(value: unknown): Workspace {
                   <label
                     >Amount received<input
                       [(ngModel)]="amount"
+                      (ngModelChange)="reviewed = false"
                       inputmode="decimal"
                       [disabled]="busy()"
                   /></label>
                   <label
                     >Bank or transfer reference<input
                       [(ngModel)]="reference"
+                      (ngModelChange)="reviewed = false"
                       maxlength="120"
                       [disabled]="busy()"
                   /></label>
@@ -243,7 +260,11 @@ export function decodeFeeAgreement(value: unknown): Workspace {
           @if (!w.engagementId) {
             <h3>Link accepted engagement</h3>
             <label
-              >Engagement<select [(ngModel)]="engagementId" [disabled]="busy()">
+              >Engagement<select
+                [(ngModel)]="engagementId"
+                (ngModelChange)="reviewed = false"
+                [disabled]="busy()"
+              >
                 <option value="">Choose an engagement</option>
                 @for (e of w.engagements; track e.id) {
                   <option [value]="e.id">
@@ -296,6 +317,35 @@ export class FeeAgreement {
   readonly busy = signal(false);
   readonly uncertain = signal(false);
   readonly message = signal('');
+  readonly tabDraft = new CommercialFormDraft(
+    () => ({ amount: this.amount, reference: this.reference, engagementId: this.engagementId }),
+    (v) => textFields(v, { amount: 40, reference: 120, engagementId: 36 }),
+  );
+  saveTabDraft(): boolean {
+    if (!this.data()?.canFinance || this.busy() || this.uncertain()) return false;
+    const saved = this.tabDraft.save();
+    this.message.set(
+      saved
+        ? 'Unsubmitted fee fields saved without review confirmation.'
+        : 'Tab draft could not be saved.',
+    );
+    return saved;
+  }
+  recoverTabDraft(): void {
+    const w = this.data();
+    if (!w?.canFinance || this.busy() || this.uncertain()) return;
+    const fields = this.tabDraft.recover();
+    if (
+      fields &&
+      (!fields.engagementId || w.engagements.some((e) => e.id === fields.engagementId))
+    ) {
+      this.amount = fields.amount;
+      this.reference = fields.reference;
+      this.engagementId = fields.engagementId;
+      this.reviewed = false;
+      this.message.set('Fee fields recovered. Review the current milestone and action again.');
+    } else this.message.set('No compatible fee tab draft is available.');
+  }
   reviewed = false;
   amount = '';
   reference = '';
@@ -307,6 +357,7 @@ export class FeeAgreement {
       const staff = this.session.current()?.staff;
       untracked(() => {
         this.fence++;
+        this.tabDraft.reset();
         this.read?.unsubscribe();
         this.write?.unsubscribe();
         this.data.set(null);
@@ -450,6 +501,7 @@ export class FeeAgreement {
             this.data.set(w);
             if (!this.amount)
               this.amount = w.milestones.find((m) => m.kind === 'ADVANCE')?.outstanding ?? '';
+            void this.tabDraft.bind(`commercial-fee:${w.proposalId}`, w);
           } catch {
             this.error.set('Unsupported fee agreement response.');
           }
