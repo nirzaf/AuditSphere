@@ -4,7 +4,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "e8cea526bfd940db1ddeba96ac34107de72091f8",
+  "headCommit": "fec5939c7ce9f6f476d454ac2f3bb15d810576da",
   "verifiedCommit": "e8cea526bfd940db1ddeba96ac34107de72091f8",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": false,
@@ -4481,10 +4481,63 @@
       "fingerprintsPath": "/private/tmp/auditsphere-analysis-browser-final-hashes.json",
       "boundary": "Local synthetic read-side acceptance only. Reviewed evidence preparation/editing, creation, approval and linking commands remain open. No client-book mutation, autonomous opinion, Graph permission/effect, shared or production migration or Wiki publication. Full Angular migration, cutover and Blazor retirement remain partial.",
       "publication": {
-        "status": "READY_FOR_INTEGRATION",
-        "branch": "master"
+        "status": "READY_FOR_PUSH",
+        "branch": "master",
+        "sourceCommit": "fec5939c7ce9f6f476d454ac2f3bb15d810576da"
       },
-      "fingerprintsUnchanged": true
+      "fingerprintsUnchanged": true,
+      "combinedSource": {
+        "status": "PASS_TARGETED_AND_WHOLE_API",
+        "sourceCommit": "fec5939c7ce9f6f476d454ac2f3bb15d810576da",
+        "mergedRemoteCommit": "c3802834e16b837200f7a37ce0b38e7e6222bd7b",
+        "build": {
+          "status": "PASS",
+          "warnings": 0,
+          "errors": 0,
+          "exitCode": 0,
+          "log": "/private/tmp/auditsphere-analysis-combined-build.log",
+          "angularLog": "/private/tmp/auditsphere-analysis-combined-angular-build.log"
+        },
+        "angular": {
+          "status": "PASS",
+          "passed": 287,
+          "files": 68,
+          "failed": 0,
+          "skipped": 0,
+          "exitCode": 0,
+          "log": "/private/tmp/auditsphere-analysis-combined-angular-tests.log"
+        },
+        "api": {
+          "status": "PASS",
+          "passed": 146,
+          "failed": 0,
+          "skipped": 0,
+          "exitCode": 0,
+          "log": "/private/tmp/auditsphere-analysis-combined-api.log"
+        },
+        "domainFocused": {
+          "status": "PASS",
+          "passed": 15,
+          "failed": 0,
+          "skipped": 0,
+          "exitCode": 0,
+          "log": "/private/tmp/auditsphere-analysis-combined-domain-corrected.log"
+        },
+        "browserFocused": {
+          "status": "PASS",
+          "passed": 3,
+          "failed": 0,
+          "skipped": 0,
+          "exitCode": 0,
+          "log": "/private/tmp/auditsphere-analysis-combined-browser-corrected.log"
+        },
+        "modelDrift": {
+          "status": "PASS",
+          "exitCode": 0,
+          "log": "/private/tmp/auditsphere-analysis-combined-model.log"
+        },
+        "fingerprintsPath": "/private/tmp/auditsphere-analysis-combined-hashes.json"
+      }
     }
   },
   "documentationWork": {
