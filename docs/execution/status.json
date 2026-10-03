@@ -4,7 +4,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "153f9f99110b6687fc4770402e905de41e177f7f",
+  "headCommit": "f192fe7a50ec38dfea57bd5b6560b80693d2cc98",
   "verifiedCommit": "75b70e9afc8d01af06ee2c4681754edb99cd4f70",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": false,
@@ -7050,6 +7050,27 @@
       "angularTests": "PASS: full Angular unit spec suite 448/448.",
       "boundary": "Contrast is computed in-browser against composited effective backgrounds on rendered states, not with an external axe engine; screen-reader (AT) walk-throughs, deeper nested-overlay matrices, RTL locale coverage and production-device acceptance remain open. Verified on a shared checkout while another agent's uncommitted sharepoint/tenant recovery files were present but untouched.",
       "remaining": "Screen-reader (AT) acceptance with real assistive technology, wider locale matrix, nested-overlay depth and production-device checks; then US-047 owner-authorized retirement and production acceptance gates."
+    },
+    "angularGlobalSearchSubmissionDeduplication": {
+      "codeCommit": "f192fe7a50ec38dfea57bd5b6560b80693d2cc98",
+      "observedAt": "2026-10-03T18:29:47.825Z",
+      "status": "PASS_LOCAL",
+      "releaseSolutionBuild": "PASS; zero warnings/errors",
+      "productionUiBuild": "PASS",
+      "angularTests": {
+        "passed": 451,
+        "failed": 0,
+        "files": 87
+      },
+      "browserJourneys": {
+        "passed": 2,
+        "failed": 0,
+        "details": "Canonical and /ui routes; exactly one GET /api/ui/search for fill plus Enter; results navigate and skip-link context remains intact."
+      },
+      "stagedSecretScan": "PASS; gitleaks found no leaks",
+      "fullSolutionRegression": "NOT_RUN for this slice. The prior integrated attempt remains interrupted and does not establish aggregate test completion; verifiedCommit is unchanged.",
+      "efModelDrift": "NOT_RUN; no persistence or EF model changes.",
+      "boundary": "This fixes duplicate same-term search reads by synchronously cancelling the debounce and deduplicating active/completed term requests; failed lookups remain retryable. The overall API/Angular migration remains PARTIAL."
     }
   },
   "documentationWork": {

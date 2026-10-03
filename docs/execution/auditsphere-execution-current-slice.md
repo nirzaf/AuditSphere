@@ -13,6 +13,23 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Angular global-search submit deduplication
+
+Typing and submitting the same term could dispatch duplicate search reads when
+Enter arrived near the typeahead debounce. The UI now cancels the pending timer
+synchronously and guards repeated requests for the active term; a failed or
+unsupported response clears the guard so the user can retry. The regression
+journey asserts exactly one search request for fill plus Enter and covers both
+canonical and `/ui` routing.
+
+The Release solution build passed with zero warnings or errors, all 451 Angular
+tests across 87 files passed, the production UI build passed, and both focused
+Playwright route journeys passed. Gitleaks reported no staged leaks. The full
+solution suite and EF drift check were not rerun for this UI-only slice; the
+previous integrated full-suite attempt remains interrupted, and the overall
+Angular migration, cutover and Blazor retirement remain open. Exact evidence is
+in `status.json` under `angularGlobalSearchSubmissionDeduplication`.
+
 ## Integrated regression attempt on the current master
 
 The Release solution build passed with zero warnings or errors after the
