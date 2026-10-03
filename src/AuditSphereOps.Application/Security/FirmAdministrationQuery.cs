@@ -19,7 +19,7 @@ public sealed record FirmAdministrationSnapshot(
   int PendingInvitationCount);
 
 /// <summary>Current firm-wide administration projection; every read rechecks the active grant.</summary>
-public static class FirmAdministrationQuery
+public static partial class FirmAdministrationQuery
 {
   public static async Task<CommandResult<UserAccessInvitation>> GetCopyableInvitationAsync(
     IAuditSphereDbContext db, ActorContext actor, Guid invitationId, CancellationToken ct = default)

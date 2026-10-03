@@ -34,12 +34,18 @@
       },
       "originalRun": "Stopped after user interruption; no E2E completion summary or aggregate success established. Process and handle were confirmed absent before recovery.",
       "frozenArtifactCheck": "FAIL at later inspection: 134 original manifest entries changed or missing across UI assets and test binaries; recovery cannot establish the original checkpoint.",
-      "e2eRecovery": "Full E2E suite restarted with existing Release binaries and UI assets; terminal result pending.",
+      "e2eRecovery": "Terminal exit 0; 197 passed, 0 failed, 0 skipped. Artifact drift prevents attribution to the original frozen checkpoint.",
       "originalLog": "/private/tmp/auditsphere-angular-full-regression.log",
       "recoveryLog": "/private/tmp/auditsphere-angular-full-e2e-recovery.log",
       "recoveryExitRecord": "/private/tmp/auditsphere-angular-full-e2e-recovery.exit",
       "artifactManifest": "/private/tmp/auditsphere-angular-regression-manifest.json",
-      "boundary": "Original API/Domain terminal results remain observed. The running E2E recovery cannot establish frozen-checkpoint or aggregate regression completion after artifact drift. No production acceptance or Blazor retirement claimed."
+      "boundary": "Original API/Domain terminal results remain observed. The running E2E recovery cannot establish frozen-checkpoint or aggregate regression completion after artifact drift. No production acceptance or Blazor retirement claimed.",
+      "e2eTests": {
+        "passed": 197,
+        "failed": 0,
+        "skipped": 0,
+        "exitCode": 0
+      }
     },
     "angularTenantSetupMetadata": {
       "codeCommit": "ff05dd48801af6bf87631db1e97225355cabd20b",
@@ -6857,6 +6863,26 @@
         "testInfrastructure": "Owned hosts can run isolated Release artifacts with explicit repository root; existing default host selection retained.",
         "boundary": "Focused local acceptance only; wider migration regression, source-action coverage, canary and retirement remain open."
       }
+    },
+    "angularAdministrationRuntime": {
+      "status": "FOCUSED_LOCAL_VERIFIED",
+      "observedAt": "2026-10-03T16:01:53.837263+00:00",
+      "angularTests": {
+        "passed": 436,
+        "failed": 0,
+        "files": 86
+      },
+      "postgresTests": {
+        "passed": 1,
+        "failed": 0
+      },
+      "apiTests": {
+        "passed": 1,
+        "failed": 0
+      },
+      "angularBuild": "PASS",
+      "browser": "PASS owned synthetic Test schema: exact persisted mode/epoch, allowlisted environment, external effects and simulation flags; no console errors",
+      "boundary": "Read-only projection; missing safety state is not inferred as healthy. No configuration secrets, credential locations or full configuration dumps returned. Shared database not migrated; full migration acceptance remains open."
     }
   },
   "documentationWork": {

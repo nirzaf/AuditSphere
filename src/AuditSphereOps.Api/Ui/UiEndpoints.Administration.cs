@@ -16,6 +16,13 @@ public static partial class UiEndpoints
     !string.IsNullOrWhiteSpace(request.Reason) && request.Reason.Length is >= 5 and <= 1000;
   private static void MapAdministrationEndpoints(RouteGroupBuilder group)
   {
+    group.MapUiGet("/administration/runtime", http => ReadAsync(http, (db, actor, ct) =>
+    {
+      var configuration = http.RequestServices.GetRequiredService<IConfiguration>();
+      var environment = http.RequestServices.GetRequiredService<IHostEnvironment>();
+      return FirmAdministrationQuery.RuntimeAsync(db, actor, new(environment.EnvironmentName,
+        configuration.GetValue<bool>("ExternalEffects:Enabled"), configuration.GetValue<bool>("Application:AllowSimulationAdapters")), ct);
+    }));
     group.MapUiGet("/administration/access", http => ReadAsync(http, (db, actor, ct) => UserAccessWorkspaceQuery.GetAsync(db, actor, DateTimeOffset.UtcNow, ct)));
     group.MapUiGet("/administration/role-catalogue", http => ReadAsync(http, async (db, actor, ct) =>
     {

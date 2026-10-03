@@ -46,8 +46,13 @@ public sealed class TenantSetupMetadataApiTests
     const string root="/api/ui/administration/microsoft365/setup";
     var request=new TenantSetupEditRequest(Guid.NewGuid(),draftId,"1",new("Synthetic API setup","CONFIGURED","NOT_CONFIGURED"));
     Assert.Equal(HttpStatusCode.Unauthorized,(await Post(c,"forged",root+"/preview",request)).StatusCode);
+    Assert.Equal(HttpStatusCode.Unauthorized,(await c.GetAsync("/api/ui/administration/runtime")).StatusCode);
     await c.GetAsync("/auth/sign-in"); using var session=await c.GetAsync("/api/ui/session");
     var csrf=Uri.UnescapeDataString(session.Headers.GetValues("Set-Cookie").Single(x=>x.StartsWith("XSRF-TOKEN=",StringComparison.Ordinal)).Split(';')[0]["XSRF-TOKEN=".Length..]);
+    using var runtime=await c.GetAsync("/api/ui/administration/runtime");
+    Assert.Equal(HttpStatusCode.OK,runtime.StatusCode);Assert.True(runtime.Headers.CacheControl!.NoStore);
+    var runtimeStatus=await runtime.Content.ReadFromJsonAsync<AuditSphereOps.Application.Security.AdministrationRuntimeStatus>();
+    Assert.Equal(f.FirmId,runtimeStatus!.FirmId);Assert.Equal("Test",runtimeStatus.Environment);Assert.False(runtimeStatus.ExternalEffectsEnabled);
     Assert.Equal(HttpStatusCode.Forbidden,(await Post(c,"forged",root+"/preview",request)).StatusCode);
     using var preview=await Post(c,csrf,root+"/preview",request);
     Assert.Equal(HttpStatusCode.OK,preview.StatusCode); Assert.True(preview.Headers.CacheControl!.NoStore);
@@ -81,6 +86,7 @@ public sealed class TenantSetupMetadataApiTests
       await db.Users.Where(x=>x.Id==f.Admin.Id).ExecuteUpdateAsync(x=>x.SetProperty(u=>u.SessionEpoch,u=>u.SessionEpoch+1));
     }
     Assert.Equal(HttpStatusCode.Unauthorized,(await c.GetAsync(lookup)).StatusCode);
+    Assert.Equal(HttpStatusCode.Unauthorized,(await c.GetAsync("/api/ui/administration/runtime")).StatusCode);
   }
   private static Task<HttpResponseMessage> Post(HttpClient client,string csrf,string path,object value)
   { var request=new HttpRequestMessage(HttpMethod.Post,path) {Content=JsonContent.Create(value)}; request.Headers.Add("X-XSRF-TOKEN",csrf); return client.SendAsync(request); }

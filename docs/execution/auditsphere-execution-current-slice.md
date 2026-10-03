@@ -13,6 +13,21 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Angular firm safety and runtime parity
+
+Administration now includes the persisted firm safety mode and exact deployment
+epoch, allowlisted hosting environment, external-effects flag and simulation
+adapter flag. A narrow Application query requires current firm-wide Administrator
+authority before and after reading. The API supplies only selected typed flags;
+no configuration dump or credential references reach the browser.
+
+Missing safety state remains unknown rather than healthy. Recovery quarantine
+explains the halt and links to operations; liveness and readiness links remain
+separate from Microsoft/provider acceptance. Local builds, the Angular suite,
+PostgreSQL/API tests and built-in browser verification passed as recorded in
+status.json. The previous E2E recovery has now finished successfully, but its
+artifact drift still prevents frozen-checkpoint attribution.
+
 ## Angular tenant setup acceptance extension
 
 Automated API coverage now verifies exact reviewed metadata, CSRF and current

@@ -3,6 +3,7 @@ import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { Api } from '../../core/api';
 import { arr, bool, instant, nat, nullable, obj, text } from '../../core/decode';
+import { AdministrationRuntime } from './runtime';
 import { SHARED } from '../../core/ui';
 export const adminOverview = obj({ tenantId: nullable(text), cards: arr(obj({ key: text, title: text, state: text, value: text, detail: text }), 50),
   progress: arr(obj({ key: text, title: text, state: text, detail: text, whyBlocked: nullable(text), requiredAction: nullable(text), requiredAuthority: nullable(text), lastVerification: nullable(instant) }), 50),
@@ -12,12 +13,13 @@ export const adminOverview = obj({ tenantId: nullable(text), cards: arr(obj({ ke
     readyClientWorkspaces: nat, blockedClientWorkspaces: nat, lastVerification: nullable(instant) }),
   mail: obj({ senderIdentity: text, transportState: text, permissionState: text, lastVerification: nullable(instant), lastFailure: nullable(text) }), securityWarnings: arr(text, 100),
   permissionMatrix: arr(obj({ capability: text, displayName: text, graphEndpoint: text, permission: text, permissionType: text, whyRequired: text, adminConsent: text, requiredEntraRole: text, optional: bool }), 50) });
-@Component({ selector: 'audit-administration', imports: [RouterLink, MatButtonModule, ...SHARED], template: `
+@Component({ selector: 'audit-administration', imports: [AdministrationRuntime, RouterLink, MatButtonModule, ...SHARED], template: `
   <audit-page-header title="Administration" description="Verified Microsoft capabilities and local AuditSphere access. One verified capability does not imply that the others are available." />
   <nav class="actions" aria-label="Administration sections"><a matButton="filled" routerLink="/app/administration/users">Users & Access</a>
     <a matButton routerLink="/app/operations">Operations</a><a matButton routerLink="/app/administration/project-progress">Project progress</a>
     <a matButton routerLink="/app/administration/microsoft365/tenant-connection">Microsoft tenant connection</a></nav>
   <button matButton (click)="ws.reload()">Refresh verified status</button><audit-state [loading]="ws.loading()" [error]="ws.error()" label="firm administration" />
+  <audit-administration-runtime />
   @if (ws.data(); as w) {
     <section class="metric-grid">@for(c of w.cards; track c.key) { <article class="panel"><h2>{{ c.title }}</h2><strong>{{ c.value }}</strong><audit-status [value]="c.state" /><p>{{ c.detail }}</p></article> }</section>
     <section class="panel"><h2>Setup progress</h2><ol>@for(s of w.progress; track s.key) { <li><strong>{{ s.title }}</strong><audit-status [value]="s.state" /><p>{{ s.detail }}</p>
