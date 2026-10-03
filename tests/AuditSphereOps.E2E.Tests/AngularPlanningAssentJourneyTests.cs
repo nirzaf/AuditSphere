@@ -38,7 +38,7 @@ public sealed class AngularPlanningAssentJourneyTests
         var candidates = await person.Locator("option").EvaluateAllAsync<string[]>("options => options.map(option => option.value).filter(Boolean)");
         Assert.True(candidates.Length >= 2);
         var assent = planning.GetByLabel("I reviewed the engagement role and client-site access.", new() { Exact = true });
-        var add = planning.GetByRole(AriaRole.Button, new() { Name = "Add to team", Exact = true });
+        var add = planning.GetByRole(AriaRole.Button, new() { Name = "Review team assignment", Exact = true });
         await person.SelectOptionAsync(candidates[0]);
         await assent.CheckAsync();
         await Assertions.Expect(add).ToBeEnabledAsync();

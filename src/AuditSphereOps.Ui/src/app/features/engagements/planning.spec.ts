@@ -231,6 +231,90 @@ describe('Planning protected editor clearing', () => {
     expect(signedOut.defaultPrevented).toBe(false);
     TestBed.tick();
   });
+  it('reconciles a lost staffing response without resending the mutation', async () => {
+    const c = open(),
+      http = TestBed.inject(HttpTestingController);
+    c.selectedUser = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
+    c.reviewed = true;
+    const reviewing = c.assign();
+    const req = http.expectOne('/api/ui/engagements/' + id + '/staffing-change/preview');
+    const preview = {
+      engagementId: id,
+      requestId: req.request.body.requestId,
+      requestHash: 'a'.repeat(64),
+      reviewBasis: 'b'.repeat(64),
+      fields: req.request.body.fields,
+      userName: 'Assigned staff',
+      authorizationRole: 'Staff',
+      certified: false,
+      removesLocalGrant: false,
+      sharePointEffect: 'Entire client site Full Control; pending reconciliation.',
+      targetEpoch: '1',
+      engagementGeneration: '0',
+      clientGeneration: '0',
+    };
+    req.flush(preview);
+    await reviewing;
+    c.staffingConfirmationReviewed = true;
+    const confirming = c.confirmStaffingChange();
+    http
+      .expectOne('/api/ui/engagements/' + id + '/staffing-change')
+      .error(new ProgressEvent('error'));
+    await confirming;
+    expect(c.uncertain()).toBe(true);
+    expect(c.staffingPending()).not.toBeNull();
+    const lookup = c.reconcileStaffingChange();
+    const receipt = {
+      id: 'cccccccc-cccc-cccc-cccc-cccccccccccc',
+      assignmentId: 'dddddddd-dddd-dddd-dddd-dddddddddddd',
+      engagementId: id,
+      actorId: id,
+      requestId: preview.requestId,
+      requestHash: preview.requestHash,
+      reviewBasis: preview.reviewBasis,
+      preview,
+      createdAt: '2026-10-03T00:00:00Z',
+    };
+    http
+      .expectOne((r) => r.url.includes('/staffing-change/receipts/'))
+      .flush({ found: true, receipt });
+    await lookup;
+    expect(c.staffingReceipt()?.id).toBe(receipt.id);
+    c.acknowledgeStaffingChange();
+    http.expectOne('/api/ui/engagements/' + id + '/planning').flush(planning);
+    expect(c.staffingPending()).toBeNull();
+    expect(c.uncertain()).toBe(false);
+    http.expectNone((r) => r.method === 'POST');
+  });
+  it('binds staffing confirmation to the entire preview before effects render', () => {
+    const c = open();
+    c.staffingPreview.set({
+      engagementId: id,
+      requestId: id,
+      requestHash: 'a'.repeat(64),
+      reviewBasis: 'b'.repeat(64),
+      fields: {
+        action: 'ASSIGN',
+        userId: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+        level: 'STAFF_ASSOCIATE',
+        assignmentId: null,
+      },
+      userName: 'Staff',
+      authorizationRole: 'Staff',
+      certified: false,
+      removesLocalGrant: false,
+      sharePointEffect: 'Full Control',
+      targetEpoch: '1',
+      engagementGeneration: '0',
+      clientGeneration: '0',
+    });
+    c.staffingConfirmationReviewed = true;
+    expect(c.staffingConfirmationReviewed).toBe(true);
+    c.staffingPreview.update((p) => ({ ...p!, removesLocalGrant: true }));
+    expect(c.staffingConfirmationReviewed).toBe(false);
+    c.confirmStaffingChange();
+    TestBed.inject(HttpTestingController).expectNone((r) => r.method === 'POST');
+  });
   it('retains edits when bounded tab saving fails', async () => {
     const component = open();
     component.currency = 'USD';
@@ -251,16 +335,17 @@ describe('Planning protected editor clearing', () => {
     expect(component.budgetReviewed).toBe(false);
     expect(component.revokeTarget()).toBeNull();
   }
-  it('clears protected fields immediately on scope refusal and revalidates access', () => {
+  it('clears protected fields immediately on scope refusal and revalidates access', async () => {
     const component = open();
     component.selectedUser = id;
     component.reviewed = true;
     component.budgetReviewed = true;
-    component.assign();
+    const assigning = component.assign();
     const http = TestBed.inject(HttpTestingController);
     http
-      .expectOne('/api/ui/engagements/' + id + '/staffing')
+      .expectOne('/api/ui/engagements/' + id + '/staffing-change/preview')
       .flush({}, { status: 403, statusText: 'Forbidden' });
+    await assigning;
     expectCleared(component);
     http
       .expectOne('/api/ui/engagements/' + id + '/planning')

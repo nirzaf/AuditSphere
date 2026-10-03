@@ -44,6 +44,14 @@ import {
   decodeBudgetPreparationReceipt,
   decodeBudgetPreparationLookup,
 } from './budget-preparation-contracts';
+import {
+  StaffingChangeFields,
+  StaffingChangePreview,
+  StaffingChangeReceipt,
+  decodeStaffingChangePreview,
+  decodeStaffingChangeReceipt,
+  decodeStaffingChangeLookup,
+} from './staffing-change-contracts';
 interface TeamMember {
   assignmentId: string;
   userId: string;
@@ -261,7 +269,7 @@ export function decodePlanning(value: unknown): Planning {
     }
     @if (data(); as planning) {
       <h3>Engagement team</h3>
-      @for (person of planning.team; track person.assignmentId) {
+      @for (person of staffingPending() ? [] : planning.team; track person.assignmentId) {
         <p>
           {{ person.name }} · {{ person.levelLabel }} · {{ person.authorizationRole }} ·
           {{ person.certified ? 'Current certification' : 'No current certification on file' }}
@@ -276,7 +284,13 @@ export function decodePlanning(value: unknown): Planning {
           </button>
         }
       } @empty {
-        <p>Nobody is staffed on this engagement yet.</p>
+        <p>
+          {{
+            staffingPending()
+              ? 'Staffing outcome requires receipt verification and acknowledgement before the team is refreshed.'
+              : 'Nobody is staffed on this engagement yet.'
+          }}
+        </p>
       }
       @if (planning.canManageStaffing) {
         <section>
@@ -322,7 +336,7 @@ export function decodePlanning(value: unknown): Planning {
                 staffingFields().invalid()
               "
             >
-              Add to team
+              Review team assignment
             </button>
           </form>
           @if (revokeTarget(); as person) {
@@ -332,13 +346,77 @@ export function decodePlanning(value: unknown): Planning {
                 SharePoint removal is scheduled when no active client assignment remains.
               </p>
               <button matButton [disabled]="busy()" (click)="revoke(person.assignmentId)">
-                Confirm revocation</button
+                Review revocation</button
               ><button matButton [disabled]="busy()" (click)="revokeTarget.set(null)">
                 Cancel
               </button>
             </section>
           }
           <p role="status">{{ commandStatus() }}</p>
+        </section>
+      }
+      @if (staffingPreview(); as preview) {
+        <section aria-label="Staffing change review">
+          <h3>Review staffing change</h3>
+          <p>
+            {{ preview.fields.action === 'ASSIGN' ? 'Assign' : 'Revoke' }} {{ preview.userName }} ·
+            {{ preview.authorizationRole }} · Engagement scope
+          </p>
+          <p>
+            {{ preview.certified ? 'Current certification' : 'No current certification on file' }}
+          </p>
+          <p>
+            {{
+              preview.fields.action === 'REVOKE'
+                ? preview.removesLocalGrant
+                  ? 'Staffing-owned role will be revoked and protected sessions invalidated.'
+                  : 'Independent role grants will remain unchanged.'
+                : 'AuditSphere role applies only to this engagement.'
+            }}
+          </p>
+          <p role="note">{{ preview.sharePointEffect }}</p>
+          <label
+            ><input
+              type="checkbox"
+              [formField]="staffingConfirmationFields.reviewed"
+              (change)="staffingConfirmationReviewed = checkboxChecked($event)"
+            />
+            I reviewed this exact staffing change and its access effects.</label
+          >
+          <button
+            matButton
+            [disabled]="busy() || uncertain() || !staffingConfirmationReviewed"
+            (click)="confirmStaffingChange()"
+          >
+            Confirm staffing change
+          </button>
+          <button matButton [disabled]="busy()" (click)="cancelStaffingReview()">
+            Cancel staffing review
+          </button>
+        </section>
+      }
+      @if (staffingPending()) {
+        <section aria-label="Staffing receipt recovery">
+          @if (staffingReceipt(); as receipt) {
+            <p>
+              Staffing
+              {{
+                receipt.preview.fields.action === 'ASSIGN' ? 'assignment' : 'revocation'
+              }}
+              recorded for {{ receipt.preview.userName }}.
+            </p>
+            <p>Receipt {{ receipt.id }} · {{ receipt.createdAt }}</p>
+            <button matButton [disabled]="busy()" (click)="acknowledgeStaffingChange()">
+              Acknowledge staffing change
+            </button>
+          } @else {
+            <p>
+              A staffing request requires verification. No command will be automatically retried.
+            </p>
+          }
+          <button matButton [disabled]="busy()" (click)="reconcileStaffingChange()">
+            Verify staffing request receipt
+          </button>
         </section>
       }
       @if (planning.canPrepareBudget) {
@@ -637,6 +715,7 @@ export class EngagementPlanning {
       this.uncertain() ||
       (!allowReviewed && this.budgetPreview()) ||
       !!this.approvalPreview() ||
+      !!this.staffingPreview() ||
       this.destroyed ||
       !this.owner()
     )
@@ -711,6 +790,7 @@ export class EngagementPlanning {
         this.uncertain() ||
         !!this.budgetPreview() ||
         !!this.approvalPreview() ||
+        !!this.staffingPreview() ||
         !this.data()?.canPrepareBudget,
     );
     applyEach(p.lines, (l) => {
@@ -749,7 +829,8 @@ export class EngagementPlanning {
       this.busy() ||
       this.uncertain() ||
       this.budgetPreview() ||
-      this.approvalPreview()
+      this.approvalPreview() ||
+      this.staffingPreview()
     )
       return;
     this.budgetLines = this.budgetLines.filter((_, i) => i !== index);
@@ -761,6 +842,7 @@ export class EngagementPlanning {
       this.uncertain() ||
       this.budgetPreview() ||
       this.approvalPreview() ||
+      this.staffingPreview() ||
       this.budgetLines.length >= 200
     )
       return;
@@ -788,6 +870,7 @@ export class EngagementPlanning {
         !!this.revokeTarget() ||
         !!this.budgetPreview() ||
         !!this.approvalPreview() ||
+        !!this.staffingPreview() ||
         this.preparationReviewed)
     );
   }
@@ -864,7 +947,8 @@ export class EngagementPlanning {
       this.busy() ||
       this.uncertain() ||
       this.budgetPreview() ||
-      this.approvalPreview()
+      this.approvalPreview() ||
+      this.staffingPreview()
     )
       return;
     const editable = editablePlanningBudget({
@@ -1094,7 +1178,8 @@ export class EngagementPlanning {
       this.busy() ||
       this.uncertain() ||
       this.budgetPreview() ||
-      this.approvalPreview()
+      this.approvalPreview() ||
+      this.staffingPreview()
     )
       return;
     const requestId = crypto.randomUUID();
@@ -1330,6 +1415,7 @@ export class EngagementPlanning {
         this.uncertain() ||
         !!this.budgetPreview() ||
         !!this.approvalPreview() ||
+        !!this.staffingPreview() ||
         !this.data()?.canManageStaffing,
     );
   });
@@ -1342,6 +1428,7 @@ export class EngagementPlanning {
         this.uncertain() ||
         !this.budgetPreview() ||
         !!this.approvalPreview() ||
+        !!this.staffingPreview() ||
         !this.data()?.canPrepareBudget,
     );
   });
@@ -1354,6 +1441,7 @@ export class EngagementPlanning {
         this.uncertain() ||
         !!this.budgetPreview() ||
         !!this.approvalPreview() ||
+        !!this.staffingPreview() ||
         !this.data()?.draft?.canApprove,
     );
   });
@@ -1468,6 +1556,10 @@ export class EngagementPlanning {
         this.approvalPreview.set(null);
         this.approvalReceipt.set(null);
         this.approvalPending.set(null);
+        this.staffingPreview.set(null);
+        this.staffingReceipt.set(null);
+        this.staffingPending.set(null);
+        this.staffingConfirmationReviewed = false;
         this.approvalConfirmationReviewed = false;
         this.preparationReviewed = false;
         this.uncertain.set(false);
@@ -1484,9 +1576,15 @@ export class EngagementPlanning {
       const approval =
         this.approvalModel().reviewed &&
         (!this.approvalIntent() || this.approvalAssent() !== this.approvalIntent());
+      const staffingConfirmation =
+        this.staffingConfirmationModel().reviewed && !this.staffingConfirmationReviewed;
       const confirmation =
         this.approvalConfirmationModel().reviewed && !this.approvalConfirmationReviewed;
       untracked(() => {
+        if (staffingConfirmation) {
+          this.staffingConfirmationReviewed = false;
+          this.staffingConfirmationFields.reviewed().reset(false);
+        }
         if (confirmation) {
           this.approvalConfirmationReviewed = false;
           this.approvalConfirmationFields.reviewed().reset(false);
@@ -1514,81 +1612,274 @@ export class EngagementPlanning {
     });
   }
   requestRevocation(person: TeamMember): void {
-    if (!this.busy() && !this.uncertain() && !(this.budgetPreview() || this.approvalPreview()))
+    if (
+      !this.busy() &&
+      !this.uncertain() &&
+      !(this.budgetPreview() || this.approvalPreview() || this.staffingPreview())
+    )
       this.revokeTarget.set(person);
   }
-  assign(): void {
+  async assign(): Promise<void> {
     if (
       !this.data()?.canManageStaffing ||
       !this.reviewed ||
-      !guid.test(this.selectedUser) ||
       this.staffingFields().invalid() ||
-      !!this.budgetPreview() ||
-      !!this.approvalPreview() ||
+      this.busy() ||
+      this.uncertain() ||
+      this.budgetPreview() ||
+      this.approvalPreview() ||
+      this.staffingPreview()
+    )
+      return;
+    await this.previewStaffingChange({
+      action: 'ASSIGN',
+      userId: this.selectedUser,
+      level: this.selectedLevel,
+      assignmentId: null,
+    });
+  }
+  async revoke(id: string): Promise<void> {
+    const person = this.revokeTarget();
+    const level = this.levels.find((x) => x.label === person?.levelLabel)?.value;
+    if (
+      !person ||
+      person.assignmentId !== id ||
+      !level ||
+      !this.data()?.canManageStaffing ||
+      this.busy() ||
+      this.uncertain() ||
+      this.budgetPreview() ||
+      this.approvalPreview() ||
+      this.staffingPreview()
+    )
+      return;
+    await this.previewStaffingChange({
+      action: 'REVOKE',
+      userId: person.userId,
+      level,
+      assignmentId: id,
+    });
+  }
+  readonly staffingPreview = signal<StaffingChangePreview | null>(null);
+  readonly staffingReceipt = signal<StaffingChangeReceipt | null>(null);
+  readonly staffingPending = signal<PendingRequestReference | null>(null);
+  private pendingStaffingScope(basis = '0'.repeat(64)) {
+    return { entity: 'engagement-staffing-request/' + this.engagementId(), baseRevision: basis };
+  }
+  readonly staffingConfirmationModel = signal({ reviewed: false });
+  private readonly staffingConfirmationAssent = signal('');
+  readonly staffingConfirmationFields = form(this.staffingConfirmationModel, (p) => {
+    validate(p.reviewed, ({ value }) => (value() ? undefined : { kind: 'reviewRequired' }));
+    disabled(
+      p,
+      () =>
+        this.busy() ||
+        this.uncertain() ||
+        !this.staffingPreview() ||
+        !this.data()?.canManageStaffing,
+    );
+  });
+  private staffingConfirmationIntent(): string {
+    return this.owner() && this.staffingPreview() && this.data()?.canManageStaffing
+      ? JSON.stringify([this.owner(), this.readRevision, this.staffingPreview(), this.data()?.team])
+      : '';
+  }
+  get staffingConfirmationReviewed(): boolean {
+    const intent = this.staffingConfirmationIntent();
+    return (
+      !!intent &&
+      this.staffingConfirmationModel().reviewed &&
+      this.staffingConfirmationAssent() === intent
+    );
+  }
+  set staffingConfirmationReviewed(value: boolean) {
+    this.staffingConfirmationModel.set({ reviewed: value });
+    this.staffingConfirmationAssent.set(value ? this.staffingConfirmationIntent() : '');
+  }
+  cancelStaffingReview(): void {
+    if (this.busy() || this.uncertain()) return;
+    this.staffingPreview.set(null);
+    this.staffingConfirmationReviewed = false;
+  }
+  private async previewStaffingChange(fields: StaffingChangeFields): Promise<void> {
+    const owner = this.owner(),
+      requestId = crypto.randomUUID(),
+      captured = JSON.stringify(this.data()?.team);
+    this.busy.set(true);
+    this.reviewed = false;
+    this.staffingConfirmationReviewed = false;
+    const result = await this.api.command(
+      '/api/ui/engagements/' + this.engagementId() + '/staffing-change/preview',
+      { requestId, fields },
+    );
+    if (this.destroyed || owner !== this.owner()) return;
+    this.busy.set(false);
+    if (!result.ok) {
+      this.commandStatus.set(result.message);
+      if (result.status === 401 || result.status === 403) {
+        this.clearProtectedEditor();
+        this.load();
+      }
+      return;
+    }
+    try {
+      const p = decodeStaffingChangePreview(result.value);
+      if (
+        p.engagementId !== this.engagementId() ||
+        p.requestId !== requestId ||
+        JSON.stringify(p.fields) !== JSON.stringify(fields) ||
+        captured !== JSON.stringify(this.data()?.team)
+      )
+        throw new Error('Changed staffing context');
+      this.staffingPreview.set(p);
+      this.revokeTarget.set(null);
+      this.commandStatus.set(
+        'Review the exact staffing change and explicitly confirm. No change has been submitted.',
+      );
+    } catch {
+      this.commandStatus.set(
+        'Staffing review changed or returned an unsupported response. Refresh before reviewing again.',
+      );
+    }
+  }
+  async confirmStaffingChange(): Promise<void> {
+    const p = this.staffingPreview(),
+      owner = this.owner();
+    if (
+      !p ||
+      !this.data()?.canManageStaffing ||
+      !this.staffingConfirmationReviewed ||
       this.busy() ||
       this.uncertain()
     )
       return;
-    this.command('staffing', {
-      userId: this.selectedUser,
-      level: this.selectedLevel,
-      reviewedClientSiteAccess: this.reviewed,
-    });
-  }
-  revoke(id: string): void {
+    const reference = { requestId: p.requestId, requestHash: p.requestHash };
     if (
-      !this.data()?.canManageStaffing ||
-      !guid.test(id) ||
-      this.busy() ||
-      this.uncertain() ||
-      this.budgetPreview() ||
-      this.approvalPreview()
-    )
+      !this.drafts.save(
+        this.pendingStaffingScope(p.reviewBasis),
+        reference,
+        pendingRequestReference,
+        true,
+      )
+    ) {
+      this.commandStatus.set('Recovery storage is unavailable. No staffing command was sent.');
       return;
-    this.command('staffing/' + id + '/revoke', {});
-  }
-  private command(path: string, body: object): void {
-    const id = this.engagementId();
-    const owner = this.owner();
+    }
+    this.staffingPending.set(reference);
     this.busy.set(true);
-    this.commandStatus.set('Saving planning change…');
-    this.http
-      .post('/api/ui/engagements/' + id + '/' + path, body)
-      .pipe(timeout(15000))
-      .subscribe({
-        next: () => {
-          if (this.destroyed || owner !== this.owner()) return;
-          this.busy.set(false);
-          this.selectedUser = '';
-          this.selectedLevel = 'STAFF_ASSOCIATE';
-          this.reviewed = false;
-          this.revokeTarget.set(null);
-          this.budgetReviewed = false;
-          this.commandStatus.set('Planning change recorded.');
+    this.staffingConfirmationReviewed = false;
+    const result = await this.api.command(
+      '/api/ui/engagements/' + this.engagementId() + '/staffing-change',
+      {
+        requestId: p.requestId,
+        fields: p.fields,
+        requestHash: p.requestHash,
+        reviewBasis: p.reviewBasis,
+        reviewed: true,
+      },
+    );
+    if (this.destroyed || owner !== this.owner()) return;
+    this.busy.set(false);
+    this.staffingPreview.set(null);
+    if (!result.ok) {
+      this.commandStatus.set(result.message);
+      if (result.unknown) this.uncertain.set(true);
+      else {
+        this.drafts.clear(this.pendingStaffingScope().entity);
+        this.staffingPending.set(null);
+        if (result.status === 401 || result.status === 403) {
+          this.clearProtectedEditor();
           this.load();
-        },
-        error: (failure) => {
-          if (this.destroyed || owner !== this.owner()) return;
-          this.busy.set(false);
-          if (failure.status >= 400 && failure.status < 500)
-            this.commandStatus.set(
-              'Planning change refused. Check scope, current revision, approved rates, rank and certification.',
-            );
-          else {
-            this.uncertain.set(true);
-            this.commandStatus.set(
-              'Outcome unconfirmed. Refresh and review current assignments before another change.',
-            );
-          }
-          if (failure.status === 401) {
-            this.clearProtectedEditor();
-            this.session.clear();
-          } else if (failure.status === 403 || failure.status === 404) {
-            this.clearProtectedEditor();
-            this.load();
-          }
-        },
-      });
+        }
+      }
+      return;
+    }
+    try {
+      const receipt = decodeStaffingChangeReceipt(result.value);
+      if (
+        !this.matchesStaffingReceipt(receipt, reference) ||
+        JSON.stringify(receipt.preview) !== JSON.stringify(p)
+      )
+        throw new Error('Wrong receipt');
+      this.staffingReceipt.set(receipt);
+      this.uncertain.set(true);
+      this.commandStatus.set(
+        'Staffing change recorded with an immutable receipt. Acknowledge before continuing.',
+      );
+    } catch {
+      this.uncertain.set(true);
+      this.commandStatus.set(
+        'Outcome unconfirmed. Verify the retained staffing receipt before another change.',
+      );
+    }
+  }
+  private matchesStaffingReceipt(r: StaffingChangeReceipt, p: PendingRequestReference): boolean {
+    return (
+      r.engagementId === this.engagementId() &&
+      r.actorId === this.session.current()?.userId &&
+      r.requestId === p.requestId &&
+      r.requestHash === p.requestHash
+    );
+  }
+  async reconcileStaffingChange(): Promise<void> {
+    const p = this.staffingPending(),
+      owner = this.owner();
+    if (!p || !this.data()?.canManageStaffing || this.busy()) return;
+    this.busy.set(true);
+    this.staffingPreview.set(null);
+    this.staffingConfirmationReviewed = false;
+    try {
+      const lookup = await this.api.get(
+        '/api/ui/engagements/' +
+          this.engagementId() +
+          '/staffing-change/receipts/' +
+          p.requestId +
+          '?requestHash=' +
+          p.requestHash,
+        decodeStaffingChangeLookup,
+      );
+      if (this.destroyed || owner !== this.owner()) return;
+      if (lookup.found && lookup.receipt && this.matchesStaffingReceipt(lookup.receipt, p)) {
+        this.staffingReceipt.set(lookup.receipt);
+        this.uncertain.set(true);
+        this.commandStatus.set(
+          'Retained receipt confirms the staffing change. Acknowledge before continuing.',
+        );
+      } else if (!lookup.found) {
+        this.drafts.clear(this.pendingStaffingScope().entity);
+        this.staffingPending.set(null);
+        this.uncertain.set(false);
+        this.commandStatus.set(
+          'No committed staffing change was found. Refresh and explicitly review before a new request.',
+        );
+        this.load();
+      } else throw new Error('Wrong receipt');
+    } catch {
+      if (!this.destroyed && owner === this.owner()) {
+        this.clearProtectedEditor();
+        this.load();
+        this.commandStatus.set(
+          'Receipt unavailable. Revalidate access before reconciling again. No command was retried.',
+        );
+      }
+    } finally {
+      if (!this.destroyed && owner === this.owner()) this.busy.set(false);
+    }
+  }
+  acknowledgeStaffingChange(): void {
+    if (!this.staffingReceipt() || this.busy()) return;
+    if (!this.drafts.clear(this.pendingStaffingScope().entity)) {
+      this.commandStatus.set('Recovery storage could not be cleared. Retry before continuing.');
+      return;
+    }
+    this.staffingPending.set(null);
+    this.staffingReceipt.set(null);
+    this.uncertain.set(false);
+    this.selectedUser = '';
+    this.reviewed = false;
+    this.revokeTarget.set(null);
+    this.commandStatus.set('Staffing change acknowledged.');
+    this.load();
   }
   private clearProtectedEditor(): void {
     this.data.set(null);
@@ -1599,6 +1890,10 @@ export class EngagementPlanning {
     this.approvalPreview.set(null);
     this.approvalReceipt.set(null);
     this.approvalPending.set(null);
+    this.staffingPreview.set(null);
+    this.staffingReceipt.set(null);
+    this.staffingPending.set(null);
+    this.staffingConfirmationReviewed = false;
     this.approvalConfirmationReviewed = false;
     this.preparationReviewed = false;
     this.selectedUser = '';
@@ -1611,6 +1906,8 @@ export class EngagementPlanning {
     this.revokeTarget.set(null);
   }
   load(): void {
+    this.staffingPreview.set(null);
+    this.staffingConfirmationReviewed = false;
     this.approvalPreview.set(null);
     this.approvalConfirmationReviewed = false;
     this.reviewed = false;
@@ -1651,6 +1948,14 @@ export class EngagementPlanning {
               this.uncertain.set(false);
             }
             if (planning.canManageStaffing) {
+              const staffing = this.drafts.readPendingRequest(this.pendingStaffingScope());
+              if (staffing.state === 'ready') {
+                this.staffingPending.set(staffing.draft.value);
+                this.uncertain.set(true);
+                this.commandStatus.set(
+                  'A prior staffing request needs reconciliation. Verify its retained receipt before another change.',
+                );
+              }
               const pending = this.drafts.readPendingRequest(this.pendingApprovalScope());
               if (pending.state === 'ready') {
                 this.approvalPending.set(pending.draft.value);
@@ -1660,6 +1965,10 @@ export class EngagementPlanning {
                 );
               }
             } else {
+              this.staffingPreview.set(null);
+              this.staffingReceipt.set(null);
+              this.staffingPending.set(null);
+              this.staffingConfirmationReviewed = false;
               this.approvalPending.set(null);
               this.approvalReceipt.set(null);
               this.approvalPreview.set(null);
