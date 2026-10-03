@@ -302,6 +302,59 @@ public static partial class ClientAccountingService
     return CommandResult.Ok();
   }
 
+  public static async Task<CommandResult<IReadOnlyList<SourceAccountAliasViewDto>>> GetChartRevisionAliasesAsync(
+    IClientAccountingDbContext db, ActorContext actor, Guid chartVersionId,
+    CancellationToken ct = default, Guid? expectedClientId = null)
+  {
+    var chart = await db.ClientChartVersions.AsNoTracking().SingleOrDefaultAsync(x => x.Id == chartVersionId && x.FirmId == actor.FirmId, ct);
+    if (chart is null || (expectedClientId.HasValue && chart.ClientId != expectedClientId.Value))
+      return CommandResult<IReadOnlyList<SourceAccountAliasViewDto>>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var auth = await AuthorizeClientAsync(db, actor, chart.ClientId, PreparerRoles, ct);
+    if (!auth.Succeeded)
+      return CommandResult<IReadOnlyList<SourceAccountAliasViewDto>>.Fail(auth.ErrorCode!, auth.Message!);
+
+    var aliases = await (
+      from a in db.SourceAccountAliases.AsNoTracking()
+      where a.FirmId == actor.FirmId && a.ClientId == chart.ClientId && a.ChartVersionId == chart.Id
+      join acc in db.ClientAccounts.AsNoTracking()
+        on new { a.FirmId, a.ClientId, a.ChartVersionId, Id = a.ClientAccountId }
+        equals new { acc.FirmId, acc.ClientId, acc.ChartVersionId, acc.Id }
+      orderby a.SourceSystem, EF.Functions.Collate(a.AliasCode, "C")
+      select new SourceAccountAliasViewDto(
+        a.Id, a.ClientAccountId, acc.AccountCode, a.SourceSystem, a.AliasCode, a.AliasName,
+        a.CreatedAt.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture))
+    ).Take(1001).ToListAsync(ct);
+
+    auth = await AuthorizeClientAsync(db, actor, chart.ClientId, PreparerRoles, ct);
+    if (!auth.Succeeded)
+      return CommandResult<IReadOnlyList<SourceAccountAliasViewDto>>.Fail(auth.ErrorCode!, auth.Message!);
+
+    return CommandResult<IReadOnlyList<SourceAccountAliasViewDto>>.Ok(aliases);
+  }
+
+  public static async Task<CommandResult<IReadOnlyList<ClientDimensionViewDto>>> GetDimensionDefinitionsAsync(
+    IClientAccountingDbContext db, ActorContext actor, Guid clientId, CancellationToken ct = default)
+  {
+    var auth = await AuthorizeClientAsync(db, actor, clientId, PreparerRoles, ct);
+    if (!auth.Succeeded)
+      return CommandResult<IReadOnlyList<ClientDimensionViewDto>>.Fail(auth.ErrorCode!, auth.Message!);
+
+    var dims = await db.ClientAccountingDimensionDefinitions.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && x.ClientId == clientId)
+      .OrderBy(x => x.DimensionType).ThenBy(x => EF.Functions.Collate(x.Code, "C"))
+      .Take(1001)
+      .Select(x => new ClientDimensionViewDto(
+        x.Id, x.DimensionType, x.Code, x.Name, x.Status, x.Revision,
+        x.CreatedAt.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture)))
+      .ToListAsync(ct);
+
+    auth = await AuthorizeClientAsync(db, actor, clientId, PreparerRoles, ct);
+    if (!auth.Succeeded)
+      return CommandResult<IReadOnlyList<ClientDimensionViewDto>>.Fail(auth.ErrorCode!, auth.Message!);
+
+    return CommandResult<IReadOnlyList<ClientDimensionViewDto>>.Ok(dims);
+  }
+
   private static bool HasParentCycle(
     IReadOnlyList<ClientAccountInput> inputs, IReadOnlyDictionary<string, ClientAccountInput> map)
   {

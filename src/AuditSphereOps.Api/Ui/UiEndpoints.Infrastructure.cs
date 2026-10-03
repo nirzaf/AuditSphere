@@ -37,7 +37,7 @@ public static partial class UiEndpoints
     "/ui/app/accounting/adjustment-plans/{id:guid}/finalize", "/ui/app/accounting/sources/{id:guid}/adjustment-plan", "/ui/app/accounting/gl-sources/{id:guid}/completeness", "/ui/app/accounting/gl-sources/{id:guid}/acceptance", "/ui/app/accounting/sources/{id:guid}/acceptance", "/ui/app/accounting/sources/{id:guid}/journal-draft", "/ui/app/accounting/evidence", "/ui/app/accounting/reconciliations/{id:guid}", "/ui/app/accounting/rollforward", "/ui/app/accounting/restatements", "/ui/app/accounting/remeasurement", "/ui/app/accounting/currency-configuration",
     "/ui/app/audit/library", "/ui/app/audit/populations/{id:guid}", "/ui/app/audit/workpapers/{id:guid}", "/ui/app/findings/{id:guid}", "/ui/app/reviews/{id:guid}",
     "/ui/app/releases/{id:guid}", "/ui/app/records/archives/{id:guid}",
-    "/ui/app/overview", "/ui/app/assessments/{id:guid}", "/ui/app/assessments/{id:guid}/decision", "/ui/app/operations", "/ui/app/administration/project-progress", "/ui/app/consolidation", "/ui/app/consolidation/advanced/{id:guid}", "/ui/app/audit/plans/{id:guid}",
+    "/ui/app/overview", "/ui/app/assessments/{id:guid}", "/ui/app/assessments/{id:guid}/decision", "/ui/app/operations", "/ui/app/administration/project-progress", "/ui/app/consolidation", "/ui/app/consolidation/scopes/{id:guid}", "/ui/app/consolidation/advanced/{id:guid}", "/ui/app/audit/plans/{id:guid}",
   ];
 
   /// <summary>Response options for /api/ui: camelCase, decimals as exact invariant strings, enums as names.</summary>

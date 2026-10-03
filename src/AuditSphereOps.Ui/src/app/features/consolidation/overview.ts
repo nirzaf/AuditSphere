@@ -44,30 +44,34 @@ export function sumDecimals(values: string[]): string {
             <h3 [id]="'group-' + grp.id">{{ grp.name }} <code>{{ grp.code }}</code></h3>
             <div class="table-scroll"><table><thead><tr><th>Version</th><th>Method</th><th>Currency</th><th>Ownership edges</th><th>Grouped matches</th><th>Outside reviews</th><th>Perimeter</th><th>Latest run</th><th><span class="sr-only">Workflow</span></th></tr></thead>
               <tbody>@for (s of grp.scopes; track s.id) { <tr><td>v{{ s.version }}</td><td><code>{{ s.method }}</code></td><td>{{ s.currency }}</td><td>{{ s.ownershipEdges }}</td><td>{{ s.groupedMatches }}</td><td>{{ s.outsideReviews }}</td>
-                <td><audit-status [value]="s.status" /></td><td><audit-status [value]="s.runStatus" /></td><td>@if (s.isAdvanced) { <a [routerLink]="['/app/consolidation/advanced', s.id]">Open workflow</a> }</td></tr> }
+                <td><audit-status [value]="s.status" /></td><td><audit-status [value]="s.runStatus" /></td>
+                <td>
+                  <a [routerLink]="['/app/consolidation/scopes', s.id]">Workspace</a>
+                  @if (s.isAdvanced) { · <a [routerLink]="['/app/consolidation/advanced', s.id]">Advanced</a> }
+                </td></tr> }
               @empty { <tr><td colspan="9">No consolidation perimeter versions are available.</td></tr> }</tbody></table></div>
           }</section>
         <section class="panel" id="packs" aria-labelledby="packs-heading"><h2 id="packs-heading">Component packs</h2>
           <p><small>Counts show what is persisted for each approved scope. Consolidation consumes only approved compatible packs; missing packs are not treated as zero.</small></p>
           <div class="table-scroll"><table><thead><tr><th>Group / scope</th><th>Components</th><th>Approved components</th><th>External packs</th><th>Approved packs</th></tr></thead>
-            <tbody>@for (s of all; track s.id) { <tr><td>{{ s.groupName }} · v{{ s.version }}</td><td>{{ s.componentCount }}</td><td>{{ s.approvedComponentCount }}</td><td>{{ s.externalPackCount }}</td><td>{{ s.approvedExternalPackCount }}</td></tr> }</tbody></table></div></section>
+            <tbody>@for (s of all; track s.id) { <tr><td><a [routerLink]="['/app/consolidation/scopes', s.id]">{{ s.groupName }} · v{{ s.version }}</a></td><td>{{ s.componentCount }}</td><td>{{ s.approvedComponentCount }}</td><td>{{ s.externalPackCount }}</td><td>{{ s.approvedExternalPackCount }}</td></tr> }</tbody></table></div></section>
         <section class="panel" id="fx" aria-labelledby="fx-heading"><h2 id="fx-heading">FX</h2>
           <p><small>The enabled first profile is same-currency. Foreign-operation translation is shown only when the scope pins both a rate set and a translation policy; no rate of 1 is inferred.</small></p>
           <div class="table-scroll"><table><thead><tr><th>Group / scope</th><th>Reporting currency</th><th>Rate set</th><th>Translation policy</th></tr></thead>
-            <tbody>@for (s of all; track s.id) { <tr><td>{{ s.groupName }} · v{{ s.version }}</td><td><code>{{ s.currency }}</code></td><td><audit-status [value]="s.rateSetStatus" /></td><td><audit-status [value]="s.translationPolicyStatus" /></td></tr> }</tbody></table></div></section>
+            <tbody>@for (s of all; track s.id) { <tr><td><a [routerLink]="['/app/consolidation/scopes', s.id]">{{ s.groupName }} · v{{ s.version }}</a></td><td><code>{{ s.currency }}</code></td><td><audit-status [value]="s.rateSetStatus" /></td><td><audit-status [value]="s.translationPolicyStatus" /></td></tr> }</tbody></table></div></section>
         <section class="panel" id="advanced" aria-labelledby="advanced-heading"><h2 id="advanced-heading">Advanced schedules</h2>
           <p><small>Advanced-method schedules are source-bound, maker/checker-reviewed inputs. A complete approved schedule is necessary but does not enable an advanced profile until balanced current/comparative statement evidence is verified and separately approved.</small></p>
           <div class="table-scroll"><table><thead><tr><th>Group / scope</th><th>Method</th><th>Submitted</th><th>Approved</th><th>Executions</th><th>Readiness</th></tr></thead>
-            <tbody>@for (s of all; track s.id) { <tr><td>{{ s.groupName }} · v{{ s.version }}</td><td><code>{{ s.method }}</code></td><td>{{ s.advancedScheduleCount }}</td><td>{{ s.approvedAdvancedScheduleCount }}</td>
+            <tbody>@for (s of all; track s.id) { <tr><td><a [routerLink]="['/app/consolidation/scopes', s.id]">{{ s.groupName }} · v{{ s.version }}</a></td><td><code>{{ s.method }}</code></td><td>{{ s.advancedScheduleCount }}</td><td>{{ s.approvedAdvancedScheduleCount }}</td>
               <td>{{ s.advancedExecutionCount }} / {{ s.approvedAdvancedExecutionCount }}</td><td [title]="s.advancedScheduleGuidance"><audit-status [value]="s.advancedScheduleStatus" /></td></tr> }</tbody></table></div></section>
         <section class="panel" id="intercompany" aria-labelledby="intercompany-heading"><h2 id="intercompany-heading">Intercompany</h2>
           <p><small>Grouped matches, outside-perimeter reviews and unresolved match rows remain visible before any automatic elimination.</small></p>
           <div class="table-scroll"><table><thead><tr><th>Group / scope</th><th>Grouped matches</th><th>Outside reviews</th><th>Open matches</th></tr></thead>
-            <tbody>@for (s of all; track s.id) { <tr><td>{{ s.groupName }} · v{{ s.version }}</td><td>{{ s.groupedMatches }}</td><td>{{ s.outsideReviews }}</td><td>{{ s.openMatchCount }}</td></tr> }</tbody></table></div></section>
+            <tbody>@for (s of all; track s.id) { <tr><td><a [routerLink]="['/app/consolidation/scopes', s.id]">{{ s.groupName }} · v{{ s.version }}</a></td><td>{{ s.groupedMatches }}</td><td>{{ s.outsideReviews }}</td><td>{{ s.openMatchCount }}</td></tr> }</tbody></table></div></section>
         <section class="panel" id="eliminations" aria-labelledby="eliminations-heading"><h2 id="eliminations-heading">Eliminations</h2>
           <p><small>Persisted consolidation journals are separate from component books. Unsupported elimination natures fail closed in the calculation service.</small></p>
           <div class="table-scroll"><table><thead><tr><th>Group / scope</th><th>Journals</th><th>Approved journals</th><th>Latest run</th></tr></thead>
-            <tbody>@for (s of all; track s.id) { <tr><td>{{ s.groupName }} · v{{ s.version }}</td><td>{{ s.eliminationJournalCount }}</td><td>{{ s.approvedEliminationJournalCount }}</td><td><audit-status [value]="s.runStatus" /></td></tr> }</tbody></table></div></section>
+            <tbody>@for (s of all; track s.id) { <tr><td><a [routerLink]="['/app/consolidation/scopes', s.id]">{{ s.groupName }} · v{{ s.version }}</a></td><td>{{ s.eliminationJournalCount }}</td><td>{{ s.approvedEliminationJournalCount }}</td><td><audit-status [value]="s.runStatus" /></td></tr> }</tbody></table></div></section>
         <section class="panel" id="group-report" aria-labelledby="group-report-heading"><h2 id="group-report-heading">Approved group reports</h2>
           <p><small>Only the latest approved report with inputs that still match its manifest is shown. This group-level summary does not grant access to component workpapers.</small></p>
           @for (s of all; track s.id) {

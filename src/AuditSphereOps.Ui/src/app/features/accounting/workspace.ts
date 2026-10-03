@@ -17,9 +17,22 @@ interface Amendment { id: string; periodId: string; previousRevision: string; re
 interface SourcePackage { id: string; hash: string; currency: string }
 interface Opening { id: string; periodId: string; priorPeriodId: string | null; sourcePackageId: string | null; sourceHash: string; priorClosing: string; currentOpening: string; residual: string; status: string; evidence: string; approvedBy: string | null; approvedAt: string | null }
 interface Workspace { clientId: string; name: string; profile: Profile | null; periods: Period[]; hasMorePeriods: boolean; books: Book[]; hasMoreBooks: boolean; amendments: Amendment[]; hasMoreAmendments: boolean; openingBridges: Opening[]; canReviewOpening: boolean }
+export interface Dimension { id: string; dimensionType: string; code: string; name: string; status: string; revision: number; createdAt: string }
 function record(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Invalid response');
   return value as Record<string, unknown>;
+}
+export function decodeDimensions(value: unknown): Dimension[] {
+  if (!Array.isArray(value)) throw new Error('Invalid dimensions');
+  for (const d of value) {
+    const item = record(d);
+    if (typeof item['id'] !== 'string' || !guidPattern.test(item['id']) ||
+      !['dimensionType', 'code', 'name', 'status', 'createdAt'].every(k => typeof item[k] === 'string') ||
+      typeof item['revision'] !== 'number') {
+      throw new Error('Invalid dimension');
+    }
+  }
+  return value as Dimension[];
 }
 export function decodeSources(value: unknown, prior: Period): { items: SourcePackage[]; hasMore: boolean } {
   const v = record(value);
@@ -187,6 +200,26 @@ export function decodeWorkspace(value: unknown): Workspace {
           <button matButton type="submit" [disabled]="bookForm.invalid || !bookReviewed || saving() || uncertain()">Create book</button>
         </form>
         @if (w.hasMorePeriods) { <p>Showing the latest 100 periods. Older periods are not included in this view.</p> }
+        <h3>Accounting dimensions</h3>
+        @if (dimensions(); as dimList) {
+          <div class="table-scroll"><table><caption>Client accounting dimension definitions</caption><thead><tr><th>Type</th><th>Code</th><th>Name</th><th>Status</th><th>Revision</th></tr></thead>
+            <tbody>@for (d of dimList; track d.id) { <tr><td>{{ d.dimensionType }}</td><td>{{ d.code }}</td><td>{{ d.name }}</td><td>{{ d.status }}</td><td>{{ d.revision }}</td></tr> }</tbody></table></div>
+          @if (!dimList.length) { <p>No accounting dimensions configured for this client.</p> }
+        }
+        <form #dimForm="ngForm" (ngSubmit)="dimForm.valid && addDimension()"><h4>Add accounting dimension</h4>
+          <label for="dim-type">Dimension type</label>
+          <select id="dim-type" name="dimType" [(ngModel)]="dim.type" required>
+            <option value="BRANCH">Branch</option>
+            <option value="COST_CENTRE">Cost centre</option>
+            <option value="DEPARTMENT">Department</option>
+            <option value="PROJECT">Project</option>
+            <option value="INTERCOMPANY_COUNTERPARTY">Intercompany counterparty</option>
+          </select>
+          <label>Code <input name="dimCode" [(ngModel)]="dim.code" required maxlength="100" /></label>
+          <label>Name <input name="dimName" [(ngModel)]="dim.name" required maxlength="300" /></label>
+          <label><input name="dimReviewed" type="checkbox" [(ngModel)]="dimReviewed" /> I reviewed this dimension definition for this client.</label>
+          <button matButton type="submit" [disabled]="dimForm.invalid || !dimReviewed || saving() || uncertain()">Add dimension</button>
+        </form>
       </section>
     }
   `,
@@ -197,6 +230,7 @@ export class AccountingWorkspace {
   private request?: Subscription;
   private detail?: Subscription;
   private write?: Subscription;
+  private dimRead?: Subscription;
   readonly saving = signal(false);
   readonly decisionPeriod = signal('');
   readonly uncertain = signal(false);
@@ -213,6 +247,9 @@ export class AccountingWorkspace {
   periodReviewed = false;
   period = { code: '', start: '', end: '', basis: '', currency: '', prior: '' };
   form = { jurisdiction: '', currency: '', month: 1, day: 1, source: '', identifier: '' };
+  dimReviewed = false;
+  dim = { type: 'BRANCH', code: '', name: '' };
+  readonly dimensions = signal<Dimension[] | null>(null);
   private query = '';
   readonly data = signal<ClientPage | null>(null);
   readonly workspace = signal<Workspace | null>(null);
@@ -221,9 +258,9 @@ export class AccountingWorkspace {
   constructor() {
     effect(() => {
       this.session.invalidation(); const staff = this.session.current()?.staff;
-      untracked(() => { this.request?.unsubscribe(); this.detail?.unsubscribe(); this.write?.unsubscribe(); this.sourceRead?.unsubscribe(); this.sources.set(null); this.selectedSource = ''; this.saving.set(false); this.reviewed = false; this.openingReviewed = ''; this.rollReviewed = false; this.roll = { prior: '', code: '', start: '', end: '', basis: '', currency: '', closing: '', opening: '', hash: '', evidence: '' }; this.bookReviewed = false; this.book = { periodId: '', code: '', basis: '', inclusionRule: '', currency: '' }; this.periodReviewed = false; this.period = { code: '', start: '', end: '', basis: '', currency: '', prior: '' }; this.form = { jurisdiction: '', currency: '', month: 1, day: 1, source: '', identifier: '' }; this.data.set(null); this.workspace.set(null); this.clearSources(); this.decisionPeriod.set(''); this.error.set(''); this.loading.set(false); if (staff) this.load(); });
+      untracked(() => { this.request?.unsubscribe(); this.detail?.unsubscribe(); this.write?.unsubscribe(); this.dimRead?.unsubscribe(); this.sourceRead?.unsubscribe(); this.sources.set(null); this.dimensions.set(null); this.selectedSource = ''; this.saving.set(false); this.reviewed = false; this.openingReviewed = ''; this.rollReviewed = false; this.dimReviewed = false; this.roll = { prior: '', code: '', start: '', end: '', basis: '', currency: '', closing: '', opening: '', hash: '', evidence: '' }; this.bookReviewed = false; this.book = { periodId: '', code: '', basis: '', inclusionRule: '', currency: '' }; this.periodReviewed = false; this.period = { code: '', start: '', end: '', basis: '', currency: '', prior: '' }; this.dim = { type: 'BRANCH', code: '', name: '' }; this.form = { jurisdiction: '', currency: '', month: 1, day: 1, source: '', identifier: '' }; this.data.set(null); this.workspace.set(null); this.clearSources(); this.decisionPeriod.set(''); this.error.set(''); this.loading.set(false); if (staff) this.load(); });
     });
-    inject(DestroyRef).onDestroy(() => { this.request?.unsubscribe(); this.detail?.unsubscribe(); this.write?.unsubscribe(); this.sourceRead?.unsubscribe(); this.sources.set(null); this.selectedSource = ''; });
+    inject(DestroyRef).onDestroy(() => { this.request?.unsubscribe(); this.detail?.unsubscribe(); this.write?.unsubscribe(); this.dimRead?.unsubscribe(); this.sourceRead?.unsubscribe(); this.sources.set(null); this.dimensions.set(null); this.selectedSource = ''; });
   }
   search(event: Event, value: string): void { event.preventDefault(); this.query = value.trim(); this.load(); }
   load(page = 0): void {
@@ -240,11 +277,33 @@ export class AccountingWorkspace {
     if (!this.data()?.items.some(c => c.id === id)) return;
     this.openingReviewed = ''; this.rollReviewed = false; this.roll = { prior: '', code: '', start: '', end: '', basis: '', currency: '', closing: '', opening: '', hash: '', evidence: '' }; this.bookReviewed = false; this.book = { periodId: '', code: '', basis: '', inclusionRule: '', currency: '' }; this.periodReviewed = false;
     this.period = { code: '', start: '', end: '', basis: '', currency: '', prior: '' };
-    this.detail?.unsubscribe(); this.workspace.set(null); this.clearSources(); this.decisionPeriod.set(''); this.error.set(''); this.loading.set(true);
+    this.dimReviewed = false; this.dim = { type: 'BRANCH', code: '', name: '' };
+    this.detail?.unsubscribe(); this.dimRead?.unsubscribe(); this.workspace.set(null); this.dimensions.set(null); this.clearSources(); this.decisionPeriod.set(''); this.error.set(''); this.loading.set(true);
     const generation = this.session.invalidation();
     this.detail = this.http.get<unknown>('/api/ui/accounting/clients/' + id).pipe(timeout(15000)).subscribe({
-      next: value => { if (generation !== this.session.invalidation()) return; try { const w = decodeWorkspace(value); if (w.clientId !== id) throw new Error('Identity mismatch'); this.workspace.set(w); const p = w.profile; this.form = { jurisdiction: p?.jurisdiction ?? '', currency: p?.currency ?? '', month: p?.fiscalMonth ?? 1, day: p?.fiscalDay ?? 1, source: p?.sourceSystem ?? '', identifier: p?.sourceIdentifier ?? '' }; this.reviewed = false; this.uncertain.set(false); } catch { this.error.set('Unsupported accounting response.'); } this.loading.set(false); },
+      next: value => { if (generation !== this.session.invalidation()) return; try { const w = decodeWorkspace(value); if (w.clientId !== id) throw new Error('Identity mismatch'); this.workspace.set(w); const p = w.profile; this.form = { jurisdiction: p?.jurisdiction ?? '', currency: p?.currency ?? '', month: p?.fiscalMonth ?? 1, day: p?.fiscalDay ?? 1, source: p?.sourceSystem ?? '', identifier: p?.sourceIdentifier ?? '' }; this.reviewed = false; this.uncertain.set(false); this.loadDimensions(id, generation); } catch { this.error.set('Unsupported accounting response.'); } this.loading.set(false); },
       error: failure => { if (generation !== this.session.invalidation()) return; this.loading.set(false); this.error.set('Client accounting unavailable. Refresh your assignments.'); if (failure.status === 401) this.session.clear(); },
+    });
+  }
+  loadDimensions(id: string, generation: number): void {
+    this.dimRead?.unsubscribe();
+    this.dimRead = this.http.get<unknown>('/api/ui/accounting/clients/' + id + '/dimensions').pipe(timeout(15000)).subscribe({
+      next: value => { if (generation !== this.session.invalidation() || id !== this.workspace()?.clientId) return;
+        try { this.dimensions.set(decodeDimensions(value)); } catch { /* ignore */ } },
+      error: () => { /* ignore */ },
+    });
+  }
+  addDimension(): void {
+    const w = this.workspace();
+    if (!w || !this.dimReviewed || this.saving() || this.uncertain()) return;
+    const generation = this.session.invalidation();
+    this.saving.set(true); this.error.set('');
+    this.write = this.http.post('/api/ui/accounting/clients/' + w.clientId + '/dimensions', {
+      dimensions: [{ dimensionType: this.dim.type, code: this.dim.code.trim(), name: this.dim.name.trim() }],
+      reviewed: true,
+    }).pipe(timeout(15000)).subscribe({
+      next: () => { if (generation !== this.session.invalidation()) return; this.saving.set(false); this.dimReviewed = false; this.dim = { type: 'BRANCH', code: '', name: '' }; this.loadDimensions(w.clientId, generation); },
+      error: failure => { if (generation !== this.session.invalidation()) return; this.saving.set(false); this.dimReviewed = false; this.uncertain.set(true); this.error.set('Dimension not confirmed. Refresh the client before another change.'); if (failure.status === 401) this.session.clear(); },
     });
   }
   saveProfile(): void {
