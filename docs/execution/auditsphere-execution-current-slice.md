@@ -13,6 +13,23 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Angular Microsoft tenant setup metadata
+
+The tenant workspace now projects the saved friendly tenant label and mail/records
+setup states through the current firm-wide administrator query. Angular displays
+these in a separate saved-configuration section, explaining that they do not prove
+consent, mail transport, document protection or release readiness. Immutable tenant
+identity and independent capability verification remain unchanged. Unsupported
+setup states fail decoding, absent metadata adds no invented state, and session
+loss removes the protected metadata.
+
+Local build, contract, PostgreSQL and browser evidence is recorded in status.json.
+Built-in browser inspection used an owned synthetic database and observed saved
+mail configuration alongside an independently disabled mail capability. No shared
+Development database change or Microsoft operation was performed. Setup field
+editing/recovery, wider administration parity, full regression and final migration
+acceptance remain open.
+
 ## Angular reviewed resource planning and retained receipts
 
 Profile, certification, availability and allocation commands now require an exact

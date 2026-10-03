@@ -16,7 +16,9 @@ import { WorkspaceAdministration } from './workspaces';
   <audit-state [loading]="ws.loading()" [error]="ws.error()" label="Microsoft tenant connection" />
   @if (ws.data(); as w) {
     @if(w.simulation) { <p role="status" class="notice">Simulation: these checks exercise the configured test provider. They do not prove live Microsoft consent.</p> }
-    <section class="panel"><h2>Configured tenant</h2><p>{{ w.workspace.connection.expectedTenantId ?? 'No tenant setup draft is prepared.' }}</p>
+    <section class="panel"><h2>Configured tenant</h2>
+      @if(w.workspace.setupMetadata?.tenantDisplayName; as name) { <p>{{ name }}</p><p>Friendly setup label only; Microsoft tenant ID remains the identity boundary.</p> }
+      <p>{{ w.workspace.connection.expectedTenantId ?? 'No tenant setup draft is prepared.' }}</p>
       <dl class="facts"><dt>Connection</dt><dd><audit-status [value]="w.workspace.connection.connectionState ?? 'NOT_PREPARED'" /></dd>
         <dt>Consent</dt><dd><audit-status [value]="w.workspace.connection.consentState ?? 'NOT_VERIFIED'" /></dd>
         <dt>Latest attempt</dt><dd>{{ w.workspace.connection.lastAttemptState ?? 'None' }} · {{ w.workspace.connection.lastAttemptAt ?? 'Not attempted' }}</dd>
@@ -35,6 +37,13 @@ import { WorkspaceAdministration } from './workspaces';
           <button matButton="filled" [disabled]="form.invalid || busy() || uncertain()">Connect Microsoft 365 tenant</button></form>
       }
     </section>
+    @if(w.workspace.setupMetadata; as metadata) {
+      <section class="panel" aria-labelledby="setup-capability-heading"><h2 id="setup-capability-heading">Saved setup configuration</h2>
+        <dl class="facts"><dt>Mail setup</dt><dd><audit-status [value]="metadata.mailState" /></dd>
+          <dt>Records setup</dt><dd><audit-status [value]="metadata.recordsState" /></dd></dl>
+        <p>These are saved draft states, not verification results. Mail permission and transport are checked separately. A configured records profile does not prove document protection, release readiness or external provider acceptance.</p>
+      </section>
+    }
     <section class="panel"><h2>Granted capabilities</h2><p>Selected SharePoint site permission and exact library access require their separate resource verification.</p>
       <button matButton="filled" (click)="verify()" [disabled]="busy() || uncertain()">Verify all enabled capabilities</button>
       <div class="table-scroll"><table><caption>Independent Microsoft capability verification</caption><thead><tr><th>Capability</th><th>Permission</th><th>Configured</th><th>Verified state</th><th>Last check</th><th>Diagnostic</th></tr></thead><tbody>

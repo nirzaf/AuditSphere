@@ -234,7 +234,7 @@
       "id": "US-039",
       "title": "Migrate user access and Microsoft 365 administration",
       "status": "PARTIAL",
-      "scope": "Role assignment/revocation with digest review, directory search/bind, provisioning, managed groups, tenant connection and consent, SharePoint selected-resource/template controls, workspace provisioning, project-progress tracker and user administration exist natively. Invitation issuance with copyable safe landing link and recorded copying, approved-roster identity binding fallback and per-grant change evidence are implemented with local verification in status.json. Lost pre-dispatch original-form recovery, setup draft mail/records capability states and tenant display name remain open; production-like acceptance and retirement gates remain open."
+      "scope": "Role assignment/revocation with digest review, directory search/bind, provisioning, managed groups, tenant connection and consent, SharePoint selected-resource/template controls, workspace provisioning, project-progress tracker and user administration exist natively. Invitation issuance with copyable safe landing link and recorded copying, approved-roster identity binding fallback and per-grant change evidence are implemented with local verification in status.json. Saved tenant label and mail/records setup states are projected and displayed separately from capability verification, with current administrator authority and session clearing. Setup field editing and lost pre-dispatch original-form recovery remain open; production-like acceptance and retirement gates remain open."
     },
     {
       "id": "US-040",

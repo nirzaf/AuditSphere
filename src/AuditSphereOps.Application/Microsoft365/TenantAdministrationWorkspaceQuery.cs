@@ -7,9 +7,10 @@ using Microsoft.EntityFrameworkCore;
 namespace AuditSphereOps.Application.Microsoft365;
 
 public sealed record TenantConsentIdentity(string TenantId, string ObjectId, DateTimeOffset? VerifiedAt);
+public sealed record TenantSetupMetadata(string? TenantDisplayName, string MailState, string RecordsState);
 public sealed record TenantAdministrationWorkspace(TenantConnectionSnapshot Connection,
   IReadOnlyList<CapabilityStatus> Capabilities, Microsoft365SetupProgress? SetupProgress,
-  TenantConsentIdentity? ConsentingAdministrator, string? DraftRevision);
+  TenantConsentIdentity? ConsentingAdministrator, string? DraftRevision, TenantSetupMetadata? SetupMetadata);
 
 /// <summary>Safe, firm-scoped consent metadata. No callback, code, nonce or credential reference is exposed.</summary>
 public static class TenantAdministrationWorkspaceQuery
@@ -24,11 +25,13 @@ public static class TenantAdministrationWorkspaceQuery
     Microsoft365SetupProgress? progress = null;
     TenantConsentIdentity? identity = null;
     string? draftRevision = null;
+    TenantSetupMetadata? metadata = null;
     if (snapshot.DraftId is { } draftId)
     {
-      var revision = await db.Microsoft365SetupDrafts.AsNoTracking().Where(x => x.Id == draftId && x.FirmId == actor.FirmId)
-        .Select(x => (long?)x.Revision).SingleOrDefaultAsync(ct);
-      draftRevision = revision?.ToString(System.Globalization.CultureInfo.InvariantCulture);
+      var draft = await db.Microsoft365SetupDrafts.AsNoTracking().Where(x => x.Id == draftId && x.FirmId == actor.FirmId)
+        .Select(x => new { x.Revision, x.TenantDisplayName, x.MailState, x.RecordsState }).SingleOrDefaultAsync(ct);
+      draftRevision = draft?.Revision.ToString(System.Globalization.CultureInfo.InvariantCulture);
+      if (draft is not null) metadata = new(draft.TenantDisplayName, draft.MailState, draft.RecordsState);
       var setup = await Microsoft365SetupProgressQuery.GetAsync(db, actor, draftId, ct);
       if (!setup.Succeeded) return CommandResult<TenantAdministrationWorkspace>.Fail(setup.ErrorCode!, setup.Message!);
       progress = setup.Value;
@@ -41,6 +44,6 @@ public static class TenantAdministrationWorkspaceQuery
     }
     if (!await TenantAdministration.IsCurrentAdministratorAsync(db, actor, ct))
       return TenantAdministration.Denied<TenantAdministrationWorkspace>();
-    return CommandResult<TenantAdministrationWorkspace>.Ok(new(snapshot, capability, progress, identity, draftRevision));
+    return CommandResult<TenantAdministrationWorkspace>.Ok(new(snapshot, capability, progress, identity, draftRevision, metadata));
   }
 }

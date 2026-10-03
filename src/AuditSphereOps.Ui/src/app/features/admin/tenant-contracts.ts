@@ -1,4 +1,4 @@
-import { arr, bool, guid, instant, nullable, obj, text } from '../../core/decode';
+import { arr, bool, guid, instant, nullable, obj, text, oneOf, str } from '../../core/decode';
 
 export const capabilityStatus = obj({ capability: text, displayName: text, permission: text, enabled: bool, state: text,
   lastVerifiedAt: nullable(instant), stale: bool, diagnosticCode: text });
@@ -9,7 +9,8 @@ export const tenantWorkspace = obj({ consentConfigured: bool, directoryConfigure
     directoryCapabilityState: text, directoryLastCheckedAt: nullable(instant) }), capabilities: arr(capabilityStatus, 50),
     setupProgress: nullable(obj({ tenantRecorded: bool, siteUrlRecorded: bool, connectionPrepared: bool, consentEvidenceRecorded: bool,
       consentVerified: bool, selectedResourcesEvidenceRecorded: bool, clientTemplateApproved: bool, workspaceActivated: bool })),
-    consentingAdministrator: nullable(obj({ tenantId: guid, objectId: guid, verifiedAt: nullable(instant) })), draftRevision: nullable(text) }) });
+    consentingAdministrator: nullable(obj({ tenantId: guid, objectId: guid, verifiedAt: nullable(instant) })), draftRevision: nullable(text),
+    setupMetadata: nullable(obj({ tenantDisplayName: nullable(str(300)), mailState: oneOf('CONFIGURED', 'NOT_CONFIGURED'), recordsState: oneOf('CONFIGURED', 'NOT_CONFIGURED') })) }) });
 export const directoryCandidate = obj({ tenantId: guid, objectId: guid, displayName: text, userPrincipalName: text,
   accountEnabled: bool, userType: text });
 export const directoryPage = obj({ users: arr(directoryCandidate, 25), nextPageToken: nullable(text) });
