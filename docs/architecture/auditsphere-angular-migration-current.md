@@ -191,13 +191,14 @@ acceptance decision on behalf of a practitioner.
 
 ### Controlled canonical route ownership and retained assets
 
-The standalone API supports deployment-owned `AngularUi:CanonicalRoutes`, off by
-default while parity acceptance continues. When enabled, the exact native catalogue
-also owns `/app`, `/portal` and `/setup` destinations with a root router base.
-Preview routes remain available under `/ui` for existing tabs. API, auth, health,
-protected file paths and unknown destinations never receive an HTML fallback.
-The legacy Web rollback host refuses canonical ownership to prevent route collisions.
-Disabled Angular serving or an incompatible build also fails startup.
+The owner-approved API configuration now enables `AngularUi:CanonicalRoutes` by
+default. Deployments can explicitly set it to `false` to keep the `/ui` preview
+prefix during rollback. When enabled, the exact native catalogue also owns `/app`,
+`/portal` and `/setup` destinations with a root router base. Preview routes remain
+available under `/ui` for existing tabs. API, auth, health, protected file paths
+and unknown destinations never receive an HTML fallback. The legacy Web rollback
+host refuses canonical ownership to prevent route collisions. Disabled Angular
+serving or an incompatible build also fails startup.
 
 One production build uses `/ui/` for fingerprinted script/style asset URLs in both
 route modes. Router links, search, deep-link sign-in, first-administrator setup and

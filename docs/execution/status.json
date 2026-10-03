@@ -7214,7 +7214,7 @@
       "codeCommit": "f4afcc507cc02fbf770b6afede346e6a5164a635",
       "observedAt": "2026-10-03T23:01:58Z",
       "status": "PASS_LOCAL_SLICE",
-      "configuration": "AngularUi:CanonicalRoutes=true in src/AuditSphereOps.Api/appsettings.Development.json only; production appsettings.json remains false.",
+      "configuration": "At this commit, AngularUi:CanonicalRoutes=true was set in appsettings.Development.json; base appsettings.json still defaulted false.",
       "releaseSolutionBuild": {
         "status": "PASS",
         "warnings": 0,
@@ -7239,6 +7239,30 @@
       },
       "rollbackHost": "Legacy Blazor Web host remains available.",
       "boundary": "Development route ownership only. Production route ownership, production-like canary and Blazor retirement remain open acceptance gates."
+    },
+    "angularCanonicalRouteDefaultFlip": {
+      "codeCommit": "b293ca100ffd3d114fbed6adf647e7a565a53072",
+      "observedAt": "2026-10-03T23:13:37Z",
+      "status": "PASS_LOCAL_SLICE",
+      "configuration": "Base src/AuditSphereOps.Api/appsettings.json and Development configuration now enable AngularUi:CanonicalRoutes by default; explicit false retains /ui preview routing.",
+      "angularProductionBuild": "PASS",
+      "releaseSolutionBuild": {
+        "status": "PASS",
+        "warnings": 0,
+        "errors": 0
+      },
+      "standaloneApiPublish": "PASS: output contains Angular index and fingerprinted main/style assets under ui/; copied appsettings.json has Angular enabled and CanonicalRoutes=true.",
+      "focusedApiTests": {
+        "filter": "FullyQualifiedName~CanonicalAngularHostTests",
+        "passed": 4,
+        "failed": 0,
+        "skipped": 0
+      },
+      "efModelDrift": "NONE",
+      "builtInBrowser": "PASS: Development API renders the authenticated mapping workspace at /app/accounting/mappings with canonical navigation; no business mutation submitted.",
+      "fullSolutionRegression": "Not rerun for this configuration-only change. The last full Release suite passed 1022/1022 at 404b4b8.",
+      "rollbackHost": "Legacy Blazor Web host remains available; explicit /ui routing and previous fingerprinted asset support remain in the API.",
+      "boundary": "Canonical routing is now the shipped API default, but no production host was deployed. Production-like canary, previous-build retention on the target deployment, live Microsoft acceptance, real assistive-technology acceptance and Blazor retirement remain open."
     },
     "angularCurrentSourceFullRegression": {
       "sourceCommit": "404b4b8c8d821f3cf761c52c1dd6b20f8f753764",

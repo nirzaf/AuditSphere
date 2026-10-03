@@ -270,7 +270,7 @@
       "id": "US-045",
       "title": "Deploy with explicit route ownership and reversible cutover",
       "status": "PARTIAL",
-      "scope": "Independent API publication bundles Angular assets. Controlled standalone canonical ownership, startup guards, explicit local mode rollback and retained previous fingerprinted assets are implemented; preview URLs remain compatible and Web rollback stays separate. Local API/browser and two-build evidence is recorded in status.json. Production-like deployment canary and final cutover/retirement acceptance remain open."
+      "scope": "Independent API publication bundles Angular assets. Owner-approved canonical route ownership is now enabled by default in the API configuration; explicit false keeps the /ui preview prefix for rollback. Startup guards and retained previous fingerprinted assets are implemented, preview URLs remain compatible and the Web rollback host stays separate. Local API/browser and two-build evidence is recorded in status.json. Production-like deployment canary and final rollout/retirement acceptance remain open."
     },
     {
       "id": "US-046",

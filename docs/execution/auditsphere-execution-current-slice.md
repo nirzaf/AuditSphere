@@ -36,15 +36,22 @@ This verifies the local Development route and empty-state journey. Production
 canary, live Microsoft checks, screen-reader and wider-locale acceptance, and
 US-047 Blazor retirement remain open; overall migration acceptance is PARTIAL.
 
-The route-ownership slice is committed as `f4afcc5`: Development enables
-`AngularUi:CanonicalRoutes`, while production configuration remains unchanged.
-The Release solution build passed with zero warnings/errors, and
-`CanonicalAngularHostTests` passed 4/4. The built-in browser verified both the
-canonical `/app/accounting/mappings` route and the `/ui` preview alias; each
-renders Angular with links using its matching prefix. API liveness and
-readiness returned 200. The legacy Blazor rollback host remains available.
-Detailed evidence is recorded in `status.json` under
-`angularDevelopmentCanonicalRouteOwnership`.
+The owner-approved route-ownership change is committed as `f4afcc5` and
+`b293ca1`: canonical `/app` routing is now the API configuration default, while
+an explicit `false` retains `/ui` preview routing. The Angular production build,
+Release solution build, standalone API publish and EF model check passed;
+`CanonicalAngularHostTests` passed 4/4. The publish contains the canonical
+setting and fingerprinted Angular assets. The built-in browser verified the
+authenticated `/app/accounting/mappings` route and the `/ui` preview alias, with
+navigation following each prefix. No business mutation or production deployment
+was performed. The separate legacy Blazor rollback host remains available.
+Evidence is recorded under `angularCanonicalRouteDefaultFlip` and
+`angularDevelopmentCanonicalRouteOwnership` in `status.json`.
+
+The shipped API now defaults to canonical Angular ownership. Production-like
+canary, deployment retention of the previous fingerprinted build, live
+Microsoft acceptance, assistive-technology acceptance and Blazor retirement
+remain open, so overall migration acceptance remains PARTIAL.
 
 ## Reviewed existing service-period engagement inspection
 
