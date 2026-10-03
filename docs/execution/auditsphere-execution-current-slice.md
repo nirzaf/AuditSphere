@@ -13,6 +13,20 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Staffing grant expiry enforcement
+
+Staffing rank now uses current Application authorization, including exact scope,
+grant expiry and session identity. An active lower role cannot revive an expired
+higher role. Staffing replacement first retires expired target grants through the
+existing expiry service, preserving append-only evidence and session invalidation
+before creating a fresh engagement grant. Unexpired independently assigned grants
+remain reusable.
+
+The focused Release build and affected PostgreSQL tests passed. Earlier fixture
+and active-grant uniqueness failures are retained in the execution ledger. This
+changes no UI or schema and does not close reviewed staffing/revocation recovery,
+budget approval recovery, action-specific UI authority, or migration cutover.
+
 ## Planning Signal Forms and exact-context assent
 
 All planning controls now use Signal Forms. Staffing assent binds the current

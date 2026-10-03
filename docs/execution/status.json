@@ -6146,6 +6146,34 @@
       "sourceCommit": "488b47ca38ceef463301dd9ad2f7ca4514874550",
       "publishedCommit": "488b47ca38ceef463301dd9ad2f7ca4514874550",
       "remoteHeadVerified": true
+    },
+    "staffingGrantExpiry": {
+      "status": "PASS_FOCUSED_LOCAL",
+      "verifiedAt": "2026-10-03T08:26:39.453671+00:00",
+      "baseCommit": "8b85e5fe505db7cc46dac9ce2746d07150531d09",
+      "sourceSha256": {
+        "src/AuditSphereOps.Application/Practice/StaffingService.cs": "a3d5d889f68895eb007a7705a8e8349b80b7dd245265c4af31d97a07ecd57748",
+        "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs": "3fde7abc9b2b7ccea3ae4c1cf833bff2887003c4e57a10bbcef7f1328432efd4"
+      },
+      "releaseBuild": {
+        "exitCode": 0,
+        "warnings": 0,
+        "errors": 0,
+        "log": "/private/tmp/auditsphere-staffing-expiry-build-accepted.log"
+      },
+      "postgresqlTests": {
+        "passed": 16,
+        "failed": 0,
+        "skipped": 0,
+        "parentExitCode": 0,
+        "log": "/private/tmp/auditsphere-staffing-expiry-tests-accepted.log"
+      },
+      "retainedEarlierFailures": [
+        "/private/tmp/auditsphere-staffing-expiry-build.log",
+        "/private/tmp/auditsphere-staffing-expiry-tests.log",
+        "/private/tmp/auditsphere-staffing-expiry-tests-corrected.log"
+      ],
+      "scope": "Expired higher roles cannot elevate staffing rank; expired target grants retire through existing evidence/epoch expiry service before replacement. No UI/schema change. Not whole-suite or production acceptance."
     }
   },
   "documentationWork": {

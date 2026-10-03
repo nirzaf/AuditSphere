@@ -54,9 +54,13 @@ public static class StaffingService
 
     var now = DateTimeOffset.UtcNow;
     var role = StaffingLevels.AuthorizationRole(level);
+    // Retire expired grants with their evidence and epoch invalidation before
+    // replacing an identity protected by the active-grant unique constraint.
+    await RoleGrantExpiry.RevokeExpiredForUserAsync(db, actor.FirmId, target.Id, now, ct);
     // An identical engagement grant made elsewhere is reused, not duplicated; staffing revocation leaves it in place.
     var grant = await db.RoleGrants.FirstOrDefaultAsync(x => x.FirmId == actor.FirmId && x.UserId == target.Id && x.Role == role &&
-      x.ClientId == engagement.PracticeClientId && x.EngagementId == engagement.Id && x.RevokedAt == null, ct);
+      x.ClientId == engagement.PracticeClientId && x.EngagementId == engagement.Id && x.RevokedAt == null &&
+      (x.ExpiresAt == null || x.ExpiresAt > now), ct);
     if (grant is null)
     {
       grant = new RoleGrant
@@ -145,10 +149,16 @@ public static class StaffingService
   /// <summary>Staffing rank of the acting user on this engagement: administrators and firm Partners rank as Partner.</summary>
   internal static async Task<int> ActorRankAsync(IAuditSphereDbContext db, ActorContext actor, Guid clientId, Guid engagementId, CancellationToken ct)
   {
-    var roles = await db.RoleGrants.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.UserId == actor.UserId && x.RevokedAt == null &&
-        (x.ClientId == null || x.ClientId == clientId) && (x.EngagementId == null || x.EngagementId == engagementId))
-      .Select(x => x.Role).ToListAsync(ct);
-    return roles.Contains("Administrator") || roles.Contains("Partner") ? 4 : roles.Contains("Manager") ? 3 : roles.Contains("Senior") ? 2 : 1;
+    // Use the same current-identity, expiry and scope rules as the command gate.
+    // A lower active role must not revive an expired higher role for rank checks.
+    foreach (var (rank, roles) in new (int Rank, string[] Roles)[]
+      { (4, ["Administrator", "Partner"]), (3, ["Manager"]), (2, ["Senior"]) })
+    {
+      if ((await AuthorizationDecision.AuthorizeAsync(db, actor,
+        new AuthorizationRequest(actor.FirmId, clientId, engagementId, roles, InternalOnly: true), ct)).Succeeded)
+        return rank;
+    }
+    return 1;
   }
 
   private static async Task<bool> IsCertifiedAsync(IAuditSphereDbContext db, Guid firmId, Guid userId, CancellationToken ct)

@@ -52,6 +52,49 @@ public sealed class PlanningResourcesAndMaterialityTests
     return new(firmId, clientId, engagementId, users);
   }
 
+  [Fact]
+  public async Task Staffing_ExpiredHigherRoleDoesNotElevateAnActiveManager()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var expired = Grant(w.FirmId, w.Users["manager"], "Partner");
+    expired.GrantedAt = DateTimeOffset.UtcNow.AddDays(-1);
+    expired.ExpiresAt = DateTimeOffset.UtcNow.AddMinutes(-1);
+    db.RoleGrants.Add(expired);
+    await db.SaveChangesAsync();
+    var manager = w.Actor("manager", "Manager", "Partner");
+    var result = await StaffingService.AssignAsync(db, manager,
+      new(w.EngagementId, w.Users["outsider"].Id, StaffingLevels.EngagementPartner));
+    Assert.Equal(ErrorCodes.ScopeDenied, result.ErrorCode);
+    Assert.False(await db.EngagementStaffAssignments.AnyAsync(x => x.UserId == w.Users["outsider"].Id));
+  }
+
+  [Fact]
+  public async Task Staffing_DoesNotReuseExpiredEngagementGrant()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var expired = Grant(w.FirmId, w.Users["associate"], "Staff", w.ClientId, w.EngagementId);
+    expired.GrantedAt = DateTimeOffset.UtcNow.AddDays(-1);
+    expired.ExpiresAt = DateTimeOffset.UtcNow.AddMinutes(-1);
+    db.RoleGrants.Add(expired);
+    await db.SaveChangesAsync();
+    var result = await StaffingService.AssignAsync(db, w.Actor("partner", "Partner"),
+      new(w.EngagementId, w.Users["associate"].Id, StaffingLevels.StaffAssociate));
+    Assert.True(result.Succeeded, result.Message);
+    var assignment = await db.EngagementStaffAssignments.SingleAsync(x => x.Id == result.Value);
+    Assert.NotEqual(expired.Id, assignment.RoleGrantId);
+    var grant = await db.RoleGrants.SingleAsync(x => x.Id == assignment.RoleGrantId);
+    Assert.Null(grant.ExpiresAt);
+    Assert.True(await db.RoleGrantChangeEvidences.AnyAsync(x => x.RoleGrantId == grant.Id));
+    Assert.NotNull(expired.RevokedAt);
+    Assert.Equal(w.Users["associate"].SessionEpoch + 1,
+      (await db.Users.SingleAsync(x => x.Id == w.Users["associate"].Id)).SessionEpoch);
+    Assert.True(await db.RoleGrantChangeEvidences.AnyAsync(x => x.RoleGrantId == expired.Id && x.Source == "EXPIRY"));
+  }
+
   private static async Task SeedApprovedMappingAsync(PgTestSchema pg, World w, Guid? replaces = null)
   {
     await using var db = new AuditSphereDbContext(pg.Options);
