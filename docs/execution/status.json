@@ -18,6 +18,35 @@
     "postgres": "18.6 loopback development profile"
   },
   "verification": {
+    "angularCurrentHeadRegressionAttempt": {
+      "sourceCommit": "b012022d63560ffb42ab768f2b12a65af6268c56",
+      "observedAt": "2026-10-03T21:13:10Z",
+      "status": "INCOMPLETE",
+      "angularProductionBuild": "PASS",
+      "releaseSolutionBuild": {
+        "status": "PASS",
+        "warnings": 0,
+        "errors": 0
+      },
+      "apiTests": {
+        "passed": 176,
+        "failed": 0,
+        "skipped": 0,
+        "duration": "13m 5s"
+      },
+      "domainTests": {
+        "passed": 644,
+        "failed": 0,
+        "skipped": 0,
+        "duration": "30m 51s"
+      },
+      "e2eTests": {
+        "status": "INCOMPLETE",
+        "reason": "The serial E2E stage ran for more than 37 minutes without a terminal summary and was stopped. No E2E pass count or aggregate full-suite result is inferred."
+      },
+      "efModelDrift": "NONE",
+      "boundary": "Current source has successful Angular build, Release build, API tests and Domain tests. The current-head full solution regression is incomplete because E2E did not finish. The earlier clean 1021/1021 frozen pass remains attributed only to its recorded source checkpoint. No production, Microsoft tenant or shared database acceptance is established."
+    },
     "angularFullRegressionRecovery": {
       "codeCommit": "21e76054b88c904ed44d457cf09df0bfd3382023",
       "observedAt": "2026-10-03T15:12:21.342754+00:00",

@@ -13,6 +13,18 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Current-head regression attempt (incomplete)
+
+On the current code source (`b012022`), the Angular production build and Release
+solution build passed with zero warnings or errors. API and Domain tests passed.
+The serial E2E stage continued for
+more than 37 minutes without a terminal summary and was stopped; no E2E count
+or aggregate full-suite result is claimed. EF reported no pending model changes.
+The earlier 1021/1021 clean frozen pass remains tied to its recorded checkpoint
+and is not attributed to this later accounting source. Full current-source
+regression and overall migration acceptance remain open. Exact evidence is in
+`status.json` under `angularCurrentHeadRegressionAttempt`.
+
 ## Angular accounting alias and dimension review safeguards
 
 Accounting chart, account, alias and dimension forms now clear review assent
