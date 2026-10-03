@@ -21,16 +21,30 @@ passed API 176/176, Domain 644/644 and E2E 202/202: 1022 passed, zero failed
 and zero skipped. EF reports no pending model changes. Exact evidence is in
 `status.json` under `angularCurrentSourceFullRegression`.
 
-The built-in browser loaded the authenticated `/ui/app/accounting` shell from
-the production Angular build. The Mappings route rendered its safe retry state
-after a read-only refresh. The local API liveness endpoint returned 200, while
-readiness returned 503; `dotnet ef migrations list` showed migrations pending
-on the Development database. No Development database migration was applied.
-This browser check therefore verifies Angular route rendering and its safe
-failure state, not a successful live data journey. Applying Development schema
-changes remains an operator-controlled step. Screen-reader and wider-locale
-acceptance, production-like canary, live Microsoft checks, owner acceptance and
+The built-in browser first showed the Mappings route's safe retry state while
+the Development database had pending migrations. A private custom-format
+database backup was verified before the local migration update. The database
+is now at migration `20261003153640_NativeTenantSetupMetadataReceipts`: all 142
+repository migrations applied, none pending. After restarting the Release API,
+both liveness and readiness returned 200. The browser reload showed the
+authenticated Angular Mappings page and its authorized empty state (0 mapping
+versions, 0 chart-bound); no business mutation was submitted. The backup stays
+outside the repository. Exact observations are in `status.json` under
+`angularCurrentSourceFullRegression`.
+
+This verifies the local Development route and empty-state journey. Production
+canary, live Microsoft checks, screen-reader and wider-locale acceptance, and
 US-047 Blazor retirement remain open; overall migration acceptance is PARTIAL.
+
+The route-ownership slice is committed as `f4afcc5`: Development enables
+`AngularUi:CanonicalRoutes`, while production configuration remains unchanged.
+The Release solution build passed with zero warnings/errors, and
+`CanonicalAngularHostTests` passed 4/4. The built-in browser verified both the
+canonical `/app/accounting/mappings` route and the `/ui` preview alias; each
+renders Angular with links using its matching prefix. API liveness and
+readiness returned 200. The legacy Blazor rollback host remains available.
+Detailed evidence is recorded in `status.json` under
+`angularDevelopmentCanonicalRouteOwnership`.
 
 ## Reviewed existing service-period engagement inspection
 

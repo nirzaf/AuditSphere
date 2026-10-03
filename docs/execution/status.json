@@ -7210,6 +7210,36 @@
       "fullSolutionRegression": "The clean frozen 1021/1021 run above predates this slice. Focused current-source browser journeys pass; current source has not had a new full-solution test run.",
       "boundary": "US-020 remains PARTIAL: broader source-action parity, screen-reader/locale/performance acceptance, production cutover and owner-authorized Blazor retirement remain open."
     },
+    "angularDevelopmentCanonicalRouteOwnership": {
+      "codeCommit": "f4afcc507cc02fbf770b6afede346e6a5164a635",
+      "observedAt": "2026-10-03T23:01:58Z",
+      "status": "PASS_LOCAL_SLICE",
+      "configuration": "AngularUi:CanonicalRoutes=true in src/AuditSphereOps.Api/appsettings.Development.json only; production appsettings.json remains false.",
+      "releaseSolutionBuild": {
+        "status": "PASS",
+        "warnings": 0,
+        "errors": 0
+      },
+      "focusedApiTests": {
+        "filter": "FullyQualifiedName~CanonicalAngularHostTests",
+        "passed": 4,
+        "failed": 0,
+        "skipped": 0
+      },
+      "api": {
+        "livenessHttp": 200,
+        "readinessHttp": 200,
+        "canonicalRouteHttp": 200,
+        "previewAliasRouteHttp": 200
+      },
+      "builtInBrowser": {
+        "canonicalRoute": "PASS: authenticated Angular Mappings page rendered at /app/accounting/mappings and navigation links use the canonical /app prefix.",
+        "previewAliasRoute": "PASS: /ui/app/accounting/mappings still renders the Angular page and retains the /ui prefix in its navigation links.",
+        "businessMutation": "None submitted."
+      },
+      "rollbackHost": "Legacy Blazor Web host remains available.",
+      "boundary": "Development route ownership only. Production route ownership, production-like canary and Blazor retirement remain open acceptance gates."
+    },
     "angularCurrentSourceFullRegression": {
       "sourceCommit": "404b4b8c8d821f3cf761c52c1dd6b20f8f753764",
       "observedAt": "2026-10-03T22:47:51Z",
@@ -7247,12 +7277,26 @@
       "efModelDrift": "NONE",
       "builtInBrowser": {
         "angularRoute": "PASS: authenticated /ui/app/accounting shell rendered from the production UI build",
-        "mappingRoute": "SAFE_UNAVAILABLE: scoped mapping queue showed its retry state after one read-only refresh",
-        "apiLivenessHttp": 200,
-        "apiReadinessHttp": 503,
-        "databaseState": "Development database has EF migrations pending; none were applied in this slice."
+        "beforeDevelopmentMigration": {
+          "apiLivenessHttp": 200,
+          "apiReadinessHttp": 503,
+          "mappingRoute": "SAFE_UNAVAILABLE: the scoped queue showed its retry state while EF migrations were pending."
+        },
+        "developmentMigration": {
+          "backup": "Private custom-format backup created before applying; pg_restore --list verified it; no backup content committed.",
+          "appliedThrough": "20261003153640_NativeTenantSetupMetadataReceipts",
+          "totalMigrations": 142,
+          "pendingMigrations": 0
+        },
+        "afterDevelopmentMigration": {
+          "observedAt": "2026-10-03T22:56:10Z",
+          "apiLivenessHttp": 200,
+          "apiReadinessHttp": 200,
+          "mappingRoute": "PASS: rendered the authorized empty state (0 mapping versions, 0 chart-bound); no mutation submitted.",
+          "visualInspection": "PASS: sidebar, search, queue, table, empty state and paging rendered in the built-in browser."
+        }
       },
-      "boundary": "Release build, PostgreSQL-backed API/Domain/E2E suites and EF model check passed at the recorded source. Built-in browser verified Angular route rendering; mapping data remained unavailable while Development database readiness was 503 due to pending migrations. The Development database migration step remains operator-controlled. No production canary, Microsoft live acceptance, migration owner acceptance or Blazor retirement is claimed."
+      "boundary": "Release build, PostgreSQL-backed API/Domain/E2E suites and EF model check passed at the recorded source. The local Development database was backed up and advanced through all 142 repository migrations; readiness is 200. Built-in browser now renders the authenticated Angular mapping empty state for the current scope. Production migration/canary, live Microsoft acceptance, real assistive-technology acceptance and Blazor retirement remain separate gates."
     }
   },
   "documentationWork": {
@@ -7360,7 +7404,7 @@
     "implementationStatus": "PARTIAL",
     "acceptanceStatus": "PARTIAL",
     "scope": "Standalone API and native Angular capability slices preserve Application authorization, exact financial inputs, durable operations and independent human gates. Legacy Blazor remains available for rollback until wider parity and retirement acceptance.",
-    "nextAction": "Complete remaining local parity and acceptance work. The current-source Release build and full suite passed 1022/1022 at 404b4b8. The built-in browser rendered the Angular accounting shell; the mapping queue remained safely unavailable because Development database readiness is 503 with EF migrations pending. Apply database changes only through the operator-controlled migration process. Screen-reader and wider-locale acceptance, production-like canary, live Microsoft gates, migration owner acceptance and US-047 Blazor retirement remain open.",
+    "nextAction": "Continue remaining partial Angular creation/planning/source-action parity and accessibility acceptance. Current-source Release build and full suite passed 1022/1022 at 404b4b8; the local Development database is current after a verified private backup, and built-in browser shows the scoped Mappings empty state with API readiness 200. Production-like canary, screen-reader and wider-locale acceptance, live Microsoft gates and US-047 Blazor retirement remain open.",
     "branch": "master"
   },
   "localEvidence": [
@@ -8169,7 +8213,7 @@
     {
       "item": "ASP.NET Core API and Angular 22 migration",
       "status": "PARTIAL",
-      "details": "Native API and Angular capability routes, financial review/evidence actions and scoped portfolio/client/contact/engagement projections have local verification. A fresh current-source Release build and full PostgreSQL-backed suite passed at 404b4b8: API 176/176, Domain 644/644 and E2E 202/202, zero failures or skips; EF reported no model drift. The built-in browser rendered the Angular accounting shell, while the scoped mapping queue remained in its safe retry state because the Development database has pending migrations and readiness returned 503. Remaining: partial creation/planning/source-action parity, screen-reader and wider-locale acceptance, production-like canary, operator-controlled Development migration, live Microsoft gates and owner-authorized Blazor retirement."
+      "details": "Native API and Angular capability routes, financial review/evidence actions and scoped portfolio/client/contact/engagement projections have local verification. A fresh current-source Release build and full PostgreSQL-backed suite passed at 404b4b8: API 176/176, Domain 644/644 and E2E 202/202, zero failures or skips; EF reported no model drift. The Development database was backed up and migrated through all 142 repository migrations; API readiness now returns 200. Built-in browser renders the authorized Mappings empty state for the current scope. Remaining: partial creation/planning/source-action parity, screen-reader and wider-locale acceptance, production-like canary, live Microsoft gates and owner-authorized Blazor retirement."
     }
   ],
   "externalGates": [
