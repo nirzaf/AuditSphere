@@ -998,7 +998,7 @@
         "input": "One 8 MiB synthetic PBC chunk staged through the service and transferred by the durable worker to the simulation sink. Each run verified one chunk, RECEIVED state, exact digest and byte count, and one provider attempt.",
         "stageMs": [
           432.6,
-          477.0,
+          477,
           197.6
         ],
         "workerMs": [
@@ -1017,7 +1017,7 @@
       "input": "15 distinct local users with explicit AccountingPreparer grants, 30 concurrently released first-page GL queries, 50 rows per page, four synthetic clients, and one independent EF context per query.",
       "p95Ms": [
         318.6,
-        336.0,
+        336,
         250.4
       ],
       "maxMs": [
@@ -6728,7 +6728,33 @@
       "recovery": "Initial integrated tests failed to connect because local PostgreSQL was stopped. Restarted configured port 5433 cluster; all rerun parents joined successfully. Initial proposal-link template binding failure fixed before final consumers.",
       "boundary": "Focused local evidence only; latest whole-suite verifiedCommit remains the preceding staffing checkpoint. No shared Development or live Microsoft mutation; professional acceptance/activation remains separate.",
       "finalCleanup": "Generated-migration trailing whitespace cleaned; Release build and all focused .NET consumers rerun and explicitly joined successfully. Final frozen manifest matches.",
-      "sourceCommit": "b3cdfc12e37707feb1a2c4f8f32f4e95ccec0787"
+      "sourceCommit": "b3cdfc12e37707feb1a2c4f8f32f4e95ccec0787",
+      "currentSourceFocusedRetest": {
+        "codeSourceCommit": "fa10096adfe5f88db81433e5bcdd6bb99947519c",
+        "testedHeadCommit": "ff827e4024ba8e86d7d2fee319d3a76c3ce48e8e",
+        "verifiedAt": "2026-10-03T21:43:15Z",
+        "domainTests": {
+          "passed": 4,
+          "failed": 0,
+          "skipped": 0
+        },
+        "apiTests": {
+          "passed": 1,
+          "failed": 0,
+          "skipped": 0
+        },
+        "playwright": {
+          "passed": 2,
+          "failed": 0,
+          "skipped": 0,
+          "routeModes": [
+            "/app",
+            "/ui"
+          ]
+        },
+        "angularTestsAndProductionBuild": "PASS at the same code source in angularExistingEngagementInspection; conversion Angular files unchanged since the focused conversion verification.",
+        "boundary": "Reviewed accepted-proposal conversion remains the supported client-creation path and records pending portal intent without granting access or professional acceptance. No live Microsoft or SharePoint operation was executed."
+      }
     },
     "angularConversionWholeRegression": {
       "status": "INVALIDATED",

@@ -120,8 +120,10 @@ route/session changes and old command callbacks cannot restore previous content.
 Existing contact and engagement-creation commands remain separate. Reviewed
 engagement creation now includes bounded revision-bound tab drafts, exact request
 recovery and existing-shell inspection. Client creation remains tied to the
-reviewed proposal-conversion workflow; planning forms/drafts and broader engagement
-action parity remain open. See the
+reviewed proposal-conversion workflow: it requires an accepted proposal and won
+opportunity, reviews canonical identity, and records pending portal intent without
+granting access. Planning forms/drafts and broader engagement action parity remain
+open. See the
 [client action audit](../execution/angular-client-profile-parity.json).
 
 ### Native engagement metadata and hold history

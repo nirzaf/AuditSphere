@@ -41,11 +41,17 @@
       "evidencePointer": "ClientContactCreationTests; ClientContactCreationApiTests; contact-create.spec.ts; AngularClientContactCreationJourneyTests"
     },
     {
+      "action": "reviewed-proposal-client-creation",
+      "owner": "ClientConversionWorkspace / native proposal client-conversion route / existing PracticeCrmService",
+      "disposition": "Implemented as the supported client-creation path: only an accepted proposal on a won opportunity can be converted. The preview resolves canonical-client matches and exact legal identity. Confirmation creates or reuses one client under current firm authority, locks and rechecks an existing client's generation before reuse, and records an immutable actor-owned receipt in the same transaction. Lost responses reconcile the retained request after reload. Conversion records pending portal intent only; it grants no portal access, invitation, local role or professional acceptance.",
+      "evidencePointer": "ClientConversionReviewTests; ClientConversionReviewApiTests; client-conversion.spec.ts; AngularClientConversionJourneyTests"
+    },
+    {
       "action": "blocked-engagement-creation",
       "owner": "EngagementCreationWorkspace / EngagementLifecycleService.Creation / native engagement-create page",
       "disposition": "Implemented client-scoped reviewed creation, exact service/profile/period preview, explicit assent, bounded revision-bound drafts without assent, and actor-owned receipt recovery. Preview identifies a matching same-client service-period shell and provides an authorized inspection link; it omits duplicate-create confirmation. The locked Application write path repeats the duplicate check and refuses another shell. Existing source-action acceptance beyond this flow remains open.",
       "evidencePointer": "EngagementCreationReviewTests; EngagementCreationReviewApiTests; engagement-create.spec.ts; AngularEngagementCreationJourneyTests"
     }
   ],
-  "remaining": "Client-creation coverage outside reviewed proposal conversion, engagement planning forms/drafts/recovery, full engagement source-action parity, wider quality gates, production cutover and Blazor retirement."
+  "remaining": "Engagement planning forms/drafts/recovery, full engagement source-action parity, wider quality gates, production cutover and Blazor retirement."
 }
