@@ -51,6 +51,7 @@ export const decodeTime = obj({ firmWide: bool, isApprover: bool, periods: arr(o
       <section class="panel" aria-labelledby="my-time-heading">
         <h2 id="my-time-heading">My recorded time</h2>
         <div class="table-scroll"><table>
+          <caption>My recorded time entries</caption>
           <thead><tr><th scope="col">Date</th><th scope="col">Task</th><th scope="col">Duration</th><th scope="col">Classification</th><th scope="col">Status</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
           <tbody>@for (e of v.myEntries; track e.id) {
             <tr><td>{{ e.workDate }}</td><td>{{ e.taskTitle }}</td><td>{{ e.durationMinutes }}m ({{ (e.durationMinutes / 60).toFixed(1) }}h)</td><td>{{ e.billableClassification }}</td>
@@ -64,6 +65,7 @@ export const decodeTime = obj({ firmWide: bool, isApprover: bool, periods: arr(o
           <h2 id="queue-heading">Time approval queue</h2>
           <p>Independent approval segregation: managers and partners cannot approve their own time entries.</p>
           <div class="table-scroll"><table>
+            <caption>Time entries awaiting my approval</caption>
             <thead><tr><th scope="col">Date</th><th scope="col">Staff user</th><th scope="col">Task</th><th scope="col">Duration</th><th scope="col">Activity</th><th scope="col">Narrative</th><th scope="col"><span class="sr-only">Action</span></th></tr></thead>
             <tbody>@for (e of v.awaitingApproval; track e.id) {
               <tr><td>{{ e.workDate }}</td><td><code>{{ e.userId }}</code></td><td>{{ e.taskTitle }}</td><td>{{ e.durationMinutes }}m</td><td>{{ e.activity }}</td><td>{{ e.narrative }}</td>
