@@ -32,6 +32,17 @@ public sealed class AngularResourcePlanningJourneyTests
     var table=page.GetByRole(AriaRole.Table,new(){Name="Resource grid",Exact=true});
     await Assertions.Expect(table).ToContainTextAsync("Synthetic resource staff");
     Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= innerWidth + 1"));
+    async Task ConfirmAndAcknowledgeAsync()
+    {
+      var confirm=page.GetByRole(AriaRole.Button,new(){Name="Confirm reviewed planning action",Exact=true});
+      await Assertions.Expect(confirm).ToBeDisabledAsync();
+      await page.GetByRole(AriaRole.Checkbox,new(){Name="I reviewed this exact planning action and its effects.",Exact=true}).CheckAsync();
+      await Assertions.Expect(confirm).ToBeEnabledAsync();
+      await confirm.PressAsync("Enter");
+      await Assertions.Expect(page.GetByRole(AriaRole.Region,new(){Name="Retained planning receipt",Exact=true})).ToBeVisibleAsync();
+      await page.GetByRole(AriaRole.Button,new(){Name="Acknowledge planning receipt",Exact=true}).PressAsync("Enter");
+      await Assertions.Expect(table).ToBeVisibleAsync();
+    }
     var profile=page.GetByRole(AriaRole.Form,new(){Name="Save profile",Exact=true});
     await profile.GetByLabel("Team member",new(){Exact=true}).SelectOptionAsync(f.Staff.Id.ToString());
     await Assertions.Expect(profile.GetByLabel("Weekly capacity (hours)",new(){Exact=true})).ToHaveValueAsync("20");
@@ -40,13 +51,13 @@ public sealed class AngularResourcePlanningJourneyTests
     await Assertions.Expect(profile.GetByRole(AriaRole.Alert)).ToContainTextAsync("0 to 100");
     await profile.GetByLabel("Target utilization %",new(){Exact=true}).FillAsync("75");
     await profile.GetByRole(AriaRole.Button,new(){Name="Save profile",Exact=true}).PressAsync("Enter");
-    await Assertions.Expect(page.GetByText("Profile saved.",new(){Exact=true})).ToBeVisibleAsync();
+    await ConfirmAndAcknowledgeAsync();
     var allocation=page.GetByRole(AriaRole.Form,new(){Name="Save allocation",Exact=true});
     await allocation.GetByLabel("Engagement",new(){Exact=true}).SelectOptionAsync(f.EngagementId.ToString());
     await allocation.GetByLabel("Team member",new(){Exact=true}).SelectOptionAsync(f.Staff.Id.ToString());
     await allocation.GetByLabel("Planned hours",new(){Exact=true}).FillAsync("30");
     await allocation.GetByRole(AriaRole.Button,new(){Name="Save allocation",Exact=true}).PressAsync("Enter");
-    await Assertions.Expect(page.GetByText("Allocation saved.",new(){Exact=true})).ToBeVisibleAsync();
+    await ConfirmAndAcknowledgeAsync();
     await Assertions.Expect(table.Locator("tr[data-user='Synthetic resource staff']")).ToContainTextAsync("Over-allocated");
     await Assertions.Expect(page.Locator("[aria-labelledby='allocations-heading']")).ToContainTextAsync("30 hours");
     var certification=page.GetByRole(AriaRole.Form,new(){Name="Add certification",Exact=true});
@@ -57,14 +68,23 @@ public sealed class AngularResourcePlanningJourneyTests
     var dialog=page.GetByRole(AriaRole.Dialog);await Assertions.Expect(dialog).ToContainTextAsync("Unsubmitted planning edits");
     await dialog.GetByRole(AriaRole.Button,new(){Name="Keep editing",Exact=true}).ClickAsync();
     await Assertions.Expect(certification.GetByLabel("Certification",new(){Exact=true})).ToHaveValueAsync("Synthetic qualification");
+    var dispatched=0;const string commandRoute="**/api/ui/practice/resources/commands";
+    await page.RouteAsync(commandRoute,async route=>{var response=await route.FetchAsync();Assert.Equal(200,response.Status);dispatched++;await route.AbortAsync("failed");});
     await certification.GetByRole(AriaRole.Button,new(){Name="Add certification",Exact=true}).PressAsync("Enter");
-    await Assertions.Expect(page.GetByText("Certification recorded.",new(){Exact=true})).ToBeVisibleAsync();
+    await page.GetByRole(AriaRole.Checkbox,new(){Name="I reviewed this exact planning action and its effects.",Exact=true}).CheckAsync();
+    await page.GetByRole(AriaRole.Button,new(){Name="Confirm reviewed planning action",Exact=true}).ClickAsync();
+    var recovery=page.GetByRole(AriaRole.Region,new(){Name="Planning request recovery",Exact=true});await Assertions.Expect(recovery).ToBeVisibleAsync();
+    await page.ReloadAsync();await Assertions.Expect(recovery).ToBeVisibleAsync();
+    await page.GetByRole(AriaRole.Button,new(){Name="Verify planning receipt",Exact=true}).ClickAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Region,new(){Name="Retained planning receipt",Exact=true})).ToContainTextAsync("Synthetic qualification");
+    await page.GetByRole(AriaRole.Button,new(){Name="Acknowledge planning receipt",Exact=true}).ClickAsync();
+    Assert.Equal(1,dispatched);await page.UnrouteAsync(commandRoute);
     await Assertions.Expect(table).ToContainTextAsync("Synthetic qualification");
     var availability=page.GetByRole(AriaRole.Form,new(){Name="Record unavailability",Exact=true});
     await availability.GetByLabel("Team member",new(){Exact=true}).SelectOptionAsync(f.Staff.Id.ToString());
     await availability.GetByLabel("Hours per day",new(){Exact=true}).FillAsync("8");
     await availability.GetByRole(AriaRole.Button,new(){Name="Record unavailability",Exact=true}).PressAsync("Enter");
-    await Assertions.Expect(page.GetByText("Unavailability recorded.",new(){Exact=true})).ToBeVisibleAsync();
+    await ConfirmAndAcknowledgeAsync();
     await using(var db=host.CreateDbContext()) {
       Assert.Single(await db.StaffCertifications.Where(x=>x.UserId==f.Staff.Id && x.Name=="Synthetic qualification").ToListAsync());
       Assert.Single(await db.StaffAvailabilities.Where(x=>x.UserId==f.Staff.Id).ToListAsync());

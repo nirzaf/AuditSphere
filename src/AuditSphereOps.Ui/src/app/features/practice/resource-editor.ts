@@ -215,9 +215,9 @@ export class ResourceEditor {
         ? ''
         : 'Enter 0–80 hours, with up to two decimal places.';
     if (key === 'target')
-      return /^\d{1,3}(\.\d{1,6})?$/.test(value.trim()) && Number(value) <= 100
+      return /^\d{1,3}(\.\d{1,2})?$/.test(value.trim()) && Number(value) <= 100
         ? ''
-        : 'Enter a percentage from 0 to 100.';
+        : 'Enter a percentage from 0 to 100, with up to two decimal places.';
     if (key === 'hours') {
       const minutes = resourceMinutes(value, this.kind() === 'availability' ? 24 : 80);
       return minutes !== null && (this.kind() !== 'availability' || minutes > 0)

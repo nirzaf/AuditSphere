@@ -13,6 +13,29 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Angular reviewed resource planning and retained receipts
+
+Profile, certification, availability and allocation commands now require an exact
+server preview and explicit assent. Current authorization, enabled staff identity,
+capacity, availability and staffing are checked under publication locks. Changed
+review inputs refuse publication. Mutation and immutable request receipt commit
+together; matching retries return the retained result without another mutation.
+Receipt lookup waits for concurrent publication and remains actor/firm scoped.
+
+Angular retains only a bounded request reference for reload recovery. Lost or
+unverifiable responses fence further commands until lookup and acknowledgement;
+no command is retried automatically. Unsubmitted edits remain in memory and other
+forms survive acknowledgement. PostgreSQL guards reject receipt changes and
+rollback over retained evidence.
+
+Release and production UI builds, Angular tests, focused Domain/API tests and
+canonical/preview browser journeys passed. Built-in browser verification exercised
+preview, assent, receipt and acknowledgement without console warnings/errors.
+Exact metrics and logs are in status.json. Only owned test databases were migrated;
+shared Development and production were not migrated. No external provider action
+was performed. Wider staffing/budget parity, full regression, cutover and Blazor
+retirement remain open.
+
 ## Angular resource planning forms and keyboard parity
 
 Resource planning now uses typed Signal Forms for staff profiles, certifications,
@@ -34,8 +57,8 @@ Production UI/Release builds, the Angular suite, focused PostgreSQL planning tes
 and both canonical/preview browser journeys passed. Built-in browser verification
 exercised synthetic profile save/reload/save with no console warnings/errors.
 Observed metrics are in status.json. This does not complete planning acceptance:
-stale allocation publication and durable request receipt/reload recovery remain
-open, alongside wider migration parity, full regression and cutover/Blazor retirement.
+the later reviewed-command slice supersedes its stale allocation and receipt
+recovery gaps. Wider migration parity, full regression and cutover remain open.
 No shared Development database migration or external provider operation was run.
 
 ## Angular assessment review and recovery forms

@@ -40,6 +40,13 @@ public static partial class UiEndpoints
             new SetAllocationRequest(input.EngagementId, input.UserId, week, input.PlannedMinutes), ct))
         : Task.FromResult(Invalid("Choose the allocation week.")));
 
+    group.MapPost("/practice/resources/preview", (ResourcePlanningCommandRequest input, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => ResourcePlanningCommandWorkspace.PreviewAsync(db, actor, input, ct)));
+    group.MapPost("/practice/resources/commands", (ResourcePlanningCommandRequest input, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => ResourcePlanningCommandWorkspace.ExecuteAsync(db, actor, input, ct)));
+    group.MapGet("/practice/resources/receipts/{requestId:guid}", (Guid requestId, string? requestHash, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => ResourcePlanningCommandWorkspace.LookupAsync(db, actor, requestId, requestHash, ct)));
+
     MapStatementEndpoints(group);
     group.MapGet("/engagements/{id:guid}/statements", (Guid id, HttpContext http) =>
       ReadAsync(http, (db, actor, ct) => FinancialStatementDrillDownQuery.GetAsync(db, actor, id, ct)));

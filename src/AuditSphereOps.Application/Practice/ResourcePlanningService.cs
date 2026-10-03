@@ -29,7 +29,7 @@ public sealed record BudgetBreakdownView(Guid BudgetId, long BudgetVersion, IRea
 /// evidence; the grid separates planned from approved-actual utilization and flags over-allocation instead of
 /// hiding it. Only staff already assigned to an engagement can be allocated to it.
 /// </summary>
-public static class ResourcePlanningService
+public static partial class ResourcePlanningService
 {
   private static readonly string[] PlanningRoles = ["Administrator", "Partner", "Manager"];
   public const int MaxWeeklyMinutes = 80 * 60;
@@ -42,6 +42,9 @@ public static class ResourcePlanningService
         string.IsNullOrWhiteSpace(request.Department) || request.Department.Trim().Length > 100)
       return CommandResult.Fail("resource.invalid", "A department, weekly capacity (0–80 hours) and target utilization (0–100%) are required.");
     if (!await db.Users.AnyAsync(x => x.Id == request.UserId && x.FirmId == actor.FirmId && x.UserKind == "Staff", ct))
+      return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
+    if (!await LockPublicationAsync(db, actor, request.UserId, new AuthorizationRequest(actor.FirmId, RequiredRoles: PlanningRoles, InternalOnly: true), ct))
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var profile = await db.StaffProfiles.SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.UserId == request.UserId, ct);
     if (profile is null)
@@ -57,6 +60,9 @@ public static class ResourcePlanningService
     profile.UpdatedAt = DateTimeOffset.UtcNow;
     profile.UpdatedByUserId = actor.UserId;
     await db.SaveChangesAsync(ct);
+    if (!(await AuthorizationDecision.AuthorizeAsync(db, actor, new AuthorizationRequest(actor.FirmId, RequiredRoles: PlanningRoles, InternalOnly: true), ct)).Succeeded)
+      return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    if (tx is not null) await tx.CommitAsync(ct);
     return CommandResult.Ok();
   }
 
@@ -68,6 +74,9 @@ public static class ResourcePlanningService
       return CommandResult<Guid>.Fail("resource.invalid", "A certification name is required.");
     if (!await db.Users.AnyAsync(x => x.Id == request.UserId && x.FirmId == actor.FirmId && x.UserKind == "Staff", ct))
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
+    if (!await LockPublicationAsync(db, actor, request.UserId, new AuthorizationRequest(actor.FirmId, RequiredRoles: PlanningRoles, InternalOnly: true), ct))
+      return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var certification = new StaffCertification
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, UserId = request.UserId, Name = request.Name.Trim(),
@@ -76,6 +85,9 @@ public static class ResourcePlanningService
     };
     db.StaffCertifications.Add(certification);
     await db.SaveChangesAsync(ct);
+    if (!(await AuthorizationDecision.AuthorizeAsync(db, actor, new AuthorizationRequest(actor.FirmId, RequiredRoles: PlanningRoles, InternalOnly: true), ct)).Succeeded)
+      return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    if (tx is not null) await tx.CommitAsync(ct);
     return CommandResult<Guid>.Ok(certification.Id);
   }
 
@@ -89,6 +101,9 @@ public static class ResourcePlanningService
       return CommandResult<Guid>.Fail("resource.invalid", "A valid date range, kind and minutes per day are required.");
     if (!await db.Users.AnyAsync(x => x.Id == request.UserId && x.FirmId == actor.FirmId && x.UserKind == "Staff", ct))
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
+    if (!await LockPublicationAsync(db, actor, request.UserId, new AuthorizationRequest(actor.FirmId, RequiredRoles: PlanningRoles, InternalOnly: true), ct))
+      return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var availability = new StaffAvailability
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, UserId = request.UserId, StartDate = request.StartDate, EndDate = request.EndDate,
@@ -96,6 +111,9 @@ public static class ResourcePlanningService
     };
     db.StaffAvailabilities.Add(availability);
     await db.SaveChangesAsync(ct);
+    if (!(await AuthorizationDecision.AuthorizeAsync(db, actor, new AuthorizationRequest(actor.FirmId, RequiredRoles: PlanningRoles, InternalOnly: true), ct)).Succeeded)
+      return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    if (tx is not null) await tx.CommitAsync(ct);
     return CommandResult<Guid>.Ok(availability.Id);
   }
 
@@ -108,6 +126,12 @@ public static class ResourcePlanningService
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
       new AuthorizationRequest(actor.FirmId, engagement.PracticeClientId, engagement.Id, PlanningRoles, InternalOnly: true), ct);
     if (!auth.Succeeded) return auth;
+    if (!await db.EngagementStaffAssignments.AnyAsync(x => x.FirmId == actor.FirmId && x.EngagementId == engagement.Id &&
+          x.UserId == request.UserId && x.RevokedAt == null, ct))
+      return CommandResult.Fail(ErrorCodes.GateBlocked, "Staff the person on this engagement before allocating time.");
+    await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
+    if (!await LockPublicationAsync(db, actor, request.UserId, new AuthorizationRequest(actor.FirmId, engagement.PracticeClientId, engagement.Id, PlanningRoles, InternalOnly: true), ct))
+      return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     if (!await db.EngagementStaffAssignments.AnyAsync(x => x.FirmId == actor.FirmId && x.EngagementId == engagement.Id &&
           x.UserId == request.UserId && x.RevokedAt == null, ct))
       return CommandResult.Fail(ErrorCodes.GateBlocked, "Staff the person on this engagement before allocating time.");
@@ -134,6 +158,9 @@ public static class ResourcePlanningService
       allocation.UpdatedByUserId = actor.UserId;
     }
     await db.SaveChangesAsync(ct);
+    if (!(await AuthorizationDecision.AuthorizeAsync(db, actor, new AuthorizationRequest(actor.FirmId, engagement.PracticeClientId, engagement.Id, PlanningRoles, InternalOnly: true), ct)).Succeeded)
+      return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    if (tx is not null) await tx.CommitAsync(ct);
     return CommandResult.Ok();
   }
 

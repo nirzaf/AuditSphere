@@ -22,6 +22,7 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
 {
   public DbSet<AppUser> Users => Set<AppUser>();
   public DbSet<AssessmentCommandReceipt> AssessmentCommandReceipts => Set<AssessmentCommandReceipt>();
+  public DbSet<ResourcePlanningReceipt> ResourcePlanningReceipts => Set<ResourcePlanningReceipt>();
 
   public DbSet<RoleGrant> RoleGrants => Set<RoleGrant>();
 
@@ -506,6 +507,7 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
     ConfigureClientContactCreations(b);
     ConfigureClientConversions(b);
     ConfigureAssessmentReceipts(b);
+    ConfigureResourcePlanningReceipts(b);
     ConfigureEngagementCreations(b);
     ConfigureBudgetPreparations(b);
     ConfigureBudgetApprovals(b);

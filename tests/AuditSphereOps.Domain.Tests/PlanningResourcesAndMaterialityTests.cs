@@ -19,7 +19,7 @@ namespace AuditSphereOps.Domain.Tests;
 /// staleness, and green/amber/red routing whose colour cannot be edited apart from its inputs.
 /// </summary>
 [Trait("Profile", "Database")]
-public sealed class PlanningResourcesAndMaterialityTests
+public sealed partial class PlanningResourcesAndMaterialityTests
 {
   private sealed record World(Guid FirmId, Guid ClientId, Guid EngagementId, Dictionary<string, AppUser> Users)
   {
