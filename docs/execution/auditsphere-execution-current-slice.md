@@ -13,6 +13,14 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Native accounting analysis integration checkpoint
+
+The analysis inspection slice is integrated with the current native consolidation,
+chart and operational workbench changes. The combined Release and Angular builds,
+Angular unit suite, whole API regression, focused PostgreSQL/browser journeys and
+EF model check passed. Exact source identity, counts and logs are in `status.json`.
+Whole-solution acceptance remains at its earlier recorded checkpoint.
+
 ## Native Angular workbench parity across audit, finance, client and operations (US-028 through US-041)
 
 Native Angular 22 workbenches, type-safe contract decoders, and comprehensive unit test coverage have been completed across all operational capabilities:
@@ -29,7 +37,7 @@ Native Angular 22 workbenches, type-safe contract decoders, and comprehensive un
 - **Technical library & operations (US-040, US-041):** Controlled standard catalogue (`/app/library`), version history, and durable operations console (`/app/operations`).
 - **Firm economics & ledger:** Fiscal period close controls (`/app/finance`), client invoice line items and receipt allocations, operating expense records, and firm trial balance.
 
-Local verification: Angular Vitest (67/67 test files, 280/280 passed), Angular production build (0 errors/warnings), backend Release solution build (0 errors/warnings), EF Core model drift checks (0 pending model changes), and API integration tests (4/4 passed on PostgreSQL 18.6).
+Verification evidence and the limits of local acceptance are recorded in `status.json`.
 
 ## Native reconciliation publication checkpoint
 
@@ -45,7 +53,7 @@ Scoped authorization enforces `GROUP` scope access grants (`GroupAccessGrant`) a
 - Elimination journals enforce debits and credits balance both client-side and server-side. Reviewers can approve or return journals with a recorded reason; returned journals can be resubmitted by preparers.
 - Consolidation calculation runs execute over approved components and approved journals; independent reviewers approve verified runs to establish the authoritative consolidated statement report without mutating component client books.
 
-Local verification across Angular Vitest (51/51 test files, 225/225 passed), Angular production build, backend Release build (0 warnings/0 errors), backend integration test suite (`ConsolidationWorkspaceApiTests` 3/3 passed on PostgreSQL 18.6), and EF Core model drift checks (0 pending model changes) is evidenced in `status.json`.
+Verification evidence and the limits of local acceptance are recorded in `status.json`.
 
 ## Native source account aliases and client dimensions
 
@@ -53,7 +61,7 @@ The standalone API and native Angular accounting interfaces now compose complete
 
 Draft chart revisions support source account aliases that hash into the chart revision digest, ensuring that publication review requires independent approval over both accounts and aliases. Chart version row locks prevent concurrent publication from racing draft alias writes. Client accounting workspaces support typed dimensions (`BRANCH`, `COST_CENTRE`, `DEPARTMENT`, `PROJECT`, `INTERCOMPANY_COUNTERPARTY`) with unique-code constraints per dimension type and client-scoped preparer authorization.
 
-Local verification across Angular Vitest (50/50 test files, 223/223 passed), backend Release build (0 warnings/0 errors), API test suite (127/127 passed including new ChartAliasesAndDimensionsApiTests), and EF Core model drift checks (0 pending changes) is evidenced in `status.json`.
+Verification evidence and the limits of local acceptance are recorded in `status.json`.
 
 ## Native journal management and source reflection reconciliation
 
@@ -61,7 +69,7 @@ The standalone API and native Angular journal interfaces now compose complete cl
 
 Source reflection reconciliation allows practitioners to record client ledger reflection state (Fully reflected, Partially reflected, Refused, Pending next period) with line bridge evidence, tied deterministically to the reviewed journal revision basis. Incomplete or mismatched line-level bridge evidence fails closed. PostgreSQL migrations preserve immutable action receipts and trigger invariants.
 
-Local verification across Angular Vitest (50/50 test files, 221/221 passed), backend Release build (0 warnings/0 errors), Journal API tests (15/15 passed), EF Core model drift checks (0 pending changes), and Journal E2E tests (9/9 passed) is evidenced in `status.json`. Wider story acceptance and final migration retirement remain open under acceptance gates.
+Verification evidence and the limits of local acceptance are recorded in `status.json`.
 
 ## Native accounting analysis evidence inspection
 
