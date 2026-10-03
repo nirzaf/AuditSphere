@@ -4,7 +4,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "2edf555b6a5888131da37dd9f3a2bbc4f03b89ce",
+  "headCommit": "1d9a73fc25a62e39c20cae362d633aa81702a7ac",
   "verifiedCommit": "75b70e9afc8d01af06ee2c4681754edb99cd4f70",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": false,
@@ -6540,6 +6540,37 @@
       "manifest": "MATCH after all final focused consumers joined",
       "verifiedTree": "Integrated working tree with concurrent adjacent changes; no whole-suite acceptance is inferred.",
       "relatedPresentationCommit": "b56ae9b"
+    },
+    "angularAssessmentCommandComposition": {
+      "status": "PASS_LOCAL",
+      "sourceCommit": "1d9a73fc25a62e39c20cae362d633aa81702a7ac",
+      "observedAt": "2026-10-03",
+      "scope": "Assessment transaction composition and post-wait current authority. Five mutation commands join caller transactions and retain standalone commit ownership. Reviewed callers must roll back on failure.",
+      "checks": {
+        "release": "PASS: zero warnings/errors",
+        "acceptance": "PASS: 15/15 (subset of affected Domain tests)",
+        "affectedDomain": "PASS: 28/28",
+        "api": "PASS: 3/3",
+        "e2e": "PASS: 3/3 (native assessment and legacy acceptance workflow)",
+        "ef": "PASS: no pending model changes",
+        "docs": "PASS: documentation health and narrative metrics",
+        "secrets": "PASS: staged gitleaks scan"
+      },
+      "evidence": {
+        "logs": [
+          "/private/tmp/auditsphere-assessment-composition-release.log",
+          "/private/tmp/auditsphere-assessment-composition-domain-retry.log",
+          "/private/tmp/auditsphere-assessment-composition-affected-domain.log",
+          "/private/tmp/auditsphere-assessment-composition-api.log",
+          "/private/tmp/auditsphere-assessment-composition-e2e.log",
+          "/private/tmp/auditsphere-assessment-composition-ef.log"
+        ],
+        "manifest": "/private/tmp/auditsphere-assessment-composition-hashes.json",
+        "hashTiming": "Captured after focused runs; source/DLL/assets subsequently matched. No agent writes or builds occurred while the affected consumers ran.",
+        "parents": "All successful focused parents explicitly joined with exit 0."
+      },
+      "recovery": "Initial helper build lacked the ActorContext namespace import. First five lock-wait tests expected scope.denied; the authoritative existing authorization contract returns generation.stale for a revoked session epoch. Corrected the fixture to revoke grants and epoch, assert that exact stale-session result and verify no mutations; the rerun passed. Failed logs retained.",
+      "boundary": "Foundation only: immutable assessment request receipts, retained unknown-result lookup, Signal Forms and wider migration/cutover acceptance remain pending. No UI source, schema, provider permissions, live Microsoft or shared Development data changes. Whole-suite verifiedCommit remains the earlier proven checkpoint."
     }
   },
   "documentationWork": {
