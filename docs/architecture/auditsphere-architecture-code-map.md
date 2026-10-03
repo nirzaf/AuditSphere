@@ -446,7 +446,7 @@ identities; provider acceptance (Purview/eSignature) is never claimed.
 
 
 
-- Application: `Application/Practice/PracticeCrmService.cs` (CRM / proposals), `PracticeLeadQuery.cs` (current-access lead list), `WorkspaceQuery.Client.cs` (client-level master metadata, complete scoped counts and bounded contact/engagement pages), `PracticeTimeService.cs` (time / budgets), `BillingService.cs` (billing), `LedgerService.cs` and `FirmFinanceQuery.cs` (firm financial ledger)
+- Application: `Application/Practice/PracticeCrmService.cs` (CRM / proposals), `PracticeLeadQuery.cs` (current-access lead list), `WorkspaceQuery.Client.cs` (client-level master metadata, complete scoped counts and bounded contact/engagement pages), `ClientContactCreationWorkspace.cs` (reviewed contact creation and actor-owned immutable receipt recovery), `PracticeTimeService.cs` (time / budgets), `BillingService.cs` (billing), `LedgerService.cs` and `FirmFinanceQuery.cs` (firm financial ledger)
 
 
 

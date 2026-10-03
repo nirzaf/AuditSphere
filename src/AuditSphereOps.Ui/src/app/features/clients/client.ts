@@ -45,10 +45,6 @@ export class ClientDetail {
   serviceProfile = '';
   periodStart = '';
   periodEnd = '';
-  contactName = '';
-  contactEmail = '';
-  contactRole = '';
-  contactPrimary = false;
   readonly saving = signal(false);
   readonly uncertain = signal(false);
   readonly commandStatus = signal('');
@@ -93,10 +89,6 @@ export class ClientDetail {
     this.serviceProfile = '';
     this.periodStart = '';
     this.periodEnd = '';
-    this.contactName = '';
-    this.contactEmail = '';
-    this.contactRole = '';
-    this.contactPrimary = false;
     this.commandStatus.set('');
     this.uncertain.set(false);
   }
@@ -133,47 +125,6 @@ export class ClientDetail {
             this.uncertain.set(true);
             this.commandStatus.set(
               'Creation outcome unconfirmed. Review current engagements before resubmitting.',
-            );
-          }
-          if (failure.status === 401) this.session.clear();
-        },
-      });
-  }
-  saveContact(): void {
-    const client = this.data();
-    if (!client?.canManageContacts || this.saving() || this.uncertain()) return;
-    this.saving.set(true);
-    this.commandStatus.set('Saving contact…');
-    const owner = this.owner();
-    const id = this.id;
-    this.http
-      .post('/api/ui/clients/' + id + '/contacts', {
-        name: this.contactName,
-        email: this.contactEmail,
-        role: this.contactRole,
-        primary: this.contactPrimary,
-        safetyGeneration: client.safetyGeneration,
-      })
-      .pipe(timeout(15000))
-      .subscribe({
-        next: () => {
-          if (owner !== this.owner() || this.destroyed) return;
-          this.saving.set(false);
-          this.resetContact();
-          this.commandStatus.set('Contact recorded.');
-          this.load();
-        },
-        error: (failure) => {
-          if (owner !== this.owner() || this.destroyed) return;
-          this.saving.set(false);
-          if (failure.status >= 400 && failure.status < 500)
-            this.commandStatus.set(
-              'Contact was not saved. Check the fields, current revision and access.',
-            );
-          else {
-            this.uncertain.set(true);
-            this.commandStatus.set(
-              'The outcome could not be confirmed. Do not resubmit until you review current contacts.',
             );
           }
           if (failure.status === 401) this.session.clear();

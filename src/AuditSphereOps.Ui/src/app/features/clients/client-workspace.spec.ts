@@ -73,17 +73,18 @@ describe('Client profile request and command ownership', () => {
   });
   it('never lets an old command clear fields or finish a newer route visit', () => {
     const f = open(); read().flush(payload); TestBed.tick();
-    f.componentInstance.contactName = 'Original'; f.componentInstance.saveContact();
-    const pending = TestBed.inject(HttpTestingController).expectOne('/api/ui/clients/'+id+'/contacts');
+    f.componentInstance.data.set(decodeClient({...payload,canCreateEngagement:true}));
+    f.componentInstance.serviceRoute = 'Original'; f.componentInstance.createEngagement();
+    const pending = TestBed.inject(HttpTestingController).expectOne('/api/ui/clients/'+id+'/engagements');
     ids.next(convertToParamMap({id:other})); TestBed.tick(); read().flush({...payload,id:other}); TestBed.tick();
     ids.next(convertToParamMap({id})); TestBed.tick(); read().flush(payload); TestBed.tick();
-    f.componentInstance.contactName = 'New route draft'; pending.flush({id:other}); TestBed.tick();
-    expect(f.componentInstance.contactName).toBe('New route draft'); expect(f.componentInstance.commandStatus()).toBe('');
+    f.componentInstance.serviceRoute = 'New route draft'; pending.flush({id:other}); TestBed.tick();
+    expect(f.componentInstance.serviceRoute).toBe('New route draft'); expect(f.componentInstance.commandStatus()).toBe('');
   });
   it('clears metadata and contact fields when the session ends', () => {
-    const f = open(); read().flush(payload); TestBed.tick(); f.componentInstance.contactName = 'Private input';
+    const f = open(); read().flush(payload); TestBed.tick(); f.componentInstance.serviceRoute = 'Private input';
     TestBed.inject(SessionService).clear(); TestBed.tick();
-    expect(f.componentInstance.data()).toBeNull(); expect(f.componentInstance.contactName).toBe('');
+    expect(f.componentInstance.data()).toBeNull(); expect(f.componentInstance.serviceRoute).toBe('');
     expect(f.nativeElement.textContent).not.toContain('SYNTHETIC-REG');
   });
 });

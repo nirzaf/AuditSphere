@@ -1,0 +1,30 @@
+<nav aria-label="Breadcrumb"><a routerLink="/app" [queryParams]="portfolioNavigation.params()">Portfolio</a><a [routerLink]="['/app/clients',id()]" [queryParams]="returnParams">Client profile</a><span aria-current="page">Add contact</span></nav>
+<audit-page-header title="Add client contact" eyebrow="Client master record" description="Review local contact details and primary-contact changes before saving." />
+<audit-state [loading]="state.loading() || busy()" label="contact creation" />
+@if(state.error()) { <section role="alert"><h2>Contact workspace unavailable</h2><p>{{state.error()}}</p><button matButton (click)="refresh()">Retry</button></section> }
+@if(state.data(); as context) {
+  <section aria-label="Contact client context"><h2>{{context.clientName}}</h2><p>Client revision {{context.safetyGeneration}}</p><p>Saving a contact grants no AuditSphere portal access, binds no Microsoft identity and sends no invitation.</p><button matButton [disabled]="busy()" (click)="refresh()">Refresh contact context</button></section>
+  @if(uncertain()) { <section role="alert"><h2>Contact outcome unconfirmed</h2><p>{{message()}}</p><p>Retained request: <code>{{pending()?.requestId}}</code></p><button matButton [disabled]="busy()" (click)="reconcile()">Verify contact receipt</button></section> }
+  <section aria-label="Contact details">
+    <h2>Contact details</h2>
+    <form (submit)="$event.preventDefault();prepare()">
+      <label>Full name<input [formField]="fields.name" autocomplete="off" /></label>
+      <label>Email address<input type="email" [formField]="fields.email" autocomplete="off" /></label>
+      <label>Role or title<input [formField]="fields.role" autocomplete="off" /></label>
+      <label class="check"><input type="checkbox" [formField]="fields.primary" />Set as primary contact</label>
+      @if(!valid() && dirty()) { <p role="status">Enter a name, valid email and role within the displayed field limits.</p> }
+      <div class="actions"><button matButton="filled" type="submit" [disabled]="locked() || !valid()">Review contact</button><button matButton type="button" [disabled]="busy() || uncertain()" (click)="saveDraft()">Save contact draft</button>
+        @if(draftAvailable()) { <button matButton type="button" [disabled]="locked()" (click)="restoreDraft()">Restore contact draft</button> }
+        <button matButton type="button" [disabled]="busy() || uncertain()" (click)="discardDraft()">Discard contact edits</button></div>
+    </form>
+    <p class="muted">Tab drafts expire after four hours and require the same identity and client revision. They contain editable fields only, never review assent.</p>
+  </section>
+  @if(preview(); as p) { <section aria-label="Reviewed contact intent" class="review"><h2>Review contact</h2><dl><dt>Name</dt><dd>{{p.fields.name}}</dd><dt>Email</dt><dd>{{p.fields.email}}</dd><dt>Role</dt><dd>{{p.fields.role}}</dd><dt>Primary</dt><dd>{{p.fields.primary ? 'Yes' : 'No'}}</dd></dl>
+    @if(p.replacedPrimary.length) { <h3>Primary contacts to replace</h3><ul>@for(c of p.replacedPrimary;track c.id){<li>{{c.name}} · {{c.id}}</li>}</ul> } @else { <p>No existing primary contact will be changed.</p> }
+    <p>Client revision {{context.safetyGeneration}}. This creates a local contact only.</p><label class="check"><input type="checkbox" [checked]="reviewed()" [disabled]="busy()" (change)="reviewed.set($any($event.target).checked)" />I reviewed these exact details and primary-contact changes.</label>
+    <button matButton="filled" [disabled]="busy() || !reviewed()" (click)="execute()">Confirm contact creation</button>
+  </section> }
+  @if(receipt(); as r) { <section aria-label="Contact creation receipt"><h2>Contact recorded</h2><dl><dt>Contact ID</dt><dd>{{r.contactId}}</dd><dt>Request ID</dt><dd>{{r.requestId}}</dd><dt>Result revision</dt><dd>{{r.resultGeneration}}</dd><dt>Recorded</dt><dd>{{utcTime(r.createdAt)}}</dd></dl><p>The original receipt remains immutable if primary-contact preferences later change.</p>
+    @if(uncertain()) { <button matButton="filled" [disabled]="busy()" (click)="acknowledge()">Acknowledge contact result</button> }</section> }
+  @if(!uncertain()) { <p role="status">{{message()}}</p> }
+}

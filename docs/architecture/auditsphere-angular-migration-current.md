@@ -52,6 +52,31 @@ establish verified Microsoft capabilities. Full client/engagement source-action
 parity and retirement acceptance remain open. Curated source dispositions are in
 the [portfolio action audit](../execution/angular-portfolio-parity.json).
 
+### Reviewed local client contact creation
+
+A focused native contact route composes `ClientContactCreationWorkspace` for current
+client context, server preview, explicit reviewed creation and actor-owned receipt
+lookup. It reuses `PracticeCrmService`, whose existing contact endpoint remains
+available to retained UI builds. Current staff/client authority and the locked
+safety generation fence publication; contact and receipt commit together. The
+append-only receipt snapshots the committed review basis, exact normalized intent
+and previous primary contacts. Contact email is never an identity binding.
+
+The request hash binds actor/session, client, request identity and immutable contact
+fields. A fresh review basis can safely retry that identical intent: an existing
+receipt wins before another creation, while new publication still requires current
+revision review. Database constraints and triggers preserve firm/client/actor
+relationships, publication consistency, receipt immutability and rollback fences.
+
+Editable drafts are explicit, tab-only and bounded. Recovery requires the same
+identity/session/client revision and fresh assent. After an unknown outcome, only
+the pending request identity can cross a changed revision for receipt lookup;
+stale fields and assent never recover automatically. Navigation and new submissions
+remain fenced until reconciliation or fresh review of the identical retained intent.
+Role or session loss removes protected content; late callbacks cannot refill a new
+route visit. This workflow creates no directory identity, invitation or local role.
+Engagement form and broader migration acceptance remain open.
+
 ### Native client master records and scoped pages
 
 The existing client-profile API composes `WorkspaceQuery.ClientAsync`. Legal and

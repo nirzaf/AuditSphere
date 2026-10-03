@@ -123,57 +123,8 @@
       <span>Page {{ client.paging.contactPage + 1 }} · {{ client.metrics.contacts }} authorized contacts</span>
       <button matButton [disabled]="saving() || (client.paging.contactPage + 1) * client.paging.contactPageSize >= client.metrics.contacts" (click)="page('contact', client.paging.contactPage + 1)">Next contacts</button>
     </nav>
-      @if (client.canManageContacts) {
-        <form (ngSubmit)="saveContact()">
-          <h3>Add contact</h3>
-          <mat-form-field
-            ><mat-label>Full name</mat-label
-            ><input
-              matInput
-              name="name"
-              [(ngModel)]="contactName"
-              required
-              maxlength="200"
-              [disabled]="saving()"
-          /></mat-form-field>
-          <mat-form-field
-            ><mat-label>Email</mat-label
-            ><input
-              matInput
-              name="email"
-              [(ngModel)]="contactEmail"
-              type="email"
-              required
-              maxlength="254"
-              [disabled]="saving()"
-          /></mat-form-field>
-          <mat-form-field
-            ><mat-label>Role or title</mat-label
-            ><input
-              matInput
-              name="role"
-              [(ngModel)]="contactRole"
-              required
-              maxlength="200"
-              [disabled]="saving()"
-          /></mat-form-field>
-          <label
-            ><input
-              type="checkbox"
-              name="primary"
-              [(ngModel)]="contactPrimary"
-              [disabled]="saving()"
-            />
-            Primary contact</label
-          >
-          <button matButton="filled" type="submit" [disabled]="saving() || uncertain()">
-            Save contact
-          </button>
-          <p role="status">{{ commandStatus() }}</p>
-          @if (uncertain()) {
-            <p>Refresh and review current contacts before submitting another request.</p>
-          }
-        </form>
-      }
+    @if (client.canManageContacts) {
+      <p><a matButton="filled" [routerLink]="['/app/clients', client.id, 'contacts', 'new']" [queryParams]="location()">Add client contact</a></p>
+    }
   </section>
 }

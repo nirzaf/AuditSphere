@@ -90,7 +90,7 @@
       "id": "US-015",
       "title": "Migrate portfolio, client and engagement workspaces",
       "status": "PARTIAL",
-      "scope": "Native portfolio summary, recent panels/pagers, safe CSV and exact-owner return navigation are implemented. Native client profile now preserves source metadata, current-scope complete counts, independent bounded contact/engagement pages, UTC onboarding and portal-intent explanation. Current commands remain; complete client forms/drafts, engagement source-action parity, quality/cutover/retirement acceptance stay open."
+      "scope": "Native portfolio summary, recent panels/pagers, safe CSV and exact-owner return navigation are implemented. Native client profile now preserves source metadata, current-scope complete counts, independent bounded contact/engagement pages, UTC onboarding and portal-intent explanation. Reviewed contact creation now adds explicit tab drafts, primary replacement disclosure, actor-owned immutable receipts and exact-intent response-loss recovery. Client creation and blocked-engagement forms/drafts, engagement source-action parity, quality/cutover/retirement acceptance stay open."
     },
     {
       "id": "US-016",

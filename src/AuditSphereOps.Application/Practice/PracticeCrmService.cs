@@ -449,12 +449,14 @@ public static class PracticeCrmService
     if (validation is not null) return CommandResult<Guid>.Fail("crm.invalid", validation);
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
       new AuthorizationRequest(actor.FirmId, ClientId: request.PracticeClientId,
-        RequiredRoles: CommercialRoles), ct);
+        RequiredRoles: CommercialRoles, InternalOnly: true), ct);
     if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
 
-    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
+    await db.Users.FromSqlInterpolated(
+      $"SELECT * FROM users WHERE firm_id={actor.FirmId} AND id={actor.UserId} FOR SHARE").AsNoTracking().SingleAsync(ct);
     var clientGuard = await db.ClientSafetyStates.FromSqlInterpolated(
-      $"SELECT * FROM client_safety_states WHERE id = {request.PracticeClientId} AND firm_id = {actor.FirmId} FOR UPDATE").SingleOrDefaultAsync(ct);
+      $"SELECT * FROM client_safety_states WHERE id = {request.PracticeClientId} AND firm_id = {actor.FirmId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
     if (clientGuard is null)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Client safety state is unavailable.");
     if (request.ExpectedSafetyGeneration.HasValue && clientGuard.InputGeneration != request.ExpectedSafetyGeneration.Value)
@@ -462,14 +464,16 @@ public static class PracticeCrmService
     var clientExists = await db.PracticeClients.AsNoTracking()
       .AnyAsync(x => x.Id == request.PracticeClientId && x.FirmId == actor.FirmId, ct);
     if (!clientExists) return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    clientGuard.InputGeneration++;
+    if (clientGuard.InputGeneration == long.MaxValue)
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Client revision capacity is exhausted.");
+    await db.ClientSafetyStates.Where(x => x.Id == request.PracticeClientId && x.FirmId == actor.FirmId)
+      .ExecuteUpdateAsync(s => s.SetProperty(x => x.InputGeneration, x => x.InputGeneration + 1), ct);
 
     if (request.Primary)
     {
-      var previousPrimary = await db.ClientContacts
+      await db.ClientContacts
         .Where(x => x.FirmId == actor.FirmId && x.PracticeClientId == request.PracticeClientId && x.Primary)
-        .ToListAsync(ct);
-      foreach (var previous in previousPrimary) previous.Primary = false;
+        .ExecuteUpdateAsync(s => s.SetProperty(x => x.Primary, false), ct);
     }
 
     var contact = new ClientContact
@@ -482,7 +486,10 @@ public static class PracticeCrmService
     };
     db.ClientContacts.Add(contact);
     await db.SaveChangesAsync(ct);
-    await tx.CommitAsync(ct);
+    auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, ClientId: request.PracticeClientId, RequiredRoles: CommercialRoles, InternalOnly: true), ct);
+    if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+    if (tx is not null) await tx.CommitAsync(ct);
     return CommandResult<Guid>.Ok(contact.Id);
   }
 

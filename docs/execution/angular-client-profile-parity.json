@@ -35,11 +35,17 @@
       "evidencePointer": "ClientProfileWorkspaceTests.MidProjectionEngagementRevocationRefusesOldCountsWhileClientGrantRemains; client-workspace.spec.ts; AngularClientProfileJourneyTests"
     },
     {
-      "action": "contact-creation-and-blocked-engagement-creation",
-      "owner": "Existing PracticeCrmService / EngagementLifecycleService commands",
-      "disposition": "Existing native commands preserved. Complete form, reviewed intent, draft lifetime and unknown-outcome reconciliation acceptance remain open; current read-side changes do not claim those controls complete.",
+      "action": "reviewed-local-contact-creation",
+      "owner": "ClientContactCreationWorkspace / native contact form / existing PracticeCrmService",
+      "disposition": "Implemented exact-revision preview and explicit assent, primary replacement disclosure, bounded editable tab drafts, guarded local creation and append-only actor-owned receipt. Concurrent retries publish one contact; lost responses recover only the original request identity across a changed revision and require fresh review of the identical intent for retry. Contacts grant no Microsoft or portal access. Retained older UI/contact commands keep their existing contract.",
+      "evidencePointer": "ClientContactCreationTests; ClientContactCreationApiTests; contact-create.spec.ts; AngularClientContactCreationJourneyTests"
+    },
+    {
+      "action": "blocked-engagement-creation",
+      "owner": "Existing EngagementLifecycleService command",
+      "disposition": "Existing native creation remains. Complete reviewed form, draft lifetime, exact request recovery and full engagement source-action acceptance remain open.",
       "evidencePointer": "WorkspaceQueryTests; UiContractTests"
     }
   ],
-  "remaining": "Client creation/contact form and draft acceptance, full engagement source-action parity, wider quality gates, production cutover and Blazor retirement."
+  "remaining": "Client creation and blocked-engagement form/draft acceptance, full engagement source-action parity, wider quality gates, production cutover and Blazor retirement."
 }

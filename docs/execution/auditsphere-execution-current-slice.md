@@ -13,6 +13,40 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Native reviewed client contact creation
+
+A focused native contact route replaces the inline Angular contact form. The
+Application preview binds the current client safety revision and exact editable
+intent. Confirmation shows any primary contacts being replaced and requires fresh
+assent. Contact creation continues to grant no portal or Microsoft access.
+
+The existing contact command now composes an owned transaction, reads locked
+safety state without cached tracking, increments the revision and rechecks current
+staff authority before commit. The reviewed workflow saves the contact and an
+actor-owned append-only receipt together. Composite constraints bind its firm,
+client, contact and actor. Database guards reject receipt mutation, inconsistent
+publication and rollback while evidence remains.
+
+Explicit tab drafts contain bounded editable fields only. Pending recovery retains
+an immutable request identity across changed revisions, never stale fields or
+assent. Lost responses fence new submissions until receipt verification; an absent
+receipt permits fresh review of the identical original intent with the same
+request. A changed intent cannot reuse it. Returning client/profile routes refetch
+current authority. Retained older UI builds keep their existing contact endpoint.
+
+Release, Angular, PostgreSQL, API, browser and model checks passed. The built-in
+browser displayed a synthetic creation receipt, responsive mobile state and
+sign-out content removal. All owned slice consumers joined, their source/assets/
+assemblies still matched, and temporary hosts/tabs were disposed. Exact outcomes,
+intermediate corrections and artifact paths belong to `status.json`.
+
+The earlier whole regression remains frozen on its own commit with known
+navigation-selector failures; it has no terminal whole-suite acceptance yet.
+Engagement reviewed forms/drafts, remaining source-action parity, production
+cutover and Blazor retirement remain open. No shared database migration or external
+Microsoft action was performed. The existing operator migration workflow remains
+applicable; no Wiki publication was made.
+
 ## Native client profile metadata and complete scoped pages
 
 The client projection now preserves source master metadata, exact safety generation,

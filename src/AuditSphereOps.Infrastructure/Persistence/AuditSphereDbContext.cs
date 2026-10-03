@@ -123,6 +123,8 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
 
   public DbSet<ClientContact> ClientContacts => Set<ClientContact>();
 
+  public DbSet<ClientContactCreation> ClientContactCreations => Set<ClientContactCreation>();
+
   public DbSet<WorkTask> WorkTasks => Set<WorkTask>();
 
   public DbSet<TimeEntry> TimeEntries => Set<TimeEntry>();
@@ -495,6 +497,7 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
     }
     ConfigureMoney(b);
     ConfigurePractice(b);
+    ConfigureClientContactCreations(b);
     ConfigureCommercial(b);
     ConfigureClientPortal(b);
     ConfigureResourcePlanning(b);
