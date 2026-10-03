@@ -85,6 +85,7 @@ interface Planning {
   latestBudgetVersion: string;
   draft: Draft | null;
   canManageStaffing: boolean;
+  canPrepareBudget: boolean;
   candidates: { userId: string; name: string; department: string | null; certified: boolean }[];
 }
 export interface PlanningEditableBudget {
@@ -164,6 +165,7 @@ export function decodePlanning(value: unknown): Planning {
       throw new Error('Invalid member');
   if (
     typeof v['canManageStaffing'] !== 'boolean' ||
+    typeof v['canPrepareBudget'] !== 'boolean' ||
     !Array.isArray(v['candidates']) ||
     v['candidates'].length > 100
   )
@@ -332,7 +334,7 @@ export function decodePlanning(value: unknown): Planning {
           <p role="status">{{ commandStatus() }}</p>
         </section>
       }
-      @if (planning.canManageStaffing) {
+      @if (planning.canPrepareBudget) {
         <section aria-label="Budget preparation">
           <h3>Prepare budget version</h3>
           <p>
@@ -468,33 +470,36 @@ export function decodePlanning(value: unknown): Planning {
               </button>
             </section>
           }
-          @if (planning.draft; as draft) {
-            <h3>Draft version {{ draft.version }} · {{ draft.currency }}</h3>
-            @for (line of draft.lines; track $index) {
-              <p>
-                {{ line.role }} · {{ line.activity }} · {{ line.phase }} · {{ line.riskArea }} ·
-                {{ line.minutes }} minutes · {{ line.cost }}
-              </p>
-            }
-            @if (draft.canApprove) {
-              <label
-                ><input
-                  type="checkbox"
-                  [formField]="approvalFields.reviewed"
-                  (change)="budgetReviewed = checkboxChecked($event)"
-                />
-                I reviewed this draft and approve its budget.</label
-              >
-              <button
-                matButton
-                [disabled]="busy() || uncertain() || !budgetReviewed"
-                (click)="approveBudget(draft.id)"
-              >
-                Approve draft budget
-              </button>
-            } @else {
-              <p>A different authorized manager or partner must approve this draft.</p>
-            }
+          <p role="status">{{ commandStatus() }}</p>
+        </section>
+      }
+      @if (planning.draft; as draft) {
+        <section aria-label="Budget approval">
+          <h3>Draft version {{ draft.version }} · {{ draft.currency }}</h3>
+          @for (line of draft.lines; track $index) {
+            <p>
+              {{ line.role }} · {{ line.activity }} · {{ line.phase }} · {{ line.riskArea }} ·
+              {{ line.minutes }} minutes · {{ line.cost }}
+            </p>
+          }
+          @if (draft.canApprove) {
+            <label
+              ><input
+                type="checkbox"
+                [formField]="approvalFields.reviewed"
+                (change)="budgetReviewed = checkboxChecked($event)"
+              />
+              I reviewed this draft and approve its budget.</label
+            >
+            <button
+              matButton
+              [disabled]="busy() || uncertain() || !budgetReviewed"
+              (click)="approveBudget(draft.id)"
+            >
+              Approve draft budget
+            </button>
+          } @else {
+            <p>A different authorized manager or partner must approve this draft.</p>
           }
           <p role="status">{{ commandStatus() }}</p>
         </section>
@@ -566,7 +571,7 @@ export class EngagementPlanning {
   private budgetDraftScope(allowReviewed = false) {
     const planning = this.data();
     if (
-      !planning?.canManageStaffing ||
+      !planning?.canPrepareBudget ||
       this.busy() ||
       this.uncertain() ||
       (!allowReviewed && this.budgetPreview()) ||
@@ -640,10 +645,7 @@ export class EngagementPlanning {
     disabled(
       p,
       () =>
-        this.busy() ||
-        this.uncertain() ||
-        !!this.budgetPreview() ||
-        !this.data()?.canManageStaffing,
+        this.busy() || this.uncertain() || !!this.budgetPreview() || !this.data()?.canPrepareBudget,
     );
     applyEach(p.lines, (l) => {
       required(l.role);
@@ -676,11 +678,18 @@ export class EngagementPlanning {
     this.budgetModel.update((m) => ({ ...m, lines: value.map((l) => ({ ...l })) }));
   }
   removeBudgetLine(index: number): void {
-    if (this.busy() || this.uncertain() || this.budgetPreview()) return;
+    if (!this.data()?.canPrepareBudget || this.busy() || this.uncertain() || this.budgetPreview())
+      return;
     this.budgetLines = this.budgetLines.filter((_, i) => i !== index);
   }
   addBudgetLine(): void {
-    if (this.busy() || this.uncertain() || this.budgetPreview() || this.budgetLines.length >= 200)
+    if (
+      !this.data()?.canPrepareBudget ||
+      this.busy() ||
+      this.uncertain() ||
+      this.budgetPreview() ||
+      this.budgetLines.length >= 200
+    )
       return;
     this.budgetLines = [
       ...this.budgetLines,
@@ -697,7 +706,7 @@ export class EngagementPlanning {
   private navigationPending = false;
   planningDirty(): boolean {
     return (
-      !!this.data()?.canManageStaffing &&
+      (!!this.data()?.canManageStaffing || !!this.data()?.canPrepareBudget) &&
       (JSON.stringify(this.budgetModel()) !== this.budgetBaseline() ||
         !!this.selectedUser ||
         this.selectedLevel !== 'STAFF_ASSOCIATE' ||
@@ -724,7 +733,12 @@ export class EngagementPlanning {
     this.navigationPending = true;
     try {
       const choice = await firstValueFrom(this.dialog.open(PlanningNavigationDialog).afterClosed());
-      if (this.destroyed || owner !== this.owner() || !this.data()?.canManageStaffing) return true;
+      if (
+        this.destroyed ||
+        owner !== this.owner() ||
+        (!this.data()?.canManageStaffing && !this.data()?.canPrepareBudget)
+      )
+        return true;
       if (this.busy() || this.uncertain()) return false;
       if (choice === 'discard') {
         this.clearProtectedEditor();
@@ -771,7 +785,7 @@ export class EngagementPlanning {
   async saveBudget(): Promise<void> {
     const planning = this.data(),
       owner = this.owner();
-    if (!planning?.canManageStaffing || this.busy() || this.uncertain() || this.budgetPreview())
+    if (!planning?.canPrepareBudget || this.busy() || this.uncertain() || this.budgetPreview())
       return;
     const editable = editablePlanningBudget({
       currency: this.currency.trim().toUpperCase(),
@@ -839,7 +853,7 @@ export class EngagementPlanning {
       owner = this.owner();
     if (
       !p ||
-      !this.data()?.canManageStaffing ||
+      !this.data()?.canPrepareBudget ||
       !this.preparationReviewed ||
       this.busy() ||
       this.uncertain()
@@ -916,7 +930,7 @@ export class EngagementPlanning {
   async reconcileBudgetPreparation(): Promise<void> {
     const p = this.budgetPending(),
       owner = this.owner();
-    if (!p || !this.data()?.canManageStaffing || this.busy()) return;
+    if (!p || !this.data()?.canPrepareBudget || this.busy()) return;
     this.busy.set(true);
     this.budgetPreview.set(null);
     this.preparationReviewed = false;
@@ -1011,7 +1025,11 @@ export class EngagementPlanning {
   });
   readonly preparationFields = form(this.preparationModel, (p) => {
     validate(p.reviewed, ({ value }) => (value() ? undefined : { kind: 'reviewRequired' }));
-    disabled(p, () => this.busy() || this.uncertain() || !this.budgetPreview());
+    disabled(
+      p,
+      () =>
+        this.busy() || this.uncertain() || !this.budgetPreview() || !this.data()?.canPrepareBudget,
+    );
   });
   readonly approvalFields = form(this.approvalModel, (p) => {
     validate(p.reviewed, ({ value }) => (value() ? undefined : { kind: 'reviewRequired' }));
@@ -1283,7 +1301,7 @@ export class EngagementPlanning {
           try {
             const planning = decodePlanning(value);
             this.data.set(planning);
-            if (planning.canManageStaffing) {
+            if (planning.canPrepareBudget) {
               const pending = this.drafts.readPendingRequest(this.pendingBudgetScope());
               if (pending.state === 'ready') {
                 this.budgetPending.set(pending.draft.value);

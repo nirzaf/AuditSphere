@@ -23,6 +23,7 @@ describe('Exact planning contracts', () => {
         latestBudgetVersion: '0',
         draft: null,
         canManageStaffing: false,
+        canPrepareBudget: false,
         candidates: [],
         budget: null,
         budgetState: 'UNAVAILABLE',
@@ -34,6 +35,7 @@ describe('Exact planning contracts', () => {
         latestBudgetVersion: '0',
         draft: null,
         canManageStaffing: false,
+        canPrepareBudget: false,
         candidates: [],
         budget: null,
         budgetState: 'APPROVED',
@@ -55,6 +57,7 @@ describe('Exact planning contracts', () => {
         latestBudgetVersion: '0',
         draft: null,
         canManageStaffing: false,
+        canPrepareBudget: false,
         candidates: [],
         budget,
         budgetState: 'APPROVED',
@@ -66,6 +69,7 @@ describe('Exact planning contracts', () => {
         latestBudgetVersion: '0',
         draft: null,
         canManageStaffing: false,
+        canPrepareBudget: false,
         candidates: [],
         budget: { ...budget, forecastCost: 0 },
         budgetState: 'APPROVED',
@@ -81,6 +85,7 @@ describe('Planning protected editor clearing', () => {
     latestBudgetVersion: '0',
     draft: null,
     canManageStaffing: true,
+    canPrepareBudget: true,
     candidates: [],
     budget: null,
     budgetState: 'UNAVAILABLE',
@@ -113,6 +118,22 @@ describe('Planning protected editor clearing', () => {
       .flush(planning);
     return fixture.componentInstance;
   }
+  it('does not substitute staffing authority for reviewed budget preparation', async () => {
+    const component = open();
+    component.data.set({ ...planning, canPrepareBudget: false });
+    TestBed.tick();
+    expect(component.budgetFields.currency().disabled()).toBe(true);
+    expect(component.saveEditableBudget()).toBe(false);
+    const before = component.budgetLines.length;
+    component.addBudgetLine();
+    expect(component.budgetLines.length).toBe(before);
+    await component.saveBudget();
+    TestBed.inject(HttpTestingController).expectNone((r) => r.method === 'POST');
+  });
+  it('fails closed when the API omits action-specific preparation authority', () => {
+    const { canPrepareBudget: _, ...missing } = planning;
+    expect(() => decodePlanning(missing)).toThrow();
+  });
   it('validates budget fields and locks them while reviewing or recovering', () => {
     const component = open();
     component.currency = 'QQQQ';

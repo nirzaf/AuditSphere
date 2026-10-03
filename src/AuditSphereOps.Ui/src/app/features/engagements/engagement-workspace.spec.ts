@@ -40,6 +40,7 @@ const planning = {
   latestBudgetVersion: '0',
   draft: null,
   canManageStaffing: true,
+  canPrepareBudget: true,
   candidates: [],
   budget: null,
   budgetState: 'UNAVAILABLE',

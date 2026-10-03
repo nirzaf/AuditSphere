@@ -142,11 +142,23 @@ public sealed class WorkspaceQueryTests
     var planning = await EngagementPlanningQuery.GetAsync(db, actor, fixture.EngagementId);
     Assert.True(planning.Succeeded, planning.Message);
     Assert.NotNull(planning.Value!.Draft);
+    Assert.True(planning.Value.CanManageStaffing);
+    Assert.False(planning.Value.CanPrepareBudget);
     Assert.Equal(123.45m, decimal.Parse(Assert.Single(planning.Value.Draft.Lines).Cost, System.Globalization.CultureInfo.InvariantCulture));
     Assert.False(planning.Value.Draft.CanApprove);
     Assert.Equal("1", planning.Value.LatestBudgetVersion);
     Assert.False((await EngagementPlanningQuery.ApproveBudgetAsync(db, actor, fixture.EngagementId, result.Value)).Succeeded);
     Assert.False((await EngagementPlanningQuery.ApproveBudgetAsync(db, actor, Guid.NewGuid(), result.Value)).Succeeded);
+    db.RoleGrants.Add(new AuditSphereOps.Domain.Security.RoleGrant
+    {
+      Id = Guid.NewGuid(), FirmId = fixture.FirmId, UserId = fixture.Admin.Id,
+      Role = "Manager", ClientId = fixture.ClientId, EngagementId = fixture.EngagementId,
+      GrantedByUserId = fixture.Admin.Id, GrantedAt = DateTimeOffset.UtcNow
+    });
+    await db.SaveChangesAsync();
+    var managerPlanning = await EngagementPlanningQuery.GetAsync(db, actor, fixture.EngagementId);
+    Assert.True(managerPlanning.Succeeded, managerPlanning.Message);
+    Assert.True(managerPlanning.Value!.CanPrepareBudget);
   }
 
   [Fact]

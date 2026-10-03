@@ -12,7 +12,8 @@ public sealed record PlanningBudgetRow(string Phase, string RiskArea, int Foreca
 public sealed record PlanningBudget(string Id, string Version, string Currency, IReadOnlyList<PlanningBudgetRow> Rows,
   int ForecastMinutes, string ForecastCost, int ActualMinutes, string ActualCost);
 public sealed record EngagementPlanning(IReadOnlyList<StaffAssignmentRow> Team, PlanningBudget? Budget, string BudgetState,
-  bool CanManageStaffing, IReadOnlyList<StaffCandidate> Candidates, string LatestBudgetVersion, PlanningDraft? Draft);
+  bool CanManageStaffing, IReadOnlyList<StaffCandidate> Candidates, string LatestBudgetVersion, PlanningDraft? Draft,
+  bool CanPrepareBudget);
 public sealed record PlanningDraft(Guid Id, string Version, string Currency, bool CanApprove,
   IReadOnlyList<PlanningDraftLine> Lines);
 public sealed record PlanningDraftLine(string Role, string Activity, string Phase, string? RiskArea, int Minutes, string Cost);
@@ -62,8 +63,15 @@ public static class EngagementPlanningQuery
     }
     if (!(await WorkspaceQuery.EngagementAsync(db, actor, engagementId, ct)).Succeeded)
       return CommandResult<EngagementPlanning>.Fail(ErrorCodes.ScopeDenied, "Planning unavailable.");
+    var canPrepareBudget = await BudgetPreparationWorkspace.Authorized(db, actor, engagementId, ct);
+    // Resolve mutation authority again after the projection reads. Broader read
+    // access must not keep a stale management flag alive after grant revocation.
+    canManage = canManage && (await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, EngagementId: engagementId,
+        RequiredRoles: ["Partner", "Manager", "Administrator"], InternalOnly: true), ct)).Succeeded;
+    if (!canManage) { candidates = []; draft = null; }
     return CommandResult<EngagementPlanning>.Ok(new(team.Value!, projection, budget.Succeeded ? "APPROVED" : "UNAVAILABLE", canManage,
-      candidates, (latest?.Version ?? 0).ToString(CultureInfo.InvariantCulture), draft));
+      candidates, (latest?.Version ?? 0).ToString(CultureInfo.InvariantCulture), draft, canPrepareBudget));
   }
 
   public static async Task<CommandResult> ApproveBudgetAsync(IAuditSphereDbContext db, ActorContext actor,

@@ -13,7 +13,12 @@ public sealed class AngularEngagementProfileJourneyTests
   public async Task MetadataPagedHoldsPreservedPlanningFieldsAndRevocation(bool canonical)
   {
     await using var host=await OwnedBlazorHost.StartAsync(startWorker:false,caseId:"ANGULAR-ENGAGEMENT-PROFILE-E2E");
-    var f=host.Fixture; await using(var db=host.CreateDbContext()) { await EngagementProfileWorkspaceSeed.PopulateAsync(db,f); }
+    var f=host.Fixture; await using(var db=host.CreateDbContext()) {
+      await EngagementProfileWorkspaceSeed.PopulateAsync(db,f);
+      // Editing is reviewed budget-preparation authority, not Administrator authority.
+      db.RoleGrants.Add(PbcSeed.Grant(f.FirmId,f.Admin,"Manager",f.ClientId,f.EngagementId));
+      await db.SaveChangesAsync();
+    }
     var origin=await host.StartApiForIdentityAsync(f.Admin,new Dictionary<string,string> {
       ["AngularUi__Enabled"]="true",["AngularUi__CanonicalRoutes"]=canonical.ToString() });
     var prefix=canonical?"":"/ui";
@@ -52,5 +57,34 @@ public sealed class AngularEngagementProfileJourneyTests
     await Assertions.Expect(page.GetByRole(AriaRole.Heading,new(){Name="Engagement unavailable",Exact=true})).ToBeVisibleAsync();
     Assert.DoesNotContain("Synthetic annual audit profile",await page.Locator("body").InnerTextAsync());
     Assert.DoesNotContain("USD",await page.Locator("body").InnerTextAsync()); Assert.Empty(errors);
+  }
+
+  [Theory]
+  [InlineData(false)]
+  [InlineData(true)]
+  public async Task AdministratorStaffingAndApprovalDoNotConferBudgetPreparation(bool canonical)
+  {
+    await using var host=await OwnedBlazorHost.StartAsync(startWorker:false,caseId:"ANGULAR-PLANNING-AUTHORITY-E2E");
+    var f=host.Fixture;
+    await using(var db=host.CreateDbContext()) {
+      await BudgetPreparationReviewSeed.PopulateAsync(db,f);
+      var draft=await AuditSphereOps.Application.Practice.PracticeTimeService.ReviseBudgetAsync(db,
+        PbcSeed.Actor(f.Staff,"Manager"),new(f.EngagementId,"QAR",[new("Senior","AUDIT",60,"PLANNING")],0));
+      Assert.True(draft.Succeeded,draft.Message);
+    }
+    var origin=await host.StartApiForIdentityAsync(f.Admin,new Dictionary<string,string> {
+      ["AngularUi__Enabled"]="true",["AngularUi__CanonicalRoutes"]=canonical.ToString() });
+    using var playwright=await Playwright.CreateAsync(); await using var browser=await PlaywrightBrowser.LaunchAsync(playwright);
+    var page=await browser.NewPageAsync(); var errors=new List<string>();page.PageError+=(_,e)=>errors.Add(e);
+    var path=(canonical?"":"/ui")+"/app/engagements/"+f.EngagementId;
+    await page.GotoAsync(origin+"/auth/sign-in?returnUrl="+Uri.EscapeDataString(path));
+    await page.GetByText("Team and budget",new(){Exact=true}).ScrollIntoViewIfNeededAsync();
+    var planning=page.GetByRole(AriaRole.Region,new(){Name="Engagement planning",Exact=true});
+    await Assertions.Expect(planning.GetByRole(AriaRole.Heading,new(){Name="Assign staff",Exact=true})).ToBeVisibleAsync();
+    await Assertions.Expect(planning.GetByRole(AriaRole.Button,new(){Name="Approve draft budget",Exact=true})).ToBeVisibleAsync();
+    await Assertions.Expect(planning.GetByRole(AriaRole.Region,new(){Name="Budget preparation",Exact=true})).ToHaveCountAsync(0);
+    await page.SetViewportSizeAsync(390,844);
+    Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= innerWidth + 1"));
+    Assert.Empty(errors);
   }
 }

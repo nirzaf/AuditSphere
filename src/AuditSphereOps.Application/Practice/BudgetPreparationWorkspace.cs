@@ -37,7 +37,7 @@ public static class BudgetPreparationWorkspace
     }
     return new(currency,version.ToString(CultureInfo.InvariantCulture),lines);
   }
-  private static async Task<bool> Authorized(IAuditSphereDbContext db,ActorContext a,Guid id,CancellationToken ct)=>
+  internal static async Task<bool> Authorized(IAuditSphereDbContext db,ActorContext a,Guid id,CancellationToken ct)=>
     (await AuthorizationDecision.AuthorizeAsync(db,a,new(a.FirmId,EngagementId:id,RequiredRoles:["Partner","Manager"],InternalOnly:true),ct)).Succeeded;
   private static CommandResult<T> Unavailable<T>()=>CommandResult<T>.Fail(ErrorCodes.ScopeDenied,"Budget preparation is unavailable.");
   private static string RequestHash(ActorContext a,Guid id,Guid requestId,BudgetPreparationFields f)=>Hashing.Sha256Hex(JsonSerializer.Serialize(new{a.FirmId,a.UserId,a.SessionEpoch,id,requestId,Action="BUDGET_PREPARATION",Fields=f}));
