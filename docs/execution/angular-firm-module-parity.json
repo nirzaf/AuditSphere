@@ -141,10 +141,10 @@
     },
     {
       "action": "receipt recording / credit notes",
-      "owner": "BillingService only",
-      "verdict": "PARITY-NEUTRAL",
-      "disposition": "Application-only in BOTH hosts; no retired-host UI to migrate.",
-      "evidencePointer": "audit 2026-10-03"
+      "owner": "Angular UiEndpoints.Finance.cs + BillingInvoiceWorkspaceQuery + BillingService",
+      "verdict": "IMPLEMENTED",
+      "disposition": "Native Angular addition; no equivalent action existed in Blazor. Reviewed receipt recording, allocation to posted invoices and FinanceManager-only credit notes use the existing BillingService. The view bounds recent history to 100 items while complete credited/allocated totals use the full persisted invoice balance.",
+      "evidencePointer": "BillingWorkspaceApiTests; AngularBillingWorkspaceJourneyTests; status.json/angularBillingReceiptCreditWorkspace"
     },
     {
       "action": "lead create/qualify/paging",
@@ -294,5 +294,5 @@
       "evidencePointer": "RouteRenderSmokeTests"
     }
   ],
-  "remaining": "Administration setup metadata and selected SharePoint resource/template pre-dispatch recovery now have focused local evidence; broader administration and production-like acceptance remain open. Commercial settings and embedded proposal/quotation/document/fee-agreement drafts have focused local evidence; durable commercial command recovery remains open. Receipts and credit notes remain Application-only in both hosts (parity-neutral). Curated accounting parity lives in the accounting slice entries. Whole-migration acceptance, fresh full regression, canary and owner-authorized retirement remain open."
+  "remaining": "Administration setup metadata and selected SharePoint resource/template pre-dispatch recovery now have focused local evidence; broader administration and production-like acceptance remain open. Commercial settings and embedded proposal/quotation/document/fee-agreement drafts have focused local evidence; durable commercial command recovery remains open. Invoice receipt/credit history pagination beyond the recent 100 items and broader US-019 source-action parity remain open. Curated accounting parity lives in the accounting slice entries. Whole-migration acceptance, fresh full regression, canary and owner-authorized retirement remain open."
 }
