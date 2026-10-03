@@ -240,23 +240,23 @@
     {
       "action": "setup draft mail/records capability states + tenant name",
       "owner": "SelectedResources DTO",
-      "verdict": "MISSING",
-      "disposition": "DTO lacks fields; retired host sets them.",
-      "evidencePointer": "audit 2026-10-03"
+      "verdict": "IMPLEMENTED",
+      "disposition": "Native tenant setup editor and workspace projection expose the friendly label and independent saved mail/records setup flags; they are not presented as consent or transport verification.",
+      "evidencePointer": "angularTenantSetupEditor in status.json"
     },
     {
       "action": "pre-dispatch original-form recovery on admin pages",
       "owner": "sharepoint.ts/tenant.ts",
-      "verdict": "MISSING",
-      "disposition": "Angular resets forms on persisted-data reload.",
-      "evidencePointer": "audit 2026-10-03"
+      "verdict": "IMPLEMENTED",
+      "disposition": "Tenant setup metadata and SharePoint resource/template fields use explicit identity/session and persisted-basis tab drafts, guarded navigation/refresh, and fresh assent after recovery.",
+      "evidencePointer": "angularTenantSetupEditor and angularSharePointTabDraftRecovery in status.json"
     },
     {
       "action": "firm & security runtime display (ExternalEffects fences)",
       "owner": "AdministrationOverviewQuery",
-      "verdict": "MISSING",
-      "disposition": "No Angular counterpart; read-only.",
-      "evidencePointer": "audit 2026-10-03"
+      "verdict": "IMPLEMENTED",
+      "disposition": "Read-only Angular projection shows persisted safety mode, deployment epoch and allowlisted external-effect/simulation flags; missing state remains unknown.",
+      "evidencePointer": "angularAdministrationRuntime in status.json"
     },
     {
       "action": "operations quarantine/retry/cancel",
@@ -294,5 +294,5 @@
       "evidencePointer": "RouteRenderSmokeTests"
     }
   ],
-  "remaining": "Wider administration form recovery; firm safety and runtime display is now implemented and locally verified; safe local setup field editing and tab/receipt recovery are now implemented and locally verified; commercial settings pre-dispatch drafts are implemented; remaining commercial form draft hooks (quotation/documents/fee-agreement); receipts and credit notes remain Application-only in both hosts; curated per-page parity for the accounting module lives in the accounting slice entries; whole-migration acceptance, canary and owner-authorized retirement remain open."
+  "remaining": "Administration setup metadata and selected SharePoint resource/template pre-dispatch recovery now have focused local evidence; broader administration and production-like acceptance remain open. Commercial settings and embedded proposal/quotation/document/fee-agreement drafts have focused local evidence; durable commercial command recovery remains open. Receipts and credit notes remain Application-only in both hosts (parity-neutral). Curated accounting parity lives in the accounting slice entries. Whole-migration acceptance, fresh full regression, canary and owner-authorized retirement remain open."
 }
