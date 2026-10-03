@@ -23,10 +23,12 @@ and refuses unresolved command outcomes. A successful proposal refresh retains
 unsubmitted revision fields; a refused refresh clears protected content.
 
 Angular tests and an isolated UI build passed as recorded in status.json.
-Embedded-form browser acceptance and durable commercial outcome recovery remain
-open. These source changes are not compiled into the running captured full
-regression; its API and Domain projects have reported passing terminal results,
-while E2E is still running.
+Built-in browser recovery and three affected E2E journeys passed. Angular tests
+and the isolated UI build passed as recorded in status.json. The captured whole
+regression is terminal: API and Domain passed, while one E2E assertion failed
+because its exact-text selector matched the same denial message twice. The
+selector was corrected and its affected journey passed; the frozen artifact
+manifest matched all 1,350 files. A whole current-source rerun remains open.
 
 ## Angular commercial settings draft recovery
 

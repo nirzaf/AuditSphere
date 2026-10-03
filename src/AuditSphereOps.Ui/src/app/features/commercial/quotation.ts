@@ -620,7 +620,8 @@ export class Quotation {
           if (changesFee) {
             this.tabDraft.submitted();
             this.changed.emit();
-          } else this.load();
+          }
+          this.load();
         },
         error: (failure) => {
           if (fence !== this.fence) return;

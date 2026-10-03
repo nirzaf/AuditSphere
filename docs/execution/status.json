@@ -6887,13 +6887,13 @@
     },
     "angularFreshRegression": {
       "codeCommit": "01305801458bf036197eed9efc1298bbe82e5f4b",
-      "status": "RUNNING",
-      "observedAt": "2026-10-03T16:03:12.791336+00:00",
+      "status": "TERMINAL_PARTIAL",
+      "observedAt": "2026-10-03T16:58:47+00:00",
       "command": "dotnet test AuditSphereOps.slnx --configuration Release --no-build",
       "log": "/private/tmp/auditsphere-angular-fresh-regression.log",
       "exitRecord": "/private/tmp/auditsphere-angular-fresh-regression.exit",
       "artifactManifest": "/private/tmp/auditsphere-angular-fresh-regression-manifest.json",
-      "boundary": "Fresh source/UI/test artifacts captured after successful Release/Angular builds and EF drift check. Terminal result and unchanged-artifact audit required before regression acceptance.",
+      "boundary": "The frozen binaries and UI are attributable to the captured codeCommit. The current source has subsequent commercial draft changes and has not completed a whole-solution test rerun.",
       "workingTreeBoundary": "Later commercial settings source and unit tests are separate from captured binaries/UI assets; static source guards may inspect the working tree. Terminal result and unchanged artifact check remain required.",
       "observedResults": {
         "api": {
@@ -6904,8 +6904,20 @@
           "passed": 644,
           "failed": 0
         },
-        "e2e": "RUNNING"
-      }
+        "e2e": {
+          "passed": 198,
+          "failed": 1,
+          "total": 199
+        }
+      },
+      "terminalExitCode": 1,
+      "artifactAudit": {
+        "manifestFiles": 1350,
+        "changed": 0,
+        "missing": 0,
+        "status": "MATCHED"
+      },
+      "failure": "One E2E strict-mode selector matched the firm-wide Administrator denial message in both the workspace and runtime panel. The selector now chooses the first matching visible message; affected E2E journey passed on the updated source. Whole fresh suite rerun remains required."
     },
     "angularCommercialSettingsDrafts": {
       "status": "FOCUSED_LOCAL_VERIFIED",
@@ -6924,7 +6936,7 @@
       "boundary": "Pre-dispatch commercial settings fields only. Fresh profile version/rules fingerprint required. Server authority and command unknown-outcome fence unchanged. Durable commercial receipt recovery, other commercial form drafts and whole-migration acceptance remain open."
     },
     "angularCommercialEmbeddedDrafts": {
-      "status": "PARTIAL",
+      "status": "FOCUSED_BROWSER_AND_E2E_VERIFIED",
       "angularTests": {
         "passed": 446,
         "failed": 0,
@@ -6933,7 +6945,7 @@
       },
       "isolatedAngularBuild": {
         "status": "PASS",
-        "log": "/private/tmp/auditsphere-commercial-forms-build-final.log"
+        "log": "/private/tmp/auditsphere-commercial-forms-final-build.log"
       },
       "implemented": [
         "Bounded revision/session-bound explicit pre-dispatch quotation, document, fee-agreement and proposal drafts",
@@ -6942,11 +6954,29 @@
         "Successful proposal refresh retains unsaved revision fields; refused refresh clears protected content"
       ],
       "remaining": [
-        "Embedded-form browser acceptance",
         "Durable commercial command outcome recovery",
         "Whole migration acceptance and retirement"
       ],
-      "regressionBoundary": "These later source changes are not compiled into the concurrently running captured full regression."
+      "regressionBoundary": "The focused E2E run compiled the current E2E/API/Web/Worker projects with isolated Release artifacts. Whole frozen suite finished with one known strict-locator failure and no artifact drift; whole current-source rerun remains outstanding.",
+      "observedAt": "2026-10-03T16:58:47+00:00",
+      "focusedE2E": {
+        "passed": 3,
+        "failed": 0,
+        "filter": "AngularCommercialJourneyTests | AngularAdministrationJourneyTests",
+        "log": "/private/tmp/auditsphere-commercial-draft-e2e-affected.log"
+      },
+      "browser": {
+        "status": "PASS",
+        "environment": "Owned synthetic PostgreSQL fixture; built-in browser",
+        "verified": [
+          "dirty embedded fields trigger combined navigation guard",
+          "explicit save draft and continue then same-proposal recovery",
+          "team and delivery fields restored",
+          "quotation preview and assent are not restored",
+          "no quotation version or commercial document written by recovery"
+        ],
+        "screenshot": "/private/tmp/auditsphere-commercial-form-recovery-browser.png"
+      }
     }
   },
   "documentationWork": {

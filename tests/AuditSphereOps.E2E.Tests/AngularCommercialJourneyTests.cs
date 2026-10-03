@@ -15,8 +15,10 @@ public sealed class AngularCommercialJourneyTests
   public async Task QuotationPreview_Save_AndApprovalUsePersistedServerState()
   {
     await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "ANGULAR-COMMERCIAL-E2E-01");
-    var origin = await host.StartApiForIdentityAsync(host.Fixture.Admin,
-      new Dictionary<string, string> { ["AngularUi__Enabled"] = "true" });
+    var settings = new Dictionary<string, string> { ["AngularUi__Enabled"] = "true" };
+    var buildPath = Environment.GetEnvironmentVariable("AUDITSPHERE_TEST_UI_BUILD_PATH");
+    if (!string.IsNullOrWhiteSpace(buildPath)) settings["AngularUi__BuildPath"] = buildPath;
+    var origin = await host.StartApiForIdentityAsync(host.Fixture.Admin, settings);
     Guid proposalId;
     await using (var db = host.CreateDbContext())
     {
@@ -39,6 +41,9 @@ public sealed class AngularCommercialJourneyTests
         CreatedAt = DateTimeOffset.UtcNow, ApprovedAt = DateTimeOffset.UtcNow
       });
       await db.SaveChangesAsync();
+      var approvedRates = await QuotationService.ListRateOptionsAsync(db, actor, "QAR");
+      Assert.True(approvedRates.Succeeded, approvedRates.Message);
+      Assert.Contains(approvedRates.Value!, rate => rate.Role == "Manager" && rate.Activity == "Audit");
       Assert.True((await CommercialDocumentService.SaveProfileAsync(db, actor,
         new("Synthetic Angular Firm", "Address", "", "", "#0F766E", "Closing", "Reviewed history", "Reviewed credentials", "Reviewed methodology"))).Succeeded);
     }
@@ -151,4 +156,104 @@ public sealed class AngularCommercialJourneyTests
     }
     Assert.Empty(errors);
   }
+  [Fact]
+  [Trait("CaseId", "ANGULAR-COMMERCIAL-DRAFT-E2E-01")]
+  public async Task EmbeddedDrafts_RecoverOnlyFields_AfterGuardedNavigation()
+  {
+    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "ANGULAR-COMMERCIAL-DRAFT-E2E-01");
+    var settings = new Dictionary<string, string> { ["AngularUi__Enabled"] = "true" };
+    var buildPath = Environment.GetEnvironmentVariable("AUDITSPHERE_TEST_UI_BUILD_PATH");
+    if (!string.IsNullOrWhiteSpace(buildPath)) settings["AngularUi__BuildPath"] = buildPath;
+    var origin = await host.StartApiForIdentityAsync(host.Fixture.Admin, settings);
+    Guid proposalId;
+    await using (var db = host.CreateDbContext())
+    {
+      var actor = PbcSeed.Actor(host.Fixture.Admin, "Administrator");
+      var lead = await PracticeCrmService.CreateLeadAsync(db, actor, new("Angular quotation client", "Referral", "Synthetic contact", "contact@example.test"));
+      Assert.True(lead.Succeeded, lead.Message);
+      Assert.True((await PracticeCrmService.QualifyLeadAsync(db, actor, lead.Value)).Succeeded);
+      var opportunity = await PracticeCrmService.CreateOpportunityAsync(db, actor,
+        new(lead.Value, "FinancialStatementAudit", "Entity", "2026-01-01", "2026-12-31", 1m, "QAR"));
+      Assert.True(opportunity.Succeeded, opportunity.Message);
+      var proposal = await PracticeCrmService.ReviseProposalAsync(db, actor,
+        new(opportunity.Value, "Standard", "Scope", "", "Report", "", 1m, "QAR", "2026-01-01", "2026-12-31", 0));
+      Assert.True(proposal.Succeeded, proposal.Message);
+      proposalId = proposal.Value;
+      db.RateCardVersions.Add(new RateCardVersion
+      {
+        Id = Guid.NewGuid(), FirmId = host.Fixture.FirmId, Role = "Manager", Activity = "Audit", Version = 1,
+        Currency = "QAR", RatePerHour = 750m, Status = PracticeTimeStates.RateApproved,
+        CreatedByUserId = host.Fixture.Admin.Id, ApprovedByUserId = host.Fixture.Reviewer.Id,
+        CreatedAt = DateTimeOffset.UtcNow, ApprovedAt = DateTimeOffset.UtcNow
+      });
+      await db.SaveChangesAsync();
+      Assert.True((await CommercialDocumentService.SaveProfileAsync(db, actor,
+        new("Synthetic Angular Firm", "Address", "", "", "#0F766E", "Closing", "Reviewed history", "Reviewed credentials", "Reviewed methodology"))).Succeeded);
+    }
+
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    await using var context = await browser.NewContextAsync();
+    var page = await context.NewPageAsync();
+    var errors = new List<string>();
+    page.PageError += (_, error) => errors.Add(error);
+    var url = origin + "/ui/app/practice/proposals/" + proposalId;
+    await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString("/ui/app/practice/proposals/" + proposalId));
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Proposal", Exact = true })).ToBeVisibleAsync();
+    var quotationPlaceholder = page.GetByText("Quotation pricing and approvals", new() { Exact = true });
+    var quotation = page.Locator("audit-quotation");
+    if (await quotation.CountAsync() == 0)
+    {
+      await quotationPlaceholder.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = 15000 });
+      await quotationPlaceholder.ScrollIntoViewIfNeededAsync();
+    }
+    await quotation.GetByRole(AriaRole.Heading, new() { Name = "Calculated quotation", Exact = true }).WaitForAsync();
+    var quotationState = await quotation.InnerTextAsync();
+    Assert.DoesNotContain("No approved rates", quotationState);
+    Assert.DoesNotContain("Quotation unavailable", quotationState);
+    await quotation.GetByRole(AriaRole.Textbox, new() { Name = "Hours 1", Exact = true }).FillAsync("12.25");
+    var documentsPlaceholder = page.GetByText("Commercial document generation and downloads", new() { Exact = true });
+    var documents = page.Locator("audit-commercial-documents");
+    if (await documents.CountAsync() == 0)
+    {
+      await documentsPlaceholder.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = 15000 });
+      await documentsPlaceholder.ScrollIntoViewIfNeededAsync();
+    }
+    await documents.GetByRole(AriaRole.Textbox, new() { Name = "Assigned Partner and team CVs", Exact = true }).FillAsync("Synthetic reviewed team draft");
+    await documents.GetByRole(AriaRole.Textbox, new() { Name = "Deliverables timeline", Exact = true }).FillAsync("Synthetic delivery draft");
+    await page.Locator("audit-proposal > a").ClickAsync();
+    var dialog = page.GetByRole(AriaRole.Dialog);
+    await Assertions.Expect(dialog.GetByRole(AriaRole.Heading, new() { Name = "Unsubmitted edits", Exact = true })).ToBeVisibleAsync();
+    await dialog.GetByRole(AriaRole.Button, new() { Name = "Keep editing", Exact = true }).ClickAsync();
+    await Assertions.Expect(documents.GetByRole(AriaRole.Textbox, new() { Name = "Deliverables timeline", Exact = true })).ToHaveValueAsync("Synthetic delivery draft");
+    await page.Locator("audit-proposal > a").ClickAsync();
+    await dialog.GetByRole(AriaRole.Button, new() { Name = "Save draft and continue", Exact = true }).ClickAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Practice leads", Exact = true })).ToBeVisibleAsync();
+    await page.GotoAsync(url);
+    if (await quotation.CountAsync() == 0)
+    {
+      await quotationPlaceholder.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = 15000 });
+      await quotationPlaceholder.ScrollIntoViewIfNeededAsync();
+    }
+    await quotation.GetByRole(AriaRole.Button, new() { Name = "Recover quotation tab draft", Exact = true }).ClickAsync();
+    await Assertions.Expect(quotation.GetByRole(AriaRole.Textbox, new() { Name = "Hours 1", Exact = true })).ToHaveValueAsync("12.25");
+    await Assertions.Expect(quotation.GetByText("Server preview:", new() { Exact = false })).ToHaveCountAsync(0);
+    await quotation.GetByRole(AriaRole.Button, new() { Name = "Calculate preview", Exact = true }).ClickAsync();
+    await Assertions.Expect(quotation.GetByRole(AriaRole.Checkbox, new() { Name = "I reviewed these inputs and the server-calculated total.", Exact = true })).Not.ToBeCheckedAsync();
+    if (await documents.CountAsync() == 0)
+    {
+      await documentsPlaceholder.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = 15000 });
+      await documentsPlaceholder.ScrollIntoViewIfNeededAsync();
+    }
+    await documents.GetByRole(AriaRole.Button, new() { Name = "Recover document tab draft", Exact = true }).ClickAsync();
+    await Assertions.Expect(documents.GetByRole(AriaRole.Textbox, new() { Name = "Deliverables timeline", Exact = true })).ToHaveValueAsync("Synthetic delivery draft");
+    await Assertions.Expect(documents.GetByRole(AriaRole.Checkbox, new() { Name = "I reviewed this quotation, firm profile and document action.", Exact = true })).Not.ToBeCheckedAsync();
+    await using (var db = host.CreateDbContext())
+    {
+      Assert.Empty(await db.QuotationVersions.Where(x => x.ProposalId == proposalId).ToListAsync());
+      Assert.Empty(await db.CommercialDocuments.Where(x => x.ProposalId == proposalId).ToListAsync());
+    }
+    Assert.Empty(errors);
+  }
+
 }

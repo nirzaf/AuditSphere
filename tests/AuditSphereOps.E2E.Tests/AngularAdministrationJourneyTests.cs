@@ -54,7 +54,7 @@ public sealed class AngularAdministrationJourneyTests
     await using (var db = host.CreateDbContext())
       Assert.NotNull((await db.RoleGrants.SingleAsync(x => x.Id == grantId)).RevokedAt);
     await staffPage.GotoAsync(staffOrigin + "/auth/sign-in?returnUrl=%2Fui%2Fapp%2Fadministration");
-    await Assertions.Expect(staffPage.GetByText("Current firm-wide Administrator access is required.", new() { Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(staffPage.GetByText("Current firm-wide Administrator access is required.", new() { Exact = true }).First).ToBeVisibleAsync();
     await Assertions.Expect(staffPage.GetByRole(AriaRole.Heading, new() { Name = "Setup progress", Exact = true })).ToHaveCountAsync(0);
     Assert.Empty(errors);
   }

@@ -60,7 +60,7 @@
       "id": "US-010",
       "title": "Preserve drafts without cross-user leakage",
       "status": "PARTIAL",
-      "scope": "Native confirmation, currency configuration/remeasurement, TB upload and source acceptance use identity/session/entity/base-bound tab drafts, explicit recovery and guarded navigation. Pending source-acceptance checkpoints fence writes/navigation until persisted-state acknowledgment. Commercial settings now has explicit profile/rules revision-bound tab drafts, fresh recovery without assent, guarded navigation and preservation of the other unsubmitted form. Remaining module drafts/form acceptance remain open."
+      "scope": "Native confirmation, currency configuration/remeasurement, TB upload and source acceptance use identity/session/entity/base-bound tab drafts, explicit recovery and guarded navigation. Pending source-acceptance checkpoints fence writes/navigation until persisted-state acknowledgment. Commercial settings and embedded proposal, quotation, document and fee-agreement forms now use explicit bounded revision/session-bound tab drafts, guarded navigation and recovery without assent. Focused browser and E2E evidence is recorded in status.json. Durable command outcome recovery, remaining module drafts, whole migration acceptance and retirement remain open."
     },
     {
       "id": "US-011",
@@ -96,7 +96,7 @@
       "id": "US-016",
       "title": "Migrate CRM, quotation and commercial document workflows",
       "status": "PARTIAL",
-      "scope": "Native leads, opportunities, proposals, quotation workbench, commercial documents, fee agreements and settings exceed the retired host in several flows. Lead form drafts, lead summary metrics/recorded dates/refresh and the full proposal read-model (owner, author, reviewer, delivery/response timestamps, supersedes, per-revision sent/response) are implemented with local verification. Draft hooks for settings/quotation/documents/fee-agreement forms remain open; final cutover and retirement remain acceptance gates."
+      "scope": "Native leads, opportunities, proposals, quotation workbench, commercial documents, fee agreements and settings exceed the retired host in several flows. Proposal, quotation, document and fee-agreement pre-dispatch drafts now have explicit bounded recovery and combined navigation guard behavior; successful quotation fee changes refresh persisted child state. The focused browser and three affected E2E journeys passed. Durable commercial outcome recovery, final cutover and retirement remain acceptance gates."
     },
     {
       "id": "US-017",
