@@ -13,6 +13,16 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Joined master regression checkpoint
+
+The frozen whole-solution parent completed successfully. Domain, API and browser
+projects all passed without failures or skips; the recorded source/assets/assembly
+manifest matched after completion. Exact source revision and metrics are in
+`status.json`. Later documentation and CI-only changes are separate from that
+application checkpoint. This is local verification, not production or Microsoft
+provider acceptance. Reviewed prospect-conversion drafts have been checked in
+isolated temporary trees and are being integrated next; migration remains partial.
+
 ## Native reviewed staffing and receipt recovery
 
 Angular staffing assignment and revocation now request an exact server preview,
