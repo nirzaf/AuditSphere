@@ -852,3 +852,12 @@ For the complete documentation index, authority hierarchy, current requirements,
 - UI: `features/engagements/planning.ts` and `budget-preparation-contracts.ts` provide exact review, tab references and explicit reconciliation.
 - Persistence: `AuditSphereDbContext.BudgetPreparations.cs` and `NativeBudgetPreparationReview` retain immutable exact publication evidence and rollback fences.
 - Verification: `BudgetPreparationReviewTests`, `BudgetPreparationReviewApiTests`, `AngularBudgetPreparationJourneyTests` and planning component tests.
+
+## Reviewed budget approval receipts
+
+- Domain: `Practice/BudgetApproval.cs` retains immutable actor-owned approval evidence.
+- Application: `Practice/BudgetApprovalWorkspace.cs` owns exact review, guarded approval and receipt lookup; `PracticeTimeService` retains independent approval authority.
+- API: `Ui/UiEndpoints.BudgetApproval.cs` exposes authenticated preview, confirmation and receipt recovery.
+- UI: `features/engagements/planning.ts` and `budget-approval-contracts.ts` bind confirmation and reconcile unknown outcomes without resending writes.
+- Persistence: `AuditSphereDbContext.BudgetApprovals.cs` and the native approval migration enforce append-only evidence and deferred approved-budget linkage.
+- Verification: `BudgetApprovalReviewTests`, `BudgetApprovalReviewApiTests`, `AngularBudgetApprovalJourneyTests` and planning component tests.

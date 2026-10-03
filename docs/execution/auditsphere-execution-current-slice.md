@@ -13,6 +13,28 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Reviewed budget approval and retained recovery
+
+Independent approval now previews exact draft lines, currency, version and client/
+engagement generations. A separate confirmation binds the complete preview to the
+current actor and session. Application execution composes the existing approval
+policy and transaction, retains an immutable actor-owned receipt, and refuses
+self-approval, stale review or changed intent. Unknown writes require explicit
+receipt verification; reload never resends approval. Acknowledgement refreshes the
+current approved projection rather than displaying an old draft as current.
+
+Focused Angular, PostgreSQL, API and browser checks passed, together with Release
+and production UI builds and clean EF model drift. Built-in synthetic browser
+verification covered review, receipt and acknowledgement. Source and assemblies
+remained frozen during checks; all consumer parents joined successfully. Detailed
+counts, logs, source identity and retained earlier build failures are in status.json.
+The new migration was exercised only on owned disposable databases: empty rollback/
+reapply passed and retained evidence correctly prevented rollback.
+
+Staffing/revocation request recovery, client creation, assessment parity, a new
+whole regression and migration quality/cutover/retirement remain open. No shared
+Development migration, live Microsoft or production acceptance is claimed.
+
 ## Planning action-specific authority
 
 The planning projection exposes reviewed budget-preparation authority separately

@@ -917,3 +917,20 @@ flags invalidate the projection. Staffing retains its own permission. Draft
 approval is displayed separately and preserves the existing independent
 Administrator/Partner/Manager service authority and self-approval refusal.
 Staffing permission grants no additional budget-preparation authority.
+
+### Reviewed budget approval recovery
+
+The native approval API previews exact latest draft lines, currency, version and
+client/engagement generations. Separate confirmation binds that preview to the
+current actor/session. Application execution joins the existing independent
+approval service in a guarded transaction and stores an immutable actor-owned
+request receipt. Self-approval and stale scope/session/review are refused.
+
+Angular retains only a bounded request reference in tab storage. Unknown outcomes
+require explicit receipt lookup; reload never automatically retries approval.
+Acknowledgement refreshes current authorized state. Protected preview and receipt
+content clears on context loss. A deferred database guard verifies receipt-to-
+approved-budget linkage and an append-only trigger protects retained evidence.
+The approval migration is a deployment prerequisite; it has only been exercised
+on disposable local test databases. Rollback refuses retained approval evidence.
+Staffing/revocation recovery and wider migration acceptance remain pending.

@@ -4,7 +4,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "1b12ce2f80e8863a579d73a6ce54b36f451bc2f5",
+  "headCommit": "d8bb9fdcde0b9cb78aacb578b0ac17a378548010",
   "verifiedCommit": "6efa46bb6f5f1aa634ecfe1443faa53cc82ecdf6",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": false,
@@ -6239,6 +6239,81 @@
         "reason": "Editor journeys used Administrator-only fixtures. Added explicit scoped Manager authority for editor tests; added separate canonical/preview Administrator-only staffing/approval and preparation-denial journeys."
       },
       "boundary": "No authority widened; reviewed preparation uses existing Partner/Manager policy, approval preserves existing independent Administrator/Partner/Manager policy. Whole regression and migration acceptance remain open."
+    },
+    "angularBudgetApprovalRecovery": {
+      "status": "PASS_FOCUSED_LOCAL",
+      "sourceCommit": "d8bb9fdcde0b9cb78aacb578b0ac17a378548010",
+      "publishedCommit": "d8bb9fdcde0b9cb78aacb578b0ac17a378548010",
+      "remoteHeadVerified": true,
+      "verifiedAt": "2026-10-03T09:14:06.899774+00:00",
+      "angularTests": {
+        "passed": 381,
+        "failed": 0,
+        "skipped": 0,
+        "parentExitCode": 0,
+        "log": "/private/tmp/auditsphere-budget-approval-angular-final.log"
+      },
+      "postgresqlTests": {
+        "passed": 31,
+        "failed": 0,
+        "skipped": 0,
+        "parentExitCode": 0,
+        "log": "/private/tmp/auditsphere-budget-approval-domain-final.log"
+      },
+      "apiTests": {
+        "passed": 2,
+        "failed": 0,
+        "skipped": 0,
+        "parentExitCode": 0,
+        "log": "/private/tmp/auditsphere-budget-approval-api-final.log"
+      },
+      "browserJourneys": {
+        "passed": 12,
+        "failed": 0,
+        "skipped": 0,
+        "parentExitCode": 0,
+        "log": "/private/tmp/auditsphere-budget-approval-e2e-final.log"
+      },
+      "releaseBuild": {
+        "warnings": 0,
+        "errors": 0,
+        "exitCode": 0,
+        "log": "/private/tmp/auditsphere-budget-approval-release-verified.log"
+      },
+      "productionUiBuild": {
+        "exitCode": 0,
+        "log": "/private/tmp/auditsphere-budget-approval-production-final.log"
+      },
+      "efModelDrift": {
+        "pendingChanges": false,
+        "exitCode": 0,
+        "log": "/private/tmp/auditsphere-budget-approval-ef-final.log"
+      },
+      "migration": {
+        "registered": 137,
+        "latest": "20261003084507_NativeBudgetApprovalReview",
+        "boundary": "Applied only to owned disposable databases. Empty rollback/reapply passed; retained evidence refused rollback. No shared Development or production migration applied."
+      },
+      "frozenEvidence": {
+        "manifest": "/private/tmp/auditsphere-budget-approval-final-hashes.json",
+        "paths": 1469,
+        "result": "MATCH"
+      },
+      "builtinBrowser": {
+        "scope": "Synthetic independent approval review, receipt and acknowledgement; hosts/tabs disposed and parents joined zero.",
+        "screenshots": [
+          "/private/tmp/auditsphere-budget-approval-final-receipt.png",
+          "/private/tmp/auditsphere-budget-approved-final.png"
+        ],
+        "consoleWarnings": 0,
+        "consoleErrors": 0
+      },
+      "retainedEarlierBuildFailures": [
+        "/private/tmp/auditsphere-budget-approval-initial-build.log",
+        "/private/tmp/auditsphere-budget-approval-release.log",
+        "/private/tmp/auditsphere-budget-approval-release-final.log"
+      ],
+      "boundary": "Focused local approval evidence only. Earlier whole-suite verifiedCommit remains unchanged; staffing/revocation, client creation, assessment parity, wider regression and migration cutover remain open."
     }
   },
   "documentationWork": {
@@ -6346,7 +6421,7 @@
     "implementationStatus": "PARTIAL",
     "acceptanceStatus": "PARTIAL",
     "scope": "Standalone API and native Angular capability slices preserve Application authorization, exact financial inputs, durable operations and independent human gates. Legacy Blazor remains available for rollback until wider parity and retirement acceptance.",
-    "nextAction": "Complete backend reviewed staffing/revocation and budget-approval request recovery and action-specific authority projection, then client creation and assessment parity. Run a new whole regression for the newer planning source before wider acceptance. Complete migration quality/cutover/retirement gates.",
+    "nextAction": "Complete backend reviewed staffing/revocation request recovery, client creation and assessment source-action parity. Run a new whole regression for newer planning source, then complete migration quality/cutover/retirement gates.",
     "branch": "master"
   },
   "localEvidence": [

@@ -26,7 +26,7 @@
     },
     {
       "path": "src/AuditSphereOps.Ui/src/app/features/engagements/planning.ts",
-      "sha256": "0566cbde5da4d9ae0ab55981023536587af8de17b22999f1aea0685e18a7a8fd"
+      "sha256": "01ffd175de5b3d317a8fd108b6d63183ca68042ceb875802b9d3f507a03e5052"
     },
     {
       "path": "src/AuditSphereOps.Application/Acceptance/EngagementActivationWorkspace.cs",
@@ -86,7 +86,23 @@
     },
     {
       "path": "src/AuditSphereOps.Application/Practice/EngagementPlanningQuery.cs",
-      "sha256": "c4269faf6c49db076914fc8386701b97ef3868d8b3137922bdeae63485c5ff8f"
+      "sha256": "91994d3e52080a358be56465f405954ba0d83df21a72456323ac07de2c3ca719"
+    },
+    {
+      "path": "src/AuditSphereOps.Application/Practice/BudgetApprovalWorkspace.cs",
+      "sha256": "900703f1a00e8200422d263dcacb0ed15eb92828c20166c7388141eecd350dcf"
+    },
+    {
+      "path": "src/AuditSphereOps.Domain/Practice/BudgetApproval.cs",
+      "sha256": "78d543524d7efd3f3eab1b47eb6d6363e9ae96d4f28f5b513feff5cbc4066972"
+    },
+    {
+      "path": "src/AuditSphereOps.Api/Ui/UiEndpoints.BudgetApproval.cs",
+      "sha256": "340e0fa85f3f11687a43fb290b2b8ea61859530adf9ad578828603db048833fe"
+    },
+    {
+      "path": "src/AuditSphereOps.Ui/src/app/features/engagements/budget-approval-contracts.ts",
+      "sha256": "e894d093483e782015cfef9269f7f0a7c31145b737c40431362972f540521d08"
     }
   ],
   "records": [
@@ -108,7 +124,7 @@
     {
       "action": "planning-forms",
       "owner": "EngagementLifecycleService / EngagementPlanningQuery / native planning components",
-      "disposition": "PARTIAL: Editable budget drafts, reviewed budget preparation, Signal Forms for all planning controls and navigation guards are implemented locally. Bounded validation and exact selection/preview/draft-bound assent refuse stale confirmation even before rendering. Explicit select labels exclude option text. Fields lock during unknown writes or budget review; revocation respects the same fence. Immutable budget preparation receipts reconcile unknown/reloaded results without automatic retry. Navigation saves only editable budget fields, preserves same-engagement paging and fences late dialog results. Action-specific preparation authority now composes the existing Partner/Manager policy independently of staffing and approval. Missing flags fail closed; Administrator-only access retains staffing and independent approval without the preparation editor. Staffing/revocation and budget-approval backend request recovery and remaining planning acceptance remain open."
+      "disposition": "PARTIAL: Editable budget drafts, reviewed budget preparation, Signal Forms for all planning controls and navigation guards are implemented locally. Bounded validation and exact selection/preview/draft-bound assent refuse stale confirmation even before rendering. Explicit select labels exclude option text. Fields lock during unknown writes or budget review; revocation respects the same fence. Immutable budget preparation receipts reconcile unknown/reloaded results without automatic retry. Navigation saves only editable budget fields, preserves same-engagement paging and fences late dialog results. Action-specific preparation authority now composes the existing Partner/Manager policy independently of staffing and approval. Missing flags fail closed; Administrator-only access retains staffing and independent approval without the preparation editor. Independent budget approval now previews exact current lines and generations, requires separate confirmation, retains immutable actor-owned receipts and reconciles unknown/reloaded outcomes without automatic retry. Staffing/revocation request recovery and remaining planning acceptance remain open."
     },
     {
       "action": "reviewed-partner-activation",
@@ -121,7 +137,7 @@
       "disposition": "IMPLEMENTED: Exact current client-wide Partner/Manager context, canonical service/profile/period preview and explicit assent. Client-serialized shell creation and immutable actor-owned request evidence commit together; current authority is rechecked and a deferred guard validates the exact blocked publication. Same-intent retries return the original receipt; conflicting or existing service-period intent requires inspection. Native Signal Forms, bounded revision-bound tab drafts without assent, unknown-response fences and actor-owned receipt reconciliation preserve route/session/lifetime ownership. Lost-response browser journeys and focused observed checks are recorded only in status.json. No professional or Microsoft acceptance is implied."
     }
   ],
-  "remaining": "Complete backend reviewed staffing/revocation and budget-approval request recovery and action-specific authority projection, client creation, assessment source-action parity and migration quality/cutover/retirement gates.",
+  "remaining": "Complete backend reviewed staffing/revocation request recovery, client creation and assessment source-action parity. Run a new whole regression for newer planning source, then complete migration quality/cutover/retirement gates.",
   "verificationPointers": [
     "tests/AuditSphereOps.Domain.Tests/EngagementProfileWorkspaceTests.cs",
     "tests/AuditSphereOps.Api.Tests/EngagementProfileWorkspaceApiTests.cs",
