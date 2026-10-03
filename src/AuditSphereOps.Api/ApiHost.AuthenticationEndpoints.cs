@@ -22,6 +22,7 @@ using OpenTelemetry.Trace;
 using Serilog;
 using AuditSphereOps.Api.Authentication;
 using AuditSphereOps.Api.Diagnostics;
+using AuditSphereOps.Api.Ui;
 using AuditSphereOps.Infrastructure.Persistence;
 using AuditSphereOps.Infrastructure.Providers;
 
@@ -87,7 +88,7 @@ public static partial class ApiHost
         if (!http.RequestServices.GetRequiredService<TenantAdministrationSettings>().ConsentEnabled)
           return Results.NotFound();
         var consentPage = !legacyPresentation || configuration.GetValue<bool>("AngularUi:Enabled")
-          ? "/ui/app/administration/microsoft365/tenant-connection" : "/app/administration/microsoft365/tenant-connection";
+          ? AngularRouteOwnership.Destination(configuration, "/app/administration/microsoft365/tenant-connection") : "/app/administration/microsoft365/tenant-connection";
         var query = http.Request.Query;
         if (query["state"].Count != 1 || query["tenant"].Count > 1 ||
             query["admin_consent"].Count > 1 || query["error"].Count > 1)
@@ -129,7 +130,7 @@ public static partial class ApiHost
         IDbContextFactory<AuditSphereDbContext> dbFactory, CancellationToken ct) =>
       {
         if (http.User.Identity?.IsAuthenticated != true)
-          return Results.Redirect(legacyPresentation ? "/app" : "/ui/app");
+          return Results.Redirect(legacyPresentation ? "/app" : AngularRouteOwnership.Destination(app.Configuration, "/app"));
         var subject = http.User.FindFirstValue("oid");
         var tenant = http.User.FindFirstValue("tid");
         if (string.IsNullOrWhiteSpace(subject) || string.IsNullOrWhiteSpace(tenant))
@@ -144,8 +145,8 @@ public static partial class ApiHost
           return Results.Redirect("/auth/access-not-assigned");
         return user.UserKind.Equals("Client", StringComparison.OrdinalIgnoreCase) ||
                actor.Roles.Contains("ClientUser", StringComparer.OrdinalIgnoreCase)
-          ? Results.Redirect(legacyPresentation ? "/portal" : "/ui/portal")
-          : Results.Redirect(legacyPresentation ? "/app" : "/ui/app");
+          ? Results.Redirect(legacyPresentation ? "/portal" : AngularRouteOwnership.Destination(app.Configuration, "/portal"))
+          : Results.Redirect(legacyPresentation ? "/app" : AngularRouteOwnership.Destination(app.Configuration, "/app"));
       });
       app.MapGet("/auth/sign-out", async (HttpContext http) =>
       {
@@ -156,7 +157,7 @@ public static partial class ApiHost
 
     if (!legacyPresentation)
     {
-      app.MapGet("/", () => Results.Redirect("/ui/app"));
+      app.MapGet("/", () => Results.Redirect(AngularRouteOwnership.Destination(app.Configuration, "/app")));
       app.MapGet("/auth/access-not-assigned", (HttpContext http) =>
       {
         http.Response.Headers.CacheControl = "no-store";
@@ -168,6 +169,6 @@ public static partial class ApiHost
     string LocalDestination(string? returnUrl) =>
       !string.IsNullOrWhiteSpace(returnUrl) && returnUrl.StartsWith('/') &&
       !returnUrl.StartsWith("//", StringComparison.Ordinal) && !returnUrl.Contains('\\') && !returnUrl.Any(char.IsControl)
-        ? returnUrl : legacyPresentation ? "/auth/landing" : "/ui/app";
+        ? returnUrl : legacyPresentation ? "/auth/landing" : AngularRouteOwnership.Destination(app.Configuration, "/app");
   }
 }

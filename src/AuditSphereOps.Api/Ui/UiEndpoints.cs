@@ -17,8 +17,11 @@ public static partial class UiEndpoints
   public sealed record BudgetInput(string Currency, string ExpectedVersion, IReadOnlyList<BudgetLineRequest> Lines);
   public sealed record EngagementInput(string ServiceRoute, string PeriodStart, string PeriodEnd, string ServiceProfile);
   public sealed record AcceptanceAnswerInput(string Answer, string? Evidence, string Generation, string Revision);
-  public static void MapUiEndpoints(this WebApplication app)
+  public static void MapUiEndpoints(this WebApplication app, bool legacyPresentation = false)
   {
+    var canonical = AngularRouteOwnership.Canonical(app.Configuration);
+    if (canonical && (legacyPresentation || !app.Configuration.GetValue<bool>("AngularUi:Enabled")))
+      throw new InvalidOperationException("Canonical Angular routes require the standalone API host and enabled Angular assets.");
     if (app.Configuration.GetValue<bool>("AngularUi:Enabled"))
     {
       var published = Path.Combine(app.Environment.ContentRootPath, "ui");
@@ -32,6 +35,22 @@ public static partial class UiEndpoints
         FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(root),
         RequestPath = "/ui"
       });
+      if (app.Configuration["AngularUi:PreviousBuildPath"] is { Length: > 0 } previousBuild)
+      {
+        var previous = Path.GetFullPath(previousBuild);
+        if (previous == root || !File.Exists(Path.Combine(previous, "index.html")))
+          throw new InvalidOperationException("Previous Angular assets require a distinct retained approved build directory.");
+        // Existing tabs may still request old lazy chunks. Serve only fingerprinted assets,
+        // never an old HTML shell, source map or broad application-route fallback.
+        var asset = new System.Text.RegularExpressions.Regex(@"^[A-Za-z0-9_-]+-[A-Za-z0-9_-]{8,}\.(js|css|woff2?|svg|png|webp)$",
+          System.Text.RegularExpressions.RegexOptions.CultureInvariant | System.Text.RegularExpressions.RegexOptions.NonBacktracking);
+        app.UseWhen(http => http.Request.Path.StartsWithSegments("/ui", out var rest) &&
+          asset.IsMatch(Path.GetFileName(rest.Value ?? "")), branch => branch.UseStaticFiles(new StaticFileOptions
+          {
+            FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(previous),
+            RequestPath = "/ui"
+          }));
+      }
       // Explicit Angular-owned routes only: /auth, /api, /health and unmigrated Blazor routes never fall back to the SPA.
       foreach (var route in SpaRoutes)
         app.MapGet(route, (HttpContext http) =>
@@ -39,6 +58,22 @@ public static partial class UiEndpoints
           http.Response.Headers.CacheControl = "no-store";
           return Results.File(Path.Combine(root, "index.html"), "text/html");
         });
+      if (canonical)
+      {
+        var index = File.ReadAllText(Path.Combine(root, "index.html"));
+        const string previewBase = "<base href=\"/ui/\">";
+        if (!index.Contains(previewBase, StringComparison.Ordinal) ||
+            index.IndexOf(previewBase, StringComparison.Ordinal) != index.LastIndexOf(previewBase, StringComparison.Ordinal) ||
+            !index.Contains("src=\"/ui/", StringComparison.Ordinal) || !index.Contains("href=\"/ui/styles-", StringComparison.Ordinal))
+          throw new InvalidOperationException("Canonical routes require the approved Angular build with preview base and /ui asset URLs.");
+        var canonicalIndex = index.Replace(previewBase, "<base href=\"/\">", StringComparison.Ordinal);
+        foreach (var route in SpaRoutes.Where(x => x.StartsWith("/ui/", StringComparison.Ordinal) && x != "/ui/").Select(x => x[3..]))
+          app.MapGet(route, (HttpContext http) =>
+          {
+            http.Response.Headers.CacheControl = "no-store";
+            return Results.Content(canonicalIndex, "text/html; charset=utf-8");
+          });
+      }
     }
     var group = app.MapGroup("/api/ui");
     MapAcceptanceCommands(group);

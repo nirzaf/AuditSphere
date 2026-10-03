@@ -135,7 +135,7 @@ public static class TenantAdministrationComposition
   {
     var settings = app.Services.GetRequiredService<TenantAdministrationSettings>();
     var page = nativeUi || app.Configuration.GetValue<bool>("AngularUi:Enabled")
-      ? "/ui/app/administration/microsoft365/tenant-connection" : "/app/administration/microsoft365/tenant-connection";
+      ? AuditSphereOps.Api.Ui.AngularRouteOwnership.Destination(app.Configuration, "/app/administration/microsoft365/tenant-connection") : "/app/administration/microsoft365/tenant-connection";
 
     app.MapGet("/auth/m365-consent/identity-callback", async (HttpContext http, TrustedActorResolver actorResolver,
       IDbContextFactory<AuditSphereDbContext> dbFactory, IMicrosoftTenantConsentVerifier verifier, CancellationToken ct) =>

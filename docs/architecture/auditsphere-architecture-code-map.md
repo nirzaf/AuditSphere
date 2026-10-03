@@ -702,6 +702,7 @@ For the complete documentation index, authority hierarchy, current requirements,
 - Application: `Practice/PortfolioQuery.cs` (bounded current-grant client projection).
 - API host: `src/AuditSphereOps.Api/ApiHost.{Authentication,AuthenticationEndpoints,DocumentEndpoints,Persistence,Providers,Health,Observability}.cs`; `Authentication/TrustedActorResolver.cs`, consent composition and production Data Protection.
 - HTTP contracts: `src/AuditSphereOps.Api/Ui/UiEndpoints.*.cs` (trusted session, CSRF-protected commands, exact financial strings and explicit SPA routes).
+- Route cutover: `Api/Ui/AngularRouteOwnership.cs`, `UiEndpoints.cs`, authentication/setup/consent composition and Angular `core/navigation.ts` preserve deployment-owned canonical or preview bases and optional retained fingerprinted assets; `CanonicalAngularHostTests`, `AngularNavigationJourneyTests` and `AngularPortfolioJourneyTests` cover local ownership, rollback and protected session boundaries.
 - Legacy Web: `Program.cs` supplies Razor/MudBlazor presentation to the shared API host; `Authentication/CurrentActorResolver.cs` supplies circuit resolution.
 - Client portal queries: `Application/Documents/ClientPortalWorkspaceQuery.cs`, `ClientPortalReviewQuery.cs`, `ClientPortalReviewCommands.cs`.
 - Administration: `Application/Microsoft365/TenantAdministrationWorkspaceQuery.cs`, existing tenant/directory providers, and `Security/RoleAssignmentReviewDigest.cs` for current-access review fencing.

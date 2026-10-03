@@ -45,7 +45,7 @@ public static partial class ApiHost
     MapAuthenticationEndpoints(app, identity, legacyPresentation);
     MapDocumentEndpoints(app);
     MapInstallationEndpoints(app);
-    app.MapUiEndpoints();
+    app.MapUiEndpoints(legacyPresentation);
     mapPresentation?.Invoke(app);
     return app;
   }

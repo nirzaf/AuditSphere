@@ -74,6 +74,30 @@ dotnet publish src/AuditSphereOps.Api -c Release -o artifacts/api
 
 The API publish target bundles the Angular browser artifacts into `ui/`. Missing browser output fails publication. `AngularUi:BuildPath` can select another approved build directory at runtime. A deliberate backend-only publication uses `-p:PublishAngularUi=false` and requires `AngularUi:Enabled=false` or separately deployed artifacts. Do not expose a blanket SPA fallback, permissive CORS, or browser-held Microsoft bearer tokens.
 
+### Controlled canonical routes
+
+`AngularUi:CanonicalRoutes` defaults to false. After the route family meets its
+acceptance gates, an operator may enable it on the standalone API host. The exact
+native catalogue then also serves `/app`, `/portal` and `/setup/microsoft365`.
+The existing `/ui` preview URLs remain usable, and both modes load the same
+fingerprinted assets from `/ui/`. Sign-in and consent destinations follow the
+configured mode. The Web rollback host rejects this setting; keep it false there.
+
+To rehearse a local rollback, disable `AngularUi:CanonicalRoutes` and restart the
+API with the same approved build/private configuration. Canonical application
+routes become unavailable and `/ui/app` remains the preview. The separately hosted
+legacy Web presentation remains available at its own `/app` and `/portal` URLs.
+Do not start a second database writer or loosen authorization for rollback.
+
+Before replacing a build, retain its complete browser artifact directory separately.
+`AngularUi:PreviousBuildPath` may point to that distinct approved directory for the
+operator-approved compatibility/rollback window. Current assets take precedence;
+only missing fingerprinted scripts, styles and media fall back to retained assets.
+Old HTML, source maps and unhashed files are excluded. Verify old-tab lazy navigation
+and current API compatibility before deployment. Remove the retention setting and
+directory only after the approved window. Local tests do not establish production
+canary or owner acceptance.
+
 ## Legacy rollback preview
 
 From the repository root, keep the usual approved private database/identity configuration and run:

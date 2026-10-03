@@ -4772,14 +4772,89 @@
       "fingerprintsPath": "/private/tmp/auditsphere-valuation-preparation-extra-tests-hashes.json",
       "fingerprintsUnchanged": true,
       "publication": {
-        "status": "READY_FOR_PUSH",
-        "branch": "master"
+        "status": "PUSHED",
+        "branch": "master",
+        "commit": "66ba91bae411b32c7647cd479c60756304dbc2ab",
+        "remoteHeadConfirmed": true,
+        "secretScanLog": "/private/tmp/auditsphere-valuation-preparation-secret-staged.log",
+        "secretScanExitCode": 0
       },
       "remaining": [
         "New reconciliation, specialist and analytical preparation/revision forms",
         "Whole story/source-action acceptance, quality gates, controlled cutover and Blazor retirement"
       ],
       "evidenceBoundary": "Local synthetic acceptance only. No autonomous opinion, source/client-book posting, Microsoft permission/effect, shared/production migration or Wiki publication. No full solution pass for this newer preparation source; earlier pinned full-solution checkpoint remains separate. Whole migration remains PARTIAL."
+    },
+    "angularCanonicalRoutes": {
+      "status": "IMPLEMENTED_LOCALLY_VERIFIED_TARGETED",
+      "sourceBaseCommit": "66ba91bae411b32c7647cd479c60756304dbc2ab",
+      "observedAt": "2026-10-03T03:19:45Z",
+      "scope": "Optional standalone API ownership of exact native /app, /portal and setup routes; correct authenticated/initial-admin/consent destinations; separate /ui asset URLs and preview rollback; retained previous fingerprinted assets for existing tabs.",
+      "build": {
+        "status": "PASS",
+        "exitCode": 0,
+        "warnings": 0,
+        "errors": 0,
+        "log": "/private/tmp/auditsphere-canonical-combined-build-final.log",
+        "angularLog": "/private/tmp/auditsphere-canonical-combined-angular-build.log"
+      },
+      "angular": {
+        "status": "PASS",
+        "passed": 302,
+        "failed": 0,
+        "skipped": 0,
+        "files": 70,
+        "exitCode": 0,
+        "log": "/private/tmp/auditsphere-canonical-combined-angular-tests.log"
+      },
+      "api": {
+        "status": "PASS",
+        "passed": 18,
+        "failed": 0,
+        "skipped": 0,
+        "exitCode": 0,
+        "log": "/private/tmp/auditsphere-canonical-combined-api.log",
+        "scope": "Canonical route/asset/startup ownership, separate API/auth/health, CSRF, preview rollback, route contract, standalone host, initial bootstrap and affected valuation/evidence actions."
+      },
+      "browser": {
+        "status": "PASS",
+        "passed": 7,
+        "failed": 0,
+        "skipped": 0,
+        "exitCode": 0,
+        "log": "/private/tmp/auditsphere-canonical-combined-browser.log",
+        "scope": "Both preview and canonical navigation/portfolio journeys with search, exact PBC deep links/reload, mobile, scope/epoch clearing and restricted portal; affected valuation, evidence action and analysis journeys."
+      },
+      "modelDrift": {
+        "status": "PASS",
+        "exitCode": 0,
+        "log": "/private/tmp/auditsphere-canonical-combined-model.log"
+      },
+      "builtInBrowser": {
+        "status": "PASS",
+        "screenshots": [
+          "/private/tmp/auditsphere-angular-retained-tab.png",
+          "/private/tmp/auditsphere-angular-canonical-staff.png",
+          "/private/tmp/auditsphere-angular-canonical-client.png",
+          "/private/tmp/auditsphere-angular-canonical-client-mobile.png"
+        ],
+        "manifest": "/private/tmp/auditsphere-canonical-two-build-manifest.json",
+        "oldBuildCommit": "88daa12a1273ba377ad6994ccdff0ba425d88664",
+        "distinctBuilds": true,
+        "forcedRetainedSharedChunks": 20,
+        "boundary": "Owned synthetic PostgreSQL/Release API with external effects disabled. Open Build A tab survived same-origin API restart to Build B; previously unloaded analytics route rendered its expected typed scope denial, portfolio remained visible. Client-wide profile remained denied for engagement-scoped staff. Fresh canonical /app reload and restricted /portal succeeded. Client mobile content375 within390. No console warnings/errors. Tabs closed, viewport reset, owned preview/hosts/database disposed exit0."
+      },
+      "fingerprintsPath": "/private/tmp/auditsphere-canonical-combined-final-hashes.json",
+      "fingerprintsUnchanged": true,
+      "publication": {
+        "status": "READY_FOR_PUSH",
+        "branch": "master"
+      },
+      "remaining": [
+        "Whole source-action and story acceptance",
+        "Broader migration quality gates, approved deployment cutover and Blazor retirement"
+      ],
+      "evidenceBoundary": "Canonical routes remain off by default. Local controlled cutover/rollback rehearsal only; no shared/production deployment, tenant effect, permission change or Wiki publication. Earlier pinned whole-solution acceptance remains separate; full migration PARTIAL."
     }
   },
   "documentationWork": {

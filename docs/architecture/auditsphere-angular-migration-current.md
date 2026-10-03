@@ -27,6 +27,31 @@ Same-origin delivery remains the supported production boundary: build Angular se
 
 Build, preview and test commands are in the [Angular development guide](../../src/AuditSphereOps.Ui/auditsphere-angular-development.md).
 
+### Controlled canonical route ownership and retained assets
+
+The standalone API supports deployment-owned `AngularUi:CanonicalRoutes`, off by
+default while parity acceptance continues. When enabled, the exact native catalogue
+also owns `/app`, `/portal` and `/setup` destinations with a root router base.
+Preview routes remain available under `/ui` for existing tabs. API, auth, health,
+protected file paths and unknown destinations never receive an HTML fallback.
+The legacy Web rollback host refuses canonical ownership to prevent route collisions.
+Disabled Angular serving or an incompatible build also fails startup.
+
+One production build uses `/ui/` for fingerprinted script/style asset URLs in both
+route modes. Router links, search, deep-link sign-in, first-administrator setup and
+consent return destinations follow the host-selected base. This uses the supported
+[Angular base-href](https://angular.dev/api/common/APP_BASE_HREF) and
+[deployment resource URL](https://angular.dev/cli/build) contracts without changing
+server authentication, CSRF, session epochs or local scope authority.
+
+An optional `AngularUi:PreviousBuildPath` selects a distinct retained approved build.
+The current assets are served first; old fingerprinted scripts, styles and media
+may resolve from that directory when an existing tab requests them. Old HTML,
+source maps and unhashed files are excluded from the fallback. The deployment
+operator must confirm API compatibility and retain the previous build for the
+approved rollback window. No older API/database writer is started by this option.
+Local mode/asset checks do not establish production rollout or final retirement.
+
 ## Read contract
 
 `GET /api/ui/portfolio?search=<client-name-or-id>&page=0&pageSize=25`

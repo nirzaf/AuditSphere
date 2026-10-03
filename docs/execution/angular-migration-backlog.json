@@ -30,7 +30,7 @@
       "id": "US-005",
       "title": "Build task-focused shells and preserve deep links",
       "status": "PARTIAL",
-      "scope": "Native staff/client shells, explicit lazy routes and independently served API deep links exist. Catalogue drift and legacy-link guards are implemented; complete context, dirty-edit, back/forward and drawer acceptance remains open."
+      "scope": "Native staff/client shells and exact lazy-route catalogue support both preview URLs and deployment-owned canonical /app, /portal and /setup URLs. Host-selected bases preserve router/search/sign-in/consent context, API/auth/health exclusion and direct-link reload. Complete context, dirty-edit, back/forward, drawer and migration acceptance remain open."
     },
     {
       "id": "US-006",
@@ -270,7 +270,7 @@
       "id": "US-045",
       "title": "Deploy with explicit route ownership and reversible cutover",
       "status": "PARTIAL",
-      "scope": "Independent API publication bundles Angular browser assets; auth/API/health routing remains explicit and Web rollback remains available. Production-like canary, previous-asset retention and final cutover acceptance remain open."
+      "scope": "Independent API publication bundles Angular assets. Controlled standalone canonical ownership, startup guards, explicit local mode rollback and retained previous fingerprinted assets are implemented; preview URLs remain compatible and Web rollback stays separate. Local API/browser and two-build evidence is recorded in status.json. Production-like deployment canary and final cutover/retirement acceptance remain open."
     },
     {
       "id": "US-046",

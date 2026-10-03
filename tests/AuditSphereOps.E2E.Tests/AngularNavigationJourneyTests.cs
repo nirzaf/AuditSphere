@@ -6,9 +6,11 @@ namespace AuditSphereOps.E2E.Tests;
 
 public sealed class AngularNavigationJourneyTests
 {
-  [Fact]
+  [Theory]
+  [InlineData(false)]
+  [InlineData(true)]
   [Trait("CaseId", "ANGULAR-API-NAVIGATION-E2E")]
-  public async Task AuthorizedSearch_OpensNativeRoutes_AndSkipLinkPreservesContext()
+  public async Task AuthorizedSearch_OpensNativeRoutes_AndSkipLinkPreservesContext(bool canonical)
   {
     await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "ANGULAR-API-NAVIGATION-E2E");
     var f = host.Fixture;
@@ -20,18 +22,19 @@ public sealed class AngularNavigationJourneyTests
             f.Client.Id, f.Staff.Id, f.Reviewer.Id, "2027-01-31", "Confidential", "Complete readable documents"));
         Assert.True(result.Succeeded, result.Message);
       }
-    var origin = await host.StartApiForIdentityAsync(f.Staff, new Dictionary<string, string> { ["AngularUi__Enabled"] = "true" });
+    var prefix=canonical?"":"/ui";
+    var origin = await host.StartApiForIdentityAsync(f.Staff, new Dictionary<string, string> { ["AngularUi__Enabled"] = "true", ["AngularUi__CanonicalRoutes"] = canonical.ToString() });
     using var playwright = await Playwright.CreateAsync(); await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
     await using var context = await browser.NewContextAsync(); var page = await context.NewPageAsync();
     var errors = new List<string>(); page.PageError += (_, error) => errors.Add(error);
-    await page.GotoAsync(origin + "/auth/sign-in?returnUrl=%2Fui%2Fapp");
+    await page.GotoAsync(origin + "/auth/sign-in?returnUrl="+Uri.EscapeDataString(prefix+"/app"));
     await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Portfolio", Exact = true })).ToBeVisibleAsync();
-    Assert.Equal(0, await page.Locator("aside a[href='/app'],aside a[href='/portal']").CountAsync());
+    Assert.Equal(0, await page.Locator(canonical ? "aside a[href='/ui/app'],aside a[href='/ui/portal']" : "aside a[href='/app'],aside a[href='/portal']").CountAsync());
     var search = page.Locator("audit-global-search");
     await search.GetByRole(AriaRole.Combobox, new() { Name = "Search your workspace", Exact = true }).FillAsync("Navigation bank");
     await Assertions.Expect(search.Locator("li")).ToHaveCountAsync(2);
     var link = search.GetByRole(AriaRole.Link, new() { Name = "Navigation bank statements", Exact = true });
-    Assert.Equal($"/ui/app/engagements/{f.EngagementId}/pbc", await link.GetAttributeAsync("href"));
+    Assert.Equal($"{prefix}/app/engagements/{f.EngagementId}/pbc", await link.GetAttributeAsync("href"));
     await link.ClickAsync();
     await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Prepared-by-client requests", Exact = true })).ToBeVisibleAsync();
     await Assertions.Expect(page.Locator("audit-pbc-inbox")).ToContainTextAsync("Navigation bank reconciliation");

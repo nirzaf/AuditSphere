@@ -8,6 +8,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { GlobalSearch } from './features/search/search';
 import { SessionService } from './core/session';
 import { Drafts } from './core/drafts';
+import { presentationBase, workspaceSignInHref } from './core/navigation';
 @Component({
   selector: 'app-root',
   imports: [GlobalSearch, RouterOutlet, RouterLink, RouterLinkActive, MatToolbarModule, MatButtonModule],
@@ -21,8 +22,7 @@ export class App {
   readonly session = inject(SessionService);
   private readonly drafts = inject(Drafts);
   readonly nav = NAVIGATION;
-  readonly signInHref = '/auth/sign-in?returnUrl=' + encodeURIComponent(
-    location.pathname.startsWith('/ui/portal') || location.pathname.startsWith('/ui/app') || location.pathname === '/ui/setup/microsoft365' ? location.pathname + location.search : '/ui/app');
+  readonly signInHref = workspaceSignInHref(location.pathname, location.search, presentationBase());
   readonly signOutFailure = signal('');
   skipToMain(event: Event): void {
     event.preventDefault();

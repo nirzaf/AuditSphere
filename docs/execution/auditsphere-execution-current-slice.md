@@ -13,6 +13,26 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Controlled Angular route ownership and upgrade rehearsal
+
+The standalone API can explicitly serve the native Angular catalogue at canonical
+staff, portal and setup routes. Authentication, initial-admin bootstrap and consent
+returns follow the selected presentation ownership. Assets keep their separate
+`/ui` URLs; API/auth/health and unknown routes never receive an Angular fallback.
+Canonical ownership is opt-in and rejects incompatible assets or the rollback host.
+
+A retained approved previous build can serve fingerprinted assets for existing tabs;
+old HTML, source maps and unhashed files are excluded. A built-in browser rehearsal
+used distinct actual builds, an open tab across a same-origin API restart, retained
+lazy chunks, fresh canonical reload and the restricted client portal. Exact scope
+denials stayed enforced. Mobile content fit the viewport. The temporary hosts,
+synthetic database and tabs were disposed, and frozen source/assets/assemblies match.
+
+Release, Angular, targeted API/browser and model checks passed; evidence is recorded
+in `status.json`. Canonical routes remain off by default. Full story/source-action
+acceptance, broader quality gates, production cutover and Blazor retirement remain
+open. Deployment guidance is updated locally; no Wiki publication occurred.
+
 ## Native source-bound valuation preparation
 
 The exact reconciliation inspection now links native ECL and inventory preparation.
