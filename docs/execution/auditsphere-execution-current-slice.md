@@ -13,6 +13,22 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Angular commercial settings draft recovery
+
+Firm letterhead and approval-rule edits now have explicit bounded tab drafts,
+identity/session and profile-version/rules-fingerprint binding, fresh authorized
+recovery, unsaved-navigation protection and unload warnings. Drafts exclude
+profile revision and review assent; recovered fields use the currently loaded
+version. Editing fields invalidates their review confirmation. Saving one form
+retains unsubmitted edits in the other form.
+
+The Angular suite, isolated build and built-in synthetic browser journey passed;
+results are in status.json. This closes pre-dispatch settings recovery only.
+Quotation/document/fee-agreement drafts and durable commercial command recovery
+remain open. The running regression retains its captured executable/UI assets;
+these later settings changes are verified separately, and source guards may read
+the current working tree.
+
 ## Angular firm safety and runtime parity
 
 Administration now includes the persisted firm safety mode and exact deployment

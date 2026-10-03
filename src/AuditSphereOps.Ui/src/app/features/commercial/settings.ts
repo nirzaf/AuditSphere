@@ -4,7 +4,10 @@ import { RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
-import { Subscription, timeout } from 'rxjs';
+import { MatDialog } from '@angular/material/dialog';
+import { TabDrafts, DraftScope } from '../../core/tab-drafts';
+import { UnsavedChangesDialog } from '../../core/unsaved-changes';
+import { firstValueFrom, Subscription, timeout } from 'rxjs';
 import { SessionService } from '../../core/session';
 import { exactDecimal, guidPattern } from '../../core/contracts';
 interface Profile {
@@ -84,6 +87,28 @@ export function decodeSettings(value: unknown): Workspace {
       throw new Error('Invalid rule');
   return v as unknown as Workspace;
 }
+export interface SettingsDraft {
+  profile: Omit<Profile, 'version'>;
+  kind: string;
+  threshold: string;
+  role: string;
+}
+export function settingsDraft(value: unknown): SettingsDraft | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const v = value as Record<string, unknown>, p = v['profile'];
+  if (!p || typeof p !== 'object' || Array.isArray(p)) return null;
+  const fields = p as Record<string, unknown>;
+  const limits = {legalName:200,address:500,email:200,phone:60,accent:7,closing:4000,history:16000,credentials:16000,methodology:16000};
+  const clean: Record<string,string> = {};
+  for (const [key, limit] of Object.entries(limits)) {
+    if (typeof fields[key] !== 'string' || fields[key].length > limit) return null;
+    clean[key] = fields[key];
+  }
+  if (typeof v['kind'] !== 'string' || !['DISCOUNT_OVER_PERCENT','NON_STANDARD_TERMS'].includes(v['kind']) ||
+      typeof v['threshold'] !== 'string' || v['threshold'].length > 40 ||
+      typeof v['role'] !== 'string' || v['role'].length > 100) return null;
+  return {profile:clean as unknown as SettingsDraft['profile'],kind:v['kind'],threshold:v['threshold'],role:v['role']};
+}
 const blank = (): Profile => ({
   version: '0',
   legalName: '',
@@ -108,12 +133,17 @@ const blank = (): Profile => ({
     @if (error()) {
       <p role="alert">{{ error() }}</p>
     }
-    <button matButton [disabled]="busy()" (click)="load()">Refresh settings</button>
+    <button matButton [disabled]="busy()" (click)="refresh()">Refresh settings</button>
     @if (data(); as w) {
       @if (!w.canEdit) {
         <p>
           Settings are read-only. A current firm-wide Administrator or Partner is required to edit.
         </p>
+      }
+      @if(w.canEdit) {
+        <p>Unsubmitted drafts stay in this tab for up to four hours and require the same identity and current settings revision. Review confirmations are never saved.</p>
+        <button matButton [disabled]="busy() || uncertain() || !draftScope()" (click)="saveTabDraft()">Save settings tab draft</button>
+        <button matButton [disabled]="busy() || uncertain() || !draftScope()" (click)="recoverTabDraft()">Recover settings tab draft</button>
       }
       <h2>Firm letterhead</h2>
       <p>
@@ -126,14 +156,14 @@ const blank = (): Profile => ({
           <label
             >Legal name<input
               name="legalName"
-              [(ngModel)]="profile.legalName"
+              [(ngModel)]="profile.legalName" (ngModelChange)="reviewed = false"
               required
               maxlength="200"
           /></label>
           <label
             >Address<textarea
               name="address"
-              [(ngModel)]="profile.address"
+              [(ngModel)]="profile.address" (ngModelChange)="reviewed = false"
               maxlength="500"
             ></textarea>
           </label>
@@ -141,44 +171,44 @@ const blank = (): Profile => ({
             >Contact email<input
               name="email"
               type="email"
-              [(ngModel)]="profile.email"
+              [(ngModel)]="profile.email" (ngModelChange)="reviewed = false"
               maxlength="200"
           /></label>
           <label
-            >Contact phone<input name="phone" [(ngModel)]="profile.phone" maxlength="60"
+            >Contact phone<input name="phone" [(ngModel)]="profile.phone" (ngModelChange)="reviewed = false" maxlength="60"
           /></label>
           <label
             >Accent colour (#RRGGBB)<input
               name="accent"
-              [(ngModel)]="profile.accent"
+              [(ngModel)]="profile.accent" (ngModelChange)="reviewed = false"
               required
               maxlength="7"
           /></label>
           <label
             >Closing text<textarea
               name="closing"
-              [(ngModel)]="profile.closing"
+              [(ngModel)]="profile.closing" (ngModelChange)="reviewed = false"
               maxlength="4000"
             ></textarea>
           </label>
           <label
             >Approved firm history and commercial registrations<textarea
               name="history"
-              [(ngModel)]="profile.history"
+              [(ngModel)]="profile.history" (ngModelChange)="reviewed = false"
               maxlength="16000"
             ></textarea>
           </label>
           <label
             >Approved industry credentials and portfolio evidence<textarea
               name="credentials"
-              [(ngModel)]="profile.credentials"
+              [(ngModel)]="profile.credentials" (ngModelChange)="reviewed = false"
               maxlength="16000"
             ></textarea>
           </label>
           <label
             >Approved audit methodology overview<textarea
               name="methodology"
-              [(ngModel)]="profile.methodology"
+              [(ngModel)]="profile.methodology" (ngModelChange)="reviewed = false"
               maxlength="16000"
             ></textarea>
           </label>
@@ -242,18 +272,18 @@ const blank = (): Profile => ({
           <fieldset [disabled]="busy() || uncertain()">
             <legend>Add or change approval rule</legend>
             <label
-              >Rule<select name="kind" [(ngModel)]="kind">
+              >Rule<select name="kind" [(ngModel)]="kind" (ngModelChange)="ruleReviewed = false">
                 <option value="DISCOUNT_OVER_PERCENT">Discount over threshold</option>
                 <option value="NON_STANDARD_TERMS">Non-standard terms</option>
               </select></label
             >
             @if (kind === 'DISCOUNT_OVER_PERCENT') {
               <label
-                >Threshold %<input name="threshold" [(ngModel)]="threshold" inputmode="decimal"
+                >Threshold %<input name="threshold" [(ngModel)]="threshold" (ngModelChange)="ruleReviewed = false" inputmode="decimal"
               /></label>
             }
             <label
-              >Required approver role<select name="role" [(ngModel)]="role">
+              >Required approver role<select name="role" [(ngModel)]="role" (ngModelChange)="ruleReviewed = false">
                 @for (r of w.approverRoles; track r) {
                   <option [value]="r">{{ r }}</option>
                 }
@@ -291,6 +321,47 @@ const blank = (): Profile => ({
 export class CommercialSettings {
   private readonly http = inject(HttpClient);
   private readonly session = inject(SessionService);
+  private readonly drafts = inject(TabDrafts);
+  private readonly dialog = inject(MatDialog);
+  readonly draftScope = signal<DraftScope | null>(null);
+  private baseline = '';
+  private readVersion = 0;
+  private fieldsDraft(): SettingsDraft {
+    const {version: _version, ...profile} = this.profile;
+    return {profile,kind:this.kind,threshold:this.threshold,role:this.role};
+  }
+  dirty(): boolean { return !!this.baseline && JSON.stringify(this.fieldsDraft()) !== this.baseline; }
+  saveTabDraft(): boolean {
+    const scope=this.draftScope();
+    if(!scope || !this.data()?.canEdit || this.busy() || this.uncertain()) return false;
+    const saved=this.drafts.save(scope,this.fieldsDraft(),settingsDraft);
+    this.message.set(saved ? 'Unsubmitted settings tab draft saved without review confirmation.' : 'Tab draft storage is unavailable. Keep this page open to retain edits.');
+    return saved;
+  }
+  recoverTabDraft(): void {
+    const scope=this.draftScope(),w=this.data();if(!scope || !w?.canEdit || this.busy() || this.uncertain()) return;
+    const recovered=this.drafts.read(scope,settingsDraft);
+    if(recovered.state !== 'ready' || recovered.draft.submissionPending) {this.message.set('No compatible unsubmitted settings draft is available.');return;}
+    const d=recovered.draft.value;
+    if(!w.approverRoles.includes(d.role)) {this.message.set('The saved approver role is no longer available. Review current settings.');return;}
+    this.profile={...d.profile,version:w.profile?.version ?? '0'};this.kind=d.kind;this.threshold=d.threshold;this.role=d.role;
+    this.reviewed=this.ruleReviewed=false;this.deactivation.set(null);this.message.set('Draft fields recovered. Review the exact changes before submitting.');
+  }
+  async confirmNavigation(): Promise<boolean> {
+    if(this.busy() || this.uncertain()) return false;
+    if(!this.dirty()) return true;
+    const fence=this.fence;
+    const choice=await firstValueFrom(this.dialog.open(UnsavedChangesDialog).afterClosed());
+    if(fence!==this.fence)return true;
+    if(choice==='save') return this.saveTabDraft();
+    if(choice==='discard') {const scope=this.draftScope();return !scope || this.drafts.clear(scope.entity);}
+    return false;
+  }
+  async refresh(): Promise<void> {
+    if(this.busy()) return;
+    // Unknown outcomes must be read before acknowledgment; never automatically resubmit.
+    if(this.uncertain() || await this.confirmNavigation()) this.load();
+  }
   private read?: Subscription;
   private write?: Subscription;
   private fence = 0;
@@ -313,6 +384,7 @@ export class CommercialSettings {
       const staff = this.session.current()?.staff;
       untracked(() => {
         this.fence++;
+        ++this.readVersion;this.baseline='';this.draftScope.set(null);
         this.read?.unsubscribe();
         this.write?.unsubscribe();
         this.data.set(null);
@@ -328,7 +400,10 @@ export class CommercialSettings {
         if (staff) this.load();
       });
     });
+    const unload=(event:BeforeUnloadEvent)=>{if(this.dirty() || this.busy() || this.uncertain()){event.preventDefault();event.returnValue='';}};
+    window.addEventListener('beforeunload',unload);
     inject(DestroyRef).onDestroy(() => {
+      window.removeEventListener('beforeunload',unload);++this.readVersion;
       this.fence++;
       this.read?.unsubscribe();
       this.write?.unsubscribe();
@@ -392,7 +467,8 @@ export class CommercialSettings {
           this.message.set(
             'Settings recorded. Existing documents and quotation approvals retain their original identities.',
           );
-          this.load();
+          const scope=this.draftScope();if(scope)this.drafts.clear(scope.entity);
+          this.load(path === '/profile' ? 'rule' : 'profile');
         },
         error: (failure) => {
           if (fence !== this.fence) return;
@@ -409,7 +485,10 @@ export class CommercialSettings {
         },
       });
   }
-  load(): void {
+  load(preserve?: 'profile' | 'rule'): void {
+    const previous=this.fieldsDraft();
+    const previousBase=this.baseline ? settingsDraft(JSON.parse(this.baseline)) : null;
+    const readVersion=++this.readVersion;this.draftScope.set(null);
     this.read?.unsubscribe();
     this.data.set(null);
     this.error.set('');
@@ -427,7 +506,22 @@ export class CommercialSettings {
           try {
             const w = decodeSettings(value);
             this.data.set(w);
-            this.profile = w.profile ? { ...w.profile } : blank();
+            const persisted=w.profile ? { ...w.profile } : blank();
+            this.profile=preserve === 'profile' ? {...previous.profile,version:persisted.version} : persisted;
+            this.kind=preserve === 'rule' ? previous.kind : 'DISCOUNT_OVER_PERCENT';
+            this.threshold=preserve === 'rule' ? previous.threshold : w.defaultDiscountThreshold;
+            this.role=preserve === 'rule' ? previous.role : w.defaultRole;
+            const {version:_version,...baseProfile}=persisted;
+            this.baseline=JSON.stringify({profile:baseProfile,
+              kind:preserve === 'rule' ? previousBase?.kind ?? 'DISCOUNT_OVER_PERCENT' : this.kind,
+              threshold:preserve === 'rule' ? previousBase?.threshold ?? w.defaultDiscountThreshold : this.threshold,
+              role:preserve === 'rule' ? previousBase?.role ?? w.defaultRole : this.role});
+            const generation=this.session.invalidation();
+            void crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify([w.profile?.version ?? '0',w.rulesRevision]))).then(bytes=>{
+              if(readVersion!==this.readVersion || fence!==this.fence || generation!==this.session.invalidation())return;
+              const baseRevision=Array.from(new Uint8Array(bytes),x=>x.toString(16).padStart(2,'0')).join('');
+              this.draftScope.set({entity:'commercial-settings',baseRevision});
+            });
           } catch {
             this.error.set('Unsupported settings response.');
           }

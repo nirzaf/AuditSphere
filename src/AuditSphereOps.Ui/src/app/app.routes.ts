@@ -149,6 +149,7 @@ export const routes: Routes = [
   {
     path: 'app/practice/commercial-settings',
     canActivate: [staffGuard],
+    canDeactivate: [unsavedChangesGuard],
     title: 'Commercial settings · AuditSphere',
     loadComponent: () => import('./features/commercial/settings').then((m) => m.CommercialSettings),
   },

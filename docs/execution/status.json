@@ -6893,7 +6893,24 @@
       "log": "/private/tmp/auditsphere-angular-fresh-regression.log",
       "exitRecord": "/private/tmp/auditsphere-angular-fresh-regression.exit",
       "artifactManifest": "/private/tmp/auditsphere-angular-fresh-regression-manifest.json",
-      "boundary": "Fresh source/UI/test artifacts captured after successful Release/Angular builds and EF drift check. Terminal result and unchanged-artifact audit required before regression acceptance."
+      "boundary": "Fresh source/UI/test artifacts captured after successful Release/Angular builds and EF drift check. Terminal result and unchanged-artifact audit required before regression acceptance.",
+      "workingTreeBoundary": "Later commercial settings source and unit tests are separate from captured binaries/UI assets; static source guards may inspect the working tree. Terminal result and unchanged artifact check remain required."
+    },
+    "angularCommercialSettingsDrafts": {
+      "status": "FOCUSED_LOCAL_VERIFIED",
+      "observedAt": "2026-10-03T16:13:34.145879+00:00",
+      "angularTests": {
+        "passed": 439,
+        "failed": 0,
+        "files": 86
+      },
+      "angularBuild": "PASS isolated output; running regression assets unchanged",
+      "focusedTests": {
+        "passed": 6,
+        "failed": 0
+      },
+      "browser": "PASS owned synthetic Test schema: saved pre-dispatch draft, guarded save-and-continue, return, explicit recovery with unchecked assent and disabled submit; no console errors",
+      "boundary": "Pre-dispatch commercial settings fields only. Fresh profile version/rules fingerprint required. Server authority and command unknown-outcome fence unchanged. Durable commercial receipt recovery, other commercial form drafts and whole-migration acceptance remain open."
     }
   },
   "documentationWork": {

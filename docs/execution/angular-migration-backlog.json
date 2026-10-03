@@ -60,7 +60,7 @@
       "id": "US-010",
       "title": "Preserve drafts without cross-user leakage",
       "status": "PARTIAL",
-      "scope": "Native confirmation, currency configuration/remeasurement, TB upload and source acceptance use identity/session/entity/base-bound tab drafts, explicit recovery and guarded navigation. Pending source-acceptance checkpoints fence writes/navigation until persisted-state acknowledgment. Remaining module drafts/form acceptance remain open."
+      "scope": "Native confirmation, currency configuration/remeasurement, TB upload and source acceptance use identity/session/entity/base-bound tab drafts, explicit recovery and guarded navigation. Pending source-acceptance checkpoints fence writes/navigation until persisted-state acknowledgment. Commercial settings now has explicit profile/rules revision-bound tab drafts, fresh recovery without assent, guarded navigation and preservation of the other unsubmitted form. Remaining module drafts/form acceptance remain open."
     },
     {
       "id": "US-011",
