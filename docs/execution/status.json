@@ -6025,6 +6025,56 @@
       "sourceCommit": "afb164e63c9deb4ff9cbd5572ecfd498a2cdcf77",
       "publishedCommit": "afb164e63c9deb4ff9cbd5572ecfd498a2cdcf77",
       "remoteHeadVerified": true
+    },
+    "angularPlanningNavigation": {
+      "status": "PASS_FOCUSED",
+      "baseCommit": "e4500a2321b623fb36e6a3f9d360a3442b662bef",
+      "releaseBuild": {
+        "status": "PASS",
+        "parentExitCode": 0,
+        "warnings": 0,
+        "errors": 0,
+        "log": "/private/tmp/auditsphere-planning-navigation-release.log"
+      },
+      "angular": {
+        "status": "PASS",
+        "parentExitCode": 0,
+        "passed": 373,
+        "failed": 0,
+        "files": 78,
+        "log": "/private/tmp/auditsphere-planning-navigation-angular.log"
+      },
+      "productionBuild": {
+        "status": "PASS",
+        "parentExitCode": 0,
+        "log": "/private/tmp/auditsphere-planning-navigation-build.log"
+      },
+      "browser": {
+        "status": "PASS",
+        "parentExitCode": 0,
+        "passed": 6,
+        "failed": 0,
+        "log": "/private/tmp/auditsphere-planning-navigation-e2e.log"
+      },
+      "builtInBrowser": {
+        "status": "PASS_LOCAL_SYNTHETIC",
+        "cases": [
+          "keep editing preserves fields",
+          "save budget draft before leaving",
+          "return and restore without assent"
+        ],
+        "consoleWarnings": 0,
+        "consoleErrors": 0,
+        "screenshot": "/private/tmp/auditsphere-planning-navigation-restored.png",
+        "previewDisposed": true,
+        "boundary": "Internal navigation checked before tab-departure warning addition; final warning and existing reload journeys covered by the subsequent joined Angular/E2E reruns."
+      },
+      "frozenEvidence": {
+        "manifest": "/private/tmp/auditsphere-planning-navigation-hashes.json",
+        "paths": 1445,
+        "result": "MATCH"
+      },
+      "boundary": "Internal engagement navigation and tab-departure warning only; scoped budget fields can be explicitly saved, while staffing/approval choices cannot. Same-engagement paging preserves the editor; session/route loss fences late dialog results. No schema or live Microsoft changes. Whole migration remains partial."
     }
   },
   "documentationWork": {
@@ -6132,7 +6182,7 @@
     "implementationStatus": "PARTIAL",
     "acceptanceStatus": "PARTIAL",
     "scope": "Standalone API and native Angular capability slices preserve Application authorization, exact financial inputs, durable operations and independent human gates. Legacy Blazor remains available for rollback until wider parity and retirement acceptance.",
-    "nextAction": "Complete staffing/approval reviewed request recovery, remaining planning Signal Forms and navigation guards, then client creation and assessment parity. The earlier creation whole regression is joined and fingerprints match; run a new whole regression for the newer planning source before wider acceptance. Complete migration quality/cutover/retirement gates.",
+    "nextAction": "Complete staffing/approval reviewed request recovery and remaining planning Signal Forms, then client creation and assessment parity. Run a new whole regression for the newer planning source before wider acceptance. Complete migration quality/cutover/retirement gates.",
     "branch": "master"
   },
   "localEvidence": [

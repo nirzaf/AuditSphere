@@ -1,4 +1,13 @@
-import { Component, DestroyRef, effect, inject, input, signal, untracked } from '@angular/core';
+import {
+  Component,
+  DestroyRef,
+  HostListener,
+  effect,
+  inject,
+  input,
+  signal,
+  untracked,
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import {
   form,
@@ -16,7 +25,9 @@ import { HttpClient } from '@angular/common/http';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
-import { Subscription, timeout } from 'rxjs';
+import { Subscription, firstValueFrom, timeout } from 'rxjs';
+import { MatDialog } from '@angular/material/dialog';
+import { PlanningNavigationDialog } from './planning-navigation';
 import { SessionService } from '../../core/session';
 import { TabDrafts, PendingRequestReference, pendingRequestReference } from '../../core/tab-drafts';
 import { Api } from '../../core/api';
@@ -538,13 +549,13 @@ export class EngagementPlanning {
   ];
   private readonly drafts = inject(TabDrafts);
   readonly draftStatus = signal('');
-  private budgetDraftScope() {
+  private budgetDraftScope(allowReviewed = false) {
     const planning = this.data();
     if (
       !planning?.canManageStaffing ||
       this.busy() ||
       this.uncertain() ||
-      this.budgetPreview() ||
+      (!allowReviewed && this.budgetPreview()) ||
       this.destroyed ||
       !this.owner()
     )
@@ -557,9 +568,9 @@ export class EngagementPlanning {
         (planning.draft ? '0001' : '0000'),
     };
   }
-  saveEditableBudget(): void {
-    const scope = this.budgetDraftScope();
-    if (!scope) return;
+  saveEditableBudget(allowReviewed = false): boolean {
+    const scope = this.budgetDraftScope(allowReviewed);
+    if (!scope) return false;
     const saved = this.drafts.save(
       scope,
       { currency: this.currency, lines: this.budgetLines },
@@ -570,6 +581,8 @@ export class EngagementPlanning {
         ? 'Editable budget fields saved in this tab. Review is not saved.'
         : 'Budget fields could not be saved. Check bounded fields and tab storage.',
     );
+    if (saved) this.budgetBaseline.set(JSON.stringify(this.budgetModel()));
+    return saved;
   }
   restoreEditableBudget(): void {
     const scope = this.budgetDraftScope();
@@ -605,6 +618,7 @@ export class EngagementPlanning {
       { role: 'Senior', activity: 'AUDIT', phase: 'PLANNING', riskArea: '', forecastMinutes: 480 },
     ],
   });
+  private readonly budgetBaseline = signal(JSON.stringify(this.budgetModel()));
   readonly budgetFields = form(this.budgetModel, (p) => {
     required(p.currency);
     maxLength(p.currency, 3);
@@ -665,6 +679,74 @@ export class EngagementPlanning {
         forecastMinutes: 480,
       },
     ];
+  }
+  private readonly dialog = inject(MatDialog);
+  private navigationPending = false;
+  planningDirty(): boolean {
+    return (
+      !!this.data()?.canManageStaffing &&
+      (JSON.stringify(this.budgetModel()) !== this.budgetBaseline() ||
+        !!this.selectedUser ||
+        this.selectedLevel !== 'STAFF_ASSOCIATE' ||
+        this.reviewed ||
+        this.budgetReviewed ||
+        !!this.revokeTarget() ||
+        !!this.budgetPreview() ||
+        this.preparationReviewed)
+    );
+  }
+  async confirmNavigation(): Promise<boolean> {
+    if (this.destroyed || !this.owner()) return true;
+    if (this.loading()) return false;
+    if (!this.data()) return true;
+    if (this.busy() || this.uncertain()) {
+      this.commandStatus.set(
+        'Verify the planning outcome and acknowledge its result before leaving.',
+      );
+      return false;
+    }
+    if (!this.planningDirty()) return true;
+    if (this.navigationPending) return false;
+    const owner = this.owner();
+    this.navigationPending = true;
+    try {
+      const choice = await firstValueFrom(this.dialog.open(PlanningNavigationDialog).afterClosed());
+      if (this.destroyed || owner !== this.owner() || !this.data()?.canManageStaffing) return true;
+      if (this.busy() || this.uncertain()) return false;
+      if (choice === 'discard') {
+        this.clearProtectedEditor();
+        return true;
+      }
+      if (choice !== 'save') return false;
+      if (
+        this.selectedUser ||
+        this.selectedLevel !== 'STAFF_ASSOCIATE' ||
+        this.reviewed ||
+        this.budgetReviewed ||
+        this.revokeTarget()
+      ) {
+        this.commandStatus.set(
+          'Budget drafts cannot save staffing or approval choices. Keep editing or explicitly discard those choices before leaving.',
+        );
+        return false;
+      }
+      const saved = this.saveEditableBudget(true);
+      if (saved) this.cancelBudgetReview();
+      return saved;
+    } finally {
+      this.navigationPending = false;
+    }
+  }
+  @HostListener('window:beforeunload', ['$event'])
+  beforeUnload(event: BeforeUnloadEvent): void {
+    if (
+      !this.destroyed &&
+      this.owner() &&
+      (this.planningDirty() || this.busy() || this.uncertain())
+    ) {
+      event.preventDefault();
+      event.returnValue = '';
+    }
   }
   private readonly api = inject(Api);
   readonly budgetPreview = signal<BudgetPreparationPreview | null>(null);
@@ -931,7 +1013,9 @@ export class EngagementPlanning {
             forecastMinutes: 480,
           },
         ];
+        this.budgetBaseline.set(JSON.stringify(this.budgetModel()));
         this.selectedUser = '';
+        this.selectedLevel = 'STAFF_ASSOCIATE';
         this.reviewed = false;
         this.revokeTarget.set(null);
         this.commandStatus.set('');
@@ -1029,6 +1113,7 @@ export class EngagementPlanning {
     this.reviewed = false;
     this.budgetLines = [];
     this.currency = '';
+    this.budgetBaseline.set(JSON.stringify(this.budgetModel()));
     this.budgetReviewed = false;
     this.revokeTarget.set(null);
   }

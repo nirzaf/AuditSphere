@@ -13,6 +13,22 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Planning navigation and editable-field preservation
+
+Engagement navigation now guards unsaved planning edits with keep, budget-only tab
+save, or explicit discard. Staffing choices and approval assent are never treated
+as saved budget fields. Failed storage keeps the editor open. Current identity,
+engagement lifetime and authority fence late dialog results. Busy or unknown writes
+must be reconciled before internal departure; tab departure warns without trapping
+sign-out. Same-engagement hold paging preserves the editor without opening a dialog.
+
+The production UI build, Release test-project build, Angular suite and affected
+canonical/preview browser journeys completed successfully. Built-in browser checks
+confirmed keep/save/return/restore in an owned synthetic preview, now disposed.
+Detailed observed evidence and the prior whole-regression boundary are in
+`status.json`. No schema or live Microsoft changes were made. Staffing/approval
+request recovery, remaining planning forms and wider migration acceptance stay open.
+
 ## Native budget Signal Forms editor
 
 Budget inputs now use Signal Forms with bounded field metadata and whole-minute

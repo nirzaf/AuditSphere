@@ -1,3 +1,4 @@
+import { engagementNavigationGuard } from './features/engagements/planning-navigation';
 import { Routes } from '@angular/router';
 import { clientGuard } from './core/client.guard';
 import { unsavedChangesGuard } from './core/unsaved-changes';
@@ -181,6 +182,8 @@ export const routes: Routes = [
   {
     path: 'app/engagements/:id',
     canActivate: [staffGuard],
+    canDeactivate: [engagementNavigationGuard],
+    runGuardsAndResolvers: 'paramsOrQueryParamsChange',
     title: 'Engagement · AuditSphere',
     loadComponent: () =>
       import('./features/engagements/engagement').then((m) => m.EngagementDetail),

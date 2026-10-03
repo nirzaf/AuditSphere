@@ -1,3 +1,6 @@
+import { MatDialog } from '@angular/material/dialog';
+import { of, Subject } from 'rxjs';
+import { TabDrafts } from '../../core/tab-drafts';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
@@ -136,6 +139,87 @@ describe('Planning protected editor clearing', () => {
     component.addBudgetLine();
     component.removeBudgetLine(0);
     expect(component.budgetLines).toHaveLength(1);
+  });
+  it('keeps edits or saves only budget fields before leaving', async () => {
+    const component = open();
+    expect(await component.confirmNavigation()).toBe(true);
+    component.currency = 'USD';
+    const dialog = vi.spyOn(TestBed.inject(MatDialog), 'open');
+    dialog.mockReturnValue({ afterClosed: () => of('keep') } as never);
+    expect(await component.confirmNavigation()).toBe(false);
+    expect(component.currency).toBe('USD');
+    dialog.mockReturnValue({ afterClosed: () => of('save') } as never);
+    expect(await component.confirmNavigation()).toBe(true);
+    expect(component.planningDirty()).toBe(false);
+    const stored = sessionStorage.getItem(sessionStorage.key(0)!);
+    expect(stored).toContain('USD');
+    expect(stored).not.toContain('reviewed');
+    component.currency = 'QAR';
+    component.restoreEditableBudget();
+    expect(component.currency).toBe('USD');
+    TestBed.inject(HttpTestingController).expectNone((r) => r.method !== 'GET');
+  });
+  it('never treats staffing or approval choices as saved budget drafts', async () => {
+    const component = open();
+    component.selectedLevel = 'AUDIT_MANAGER';
+    const dialog = vi
+      .spyOn(TestBed.inject(MatDialog), 'open')
+      .mockReturnValue({ afterClosed: () => of('save') } as never);
+    expect(await component.confirmNavigation()).toBe(false);
+    expect(sessionStorage.length).toBe(0);
+    expect(component.commandStatus()).toContain('cannot save staffing');
+    dialog.mockReturnValue({ afterClosed: () => of('discard') } as never);
+    expect(await component.confirmNavigation()).toBe(true);
+    expectCleared(component);
+  });
+  it('fences dialog results by session and never leaves an unconfirmed write', async () => {
+    const component = open();
+    component.uncertain.set(true);
+    const dialog = vi.spyOn(TestBed.inject(MatDialog), 'open');
+    expect(await component.confirmNavigation()).toBe(false);
+    expect(dialog).not.toHaveBeenCalled();
+    component.uncertain.set(false);
+    component.currency = 'USD';
+    const close = new Subject<string>();
+    dialog.mockReturnValue({ afterClosed: () => close } as never);
+    const navigation = component.confirmNavigation();
+    expect(await component.confirmNavigation()).toBe(false);
+    TestBed.inject(SessionService).clear();
+    close.next('save');
+    expect(await navigation).toBe(true);
+    expect(sessionStorage.length).toBe(0);
+    TestBed.tick();
+  });
+  it('warns on tab departure for edits and unknown writes but does not trap sign-out', () => {
+    const component = open();
+    const clean = new Event('beforeunload', { cancelable: true });
+    component.beforeUnload(clean as BeforeUnloadEvent);
+    expect(clean.defaultPrevented).toBe(false);
+    component.currency = 'USD';
+    const edited = new Event('beforeunload', { cancelable: true });
+    component.beforeUnload(edited as BeforeUnloadEvent);
+    expect(edited.defaultPrevented).toBe(true);
+    component.currency = 'QAR';
+    component.uncertain.set(true);
+    const unknown = new Event('beforeunload', { cancelable: true });
+    component.beforeUnload(unknown as BeforeUnloadEvent);
+    expect(unknown.defaultPrevented).toBe(true);
+    TestBed.inject(SessionService).clear();
+    const signedOut = new Event('beforeunload', { cancelable: true });
+    component.beforeUnload(signedOut as BeforeUnloadEvent);
+    expect(signedOut.defaultPrevented).toBe(false);
+    TestBed.tick();
+  });
+  it('retains edits when bounded tab saving fails', async () => {
+    const component = open();
+    component.currency = 'USD';
+    vi.spyOn(TestBed.inject(MatDialog), 'open').mockReturnValue({
+      afterClosed: () => of('save'),
+    } as never);
+    vi.spyOn(TestBed.inject(TabDrafts), 'save').mockReturnValue(false);
+    expect(await component.confirmNavigation()).toBe(false);
+    expect(component.currency).toBe('USD');
+    expect(component.planningDirty()).toBe(true);
   });
   function expectCleared(component: EngagementPlanning) {
     expect(component.data()).toBeNull();

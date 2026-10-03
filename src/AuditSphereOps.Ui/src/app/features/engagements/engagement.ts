@@ -93,6 +93,22 @@ export class EngagementDetail {
       ? `${s.firmId}:${s.userId}:${s.generation}:${this.session.invalidation()}:${this.id}:${this.routeRevision}`
       : '';
   }
+  confirmNavigation(nextUrl?: string): boolean | Promise<boolean> {
+    if (nextUrl) {
+      const segments =
+        this.router.parseUrl(nextUrl).root.children['primary']?.segments.map((s) => s.path) ?? [];
+      if (segments[0] === 'ui') segments.shift();
+      // Same-engagement hold paging preserves the editor and must not discard or save it.
+      if (
+        segments.length === 3 &&
+        segments[0] === 'app' &&
+        segments[1] === 'engagements' &&
+        segments[2].toLowerCase() === this.id
+      )
+        return true;
+    }
+    return this.planning()?.confirmNavigation() ?? true;
+  }
   pagingBlocked(): boolean {
     return this.loading() || !!this.planning()?.busy() || !!this.planning()?.uncertain();
   }

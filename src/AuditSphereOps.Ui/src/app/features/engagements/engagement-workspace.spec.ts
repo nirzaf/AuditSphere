@@ -126,6 +126,27 @@ describe('Engagement read and command lifetime', () => {
     expect(active).toHaveLength(1);
     return active[0];
   }
+  it('allows same-engagement paging but delegates a different route to planning', async () => {
+    const f = open();
+    read().flush(payload);
+    TestBed.tick();
+    const confirmation = vi.fn().mockResolvedValue(false);
+    vi.spyOn(f.componentInstance, 'planning').mockReturnValue({
+      confirmNavigation: confirmation,
+    } as never);
+    expect(
+      await f.componentInstance.confirmNavigation('/app/engagements/' + id + '?holdPage=1'),
+    ).toBe(true);
+    expect(
+      await f.componentInstance.confirmNavigation('/ui/app/engagements/' + id + '?holdPage=1'),
+    ).toBe(true);
+    expect(confirmation).not.toHaveBeenCalled();
+    expect(await f.componentInstance.confirmNavigation('/app/engagements/' + other)).toBe(false);
+    expect(await f.componentInstance.confirmNavigation('/app/engagements/' + id + '/pbc')).toBe(
+      false,
+    );
+    expect(confirmation).toHaveBeenCalledTimes(2);
+  });
   it('renders source metadata and complete summary with scoped navigation and paging', () => {
     const f = open();
     read().flush(payload);
