@@ -13,6 +13,28 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Planning Signal Forms and exact-context assent
+
+All planning controls now use Signal Forms. Staffing assent binds the current
+identity, engagement, read lifetime, person and level. Draft-preparation assent
+binds the exact preview, and approval assent binds the exact displayed draft.
+Immediate command checks refuse stale assent before rendering catches up; public
+field reset synchronizes native checkboxes. Staffing selection, preparation and
+approval stay disabled during unknown writes, and revocation respects the shared
+review fence. Existing Application authorization and commands remain the authority.
+
+Select labels now use explicit association so their names exclude option text.
+Observed production/Release builds, the Angular suite and affected canonical/preview
+browser journeys passed. The built-in browser verified exact labels and native
+checkbox clearing in an owned synthetic preview, now disposed. Initial test failures
+and their correction are retained in `status.json`; assertions were preserved.
+
+Backend reviewed staffing/revocation and budget-approval request recovery and
+individual action authority projection remain open, followed by client creation,
+assessment parity and migration quality/cutover/retirement. No schema or live
+Microsoft changes were made; these focused results do not replace the earlier
+whole-suite source boundary.
+
 ## Planning navigation and editable-field preservation
 
 Engagement navigation now guards unsaved planning edits with keep, budget-only tab

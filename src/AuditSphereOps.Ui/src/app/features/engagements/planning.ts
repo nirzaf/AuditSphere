@@ -8,7 +8,6 @@ import {
   signal,
   untracked,
 } from '@angular/core';
-import { FormsModule } from '@angular/forms';
 import {
   form,
   FormField,
@@ -241,7 +240,7 @@ export function decodePlanning(value: unknown): Planning {
 }
 @Component({
   selector: 'audit-engagement-planning',
-  imports: [FormField, FormsModule, RouterLink, MatButtonModule, MatProgressBarModule],
+  imports: [FormField, RouterLink, MatButtonModule, MatProgressBarModule],
   template: ` <section aria-label="Engagement planning">
     <h2>Engagement team and budget</h2>
     @if (loading()) {
@@ -259,7 +258,11 @@ export function decodePlanning(value: unknown): Planning {
           {{ person.certified ? 'Current certification' : 'No current certification on file' }}
         </p>
         @if (planning.canManageStaffing) {
-          <button matButton [disabled]="busy()" (click)="requestRevocation(person)">
+          <button
+            matButton
+            [disabled]="busy() || uncertain() || !!budgetPreview()"
+            (click)="requestRevocation(person)"
+          >
             Revoke {{ person.name }}
           </button>
         }
@@ -274,34 +277,41 @@ export function decodePlanning(value: unknown): Planning {
             Control over the entire client SharePoint site, including other engagements, sharing and
             deletion. AuditSphere access remains engagement scoped.
           </p>
-          <form (ngSubmit)="assign()">
+          <form ngNoForm (submit)="$event.preventDefault(); assign()">
+            <label [attr.for]="'staffing-person-' + engagementId()">Person</label>
+            <select [id]="'staffing-person-' + engagementId()" [formField]="staffingFields.userId">
+              <option value="">Select staff</option>
+              @for (candidate of planning.candidates; track candidate.userId) {
+                <option [value]="candidate.userId">
+                  {{ candidate.name }}{{ candidate.certified ? ' · Certified' : '' }}
+                </option>
+              }
+            </select>
+            <label [attr.for]="'staffing-level-' + engagementId()">Level</label>
+            <select [id]="'staffing-level-' + engagementId()" [formField]="staffingFields.level">
+              @for (level of levels; track level.value) {
+                <option [value]="level.value">{{ level.label }}</option>
+              }
+            </select>
             <label
-              >Person
-              <select name="person" [(ngModel)]="selectedUser" [disabled]="busy()">
-                <option value="">Select staff</option>
-                @for (candidate of planning.candidates; track candidate.userId) {
-                  <option [value]="candidate.userId">
-                    {{ candidate.name }}{{ candidate.certified ? ' · Certified' : '' }}
-                  </option>
-                }
-              </select></label
-            >
-            <label
-              >Level
-              <select name="level" [(ngModel)]="selectedLevel" [disabled]="busy()">
-                @for (level of levels; track level.value) {
-                  <option [value]="level.value">{{ level.label }}</option>
-                }
-              </select></label
-            >
-            <label
-              ><input type="checkbox" name="reviewed" [(ngModel)]="reviewed" [disabled]="busy()" />
+              ><input
+                type="checkbox"
+                [formField]="staffingFields.reviewed"
+                (change)="reviewed = checkboxChecked($event)"
+              />
               I reviewed the engagement role and client-site access.</label
             >
             <button
               matButton
               type="submit"
-              [disabled]="busy() || !reviewed || !selectedUser || uncertain()"
+              [disabled]="
+                busy() ||
+                !reviewed ||
+                !selectedUser ||
+                uncertain() ||
+                !!budgetPreview() ||
+                staffingFields().invalid()
+              "
             >
               Add to team
             </button>
@@ -424,8 +434,8 @@ export function decodePlanning(value: unknown): Planning {
               <label
                 ><input
                   type="checkbox"
-                  [(ngModel)]="preparationReviewed"
-                  [disabled]="busy() || uncertain()"
+                  [formField]="preparationFields.reviewed"
+                  (change)="preparationReviewed = checkboxChecked($event)"
                 />
                 I reviewed these exact rates and authorize draft preparation.</label
               >
@@ -468,8 +478,12 @@ export function decodePlanning(value: unknown): Planning {
             }
             @if (draft.canApprove) {
               <label
-                ><input type="checkbox" [(ngModel)]="budgetReviewed" [disabled]="busy()" /> I
-                reviewed this draft and approve its budget.</label
+                ><input
+                  type="checkbox"
+                  [formField]="approvalFields.reviewed"
+                  (change)="budgetReviewed = checkboxChecked($event)"
+                />
+                I reviewed this draft and approve its budget.</label
               >
               <button
                 matButton
@@ -661,7 +675,6 @@ export class EngagementPlanning {
   set budgetLines(value: PlanningEditableBudget['lines']) {
     this.budgetModel.update((m) => ({ ...m, lines: value.map((l) => ({ ...l })) }));
   }
-  budgetReviewed = false;
   removeBudgetLine(index: number): void {
     if (this.busy() || this.uncertain() || this.budgetPreview()) return;
     this.budgetLines = this.budgetLines.filter((_, i) => i !== index);
@@ -752,7 +765,6 @@ export class EngagementPlanning {
   readonly budgetPreview = signal<BudgetPreparationPreview | null>(null);
   readonly budgetReceipt = signal<BudgetPreparationReceipt | null>(null);
   readonly budgetPending = signal<PendingRequestReference | null>(null);
-  preparationReviewed = false;
   private pendingBudgetScope(basis = '0'.repeat(64)) {
     return { entity: 'engagement-budget-request/' + this.engagementId(), baseRevision: basis };
   }
@@ -964,13 +976,110 @@ export class EngagementPlanning {
     this.load();
   }
   approveBudget(id: string): void {
-    if (!this.data()?.draft?.canApprove || !this.budgetReviewed || this.busy() || this.uncertain())
+    if (
+      !this.data()?.draft?.canApprove ||
+      this.data()?.draft?.id !== id ||
+      !this.budgetReviewed ||
+      this.busy() ||
+      this.uncertain() ||
+      this.budgetPreview()
+    )
       return;
     this.command('budgets/' + id + '/approve', {});
   }
-  selectedUser = '';
-  selectedLevel = 'STAFF_ASSOCIATE';
-  reviewed = false;
+  readonly staffingModel = signal({ userId: '', level: 'STAFF_ASSOCIATE', reviewed: false });
+  readonly preparationModel = signal({ reviewed: false });
+  readonly approvalModel = signal({ reviewed: false });
+  private readonly staffingAssent = signal('');
+  private readonly preparationAssent = signal('');
+  private readonly approvalAssent = signal('');
+  readonly staffingFields = form(this.staffingModel, (p) => {
+    required(p.userId);
+    pattern(p.userId, guid);
+    validate(p.level, ({ value }) =>
+      this.levels.some((l) => l.value === value()) ? undefined : { kind: 'staffingLevel' },
+    );
+    validate(p.reviewed, ({ value }) => (value() ? undefined : { kind: 'reviewRequired' }));
+    disabled(
+      p,
+      () =>
+        this.busy() ||
+        this.uncertain() ||
+        !!this.budgetPreview() ||
+        !this.data()?.canManageStaffing,
+    );
+  });
+  readonly preparationFields = form(this.preparationModel, (p) => {
+    validate(p.reviewed, ({ value }) => (value() ? undefined : { kind: 'reviewRequired' }));
+    disabled(p, () => this.busy() || this.uncertain() || !this.budgetPreview());
+  });
+  readonly approvalFields = form(this.approvalModel, (p) => {
+    validate(p.reviewed, ({ value }) => (value() ? undefined : { kind: 'reviewRequired' }));
+    disabled(
+      p,
+      () =>
+        this.busy() ||
+        this.uncertain() ||
+        !!this.budgetPreview() ||
+        !this.data()?.draft?.canApprove,
+    );
+  });
+  private staffingIntent(): string {
+    return this.owner() && guid.test(this.selectedUser)
+      ? JSON.stringify([this.owner(), this.readRevision, this.selectedUser, this.selectedLevel])
+      : '';
+  }
+  private preparationIntent(): string {
+    return this.owner() && this.budgetPreview()
+      ? JSON.stringify([this.owner(), this.readRevision, this.budgetPreview()])
+      : '';
+  }
+  private approvalIntent(): string {
+    return this.owner() && this.data()?.draft?.canApprove
+      ? JSON.stringify([this.owner(), this.readRevision, this.data()?.draft])
+      : '';
+  }
+  get selectedUser(): string {
+    return this.staffingModel().userId;
+  }
+  set selectedUser(value: string) {
+    this.staffingModel.update((m) => ({ ...m, userId: value, reviewed: false }));
+    this.staffingAssent.set('');
+  }
+  get selectedLevel(): string {
+    return this.staffingModel().level;
+  }
+  set selectedLevel(value: string) {
+    this.staffingModel.update((m) => ({ ...m, level: value, reviewed: false }));
+    this.staffingAssent.set('');
+  }
+  get reviewed(): boolean {
+    const intent = this.staffingIntent();
+    return !!intent && this.staffingModel().reviewed && this.staffingAssent() === intent;
+  }
+  set reviewed(value: boolean) {
+    this.staffingModel.update((m) => ({ ...m, reviewed: value }));
+    this.staffingAssent.set(value ? this.staffingIntent() : '');
+  }
+  get preparationReviewed(): boolean {
+    const intent = this.preparationIntent();
+    return !!intent && this.preparationModel().reviewed && this.preparationAssent() === intent;
+  }
+  set preparationReviewed(value: boolean) {
+    this.preparationModel.set({ reviewed: value });
+    this.preparationAssent.set(value ? this.preparationIntent() : '');
+  }
+  get budgetReviewed(): boolean {
+    const intent = this.approvalIntent();
+    return !!intent && this.approvalModel().reviewed && this.approvalAssent() === intent;
+  }
+  set budgetReviewed(value: boolean) {
+    this.approvalModel.set({ reviewed: value });
+    this.approvalAssent.set(value ? this.approvalIntent() : '');
+  }
+  checkboxChecked(event: Event): boolean {
+    return (event.target as HTMLInputElement).checked;
+  }
   readonly busy = signal(false);
   readonly uncertain = signal(false);
   readonly commandStatus = signal('');
@@ -1028,6 +1137,31 @@ export class EngagementPlanning {
         if (staff) this.load();
       });
     });
+    effect(() => {
+      const staff =
+        this.staffingModel().reviewed &&
+        (!this.staffingIntent() || this.staffingAssent() !== this.staffingIntent());
+      const preparation =
+        this.preparationModel().reviewed &&
+        (!this.preparationIntent() || this.preparationAssent() !== this.preparationIntent());
+      const approval =
+        this.approvalModel().reviewed &&
+        (!this.approvalIntent() || this.approvalAssent() !== this.approvalIntent());
+      untracked(() => {
+        if (staff) {
+          this.reviewed = false;
+          this.staffingFields.reviewed().reset(false);
+        }
+        if (preparation) {
+          this.preparationReviewed = false;
+          this.preparationFields.reviewed().reset(false);
+        }
+        if (approval) {
+          this.budgetReviewed = false;
+          this.approvalFields.reviewed().reset(false);
+        }
+      });
+    });
     inject(DestroyRef).onDestroy(() => {
       this.destroyed = true;
       this.lifetime++;
@@ -1037,13 +1171,15 @@ export class EngagementPlanning {
     });
   }
   requestRevocation(person: TeamMember): void {
-    if (!this.busy()) this.revokeTarget.set(person);
+    if (!this.busy() && !this.uncertain() && !this.budgetPreview()) this.revokeTarget.set(person);
   }
   assign(): void {
     if (
       !this.data()?.canManageStaffing ||
       !this.reviewed ||
       !guid.test(this.selectedUser) ||
+      this.staffingFields().invalid() ||
+      !!this.budgetPreview() ||
       this.busy() ||
       this.uncertain()
     )
@@ -1055,7 +1191,13 @@ export class EngagementPlanning {
     });
   }
   revoke(id: string): void {
-    if (!this.data()?.canManageStaffing || !guid.test(id) || this.busy() || this.uncertain())
+    if (
+      !this.data()?.canManageStaffing ||
+      !guid.test(id) ||
+      this.busy() ||
+      this.uncertain() ||
+      this.budgetPreview()
+    )
       return;
     this.command('staffing/' + id + '/revoke', {});
   }
@@ -1072,6 +1214,7 @@ export class EngagementPlanning {
           if (this.destroyed || owner !== this.owner()) return;
           this.busy.set(false);
           this.selectedUser = '';
+          this.selectedLevel = 'STAFF_ASSOCIATE';
           this.reviewed = false;
           this.revokeTarget.set(null);
           this.budgetReviewed = false;
@@ -1118,6 +1261,7 @@ export class EngagementPlanning {
     this.revokeTarget.set(null);
   }
   load(): void {
+    this.reviewed = false;
     this.budgetReviewed = false;
     this.preparationReviewed = false;
     this.budgetPreview.set(null);

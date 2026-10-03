@@ -387,6 +387,99 @@ describe('Planning protected editor clearing', () => {
     expect(component.commandStatus()).toContain('unsupported');
     http.expectNone('/api/ui/engagements/' + id + '/budget-preparation');
   });
+  it('associates staffing labels without including selectable option text', () => {
+    const fixture = TestBed.createComponent(EngagementPlanning);
+    fixture.componentRef.setInput('engagementId', id);
+    fixture.detectChanges();
+    TestBed.tick();
+    TestBed.inject(HttpTestingController)
+      .expectOne('/api/ui/engagements/' + id + '/planning')
+      .flush(planning);
+    TestBed.tick();
+    for (const [field, label] of [
+      ['person', 'Person'],
+      ['level', 'Level'],
+    ]) {
+      const select = fixture.nativeElement.querySelector(
+        '#staffing-' + field + '-' + id,
+      ) as HTMLSelectElement;
+      expect(select).not.toBeNull();
+      expect(select.labels?.[0]?.textContent?.trim()).toBe(label);
+      expect(select.labels?.[0]?.querySelector('option')).toBeNull();
+    }
+  });
+  it('refuses reused staffing assent immediately before effects render', () => {
+    const component = open();
+    component.selectedUser = id;
+    component.reviewed = true;
+    expect(component.reviewed).toBe(true);
+    component.staffingModel.update((m) => ({ ...m, level: 'SENIOR_AUDITOR' }));
+    expect(component.reviewed).toBe(false);
+    component.assign();
+    TestBed.inject(HttpTestingController).expectNone((r) => r.method === 'POST');
+    TestBed.tick();
+    expect(component.staffingModel().reviewed).toBe(false);
+    component.reviewed = true;
+    component.staffingModel.update((m) => ({
+      ...m,
+      userId: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+    }));
+    expect(component.reviewed).toBe(false);
+    component.assign();
+    TestBed.inject(HttpTestingController).expectNone((r) => r.method === 'POST');
+    TestBed.tick();
+    component.selectedLevel = 'UNSUPPORTED';
+    component.reviewed = true;
+    expect(component.staffingFields.level().invalid()).toBe(true);
+    component.assign();
+    TestBed.inject(HttpTestingController).expectNone((r) => r.method === 'POST');
+    component.uncertain.set(true);
+    expect(component.staffingFields.userId().disabled()).toBe(true);
+    expect(component.staffingFields.reviewed().disabled()).toBe(true);
+  });
+  it('binds approval assent to the exact displayed draft and refuses another draft id', () => {
+    const component = open();
+    const draft = { id, version: '1', currency: 'QAR', canApprove: true, lines: [] };
+    component.data.set({ ...planning, draft });
+    component.budgetReviewed = true;
+    expect(component.budgetReviewed).toBe(true);
+    component.approveBudget('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb');
+    TestBed.inject(HttpTestingController).expectNone((r) => r.method === 'POST');
+    component.data.set({ ...planning, draft: { ...draft, version: '2' } });
+    expect(component.budgetReviewed).toBe(false);
+    component.approveBudget(id);
+    TestBed.inject(HttpTestingController).expectNone((r) => r.method === 'POST');
+    TestBed.tick();
+    expect(component.approvalModel().reviewed).toBe(false);
+  });
+  it('binds preparation assent to the exact preview before render catches up', async () => {
+    const component = open(),
+      http = TestBed.inject(HttpTestingController);
+    const preparing = component.saveBudget();
+    const request = http.expectOne('/api/ui/engagements/' + id + '/budget-preparation/preview');
+    const fields = request.request.body.fields;
+    const preview = {
+      engagementId: id,
+      requestId: request.request.body.requestId,
+      requestHash: 'a'.repeat(64),
+      reviewBasis: 'b'.repeat(64),
+      fields,
+      lines: [
+        { ...fields.lines[0], rateCardId: id, ratePerHour: '100.125', forecastCost: '801.000000' },
+      ],
+      forecastCost: '801.000000',
+    };
+    request.flush({ value: preview });
+    await preparing;
+    component.preparationReviewed = true;
+    expect(component.preparationReviewed).toBe(true);
+    component.budgetPreview.set({ ...preview, forecastCost: '802.000000' });
+    expect(component.preparationReviewed).toBe(false);
+    await component.confirmBudgetPreparation();
+    http.expectNone('/api/ui/engagements/' + id + '/budget-preparation');
+    TestBed.tick();
+    expect(component.preparationModel().reviewed).toBe(false);
+  });
   it('drops budget approval assent whenever the authorized projection is refreshed', () => {
     const component = open();
     component.budgetReviewed = true;

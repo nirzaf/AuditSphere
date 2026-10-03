@@ -26,7 +26,7 @@
     },
     {
       "path": "src/AuditSphereOps.Ui/src/app/features/engagements/planning.ts",
-      "sha256": "d13787f80b213caeeaf3d15f1369b4237c4b97b3c481efa70c9f5b2037407dce"
+      "sha256": "0f75d25764475009d8c95983b51087799d6dfaf7dedc67f156f85168cde7c328"
     },
     {
       "path": "src/AuditSphereOps.Application/Acceptance/EngagementActivationWorkspace.cs",
@@ -79,6 +79,10 @@
     {
       "path": "src/AuditSphereOps.Ui/src/app/features/engagements/budget-preparation-contracts.ts",
       "sha256": "105caeec6d2605547c7fff539b8937c17f0d07d1443711dbd81b2aed04cb39e0"
+    },
+    {
+      "path": "src/AuditSphereOps.Ui/src/app/features/engagements/planning-navigation.ts",
+      "sha256": "d798173d590b90c49b635cada545fd0174ac8750ec191caa515b27c76e72c9d6"
     }
   ],
   "records": [
@@ -100,7 +104,7 @@
     {
       "action": "planning-forms",
       "owner": "EngagementLifecycleService / EngagementPlanningQuery / native planning components",
-      "disposition": "PARTIAL: Editable budget drafts, reviewed budget preparation and the budget Signal Forms editor are implemented locally. Bounded field validation includes whole forecast minutes; fields and tab actions lock during review/recovery. Exact approved-rate snapshots require explicit assent; a draft and immutable actor-owned request receipt commit together. Unknown responses and reload reconcile retained receipts without automatic retry. Staffing/approval request parity, Navigation guards now offer explicit budget-only tab saving, preserve same-engagement paging and fence late dialog results by ownership. Tab departure warns on edits/unknown writes without trapping sign-out. Other planning Signal Forms, staffing/approval recovery and remaining planning acceptance remain open."
+      "disposition": "PARTIAL: Editable budget drafts, reviewed budget preparation, Signal Forms for all planning controls and navigation guards are implemented locally. Bounded validation and exact selection/preview/draft-bound assent refuse stale confirmation even before rendering. Explicit select labels exclude option text. Fields lock during unknown writes or budget review; revocation respects the same fence. Immutable budget preparation receipts reconcile unknown/reloaded results without automatic retry. Navigation saves only editable budget fields, preserves same-engagement paging and fences late dialog results. Staffing/revocation and budget-approval backend request recovery, action-specific authority projection and remaining planning acceptance remain open."
     },
     {
       "action": "reviewed-partner-activation",
@@ -113,7 +117,7 @@
       "disposition": "IMPLEMENTED: Exact current client-wide Partner/Manager context, canonical service/profile/period preview and explicit assent. Client-serialized shell creation and immutable actor-owned request evidence commit together; current authority is rechecked and a deferred guard validates the exact blocked publication. Same-intent retries return the original receipt; conflicting or existing service-period intent requires inspection. Native Signal Forms, bounded revision-bound tab drafts without assent, unknown-response fences and actor-owned receipt reconciliation preserve route/session/lifetime ownership. Lost-response browser journeys and focused observed checks are recorded only in status.json. No professional or Microsoft acceptance is implied."
     }
   ],
-  "remaining": "Complete planning staffing/approval request parity and other planning Signal Forms, client creation, assessment source-action parity and migration quality/cutover/retirement gates.",
+  "remaining": "Complete backend reviewed staffing/revocation and budget-approval request recovery and action-specific authority projection, client creation, assessment source-action parity and migration quality/cutover/retirement gates.",
   "verificationPointers": [
     "tests/AuditSphereOps.Domain.Tests/EngagementProfileWorkspaceTests.cs",
     "tests/AuditSphereOps.Api.Tests/EngagementProfileWorkspaceApiTests.cs",
@@ -129,6 +133,7 @@
     "tests/AuditSphereOps.E2E.Tests/AngularEngagementCreationJourneyTests.cs",
     "src/AuditSphereOps.Ui/src/app/features/clients/engagement-create.spec.ts",
     "src/AuditSphereOps.Ui/src/app/features/engagements/planning-navigation.spec.ts",
-    "tests/AuditSphereOps.E2E.Tests/AngularPlanningNavigationJourneyTests.cs"
+    "tests/AuditSphereOps.E2E.Tests/AngularPlanningNavigationJourneyTests.cs",
+    "tests/AuditSphereOps.E2E.Tests/AngularPlanningAssentJourneyTests.cs"
   ]
 }

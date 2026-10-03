@@ -4,7 +4,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "afb164e63c9deb4ff9cbd5572ecfd498a2cdcf77",
+  "headCommit": "efc0734b03089045f142a90f84eb08ce9c8c0cc5",
   "verifiedCommit": "6efa46bb6f5f1aa634ecfe1443faa53cc82ecdf6",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": false,
@@ -6074,7 +6074,75 @@
         "paths": 1445,
         "result": "MATCH"
       },
-      "boundary": "Internal engagement navigation and tab-departure warning only; scoped budget fields can be explicitly saved, while staffing/approval choices cannot. Same-engagement paging preserves the editor; session/route loss fences late dialog results. No schema or live Microsoft changes. Whole migration remains partial."
+      "boundary": "Internal engagement navigation and tab-departure warning only; scoped budget fields can be explicitly saved, while staffing/approval choices cannot. Same-engagement paging preserves the editor; session/route loss fences late dialog results. No schema or live Microsoft changes. Whole migration remains partial.",
+      "sourceCommit": "efc0734b03089045f142a90f84eb08ce9c8c0cc5",
+      "publishedCommit": "efc0734b03089045f142a90f84eb08ce9c8c0cc5",
+      "remoteHeadVerified": true
+    },
+    "angularPlanningSignalFormsAndAssent": {
+      "status": "PASS_FOCUSED",
+      "baseCommit": "efc0734b03089045f142a90f84eb08ce9c8c0cc5",
+      "releaseBuild": {
+        "status": "PASS",
+        "parentExitCode": 0,
+        "warnings": 0,
+        "errors": 0,
+        "log": "/private/tmp/auditsphere-planning-assent-release.log"
+      },
+      "angular": {
+        "status": "PASS",
+        "parentExitCode": 0,
+        "passed": 377,
+        "failed": 0,
+        "files": 78,
+        "log": "/private/tmp/auditsphere-planning-assent-angular.log"
+      },
+      "productionBuild": {
+        "status": "PASS",
+        "parentExitCode": 0,
+        "log": "/private/tmp/auditsphere-planning-assent-build.log"
+      },
+      "browser": {
+        "status": "PASS",
+        "parentExitCode": 0,
+        "passed": 8,
+        "failed": 0,
+        "log": "/private/tmp/auditsphere-planning-assent-e2e.log"
+      },
+      "builtInBrowser": {
+        "status": "PASS_LOCAL_SYNTHETIC",
+        "cases": [
+          "exact staffing label lookup",
+          "fresh staffing assent",
+          "level change clears native checkbox and disables dispatch"
+        ],
+        "consoleWarnings": 0,
+        "consoleErrors": 0,
+        "screenshot": "/private/tmp/auditsphere-planning-assent-reset.png",
+        "previewDisposed": true
+      },
+      "frozenEvidence": {
+        "manifest": "/private/tmp/auditsphere-planning-assent-hashes.json",
+        "paths": 1446,
+        "result": "MATCH"
+      },
+      "intermediateFailures": [
+        {
+          "log": "/private/tmp/auditsphere-planning-assent-e2e-readiness-failure.log",
+          "passed": 6,
+          "failed": 2,
+          "parentExitCode": 1,
+          "reason": "New option-inventory lookup returned no candidates. Added explicit UI-readiness wait; assertions retained."
+        },
+        {
+          "log": "/private/tmp/auditsphere-planning-assent-e2e-label-failure.log",
+          "passed": 6,
+          "failed": 2,
+          "parentExitCode": 1,
+          "reason": "Readiness assertion exposed ambiguous implicit select labels. Corrected product labels with explicit association; exact-label selectors and original assertions retained."
+        }
+      ],
+      "boundary": "Planning controls now use Signal Forms and context-bound in-memory assent. Immediate command guards refuse stale staffing selection, altered preview, changed draft or another draft ID; unknown writes lock editing/revocation. Existing Application authorization and commands remain unchanged. Backend staffing/revocation and approval request receipts, client creation, assessment and whole migration acceptance remain partial. No schema or live Microsoft change."
     }
   },
   "documentationWork": {
@@ -6182,7 +6250,7 @@
     "implementationStatus": "PARTIAL",
     "acceptanceStatus": "PARTIAL",
     "scope": "Standalone API and native Angular capability slices preserve Application authorization, exact financial inputs, durable operations and independent human gates. Legacy Blazor remains available for rollback until wider parity and retirement acceptance.",
-    "nextAction": "Complete staffing/approval reviewed request recovery and remaining planning Signal Forms, then client creation and assessment parity. Run a new whole regression for the newer planning source before wider acceptance. Complete migration quality/cutover/retirement gates.",
+    "nextAction": "Complete backend reviewed staffing/revocation and budget-approval request recovery and action-specific authority projection, then client creation and assessment parity. Run a new whole regression for the newer planning source before wider acceptance. Complete migration quality/cutover/retirement gates.",
     "branch": "master"
   },
   "localEvidence": [

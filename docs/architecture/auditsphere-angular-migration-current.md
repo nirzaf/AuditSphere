@@ -891,3 +891,19 @@ reconciliation, never an automatic command retry. Reconciliation waits behind
 in-flight guarded publication. Editable recovery excludes assent, calculated money
 and execution. Staffing/approval request parity and complete planning Signal Forms
 remain open.
+
+### Planning form and navigation boundaries
+
+Native engagement planning uses Signal Forms for budget fields, staffing selection
+and review confirmations. Assent is memory-only and bound to the exact current
+selection, preview or draft plus session/engagement ownership. It is never restored
+from editable tab drafts. Immediate command guards reject changed review context;
+native checkboxes reset when context changes. Select labels have explicit association.
+
+Navigation offers keep, budget-only tab save or explicit discard. Storage failure
+keeps editing; staffing and approval choices cannot be saved as budget fields.
+Same-engagement hold paging preserves the editor. Late dialog results cannot save
+under a changed identity or engagement, and busy/unknown writes fence departure.
+Tab departure warns without trapping sign-out. Application services retain all
+business authority. Backend staffing/revocation and approval request recovery are
+still incomplete; full planning parity and UI retirement acceptance remain open.
