@@ -41,6 +41,39 @@ The implementation covers native route families for practice, accounting, consol
 
 Execution evidence is recorded in [status.json](../execution/status.json). Local synthetic fixtures do not establish tenant, deployment, professional or owner acceptance. Wiki publication has not been authorized.
 
+### Native reviewed accounting evidence actions
+
+The separate native evidence action page composes `AccountingEvidenceWorkspace`
+and the existing analysis commands. Procedure selection is bounded and server-paged,
+with exact same-engagement workpaper/procedure parents, current result revision,
+generation and immutable selected-result basis. Approval additionally requires
+current retained input/method/replay checks and a linked independently reviewed
+current procedure result. An evidence preparer cannot review the same evidence.
+Missing legacy journal-risk provenance permits an explicit human escalation only;
+it never permits native clearance or an inferred fraud conclusion.
+
+Preview and explicit assent bind the actor, session, target, evidence basis, selected
+result revision, decision, rationale and evidence reference. Execution serializes
+with existing firm/client/engagement guards and reporting-period locks, checks
+book closure and file freeze, repeats authority before commit, and composes the
+existing service in the same local transaction as an immutable before/after receipt.
+A serialization refusal leaves no partial publication. Identical local retries
+reconcile the actor-owned retained intent; changed intents cannot reuse its identity.
+
+The additive migration guards scoped targets and links, freezes native reviewed
+records, and prevents edits/deletion of native receipts or their retained links.
+Rollback refuses to discard retained native action evidence. New structured records
+archives include these actions and their exact snapshots; older exports remain
+unchanged. Shared/production migration application is still operator-controlled.
+
+Angular Signal Forms retain bounded editable fields in an identity/base-bound tab
+draft without assent. Dispatch requires a saved recovery reference. Unknown or
+malformed acknowledgments fence new commands and navigation until the actor-owned
+receipt is checked and acknowledged, or an identical pending intent is freshly
+reviewed after persisted absence. Changed route/session clears protected state and
+late responses cannot refill it. Preparation/editing of new analysis or reconciliation
+records and broader migration acceptance remain open.
+
 ### Native analysis evidence inspection
 
 `AccountingAnalysisReviewQuery` serves exact locally authorized ECL, inventory,

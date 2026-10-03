@@ -10,7 +10,7 @@ internal static class AccountingAnalysisReviewSeed
 {
   internal sealed record Result(PbcSeed.Fixture Fixture, IReadOnlyDictionary<string,Guid> Evidence, Guid SourceId,
     Guid HiddenId, Guid ZeroAnalyticalId, IReadOnlyList<Guid> ProcedureResultIds);
-  internal static async Task<Result> SeedAsync(ITestPostgresDatabase pg)
+  internal static async Task<Result> SeedAsync(ITestPostgresDatabase pg, bool retainReviews = true, bool linkEvidence = true)
   {
     var s = await ReconciliationReviewSeed.SeedAsync(pg); var f = s.Fixture;
     await using var db = new AuditSphereDbContext(pg.Options);
@@ -56,11 +56,12 @@ internal static class AccountingAnalysisReviewSeed
     await db.SaveChangesAsync();
     foreach(var (kind,id) in ids)
     {
-      foreach(var result in kind=="SPECIALIST" ? results : results.Take(1))
+      foreach(var result in linkEvidence ? (kind=="SPECIALIST" ? results : results.Take(1)) : [])
       {
         var linked=await AccountingAnalysisService.LinkAccountingEvidenceToProcedureAsync(db,actor,new(kind,id,result));
         if(!linked.Succeeded)throw new InvalidOperationException(linked.Message);
       }
+      if (!retainReviews) continue;
       var reviewed=await AccountingAnalysisService.ReviewAccountingEvidenceAsync(db,reviewer,new(kind,id,kind=="JOURNAL_RISK" ? "CLEARED" : "APPROVED",
         Disposition:"Synthetic reviewed disposition",Conclusion:"Synthetic retained human conclusion.",CorroborationReference:"SYNTHETIC-CORROBORATION"));
       if(!reviewed.Succeeded)throw new InvalidOperationException(reviewed.Message);

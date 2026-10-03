@@ -13,6 +13,27 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Native reviewed accounting evidence commands
+
+The Angular analysis inspection now links to a separate reviewed action workspace.
+Staff select a bounded current same-engagement procedure result; independent
+reviewers record decisions only when retained inputs and current procedure evidence
+meet the existing accounting gates. Risk flags missing original provenance permit
+human escalation only. Prior retained human decisions are preserved.
+
+The Application boundary composes existing commands under parent/period locks
+and a local transaction, retaining actor-owned request identity and immutable
+before/after evidence. Repeated intent reconciles the same receipt; changed intent,
+stale inputs, closed books/periods, file freeze and revoked authority fail closed.
+Database guards preserve reviewed records, native links and action receipts.
+New structured archives include this evidence without changing older artifacts.
+
+Angular forms require current preview and explicit assent, retain bounded tab fields
+without assent, and fence an unknown outcome until persisted receipt reconciliation.
+Source/route/session changes clear protected state. Verification progress and logs
+are in `status.json`; wider preparation/editing, migration acceptance, cutover and
+Blazor retirement remain open. No shared or production migration was applied.
+
 ## Native Angular workbench parity across audit, finance, client and operations (US-028 through US-041)
 
 Native Angular 22 workbenches, type-safe contract decoders, and comprehensive unit test coverage have been completed across all operational capabilities:

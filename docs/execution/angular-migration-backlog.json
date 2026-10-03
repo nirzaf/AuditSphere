@@ -150,7 +150,7 @@
       "id": "US-025",
       "title": "Migrate reconciliation, valuation and accounting evidence",
       "status": "PARTIAL",
-      "scope": "Native scoped evidence queue, reconciliation inspection and ECL/inventory/specialist/analytical/journal-risk detail now separate retained amounts, methods and human review from current source/generation/procedure checks. Complete evidence links are bounded and server-paged; replay and method checks fail closed, missing provenance is explicit, and protected responses clear on route/session change. Targeted local verification progress is recorded in status.json. Reviewed evidence creation/editing, approval/linking commands, full story acceptance and wider migration QA remain open."
+      "scope": "Native scoped evidence queue, reconciliation inspection and ECL/inventory/specialist/analytical/journal-risk detail separate retained amounts, methods and human review from current source/generation/procedure checks. Native reviewed procedure linking and independent decisions now use exact source/result bases, maker/checker gates, immutable local receipts, scoped paged history and explicit unknown-outcome recovery; legacy risk missing provenance permits escalation only. New structured archives retain native action evidence. Verification evidence is recorded in status.json. New reconciliation/analysis preparation and revision forms, full story acceptance and wider migration QA remain open."
     },
     {
       "id": "US-026",

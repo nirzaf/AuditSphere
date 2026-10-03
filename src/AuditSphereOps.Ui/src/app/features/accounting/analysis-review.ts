@@ -51,7 +51,8 @@ export function decodeAnalysisReview(raw: unknown, path = 'response') {
         <p>Retained status <audit-status [value]="r.status" /> @if (r.version) { · revision {{ r.version }} }</p>
         <p>Current input checks <audit-status [value]="r.inputsCurrent ? 'CURRENT_INPUTS' : 'BLOCKED'" /> ·
           Reviewed procedure <audit-status [value]="r.hasCurrentReviewedProcedure ? 'CURRENT_REVIEWED_RESULT' : 'REVIEW_REQUIRED'" /></p>
-        <p>A retained approval alone does not establish current source or procedure verification.</p></section>
+        <p>A retained approval alone does not establish current source or procedure verification.</p>
+        <a [routerLink]="['/app/accounting/evidence',r.kind,r.id,'actions']">Link or independently review this evidence</a></section>
       @if (r.blockers.length) { <section class="panel" role="status"><h2>Current verification blockers</h2><ul>@for (b of r.blockers; track b) { <li>{{ b }}</li> }</ul></section> }
       <section class="panel"><h2>Source and input provenance</h2><p>{{ r.source.description }}</p>
         <dl><dt>Provenance type</dt><dd>{{ r.source.kind }}</dd><dt>Input generation</dt><dd>{{ r.inputGeneration ?? 'Not retained' }} retained / {{ r.currentGeneration ?? 'Unavailable' }} current</dd>

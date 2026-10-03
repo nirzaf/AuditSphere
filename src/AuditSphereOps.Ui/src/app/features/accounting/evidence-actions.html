@@ -1,0 +1,53 @@
+<a [routerLink]="['/app/accounting/evidence',kind(),id()]">← Back to exact evidence</a>
+<audit-page-header title="Link and review accounting evidence" eyebrow="Human accounting decisions"
+  description="Review the exact retained inputs, source checks and procedure revision before recording a link or independent decision." />
+<button matButton="outlined" (click)="refresh()" [disabled]="busy()">Refresh current evidence</button>
+<audit-state [loading]="detail.loading() || state.loading()" [error]="detail.error() || state.error()" label="scoped evidence actions" />
+@if (message()) { <p role="status">{{ message() }}</p> }
+@if (context(); as c) {
+  <section class="panel"><h2>Exact reviewed context</h2><p>{{ c.v.kind }} · {{ c.v.area }} · {{ c.v.clientName }} · {{ c.v.engagementName }} · {{ c.v.periodCode }} · {{ c.v.currency }}</p>
+    <p>Retained status <audit-status [value]="c.v.status" /> · Current inputs <audit-status [value]="c.v.inputsCurrent ? 'CURRENT_INPUTS' : 'BLOCKED'" /></p>
+    <dl>@for (a of c.v.amounts; track a.key) { <dt>{{ a.label }}</dt><dd>{{ a.value ?? 'Unavailable' }} {{ a.unit === 'REPORTING_CURRENCY' ? c.v.currency : a.unit }}</dd> }</dl>
+    <p>Retained generation {{ c.v.inputGeneration ?? 'Not retained' }} / current {{ c.v.currentGeneration ?? 'Unavailable' }}</p>
+    <p>Exact retained source digest: {{ c.v.source.retainedDigest ?? 'Not retained' }}</p>
+    <p>This action does not post to client books or make an autonomous audit conclusion.</p>
+    @if (c.s.blockers.length) { <ul>@for (b of c.s.blockers; track b) { <li>{{ b }}</li> }</ul> }
+  </section>
+  @if (uncertain()) { <section class="panel" role="alert"><h2>Unconfirmed action</h2><p>Request {{ pending()?.requestId }} · {{ pending()?.requestHash }}</p>
+    <button matButton="outlined" (click)="reconcile()" [disabled]="busy()">Check retained receipt</button>
+    @if (receipt() && pending()) { <button matButton="filled" (click)="acknowledge()">Acknowledge retained action</button> }
+  </section> }
+  @if (c.s.canLink || c.s.canReview) {
+    <section class="panel"><h2>Prepare reviewed action</h2><form (submit)="$event.preventDefault();prepare()">
+      <fieldset [disabled]="busy() || (uncertain() && !absent())"><legend>Exact evidence intent</legend>
+        <label>Action <select [value]="model().action" (change)="changeAction($event)"><option value="LINK" [disabled]="!c.s.canLink">Link submitted procedure result</option>
+          <option value="REVIEW" [disabled]="!c.s.canReview">Independent human review</option></select></label>
+        @if (model().action === 'LINK') {
+          <audit-state [loading]="procedures.loading()" [error]="procedures.error()" label="same-engagement procedure results" />
+          @if (procedures.data(); as p) { <label>Procedure result <select [value]="model().resultId ?? ''" (change)="chooseResult($event)"><option value="">Choose exact current result</option>
+            @for (r of p.rows; track r.resultId) { <option [value]="r.resultId" [disabled]="r.alreadyLinked">{{ r.procedureCode }} · revision {{ r.revision }} · {{ r.status }}{{ r.alreadyLinked ? ' · Already linked' : '' }}</option> }</select></label>
+            <p>{{ p.count }} scoped results · page {{ p.page + 1 }}. A submitted link alone is not approval evidence.</p>
+            <nav class="actions" aria-label="Procedure result pages"><button matButton="outlined" type="button" (click)="procedurePage.set(p.page-1)" [disabled]="!p.page">Previous results</button>
+              <button matButton="outlined" type="button" (click)="procedurePage.set(p.page+1)" [disabled]="!p.hasMore">Next results</button></nav> }
+        } @else { <label>Decision <select [value]="model().decision" (change)="chooseDecision($event)"><option value="">Choose human decision</option>
+          @for (d of c.s.decisions; track d) { <option [value]="d">{{ d }}</option> }</select></label> }
+        <label>Reason / human conclusion <textarea rows="4" [formField]="fields.reason"></textarea></label>
+        <label>Evidence / corroboration reference <input [formField]="fields.evidenceReference" /></label>
+        <div class="actions"><button matButton="filled" type="submit" [disabled]="!fields().valid()">Preview exact action</button>
+          <button matButton="outlined" type="button" (click)="saveDraft()">Save tab draft</button></div>
+      </fieldset>
+      @if (draftAvailable() || uncertain()) { <button matButton="outlined" type="button" (click)="restoreDraft()" [disabled]="busy()">Restore editable fields</button> }
+    </form></section>
+  }
+  @if (preview(); as p) { <section class="panel"><h2>Review before dispatch</h2><p>{{ p.action }} · {{ model().decision }} · {{ model().reason }} · {{ model().evidenceReference }}</p>
+    <p>Exact result {{ model().resultId ?? 'Not applicable' }} · Evidence basis {{ p.reviewBasis }}</p>
+    @if (p.blockers.length) { <ul>@for (b of p.blockers; track b) { <li>{{ b }}</li> }</ul> }
+    <label><input type="checkbox" [checked]="reviewed()" (change)="reviewed.set($any($event.target).checked)" [disabled]="busy() || !p.canProceed" /> I reviewed this exact source, result revision and human decision.</label>
+    <button matButton="filled" (click)="execute()" [disabled]="busy() || !reviewed() || !p.canProceed">Record reviewed action</button></section> }
+  @if (receipt(); as r) { <section class="panel"><h2>Retained action receipt</h2><p>{{ r.action }} · {{ r.decision }} · {{ r.requestId }} · {{ r.createdAt }}</p><p>{{ r.reason }} · {{ r.evidenceReference }}</p></section> }
+  <section class="panel"><h2>Immutable native action history</h2><p>{{ c.s.count }} retained native actions. Earlier legacy activity is not reconstructed.</p>
+    <div class="table-scroll"><table><thead><tr><th>Action / decision</th><th>Actor / timestamp</th><th>Reason / evidence</th></tr></thead><tbody>
+      @for (r of c.s.history; track r.id) { <tr><td>{{ r.action }} · {{ r.decision }}<small>{{ r.requestId }}</small></td><td>{{ r.actorId }}<small>{{ r.createdAt }}</small></td><td>{{ r.reason }}<small>{{ r.evidenceReference }}</small></td></tr> }</tbody></table></div>
+    <nav class="actions" aria-label="Evidence history pages"><button matButton="outlined" (click)="historyPage.set(c.s.page-1)" [disabled]="busy() || uncertain() || !c.s.page">Previous history</button>
+      <button matButton="outlined" (click)="historyPage.set(c.s.page+1)" [disabled]="busy() || uncertain() || !c.s.hasMore">Next history</button></nav></section>
+} @else if (!detail.loading() && !state.loading() && !detail.error() && !state.error()) { <p role="alert">The evidence context changed. Refresh both current checks before preparing an action.</p> }

@@ -316,6 +316,7 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
   public DbSet<JournalRiskFlag> JournalRiskFlags => Set<JournalRiskFlag>();
 
   public DbSet<AccountingEvidenceAuditLink> AccountingEvidenceAuditLinks => Set<AccountingEvidenceAuditLink>();
+  public DbSet<AccountingEvidenceAction> AccountingEvidenceActions => Set<AccountingEvidenceAction>();
 
   public DbSet<ConsolidationScopeVersion> ConsolidationScopeVersions => Set<ConsolidationScopeVersion>();
 
@@ -505,6 +506,7 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
     ConfigureScopedEvidence(b);
     ConfigureAccounting(b);
     ConfigureClientAccounting(b);
+    ConfigureAccountingEvidenceActions(b);
     ConfigureDocuments(b);
     ConfigurePbc(b);
     ConfigureReviews(b);
