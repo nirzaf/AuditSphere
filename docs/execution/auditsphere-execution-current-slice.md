@@ -13,6 +13,33 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Native assessment detail and exact legacy selection
+
+The Angular assessment now composes a named Application projection for client
+identity, relationship status, selected professional decision, repository state
+and persisted overall/section progress. Legacy decision-ID links retain their
+exact selection. Historical and engagement-specific decisions remain read-only;
+opening the current client evaluation does not substitute an old decision.
+Pending status is not presented as a recorded professional conclusion.
+
+Reads hold firm, client and actor publication locks, enforce current client
+scope, and omit remote resource locations and provider diagnostics. Unknown,
+foreign and revoked selections fail closed. Native decoding bounds generation,
+revision, identity and progress; failed reads clear protected edits. Partner
+confirmation is memory-only and tied to the exact evaluation and decision fields.
+Changing reviewed fields clears assent; stale callbacks cannot change a new
+route's busy state.
+
+Focused local build, unit, PostgreSQL API and browser evidence is recorded in
+`status.json`. Built-in verification used an owned disposable fixture. Remaining
+assessment work includes typed Signal Forms, retained command receipts/recovery,
+specialist timeline detail and broader navigation/accessibility acceptance. The
+whole migration, resource grid and production cutover/retirement remain partial.
+
+The earlier conversion whole regression was cancelled after concurrent source
+and Release assembly changes invalidated its frozen manifest. Partial project
+passes are retained separately; they do not replace the whole-suite checkpoint.
+
 ## Reviewed prospect-to-client conversion
 
 The native proposal now links to an explicit Angular conversion review. The
@@ -3095,3 +3122,40 @@ The corrected final affected browser cohort and retained-evidence rollback/reapp
 The broader final API regression remains active; its prior implementation pass is recorded
 separately. The migration was exercised only in disposable owned databases. Exact terminal
 results, initial failures and unchanged artifact fingerprints are recorded in `status.json`.
+
+### Native administration access operations and cross-module parity audit (ZCode lane)
+
+While the parallel Codex session continued the accounting chain, six read-only
+source-action parity audits covered the Codex-disjoint modules: practice/finance,
+administration/Microsoft365, audit/library, assurance/completion, commercial/CRM
+and operations/records/consolidation/portal. Verdict: zero missing user-invokable
+commands anywhere — every retired-host action already has a native component
+method, same-origin endpoint and Application service, and several native flows
+(digest-verified access review, quotation concurrency, preparer/reviewer
+segregation) exceed the retired host.
+
+The owned slice restored the administration capabilities that existed only in
+Application: reviewed assignment now optionally records the atomic copy-link
+invitation intent (the preview digest is re-verified server-side against a fresh
+preview before ApplyRoleGrantAndInvitationAsync), invitations are retrieved for
+copying through a scope-rechecked read and copying is recorded, an
+approved-roster/verified-sign-in identity binding fallback covers deployments
+without a directory reader, and the access workspace now carries per-grant change
+evidence plus each user's copyable invitation id.
+
+Smaller parity repairs landed with it: legacy assessment deep links accept
+EngagementLeader and Auditor; the partner decision flow differentiates stale
+generation (form cleared, re-review required) from denied scope and prefills the
+service route; the finding response form prefills the recorded response; the
+workpaper autosave debounce matches the retired host; the invoice footer totals
+the rendered lines with exact-decimal arithmetic; the portal setup-pending panel
+only renders with zero authorized engagements; the Angular-mode access-denied
+page is a friendly no-store HTML page with a sign-out action instead of raw JSON;
+and the practice time, firm books and lead creation forms persist identity-scoped
+field drafts with allowlist validation that never stores assent.
+
+Remaining from the audits (recorded in status.json): administration pre-dispatch
+form recovery and setup capability-state fields, commercial proposal read-model
+enrichment and wider form draft hooks, receipts/credit notes (Application-only in
+both hosts, parity-neutral), curated parity ledger files for the audited modules,
+and the whole-migration acceptance gates that stay owner-gated.
