@@ -41,21 +41,12 @@ export class ClientDetail {
   private readonly session = inject(SessionService);
   private request?: Subscription;
   private id = '';
-  serviceRoute = '';
-  serviceProfile = '';
-  periodStart = '';
-  periodEnd = '';
-  readonly saving = signal(false);
-  readonly uncertain = signal(false);
-  readonly commandStatus = signal('');
   readonly data = signal<Client | null>(null);
   readonly loading = signal(false);
   readonly error = signal('');
   constructor() {
     const routeSubscription = this.route.paramMap.subscribe((p) => {
-      this.resetContact();
       this.routeRevision++;
-      this.saving.set(false);
       this.id = (p.get('id') ?? '').toLowerCase();
       this.load();
     });
@@ -68,11 +59,9 @@ export class ClientDetail {
       const staff = this.session.current()?.staff;
       untracked(() => {
         this.routeRevision++;
-        this.saving.set(false);
-        this.request?.unsubscribe();
+          this.request?.unsubscribe();
         this.data.set(null);
-        this.resetContact();
-        if (staff) this.load();
+          if (staff) this.load();
       });
     });
     inject(DestroyRef).onDestroy(() => {
@@ -84,63 +73,9 @@ export class ClientDetail {
       this.request?.unsubscribe();
     });
   }
-  private resetContact(): void {
-    this.serviceRoute = '';
-    this.serviceProfile = '';
-    this.periodStart = '';
-    this.periodEnd = '';
-    this.commandStatus.set('');
-    this.uncertain.set(false);
-  }
-  createEngagement(): void {
-    if (!this.data()?.canCreateEngagement || this.saving() || this.uncertain()) return;
-    this.saving.set(true);
-    this.commandStatus.set('Creating blocked engagement…');
-    const id = this.id;
-    const owner = this.owner();
-    this.http
-      .post('/api/ui/clients/' + id + '/engagements', {
-        serviceRoute: this.serviceRoute,
-        serviceProfile: this.serviceProfile,
-        periodStart: this.periodStart,
-        periodEnd: this.periodEnd,
-      })
-      .pipe(timeout(15000))
-      .subscribe({
-        next: (value) => {
-          if (owner !== this.owner() || this.destroyed) return;
-          this.saving.set(false);
-          if (!value || typeof value !== 'object' || !('id' in value) ||
-              typeof value.id !== 'string' || !guidPattern.test(value.id) ||
-              value.id === '00000000-0000-0000-0000-000000000000') {
-            this.uncertain.set(true);
-            this.commandStatus.set('Creation outcome unconfirmed. Review current engagements before resubmitting.');
-            return;
-          }
-          this.resetContact();
-          this.commandStatus.set('Engagement created. Partner activation remains required.');
-          this.load();
-        },
-        error: (failure) => {
-          if (owner !== this.owner() || this.destroyed) return;
-          this.saving.set(false);
-          if (failure.status >= 400 && failure.status < 500)
-            this.commandStatus.set(
-              'Creation refused. Review your scope, service profile and period.',
-            );
-          else {
-            this.uncertain.set(true);
-            this.commandStatus.set(
-              'Creation outcome unconfirmed. Review current engagements before resubmitting.',
-            );
-          }
-          if (failure.status === 401) this.session.clear();
-        },
-      });
-  }
   page(kind: 'engagement' | 'contact', page: number): void {
     const location = this.location(), data = this.data();
-    if (!location || !data || this.saving() || !Number.isSafeInteger(page) || page < 0 || page > 10000) return;
+    if (!location || !data || !Number.isSafeInteger(page) || page < 0 || page > 10000) return;
     const total = kind === 'engagement' ? data.metrics.engagements : data.metrics.contacts;
     const size = kind === 'engagement' ? location.engagementPageSize : location.contactPageSize;
     if (page > Math.max(0, Math.ceil(total / size) - 1)) return;
@@ -148,7 +83,7 @@ export class ClientDetail {
   }
   size(kind: 'engagement' | 'contact', value: string): void {
     const location = this.location();
-    if (!location || this.saving() || !['10', '25', '50'].includes(value)) return;
+    if (!location || !['10', '25', '50'].includes(value)) return;
     this.navigate({ ...location, [kind + 'Page']: 0, [kind + 'PageSize']: Number(value) });
   }
   private navigate(location: ClientLocation): void {
@@ -180,13 +115,12 @@ export class ClientDetail {
           if (decoded.id.toLowerCase() !== id || Object.entries(location).some(([key, n]) => decoded.paging[key as keyof ClientLocation] !== n))
             throw new Error('Wrong client context');
           this.data.set(decoded);
-        } catch { this.resetContact(); this.error.set('The server returned an unsupported response.'); }
+        } catch { this.error.set('The server returned an unsupported response.'); }
         this.loading.set(false);
       },
       error: (failure) => {
         if (revision !== this.viewRevision || owner !== this.owner() || this.destroyed) return;
         this.loading.set(false);
-        this.resetContact();
         this.error.set('Check your access or retry shortly.');
         if (failure.status === 401) this.session.clear();
       },

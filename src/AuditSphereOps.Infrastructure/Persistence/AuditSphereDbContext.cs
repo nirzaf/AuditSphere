@@ -174,6 +174,7 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
   public DbSet<AcceptanceDecision> AcceptanceDecisions => Set<AcceptanceDecision>();
 
   public DbSet<Engagement> Engagements => Set<Engagement>();
+  public DbSet<EngagementCreation> EngagementCreations => Set<EngagementCreation>();
 
   public DbSet<EngagementHold> EngagementHolds => Set<EngagementHold>();
 
@@ -498,6 +499,7 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
     ConfigureMoney(b);
     ConfigurePractice(b);
     ConfigureClientContactCreations(b);
+    ConfigureEngagementCreations(b);
     ConfigureCommercial(b);
     ConfigureClientPortal(b);
     ConfigureResourcePlanning(b);

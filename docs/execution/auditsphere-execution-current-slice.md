@@ -13,21 +13,36 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
-## Blocked engagement creation safety foundation
+## Reviewed native blocked-engagement creation
 
-Creation now rechecks current client-wide authority inside the client-serialized
-transaction and again before commit. Natural service-period retries retain one
-blocked shell; conflicting profiles fail. Late scope revocation rolls back the
-new shell. The Angular client form requires a nonzero GUID acknowledgment before
-clearing input or displaying success. Unsupported responses retain input and
-fence resubmission; scope refusal clears protected state. Existing Partner
-activation and Microsoft boundaries remain independent.
+The client profile now links to a focused Signal Forms creation route. Current
+client-wide Partner/Manager authority is required; engagement-only scope and
+Administrator authority alone do not suffice. The server preview binds the exact
+client revision, service, profile and period, and confirmation requires fresh
+explicit review. Existing service-period shells require inspection. New shells
+remain Draft with professional work blocked; activation remains independent.
 
-Focused Release, Angular, PostgreSQL, browser and model checks passed. The built-in
-browser created only a synthetic disposable blocked draft and verified sign-out
-clearing. Observed counts, build fingerprints and logs live in `status.json`.
-Reviewed creation Signal Forms, immutable request evidence, drafts and response
-recovery remain pending; this foundation does not complete the migration story.
+Creation and immutable actor-owned request evidence commit together under the
+client safety lock. Current authority is checked after locking and before commit.
+A deferred database guard binds the evidence to the exact blocked shell, actor and
+client revision. Same-intent retries retain the original receipt. Lookup waits for
+an in-flight transaction before reporting absence. The additive migration permits
+empty rollback/reapply but refuses rollback while creation evidence exists. Only
+owned disposable databases were migrated.
+
+Editable drafts are explicit, bounded, tab-only and revision-bound; they exclude
+review assent. Unknown responses fence resubmission and navigation until receipt
+reconciliation. An absent receipt permits fresh review of the identical request;
+changed intent cannot reuse it. Denied commands and failed receipt reads remove
+protected context and require a new authorized read. Route changes, session loss
+and destruction fence late callbacks. The older API creation endpoint and Blazor
+presentation remain compatible for rollback.
+
+Focused Release, Angular, PostgreSQL, API, browser and model checks passed. The
+built-in browser verified exact review, keyboard confirmation, immutable receipt,
+mobile bounds and sign-out clearing using disposable synthetic data. Initial
+compile and encoded-route corrections, final joined build fingerprints and exact
+counts live in `status.json`. This does not complete wider migration acceptance.
 
 ## Reviewed native Partner activation and response recovery
 
@@ -62,13 +77,14 @@ rollback-target and concurrent browser diagnostics test failures; both focused
 repairs preserve their original safety assertions. It does not replace the last
 successful whole-suite `verifiedCommit`.
 
-The focused activation slice is pushed to remote master. A fresh whole regression
-now consumes that published source in a separate clean, rebuilt and frozen managed
-worktree. Keep its source, browser assets and assemblies unchanged until every
-consumer joins, then compare the recorded fingerprints. Running tests are not
-whole-suite acceptance; exact publication and runtime evidence live in `status.json`.
+The published activation source has now passed a whole regression in its separate
+frozen worktree. Every cohort and the parent joined successfully, and source,
+Angular asset and Release assembly fingerprints match their pre-run manifest.
+This updates the whole-suite `verifiedCommit` for activation source only. The newer
+reviewed creation slice has its own focused evidence and needs a fresh whole run.
+Exact source identities, observed counts and runtime evidence live in `status.json`.
 
-Next: reviewed blocked-engagement creation and planning forms/drafts/recovery,
+Next: reviewed planning forms/drafts/recovery, client creation,
 remaining assessment/source-action parity, wider quality and production-like
 cutover/rollback acceptance, then Blazor retirement. The full migration remains
 partial. The existing operator migration workflow still applies; no Wiki update,

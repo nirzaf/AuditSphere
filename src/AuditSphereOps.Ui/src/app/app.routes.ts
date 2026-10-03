@@ -185,6 +185,8 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./features/engagements/engagement').then((m) => m.EngagementDetail),
   },
+  { path: 'app/clients/:id/engagements/new', canActivate: [staffGuard], canDeactivate: [unsavedChangesGuard], title: 'Create blocked engagement · AuditSphere',
+    loadComponent: () => import('./features/clients/engagement-create').then(m => m.EngagementCreate) },
   { path: 'app/clients/:id/contacts/new', canActivate: [staffGuard], canDeactivate: [unsavedChangesGuard],
     title: 'Add client contact · AuditSphere', loadComponent: () => import('./features/clients/contact-create').then(m => m.ContactCreate) },
   {

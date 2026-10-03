@@ -71,39 +71,18 @@ describe('Client profile request and command ownership', () => {
     queries.next(convertToParamMap({contactPage:'2'})); TestBed.tick(); read().flush({...payload,id:other}); TestBed.tick();
     expect(f.componentInstance.data()).toBeNull();
   });
-  it('never lets an old command clear fields or finish a newer route visit', () => {
+  it('clears protected metadata when the session ends', () => {
     const f = open(); read().flush(payload); TestBed.tick();
-    f.componentInstance.data.set(decodeClient({...payload,canCreateEngagement:true}));
-    f.componentInstance.serviceRoute = 'Original'; f.componentInstance.createEngagement();
-    const pending = TestBed.inject(HttpTestingController).expectOne('/api/ui/clients/'+id+'/engagements');
-    ids.next(convertToParamMap({id:other})); TestBed.tick(); read().flush({...payload,id:other}); TestBed.tick();
-    ids.next(convertToParamMap({id})); TestBed.tick(); read().flush(payload); TestBed.tick();
-    f.componentInstance.serviceRoute = 'New route draft'; pending.flush({id:other}); TestBed.tick();
-    expect(f.componentInstance.serviceRoute).toBe('New route draft'); expect(f.componentInstance.commandStatus()).toBe('');
-  });
-  it('clears metadata and contact fields when the session ends', () => {
-    const f = open(); read().flush(payload); TestBed.tick(); f.componentInstance.serviceRoute = 'Private input';
     TestBed.inject(SessionService).clear(); TestBed.tick();
-    expect(f.componentInstance.data()).toBeNull(); expect(f.componentInstance.serviceRoute).toBe('');
+    expect(f.componentInstance.data()).toBeNull();
     expect(f.nativeElement.textContent).not.toContain('SYNTHETIC-REG');
   });
-  it('keeps malformed creation acknowledgments unknown and refuses automatic resubmission', () => {
-    const f = open(); read().flush({...payload,canCreateEngagement:true}); TestBed.tick();
-    const c = f.componentInstance; c.serviceRoute = 'AccountingOnly'; c.createEngagement();
-    TestBed.inject(HttpTestingController).expectOne('/api/ui/clients/'+id+'/engagements').flush({}); TestBed.tick();
-    expect(c.uncertain()).toBe(true); expect(c.commandStatus()).not.toContain('Engagement created.');
-    expect(c.serviceRoute).toBe('AccountingOnly'); c.createEngagement();
-    TestBed.inject(HttpTestingController).expectNone('/api/ui/clients/'+id+'/engagements');
-    c.load(); read().flush({}, {status:403,statusText:'Forbidden'}); TestBed.tick();
-    expect(c.data()).toBeNull(); expect(c.serviceRoute).toBe('');
+  it('links authorized creation to separate native route segments and preserves source pages',()=>{
+    const f=open();read().flush({...payload,canCreateEngagement:true});TestBed.tick();
+    const link=f.nativeElement.querySelector('a[href*="/engagements/new"]');expect(link).not.toBeNull();
+    expect(link.getAttribute('href')).toContain('/app/clients/'+id+'/engagements/new?');
+    expect(link.getAttribute('href')).not.toContain('%2F');
+    expect(f.nativeElement.querySelector('input[name="serviceRoute"]')).toBeNull();
   });
-  it('accepts only a valid created identity and clears callbacks after destruction', () => {
-    const f = open(); read().flush({...payload,canCreateEngagement:true}); TestBed.tick();
-    const c = f.componentInstance; c.createEngagement();
-    TestBed.inject(HttpTestingController).expectOne('/api/ui/clients/'+id+'/engagements').flush({id:other}); TestBed.tick();
-    expect(c.commandStatus()).toContain('Engagement created.'); read().flush(payload); TestBed.tick();
-    c.data.set(decodeClient({...payload,canCreateEngagement:true})); c.createEngagement();
-    const old = TestBed.inject(HttpTestingController).expectOne('/api/ui/clients/'+id+'/engagements'); f.destroy();
-    old.flush({}); TestBed.tick(); expect(c.uncertain()).toBe(false);
-  });
+
 });

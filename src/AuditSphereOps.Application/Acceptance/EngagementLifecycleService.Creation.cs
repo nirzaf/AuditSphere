@@ -23,7 +23,7 @@ public static partial class EngagementLifecycleService
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
       new AuthorizationRequest(actor.FirmId, request.PracticeClientId, RequiredRoles: DraftRoles, InternalOnly: true), ct);
     if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
-    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
     // Serialize creation for this client so concurrent retries cannot insert duplicate service-period shells.
     var clientGuard = await db.ClientSafetyStates.FromSqlInterpolated(
       $"SELECT * FROM client_safety_states WHERE id = {request.PracticeClientId} AND firm_id = {actor.FirmId} FOR UPDATE")
@@ -45,7 +45,7 @@ public static partial class EngagementLifecycleService
       if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
       if (existing.ServiceProfileId != profile)
         return CommandResult<Guid>.Fail("engagement.conflict", "This service and period already use another service profile.");
-      await tx.CommitAsync(ct);
+      if (tx is not null) await tx.CommitAsync(ct);
       return CommandResult<Guid>.Ok(existing.Id);
     }
     var engagement = new Engagement
@@ -58,7 +58,7 @@ public static partial class EngagementLifecycleService
     await db.SaveChangesAsync(ct);
     auth = await AuthorizeDraftAsync(db, actor, request.PracticeClientId, ct);
     if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
-    await tx.CommitAsync(ct);
+    if (tx is not null) await tx.CommitAsync(ct);
     return CommandResult<Guid>.Ok(engagement.Id);
   }
 

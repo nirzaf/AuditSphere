@@ -1,0 +1,135 @@
+<nav aria-label="Breadcrumb">
+  <a routerLink="/app" [queryParams]="portfolioNavigation.params()">Portfolio</a
+  ><a [routerLink]="['/app/clients', id()]" [queryParams]="returnParams">Client profile</a
+  ><span aria-current="page">Create engagement</span>
+</nav>
+<audit-page-header
+  title="Create blocked engagement"
+  eyebrow="Client service and period"
+  description="Review an exact service, profile and period before creating a draft. Partner activation remains a separate decision."
+/>
+<audit-state [loading]="state.loading() || busy()" label="engagement creation" />
+@if (state.error()) {
+  <section role="alert">
+    <h2>Engagement creation unavailable</h2>
+    <p>{{ state.error() }}</p>
+    <button matButton (click)="refresh()">Retry</button>
+  </section>
+}
+@if (state.data(); as context) {
+  <section aria-label="Engagement client context">
+    <h2>{{ context.clientName }}</h2>
+    <p>Client revision {{ context.clientGeneration }}</p>
+    <p>
+      Creation leaves professional work blocked. It grants no Microsoft or portal access and makes
+      no acceptance decision.
+    </p>
+    <button matButton [disabled]="busy()" (click)="refresh()">Refresh creation context</button>
+  </section>
+  @if (uncertain()) {
+    <section role="alert">
+      <h2>Creation outcome unconfirmed</h2>
+      <p>{{ message() }}</p>
+      <p>
+        Retained request: <code>{{ pending()?.requestId }}</code>
+      </p>
+      <button matButton [disabled]="busy()" (click)="reconcile()">Verify creation receipt</button>
+    </section>
+  }
+  <section aria-label="Engagement details">
+    <h2>Service and period</h2>
+    <form (submit)="$event.preventDefault(); prepare()">
+      <label>Service route<input [formField]="fields.serviceRoute" autocomplete="off" /></label>
+      <label>Service profile<input [formField]="fields.serviceProfile" autocomplete="off" /></label>
+      <label>Period start<input type="date" [formField]="fields.periodStart" /></label>
+      <label>Period end<input type="date" [formField]="fields.periodEnd" /></label>
+      @if (!valid() && dirty()) {
+        <p role="status">
+          Enter a service route (2–50 characters), profile (up to 100 characters) and a valid period
+          with start on or before end.
+        </p>
+      }
+      <div class="actions">
+        <button matButton="filled" type="submit" [disabled]="locked() || !valid()">
+          Review engagement</button
+        ><button matButton type="button" [disabled]="busy() || uncertain()" (click)="saveDraft()">
+          Save engagement draft
+        </button>
+        @if (draftAvailable()) {
+          <button matButton type="button" [disabled]="locked()" (click)="restoreDraft()">
+            Restore engagement draft
+          </button>
+        }
+        <button matButton type="button" [disabled]="busy() || uncertain()" (click)="discardDraft()">
+          Discard engagement edits
+        </button>
+      </div>
+    </form>
+    <p class="muted">
+      Tab drafts expire after four hours and require the same identity and client revision. They
+      contain editable fields only, never review assent.
+    </p>
+  </section>
+  @if (preview(); as p) {
+    <section aria-label="Reviewed engagement intent" class="review">
+      <h2>Review blocked engagement</h2>
+      <dl>
+        <dt>Service route</dt>
+        <dd>{{ p.fields.serviceRoute }}</dd>
+        <dt>Service profile</dt>
+        <dd>{{ p.fields.serviceProfile }}</dd>
+        <dt>Period</dt>
+        <dd>{{ p.fields.periodStart }} to {{ p.fields.periodEnd }}</dd>
+        <dt>Initial state</dt>
+        <dd>Draft · professional work blocked</dd>
+      </dl>
+      <p>
+        Client revision {{ context.clientGeneration }}. Partner activation requires current
+        unconditional acceptance and no active holds.
+      </p>
+      <label class="check"
+        ><input
+          type="checkbox"
+          [checked]="reviewed()"
+          [disabled]="busy()"
+          (change)="reviewed.set($any($event.target).checked)"
+        />I reviewed this exact client, service, profile and period.</label
+      >
+      <button matButton="filled" [disabled]="busy() || !reviewed()" (click)="execute()">
+        Confirm blocked creation
+      </button>
+    </section>
+  }
+  @if (receipt(); as r) {
+    <section aria-label="Engagement creation receipt">
+      <h2>Blocked engagement recorded</h2>
+      <dl>
+        <dt>Engagement ID</dt>
+        <dd>{{ r.engagementId }}</dd>
+        <dt>Request ID</dt>
+        <dd>{{ r.requestId }}</dd>
+        <dt>Service route</dt>
+        <dd>{{ r.fields.serviceRoute }}</dd>
+        <dt>Service profile</dt>
+        <dd>{{ r.fields.serviceProfile }}</dd>
+        <dt>Period</dt>
+        <dd>{{ r.fields.periodStart }} to {{ r.fields.periodEnd }}</dd>
+        <dt>Initial revision</dt>
+        <dd>{{ r.engagementGeneration }}</dd>
+        <dt>Recorded</dt>
+        <dd>{{ utcTime(r.createdAt) }}</dd>
+      </dl>
+      <p>This immutable receipt records creation, not current activation or access authority.</p>
+      @if (uncertain()) {
+        <button matButton="filled" [disabled]="busy()" (click)="acknowledge()">
+          Acknowledge creation result
+        </button>
+      } @else {
+        <a [routerLink]="['/app/engagements', r.engagementId]">Inspect engagement</a>
+      }
+    </section>
+  }
+  @if (!uncertain()) {
+    <p role="status">{{ message() }}</p>
+  }
+}

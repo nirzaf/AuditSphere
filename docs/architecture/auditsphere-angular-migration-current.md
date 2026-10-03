@@ -401,7 +401,28 @@ Angular planning now prepares budget lines using whole forecast minutes and disp
 
 ### Engagement creation and activation
 
-Client-wide Partner/Manager authorization controls Angular draft creation. New shells remain blocked; creation is serialized on the client safety row so concurrent retries reuse a single service-period identity. A conflicting service profile is refused. Angular sends ISO date-only strings directly without converting through local time. Exact engagement Partner authorization controls the activation affordance; the existing service still requires current unconditional acceptance for the matching service and no open hold. CSRF is validated on both command endpoints. Acceptance checklist migration and complete browser parity remain pending.
+Client-wide Partner/Manager authorization controls the focused native creation
+route. A preview binds the current client revision and canonical service, profile
+and ISO date-only period; fresh explicit assent is required. New shells remain
+blocked. The client safety lock serializes creation, and shell plus immutable
+actor-owned request evidence publish together. A deferred guard checks exact
+blocked-shell fields, actor epoch, scope and client revision at commit. Reviewed
+retries retain the original receipt; a pre-existing service-period engagement
+requires inspection rather than being presented as a new creation.
+
+Native Signal Forms retain editable fields only through explicit bounded tab
+drafts. Review assent is never persisted. Unknown responses fence navigation and
+resubmission; receipt lookup waits behind creation publication. An absent result
+allows fresh review of the identical request, while changed intent cannot reuse
+its identity. Scope/session loss and route lifetime changes remove protected
+content and fence late callbacks. The older creation API remains available for
+rollback builds. No Microsoft, portal or professional authority is granted.
+
+Reviewed Partner activation independently requires exact engagement authority,
+current unconditional same-service acceptance and no active holds. Creation and
+activation use fixed authenticated, no-store API contracts with antiforgery on
+commands. Both retain immutable request evidence; retirement and broader story
+acceptance remain open. Observed migration and test evidence lives in `status.json`.
 
 ### Acceptance checklist
 

@@ -46,7 +46,23 @@
     },
     {
       "path": "src/AuditSphereOps.Application/Acceptance/EngagementLifecycleService.Creation.cs",
-      "sha256": "6232406dd53aa6e3d351fdfa8583d8d3038063b659e9fab48d2ccee1a29d4c9f"
+      "sha256": "62fe4d2631331a5123286e7ea0c56b3e743d36ab92d08a5de0fd29f03162f902"
+    },
+    {
+      "path": "src/AuditSphereOps.Application/Acceptance/EngagementCreationWorkspace.cs",
+      "sha256": "00704303eba6e0d4d13e486ad0996d94ff7284bb0c836fbc2936091e9e284475"
+    },
+    {
+      "path": "src/AuditSphereOps.Api/Ui/UiEndpoints.EngagementCreation.cs",
+      "sha256": "cb25f642a82485b604d1198bc1643022b6c865b23c5eb4034ec5ea903743f87f"
+    },
+    {
+      "path": "src/AuditSphereOps.Ui/src/app/features/clients/engagement-create.ts",
+      "sha256": "9697f225d0c86ba2d048520e25f2242d7ea3bf54df2a11b5112300bc9635bdfa"
+    },
+    {
+      "path": "src/AuditSphereOps.Ui/src/app/features/clients/engagement-create-contracts.ts",
+      "sha256": "0d0fb0fcd53321d4a58e5bbad2c5c7a0f98eec637ad331479a34d851252ad128"
     }
   ],
   "records": [
@@ -76,12 +92,12 @@
       "disposition": "IMPLEMENTED: Exact current Partner context, same-service unconditional acceptance, current revisions, zero holds and fresh assent. Guarded activation and immutable actor-owned request evidence commit together; retry returns the original receipt. Pending tab recovery retains request identity only and fences unknown results until reconciliation or fresh review. Local observed verification is recorded in status.json, not production or professional acceptance."
     },
     {
-      "action": "blocked-creation-safety",
-      "owner": "EngagementLifecycleService.Creation / native client page",
-      "disposition": "PARTIAL: Client-serialized creation rechecks current authority after locks and before commit; revoked writes roll back. Natural service-period retries retain one blocked shell, profile conflicts fail. Native UI requires a nonzero GUID acknowledgment; unsupported responses fence resubmission and retain fields. Reviewed creation route, immutable request evidence, drafts and outcome recovery remain open."
+      "action": "reviewed-blocked-creation",
+      "owner": "EngagementCreationWorkspace / EngagementLifecycleService.Creation / native engagement-create page",
+      "disposition": "IMPLEMENTED: Exact current client-wide Partner/Manager context, canonical service/profile/period preview and explicit assent. Client-serialized shell creation and immutable actor-owned request evidence commit together; current authority is rechecked and a deferred guard validates the exact blocked publication. Same-intent retries return the original receipt; conflicting or existing service-period intent requires inspection. Native Signal Forms, bounded revision-bound tab drafts without assent, unknown-response fences and actor-owned receipt reconciliation preserve route/session/lifetime ownership. Lost-response browser journeys and focused observed checks are recorded only in status.json. No professional or Microsoft acceptance is implied."
     }
   ],
-  "remaining": "Complete client creation, blocked-engagement creation, planning forms/drafts/outcome acceptance, assessment source-action parity and remaining migration quality/cutover/retirement gates.",
+  "remaining": "Complete client creation, planning forms/drafts/outcome acceptance, assessment source-action parity and remaining migration quality/cutover/retirement gates.",
   "verificationPointers": [
     "tests/AuditSphereOps.Domain.Tests/EngagementProfileWorkspaceTests.cs",
     "tests/AuditSphereOps.Api.Tests/EngagementProfileWorkspaceApiTests.cs",
@@ -91,6 +107,10 @@
     "tests/AuditSphereOps.Domain.Tests/EngagementActivationReviewTests.cs",
     "tests/AuditSphereOps.Api.Tests/EngagementActivationReviewApiTests.cs",
     "src/AuditSphereOps.Ui/src/app/features/engagements/activation.spec.ts",
-    "tests/AuditSphereOps.E2E.Tests/AngularEngagementActivationJourneyTests.cs"
+    "tests/AuditSphereOps.E2E.Tests/AngularEngagementActivationJourneyTests.cs",
+    "tests/AuditSphereOps.Domain.Tests/EngagementCreationReviewTests.cs",
+    "tests/AuditSphereOps.Api.Tests/EngagementCreationReviewApiTests.cs",
+    "tests/AuditSphereOps.E2E.Tests/AngularEngagementCreationJourneyTests.cs",
+    "src/AuditSphereOps.Ui/src/app/features/clients/engagement-create.spec.ts"
   ]
 }

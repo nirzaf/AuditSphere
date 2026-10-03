@@ -50,6 +50,7 @@ public interface IAuditSphereDbContext : IAsyncDisposable
   DbSet<FinancialPackageSeal> FinancialPackageSeals { get; }
   DbSet<FinancialPackageDisclosure> FinancialPackageDisclosures { get; }
   DbSet<Engagement> Engagements { get; }
+  DbSet<EngagementCreation> EngagementCreations { get; }
   DbSet<EngagementHold> EngagementHolds { get; }
   DbSet<RepositoryBinding> RepositoryBindings { get; }
   DbSet<SyncCursor> SyncCursors { get; }

@@ -8,7 +8,7 @@
   <nav aria-label="Client navigation">
     <audit-status [value]="client.status" />
     <a [routerLink]="['/app/clients', client.id, 'assessment']">Acceptance checklist</a>
-    <button matButton [disabled]="saving()" (click)="load()">Refresh client</button>
+    <button matButton  (click)="load()">Refresh client</button>
   </nav>
   <section class="client-metrics" aria-label="Scoped client summary">
     <article><h2>Engagements</h2><strong>{{ client.metrics.engagements }}</strong></article>
@@ -42,11 +42,11 @@
       </table></div>
     }
     <nav aria-label="Client engagement pages">
-      <mat-form-field><mat-label>Engagements per page</mat-label><select matNativeControl #engagementSize [value]="client.paging.engagementPageSize" [disabled]="saving()" (change)="size('engagement', engagementSize.value)"><option value="10">10</option><option value="25">25</option><option value="50">50</option></select></mat-form-field>
-      @if (client.paging.engagementPage > 0) { <button matButton [disabled]="saving()" (click)="page('engagement', 0)">First engagements</button> }
-      <button matButton [disabled]="saving() || client.paging.engagementPage === 0" (click)="page('engagement', client.paging.engagementPage - 1)">Previous engagements</button>
+      <mat-form-field><mat-label>Engagements per page</mat-label><select matNativeControl #engagementSize [value]="client.paging.engagementPageSize"  (change)="size('engagement', engagementSize.value)"><option value="10">10</option><option value="25">25</option><option value="50">50</option></select></mat-form-field>
+      @if (client.paging.engagementPage > 0) { <button matButton  (click)="page('engagement', 0)">First engagements</button> }
+      <button matButton [disabled]="client.paging.engagementPage === 0" (click)="page('engagement', client.paging.engagementPage - 1)">Previous engagements</button>
       <span>Page {{ client.paging.engagementPage + 1 }} · {{ client.metrics.engagements }} authorized engagements</span>
-      <button matButton [disabled]="saving() || (client.paging.engagementPage + 1) * client.paging.engagementPageSize >= client.metrics.engagements" (click)="page('engagement', client.paging.engagementPage + 1)">Next engagements</button>
+      <button matButton [disabled]="(client.paging.engagementPage + 1) * client.paging.engagementPageSize >= client.metrics.engagements" (click)="page('engagement', client.paging.engagementPage + 1)">Next engagements</button>
     </nav>
   </section>
       @if (client.canCreateEngagement) {
@@ -56,45 +56,7 @@
             A new engagement starts blocked until Partner activation against current unconditional
             acceptance.
           </p>
-          <form (ngSubmit)="createEngagement()">
-            <mat-form-field
-              ><mat-label>Service route</mat-label
-              ><input
-                matInput
-                name="serviceRoute"
-                [(ngModel)]="serviceRoute"
-                maxlength="50"
-                required
-                [disabled]="saving()"
-            /></mat-form-field>
-            <mat-form-field
-              ><mat-label>Service profile</mat-label
-              ><input
-                matInput
-                name="serviceProfile"
-                [(ngModel)]="serviceProfile"
-                maxlength="100"
-                required
-                [disabled]="saving()"
-            /></mat-form-field>
-            <label
-              >Period start
-              <input
-                type="date"
-                name="start"
-                [(ngModel)]="periodStart"
-                required
-                [disabled]="saving()"
-            /></label>
-            <label
-              >Period end
-              <input type="date" name="end" [(ngModel)]="periodEnd" required [disabled]="saving()"
-            /></label>
-            <button matButton="filled" type="submit" [disabled]="saving() || uncertain()">
-              Create engagement
-            </button>
-          </form>
-          <p role="status">{{ commandStatus() }}</p>
+          <a matButton="filled" [routerLink]="['/app/clients', client.id, 'engagements', 'new']" [queryParams]="location()">Review new engagement</a>
         </section>
       }
   <section aria-label="Client portal intent">
@@ -117,11 +79,11 @@
       </table></div>
     }
     <nav aria-label="Client contact pages">
-      <mat-form-field><mat-label>Contacts per page</mat-label><select matNativeControl #contactSize [value]="client.paging.contactPageSize" [disabled]="saving()" (change)="size('contact', contactSize.value)"><option value="10">10</option><option value="25">25</option><option value="50">50</option></select></mat-form-field>
-      @if (client.paging.contactPage > 0) { <button matButton [disabled]="saving()" (click)="page('contact', 0)">First contacts</button> }
-      <button matButton [disabled]="saving() || client.paging.contactPage === 0" (click)="page('contact', client.paging.contactPage - 1)">Previous contacts</button>
+      <mat-form-field><mat-label>Contacts per page</mat-label><select matNativeControl #contactSize [value]="client.paging.contactPageSize"  (change)="size('contact', contactSize.value)"><option value="10">10</option><option value="25">25</option><option value="50">50</option></select></mat-form-field>
+      @if (client.paging.contactPage > 0) { <button matButton  (click)="page('contact', 0)">First contacts</button> }
+      <button matButton [disabled]="client.paging.contactPage === 0" (click)="page('contact', client.paging.contactPage - 1)">Previous contacts</button>
       <span>Page {{ client.paging.contactPage + 1 }} · {{ client.metrics.contacts }} authorized contacts</span>
-      <button matButton [disabled]="saving() || (client.paging.contactPage + 1) * client.paging.contactPageSize >= client.metrics.contacts" (click)="page('contact', client.paging.contactPage + 1)">Next contacts</button>
+      <button matButton [disabled]="(client.paging.contactPage + 1) * client.paging.contactPageSize >= client.metrics.contacts" (click)="page('contact', client.paging.contactPage + 1)">Next contacts</button>
     </nav>
     @if (client.canManageContacts) {
       <p><a matButton="filled" [routerLink]="['/app/clients', client.id, 'contacts', 'new']" [queryParams]="location()">Add client contact</a></p>
