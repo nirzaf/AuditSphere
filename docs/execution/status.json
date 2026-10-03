@@ -7071,6 +7071,15 @@
       "fullSolutionRegression": "NOT_RUN for this slice. The prior integrated attempt remains interrupted and does not establish aggregate test completion; verifiedCommit is unchanged.",
       "efModelDrift": "NOT_RUN; no persistence or EF model changes.",
       "boundary": "This fixes duplicate same-term search reads by synchronously cancelling the debounce and deduplicating active/completed term requests; failed lookups remain retryable. The overall API/Angular migration remains PARTIAL."
+    },
+    "angularIntegratedRegressionZcode": {
+      "status": "PARTIAL",
+      "scope": "Whole-solution Release regression launched from a fresh build (solution zero warnings/errors, Angular production build complete) while HEAD was 795da8c with clean source; the parallel session advanced HEAD with six commits (specialist review timeline, resource grid range, docs) and ran its own concurrent regression during the E2E leg.",
+      "api": "PASS: 175/175 (14m30s).",
+      "domain": "PASS: 644/644 (32m36s).",
+      "e2e": "200/201. One case failed during the concurrent-window leg: ClientScopeJourneyTests.PbcInboxClearsRenderedStateWhenNavigatingToUnauthorizedSiblingEngagement. The failing case passes in isolation immediately after the run (1/1, 23s). The parallel session's own regression recorded a stall in the same window (222560b) and subsequently fixed and verified unrelated search typeahead behavior (f192fe7).",
+      "boundary": "No frozen whole-suite pass is claimed: one E2E case failed under two concurrent full regressions contending for the shared local PostgreSQL and browsers, and the tested binaries predate the six commits that landed mid-run. API and Domain legs are complete passes at the tested build. A clean frozen whole-suite claim requires an exclusive window at a settled head.",
+      "remaining": "Exclusive-window frozen whole-suite pass; screen-reader (AT) walk-throughs, wider locale matrix, production-like canary and acceptance, owner-authorized retirement (US-047), live Microsoft gates."
     }
   },
   "documentationWork": {
