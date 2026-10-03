@@ -23,12 +23,15 @@ function record(value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 export function decodeDimensions(value: unknown): Dimension[] {
-  if (!Array.isArray(value)) throw new Error('Invalid dimensions');
+  if (!Array.isArray(value) || value.length > 1001) throw new Error('Invalid dimensions');
   for (const d of value) {
     const item = record(d);
     if (typeof item['id'] !== 'string' || !guidPattern.test(item['id']) ||
-      !['dimensionType', 'code', 'name', 'status', 'createdAt'].every(k => typeof item[k] === 'string') ||
-      typeof item['revision'] !== 'number') {
+      !['BRANCH', 'COST_CENTRE', 'DEPARTMENT', 'PROJECT', 'INTERCOMPANY_COUNTERPARTY'].includes(String(item['dimensionType'])) ||
+      !['code', 'name', 'status', 'createdAt'].every(k => typeof item[k] === 'string') ||
+      !String(item['code']).trim() || !String(item['name']).trim() ||
+      !Number.isSafeInteger(item['revision']) || Number(item['revision']) < 1 ||
+      Number.isNaN(Date.parse(String(item['createdAt'])))) {
       throw new Error('Invalid dimension');
     }
   }
@@ -201,24 +204,27 @@ export function decodeWorkspace(value: unknown): Workspace {
         </form>
         @if (w.hasMorePeriods) { <p>Showing the latest 100 periods. Older periods are not included in this view.</p> }
         <h3>Accounting dimensions</h3>
+        @if (dimensionsLoading()) { <p role="status">Loading accounting dimensions…</p> }
+        @if (dimensionsError()) { <p role="alert">{{ dimensionsError() }}</p><button matButton type="button" (click)="loadDimensions(w.clientId, session.invalidation())">Retry dimensions</button> }
         @if (dimensions(); as dimList) {
           <div class="table-scroll"><table><caption>Client accounting dimension definitions</caption><thead><tr><th>Type</th><th>Code</th><th>Name</th><th>Status</th><th>Revision</th></tr></thead>
             <tbody>@for (d of dimList; track d.id) { <tr><td>{{ d.dimensionType }}</td><td>{{ d.code }}</td><td>{{ d.name }}</td><td>{{ d.status }}</td><td>{{ d.revision }}</td></tr> }</tbody></table></div>
           @if (!dimList.length) { <p>No accounting dimensions configured for this client.</p> }
+          @if (dimensionsTruncated()) { <p>Showing the first 1,000 accounting dimensions for this client.</p> }
         }
         <form #dimForm="ngForm" (ngSubmit)="dimForm.valid && addDimension()"><h4>Add accounting dimension</h4>
           <label for="dim-type">Dimension type</label>
-          <select id="dim-type" name="dimType" [(ngModel)]="dim.type" required>
+          <select id="dim-type" name="dimType" [(ngModel)]="dim.type" (ngModelChange)="dimReviewed = false" required>
             <option value="BRANCH">Branch</option>
             <option value="COST_CENTRE">Cost centre</option>
             <option value="DEPARTMENT">Department</option>
             <option value="PROJECT">Project</option>
             <option value="INTERCOMPANY_COUNTERPARTY">Intercompany counterparty</option>
           </select>
-          <label>Code <input name="dimCode" [(ngModel)]="dim.code" required maxlength="100" /></label>
-          <label>Name <input name="dimName" [(ngModel)]="dim.name" required maxlength="300" /></label>
+          <label>Code <input name="dimCode" [(ngModel)]="dim.code" (ngModelChange)="dimReviewed = false" required maxlength="100" /></label>
+          <label>Name <input name="dimName" [(ngModel)]="dim.name" (ngModelChange)="dimReviewed = false" required maxlength="300" /></label>
           <label><input name="dimReviewed" type="checkbox" [(ngModel)]="dimReviewed" /> I reviewed this dimension definition for this client.</label>
-          <button matButton type="submit" [disabled]="dimForm.invalid || !dimReviewed || saving() || uncertain()">Add dimension</button>
+          <button matButton type="submit" [disabled]="dimForm.invalid || dimensions() === null || dimensionsLoading() || !dimReviewed || saving() || uncertain()">Add dimension</button>
         </form>
       </section>
     }
@@ -250,6 +256,9 @@ export class AccountingWorkspace {
   dimReviewed = false;
   dim = { type: 'BRANCH', code: '', name: '' };
   readonly dimensions = signal<Dimension[] | null>(null);
+  readonly dimensionsLoading = signal(false);
+  readonly dimensionsError = signal('');
+  readonly dimensionsTruncated = signal(false);
   private query = '';
   readonly data = signal<ClientPage | null>(null);
   readonly workspace = signal<Workspace | null>(null);
@@ -258,7 +267,7 @@ export class AccountingWorkspace {
   constructor() {
     effect(() => {
       this.session.invalidation(); const staff = this.session.current()?.staff;
-      untracked(() => { this.request?.unsubscribe(); this.detail?.unsubscribe(); this.write?.unsubscribe(); this.dimRead?.unsubscribe(); this.sourceRead?.unsubscribe(); this.sources.set(null); this.dimensions.set(null); this.selectedSource = ''; this.saving.set(false); this.reviewed = false; this.openingReviewed = ''; this.rollReviewed = false; this.dimReviewed = false; this.roll = { prior: '', code: '', start: '', end: '', basis: '', currency: '', closing: '', opening: '', hash: '', evidence: '' }; this.bookReviewed = false; this.book = { periodId: '', code: '', basis: '', inclusionRule: '', currency: '' }; this.periodReviewed = false; this.period = { code: '', start: '', end: '', basis: '', currency: '', prior: '' }; this.dim = { type: 'BRANCH', code: '', name: '' }; this.form = { jurisdiction: '', currency: '', month: 1, day: 1, source: '', identifier: '' }; this.data.set(null); this.workspace.set(null); this.clearSources(); this.decisionPeriod.set(''); this.error.set(''); this.loading.set(false); if (staff) this.load(); });
+      untracked(() => { this.request?.unsubscribe(); this.detail?.unsubscribe(); this.write?.unsubscribe(); this.dimRead?.unsubscribe(); this.sourceRead?.unsubscribe(); this.sources.set(null); this.dimensions.set(null); this.dimensionsLoading.set(false); this.dimensionsError.set(''); this.dimensionsTruncated.set(false); this.selectedSource = ''; this.saving.set(false); this.reviewed = false; this.openingReviewed = ''; this.rollReviewed = false; this.dimReviewed = false; this.roll = { prior: '', code: '', start: '', end: '', basis: '', currency: '', closing: '', opening: '', hash: '', evidence: '' }; this.bookReviewed = false; this.book = { periodId: '', code: '', basis: '', inclusionRule: '', currency: '' }; this.periodReviewed = false; this.period = { code: '', start: '', end: '', basis: '', currency: '', prior: '' }; this.dim = { type: 'BRANCH', code: '', name: '' }; this.form = { jurisdiction: '', currency: '', month: 1, day: 1, source: '', identifier: '' }; this.data.set(null); this.workspace.set(null); this.clearSources(); this.decisionPeriod.set(''); this.error.set(''); this.loading.set(false); if (staff) this.load(); });
     });
     inject(DestroyRef).onDestroy(() => { this.request?.unsubscribe(); this.detail?.unsubscribe(); this.write?.unsubscribe(); this.dimRead?.unsubscribe(); this.sourceRead?.unsubscribe(); this.sources.set(null); this.dimensions.set(null); this.selectedSource = ''; });
   }
@@ -287,15 +296,19 @@ export class AccountingWorkspace {
   }
   loadDimensions(id: string, generation: number): void {
     this.dimRead?.unsubscribe();
+    this.dimensions.set(null); this.dimensionsError.set(''); this.dimensionsLoading.set(true); this.dimensionsTruncated.set(false);
     this.dimRead = this.http.get<unknown>('/api/ui/accounting/clients/' + id + '/dimensions').pipe(timeout(15000)).subscribe({
       next: value => { if (generation !== this.session.invalidation() || id !== this.workspace()?.clientId) return;
-        try { this.dimensions.set(decodeDimensions(value)); } catch { /* ignore */ } },
-      error: () => { /* ignore */ },
+        try { const result = decodeDimensions(value); this.dimensionsTruncated.set(result.length > 1000); this.dimensions.set(result.slice(0, 1000)); }
+        catch { this.dimensionsError.set('Accounting dimensions returned an unsupported response. Refresh before continuing.'); }
+        this.dimensionsLoading.set(false); },
+      error: () => { if (generation !== this.session.invalidation() || id !== this.workspace()?.clientId) return;
+        this.dimensionsLoading.set(false); this.dimensionsError.set('Accounting dimensions are unavailable. Retry before continuing.'); },
     });
   }
   addDimension(): void {
     const w = this.workspace();
-    if (!w || !this.dimReviewed || this.saving() || this.uncertain()) return;
+    if (!w || this.dimensions() === null || !this.dimReviewed || this.saving() || this.uncertain()) return;
     const generation = this.session.invalidation();
     this.saving.set(true); this.error.set('');
     this.write = this.http.post('/api/ui/accounting/clients/' + w.clientId + '/dimensions', {

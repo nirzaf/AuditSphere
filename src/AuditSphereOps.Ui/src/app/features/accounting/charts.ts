@@ -45,7 +45,7 @@ export function decodeAccounts(value: unknown): Accounts {
   return v as unknown as Accounts;
 }
 export function decodeAliases(value: unknown): Alias[] {
-  if (!Array.isArray(value)) throw new Error('Invalid aliases');
+  if (!Array.isArray(value) || value.length > 1001) throw new Error('Invalid aliases');
   for (const a of value) {
     if (!a || typeof a !== 'object') throw new Error('Invalid alias');
     const item = a as Record<string, unknown>;
@@ -64,8 +64,8 @@ export function decodeAliases(value: unknown): Alias[] {
     @if (error()) { <p role="alert">{{ error() }}</p> }
     @if (data(); as charts) {
       <form #chartForm="ngForm" (ngSubmit)="chartForm.valid && create()"><h4>Create draft chart revision</h4>
-        <label>Chart source scope <input name="chartSource" [(ngModel)]="sourceScope" required maxlength="200" /></label>
-        <label>Chart effective from <input name="chartDate" type="date" [(ngModel)]="effectiveFrom" required /></label>
+        <label>Chart source scope <input name="chartSource" [(ngModel)]="sourceScope" (ngModelChange)="creationReviewed = false" required maxlength="200" /></label>
+        <label>Chart effective from <input name="chartDate" type="date" [(ngModel)]="effectiveFrom" (ngModelChange)="creationReviewed = false" required /></label>
         <label><input name="chartReview" type="checkbox" [(ngModel)]="creationReviewed" /> I reviewed this client and the latest chart version {{ charts.items[0]?.version ?? '0' }}.</label>
         <button matButton type="submit" [disabled]="chartForm.invalid || !creationReviewed || busy() || uncertain()">Create draft chart</button>
       </form>
@@ -77,30 +77,32 @@ export function decodeAliases(value: unknown): Alias[] {
     }
     @for (c of data()?.items ?? []; track c.id) { @if (c.id === selected && c.status === 'DRAFT') {
       <form #accountForm="ngForm" (ngSubmit)="accountForm.valid && addAccount(c)"><h4>Add account to revision {{ c.version }}</h4>
-        <label>Stable account identity <input name="stable" [(ngModel)]="account.stable" required maxlength="200" /></label>
-        <label>Account code <input name="code" [(ngModel)]="account.code" required maxlength="100" /></label>
-        <label>Account name <input name="name" [(ngModel)]="account.name" required maxlength="200" /></label>
-        <label>Account classification <input name="type" [(ngModel)]="account.type" required maxlength="50" /></label>
-        <label for="normal-balance">Normal balance</label><select id="normal-balance" name="balance" [(ngModel)]="account.balance"><option value="DEBIT">Debit</option><option value="CREDIT">Credit</option></select>
-        <label>Parent stable identity <input name="parent" [(ngModel)]="account.parent" maxlength="200" /></label>
-        <label><input type="checkbox" name="posting" [(ngModel)]="account.posting" /> Posting account</label>
+        <label>Stable account identity <input name="stable" [(ngModel)]="account.stable" (ngModelChange)="accountReviewed = false" required maxlength="200" /></label>
+        <label>Account code <input name="code" [(ngModel)]="account.code" (ngModelChange)="accountReviewed = false" required maxlength="100" /></label>
+        <label>Account name <input name="name" [(ngModel)]="account.name" (ngModelChange)="accountReviewed = false" required maxlength="200" /></label>
+        <label>Account classification <input name="type" [(ngModel)]="account.type" (ngModelChange)="accountReviewed = false" required maxlength="50" /></label>
+        <label for="normal-balance">Normal balance</label><select id="normal-balance" name="balance" [(ngModel)]="account.balance" (ngModelChange)="accountReviewed = false"><option value="DEBIT">Debit</option><option value="CREDIT">Credit</option></select>
+        <label>Parent stable identity <input name="parent" [(ngModel)]="account.parent" (ngModelChange)="accountReviewed = false" maxlength="200" /></label>
+        <label><input type="checkbox" name="posting" [(ngModel)]="account.posting" (ngModelChange)="accountReviewed = false" /> Posting account</label>
         <label><input type="checkbox" name="review" [(ngModel)]="accountReviewed" /> I reviewed this account and its parent within this draft chart.</label>
         <button matButton type="submit" [disabled]="accountForm.invalid || !accountReviewed || busy() || uncertain()">Add reviewed account</button>
       </form>
       <form #aliasForm="ngForm" (ngSubmit)="aliasForm.valid && addAlias(c)"><h4>Add source account alias to revision {{ c.version }}</h4>
         <label for="alias-account">Target client account</label>
-        <select id="alias-account" name="aliasAccount" [(ngModel)]="alias.accountId" required>
+        <select id="alias-account" name="aliasAccount" [(ngModel)]="alias.accountId" (ngModelChange)="aliasReviewed = false" required>
           <option value="">Choose account</option>
           @for (a of accounts()?.items ?? []; track a.id) { <option [value]="a.id">{{ a.accountCode }} · {{ a.accountName }}</option> }
         </select>
-        <label>Source system <input name="sourceSystem" [(ngModel)]="alias.sourceSystem" required maxlength="100" /></label>
-        <label>Alias code <input name="aliasCode" [(ngModel)]="alias.code" required maxlength="100" /></label>
-        <label>Alias name <input name="aliasName" [(ngModel)]="alias.name" maxlength="200" /></label>
+        <label>Source system <input name="sourceSystem" [(ngModel)]="alias.sourceSystem" (ngModelChange)="aliasReviewed = false" required maxlength="100" /></label>
+        <label>Alias code <input name="aliasCode" [(ngModel)]="alias.code" (ngModelChange)="aliasReviewed = false" required maxlength="100" /></label>
+        <label>Alias name <input name="aliasName" [(ngModel)]="alias.name" (ngModelChange)="aliasReviewed = false" maxlength="200" /></label>
         <label><input type="checkbox" name="aliasReview" [(ngModel)]="aliasReviewed" /> I reviewed this source account alias within this draft chart.</label>
-        <button matButton type="submit" [disabled]="aliasForm.invalid || !aliasReviewed || busy() || uncertain()">Add reviewed alias</button>
+        <button matButton type="submit" [disabled]="aliasForm.invalid || aliases() === null || aliasLoading() || !aliasReviewed || busy() || uncertain()">Add reviewed alias</button>
       </form>
     } }
     @if (selected) { <button matButton [disabled]="busy()" (click)="reviewPublication()">Review publication snapshot</button> }
+    @if (selected && aliasLoading()) { <p role="status">Loading source account aliases…</p> }
+    @if (selected && aliasError()) { <p role="alert">{{ aliasError() }}</p><button matButton type="button" (click)="loadAliases(selected)">Retry aliases</button> }
     @if (publication(); as p) {
       <h4>Independent publication review · revision {{ p.version }}</h4><p>{{ p.accountCount }} accounts · SHA-256 {{ p.digest }}</p>
       <p>Review account pages and hierarchy before publication. The Application command rechecks the complete account set under the chart lock.</p>
@@ -119,11 +121,14 @@ export function decodeAliases(value: unknown): Alias[] {
       <div class="table-scroll"><table><caption>Source account aliases in selected chart revision</caption><thead><tr><th>Alias code</th><th>Source system</th><th>Client account</th><th>Alias name</th></tr></thead>
         <tbody>@for (al of aliasList; track al.id) { <tr><td>{{ al.aliasCode }}</td><td>{{ al.sourceSystem }}</td><td>{{ al.accountCode }}</td><td>{{ al.aliasName }}</td></tr> }</tbody></table></div>
       @if (!aliasList.length) { <p>No source account aliases configured for this revision.</p> }
+      @if (aliasesTruncated()) { <p>Showing the first 1,000 source aliases for this revision.</p> }
     }
   </section>` })
 export class AccountingCharts {
   readonly clientId = input.required<string>(); readonly data = signal<Charts | null>(null); readonly accounts = signal<Accounts | null>(null);
   readonly aliases = signal<Alias[] | null>(null);
+  readonly aliasLoading = signal(false); readonly aliasError = signal('');
+  readonly aliasesTruncated = signal(false);
   readonly loading = signal(false); readonly error = signal(''); selected = '';
   private readonly http = inject(HttpClient); private readonly session = inject(SessionService);
   private request?: Subscription; private detail?: Subscription; private write?: Subscription; private publicationRead?: Subscription;
@@ -136,12 +141,12 @@ export class AccountingCharts {
   alias = { accountId: '', sourceSystem: '', code: '', name: '' };
   constructor() {
     effect(() => { this.clientId(); this.session.invalidation(); const staff = this.session.current()?.staff;
-      untracked(() => { this.request?.unsubscribe(); this.detail?.unsubscribe(); this.write?.unsubscribe(); this.publicationRead?.unsubscribe(); this.aliasRead?.unsubscribe(); this.publication.set(null); this.publicationReviewed = false; this.busy.set(false); this.creationReviewed = false; this.accountReviewed = false; this.aliasReviewed = false; this.sourceScope = ''; this.effectiveFrom = ''; this.account = { stable: '', code: '', name: '', type: '', balance: 'DEBIT', parent: '', posting: true }; this.alias = { accountId: '', sourceSystem: '', code: '', name: '' }; this.data.set(null); this.accounts.set(null); this.aliases.set(null); this.selected = ''; this.loading.set(false); if (staff) this.load(); }); });
+      untracked(() => { this.request?.unsubscribe(); this.detail?.unsubscribe(); this.write?.unsubscribe(); this.publicationRead?.unsubscribe(); this.aliasRead?.unsubscribe(); this.publication.set(null); this.publicationReviewed = false; this.busy.set(false); this.creationReviewed = false; this.accountReviewed = false; this.aliasReviewed = false; this.aliasLoading.set(false); this.aliasError.set(''); this.aliasesTruncated.set(false); this.sourceScope = ''; this.effectiveFrom = ''; this.account = { stable: '', code: '', name: '', type: '', balance: 'DEBIT', parent: '', posting: true }; this.alias = { accountId: '', sourceSystem: '', code: '', name: '' }; this.data.set(null); this.accounts.set(null); this.aliases.set(null); this.selected = ''; this.loading.set(false); if (staff) this.load(); }); });
     inject(DestroyRef).onDestroy(() => { this.request?.unsubscribe(); this.detail?.unsubscribe(); this.write?.unsubscribe(); this.publicationRead?.unsubscribe(); this.aliasRead?.unsubscribe(); this.publication.set(null); this.publicationReviewed = false; });
   }
   load(): void {
     if (this.busy()) return;
-    this.request?.unsubscribe(); this.detail?.unsubscribe(); this.write?.unsubscribe(); this.publicationRead?.unsubscribe(); this.aliasRead?.unsubscribe(); this.publication.set(null); this.publicationReviewed = false; this.busy.set(false); this.creationReviewed = false; this.accountReviewed = false; this.aliasReviewed = false; this.sourceScope = ''; this.effectiveFrom = ''; this.account = { stable: '', code: '', name: '', type: '', balance: 'DEBIT', parent: '', posting: true }; this.alias = { accountId: '', sourceSystem: '', code: '', name: '' }; this.data.set(null); this.accounts.set(null); this.aliases.set(null); this.error.set(''); this.loading.set(true);
+    this.request?.unsubscribe(); this.detail?.unsubscribe(); this.write?.unsubscribe(); this.publicationRead?.unsubscribe(); this.aliasRead?.unsubscribe(); this.publication.set(null); this.publicationReviewed = false; this.busy.set(false); this.creationReviewed = false; this.accountReviewed = false; this.aliasReviewed = false; this.aliasLoading.set(false); this.aliasError.set(''); this.aliasesTruncated.set(false); this.sourceScope = ''; this.effectiveFrom = ''; this.account = { stable: '', code: '', name: '', type: '', balance: 'DEBIT', parent: '', posting: true }; this.alias = { accountId: '', sourceSystem: '', code: '', name: '' }; this.data.set(null); this.accounts.set(null); this.aliases.set(null); this.error.set(''); this.loading.set(true);
     const generation = this.session.invalidation(), client = this.clientId();
     this.request = this.http.get<unknown>('/api/ui/accounting/clients/' + client + '/charts').pipe(timeout(15000)).subscribe({
       next: value => { if (generation !== this.session.invalidation() || client !== this.clientId()) return;
@@ -152,17 +157,27 @@ export class AccountingCharts {
   select(id: string, page = 1): void {
     if (this.busy()) return; this.accountReviewed = false; this.aliasReviewed = false; this.publicationRead?.unsubscribe(); this.publication.set(null); this.publicationReviewed = false;
     if (!this.data()?.items.some(c => c.id === id)) return;
-    this.detail?.unsubscribe(); this.aliasRead?.unsubscribe(); this.selected = id; this.accounts.set(null); this.aliases.set(null); this.error.set(''); this.loading.set(true);
+    this.detail?.unsubscribe(); this.aliasRead?.unsubscribe(); this.selected = id; this.accounts.set(null); this.aliases.set(null); this.aliasesTruncated.set(false); this.aliasError.set(''); this.aliasLoading.set(false); this.error.set(''); this.loading.set(true);
     const generation = this.session.invalidation(), client = this.clientId();
     this.detail = this.http.get<unknown>('/api/ui/accounting/clients/' + client + '/charts/' + id + '/accounts', { params: { page, pageSize: 50 } }).pipe(timeout(15000)).subscribe({
       next: value => { if (generation !== this.session.invalidation() || client !== this.clientId() || id !== this.selected) return;
         try { const result = decodeAccounts(value); if (result.page !== page) throw new Error('Mismatch'); this.accounts.set(result); } catch { this.error.set('Unsupported account response.'); } this.loading.set(false); },
       error: () => { if (generation !== this.session.invalidation() || client !== this.clientId() || id !== this.selected) return; this.loading.set(false); this.error.set('Accounts unavailable. Refresh chart revisions.'); },
     });
+    this.loadAliases(id, generation);
+  }
+  loadAliases(id: string, generation = this.session.invalidation()): void {
+    if (!this.data()?.items.some(c => c.id === id) || id !== this.selected) return;
+    this.aliasRead?.unsubscribe(); this.aliases.set(null); this.aliasesTruncated.set(false); this.aliasError.set(''); this.aliasLoading.set(true);
+    const client = this.clientId();
     this.aliasRead = this.http.get<unknown>('/api/ui/accounting/clients/' + client + '/charts/' + id + '/aliases').pipe(timeout(15000)).subscribe({
       next: value => { if (generation !== this.session.invalidation() || client !== this.clientId() || id !== this.selected) return;
-        try { this.aliases.set(decodeAliases(value)); } catch { /* ignore */ } },
-      error: () => { /* ignore */ },
+        try { const aliases = decodeAliases(value); this.aliasesTruncated.set(aliases.length > 1000); this.aliases.set(aliases.slice(0, 1000)); }
+        catch { this.aliasError.set('Source account aliases returned an unsupported response. Retry before continuing.'); }
+        this.aliasLoading.set(false); },
+      error: failure => { if (generation !== this.session.invalidation() || client !== this.clientId() || id !== this.selected) return;
+        this.aliasLoading.set(false); this.aliasError.set('Source account aliases are unavailable. Retry before continuing.');
+        if (failure.status === 401) this.session.clear(); },
     });
   }
   create(): void {
@@ -177,7 +192,7 @@ export class AccountingCharts {
       isPosting: this.account.posting, parentStableIdentity: this.account.parent.trim() || null }] });
   }
   addAlias(chart: Chart): void {
-    if (!this.aliasReviewed || this.busy() || this.uncertain() || chart.status !== 'DRAFT' || chart.id !== this.selected || !this.alias.accountId) return;
+    if (this.aliases() === null || this.aliasLoading() || !this.aliasReviewed || this.busy() || this.uncertain() || chart.status !== 'DRAFT' || chart.id !== this.selected || !this.alias.accountId) return;
     this.mutate('/charts/' + chart.id + '/aliases', { version: chart.version, reviewed: true, aliases: [{
       clientAccountId: this.alias.accountId, sourceSystem: this.alias.sourceSystem.trim(),
       aliasCode: this.alias.code.trim(), aliasName: this.alias.name.trim()

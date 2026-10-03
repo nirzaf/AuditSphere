@@ -35,5 +35,8 @@ describe('Accounting contracts', () => {
     expect(() => decodeWorkspace({ clientId: id, name: 'Client', profile: null, hasMorePeriods: false, books: [], hasMoreBooks: false, amendments: [], hasMoreAmendments: false, openingBridges: [], canReviewOpening: false,
       periods: [{ id, revision: 1, code: '2026', start: '2026-01-01', end: '2026-12-31', basis: 'IFRS', currency: 'QAR', status: 'DRAFT' }] })).toThrow();
     expect(() => decodeDimensions([{ id: 'bad', dimensionType: 'BRANCH', code: 'BR01', name: 'Main', status: 'ACTIVE', revision: 1, createdAt: '' }])).toThrow();
+    expect(() => decodeDimensions([{ id, dimensionType: 'UNRECOGNIZED', code: 'BR01', name: 'Main', status: 'ACTIVE', revision: 1, createdAt: '2026-10-01T00:00:00Z' }])).toThrow();
+    const boundedDimension = { id, dimensionType: 'BRANCH', code: 'BR01', name: 'Main', status: 'ACTIVE', revision: 1, createdAt: '2026-10-01T00:00:00Z' };
+    expect(() => decodeDimensions(Array.from({ length: 1002 }, () => boundedDimension))).toThrow();
   });
 });
