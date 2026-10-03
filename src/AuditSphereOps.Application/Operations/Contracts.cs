@@ -53,6 +53,7 @@ public interface IAuditSphereDbContext : IAsyncDisposable
   DbSet<EngagementCreation> EngagementCreations { get; }
   DbSet<BudgetPreparation> BudgetPreparations { get; }
   DbSet<BudgetApproval> BudgetApprovals { get; }
+  DbSet<StaffingChange> StaffingChanges { get; }
   DbSet<EngagementHold> EngagementHolds { get; }
   DbSet<RepositoryBinding> RepositoryBindings { get; }
   DbSet<SyncCursor> SyncCursors { get; }

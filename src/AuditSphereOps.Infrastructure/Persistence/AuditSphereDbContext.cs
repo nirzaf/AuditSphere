@@ -177,6 +177,7 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
   public DbSet<EngagementCreation> EngagementCreations => Set<EngagementCreation>();
   public DbSet<BudgetPreparation> BudgetPreparations => Set<BudgetPreparation>();
   public DbSet<BudgetApproval> BudgetApprovals => Set<BudgetApproval>();
+  public DbSet<StaffingChange> StaffingChanges => Set<StaffingChange>();
 
   public DbSet<EngagementHold> EngagementHolds => Set<EngagementHold>();
 
@@ -504,6 +505,7 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
     ConfigureEngagementCreations(b);
     ConfigureBudgetPreparations(b);
     ConfigureBudgetApprovals(b);
+    ConfigureStaffingChanges(b);
     ConfigureCommercial(b);
     ConfigureClientPortal(b);
     ConfigureResourcePlanning(b);
