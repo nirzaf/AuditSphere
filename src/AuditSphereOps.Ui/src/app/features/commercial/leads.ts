@@ -128,7 +128,14 @@ export function decodeLeads(value: unknown): LeadPage {
           </button>
         </form>
       </section>
-      <p role="status">{{ leads.total }} leads in this search</p>
+      <section class="portfolio-metrics" aria-label="Lead summary">
+        <article><h2>Leads in this search</h2><strong>{{ leads.total }}</strong></article>
+        <article><h2>Awaiting qualification</h2><strong>{{ leads.items.filter((l) => l.status === 'NEW').length }}</strong></article>
+      </section>
+      <p role="status">
+        {{ leads.total }} leads in this search
+        <button matButton (click)="load()" [disabled]="loading() || busy()">Refresh leads</button>
+      </p>
       <div class="table-scroll">
         <table>
           <caption>
@@ -139,6 +146,7 @@ export function decodeLeads(value: unknown): LeadPage {
               <th>Name</th>
               <th>Source</th>
               <th>Contact</th>
+              <th>Recorded</th>
               <th>Status</th>
               <th>Action</th>
             </tr>
@@ -151,6 +159,7 @@ export function decodeLeads(value: unknown): LeadPage {
                 </td>
                 <td>{{ lead.source }}</td>
                 <td>{{ lead.primaryContactName }} · {{ lead.primaryContactEmail }}</td>
+                <td>{{ lead.createdAt.slice(0, 10) }}</td>
                 <td>{{ lead.status }}</td>
                 <td>
                   @if (lead.status === 'NEW') {

@@ -17,6 +17,8 @@ interface History {
   fee: string;
   currency: string;
   createdAt: string;
+  sentAt: string | null;
+  responseAt: string | null;
 }
 interface Proposal {
   id: string;
@@ -39,6 +41,13 @@ interface Proposal {
   responseReason: string | null;
   clientId: string | null;
   canApprove: boolean;
+  ownerName: string;
+  authorName: string;
+  reviewerName: string;
+  approvedAt: string | null;
+  sentAt: string | null;
+  responseAt: string | null;
+  supersedesId: string | null;
   versions: History[];
 }
 export function decodeProposal(value: unknown): Proposal {
@@ -67,6 +76,12 @@ export function decodeProposal(value: unknown): Proposal {
     !/^\d{1,19}$/.test(v['revision'] as string) ||
     !exactDecimal(v['fee']) ||
     typeof v['canApprove'] !== 'boolean' ||
+    !['ownerName', 'authorName', 'reviewerName'].every((k) => typeof v[k] === 'string') ||
+    !['approvedAt', 'sentAt', 'responseAt', 'supersedesId'].every(
+      (k) => v[k] === null || typeof v[k] === 'string',
+    ) ||
+    (v['supersedesId'] !== null &&
+      (typeof v['supersedesId'] !== 'string' || !guidPattern.test(v['supersedesId'] as string))) ||
     (v['clientId'] !== null &&
       (typeof v['clientId'] !== 'string' || !guidPattern.test(v['clientId']))) ||
     (v['responseReason'] !== null && typeof v['responseReason'] !== 'string') ||
@@ -82,7 +97,8 @@ export function decodeProposal(value: unknown): Proposal {
       typeof h.revision !== 'string' ||
       !/^\d{1,19}$/.test(h.revision) ||
       !exactDecimal(h.fee) ||
-      !['status', 'currency', 'createdAt'].every((k) => typeof h[k] === 'string')
+      !['status', 'currency', 'createdAt'].every((k) => typeof h[k] === 'string') ||
+      !['sentAt', 'responseAt'].every((k) => h[k] === null || typeof h[k] === 'string')
     )
       throw new Error('Invalid version');
   return v as unknown as Proposal;
@@ -126,6 +142,39 @@ export function decodeProposal(value: unknown): Proposal {
         <dd>{{ proposal.periodStart }} to {{ proposal.periodEnd }}</dd>
         <dt>Fee</dt>
         <dd>{{ proposal.fee }} {{ proposal.currency }}</dd>
+        <dt>Commercial owner</dt>
+        <dd>{{ proposal.ownerName }}</dd>
+        <dt>Proposal author</dt>
+        <dd>{{ proposal.authorName }}</dd>
+        <dt>Internal review</dt>
+        <dd>
+          {{ proposal.reviewerName
+          }}{{ proposal.approvedAt
+            ? ' · ' + proposal.approvedAt.slice(0, 16).replace('T', ' ') + ' UTC'
+            : ' · Not recorded' }}
+        </dd>
+        <dt>Delivery</dt>
+        <dd>
+          {{
+            proposal.sentAt
+              ? 'Recorded sent ' + proposal.sentAt.slice(0, 16).replace('T', ' ') + ' UTC'
+              : 'Not recorded as sent'
+          }}
+        </dd>
+        <dt>Client response</dt>
+        <dd>
+          {{
+            proposal.responseAt
+              ? proposal.status + ' · ' + proposal.responseAt.slice(0, 16).replace('T', ' ') + ' UTC'
+              : 'Not recorded'
+          }}
+        </dd>
+        @if (proposal.supersedesId) {
+          <dt>Supersedes</dt>
+          <dd>
+            <code>{{ proposal.supersedesId }}</code>
+          </dd>
+        }
         <dt>Scope</dt>
         <dd>{{ proposal.scope }}</dd>
         <dt>Exclusions</dt>
@@ -288,7 +337,9 @@ export function decodeProposal(value: unknown): Proposal {
               >Revision {{ version.revision }}</a
             >
             · {{ version.status }} · {{ version.fee }} {{ version.currency }} ·
-            {{ version.createdAt }}
+            created {{ version.createdAt }} · sent
+            {{ version.sentAt ?? '—' }} · response
+            {{ version.responseAt ?? '—' }}
           </li>
         }
       </ul>

@@ -7,11 +7,14 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AuditSphereOps.Application.Practice;
 
-public sealed record ProposalHistory(Guid Id, string Revision, string Status, string Fee, string Currency, DateTimeOffset CreatedAt);
+public sealed record ProposalHistory(Guid Id, string Revision, string Status, string Fee, string Currency,
+  DateTimeOffset CreatedAt, DateTimeOffset? SentAt, DateTimeOffset? ResponseAt);
 public sealed record ProposalWorkspace(Guid Id, Guid OpportunityId, string LeadName, string ServiceRoute, string EntityScope,
   string Stage, string Revision, string Status, string ServiceProfile, string Scope, string Exclusions,
   string Deliverables, string Dependencies, string Fee, string Currency, string PeriodStart, string PeriodEnd,
-  string? ResponseReason, Guid? ClientId, bool CanApprove, IReadOnlyList<ProposalHistory> Versions);
+  string? ResponseReason, Guid? ClientId, bool CanApprove, string OwnerName, string AuthorName, string ReviewerName,
+  DateTimeOffset? ApprovedAt, DateTimeOffset? SentAt, DateTimeOffset? ResponseAt, Guid? SupersedesId,
+  IReadOnlyList<ProposalHistory> Versions);
 
 public sealed record OpportunityItem(Guid Id, string ServiceRoute, string EntityScope, string Stage,
   string ExpectedFee, string Currency, string PeriodStart, string PeriodEnd, Guid? ProposalId, string Revision);
@@ -56,17 +59,26 @@ public static class CommercialWorkspaceQuery
     if (p is null) return CommandResult<ProposalWorkspace>.Fail(ErrorCodes.ScopeDenied, "Proposal unavailable.");
     var opportunity = await db.Opportunities.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == p.OpportunityId, ct);
     if (opportunity is null) return CommandResult<ProposalWorkspace>.Fail(ErrorCodes.ScopeDenied, "Proposal unavailable.");
-    var leadName = await db.Leads.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.Id == opportunity.LeadId).Select(x => x.Name).SingleOrDefaultAsync(ct);
-    if (leadName is null) return CommandResult<ProposalWorkspace>.Fail(ErrorCodes.ScopeDenied, "Proposal unavailable.");
+    var lead = await db.Leads.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == opportunity.LeadId, ct);
+    if (lead is null) return CommandResult<ProposalWorkspace>.Fail(ErrorCodes.ScopeDenied, "Proposal unavailable.");
     var versions = await db.Proposals.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.OpportunityId == p.OpportunityId)
       .OrderByDescending(x => x.Revision).Take(100).ToListAsync(ct);
+    var ownerId = opportunity.OwnerUserId ?? lead.OwnerUserId;
+    var involved = new[] { ownerId, p.PreparedByUserId, p.ApprovedByUserId }.Where(x => x.HasValue).Select(x => x!.Value).Distinct().ToArray();
+    var names = await db.Users.AsNoTracking().Where(x => x.FirmId == actor.FirmId && involved.Contains(x.Id))
+      .ToDictionaryAsync(x => x.Id, x => x.DisplayName, ct);
+    string Name(Guid? id, string fallback) => id.HasValue && names.TryGetValue(id.Value, out var n) ? n : fallback;
     if (!(await AuthorizationDecision.AuthorizeAsync(db, actor, request, ct)).Succeeded)
       return CommandResult<ProposalWorkspace>.Fail(ErrorCodes.ScopeDenied, "Proposal unavailable.");
-    return CommandResult<ProposalWorkspace>.Ok(new(p.Id, p.OpportunityId, leadName, opportunity.ServiceRoute, opportunity.EntityScope,
+    return CommandResult<ProposalWorkspace>.Ok(new(p.Id, p.OpportunityId, lead.Name, opportunity.ServiceRoute, opportunity.EntityScope,
       opportunity.Stage, p.Revision.ToString(CultureInfo.InvariantCulture), p.Status, p.ServiceProfileId, p.Scope, p.Exclusions,
       p.Deliverables, p.Dependencies, p.Fee.ToString(CultureInfo.InvariantCulture), p.Currency, p.PeriodStart, p.PeriodEnd,
       p.ResponseReason, opportunity.PracticeClientId, p.PreparedByUserId.HasValue && p.PreparedByUserId != actor.UserId && p.Status == "DRAFT",
+      Name(ownerId, "Not assigned"),
+      p.PreparedByUserId.HasValue ? Name(p.PreparedByUserId, "Author unavailable") : "Not recorded (legacy proposal)",
+      p.ApprovedByUserId.HasValue ? Name(p.ApprovedByUserId, "Reviewer unavailable") : "Not recorded",
+      p.ApprovedAt, p.SentAt, p.ResponseAt, p.SupersedesId,
       versions.Select(v => new ProposalHistory(v.Id, v.Revision.ToString(CultureInfo.InvariantCulture), v.Status,
-        v.Fee.ToString(CultureInfo.InvariantCulture), v.Currency, v.CreatedAt)).ToArray()));
+        v.Fee.ToString(CultureInfo.InvariantCulture), v.Currency, v.CreatedAt, v.SentAt, v.ResponseAt)).ToArray()));
   }
 }
