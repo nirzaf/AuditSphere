@@ -13,6 +13,30 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Native reviewed staffing and receipt recovery
+
+Angular staffing assignment and revocation now request an exact server preview,
+then require separate assent bound to the full preview, current actor/session,
+engagement and read context. The preview explains engagement role scope, current
+certification, local grant/session effects and separate client-site reconciliation.
+Unsupported replies fail closed. Competing edits/navigation are fenced during
+review or unknown writes. The team projection hides stale content until receipt
+verification and acknowledgement refresh current authorized state.
+
+A bounded tab reference is saved before dispatch. Lost responses and reload use
+actor-owned receipt lookup; no mutation is automatically retried. Protected state
+clears on context loss and late callbacks cannot affect a different owner.
+Focused Angular, API and canonical/preview browser journeys passed. Built-in
+synthetic verification covered assignment and revocation receipts and refreshed
+team state without console warnings/errors. Hosts and tabs were disposed. Detailed
+counts and logs are in status.json; the full regression remains separately tracked.
+
+Client creation follows accepted-proposal conversion in the existing architecture;
+it must preserve commercial and professional acceptance boundaries. Reviewed
+conversion/draft recovery, assessment parity, remaining module acceptance and
+quality/cutover/retirement remain open. No live Microsoft effects or shared database
+migration was performed by this UI slice.
+
 ## Reviewed staffing backend receipts
 
 Application staffing preview now binds the exact action, target identity, level,

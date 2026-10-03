@@ -945,3 +945,14 @@ authority before publication. Independently assigned role grants survive staffin
 revocation, while owned grant revocation retains evidence and session invalidation.
 Client-site membership remains an explicit pending external reconciliation. This
 foundation does not implement reviewed staffing receipts or automatic retries.
+
+### Native reviewed staffing recovery
+
+The Angular team editor now composes staffing-change preview/confirmation/receipt
+endpoints. Separate Signal Form confirmation binds all access effects to the exact
+current preview and identity/context. Session tab storage retains only a bounded
+request reference; lost-response or reload recovery performs receipt lookup without
+retrying mutations. Receipt acknowledgement refreshes current authorized staffing.
+Protected editor state clears on session/scope/context loss, and unresolved writes
+hide the stale team projection and fence competing actions/navigation. SharePoint
+membership remains a separately reconciled external operation.
