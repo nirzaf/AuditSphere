@@ -907,3 +907,13 @@ under a changed identity or engagement, and busy/unknown writes fence departure.
 Tab departure warns without trapping sign-out. Application services retain all
 business authority. Backend staffing/revocation and approval request recovery are
 still incomplete; full planning parity and UI retirement acceptance remain open.
+
+### Planning action authority
+
+The Application planning projection reports `canPrepareBudget` through the same
+Partner/Manager authorization used by reviewed budget preparation. Angular uses
+it for editing, tab drafts, preview, confirmation and receipt recovery; absent
+flags invalidate the projection. Staffing retains its own permission. Draft
+approval is displayed separately and preserves the existing independent
+Administrator/Partner/Manager service authority and self-approval refusal.
+Staffing permission grants no additional budget-preparation authority.

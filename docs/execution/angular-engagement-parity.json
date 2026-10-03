@@ -26,7 +26,7 @@
     },
     {
       "path": "src/AuditSphereOps.Ui/src/app/features/engagements/planning.ts",
-      "sha256": "0f75d25764475009d8c95983b51087799d6dfaf7dedc67f156f85168cde7c328"
+      "sha256": "0566cbde5da4d9ae0ab55981023536587af8de17b22999f1aea0685e18a7a8fd"
     },
     {
       "path": "src/AuditSphereOps.Application/Acceptance/EngagementActivationWorkspace.cs",
@@ -83,6 +83,10 @@
     {
       "path": "src/AuditSphereOps.Ui/src/app/features/engagements/planning-navigation.ts",
       "sha256": "d798173d590b90c49b635cada545fd0174ac8750ec191caa515b27c76e72c9d6"
+    },
+    {
+      "path": "src/AuditSphereOps.Application/Practice/EngagementPlanningQuery.cs",
+      "sha256": "c4269faf6c49db076914fc8386701b97ef3868d8b3137922bdeae63485c5ff8f"
     }
   ],
   "records": [
@@ -104,7 +108,7 @@
     {
       "action": "planning-forms",
       "owner": "EngagementLifecycleService / EngagementPlanningQuery / native planning components",
-      "disposition": "PARTIAL: Editable budget drafts, reviewed budget preparation, Signal Forms for all planning controls and navigation guards are implemented locally. Bounded validation and exact selection/preview/draft-bound assent refuse stale confirmation even before rendering. Explicit select labels exclude option text. Fields lock during unknown writes or budget review; revocation respects the same fence. Immutable budget preparation receipts reconcile unknown/reloaded results without automatic retry. Navigation saves only editable budget fields, preserves same-engagement paging and fences late dialog results. Staffing/revocation and budget-approval backend request recovery, action-specific authority projection and remaining planning acceptance remain open."
+      "disposition": "PARTIAL: Editable budget drafts, reviewed budget preparation, Signal Forms for all planning controls and navigation guards are implemented locally. Bounded validation and exact selection/preview/draft-bound assent refuse stale confirmation even before rendering. Explicit select labels exclude option text. Fields lock during unknown writes or budget review; revocation respects the same fence. Immutable budget preparation receipts reconcile unknown/reloaded results without automatic retry. Navigation saves only editable budget fields, preserves same-engagement paging and fences late dialog results. Action-specific preparation authority now composes the existing Partner/Manager policy independently of staffing and approval. Missing flags fail closed; Administrator-only access retains staffing and independent approval without the preparation editor. Staffing/revocation and budget-approval backend request recovery and remaining planning acceptance remain open."
     },
     {
       "action": "reviewed-partner-activation",

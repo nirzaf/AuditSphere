@@ -13,6 +13,27 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Planning action-specific authority
+
+The planning projection exposes reviewed budget-preparation authority separately
+from staffing authority, reusing the Application preparation policy. Angular
+preparation fields, draft persistence, preview/confirmation and retained receipt
+reconciliation use that permission and reject missing contract flags. Draft
+approval remains a separate section with its existing independent backend policy;
+Administrator-only staffing does not expose the preparation editor.
+
+Release and production UI builds, Angular tests, affected PostgreSQL tests and
+canonical/preview browser journeys passed. Built-in synthetic previews verified
+Manager access and Administrator-only denial of preparation. EF reports no model
+drift. Source, production assets and Release assemblies stayed frozen during
+verification; preview hosts and tabs were disposed. The earlier editor-fixture
+failure is retained in the ledger; explicit scoped Manager grants now represent
+editor authority, and separate Administrator-only journeys preserve the denial.
+
+Reviewed staffing/revocation and budget-approval request recovery remain open,
+along with client creation, assessment parity and migration quality/cutover gates.
+No full migration, live Microsoft or production acceptance is established.
+
 ## Staffing grant expiry enforcement
 
 Staffing rank now uses current Application authorization, including exact scope,
