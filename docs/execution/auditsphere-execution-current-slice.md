@@ -34,7 +34,9 @@ the corrected initial SQL-schema mismatch. The built-in browser checked the rece
 flow with disposable synthetic records, followed by final acknowledgement-copy
 regression checks. The additive migration was exercised only in owned test/preview
 databases; no shared deployment or Microsoft effect occurred. The whole-suite run
-on the earlier creation source remains separate from this newer slice.
+on the earlier creation source has joined successfully and its frozen fingerprints
+match. It establishes that earlier checkpoint only; this newer slice remains
+separately verified with focused evidence.
 
 Next: staffing/approval request parity, remaining planning Signal Forms, client
 creation, assessment parity and migration quality/cutover/retirement acceptance.
@@ -61,7 +63,8 @@ when a command reports unavailable access, and revalidates the scoped projection
 Malformed refreshed projections also clear protected editor content. Focused
 component checks cover both cases; observed test and build results are in
 `status.json`. Reviewed planning forms, revision-bound drafts and retained request
-recovery remain open. The separate frozen creation regression remains running.
+recovery remain open. The separate frozen creation regression has joined successfully with matching
+fingerprints; its source boundary remains recorded in `status.json`.
 
 ## Reviewed native blocked-engagement creation
 
