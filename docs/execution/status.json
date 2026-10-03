@@ -4,7 +4,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "b8c6e27c97df37494d4962fabe6e0b846e38b9f9",
+  "headCommit": "ff05dd48801af6bf87631db1e97225355cabd20b",
   "verifiedCommit": "75b70e9afc8d01af06ee2c4681754edb99cd4f70",
   "remoteHeadVerified": false,
   "verifiedCommitWasRemoteHead": false,
@@ -18,6 +18,43 @@
     "postgres": "18.6 loopback development profile"
   },
   "verification": {
+    "angularTenantSetupMetadata": {
+      "codeCommit": "ff05dd48801af6bf87631db1e97225355cabd20b",
+      "verifiedAt": "2026-10-03T14:37:47.072258+00:00",
+      "status": "PASS_LOCAL",
+      "releaseBuild": "PASS; zero warnings/errors",
+      "productionUiBuild": "PASS",
+      "angularTests": {
+        "passed": 424,
+        "failed": 0,
+        "files": 83
+      },
+      "postgresDomainTests": {
+        "passed": 13,
+        "failed": 0
+      },
+      "apiContractTests": {
+        "passed": 2,
+        "failed": 0
+      },
+      "browserJourneys": {
+        "passed": 2,
+        "failed": 0
+      },
+      "efModelDrift": "NONE",
+      "builtInBrowser": "PASS: synthetic friendly label and separate saved mail/records states; capability verification unchanged; no console warnings/errors",
+      "logs": [
+        "/private/tmp/auditsphere-tenant-metadata-build.log",
+        "/private/tmp/auditsphere-tenant-metadata-ui-build.log",
+        "/private/tmp/auditsphere-tenant-metadata-ui-tests.log",
+        "/private/tmp/auditsphere-tenant-metadata-domain.log",
+        "/private/tmp/auditsphere-tenant-metadata-api.log",
+        "/private/tmp/auditsphere-tenant-metadata-e2e.log",
+        "/private/tmp/auditsphere-tenant-metadata-ef.log"
+      ],
+      "initialFailures": "Corrected test fixture role scope property, non-GUID synthetic tenant identity, sign-in-independent verification expectation and human-readable status text assertions. Final focused checks passed.",
+      "boundaries": "Only owned synthetic databases; no shared Development/production migration or external operation; full regression, setup editing and migration acceptance remain open."
+    },
     "angularReviewedResourcePlanning": {
       "codeCommit": "b8c6e27c97df37494d4962fabe6e0b846e38b9f9",
       "verifiedAt": "2026-10-03T14:27:15.620639+00:00",
