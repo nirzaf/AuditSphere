@@ -202,4 +202,89 @@ describe('Planning protected editor clearing', () => {
       editablePlanningBudget({ ...fields, lines: [{ ...fields.lines[0], role: 'x'.repeat(51) }] }),
     ).toBeNull();
   });
+  it('reviews exact rates, sends once and reconciles a lost response without resending', async () => {
+    const component = open(),
+      http = TestBed.inject(HttpTestingController);
+    const prepare = component.saveBudget();
+    const requested = http.expectOne('/api/ui/engagements/' + id + '/budget-preparation/preview');
+    const fields = requested.request.body.fields;
+    const preview = {
+      engagementId: id,
+      requestId: requested.request.body.requestId,
+      requestHash: 'a'.repeat(64),
+      reviewBasis: 'b'.repeat(64),
+      fields,
+      lines: [
+        { ...fields.lines[0], rateCardId: id, ratePerHour: '100.125', forecastCost: '801.000000' },
+      ],
+      forecastCost: '801.000000',
+    };
+    requested.flush({ value: preview });
+    await prepare;
+    expect(component.budgetPreview()).toEqual(preview);
+    await component.confirmBudgetPreparation();
+    http.expectNone('/api/ui/engagements/' + id + '/budget-preparation');
+    component.preparationReviewed = true;
+    const execute = component.confirmBudgetPreparation();
+    http
+      .expectOne('/api/ui/engagements/' + id + '/budget-preparation')
+      .flush({}, { status: 503, statusText: 'Unavailable' });
+    await execute;
+    expect(component.uncertain()).toBe(true);
+    expect(component.preparationReviewed).toBe(false);
+    const reconcile = component.reconcileBudgetPreparation();
+    const receipt = {
+      id,
+      budgetId: id,
+      engagementId: id,
+      actorId: id,
+      requestId: preview.requestId,
+      requestHash: preview.requestHash,
+      reviewBasis: preview.reviewBasis,
+      preview,
+      createdAt: '2026-10-03T07:00:00Z',
+    };
+    http
+      .expectOne(
+        '/api/ui/engagements/' +
+          id +
+          '/budget-preparation/receipts/' +
+          preview.requestId +
+          '?requestHash=' +
+          preview.requestHash,
+      )
+      .flush({ found: true, receipt });
+    await reconcile;
+    expect(component.budgetReceipt()).toEqual(receipt);
+    http.expectNone('/api/ui/engagements/' + id + '/budget-preparation');
+    component.acknowledgeBudgetPreparation();
+    http
+      .expectOne('/api/ui/engagements/' + id + '/planning')
+      .flush({ ...planning, latestBudgetVersion: '1' });
+    expect(component.uncertain()).toBe(false);
+    expect(component.budgetPending()).toBeNull();
+  });
+  it('rejects a preview belonging to another request without dispatching preparation', async () => {
+    const component = open(),
+      http = TestBed.inject(HttpTestingController);
+    const prepare = component.saveBudget();
+    http
+      .expectOne('/api/ui/engagements/' + id + '/budget-preparation/preview')
+      .flush({ value: { engagementId: id, requestId: id } });
+    await prepare;
+    expect(component.budgetPreview()).toBeNull();
+    expect(component.commandStatus()).toContain('unsupported');
+    http.expectNone('/api/ui/engagements/' + id + '/budget-preparation');
+  });
+  it('drops budget approval assent whenever the authorized projection is refreshed', () => {
+    const component = open();
+    component.budgetReviewed = true;
+    component.preparationReviewed = true;
+    component.load();
+    expect(component.budgetReviewed).toBe(false);
+    expect(component.preparationReviewed).toBe(false);
+    TestBed.inject(HttpTestingController)
+      .expectOne('/api/ui/engagements/' + id + '/planning')
+      .flush(planning);
+  });
 });

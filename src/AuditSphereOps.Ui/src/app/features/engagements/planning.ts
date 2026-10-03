@@ -6,7 +6,15 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { Subscription, timeout } from 'rxjs';
 import { SessionService } from '../../core/session';
-import { TabDrafts } from '../../core/tab-drafts';
+import { TabDrafts, PendingRequestReference, pendingRequestReference } from '../../core/tab-drafts';
+import { Api } from '../../core/api';
+import {
+  BudgetPreparationPreview,
+  BudgetPreparationReceipt,
+  decodeBudgetPreparationPreview,
+  decodeBudgetPreparationReceipt,
+  decodeBudgetPreparationLookup,
+} from './budget-preparation-contracts';
 interface TeamMember {
   assignmentId: string;
   userId: string;
@@ -335,7 +343,7 @@ export function decodePlanning(value: unknown): Planning {
                 [(ngModel)]="currency"
                 maxlength="3"
                 required
-                [disabled]="busy()"
+                [disabled]="busy() || uncertain() || !!budgetPreview()"
             /></label>
             @for (line of budgetLines; track $index; let index = $index) {
               <fieldset>
@@ -347,7 +355,7 @@ export function decodePlanning(value: unknown): Planning {
                     [(ngModel)]="line.role"
                     maxlength="50"
                     required
-                    [disabled]="busy()"
+                    [disabled]="busy() || uncertain() || !!budgetPreview()"
                 /></label>
                 <label
                   >Activity
@@ -356,7 +364,7 @@ export function decodePlanning(value: unknown): Planning {
                     [(ngModel)]="line.activity"
                     maxlength="50"
                     required
-                    [disabled]="busy()"
+                    [disabled]="busy() || uncertain() || !!budgetPreview()"
                 /></label>
                 <label
                   >Phase
@@ -365,7 +373,7 @@ export function decodePlanning(value: unknown): Planning {
                     [(ngModel)]="line.phase"
                     maxlength="50"
                     required
-                    [disabled]="busy()"
+                    [disabled]="busy() || uncertain() || !!budgetPreview()"
                 /></label>
                 <label
                   >Risk area
@@ -373,7 +381,7 @@ export function decodePlanning(value: unknown): Planning {
                     [name]="'risk' + index"
                     [(ngModel)]="line.riskArea"
                     maxlength="120"
-                    [disabled]="busy()"
+                    [disabled]="busy() || uncertain() || !!budgetPreview()"
                 /></label>
                 <label
                   >Forecast minutes
@@ -385,12 +393,12 @@ export function decodePlanning(value: unknown): Planning {
                     max="10000000"
                     step="1"
                     required
-                    [disabled]="busy()"
+                    [disabled]="busy() || uncertain() || !!budgetPreview()"
                 /></label>
                 <button
                   matButton
                   type="button"
-                  [disabled]="busy()"
+                  [disabled]="busy() || uncertain() || !!budgetPreview()"
                   (click)="budgetLines.splice(index, 1)"
                 >
                   Remove line {{ index + 1 }}
@@ -400,7 +408,7 @@ export function decodePlanning(value: unknown): Planning {
             <button
               matButton
               type="button"
-              [disabled]="busy() || budgetLines.length >= 200"
+              [disabled]="busy() || uncertain() || !!budgetPreview() || budgetLines.length >= 200"
               (click)="addBudgetLine()"
             >
               Add line
@@ -408,11 +416,62 @@ export function decodePlanning(value: unknown): Planning {
             <button
               matButton
               type="submit"
-              [disabled]="busy() || uncertain() || !budgetLines.length"
+              [disabled]="busy() || uncertain() || !!budgetPreview() || !budgetLines.length"
             >
-              Save budget version
+              Review budget preparation
             </button>
           </form>
+          @if (budgetPreview(); as preview) {
+            <section aria-label="Reviewed budget preparation">
+              <h3>Review draft budget · {{ preview.fields.currency }}</h3>
+              <p>
+                Previous version {{ preview.fields.expectedVersion }} · Forecast
+                {{ preview.forecastCost }}. Approved rate snapshot:
+              </p>
+              @for (line of preview.lines; track $index) {
+                <p>
+                  {{ line.role }} · {{ line.activity }} · {{ line.phase }} · {{ line.riskArea }} ·
+                  {{ line.forecastMinutes }} minutes · rate {{ line.ratePerHour }} · forecast
+                  {{ line.forecastCost }}
+                </p>
+              }
+              <label
+                ><input
+                  type="checkbox"
+                  [(ngModel)]="preparationReviewed"
+                  [disabled]="busy() || uncertain()"
+                />
+                I reviewed these exact rates and authorize draft preparation.</label
+              >
+              <button
+                matButton
+                [disabled]="busy() || uncertain() || !preparationReviewed"
+                (click)="confirmBudgetPreparation()"
+              >
+                Confirm draft budget preparation
+              </button>
+              <button matButton [disabled]="busy() || uncertain()" (click)="cancelBudgetReview()">
+                Cancel budget review
+              </button>
+            </section>
+          }
+          @if (budgetPending()) {
+            <button matButton [disabled]="busy()" (click)="reconcileBudgetPreparation()">
+              Verify budget request receipt
+            </button>
+          }
+          @if (budgetReceipt(); as receipt) {
+            <section aria-label="Budget preparation receipt">
+              <h3>Recorded draft budget</h3>
+              <p>
+                Budget {{ receipt.budgetId }} · {{ receipt.preview.fields.currency }} · forecast
+                {{ receipt.preview.forecastCost }}. Approval remains separate.
+              </p>
+              <button matButton [disabled]="busy()" (click)="acknowledgeBudgetPreparation()">
+                Acknowledge budget preparation
+              </button>
+            </section>
+          }
           @if (planning.draft; as draft) {
             <h3>Draft version {{ draft.version }} · {{ draft.currency }}</h3>
             @for (line of draft.lines; track $index) {
@@ -510,6 +569,7 @@ export class EngagementPlanning {
       !planning?.canManageStaffing ||
       this.busy() ||
       this.uncertain() ||
+      this.budgetPreview() ||
       this.destroyed ||
       !this.owner()
     )
@@ -578,26 +638,220 @@ export class EngagementPlanning {
       forecastMinutes: 480,
     });
   }
-  saveBudget(): void {
-    const planning = this.data();
-    if (!planning?.canManageStaffing || this.busy() || this.uncertain()) return;
-    if (
-      !this.budgetLines.length ||
-      this.budgetLines.some(
-        (l) =>
-          !Number.isSafeInteger(l.forecastMinutes) ||
-          l.forecastMinutes < 1 ||
-          l.forecastMinutes > 10000000,
-      )
-    ) {
-      this.commandStatus.set('Enter valid whole forecast minutes for every line.');
+  private readonly api = inject(Api);
+  readonly budgetPreview = signal<BudgetPreparationPreview | null>(null);
+  readonly budgetReceipt = signal<BudgetPreparationReceipt | null>(null);
+  readonly budgetPending = signal<PendingRequestReference | null>(null);
+  preparationReviewed = false;
+  private pendingBudgetScope(basis = '0'.repeat(64)) {
+    return { entity: 'engagement-budget-request/' + this.engagementId(), baseRevision: basis };
+  }
+  async saveBudget(): Promise<void> {
+    const planning = this.data(),
+      owner = this.owner();
+    if (!planning?.canManageStaffing || this.busy() || this.uncertain() || this.budgetPreview())
       return;
-    }
-    this.command('budgets', {
-      currency: this.currency,
-      expectedVersion: planning.latestBudgetVersion,
+    const editable = editablePlanningBudget({
+      currency: this.currency.trim().toUpperCase(),
       lines: this.budgetLines,
     });
+    if (!editable) {
+      this.commandStatus.set('Enter bounded budget fields and whole forecast minutes.');
+      return;
+    }
+    const fields = {
+      currency: editable.currency,
+      expectedVersion: planning.latestBudgetVersion,
+      lines: editable.lines.map((l) => ({
+        role: l.role,
+        activity: l.activity,
+        forecastMinutes: l.forecastMinutes,
+        phase: l.phase.toUpperCase(),
+        riskArea: l.riskArea.trim() || null,
+      })),
+    };
+    const requestId = crypto.randomUUID();
+    this.busy.set(true);
+    this.preparationReviewed = false;
+    this.budgetReceipt.set(null);
+    const result = await this.api.command(
+      '/api/ui/engagements/' + this.engagementId() + '/budget-preparation/preview',
+      { requestId, fields },
+    );
+    if (this.destroyed || owner !== this.owner()) return;
+    this.busy.set(false);
+    if (!result.ok) {
+      this.commandStatus.set(result.message);
+      if (result.status === 401 || result.status === 403) {
+        this.clearProtectedEditor();
+        this.load();
+      }
+      return;
+    }
+    try {
+      const preview = decodeBudgetPreparationPreview(result.value);
+      if (
+        preview.engagementId !== this.engagementId() ||
+        preview.requestId !== requestId ||
+        this.data()?.latestBudgetVersion !== fields.expectedVersion ||
+        JSON.stringify(preview.fields) !== JSON.stringify(fields)
+      )
+        throw new Error('Changed review');
+      this.budgetPreview.set(preview);
+      this.commandStatus.set(
+        'Review the exact approved rates and forecast. This prepares a draft; it does not approve it.',
+      );
+    } catch {
+      this.commandStatus.set(
+        'Budget review returned an unsupported or changed response. Refresh before reviewing again.',
+      );
+    }
+  }
+  cancelBudgetReview(): void {
+    if (this.busy() || this.uncertain()) return;
+    this.budgetPreview.set(null);
+    this.preparationReviewed = false;
+  }
+  async confirmBudgetPreparation(): Promise<void> {
+    const p = this.budgetPreview(),
+      owner = this.owner();
+    if (
+      !p ||
+      !this.data()?.canManageStaffing ||
+      !this.preparationReviewed ||
+      this.busy() ||
+      this.uncertain()
+    )
+      return;
+    const reference = { requestId: p.requestId, requestHash: p.requestHash };
+    if (
+      !this.drafts.save(
+        this.pendingBudgetScope(p.reviewBasis),
+        reference,
+        pendingRequestReference,
+        true,
+      )
+    ) {
+      this.commandStatus.set('Recovery storage is unavailable. No budget command was sent.');
+      return;
+    }
+    this.budgetPending.set(reference);
+    this.busy.set(true);
+    this.preparationReviewed = false;
+    const result = await this.api.command(
+      '/api/ui/engagements/' + this.engagementId() + '/budget-preparation',
+      {
+        requestId: p.requestId,
+        fields: p.fields,
+        requestHash: p.requestHash,
+        reviewBasis: p.reviewBasis,
+        reviewed: true,
+      },
+    );
+    if (this.destroyed || owner !== this.owner()) return;
+    this.busy.set(false);
+    this.budgetPreview.set(null);
+    if (!result.ok) {
+      this.commandStatus.set(result.message);
+      if (result.unknown) this.uncertain.set(true);
+      else {
+        this.drafts.clear(this.pendingBudgetScope().entity);
+        this.budgetPending.set(null);
+        if (result.status === 401 || result.status === 403) {
+          this.clearProtectedEditor();
+          this.load();
+        }
+      }
+      return;
+    }
+    try {
+      const receipt = decodeBudgetPreparationReceipt(result.value);
+      if (
+        !this.matchesBudgetReceipt(receipt, reference) ||
+        JSON.stringify(receipt.preview) !== JSON.stringify(p)
+      )
+        throw new Error('Wrong receipt');
+      this.budgetReceipt.set(receipt);
+      this.uncertain.set(true);
+      this.commandStatus.set(
+        'Draft budget recorded with an immutable receipt. Acknowledge the result before continuing.',
+      );
+    } catch {
+      this.uncertain.set(true);
+      this.commandStatus.set(
+        'Outcome unconfirmed. Verify the retained budget receipt before another change.',
+      );
+    }
+  }
+  private matchesBudgetReceipt(r: BudgetPreparationReceipt, p: PendingRequestReference): boolean {
+    return (
+      r.engagementId === this.engagementId() &&
+      r.actorId === this.session.current()?.userId &&
+      r.requestId === p.requestId &&
+      r.requestHash === p.requestHash
+    );
+  }
+  async reconcileBudgetPreparation(): Promise<void> {
+    const p = this.budgetPending(),
+      owner = this.owner();
+    if (!p || !this.data()?.canManageStaffing || this.busy()) return;
+    this.busy.set(true);
+    this.budgetPreview.set(null);
+    this.preparationReviewed = false;
+    try {
+      const lookup = await this.api.get(
+        '/api/ui/engagements/' +
+          this.engagementId() +
+          '/budget-preparation/receipts/' +
+          p.requestId +
+          '?requestHash=' +
+          p.requestHash,
+        decodeBudgetPreparationLookup,
+      );
+      if (this.destroyed || owner !== this.owner()) return;
+      if (lookup.found && lookup.receipt && this.matchesBudgetReceipt(lookup.receipt, p)) {
+        this.budgetReceipt.set(lookup.receipt);
+        this.uncertain.set(true);
+        this.commandStatus.set(
+          'Retained receipt confirms the draft budget. Acknowledge the result before continuing.',
+        );
+      } else if (!lookup.found) {
+        this.drafts.clear(this.pendingBudgetScope().entity);
+        this.budgetPending.set(null);
+        this.uncertain.set(false);
+        this.commandStatus.set(
+          'No committed preparation was found after reconciliation. Refresh and explicitly review current fields before a new request.',
+        );
+        this.load();
+      } else throw new Error('Wrong receipt');
+    } catch {
+      if (!this.destroyed && owner === this.owner()) {
+        this.clearProtectedEditor();
+        this.load();
+        this.commandStatus.set(
+          'Receipt unavailable. Revalidate access before reconciling again. No command was retried.',
+        );
+      }
+    } finally {
+      if (!this.destroyed && owner === this.owner()) this.busy.set(false);
+    }
+  }
+  acknowledgeBudgetPreparation(): void {
+    if (!this.budgetReceipt() || this.busy()) return;
+    if (!this.drafts.clear(this.pendingBudgetScope().entity)) {
+      this.commandStatus.set(
+        'Receipt acknowledged, but recovery storage could not be cleared. Retry clearing before continuing.',
+      );
+      return;
+    }
+    this.budgetPending.set(null);
+    this.budgetReceipt.set(null);
+    this.uncertain.set(false);
+    this.commandStatus.set(
+      'Budget preparation acknowledged. Approval remains a separate reviewed action.',
+    );
+    this.drafts.clear('engagement-budget:' + this.engagementId());
+    this.load();
   }
   approveBudget(id: string): void {
     if (!this.data()?.draft?.canApprove || !this.budgetReviewed || this.busy() || this.uncertain())
@@ -654,6 +908,10 @@ export class EngagementPlanning {
         this.revokeTarget.set(null);
         this.commandStatus.set('');
         this.draftStatus.set('');
+        this.budgetPreview.set(null);
+        this.budgetReceipt.set(null);
+        this.budgetPending.set(null);
+        this.preparationReviewed = false;
         this.uncertain.set(false);
         if (staff) this.load();
       });
@@ -663,7 +921,7 @@ export class EngagementPlanning {
       this.lifetime++;
       this.readRevision++;
       this.request?.unsubscribe();
-      this.data.set(null);
+      this.clearProtectedEditor();
     });
   }
   requestRevocation(person: TeamMember): void {
@@ -734,6 +992,10 @@ export class EngagementPlanning {
   private clearProtectedEditor(): void {
     this.data.set(null);
     this.draftStatus.set('');
+    this.budgetPreview.set(null);
+    this.budgetReceipt.set(null);
+    this.budgetPending.set(null);
+    this.preparationReviewed = false;
     this.selectedUser = '';
     this.selectedLevel = 'STAFF_ASSOCIATE';
     this.reviewed = false;
@@ -743,6 +1005,9 @@ export class EngagementPlanning {
     this.revokeTarget.set(null);
   }
   load(): void {
+    this.budgetReviewed = false;
+    this.preparationReviewed = false;
+    this.budgetPreview.set(null);
     const revision = ++this.readRevision;
     this.request?.unsubscribe();
     this.data.set(null);
@@ -759,7 +1024,23 @@ export class EngagementPlanning {
         next: (value) => {
           if (this.destroyed || owner !== this.owner() || revision !== this.readRevision) return;
           try {
-            this.data.set(decodePlanning(value));
+            const planning = decodePlanning(value);
+            this.data.set(planning);
+            if (planning.canManageStaffing) {
+              const pending = this.drafts.readPendingRequest(this.pendingBudgetScope());
+              if (pending.state === 'ready') {
+                this.budgetPending.set(pending.draft.value);
+                this.uncertain.set(true);
+                this.commandStatus.set(
+                  'A prior budget request needs reconciliation. Verify its retained receipt before another change.',
+                );
+              }
+            } else {
+              this.budgetPending.set(null);
+              this.budgetReceipt.set(null);
+              this.budgetPreview.set(null);
+              this.uncertain.set(false);
+            }
           } catch {
             this.clearProtectedEditor();
             this.error.set('Planning returned an unsupported response.');

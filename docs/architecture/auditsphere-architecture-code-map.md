@@ -843,3 +843,12 @@ For the complete documentation index, authority hierarchy, current requirements,
 - `features/accounting/journal-management.ts`, `.html` and `journal-management-contracts.ts`: exact financial review, fresh assent, staff tab recovery, in-memory client fields and pending-result acknowledgment. `features/portal/journals.ts` supplies the client entry queue.
 - `NativeJournalManagementEvidence`: exact current draft insertion, append-only decisions, reviewed-context/line freezing and the existing action constraint extension.
 - `JournalManagementApiTests`, `AngularJournalManagementJourneyTests` and `journal-management.spec.ts`: evidence modes, current scope/epoch, stale context, immutable revision, concurrent receipt and browser recovery checks. Executed outcomes live in `status.json`.
+
+### Reviewed native budget preparation
+
+- Domain evidence: `Practice/BudgetPreparation.cs`.
+- Application: `Practice/BudgetPreparationWorkspace.cs` composes `PracticeTimeService.ReviseBudgetAsync` inside the guarded publication transaction; approval remains independent.
+- API: `Ui/UiEndpoints.BudgetPreparation.cs` provides preview, confirmed preparation and actor-owned request receipt lookup.
+- UI: `features/engagements/planning.ts` and `budget-preparation-contracts.ts` provide exact review, tab references and explicit reconciliation.
+- Persistence: `AuditSphereDbContext.BudgetPreparations.cs` and `NativeBudgetPreparationReview` retain immutable exact publication evidence and rollback fences.
+- Verification: `BudgetPreparationReviewTests`, `BudgetPreparationReviewApiTests`, `AngularBudgetPreparationJourneyTests` and planning component tests.

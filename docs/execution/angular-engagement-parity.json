@@ -26,7 +26,7 @@
     },
     {
       "path": "src/AuditSphereOps.Ui/src/app/features/engagements/planning.ts",
-      "sha256": "18cb4e439426bf9ed78aa153c8b241c1e44ddd446105db0bdf08bb6f87622922"
+      "sha256": "264658c621f463b8b8315c6f15e3378509f3eae04a99a7900943a993d7dd8e55"
     },
     {
       "path": "src/AuditSphereOps.Application/Acceptance/EngagementActivationWorkspace.cs",
@@ -63,6 +63,22 @@
     {
       "path": "src/AuditSphereOps.Ui/src/app/features/clients/engagement-create-contracts.ts",
       "sha256": "0d0fb0fcd53321d4a58e5bbad2c5c7a0f98eec637ad331479a34d851252ad128"
+    },
+    {
+      "path": "src/AuditSphereOps.Application/Practice/BudgetPreparationWorkspace.cs",
+      "sha256": "46856ce3fcfd7baa57e5aa661f0e7777f1c9dda598a5a61e2b67cccc2c6e40c8"
+    },
+    {
+      "path": "src/AuditSphereOps.Domain/Practice/BudgetPreparation.cs",
+      "sha256": "7f0e22e8ff78c3cdca1c099515463ca3dd0036cc24ddfcc09d6f6a30f6e52ad3"
+    },
+    {
+      "path": "src/AuditSphereOps.Api/Ui/UiEndpoints.BudgetPreparation.cs",
+      "sha256": "371b80e1e482cced97b2cbdd5cd8a3691c5d0114c5e5be43d7a0a8af8eecf0d2"
+    },
+    {
+      "path": "src/AuditSphereOps.Ui/src/app/features/engagements/budget-preparation-contracts.ts",
+      "sha256": "105caeec6d2605547c7fff539b8937c17f0d07d1443711dbd81b2aed04cb39e0"
     }
   ],
   "records": [
@@ -84,7 +100,7 @@
     {
       "action": "planning-forms",
       "owner": "EngagementLifecycleService / EngagementPlanningQuery / native planning components",
-      "disposition": "PARTIAL: Existing scoped planning commands remain separate from professional acceptance and Entra authority. Complete planning reviewed forms, revision-bound editable drafts and retained request outcome recovery remain open."
+      "disposition": "PARTIAL: Editable budget drafts and reviewed budget preparation are implemented locally. Exact approved-rate snapshots require explicit assent; a draft and immutable actor-owned request receipt commit together. Unknown responses and reload reconcile retained receipts without automatic retry. Staffing/approval request parity, Signal Forms and remaining planning acceptance remain open."
     },
     {
       "action": "reviewed-partner-activation",
@@ -97,7 +113,7 @@
       "disposition": "IMPLEMENTED: Exact current client-wide Partner/Manager context, canonical service/profile/period preview and explicit assent. Client-serialized shell creation and immutable actor-owned request evidence commit together; current authority is rechecked and a deferred guard validates the exact blocked publication. Same-intent retries return the original receipt; conflicting or existing service-period intent requires inspection. Native Signal Forms, bounded revision-bound tab drafts without assent, unknown-response fences and actor-owned receipt reconciliation preserve route/session/lifetime ownership. Lost-response browser journeys and focused observed checks are recorded only in status.json. No professional or Microsoft acceptance is implied."
     }
   ],
-  "remaining": "Complete client creation, planning forms/drafts/outcome acceptance, assessment source-action parity and remaining migration quality/cutover/retirement gates.",
+  "remaining": "Complete planning staffing/approval request parity and Signal Forms, client creation, assessment source-action parity and migration quality/cutover/retirement gates.",
   "verificationPointers": [
     "tests/AuditSphereOps.Domain.Tests/EngagementProfileWorkspaceTests.cs",
     "tests/AuditSphereOps.Api.Tests/EngagementProfileWorkspaceApiTests.cs",

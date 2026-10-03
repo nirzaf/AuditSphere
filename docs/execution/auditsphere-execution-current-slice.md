@@ -13,6 +13,33 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Reviewed native budget preparation and retained request recovery
+
+The planning UI now previews exact approved rates and calculated forecast values
+before explicit draft-preparation assent. The Application workspace reuses the
+existing budget service inside one guarded transaction. A new draft and its
+append-only actor-owned request receipt commit together; a deferred database guard
+checks the exact publication and current authority. A changed revision or rate
+snapshot requires another review. Existing budget endpoints remain for older builds.
+
+Before dispatch the UI saves only the request reference in tab storage. Unknown
+responses fence additional changes; reload reads fresh current scope and reconciles
+the retained receipt without resending. Acknowledgement clears recovery state.
+Budget approval stays separate and requires a different authorized practitioner.
+Projection refresh drops approval assent. Scope loss and destruction clear protected
+review fields and late callbacks cannot restore a prior route visit.
+
+Focused PostgreSQL, API, Angular and browser evidence is in `status.json`, including
+the corrected initial SQL-schema mismatch. The built-in browser checked the receipt
+flow with disposable synthetic records, followed by final acknowledgement-copy
+regression checks. The additive migration was exercised only in owned test/preview
+databases; no shared deployment or Microsoft effect occurred. The whole-suite run
+on the earlier creation source remains separate from this newer slice.
+
+Next: staffing/approval request parity, remaining planning Signal Forms, client
+creation, assessment parity and migration quality/cutover/retirement acceptance.
+The overall migration remains partial.
+
 ## Native planning editable budget drafts
 
 Budget preparation reuses the tab draft service for explicit save, restore and

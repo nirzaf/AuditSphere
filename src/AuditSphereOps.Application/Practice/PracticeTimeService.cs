@@ -399,7 +399,7 @@ public static class PracticeTimeService
   {
     var validation = ValidateBudget(request);
     if (validation is not null) return CommandResult<Guid>.Fail("time.invalid", validation);
-    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
     var engagement = await db.Engagements.AsNoTracking().SingleOrDefaultAsync(
       x => x.Id == request.EngagementId && x.FirmId == actor.FirmId, ct);
     if (engagement is null) return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
@@ -443,7 +443,10 @@ public static class PracticeTimeService
         ForecastCost = MoneyPolicy.Normalize(line.ForecastMinutes * card.RatePerHour / 60m)
       });
     await db.SaveChangesAsync(ct);
-    await tx.CommitAsync(ct);
+    if (!(await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, engagement.PracticeClientId, engagement.Id, ApprovalRoles, InternalOnly: true), ct)).Succeeded)
+      return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Budget preparation authority changed.");
+    if (tx is not null) await tx.CommitAsync(ct);
     return CommandResult<Guid>.Ok(budget.Id);
   }
 

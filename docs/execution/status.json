@@ -4,7 +4,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "6efa46bb6f5f1aa634ecfe1443faa53cc82ecdf6",
+  "headCommit": "247a50d1d4970b6b31de2c8c030612c6573827b3",
   "verifiedCommit": "2692cb27fb933241690b02960e96f0536316fdb7",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": false,
@@ -5878,6 +5878,84 @@
         "ownedPreviewDisposed": true
       },
       "boundary": "Editable budget fields only, bound to exact engagement/session and current budget version plus draft state. No assent, cost or business-command dispatch is restored. Full reviewed planning and server request receipts remain PARTIAL."
+    },
+    "angularBudgetPreparationReview": {
+      "status": "PASS_FOCUSED",
+      "sourceCommit": "UNCOMMITTED_ON_247a50d1d4970b6b31de2c8c030612c6573827b3",
+      "releaseBuild": {
+        "status": "PASS",
+        "parentExitCode": 0,
+        "warnings": 0,
+        "errors": 0,
+        "log": "/private/tmp/auditsphere-budget-review-publication-build.log"
+      },
+      "angular": {
+        "status": "PASS",
+        "parentExitCode": 0,
+        "passed": 365,
+        "failed": 0,
+        "files": 77,
+        "log": "/private/tmp/auditsphere-budget-review-ack-angular.log",
+        "productionBuildLog": "/private/tmp/auditsphere-budget-review-ack-build.log"
+      },
+      "domain": {
+        "status": "PASS",
+        "parentExitCode": 0,
+        "passed": 9,
+        "failed": 0,
+        "log": "/private/tmp/auditsphere-budget-review-final-domain.log"
+      },
+      "api": {
+        "status": "PASS",
+        "parentExitCode": 0,
+        "passed": 3,
+        "failed": 0,
+        "log": "/private/tmp/auditsphere-budget-review-final-api.log"
+      },
+      "browser": {
+        "status": "PASS",
+        "parentExitCode": 0,
+        "passed": 4,
+        "failed": 0,
+        "log": "/private/tmp/auditsphere-budget-review-ack-browser.log"
+      },
+      "modelDrift": {
+        "status": "PASS",
+        "parentExitCode": 0,
+        "log": "/private/tmp/auditsphere-budget-review-model.log"
+      },
+      "repositoryMigrations": 136,
+      "migration": "20261003065511_NativeBudgetPreparationReview",
+      "migrationBoundary": "Applied only in owned disposable test/preview databases. No shared Development or production migration.",
+      "frozenEvidence": {
+        "manifest": "/private/tmp/auditsphere-budget-review-frozen-hashes.json",
+        "paths": 2653,
+        "initialFocusedRun": "MATCH",
+        "backendAfterAcknowledgementCopyRefinement": "MATCH; final Angular and E2E reruns joined successfully"
+      },
+      "builtInBrowser": {
+        "status": "PASS_LOCAL_SYNTHETIC",
+        "cases": [
+          "approved rate review",
+          "confirmation disabled before assent",
+          "immutable draft receipt",
+          "separate independent approval",
+          "acknowledgement",
+          "sign-out clearing"
+        ],
+        "consoleWarnings": 0,
+        "consoleErrors": 0,
+        "screenshot": "/private/tmp/auditsphere-budget-review-receipt.png",
+        "previewDisposed": true,
+        "boundary": "Receipt flow checked before acknowledgement-copy refinement; final copy covered by subsequent Angular and E2E reruns."
+      },
+      "intermediateFailure": {
+        "log": "/private/tmp/auditsphere-budget-review-domain.log",
+        "passed": 8,
+        "failed": 1,
+        "reason": "New SQL guard referenced nonexistent user enable/type columns. Corrected to current disabled/user_kind schema; assertions preserved."
+      },
+      "boundary": "Budget preparation only: exact approved-rate review, same-intent idempotency, actor-owned receipt recovery, immutable publication and guarded rollback. Staffing/approval request parity, Signal Forms, client creation, assessment and cutover remain PARTIAL. Whole regression on earlier creation source remains separate."
     }
   },
   "documentationWork": {

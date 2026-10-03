@@ -869,3 +869,25 @@ professional scope. Double reads fence changed supporting state; current scope/s
 removes protected content. The screen is read-only and exposes no placeholder application command. Native plan
 creation/finalization and wider journal/application story acceptance remain open. No schema,
 Microsoft permissions, financial books or grants change. Executed evidence is in `status.json`.
+
+### Reviewed native budget preparation
+
+The scoped budget preparation API composes `BudgetPreparationWorkspace` and the
+existing `PracticeTimeService`. Server preview binds the exact normalized budget
+lines, expected version, approved rate identities, exact forecast values, actor
+session and current engagement/client context. Confirmation revalidates that
+snapshot under the existing firm/client transaction locks. Same-intent retries
+return the original immutable receipt; changed intent cannot reuse the request.
+
+The additive preparation evidence table has append-only and deferred publication
+guards. Retained evidence blocks destructive schema rollback. Preparation publishes
+a draft only; independent budget approval and professional acceptance remain
+separate. The older budget endpoint stays available for retained UI builds.
+
+Angular keeps editable tab drafts separate from pending request references. The
+reference is saved before dispatch; an unknown acknowledgement fences new changes.
+Reload first reads current authorized planning and then offers explicit receipt
+reconciliation, never an automatic command retry. Reconciliation waits behind
+in-flight guarded publication. Editable recovery excludes assent, calculated money
+and execution. Staffing/approval request parity and complete planning Signal Forms
+remain open.
