@@ -6882,7 +6882,18 @@
       },
       "angularBuild": "PASS",
       "browser": "PASS owned synthetic Test schema: exact persisted mode/epoch, allowlisted environment, external effects and simulation flags; no console errors",
-      "boundary": "Read-only projection; missing safety state is not inferred as healthy. No configuration secrets, credential locations or full configuration dumps returned. Shared database not migrated; full migration acceptance remains open."
+      "boundary": "Read-only projection; missing safety state is not inferred as healthy. No configuration secrets, credential locations or full configuration dumps returned. Shared database not migrated; full migration acceptance remains open.",
+      "efModelDrift": "PASS no pending model changes on current Release API build"
+    },
+    "angularFreshRegression": {
+      "codeCommit": "01305801458bf036197eed9efc1298bbe82e5f4b",
+      "status": "RUNNING",
+      "observedAt": "2026-10-03T16:03:12.791336+00:00",
+      "command": "dotnet test AuditSphereOps.slnx --configuration Release --no-build",
+      "log": "/private/tmp/auditsphere-angular-fresh-regression.log",
+      "exitRecord": "/private/tmp/auditsphere-angular-fresh-regression.exit",
+      "artifactManifest": "/private/tmp/auditsphere-angular-fresh-regression-manifest.json",
+      "boundary": "Fresh source/UI/test artifacts captured after successful Release/Angular builds and EF drift check. Terminal result and unchanged-artifact audit required before regression acceptance."
     }
   },
   "documentationWork": {
