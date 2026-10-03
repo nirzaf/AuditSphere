@@ -1,4 +1,4 @@
-import { Component, DestroyRef, computed, effect, inject, input, output, signal, untracked } from '@angular/core';
+import { Component, DestroyRef, ElementRef, computed, effect, inject, input, output, signal, untracked, viewChild } from '@angular/core';
 import { FormField, form, maxLength } from '@angular/forms/signals';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
@@ -25,7 +25,7 @@ import { setupPreview, setupReceipt, setupReceiptLookup, SetupPreview, SetupRece
 </fieldset>
 }
 @if(preview(); as p) {
-<h3>Review setup revision {{ p.expectedRevision }}</h3>
+<h3 #reviewHeading tabindex="-1">Review setup revision {{ p.expectedRevision }}</h3>
 <table><caption>Current and proposed local metadata</caption><thead><tr><th>Field</th><th>Current</th><th>Proposed</th></tr></thead><tbody>
 <tr><th>Label</th><td>{{ p.before.tenantDisplayName ?? 'None' }}</td><td>{{ p.fields.tenantDisplayName ?? 'None' }}</td></tr>
 <tr><th>Mail</th><td>{{ p.before.mailState }}</td><td>{{ p.fields.mailState }}</td></tr>
@@ -47,6 +47,7 @@ export class TenantSetupEditor {
   readonly model = signal({ name: '', mail: 'NOT_CONFIGURED', records: 'NOT_CONFIGURED' });
   readonly fields = form(this.model, p => maxLength(p.name, 300));
   readonly assentModel = signal({ reviewed: false }); readonly assent = form(this.assentModel);
+  readonly reviewHeading = viewChild<ElementRef<HTMLElement>>('reviewHeading');
   readonly preview = signal<SetupPreview | null>(null); readonly receipt = signal<SetupReceipt | null>(null);
   readonly pending = signal<PendingRequestReference | null>(null); readonly scope = signal<DraftScope | null>(null);
   readonly busy = signal(false); readonly message = signal(''); readonly failed = signal(false);
@@ -87,6 +88,7 @@ export class TenantSetupEditor {
       const p = decode(setupPreview, result.value);
       if (p.requestId !== requestId || p.draftId !== this.draftId() || p.expectedRevision !== this.revision() || JSON.stringify(p.fields) !== JSON.stringify(this.values())) throw new Error();
       this.preview.set(p); this.assentModel.set({reviewed:false}); this.message.set('Review the exact before and after values.'); this.failed.set(false);
+      setTimeout(() => { if(this.valid(v,e) && this.preview() === p) this.reviewHeading()?.nativeElement.focus(); });
     } catch { if(this.valid(v,e)) { this.failed.set(true); this.message.set('The exact review could not be verified. Refresh before reviewing again.'); } }
     finally { if(this.valid(v,e)) this.busy.set(false); }
   }

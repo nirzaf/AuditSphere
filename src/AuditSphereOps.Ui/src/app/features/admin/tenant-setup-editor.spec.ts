@@ -33,4 +33,17 @@ describe('tenant setup review and recovery',()=>{
     const promise=c.review();const req=http.expectOne('/api/ui/administration/microsoft365/setup/preview');f.destroy();
     req.flush({value:{...req.request.body,requestHash:'a'.repeat(64),reviewBasis:'b'.repeat(64),before:initial}});await promise;expect(c.preview()).toBeNull();
   });
+  it('retains only a pending reference after a lost response and reconciles without resending',async()=>{
+    const f=create(),c=f.componentInstance,http=TestBed.inject(HttpTestingController);
+    c.scope.set({entity:`tenant-setup:${id}`,baseRevision:'a'.repeat(64)});
+    c.preview.set({requestId:id,draftId:id,expectedRevision:'1',requestHash:'a'.repeat(64),reviewBasis:'b'.repeat(64),before:initial,fields:initial});
+    c.assentModel.set({reviewed:true});
+    vi.spyOn(TestBed.inject(TabDrafts),'save').mockReturnValue(true);
+    const save=c.save();http.expectOne('/api/ui/administration/microsoft365/setup/commands').flush({}, {status:503,statusText:'Unavailable'});await save;
+    expect(c.pending()).toEqual({requestId:id,requestHash:'a'.repeat(64)});
+    await c.save();http.expectNone('/api/ui/administration/microsoft365/setup/commands');
+    const check=c.lookup();http.expectOne(`/api/ui/administration/microsoft365/setup/receipts/${id}?requestHash=${'a'.repeat(64)}`).flush({found:true,receipt:{id,requestId:id,draftId:id,requestHash:'a'.repeat(64),appliedRevision:'2',previousFingerprint:'b'.repeat(64),appliedFingerprint:'c'.repeat(64),recordedAt:'2026-10-03T15:00:00Z'}});await check;
+    expect(c.receipt()?.appliedRevision).toBe('2');expect(c.assentModel().reviewed).toBe(false);f.destroy();
+  });
+
 });

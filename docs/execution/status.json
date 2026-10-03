@@ -6821,7 +6821,42 @@
       "efModelDrift": "PASS: no pending model changes on isolated API build",
       "migration": "20261003153640_NativeTenantSetupMetadataReceipts",
       "browser": "PASS owned synthetic Test schema: edit, exact preview, assent, save, same-receipt lookup, acknowledgement, refreshed configuration; no console errors",
-      "boundary": "Focused local evidence only. Shared database not migrated. Automated API/E2E setup mutation coverage, migration downgrade acceptance, full regression and wider migration acceptance remain pending."
+      "boundary": "Setup mutation API, recovery browser journey and migration downgrade safeguards locally verified. Shared database not migrated. Full regression and wider migration acceptance remain pending.",
+      "acceptanceExtension": {
+        "observedAt": "2026-10-03T15:54:52.661169+00:00",
+        "angularTests": {
+          "passed": 433,
+          "failed": 0,
+          "files": 85
+        },
+        "apiTests": {
+          "passed": 1,
+          "failed": 0,
+          "skipped": 0
+        },
+        "affectedE2eTests": {
+          "passed": 3,
+          "failed": 0,
+          "skipped": 0
+        },
+        "finalUiE2eRetest": {
+          "passed": 1,
+          "failed": 0
+        },
+        "checks": [
+          "Unauthenticated and missing-CSRF refusal",
+          "Guessed draft and altered reviewed intent refusal",
+          "Idempotent save and no-store actor receipt lookup",
+          "Append-only database event guard",
+          "Empty migration downgrade/up and retained-evidence downgrade refusal",
+          "Session epoch revocation",
+          "Lost-response UI reconciliation without command resend",
+          "Browser reload recovers committed receipt and records one event",
+          "Keyboard focus moves to exact review heading"
+        ],
+        "testInfrastructure": "Owned hosts can run isolated Release artifacts with explicit repository root; existing default host selection retained.",
+        "boundary": "Focused local acceptance only; wider migration regression, source-action coverage, canary and retirement remain open."
+      }
     }
   },
   "documentationWork": {

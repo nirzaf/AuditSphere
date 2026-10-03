@@ -249,6 +249,16 @@ internal sealed class OwnedBlazorHost : IAsyncDisposable
       RedirectStandardError = true,
       CreateNoWindow = true
     };
+    if (Environment.GetEnvironmentVariable("AUDITSPHERE_TEST_ARTIFACTS_ROOT") is { Length: > 0 } artifacts)
+    {
+      // Isolated builds let independent test consumers retain their original binaries.
+      var name = Path.GetFileNameWithoutExtension(project);
+      var assembly = Path.Combine(Path.GetFullPath(artifacts), "bin", name, ConfigurationName().ToLowerInvariant(), name + ".dll");
+      if (!File.Exists(assembly)) throw new InvalidOperationException("Build the selected isolated test host before starting it.");
+      info.ArgumentList.Add(assembly);
+    }
+    else
+    {
     info.ArgumentList.Add("run");
     info.ArgumentList.Add("--project");
     info.ArgumentList.Add(Path.Combine(repo, project));
@@ -257,12 +267,13 @@ internal sealed class OwnedBlazorHost : IAsyncDisposable
     info.ArgumentList.Add("--no-restore");
     info.ArgumentList.Add("--configuration");
     info.ArgumentList.Add(ConfigurationName());
+    }
     if (project.Contains("Web.csproj", StringComparison.Ordinal) || project.Contains("Api.csproj", StringComparison.Ordinal))
     {
       var urlIndex = Array.IndexOf(pairs, "ASPNETCORE_URLS");
       if (urlIndex >= 0)
       {
-        info.ArgumentList.Add("--");
+        if (Environment.GetEnvironmentVariable("AUDITSPHERE_TEST_ARTIFACTS_ROOT") is not { Length: > 0 }) info.ArgumentList.Add("--");
         info.ArgumentList.Add("--urls");
         info.ArgumentList.Add(pairs[urlIndex + 1]);
       }
@@ -339,12 +350,21 @@ internal sealed class OwnedBlazorHost : IAsyncDisposable
   }
 
   private static string ConfigurationName() =>
-    Directory.GetParent(AppContext.BaseDirectory)?.Parent?.Name is { Length: > 0 } name ? name : "Release";
+    Environment.GetEnvironmentVariable("AUDITSPHERE_TEST_ARTIFACTS_ROOT") is { Length: > 0 }
+      ? "Release" : Directory.GetParent(AppContext.BaseDirectory)?.Parent?.Name is { Length: > 0 } name ? name : "Release";
 
   private static string FindRepositoryRoot()
   {
+    if (Environment.GetEnvironmentVariable("AUDITSPHERE_TEST_REPOSITORY_ROOT") is { Length: > 0 } root)
+    {
+      root = Path.GetFullPath(root);
+      if (!File.Exists(Path.Combine(root, "AuditSphereOps.slnx"))) throw new DirectoryNotFoundException("The explicit E2E repository root must contain AuditSphereOps.slnx.");
+      return root;
+    }
     for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
       if (File.Exists(Path.Combine(directory.FullName, "AuditSphereOps.slnx"))) return directory.FullName;
-    throw new DirectoryNotFoundException("Could not locate AuditSphereOps.slnx from the E2E test output directory.");
+    for (var directory = new DirectoryInfo(Directory.GetCurrentDirectory()); directory is not null; directory = directory.Parent)
+      if (File.Exists(Path.Combine(directory.FullName, "AuditSphereOps.slnx"))) return directory.FullName;
+    throw new DirectoryNotFoundException("Could not locate AuditSphereOps.slnx from the E2E test output directory or working directory.");
   }
 }

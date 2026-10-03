@@ -13,6 +13,21 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Angular tenant setup acceptance extension
+
+Automated API coverage now verifies exact reviewed metadata, CSRF and current
+session authority, guessed identities, altered intents, replay, immutable event
+storage and retained-evidence downgrade refusal. The new browser journey reloads
+after publication and explicitly recovers the committed receipt without issuing
+another mutation. Lost-response unit coverage preserves pending references and
+prevents resend. Exact review receives keyboard focus.
+
+The full Angular suite and affected browser/API journeys passed, with results in
+status.json. Owned browser hosts now support isolated Release artifacts and an
+explicit validated repository root, so concurrent runs need not replace each
+other's executable files. Default host behavior is preserved. Full migration
+regression, canary and retirement remain separate unfinished gates.
+
 ## Angular tenant setup editor
 
 Safe tenant label and mail/records configuration flags now have a native Signal
@@ -28,8 +43,8 @@ preserve unsaved edits and prevent stale responses from applying.
 
 Focused builds, PostgreSQL tests, Angular tests, EF drift inspection and built-in
 browser verification passed; evidence is recorded in status.json. The migration
-was applied only through owned synthetic test schemas. Automated API/E2E mutation
-journeys, downgrade acceptance and wider migration acceptance remain open.
+was applied only through owned synthetic test schemas. The later acceptance extension above closes automated setup mutation journeys
+and downgrade safeguards; wider migration acceptance remains open.
 
 A later artifact check found drift in the original regression manifest. Its
 running E2E recovery cannot establish the original frozen checkpoint. Earlier
