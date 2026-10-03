@@ -1,0 +1,96 @@
+using AuditSphereOps.Application.Practice;
+using AuditSphereOps.Domain.Practice;
+using AuditSphereOps.Domain.Tests;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Playwright;
+
+namespace AuditSphereOps.E2E.Tests;
+
+public sealed class AngularBillingWorkspaceJourneyTests
+{
+  [Fact]
+  public async Task FinanceManagerRecordsAllocatesAndRecoversCreditNoteInNativeInvoiceWorkspace()
+  {
+    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "ANGULAR-BILLING-WORKSPACE-E2E");
+    var f = host.Fixture;
+    var manager = PbcSeed.Actor(f.Admin, "FinanceManager");
+    var reviewer = PbcSeed.Actor(f.Reviewer, "FinanceReviewer");
+    Guid accountId, invoiceId;
+    await using (var db = host.CreateDbContext())
+    {
+      db.RoleGrants.AddRange(
+        PbcSeed.Grant(f.FirmId, f.Admin, "FinanceManager"),
+        PbcSeed.Grant(f.FirmId, f.Reviewer, "FinanceReviewer"));
+      await db.SaveChangesAsync();
+      accountId = (await BillingService.CreateBillingAccountAsync(db, manager,
+        new CreateBillingAccountRequest(f.ClientId, "QAR"))).Value;
+      invoiceId = (await BillingService.CreateInvoiceDraftAsync(db, manager,
+        new CreateInvoiceDraftRequest(accountId, "SYN-ANG-E2E-INV-001", [new InvoiceLineRequest("Synthetic audit fee", 1m, 100m)]))).Value;
+      Assert.True((await BillingService.SubmitInvoiceAsync(db, manager, invoiceId)).Succeeded);
+      Assert.True((await BillingService.ApproveInvoiceAsync(db, reviewer, invoiceId)).Succeeded);
+      db.FirmFinanceProfiles.Add(new FirmFinanceProfile
+      {
+        Id = Guid.NewGuid(), FirmId = f.FirmId, FunctionalCurrency = "QAR", ProfileKind = BillingStates.TestProfile,
+        Approved = true, ApprovedByUserId = f.Reviewer.Id, ApprovedAt = DateTimeOffset.UtcNow, CreatedAt = DateTimeOffset.UtcNow
+      });
+      await db.SaveChangesAsync();
+      Assert.True((await BillingService.PostInvoiceAsync(db, manager, invoiceId)).Succeeded);
+    }
+
+    var origin = await host.StartApiForIdentityAsync(f.Admin, new Dictionary<string, string>
+    {
+      ["AngularUi__Enabled"] = "true", ["AngularUi__CanonicalRoutes"] = "true"
+    });
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    await using var context = await browser.NewContextAsync();
+    var page = await context.NewPageAsync();
+    var errors = new List<string>(); page.PageError += (_, error) => errors.Add(error);
+    var route = $"/app/practice/invoices/{invoiceId:D}";
+    await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(route));
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "SYN-ANG-E2E-INV-001" })).ToBeVisibleAsync();
+
+    await page.GetByLabel("Payment amount (QAR)", new() { Exact = true }).FillAsync("40");
+    await page.GetByLabel("Bank or cheque transaction reference", new() { Exact = true }).FillAsync("SYN-ANG-BANK-001");
+    await page.GetByLabel("I reviewed the payment amount and transaction reference.", new() { Exact = true }).CheckAsync();
+    await page.GetByRole(AriaRole.Button, new() { Name = "Record receipt", Exact = true }).ClickAsync();
+    await Assertions.Expect(page.GetByText("Receipt recorded. Refresh or allocate it to a posted invoice when ready.", new() { Exact = true })).ToBeVisibleAsync();
+    Guid receiptId;
+    await using (var db = host.CreateDbContext())
+      receiptId = await db.Receipts.AsNoTracking().Where(x => x.Reference == "SYN-ANG-BANK-001").Select(x => x.Id).SingleAsync();
+
+    await page.GetByLabel("Receipt and available balance", new() { Exact = true }).SelectOptionAsync(receiptId.ToString("D"));
+    await page.GetByLabel("Amount to allocate (QAR)", new() { Exact = true }).FillAsync("25");
+    await page.GetByLabel("I reviewed this receipt, invoice and allocation amount.", new() { Exact = true }).CheckAsync();
+    await page.GetByRole(AriaRole.Button, new() { Name = "Allocate receipt", Exact = true }).ClickAsync();
+    await Assertions.Expect(page.GetByText("Receipt allocation recorded against this invoice.", new() { Exact = true })).ToBeVisibleAsync();
+
+    await page.GetByLabel("Credit note number", new() { Exact = true }).FillAsync("SYN-ANG-CN-001");
+    await page.GetByLabel("Credit amount (QAR)", new() { Exact = true }).FillAsync("10");
+    await page.GetByLabel("Reason", new() { Exact = true }).FillAsync("Synthetic reviewed adjustment");
+    await page.GetByLabel("I reviewed the credit note number, amount and reason.", new() { Exact = true }).CheckAsync();
+    var creditCalls = 0;
+    await page.RouteAsync("**/api/ui/finance/invoices/*/credit-notes", async interception =>
+    {
+      Interlocked.Increment(ref creditCalls);
+      var response = await interception.FetchAsync();
+      Assert.Equal(200, response.Status);
+      await interception.AbortAsync();
+    });
+    await page.GetByRole(AriaRole.Button, new() { Name = "Issue credit note", Exact = true }).ClickAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Verify the saved billing state", Exact = true })).ToBeVisibleAsync();
+    await page.GetByRole(AriaRole.Button, new() { Name = "Refresh persisted billing state", Exact = true }).ClickAsync();
+    await Assertions.Expect(page.GetByText("SYN-ANG-CN-001", new() { Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Clear unresolved billing draft", Exact = true })).ToBeVisibleAsync();
+    Assert.Equal(1, creditCalls);
+    await using (var db = host.CreateDbContext())
+    {
+      Assert.Single(await db.CreditNotes.Where(x => x.InvoiceId == invoiceId).ToListAsync());
+      Assert.Equal(25m, await db.ReceiptAllocations.Where(x => x.InvoiceId == invoiceId).SumAsync(x => x.Amount));
+    }
+
+    await page.SetViewportSizeAsync(390, 844);
+    Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= innerWidth + 1"));
+    Assert.Empty(errors);
+  }
+}

@@ -62,6 +62,7 @@ describe('Finance & Firm Ledger Contracts', () => {
       postedAt: null,
       outstanding: '50000.00',
       canAct: true,
+      billingAccountId: id2,
       lines: [
         {
           description: 'Interim statutory audit services',
@@ -71,6 +72,11 @@ describe('Finance & Firm Ledger Contracts', () => {
         },
       ],
       allocations: [],
+      receipts: [{ id: id2, reference: 'BANK-001', currency: 'QAR', amount: '5000.00', allocated: '0.00', remaining: '5000.00', receivedAt: '2026-10-01T09:00:00Z' }],
+      receiptsHaveMore: false,
+      creditNotes: [{ id: '33333333-3333-4333-8333-333333333333', noteNumber: 'CN-001', currency: 'QAR', amount: '1000.00', reason: 'Reviewed adjustment', createdAt: '2026-10-01T10:00:00Z' }],
+      creditNotesHaveMore: false,
+      canIssueCreditNote: true,
     };
 
     const decoded = decodeInvoice(raw, 'invoice');
@@ -78,6 +84,9 @@ describe('Finance & Firm Ledger Contracts', () => {
     expect(decoded.invoiceNumber).toBe('INV-2026-001');
     expect(decoded.lines.length).toBe(1);
     expect(decoded.outstanding).toBe('50000.00');
+    expect(decoded.receipts[0].remaining).toBe('5000.00');
+    expect(decoded.creditNotes[0].noteNumber).toBe('CN-001');
+    expect(decoded.canIssueCreditNote).toBe(true);
   });
 
   it('decodes a valid firm books payload', () => {

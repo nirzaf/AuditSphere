@@ -6,6 +6,9 @@ namespace AuditSphereOps.Api.Ui;
 public static partial class UiEndpoints
 {
   public sealed record FiscalCloseInput(string Reason);
+  public sealed record ReceiptInput(string Amount, string Reference, bool Reviewed);
+  public sealed record ReceiptAllocationInput(Guid InvoiceId, string Amount, bool Reviewed);
+  public sealed record CreditNoteInput(string NoteNumber, string Amount, string Reason, bool Reviewed);
 
   private static void MapFinanceEndpoints(RouteGroupBuilder group)
   {
@@ -26,18 +29,46 @@ public static partial class UiEndpoints
       CommandAsync(http, (db, actor, ct) => LedgerService.CloseFiscalPeriodAsync(db, actor, id, i.Reason ?? "", ct)));
     group.MapGet("/finance/invoices/{id:guid}", (Guid id, HttpContext http) => ReadAsync(http, async (db, actor, ct) =>
     {
-      var r = await BillingService.GetInvoiceDetailAsync(db, actor, id, ct);
+      var r = await BillingInvoiceWorkspaceQuery.GetAsync(db, actor, id, ct);
       if (!r.Succeeded || r.Value is null) return CommandResult<object>.Fail(r.ErrorCode ?? ErrorCodes.ScopeDenied, r.Message ?? "Access denied.");
-      var v = r.Value;
+      var v = r.Value.Detail;
       return CommandResult<object>.Ok(new
       {
-        v.Invoice.Id, v.Invoice.InvoiceNumber, v.Invoice.Currency, v.Invoice.Subtotal, v.Invoice.Tax, v.Invoice.Total, v.Invoice.Revision, v.Invoice.Status,
+        v.Invoice.Id, v.Invoice.BillingAccountId, v.Invoice.InvoiceNumber, v.Invoice.Currency, v.Invoice.Subtotal, v.Invoice.Tax, v.Invoice.Total, v.Invoice.Revision, v.Invoice.Status,
         v.Invoice.CreatedAt, v.Invoice.PostedAt, Outstanding = v.Balance.Outstanding,
         Lines = v.Lines.Select(l => new { l.Description, l.Quantity, l.UnitPrice, l.LineTotal }),
         Allocations = v.Allocations.Select(a => new { a.ReceiptId, a.CreatedAt, a.Amount }),
-        CanAct = actor.Roles.Any(x => x is "FinanceManager" or "FinanceReviewer"),
+        Receipts = r.Value.Receipts,
+        r.Value.ReceiptsHaveMore,
+        CreditNotes = r.Value.CreditNotes,
+        r.Value.CreditNotesHaveMore,
+        r.Value.CanIssueCreditNote,
+        CanAct = true,
       });
     }));
+    group.MapPost("/finance/billing-accounts/{id:guid}/receipts", (Guid id, ReceiptInput input, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) =>
+      {
+        if (!input.Reviewed || !TryDecimal(input.Amount, out var amount) || string.IsNullOrWhiteSpace(input.Reference) || input.Reference.Trim().Length > 200)
+          return Task.FromResult(CommandResult<Guid>.Fail("billing.invalid", "Review a positive receipt amount and a transaction reference of at most 200 characters."));
+        return BillingService.RecordReceiptAsync(db, actor, new RecordReceiptRequest(id, amount, input.Reference.Trim()), ct);
+      }));
+    group.MapPost("/finance/receipts/{id:guid}/allocations", (Guid id, ReceiptAllocationInput input, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) =>
+      {
+        if (!input.Reviewed || !TryDecimal(input.Amount, out var amount) || input.InvoiceId == Guid.Empty)
+          return Task.FromResult(CommandResult<bool>.Fail("billing.invalid", "Review a positive exact allocation amount for this invoice."));
+        return AsBoolean(BillingService.AllocateReceiptAsync(db, actor, new AllocateReceiptRequest(id, input.InvoiceId, amount), ct));
+      }));
+    group.MapPost("/finance/invoices/{id:guid}/credit-notes", (Guid id, CreditNoteInput input, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) =>
+      {
+        if (!input.Reviewed || !TryDecimal(input.Amount, out var amount) || string.IsNullOrWhiteSpace(input.NoteNumber) ||
+            input.NoteNumber.Trim().Length > 64 || string.IsNullOrWhiteSpace(input.Reason) || input.Reason.Trim().Length > 1000)
+          return Task.FromResult(CommandResult<Guid>.Fail("billing.invalid", "Review a positive credit amount, unique note number, and reason."));
+        return BillingService.IssueCreditNoteAsync(db, actor, new IssueCreditNoteRequest(id,
+          input.NoteNumber.Trim(), amount, input.Reason.Trim()), ct);
+      }));
     foreach (var (action, command) in new (string, Func<Application.Operations.IAuditSphereDbContext, Application.Abstractions.ActorContext, Guid, CancellationToken, Task<CommandResult>>)[]
     {
       ("approve", (db, a, id, ct) => BillingService.ApproveInvoiceAsync(db, a, id, ct)),
@@ -45,5 +76,11 @@ public static partial class UiEndpoints
       ("send", (db, a, id, ct) => BillingService.SendInvoiceAsync(db, a, id, ct)),
     })
       group.MapPost("/finance/invoices/{id:guid}/" + action, (Guid id, HttpContext http) => CommandAsync(http, (db, actor, ct) => command(db, actor, id, ct)));
+  }
+
+  private static async Task<CommandResult<bool>> AsBoolean(Task<CommandResult> command)
+  {
+    var result = await command;
+    return result.Succeeded ? CommandResult<bool>.Ok(true) : CommandResult<bool>.Fail(result.ErrorCode!, result.Message!);
   }
 }
