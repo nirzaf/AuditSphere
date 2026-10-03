@@ -45,6 +45,17 @@ public sealed class AngularEngagementCreationJourneyTests
     var recorded=page.GetByRole(AriaRole.Region,new(){Name="Engagement creation receipt",Exact=true});await Assertions.Expect(recorded).ToContainTextAsync("SYNTHETIC-REVIEWED-CREATION");
     await page.GetByRole(AriaRole.Button,new(){Name="Acknowledge creation result",Exact=true}).ClickAsync();
     await Assertions.Expect(page.GetByRole(AriaRole.Heading,new(){Name="Creation outcome unconfirmed",Exact=true})).ToHaveCountAsync(0);
+    await page.GetByLabel("Service route",new(){Exact=true}).FillAsync("AccountingOnly");
+    await page.GetByLabel("Service profile",new(){Exact=true}).FillAsync("SYNTHETIC-REVIEWED-CREATION");
+    await page.GetByLabel("Period start",new(){Exact=true}).FillAsync("2027-01-01");
+    await page.GetByLabel("Period end",new(){Exact=true}).FillAsync("2027-12-31");
+    await page.GetByRole(AriaRole.Button,new(){Name="Review engagement",Exact=true}).ClickAsync();
+    var existing=page.GetByRole(AriaRole.Region,new(){Name="Existing engagement",Exact=true});
+    await Assertions.Expect(existing).ToContainTextAsync("Matching engagement already exists");
+    var inspect=existing.GetByRole(AriaRole.Link,new(){Name="Inspect existing engagement",Exact=true});
+    await Assertions.Expect(inspect).ToHaveAttributeAsync("href",new System.Text.RegularExpressions.Regex("/app/engagements/"));
+    await Assertions.Expect(existing.GetByRole(AriaRole.Button,new(){Name="Confirm blocked creation",Exact=true})).ToHaveCountAsync(0);
+    await page.GetByRole(AriaRole.Button,new(){Name="Discard engagement edits",Exact=true}).ClickAsync();
     await page.SetViewportSizeAsync(390,844);Assert.True(await page.EvaluateAsync<bool>("()=>document.documentElement.scrollWidth<=innerWidth+1"));
     await using(var db=host.CreateDbContext()) {
       Assert.Equal(2,await db.Engagements.CountAsync());Assert.Single(await db.EngagementCreations.ToListAsync());

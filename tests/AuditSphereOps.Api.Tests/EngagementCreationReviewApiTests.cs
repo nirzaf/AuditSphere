@@ -31,6 +31,11 @@ public sealed class EngagementCreationReviewApiTests
     using var replay=await Post(c,csrf,url,reviewed);Assert.Equal(HttpStatusCode.OK,replay.StatusCode);Assert.Equal(await created.Content.ReadAsStringAsync(),await replay.Content.ReadAsStringAsync());
     var receipt=JsonDocument.Parse(await created.Content.ReadAsStringAsync()).RootElement.GetProperty("value").Deserialize<EngagementCreationReceipt>(new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
     Assert.Equal(receipt,(await c.GetFromJsonAsync<EngagementCreationLookup>(url+"/receipts/"+r.RequestId+"?requestHash="+p.RequestHash))!.Receipt);
+    var duplicateRequest=r with{RequestId=Guid.NewGuid()};
+    using var duplicatePreviewResponse=await Post(c,csrf,url+"/preview",duplicateRequest);Assert.Equal(HttpStatusCode.OK,duplicatePreviewResponse.StatusCode);
+    var duplicatePreview=JsonDocument.Parse(await duplicatePreviewResponse.Content.ReadAsStringAsync()).RootElement.GetProperty("value")
+      .Deserialize<EngagementCreationPreview>(new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
+    Assert.Equal(receipt.EngagementId,duplicatePreview.ExistingEngagementId);
     Assert.False((await c.GetFromJsonAsync<EngagementCreationLookup>(url+"/receipts/"+Guid.NewGuid()+"?requestHash="+p.RequestHash))!.Found);
     using var hidden=await c.GetAsync("/api/ui/clients/"+foreign.ClientId+"/engagement-creation");using var guessed=await c.GetAsync("/api/ui/clients/"+Guid.NewGuid()+"/engagement-creation");
     Assert.Equal(HttpStatusCode.Forbidden,hidden.StatusCode);Assert.Equal(await hidden.Content.ReadAsStringAsync(),await guessed.Content.ReadAsStringAsync());

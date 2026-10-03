@@ -8,6 +8,7 @@ import { EngagementCreate } from './engagement-create';
 import {
   engagementFields,
   decodeEngagementCreationLookup,
+  decodeEngagementCreationPreview,
   decodeEngagementCreationState,
   validEngagement,
 } from './engagement-create-contracts';
@@ -97,7 +98,7 @@ describe('Native engagement creation review, tab recovery and ownership', () => 
     requests[0].flush(value);
     TestBed.tick();
   }
-  async function preview(c: EngagementCreate) {
+  async function preview(c: EngagementCreate, existingEngagementId: string | null = null) {
     c.model.set({ ...fields });
     TestBed.tick();
     const pending = c.prepare();
@@ -110,6 +111,7 @@ describe('Native engagement creation review, tab recovery and ownership', () => 
         reviewBasis: basis,
         requestHash: hash,
         fields,
+        existingEngagementId,
       },
     });
     await pending;
@@ -153,6 +155,40 @@ describe('Native engagement creation review, tab recovery and ownership', () => 
     TestBed.tick();
     expect(c.preview()).toBeNull();
     expect(c.reviewed()).toBe(false);
+  });
+  it('shows and links an existing matching shell without offering duplicate creation', async () => {
+    const f = open();
+    read();
+    const c = f.componentInstance;
+    await preview(c, other);
+    expect(c.message()).toContain('already exists');
+    expect(f.nativeElement.textContent).toContain('Inspect the existing shell');
+    const link = f.nativeElement.querySelector('a[href="/app/engagements/' + other + '"]');
+    expect(link?.textContent.trim()).toBe('Inspect existing engagement');
+    c.reviewed.set(true);
+    await c.execute();
+    TestBed.inject(HttpTestingController).expectNone(url);
+    expect(f.nativeElement.textContent).not.toContain('Confirm blocked creation');
+    expect(
+      decodeEngagementCreationPreview({
+        clientId: id,
+        requestId: other,
+        reviewBasis: basis,
+        requestHash: hash,
+        fields,
+        existingEngagementId: other,
+      }, '').existingEngagementId,
+    ).toBe(other);
+    expect(
+      decodeEngagementCreationPreview({
+        clientId: id,
+        requestId: other,
+        reviewBasis: basis,
+        requestHash: hash,
+        fields,
+        existingEngagementId: null,
+      }, '').existingEngagementId,
+    ).toBeNull();
   });
   it('dispatches once, blocks unknown resubmission and reconciles its actor-owned receipt', async () => {
     const f = open();
@@ -333,6 +369,7 @@ describe('Native engagement creation review, tab recovery and ownership', () => 
         reviewBasis: basis,
         requestHash: hash,
         fields,
+        existingEngagementId: null,
       },
     });
     await review;

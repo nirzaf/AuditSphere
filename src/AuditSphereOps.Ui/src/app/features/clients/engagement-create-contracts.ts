@@ -76,6 +76,7 @@ export const decodeEngagementCreationPreview = obj({
   reviewBasis: sha256,
   requestHash: sha256,
   fields: canonical,
+  existingEngagementId: nullable(identity),
 });
 export const decodeEngagementCreationReceipt = obj({
   id: identity,

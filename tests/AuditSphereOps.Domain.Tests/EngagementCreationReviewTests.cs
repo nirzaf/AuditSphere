@@ -20,7 +20,11 @@ public sealed class EngagementCreationReviewTests
     Assert.Equal(("Draft",true,1L),(e.Status,e.ProfessionalWorkBlocked,e.Generation));Assert.Single(await db.EngagementCreations.ToListAsync());
     Assert.Empty(await db.EngagementActivations.ToListAsync());Assert.Empty(await db.UserAccessInvitations.ToListAsync());Assert.Equal(5,await db.RoleGrants.CountAsync());
     Assert.Equal(receipt,(await EngagementCreationWorkspace.LookupAsync(db,a,f.ClientId,r.RequestId,p.RequestHash)).Value!.Receipt);
-    Assert.Equal("engagement.conflict",(await EngagementCreationWorkspace.PreviewAsync(db,a,f.ClientId,r with{RequestId=Guid.NewGuid()})).ErrorCode);
+    var duplicateRequest=r with{RequestId=Guid.NewGuid()};
+    var duplicatePreview=await EngagementCreationWorkspace.PreviewAsync(db,a,f.ClientId,duplicateRequest);
+    Assert.True(duplicatePreview.Succeeded,duplicatePreview.Message);Assert.Equal(receipt.EngagementId,duplicatePreview.Value!.ExistingEngagementId);
+    var duplicateWrite=await EngagementCreationWorkspace.ExecuteAsync(db,a,f.ClientId,duplicateRequest with{Reviewed=true,ExpectedRequestHash=duplicatePreview.Value.RequestHash});
+    Assert.Equal("engagement.conflict",duplicateWrite.ErrorCode);Assert.Equal(2,await db.Engagements.CountAsync());Assert.Single(await db.EngagementCreations.ToListAsync());
     await db.ClientSafetyStates.Where(x=>x.Id==f.ClientId).ExecuteUpdateAsync(x=>x.SetProperty(y=>y.InputGeneration,y=>y.InputGeneration+1));
     Assert.Equal(receipt,(await EngagementCreationWorkspace.ExecuteAsync(db,a,f.ClientId,r)).Value);
     var fresh=(await EngagementCreationWorkspace.StateAsync(db,a,f.ClientId)).Value!;

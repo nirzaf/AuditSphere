@@ -230,7 +230,9 @@ export class EngagementCreate implements NavigationProtected {
       this.request = r;
       this.preview.set(p);
       this.message.set(
-        'Review the exact service, profile and period. This creates a blocked draft only.',
+        p.existingEngagementId
+          ? 'A matching service-period engagement already exists. Inspect it before continuing.'
+          : 'Review the exact service, profile and period. This creates a blocked draft only.',
       );
     } catch {
       if (g === this.generation)
@@ -250,6 +252,7 @@ export class EngagementCreate implements NavigationProtected {
       !s ||
       !p ||
       !r ||
+      p.existingEngagementId !== null ||
       !this.reviewed() ||
       this.busy() ||
       s.reviewBasis !== r.reviewBasis ||

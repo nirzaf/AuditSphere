@@ -11,7 +11,8 @@ namespace AuditSphereOps.Application.Acceptance;
 public sealed record EngagementCreationFields(string ServiceRoute,string ServiceProfile,string PeriodStart,string PeriodEnd);
 public sealed record EngagementCreationRequest(Guid RequestId,string ReviewBasis,EngagementCreationFields Fields,bool Reviewed=false,string? ExpectedRequestHash=null);
 public sealed record EngagementCreationState(Guid ClientId,string ClientName,string ClientGeneration,string ReviewBasis);
-public sealed record EngagementCreationPreview(Guid ClientId,Guid RequestId,string ReviewBasis,string RequestHash,EngagementCreationFields Fields);
+public sealed record EngagementCreationPreview(Guid ClientId,Guid RequestId,string ReviewBasis,string RequestHash,EngagementCreationFields Fields,
+  Guid? ExistingEngagementId = null);
 public sealed record EngagementCreationReceipt(Guid Id,Guid ClientId,Guid EngagementId,Guid ActorId,Guid RequestId,string RequestHash,string ReviewBasis,
   string ClientGeneration,string EngagementGeneration,EngagementCreationFields Fields,DateTimeOffset CreatedAt);
 public sealed record EngagementCreationLookup(bool Found,EngagementCreationReceipt? Receipt);
@@ -37,8 +38,6 @@ public static class EngagementCreationWorkspace
     Hashing.Sha256Hex(JsonSerializer.Serialize(new{a.FirmId,a.UserId,a.SessionEpoch,id,r.RequestId,Action="BLOCKED_ENGAGEMENT_CREATION",Fields=f}));
   private static EngagementCreationReceipt Receipt(EngagementCreation row)=>new(row.Id,row.ClientId,row.EngagementId,row.ActorId,row.RequestId,row.RequestHash,row.ReviewBasis,
     Exact(row.ClientGeneration),Exact(row.EngagementGeneration),JsonSerializer.Deserialize<EngagementCreationFields>(row.InputJson)!,row.CreatedAt);
-  private static Task<bool> Exists(IAuditSphereDbContext db,ActorContext a,Guid id,EngagementCreationFields f,CancellationToken ct)=>
-    db.Engagements.AsNoTracking().AnyAsync(x=>x.FirmId==a.FirmId&&x.PracticeClientId==id&&x.ServiceRoute==f.ServiceRoute&&x.PeriodStart==f.PeriodStart&&x.PeriodEnd==f.PeriodEnd,ct);
   public static async Task<CommandResult<EngagementCreationState>> StateAsync(IAuditSphereDbContext db,ActorContext a,Guid id,CancellationToken ct=default)
   {
     if(!(await Authorize(db,a,id,ct)).Succeeded)return Unavailable<EngagementCreationState>();
@@ -55,9 +54,11 @@ public static class EngagementCreationWorkspace
     if(r is null||r.RequestId==Guid.Empty||!HashValid(r.ReviewBasis)||f is null)return CommandResult<EngagementCreationPreview>.Fail("request.invalid","Enter a service route, profile and valid period before review.");
     var s=await StateAsync(db,a,id,ct);if(!s.Succeeded)return CommandResult<EngagementCreationPreview>.Fail(s.ErrorCode!,s.Message!);
     if(s.Value!.ReviewBasis!=r.ReviewBasis)return CommandResult<EngagementCreationPreview>.Fail(ErrorCodes.GenerationStale,"Client context changed. Refresh and review again.");
-    if(await Exists(db,a,id,f,ct))return CommandResult<EngagementCreationPreview>.Fail("engagement.conflict","This service and period already have an engagement. Inspect it or verify the retained creation receipt.");
+    var existingId=await db.Engagements.AsNoTracking().Where(x=>x.FirmId==a.FirmId&&x.PracticeClientId==id&&
+      x.ServiceRoute==f.ServiceRoute&&x.PeriodStart==f.PeriodStart&&x.PeriodEnd==f.PeriodEnd)
+      .Select(x=>(Guid?)x.Id).FirstOrDefaultAsync(ct);
     if(!(await Authorize(db,a,id,ct)).Succeeded)return Unavailable<EngagementCreationPreview>();
-    return CommandResult<EngagementCreationPreview>.Ok(new(id,r.RequestId,r.ReviewBasis,RequestHash(a,id,r,f),f));
+    return CommandResult<EngagementCreationPreview>.Ok(new(id,r.RequestId,r.ReviewBasis,RequestHash(a,id,r,f),f,existingId));
   }
   public static async Task<CommandResult<EngagementCreationReceipt>> ExecuteAsync(IAuditSphereDbContext db,ActorContext a,Guid id,EngagementCreationRequest? r,CancellationToken ct=default)
   {
@@ -77,6 +78,8 @@ public static class EngagementCreationWorkspace
       await tx.CommitAsync(ct);return CommandResult<EngagementCreationReceipt>.Ok(Receipt(prior));
     }
     var preview=await PreviewAsync(db,a,id,r,ct);if(!preview.Succeeded)return CommandResult<EngagementCreationReceipt>.Fail(preview.ErrorCode!,preview.Message!);
+    if(preview.Value!.ExistingEngagementId is not null)
+      return CommandResult<EngagementCreationReceipt>.Fail("engagement.conflict","A matching service-period engagement already exists. Inspect it before continuing.");
     var created=await EngagementLifecycleService.CreateDraftAsync(db,a,new(id,f.ServiceRoute,f.PeriodStart,f.PeriodEnd,f.ServiceProfile),ct);
     if(!created.Succeeded)return CommandResult<EngagementCreationReceipt>.Fail(created.ErrorCode!,created.Message!);
     var e=await db.Engagements.AsNoTracking().SingleAsync(x=>x.FirmId==a.FirmId&&x.Id==created.Value,ct);

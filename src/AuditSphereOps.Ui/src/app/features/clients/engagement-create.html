@@ -71,34 +71,53 @@
     </p>
   </section>
   @if (preview(); as p) {
-    <section aria-label="Reviewed engagement intent" class="review">
-      <h2>Review blocked engagement</h2>
-      <dl>
-        <dt>Service route</dt>
-        <dd>{{ p.fields.serviceRoute }}</dd>
-        <dt>Service profile</dt>
-        <dd>{{ p.fields.serviceProfile }}</dd>
-        <dt>Period</dt>
-        <dd>{{ p.fields.periodStart }} to {{ p.fields.periodEnd }}</dd>
-        <dt>Initial state</dt>
-        <dd>Draft · professional work blocked</dd>
-      </dl>
-      <p>
-        Client revision {{ context.clientGeneration }}. Partner activation requires current
-        unconditional acceptance and no active holds.
-      </p>
-      <label class="check"
-        ><input
-          type="checkbox"
-          [checked]="reviewed()"
-          [disabled]="busy()"
-          (change)="reviewed.set($any($event.target).checked)"
-        />I reviewed this exact client, service, profile and period.</label
-      >
-      <button matButton="filled" [disabled]="busy() || !reviewed()" (click)="execute()">
-        Confirm blocked creation
-      </button>
-    </section>
+    @if (p.existingEngagementId) {
+      <section aria-label="Existing engagement" class="review" role="region">
+        <h2>Matching engagement already exists</h2>
+        <p>
+          An engagement already uses this service route and period. Inspect the existing shell
+          before taking any further action.
+        </p>
+        <dl>
+          <dt>Service route</dt>
+          <dd>{{ p.fields.serviceRoute }}</dd>
+          <dt>Period</dt>
+          <dd>{{ p.fields.periodStart }} to {{ p.fields.periodEnd }}</dd>
+        </dl>
+        <a [routerLink]="['/app/engagements', p.existingEngagementId]"
+          >Inspect existing engagement</a
+        >
+      </section>
+    } @else {
+      <section aria-label="Reviewed engagement intent" class="review">
+        <h2>Review blocked engagement</h2>
+        <dl>
+          <dt>Service route</dt>
+          <dd>{{ p.fields.serviceRoute }}</dd>
+          <dt>Service profile</dt>
+          <dd>{{ p.fields.serviceProfile }}</dd>
+          <dt>Period</dt>
+          <dd>{{ p.fields.periodStart }} to {{ p.fields.periodEnd }}</dd>
+          <dt>Initial state</dt>
+          <dd>Draft · professional work blocked</dd>
+        </dl>
+        <p>
+          Client revision {{ context.clientGeneration }}. Partner activation requires current
+          unconditional acceptance and no active holds.
+        </p>
+        <label class="check"
+          ><input
+            type="checkbox"
+            [checked]="reviewed()"
+            [disabled]="busy()"
+            (change)="reviewed.set($any($event.target).checked)"
+          />I reviewed this exact client, service, profile and period.</label
+        >
+        <button matButton="filled" [disabled]="busy() || !reviewed()" (click)="execute()">
+          Confirm blocked creation
+        </button>
+      </section>
+    }
   }
   @if (receipt(); as r) {
     <section aria-label="Engagement creation receipt">
