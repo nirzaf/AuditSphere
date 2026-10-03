@@ -209,6 +209,7 @@ When two documents appear to conflict or contain differing detail, precedence is
 
 
 | [`docs/architecture/auditsphere-architecture-document-naming-policy.md`](architecture/auditsphere-architecture-document-naming-policy.md) | Standard markdown naming rules (`auditsphere-<area>-<document-type>-<subject>[-<id>][-<status>].md`) and uniqueness rules. | `CURRENT` |
+| [`docs/architecture/auditsphere-angular-conventions-current.md`](architecture/auditsphere-angular-conventions-current.md) | Native Angular coding conventions, draft/assent rules and safe AI-assisted implementation boundaries for the presentation migration. | `CURRENT` |
 
 
 

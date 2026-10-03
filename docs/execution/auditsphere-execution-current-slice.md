@@ -3306,3 +3306,23 @@ form recovery and setup capability-state fields, commercial proposal read-model
 enrichment and wider form draft hooks, receipts/credit notes (Application-only in
 both hosts, parity-neutral), curated parity ledger files for the audited modules,
 and the whole-migration acceptance gates that stay owner-gated.
+
+### Proposal read-model parity and performance budgets
+
+The commercial lane continues without touching the parallel assessment work.
+The proposal workspace restores every read-model fact the retired host showed
+(commercial owner, author, reviewer, approval/delivery/response timestamps,
+supersedes lineage and per-revision sent/response columns) through one bounded
+name lookup, and the leads list regains its summary metrics, recorded dates and
+refresh control. The proposal decoder contract was extended at equal strength.
+
+US-043 now has a local production-like budget journey: cold signed-in first
+paint, warm lazy-route load, client-side router navigation and a 60-lead
+dataset render against deliberately loose ceilings. The observed run recorded
+1500ms cold, 32ms warm, 66ms router and 96ms large-dataset, all inside budget;
+exact values live only in status.json.
+
+The Angular conventions and safe AI-assisted implementation document is now
+CURRENT under docs/architecture, and the curated cross-module parity ledger
+(28 retired-host sources, 25 curated source-action verdicts) landed under
+docs/execution as the US-044 record for the audited non-accounting modules.

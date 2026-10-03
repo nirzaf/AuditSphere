@@ -1,0 +1,298 @@
+{
+  "schemaVersion": 1,
+  "authority": "Curated source-action audit across the non-accounting modules, produced from read-only audits on 2026-10-03. Test pointers do not imply execution acceptance; observed results belong only to status.json.",
+  "story": "US-016,US-018,US-019,US-039,US-042,US-044",
+  "status": "PARTIAL",
+  "sourceFiles": [
+    {
+      "path": "src/AuditSphereOps.Web/Components/Pages/PracticeTime.razor",
+      "sha256": "874c2f2ba3c333aa20f5fefb426273b232b42e082fffe4212552e6aee6d38f17"
+    },
+    {
+      "path": "src/AuditSphereOps.Web/Components/Pages/InvoiceDetail.razor",
+      "sha256": "2b0c1cf1718e61b95028b79f98344c0b40c189db9b9b38ddaa668dec6db1a48a"
+    },
+    {
+      "path": "src/AuditSphereOps.Web/Components/Pages/FirmBooks.razor",
+      "sha256": "c398a80d7191bba2a1667861486ede0ab9d12512a46e63c0d5da9ff3f2912c9f"
+    },
+    {
+      "path": "src/AuditSphereOps.Web/Components/Pages/Finance.razor",
+      "sha256": "f9af73a49ebc95d600572b77be7f2ddd375487691bec9dc9e0bb231c07f51260"
+    },
+    {
+      "path": "src/AuditSphereOps.Web/Components/Pages/PracticeAnalytics.razor",
+      "sha256": "f18185fa9b719b8166a73cefcb1cec8cffdd3341b2d4c6a2901c0359ec7018f9"
+    },
+    {
+      "path": "src/AuditSphereOps.Web/Components/Pages/ResourcePlanning.razor",
+      "sha256": "2e6a2c726afddea68a3421ba8eecc120c9f76ed56068777b190103c4a24f2d2d"
+    },
+    {
+      "path": "src/AuditSphereOps.Web/Components/Pages/Administration.razor",
+      "sha256": "93d7b62102b620d15e6bd89860689dfc251fa98a7e72c45a595662577107241c"
+    },
+    {
+      "path": "src/AuditSphereOps.Web/Components/Pages/Microsoft365Setup.razor",
+      "sha256": "4bcc97344060d8cb474dd1450f74f1961f6b3f3b2808f64e8b2b3b0741160c1b"
+    },
+    {
+      "path": "src/AuditSphereOps.Web/Components/Pages/TenantConnection.razor",
+      "sha256": "93254050f1ef30bc23478ae8587ce8d3c47da063f9f17e1b6a0bf379f9e1c2d3"
+    },
+    {
+      "path": "src/AuditSphereOps.Web/Components/Pages/ProjectProgress.razor",
+      "sha256": "4380115c3ae65676877d0b1949134632e64e171b2f075fa483041b257ef345dd"
+    },
+    {
+      "path": "src/AuditSphereOps.Web/Components/Pages/AuditPlan.razor",
+      "sha256": "ead897f096fb17336f95e2a42e16ff46a7d3c2fdada58ee2fda0c848c6b71356"
+    },
+    {
+      "path": "src/AuditSphereOps.Web/Components/Pages/AuditPopulation.razor",
+      "sha256": "a862265a09aff15c1c3523540c7e4a59f4de4dd47f7023137701846635bc3c9f"
+    },
+    {
+      "path": "src/AuditSphereOps.Web/Components/Pages/Workpaper.razor",
+      "sha256": "f8ad1c0396637bda6e119eda461f5b6a5cae27d2db999bf050ecf4baca1264b4"
+    },
+    {
+      "path": "src/AuditSphereOps.Web/Components/Pages/AuditProgramLibraryPage.razor",
+      "sha256": "17ab16abed02ae71e19257e67289545a5d62a0c16d85499b1e9a12f96457caf2"
+    },
+    {
+      "path": "src/AuditSphereOps.Web/Components/Pages/TechnicalLibrary.razor",
+      "sha256": "9d272c9e265539b83bb9f963f826c88b3c95fd18d41c20f308e5fd5d18cefa4e"
+    },
+    {
+      "path": "src/AuditSphereOps.Web/Components/Pages/AssessmentDetail.razor",
+      "sha256": "0f133cc7eef27bd565f2de6c9334ea3a08da4af87d492093b927f9e59d2778b6"
+    },
+    {
+      "path": "src/AuditSphereOps.Web/Components/Pages/AssessmentDecision.razor",
+      "sha256": "6f108fa6118b23d8903133d293a70861ce6f3dc5950d5735aea0e11ece71a217"
+    },
+    {
+      "path": "src/AuditSphereOps.Web/Components/Pages/ReviewPoint.razor",
+      "sha256": "af63b1a7cf1132238a1836c2c6c68d12a97e10c06e3b7ca5ec8612f293b09415"
+    },
+    {
+      "path": "src/AuditSphereOps.Web/Components/Pages/Finding.razor",
+      "sha256": "b80394e06d0c636a48553c389435b5a473a89817bafb2063e6164c59439b3453"
+    },
+    {
+      "path": "src/AuditSphereOps.Web/Components/Pages/Completion.razor",
+      "sha256": "b8236df8a8c196db794a970d6bbf88b1dd9335b2bd9cbd7fab55afe8c72b4bfb"
+    },
+    {
+      "path": "src/AuditSphereOps.Web/Components/Pages/Leads.razor",
+      "sha256": "e467a74d007de30e672b9123489363e4e98a61054ee5ae0b2048d698efa8867c"
+    },
+    {
+      "path": "src/AuditSphereOps.Web/Components/Pages/ProposalDetail.razor",
+      "sha256": "952220975ed21b7af83b657ce2b307820bad300181b419b1469e8ebeaea55863"
+    },
+    {
+      "path": "src/AuditSphereOps.Web/Components/Pages/CommercialSettings.razor",
+      "sha256": "41fe4c7f57d95f08ed4fafe1927995d45e65d3725dab4b9938181125c0c5b4da"
+    },
+    {
+      "path": "src/AuditSphereOps.Web/Components/Pages/Operations.razor",
+      "sha256": "a11b6ab3c0f7c57d618d8ed8ae1a249d055364c49834cc34ab61fc1875815b9d"
+    },
+    {
+      "path": "src/AuditSphereOps.Web/Components/Pages/RecordsArchive.razor",
+      "sha256": "d3601645bc97021062bc444a9f71579f61d27450750a26913463fde99c98ed5b"
+    },
+    {
+      "path": "src/AuditSphereOps.Web/Components/Pages/Consolidation.razor",
+      "sha256": "5a386619363b0ce4d6cde6c6abbf696d6f5d3b060a749bfb77592ae945cf2647"
+    },
+    {
+      "path": "src/AuditSphereOps.Web/Components/Pages/AdvancedConsolidationWorkflow.razor",
+      "sha256": "f4c9eea3e8c58e73b6882d663f65f160b2dcbeee059450dddc6dde37c3e6edc8"
+    },
+    {
+      "path": "src/AuditSphereOps.Web/Components/Pages/ClientPortal.razor",
+      "sha256": "32f612c79034a468ae097e055a9b0554036cc500c28fdaa6036803c69fbe76d1"
+    }
+  ],
+  "records": [
+    {
+      "action": "time create-task/submit/approve",
+      "owner": "UiEndpoints.Time.cs + PracticeTimeService",
+      "verdict": "IMPLEMENTED",
+      "disposition": "Same Application services; period scoping enforced server-side.",
+      "evidencePointer": "PracticeTimeWorkspaceQuery tests"
+    },
+    {
+      "action": "invoice approve/post/send + allocations",
+      "owner": "UiEndpoints.Finance.cs + BillingService",
+      "verdict": "IMPLEMENTED",
+      "disposition": "Read-only allocations shown; posting frozen events shared.",
+      "evidencePointer": "AngularCommercialJourneyTests/InvoiceScopeJourneyTests"
+    },
+    {
+      "action": "firm books record/submit/review/post + trial balance",
+      "owner": "UiEndpoints.FirmBooks.cs + FirmOperationsServices",
+      "verdict": "IMPLEMENTED",
+      "disposition": "Native adds preparer/reviewer self-segregation and client evidence bound.",
+      "evidencePointer": "AngularCommercialJourneyTests"
+    },
+    {
+      "action": "receipt recording / credit notes",
+      "owner": "BillingService only",
+      "verdict": "PARITY-NEUTRAL",
+      "disposition": "Application-only in BOTH hosts; no retired-host UI to migrate.",
+      "evidencePointer": "audit 2026-10-03"
+    },
+    {
+      "action": "lead create/qualify/paging",
+      "owner": "UiEndpoints.Commercial.cs + PracticeCrmService",
+      "verdict": "IMPLEMENTED",
+      "disposition": "Server search+paging; form drafts identity-scoped.",
+      "evidencePointer": "AngularCommercialJourneyTests"
+    },
+    {
+      "action": "proposal workflow submit/sent/response/convert",
+      "owner": "UiEndpoints.Commercial.cs",
+      "verdict": "IMPLEMENTED",
+      "disposition": "Native adds server-driven canApprove gate.",
+      "evidencePointer": "AngularCommercialJourneyTests"
+    },
+    {
+      "action": "quotation save/submit/approve + documents + fee agreement",
+      "owner": "UiEndpoints.Quotation/CommercialDocuments/FeeAgreement",
+      "verdict": "IMPLEMENTED",
+      "disposition": "Server preview replaces client calculator; concurrency stricter.",
+      "evidencePointer": "AngularCommercialJourneyTests"
+    },
+    {
+      "action": "proposal read-model owner/author/reviewer/timestamps/supersedes",
+      "owner": "CommercialWorkspaceQuery.ProposalAsync",
+      "verdict": "IMPLEMENTED",
+      "disposition": "Enriched in this slice after the audit; display parity restored.",
+      "evidencePointer": "this slice"
+    },
+    {
+      "action": "audit plan materiality/risk/population/finding",
+      "owner": "UiEndpoints.AuditPlan.cs + AuditPlanningService",
+      "verdict": "IMPLEMENTED",
+      "disposition": "Full command parity; professional-block gates enforced.",
+      "evidencePointer": "AngularNavigationJourneyTests/AuditPlan journey"
+    },
+    {
+      "action": "workpaper draft autosave/discard/submit",
+      "owner": "UiEndpoints.AuditRecords.cs + AuditPlanningService",
+      "verdict": "IMPLEMENTED",
+      "disposition": "Debounce now 750ms matching retired host.",
+      "evidencePointer": "journey tests"
+    },
+    {
+      "action": "technical library catalogue/publish/draft",
+      "owner": "UiEndpoints.PracticeInsights.cs",
+      "verdict": "IMPLEMENTED",
+      "disposition": "No upload/download exists in either host.",
+      "evidencePointer": "journey tests"
+    },
+    {
+      "action": "acceptance answers/reviews/continuance/decision",
+      "owner": "UiEndpoints.Acceptance.cs",
+      "verdict": "IMPLEMENTED",
+      "disposition": "Native adds CONDITIONS outcome; stale-vs-denied error fidelity restored this slice.",
+      "evidencePointer": "AcceptanceJourneyTests"
+    },
+    {
+      "action": "review point clear/reopen; finding response",
+      "owner": "UiEndpoints.AuditRecords.cs",
+      "verdict": "IMPLEMENTED",
+      "disposition": "Response form prefills recorded values (this slice).",
+      "evidencePointer": "journey tests"
+    },
+    {
+      "action": "completion release candidate/SRM/opinion/reports/bundle/locks",
+      "owner": "UiEndpoints.Completion.cs",
+      "verdict": "IMPLEMENTED",
+      "disposition": "Full deliverable chain parity.",
+      "evidencePointer": "AcceptanceJourneyTests"
+    },
+    {
+      "action": "role assign/revoke with digest review",
+      "owner": "UiEndpoints.Administration.cs + RoleAssignmentService",
+      "verdict": "IMPLEMENTED",
+      "disposition": "Digest-verified review exceeds retired host.",
+      "evidencePointer": "UiWorkbenchContractTests"
+    },
+    {
+      "action": "invitation issue/copy/record + roster bind + per-grant history",
+      "owner": "UiEndpoints.Administration.cs + RoleAdministrationService",
+      "verdict": "IMPLEMENTED",
+      "disposition": "Wired this slice; Application commands pre-existed.",
+      "evidencePointer": "AdministrationAccessInvitationApiTests"
+    },
+    {
+      "action": "directory search/bind, provisioning, managed groups, recovery",
+      "owner": "UiEndpoints.Microsoft365/TenantOperations",
+      "verdict": "IMPLEMENTED",
+      "disposition": "Native adds guest bind and group retire.",
+      "evidencePointer": "AngularAdministrationJourneyTests"
+    },
+    {
+      "action": "setup draft mail/records capability states + tenant name",
+      "owner": "SelectedResources DTO",
+      "verdict": "MISSING",
+      "disposition": "DTO lacks fields; retired host sets them.",
+      "evidencePointer": "audit 2026-10-03"
+    },
+    {
+      "action": "pre-dispatch original-form recovery on admin pages",
+      "owner": "sharepoint.ts/tenant.ts",
+      "verdict": "MISSING",
+      "disposition": "Angular resets forms on persisted-data reload.",
+      "evidencePointer": "audit 2026-10-03"
+    },
+    {
+      "action": "firm & security runtime display (ExternalEffects fences)",
+      "owner": "AdministrationOverviewQuery",
+      "verdict": "MISSING",
+      "disposition": "No Angular counterpart; read-only.",
+      "evidencePointer": "audit 2026-10-03"
+    },
+    {
+      "action": "operations quarantine/retry/cancel",
+      "owner": "UiEndpoints.Operations.cs + OperationRecoveryService",
+      "verdict": "IMPLEMENTED",
+      "disposition": "Native blocks empty dispositions (stricter).",
+      "evidencePointer": "journey tests"
+    },
+    {
+      "action": "records archive browse",
+      "owner": "UiEndpoints.AuditRecords.cs ArchiveAsync",
+      "verdict": "IMPLEMENTED",
+      "disposition": "Retention actions are dormant in BOTH hosts.",
+      "evidencePointer": "journey tests"
+    },
+    {
+      "action": "consolidation overview/advanced workflow",
+      "owner": "UiEndpoints.Consolidation.cs",
+      "verdict": "IMPLEMENTED",
+      "disposition": "Native adds scope workspace (superset).",
+      "evidencePointer": "journey tests"
+    },
+    {
+      "action": "portal first sign-in/comment/acknowledge/upload/decision",
+      "owner": "UiEndpoints.Portal.cs",
+      "verdict": "IMPLEMENTED",
+      "disposition": "Chunked uploader matches; setup-pending condition fixed this slice.",
+      "evidencePointer": "AngularClientPortalJourneyTests"
+    },
+    {
+      "action": "/auth/access-not-assigned friendly page",
+      "owner": "ApiHost.AuthenticationEndpoints",
+      "verdict": "IMPLEMENTED",
+      "disposition": "Was raw 403 JSON; now no-store HTML with sign-out (this slice).",
+      "evidencePointer": "RouteRenderSmokeTests"
+    }
+  ],
+  "remaining": "Administration pre-dispatch form recovery, setup capability-state fields, firm & security runtime display; wider commercial form draft hooks (settings/quotation/documents/fee-agreement); receipts and credit notes remain Application-only in both hosts; curated per-page parity for the accounting module lives in the accounting slice entries; whole-migration acceptance, canary and owner-authorized retirement remain open."
+}
