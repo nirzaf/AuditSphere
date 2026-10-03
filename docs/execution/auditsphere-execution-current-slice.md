@@ -13,6 +13,22 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Angular assessment specialist timeline
+
+The assessment workspace now reads the latest 200 specialist request/result
+events from immutable, actor-owned command receipts, scoped to the authorized
+firm and client. It validates receipt identity against the retained specialist
+review record and displays action, area, specialist, status, actor, time,
+evidence reference and conditions. Current reviews also show their request and
+clearance timestamps. No migration was needed.
+
+The Release solution build, all 449 Angular unit tests, production Angular build,
+focused PostgreSQL API projection test and both canonical and `/ui` Playwright
+journeys passed. The new browser journey displayed a synthetic requested review
+and HOLD result. The full .NET suite and EF drift check were not run for this
+slice; the broader migration and retirement gates remain open. Exact evidence is
+in `status.json` under `angularAssessmentSpecialistTimeline`.
+
 ## Angular SharePoint administration tab-draft recovery
 
 Selected SharePoint resource and versioned folder-template forms now support

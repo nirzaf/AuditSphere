@@ -4,7 +4,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "795da8c94237f61956b27fd71d8bceab767957a8",
+  "headCommit": "cb50441631a1dccd227d313d8b9cb900f4fb9296",
   "verifiedCommit": "75b70e9afc8d01af06ee2c4681754edb99cd4f70",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": false,
@@ -6797,6 +6797,21 @@
       "recovery": "Initial test build required the existing IAuditSphereDbContext test adapter to expose the new receipt set. Initial focused run passed, then concurrent recovery/revocation and Unicode coverage were added. Receipt JSON limit was adjusted for bounded Unicode escaping; final build and consumers passed. Failed build log retained at /private/tmp/auditsphere-assessment-receipts-tests-build.log.",
       "boundary": "Backend only. Angular preview/assent integration, Signal Forms, tab-only request references, unknown-outcome recovery and navigation/draft parity remain pending. No new provider permission or live Microsoft acceptance. Whole-suite verifiedCommit remains the earlier proven checkpoint."
     },
+    "angularAssessmentSpecialistTimeline": {
+      "status": "PASS_LOCAL",
+      "sourceCommit": "cb50441631a1dccd227d313d8b9cb900f4fb9296",
+      "observedAt": "2026-10-03",
+      "scope": "Assessment workspace now presents a chronological, 200-event-bounded specialist review timeline sourced only from immutable reviewed command receipts scoped to the authorized firm and client. It shows request/result, area, specialist, status, actor, timestamp, evidence reference and conditions; the current review also shows requested and cleared timestamps.",
+      "checks": {
+        "releaseBuild": "PASS: zero warnings/errors",
+        "angularTests": "PASS: full suite 449/449",
+        "angularProductionBuild": "PASS",
+        "apiPostgreSql": "PASS: focused timeline projection test 1/1; reviewed request/result commands executed through Application services",
+        "browserJourneys": "PASS: assessment timeline journey 2/2 across canonical and /ui route modes",
+        "secretScan": "PASS: staged gitleaks; no leaks found"
+      },
+      "boundary": "Focused local evidence only. Full .NET suite was not rerun, EF drift was not checked for this slice, and no schema, shared Development database, Microsoft tenant or production state was changed. Wider migration, cutover and Blazor retirement remain PARTIAL."
+    },
     "angularCommercialReadModelAndPerfBudgets": {
       "status": "IMPLEMENTED_LOCALLY_VERIFIED_TARGETED",
       "scope": "Commercial US-016 read-model parity: ProposalWorkspace now carries commercial owner (opportunity or lead owner), author, internal reviewer, approved/sent/response timestamps, supersedes reference and per-revision sent/response columns, resolved through one bounded user-name lookup with double authorization rechecks. Leads list regains summary metrics, recorded dates and refresh control. US-043 adds the local production-like budget journey with cold/warm/router/large-dataset ceilings.",
@@ -7120,7 +7135,7 @@
     "implementationStatus": "PARTIAL",
     "acceptanceStatus": "PARTIAL",
     "scope": "Standalone API and native Angular capability slices preserve Application authorization, exact financial inputs, durable operations and independent human gates. Legacy Blazor remains available for rollback until wider parity and retirement acceptance.",
-    "nextAction": "Complete assessment typed forms and reviewed command receipt/recovery parity, specialist timeline and navigation/accessibility checks; continue resource-grid and quality/cutover/retirement acceptance. Run a fresh full regression on a stable integrated source; the obsolete conversion regression was invalidated.",
+    "nextAction": "Continue remaining resource-grid and cross-module source-action/accessibility/locale parity; run a fresh full regression on a stable integrated source; then complete production-like canary/cutover and owner-authorized Blazor retirement gates. The obsolete conversion regression was invalidated.",
     "branch": "master"
   },
   "localEvidence": [
