@@ -32,6 +32,29 @@ which the full suite was run; per-slice records carry their own evidence.
 
 
 
+## Native accounting analysis evidence inspection
+
+The native accounting queue links ECL, inventory, specialist, analytical and
+journal-risk records to an exact scoped inspection. Retained approval and human
+rationale stay separate from current input and independently reviewed procedure
+verification. Typed monetary inputs and historical results retain exact precision;
+missing analytical denominators and absent legacy risk provenance remain explicit.
+The existing valuation profiles are reused to check retained values, without
+supplying a replacement calculation or making a professional decision.
+
+Related source, reconciliation, proposed adjustment, procedure and workpaper
+identities are checked against the exact authorized parents. Complete audit links
+are bounded and server-paged; their current generation and result revision are
+verified separately from historical review. Repeated projections and final
+scope/session checks fence mid-read changes, while Angular clears old protected
+content and refuses inconsistent responses. The native queue shows missing
+recorded generation as unavailable, rather than copying the current generation.
+
+Targeted backend, Angular and built-in browser evidence, the corrected synthetic
+fixtures, the browser assertion correction and final verification progress are
+recorded in `status.json`. Reviewed evidence editing/approval and the wider
+migration acceptance, cutover and rollback-host retirement remain open.
+
 ## Native reconciliation evidence inspection
 
 The Angular evidence queue now links authorized reconciliations to a focused native view.

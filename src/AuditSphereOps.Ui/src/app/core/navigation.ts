@@ -10,7 +10,8 @@ export function workspaceRoute(href: string): string | null {
     if (!route.path) return false;
     const pattern = route.path.split('/');
     return pattern.length === parts.length && pattern.every((part, index) =>
-      part === ':id' ? uuid.test(parts[index]) : part === parts[index]);
+      part === ':id' ? uuid.test(parts[index]) : part === ':kind' ?
+        ['ECL', 'INVENTORY', 'SPECIALIST', 'ANALYTICAL', 'JOURNAL_RISK'].includes(parts[index]) : part === parts[index]);
   });
   return owned ? href : null;
 }

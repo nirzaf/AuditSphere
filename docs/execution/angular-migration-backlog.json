@@ -150,7 +150,7 @@
       "id": "US-025",
       "title": "Migrate reconciliation, valuation and accounting evidence",
       "status": "PARTIAL",
-      "scope": "Native accounting evidence queue excludes expired broad/sibling grants and rechecks exact returned scope/session before publishing rows or counts. Native reconciliation inspection now separates retained approval and exact amounts from current source digest/generation and complete item-proof eligibility, with bounded server paging, scope/epoch fences and source links. Local PostgreSQL, API, Angular and built-in desktop/mobile browser gates passed. Specialist, valuation, analytical/risk detail and reviewed evidence-editing/approval parity plus wider story acceptance remain open."
+      "scope": "Native scoped evidence queue, reconciliation inspection and ECL/inventory/specialist/analytical/journal-risk detail now separate retained amounts, methods and human review from current source/generation/procedure checks. Complete evidence links are bounded and server-paged; replay and method checks fail closed, missing provenance is explicit, and protected responses clear on route/session change. Targeted local verification progress is recorded in status.json. Reviewed evidence creation/editing, approval/linking commands, full story acceptance and wider migration QA remain open."
     },
     {
       "id": "US-026",

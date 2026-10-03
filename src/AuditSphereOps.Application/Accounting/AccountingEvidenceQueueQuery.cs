@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 namespace AuditSphereOps.Application.Accounting;
 
 public sealed record AccountingEvidenceRow(string Kind, string Area, string ClientName, string EngagementName, string PeriodCode, string Status,
-  long InputGeneration, long CurrentGeneration, string LinkStatus, Guid? WorkpaperId, string Reference, bool IsStale, bool IsTerminal, Guid? EvidenceId = null);
+  long? InputGeneration, long? CurrentGeneration, string LinkStatus, Guid? WorkpaperId, string Reference, bool IsStale, bool IsTerminal, Guid? EvidenceId = null);
 
 /// <summary>
 /// Grant-scoped accounting evidence queue (ECL, inventory, specialist, analytical, journal-risk) with the audit-procedure
@@ -61,37 +61,38 @@ public static class AccountingEvidenceQueueQuery
         .Select(r => new LinkTarget(r!.Status == "REVIEWED" ? "REVIEWED_RESULT" : "LINKED_PENDING_REVIEW", r.WorkpaperId)).FirstOrDefault() ?? new LinkTarget("LINKED_PENDING_REVIEW", null));
     var rows = new List<AccountingEvidenceRow>();
     var returnedScopes = new HashSet<(Guid ClientId, Guid EngagementId)>();
-    AccountingEvidenceRow Row(string kind, string area, Guid evidenceId, Guid clientId, Guid engagementId, string periodCode, string status, long input, long current, string reference)
+    long? Generation(Guid clientId) => generations.TryGetValue(clientId, out var value) ? value : null;
+    AccountingEvidenceRow Row(string kind, string area, Guid evidenceId, Guid clientId, Guid engagementId, string periodCode, string status, long? input, long? current, string reference)
     {
       returnedScopes.Add((clientId, engagementId));
       var has = linkStatus.TryGetValue(Key(kind, evidenceId), out var link);
       var terminal = kind == "JOURNAL_RISK" ? status is "CLEARED" or "NOT_AN_ISSUE" : status is "APPROVED" or "REJECTED";
       return new(kind, area, clients.GetValueOrDefault(clientId, "—"), engagements.GetValueOrDefault(engagementId, "Scoped engagement"), periodCode, status, input, current,
-        has ? link!.Status : "LINK_PENDING", has ? link!.WorkpaperId : null, reference, input != current, terminal, evidenceId);
+        has ? link!.Status : "LINK_PENDING", has ? link!.WorkpaperId : null, reference, input is null || current is null || input != current, terminal, evidenceId);
     }
     foreach (var r in reconciliations.Values)
       rows.Add(Row("RECONCILIATION", r.Area, r.Id, r.ClientId, r.EngagementId, periods.GetValueOrDefault(r.PeriodId, "—"), r.Status,
-        r.InputGeneration, generations.GetValueOrDefault(r.ClientId, 0), r.AccountSelection) with { LinkStatus = "SOURCE_REVIEW_REQUIRED" });
+        r.InputGeneration, Generation(r.ClientId), r.AccountSelection) with { LinkStatus = "SOURCE_REVIEW_REQUIRED" });
     foreach (var x in await db.EclAssessments.AsNoTracking().Where(x => x.FirmId == f && (unrestricted || directClientIds.Contains(x.ClientId) || scoped.Contains(x.EngagementId))).ToListAsync(ct))
     {
       var r = reconciliations[x.ReconciliationId];
-      rows.Add(Row("ECL", r.Area, x.Id, x.ClientId, x.EngagementId, periods.GetValueOrDefault(r.PeriodId, "—"), x.Status, x.InputGeneration, generations.GetValueOrDefault(x.ClientId, 0), x.MethodologyVersion));
+      rows.Add(Row("ECL", r.Area, x.Id, x.ClientId, x.EngagementId, periods.GetValueOrDefault(r.PeriodId, "—"), x.Status, x.InputGeneration, Generation(x.ClientId), x.MethodologyVersion));
     }
     foreach (var x in await db.InventoryValuationAssessments.AsNoTracking().Where(x => x.FirmId == f && (unrestricted || directClientIds.Contains(x.ClientId) || scoped.Contains(x.EngagementId))).ToListAsync(ct))
     {
       var r = reconciliations[x.ReconciliationId];
-      rows.Add(Row("INVENTORY", r.Area, x.Id, x.ClientId, x.EngagementId, periods.GetValueOrDefault(r.PeriodId, "—"), x.Status, x.InputGeneration, generations.GetValueOrDefault(x.ClientId, 0), x.MethodologyVersion));
+      rows.Add(Row("INVENTORY", r.Area, x.Id, x.ClientId, x.EngagementId, periods.GetValueOrDefault(r.PeriodId, "—"), x.Status, x.InputGeneration, Generation(x.ClientId), x.MethodologyVersion));
     }
     rows.AddRange((await db.SpecialistAccountingSchedules.AsNoTracking().Where(x => x.FirmId == f && (unrestricted || directClientIds.Contains(x.ClientId) || scoped.Contains(x.EngagementId))).ToListAsync(ct))
-      .Select(x => Row("SPECIALIST", x.Area, x.Id, x.ClientId, x.EngagementId, periods.GetValueOrDefault(x.PeriodId, "—"), x.Status, x.InputGeneration, generations.GetValueOrDefault(x.ClientId, 0), x.EvidenceReference)));
+      .Select(x => Row("SPECIALIST", x.Area, x.Id, x.ClientId, x.EngagementId, periods.GetValueOrDefault(x.PeriodId, "—"), x.Status, x.InputGeneration, Generation(x.ClientId), x.EvidenceReference)));
     rows.AddRange((await db.AnalyticalReviews.AsNoTracking().Where(x => x.FirmId == f && (unrestricted || directClientIds.Contains(x.ClientId) || scoped.Contains(x.EngagementId))).ToListAsync(ct))
-      .Select(x => Row("ANALYTICAL", x.Area, x.Id, x.ClientId, x.EngagementId, periods.GetValueOrDefault(x.PeriodId, "—"), x.Status, x.InputGeneration, generations.GetValueOrDefault(x.ClientId, 0), x.Explanation)));
+      .Select(x => Row("ANALYTICAL", x.Area, x.Id, x.ClientId, x.EngagementId, periods.GetValueOrDefault(x.PeriodId, "—"), x.Status, x.InputGeneration, Generation(x.ClientId), x.Explanation)));
     rows.AddRange((await db.JournalRiskFlags.AsNoTracking().Where(x => x.FirmId == f && (unrestricted || directClientIds.Contains(x.ClientId) || scoped.Contains(x.EngagementId))).ToListAsync(ct))
       .Select(x =>
       {
         var batch = batches.GetValueOrDefault(x.ImportBatchId);
-        var generation = generations.GetValueOrDefault(x.ClientId, 0);
-        return Row("JOURNAL_RISK", x.RuleCode, x.Id, x.ClientId, x.EngagementId, batch is null ? "—" : periods.GetValueOrDefault(batch.PeriodId, "—"), x.Status, generation, generation, x.EvidenceReference);
+        var generation = Generation(x.ClientId);
+        return Row("JOURNAL_RISK", x.RuleCode, x.Id, x.ClientId, x.EngagementId, batch is null ? "—" : periods.GetValueOrDefault(batch.PeriodId, "—"), x.Status, null, generation, x.EvidenceReference);
       }));
     // Counts and linked evidence must not survive expiration or revocation during the projection.
     // The stored parent check in AuthorizationDecision also rejects malformed client/engagement links.

@@ -154,11 +154,11 @@ account-exact; source acceptance binds sealed sources and bumps generation.
 
 
 
-- Application: `Application/Accounting/Analysis/AccountingAnalysisService.{Reconciliation,Valuations,AnalyticalReview,JournalRisk,Evidence,Authorization}.cs`; native scoped inspection: `Application/Accounting/ReconciliationWorkspaceQuery.cs`
+- Application: `Application/Accounting/Analysis/AccountingAnalysisService.{Reconciliation,Valuations,AnalyticalReview,JournalRisk,Evidence,Authorization}.cs`; native scoped inspection: `Application/Accounting/ReconciliationWorkspaceQuery.cs`, `Application/Accounting/AccountingAnalysisReviewQuery{,.Retained}.cs`
 
 
 
-- UI: `AccountingEvidence.razor`, `Finding.razor`; native queue/detail: `src/AuditSphereOps.Ui/src/app/features/accounting/evidence.ts`, `src/AuditSphereOps.Ui/src/app/features/accounting/reconciliation.ts`
+- UI: `AccountingEvidence.razor`, `Finding.razor`; native queue/detail: `src/AuditSphereOps.Ui/src/app/features/accounting/evidence.ts`, `src/AuditSphereOps.Ui/src/app/features/accounting/reconciliation.ts`, `src/AuditSphereOps.Ui/src/app/features/accounting/analysis-review.ts`
 
 
 

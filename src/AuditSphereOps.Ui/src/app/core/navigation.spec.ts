@@ -10,12 +10,12 @@ describe('Angular workspace navigation ownership', () => {
     }
     for (const route of routes) {
       if (!route.path) continue;
-      const path = '/' + route.path.replaceAll(':id', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa');
+      const path = '/' + route.path.replaceAll(':id', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa').replaceAll(':kind', 'ECL');
       expect(migratedHref(path)).toBe('/ui' + path);
     }
   });
   it('never falls back to an unowned server route', () => {
-    for (const path of ['/app/no-such-page', '/auth/sign-out', '/api/ui/session', '/app/%2fadmin', '/app/../auth', '/app/clients/not-an-id']) {
+    for (const path of ['/app/no-such-page', '/auth/sign-out', '/api/ui/session', '/app/%2fadmin', '/app/../auth', '/app/clients/not-an-id', '/app/accounting/evidence/UNKNOWN/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa']) {
       expect(workspaceRoute(path)).toBeNull();
     }
   });

@@ -4195,12 +4195,30 @@
       },
       "sourceCommit": "5a01cd465c25189edd23c778bf60943869b68885",
       "fullSuite": {
-        "status": "RUNNING_WITH_FAILURE",
+        "status": "FAIL",
         "sourceCommit": "5a01cd465c25189edd23c778bf60943869b68885",
         "log": "/private/tmp/auditsphere-plan-commands-regression-suite.log",
         "fingerprintsPath": "/private/tmp/auditsphere-plan-commands-final-hashes.json",
-        "boundary": "Frozen published source/tests/production Angular assets and Release assemblies. No changes or rebuilds while the suite consumes them.",
-        "knownFailure": "ClientScopeJourneyTests.AccountingWorkspaceIgnoresOtherRoleAndMismatchedEngagementGrants: legacy evidence page narrow-viewport check failed at320px. Original run remains frozen and preserved; a layout readiness correction is receiving a separate affected browser rerun in the reconciliation slice."
+        "boundary": "Terminal original run preserved unchanged. The legacy narrow-viewport readiness failure was corrected and passed separately in the reconciliation slice; it does not convert this original run to PASS.",
+        "knownFailure": "ClientScopeJourneyTests.AccountingWorkspaceIgnoresOtherRoleAndMismatchedEngagementGrants: legacy evidence page narrow-viewport check failed at320px. Original run remains frozen and preserved; a layout readiness correction is receiving a separate affected browser rerun in the reconciliation slice.",
+        "exitCode": 1,
+        "domain": {
+          "passed": 563,
+          "failed": 0,
+          "skipped": 0
+        },
+        "api": {
+          "passed": 134,
+          "failed": 0,
+          "skipped": 0
+        },
+        "browser": {
+          "passed": 155,
+          "failed": 1,
+          "skipped": 0
+        },
+        "fingerprintsUnchanged": true,
+        "finishedAt": "2026-10-03T02:06:50.730010+00:00"
       }
     },
     "angularAccountingEvidenceQueueAccess": {
@@ -4388,6 +4406,78 @@
         "status": "READY_FOR_DIRECT_PUSH",
         "branch": "master"
       }
+    },
+    "angularAnalysisEvidenceInspection": {
+      "status": "IMPLEMENTED_LOCALLY_VERIFIED_TARGETED",
+      "sourceBaseCommit": "8227720147d67083ca1745387ba70a0e61f1a890",
+      "observedAt": "2026-10-03T02:07:59.680988+00:00",
+      "scope": "Native read-only ECL, inventory, typed specialist, analytical replay and journal-risk inspection, exact scope/session/source fences, bounded complete audit links and current-generation independent procedure review checks. Native queue preserves missing generation as null and flags legacy risk provenance as unverified.",
+      "build": {
+        "status": "PASS",
+        "warnings": 0,
+        "errors": 0,
+        "exitCode": 0,
+        "log": "/private/tmp/auditsphere-analysis-build-browser-final.log",
+        "angularLog": "/private/tmp/auditsphere-analysis-angular-build-input-state.log"
+      },
+      "angular": {
+        "status": "PASS",
+        "passed": 245,
+        "failed": 0,
+        "skipped": 0,
+        "files": 54,
+        "exitCode": 0,
+        "log": "/private/tmp/auditsphere-analysis-angular-tests-input-state.log"
+      },
+      "domain": {
+        "status": "PASS",
+        "passed": 11,
+        "failed": 0,
+        "skipped": 0,
+        "exitCode": 0,
+        "log": "/private/tmp/auditsphere-analysis-domain-ready.log"
+      },
+      "apiFocused": {
+        "status": "PASS",
+        "passed": 7,
+        "failed": 0,
+        "skipped": 0,
+        "exitCode": 0,
+        "log": "/private/tmp/auditsphere-analysis-api-ready.log"
+      },
+      "browser": {
+        "status": "PASS",
+        "passed": 3,
+        "failed": 0,
+        "skipped": 0,
+        "exitCode": 0,
+        "log": "/private/tmp/auditsphere-analysis-browser-final.log"
+      },
+      "modelDrift": {
+        "status": "PASS",
+        "exitCode": 0,
+        "log": "/private/tmp/auditsphere-analysis-model.log",
+        "boundary": "No new schema or migration."
+      },
+      "builtInBrowser": {
+        "status": "PASS",
+        "screenshots": [
+          "/private/tmp/auditsphere-angular-analysis-evidence.png",
+          "/private/tmp/auditsphere-angular-analysis-evidence-mobile.png"
+        ],
+        "boundary": "Owned disposable synthetic database, Release API and final Angular production assets, external effects disabled. All five views navigated; ECL/inventory exact retained inputs, specialist complete-link paging, analytical replay and missing-denominator state, legacy risk source provenance blockers verified. Mobile document375 within390 and no console warnings/errors. Tab closed, viewport reset and preview/database disposed with exit0. Final browser-test-only change leaves Application/API/Domain/Web binaries and Angular assets unchanged."
+      },
+      "initialChecks": {
+        "fixture": "Initial synthetic workpaper index exceeded the existing20-character column; shortened label. Hidden synthetic asset schedule initially omitted the database-required method; populated its valid profile. Original failed logs retained.",
+        "browser": "Initial new E2E assertion counted the shell global-search form; scoped absence-of-mutation-form assertion to audit-analysis-review. Original failed run1/3 retained; final scoped assertion rerun passed3/3 without a product or permission change."
+      },
+      "fingerprintsPath": "/private/tmp/auditsphere-analysis-browser-final-hashes.json",
+      "boundary": "Local synthetic read-side acceptance only. Reviewed evidence preparation/editing, creation, approval and linking commands remain open. No client-book mutation, autonomous opinion, Graph permission/effect, shared or production migration or Wiki publication. Full Angular migration, cutover and Blazor retirement remain partial.",
+      "publication": {
+        "status": "READY_FOR_INTEGRATION",
+        "branch": "master"
+      },
+      "fingerprintsUnchanged": true
     }
   },
   "documentationWork": {

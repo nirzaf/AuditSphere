@@ -66,6 +66,8 @@ export const routes: Routes = [
     loadComponent: () => import('./features/accounting/evidence').then(m => m.AccountingEvidence) },
   { path: 'app/accounting/reconciliations/:id', canActivate: [staffGuard], title: 'Reconciliation evidence · AuditSphere',
     loadComponent: () => import('./features/accounting/reconciliation').then(m => m.ReconciliationReview) },
+  { path: 'app/accounting/evidence/:kind/:id', canActivate: [staffGuard], title: 'Analysis evidence · AuditSphere',
+    loadComponent: () => import('./features/accounting/analysis-review').then(m => m.AnalysisReview) },
   { path: 'app/accounting/rollforward', canActivate: [staffGuard], title: 'Period roll-forward · AuditSphere',
     loadComponent: () => import('./features/accounting/rollforward').then(m => m.PeriodRollforward) },
   { path: 'app/accounting/restatements', canActivate: [staffGuard], title: 'Period restatements · AuditSphere',

@@ -41,6 +41,36 @@ The implementation covers native route families for practice, accounting, consol
 
 Execution evidence is recorded in [status.json](../execution/status.json). Local synthetic fixtures do not establish tenant, deployment, professional or owner acceptance. Wiki publication has not been authorized.
 
+### Native analysis evidence inspection
+
+`AccountingAnalysisReviewQuery` serves exact locally authorized ECL, inventory,
+specialist, analytical and journal-risk records. Retained approval, current input
+verification and a current independently reviewed procedure result remain separate
+facts. The view keeps six-decimal inputs and historical results, methodology,
+evidence references, human explanations and reviewer metadata. It supplies no
+approval, calculation, posting or evidence-link command.
+
+Valuation inspection checks the exact reconciliation and complete retained proof
+against its accepted/sealed source digest and client generation. The existing ECL,
+inventory and specialist calculations are reused to verify retained typed values;
+no replacement result is shown. Analytical replay verifies the retained digest and
+typed snapshot, preserving a missing denominator as unavailable. An assumptions
+digest identifies declared evidence; it does not prove external assumptions.
+
+Specialist and analytical records state their period/generation provenance without
+inventing an exact source identity. Legacy journal-risk flags lack an original
+source digest and generation: the native queue and detail mark that provenance
+unverified even when a human disposition is retained. A risk indicator never
+becomes an autonomous audit conclusion.
+
+Complete audit links are bounded and server-paged. Related result, procedure,
+workpaper, source and proposed-journal identities must share the exact authorized
+parents; a current procedure review must have the current result revision and
+client generation. Repeated projections bind related evidence and final scope/epoch
+checks fence changes during a read. Angular rejects inconsistent or mismatched
+responses and clears protected detail after route/session changes. Wider reviewed
+editing and approval parity remains open.
+
 ### Native reconciliation inspection
 
 `ReconciliationWorkspaceQuery` reads an exact locally authorized client/engagement and

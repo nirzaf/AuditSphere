@@ -5,8 +5,8 @@ import { Api } from '../../core/api';
 import { arr, bool, guid, int, nullable, obj, text } from '../../core/decode';
 import { SHARED } from '../../core/ui';
 
-export const decodeEvidenceQueue = arr(obj({ kind: text, area: text, clientName: text, engagementName: text, periodCode: text, status: text, inputGeneration: int,
-  currentGeneration: int, linkStatus: text, workpaperId: nullable(guid), reference: text, isStale: bool, isTerminal: bool, evidenceId: nullable(guid) }), 20000);
+export const decodeEvidenceQueue = arr(obj({ kind: text, area: text, clientName: text, engagementName: text, periodCode: text, status: text, inputGeneration: nullable(int),
+  currentGeneration: nullable(int), linkStatus: text, workpaperId: nullable(guid), reference: text, isStale: bool, isTerminal: bool, evidenceId: nullable(guid) }), 20000);
 const PAGE = 25;
 
 @Component({
@@ -19,7 +19,7 @@ const PAGE = 25;
     <button matButton="outlined" (click)="rows.reload(); page.set(0)">Refresh queue</button>
     <audit-state [loading]="rows.loading()" [error]="rows.error()" label="scoped accounting evidence" />
     @if (rows.data(); as r) {
-      <p role="status">{{ r.length }} evidence records · {{ count(r, 'open') }} awaiting action · {{ count(r, 'stale') }} stale generation · {{ count(r, 'reviewed') }} reviewed result linked</p>
+      <p role="status">{{ r.length }} evidence records · {{ count(r, 'open') }} awaiting action · {{ count(r, 'stale') }} stale or unverified inputs · {{ count(r, 'reviewed') }} reviewed result linked</p>
       @if (!r.length) { <section class="panel"><h2>No accounting evidence</h2><p>No ECL, inventory, specialist, analytical or journal-risk records are available in the selected scope.</p></section> }
       @else {
         <section class="panel" aria-labelledby="evidence-heading">
@@ -27,8 +27,8 @@ const PAGE = 25;
           <div class="table-scroll"><table>
             <thead><tr><th>Area</th><th>Client</th><th>Engagement</th><th>Period</th><th>Status</th><th>Input generation</th><th>Audit evidence</th><th>Reference</th></tr></thead>
             <tbody>@for (x of r.slice(page() * 25, page() * 25 + 25); track $index) {
-              <tr><td><strong>{{ x.kind }}</strong><small>{{ x.area }}</small>@if (x.kind === 'RECONCILIATION' && x.evidenceId) { <a [routerLink]="['/app/accounting/reconciliations', x.evidenceId]">Inspect reconciliation</a> }</td><td>{{ x.clientName }}</td><td>{{ x.engagementName }}</td><td>{{ x.periodCode }}</td>
-                <td><audit-status [value]="x.status" />{{ x.isStale ? ' · STALE' : '' }}</td><td>{{ x.inputGeneration }} / {{ x.currentGeneration }}</td>
+              <tr><td><strong>{{ x.kind }}</strong><small>{{ x.area }}</small>@if (x.kind === 'RECONCILIATION' && x.evidenceId) { <a [routerLink]="['/app/accounting/reconciliations', x.evidenceId]">Inspect reconciliation</a> } @else if (x.evidenceId && ['ECL', 'INVENTORY', 'SPECIALIST', 'ANALYTICAL', 'JOURNAL_RISK'].includes(x.kind)) { <a [routerLink]="['/app/accounting/evidence', x.kind, x.evidenceId]">Inspect {{ x.kind }} evidence</a> }</td><td>{{ x.clientName }}</td><td>{{ x.engagementName }}</td><td>{{ x.periodCode }}</td>
+                <td><audit-status [value]="x.status" />{{ x.isStale ? ' · INPUT CHECK REQUIRED' : '' }}</td><td>{{ x.inputGeneration ?? 'Not retained' }} / {{ x.currentGeneration ?? 'Unavailable' }}</td>
                 <td><audit-status [value]="x.linkStatus" />@if (x.workpaperId) { <a [routerLink]="['/app/audit/workpapers', x.workpaperId]">Open linked workpaper</a> }</td>
                 <td><small>{{ x.reference }}</small></td></tr> }</tbody>
           </table></div>

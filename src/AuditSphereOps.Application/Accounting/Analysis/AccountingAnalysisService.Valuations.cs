@@ -34,7 +34,7 @@ public static partial class AccountingAnalysisService
     if (!await HasProposedAdjustmentAsync(db, reconciliation, request.ProposedJournalId, ct))
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "The proposed ECL adjustment is outside the reconciliation scope.");
     var exposure = Math.Max(0m, reconciliation.SourceTotal);
-    var expected = MoneyPolicy.Normalize(exposure * request.ProbabilityOfDefault * request.LossGivenDefault + request.ManagementOverlay);
+    var expected = CalculateEcl(exposure, request.ProbabilityOfDefault, request.LossGivenDefault, request.ManagementOverlay);
     var bookedAmount = MoneyPolicy.Normalize(request.BookedAmount ?? request.ManagementExpectedLoss);
     var assessment = new EclAssessment
     {
@@ -72,7 +72,7 @@ public static partial class AccountingAnalysisService
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Inventory valuation requires a reconciled count/cost source.");
     if (!await HasProposedAdjustmentAsync(db, reconciliation, request.ProposedJournalId, ct))
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "The proposed inventory adjustment is outside the reconciliation scope.");
-    var calculated = MoneyPolicy.Normalize(request.Quantity * Math.Min(request.UnitCost, request.NrvPerUnit) - request.ObsolescenceReserve);
+    var calculated = CalculateInventory(request.Quantity, request.UnitCost, request.NrvPerUnit, request.ObsolescenceReserve);
     var assessment = new InventoryValuationAssessment
     {
       Id = Guid.CreateVersion7(), FirmId = reconciliation.FirmId, ClientId = reconciliation.ClientId, EngagementId = reconciliation.EngagementId,
@@ -156,6 +156,24 @@ public static partial class AccountingAnalysisService
     db.SpecialistAccountingSchedules.Add(schedule);
     await db.SaveChangesAsync(ct);
     return CommandResult<Guid>.Ok(schedule.Id);
+  }
+
+  internal static decimal CalculateEcl(decimal exposure, decimal pd, decimal lgd, decimal overlay) => MoneyPolicy.Normalize(exposure * pd * lgd + overlay);
+  internal static decimal CalculateInventory(decimal quantity, decimal cost, decimal nrv, decimal reserve) => MoneyPolicy.Normalize(quantity * Math.Min(cost, nrv) - reserve);
+
+  internal static string? ValidateRetainedSpecialist(SpecialistAccountingSchedule s)
+  {
+    var request = new SpecialistScheduleRequest(s.ClientId, s.EngagementId, s.PeriodId, s.Area, s.MethodologyVersion,
+      s.OpeningAmount, s.AdditionsAmount, s.DisposalsAmount, s.DepreciationAmount, s.ImpairmentAmount, s.InterestAmount,
+      s.CurrentPortion, s.NonCurrentPortion, s.CapitalMovement, s.Dividends, s.TaxPaid, s.ManagementAmount, s.AssumptionsHash,
+      s.EvidenceReference, s.DepreciationMethod, s.UsefulLifeMonths, s.PayrollGrossAmount, s.PayrollDeductionsAmount, s.PayrollNetAmount,
+      s.PayrollContractReference, s.PayrollBankPaymentReference, s.LoanRepaymentAmount, s.LoanMaturityDate, s.LoanCovenantReference,
+      s.EquityProfitOrLossAmount, s.EquityOciAmount, s.RelatedPartyDisclosureReference, s.TaxJurisdiction, s.TaxRuleVersion,
+      s.TaxBaseAmount, s.TaxRate, s.TaxReturnEvidenceReference, s.TaxPaymentEvidenceReference, s.TaxCorrespondenceReference,
+      s.ForecastOwner, s.ForecastHorizonEnd, s.ForecastCashInputAmount, s.ForecastDebtInputAmount, s.ForecastSensitivityReference, s.ForecastSensitivityResult);
+    var error = ValidateSpecialistProfile(request, s.Area, out var calculated);
+    return error ?? (s.CalculatedAmount != MoneyPolicy.Normalize(calculated) || s.ClosingAmount != MoneyPolicy.Normalize(calculated) ||
+      s.Difference != MoneyPolicy.Normalize(calculated - s.ManagementAmount) ? "The retained specialist amounts differ from the supported typed inputs. No substitute result is supplied." : null);
   }
 
   private static string? ValidateSpecialistProfile(
