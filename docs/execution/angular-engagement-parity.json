@@ -50,7 +50,7 @@
     },
     {
       "path": "src/AuditSphereOps.Application/Acceptance/EngagementCreationWorkspace.cs",
-      "sha256": "00704303eba6e0d4d13e486ad0996d94ff7284bb0c836fbc2936091e9e284475"
+      "sha256": "42c84ef9bae3f810932df7c5727ccde8310359f3ad2012de8e98db5ef62ed0ae"
     },
     {
       "path": "src/AuditSphereOps.Api/Ui/UiEndpoints.EngagementCreation.cs",
@@ -58,15 +58,15 @@
     },
     {
       "path": "src/AuditSphereOps.Ui/src/app/features/clients/engagement-create.ts",
-      "sha256": "9697f225d0c86ba2d048520e25f2242d7ea3bf54df2a11b5112300bc9635bdfa"
+      "sha256": "7a6f3463001d4288bdb36f96c6c4294c069ea0d7085e200b7e942b720467f86b"
     },
     {
       "path": "src/AuditSphereOps.Ui/src/app/features/clients/engagement-create-contracts.ts",
-      "sha256": "0d0fb0fcd53321d4a58e5bbad2c5c7a0f98eec637ad331479a34d851252ad128"
+      "sha256": "f7578e608b680687720d3c31e961655f1ad87d9dc89d086e3627f22114f346aa"
     },
     {
       "path": "src/AuditSphereOps.Application/Practice/BudgetPreparationWorkspace.cs",
-      "sha256": "46856ce3fcfd7baa57e5aa661f0e7777f1c9dda598a5a61e2b67cccc2c6e40c8"
+      "sha256": "893db8a2c9ee53cffe7de5eac7a40c36b36381492bae6ec7ecc531d45f1a3b57"
     },
     {
       "path": "src/AuditSphereOps.Domain/Practice/BudgetPreparation.cs",
@@ -119,6 +119,10 @@
     {
       "path": "src/AuditSphereOps.Api/Ui/UiEndpoints.StaffingChange.cs",
       "sha256": "54f955639e4983517bac3f4382df131a2879bfc31684e224598b93352a2d3479"
+    },
+    {
+      "path": "src/AuditSphereOps.Ui/src/app/features/clients/engagement-create.html",
+      "sha256": "52ff86fb629b2db3ab6ecbc434e1daab7d593641835c4df687111e0397ca3a6a"
     }
   ],
   "records": [
@@ -150,7 +154,7 @@
     {
       "action": "reviewed-blocked-creation",
       "owner": "EngagementCreationWorkspace / EngagementLifecycleService.Creation / native engagement-create page",
-      "disposition": "IMPLEMENTED: Exact current client-wide Partner/Manager context, canonical service/profile/period preview and explicit assent. Client-serialized shell creation and immutable actor-owned request evidence commit together; current authority is rechecked and a deferred guard validates the exact blocked publication. Same-intent retries return the original receipt; conflicting or existing service-period intent requires inspection. Native Signal Forms, bounded revision-bound tab drafts without assent, unknown-response fences and actor-owned receipt reconciliation preserve route/session/lifetime ownership. Lost-response browser journeys and focused observed checks are recorded only in status.json. No professional or Microsoft acceptance is implied."
+      "disposition": "IMPLEMENTED: Exact current client-wide Partner/Manager context, canonical service/profile/period preview and explicit assent. Client-serialized shell creation and immutable actor-owned request evidence commit together; current authority is rechecked and a deferred guard validates the exact blocked publication. Same-intent retries return the original receipt. Preview identifies an existing same-client service-period shell and Angular provides an authorized inspection link without duplicate-create confirmation; the locked write path repeats the duplicate check. Native Signal Forms, bounded revision-bound tab drafts without assent, unknown-response fences and actor-owned receipt reconciliation preserve route/session/lifetime ownership. Focused observed checks are recorded only in status.json. No professional or Microsoft acceptance is implied."
     }
   ],
   "remaining": "Continue assessment source-action parity, resource-grid acceptance and migration quality/cutover/retirement gates. Reviewed prospect-client conversion has focused local verification recorded separately from the latest whole-suite checkpoint.",

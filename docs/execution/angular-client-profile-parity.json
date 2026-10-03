@@ -42,10 +42,10 @@
     },
     {
       "action": "blocked-engagement-creation",
-      "owner": "Existing EngagementLifecycleService command",
-      "disposition": "Existing native creation remains. Complete reviewed form, draft lifetime, exact request recovery and full engagement source-action acceptance remain open.",
-      "evidencePointer": "WorkspaceQueryTests; UiContractTests"
+      "owner": "EngagementCreationWorkspace / EngagementLifecycleService.Creation / native engagement-create page",
+      "disposition": "Implemented client-scoped reviewed creation, exact service/profile/period preview, explicit assent, bounded revision-bound drafts without assent, and actor-owned receipt recovery. Preview identifies a matching same-client service-period shell and provides an authorized inspection link; it omits duplicate-create confirmation. The locked Application write path repeats the duplicate check and refuses another shell. Existing source-action acceptance beyond this flow remains open.",
+      "evidencePointer": "EngagementCreationReviewTests; EngagementCreationReviewApiTests; engagement-create.spec.ts; AngularEngagementCreationJourneyTests"
     }
   ],
-  "remaining": "Client creation and blocked-engagement form/draft acceptance, full engagement source-action parity, wider quality gates, production cutover and Blazor retirement."
+  "remaining": "Client-creation coverage outside reviewed proposal conversion, engagement planning forms/drafts/recovery, full engagement source-action parity, wider quality gates, production cutover and Blazor retirement."
 }

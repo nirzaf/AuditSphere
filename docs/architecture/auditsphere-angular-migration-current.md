@@ -92,7 +92,9 @@ stale fields and assent never recover automatically. Navigation and new submissi
 remain fenced until reconciliation or fresh review of the identical retained intent.
 Role or session loss removes protected content; late callbacks cannot refill a new
 route visit. This workflow creates no directory identity, invitation or local role.
-Engagement form and broader migration acceptance remain open.
+The separate reviewed engagement-creation route now identifies a matching
+service-period shell for inspection and blocks duplicate writes. Broader client
+lifecycle and migration acceptance remain open.
 
 ### Native client master records and scoped pages
 
@@ -115,8 +117,11 @@ The portal notice reuses the existing Application intent view. It is an onboardi
 notice, not identity binding, a grant or proof of Microsoft invitation redemption.
 Validated URL pages survive reload; superseded reads, mismatched response contexts,
 route/session changes and old command callbacks cannot restore previous content.
-Existing contact and blocked-engagement commands remain separate. Complete reviewed
-form/draft/outcome recovery and engagement action parity remain open. See the
+Existing contact and engagement-creation commands remain separate. Reviewed
+engagement creation now includes bounded revision-bound tab drafts, exact request
+recovery and existing-shell inspection. Client creation remains tied to the
+reviewed proposal-conversion workflow; planning forms/drafts and broader engagement
+action parity remain open. See the
 [client action audit](../execution/angular-client-profile-parity.json).
 
 ### Native engagement metadata and hold history
@@ -140,10 +145,12 @@ command/read callbacks have matching owner and destruction checks. An unknown
 activation outcome permits state inspection, not another blind submission. An
 unsupported activation acknowledgment remains unconfirmed.
 
-This implements read-side metadata/history parity. Reviewed engagement creation,
-planning forms, revision-bound editable drafts and broader migration acceptance
-remain open. The [engagement action audit](../execution/angular-engagement-parity.json)
-records those boundaries; executed verification belongs to the execution ledger.
+This implements read-side metadata/history parity. The reviewed blocked-engagement
+creation flow now identifies matching service-period shells for authorized
+inspection and keeps duplicate writes blocked. Planning forms/drafts, broader
+engagement action parity and migration acceptance remain open. The
+[engagement action audit](../execution/angular-engagement-parity.json) records
+those boundaries; executed verification belongs to the execution ledger.
 
 ### Reviewed Partner engagement activation
 
