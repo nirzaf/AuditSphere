@@ -1,0 +1,186 @@
+<audit-page-header
+  title="Resource planning"
+  eyebrow="Practice"
+  description="Team availability, skills, certifications and planned allocation by week. Planned and approved-actual utilization are shown separately; over-allocation is flagged, never hidden."
+/>
+<form class="inline-form" [formRoot]="rangeFields" aria-label="Grid range">
+  <label>First week <input type="date" [formField]="rangeFields.start" /></label>
+  <label>Weeks <input type="number" [formField]="rangeFields.weeks" /></label>
+  <button
+    matButton="outlined"
+    type="submit"
+    [disabled]="cmd.busy() || cmd.uncertain() || view.loading()"
+  >
+    Show
+  </button>
+  @if (rangeAttempted() && rangeFields().invalid()) {
+    <p role="alert">Choose a valid date and 1–12 whole weeks.</p>
+  }
+</form>
+<p>Planning edits stay in memory until submitted. Reloading discards unsubmitted edits.</p>
+@if (cmd.uncertain()) {
+  <section role="alert">
+    <h2>Planning request outcome is unknown</h2>
+    <p>
+      No action is retried automatically. Review the persisted grid before repeating any action.
+      Additive certification and unavailability requests require administrator reconciliation to
+      avoid duplicates.
+    </p>
+    <button matButton="outlined" (click)="refresh()">Refresh persisted planning state</button>
+  </section>
+}
+<button matButton="outlined" (click)="refresh()" [disabled]="cmd.busy() || view.loading()">
+  Refresh persisted planning state
+</button>
+<audit-state [loading]="view.loading()" [error]="view.error()" label="the resource grid" />
+@if (view.data(); as v) {
+  <div class="table-scroll">
+    <table aria-label="Resource grid">
+      <thead>
+        <tr>
+          <th scope="col">Team member</th>
+          <th scope="col">Skills and certifications</th>
+          <th scope="col">Target</th>
+          @for (w of v.grid.rows[0]?.weeks ?? []; track w.weekStart) {
+            <th scope="col">Week of {{ w.weekStart }}</th>
+          }
+        </tr>
+      </thead>
+      <tbody>
+        @for (r of v.grid.rows; track r.userId) {
+          <tr [attr.data-user]="r.name">
+            <th scope="row">
+              {{ r.name }}<small>{{ r.department }}{{ r.hasProfile ? '' : ' · no profile' }}</small>
+            </th>
+            <td>
+              @if (r.skills.length) {
+                <span>{{ r.skills.join(', ') }}</span>
+              }
+              @for (c of r.certifications; track c.name) {
+                <small [class.error-text]="!c.current"
+                  >{{ c.name }}{{ c.expiresOn ? ' (to ' + c.expiresOn + ')' : ''
+                  }}{{ c.current ? '' : ' expired' }}</small
+                >
+              }
+            </td>
+            <td>{{ r.hasProfile ? whole(r.targetUtilizationPercent) + '%' : '—' }}</td>
+            @for (c of r.weeks; track c.weekStart) {
+              <td
+                [class.error-text]="c.overAllocated"
+                [attr.aria-label]="
+                  r.name +
+                  ' week of ' +
+                  c.weekStart +
+                  ': planned ' +
+                  hrs(c.plannedMinutes) +
+                  ' of ' +
+                  hrs(c.capacityMinutes) +
+                  ' hours' +
+                  (c.overAllocated ? ', over-allocated' : '')
+                "
+              >
+                <strong>{{ hrs(c.plannedMinutes) }}</strong> / {{ hrs(c.capacityMinutes) }} h
+                <small
+                  >{{
+                    c.plannedUtilizationPercent !== null
+                      ? 'planned ' + whole(c.plannedUtilizationPercent) + '%'
+                      : 'no capacity'
+                  }}{{
+                    c.actualUtilizationPercent !== null
+                      ? ' · actual ' + whole(c.actualUtilizationPercent) + '%'
+                      : ''
+                  }}</small
+                >
+                @if (c.unavailableMinutes > 0) {
+                  <small>{{ hrs(c.unavailableMinutes) }} h unavailable</small>
+                }
+                @if (c.overAllocated) {
+                  <small class="error-text">Over-allocated</small>
+                }
+              </td>
+            }
+          </tr>
+        } @empty {
+          <tr>
+            <td colspan="3">No active staff.</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+  <section class="panel" aria-labelledby="allocations-heading">
+    <h2 id="allocations-heading">Recorded engagement allocations</h2>
+    @for (staff of v.grid.rows; track staff.userId) {
+      @if (staff.allocations.length) {
+        <h3>{{ staff.name }}</h3>
+        <ul>
+          @for (
+            allocation of staff.allocations;
+            track allocation.engagementId + allocation.weekStart
+          ) {
+            <li>
+              {{ allocation.engagementLabel }} · Week of {{ allocation.weekStart }} ·
+              {{ hrs(allocation.plannedMinutes) }} hours
+            </li>
+          }
+        </ul>
+      }
+    }
+    @if (!hasAllocations()) {
+      <p>No allocations recorded for this range.</p>
+    }
+  </section>
+  <div class="resource-editors">
+    <section class="panel" aria-labelledby="profile-heading">
+      <h2 id="profile-heading">Staff profile</h2>
+      <audit-resource-editor
+        kind="profile"
+        [users]="v.grid.rows"
+        [locked]="locked()"
+        [resetVersion]="versions().profile"
+        (requested)="send('profile', $event)"
+        (dirtyChange)="setDirty('profile', $event)"
+      />
+    </section>
+    <section class="panel" aria-labelledby="certification-heading">
+      <h2 id="certification-heading">Certification</h2>
+      <audit-resource-editor
+        kind="certification"
+        [users]="v.grid.rows"
+        [locked]="locked()"
+        [resetVersion]="versions().certification"
+        (requested)="send('certification', $event)"
+        (dirtyChange)="setDirty('certification', $event)"
+      />
+    </section>
+    <section class="panel" aria-labelledby="availability-heading">
+      <h2 id="availability-heading">Unavailability</h2>
+      <audit-resource-editor
+        kind="availability"
+        [users]="v.grid.rows"
+        [locked]="locked()"
+        [resetVersion]="versions().availability"
+        (requested)="send('availability', $event)"
+        (dirtyChange)="setDirty('availability', $event)"
+      />
+    </section>
+    <section class="panel" aria-labelledby="allocation-heading">
+      <h2 id="allocation-heading">Allocate to an engagement</h2>
+      <p>
+        Only people already staffed on the engagement can be allocated. Enter 0 hours to remove an
+        allocation. An allocation does not assign an AuditSphere role or change SharePoint
+        permissions.
+      </p>
+      <audit-resource-editor
+        kind="allocation"
+        [users]="v.grid.rows"
+        [engagements]="v.engagements"
+        [locked]="locked()"
+        [resetVersion]="versions().allocation"
+        (requested)="send('allocation', $event)"
+        (dirtyChange)="setDirty('allocation', $event)"
+      />
+    </section>
+  </div>
+}
+<audit-command-message [message]="cmd.message()" [failed]="cmd.failed()" />

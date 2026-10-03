@@ -1,0 +1,45 @@
+:host,
+form,
+fieldset {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+}
+fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+legend {
+  font-weight: 600;
+  margin-bottom: 1rem;
+}
+label {
+  display: block;
+  margin-top: 0.5rem;
+}
+input,
+select {
+  box-sizing: border-box;
+  min-height: 44px;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  font: inherit;
+  padding: 0.6rem;
+  border: 1px solid var(--audit-border, #8b9096);
+  border-radius: 0.35rem;
+}
+.error-text {
+  margin: 0.2rem 0 0.6rem;
+  overflow-wrap: anywhere;
+}
+section {
+  padding: 1rem;
+  border: 1px solid currentColor;
+  margin: 1rem 0;
+}
+section:focus {
+  outline: 2px solid currentColor;
+  outline-offset: 3px;
+}

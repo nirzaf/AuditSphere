@@ -13,6 +13,31 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Angular resource planning forms and keyboard parity
+
+Resource planning now uses typed Signal Forms for staff profiles, certifications,
+unavailability and weekly allocations. Bounded percentages/hours, real dates,
+ordered absence ranges and currently offered identities are validated before
+submission. Existing profiles populate the editor; persisted decimal percentages
+remain editable. Accessible inline errors and a focusable error summary support
+keyboard submission. The grid separately displays capacity, planned and approved
+actual utilization, over-allocation and recorded engagement allocation details.
+
+Independent unsubmitted forms survive another form's save. Leaving or refreshing
+asks before discarding memory-only edits; session loss clears protected data and
+fences late command results. Unknown additive outcomes block repeat submission
+and explain the need for reconciliation rather than silently creating duplicates.
+An allocation explicitly does not create authorization grants or change SharePoint
+permissions. Existing Application authorization and calculations remain authoritative.
+
+Production UI/Release builds, the Angular suite, focused PostgreSQL planning tests
+and both canonical/preview browser journeys passed. Built-in browser verification
+exercised synthetic profile save/reload/save with no console warnings/errors.
+Observed metrics are in status.json. This does not complete planning acceptance:
+stale allocation publication and durable request receipt/reload recovery remain
+open, alongside wider migration parity, full regression and cutover/Blazor retirement.
+No shared Development database migration or external provider operation was run.
+
 ## Angular assessment review and recovery forms
 
 Native assessment actions now use typed Signal Forms with bounded validation,

@@ -505,7 +505,8 @@ accounting or consolidation workspaces.
 - Application: `Practice/StaffingService.cs`, `Practice/ResourcePlanningService.cs` + pure `ResourceGridCalculator.cs`, `PracticeTimeService.GetBudgetBreakdownAsync`; `Audit/MaterialityCalculator.cs` (pure PM/TE/SAD and `RiskBandRules`), `Audit/MaterialityEngineService.cs` (benchmark derivation from the current approved mapping, staleness used by `ApproveMaterialityAssessmentAsync`, SAD evaluation and completion), `Audit/RiskBandService.cs` (bands, owner levels, Partner review, completion blockers)
 - Persistence: `AuditSphereDbContext.ResourcePlanning.cs`, migration `ResourcePlanningMaterialityEngineAndRiskBands` (band rule check, significance trigger, append-only evidence triggers, phase checks)
 - UI: `Components/Planning/{EngagementStaffingPanel,EngagementBudgetPanel,MaterialityEnginePanel,RiskRoutingPanel}.razor` (hosted by `EngagementDetail.razor` and `AuditPlan.razor`), `Pages/ResourcePlanning.razor` (`/app/practice/resources`)
-- Tests: `PlanningResourcesAndMaterialityTests.cs`, `tests/.../PlanningAndResourcesJourneyTests.cs`
+- Angular: `features/practice/resources.ts` and `resources.html` compose the API planning workspace; `resource-editor.ts` owns typed Signal Forms, persisted-profile editing and bounded validation. `resource-navigation-dialog.ts` protects memory-only edits. Unknown outcomes fence additive submissions; durable receipt recovery and stale allocation publication remain separate work.
+- Tests: `PlanningResourcesAndMaterialityTests.cs`, `tests/.../PlanningAndResourcesJourneyTests.cs`, `AngularResourcePlanningJourneyTests.cs`, `features/practice/resources.spec.ts`
 
 ## Trial-balance intake and fieldwork connections
 

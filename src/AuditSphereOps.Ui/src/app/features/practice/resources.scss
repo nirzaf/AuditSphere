@@ -1,0 +1,23 @@
+:host {
+  display: block;
+  min-width: 0;
+}
+.resource-editors {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+.panel,
+li {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.table-scroll {
+  overflow-x: auto;
+}
+@media (max-width: 800px) {
+  .resource-editors {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

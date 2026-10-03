@@ -132,7 +132,7 @@ export const routes: Routes = [
     loadComponent: () => import('./features/engagements/general-ledger').then(m => m.GeneralLedger) },
   { path: 'app/engagements/:id/tb-intake', canActivate: [staffGuard], canDeactivate: [unsavedChangesGuard], title: 'Trial balance intake · AuditSphere',
     loadComponent: () => import('./features/engagements/tb-intake').then(m => m.TrialBalanceIntake) },
-  { path: 'app/practice/resources', canActivate: [staffGuard], title: 'Resource planning · AuditSphere',
+  { path: 'app/practice/resources', canActivate: [staffGuard], canDeactivate: [unsavedChangesGuard], title: 'Resource planning · AuditSphere',
     loadComponent: () => import('./features/practice/resources').then(m => m.ResourcePlanning) },
   { path: 'app/engagements/:id/statements', canActivate: [staffGuard], title: 'Financial statements · AuditSphere',
     loadComponent: () => import('./features/engagements/statements').then(m => m.StatementDrillDown) },

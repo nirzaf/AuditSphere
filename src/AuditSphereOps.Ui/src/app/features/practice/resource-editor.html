@@ -1,0 +1,75 @@
+<form [formRoot]="fields" [attr.aria-label]="button()">
+  <fieldset [disabled]="locked()">
+    <legend>{{ button() }}</legend>
+    @for (key of keys(); track key) {
+      <label [for]="id(key)">{{ label(key) }}</label>
+      @switch (key) {
+        @case ('user') {
+          <select
+            [id]="id(key)"
+            [formField]="fields.user"
+            [attr.aria-describedby]="id(key + '-error')"
+          >
+            <option value="">Choose a team member</option>
+            @for (user of users(); track user.userId) {
+              <option [value]="user.userId">{{ user.name }}</option>
+            }
+          </select>
+        }
+        @case ('engagement') {
+          <select
+            [id]="id(key)"
+            [formField]="fields.engagement"
+            [attr.aria-describedby]="id(key + '-error')"
+          >
+            <option value="">Choose an engagement</option>
+            @for (engagement of engagements(); track engagement.id) {
+              <option [value]="engagement.id">{{ engagement.label }}</option>
+            }
+          </select>
+        }
+        @case ('kind') {
+          <select
+            [id]="id(key)"
+            [formField]="fields.kind"
+            [attr.aria-describedby]="id(key + '-error')"
+          >
+            <option value="LEAVE">Leave</option>
+            <option value="TRAINING">Training</option>
+            <option value="PUBLIC_HOLIDAY">Public holiday</option>
+          </select>
+        }
+        @default {
+          <input
+            [id]="id(key)"
+            [formField]="fields[key]"
+            [type]="['expires', 'from', 'to', 'week'].includes(key) ? 'date' : 'text'"
+            [attr.inputmode]="['hours', 'capacity', 'target'].includes(key) ? 'decimal' : null"
+            [attr.aria-describedby]="id(key + '-error')"
+            autocomplete="off"
+          />
+        }
+      }
+      <p [id]="id(key + '-error')" class="error-text">
+        @if (attempted() || fields[key]().touched()) {
+          @for (error of fields[key]().errors(); track $index) {
+            {{ error.message ?? 'Check this field.' }}
+          }
+        }
+      </p>
+    }
+    @if (attempted() && fields().invalid()) {
+      <section #summary tabindex="-1" role="alert" aria-label="Resource form errors">
+        <h3>Check these fields before submitting</h3>
+        <ul>
+          @for (error of errors(); track error.key) {
+            <li>
+              <a [href]="'#' + id(error.key)">{{ label(error.key) }}: {{ error.message }}</a>
+            </li>
+          }
+        </ul>
+      </section>
+    }
+    <button matButton="filled" type="submit" [disabled]="locked()">{{ button() }}</button>
+  </fieldset>
+</form>

@@ -108,7 +108,7 @@
       "id": "US-018",
       "title": "Migrate staffing, resource planning and budgets",
       "status": "PARTIAL",
-      "scope": "Native staffing, budget and resource projections/commands exist with source Application authorization. Full resource-grid, draft and browser parity remains open."
+      "scope": "Native staffing, budget and resource projections/commands exist with source Application authorization. Resource-grid Signal Forms, bounded/calendar validation, persisted-profile editing, allocation detail, unsaved-navigation protection and keyboard/mobile browser parity are implemented. Unknown additive outcomes fence repeated submissions. Stale allocation publication, durable receipt/reload recovery, broader planning acceptance and cutover remain open."
     },
     {
       "id": "US-019",
