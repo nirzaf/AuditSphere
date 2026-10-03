@@ -574,9 +574,25 @@ export class EngagementPlanning {
               'Outcome unconfirmed. Refresh and review current assignments before another change.',
             );
           }
-          if (failure.status === 401) this.session.clear();
+          if (failure.status === 401) {
+            this.clearProtectedEditor();
+            this.session.clear();
+          } else if (failure.status === 403 || failure.status === 404) {
+            this.clearProtectedEditor();
+            this.load();
+          }
         },
       });
+  }
+  private clearProtectedEditor(): void {
+    this.data.set(null);
+    this.selectedUser = '';
+    this.selectedLevel = 'STAFF_ASSOCIATE';
+    this.reviewed = false;
+    this.budgetLines = [];
+    this.currency = '';
+    this.budgetReviewed = false;
+    this.revokeTarget.set(null);
   }
   load(): void {
     const revision = ++this.readRevision;
@@ -597,6 +613,7 @@ export class EngagementPlanning {
           try {
             this.data.set(decodePlanning(value));
           } catch {
+            this.clearProtectedEditor();
             this.error.set('Planning returned an unsupported response.');
           }
           this.loading.set(false);
@@ -604,12 +621,7 @@ export class EngagementPlanning {
         error: (failure) => {
           if (this.destroyed || owner !== this.owner() || revision !== this.readRevision) return;
           this.loading.set(false);
-          this.selectedUser = '';
-          this.reviewed = false;
-          this.budgetLines = [];
-          this.currency = '';
-          this.budgetReviewed = false;
-          this.revokeTarget.set(null);
+          this.clearProtectedEditor();
           this.error.set('Planning unavailable. Check your access or retry.');
           if (failure.status === 401) this.session.clear();
         },

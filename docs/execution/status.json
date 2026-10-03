@@ -5831,6 +5831,24 @@
         "assemblies": 38
       },
       "boundary": "No acceptance until every cohort and parent join successfully and frozen fingerprints match."
+    },
+    "angularPlanningProtectedClearing": {
+      "status": "PASS_FOCUSED",
+      "sourceBase": "5e29c0d9ec7579e39a334e939450be98006bf6b9",
+      "angular": {
+        "passed": 359,
+        "failed": 0,
+        "files": 77,
+        "parentExitCode": 0,
+        "log": "/private/tmp/auditsphere-planning-clearing-angular.log"
+      },
+      "productionBuild": {
+        "status": "PASS",
+        "parentExitCode": 0,
+        "log": "/private/tmp/auditsphere-planning-clearing-build.log"
+      },
+      "behavior": "Protected planning editors clear immediately on unauthorized or unavailable commands and malformed refreshed projections; denied commands revalidate current access.",
+      "boundary": "Reviewed planning forms, revision-bound drafts and request receipt recovery remain PARTIAL. No whole regression acceptance inferred."
     }
   },
   "documentationWork": {

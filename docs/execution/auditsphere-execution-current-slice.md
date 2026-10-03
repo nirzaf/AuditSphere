@@ -13,6 +13,15 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Planning protected editor clearing
+
+Native planning now removes protected editable fields and review assent immediately
+when a command reports unavailable access, and revalidates the scoped projection.
+Malformed refreshed projections also clear protected editor content. Focused
+component checks cover both cases; observed test and build results are in
+`status.json`. Reviewed planning forms, revision-bound drafts and retained request
+recovery remain open. The separate frozen creation regression remains running.
+
 ## Reviewed native blocked-engagement creation
 
 The client profile now links to a focused Signal Forms creation route. Current
