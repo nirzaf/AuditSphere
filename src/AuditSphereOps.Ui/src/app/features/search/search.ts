@@ -14,7 +14,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
-import { Subject, Subscription, debounceTime, distinctUntilChanged, timeout } from 'rxjs';
+import { Subscription, timeout } from 'rxjs';
 import { SessionService } from '../../core/session';
 import { Router, RouterLink } from '@angular/router';
 import { workspaceRoute } from '../../core/navigation';
@@ -123,7 +123,8 @@ export class GlobalSearch {
   private readonly session = inject(SessionService);
   private readonly router = inject(Router);
   private request?: Subscription;
-  private readonly terms = new Subject<string>();
+  private debounce?: ReturnType<typeof setTimeout>;
+  private lastRequestedTerm: string | null = null;
   private readonly field = viewChild<ElementRef<HTMLInputElement>>('term');
   readonly data = signal<SearchResult | null>(null);
   readonly loading = signal(false);
@@ -134,14 +135,10 @@ export class GlobalSearch {
       this.session.invalidation();
       untracked(() => {
         this.dismiss();
-        this.terms.next('');
         const field = this.field();
         if (field) field.nativeElement.value = '';
       });
     });
-    const typing = this.terms
-      .pipe(debounceTime(250), distinctUntilChanged())
-      .subscribe((value) => { if (value.trim()) this.run(value); });
     const shortcut = (event: KeyboardEvent) => {
       const target = event.target instanceof HTMLElement ? event.target : null;
       if (
@@ -159,20 +156,24 @@ export class GlobalSearch {
     document.addEventListener('keydown', shortcut);
     inject(DestroyRef).onDestroy(() => {
       this.request?.unsubscribe();
-      typing.unsubscribe();
-      this.terms.complete();
+      if (this.debounce) clearTimeout(this.debounce);
       document.removeEventListener('keydown', shortcut);
     });
   }
   dismiss(): void {
+    if (this.debounce) clearTimeout(this.debounce);
+    this.debounce = undefined;
     this.request?.unsubscribe();
+    this.lastRequestedTerm = null;
     this.data.set(null);
     this.error.set('');
     this.loading.set(false);
   }
   typing(value: string): void {
+    const term = value.trim();
+    if (term && this.lastRequestedTerm === term) return;
     this.dismiss();
-    this.terms.next(value);
+    if (term) this.debounce = setTimeout(() => this.run(value), 250);
   }
   open(href: unknown): void {
     if (typeof href !== 'string' || !this.data()?.hits.some((h) => h.href === href)) return;
@@ -181,16 +182,22 @@ export class GlobalSearch {
   }
   search(event: Event, value: string): void {
     event.preventDefault();
+    // Cancel the typeahead synchronously so Enter submits only one request.
+    if (this.debounce) clearTimeout(this.debounce);
+    this.debounce = undefined;
     this.run(value);
   }
   private run(value: string): void {
-    this.dismiss();
     if (!this.session.current()?.staff) return;
     const term = value.trim();
     if (term.length < 2 || term.length > 100) {
+      this.dismiss();
       this.error.set('Enter between 2 and 100 characters.');
       return;
     }
+    if (this.lastRequestedTerm === term) return;
+    this.dismiss();
+    this.lastRequestedTerm = term;
     this.loading.set(true);
     const generation = this.session.invalidation();
     this.request = this.http
@@ -202,11 +209,13 @@ export class GlobalSearch {
           try {
             this.data.set(decodeSearch(value));
           } catch {
+            this.lastRequestedTerm = null;
             this.error.set('Search returned an unsupported response.');
           }
           this.loading.set(false);
         },
         error: (failure) => {
+          this.lastRequestedTerm = null;
           this.loading.set(false);
           this.error.set('Search unavailable. Check your access or retry.');
           if (failure.status === 401) this.session.clear();

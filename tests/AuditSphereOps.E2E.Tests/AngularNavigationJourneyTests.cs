@@ -31,8 +31,18 @@ public sealed class AngularNavigationJourneyTests
     await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Portfolio", Exact = true })).ToBeVisibleAsync();
     Assert.Equal(0, await page.Locator(canonical ? "aside a[href='/ui/app'],aside a[href='/ui/portal']" : "aside a[href='/app'],aside a[href='/portal']").CountAsync());
     var search = page.Locator("audit-global-search");
-    await search.GetByRole(AriaRole.Combobox, new() { Name = "Search your workspace", Exact = true }).FillAsync("Navigation bank");
+    var searchField = search.GetByRole(AriaRole.Combobox, new() { Name = "Search your workspace", Exact = true });
+    var searchRequests = new List<string>();
+    await page.RouteAsync("**/api/ui/search*", async route => {
+      searchRequests.Add(route.Request.Url);
+      await route.ContinueAsync();
+    });
+    await searchField.FillAsync("Navigation bank");
+    await searchField.PressAsync("Enter");
     await Assertions.Expect(search.Locator("li")).ToHaveCountAsync(2);
+    await page.WaitForTimeoutAsync(400);
+    Assert.True(searchRequests.Count == 1, string.Join("\n", searchRequests));
+    await page.UnrouteAsync("**/api/ui/search*");
     var link = search.GetByRole(AriaRole.Link, new() { Name = "Navigation bank statements", Exact = true });
     Assert.Equal($"{prefix}/app/engagements/{f.EngagementId}/pbc", await link.GetAttributeAsync("href"));
     await link.ClickAsync();
